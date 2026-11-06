@@ -138,6 +138,9 @@ void DiskManager::ApplyExternalWriteProtect (int drive)
 //
 //  Each step's file work runs on the store's I/O queue, and the next step
 //  starts in its completion. Failures report through the shared EHM notifier.
+//  Each step finds the disk by its drive, so each first checks that the disk
+//  in the drive is the one the toggle started on, and the toggle stops when
+//  another disk has been put there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,6 +164,7 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
     CBREx (image != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
 
     job->drive     = drive;
+    job->imageId   = image->GetImageId();
     job->path      = m_diskStore.GetSourcePath (6, drive);
     job->wide      = fs::path (job->path).wstring();
     job->imageFlag = image->GetWriteProtectInfo().imageFlag;
@@ -194,6 +198,10 @@ void DiskManager::PlanWriteProtectToggle (const shared_ptr<WriteProtectToggle> &
     if (FAILED (job->hr))
     {
         EhmNotifyUser (L"The disk file's attributes could not be read.");
+        FinishWriteProtectToggle (job);
+    }
+    else if (!IsToggledDiskInDrive (*job))
+    {
         FinishWriteProtectToggle (job);
     }
     else
@@ -241,7 +249,11 @@ void DiskManager::PlanWriteProtectToggle (const shared_ptr<WriteProtectToggle> &
 
 void DiskManager::SetWriteProtectAttribute (const shared_ptr<WriteProtectToggle> & job)
 {
-    if (!job->plan.changesAttribute)
+    if (!IsToggledDiskInDrive (*job))
+    {
+        FinishWriteProtectToggle (job);
+    }
+    else if (!job->plan.changesAttribute)
     {
         SetWriteProtectFlag (job);
     }
@@ -275,7 +287,11 @@ void DiskManager::SetWriteProtectAttribute (const shared_ptr<WriteProtectToggle>
 
 void DiskManager::SetWriteProtectFlag (const shared_ptr<WriteProtectToggle> & job)
 {
-    if (!job->plan.changesImageFlag)
+    if (!IsToggledDiskInDrive (*job))
+    {
+        FinishWriteProtectToggle (job);
+    }
+    else if (!job->plan.changesImageFlag)
     {
         job->isCompleted = true;
         FinishWriteProtectToggle (job);
@@ -323,6 +339,25 @@ void DiskManager::FinishWriteProtectToggle (const shared_ptr<WriteProtectToggle>
             m_onWriteProtectChanged (WriteProtectChange::DescribeResult (job->plan));
         }
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsToggledDiskInDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskManager::IsToggledDiskInDrive (const WriteProtectToggle & job)
+{
+    DiskImage  * image = m_diskStore.GetImage (6, job.drive);
+
+
+
+    return image != nullptr && image->GetImageId() == job.imageId;
 }
 
 
@@ -412,7 +447,7 @@ void DiskManager::MountCommandLineDisks (
 
         if (hrRead == S_OK && !saved.empty())
         {
-            if (fs::exists (fs::path (saved)))
+            if (m_fileSystem.Exists (saved))
             {
                 resolvedDisk1 = fs::path (saved).string();
             }
@@ -434,7 +469,7 @@ void DiskManager::MountCommandLineDisks (
 
         if (hrRead == S_OK && !saved.empty())
         {
-            if (fs::exists (fs::path (saved)))
+            if (m_fileSystem.Exists (saved))
             {
                 resolvedDisk2 = fs::path (saved).string();
             }
@@ -790,6 +825,15 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
     //  Slot 6 is the only bay with a drive on screen; the store has eight.
     if (slot != 6 || drive < 0 || drive >= DiskImageStore::kDriveCount)
     {
+        return;
+    }
+
+    //  An eject's save has the disk out of the drive, or the eject declined
+    //  and the disk is back: only the drive follows. The door, the sounds and
+    //  the saved path go with the eject itself.
+    if (change == BayChange::OutOfDrive || change == BayChange::BackInDrive)
+    {
+        m_machine.ConnectDiskToController (slot, drive);
         return;
     }
 

@@ -306,7 +306,7 @@ void DebugBatchRunner::FollowBays()
 
         if (slot == kDiskSlot && controller != nullptr)
         {
-            controller->SetExternalDisk (drive, m_host->GetDiskStore().GetImage (slot, drive));
+            controller->SetExternalDisk (drive, m_host->GetDiskStore().GetImageInDrive (slot, drive));
         }
     });
 }

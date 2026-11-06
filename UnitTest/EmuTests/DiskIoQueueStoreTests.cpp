@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "DiskStoreTestSupport.h"
 #include "DeferredDiskIoQueue.h"
+#include "EmuTests/TestMachine.h"
 #include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -358,6 +359,177 @@ public:
 
         store->DrainIo();
         Assert::IsFalse  (before == store->GetImage (kSlot, kDrive)->GetTrackBits (0), L"the completion reloads the changed file");
+
+        store->SetIoQueue (nullptr);
+    }
+
+
+    //  Two mounts of one file, one into each drive, both posted before either
+    //  has read it: the mount that swaps first puts the file in its drive, and
+    //  the other mount declines at its swap.
+    TEST_METHOD (AFileMountedIntoTheOtherDriveDuringAMountIsDeclinedAtTheSwap)
+    {
+        static constexpr const char *  kShared = "Q:/casso-no-such-root/shared.woz";
+
+        auto                 store    = std::make_unique<DiskImageStore>();
+        DeferredDiskIoQueue  queue;
+        FakeDiskFileIo       io;
+        HRESULT              first    = E_PENDING;
+        HRESULT              second   = E_PENDING;
+        MountDiagnosis       declined;
+
+
+
+        UseFileIo (*store, io);
+        io.SeedDurable (kShared, MakeWoz());
+        store->SetIoQueue (&queue);
+
+        store->Mount (kSlot, 0, kShared, [&first] (HRESULT hr, const MountDiagnosis &) { first = hr; });
+        store->Mount (kSlot, 1, kShared, [&second, &declined] (HRESULT hr, const MountDiagnosis & diagnosis) { second = hr; declined = diagnosis; });
+        queue.RunAll();
+
+        AssertSucceeded (first, L"the first mount");
+        Assert::IsTrue  (FAILED (second), L"the second declines");
+        Assert::IsTrue  (declined.failure == MountFailure::AlreadyMounted, L"because the file is in the other drive");
+        Assert::IsFalse (store->IsMounted (kSlot, 1), L"and that drive is empty");
+
+        store->SetIoQueue (nullptr);
+    }
+
+
+    //  An eject takes the disk out of the drive before its save, as a real
+    //  drive does, so the guest cannot write it while the save is posted.
+    TEST_METHOD (AnEjectTakesTheDiskOutOfTheDriveBeforeItsSave)
+    {
+        TestMachine          machine    ("Apple2e");
+        DiskImageStore     & store      = machine.GetDiskStore();
+        Disk2Controller    * controller = machine.GetRefs().diskController;
+        DeferredDiskIoQueue  queue;
+        bool                 isEjected  = false;
+
+
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return S_OK; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, kPath, DiskFormat::Woz, MakeWoz()));
+        Assert::IsTrue  (controller->GetDisk (kDrive) == store.GetImage (kSlot, kDrive), L"the drive reads the disk");
+
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        store.SetIoQueue (&queue);
+
+        store.Eject (kSlot, kDrive, [&isEjected] (bool ejected) { isEjected = ejected; });
+
+        Assert::IsTrue  (store.IsMounted (kSlot, kDrive), L"the disk is in its bay while its save is posted");
+        Assert::IsFalse (controller->GetDisk (kDrive) == store.GetImage (kSlot, kDrive), L"and out of the drive");
+
+        queue.RunAll();
+
+        Assert::IsTrue  (isEjected, L"the eject empties the bay");
+
+        store.SetIoQueue (nullptr);
+    }
+
+
+    TEST_METHOD (AnEjectWhoseSaveFailsPutsTheDiskBackInTheDrive)
+    {
+        ScopedFlushNotifyCapture  capture;
+        TestMachine               machine    ("Apple2e");
+        DiskImageStore          & store      = machine.GetDiskStore();
+        Disk2Controller         * controller = machine.GetRefs().diskController;
+        DeferredDiskIoQueue       queue;
+        bool                      isEjected  = true;
+
+
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED); });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, kPath, DiskFormat::Woz, MakeWoz()));
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        store.SetIoQueue (&queue);
+
+        store.Eject (kSlot, kDrive, [&isEjected] (bool ejected) { isEjected = ejected; });
+        queue.RunAll();
+
+        Assert::IsFalse (isEjected, L"the eject declines");
+        Assert::IsTrue  (store.GetImage (kSlot, kDrive)->IsDirty(), L"the disk has its writes");
+        Assert::IsTrue  (controller->GetDisk (kDrive) == store.GetImage (kSlot, kDrive), L"and is back in the drive");
+
+        store.SetIoQueue (nullptr);
+    }
+
+
+    //  The user write-protects a WOZ, and the guest writes before the flag's
+    //  patch has completed. The spin-down save after it compares the file
+    //  with the identity after the patch, so the patch does not read as
+    //  another program's change and nothing is moved to a preserved copy.
+    TEST_METHOD (ASaveRequestedDuringAWriteProtectPatchFindsTheFileUnchanged)
+    {
+        static constexpr const char *  kFlagged = "Q:/casso-no-such-root/flagged.woz";
+
+        auto                 store   = std::make_unique<DiskImageStore>();
+        DeferredDiskIoQueue  queue;
+        FakeDiskFileIo       io;
+        HRESULT              patched = E_PENDING;
+
+
+
+        UseFileIo (*store, io);
+        io.SeedDurable (kFlagged, MakeWoz());
+
+        AssertSucceeded (store->Mount (kSlot, kDrive, kFlagged));
+        store->SetIoQueue (&queue);
+
+        store->SetImageWriteProtect (kSlot, kDrive, true, [&patched] (HRESULT hr) { patched = hr; });
+        WriteOneBit (*store);
+        store->SaveAllUnlessHeld();
+        queue.RunAll();
+
+        AssertSucceeded  (patched, L"the flag is patched");
+        Assert::AreEqual (string (kFlagged), store->GetSourcePath (kSlot, kDrive), L"the disk is on its file");
+        Assert::AreEqual ((size_t) 1, io.files.size(), L"and no copy was written");
+
+        store->SetIoQueue (nullptr);
+    }
+
+
+    //  A settled change found while a save of the disk is in flight is checked
+    //  after the save, against the identity after the save's commit, so
+    //  Casso's write does not read as another program's.
+    TEST_METHOD (AReloadCheckIsNotPostedWhileASaveOfTheDiskIsInFlight)
+    {
+        static constexpr const char *  kWatched = "Q:/casso-no-such-root/watched.woz";
+
+        auto                 store   = std::make_unique<DiskImageStore>();
+        DeferredDiskIoQueue  queue;
+        FakeDiskFileIo       io;
+        int64_t              nowMs   = 0;
+        uint64_t             imageId = 0;
+
+
+
+        UseFileIo (*store, io);
+        store->SetClock ([&nowMs] { return nowMs; });
+        io.SeedDurable (kWatched, MakeWoz());
+
+        AssertSucceeded (store->Mount (kSlot, kDrive, kWatched));
+        store->SetIoQueue (&queue);
+        imageId = store->GetImage (kSlot, kDrive)->GetImageId();
+
+        WriteOneBit (*store);
+        store->SaveAllUnlessHeld();
+
+        store->NoteExternalChange (kWatched, ExternalChangeIntent::ReloadInPlace);
+        nowMs += MountedImageState::kQuietPeriodMs;
+        store->ApplyPendingReload();
+
+        Assert::AreEqual ((size_t) 1, queue.GetPostedCount(), L"the check is not posted during the save");
+
+        queue.RunAll();
+        store->ApplyPendingReload();
+        queue.RunAll();
+
+        Assert::AreEqual (imageId, store->GetImage (kSlot, kDrive)->GetImageId(), L"the disk was not reloaded from Casso's save");
+        Assert::IsFalse  (store->GetImage (kSlot, kDrive)->IsDirty(), L"and its write is saved");
 
         store->SetIoQueue (nullptr);
     }

@@ -1706,7 +1706,7 @@ public:
             Assert::IsTrue (rig->bayChanges[1] == BayChange::Swapped);
         }
 
-        //  User eject -> Ejected.
+        //  User eject -> OutOfDrive, then Ejected after the save.
         {
             auto  rig = std::make_unique<Rig>();
 
@@ -1714,8 +1714,9 @@ public:
             AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
             rig->store.Eject (kSlot, kDrive);
 
-            Assert::AreEqual ((size_t) 2, rig->bayChanges.size());
-            Assert::IsTrue (rig->bayChanges[1] == BayChange::Ejected);
+            Assert::AreEqual ((size_t) 3, rig->bayChanges.size());
+            Assert::IsTrue (rig->bayChanges[1] == BayChange::OutOfDrive);
+            Assert::IsTrue (rig->bayChanges[2] == BayChange::Ejected);
         }
 
         //  A file that vanished, then the drive emptied -> Ejected.

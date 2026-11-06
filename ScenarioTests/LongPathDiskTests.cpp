@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "EhmTestHelper.h"
 #include "AssetBootstrap.h"
+#include "Config/Win32FileSystem.h"
 #include "Core/LongPath.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -173,5 +174,40 @@ public:
         Assert::IsTrue   (shortForm.size() < MAX_PATH, L"the short form fits MAX_PATH");
         Assert::AreEqual (disk.wstring(), expanded, L"the short form expands to the long form");
         Assert::AreEqual ((folder / L"not yet created.dsk").wstring(), unborn, L"and a file not yet created keeps its name in the long folder");
+    }
+
+    //  The startup mount checks a saved disk's path through the file system
+    //  before it mounts the disk, so a file past MAX_PATH has to exist to it.
+    TEST_METHOD (AFileBeyondMaxPathExistsToTheFileSystem)
+    {
+        std::error_code        ec;
+        std::filesystem::path  root     = std::filesystem::temp_directory_path (ec)
+                                          / std::format (L"casso-longpath-{}-{}", GetCurrentProcessId(), GetTickCount64());
+        std::filesystem::path  folder   = root;
+        std::filesystem::path  disk;
+        Win32DiskFileIo        io;
+        Win32FileSystem        fs;
+        bool                   isThere  = false;
+        HRESULT                hr       = S_OK;
+        int                    i        = 0;
+
+
+
+        for (i = 0; i < 6; i++)
+        {
+            folder /= std::format (L"a folder with a long name to pass MAX_PATH {}", i);
+        }
+
+        disk = folder / L"a disk image beyond MAX_PATH.dsk";
+
+        std::filesystem::create_directories (std::filesystem::path (LongPath::ToWin32 (folder.wstring())), ec);
+        hr      = io.WriteAllBytes (disk.string(), vector<Byte> (NibblizationLayer::kImageByteSize, 0x00));
+        isThere = fs.Exists (disk.wstring());
+
+        std::filesystem::remove_all (std::filesystem::path (LongPath::ToWin32 (root.wstring())), ec);
+
+        AssertSucceeded (hr, L"the disk is written");
+        Assert::IsTrue  (disk.wstring().size() > MAX_PATH, L"the path is beyond MAX_PATH");
+        Assert::IsTrue  (isThere, L"and the file system finds it");
     }
 };

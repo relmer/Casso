@@ -231,7 +231,7 @@ Error:
 
 bool Win32FileSystem::Exists (const std::wstring & path)
 {
-    DWORD  attrs = GetFileAttributesW (path.c_str());
+    DWORD  attrs = GetFileAttributesW (LongPath::ToWin32 (path).c_str());
 
 
 

@@ -84,6 +84,40 @@ public:
     }
 
 
+    //  The disk a machine had at the last exit is mounted again when its file
+    //  is there, and its saved path is not cleared. The check goes through the
+    //  shell's file system, which accepts a path past MAX_PATH.
+    TEST_METHOD (ASavedDiskWhoseFileIsThereIsMountedAndItsPathIsNotCleared)
+    {
+        static constexpr const wchar_t *  kSaved = L"C:\\work\\saved.nib";
+
+        TestMachine         machine ("Apple2e");
+        auto                shell   = std::make_unique<Shell>();
+        DiskImageStore    & store   = machine.GetDiskStore();
+
+
+
+        shell->machineName = L"Apple2e";
+
+        store.SetImageReader    ([] (const std::string &, std::vector<Byte> & bytes) { bytes = MakeImage(); return S_OK; });
+        store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
+
+        AssertSucceeded (shell->fs.WriteAllText (kSaved, std::string()), L"the file is there");
+        AssertSucceeded (DiskSettings::WriteSavedDiskPath (shell->config, shell->fs, s_kRemountDrive, shell->machineName, kSaved), L"WriteSavedDiskPath");
+
+        {
+            DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                  shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
+
+            manager.MountCommandLineDisks ("", "");
+        }
+
+        Assert::AreEqual (std::string ("C:\\work\\saved.nib"), store.GetSourcePath (6, s_kRemountDrive), L"the saved disk is mounted");
+        Assert::AreEqual (std::wstring (kSaved), ReadRememberedPath (*shell), L"and its saved path is not cleared");
+    }
+
+
     //  The same file written two ways goes in drive 1 only.
     TEST_METHOD (TwoWrittenFormsOfOneFileGoInDriveOneOnly)
     {

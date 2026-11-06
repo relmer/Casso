@@ -199,8 +199,10 @@ void DiskStoreMedia::PruneRetainedMedia (uint64_t oldestPosition)
 //
 //  RetireBay
 //
-//  Empties a bay. With retention on, its disk is kept with everything the bay
-//  knew about it, stamped with the position it left at.
+//  Empties a bay. With retention on, its disk and the bay's state for it move
+//  to the retained list, stamped with the position at which the bay was
+//  emptied, or, for a disk an eject took out before its save, the position at
+//  which it came out of the drive.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,7 +220,7 @@ void DiskStoreMedia::RetireBay (Entry & entry)
         kept.mounted        = true;
         kept.salvageOffered = entry.salvageOffered;
         kept.sharedState    = entry.sharedState;
-        kept.retiredAt      = (m_positionSource != nullptr) ? *m_positionSource : 0;
+        kept.retiredAt      = entry.isOutOfDrive ? entry.outOfDriveAt : GetPosition();
 
         m_retained.push_back (std::move (kept));
     }
@@ -227,6 +229,7 @@ void DiskStoreMedia::RetireBay (Entry & entry)
     entry.path.clear();
     entry.mounted        = false;
     entry.salvageOffered = false;
+    entry.isOutOfDrive   = false;
     entry.sharedState.Eject();
 
     m_store.MarkStatusChanged();

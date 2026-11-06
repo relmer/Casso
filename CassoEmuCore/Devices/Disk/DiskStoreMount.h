@@ -71,6 +71,7 @@ public:
                                         unique_ptr<DiskImage> & outImage, MountDiagnosis & outDiagnosis);
     void            SaveBeforeReplace  (const shared_ptr<MountJob> & job, std::function<void (HRESULT)> done);
     HRESULT         DecideReplace      (MountJob & job);
+    HRESULT         CheckInNoOtherBay  (MountJob & job);
     void            ReplaceBay         (const shared_ptr<MountJob> & job, std::function<void (HRESULT)> done);
     void            NoteKeptDisk       (MountJob & job, HRESULT hr);
     void            SwapInImage        (Entry & entry, unique_ptr<DiskImage> loaded,

@@ -133,6 +133,10 @@ void DiskStoreMount::FinishMountFromBytes (const shared_ptr<MountJob> & job, HRE
 //  the bay is saved, and the two are swapped only when the save left no write
 //  outside a file.
 //
+//  A file is checked again for another bay just before the swap. The read and
+//  the save come between the first check and the swap, and a mount of the same
+//  file into the other drive can complete in that time.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskStoreMount::ReplaceBay (const shared_ptr<MountJob> & job, std::function<void (HRESULT)> done)
@@ -154,6 +158,11 @@ void DiskStoreMount::ReplaceBay (const shared_ptr<MountJob> & job, std::function
 
     SaveBeforeReplace (job, [this, job, loaded, done] (HRESULT hrSave)
     {
+        if (SUCCEEDED (hrSave) && job->isFromFile)
+        {
+            hrSave = CheckInNoOtherBay (*job);
+        }
+
         if (SUCCEEDED (hrSave))
         {
             SwapInImage (m_store.GetEntry (job->slot, job->drive), std::move (*loaded), job->path, job->format);
@@ -285,6 +294,33 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CheckInNoOtherBay
+//
+//  ONE FILE, ONE DRIVE: a file another bay has is declined with
+//  AlreadyMounted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskStoreMount::CheckInNoOtherBay (MountJob & job)
+{
+    HRESULT  hr        = S_OK;
+    bool     elsewhere = m_store.IsFileInAnotherBay (job.path, job.slot, job.drive, job.diagnosis.occupiedDrive);
+
+
+
+    CBRFEx (!elsewhere, E_INVALIDARG,
+            job.diagnosis.failure = MountFailure::AlreadyMounted);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Mount
 //
 //  Production mount path. ONE FILE, ONE DRIVE, and declined before a byte is
@@ -312,10 +348,9 @@ Error:
 
 void DiskStoreMount::Mount (int slot, int drive, const string & path, MountDone done)
 {
-    HRESULT               hr        = S_OK;
-    shared_ptr<MountJob>  job       = std::make_shared<MountJob>();
-    bool                  isValid   = DiskImageStore::IsValidBay (slot, drive);
-    bool                  elsewhere = false;
+    HRESULT               hr      = S_OK;
+    shared_ptr<MountJob>  job     = std::make_shared<MountJob>();
+    bool                  isValid = DiskImageStore::IsValidBay (slot, drive);
 
 
 
@@ -329,10 +364,8 @@ void DiskStoreMount::Mount (int slot, int drive, const string & path, MountDone 
 
     CBRAEx (isValid, E_INVALIDARG);
 
-    elsewhere = m_store.IsFileInAnotherBay (path, slot, drive, job->diagnosis.occupiedDrive);
-
-    CBRFEx (!elsewhere, E_INVALIDARG,
-            job->diagnosis.failure = MountFailure::AlreadyMounted);
+    hr = CheckInNoOtherBay (*job);
+    CHR (hr);
 
     hr = DiskImageStore::GetSourceFormatByExtension (path, job->format);
     CHRF (hr, job->diagnosis.failure = MountFailure::UnknownExtension);

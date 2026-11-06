@@ -32,6 +32,7 @@ public:
     bool           IsRetaining        () const { return m_isRetaining; }
     size_t         GetRetainedCount   () const { return m_retained.size(); }
     void           SetPositionSource  (const uint64_t * source) { m_positionSource = source; }
+    uint64_t       GetPosition        () const { return (m_positionSource != nullptr) ? *m_positionSource : 0; }
     bool           CanSeatMedia       (int slot, int drive, uint64_t mediaId) const;
     HRESULT        SeatMedia          (int slot, int drive, uint64_t mediaId, bool & outChanged);
     void           ReportSeatedMedia  (int slot, int drive, uint64_t previousMediaId);

@@ -3,6 +3,7 @@
 #include "EmuTests/TestMachine.h"
 #include "EmuTests/DiskManagerRig.h"
 #include "EmuTests/DeferredDiskIoQueue.h"
+#include "EmuTests/DiskStoreTestSupport.h"
 #include "HResultAssert.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/MountDiagnosis.h"
@@ -33,7 +34,7 @@ static constexpr Word    s_kShownMotorOn = 0xC0E9;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (DiskManagerDriveStatusTests)
+TEST_CLASS (DiskManagerDriveStatusTests), public DiskStoreTestSupport
 {
 public:
 
@@ -332,6 +333,59 @@ private:
         AssertSucceeded (rig->fs.GetReadOnlyAttribute (L"toggle.nib", isReadOnly), L"GetReadOnlyAttribute");
         Assert::IsTrue   (isReadOnly, L"the file is read-only");
         Assert::AreEqual (1, reports, L"and the change is reported after the last completion");
+
+        store.SetIoQueue (nullptr);
+    }
+
+
+    //  A write-enable of a WOZ with its flag and the read-only attribute, with
+    //  another WOZ put in the drive between the attribute's read and its set:
+    //  the toggle stops at the step that finds the other disk, and that file
+    //  is not changed.
+    TEST_METHOD (AWriteProtectToggleDoesNotChangeADiskInsertedDuringIt)
+    {
+        static constexpr const char *     kToggled     = "Q:/casso-no-such-root/toggled.woz";
+        static constexpr const char *     kInserted    = "Q:/casso-no-such-root/inserted.woz";
+        static constexpr const wchar_t *  kToggledWide = L"Q:/casso-no-such-root/toggled.woz";
+
+        TestMachine          machine   ("Apple2e");
+        auto                 rig       = std::make_unique<DiskManagerRig>();
+        DiskImageStore     & store     = machine.GetDiskStore();
+        DeferredDiskIoQueue  queue;
+        FakeDiskFileIo       io;
+        vector<Byte>         original  = MakeWoz (true);
+        HRESULT              mounted   = E_PENDING;
+        HRESULT              hr        = S_OK;
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (kToggled,  original);
+        io.SeedDurable (kInserted, original);
+
+        AssertSucceeded (store.Mount (6, s_kShownDrive, kToggled), L"the disk the toggle starts on");
+        AssertSucceeded (rig->fs.WriteAllText (kToggledWide, std::string()), L"its file exists");
+        AssertSucceeded (rig->fs.SetReadOnlyAttribute (kToggledWide, true), L"and is read-only");
+        store.SetIoQueue (&queue);
+
+        {
+            DiskManager  manager (machine, store, rig->audioSources, rig->audio, rig->widgets,
+                                  rig->widgetState, rig->chrome, rig->cpuManager, rig->machineName,
+                                  rig->config, rig->fs, rig->writeProtect, rig->workingDirectory);
+
+            hr = manager.ToggleImageWriteProtect (s_kShownDrive);
+            AssertSucceeded (hr, L"ToggleImageWriteProtect");
+
+            store.Mount (6, s_kShownDrive, kInserted, [&mounted] (HRESULT hrMount, const MountDiagnosis &) { mounted = hrMount; });
+
+            queue.RunNextWork();
+            store.DrainIo();
+            queue.RunAll();
+        }
+
+        AssertSucceeded  (mounted, L"the other disk is in the drive");
+        Assert::AreEqual (std::string (kInserted), store.GetSourcePath (6, s_kShownDrive), L"in place of the toggled one");
+        Assert::IsTrue   (io.files[kInserted] == original, L"and its file is as it was");
 
         store.SetIoQueue (nullptr);
     }

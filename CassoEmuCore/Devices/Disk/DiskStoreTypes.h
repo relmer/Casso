@@ -46,6 +46,11 @@ struct DiskBayEntry
 
     //  For a kept disk, the position at which it left its bay.
     uint64_t               retiredAt = 0;
+
+    //  Whether the disk is out of the drive while its eject's save runs, and
+    //  the position at which it left the drive.
+    bool                   isOutOfDrive = false;
+    uint64_t               outOfDriveAt = 0;
 };
 
 //  How a flush failure can be put to the user, which differs by what is

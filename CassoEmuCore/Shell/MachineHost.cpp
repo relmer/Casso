@@ -2046,7 +2046,7 @@ void MachineHost::BindDiskDrives()
 
     for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
     {
-        m_refs.diskController->SetExternalDisk (drive, m_diskStore->GetImage (kDiskControllerSlot, drive));
+        m_refs.diskController->SetExternalDisk (drive, m_diskStore->GetImageInDrive (kDiskControllerSlot, drive));
     }
 }
 
@@ -2265,8 +2265,9 @@ void MachineHost::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
 //  MachineHost::ConnectDiskToController
 //
 //  Points the slot 6 controller's drive at the store's image for that bay. A
-//  null image, on an eject, selects the controller's own empty disk. Only
-//  slot 6 has a controller in the machine references.
+//  null image, on an eject or while an eject's save has the disk out of the
+//  drive, selects the controller's empty internal disk. Only slot 6 has a
+//  controller in the machine references.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2281,7 +2282,7 @@ void MachineHost::ConnectDiskToController (int slot, int drive)
         return;
     }
 
-    controller->SetExternalDisk (drive, m_diskStore->GetImage (slot, drive));
+    controller->SetExternalDisk (drive, m_diskStore->GetImageInDrive (slot, drive));
 }
 
 

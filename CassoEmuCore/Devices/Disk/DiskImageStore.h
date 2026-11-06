@@ -258,6 +258,10 @@ public:
 
     DiskImage *   GetImage          (int slot, int drive);
     bool          IsMounted         (int slot, int drive) const;
+
+    //  The image the drive reads: the bay's, or none while an eject's save
+    //  has the disk out of the drive.
+    DiskImage *   GetImageInDrive   (int slot, int drive);
     const string &GetSourcePath     (int slot, int drive) const;
 
     //  One mounted image's backing path with its bay, for consumers that need
@@ -578,6 +582,8 @@ private:
 
     //  Eject's step after the save.
     void            FinishEject        (int slot, int drive, uint64_t imageId, HRESULT hr);
+    void            TakeOutOfDrive     (Entry & entry);
+    void            PutBackInDrive     (Entry & entry);
 
     //  Waits, for a caller that uses the result, until isDone is set.
     HRESULT         WaitForIo          (const bool & isDone);

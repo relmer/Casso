@@ -677,39 +677,86 @@ void DiskStoreSave::MergeOutcome (const FlushOutcome & from, FlushOutcome & into
 //  ONE SAVE OF A DISK AT A TIME. Two saves of one disk in flight could land
 //  in either order, and the older bytes could replace the newer ones. A save
 //  requested meanwhile is queued, and starts when the one in flight is over.
+//  A request with nothing to save is queued the same way, because its caller
+//  acts on the file in done and the save in flight has yet to complete.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskStoreSave::Save (Entry & entry, FlushMoment moment, SaveDone done)
 {
-    bool      isNeeded  = IsSaveNeeded (entry);
+    bool      isNeeded  = false;
     bool      isWaiting = false;
     uint64_t  imageId   = 0;
 
 
 
-    if (isNeeded)
+    if (entry.image != nullptr)
     {
         imageId   = entry.image->GetImageId();
         isWaiting = m_waiting.contains (imageId);
     }
 
-    if (!isNeeded)
+    isNeeded = !isWaiting && IsSaveNeeded (entry);
+
+    if (isWaiting)
+    {
+        m_waiting[imageId].push_back (SaveRequest { moment, std::move (done) });
+    }
+    else if (!isNeeded)
     {
         if (done)
         {
             done (S_OK, FlushOutcome());
         }
     }
-    else if (isWaiting)
-    {
-        m_waiting[imageId].push_back (SaveRequest { moment, std::move (done) });
-    }
     else
     {
         m_waiting[imageId];
         StartSave (entry, moment, std::move (done));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskStoreSave::DeferSaves
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskStoreSave::DeferSaves (uint64_t imageId)
+{
+    ASSERT (!m_waiting.contains (imageId));
+
+    m_waiting[imageId];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskStoreSave::ResumeSaves
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskStoreSave::ResumeSaves  (uint64_t imageId)
+{
+    std::vector<SaveRequest>  waiting;
+    auto                      it      = m_waiting.find (imageId);
+
+
+
+    if (it != m_waiting.end())
+    {
+        waiting = std::move (it->second);
+        m_waiting.erase (it);
+    }
+
+    StartWaitingSaves (imageId, waiting);
 }
 
 
@@ -1130,8 +1177,7 @@ void DiskStoreSave::SaveUnserializable (Entry & entry, const shared_ptr<SaveJob>
 void DiskStoreSave::FinishSave (uint64_t imageId, HRESULT hr, const FlushOutcome & outcome, SaveDone & done)
 {
     std::vector<SaveRequest>  waiting;
-    Entry                   * entry = nullptr;
-    auto                      it    = m_waiting.find (imageId);
+    auto                      it      = m_waiting.find (imageId);
 
 
 
@@ -1145,6 +1191,28 @@ void DiskStoreSave::FinishSave (uint64_t imageId, HRESULT hr, const FlushOutcome
     {
         done (hr, outcome);
     }
+
+    StartWaitingSaves (imageId, waiting);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskStoreSave::StartWaitingSaves
+//
+//  The saves requested while a save was in flight or saves were deferred, in
+//  the order of the requests.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskStoreSave::StartWaitingSaves (uint64_t imageId, std::vector<SaveRequest> & waiting)
+{
+    Entry  * entry = nullptr;
+
+
 
     for (SaveRequest & request : waiting)
     {

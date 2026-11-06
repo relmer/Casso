@@ -626,6 +626,7 @@ void DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writeProtec
             }
             else
             {
+                m_save.DeferSaves (imageId);
                 PatchWriteProtectFlag (slot, drive, imageId, path, writeProtected, done);
             }
         });
@@ -651,7 +652,8 @@ Error:
 //  disk is in the bay, the live image's flag follows the file, and the
 //  bay's identity moves with this store's write, as after a save, so the
 //  next poll does not report a change the user made from the Disk menu as
-//  one made outside Casso.
+//  one made outside Casso. Saves of the disk start only after that, so a save
+//  compares the file with the identity after the patch.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -716,6 +718,7 @@ void DiskImageStore::PatchWriteProtectFlag (int slot, int drive, uint64_t imageI
             NotifyMediaChanged();
         }
 
+        m_save.ResumeSaves  (imageId);
         done (job->hr);
     });
 }
@@ -1115,6 +1118,12 @@ HRESULT DiskImageStore::FlushEveryBay (FlushMoment moment)
 //
 //  Saves the disk, then empties the bay.
 //
+//  THE DISK COMES OUT OF THE DRIVE FIRST, as from a real drive, so the guest
+//  cannot write it while its save is in flight; a write then would make the
+//  disk dirty again after the save and decline the eject. Its position in history
+//  is where it left the drive. During a replay the guest's writes are not
+//  saved, so the disk stays in the drive and the decline is immediate.
+//
 //  THE BAY IS EMPTIED ONLY WHEN EVERY GUEST WRITE IS IN A FILE: the disk's
 //  file, or a recovery copy that is current. After a failed save, either a
 //  question is up, and its answer finishes the eject, or a notice states why
@@ -1149,6 +1158,11 @@ void DiskImageStore::Eject (int slot, int drive, EjectDone done)
     {
         imageId = (GetEntry (slot, drive).image != nullptr) ? GetEntry (slot, drive).image->GetImageId() : 0;
 
+        if (!m_isReplaying)
+        {
+            TakeOutOfDrive (GetEntry (slot, drive));
+        }
+
         m_save.Save (GetEntry (slot, drive), FlushMoment::Ejecting,
                      [this, slot, drive, imageId, done] (HRESULT hr, const FlushOutcome & outcome)
         {
@@ -1173,9 +1187,9 @@ void DiskImageStore::Eject (int slot, int drive, EjectDone done)
 //  FinishEject
 //
 //  After the eject's save: the bay is emptied when the writes are in a
-//  file, and otherwise the question's answer finishes it, or the notice
-//  states why the disk is in the drive. Nothing is done when another disk is
-//  in the bay by then.
+//  file, and otherwise the disk goes back in the drive, and the question's
+//  answer finishes the eject, or the notice states why the disk is in the
+//  drive. Nothing is done when another disk is in the bay by then.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1192,6 +1206,11 @@ void DiskImageStore::FinishEject (int slot, int drive, uint64_t imageId, HRESULT
     {
         isWaiting = entry.sharedState.IsEjectWhenAnswered();
         isSaved   = m_save.AreWritesSaved (entry);
+    }
+
+    if (isSame && (isWaiting || !isSaved))
+    {
+        PutBackInDrive (entry);
     }
 
     if (isSame && !isWaiting && !isSaved && SUCCEEDED (hr))
@@ -1213,6 +1232,52 @@ void DiskImageStore::FinishEject (int slot, int drive, uint64_t imageId, HRESULT
         EmitBayChange (slot, drive, BayChange::Ejected);
 
         NotifyMediaChanged();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TakeOutOfDrive
+//
+//  The drive's disk while an eject's save runs. The controller's drive is
+//  pointed at no disk through the bay-change sink.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::TakeOutOfDrive (Entry & entry)
+{
+    if (!entry.isOutOfDrive)
+    {
+        entry.isOutOfDrive = true;
+        entry.outOfDriveAt = m_media.GetPosition();
+
+        EmitBayChange (entry.slot, entry.drive, BayChange::OutOfDrive);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PutBackInDrive
+//
+//  The controller's drive is pointed at the bay's disk again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::PutBackInDrive (Entry & entry)
+{
+    if (entry.isOutOfDrive)
+    {
+        entry.isOutOfDrive = false;
+
+        EmitBayChange (entry.slot, entry.drive, BayChange::BackInDrive);
     }
 }
 
@@ -1329,6 +1394,23 @@ DiskImage * DiskImageStore::GetImage (int slot, int drive)
 
     // Null for a bad bay is the same answer as for an empty one: no image.
     return IsValidBay (slot, drive) ? GetEntry (slot, drive).image.get() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetImageInDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskImage * DiskImageStore::GetImageInDrive (int slot, int drive)
+{
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
+    return (IsValidBay (slot, drive) && !GetEntry (slot, drive).isOutOfDrive) ? GetEntry (slot, drive).image.get() : nullptr;
 }
 
 

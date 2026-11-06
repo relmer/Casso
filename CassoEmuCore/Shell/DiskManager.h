@@ -212,6 +212,7 @@ private:
     struct WriteProtectToggle
     {
         int                 drive       = 0;
+        uint64_t            imageId     = 0;
         std::string         path;
         std::wstring        wide;
         DiskFormat          format      = DiskFormat::Dsk;
@@ -228,6 +229,7 @@ private:
     void     SetWriteProtectAttribute (const std::shared_ptr<WriteProtectToggle> & job);
     void     SetWriteProtectFlag      (const std::shared_ptr<WriteProtectToggle> & job);
     void     FinishWriteProtectToggle (const std::shared_ptr<WriteProtectToggle> & job);
+    bool     IsToggledDiskInDrive     (const WriteProtectToggle & job);
     //  What follows an attempted mount, whichever way it went.
     void     CompleteMountInSlot6 (int drive, const std::string & path, HRESULT hr, const MountDiagnosis & diagnosis);
 

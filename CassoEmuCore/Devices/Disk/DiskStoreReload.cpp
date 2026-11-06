@@ -182,6 +182,11 @@ void DiskStoreReload::DrainChangeInbox()
 //  bay is in flight at a time: this runs every frame while a change is
 //  settled.
 //
+//  NOT WHILE A SAVE OF THE DISK IS IN FLIGHT. The job compares the file with
+//  the bay's identity, which the save moves in its completion, so a job
+//  posted before that would take the save's commit for another program's
+//  change. A later pass posts it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskStoreReload::ApplyPendingReloadToBay (int slot, int drive)
@@ -193,7 +198,7 @@ void DiskStoreReload::ApplyPendingReloadToBay (int slot, int drive)
 
 
 
-    if (m_isJobPosted[slot][drive] || !IsReloadDue (entry, intent))
+    if (m_isJobPosted[slot][drive] || !IsReloadDue (entry, intent) || m_store.m_save.IsSaving (entry.image->GetImageId()))
     {
         return;
     }

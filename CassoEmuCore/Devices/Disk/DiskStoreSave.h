@@ -37,8 +37,19 @@ public:
     //  Saves a bay's disk through the store's I/O queue, and calls done on
     //  the store's thread when the save is over, or at once when there is
     //  nothing to save. A save requested while one is in flight for the same
-    //  disk starts when that one is over.
+    //  disk starts when that one is over, and so does one with nothing to
+    //  save, so its done runs after the save in flight.
     void          Save              (Entry & entry, FlushMoment moment, SaveDone done);
+
+    //  Saves of a disk are deferred from DeferSaves to ResumeSaves, while other
+    //  file work commits the disk's file. Called from a save's done, or with no
+    //  save of the disk in flight. A save started before the work's
+    //  completion would compare the file with the identity from before it.
+    void          DeferSaves        (uint64_t imageId);
+    void          ResumeSaves       (uint64_t imageId);
+
+    //  Whether a save of the disk is in flight or deferred.
+    bool          IsSaving          (uint64_t imageId) const { return m_waiting.contains (imageId); }
 
     //  The same save, for a caller that uses the result before it returns:
     //  with a queue that runs work on another thread, these wait for the
@@ -204,6 +215,7 @@ private:
 
     //  Calls the save's done function, then starts the saves requested meanwhile.
     void           FinishSave          (uint64_t imageId, HRESULT hr, const FlushOutcome & outcome, SaveDone & done);
+    void           StartWaitingSaves   (uint64_t imageId, std::vector<SaveRequest> & waiting);
 
     //  The bay with this disk in it, or null when the disk has left it.
     Entry *        FindBay             (int slot, int drive, uint64_t imageId);
