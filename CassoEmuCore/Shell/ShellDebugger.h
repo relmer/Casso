@@ -480,6 +480,9 @@ private:
     std::string                                               m_projectSaved;
     std::wstring                                              m_bootDisk;
     bool                                                      m_isBootDiskNoted      = false;
+
+    //  The boot disk while the project is a debug file's or a binary's.
+    std::optional<std::wstring>                               m_programBootDisk;
     ULONGLONG                                                 m_projectCheckedAt     = 0;
     std::mutex                                                m_projectMutex;
     std::optional<DebugProject>                               m_projectWindowPending;
@@ -503,6 +506,7 @@ private:
     std::wstring    GetBootDisk         ();
     std::wstring    GetScopeFilePath    (const ProjectScope & scope);
     void            NoteBootDisk        ();
+    void            UnloadProgramFiles  ();
     void            SyncProject         ();
     bool            TryAllowProjectSwitch (const ProjectScope & scope);
     void            ApplyProject        (const DebugProject & project);

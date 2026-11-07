@@ -169,7 +169,9 @@ std::string ShellDebugger::GetProjectLine (const ProjectScope & scope, const std
 //  ShellDebugger::NoteBootDisk
 //
 //  CPU thread, at each power cycle: the disk in drive 1 then, the machine's
-//  signal for its project.
+//  signal for its project. A debug file or binary outranks the boot disk in
+//  the scope, so one loaded while another disk was booted is unloaded, and
+//  the next sync switches to the new disk's project.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -177,6 +179,60 @@ void ShellDebugger::NoteBootDisk()
 {
     m_bootDisk        = TextEncoding::NarrowToWide (m_machine.GetDiskStore().GetSourcePath (s_kDiskSlot, 0));
     m_isBootDiskNoted = true;
+
+    if (m_programBootDisk.has_value() && *m_programBootDisk != m_bootDisk)
+    {
+        UnloadProgramFiles();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::UnloadProgramFiles
+//
+//  The debug file with the symbol table it loaded into, and the binary BLOAD
+//  loaded: the program on the disk booted before.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::UnloadProgramFiles()
+{
+    DebugSession                 * session = (m_debugController != nullptr) ? &m_debugController->GetSession() : nullptr;
+    std::optional<SymbolTableId>   table;
+    std::vector<std::string>       lines;
+
+
+
+    m_programBootDisk.reset();
+
+    if (session == nullptr)
+    {
+        return;
+    }
+
+    table = session->GetDebugFileTable();
+
+    if (session->HasDebugFile())
+    {
+        lines.push_back (std::format ("Unloaded {}: another disk was booted from drive 1.",
+                                      ConsoleLinks::LinkFileName (TextEncoding::WideToNarrow (fs::path (session->GetDebugFilePath()).filename().native()),
+                                                                  TextEncoding::WideToNarrow (session->GetDebugFilePath()))));
+    }
+
+    if (table.has_value())
+    {
+        session->GetSymbols().Clear (*table);
+        session->ForgetSymbolLoads  (*table);
+        session->ForgetAddedSymbols (*table);
+    }
+
+    session->ClearDebugFile();
+    session->ForgetBinaryLoad();
+    AddConsoleLines (lines);
 }
 
 
@@ -300,6 +356,15 @@ void ShellDebugger::SyncProject()
         SaveProject (true);
         old     = m_project;
         isOffer = scope.IsMoreSpecificThan (old.scope) && scope != m_restoredScope && HasMergeItems (old);
+    }
+
+    if (scope.kind == ProjectScopeKind::DebugFile || scope.kind == ProjectScopeKind::Binary)
+    {
+        m_programBootDisk = GetBootDisk();
+    }
+    else
+    {
+        m_programBootDisk.reset();
     }
 
     hr = m_projectStore->Open (scope, opened, notices);

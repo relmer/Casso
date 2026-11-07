@@ -266,6 +266,7 @@ public:
     //  and its file's name and full path; a debug project's key while no
     //  debug file is loaded (FR-167).
     void                  NoteBinaryLoad (const std::string & hash, Word address, const std::string & name, const std::wstring & path);
+    void                  ForgetBinaryLoad ();
     const std::string   & GetBinaryKey   () const { return m_binaryKey; }
     const std::string   & GetBinaryName  () const { return m_binaryName; }
     const std::wstring  & GetBinaryPath  () const { return m_binaryPath; }

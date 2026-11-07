@@ -4,6 +4,8 @@
 #include "Debugger/DebuggerController.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/Project/DebugProjectStore.h"
+#include "Devices/Disk/DiskImageStore.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "EmuTests/FixtureRomSource.h"
 #include "InMemoryPipeTransport.h"
 #include "Shell/EmulatorShell.h"
@@ -50,7 +52,7 @@ namespace ProjectShellTests
 
 
 
-        ProjectRig()
+        explicit ProjectRig (TestMachine::Slots slots = TestMachine::Slots::Empty)
         {
             MachineBuildServices  services;
             MachineBuilder        builder (shell->GetMachine(), services);
@@ -60,7 +62,7 @@ namespace ProjectShellTests
 
 
 
-            hr = HeadlessMachineFactory::Build (shell->GetMachine(), builder, source, "Apple2e", TestMachine::Slots::Empty, TestMachine::kSeed, error);
+            hr = HeadlessMachineFactory::Build (shell->GetMachine(), builder, source, "Apple2e", slots, TestMachine::kSeed, error);
             AssertSucceeded (hr, L"the shell's machine builds");
 
             shell->GetMachine().PowerCycle();
@@ -305,6 +307,49 @@ namespace ProjectShellTests
 
             rig.Run ("BLOAD C:\\Work\\prog.bin 300");
             Assert::IsTrue (rig.GetBreakpointAddresses() == std::vector<Word> { 0x0300, 0x0400 }, L"the binary's project has both");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  ABootFromAnotherDiskLeavesTheBinarysProject
+        //
+        //  A binary outranks the boot disk in the scope, so booting another
+        //  disk unloads it, and the new disk's project opens.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ABootFromAnotherDiskLeavesTheBinarysProject)
+        {
+            ProjectRig            rig (TestMachine::Slots::DiskOnly);
+            std::vector<Byte>     blank (NibblizationLayer::kImageByteSize, 0);
+            DiskImageStore      & disks = rig.shell->GetMachine().GetDiskStore();
+            Reply                 reply;
+            const ProjectData   * data  = nullptr;
+
+
+
+            disks.SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
+            Assert::AreEqual (S_OK, disks.MountFromBytes (6, 0, "C:\\Disks\\first.dsk", DiskFormat::Dsk, blank));
+            rig.channelFiles.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
+
+            rig.Attach();
+            rig.Run ("BLOAD C:\\Work\\prog.bin 300");
+            data = std::get_if<ProjectData> (&(reply = rig.Run ("PROJECT")).data);
+            Assert::IsNotNull (data);
+            Assert::AreEqual (std::string ("binary"), data->scope, L"the binary's project, on the first disk");
+
+            Assert::AreEqual (S_OK, disks.MountFromBytes (6, 0, "C:\\Disks\\second.dsk", DiskFormat::Dsk, blank));
+            rig.shell->GetDebugger().NotifyDebugReset (true);
+            rig.shell->GetDebugger().ServiceProject();
+
+            data = std::get_if<ProjectData> (&(reply = rig.Run ("PROJECT")).data);
+            Assert::IsNotNull (data);
+            Assert::AreEqual (std::string ("machineBoot"), data->scope, L"the second disk's project");
+            Assert::IsTrue   (rig.debugger->GetSession().GetBinaryKey().empty(), L"the binary is unloaded");
         }
 
 
