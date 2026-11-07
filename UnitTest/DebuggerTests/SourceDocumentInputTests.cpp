@@ -584,6 +584,88 @@ namespace SourceDocumentInputTests
         }
 
 
+        //  The tip over the focused line takes the selection's fill while the
+        //  view has the focus and no text is selected, as the view draws that
+        //  line; any other line's tip takes the hover's.
+        TEST_METHOD (AFocusedLinesTipTakesTheSelectionFill)
+        {
+            constexpr uint32_t                 kHover   = 0x40FFFFFF;
+
+            CassoTheme                         theme    = CassoTheme::MakeSkeuomorphic();
+            SourceHost                         host;
+            SourceWindow                       window   (theme, host);
+            MockDxuiTextRenderer               text;
+            DxuiDpiScaler                      scaler;
+            auto                               snapshot = MakeSnapshot();
+            std::string                        operand;
+            DxuiTextView                     * view     = nullptr;
+            RECT                               cell     = {};
+            POINT                              at       = {};
+            uint32_t                           lineFill = 0;
+            OperandResultTip::Layout           layout;
+            SourceWindow::OperandTipCell       tipCell;
+            SourceWindow::OperandTipScreen     screen;
+
+
+
+            for (int i = 0; i < 40; i++)
+            {
+                operand += "A=00 X=01 ";
+            }
+
+            snapshot->source->lineOperands = std::make_shared<const DebuggerViewSnapshot::LineOperands> (
+                                                 DebuggerViewSnapshot::LineOperands { { { 0, 2 }, { operand, "A=41" } } });
+
+            theme.contentHover = kHover;
+
+            scaler.SetDpi (96);
+            screen.workAreas.push_back (RECT { 0, 0, 4000, 3000 });
+            view = OpenDocument (window, snapshot);
+            window.GetOperandTips().SetDeviceForTest (&text, screen);
+
+            Assert::IsTrue      (view->GetCellRectPx (1, SourcePane::kAnnotationCell, cell));
+            Assert::AreNotEqual (theme.ContentSelection(), theme.ContentHover());
+
+            at       = POINT { cell.left + 1, (cell.top + cell.bottom) / 2 };
+            lineFill = view->GetRows()[1].background;
+
+            window.FocusControl (view);
+            view->SetFocusRow (1);
+
+            Assert::IsTrue   (window.GetFocused() == view, L"the document has the focus");
+            Assert::IsTrue   (window.GetOperandTips().TryGet (at, scaler, text, screen, layout, tipCell));
+            Assert::AreEqual (DxuiColor::Composite (lineFill, DxuiColor::Composite (theme.ContentSelection(), theme.TextViewBackground())), layout.fill,
+                              L"the focused line's tip is in the hover");
+
+            view->SetFocusRow (2);
+
+            Assert::IsTrue   (window.GetOperandTips().TryGet (at, scaler, text, screen, layout, tipCell));
+            Assert::AreEqual (DxuiColor::Composite (lineFill, DxuiColor::Composite (theme.ContentHover(), theme.TextViewBackground())), layout.fill,
+                              L"another line's tip is in the selection");
+        }
+
+
+        //  The operand's symbol is the first symbol past the mnemonic: not the
+        //  label, though the label is the same symbol, and not a word in the
+        //  comment.
+        TEST_METHOD (OnlyTheOperandsSymbolIsTheOperandSymbol)
+        {
+            std::vector<SymbolInfo>  symbols (1);
+            std::wstring             line    = L"loop    bne loop ; back to loop";
+            int                      codeAt  = SourcePane::FindCodeStart (line);
+
+
+
+            symbols[0].name    = "loop";
+            symbols[0].address = 0x0300;
+
+            Assert::IsFalse (SourcePane::IsOperandSymbolAt (line, codeAt, 1,                                  symbols), L"the label");
+            Assert::IsTrue  (SourcePane::IsOperandSymbolAt (line, codeAt, (int) line.find (L"loop", codeAt) + 1, symbols), L"the operand");
+            Assert::IsFalse (SourcePane::IsOperandSymbolAt (line, codeAt, (int) line.rfind (L"loop") + 1,       symbols), L"the comment");
+            Assert::IsFalse (SourcePane::IsOperandSymbolAt (line, codeAt, codeAt + 1,                         symbols), L"the mnemonic");
+        }
+
+
         //  A source line's operand and result that start past the view's
         //  right edge are laid below the line, under where its code starts,
         //  filled from the view's left edge, with the pointer anywhere on the

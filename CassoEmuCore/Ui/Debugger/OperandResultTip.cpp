@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/OperandResultTip.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
+#include "Ui/Debugger/SourceSyntax.h"
 
 
 
@@ -14,7 +15,8 @@
 //  Only where the view cuts text off: at its edge, or at a column's edge
 //  where the column has been made narrower than its text, or where the
 //  operand and result lie wholly outside the view. The tip extends past the
-//  view to the end of its text and wraps only at the screen's right edge.
+//  view to the end of its text and wraps only at the screen's right edge,
+//  where a part with no room even for a character is cut.
 //
 //  The tip lies inside the work area it is given without moving off the
 //  row: a popup moved onto the screen would no longer line its text up with
@@ -34,7 +36,6 @@ bool OperandResultTip::TryMakeLayout (
     bool     isUsable   = false;
     bool     isOnScreen = false;
     bool     hasPieces  = false;
-    bool     doesFit    = false;
     bool     hasRuns    = false;
     int      rowHeight  = (int) (placement.row.bottom - placement.row.top);
     float    rightPx    = 0.0f;
@@ -59,8 +60,7 @@ bool OperandResultTip::TryMakeLayout (
     hasPieces = TryGetPieces (placement, text, pieces, layout.hasSymbol);
     CBR (hasPieces);
 
-    doesFit = TryWrapFirst (placement, text, pieces.first, layout);
-    CBR (doesFit);
+    WrapFirst (placement, text, pieces.first, layout);
 
     for (const Piece & piece : pieces.below)
     {
@@ -71,7 +71,6 @@ bool OperandResultTip::TryMakeLayout (
     CBR (hasRuns);
 
     rightPx = MeasureRightPx (text, layout);
-    CBR (rightPx <= (float) (placement.workArea.right - placement.padRightPx));
 
     layout.rect = PlaceRect (placement, layout, rightPx);
     CBR (layout.rect.bottom <= placement.workArea.bottom);
@@ -329,7 +328,7 @@ bool OperandResultTip::TryGetPieces (
 
         if (i == operand)
         {
-            AddOperand (placement, segment, clips[(size_t) i], leftPx, clips[(size_t) i] != Clip::Whole || hasSymbol, out);
+            AddOperand (placement, segment, clips[(size_t) i], leftPx, clips[(size_t) i] != Clip::Whole || hasSymbol || segment.isBelowLine, out);
             continue;
         }
 
@@ -365,8 +364,8 @@ Error:
 //  comment in their place on the row's line, the operand with its symbol
 //  and the result each on a line below, under the row's code; with no
 //  comment, an operand in view stays where it is, and its result goes below
-//  it, from its left. An operand out of view lies below under the code, as
-//  its result does.
+//  it, from its left. An operand out of view, or one after a source line in
+//  the line's cell, lies below under the code, as its result does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -433,7 +432,7 @@ void OperandResultTip::AddOperand (
     {
         pieces.first.push_back (comment);
     }
-    else if (!isHidden)
+    else if (!isHidden && !segment.isBelowLine)
     {
         operand.leftPx = inPlacePx;
         result.leftPx  = inPlacePx;
@@ -472,6 +471,7 @@ OperandResultTip::Piece OperandResultTip::MakePiece (
 
     piece.text        = segment.text.substr ((size_t) first, (size_t) (std::max) (0, end - first));
     piece.leftPx      = leftPx;
+    piece.viewLeftPx  = segment.leftPx;
     piece.isItalic    = segment.isItalic;
     piece.isWholeLine = segment.isWholeLine;
 
@@ -489,49 +489,104 @@ OperandResultTip::Piece OperandResultTip::MakePiece (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OperandResultTip::TryWrapFirst
+//  OperandResultTip::WrapFirst
 //
-//  The row's line: every part but the last where it is, and the last run
-//  on to its end, wrapped where it is wider than the screen's room. False
-//  where a part ahead of the last runs off the screen.
+//  The row's line: each part where it is, run on to its end and wrapped
+//  where it is wider than the screen's room. A part after one that wrapped
+//  follows it on its last line, a padding's width apart, or where that has
+//  no room, starts the next line where the view draws it. A part with no
+//  room even for a character there is cut at the screen's edge.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool OperandResultTip::TryWrapFirst (
+void OperandResultTip::WrapFirst (
     const Placement      & placement,
     IDxuiTextRenderer    & text,
     std::vector<Piece>   & pieces,
     Layout               & layout)
 {
-    HRESULT  hr        = S_OK;
-    bool     doesFit   = true;
-    bool     hasPieces = false;
-    float    widthPx   = 0.0f;
+    float  gapPx     = (float) (placement.padLeftPx + placement.padRightPx);
+    float  endPx     = -FLT_MAX;
+    float  charPx    = 0.0f;
+    int    line      = 0;
+    bool   isWrapped = false;
 
 
 
     layout.lineCount = 1;
     layout.firstLeft = (int) placement.row.right;
 
-    hasPieces = !pieces.empty();
-    BAIL_OUT_IF (!hasPieces, S_OK);
-
-    layout.firstLeft = (std::max) ((int) std::floor (pieces.front().leftPx) - placement.padLeftPx, (int) placement.row.left);
-
-    for (size_t i = 0; i + 1 < pieces.size(); i++)
+    if (pieces.empty())
     {
-        widthPx = MeasurePx (text, pieces[i].text, placement.fontPx, placement.face);
-        doesFit = pieces[i].leftPx + widthPx <= (float) (placement.workArea.right - placement.padRightPx);
-        CBR (doesFit);
-
-        layout.runs.push_back ({ 0, pieces[i].leftPx, pieces[i].text, pieces[i].colors, pieces[i].isItalic });
+        return;
     }
 
+    layout.firstLeft = (std::max) ((int) std::floor (pieces.front().leftPx) - placement.padLeftPx, (int) placement.row.left);
     layout.lineCount = 0;
-    WrapPiece (placement, text, pieces.back(), layout);
 
-Error:
-    return doesFit;
+    for (Piece & piece : pieces)
+    {
+        if (piece.text.empty())
+        {
+            continue;
+        }
+
+        charPx = MeasurePx (text, piece.text.substr (0, 1), placement.fontPx, placement.face);
+
+        if (isWrapped)
+        {
+            piece.leftPx = (std::max) (piece.viewLeftPx, endPx + gapPx);
+        }
+
+        if (isWrapped && GetRoomPx (placement, piece.leftPx) < charPx && GetRoomPx (placement, piece.viewLeftPx) >= charPx)
+        {
+            piece.leftPx = piece.viewLeftPx;
+            line++;
+        }
+
+        WrapPieceAt (placement, text, piece, line, layout);
+
+        line      = layout.lineCount - 1;
+        endPx     = layout.runs.back().leftPx + MeasurePx (text, layout.runs.back().text, placement.fontPx, placement.face);
+        isWrapped = isWrapped || layout.runs.back().line > 0;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperandResultTip::WrapPieceAt
+//
+//  A piece of the row's line from the given line on, wrapped where there is
+//  room for a character, and cut at the screen's edge where there isn't.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void OperandResultTip::WrapPieceAt (
+    const Placement    & placement,
+    IDxuiTextRenderer  & text,
+    Piece                piece,
+    int                  line,
+    Layout             & layout)
+{
+    int    count  = layout.lineCount;
+    float  charPx = MeasurePx (text, piece.text.substr (0, 1), placement.fontPx, placement.face);
+
+
+
+    if (GetRoomPx (placement, piece.leftPx) < charPx)
+    {
+        layout.runs.push_back ({ line, piece.leftPx, piece.text, piece.colors, piece.isItalic });
+        layout.lineCount = (std::max) (count, line + 1);
+        return;
+    }
+
+    layout.lineCount = line;
+    WrapPiece (placement, text, piece, layout);
+    layout.lineCount = (std::max) (count, layout.lineCount);
 }
 
 
@@ -635,10 +690,9 @@ OperandResultTip::Indent OperandResultTip::MakeIndent (
 //
 //  OperandResultTip::FindCommentText
 //
-//  Where the text of a line's comment starts: past the first ; outside a
-//  string and the spaces after it. A quote with no closing quote after it,
-//  as an immediate character's can be, doesn't start a string. The line's end
-//  where it has no comment text.
+//  Where the text of a line's comment starts: past the ; that starts the
+//  comment and the spaces after it. The line's end where it has no comment
+//  text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -646,26 +700,10 @@ int OperandResultTip::FindCommentText (
     const std::wstring  & chars,
     int                   first)
 {
-    int     size  = (int) chars.size();
-    int     at    = size;
-    size_t  close = 0;
+    int  size = (int) chars.size();
+    int  at   = (int) SourceSyntax::FindComment (chars, (size_t) (std::max) (0, first));
 
 
-
-    for (int k = first; k < size && at == size; k++)
-    {
-        if (chars[(size_t) k] == L'"' || chars[(size_t) k] == L'\'')
-        {
-            close = chars.find (chars[(size_t) k], (size_t) k + 1);
-            k     = (close != std::wstring::npos) ? (int) close : k;
-            continue;
-        }
-
-        if (chars[(size_t) k] == L';')
-        {
-            at = k;
-        }
-    }
 
     while (at < size && (chars[(size_t) at] == L';' || iswspace (chars[(size_t) at])))
     {

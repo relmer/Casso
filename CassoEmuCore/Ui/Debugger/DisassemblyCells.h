@@ -54,6 +54,22 @@ public:
         bool  isTaken = true;
     };
 
+    //  Where a source row's parts are in its cells: the column its code is
+    //  in and where the code starts in that cell's text; the column of its
+    //  operand and result and where they start in that cell's text; and
+    //  where the line's comment starts in the operand's cell, -1 for none.
+    //  A row with no operand has kNone for its column.
+    struct SourceParts
+    {
+        static constexpr size_t  kNone = SIZE_MAX;
+
+        size_t  codeColumn    = kNone;
+        int     codeChar      = 0;
+        size_t  operandColumn = kNone;
+        int     operandChar   = 0;
+        int     commentChar   = -1;
+    };
+
     //  The columns, the glyph margin and the text view's background.
     static void  Configure (DxuiListView & list);
 
@@ -70,10 +86,11 @@ public:
     //  label column is visible, the code stops at the comment, the operand
     //  and result are in their column, and the comment follows them. With
     //  the label column hidden, or a dragged instruction column too narrow
-    //  for the code, the operand and result follow the line.
-    static void  FillSourceRow (std::vector<DxuiListView::Cell> & cells, const DxuiListView & list, int sourceLine,
-                                const std::wstring & text, bool withNumber, const DebuggerTextColors::Set & colors, uint32_t numberArgb,
-                                const DxuiListView::Cell * operand = nullptr);
+    //  for the code, the operand and result follow the line. Returns where
+    //  the row's parts are in its cells.
+    static SourceParts  FillSourceRow (std::vector<DxuiListView::Cell> & cells, const DxuiListView & list, int sourceLine,
+                                       const std::wstring & text, bool withNumber, const DebuggerTextColors::Set & colors, uint32_t numberArgb,
+                                       const DxuiListView::Cell * operand = nullptr);
 
     //  The bytes a source row's instructions occupy: from the first
     //  instruction under it to the end of the last one from the same line,
@@ -141,9 +158,6 @@ private:
     //  A cell's text and colors added at the end of another cell's, two
     //  spaces after any text there.
     static void  AppendCell (DxuiListView::Cell & cell, const DxuiListView::Cell & added);
-
-    //  Where the first comment run at or after `from` starts, or the line's end.
-    static size_t  GetCommentStart (const std::vector<SourceSyntax::Run> & runs, size_t from, size_t end);
 
 
     static void  PaintDots (IDxuiPainter & painter, const BranchArrow::Segment & segment, float width, uint32_t argb, float & along);

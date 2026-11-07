@@ -671,6 +671,9 @@ bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler
     cells  = &list->GetCellsOfRow (row);
     bounds = list->GetBounds();
 
+    placement.fontPx            = scaler.ToPxf (list->GetFontSizeDip());
+    placement.face              = list->IsMonospace() ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace;
+
     for (size_t c = 0; c < cells->size() && c < list->GetColumnCount(); c++)
     {
         if (!list->GetCellTextRectPx (row, c, cell))
@@ -687,10 +690,10 @@ bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler
 
         if (c == parts.codeColumn && list->TryGetCellTextClipPx (row, c, clipLeft, clipRight))
         {
-            placement.codeLeftPx = clipLeft + (float) bounds.left;
+            placement.codeLeftPx = clipLeft + (float) bounds.left + MeasureLeadPx ((*cells)[c].text, parts.codeChar, placement, text);
         }
 
-        isAdded    = TryAddListSegment (*list, row, c, parts, theme->Foreground(), placement);
+        isAdded    = TryAddListSegment (*list, row, c, parts, theme->Foreground(), text, placement);
         background = (isAdded && background == 0) ? (*cells)[c].background : background;
 
         //  The list draws nothing after a cell that runs on to the row's end.
@@ -707,8 +710,6 @@ bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler
     placement.symbol            = parts.symbol;
     placement.padLeftPx         = scaler.ToPx (list->GetCellPadLeftDip());
     placement.padRightPx        = scaler.ToPx (list->GetCellPadRightDip());
-    placement.fontPx            = scaler.ToPxf (list->GetFontSizeDip());
-    placement.face              = list->IsMonospace() ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace;
     placement.fill              = DxuiColor::Composite (background, DxuiColor::Composite (GetRowFill (list, row), list->GetRowBackground (*theme)));
     placement.dpi               = scaler.GetDpi();
     placement.workArea          = GetRowWorkArea (placement.row, screen.workAreas);
@@ -737,9 +738,11 @@ Error:
 //
 //  A cell with text, as the list draws it, in its colors and its italics.
 //  The operand and result cell has where its result starts, and on a source
-//  line's row the comment after it, two spaces past them; any other cell
-//  that runs on to the row's end is a source or data line. False for a cell
-//  with no text or none drawn.
+//  line's row where the line's comment after them starts; any other cell
+//  that runs on to the row's end is a source or data line. A source line in
+//  one cell with its operand and result after it is two parts: the line,
+//  and the operand and result where the list draws them, which lie below
+//  the line. False for a cell with no text or none drawn.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -749,15 +752,18 @@ bool OperandTipController::TryAddListSegment (
     size_t                            column,
     const OperandTipParts           & parts,
     uint32_t                          ink,
+    IDxuiTextRenderer               & text,
     OperandResultTip::Placement     & placement)
 {
-    constexpr const wchar_t      * kpszGap   = L"  ";
     const DxuiListView::Cell     & cell      = list.GetCellsOfRow (row)[column];
     RECT                           bounds    = list.GetBounds();
     bool                           isOperand = column == parts.operandColumn;
-    size_t                         resultAt  = cell.text.find (SourcePane::kpszResultPrefix);
-    size_t                         commentAt = cell.text.find (std::wstring (kpszGap) + L";");
+    int                            size      = (int) cell.text.size();
+    int                            first     = isOperand ? std::clamp (parts.operandChar, 0, size) : 0;
+    int                            lineEnd   = first;
+    size_t                         resultAt  = cell.text.find (SourcePane::kpszResultPrefix, (size_t) first);
     OperandResultTip::Segment      segment;
+    OperandResultTip::Segment      line;
 
 
 
@@ -766,23 +772,83 @@ bool OperandTipController::TryAddListSegment (
         return false;
     }
 
-    segment.text         = cell.text;
     segment.colors       = GetCellColors (cell, ink);
     segment.leftPx      += (float) bounds.left;
     segment.clipRightPx += (float) bounds.left;
     segment.isItalic     = cell.weight == DxuiFontWeight::Italic;
     segment.isWholeLine  = cell.spansRow && !isOperand;
 
+    //  The line ahead of the operand and result in the same cell, short of
+    //  the spaces between them.
+    while (lineEnd > 0 && cell.text[(size_t) (lineEnd - 1)] == L' ')
+    {
+        lineEnd--;
+    }
+
+    if (lineEnd > 0)
+    {
+        line             = segment;
+        line.text        = cell.text.substr (0, (size_t) lineEnd);
+        line.isWholeLine = true;
+        line.colors.resize ((size_t) lineEnd);
+
+        placement.segments.push_back (std::move (line));
+    }
+
+    segment.text = cell.text.substr ((size_t) first);
+    segment.colors.erase (segment.colors.begin(), segment.colors.begin() + first);
+
+    if (segment.text.empty())
+    {
+        return true;
+    }
+
     if (isOperand)
     {
-        segment.resultAt      = (resultAt  != std::wstring::npos) ? (int) resultAt : -1;
-        segment.commentAt     = (cell.spansRow && commentAt != std::wstring::npos) ? (int) (commentAt + wcslen (kpszGap)) : -1;
+        segment.leftPx       += MeasureLeadPx (cell.text, first, placement, text);
+        segment.isBelowLine   = first > 0;
+        segment.resultAt      = (resultAt != std::wstring::npos) ? (int) resultAt - first : -1;
+        segment.commentAt     = (cell.spansRow && parts.commentChar >= first) ? parts.commentChar - first : -1;
         placement.operand     = (int) placement.segments.size();
         placement.symbolInk   = (cell.argb != 0) ? cell.argb : ink;
     }
 
     placement.segments.push_back (std::move (segment));
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperandTipController::MeasureLeadPx
+//
+//  How far into a cell's text, as the tip measures it, its first `chars`
+//  characters run.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float OperandTipController::MeasureLeadPx (
+    const std::wstring                 & cellText,
+    int                                  chars,
+    const OperandResultTip::Placement  & placement,
+    IDxuiTextRenderer                  & text)
+{
+    HRESULT  hr     = S_OK;
+    float    width  = 0.0f;
+    float    height = 0.0f;
+
+
+
+    if (chars > 0)
+    {
+        hr = text.MeasureString (cellText.substr (0, (size_t) chars).c_str(), placement.fontPx, placement.face, width, height);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    return width;
 }
 
 
@@ -828,7 +894,10 @@ std::vector<uint32_t> OperandTipController::GetCellColors (
 //  The tip over a source line where the view cuts its text off, placed as
 //  the view draws each cell: where its text starts and where it is clipped,
 //  in the view's face at its zoom, in the colors of the cell's runs, on the
-//  line's fill under the hover. The row starts at the view's left edge.
+//  line's fill over the row's highlight as the view draws it: the selection
+//  on the focused line while the view has the focus and no text is
+//  selected, and the hover otherwise. The row starts at the view's left
+//  edge.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -859,7 +928,8 @@ bool OperandTipController::TryMakeOnText (int view, int row, const DxuiDpiScaler
     placement.fontPx            = scaler.ToPxf (theme->MonospaceFont().sizeDip * textView->GetZoom());
     placement.face              = theme->MonospaceFont().face;
     placement.fill              = DxuiColor::Composite (textView->GetRows()[(size_t) row].background,
-                                                        DxuiColor::Composite (theme->ContentHover(), theme->TextViewBackground()));
+                                                        DxuiColor::Composite (textView->IsRowSelectionShown (row) ? theme->ContentSelection() : theme->ContentHover(),
+                                                                              theme->TextViewBackground()));
     placement.dpi               = scaler.GetDpi();
     placement.workArea          = GetRowWorkArea (placement.row, screen.workAreas);
 

@@ -79,6 +79,10 @@ public:
 
     static bool  IsMnemonic (const std::wstring & word);
 
+    //  Where a line's comment starts, at or after `from`; the line's end
+    //  for a line with no comment.
+    static size_t  FindComment (const std::wstring & line, size_t from);
+
     //  A line of a file, a listing or not: a listing row's address and bytes,
     //  then its source's runs where the source starts.
     static std::vector<Run>  GetLineRuns (const std::wstring & line, Assembler assembler, Listing listing);

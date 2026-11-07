@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/ByteChanges.h"
+#include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/DisassemblyOptions.h"
 #include "Ui/Debugger/PaneBarSlot.h"
 #include "Ui/Debugger/Panes/ICodeViews.h"
@@ -46,6 +47,11 @@ public:
     const std::vector<DisassemblyOptions::Row> &  GetRows () const { return m_rows; }
     void                             SetRows        (std::vector<DisassemblyOptions::Row> rows) { m_rows = std::move (rows); }
 
+    //  Where each row's parts are in its cells, as its source row was filled;
+    //  the default for an instruction's row.
+    const std::vector<DisassemblyCells::SourceParts> &  GetSourceParts () const { return m_sourceParts; }
+    void                             SetSourceParts (std::vector<DisassemblyCells::SourceParts> parts) { m_sourceParts = std::move (parts); }
+
     //  The banner over the lines while a loaded file's program isn't in
     //  memory: its text, or empty for none.
     void                             SetStaleText   (const std::wstring & text);
@@ -78,16 +84,17 @@ public:
     bool                             AddMenuItems   (DxuiListView * list, int row, PaneMenuItems & items) override;
 
 private:
-    DisassemblyGroup                      & m_group;
-    int                                     m_view          = 0;
-    std::wstring                            m_id;
-    PaneBarSlot                             m_bar;
-    DxuiListView                          * m_list          = nullptr;
-    HistoryBand                           * m_historyBand   = nullptr;
-    DxuiActionBanner                      * m_banner        = nullptr;
-    bool                                    m_isBannerShown = false;
-    std::unique_ptr<DebuggerPaneFrame>      m_frame;
-    std::vector<DisassemblyOptions::Row>    m_rows;
+    DisassemblyGroup                            & m_group;
+    int                                           m_view          = 0;
+    std::wstring                                  m_id;
+    PaneBarSlot                                   m_bar;
+    DxuiListView                                * m_list          = nullptr;
+    HistoryBand                                 * m_historyBand   = nullptr;
+    DxuiActionBanner                            * m_banner        = nullptr;
+    bool                                          m_isBannerShown = false;
+    std::unique_ptr<DebuggerPaneFrame>            m_frame;
+    std::vector<DisassemblyOptions::Row>          m_rows;
+    std::vector<DisassemblyCells::SourceParts>    m_sourceParts;
 };
 
 
@@ -197,6 +204,12 @@ public:
     //  instruction's, or the first a source row's code has after its
     //  mnemonic. False for a row with none.
     bool                             TryGetOperandSymbol (int view, int row, std::wstring & text) const;
+
+    //  Where a source row's parts are in its cells; false for an
+    //  instruction's row. And whether the symbol under a point is the one
+    //  its row's operand is written with.
+    bool                             TryGetSourceParts   (int view, int row, DisassemblyCells::SourceParts & parts) const;
+    bool                             IsOperandSymbolAt   (POINT clientPx) const;
     static bool                      TryGetIoRegisterTip (const std::vector<DiagnosticsIoRegister> & registers, Word address, std::wstring & text);
 
     //  The source row representing the PC's instruction, the first its line
@@ -212,6 +225,7 @@ private:
     void                             ClickSourceArrow (SourcePane & document);
     DxuiListView                   * FindCodeListAt (POINT clientPx, int & view) const;
     static void                      GetLineSymbol  (const DebuggerViewSnapshot::CodeLine & line, int column, std::string & name, Word & address);
+    static int                       GetCodeEnd     (const DisassemblyCells::SourceParts & parts);
     void                             MarkRow        (int view, int row, const DebuggerViewSnapshot::CodeLine & line, std::optional<Word> target, bool isMarked,
                                                      std::vector<DxuiListView::Cell> & cells, uint32_t & fill, std::wstring & rowTip);
     bool                             SelectScrolledEdge (int view, const std::vector<DisassemblyOptions::Row> & built);

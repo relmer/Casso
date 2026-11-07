@@ -84,6 +84,46 @@ bool SourceSyntax::IsDirectiveLine (const std::wstring & line, Assembler assembl
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourceSyntax::FindComment
+//
+//  The first ; outside a string or a character literal. A quote with no
+//  closing quote after it, as an immediate character's can be, doesn't
+//  start a string.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t SourceSyntax::FindComment (const std::wstring & line, size_t from)
+{
+    size_t  size  = line.size();
+    size_t  at    = size;
+    size_t  close = 0;
+
+
+
+    for (size_t k = from; k < size && at == size; k++)
+    {
+        if (line[k] == L'"' || line[k] == L'\'')
+        {
+            close = line.find (line[k], k + 1);
+            k     = (close != std::wstring::npos) ? close : k;
+            continue;
+        }
+
+        if (line[k] == L';')
+        {
+            at = k;
+        }
+    }
+
+    return at;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourceSyntax::IsMnemonic
 //
 //  The 65C02's mnemonics, the bit instructions with their bit number.

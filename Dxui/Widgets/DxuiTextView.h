@@ -153,6 +153,10 @@ public:
     int   GetFocusRow      () const               { return m_focusRow; }
     void  SetFocusRow      (int row);
 
+    //  Whether a row is drawn as the focused row: row focus on, the view
+    //  focused, no text selected, and the row the focused one.
+    bool  IsRowSelectionShown (int row) const     { return m_rowFocus && m_isFocused && row == m_focusRow && !HasSelection(); }
+
     //  A row drawn in the theme's hover across the view, under the row's
     //  fill, as a list draws the row under the pointer, for a tip laid over
     //  it. -1, the default, is no row.

@@ -1942,7 +1942,7 @@ void DxuiTextView::PaintLineGutter (IDxuiPainter & painter, IDxuiTextRenderer & 
 
     //  The focused row, under the row's fill, as a list draws its selected
     //  row.
-    if (m_rowFocus && m_isFocused && line.row == m_focusRow && !HasSelection())
+    if (IsRowSelectionShown (line.row))
     {
         painter.FillRoundedRect ((float) m_boundsDip.left, (float) y, width, (float) GetLineHeightPx (lineIndex), radius, theme.ContentSelection());
 

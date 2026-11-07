@@ -1031,6 +1031,7 @@ void DisassemblyGroup::ApplyView (int view)
     const std::vector<DebuggerViewSnapshot::CodeLine>  & lines         = GetCodeLines (view);
     std::vector<std::vector<DxuiListView::Cell>>         rows;
     std::vector<DisassemblyOptions::Row>                 built;
+    std::vector<DisassemblyCells::SourceParts>           parts;
     int                                                  current       = -1;
     int                                                  selected      = -1;
     std::optional<Word>                                  target;
@@ -1097,6 +1098,8 @@ void DisassemblyGroup::ApplyView (int view)
         size_t                                   count   = 0;
         std::vector<DxuiListView::Cell>          scratch (DisassemblyCells::kColumnCount);
 
+        parts.emplace_back();
+
         if (gutter >= 0)
         {
             MarkRow (view, at, lines[(size_t) gutter], target, at == marked, cells, fill, rowTip);
@@ -1117,8 +1120,9 @@ void DisassemblyGroup::ApplyView (int view)
                 (void) DisassemblyCells::FillCodeRow (scratch, lines[(size_t) gutter], m_options, textColors);
             }
 
-            DisassemblyCells::FillSourceRow (cells, *list, each.sourceLine, text, numbers, textColors, (theme != nullptr) ? theme->ForegroundMuted() : 0u,
-                                             operandMoved ? &scratch[DisassemblyCells::kOperandColumn] : nullptr);
+            parts.back() = DisassemblyCells::FillSourceRow (cells, *list, each.sourceLine, text, numbers, textColors,
+                                                            (theme != nullptr) ? theme->ForegroundMuted() : 0u,
+                                                            operandMoved ? &scratch[DisassemblyCells::kOperandColumn] : nullptr);
 
             //  The line's heat is its instructions' heat.
             if (heatPalette.has_value() && snapshot->heatColumns != nullptr && DisassemblyCells::TryGetSourceRowSpan (built, rows.size(), lines, first, count))
@@ -1186,6 +1190,7 @@ void DisassemblyGroup::ApplyView (int view)
     }
 
     list->SetRows (std::move (rows));
+    m_views[(size_t) view]->SetSourceParts (std::move (parts));
 
     if (SelectScrolledEdge (view, built))
     {
@@ -2277,18 +2282,20 @@ bool DisassemblyGroup::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstr
 //
 //  DisassemblyGroup::TryGetOperandSymbol
 //
-//  A source row's code is in the instruction column while the label column
-//  is visible, starting at its mnemonic.
+//  A source row's code is in the cell, and from the character, that its
+//  parts indicate: the instruction column's start while the label column
+//  is visible, and past the label while the whole line is in one cell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DisassemblyGroup::TryGetOperandSymbol (int view, int row, std::wstring & text) const
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
-    DxuiListView                * list     = (view >= 0 && view < DebuggerViewState::kMaxCodeViews) ? GetCodeList (view) : nullptr;
-    int                           index    = (list != nullptr) ? GetCodeLineOfRow (view, row) : -1;
-    std::string                   name;
-    Word                          address  = 0;
+    const DebuggerViewSnapshot     * snapshot = m_host.GetLatestSnapshot();
+    DxuiListView                   * list     = (view >= 0 && view < DebuggerViewState::kMaxCodeViews) ? GetCodeList (view) : nullptr;
+    int                              index    = (list != nullptr) ? GetCodeLineOfRow (view, row) : -1;
+    std::string                      name;
+    Word                             address  = 0;
+    DisassemblyCells::SourceParts    parts;
 
 
 
@@ -2310,8 +2317,105 @@ bool DisassemblyGroup::TryGetOperandSymbol (int view, int row, std::wstring & te
         return true;
     }
 
-    return snapshot->symbols != nullptr && list->GetCellsOfRow (row).size() > DisassemblyCells::kInstructionColumn &&
-           SourcePane::TryGetOperandSymbolText (list->GetCellsOfRow (row)[DisassemblyCells::kInstructionColumn].text, 0, snapshot->symbols->symbols, text);
+    return snapshot->symbols != nullptr && TryGetSourceParts (view, row, parts) && list->GetCellsOfRow (row).size() > parts.codeColumn &&
+           SourcePane::TryGetOperandSymbolText (list->GetCellsOfRow (row)[parts.codeColumn].text.substr (0, (size_t) GetCodeEnd (parts)), parts.codeChar,
+                                                snapshot->symbols->symbols, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::TryGetSourceParts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::TryGetSourceParts (int view, int row, DisassemblyCells::SourceParts & parts) const
+{
+    const std::vector<DisassemblyCells::SourceParts>  * all = nullptr;
+
+
+
+    if (view < 0 || view >= DebuggerViewState::kMaxCodeViews || m_views[(size_t) view] == nullptr || GetCodeLineOfRow (view, row) >= 0)
+    {
+        return false;
+    }
+
+    all = &m_views[(size_t) view]->GetSourceParts();
+
+    if (row < 0 || row >= (int) all->size() || (*all)[(size_t) row].codeColumn == DisassemblyCells::SourceParts::kNone)
+    {
+        return false;
+    }
+
+    parts = (*all)[(size_t) row];
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::GetCodeEnd
+//
+//  Where a source row's line ends in the cell its code is in: before the
+//  operand and result where they follow the line in that cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DisassemblyGroup::GetCodeEnd (const DisassemblyCells::SourceParts & parts)
+{
+    return (parts.operandColumn == parts.codeColumn) ? parts.operandChar : INT_MAX;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::IsOperandSymbolAt
+//
+//  An instruction's operand's symbol is the one in its instruction column; a
+//  source row's is the first symbol past its mnemonic, in the cell its code
+//  is in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::IsOperandSymbolAt (POINT clientPx) const
+{
+    const DebuggerViewSnapshot     * snapshot = m_host.GetLatestSnapshot();
+    int                              view     = -1;
+    DxuiListView                   * list     = FindCodeListAt (clientPx, view);
+    RECT                             bounds   = {};
+    int                              row      = -1;
+    size_t                           column   = 0;
+    int                              ch       = 0;
+    DisassemblyCells::SourceParts    parts;
+
+
+
+    if (snapshot == nullptr || list == nullptr)
+    {
+        return false;
+    }
+
+    bounds = list->GetBounds();
+    row    = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
+
+    if (GetCodeLineOfRow (view, row) >= 0)
+    {
+        return m_host.GetListColumnAt (list, clientPx.x - bounds.left) == (int) DisassemblyCells::kInstructionColumn;
+    }
+
+    return snapshot->symbols != nullptr && TryGetSourceParts (view, row, parts) &&
+           list->TryHitTestCellChar (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, row, column, ch) && column == parts.codeColumn &&
+           SourcePane::IsOperandSymbolAt (list->GetCellsOfRow (row)[column].text.substr (0, (size_t) GetCodeEnd (parts)), parts.codeChar, ch,
+                                          snapshot->symbols->symbols);
 }
 
 

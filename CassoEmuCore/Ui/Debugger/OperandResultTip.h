@@ -46,6 +46,7 @@ public:
         float                  clipRightPx = 0.0f;
         bool                   isItalic    = false;
         bool                   isWholeLine = false;   // a source or data line, which wraps by its comment
+        bool                   isBelowLine = false;   // an operand and result after a source line in one cell, which lie below the line
         int                    resultAt    = -1;
         int                    commentAt   = -1;
     };
@@ -143,13 +144,14 @@ private:
         float  commentPx = 0.0f;
     };
 
-    //  A run before it is wrapped: its text and colors, its left, and
-    //  whether it wraps as a source line does.
+    //  A run before it is wrapped: its text and colors, its left, where the
+    //  view draws its part, and whether it wraps as a source line does.
     struct Piece
     {
         std::wstring           text;
         std::vector<uint32_t>  colors;
         float                  leftPx      = 0.0f;
+        float                  viewLeftPx  = 0.0f;
         bool                   isItalic    = false;
         bool                   isWholeLine = false;
     };
@@ -166,8 +168,9 @@ private:
     static bool      TryGetPieces    (const Placement & placement, IDxuiTextRenderer & text, Pieces & out, bool & hasSymbol);
     static void      AddOperand      (const Placement & placement, const Segment & segment, Clip clip, float inPlacePx, bool isSplit, Pieces & pieces);
     static Piece     MakePiece       (const Segment & segment, int first, int end, float leftPx);
-    static bool      TryWrapFirst    (const Placement & placement, IDxuiTextRenderer & text, std::vector<Piece> & pieces, Layout & layout);
+    static void      WrapFirst       (const Placement & placement, IDxuiTextRenderer & text, std::vector<Piece> & pieces, Layout & layout);
     static void      WrapPiece       (const Placement & placement, IDxuiTextRenderer & text, const Piece & piece, Layout & layout);
+    static void      WrapPieceAt     (const Placement & placement, IDxuiTextRenderer & text, Piece piece, int line, Layout & layout);
     static float     GetRoomPx       (const Placement & placement, float leftPx);
     static Indent    MakeIndent      (const Piece & piece, IDxuiTextRenderer & text, const Layout & layout, float roomPx);
     static int       FindCommentText (const std::wstring & chars, int first);

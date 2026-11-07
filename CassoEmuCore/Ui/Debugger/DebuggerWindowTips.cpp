@@ -372,19 +372,21 @@ DxuiTextView * DebuggerWindow::GetTipTextView (int view) const
 //  DebuggerWindow::GetTipParts
 //
 //  A disassembly row's operand and result, its code from the instruction
-//  column, and the symbol its operand is written with. A source line's
-//  operand and result, its code past its label, and the symbol its operand
-//  is written with. The BASIC program's lines have no such parts.
+//  column, and the symbol its operand is written with; a source row's parts
+//  where it was filled with them. A source line's operand and result, its
+//  code past its label, and the symbol its operand is written with. The
+//  BASIC program's lines have no such parts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 OperandTipParts DebuggerWindow::GetTipParts (int view, int row) const
 {
-    OperandTipParts            parts;
-    DxuiTextView             * text      = GetTipTextView (view);
-    const DxuiTextView::Row  * textRow   = nullptr;
-    bool                       hasSymbol = false;
-    bool                       hasLine   = false;
+    OperandTipParts                  parts;
+    DxuiTextView                   * text      = GetTipTextView (view);
+    const DxuiTextView::Row        * textRow   = nullptr;
+    bool                             hasSymbol = false;
+    bool                             hasLine   = false;
+    DisassemblyCells::SourceParts    source;
 
 
 
@@ -397,6 +399,15 @@ OperandTipParts DebuggerWindow::GetTipParts (int view, int row) const
     {
         parts.operandColumn = kCodeOperandColumn;
         parts.codeColumn    = kCodeInstructionColumn;
+
+        if (m_code->TryGetSourceParts (view, row, source))
+        {
+            parts.operandColumn = source.operandColumn;
+            parts.operandChar   = source.operandChar;
+            parts.commentChar   = source.commentChar;
+            parts.codeColumn    = source.codeColumn;
+            parts.codeChar      = source.codeChar;
+        }
 
         hasSymbol = m_code->TryGetOperandSymbol (view, row, parts.symbol);
         IGNORE_RETURN_VALUE (hasSymbol, false);
@@ -696,7 +707,8 @@ bool DebuggerWindow::MarkImmediate (bool isFound, DxuiTip & tip)
 //  color of its cell means. A symbol's tip is code, so it reads in the
 //  fixed-width face. Over the heat column, the cell's heat. Elsewhere the
 //  list has its cells' tips. A row whose in-place tip is up with its
-//  operand's symbol in it has no symbol tip.
+//  operand's symbol in it has no tip for that symbol; its label's and any
+//  other symbol's come up.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -706,6 +718,7 @@ bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, D
     RECT          anchor   = {};
     std::wstring  text;
     DxuiTip       colorTip;
+    bool          isFolded = m_operandTips->IsSymbolShownAt (clientPx) && m_code->IsOperandSymbolAt (clientPx);
 
 
 
@@ -714,7 +727,7 @@ bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, D
         return true;
     }
 
-    if (m_operandTips->IsSymbolShownAt (clientPx) || !m_code->TryGetSymbolTip (clientPx, anchor, text))
+    if (isFolded || !m_code->TryGetSymbolTip (clientPx, anchor, text))
     {
         return GetColumnAt (&list, clientPx.x - bounds.left) == (int) DisassemblyCells::kHeatColumn &&
                list.TryGetCellTip (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, tip);
@@ -741,8 +754,8 @@ bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, D
 //  DebuggerWindow::TryGetSourceSymbolTip
 //
 //  Over a word of a source document, the symbol it is, in the fixed-width
-//  face since it is code; none on a line whose in-place tip is up with its
-//  operand's symbol in it.
+//  face since it is code; none for the operand's symbol on a line whose
+//  in-place tip is up with that symbol in it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -753,7 +766,8 @@ bool DebuggerWindow::TryGetSourceSymbolTip (const SourceDocumentPane & document,
 
 
 
-    if (m_snapshot == nullptr || m_snapshot->symbols == nullptr || !document.IsShown() || m_operandTips->IsSymbolShownAt (clientPx) ||
+    if (m_snapshot == nullptr || m_snapshot->symbols == nullptr || !document.IsShown() ||
+        (m_operandTips->IsSymbolShownAt (clientPx) && document.GetModel().IsOperandSymbolAt (clientPx, m_snapshot->symbols->symbols)) ||
         !document.GetModel().TryGetSymbolTip (clientPx, m_snapshot->symbols->symbols, text, anchor))
     {
         return false;

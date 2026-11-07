@@ -105,9 +105,12 @@ public:
     static int   FindCodeStart (const std::wstring & line);
 
     //  The first symbol the operand of the instruction starting at `codeAt`
-    //  is written with, before a comment, as "count_text = $60F2". False for
-    //  an operand with none.
+    //  is written with, before a comment, as "count_text = $60F2", and
+    //  where its word starts. False, and -1, for an operand with none.
+    //  Whether the word at a character is that symbol.
     static bool  TryGetOperandSymbolText (const std::wstring & line, int codeAt, const std::vector<SymbolInfo> & symbols, std::wstring & text);
+    static int   FindOperandSymbol       (const std::wstring & line, int codeAt, const std::vector<SymbolInfo> & symbols);
+    static bool  IsOperandSymbolAt       (const std::wstring & line, int codeAt, int ch, const std::vector<SymbolInfo> & symbols);
 
     SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run);
 
@@ -233,9 +236,11 @@ public:
     //  where the branch arrow runs.
     bool  IsOverArrowLanes (POINT atDip) const;
 
-    //  Over a word of the source text, the symbol it is.
+    //  Over a word of the source text, the symbol it is, and whether it is
+    //  the symbol its line's operand is written with.
     bool  TryGetSymbolTip (POINT atDip, const std::vector<SymbolInfo> & symbols, std::wstring & text, RECT & anchor) const;
     const SymbolInfo *  FindSymbolAt (POINT atDip, const std::vector<SymbolInfo> & symbols) const;
+    bool  IsOperandSymbolAt (POINT atDip, const std::vector<SymbolInfo> & symbols) const;
 
     //  The line the PC's branch goes to in a file, if a line there starts at
     //  it, and whether it lies below the marked line; false for no branch.

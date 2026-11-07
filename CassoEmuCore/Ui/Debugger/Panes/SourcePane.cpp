@@ -1468,6 +1468,45 @@ bool SourcePane::TryGetSymbolTip (POINT atDip, const std::vector<SymbolInfo> & s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourcePane::IsOperandSymbolAt
+//
+//  The word under the pointer, in the text cell after the marker and number,
+//  against the operand's symbol of the code past the line's label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::IsOperandSymbolAt (POINT atDip, const std::vector<SymbolInfo> & symbols) const
+{
+    DxuiTextView::Position     at    = m_view->HitTest (atDip);
+    const DxuiTextView::Row  * row   = nullptr;
+    int                        start = 0;
+
+
+
+    if (at.row < 0 || at.row >= (int) m_view->GetRows().size())
+    {
+        return false;
+    }
+
+    row = &m_view->GetRows()[(size_t) at.row];
+
+    if (row->cells.size() <= (size_t) kTextCell)
+    {
+        return false;
+    }
+
+    start = (int) (row->cells[0].size() + 1 + row->cells[1].size() + 1);
+
+    return at.offset >= start && at.offset <= start + (int) row->cells[(size_t) kTextCell].size() &&
+           IsOperandSymbolAt (row->cells[(size_t) kTextCell], FindCodeStart (row->cells[(size_t) kTextCell]), at.offset - start, symbols);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourcePane::FindSymbolAt
 //
 //  A word is letters, digits, _, . and @, as a cheap local symbol is written
@@ -1576,11 +1615,38 @@ int SourcePane::FindCodeStart (const std::wstring & line)
 
 bool SourcePane::TryGetOperandSymbolText (const std::wstring & line, int codeAt, const std::vector<SymbolInfo> & symbols, std::wstring & text)
 {
-    auto          isWordChar = [] (wchar_t each) { return iswalnum (each) || each == L'_' || each == L'.' || each == L'@'; };
-    int           size       = (int) line.size();
-    int           at         = std::clamp (codeAt, 0, size);
-    bool          isFound    = false;
-    std::wstring  found;
+    int           at      = FindOperandSymbol (line, codeAt, symbols);
+    bool          isFound = at >= 0 && TryGetSymbolText (line, at, symbols, text);
+
+
+
+    if (isFound)
+    {
+        text = text.substr (0, text.find (L'\n'));
+    }
+
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::FindOperandSymbol
+//
+//  Past the mnemonic, each word in turn, up to the comment.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SourcePane::FindOperandSymbol (const std::wstring & line, int codeAt, const std::vector<SymbolInfo> & symbols)
+{
+    auto    isWordChar = [] (wchar_t each) { return iswalnum (each) || each == L'_' || each == L'.' || each == L'@'; };
+    int     size       = (int) line.size();
+    int     at         = std::clamp (codeAt, 0, size);
+    int     found      = -1;
+    int     start      = 0;
 
 
 
@@ -1589,22 +1655,40 @@ bool SourcePane::TryGetOperandSymbolText (const std::wstring & line, int codeAt,
         at++;
     }
 
-    for (; at < size && line[(size_t) at] != L';' && !isFound; at++)
+    for (; at < size && line[(size_t) at] != L';' && found < 0; at++)
     {
         if (!isWordChar (line[(size_t) at]) || (at > 0 && isWordChar (line[(size_t) at - 1])))
         {
             continue;
         }
 
-        isFound = TryGetSymbolText (line, at, symbols, found);
+        found = (FindSymbolAt (line, at, symbols, start) != nullptr) ? at : -1;
     }
 
-    if (isFound)
-    {
-        text = found.substr (0, found.find (L'\n'));
-    }
+    return found;
+}
 
-    return isFound;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::IsOperandSymbolAt
+//
+//  The same symbol written as the line's label, or in its comment, is not
+//  the operand's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::IsOperandSymbolAt (const std::wstring & line, int codeAt, int ch, const std::vector<SymbolInfo> & symbols)
+{
+    int   start   = 0;
+    int   operand = FindOperandSymbol (line, codeAt, symbols);
+
+
+
+    return operand >= 0 && FindSymbolAt (line, ch, symbols, start) != nullptr && start == operand;
 }
 
 

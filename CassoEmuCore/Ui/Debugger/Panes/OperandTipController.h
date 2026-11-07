@@ -33,14 +33,19 @@ struct OperandTipCell
 };
 
 //  The parts of a row the tip lays out apart from the rest of its text: the
-//  column of its operand and result, the column its code starts in and how
-//  many characters into that column's text, and the symbol its operand is
-//  written with, as "name = $value", empty for none.
+//  column of its operand and result and how many characters into that
+//  column's text they start, which is past the line where they follow it in
+//  one cell; where the line's comment starts in that text, -1 for none; the
+//  column its code starts in and how many characters into that column's
+//  text; and the symbol its operand is written with, as "name = $value",
+//  empty for none.
 struct OperandTipParts
 {
     static constexpr size_t  kNone = SIZE_MAX;
 
     size_t        operandColumn = kNone;
+    int           operandChar   = 0;
+    int           commentChar   = -1;
     size_t        codeColumn    = kNone;
     int           codeChar      = 0;
     std::wstring  symbol;
@@ -151,8 +156,8 @@ public:
     RECT                 GetColorTipAnchor (const RECT & cell) const { return m_hasTip ? m_layout.rect : cell; }
 
     //  Whether the tip is up for the row under a point with its operand's
-    //  symbol among the operand's values, which takes the place of the
-    //  symbol tip there.
+    //  symbol among the operand's values, which takes the place of that
+    //  symbol's tip there.
     bool                 IsSymbolShownAt (POINT clientPx) const;
 
     //  The renderer and screen the tip is measured with in a window that
@@ -187,7 +192,9 @@ private:
 
     static bool          IsTextSelectedUnderTip (const DxuiListView * list, int row, const OperandResultTip::Layout & layout);
     static bool          TryAddListSegment      (const DxuiListView & list, int row, size_t column, const OperandTipParts & parts, uint32_t ink,
-                                                 OperandResultTip::Placement & placement);
+                                                 IDxuiTextRenderer & text, OperandResultTip::Placement & placement);
+    static float         MeasureLeadPx          (const std::wstring & cellText, int chars, const OperandResultTip::Placement & placement,
+                                                 IDxuiTextRenderer & text);
     static void          AddTextSegments        (const DxuiTextView & view, int row, const OperandTipParts & parts, uint32_t ink,
                                                  IDxuiTextRenderer & text, OperandResultTip::Placement & placement);
     static std::vector<uint32_t>  GetCellColors (const DxuiListView::Cell & cell, uint32_t ink);

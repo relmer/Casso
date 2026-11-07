@@ -10,6 +10,7 @@
 #include "Ui/Debugger/Panes/BasicPanes.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/OperandResultTip.h"
+#include "Ui/Debugger/SourceSyntax.h"
 #include "Ui/Debugger/ColorKeyButton.h"
 #include "Core/TextEncoding.h"
 
@@ -23,6 +24,39 @@ namespace OperandResultTipTests
 {
     //  A host that does nothing; the tests read only the window's own state.
     using TipHost = NullDebuggerWindowHost;
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  SourceTipHost
+    //
+    //  A host with the viewing options the window starts with and one source
+    //  file, main.a65, for a disassembly with source rows.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class SourceTipHost : public NullDebuggerWindowHost
+    {
+    public:
+        std::string  GetDebuggerDisassemblyOptions() override { return options; }
+
+        SourceLookup  FindDebuggerSource (const DebugSourceFile &, const std::wstring &, const std::string &) override
+        {
+            SourceLookup  lookup;
+
+
+
+            lookup.match = SourceMatch::Exact;
+            lookup.text  = sourceText;
+            return lookup;
+        }
+
+        std::string  options;
+        std::string  sourceText;
+    };
 
 
 
@@ -387,6 +421,49 @@ namespace OperandResultTipTests
         }
 
 
+        //  A part pushed along to the screen's edge by a cut-off part ahead of
+        //  it wraps there, as the last part does, and the part after it
+        //  follows it. A part whose place is past the edge is cut there. None
+        //  of this takes the tip down.
+        TEST_METHOD (APartPushedToTheScreensEdgeWrapsThere)
+        {
+            constexpr int                       kEdgePx   = 210;
+            constexpr int                       kAfterPx  = 180;
+
+            OperandResultTip::Placement         placement = MakePlacement (kScreenRight);
+            MockDxuiTextRenderer                text;
+            OperandResultTip::Layout            layout;
+            float                               pushedPx  = (float) (kCodeLeft + 12 * kGlyphPx + 2 * kPadPx);
+
+
+
+            placement.segments.push_back (MakeSegment (L"a_long_label", kCodeLeft, placement));
+            placement.segments.push_back (MakeSegment (L"LDA (PTR),Y", kTextLeft, placement));
+            placement.segments.push_back (MakeSegment (L"; go", kAfterPx, placement));
+            placement.segments[0].clipRightPx = (float) (kTextLeft - kPadPx);
+            placement.workArea.right          = kEdgePx + kPadPx;
+
+            Assert::IsTrue   (OperandResultTip::TryMakeLayout (placement, text, layout), L"a part pushed off the screen takes the tip down");
+            Assert::AreEqual (3, layout.lineCount);
+            Assert::AreEqual ((size_t) 2, GetLine (layout, 0).size());
+            Assert::AreEqual (std::wstring (L"a_long_label"), GetLine (layout, 0)[0].text);
+            Assert::AreEqual (std::wstring (L"LDA"),          GetLine (layout, 0)[1].text, L"broken at its space at the screen's edge");
+            Assert::AreEqual (pushedPx,                       GetLine (layout, 0)[1].leftPx);
+            Assert::AreEqual (std::wstring (L"(PTR),Y"),      GetLineText (layout, 1));
+            Assert::AreEqual (pushedPx,                       GetLine (layout, 1)[0].leftPx, L"continued at its left");
+            Assert::AreEqual (std::wstring (L"; go"),         GetLineText (layout, 2), L"the next part on the next line");
+            Assert::AreEqual ((float) kAfterPx,               GetLine (layout, 2)[0].leftPx, L"at its left");
+            Assert::IsTrue   (layout.rect.right <= placement.workArea.right, L"on the screen");
+
+            //  A part that starts past the screen's edge is cut there.
+            placement.segments[2].leftPx = (float) (kEdgePx + kPadPx);
+
+            Assert::IsTrue   (OperandResultTip::TryMakeLayout (placement, text, layout), L"a part past the screen's edge takes the tip down");
+            Assert::IsTrue   (layout.rect.right <= placement.workArea.right, L"on the screen");
+            Assert::AreEqual (std::wstring (L"(PTR),Y"),      GetLine (layout, 1)[0].text);
+        }
+
+
         //  A narrow pane cuts the branch off at its edge, and its operand and
         //  result lie out of view. The branch runs on along the row's line,
         //  and the operand, with its symbol, and the result are each on a
@@ -607,6 +684,21 @@ namespace OperandResultTipTests
             Assert::AreEqual ((float) (kTextLeft + kCommentChar * kGlyphPx), GetLine (layout, 1)[0].leftPx, L"under the comment's first character");
             Assert::AreEqual ((float) (kTextLeft + kCommentChar * kGlyphPx), GetLine (layout, 2)[0].leftPx);
             Assert::IsTrue   (layout.rect.right <= placement.workArea.right, L"on the screen");
+        }
+
+
+        //  A line's comment starts at its first ; outside a string or a
+        //  character, with or without a space before it. A quote with no
+        //  closing quote after it doesn't start a string.
+        TEST_METHOD (TheCommentFinderSkipsStringsAndCharacters)
+        {
+            Assert::AreEqual ((size_t) 8,  SourceSyntax::FindComment (L"lda #$41;no space", 0));
+            Assert::AreEqual ((size_t) 9,  SourceSyntax::FindComment (L"lda #$41 ; one space", 0));
+            Assert::AreEqual ((size_t) 9,  SourceSyntax::FindComment (L"cmp #';' ; a semicolon", 0), L"a ; in a character literal");
+            Assert::AreEqual ((size_t) 12, SourceSyntax::FindComment (L"asc \"a;b\"   ; text", 0), L"a ; in a string");
+            Assert::AreEqual ((size_t) 8,  SourceSyntax::FindComment (L"cmp #'a ; a letter", 0), L"an unclosed quote");
+            Assert::AreEqual ((size_t) 7,  SourceSyntax::FindComment (L"asc \"a\"", 0), L"no comment");
+            Assert::AreEqual ((size_t) 9,  SourceSyntax::FindComment (L"; label  ; rest", 1), L"from where the search starts");
         }
 
 
@@ -1269,6 +1361,232 @@ namespace OperandResultTipTests
 
             tip = DxuiTip();
             Assert::IsFalse (list->TryGetTip (local, tip) && tip.text.find (L"w_inner = ") != std::wstring::npos, L"the symbol tip over the in-place tip");
+        }
+
+
+        //  While the in-place tip has the operand's symbol, the label's symbol
+        //  tip on the same row comes up as usual.
+        TEST_METHOD (ALabelsSymbolTipComesUpWhileTheOperandsIsInTheTip)
+        {
+            CassoTheme                      theme    = CassoTheme::MakeSkeuomorphic();
+            TipHost                         host;
+            TipWindow                       window   (theme, host);
+            DxuiDpiScaler                   scaler;
+            MockDxuiTextRenderer            text;
+            MockDxuiPainter                 painter;
+            auto                            snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::CodeLine  bne;
+            DxuiListView                  * list     = nullptr;
+            RECT                            bounds   = {};
+            RECT                            code     = {};
+            RECT                            label    = {};
+            POINT                           at       = {};
+            DxuiTip                         tip;
+
+
+
+            bne.address               = 0x6100;
+            bne.bytes                 = "D0 F8";
+            bne.label                 = "w_outer";
+            bne.instruction           = "BNE w_inner";
+            bne.shownOperand          = "w_inner";
+            bne.memoryOperand         = "$60BA";
+            bne.annotationParts.flags = "Z=0";
+            bne.effect                = "PC=$60BA; 3 cycles";
+            bne.isCurrent             = true;
+
+            snapshot->pc           = 0x6100;
+            snapshot->isPaused     = true;
+            snapshot->codeViews[0] = { bne };
+            snapshot->codeOpen[0]  = true;
+            snapshot->code         = snapshot->codeViews[0];
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, kWindowWidth, kWindowHeight }, scaler);
+            window.ApplyCodeSnapshot (snapshot, 0);
+            window.GetOperandTips().SetDeviceForTest (&text, MakeScreen());
+
+            list = window.GetCodeList (0);
+            list->SetColumnOverrideWidthPx (DisassemblyCells::kInstructionColumn, kWindowWidth * 2);
+            list->Paint (painter, text, theme);
+
+            bounds = list->GetBounds();
+            Assert::IsTrue (list->GetCellTextRectPx (0, DisassemblyCells::kInstructionColumn, code));
+            Assert::IsTrue (list->GetCellTextRectPx (0, DisassemblyCells::kLabelColumn, label), L"the label is in view");
+
+            at = POINT { bounds.left + code.left + 1, bounds.top + (code.top + code.bottom) / 2 };
+            Send (window, DxuiMouseEventKind::Move, at);
+            Assert::IsTrue (window.GetOperandTips().HasTip(), L"the operand out of view has no tip");
+            Assert::IsTrue (window.GetOperandTips().GetLayout().hasSymbol);
+
+            Assert::IsTrue (list->TryGetTip (POINT { label.left + 1, (label.top + label.bottom) / 2 }, tip) && tip.text.starts_with (L"w_outer = $6100"),
+                            L"the label's symbol tip doesn't come up");
+
+            tip = DxuiTip();
+            Assert::IsFalse (list->TryGetTip (POINT { at.x - bounds.left, at.y - bounds.top }, tip) && tip.text.find (L"w_inner = ") != std::wstring::npos,
+                             L"the operand's symbol tip over the in-place tip");
+        }
+
+
+        //  A disassembly with LDA $10 at the PC, the second line of main.a65
+        //  above it as a source row, LDA's operand and result on that row.
+        static std::shared_ptr<DebuggerViewSnapshot>  MakeSourceSnapshot (const std::string & registers, const std::string & effect)
+        {
+            auto                               snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::CodeLine     lda;
+            DebuggerViewSnapshot::SourceState  source;
+
+
+
+            lda.address                   = 0x0300;
+            lda.bytes                     = "A5 10";
+            lda.instruction               = "LDA $10";
+            lda.annotationParts.registers = registers;
+            lda.effect                    = effect;
+            lda.isCurrent                 = true;
+            lda.sourceFileId              = 0;
+            lda.sourceLine                = 2;
+
+            source.debugFilePath = L"C:\\Work\\main.dbg";
+            source.programKey    = "key";
+            source.files         = { { 0, "main.a65", 45, 0, "", 0 } };
+
+            snapshot->pc           = 0x0300;
+            snapshot->isPaused     = true;
+            snapshot->codeViews[0] = { lda };
+            snapshot->codeOpen[0]  = true;
+            snapshot->code         = snapshot->codeViews[0];
+            snapshot->source       = source;
+
+            return snapshot;
+        }
+
+
+        //  The window over a source snapshot, with the host's options and
+        //  text, its tips laid out on `screen` and its list painted.
+        static void  BuildSource (TipWindow & window, const CassoTheme & theme, MockDxuiTextRenderer & text,
+                                  const std::shared_ptr<DebuggerViewSnapshot> & snapshot, const TipWindow::OperandTipScreen & screen)
+        {
+            DxuiDpiScaler    scaler;
+            MockDxuiPainter  painter;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, kWindowWidth, kWindowHeight }, scaler);
+            window.ApplyCodeSnapshot (snapshot, 0);
+            window.GetOperandTips().SetDeviceForTest (&text, screen);
+            window.GetCodeList (0)->Paint (painter, text, theme);
+        }
+
+
+        //  A source row drawn as one cell, with the label column hidden or
+        //  the instruction column dragged too narrow for its code: the row's
+        //  line is the source line, its comment and all, run on past the
+        //  pane, and the operand and then the result go below it, under where
+        //  the code starts.
+        TEST_METHOD (ASourceRowInOneCellHasItsOperandBelowUnderItsCode)
+        {
+            const std::wstring  line = L"loop    lda $10 ; " + std::wstring (300, L'c');
+
+            for (bool isLabelShown : { false, true })
+            {
+                CassoTheme                 theme    = CassoTheme::MakeSkeuomorphic();
+                SourceTipHost              host;
+                TipWindow                  window   (theme, host);
+                MockDxuiTextRenderer       text;
+                MockDxuiPainter            painter;
+                auto                       snapshot = MakeSourceSnapshot ("A=00 X=01", "A=41");
+                size_t                     column   = isLabelShown ? DisassemblyCells::kInstructionColumn : DisassemblyCells::kAddressColumn;
+                DxuiListView             * list     = nullptr;
+                RECT                       bounds   = {};
+                RECT                       cell     = {};
+                float                      codeLeft = 0.0f;
+                OperandResultTip::Layout   layout;
+
+                host.options    = isLabelShown ? "address bytes source symbols" : "address bytes source";
+                host.sourceText = "; main\n" + TextEncoding::WideToNarrow (line) + "\n";
+
+                BuildSource (window, theme, text, snapshot, MakeScreen());
+                list = window.GetCodeList (0);
+
+                if (isLabelShown)
+                {
+                    list->SetColumnOverrideWidthPx (DisassemblyCells::kInstructionColumn, list->GetFittedWidthPx (4));
+                    window.ApplyCodeSnapshot (std::make_shared<DebuggerViewSnapshot> (*snapshot), 0);
+                    list->Paint (painter, text, theme);
+                }
+
+                bounds = list->GetBounds();
+
+                Assert::IsTrue (list->GetCellsOfRow (0)[column].spansRow, L"the line in one cell");
+                Assert::IsTrue (list->GetCellTextRectPx (0, column, cell));
+
+                codeLeft = (float) (bounds.left + cell.left + (isLabelShown ? 0 : 8 * kGlyphPx));
+
+                Assert::IsTrue   (TryGetTip (window, POINT { bounds.left + cell.left + 1, bounds.top + (cell.top + cell.bottom) / 2 }, text, layout),
+                                  L"the pane cuts the line off");
+                Assert::AreEqual (3, layout.lineCount);
+                Assert::AreEqual (isLabelShown ? line.substr (8) : line, GetLineText (layout, 0), L"the source line, its comment and all");
+                Assert::AreEqual (std::wstring (L"A=00 X=01"),    GetLineText (layout, 1));
+                Assert::AreEqual (std::wstring (L"Result: A=41"), GetLineText (layout, 2));
+                Assert::AreEqual (codeLeft, GetLine (layout, 1)[0].leftPx, L"the operand under the code");
+                Assert::AreEqual (codeLeft, GetLine (layout, 2)[0].leftPx, L"the result under the code");
+            }
+        }
+
+
+        //  A source row's comment after an operand cell with no values, so
+        //  with no space before its ;, is the line's comment: it wraps at the
+        //  screen's edge under the comment's text.
+        TEST_METHOD (ASourceRowsCommentWithNoSpaceBeforeItIsFound)
+        {
+            constexpr int                  kRoomChars = 40;
+
+            CassoTheme                     theme      = CassoTheme::MakeSkeuomorphic();
+            SourceTipHost                  host;
+            TipWindow                      window     (theme, host);
+            MockDxuiTextRenderer           text;
+            auto                           snapshot   = MakeSourceSnapshot ("", "");
+            std::wstring                   comment    = L";";
+            DxuiListView                 * list       = nullptr;
+            RECT                           bounds     = {};
+            RECT                           cell       = {};
+            DxuiDpiScaler                  scaler;
+            OperandResultTip::Layout       layout;
+            TipWindow::OperandTipCell      tipCell;
+            TipWindow::OperandTipScreen    screen;
+
+
+
+            for (int i = 0; i < 60; i++)
+            {
+                comment += L" word";
+            }
+
+            host.options    = "address bytes source symbols";
+            host.sourceText = "; main\n        clc " + TextEncoding::WideToNarrow (comment) + "\n";
+
+            BuildSource (window, theme, text, snapshot, MakeScreen());
+            list   = window.GetCodeList (0);
+            bounds = list->GetBounds();
+
+            Assert::AreEqual (comment, list->GetCellsOfRow (0)[DisassemblyCells::kOperandColumn].text, L"the comment alone in the operand's cell");
+            Assert::IsTrue   (list->GetCellTextRectPx (0, DisassemblyCells::kOperandColumn, cell));
+
+            screen.workAreas.push_back (RECT { 0, 0, bounds.left + cell.left + kRoomChars * kGlyphPx + kPadPx, kScreenBelow });
+            window.GetOperandTips().SetDeviceForTest (&text, screen);
+
+            scaler.SetDpi (96);
+
+            Assert::IsTrue   (window.GetOperandTips().TryGet (POINT { bounds.left + cell.left + 1, bounds.top + (cell.top + cell.bottom) / 2 },
+                                                              scaler, text, screen, layout, tipCell),
+                              L"the pane cuts the comment off");
+            Assert::IsTrue   (layout.lineCount > 1, L"wider than the screen's room");
+            Assert::AreEqual ((float) (bounds.left + cell.left), GetLine (layout, 0)[0].leftPx);
+            Assert::AreEqual ((float) (bounds.left + cell.left + 2 * kGlyphPx), GetLine (layout, 1)[0].leftPx, L"under the comment's text");
         }
 
 

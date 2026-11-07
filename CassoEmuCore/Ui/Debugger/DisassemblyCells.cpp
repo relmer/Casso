@@ -74,14 +74,17 @@ void DisassemblyCells::ShowColumns (DxuiListView & list, const DisassemblyOption
 //  DisassemblyCells::FillSourceRow
 //
 //  A line that starts with a space has no label; a comment line, which starts
-//  with ; or *, is all in the label column, as a label is.
+//  with ; or *, is all in the label column, as a label is. The comment
+//  starts at the line's first ; outside a string or a character, as the
+//  in-place tip finds it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, const DxuiListView & list, int sourceLine,
-                                      const std::wstring & text, bool withNumber, const DebuggerTextColors::Set & colors, uint32_t numberArgb,
-                                      const DxuiListView::Cell * operand)
+DisassemblyCells::SourceParts DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, const DxuiListView & list, int sourceLine,
+                                                               const std::wstring & text, bool withNumber, const DebuggerTextColors::Set & colors,
+                                                               uint32_t numberArgb, const DxuiListView::Cell * operand)
 {
+    SourceParts                     parts;
     std::wstring                    prefix   = withNumber ? std::format (L"{:>5}  ", sourceLine) : std::wstring();
     std::wstring                    number   = withNumber ? std::format (L"{}", sourceLine) : std::wstring();
     std::vector<SourceSyntax::Run>  runs     = SourceSyntax::GetSourceRuns (text);
@@ -98,7 +101,7 @@ void DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, c
 
     labelEnd = (labelEnd == std::wstring::npos) ? text.size() : labelEnd;
     restAt   = std::min (text.size(), text.find_first_not_of (L" \t", labelEnd));
-    comment  = GetCommentStart (runs, restAt, text.size());
+    comment  = SourceSyntax::FindComment (text, restAt);
     codeEnd  = comment;
 
     while (codeEnd > restAt && iswspace (text[codeEnd - 1]))
@@ -128,12 +131,17 @@ void DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, c
 
         AddSourceRuns (cells[column], runs, 0, (int) text.size(), (int) prefix.size(), colors);
 
+        parts.codeColumn = column;
+        parts.codeChar   = (int) (prefix.size() + ((restAt < comment) ? restAt : 0));
+
         if (operand != nullptr)
         {
             AppendCell (cells[column], *operand);
+            parts.operandColumn = column;
+            parts.operandChar   = (int) (cells[column].text.size() - operand->text.size());
         }
 
-        return;
+        return parts;
     }
 
     //  The number in the address column, or the bytes column while the
@@ -157,6 +165,8 @@ void DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, c
 
     AddSourceRuns (cells[kLabelColumn], runs, 0, (int) labelEnd, (int) prefix.size(), colors);
 
+    parts.codeColumn = kInstructionColumn;
+
     if (operand == nullptr || isNarrow)
     {
         cells[kInstructionColumn].text     = text.substr (restAt);
@@ -166,15 +176,18 @@ void DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, c
         if (operand != nullptr)
         {
             AppendCell (cells[kInstructionColumn], *operand);
+            parts.operandColumn = kInstructionColumn;
+            parts.operandChar   = (int) (cells[kInstructionColumn].text.size() - operand->text.size());
         }
 
-        return;
+        return parts;
     }
 
     cells[kInstructionColumn].text = text.substr (restAt, codeEnd - restAt);
     AddSourceRuns (cells[kInstructionColumn], runs, (int) restAt, (int) codeEnd, 0, colors);
 
     cells[kOperandColumn] = *operand;
+    parts.operandColumn   = kOperandColumn;
 
     if (comment < text.size())
     {
@@ -184,7 +197,10 @@ void DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, c
         AddSourceRuns (remark, runs, (int) comment, (int) text.size(), 0, colors);
         AppendCell (cells[kOperandColumn], remark);
         cells[kOperandColumn].spansRow = true;
+        parts.commentChar              = (int) (cells[kOperandColumn].text.size() - remark.text.size());
     }
+
+    return parts;
 }
 
 
@@ -249,29 +265,6 @@ void DisassemblyCells::AppendCell (DxuiListView::Cell & cell, const DxuiListView
     {
         cell.colorRanges.push_back ({ at + first, at + end, argb });
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyCells::GetCommentStart
-//
-////////////////////////////////////////////////////////////////////////////////
-
-size_t DisassemblyCells::GetCommentStart (const std::vector<SourceSyntax::Run> & runs, size_t from, size_t end)
-{
-    for (const SourceSyntax::Run & run : runs)
-    {
-        if (run.token == SourceSyntax::Token::Comment && (size_t) run.start >= from)
-        {
-            return (std::min) ((size_t) run.start, end);
-        }
-    }
-
-    return end;
 }
 
 
