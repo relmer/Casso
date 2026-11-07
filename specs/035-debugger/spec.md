@@ -2532,7 +2532,10 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   `+` after its last tab (FR-089).
 - **FR-116**: The group with focus MUST show a 1-pixel accent border and an
   accent outline on its selected tab; an unfocused group's selected tab MUST
-  be outlined in a neutral color. Tabs that do not fit their group's width
+  be outlined in a neutral color. A floating window MUST be drawn with the
+  accent border while it is active. The window of a tab torn off to float MUST
+  be drawn with the accent from the start of the drag, and MUST become active
+  where it is dropped floating. Tabs that do not fit their group's width
   MUST scroll into reach with arrows at the strip's ends rather than having
   their titles cut short. The debugger's tabs MUST be drawn by the same tab
   strip Casso Explorer uses, with the options these requirements need, and

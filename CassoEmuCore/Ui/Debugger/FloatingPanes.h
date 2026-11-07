@@ -187,21 +187,22 @@ private:
     //  window is taken to be.
     static constexpr POINT  s_kOffSite = { INT_MIN / 2, INT_MIN / 2 };
 
-    void          Float          (const std::wstring & window);
-    void          Dock           (const std::wstring & window);
-    void          PlaceUnderGrab (const std::wstring & pane);
-    void          OnDrag         (const std::wstring & window, POINT screenPx, bool ended);
+    void          Float               (const std::wstring & window);
+    void          Dock                (const std::wstring & window);
+    void          PlaceUnderGrab      (const std::wstring & pane);
+    void          OnDrag              (const std::wstring & window, POINT screenPx, bool ended);
     bool          IsOverAnotherWindow (const std::wstring & window, POINT screenPx) const;
-    void          ShowDragMarks  ();
-    void          HideDragMarks  ();
-    void          DropCarriedTab (const std::wstring & pane);
-    void          SetFade        (const std::wstring & pane, bool on);
-    void          TearOut        (const std::wstring & window, const std::wstring & pane, POINT windowPx);
-    void          DockBackWindow (const std::wstring & window);
-    RECT          GetTearOffRect (const std::wstring & pane, POINT clientPx) const;
-    std::wstring  GetWindowOf    (const std::wstring & pane) const;
-    std::wstring  GetKeyOf       (const std::wstring & pane) const;
-    std::wstring  GetActivePane  (const std::wstring & window) const;
+    void          ActivateIfFloating  (const std::wstring & window);
+    void          ShowDragMarks       ();
+    void          HideDragMarks       ();
+    void          DropCarriedTab      (const std::wstring & pane);
+    void          SetFade             (const std::wstring & pane, bool on);
+    void          TearOut             (const std::wstring & window, const std::wstring & pane, POINT windowPx);
+    void          DockBackWindow      (const std::wstring & window);
+    RECT          GetTearOffRect      (const std::wstring & pane, POINT clientPx) const;
+    std::wstring  GetWindowOf         (const std::wstring & pane) const;
+    std::wstring  GetKeyOf            (const std::wstring & pane) const;
+    std::wstring  GetActivePane       (const std::wstring & window) const;
 
     IFloatingPanesHost                                         & m_host;
     std::map<std::wstring, std::unique_ptr<DxuiDockedWindow>>    m_windows;

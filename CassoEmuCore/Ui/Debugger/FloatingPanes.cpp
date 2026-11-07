@@ -632,6 +632,10 @@ void FloatingPanes::CarryTornOff()
 
     if (hwnd != nullptr && IsWindowVisible (hwnd))
     {
+        //  The tab torn off was the active one, so its window is drawn with
+        //  the accent from the start of the drag.
+        m_host.OnFloatFocusChanged (pane, true);
+
         PlaceUnderGrab (pane);
         Find (pane)->BeginMove();
     }
@@ -1473,6 +1477,7 @@ void FloatingPanes::OnDrag (const std::wstring & window, POINT screenPx, bool en
     if (!site.IsDragging())
     {
         HideDragMarks();
+        ActivateIfFloating (window);
         return;
     }
 
@@ -1495,6 +1500,37 @@ void FloatingPanes::OnDrag (const std::wstring & window, POINT screenPx, bool en
     //  The window's place is saved whether or not the drop docked it: a
     //  drop over the debugger away from any zone moves the window too.
     m_host.SaveLayout();
+
+    ActivateIfFloating (window);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FloatingPanes::ActivateIfFloating
+//
+//  A window dropped where it stays floating is activated, so it has the
+//  keyboard focus and the accent, as a window moved by its title bar is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FloatingPanes::ActivateIfFloating (const std::wstring & window)
+{
+    DxuiDockSite  & site = *m_host.GetFloatDockSite();
+    std::wstring    pane = GetActivePane (window);
+
+
+
+    if (!m_windows.contains (window) || m_windows.at (window)->GetHwnd() == nullptr || !site.GetPaneLayout().IsFloating (pane))
+    {
+        return;
+    }
+
+    (void) SetActiveWindow (m_windows.at (window)->GetHwnd());
+    m_host.OnFloatFocusChanged (pane, true);
 }
 
 
