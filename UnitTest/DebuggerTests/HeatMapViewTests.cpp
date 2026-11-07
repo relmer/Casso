@@ -316,6 +316,67 @@ namespace DebuggerTests
 
 
 
+        //  The slider stays open with the pointer over it or near it, and
+        //  closes once the pointer moves further away or off the map. During a
+        //  drag of its thumb it is open wherever the pointer goes.
+        TEST_METHOD (TheZoomSliderClosesWhenThePointerMovesAway)
+        {
+            HeatMapView     view;
+            DxuiMouseEvent  ev;
+            RECT            button = {};
+            RECT            panel  = {};
+            RECT            track  = {};
+            DxuiDpiScaler   scaler;
+            int             nearPx = scaler.ToPx (HeatMapZoomWidget::kNearDip);
+
+
+
+            Place (view);
+            button = view.GetZoomWidget().GetButtonRect();
+
+            ev.kind        = DxuiMouseEventKind::Down;
+            ev.button      = DxuiMouseButton::Left;
+            ev.positionDip = POINT { (button.left + button.right) / 2, (button.top + button.bottom) / 2 };
+            view.OnMouse (ev);
+            ev.kind = DxuiMouseEventKind::Up;
+            view.OnMouse (ev);
+            Assert::IsTrue (view.GetZoomWidget().IsOpen());
+
+            panel  = view.GetZoomWidget().GetPanelRect();
+            track  = view.GetZoomWidget().GetTrackRect();
+
+            ev.kind        = DxuiMouseEventKind::Move;
+            ev.button      = DxuiMouseButton::None;
+            ev.positionDip = POINT { panel.left - nearPx / 2, (panel.top + panel.bottom) / 2 };
+            view.OnMouse (ev);
+            Assert::IsTrue (view.GetZoomWidget().IsOpen(), L"nearPx the panel");
+
+            ev.positionDip = POINT { panel.left - nearPx - 4, (panel.top + panel.bottom) / 2 };
+            view.OnMouse (ev);
+            Assert::IsFalse (view.GetZoomWidget().IsOpen(), L"away from it");
+
+            //  Open again, then drag the thumb far away.
+            ev.kind        = DxuiMouseEventKind::Down;
+            ev.button      = DxuiMouseButton::Left;
+            ev.positionDip = POINT { (button.left + button.right) / 2, (button.top + button.bottom) / 2 };
+            view.OnMouse (ev);
+            ev.kind = DxuiMouseEventKind::Up;
+            view.OnMouse (ev);
+            ev.kind        = DxuiMouseEventKind::Down;
+            ev.positionDip = POINT { (track.left + track.right) / 2, (track.top + track.bottom) / 2 };
+            view.OnMouse (ev);
+            ev.kind        = DxuiMouseEventKind::Move;
+            ev.positionDip = POINT { panel.left - 10 * nearPx, panel.top - 10 * nearPx };
+            view.OnMouse (ev);
+            Assert::IsTrue (view.GetZoomWidget().IsOpen(), L"open while its thumb is dragged");
+
+            ev.kind = DxuiMouseEventKind::Up;
+            view.OnMouse (ev);
+            ev.kind = DxuiMouseEventKind::Leave;
+            view.OnMouse (ev);
+            Assert::IsFalse (view.GetZoomWidget().IsOpen(), L"the pointer moved off the map");
+        }
+
         //  A click in another pane is not routed to the map, so the slider
         //  closes when the focus moves from the map's pane.
         TEST_METHOD (TheZoomSliderClosesWithTheFocus)

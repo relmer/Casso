@@ -60,6 +60,35 @@ float HeatMapZoomWidget::GetPosition (int cellPx, int maxCellPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapZoomWidget::IsNear
+//
+//  On the button or the open panel, or within kNearDip of either.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapZoomWidget::IsNear (POINT point) const
+{
+    RECT  area   = m_button;
+    RECT  panel  = GetPanelRect();
+    int   margin = m_scaler.ToPx (kNearDip);
+
+
+
+    if (m_isOpen)
+    {
+        UnionRect (&area, &m_button, &panel);
+    }
+
+    InflateRect (&area, margin, margin);
+    return Contains (area, point);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapZoomWidget::GetCellPxAtPosition
 //
 ////////////////////////////////////////////////////////////////////////////////

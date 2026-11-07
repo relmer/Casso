@@ -3929,7 +3929,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-383**: At every zoom, every heat map row MUST fit the pane's width, with
   no horizontal scroll bar: the rows reflow as the pane's width changes, and
   only the vertical bar scrolls. A row scrolled partly off the top MUST have no
-  label, and the zoom slider MUST close when the focus moves to another pane.
+  label. The zoom slider MUST close when the focus moves to another pane, and
+  when the pointer moves more than 16 DIPs from the zoom button and its
+  slider or moves off the map, except while the slider's thumb is being dragged.
 - **FR-384**: A floating pane dragged from a monitor at one scale MUST bring up the
   drop targets over a window on a monitor at another scale, in one drag.
 - **FR-385**: The View menu MUST list the panes in sections divided by

@@ -46,6 +46,10 @@ public:
     static constexpr int  kThumbDip        = 6;
     static constexpr int  kPercent         = 100;
 
+    //  How far past the button and its open panel the pointer can go before
+    //  the panel closes, as the disk inspector's tilt slider does.
+    static constexpr int  kNearDip         = 16;
+
     //  The tip over the button.
     static constexpr const wchar_t * kpszTip = L"Zoom\nCtrl+wheel over the map zooms in and out about the pointer. Click for a slider and Reset.";
 
@@ -74,6 +78,7 @@ public:
     void  SetDragging (bool dragging) { m_isDragging = dragging && m_isOpen; }
 
     Hit   HitTest     (POINT point) const;
+    bool  IsNear      (POINT point) const;
 
     //  The cell size the point stands for along the track, the ends taken
     //  past either end.

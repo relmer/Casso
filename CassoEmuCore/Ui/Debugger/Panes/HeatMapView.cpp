@@ -3422,6 +3422,14 @@ void HeatMapView::OnFocusChanged (bool focused)
 
 bool HeatMapView::OnMouse (const DxuiMouseEvent & ev)
 {
+    //  The zoom slider closes once the pointer moves away from it or off the
+    //  map, except while its thumb is being dragged.
+    if (m_zoomWidget.IsOpen() && !m_zoomWidget.IsDragging() &&
+        (ev.kind == DxuiMouseEventKind::Leave || (ev.kind == DxuiMouseEventKind::Move && !m_zoomWidget.IsNear (ev.positionDip))))
+    {
+        m_zoomWidget.SetOpen (false);
+    }
+
     //  The pointer over the zoom frames no cell, and the move is left for the
     //  window, which shows the zoom's tip.
     if (ev.kind == DxuiMouseEventKind::Move && !IsPressed() && m_zoomWidget.HitTest (ev.positionDip) != HeatMapZoomWidget::Hit::None)
