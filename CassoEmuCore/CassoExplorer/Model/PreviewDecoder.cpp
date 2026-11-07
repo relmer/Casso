@@ -18,6 +18,7 @@
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Devices/Disk/DiskImageSession.h"
 #include "Debugger/RomSymbols.h"
+#include "Ui/Debugger/SourceSyntax.h"
 
 
 
@@ -107,6 +108,62 @@ bool PreviewDecoder::IsBinaryType (Byte type, VolumeKind kind)
 bool PreviewDecoder::IsExecutableType (Byte type, VolumeKind kind)
 {
     return IsBinaryType (type, kind) || (kind == VolumeKind::ProDos && (type == ProDosVolume::kTypeSystem || type == ProDosVolume::kTypeRelocatable));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::IsAlwaysCodeType
+//
+//  ProDOS runs a SYS file, and a REL file is relocated code.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDecoder::IsAlwaysCodeType (Byte type, VolumeKind kind)
+{
+    return kind == VolumeKind::ProDos && (type == ProDosVolume::kTypeSystem || type == ProDosVolume::kTypeRelocatable);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::LooksLikeCode
+//
+//  Whether a binary's first instructions are 6502 code: few enough of them
+//  are opcodes the 6502 doesn't document. Measured on MousePaint's files,
+//  its programs have none to four in their first 64 instructions, and its
+//  fonts, icons and tables six or more.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDecoder::LooksLikeCode (std::span<const Byte> bytes, Word origin)
+{
+    std::vector<DisassembledLine>  lines;
+    size_t                         sampled      = 0;
+    size_t                         undocumented = 0;
+
+
+
+    Disassembler::Disassemble (bytes.first ((std::min) (bytes.size(), s_kCodeSampleBytes)), origin, GetNmosTable(), lines);
+
+    for (const DisassembledLine & line : lines)
+    {
+        if (sampled == s_kCodeSampleInstructions)
+        {
+            break;
+        }
+
+        sampled++;
+        undocumented += SourceSyntax::IsMnemonic (TextEncoding::NarrowToWide (line.mnemonic)) ? 0 : 1;
+    }
+
+    return sampled > 0 && undocumented * 100 <= sampled * s_kCodeUndocumentedPercent;
 }
 
 
@@ -859,7 +916,10 @@ HRESULT PreviewDecoder::Render (
 
             outContent.executable = IsExecutableType (entry.type, kind);
 
-            if (hexForm == HexForm::Disassembly || (hexForm == HexForm::Auto && outContent.executable))
+            //  A SYS or REL file is run as code. A binary may be data, such as a
+            //  font, which opens as bytes.
+            if (hexForm == HexForm::Disassembly || (hexForm == HexForm::Auto && outContent.executable &&
+                                                    (IsAlwaysCodeType (entry.type, kind) || LooksLikeCode (payload.bytes, origin))))
             {
                 RenderDisassembly (payload.bytes, origin, kind, relocatable, outContent.lines);
                 outContent.disassembly = true;

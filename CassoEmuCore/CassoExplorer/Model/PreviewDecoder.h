@@ -161,6 +161,11 @@ public:
     //  Whether a file's type marks it as 6502 code: a DOS 3.3 B file, or a
     //  ProDOS BIN or SYS file.
     static bool  IsExecutableType (Byte type, VolumeKind kind);
+    static bool  IsAlwaysCodeType (Byte type, VolumeKind kind);
+
+    //  Whether a binary's first instructions read as 6502 code rather than
+    //  as data.
+    static bool  LooksLikeCode (std::span<const Byte> bytes, Word origin);
 
     //  The whole preview for one file's payload. `bus` is handed to the video
     //  modes and never read; a test proves it with a bus that fails on read.
@@ -254,4 +259,10 @@ private:
 
     //  Bytes of a dictionary listed a line.
     static constexpr size_t        s_kDataBytesPerLine = 8;
+
+    //  How much of a binary LooksLikeCode reads, and the share of its first
+    //  instructions that may be undocumented opcodes.
+    static constexpr size_t        s_kCodeSampleBytes         = 256;
+    static constexpr size_t        s_kCodeSampleInstructions  = 64;
+    static constexpr size_t        s_kCodeUndocumentedPercent = 8;
 };

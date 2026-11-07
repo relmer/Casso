@@ -383,11 +383,27 @@ public:
 
 
 
-    TEST_METHOD (Hex_ABinaryFileOpensAsADisassembly)
+    TEST_METHOD (Hex_ABinaryOfDataOpensAsBytes_AndOfCodeAsADisassembly)
     {
         PreviewContent  content;
+        vector<Byte>    sectors;
+        VolumeListing   listing;
+        FilePayload     payload;
+        MemoryBus       bus;
 
         RenderDos33 ("ODD", PreviewDecoder::HexForm::Auto, content);
+
+        Assert::IsTrue  (content.kind == Kind::Hex);
+        Assert::IsFalse (content.disassembly, L"ODD's bytes are random, not code");
+        Assert::IsTrue  (content.executable);
+
+        LoadDos33 (sectors, listing);
+
+        payload.bytes          = { 0xA9, 0x00, 0x85, 0xFB, 0x20, 0x58, 0xFC, 0xAD, 0x00, 0xC0, 0x10, 0xFB, 0x8D, 0x10, 0xC0, 0x60 };
+        payload.loadAddress    = 0x0803;
+        payload.hasLoadAddress = true;
+
+        AssertSucceeded (PreviewDecoder::Render (FindEntry (listing, "ODD"), VolumeKind::Dos33, payload, PreviewDecoder::HexForm::Auto, bus, content));
 
         Assert::IsTrue (content.kind == Kind::Hex);
         Assert::IsTrue (content.disassembly);
@@ -414,6 +430,21 @@ public:
         Assert::AreEqual (std::wstring (L"1004            DFB $81,$01,$00,$00  ; relocation record"), lines[2]);
         Assert::AreEqual (std::wstring (L"1008            DFB $00  ; end of relocation records"),     lines[3]);
         Assert::AreEqual (std::wstring (L"1009            DFB $C1,$00  ; external symbols"),          lines[4]);
+    }
+
+
+
+    //  A font's header and width table, as MousePaint's TORONTO starts, is
+    //  data; a loop of loads, stores and calls is code.
+    TEST_METHOD (LooksLikeCode_TellsAProgramFromAFont)
+    {
+        std::vector<Byte>  font = { 0x80, 0x7F, 0x0B, 0x01, 0x01, 0x01, 0x07, 0x01, 0x05, 0x03, 0x06, 0x0A, 0x09, 0x09, 0x03, 0x04,
+                                    0x04, 0x08, 0x08, 0x03, 0x07, 0x03, 0x06, 0x07, 0x0C, 0x09, 0x0A, 0x0E, 0x08, 0x02, 0x0F, 0x0B };
+        std::vector<Byte>  code = { 0xA9, 0x00, 0x85, 0xFB, 0x20, 0x58, 0xFC, 0xA2, 0x10, 0xBD, 0x00, 0x20, 0x9D, 0x00, 0x04, 0xCA,
+                                    0xD0, 0xF7, 0xAD, 0x00, 0xC0, 0x10, 0xFB, 0x8D, 0x10, 0xC0, 0x4C, 0x00, 0x08, 0x60 };
+
+        Assert::IsFalse (PreviewDecoder::LooksLikeCode (font, 0x0000));
+        Assert::IsTrue  (PreviewDecoder::LooksLikeCode (code, 0x0800));
     }
 
 

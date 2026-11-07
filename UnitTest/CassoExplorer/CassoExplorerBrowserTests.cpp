@@ -850,19 +850,17 @@ public:
 
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"ODD") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Hex);
-        Assert::IsTrue (host.browser.GetPreview().disassembly, L"A binary file opens as a disassembly");
-
-        host.browser.SetHexForm (PreviewDecoder::HexForm::Bytes);
-        Assert::IsFalse (host.browser.GetPreview().disassembly);
+        Assert::IsFalse (host.browser.GetPreview().disassembly, L"A binary file of data opens as bytes");
         Assert::IsFalse (host.browser.GetPreview().bytes.empty());
+        Assert::IsTrue  (ExplorerPreviewManager::IsKnownPreview (host.browser.GetPreview()), L"and its hex opens the pane by itself");
+
+        host.browser.SetHexForm (PreviewDecoder::HexForm::Disassembly);
+        Assert::IsTrue (host.browser.GetPreview().disassembly);
+        Assert::IsTrue (ExplorerPreviewManager::IsKnownPreview (host.browser.GetPreview()), L"as does its disassembly");
 
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"HELLO") });
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"ODD") });
-        Assert::IsTrue (host.browser.GetPreview().disassembly, L"and opens so again after another file");
-        Assert::IsTrue (ExplorerPreviewManager::IsKnownPreview (host.browser.GetPreview()), L"A disassembly opens the pane by itself");
-
-        host.browser.SetHexForm (PreviewDecoder::HexForm::Bytes);
-        Assert::IsTrue  (ExplorerPreviewManager::IsKnownPreview (host.browser.GetPreview()), L"and so does a binary file's hex");
+        Assert::IsFalse (host.browser.GetPreview().disassembly, L"and it opens as bytes again after another file");
 
         PreviewContent  fallback;
 
