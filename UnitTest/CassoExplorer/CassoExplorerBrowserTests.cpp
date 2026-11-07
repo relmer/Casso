@@ -862,7 +862,13 @@ public:
         Assert::IsTrue (ExplorerPreviewManager::IsKnownPreview (host.browser.GetPreview()), L"A disassembly opens the pane by itself");
 
         host.browser.SetHexForm (PreviewDecoder::HexForm::Bytes);
-        Assert::IsFalse (ExplorerPreviewManager::IsKnownPreview (host.browser.GetPreview()), L"and bytes alone don't");
+        Assert::IsTrue  (ExplorerPreviewManager::IsKnownPreview (host.browser.GetPreview()), L"and so does a binary file's hex");
+
+        PreviewContent  fallback;
+
+        fallback.kind  = PreviewContent::Kind::Hex;
+        fallback.bytes = { 0x00 };
+        Assert::IsFalse (ExplorerPreviewManager::IsKnownPreview (fallback), L"but hex for want of another preview doesn't");
     }
 
 

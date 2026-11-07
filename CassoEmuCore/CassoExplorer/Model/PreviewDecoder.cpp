@@ -857,7 +857,9 @@ HRESULT PreviewDecoder::Render (
                 origin = payload.hasAuxType ? payload.auxType : entry.auxType;
             }
 
-            if (hexForm == HexForm::Disassembly || (hexForm == HexForm::Auto && IsExecutableType (entry.type, kind)))
+            outContent.executable = IsExecutableType (entry.type, kind);
+
+            if (hexForm == HexForm::Disassembly || (hexForm == HexForm::Auto && outContent.executable))
             {
                 RenderDisassembly (payload.bytes, origin, kind, relocatable, outContent.lines);
                 outContent.disassembly = true;
