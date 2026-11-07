@@ -1141,7 +1141,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMountStarted)
+HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, const RECT * placeAtPx, bool & outMountStarted)
 {
     HRESULT                    hr        = S_OK;
     int                        choice    = IDYES;
@@ -1218,6 +1218,15 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
 
     hr = dialog.Create (params);
     CHRA (hr);
+
+    //  Opened from the picker, it takes the picker's place, so it reads as
+    //  the same window moving on to its next step.
+    if (placeAtPx != nullptr && placeAtPx->right > placeAtPx->left)
+    {
+        SetWindowPos (dialog.GetHwnd(), nullptr, placeAtPx->left, placeAtPx->top,
+                      placeAtPx->right - placeAtPx->left, placeAtPx->bottom - placeAtPx->top,
+                      SWP_NOZORDER | SWP_NOACTIVATE);
+    }
 
     dialog.SetTheme (&m_shell.m_chrome->GetTheme());
     dialog.ShowModalDialog (IDOK);
@@ -1423,6 +1432,7 @@ HRESULT WindowCommandManager::PromptInsertTapeMru (const RECT * anchorRectPx)
     std::string                  error;
     bool                         userBrowsed   = false;
     bool                         userCreateNew = false;
+    RECT                         pickerRectPx  = {};
 
 
 
@@ -1438,6 +1448,7 @@ HRESULT WindowCommandManager::PromptInsertTapeMru (const RECT * anchorRectPx)
                                               chosenPath,
                                               userBrowsed,
                                               userCreateNew,
+                                              pickerRectPx,
                                               error);
     CHR (hr);
 
@@ -1484,6 +1495,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * ancho
     std::string                  error;
     bool                         userBrowsed   = false;
     bool                         userCreateNew = false;
+    RECT                         pickerRectPx  = {};
 
 
 
@@ -1504,6 +1516,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * ancho
                                               chosenPath,
                                               userBrowsed,
                                               userCreateNew,
+                                              pickerRectPx,
                                               error);
     CHR (hr);
 
@@ -1514,7 +1527,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * ancho
     }
     else if (userCreateNew)
     {
-        hr = CreateBlankDiskForDrive (drive, outMountStarted);
+        hr = CreateBlankDiskForDrive (drive, &pickerRectPx, outMountStarted);
         CHR (hr);
     }
     else if (!chosenPath.empty())

@@ -2289,7 +2289,15 @@ public:
         // immune to the search filter -- the picker's <Create new disk...>
         // action row.
         bool          pinnedFirst = false;
+
+        //  The row for a path typed or pasted into the search box, above
+        //  every other row.
+        bool          typedPath   = false;
     };
+
+    //  The result of the row for a typed path, below the dialog's row
+    //  result offset; GetTypedPath has the path.
+    static constexpr int  kTypedPathResult = 99999;
 
     DiskMruPickerSession (HINSTANCE hInstance, HWND hwndParent, std::string_view themeName)
         : m_hInstance (hInstance), m_hwndParent (hwndParent), m_themeName (themeName) {}
@@ -2302,7 +2310,16 @@ public:
     void  SetAnchorRect     (const RECT & anchorRectPx)                             { m_anchorRectPx = anchorRectPx; m_hasAnchor = true; }
     int   Run               ();
 
+    const std::wstring  & GetTypedPath() const { return m_typedPath; }
+
+    //  Where the picker's window was when it closed, in screen pixels.
+    const RECT          & GetClosedRectPx() const { return m_closedRectPx; }
+
     static std::int64_t  FileMtimeUnix (const fs::path & path);
+
+    //  The search text as the path of an existing file: trimmed, without
+    //  surrounding quotes, and absolute. Empty when it isn't one.
+    static std::wstring  ResolveTypedPath (const std::wstring & text);
 
 private:
     void                ConfigureWidgets   ();
@@ -2333,6 +2350,9 @@ private:
     static constexpr UINT   s_kTickIntervalMs        = 30;
     static constexpr float  s_kIconSizeDip           = 64.0f;
 
+    //  Room in the search box for a pasted path as long as Windows allows.
+    static constexpr size_t  s_kSearchMaxChars = 32767;
+
     static constexpr std::uint64_t  s_kFiletimeTicksPerSec = 10000000ULL;
     static constexpr std::uint64_t  s_kUnixEpochFiletime   = 116444736000000000ULL;
 
@@ -2351,6 +2371,8 @@ private:
     DxuiSearchBox              m_search;
     std::vector<int>           m_view;
     std::wstring               m_filter;
+    std::wstring               m_typedPath;
+    RECT                       m_closedRectPx    = {};
     int                        m_sortColumn      = s_kColLastLoaded;
     bool                       m_sortDescending  = true;
     int                        m_focusStop       = -1;
@@ -2457,6 +2479,49 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskMruPickerSession::ResolveTypedPath
+//
+//  A path pasted from File Explorer's Copy as path has quotes around it. A
+//  relative name is a search, not a path, so it is left to the filter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskMruPickerSession::ResolveTypedPath (const std::wstring & text)
+{
+    HRESULT          hr     = S_OK;
+    std::wstring     result;
+    std::wstring     trimmed;
+    fs::path         path;
+    std::error_code  ec;
+    size_t           first  = text.find_first_not_of (L" \t");
+    size_t           last   = text.find_last_not_of (L" \t");
+
+
+
+    BAIL_OUT_IF (first == std::wstring::npos, S_OK);
+
+    trimmed = text.substr (first, last - first + 1);
+
+    if (trimmed.size() >= 2 && trimmed.front() == L'"' && trimmed.back() == L'"')
+    {
+        trimmed = trimmed.substr (1, trimmed.size() - 2);
+    }
+
+    path = fs::path (trimmed);
+    BAIL_OUT_IF (!path.is_absolute() || !fs::is_regular_file (path, ec), S_OK);
+
+    result = path.wstring();
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskMruPickerSession::ConfigureWidgets
 //
 //  One-time configuration of the search box and list view (DPI, columns,
@@ -2473,6 +2538,7 @@ void DiskMruPickerSession::ConfigureWidgets()
 
     m_search.SetDpi         (m_dpi);
     m_search.SetPlaceholder (L"Search");
+    m_search.SetMaxLength   (s_kSearchMaxChars);
     m_search.SetOnChange    ([this] (const std::wstring & value) { m_filter = value; RebuildView(); });
 
     cols.push_back ({ L"Last loaded", 0, false, DxuiTextRenderer::HAlign::Left });
@@ -2604,6 +2670,11 @@ void DiskMruPickerSession::RebuildView()
         const ModelRow &  b   = m_model[(size_t) rhs];
         int               cmp = 0;
 
+        if (a.typedPath != b.typedPath)
+        {
+            return a.typedPath;
+        }
+
         // Pinned action rows order first for EVERY column and direction.
         if (a.pinnedFirst != b.pinnedFirst)
         {
@@ -2628,6 +2699,25 @@ void DiskMruPickerSession::RebuildView()
 
 
 
+    //  A path typed or pasted into the search box gets a row, which the
+    //  search box's Enter chooses.
+    std::erase_if (m_model, [] (const ModelRow & row) { return row.typedPath; });
+
+    m_typedPath = ResolveTypedPath (m_filter);
+
+    if (!m_typedPath.empty())
+    {
+        ModelRow  typed;
+
+        typed.name        = fs::path (m_typedPath).filename().wstring();
+        typed.location    = fs::path (m_typedPath).parent_path().wstring();
+        typed.resultCode  = kTypedPathResult;
+        typed.dimLocation = true;
+        typed.pinnedFirst = true;
+        typed.typedPath   = true;
+        m_model.push_back (std::move (typed));
+    }
+
     m_view.clear();
     m_view.reserve (m_model.size());
 
@@ -2648,6 +2738,14 @@ void DiskMruPickerSession::RebuildView()
         const ModelRow &  row  = m_model[(size_t) idx];
         std::wstring      date = FormatLastLoaded (row.loadedUnix);
 
+        //  The typed path's row is the search text itself, so nothing in it
+        //  is highlighted.
+        if (row.typedPath)
+        {
+            rows.push_back ({ { date, true }, { row.name, false }, { row.location, row.dimLocation } });
+            continue;
+        }
+
         rows.push_back ({ { date,         true,            matchesIn (date) },
                           { row.name,     false,           matchesIn (row.name) },
                           { row.location, row.dimLocation, matchesIn (row.location) } });
@@ -2657,7 +2755,11 @@ void DiskMruPickerSession::RebuildView()
     m_list.UpdateAutoFitFromRows();
 
     selected = m_list.GetSelectedRow();
-    if (selected >= (int) m_view.size())
+    if (!m_typedPath.empty())
+    {
+        m_list.SetSelectedRow (0);
+    }
+    else if (selected >= (int) m_view.size())
     {
         m_list.SetSelectedRow ((int) m_view.size() - 1);
     }
@@ -2776,6 +2878,18 @@ int DiskMruPickerSession::Run()
         }
     });
 
+    m_search.SetOnSubmit ([&dlg, this]() -> bool
+    {
+        bool  submitted = !m_typedPath.empty();
+
+        if (submitted)
+        {
+            dlg.EndDialog (PickerDialog::kRowResultBase + kTypedPathResult);
+        }
+
+        return submitted;
+    });
+
     content->Init (&m_search, &m_list, s_kSearchHeightDip, s_kSearchListGapDip);
 
     dlg.ConfigurePicker (std::move (content), &m_search, m_buttons, m_closeBoxResult.value_or (-1));
@@ -2808,6 +2922,9 @@ int DiskMruPickerSession::Run()
 
     raw    = dlg.ShowModalDialog (dlg.GetDefaultCommandId());
     chosen = dlg.MapResult (raw);
+
+    //  The window is hidden, not destroyed, so its last place can be read.
+    GetWindowRect (dlg.GetHwnd(), &m_closedRectPx);
 
 Error:
     return chosen;
@@ -2870,6 +2987,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     std::vector<DiskMruPickerSession::ModelRow>  models;
     CassoTheme                                   theme          = CassoTheme::MakeByName (std::string (themeName));
     int                                          chosen         = s_kSkipResult;
+    wstring                                      typedPath;
     int                                          mruCount       = (int) mruEntries.size();
     int                                          downloadCount  = 0;
     int                                          rowCount       = 0;
@@ -2986,7 +3104,8 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
         session.AddButton        ({ L"Skip", s_kSkipResult, true, true });
         session.SetCloseBoxResult (s_kCloseBoxResult);
 
-        chosen = session.Run();
+        chosen    = session.Run();
+        typedPath = session.GetTypedPath();
 
         //  The close box, Skip, and the MRU rows all end the picker.
         if (chosen < mruCount || chosen >= rowCount)
@@ -3013,6 +3132,10 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     if (chosen == s_kCloseBoxResult)
     {
         outUserClosed = true;
+    }
+    else if (chosen == DiskMruPickerSession::kTypedPathResult)
+    {
+        outDiskPath = typedPath;
     }
     else if (chosen >= 0 && chosen < mruCount)
     {
@@ -3109,6 +3232,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     wstring                      & outDiskPath,
     bool                         & outBrowse,
     bool                         & outCreateNew,
+    RECT                         & outPickerRectPx,
     string                       & outError)
 {
     struct DownloadRow { const BootDiskSpec * spec; wstring label; };
@@ -3130,6 +3254,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     std::vector<DiskMruPickerSession::ModelRow>  models;
     CassoTheme                                   theme          = CassoTheme::MakeByName (std::string (themeName));
     int                                          chosen         = s_kCancelResult;
+    wstring                                      typedPath;
     int                                          mruCount       = (int) mruEntries.size();
     int                                          downloadCount  = 0;
     int                                          rowCount       = 0;
@@ -3138,8 +3263,9 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
 
     outDiskPath.clear();
-    outBrowse    = false;
-    outCreateNew = false;
+    outBrowse       = false;
+    outCreateNew    = false;
+    outPickerRectPx = {};
 
     mruLabels.assign ((size_t) mruCount, nullptr);
 
@@ -3250,7 +3376,9 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
             session.SetAnchorRect (*anchorRectPx);
         }
 
-        chosen = session.Run();
+        chosen          = session.Run();
+        typedPath       = session.GetTypedPath();
+        outPickerRectPx = session.GetClosedRectPx();
 
         //  Browse..., Cancel, the close box, the MRU rows, and the pinned
         //  create-new row all end the picker.
@@ -3277,6 +3405,10 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     if (chosen == s_kBrowseResult)
     {
         outBrowse = true;
+    }
+    else if (chosen == DiskMruPickerSession::kTypedPathResult)
+    {
+        outDiskPath = typedPath;
     }
     else if (chosen >= 0 && chosen < mruCount)
     {

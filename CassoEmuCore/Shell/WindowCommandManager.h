@@ -96,7 +96,7 @@ public:
 
     // The create-a-blank-disk flow behind the picker's <Create new disk...>
     // row: dialog -> BlankDiskBuilder -> atomic write -> Mount.
-    HRESULT  CreateBlankDiskForDrive (int drive, bool & outMountStarted);
+    HRESULT  CreateBlankDiskForDrive (int drive, const RECT * placeAtPx, bool & outMountStarted);
 
 private:
     // How a delivery attempt ended, reported separately from the HRESULT.
