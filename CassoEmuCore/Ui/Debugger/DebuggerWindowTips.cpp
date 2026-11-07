@@ -240,8 +240,9 @@ int DebuggerWindow::FindOperandTipView (POINT clientPx) const
 //
 //  The view and row whose cut-off text at the right edge lies under a
 //  point: a disassembly row's operand and result, or the cell spanning the
-//  row that ends it, from that cell's column to the row's end; the BASIC
-//  program's values; or a source line's operand and result.
+//  row that ends it, from that cell's column to the row's end, or from the
+//  label column for a source or data line; the BASIC program's values; or a
+//  source line's operand and result.
 //
 //  Where that cell starts out of view, a point anywhere along its row counts.
 //
@@ -259,7 +260,9 @@ bool DebuggerWindow::TryFindOperandTipRow (
     bool             isOver   = false;
     int              column   = -1;
     size_t           tip      = 0;
+    size_t           start    = 0;
     bool             isSpan   = false;
+    bool             isLine   = false;
 
 
 
@@ -289,7 +292,8 @@ bool DebuggerWindow::TryFindOperandTipRow (
     column = GetColumnAt (list, clientPx.x - bounds.left);
     tip    = GetTipColumn (view, row);
     isSpan = tip < list->GetCellsOfRow (row).size() && list->GetCellsOfRow (row)[tip].spansRow;
-    isOver = column == (int) tip || (isSpan && column > (int) tip) || IsTipCellOutOfView (list, row, tip);
+    isLine = TryGetTipLineColumn (view, row, start);
+    isOver = column == (int) tip || (isSpan && column > (int) tip) || (isLine && column >= (int) start) || IsTipCellOutOfView (list, row, tip);
 
 Error:
     return isOver;
@@ -455,6 +459,41 @@ size_t DebuggerWindow::GetTipColumn (int view, int row) const
     }
 
     return kCodeOperandColumn;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetTipLineColumn
+//
+//  A disassembly row whose tip cell runs on to the row's end ahead of the
+//  operand is a source line's or a data line's, which starts in the label
+//  column while that column is visible.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetTipLineColumn (
+    int       view,
+    int       row,
+    size_t  & column) const
+{
+    DxuiListView  * list   = (view >= 0 && view < kBasicTipView) ? m_code->GetCodeList (view) : nullptr;
+    size_t          tip    = GetTipColumn (view, row);
+    bool            isLine = list != nullptr && tip != kCodeOperandColumn;
+
+
+
+    column = tip;
+
+    if (isLine && tip > kCodeLabelColumn && list->IsColumnVisible (kCodeLabelColumn))
+    {
+        column = kCodeLabelColumn;
+    }
+
+    return isLine;
 }
 
 

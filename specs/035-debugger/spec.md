@@ -359,6 +359,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 
 - Q: When does the in-place tip for a cut-off operand and result appear? -> A: On the first pointer move over the cell. The owner: "the in-place tip should not have a delay, it should be instant" (FR-026a).
 - Q: What does the tip do when the Operand and result cell is wholly out of view, as when the columns left of it are widened past the pane's edge? -> A: It comes up with the pointer anywhere on the row, with every line below the row from the pane's left edge, in the same font, colors and fill (FR-026a).
+- Q: How wide is the tip, and where does it wrap? -> A: It extends to the right to the end of its text and wraps only at the screen's edge. The owner: "There will almost always be space to the right to extend the line as far as we need." An instruction's result goes on the line below its operand, from the same left, and the tip is as wide as the wider of the two. A source or data line is drawn on one line from its start, its label rather than its directive, and only a line wider than the screen wraps: under the comment's first character in a comment, four characters right of the code otherwise. A source document's operand and result take the disassembly's colors, and its tip follows the same rules (FR-026a).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -2130,14 +2131,27 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   and MUST NOT be saved in the layout or the debug project. A pane MUST be tall
   enough by default to show at least eight entries. Where the column's text is
   cut off, it MUST be drawn whole in an in-place tip from the first pointer
-  move over the cell, with no delay: the operand on the first lines, starting
-  at the cell's text, and the result on lines below the row that span the
-  pane from its left edge, in the cell's font and colors on the hovered row's
-  fill, with no outline. Where the cell lies wholly outside the pane's
-  visible area, past its right edge or scrolled out of view to the left, the
-  tip MUST come up with the pointer anywhere on the row, with all of its
-  lines, the operand's and then the result's, below the row from the pane's
-  left edge. The same applies to a source document's operand and result. The
+  move over the cell, with no delay, in the cell's font and colors on the
+  hovered row's fill, with no outline. The tip MUST be a rectangle that runs
+  on past the pane's right edge to the end of its text, and MUST wrap only
+  where its text is wider than the screen's room to the right. An
+  instruction's operand MUST be on the tip's first line, starting at the
+  cell's text, and its result on the next line, starting at the same left;
+  the tip MUST be as wide as the wider of the two, and a part that wraps MUST
+  continue at that same left. A source line or data line that runs on across
+  the row (FR-362) MUST be drawn on one line, with the tip and its fill
+  starting at the line's start, such as its label, rather than at its
+  directive. Where such a line wraps, it MUST break at spaces where it can,
+  and the lines after the first MUST start under the first character of the
+  comment's text, past the `;` and its spaces, where the break is in the
+  comment, and four characters right of where the line's code starts
+  otherwise. Where the cell lies wholly outside the pane's visible area,
+  past its right edge or scrolled out of view to the left, the tip MUST come
+  up with the pointer anywhere on the row, with all of its lines, the
+  operand's and then the result's, below the row from the pane's left edge,
+  by the same rules. The same applies to a source document's operand and
+  result, which MUST be in the disassembly's colors: the operand in the
+  operand color and the result in the result color. The
   tip MUST stay up while the pointer moves from the row down into it. After
   the wheel or a step, the tip MUST stay up, laid out for the cell under the
   resting pointer: the same tip for the same cell and text, the tip of the

@@ -68,6 +68,10 @@ public:
     virtual DxuiTextView *         GetTipTextView   (int view) const = 0;
     virtual size_t                 GetTipColumn     (int view, int row) const = 0;
     virtual bool                   IsTipCovered     (int view, POINT clientPx, const RECT & tipRect, const OperandTipScreen & screen) const = 0;
+
+    //  Whether a row's tip cell is a whole line that runs on across the row,
+    //  a source line's or a data line's, and the column the line starts in.
+    virtual bool                   TryGetTipLineColumn (int view, int row, size_t & column) const = 0;
 };
 
 
@@ -135,12 +139,7 @@ public:
 
     //  A color tip over a cell is placed below the operand and result where
     //  they lie whole over their cell, rather than over their lines.
-    //  Below the whole tip, from the cell's left: an L-shaped tip's rect
-    //  starts at the pane's edge, and the color tip is about the cell.
-    RECT                 GetColorTipAnchor (const RECT & cell) const
-    {
-        return m_hasTip ? RECT { m_layout.firstLeft, m_layout.rect.top, m_layout.rect.right, m_layout.rect.bottom } : cell;
-    }
+    RECT                 GetColorTipAnchor (const RECT & cell) const { return m_hasTip ? m_layout.rect : cell; }
 
     //  The renderer and screen the tip is measured with in a window that
     //  has no HWND, as a test builds it.

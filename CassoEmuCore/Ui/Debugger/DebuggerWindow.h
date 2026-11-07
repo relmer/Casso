@@ -643,6 +643,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                   IsTipBlocked         () const override;
     bool                   TryFindTipRow        (POINT clientPx, int & view, int & row) const override { return TryFindOperandTipRow (clientPx, view, row); }
     size_t                 GetTipColumn         (int view, int row) const override;
+    bool                   TryGetTipLineColumn  (int view, int row, size_t & column) const override;
     bool                   IsTipCovered         (int view, POINT clientPx, const RECT & tipRect, const OperandTipScreen & screen) const override
                                                 { return IsOperandTipCovered (view, clientPx, tipRect, screen); }
     int                    FindOperandTipView   (POINT clientPx) const;

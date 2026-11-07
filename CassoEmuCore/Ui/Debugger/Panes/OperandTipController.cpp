@@ -276,16 +276,6 @@ void OperandTipController::Show()
     }
 
     m_tip.SetPopupHost (m_popupHost);
-
-    if (OperandResultTip::IsShaped (layout))
-    {
-        m_tip.ShowShaped (layout.rect, [layout] (IDxuiPainter & painter, IDxuiTextRenderer & tipText)
-        {
-            OperandResultTip::Paint (layout, painter, tipText);
-        });
-        return;
-    }
-
     m_tip.Show (layout.rect, layout.fill, [layout] (IDxuiPainter & painter, IDxuiTextRenderer & tipText)
     {
         OperandResultTip::Paint (layout, painter, tipText);
@@ -600,8 +590,10 @@ bool OperandTipController::TryMake (int view, int row, const DxuiDpiScaler & sca
 //  The tip over a row's operand and result when the pane cuts them off,
 //  placed as the list draws the cell: where its text starts and where it is
 //  clipped, the pane's edges short of its scrollbar, its padding, face and
-//  size, and the theme's colors under and around it, the row's own fill
-//  among them. The cell's area is the part of it visible in the pane.
+//  size, and the theme's colors under and around it, the row's fill among
+//  them. The cell's area is the part of it visible in the pane. A cell that
+//  is a whole source or data line has the line's start, in the column the
+//  line starts in, ahead of it, and its area starts there.
 //
 //  The tip is within the work area of the monitor where the cell's text
 //  starts, joined by the next monitor's where the cell runs on into it, the
@@ -618,9 +610,11 @@ bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler
     const DxuiTheme                         * theme     = m_host.GetTipTheme();
     DxuiListView                            * list      = m_host.GetTipList (view);
     size_t                                    column    = m_host.GetTipColumn (view, row);
+    size_t                                    start     = column;
     const std::vector<DxuiListView::Cell>   * cells     = nullptr;
     RECT                                      bounds    = {};
     RECT                                      edge      = {};
+    RECT                                      lead      = {};
     size_t                                    cellCount = 0;
     bool                                      isShown   = false;
     bool                                      isHidden  = false;
@@ -640,6 +634,18 @@ bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler
     CBR (cellCount > column);
 
     bounds = list->GetBounds();
+
+    placement.isWholeLine = m_host.TryGetTipLineColumn (view, row, start);
+
+    if (placement.isWholeLine && start < column && list->GetCellTextRectPx (row, start, lead))
+    {
+        placement.lead     = (*cells)[start];
+        placement.leadLeft = lead.left + bounds.left;
+    }
+    else
+    {
+        placement.leadLeft = placement.textRect.left + bounds.left;
+    }
 
     if ((*cells)[column].spansRow)
     {
@@ -792,13 +798,15 @@ RECT OperandTipController::GetTipEdge (const OperandResultTip::Placement & place
 //  OperandTipController::GetTipArea
 //
 //  Where the pointer has to be for the tip to come up: the part of the cell
-//  in view, or the whole row in view for a cell wholly outside the pane.
+//  in view from the line's start, or the whole row in view for a cell
+//  wholly outside the pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT OperandTipController::GetTipArea (const OperandResultTip::Placement & placement, bool isHidden)
 {
-    RECT  area = { (std::max) (placement.textRect.left - (LONG) placement.padLeftPx, (LONG) placement.visibleLeft),
+    LONG  left = placement.isWholeLine ?(std::min) (placement.textRect.left, (LONG) placement.leadLeft) : placement.textRect.left;
+    RECT  area = { (std::max) (left - (LONG) placement.padLeftPx, (LONG) placement.visibleLeft),
                    placement.textRect.top,
                    (std::min) (placement.textRect.right, (LONG) placement.visibleRight),
                    placement.textRect.bottom };
@@ -826,8 +834,8 @@ RECT OperandTipController::GetTipArea (const OperandResultTip::Placement & place
 //  over, below it or, by the outline's pixel, above it. The list fills a
 //  selection the full height of its row.
 //
-//  A tip for a cell wholly outside the pane starts below the row and covers
-//  every row it lies over in full.
+//  Below its row, or on its row from a line's start ahead of the cell, every
+//  column is checked, whichever ones the tip covers.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -837,7 +845,7 @@ bool OperandTipController::IsTextSelectedUnderTip (const DxuiListView * list, in
     int     height     = (std::max) (layout.lineHeight, 1);
     int     rowsAbove  = (cell.area.top - layout.rect.top + height - 1) / height;
     int     rowsBelow  = (layout.rect.bottom - cell.area.top + height - 1) / height;
-    bool    isShaped   = OperandResultTip::IsShaped (layout) || layout.textOrigin.y >= cell.area.bottom;
+    bool    hasLead    = layout.leadLeft < layout.textOrigin.x;
     size_t  columns    = list->GetColumnCount();
     bool    isSelected = false;
 
@@ -847,8 +855,7 @@ bool OperandTipController::IsTextSelectedUnderTip (const DxuiListView * list, in
     {
         isSelected = list->IsCellTextSelected (each, column);
 
-        //  Below its first line an L-shaped tip covers the whole row.
-        for (size_t other = 0; isShaped && each > row && other < columns && !isSelected; other++)
+        for (size_t other = 0; (each > row || hasLead) && other < columns && !isSelected; other++)
         {
             isSelected = list->IsCellTextSelected (each, other);
         }
