@@ -243,6 +243,43 @@ public:
 
 
 
+    //  An instant tip moved to the next cell takes that cell's gradient: a
+    //  heat map cell with no heat after one with heat has no scale, and one
+    //  with heat after one without has its scale.
+    TEST_METHOD (AMovedInstantTipTakesTheNextCellsGradient)
+    {
+        DxuiHwndSource   host;
+        DxuiTooltip      tip;
+        DxuiDarkTheme    theme;
+        DxuiPopupHost  * popup     = nullptr;
+        LONG             withScale = 0;
+
+
+
+        host.SetDpiForTest (96);
+        tip.SetPopupHost   (&host);
+        tip.SetTheme       (theme);
+        tip.ApplyVisualStudioLook();
+
+        tip.SetGradient    ({ 0xFF000000u, 0xFFFFFFFFu }, 0.5f);
+        tip.RequestShowNow (RECT { 100, 200, 101, 201 }, L"$0400", 0);
+        popup = tip.GetActivePopup();
+        Assert::IsNotNull (popup);
+        withScale = popup->GetParams().sizePx.cy;
+
+        tip.SetGradient    ({}, -1.0f);
+        tip.RequestShowNow (RECT { 110, 200, 111, 201 }, L"$0401", 1);
+        Assert::IsTrue (tip.GetActivePopup()->GetParams().sizePx.cy < withScale, L"no scale for the cell without heat");
+
+        tip.SetGradient    ({ 0xFF000000u, 0xFFFFFFFFu }, 0.25f);
+        tip.RequestShowNow (RECT { 120, 200, 121, 201 }, L"$0402", 2);
+        Assert::AreEqual (withScale, tip.GetActivePopup()->GetParams().sizePx.cy, L"the scale again for the next hot cell");
+
+        tip.HideImmediate();
+    }
+
+
+
     //  The border is drawn at the card's edge, one pixel wide, with the
     //  tip's corners, and the text starts inside it: 9 pixels in and 5 down
     //  at 96 DPI, where a flyout's frame starts it 8 and 4.

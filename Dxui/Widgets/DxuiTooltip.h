@@ -311,6 +311,11 @@ private:
     RECT  GetScreenAnchor    () const;
     void  MovePopup          (bool isNewText);
 
+    //  Whether the colors, swatches, scales or gradient set differ from
+    //  those drawn, and the ones set taken as the ones drawn.
+    bool  IsNewLook          () const;
+    void  TakeLook           ();
+
     //
     //  Return the live popup to the host pool (hiding its HWND) and
     //  drop the pointer. Safe to call when none is active.

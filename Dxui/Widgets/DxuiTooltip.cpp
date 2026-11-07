@@ -467,8 +467,8 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
     if (m_visible)
     {
         bool  isNewText = text != m_text;
-        bool  changed   = wasAtPointer != isAtPointer || (text != m_text) || m_lineArgbs != m_shownLineArgbs || m_lineSwatches != m_shownLineSwatches || m_lineScales != m_shownLineScales ||
-                          m_gradient != m_shownGradient || m_gradientMark != m_shownGradientMark ||
+        bool  isNewLook = IsNewLook();
+        bool  changed   = wasAtPointer != isAtPointer || isNewText || isNewLook ||
                           anchor.left   != m_anchor.left  ||
                           anchor.top    != m_anchor.top   ||
                           anchor.right  != m_anchor.right ||
@@ -490,17 +490,10 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
         //  not close one window and open another, which flickered.
         if (changed && m_popupHost != nullptr && m_activePopup != nullptr && wasAtPointer == isAtPointer)
         {
-            bool  isNewLook = isNewText || m_lineArgbs != m_shownLineArgbs || m_lineSwatches != m_shownLineSwatches || m_lineScales != m_shownLineScales ||
-                              m_gradient != m_shownGradient || m_gradientMark != m_shownGradientMark;
+            m_hideAtMs = isNewText ? GetHoverHideAtMs (nowMs) : m_hideAtMs;
 
-            m_hideAtMs          = isNewText ? GetHoverHideAtMs (nowMs) : m_hideAtMs;
-            m_shownLineArgbs    = m_lineArgbs;
-            m_shownLineSwatches = m_lineSwatches;
-            m_shownLineScales   = m_lineScales;
-            m_shownGradient     = m_gradient;
-            m_shownGradientMark = m_gradientMark;
-
-            MovePopup (isNewLook);
+            TakeLook();
+            MovePopup (isNewText || isNewLook);
             return;
         }
 
@@ -566,10 +559,11 @@ void DxuiTooltip::MeasurePointerForPlacement()
 
 void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text, int64_t nowMs)
 {
-    bool  isUp    = m_visible && !m_fadingOut && m_isInstant;
-    bool  isSame  = isUp && text == m_text && EqualRect (&anchor, &m_anchor) != FALSE;
-    bool  isMoved = isUp && m_activePopup != nullptr;
-    bool  isNew   = text != m_text;
+    bool  isUp      = m_visible && !m_fadingOut && m_isInstant;
+    bool  isNewLook = IsNewLook();
+    bool  isSame    = isUp && !isNewLook && text == m_text && EqualRect (&anchor, &m_anchor) != FALSE;
+    bool  isMoved   = isUp && m_activePopup != nullptr;
+    bool  isNew     = text != m_text;
 
 
 
@@ -592,7 +586,8 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
 
     if (isMoved)
     {
-        MovePopup (isNew);
+        TakeLook();
+        MovePopup (isNew || isNewLook);
         return;
     }
 
@@ -960,11 +955,8 @@ void DxuiTooltip::ShowPopup()
 
     if (shows)
     {
-        m_shownLineArgbs            = m_lineArgbs;
-        m_shownLineSwatches         = m_lineSwatches;
-        m_shownLineScales           = m_lineScales;
-        m_shownGradient             = m_gradient;
-        m_shownGradientMark         = m_gradientMark;
+        TakeLook();
+
         showParams.ownerHwnd        = owner;
         showParams.anchorRectScreen = GetScreenAnchor();
         showParams.placement        = m_placement;
@@ -1308,6 +1300,44 @@ void DxuiTooltip::MovePopup (bool isNewText)
     }
 
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsNewLook
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTooltip::IsNewLook() const
+{
+    return m_lineArgbs    != m_shownLineArgbs    ||
+           m_lineSwatches != m_shownLineSwatches ||
+           m_lineScales   != m_shownLineScales   ||
+           m_gradient     != m_shownGradient     ||
+           m_gradientMark != m_shownGradientMark;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TakeLook
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::TakeLook()
+{
+    m_shownLineArgbs    = m_lineArgbs;
+    m_shownLineSwatches = m_lineSwatches;
+    m_shownLineScales   = m_lineScales;
+    m_shownGradient     = m_gradient;
+    m_shownGradientMark = m_gradientMark;
 }
 
 
