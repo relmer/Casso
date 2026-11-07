@@ -1478,8 +1478,8 @@ void ExplorerTreePane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
 //  ExplorerTreePane::GetFullPathTip
 //
 //  A folder directly under Casso whose label is its name gets its full path
-//  as its tip. A folder labeled with its path gets no tip, and neither does
-//  anything below one, which sits under it in the tree.
+//  as its tip. A folder labeled with its path doesn't get one, and neither
+//  does anything below one, which sits under it in the tree.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
