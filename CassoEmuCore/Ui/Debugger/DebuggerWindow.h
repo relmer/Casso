@@ -528,6 +528,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     ApplyColumnWidths    ();
     void     SaveUndoHistories    ();
     void     UpdateProjectCaption (int64_t now);
+    bool     IsTimelineShimmering () const;
+    void     PaintTimelineShimmer (IDxuiPainter & painter);
     std::string  GetUndoHistoriesText () const;
     void     OpenSpeedMenu        (const RECT & field);
     void     SaveMemoryToFile     ();

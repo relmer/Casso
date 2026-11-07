@@ -418,12 +418,16 @@ void FloatingPanes::RequestFloat (const std::wstring & pane, POINT clientPx)
 
 
 
-    //  A pane alone in its window stays where the window is; one of several
-    //  leaves them for a window of its own, the size theirs is, under the
-    //  cursor.
+    //  A pane alone in its window stays where the window is; a docked one
+    //  goes back where it last rested floating; one of several moves out of
+    //  their window to a new one, the size theirs is, under the cursor.
     if (window != nullptr && site.GetPaneLayout().GetFloatingPanes (GetWindowOf (pane)).size() == 1)
     {
         rect = window->GetScreenRect();
+    }
+    else if (window == nullptr && m_lastFloat.contains (pane))
+    {
+        rect = m_lastFloat.at (pane);
     }
     else
     {
@@ -435,7 +439,37 @@ void FloatingPanes::RequestFloat (const std::wstring & pane, POINT clientPx)
         site.Relayout();
         MarkSyncNeeded();
         m_host.SaveLayout();
+        m_movedPane = pane;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FloatingPanes::ActivateMoved
+//
+//  The window a pane was moved to by Move to new window is activated once
+//  it is up, so it has the keyboard focus and the accent, as the tab had.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FloatingPanes::ActivateMoved()
+{
+    DxuiDockedWindow  * window = m_movedPane.empty() ? nullptr : Find (m_movedPane);
+
+
+
+    if (window == nullptr || window->GetHwnd() == nullptr || !IsWindowVisible (window->GetHwnd()))
+    {
+        return;
+    }
+
+    (void) SetActiveWindow (window->GetHwnd());
+    m_host.OnFloatFocusChanged (m_movedPane, true);
+    m_movedPane.clear();
 }
 
 
@@ -554,9 +588,10 @@ void FloatingPanes::TearOut (const std::wstring & window, const std::wstring & p
 //
 //  FloatingPanes::GetTearOffRect
 //
-//  A pane floats at the size its group had docked, title bar and tabs
-//  included, since its window draws the same group (FR-205); a pane that
-//  is not docked, or a group too small to work in, at least 320 by 220.
+//  A pane floats at the size it last had floating; one never floated at the
+//  size its group had docked, title bar and tabs included, since its window
+//  draws the same group (FR-205); a pane that is not docked, or a group too
+//  small to work in, at least 320 by 220.
 //  It is placed under the cursor here, and exactly under the spot pressed
 //  once the window exists (PlaceUnderGrab).
 //
@@ -578,6 +613,11 @@ RECT FloatingPanes::GetTearOffRect (const std::wstring & pane, POINT clientPx) c
     if (window != nullptr)
     {
         bounds = window->GetScreenRect();
+    }
+    else if (m_lastFloat.contains (pane))
+    {
+        //  The size it last had floating.
+        bounds = m_lastFloat.at (pane);
     }
     else if (site.TryGetPaneGroupRect (pane, bounds))
     {
@@ -1212,7 +1252,7 @@ void FloatingPanes::Float (const std::wstring & key)
         //  size; the save at the resize's end has the final one.
         m_host.SaveLayout();
     });
-    window->SetOnResized           ([this] { m_host.SaveLayout(); });
+    window->SetOnResized           ([this, key] { RememberPlace (key); m_host.SaveLayout(); });
     window->SetOnMoveLoopFrame     ([this] { m_host.PumpFloatFrame(); });
     window->SetOnClosed            ([this, key]
     {
@@ -1501,7 +1541,42 @@ void FloatingPanes::OnDrag (const std::wstring & window, POINT screenPx, bool en
     //  drop over the debugger away from any zone moves the window too.
     m_host.SaveLayout();
 
+    RememberPlace (window);
     ActivateIfFloating (window);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FloatingPanes::RememberPlace
+//
+//  Where a floating window came to rest, for each of its panes that is
+//  floating after the move; a drag that docks them doesn't change the
+//  place they had before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FloatingPanes::RememberPlace (const std::wstring & window)
+{
+    DxuiDockSite  & site = *m_host.GetFloatDockSite();
+
+
+
+    if (!m_windows.contains (window) || m_windows.at (window)->GetHwnd() == nullptr)
+    {
+        return;
+    }
+
+    for (const std::wstring & pane : m_windowPanes[window])
+    {
+        if (site.GetPaneLayout().IsFloating (pane))
+        {
+            m_lastFloat[pane] = m_windows.at (window)->GetScreenRect();
+        }
+    }
 }
 
 

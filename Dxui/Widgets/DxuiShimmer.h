@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
 
 
@@ -153,4 +154,44 @@ public:
                         float                     progress,
                         const DxuiSweepGlints   & glints,
                         const DrawFn            & drawContent);
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiAreaShimmer
+//
+//  Light that sweeps over an area: a faint white glow, and a band of light
+//  at 45 degrees that crosses the area's box from its top left to its
+//  bottom right every kSweepMs, then rests kRestMs. The band's width is a
+//  share of the box's shorter side, within limits, so it crosses a thin
+//  strip as a narrow stripe and a large area as a broad sheen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class DxuiAreaShimmer
+{
+public:
+    static constexpr int     kSweepMs     = 2000;
+    static constexpr int     kRestMs      = 1000;
+    static constexpr double  kPeakAlpha   = 150.0;
+    static constexpr double  kGlowShare   = 0.2;
+    static constexpr double  kBandShare   = 0.6;
+    static constexpr double  kMinBandPx   = 12.0;
+    static constexpr double  kMaxBandPx   = 160.0;
+    static constexpr double  kReach       = 3.0;    // how many band widths either side of its center the stripes span
+
+    //  The shimmer over the rectangle (x, y, w, h) of an area whose box is
+    //  given: the glow across the rectangle, then the band as diagonal
+    //  stripes, clipped to the rectangle.
+    static void    Paint         (IDxuiPainter & painter, float x, float y, float w, float h, double nowMs, const RECT & boxPx);
+
+    //  The band's width along (x + y), where its center is along the box's
+    //  diagonal at a time, and its strength at a distance from its center.
+    static double  GetBandPx     (const RECT & boxPx);
+    static double  GetBandCenter (double nowMs, const RECT & boxPx);
+    static double  GetBand       (double distance, const RECT & boxPx);
 };

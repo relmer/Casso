@@ -1295,7 +1295,7 @@ void DebuggerWindow::RenderFrame()
         isAnimating = pane->Tick (now) || isAnimating;
     }
 
-    isAnimating = m_timelineScrub.IsScrubbing() || isAnimating;
+    isAnimating = m_timelineScrub.IsScrubbing() || IsTimelineShimmering() || isAnimating;
 
     //  A pane pinned or unpinned morphs between its place and its edge tab.
     isAnimating = (m_dockSite != nullptr && m_dockSite->TickAnimation()) || isAnimating;
@@ -1305,6 +1305,7 @@ void DebuggerWindow::RenderFrame()
     SyncCommandBarFloatTip();
     SyncTimeline();
     m_floating->CarryTornOff();
+    m_floating->ActivateMoved();
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         pane->PlaceBar();

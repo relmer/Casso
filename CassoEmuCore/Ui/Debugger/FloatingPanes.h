@@ -158,6 +158,7 @@ public:
     void  TearOff      (const std::wstring & pane, POINT clientPx);
     void  TearOffGroup (const std::vector<std::wstring> & panes, const std::wstring & active, POINT clientPx);
     void  CarryTornOff ();
+    void  ActivateMoved ();
     void  DockBack     (const std::wstring & pane);
     void  Show         (const std::wstring & pane);
 
@@ -193,6 +194,7 @@ private:
     void          OnDrag              (const std::wstring & window, POINT screenPx, bool ended);
     bool          IsOverAnotherWindow (const std::wstring & window, POINT screenPx) const;
     void          ActivateIfFloating  (const std::wstring & window);
+    void          RememberPlace       (const std::wstring & window);
     void          ShowDragMarks       ();
     void          HideDragMarks       ();
     void          DropCarriedTab      (const std::wstring & pane);
@@ -213,6 +215,8 @@ private:
     DxuiDragOverlay                                              m_dragOverlay;
     std::wstring                                                 m_routingPane;
     std::wstring                                                 m_tornOffPane;
+    std::wstring                                                 m_movedPane;     // floated by Move to new window, to activate once its window is up
+    std::map<std::wstring, RECT>                                 m_lastFloat;     // each pane's floating place when it last came to rest, by pane
     POINT                                                        m_tearGrab    = {};
     bool                                                         m_tearFromTab = false;
     bool                                                         m_isSyncNeeded = false;

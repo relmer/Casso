@@ -681,7 +681,54 @@ void DebuggerWindow::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & 
     m_dockSite->PaintSlidUnder (painter, theme);
     DxuiWindow::PaintTopLayer  (painter, text, theme);
     m_dockSite->PaintSlidOver  (painter, text, theme);
+    PaintTimelineShimmer       (painter);
     PaintZoomPopup             (painter, text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsTimelineShimmering
+//
+//  While the machine is behind live in its history, the timeline toolbar
+//  shimmers, so a rewound machine is plain to see.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsTimelineShimmering() const
+{
+    return m_snapshot != nullptr && m_snapshot->history.isBehindLive && m_timelineBar != nullptr && m_timelineBar->IsVisible() &&
+           IsRoutable (m_timelineBar);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PaintTimelineShimmer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PaintTimelineShimmer (IDxuiPainter & painter)
+{
+    RECT  bar = {};
+
+
+
+    if (!IsTimelineShimmering())
+    {
+        return;
+    }
+
+    bar = m_timelineBar->GetBounds();
+
+    DxuiAreaShimmer::Paint (painter, (float) bar.left, (float) bar.top, (float) (bar.right - bar.left), (float) (bar.bottom - bar.top),
+                            (double) GetTickCount64(), bar);
 }
 
 
@@ -700,7 +747,7 @@ void DebuggerWindow::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & 
 
 bool DebuggerWindow::HasTopLayer() const
 {
-    if (DxuiWindow::HasTopLayer() || m_windowZoom.IsOpen())
+    if (DxuiWindow::HasTopLayer() || m_windowZoom.IsOpen() || IsTimelineShimmering())
     {
         return true;
     }
