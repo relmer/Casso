@@ -88,6 +88,7 @@ void BasicProgramController::Configure()
 {
     m_model->Configure (CodeMargins::kGlyphDip);
     m_list->SetOwnerWindow (m_host.GetOwnerHwnd());
+    m_list->SetOnPaste     ([this] { m_host.PasteBasicProgram(); });
 
     m_bar.Configure();
     m_bar.GetBar()->SetEntries (MakeBarEntries());
@@ -530,7 +531,8 @@ bool BasicProgramController::AddMenuItems (DxuiListView * list, int row, PaneMen
         return false;
     }
 
-    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
+    items.push_back ({ L"Copy",  [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
+    items.push_back ({ L"Paste", [this] { m_host.PasteBasicProgram(); } });
 
     if (line.has_value())
     {

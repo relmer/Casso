@@ -957,10 +957,10 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::LoadBasicProgram (const std::wstring & path)
+void DebuggerWindow::LoadBasicProgram (const std::wstring & path, const std::wstring & label)
 {
     bool          isKnownEmpty = m_snapshot != nullptr && m_snapshot->basic.has_value() && (!m_snapshot->basic->hasProgram || m_snapshot->basic->lines.empty());
-    std::wstring  name         = std::filesystem::path (path).filename().wstring();
+    std::wstring  name         = label.empty() ? std::filesystem::path (path).filename().wstring() : label;
 
 
 
@@ -1004,6 +1004,53 @@ void DebuggerWindow::OpenBasicProgram()
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PasteBasicProgram
+//
+//  The clipboard's text is written to a listing in the temporary folder and
+//  loaded from there as a dropped or opened listing is, after the same
+//  question when it would replace a program.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PasteBasicProgram()
+{
+    std::wstring           text;
+    std::filesystem::path  path;
+    std::error_code        error;
+    std::ofstream          file;
+
+
+
+    if (!DxuiClipboard::GetText (GetHwnd(), text) || text.find_first_not_of (L" \t\r\n") == std::wstring::npos)
+    {
+        return;
+    }
+
+    path = std::filesystem::temp_directory_path (error) / L"Casso pasted listing.bas";
+
+    if (error)
+    {
+        return;
+    }
+
+    file.open (path, std::ios::binary | std::ios::trunc);
+    file << TextEncoding::WideToNarrow (text);
+    file.close();
+
+    if (file.fail())
+    {
+        return;
+    }
+
+    LoadBasicProgram (path.wstring(), L"the pasted listing");
 }
 
 

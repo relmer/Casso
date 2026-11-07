@@ -1687,7 +1687,7 @@ namespace OperandResultTipTests
                 labels.push_back (label);
             }
 
-            Assert::IsTrue (labels == std::vector<std::wstring> { L"Copy", L"", L"Load BASIC program...", L"Save BASIC program...", L"Clear BASIC program..." });
+            Assert::IsTrue (labels == std::vector<std::wstring> { L"Copy", L"Paste", L"", L"Load BASIC program...", L"Save BASIC program...", L"Clear BASIC program..." });
         }
 
 

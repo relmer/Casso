@@ -534,10 +534,11 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
     //  A listing replaces the program in memory, after a question when there
     //  may be one there, and the BASIC program pane comes forward.
-    void     LoadBasicProgram     (const std::wstring & path);
+    void     LoadBasicProgram     (const std::wstring & path, const std::wstring & label = {});
     void     OpenBasicProgram     () override;
     void     SaveBasicProgram     () override;
     void     ClearBasicProgram    () override;
+    void     PasteBasicProgram    () override;
     DxuiToolbar::Entry  MakeFindEntry (const std::wstring & pane);
     bool     RouteSourceBarMouse  (DxuiToolbar * bar, const DxuiMouseEvent & ev);
     bool     IsDocumentPane     (const std::wstring & pane) const;

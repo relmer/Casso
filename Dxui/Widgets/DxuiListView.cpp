@@ -4665,6 +4665,11 @@ bool DxuiListView::QueryCommand (DxuiStandardCommand command, bool & outEnabled)
         outEnabled = m_hasTextSel || !m_selectedRows.empty();
         handled    = true;
     }
+    else if (command == DxuiStandardCommand::Paste && m_onPaste)
+    {
+        outEnabled = true;
+        handled    = true;
+    }
 
     return handled;
 }
@@ -4693,6 +4698,10 @@ bool DxuiListView::InvokeCommand (DxuiStandardCommand command)
     else if (handled && enabled && command == DxuiStandardCommand::Copy)
     {
         DxuiClipboard::SetText (m_ownerHwnd, GetSelectionText());
+    }
+    else if (handled && enabled && command == DxuiStandardCommand::Paste)
+    {
+        m_onPaste();
     }
 
     return handled;

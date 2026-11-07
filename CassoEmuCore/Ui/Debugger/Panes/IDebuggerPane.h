@@ -119,6 +119,7 @@ public:
     virtual void                   OpenBasicProgram () = 0;
     virtual void                   SaveBasicProgram () = 0;
     virtual void                   ClearBasicProgram () = 0;
+    virtual void                   PasteBasicProgram () = 0;
     virtual void                   ShowMemoryAddress (Word address) = 0;
     virtual void                   GoToMemory       (Word address) = 0;
 
