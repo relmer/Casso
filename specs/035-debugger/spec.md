@@ -3978,11 +3978,15 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   run and operand; Data MUST list read, written and read before written;
   Changed MUST list value changed alone. Every view MUST also list the
   symbol tint and the outlines for the PC, the stack pointer, breakpoints
-  and read and write data breakpoints.
+  and read and write data breakpoints. Each heat color's swatch MUST be
+  shaded across from its faintest shade, which the least touched cell is
+  drawn in, to its full color, which the busiest is drawn in.
 - **FR-394**: The tip over a heat map cell MUST start with a small square in
   the cell's color beside the meaning of that color, as the color key words it
   ("Value changed", "Written", "Untouched"), ahead of the cell's address and
-  counts.
+  counts. Below them, as a code view's heat tip does (FR-246), it MUST draw
+  the cell's scale from its faintest shade to its full color with a mark at
+  the cell's level; an untouched cell and a Blend mix have no scale.
 - **FR-395**: A pane docked back from a floating window, from its Dock menu or
   its window's pin, MUST return to the tab index it had in its group, clamped to
   the group's size when the group has shrunk, and MUST be the group's active

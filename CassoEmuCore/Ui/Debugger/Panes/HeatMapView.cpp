@@ -2049,6 +2049,61 @@ std::wstring HeatMapView::DescribeMarks (Word address) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::TryGetCellScale
+//
+//  The cell's color is mixed from the cold gray toward its kind's color by
+//  its level, from kFaintest at level 1 to the full color at level 255
+//  (GetColor, GetChannelColor); the scale has those two ends and the middle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapView::TryGetCellScale (Word address, std::vector<uint32_t> & gradient, float & mark) const
+{
+    constexpr size_t  kCount     = (size_t) kAddressCount;
+    constexpr float   kTop       = 255.0f;
+    constexpr float   kMiddle    = 0.5f;
+    uint32_t          cold       = m_palette.cold | 0xFF000000u;
+    Byte              execute    = (m_execute.size()   == kCount) ? m_execute[address]   : (Byte) 0;
+    Byte              read       = (m_read.size()      == kCount) ? m_read[address]      : (Byte) 0;
+    Byte              write      = (m_write.size()     == kCount) ? m_write[address]     : (Byte) 0;
+    Byte              unwritten  = (m_unwritten.size() == kCount) ? m_unwritten[address] : (Byte) 0;
+    Byte              changed    = (m_changed.size()   == kCount) ? m_changed[address]   : (Byte) 0;
+    uint32_t          hue        = 0;
+    Byte              level      = 0;
+
+
+
+    switch (GetCellKind (address))
+    {
+    case CellKind::Code:          hue = m_palette.execute;                                                           level = execute;                          break;
+    case CellKind::Operand:       hue = DxuiColor::Mix (m_palette.execute | 0xFF000000u, cold, kOperandDim);         level = execute;                          break;
+    case CellKind::Read:          hue = m_palette.read;                                                              level = read;                             break;
+    case CellKind::Written:       hue = m_palette.write;                                                             level = write;                            break;
+    case CellKind::SelfModifying: hue = m_palette.selfModifying;                                                     level = std::max ({ execute, read, write }); break;
+    case CellKind::Unwritten:     hue = m_palette.unwritten;                                                         level = unwritten;                        break;
+    case CellKind::Changed:       hue = m_palette.changed;                                                           level = changed;                          break;
+    default:                                                                                                                                                   break;
+    }
+
+    if (level == 0)
+    {
+        return false;
+    }
+
+    hue      |= 0xFF000000u;
+    gradient  = { DxuiColor::Mix (cold, hue, kFaintest) | 0xFF000000u,
+                  DxuiColor::Mix (cold, hue, kFaintest + (1.0f - kFaintest) * kMiddle) | 0xFF000000u,
+                  hue };
+    mark      = (float) level / kTop;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::TryGetTipAt
 //
 //  The tip is anchored on the cell the pick framed, so it sits clear of the
@@ -2057,6 +2112,30 @@ std::wstring HeatMapView::DescribeMarks (Word address) const
 ////////////////////////////////////////////////////////////////////////////////
 
 bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, std::vector<uint32_t> & swatches) const
+{
+    std::vector<uint32_t>  gradient;
+    float                  mark = -1.0f;
+
+
+
+    return TryGetTipAt (point, anchor, text, swatches, gradient, mark);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::TryGetTipAt
+//
+//  With the cell's scale and its level on it, as a code view's heat tip
+//  draws them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, std::vector<uint32_t> & swatches,
+                               std::vector<uint32_t> & gradient, float & mark) const
 {
     std::optional<Place>  pick;
     TipLead               lead;
@@ -2086,6 +2165,15 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, 
     if (GetCellKind (GetAddressOf (*pick)) != CellKind::Untouched)
     {
         text = lead.meaning + L"\n" + text;
+    }
+
+    gradient.clear();
+    mark = -1.0f;
+
+    if (!TryGetCellScale (GetAddressOf (*pick), gradient, mark))
+    {
+        gradient.clear();
+        mark = -1.0f;
     }
 
     return true;

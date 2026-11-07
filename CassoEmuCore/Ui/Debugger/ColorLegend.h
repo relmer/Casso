@@ -76,12 +76,14 @@ public:
     };
 
     //  How a meaning's swatch is drawn: a filled square for a fill or a
-    //  bar, a sample of text on a row's fill, a sample of text in a text
-    //  color, the PC's arrow, a dot, a ring, a short line, or a square's
+    //  bar, a square shaded across from a heat color's faintest shade to its
+    //  full color, a sample of text on a row's fill, a sample of text in a
+    //  text color, the PC's arrow, a dot, a ring, a short line, or a square's
     //  outline.
     enum class Swatch
     {
         Fill,
+        Ramp,
         Row,
         Text,
         Italic,         // a sample in the text's own color, in italics
@@ -178,7 +180,11 @@ public:
     //  smoothed, so it scales down cleanly.
     static constexpr int  kSwatchPx = 48;
 
-    static std::shared_ptr<DxuiIconImage>  MakeSwatchIcon (Swatch swatch, uint32_t argb);
+    //  A Ramp runs from `fromArgb` at the left to `argb` at the right.
+    static std::shared_ptr<DxuiIconImage>  MakeSwatchIcon (Swatch swatch, uint32_t argb, uint32_t fromArgb = 0);
+
+    //  A heat color's faintest shade, the left end of its Ramp swatch.
+    static uint32_t  GetFaintest (uint32_t argb, const Palette & palette);
     //  Lines joined one to a line, empty ones left out.
     static std::wstring  JoinLines (const std::vector<std::wstring> & lines);
 

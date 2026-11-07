@@ -34,7 +34,7 @@ std::vector<ColorKeyPopup::Row> ColorKeyPopup::MakeRows (ColorLegend::Pane pane,
         if (entry.swatch != ColorLegend::Swatch::Row && entry.swatch != ColorLegend::Swatch::Text && entry.swatch != ColorLegend::Swatch::Italic &&
             entry.swatch != ColorLegend::Swatch::Marker)
         {
-            row.icon = ColorLegend::MakeSwatchIcon (entry.swatch, row.argb);
+            row.icon = ColorLegend::MakeSwatchIcon (entry.swatch, row.argb, ColorLegend::GetFaintest (row.argb, palette));
         }
 
         rows.push_back (std::move (row));

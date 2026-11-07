@@ -359,6 +359,34 @@ namespace ColorLegendTests
             Assert::AreEqual (255u, alpha (ColorLegend::MakeSwatchIcon (ColorLegend::Swatch::Fill,    0xFFFF0000), kCenter));
         }
 
+        //  A heat color's swatch is shaded across, from its faintest shade at
+        //  the left to its full color at the right, as the map draws cells
+        //  from the least touched to the busiest; every heat fill in the key
+        //  has one.
+        TEST_METHOD (AHeatSwatchRunsFromItsFaintestShadeToItsColor)
+        {
+            constexpr uint32_t               kFrom   = 0xFF202020;
+            constexpr uint32_t               kTo     = 0xFFE0E0E0;
+            constexpr int                    kRow    = ColorLegend::kSwatchPx / 2;
+            auto                             image   = ColorLegend::MakeSwatchIcon (ColorLegend::Swatch::Ramp, kTo, kFrom);
+            auto                             red     = [&image] (int x) { return (image->bgraPremul[(size_t) (kRow * ColorLegend::kSwatchPx + x)] >> 16) & 0xFF; };
+            int                              left    = ColorLegend::kSwatchPx / 2 - 18;
+            int                              right   = ColorLegend::kSwatchPx / 2 + 18;
+
+
+
+            Assert::IsTrue (red (left) < 0x50,  L"faint at the left");
+            Assert::IsTrue (red (right) > 0xB0, L"full at the right");
+
+            for (const ColorLegend::Entry & entry : ColorLegend::GetEntriesFor (ColorLegend::Pane::HeatMapBlend))
+            {
+                bool  isHeatFill = entry.meaning == Meaning::HeatCode || entry.meaning == Meaning::HeatRead || entry.meaning == Meaning::HeatWrite ||
+                                   entry.meaning == Meaning::HeatSelfModifying;
+
+                Assert::IsTrue (!isHeatFill || entry.swatch == ColorLegend::Swatch::Ramp, ColorLegend::GetText (entry.meaning));
+            }
+        }
+
         TEST_METHOD (TheBranchTipIsWhetherItWillBeTaken)
         {
             Assert::AreEqual (std::wstring (L"This branch will be taken"),  ColorLegend::GetBranchTip ("BNE $0310", true));

@@ -378,8 +378,11 @@ public:
     //  address and what touched it, "$C65E  executed 120/s, read 3/s"; false
     //  off the map and while a button is down. The tip's first line is the
     //  meaning of the cell's color (GetTipLead) and `swatches` has the cell's
-    //  color for that line, zero for the rest.
+    //  color for that line, zero for the rest. `gradient` and `mark` are the
+    //  cell's scale and its level on it (TryGetCellScale), or empty and -1.
     bool                 TryGetTipAt  (POINT point, RECT & anchor, std::wstring & text, std::vector<uint32_t> & swatches) const;
+    bool                 TryGetTipAt  (POINT point, RECT & anchor, std::wstring & text, std::vector<uint32_t> & swatches,
+                                       std::vector<uint32_t> & gradient, float & mark) const;
 
     //  What drew a cell: nothing touched it; or run as code, as an operand
     //  only, read, written, run as code and written, read before written, a
@@ -410,6 +413,11 @@ public:
     };
 
     TipLead              GetTipLead   (Word address) const;
+
+    //  The scale a cell's color is from, faintest to full, as the legend's
+    //  Ramp swatch draws it, and where on it the cell's level lies, 0 to 1;
+    //  false for an untouched cell and a Blend mix, which have no one scale.
+    bool                 TryGetCellScale (Word address, std::vector<uint32_t> & gradient, float & mark) const;
 
     //  Whether the tip for a point is whole: the last writer and reader of
     //  the cell it picks are in, or nothing looks them up. A tip shown before

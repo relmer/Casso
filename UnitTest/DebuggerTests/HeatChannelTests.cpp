@@ -168,6 +168,50 @@ namespace DebuggerTests
 
 
 
+        //  A cell's tip has the scale its color is from, faintest to full,
+        //  with the cell's level marked on it. An untouched cell has no scale.
+        TEST_METHOD (TheTipHasTheCellsScaleAndItsLevelOnIt)
+        {
+            constexpr Byte          kLevel   = 51;
+
+            HeatMapView             view;
+            DxuiDpiScaler           scaler;
+            HeatMapOptions          options;
+            std::vector<Byte>       execute   (0x10000, 0);
+            std::vector<Byte>       read      (0x10000, 0);
+            std::vector<Byte>       write     (0x10000, 0);
+            std::vector<Byte>       unwritten (0x10000, 0);
+            std::vector<Byte>       changed   (0x10000, 0);
+            std::vector<uint32_t>   gradient;
+            float                   mark      = -1.0f;
+
+
+
+            view.SetPalette (MakePalette());
+            view.Layout (RECT { 0, 0, 600, 400 }, scaler);
+            view.SetTop (50000.0);
+
+            write[0x2001]   = kLevel;
+            changed[0x2001] = kLevel;
+
+            view.SetChannelLevels (unwritten, changed);
+            view.SetLevels        (execute, read, write);
+
+            Assert::IsTrue   (view.TryGetCellScale (0x2001, gradient, mark));
+            Assert::AreEqual ((size_t) 3, gradient.size());
+            Assert::AreEqual (DxuiColor::Mix (kCold | 0xFF000000u, kWrite | 0xFF000000u, HeatMapView::kFaintest) | 0xFF000000u, gradient.front(),
+                              L"from the faintest shade");
+            Assert::AreEqual (kWrite | 0xFF000000u, gradient.back(), L"to the full color");
+            Assert::AreEqual ((float) kLevel / 255.0f, mark, L"the cell's level on the scale");
+            Assert::IsFalse  (view.TryGetCellScale (0x4000, gradient, mark), L"an untouched cell");
+
+            options.view = Mode::Changed;
+            view.SetOptions (options);
+
+            Assert::IsTrue   (view.TryGetCellScale (0x2001, gradient, mark));
+            Assert::AreEqual (kChanged | 0xFF000000u, gradient.back(), L"the changed scale in the Changed view");
+        }
+
         //  A cell's tip starts with the color the cell is drawn in and the
         //  label of what drew it, as the legend words it.
         TEST_METHOD (TheTipLeadsWithTheCellsColorAndItsMeaning)

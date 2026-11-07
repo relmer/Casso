@@ -58,47 +58,47 @@ const std::vector<ColorLegend::Entry> & ColorLegend::GetEntries()
         { Pane::MemoryMap,      Meaning::MapRom,            Swatch::Fill    },
         { Pane::MemoryMap,      Meaning::MapSlotRom,        Swatch::Fill    },
         { Pane::MemoryMap,      Meaning::MapIo,             Swatch::Fill    },
-        { Pane::HeatMap,        Meaning::HeatCode,          Swatch::Fill    },
-        { Pane::HeatMap,        Meaning::HeatOperand,       Swatch::Fill    },
-        { Pane::HeatMap,        Meaning::HeatRead,          Swatch::Fill    },
-        { Pane::HeatMap,        Meaning::HeatWrite,         Swatch::Fill    },
-        { Pane::HeatMap,        Meaning::HeatUnwritten,     Swatch::Fill    },
+        { Pane::HeatMap,        Meaning::HeatCode,          Swatch::Ramp    },
+        { Pane::HeatMap,        Meaning::HeatOperand,       Swatch::Ramp    },
+        { Pane::HeatMap,        Meaning::HeatRead,          Swatch::Ramp    },
+        { Pane::HeatMap,        Meaning::HeatWrite,         Swatch::Ramp    },
+        { Pane::HeatMap,        Meaning::HeatUnwritten,     Swatch::Ramp    },
         { Pane::HeatMap,        Meaning::HeatSymbol,        Swatch::Fill    },
         { Pane::HeatMap,        Meaning::HeatPc,            Swatch::Outline },
         { Pane::HeatMap,        Meaning::HeatStack,         Swatch::Outline },
         { Pane::HeatMap,        Meaning::HeatBreakpoint,    Swatch::Outline },
         { Pane::HeatMap,        Meaning::HeatReadWatch,     Swatch::Outline },
         { Pane::HeatMap,        Meaning::HeatWriteWatch,    Swatch::Outline },
-        { Pane::HeatMapBlend,   Meaning::HeatCode,          Swatch::Fill    },
-        { Pane::HeatMapBlend,   Meaning::HeatOperand,       Swatch::Fill    },
-        { Pane::HeatMapBlend,   Meaning::HeatRead,          Swatch::Fill    },
-        { Pane::HeatMapBlend,   Meaning::HeatWrite,         Swatch::Fill    },
-        { Pane::HeatMapBlend,   Meaning::HeatSelfModifying, Swatch::Fill    },
-        { Pane::HeatMapBlend,   Meaning::HeatUnwritten,     Swatch::Fill    },
+        { Pane::HeatMapBlend,   Meaning::HeatCode,          Swatch::Ramp    },
+        { Pane::HeatMapBlend,   Meaning::HeatOperand,       Swatch::Ramp    },
+        { Pane::HeatMapBlend,   Meaning::HeatRead,          Swatch::Ramp    },
+        { Pane::HeatMapBlend,   Meaning::HeatWrite,         Swatch::Ramp    },
+        { Pane::HeatMapBlend,   Meaning::HeatSelfModifying, Swatch::Ramp    },
+        { Pane::HeatMapBlend,   Meaning::HeatUnwritten,     Swatch::Ramp    },
         { Pane::HeatMapBlend,   Meaning::HeatSymbol,        Swatch::Fill    },
         { Pane::HeatMapBlend,   Meaning::HeatPc,            Swatch::Outline },
         { Pane::HeatMapBlend,   Meaning::HeatStack,         Swatch::Outline },
         { Pane::HeatMapBlend,   Meaning::HeatBreakpoint,    Swatch::Outline },
         { Pane::HeatMapBlend,   Meaning::HeatReadWatch,     Swatch::Outline },
         { Pane::HeatMapBlend,   Meaning::HeatWriteWatch,    Swatch::Outline },
-        { Pane::HeatMapCode,    Meaning::HeatCode,          Swatch::Fill    },
-        { Pane::HeatMapCode,    Meaning::HeatOperand,       Swatch::Fill    },
+        { Pane::HeatMapCode,    Meaning::HeatCode,          Swatch::Ramp    },
+        { Pane::HeatMapCode,    Meaning::HeatOperand,       Swatch::Ramp    },
         { Pane::HeatMapCode,    Meaning::HeatSymbol,        Swatch::Fill    },
         { Pane::HeatMapCode,    Meaning::HeatPc,            Swatch::Outline },
         { Pane::HeatMapCode,    Meaning::HeatStack,         Swatch::Outline },
         { Pane::HeatMapCode,    Meaning::HeatBreakpoint,    Swatch::Outline },
         { Pane::HeatMapCode,    Meaning::HeatReadWatch,     Swatch::Outline },
         { Pane::HeatMapCode,    Meaning::HeatWriteWatch,    Swatch::Outline },
-        { Pane::HeatMapData,    Meaning::HeatRead,          Swatch::Fill    },
-        { Pane::HeatMapData,    Meaning::HeatWrite,         Swatch::Fill    },
-        { Pane::HeatMapData,    Meaning::HeatUnwritten,     Swatch::Fill    },
+        { Pane::HeatMapData,    Meaning::HeatRead,          Swatch::Ramp    },
+        { Pane::HeatMapData,    Meaning::HeatWrite,         Swatch::Ramp    },
+        { Pane::HeatMapData,    Meaning::HeatUnwritten,     Swatch::Ramp    },
         { Pane::HeatMapData,    Meaning::HeatSymbol,        Swatch::Fill    },
         { Pane::HeatMapData,    Meaning::HeatPc,            Swatch::Outline },
         { Pane::HeatMapData,    Meaning::HeatStack,         Swatch::Outline },
         { Pane::HeatMapData,    Meaning::HeatBreakpoint,    Swatch::Outline },
         { Pane::HeatMapData,    Meaning::HeatReadWatch,     Swatch::Outline },
         { Pane::HeatMapData,    Meaning::HeatWriteWatch,    Swatch::Outline },
-        { Pane::HeatMapChanged,Meaning::HeatChanged,       Swatch::Fill    },
+        { Pane::HeatMapChanged,Meaning::HeatChanged,       Swatch::Ramp    },
         { Pane::HeatMapChanged,Meaning::HeatSymbol,        Swatch::Fill    },
         { Pane::HeatMapChanged,Meaning::HeatPc,            Swatch::Outline },
         { Pane::HeatMapChanged,Meaning::HeatStack,         Swatch::Outline },
@@ -466,11 +466,12 @@ const wchar_t * ColorLegend::GetHistoryMeterTip()
 //
 //  Each pixel's coverage of the shape, worked out from its distance to the
 //  shape's edge, is its alpha: a dot and a ring are measured from the
-//  center, a square, its outline and a line from their sides.
+//  center, a square, its outline and a line from their sides. A Ramp is the
+//  square, its color mixed across from `fromArgb` to `argb`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<DxuiIconImage> ColorLegend::MakeSwatchIcon (Swatch swatch, uint32_t argb)
+std::shared_ptr<DxuiIconImage> ColorLegend::MakeSwatchIcon (Swatch swatch, uint32_t argb, uint32_t fromArgb)
 {
     constexpr float  kRadius  = 20.0f;
     constexpr float  kRing    = 5.0f;
@@ -490,12 +491,13 @@ std::shared_ptr<DxuiIconImage> ColorLegend::MakeSwatchIcon (Swatch swatch, uint3
     {
         for (int x = 0; x < kSwatchPx; x++)
         {
-            float  dx    = x + kEdge - half;
-            float  dy    = y + kEdge - half;
-            float  round = std::hypot (dx, dy);
-            float  box   = (std::max) (std::fabs (dx), std::fabs (dy));
-            float  a     = 0.0f;
-            auto   ch    = [&a] (uint32_t c) { return (uint32_t) std::lround ((float) (c & 0xFF) * a); };
+            float     dx    = x + kEdge - half;
+            float     dy    = y + kEdge - half;
+            float     round = std::hypot (dx, dy);
+            float     box   = (std::max) (std::fabs (dx), std::fabs (dy));
+            float     a     = 0.0f;
+            uint32_t  color = (swatch == Swatch::Ramp) ? DxuiColor::Mix (fromArgb, argb, std::clamp ((dx + kRadius) / (2.0f * kRadius), 0.0f, 1.0f)) : argb;
+            auto      ch    = [&a] (uint32_t c) { return (uint32_t) std::lround ((float) (c & 0xFF) * a); };
 
             switch (swatch)
             {
@@ -507,11 +509,29 @@ std::shared_ptr<DxuiIconImage> ColorLegend::MakeSwatchIcon (Swatch swatch, uint3
             }
 
             image->bgraPremul[(size_t) (y * kSwatchPx + x)] = ((uint32_t) std::lround (a * kOpaque) << 24) |
-                                                              (ch (argb >> 16) << 16) | (ch (argb >> 8) << 8) | ch (argb);
+                                                              (ch (color >> 16) << 16) | (ch (color >> 8) << 8) | ch (color);
         }
     }
 
     return image;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetFaintest
+//
+//  As the heat map draws the least touched address: the color mixed from
+//  the cold gray by HeatMapView::kFaintest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t ColorLegend::GetFaintest (uint32_t argb, const Palette & palette)
+{
+    return DxuiColor::Mix (palette.text.heatCold | 0xFF000000u, argb | 0xFF000000u, HeatMapView::kFaintest) | 0xFF000000u;
 }
 
 
