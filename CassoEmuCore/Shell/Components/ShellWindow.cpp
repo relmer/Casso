@@ -18,6 +18,7 @@
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
+#include "Ui/Debugger/DroppedFiles.h"
 #include "Config/MachineInputPrefs.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
@@ -696,14 +697,15 @@ void ShellWindow::InstallDragDropTarget()
     // Drag-drop is an optional convenience -- File > Open and the drive
     // widgets' click-to-browse cover the same mounts -- so a failed
     // registration disables drop but must not prevent launch.
-    // Disks and tapes both; OnFileDropped sends each only to what can take it.
+    // Disks, tapes and BASIC programs; OnFileDropped sends each only to what can take it.
     hrDrop = m_dragDropTarget.Initialize (m_shell.m_hwnd,
                                           &m_shell.m_uiShell.GetHitTester(),
                                           [this] (int tag, const std::wstring & path) { m_shell.OnFileDropped (tag, path); },
                                           [] (const std::wstring & path)
                                           {
                                               return IsSupportedDiskImageExtension (path) ||
-                                                     TapeImageLoader::IsTapeFileExtension (path);
+                                                     TapeImageLoader::IsTapeFileExtension (path) ||
+                                                     DroppedFiles::IsBasicProgramFile (path);
                                           });
     IGNORE_RETURN_VALUE (hrDrop, S_OK);
 

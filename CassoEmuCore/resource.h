@@ -14,6 +14,10 @@
 #define IDM_FILE_SAVE_STATE         40190
 #define IDM_FILE_LOAD_STATE         40191
 
+//  Posted to the CPU thread only, with a tokenized Applesoft program as the
+//  payload's bytes: a BASIC listing dropped on the emulator window.
+#define IDM_BASIC_LOAD              40192
+
 #define IDM_EDIT_COPY_TEXT          40005
 #define IDM_EDIT_COPY_SCREENSHOT    40006
 #define IDM_EDIT_PASTE              40007

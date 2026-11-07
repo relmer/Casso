@@ -65,6 +65,10 @@ public:
     virtual void     SaveMachineState          (const std::filesystem::path & path) = 0;
     virtual void     LoadMachineState          (const std::filesystem::path & path) = 0;
 
+    //  Makes a tokenized Applesoft program the one in memory, as BASICLOAD
+    //  does.
+    virtual void     LoadBasicProgram          (const std::vector<Byte> & tokenized) = 0;
+
     // The Super Serial Card's DIP switches, as "on off ..." text per bank.
     virtual void     SetSerialCardSwitches     (const std::string & sw1,
                                                 const std::string & sw2)           = 0;

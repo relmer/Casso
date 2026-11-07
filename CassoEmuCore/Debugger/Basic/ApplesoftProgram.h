@@ -113,7 +113,18 @@ public:
     static constexpr int   kListWrap   = 33;   // the column LIST continues a line at
     static constexpr int   kListIndent = 5;   // and the indent it continues at
 
+    static constexpr Word  kFreTop     = 0x6F;
+    static constexpr Word  kMemSiz     = 0x73;
+    static constexpr Word  kPrgEnd     = 0xAF;
+    static constexpr Word  kBase       = 0x0801;   // where a program loads
+
     explicit ApplesoftProgram (Peek peek) : m_peek (std::move (peek)) {}
+
+    //  The writes that make a tokenized program the one in memory, as after
+    //  LOAD: its bytes at kBase, then TXTTAB at kBase, VARTAB, ARYTAB,
+    //  STREND and PRGEND at its end, and FRETOP at `top`, MEMSIZ's value.
+    using Write = std::pair<Word, std::vector<Byte>>;
+    static std::vector<Write>  MakeLoadWrites (const std::vector<Byte> & tokenized, Word top);
 
     //  False when the link chain from TXTTAB does not end in a zero link
     //  inside memory: no program, or one being edited.

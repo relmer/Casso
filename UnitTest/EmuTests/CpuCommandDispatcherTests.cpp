@@ -717,6 +717,11 @@ private:
             calls.push_back ("LoadMachineState " + CpuCommandDispatcher::PathToPayload (path));
         }
 
+        void     LoadBasicProgram (const std::vector<Byte> & tokenized) override
+        {
+            calls.push_back (std::format ("LoadBasicProgram {} bytes", tokenized.size()));
+        }
+
         void     RedrawDebugFrame() override
         {
             calls.push_back ("RedrawDebugFrame");

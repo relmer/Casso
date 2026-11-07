@@ -15,6 +15,10 @@
 #include "Core/JsonParser.h"
 #include "Core/PathResolver.h"
 #include "Ui/Settings/SettingsPanelState.h"
+#include "Ui/Debugger/DroppedFiles.h"
+#include "Core/TextEncoding.h"
+#include "Debugger/Basic/ApplesoftProgram.h"
+#include "Debugger/DebugMemoryView.h"
 #include "resource.h"
 
 
@@ -49,6 +53,84 @@ void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
         m_intentReplies.NoteInsert (tag, fs::path (path).string(), nullptr);
         m_disks->Mount (6, tag, path);
     }
+    else if (DroppedFiles::IsBasicProgramFile (path))
+    {
+        LoadDroppedBasic (path);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::LoadDroppedBasic
+//
+//  UI thread. The file is read and its program tokenized here; the CPU
+//  thread writes it into memory (LoadBasicProgram).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::LoadDroppedBasic (const std::wstring & path)
+{
+    std::ifstream      file  (fs::path (path), std::ios::binary);
+    std::vector<Byte>  bytes ((std::istreambuf_iterator<char> (file)), std::istreambuf_iterator<char>());
+    std::vector<Byte>  tokenized;
+    std::string        error;
+    std::wstring       name  = fs::path (path).filename().wstring();
+
+
+
+    if (!file.good() && !file.eof())
+    {
+        m_chrome->ShowNotice (name + L" could not be read.");
+        return;
+    }
+
+    if (!DroppedFiles::TryGetBasicProgram (path, bytes, tokenized, error))
+    {
+        m_chrome->ShowNotice (name + L" was not loaded as a BASIC program: " + TextEncoding::NarrowToWide (error));
+        return;
+    }
+
+    PostCommand (IDM_BASIC_LOAD, std::string (tokenized.begin(), tokenized.end()));
+    m_chrome->ShowNotice (L"Loaded " + name + L" as the BASIC program.");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::LoadBasicProgram
+//
+//  CPU thread. Written as BASICLOAD writes it, and noted as a debugger's
+//  edit is, so history replays it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::LoadBasicProgram (const std::vector<Byte> & tokenized)
+{
+    DebugMemoryView  view (m_machine);
+    Byte             low  = 0;
+    Byte             high = 0;
+
+
+
+    view.TryPeek (ApplesoftProgram::kMemSiz,              low);
+    view.TryPeek ((Word) (ApplesoftProgram::kMemSiz + 1), high);
+
+    for (const auto & [address, write] : ApplesoftProgram::MakeLoadWrites (tokenized, (Word) (low | (high << 8))))
+    {
+        for (size_t i = 0; i < write.size(); i++)
+        {
+            view.TryPoke ((Word) (address + i), write[i]);
+        }
+    }
+
+    m_machine.NoteDebuggerEdit();
 }
 
 

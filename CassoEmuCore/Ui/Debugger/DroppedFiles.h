@@ -51,6 +51,16 @@ public:
     //  lines otherwise pass for.
     static bool         IsBasicListing   (const std::string & content);
 
+    //  A file the emulator window takes as a BASIC program: a listing whose
+    //  name ends in .bas or .bas.txt, an AppleSingle file (.as), or a file
+    //  whose name has its ProDOS type as CiderPress writes it, "HELLO#fc0801".
+    static bool         IsBasicProgramFile (const std::wstring & path);
+
+    //  The tokenized program such a file has: an AppleSingle or #fc file's
+    //  BAS data as it is, an AppleSingle TXT file's or a listing's text
+    //  tokenized; false with the reason when there is no program.
+    static bool         TryGetBasicProgram (const std::wstring & path, const std::vector<Byte> & bytes, std::vector<Byte> & tokenized, std::string & error);
+
     //  Sixteen bytes a line: the offset, the bytes in hex, and the printable
     //  ones as characters.
     static std::string  FormatHexDump (const std::string & content);

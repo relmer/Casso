@@ -205,6 +205,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
             targets.machine.LoadMachineState (PayloadToPath (cmd.payload));
             break;
 
+        case IDM_BASIC_LOAD:
+            targets.machine.LoadBasicProgram (std::vector<Byte> (cmd.payload.begin(), cmd.payload.end()));
+            break;
+
         case IDM_TAPE_INSERT:
             targets.tape.ControlTape (TapeCommand::Insert);
             break;

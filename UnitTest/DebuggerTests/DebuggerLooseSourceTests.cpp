@@ -316,6 +316,37 @@ namespace DebuggerLooseSourceTests
             Assert::IsFalse (DroppedFiles::IsBasicListing ("10 20\n30 40\n"), L"numbers with no statement");
         }
 
+        //  The emulator window takes a listing by its name, an AppleSingle
+        //  file, and a CiderPress #fc file; a listing is tokenized, and a #fc
+        //  file's bytes are the program as they are.
+        TEST_METHOD (TheEmulatorWindowTakesBasicProgramFiles)
+        {
+            std::string        listing = "10 PRINT \"HI\"\n20 GOTO 10\n";
+            std::vector<Byte>  bytes (listing.begin(), listing.end());
+            std::vector<Byte>  tokenized;
+            std::vector<Byte>  raw     = { 0x07, 0x08, 0x0A, 0x00, 0xBA, 0x00, 0x00, 0x00 };
+            std::string        error;
+
+
+
+            Assert::IsTrue  (DroppedFiles::IsBasicProgramFile (L"C:\\Work\\Game.BAS"));
+            Assert::IsTrue  (DroppedFiles::IsBasicProgramFile (L"C:\\Work\\Game.bas.txt"));
+            Assert::IsTrue  (DroppedFiles::IsBasicProgramFile (L"C:\\Work\\Game.as"));
+            Assert::IsTrue  (DroppedFiles::IsBasicProgramFile (L"C:\\Work\\HELLO#fc0801"));
+            Assert::IsFalse (DroppedFiles::IsBasicProgramFile (L"C:\\Work\\notes.txt"));
+            Assert::IsFalse (DroppedFiles::IsBasicProgramFile (L"C:\\Work\\game.dsk"));
+
+            Assert::IsTrue   (DroppedFiles::TryGetBasicProgram (L"C:\\Work\\Game.bas", bytes, tokenized, error));
+            Assert::AreEqual ((Byte) 0xBA, tokenized[4], L"PRINT tokenized after the first line's link and number");
+
+            Assert::IsTrue   (DroppedFiles::TryGetBasicProgram (L"C:\\Work\\HELLO#fc0801", raw, tokenized, error));
+            Assert::IsTrue   (tokenized == raw, L"the #fc file's bytes as they are");
+
+            bytes.assign ({ '7', '0', '0', '0', '0', ' ', 'P', 'R', 'I', 'N', 'T', '\n' });
+            Assert::IsFalse  (DroppedFiles::TryGetBasicProgram (L"C:\\Work\\Bad.bas", bytes, tokenized, error));
+            Assert::IsFalse  (error.empty(), L"the reason");
+        }
+
         TEST_METHOD (DroppingASourceWithNoDebugFileOpensIt)
         {
             CassoTheme         theme  = CassoTheme::MakeSkeuomorphic();

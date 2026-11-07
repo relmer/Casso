@@ -306,6 +306,7 @@ private:
     void  ShowLoadStateDialog ();
     void  SaveMachineState    (const std::filesystem::path & path) override;
     void  LoadMachineState    (const std::filesystem::path & path) override;
+    void  LoadBasicProgram    (const std::vector<Byte> & tokenized) override;
 
     static HRESULT       ReadStateFile    (const std::filesystem::path & path, std::vector<Byte> & outBytes);
     static std::wstring  FormatStateError (const wchar_t * verb, const struct MachineStateError & error);
@@ -480,6 +481,7 @@ private:
 
     // A file dropped on a drive or the recorder.
     void    OnFileDropped      (int tag, const std::wstring & path);
+    void    LoadDroppedBasic   (const std::wstring & path);
 
     // The operating system's pickers, behind their seam. The shell owns the
     // Win32 implementation; whoever needs to put one up asks for the
