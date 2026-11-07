@@ -30,18 +30,26 @@ public:
         Other,
     };
 
-    //  How a file of neither kind opens: loaded as symbols when it reads as a
-    //  symbol file, otherwise shown as text, or as a hex dump when binary.
+    //  How a file of neither kind opens: loaded as a BASIC program when it
+    //  reads as an Applesoft listing, as symbols when it reads as a symbol
+    //  file, otherwise opened as text, or as a hex dump when binary.
     enum class Opening
     {
         Symbols,
+        Basic,
         Text,
         Hex,
     };
 
-    static Kind         GetKind    (const std::wstring & path);
-    static Opening      GetOpening (const std::string & content);
-    static bool         IsBinary   (const std::string & content);
+    static Kind         GetKind          (const std::wstring & path);
+    static Opening      GetOpening       (const std::string & content);
+    static bool         IsBinary         (const std::string & content);
+
+    //  Lines that each start with a line number, the numbers rising, and at
+    //  least one Applesoft statement among them: a listing such as
+    //  "10 HOME" and "20 PRINT", which an AppleWin symbol file's "ADDR NAME"
+    //  lines otherwise pass for.
+    static bool         IsBasicListing   (const std::string & content);
 
     //  Sixteen bytes a line: the offset, the bytes in hex, and the printable
     //  ones as characters.

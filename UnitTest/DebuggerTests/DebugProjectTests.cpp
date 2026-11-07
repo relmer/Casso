@@ -4,6 +4,7 @@
 #include "Debugger/DebugHandlerSet.h"
 #include "Debugger/Project/DebugProject.h"
 #include "Debugger/Project/DebugProjectStore.h"
+#include "Debugger/Project/ProjectSwitchGuard.h"
 #include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -55,6 +56,39 @@ namespace DebuggerTests
             return text;
         }
 
+
+        //  Two projects that each open the other switch back and forth until
+        //  the guard pauses switching; a scope outside them ends the pause.
+        TEST_METHOD (SwitchesBackAndForthAreHeld)
+        {
+            ProjectSwitchGuard  guard;
+            ProjectScope        demo;
+            ProjectScope        machine;
+            ProjectScope        other;
+            uint64_t            now     = 1000;
+            int                 allowed = 0;
+
+
+
+            demo.kind    = ProjectScopeKind::DebugFile;
+            demo.key     = "demo";
+            machine.kind = ProjectScopeKind::Machine;
+            machine.key  = "Apple //e Enhanced";
+            other.kind   = ProjectScopeKind::DebugFile;
+            other.key    = "other";
+
+            for (int i = 0; i < 20; i++, now += 16)
+            {
+                allowed += guard.TryAllow ((i % 2 == 0) ? machine : demo, now) ? 1 : 0;
+            }
+
+            Assert::AreEqual ((int) ProjectSwitchGuard::kMaxSwitches, allowed, L"a few switches, then none");
+            Assert::IsTrue   (guard.IsHeld());
+            Assert::IsFalse  (guard.TryAllow (demo, now + 10 * ProjectSwitchGuard::kWindowMs), L"paused however long it lasts");
+            Assert::IsTrue   (guard.TryAllow (other, now), L"a new debug file ends the pause");
+            Assert::IsFalse  (guard.IsHeld());
+            Assert::IsTrue   (guard.TryAllow (demo, now + 1), L"and the old scopes switch again");
+        }
 
         //  Breakpoints with a name and a disabled one, a watch, a zero-page
         //  pointer, a bookmark, a data block, a step filter and a symbol file

@@ -417,6 +417,12 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
             opening = lookup.path.empty() ? DroppedFiles::Opening::Symbols : DroppedFiles::GetOpening (lookup.text);
         }
 
+        if (opening == DroppedFiles::Opening::Basic)
+        {
+            LoadBasicProgram (path);
+            continue;
+        }
+
         if (opening == DroppedFiles::Opening::Symbols)
         {
             RunAction (DebuggerActions::GetLoadSymbols (SourcePathList::WideToUtf8 (path), GetMode()));

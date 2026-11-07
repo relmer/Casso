@@ -297,6 +297,25 @@ namespace DebuggerLooseSourceTests
         }
 
 
+        //  A listing saved with another extension, such as .bas.txt, is distinguished
+        //  from an AppleWin symbol file, whose "ADDR NAME" lines it otherwise
+        //  passes for, by its rising line numbers and its statements.
+        TEST_METHOD (ABasicListingOpensAsBasicWhateverItsExtension)
+        {
+            std::string  listing  = "1  REM ======\n2  REM  SWITCH TEST\n\n10 TEXT : HOME : D$ = CHR$ (4)\n20 SW = PEEK (49248)\n30 PRINT\n";
+            std::string  symbols  = "C000 KBD\nC010 KBDSTRB\nFDED COUT\n";
+            std::string  shuffled = "20 PRINT\n10 HOME\n";
+
+
+
+            Assert::IsTrue  (DroppedFiles::IsBasicListing (listing));
+            Assert::IsTrue  (DroppedFiles::GetOpening (listing) == DroppedFiles::Opening::Basic, L"loaded as a BASIC program, not as symbols");
+            Assert::IsFalse (DroppedFiles::IsBasicListing (symbols), L"an AppleWin symbol file");
+            Assert::IsTrue  (DroppedFiles::GetOpening (symbols) == DroppedFiles::Opening::Symbols);
+            Assert::IsFalse (DroppedFiles::IsBasicListing (shuffled), L"line numbers that don't rise");
+            Assert::IsFalse (DroppedFiles::IsBasicListing ("10 20\n30 40\n"), L"numbers with no statement");
+        }
+
         TEST_METHOD (DroppingASourceWithNoDebugFileOpensIt)
         {
             CassoTheme         theme  = CassoTheme::MakeSkeuomorphic();

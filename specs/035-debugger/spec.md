@@ -3997,6 +3997,21 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   the group's size when the group has shrunk, and MUST be the group's active
   tab. The index MUST be saved with the layout, and a layout saved without it
   MUST load and dock the pane last.
+- **FR-396**: A file MUST be read as a symbol file only when one line form
+  fits at least nine in ten of its lines that aren't blank or comments, with
+  each name a symbol's name (letters, digits and `_ . @ ?`, or a Merlin
+  local's `:` or variable's `]` first, with a letter in it). A file of
+  anything else, such as a BASIC listing or prose, MUST NOT load symbols.
+- **FR-397**: A file dropped on the debugger or opened from its File menu
+  whose lines each start with a rising line number, with Applesoft statements
+  among them, MUST load as a BASIC program whatever its extension, such as a
+  listing saved as .bas.txt.
+- **FR-398**: Two debug projects that each load what opens the other MUST NOT
+  switch back and forth. A project switched away from MUST be saved with the symbol
+  files it had before the switch. After four switches within two seconds,
+  switching MUST pause on the current project, with one console line added
+  for the reason, until the debug file, binary or machine changes to a project
+  outside them.
 
 ### Key Entities
 

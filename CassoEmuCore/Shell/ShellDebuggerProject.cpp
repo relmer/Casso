@@ -253,7 +253,11 @@ void ShellDebugger::ServiceProject()
 //  ShellDebugger::SyncProject
 //
 //  When the scope the signals choose is not the open project's, the open
-//  one is saved and the scope's opens. A scope with no project yet starts
+//  one is saved and the scope's opens. The old project is saved with the symbol
+//  files it had at its last capture: the load that changed the scope is part
+//  of the new one, and captured into the old project it would load the next
+//  time that opened, which would switch away from it again. Switches back
+//  and forth are paused by m_switchGuard. A scope with no project yet starts
 //  from what the debugger and its window have now. An existing project for
 //  a more specific scope replaces the debugger's items with its own. The
 //  user is offered the old project's breakpoints, watches and bookmarks
@@ -286,9 +290,14 @@ void ShellDebugger::SyncProject()
         return;
     }
 
+    if (m_hasProject && !TryAllowProjectSwitch (scope))
+    {
+        return;
+    }
+
     if (m_hasProject)
     {
-        SaveProject();
+        SaveProject (true);
         old     = m_project;
         isOffer = scope.IsMoreSpecificThan (old.scope) && scope != m_restoredScope && HasMergeItems (old);
     }
@@ -319,6 +328,39 @@ void ShellDebugger::SyncProject()
     {
         OfferProjectMerge (old);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::TryAllowProjectSwitch
+//
+//  One console line is added when switching is paused.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDebugger::TryAllowProjectSwitch (const ProjectScope & scope)
+{
+    bool  wasHeld = m_switchGuard.IsHeld();
+
+
+
+    if (m_switchGuard.TryAllow (scope, GetTickCount64()))
+    {
+        return true;
+    }
+
+    if (!wasHeld)
+    {
+        AddConsoleLines ({ std::format ("The debug project for {} and the one for {} each loaded what opens the other, so the debugger stays on {} "
+                                        "until the debug file, binary or machine changes.",
+                                        m_project.scope.label, scope.label, m_project.scope.label) });
+    }
+
+    return false;
 }
 
 
@@ -932,14 +974,16 @@ void ShellDebugger::SetProjectWindowStrings (const std::map<std::string, std::st
 //
 //  ShellDebugger::SaveProject
 //
-//  CPU thread. Written only when the file's text would change.
+//  CPU thread. Written only when the file's text would change; with
+//  `isKeepingSymbolFiles`, its symbol files are the ones last captured.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::SaveProject()
+void ShellDebugger::SaveProject (bool isKeepingSymbolFiles)
 {
-    std::string  text;
-    HRESULT      hr   = S_OK;
+    std::vector<DebugProject::SymbolFile>  symbolFiles = m_project.symbolFiles;
+    std::string                            text;
+    HRESULT                                hr          = S_OK;
 
 
 
@@ -949,6 +993,12 @@ void ShellDebugger::SaveProject()
     }
 
     CaptureProject (m_project);
+
+    if (isKeepingSymbolFiles)
+    {
+        m_project.symbolFiles = std::move (symbolFiles);
+    }
+
     text = m_project.ToJson (fs::path (m_project.filePath).parent_path().native());
 
     if (text == m_projectSaved)

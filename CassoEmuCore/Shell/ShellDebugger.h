@@ -7,6 +7,7 @@
 #include "Core/ThreadPoolWorkQueue.h"
 #include "Debugger/DebugSessionView.h"
 #include "Debugger/Project/DebugProjectStore.h"
+#include "Debugger/Project/ProjectSwitchGuard.h"
 #include "Debugger/Reverse/DivergenceGate.h"
 #include "Debugger/Reverse/DeferredHistoryEdits.h"
 #include "Debugger/Reverse/HeldInputWatch.h"
@@ -400,7 +401,7 @@ public:
     void                    SetDebugWindowShown (bool isShown) { m_isDebugWindowShown.store (isShown); }
     void                    SetProjectStore     (std::unique_ptr<DebugProjectStore> store) { m_projectStore = std::move (store); }
     void                    ServiceProject      ();
-    void                    SaveProject         ();
+    void                    SaveProject         (bool isKeepingSymbolFiles = false);
     bool                    HasMergeOffer       ();
 
 private:
@@ -492,6 +493,7 @@ private:
     // as when a machine's project loads a debug file. Switching to it is part
     // of the same restore, so the user is not offered a merge.
     std::optional<ProjectScope>                               m_restoredScope;
+    ProjectSwitchGuard                                        m_switchGuard;
 
     // The debugger window's preferences, written under the project mutex.
     ShellDebuggerPrefs                                        m_prefs { m_host, m_cpuManager, m_settings, m_projectMutex };
@@ -502,6 +504,7 @@ private:
     std::wstring    GetScopeFilePath    (const ProjectScope & scope);
     void            NoteBootDisk        ();
     void            SyncProject         ();
+    bool            TryAllowProjectSwitch (const ProjectScope & scope);
     void            ApplyProject        (const DebugProject & project);
     void            RunStartupCommands  ();
     void            OfferProjectMerge   (const DebugProject & old);

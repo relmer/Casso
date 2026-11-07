@@ -53,12 +53,80 @@ DroppedFiles::Opening DroppedFiles::GetOpening (const std::string & content)
         return Opening::Hex;
     }
 
+    if (IsBasicListing (content))
+    {
+        return Opening::Basic;
+    }
+
     if (SymbolFileReader::Detect (content) != SymbolFileFormat::Unknown)
     {
         return Opening::Symbols;
     }
 
     return Opening::Text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DroppedFiles::IsBasicListing
+//
+//  Each line that isn't blank starts with a line number above the line
+//  before's, and some line has one of the statements a program can't do
+//  without after its number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DroppedFiles::IsBasicListing (const std::string & content)
+{
+    static constexpr const char *  s_kpszStatements[] = { "REM", "PRINT", "GOTO", "GOSUB", "IF", "FOR", "NEXT", "HOME", "TEXT", "INPUT",
+                                                          "POKE", "DIM", "END", "RETURN", "LET", "HGR", "GR", "DATA", "READ", "CALL" };
+    std::istringstream             stream (content);
+    std::string                    line;
+    long                           last         = -1;
+    int                            numbered     = 0;
+    bool                           hasStatement = false;
+
+
+
+    while (std::getline (stream, line))
+    {
+        size_t       at     = line.find_first_not_of (" \t");
+        size_t       digits = 0;
+        long         number = 0;
+        std::string  word;
+
+        if (at == std::string::npos || line[at] == '\r')
+        {
+            continue;
+        }
+
+        while (at + digits < line.size() && isdigit ((unsigned char) line[at + digits]) && digits < 6)
+        {
+            number = number * 10 + (line[at + digits] - '0');
+            digits++;
+        }
+
+        if (digits == 0 || number <= last || at + digits >= line.size() || !isspace ((unsigned char) line[at + digits]))
+        {
+            return false;
+        }
+
+        last = number;
+        numbered++;
+
+        std::istringstream (line.substr (at + digits)) >> word;
+
+        for (const char * statement : s_kpszStatements)
+        {
+            hasStatement = hasStatement || _stricmp (word.c_str(), statement) == 0;
+        }
+    }
+
+    return numbered > 0 && hasStatement;
 }
 
 
