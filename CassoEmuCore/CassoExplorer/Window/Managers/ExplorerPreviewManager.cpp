@@ -1023,11 +1023,11 @@ bool ExplorerPreviewManager::IsArchiveLocation() const
 
 int ExplorerPreviewManager::GetPreviewStopIndex (int commandId) const
 {
-    std::vector<int>  ids = CassoExplorerCommands::GetPreviewToolbarCommandIds (true);
+    std::vector<int>  ids = CassoExplorerCommands::GetPreviewToolbarCommandIds (m_barMode);
 
 
 
-    if (m_barMode != CassoExplorerCommands::kPreviewBarHex)
+    if (m_barMode != CassoExplorerCommands::kPreviewBarHex && m_barMode != CassoExplorerCommands::kPreviewBarVariables)
     {
         return -1;
     }

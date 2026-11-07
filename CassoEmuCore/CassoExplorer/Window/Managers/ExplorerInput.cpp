@@ -50,7 +50,9 @@ void ExplorerInput::SetFocusPane (ExplorerPane pane)
 {
     if ((pane == ExplorerPane::Preview && !m_context.preview.IsShown())
         || (pane == ExplorerPane::PreviewToolbar && !m_context.preview.GetToolbar().IsVisible())
-        || ((pane == ExplorerPane::Search || pane == ExplorerPane::GoTo) && m_context.preview.GetBarMode() != CassoExplorerCommands::kPreviewBarHex))
+        || (pane == ExplorerPane::GoTo && m_context.preview.GetBarMode() != CassoExplorerCommands::kPreviewBarHex)
+        || (pane == ExplorerPane::Search && m_context.preview.GetBarMode() != CassoExplorerCommands::kPreviewBarHex
+                                         && m_context.preview.GetBarMode() != CassoExplorerCommands::kPreviewBarVariables))
     {
         pane = ExplorerPane::Tree;
     }
@@ -338,6 +340,7 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
     m_context.window.ArmTick();
 
     m_context.treePane.UpdateLabelTip (ev);
+    m_context.preview.GetListing().UpdateValueTipAt (ev);
     m_context.tabManager.ClearHoverOnLeave (ev);
     m_context.listPane.ClearHoverOutside (ev);
     m_context.addressBar.CloseSuggestionsOnPress (ev);

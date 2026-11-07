@@ -68,6 +68,12 @@ void PreviewFindBar::Create()
     {
         m_searchBox.SetText (L"");
         m_findBytes.clear();
+
+        if (m_preview.GetListing().IsVariables())
+        {
+            m_preview.GetListing().SetVariablesFilter (L"");
+        }
+
         m_context.input.SetFocusPane (ExplorerPane::Preview);
     });
 
@@ -176,18 +182,20 @@ bool PreviewFindBar::FocusGoTo()
 //
 //  PreviewFindBar::FocusFind
 //
-//  Find searches the hex preview while it or one of its boxes has focus.
-//  Returns whether focus moved to the search box.
+//  Find searches the hex preview, or filters a VAR file's variables, while
+//  the preview or one of its boxes has focus. Returns whether focus moved to
+//  the search box.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PreviewFindBar::FocusFind()
 {
-    ExplorerPane  focus = m_context.input.GetFocusPane();
+    ExplorerPane  focus      = m_context.input.GetFocusPane();
+    bool          searchable = m_preview.GetHex().IsShowing() || m_preview.GetListing().IsVariables();
 
 
 
-    if (!m_preview.GetHex().IsShowing() || (focus != ExplorerPane::Preview && focus != ExplorerPane::Search && focus != ExplorerPane::GoTo))
+    if (!searchable || (focus != ExplorerPane::Preview && focus != ExplorerPane::Search && focus != ExplorerPane::GoTo))
     {
         return false;
     }

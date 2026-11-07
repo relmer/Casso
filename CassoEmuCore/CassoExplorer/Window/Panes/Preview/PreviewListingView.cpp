@@ -12,6 +12,8 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Panes/ExplorerPane.h"
+#include "CassoExplorer/Window/Managers/ExplorerMenus.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
@@ -60,6 +62,7 @@ void PreviewListingView::Create()
 
 void PreviewListingView::Configure()
 {
+    m_valueTip.SetPopupHost (m_context.window.GetPopupHost());
     m_list->SetShowHeader (false);
     m_list->SetColumns ({ DxuiListView::Column { L"", 0, true } });
 
@@ -81,6 +84,12 @@ void PreviewListingView::Configure()
         if (m_isArchive)
         {
             m_archive.OpenRow (row);
+        }
+
+        //  A double-click on an array's row opens or closes it.
+        if (m_isVariables)
+        {
+            ToggleArray (row, !IsArrayOpen (row), false);
         }
     });
 
@@ -107,13 +116,7 @@ void PreviewListingView::Configure()
 void PreviewListingView::Layout (const RECT & content)
 {
     m_list->Layout (content, m_context.scaler);
-
-    //  A VAR file's values wrap to the pane's width, so they wrap again when
-    //  the pane is resized.
-    if (m_isVariables && content.right - content.left != m_varLayoutWidthPx)
-    {
-        FillVariables (m_context.browser.GetPreview(), false);
-    }
+    m_valueTip.Hide();
 }
 
 
@@ -129,6 +132,7 @@ void PreviewListingView::Layout (const RECT & content)
 void PreviewListingView::Hide()
 {
     m_list->SetVisible (false);
+    m_valueTip.Hide();
 }
 
 
@@ -233,9 +237,10 @@ void PreviewListingView::Fill (const PreviewContent & preview, bool columns)
 //
 //  PreviewListingView::FillVariables
 //
-//  The simple variables are a group, and each array another, its label the
-//  array's name and subscripts. Arrays start collapsed. While a search
-//  filters the rows, every group is open, so each match is in view.
+//  Each simple variable is a row. Each array is a row too, its element count
+//  in the Length column, with an expand mark before its name; its elements
+//  follow it, indented, while it is open. Arrays start closed. While a search
+//  filters the rows, every array is open, so each match is in view.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -244,11 +249,10 @@ void PreviewListingView::FillVariables (const PreviewContent & preview, bool res
     using Column = ApplesoftVariables::Column;
 
     std::vector<std::vector<DxuiListView::Cell>>  rows;
-    std::vector<DxuiListView::Group>              groups;
     std::vector<ApplesoftVariables::Section>      sections;
     std::wstring                                  lower = m_varFilter;
 
-    auto  matchesIn = [&lower] (const std::wstring & text)
+    auto  matchesIn = [&lower] (const std::wstring & text, int offset)
     {
         std::vector<std::pair<int, int>>  ranges;
         std::wstring                      hay = text;
@@ -257,7 +261,7 @@ void PreviewListingView::FillVariables (const PreviewContent & preview, bool res
 
         for (size_t at = lower.empty() ? std::wstring::npos : hay.find (lower); at != std::wstring::npos; at = hay.find (lower, at + lower.size()))
         {
-            ranges.emplace_back ((int) at, (int) (at + lower.size()));
+            ranges.emplace_back ((int) at + offset, (int) (at + lower.size()) + offset);
         }
 
         return ranges;
@@ -267,8 +271,14 @@ void PreviewListingView::FillVariables (const PreviewContent & preview, bool res
 
     std::transform (lower.begin(), lower.end(), lower.begin(), [] (wchar_t c) { return (wchar_t) towlower (c); });
 
+    if (reset)
+    {
+        m_varExpanded.clear();
+    }
+
     m_varRows     = preview.variables.data();
     m_varRowCount = preview.variables.size();
+    m_valueTip.Hide();
 
     m_list->SetShowHeader        (true);
     m_list->SetMonospace         (true);
@@ -282,70 +292,56 @@ void PreviewListingView::FillVariables (const PreviewContent & preview, bool res
     m_list->SetColumns           ({ DxuiListView::Column { L"Name",   0, false },
                                     DxuiListView::Column { L"Type",   0, false },
                                     DxuiListView::Column { L"Length", 0, false, DxuiTextRenderer::HAlign::Right },
-                                    DxuiListView::Column { L"Value",  0, false } });
+                                    DxuiListView::Column { L"Value",  0, true } });
     m_list->SetSortIndicator     (m_varColumn, m_varDescending);
+    m_list->SetGroups            ({});
 
     sections = ApplesoftVariables::Arrange (preview.variables, preview.arrays, m_varFilter, (Column) m_varColumn, m_varDescending);
 
-    //  The rows with each value wrapped at `wrap` characters: a long value
-    //  continues on further rows below its first.
-    auto  build = [&] (size_t wrap)
+    m_varLines.clear();
+
+    for (const ApplesoftVariables::Section & section : sections)
     {
-        rows.clear();
-        groups.clear();
-
-        for (const ApplesoftVariables::Section & section : sections)
+        if (section.array < 0)
         {
-            DxuiListView::Group  group;
-
-            group.firstRow  = (int) rows.size();
-            group.label     = (section.array < 0) ? std::format (L"Variables ({})", section.rows.size())
-                                                  : std::format (L"{}{} ({})", preview.arrays[(size_t) section.array].name,
-                                                                 preview.arrays[(size_t) section.array].dimensions, section.rows.size());
-            group.collapsed = section.array >= 0 && m_varFilter.empty();
-            groups.push_back (group);
-
             for (size_t index : section.rows)
             {
-                const VariableRow &  row   = preview.variables[index];
-                std::wstring         first = row.value.substr (0, wrap);
+                const VariableRow &  row = preview.variables[index];
 
-                rows.push_back ({ { row.name,   false, matchesIn (row.name)  },
+                rows.push_back ({ { s_kpszVarIndent + row.name, false, matchesIn (row.name, (int) wcslen (s_kpszVarIndent)) },
                                   { row.type,   true },
                                   { row.length, true },
-                                  { first,      false, matchesIn (first) } });
-
-                for (size_t at = wrap; at < row.value.size(); at += wrap)
-                {
-                    std::wstring  part = row.value.substr (at, wrap);
-
-                    rows.push_back ({ { L"" }, { L"" }, { L"" }, { part, false, matchesIn (part) } });
-                }
+                                  { row.value,  false, matchesIn (row.value, 0) } });
+                m_varLines.push_back ({ -1, false, row.name, row.type, row.length, row.value });
             }
+
+            continue;
         }
-    };
 
+        const VariableArray &  array = preview.arrays[(size_t) section.array];
+        std::wstring           title = array.name + array.dimensions;
+        std::wstring           type  = preview.variables[section.rows.front()].type;
+        bool                   open  = !m_varFilter.empty() || m_varExpanded.contains (array.name);
 
+        rows.push_back ({ { std::wstring (open ? s_kpszSmallTriangleDown : s_kpszSmallTriangleRight) + L" " + title, false, matchesIn (title, 2) },
+                          { type,                           true },
+                          { std::to_wstring (array.count),  true },
+                          { L"" } });
+        m_varLines.push_back ({ section.array, true, title, type, std::to_wstring (array.count), L"" });
 
-    //  The other columns are measured with every value whole, and the values
-    //  then wrapped to the remaining width.
-    build (std::wstring::npos);
-    m_list->SetRows (rows);
-    build (GetValueWrapChars());
-
-    m_list->SetRows   (std::move (rows));
-    m_list->SetGroups (groups);
-
-    //  A new file, or a search begun or cleared, sets every group's state;
-    //  after a resort, each group is as the user left it.
-    if (reset || !m_varFilter.empty())
-    {
-        for (size_t i = 0; i < groups.size(); i++)
+        for (size_t index : open ? section.rows : std::vector<size_t>())
         {
-            m_list->SetGroupCollapsed ((int) i, groups[i].collapsed);
+            const VariableRow &  row = preview.variables[index];
+
+            rows.push_back ({ { s_kpszElementIndent + row.name, false, matchesIn (row.name, (int) wcslen (s_kpszElementIndent)) },
+                              { row.type,   true },
+                              { row.length, true },
+                              { row.value,  false, matchesIn (row.value, 0) } });
+            m_varLines.push_back ({ section.array, false, row.name, row.type, row.length, row.value });
         }
     }
 
+    m_list->SetRows (std::move (rows));
     m_list->ResetAutoFit();
     m_list->UpdateAutoFitFromRows();
 
@@ -361,42 +357,372 @@ void PreviewListingView::FillVariables (const PreviewContent & preview, bool res
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreviewListingView::GetValueWrapChars
+//  PreviewListingView::ToggleArray
 //
-//  How many characters of a value fit in the list's width, less the Name,
-//  Type and Length columns and the scrollbar, in the list's fixed-width face.
+//  Opens or closes the array on a row, or the array an element row is in
+//  when `toParent` is set, then selects that array's row. Returns
+//  whether the row was an array's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t PreviewListingView::GetValueWrapChars()
+bool PreviewListingView::ToggleArray (int row, bool open, bool toParent)
 {
-    HRESULT              hr      = S_OK;
-    size_t               result  = s_kMinWrapChars;
-    IDxuiTextRenderer *  text    = m_context.window.GetTextRenderer();
-    RECT                 bounds  = m_list->GetBounds();
-    float                width   = 0.0f;
-    float                height  = 0.0f;
-    float                charW   = 0.0f;
-    int                  roomPx  = 0;
+    HRESULT        hr     = S_OK;
+    bool           result = false;
+    int            array  = -1;
+    std::wstring   name;
 
 
 
-    m_varLayoutWidthPx = bounds.right - bounds.left;
+    BAIL_OUT_IF (row < 0 || row >= (int) m_varLines.size(), S_OK);
+    BAIL_OUT_IF (!m_varLines[(size_t) row].header && !toParent, S_OK);
 
-    BAIL_OUT_IF (text == nullptr || m_varLayoutWidthPx <= 0, S_OK);
+    array = m_varLines[(size_t) row].array;
+    BAIL_OUT_IF (array < 0, S_OK);
 
-    hr = text->MeasureString (s_kpszWrapSample, (float) m_context.scaler.ToPxf (m_list->GetFontDip()), DxuiTheme::kMonoFace, width, height);
-    BAIL_OUT_IF (FAILED (hr) || width <= 0.0f, S_OK);
+    name   = m_context.browser.GetPreview().arrays[(size_t) array].name;
+    result = true;
 
-    charW  = width / (float) wcslen (s_kpszWrapSample);
-    roomPx = m_varLayoutWidthPx - m_list->GetScrollbarWidthPx() - m_list->GetCellPaddingPx (s_kValueColumn);
-
-    for (size_t column = 0; column < s_kValueColumn; column++)
+    if (open)
     {
-        roomPx -= m_list->MeasureColumnContentPx (*text, column);
+        m_varExpanded.insert (name);
+    }
+    else
+    {
+        m_varExpanded.erase (name);
     }
 
-    result = (std::max) (s_kMinWrapChars, (size_t) ((float) (std::max) (roomPx, 0) / charW));
+    FillVariables (m_context.browser.GetPreview(), false);
+
+    for (size_t i = 0; i < m_varLines.size(); i++)
+    {
+        if (m_varLines[i].header && m_varLines[i].array == array)
+        {
+            m_list->SetSelectedRow ((int) i);
+            break;
+        }
+    }
+
+    m_context.window.Invalidate();
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewListingView::IsArrayOpen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewListingView::IsArrayOpen (int row) const
+{
+    return row + 1 < (int) m_varLines.size() && m_varLines[(size_t) row].header
+        && !m_varLines[(size_t) row + 1].header && m_varLines[(size_t) row + 1].array == m_varLines[(size_t) row].array;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewListingView::HandleVariablesMouse
+//
+//  A press on an array's expand mark opens or closes it, and a right-click
+//  opens the menu for the rows it is on, selecting the row first when it is
+//  not already.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewListingView::HandleVariablesMouse (const DxuiMouseEvent & ev)
+{
+    DxuiMouseEvent  local = ExplorerLayout::ToLocal (ev, m_list->GetBounds());
+    int             row   = m_list->HitTestRow (0, local.positionDip.y);
+    RECT            cell  = {};
+    bool            mark  = false;
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
+    {
+        return false;
+    }
+
+    m_valueTip.Hide();
+
+    if (row < 0 || row >= (int) m_varLines.size())
+    {
+        return false;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && m_varLines[(size_t) row].header && m_list->GetCellTextRectPx (row, 0, cell))
+    {
+        mark = local.positionDip.x >= cell.left && local.positionDip.x < cell.left + 2 * GetCharWidthPx();
+    }
+
+    if (mark)
+    {
+        m_context.input.SetFocusPane (ExplorerPane::Preview);
+        return ToggleArray (row, !IsArrayOpen (row), false);
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Right)
+    {
+        if (!m_list->IsRowSelected (row))
+        {
+            m_list->SetSelectedRow (row);
+        }
+
+        ShowVariablesMenu (ev.positionDip.x, ev.positionDip.y);
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewListingView::HandleVariablesKey
+//
+//  Right opens the selected array and Left closes it, or moves from an element
+//  to its array, as a tree's keys do. Ctrl+C copies the selected rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewListingView::HandleVariablesKey (const DxuiKeyEvent & ev)
+{
+    int   row    = m_list->GetSelectedRow();
+    bool  header = row >= 0 && row < (int) m_varLines.size() && m_varLines[(size_t) row].header;
+
+
+
+    if (ev.kind != DxuiKeyEventKind::Down || row < 0 || row >= (int) m_varLines.size())
+    {
+        return false;
+    }
+
+    if (ev.ctrl && ev.vk == 'C')
+    {
+        CopyVariables (VarPart::Row);
+        return true;
+    }
+
+    if (!ev.ctrl && ev.vk == VK_RIGHT && header && !IsArrayOpen (row))
+    {
+        return ToggleArray (row, true, false);
+    }
+
+    if (!ev.ctrl && ev.vk == VK_LEFT && (header ? IsArrayOpen (row) : m_varLines[(size_t) row].array >= 0))
+    {
+        return ToggleArray (row, false, !header);
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewListingView::ShowVariablesMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewListingView::ShowVariablesMenu (int x, int y)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    m_context.menus.GetMenuCommands().clear();
+
+    m_context.menus.AddMenuCommand (items, L"Copy &name",  [this]() { CopyVariables (VarPart::Name);  });
+    m_context.menus.AddMenuCommand (items, L"Copy &value", [this]() { CopyVariables (VarPart::Value); });
+    m_context.menus.AddMenuCommand (items, L"Copy &row",   [this]() { CopyVariables (VarPart::Row);   });
+
+    DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewListingView::CopyVariables
+//
+//  The selected rows' Name or Value text, or whole rows with their columns
+//  separated by tabs, one row to a line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewListingView::CopyVariables (VarPart part)
+{
+    std::vector<int>  selected = m_list->GetSelectedRows();
+    std::wstring      text;
+
+
+
+    std::sort (selected.begin(), selected.end());
+
+    for (int row : selected)
+    {
+        if (row < 0 || row >= (int) m_varLines.size())
+        {
+            continue;
+        }
+
+        const VarLine &  line = m_varLines[(size_t) row];
+
+        if (!text.empty())
+        {
+            text += L"\r\n";
+        }
+
+        text += (part == VarPart::Name)  ? line.name
+              : (part == VarPart::Value) ? line.value
+                                         : line.name + L"\t" + line.type + L"\t" + line.length + L"\t" + line.value;
+    }
+
+    DxuiClipboard::SetText (m_context.window.GetHwnd(), text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewListingView::UpdateValueTipAt
+//
+//  Every mouse event in the window: a move over a value cut off at the
+//  pane's edge puts the whole value over the row, and any other event
+//  hides it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewListingView::UpdateValueTipAt (const DxuiMouseEvent & ev)
+{
+    //  The row is tested at the list's left edge: the list takes a point past
+    //  its columns' natural widths, as over the stretched Value column, for
+    //  empty space.
+    DxuiMouseEvent  local = ExplorerLayout::ToLocal (ev, m_list->GetBounds());
+    bool            over  = m_isVariables && m_list->IsVisible() && ev.kind == DxuiMouseEventKind::Move && ExplorerLayout::Contains (m_list->GetBounds(), ev.positionDip);
+
+
+
+    UpdateValueTip (over ? m_list->HitTestRow (0, local.positionDip.y) : -1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewListingView::UpdateValueTip
+//
+//  A value wider than its cell is drawn whole over the row, from the cell's
+//  left to the list's right, wrapped onto as many lines as it takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewListingView::UpdateValueTip (int row)
+{
+    HRESULT              hr      = S_OK;
+    IDxuiTextRenderer  * text    = m_context.window.GetTextRenderer();
+    RECT                 bounds  = m_list->GetBounds();
+    RECT                 cell    = {};
+    RECT                 tip     = {};
+    float                fontPx  = 0.0f;
+    float                width   = 0.0f;
+    float                height  = 0.0f;
+    int                  padPx   = m_context.scaler.ToPx (s_kValueTipPadDip);
+    bool                 shown   = false;
+    std::wstring         value;
+
+
+
+    BAIL_OUT_IF (row < 0 || row >= (int) m_varLines.size() || text == nullptr || m_context.theme == nullptr, S_OK);
+    BAIL_OUT_IF (!m_list->GetCellTextRectPx (row, s_kValueColumn, cell), S_OK);
+
+    value  = m_varLines[(size_t) row].value;
+    fontPx = (float) m_context.scaler.ToPxf (m_list->GetFontDip());
+
+    hr = text->MeasureString (value.c_str(), fontPx, DxuiTheme::kMonoFace, width, height);
+    BAIL_OUT_IF (FAILED (hr) || width <= (float) (cell.right - cell.left), S_OK);
+
+    tip.left  = bounds.left + cell.left - padPx;
+    tip.right = bounds.right - m_list->GetScrollbarWidthPx();
+    tip.top   = bounds.top + cell.top;
+
+    hr = text->MeasureStringWrapped (value.c_str(), fontPx, DxuiTheme::kMonoFace, (float) (tip.right - tip.left - 2 * padPx), width, height);
+    BAIL_OUT_IF (FAILED (hr), S_OK);
+
+    tip.bottom = tip.top + (std::max) ((int) (cell.bottom - cell.top), (int) std::ceil (height)) + padPx;
+
+    m_valueTip.Show (tip, m_context.theme->TooltipBackground(), [this, value, fontPx, padPx, tip] (IDxuiPainter & painter, IDxuiTextRenderer & render)
+    {
+        float  w = (float) (tip.right - tip.left);
+        float  h = (float) (tip.bottom - tip.top);
+
+        HRESULT  drawn = S_OK;
+
+        painter.OutlineRect (0.0f, 0.0f, w, h, 1.0f, m_context.theme->TooltipBorder());
+
+        drawn = render.DrawString (value.c_str(), (float) padPx, 0.0f, w - 2.0f * (float) padPx, h,
+                                   m_context.theme->TooltipForeground(), fontPx, DxuiTheme::kMonoFace);
+        IGNORE_RETURN_VALUE (drawn, S_OK);
+    });
+
+    shown = true;
+
+Error:
+    if (!shown)
+    {
+        m_valueTip.Hide();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewListingView::GetCharWidthPx
+//
+//  The width of one character in the list's fixed-width face.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PreviewListingView::GetCharWidthPx() const
+{
+    HRESULT              hr     = S_OK;
+    IDxuiTextRenderer  * text   = m_context.window.GetTextRenderer();
+    float                width  = 0.0f;
+    float                height = 0.0f;
+    int                  result = m_context.scaler.ToPx (s_kFallbackCharDip);
+
+
+
+    BAIL_OUT_IF (text == nullptr, S_OK);
+
+    hr = text->MeasureString (s_kpszWidthSample, (float) m_context.scaler.ToPxf (m_list->GetFontDip()), DxuiTheme::kMonoFace, width, height);
+    BAIL_OUT_IF (FAILED (hr) || width <= 0.0f, S_OK);
+
+    result = (int) std::ceil (width / (float) wcslen (s_kpszWidthSample));
 
 Error:
     return result;
@@ -502,12 +828,19 @@ bool PreviewListingView::HandleMouse (const DxuiMouseEvent & ev)
 {
     if (!m_list->IsVisible() || !ExplorerLayout::Contains (m_list->GetBounds(), ev.positionDip))
     {
+        m_valueTip.Hide();
         return false;
     }
 
     if (ev.kind == DxuiMouseEventKind::Down)
     {
         m_context.input.SetFocusPane (ExplorerPane::Preview);
+    }
+
+    if (m_isVariables && HandleVariablesMouse (ev))
+    {
+        m_context.window.Invalidate();
+        return true;
     }
 
     m_list->OnMouse (ExplorerLayout::ToLocal (ev, m_list->GetBounds()));
@@ -531,6 +864,12 @@ bool PreviewListingView::HandleMouse (const DxuiMouseEvent & ev)
 
 bool PreviewListingView::HandleShortcutKey (const DxuiKeyEvent & ev)
 {
+    if (m_isVariables && HandleVariablesKey (ev))
+    {
+        m_context.window.Invalidate();
+        return true;
+    }
+
     if (m_isArchive && ev.ctrl && ev.vk == 'A')
     {
         m_list->SelectAllRows();
@@ -562,8 +901,8 @@ bool PreviewListingView::HandleShortcutKey (const DxuiKeyEvent & ev)
 //  PreviewListingView::GetCursorForPoint
 //
 //  The list tests points in its own terms. Over a catalog's lines the cursor
-//  is the I-beam, as over text; over an archive's rows it is the arrow, as
-//  over the file list's.
+//  is the I-beam, as over text; over an archive's or a VAR file's rows, and
+//  over the column titles, it is the arrow, as over the file list's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -572,6 +911,7 @@ LPCWSTR PreviewListingView::GetCursorForPoint (POINT clientPx) const
     RECT     list   = m_list->GetBounds();
     POINT    local  = { clientPx.x - list.left, clientPx.y - list.top };
     LPCWSTR  cursor = nullptr;
+    bool     arrow  = m_isArchive || m_isVariables || local.y < m_list->GetHeaderHeightPx();
 
 
 
@@ -582,7 +922,7 @@ LPCWSTR PreviewListingView::GetCursorForPoint (POINT clientPx) const
 
     cursor = m_list->GetCursorForPoint (local);
 
-    return (cursor != nullptr || m_list->IsOverScrollbar (local)) ? cursor : (m_isArchive ? IDC_ARROW : IDC_IBEAM);
+    return (cursor != nullptr || m_list->IsOverScrollbar (local)) ? cursor : (arrow ? IDC_ARROW : IDC_IBEAM);
 }
 
 
