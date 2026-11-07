@@ -237,9 +237,10 @@ Error:
 
 HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport)
 {
-    HRESULT  hr     = S_OK;
-    size_t   before = 0;
-    bool     stop   = false;
+    HRESULT  hr      = S_OK;
+    size_t   before  = 0;
+    bool     stop    = false;
+    int      damaged = 0;
 
 
 
@@ -262,9 +263,11 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
 
         before = outUnreadable.size();
 
-        //  With no file system and whole tracks gone, the rest is read once.
-        //  Retries don't recover a copy-protected disk's nonstandard tracks.
-        stop = outReport.emptyTracks >= FullSendDisk::kEmptyTracksToStop && VolumeImage::DetectFilesystem (ioImage) == VolumeKind::Unknown;
+        //  With no file system and a track with unreadable sectors, the rest is
+        //  read once. Retries don't recover a copy-protected disk's nonstandard
+        //  tracks, and a protected track can have a few readable sectors among
+        //  its others, so it is never whole and never wholly empty.
+        stop = damaged >= FullSendDisk::kDamagedTracksToStop && VolumeImage::DetectFilesystem (ioImage) == VolumeKind::Unknown;
 
         if (stop)
         {
@@ -283,6 +286,7 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
         CHR (hr);
 
         outReport.emptyTracks += outUnreadable.size() - before == NibblizationLayer::kSectorsPerTrack ? 1 : 0;
+        damaged               += outUnreadable.size() > before ? 1 : 0;
     }
 
     //  The last track's share ends at 100 only when its request succeeds, so a

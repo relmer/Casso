@@ -48,10 +48,11 @@ public:
     //  then whether whole tracks have no sectors at all.
     static const char *  AssessDamage (const std::vector<Byte> & image, int emptyTracks, int scatteredSectors);
 
-    //  Whole tracks with no sector found before the rest of a disk is read once
-    //  with no retries. Retries don't recover a copy-protected disk's nonstandard
-    //  tracks.
-    static constexpr int  kEmptyTracksToStop = 3;
+    //  Tracks with an unreadable sector, on a disk with no file system Casso
+    //  recognizes, before the rest of it is read once with no retries. Retries
+    //  don't recover a copy-protected disk's nonstandard tracks, and each
+    //  missing sector's retries take seconds.
+    static constexpr int  kDamagedTracksToStop = 1;
 
     //  The prefix, as typed, then NNNN NAME, or NNNN alone, with the prefix and
     //  the name cleaned by the host file name rules.
