@@ -23,7 +23,6 @@
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
-#include "Core/TextEncoding.h"
 
 
 
@@ -1478,9 +1477,9 @@ void ExplorerTreePane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
 //
 //  ExplorerTreePane::GetFullPathTip
 //
-//  A folder, disk image or directory under Casso has its full path as its
-//  tip, unless its name already is that path. A directory inside an image
-//  follows the image's path.
+//  A folder directly under Casso whose label is its name gets its full path
+//  as its tip. A folder labeled with its path gets no tip, and neither does
+//  anything below one, which sits under it in the tree.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1488,27 +1487,16 @@ std::wstring ExplorerTreePane::GetFullPathTip (const DxuiTreeNode & node) const
 {
     HRESULT       hr         = S_OK;
     std::wstring  result;
-    std::wstring  path;
     Location      location;
     bool          underCasso = TreeModel::IsUnderCasso (node.id);
 
 
 
     BAIL_OUT_IF (!underCasso || !m_context.browser.TryGetNodeLocation (node.id, location), S_OK);
-    BAIL_OUT_IF (location.kind != Location::Kind::HostFolder && location.kind != Location::Kind::DiskImage && location.kind != Location::Kind::DiskDirectory, S_OK);
+    BAIL_OUT_IF (location.kind != Location::Kind::HostFolder || !m_context.browser.GetTreeModel().IsKnownFolder (location.path), S_OK);
+    BAIL_OUT_IF (_wcsicmp (location.path.c_str(), node.label.c_str()) == 0, S_OK);
 
-    path = location.path;
-
-    if (location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty())
-    {
-        path += L'\\';
-        path += TextEncoding::NarrowToWide (location.innerPath);
-        std::replace (path.begin(), path.end(), L'/', L'\\');
-    }
-
-    BAIL_OUT_IF (_wcsicmp (path.c_str(), node.label.c_str()) == 0, S_OK);
-
-    result = path;
+    result = location.path;
 
 Error:
     return result;

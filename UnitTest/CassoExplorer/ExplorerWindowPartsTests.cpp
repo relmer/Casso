@@ -359,6 +359,75 @@ public:
 
 
 
+    //  Only a folder of Casso's whose label is its name gets its path as its
+    //  tip: not one labeled with its path, nor a folder or image below one.
+    TEST_METHOD (TreeTip_IsTheFullPathOfCassosFoldersShownByName)
+    {
+        Rig                        rig;
+        std::vector<DxuiTreeNode>  roots;
+        std::vector<DxuiTreeNode>  folders;
+        std::wstring               disksId;
+        std::wstring               tipOfSub;
+        std::wstring               tipOfImage;
+        std::wstring               tipOfDisks;
+        std::wstring               tipOfShared;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Disks\\Sub\\note.txt", "x"));
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\A\\games\\a.txt", "x"));
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\B\\games\\b.txt", "x"));
+        rig.Open();
+
+        rig.browser.GetTreeModel().SetKnownFolders ({ L"C:\\Disks", L"C:\\A\\games", L"C:\\B\\games" });
+        rig.browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring &) { return true; });
+        rig.browser.GetTreeModel().InvalidateAll();
+        rig.browser.GetTreeRoots (roots);
+
+        for (const DxuiTreeNode & root : roots)
+        {
+            if (root.id == TreeModel::kCassoRootId)
+            {
+                folders = rig.browser.GetTreeChildren (root.id);
+            }
+        }
+
+        for (const DxuiTreeNode & folder : folders)
+        {
+            if (folder.label == L"Disks")
+            {
+                disksId    = folder.id;
+                tipOfDisks = rig.parts->treePane.GetFullPathTip (folder);
+            }
+            else if (folder.label == L"C:\\A\\games")
+            {
+                tipOfShared = rig.parts->treePane.GetFullPathTip (folder);
+            }
+        }
+
+        Assert::IsFalse (disksId.empty(), L"Casso has the Disks folder");
+
+        for (const DxuiTreeNode & child : rig.browser.GetTreeChildren (disksId))
+        {
+            if (child.label == L"Sub")
+            {
+                tipOfSub = rig.parts->treePane.GetFullPathTip (child);
+            }
+            else if (child.label == L"prodos.po")
+            {
+                tipOfImage = rig.parts->treePane.GetFullPathTip (child);
+            }
+        }
+
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), tipOfDisks, L"A folder shown by its name has its path");
+        Assert::IsTrue   (tipOfShared.empty(),          L"A folder shown as its path has no tip");
+        Assert::IsTrue   (tipOfSub.empty(),             L"nor has a folder inside one");
+        Assert::IsTrue   (tipOfImage.empty(),           L"nor a disk image inside one");
+    }
+
+
+
     TEST_METHOD (Rename_InADiskImage_SelectsTheRowUnderItsNewName)
     {
         Rig           rig;

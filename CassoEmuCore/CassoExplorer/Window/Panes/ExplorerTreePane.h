@@ -42,6 +42,11 @@ public:
     void                              UpdateLabelTip       (const DxuiMouseEvent & ev);
     void                              HideLabelTip         () { m_labelTip.Hide(); }
     void                              UpdateTip            (const DxuiMouseEvent & ev, POINT point);
+
+    //  A node's full path tip: the path of a folder of Casso's whose label is
+    //  its name; empty for any other node.
+    std::wstring                      GetFullPathTip       (const DxuiTreeNode & node) const;
+
     std::vector<DxuiPopupMenuItem>    GetScrollbarMenu     (POINT point) const;
     bool                              UpdateScrollbarHover (POINT at) { return m_tree->SetScrollbarHover (at); }
     bool                              TickScrollbars       (int64_t nowMs) { return m_tree->TickScrollbars (nowMs); }
@@ -92,8 +97,6 @@ private:
     void  AddRootRows         (std::vector<DxuiPopupMenuItem> & items, const Location & location, int x, int y);
     void  ShowTreeEmptyMenu   (int x, int y);
     void  AddNavPaneToggle    (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option);
-
-    std::wstring  GetFullPathTip (const DxuiTreeNode & node) const;
 
     ExplorerContext  & m_context;
     DxuiTreeView     * m_tree          = nullptr;
