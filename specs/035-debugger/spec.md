@@ -3895,7 +3895,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-373**: A file in a console line MUST be a link in the console pane,
   with its full path as its tip, that opens File Explorer with the file
   selected; the line MUST NOT write out the full path, while the reply's text
-  for the debug channel and batch mode MUST have it.
+  for the debug channel and batch mode MUST have it. This MUST apply to every
+  full path in every console line, from any command or notice, quoted or not:
+  each is replaced by its file's name, linked.
 - **FR-374**: A tab dragged past the first or the last tab of its row, by more
   than the drag threshold, MUST be dragged off its group, as one dragged up or
   down is.

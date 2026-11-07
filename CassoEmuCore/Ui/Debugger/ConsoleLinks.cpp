@@ -184,6 +184,105 @@ void ConsoleLinks::LinkFiles (std::vector<std::string> & lines, const std::vecto
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ConsoleLinks::LinkPaths
+//
+//  A quoted path runs to its closing quote, so it may have spaces in it; a
+//  bare one runs to a space, a quote, a comma, a semicolon or a closing
+//  parenthesis, less a period or colon that ends a sentence after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ConsoleLinks::LinkPaths (const std::string & line)
+{
+    std::string  out;
+    size_t       at = 0;
+
+
+
+    out.reserve (line.size());
+
+    while (at < line.size())
+    {
+        size_t       end    = std::string::npos;
+        std::string  path;
+
+        if (line[at] == kOpen)
+        {
+            end = line.find (kClose, at);
+            end = (end == std::string::npos) ? line.size() : end + 1;
+            out.append (line, at, end - at);
+            at  = end;
+            continue;
+        }
+
+        if (line[at] == '"' && IsPathStart (line, at + 1))
+        {
+            end = line.find ('"', at + 1);
+        }
+
+        if (end != std::string::npos)
+        {
+            path = line.substr (at + 1, end - at - 1);
+            out += MakeFileLink (path);
+            at   = end + 1;
+            continue;
+        }
+
+        if ((at == 0 || strchr (" \t(=,'", line[at - 1]) != nullptr) && IsPathStart (line, at))
+        {
+            end = line.find_first_of (" \t\",;)", at);
+            end = (end == std::string::npos) ? line.size() : end;
+
+            while (end > at && (line[end - 1] == '.' || line[end - 1] == ':'))
+            {
+                end--;
+            }
+
+            path = line.substr (at, end - at);
+
+            if (!GetFileName (path).empty())
+            {
+                out += MakeFileLink (path);
+                at   = end;
+                continue;
+            }
+        }
+
+        out += line[at];
+        at++;
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleLinks::IsPathStart
+//
+//  A drive letter, a colon and a slash, or a share's two backslashes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ConsoleLinks::IsPathStart (const std::string & line, size_t at)
+{
+    bool  isDrive = at + 2 < line.size() && isalpha ((unsigned char) line[at]) && line[at + 1] == ':' && (line[at + 2] == '\\' || line[at + 2] == '/');
+    bool  isShare = at + 2 < line.size() && line[at] == '\\' && line[at + 1] == '\\' && isalnum ((unsigned char) line[at + 2]);
+
+
+
+    return isDrive || isShare;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ConsoleLinks::LinkFileName
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -116,9 +116,11 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines, const SYSTEM
         return;
     }
 
+    //  No full path is written out in the console: each is its file's name,
+    //  linked, with the path in its tip.
     for (auto line = first; line != lines.end(); ++line)
     {
-        m_lines.push_back (Line { *line, time, stamp });
+        m_lines.push_back (Line { ConsoleLinks::LinkPaths (*line), time, stamp });
     }
 
     if ((int) m_lines.size() > kLineLimit)
@@ -390,7 +392,7 @@ void ConsoleOutput::RestoreSaved (const std::string & text, bool keepCurrent)
         time.wMinute = (WORD) minute;
         time.wSecond = (WORD) second;
 
-        m_lines.push_back (Line { line.substr (tab + 1), time, GetTimeStamp (time) });
+        m_lines.push_back (Line { ConsoleLinks::LinkPaths (line.substr (tab + 1)), time, GetTimeStamp (time) });
     }
 
     m_lines.insert (m_lines.end(), std::make_move_iterator (current.begin()), std::make_move_iterator (current.end()));

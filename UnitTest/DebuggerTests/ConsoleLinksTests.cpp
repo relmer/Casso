@@ -49,6 +49,25 @@ namespace DebuggerTests
 
         //  A copy set aside under the project's name with more after it is
         //  another file, so the project's path inside it is not linked.
+        //  Every path in a console line, quoted with spaces in it or bare, is
+        //  its file's name linked to it, and the line has no path in its text.
+        TEST_METHOD (EveryPathInALineIsItsFilesNameLinked)
+        {
+            std::string               line  = "Not restored: SYMUSER LOAD \"C:\\Users\\me\\Some Folder\\demo.bas.txt\",0000: no. Saved C:\\Work\\out.bin. See \\\\server\\share\\notes.txt";
+            std::vector<ConsoleLinks::Link>  links;
+            std::wstring                     shown = ConsoleLinks::Parse (ConsoleLinks::LinkPaths (line), links);
+
+
+
+            Assert::AreEqual (std::wstring (L"Not restored: SYMUSER LOAD demo.bas.txt,0000: no. Saved out.bin. See notes.txt"), shown);
+            Assert::AreEqual ((size_t) 3, links.size());
+            Assert::AreEqual (std::wstring (L"C:\\Users\\me\\Some Folder\\demo.bas.txt"), links[0].path, L"a quoted path, spaces and all");
+            Assert::AreEqual (std::wstring (L"C:\\Work\\out.bin"),                        links[1].path, L"the sentence's period isn't the path's");
+            Assert::AreEqual (std::wstring (L"\\\\server\\share\\notes.txt"),             links[2].path, L"a share");
+            Assert::AreEqual (ConsoleLinks::LinkPaths (ConsoleLinks::LinkPaths (line)), ConsoleLinks::LinkPaths (line), L"linked text isn't linked again");
+            Assert::AreEqual (std::string ("A=41 X:00 at 12:30"), ConsoleLinks::LinkPaths ("A=41 X:00 at 12:30"), L"no path, no change");
+        }
+
         TEST_METHOD (APathIsLinkedOnlyWhereTheTextHasItWhole)
         {
             const std::vector<std::string>   paths = { "C:\\P\\x.cassoproj" };
