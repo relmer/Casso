@@ -367,6 +367,24 @@ namespace OperandResultTipTests
         }
 
 
+        //  A cut-off part of nothing but spaces doesn't add text to the tip, and
+        //  the parts after it are laid out as usual.
+        TEST_METHOD (APartOfOnlySpacesAddsNothing)
+        {
+            OperandResultTip::Placement  placement = MakePlacement (kCodeLeft + 2 * kGlyphPx);
+            MockDxuiTextRenderer         text;
+            OperandResultTip::Layout     layout;
+
+
+
+            placement.segments.push_back (MakeSegment (std::wstring (10, L' '), kCodeLeft, placement));
+            placement.segments.push_back (MakeSegment (L"BNE w_inner", kCodeLeft + 11 * kGlyphPx, placement));
+
+            Assert::IsTrue   (OperandResultTip::TryMakeLayout (placement, text, layout));
+            Assert::AreEqual (std::wstring (L"BNE w_inner"), GetLineText (layout, 0));
+        }
+
+
         //  The row's line is its text as the view draws it, run on past
         //  the view's edge to the end of the part the view cuts off.
         TEST_METHOD (TheRowsOwnLineRunsOnPastTheViewsEdge)
@@ -1840,11 +1858,11 @@ namespace OperandResultTipTests
 
 
         //  A disassembly's rows lie on a text view's background, which a theme
-        //  can set apart from a list's, as the debugger's light theme does. A
-        //  tip's row is the row under the pointer, so the tip takes the hover
-        //  over that background whether or not the list has marked the row as
-        //  hovered yet, and never the list color.
-        TEST_METHOD (ATipTakesTheTextViewFillItsRowLiesOn)
+        //  can set apart from a list's, as the debugger's light theme does. The
+        //  tip is in the selection color over that background, whatever the
+        //  cell's fill or the hover, and the list draws the tip's row in
+        //  the same color from its left edge.
+        TEST_METHOD (ATipIsInTheSelectionColorAndItsRowIsToo)
         {
             constexpr uint32_t        kTextView = 0xFF2A2A40;
             constexpr uint32_t        kHover    = 0x40FFFFFF;
@@ -1854,7 +1872,6 @@ namespace OperandResultTipTests
             MockDxuiTextRenderer      text;
             DxuiListView            * list      = nullptr;
             POINT                     at        = {};
-            uint32_t                  cellFill  = 0;
             OperandResultTip::Layout  layout;
 
 
@@ -1864,19 +1881,19 @@ namespace OperandResultTipTests
             Assert::AreNotEqual (theme.ContentBackground(), theme.TextViewBackground());
 
             Build (window, theme, text);
-            list     = window.GetCodeList (0);
-            at       = GetOperandPoint (window, 2);
-            cellFill = list->GetCellsOfRow (2)[DisassemblyCells::kOperandColumn].background;
+            list = window.GetCodeList (0);
+            at   = GetOperandPoint (window, 2);
 
             Assert::IsTrue   (TryGetTip (window, at, text, layout), L"the pane cuts the third row's operand off");
-            Assert::AreEqual (DxuiColor::Composite (cellFill, DxuiColor::Composite (kHover, kTextView)), layout.fill,
-                              L"the hover over the text view's fill before the list marks the row");
+            Assert::AreEqual (DxuiColor::Composite (theme.ContentSelection(), kTextView), layout.fill, L"the selection over the text view's fill");
 
             list->SetHoveredRow (2);
 
             Assert::IsTrue   (TryGetTip (window, at, text, layout));
-            Assert::AreEqual (DxuiColor::Composite (cellFill, DxuiColor::Composite (kHover, kTextView)), layout.fill,
-                              L"a hovered row shows the hover over the text view's fill");
+            Assert::AreEqual (DxuiColor::Composite (theme.ContentSelection(), kTextView), layout.fill, L"the hover doesn't change it");
+
+            Send             (window, DxuiMouseEventKind::Move, at);
+            Assert::AreEqual (2, list->GetHighlightRow(), L"the list draws the tip's row in the tip's color");
         }
 
 
@@ -2049,7 +2066,7 @@ namespace OperandResultTipTests
         }
 
 
-        TEST_METHOD (AfterThePcMovesOffTheRowTheTipIsInTheRowsNewFill)
+        TEST_METHOD (AfterThePcMovesOffTheRowTheTipKeepsItsColor)
         {
             CassoTheme                                theme    = CassoTheme::MakeSkeuomorphic();
             TipHost                                   host;
@@ -2075,7 +2092,7 @@ namespace OperandResultTipTests
             window.ApplyCodeSnapshot (snapshot, 0);
 
             Assert::IsTrue      (window.GetOperandTips().HasTip(), L"the PC's move off the row takes the tip down");
-            Assert::AreNotEqual (fill, window.GetOperandTips().GetLayout().fill, L"the tip is in the PC's row fill");
+            Assert::AreEqual    (fill, window.GetOperandTips().GetLayout().fill, L"the tip stays in the selection color, not the PC's row color");
         }
 
 

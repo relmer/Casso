@@ -182,9 +182,9 @@ private:
                                          OperandResultTip::Layout & out, OperandTipCell & outCell) const;
     bool                 TryMakeOnText  (int view, int row, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
                                          OperandResultTip::Layout & out, OperandTipCell & outCell) const;
-    uint32_t             GetRowFill     (const DxuiListView * list, int row) const;
     OperandTipScreen     GetScreen      (const DxuiHwndSource * host) const;
-    void                 SetHighlight   (DxuiTextView * view, int row);
+    void                 SetHighlight   (int view, int row);
+    static bool          HasLineComment (const DxuiTextView & view, int row);
 
     //  The room either side of a text view's text under the tip, as a dense
     //  list pads a cell.
@@ -205,6 +205,7 @@ private:
     DxuiInPlaceTip              m_tip;
     DxuiHwndSource            * m_popupHost  = nullptr;
     DxuiTextView              * m_lit        = nullptr;
+    DxuiListView              * m_litList    = nullptr;
     bool                        m_hasTip     = false;
     OperandResultTip::Layout    m_layout;
     OperandTipCell              m_cell;

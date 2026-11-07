@@ -175,6 +175,7 @@ public:
     void  SetTheme        (const IDxuiTheme * theme)       { m_theme = theme; }
     void  SetShowHeader   (bool b)                         { m_showHeader = b; }
     void  SetHoveredRow   (int row)                        { m_hovered = row; }
+    void  SetHighlightRow (int row)                        { m_highlightRow = row; }
     void  SetSortIndicator (int column, bool descending)   { m_sortColumn = column; m_sortDescending = descending; }
     void  SetRect         (const RECT & rect);
     void  SetColumns      (std::vector<Column> cols);
@@ -268,6 +269,7 @@ public:
     const std::vector<Cell> &  GetCellsOfRow (int row) const { return GetRowCells (row); }
 
     int   GetHoveredRow            () const                 { return m_hovered; }
+    int   GetHighlightRow          () const                 { return m_highlightRow; }
     bool  IsHeaderShown            () const                 { return m_showHeader; }
     int   GetHeaderHeightPx        () const                 { return m_showHeader ? m_scaler.ToPx (m_headerHeightDip) : 0; }
     void  SetHeaderHeightDip       (int dip)                { m_headerHeightDip = (dip > 0) ? dip : s_kHeaderHeightDip; }
@@ -931,6 +933,7 @@ private:
     RowProvider                m_rowProvider;
     mutable std::vector<Cell>  m_providerScratch;
     int                        m_hovered           = -1;
+    int                        m_highlightRow      = -1;
     int                        m_selectedRow       = -1;
     std::wstring               m_findNeedle;
     bool                       m_findCase          = false;

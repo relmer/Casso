@@ -4,6 +4,7 @@
 
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceSyntax.h"
 
 
 
@@ -223,7 +224,7 @@ void OperandTipController::SetTip (
     m_scaler = scaler;
     m_screen = screen;
 
-    SetHighlight (m_host.GetTipTextView (cell.view), cell.row);
+    SetHighlight (cell.view, cell.row);
 }
 
 
@@ -234,24 +235,40 @@ void OperandTipController::SetTip (
 //
 //  OperandTipController::SetHighlight
 //
-//  A text view doesn't draw a hover, so the row a tip is up for is
-//  highlighted as a list highlights the row under the pointer, from the
-//  view's left edge up to the tip's fill.
+//  The row a tip is up for is drawn in the tip's fill across the whole
+//  row, from the view's left edge up to the tip, so the row and the tip's
+//  lines below it read as one highlighted block.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void OperandTipController::SetHighlight (DxuiTextView * view, int row)
+void OperandTipController::SetHighlight (int view, int row)
 {
-    if (m_lit != nullptr && m_lit != view)
+    DxuiTextView  * textView = (view >= 0) ? m_host.GetTipTextView (view) : nullptr;
+    DxuiListView  * list     = (view >= 0 && textView == nullptr) ? m_host.GetTipList (view) : nullptr;
+
+
+
+    if (m_lit != nullptr && m_lit != textView)
     {
         m_lit->SetHighlightRow (-1);
     }
 
-    m_lit = view;
+    if (m_litList != nullptr && m_litList != list)
+    {
+        m_litList->SetHighlightRow (-1);
+    }
+
+    m_lit     = textView;
+    m_litList = list;
 
     if (m_lit != nullptr)
     {
         m_lit->SetHighlightRow (row);
+    }
+
+    if (m_litList != nullptr)
+    {
+        m_litList->SetHighlightRow (row);
     }
 }
 
@@ -337,7 +354,7 @@ void OperandTipController::Hide()
     }
 
     m_tip.Hide();
-    SetHighlight (nullptr, -1);
+    SetHighlight (-1, -1);
 
     m_hasTip   = false;
     m_layout   = OperandResultTip::Layout();
@@ -652,10 +669,8 @@ bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler
     const std::vector<DxuiListView::Cell>   * cells      = nullptr;
     RECT                                      bounds     = {};
     RECT                                      cell       = {};
-    uint32_t                                  background = 0;
     bool                                      isShown    = false;
     bool                                      isPlaced   = false;
-    bool                                      isAdded    = false;
     bool                                      hasRoom    = false;
     bool                                      isMade     = false;
     float                                     clipLeft   = 0.0f;
@@ -692,8 +707,7 @@ bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler
             placement.codeLeftPx = clipLeft + (float) bounds.left + MeasureLeadPx ((*cells)[c].text, parts.codeChar, placement, text);
         }
 
-        isAdded    = TryAddListSegment (*list, row, c, parts, theme->Foreground(), text, placement);
-        background = (isAdded && background == 0) ? (*cells)[c].background : background;
+        (void) TryAddListSegment (*list, row, c, parts, theme->Foreground(), text, placement);
 
         //  The list draws nothing after a cell that runs on to the row's end.
         if ((*cells)[c].spansRow)
@@ -709,7 +723,7 @@ bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler
     placement.symbol            = parts.symbol;
     placement.padLeftPx         = scaler.ToPx (list->GetCellPadLeftDip());
     placement.padRightPx        = scaler.ToPx (list->GetCellPadRightDip());
-    placement.fill              = DxuiColor::Composite (background, DxuiColor::Composite (GetRowFill (list, row), list->GetRowBackground (*theme)));
+    placement.fill              = DxuiColor::Composite (theme->ContentSelection(), list->GetRowBackground (*theme));
     placement.dpi               = scaler.GetDpi();
     placement.workArea          = GetRowWorkArea (placement.row, screen.workAreas);
 
@@ -888,6 +902,26 @@ std::vector<uint32_t> OperandTipController::GetCellColors (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OperandTipController::HasLineComment
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool OperandTipController::HasLineComment (const DxuiTextView & view, int row)
+{
+    const std::vector<std::wstring>  & cells = view.GetRows()[(size_t) row].cells;
+    size_t                             at    = (size_t) SourcePane::kTextCell;
+
+
+
+    return at < cells.size() && SourceSyntax::FindComment (cells[at], 0) < cells[at].size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OperandTipController::TryMakeOnText
 //
 //  The tip over a source line where the view cuts its text off, placed as
@@ -926,9 +960,11 @@ bool OperandTipController::TryMakeOnText (int view, int row, const DxuiDpiScaler
     placement.padRightPx        = scaler.ToPx (kTextPadDip);
     placement.fontPx            = scaler.ToPxf (theme->MonospaceFont().sizeDip * textView->GetZoom());
     placement.face              = theme->MonospaceFont().face;
-    placement.fill              = DxuiColor::Composite (textView->GetRows()[(size_t) row].background,
-                                                        DxuiColor::Composite (textView->IsRowSelectionShown (row) ? theme->ContentSelection() : theme->ContentHover(),
-                                                                              theme->TextViewBackground()));
+    placement.fill              = DxuiColor::Composite (theme->ContentSelection(), theme->TextViewBackground());
+    //  A source line with no comment has room on its line for
+    //  the operand. On a line with a comment, the comment stays on the line
+    //  and the operand goes below.
+    placement.isInline          = !HasLineComment (*textView, row);
     placement.dpi               = scaler.GetDpi();
     placement.workArea          = GetRowWorkArea (placement.row, screen.workAreas);
 
@@ -1088,35 +1124,6 @@ bool OperandTipController::IsTextSelectedUnderTip (const DxuiListView * list, in
     }
 
     return isSelected;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OperandTipController::GetRowFill
-//
-//  What a disassembly list fills a row with under its cells, as it paints
-//  them: the selection on the selected row while the list has the focus and
-//  no text is selected, or else the hover. A tip's row is always the row
-//  under the pointer, and the window passes a move to the tip ahead of the
-//  list, so the list may not have marked the row as hovered yet; a fill
-//  read from the list's hover then changed under a tip already up, and took
-//  it down.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t OperandTipController::GetRowFill (const DxuiListView * list, int row) const
-{
-    const DxuiTheme  & theme      = *m_host.GetTipTheme();
-    bool               isSelected = list->IsListFocused() && !list->HasTextSelection() &&
-                                    (list->IsMultiSelect() ? list->IsRowSelected (row) : row == list->GetSelectedRow());
-
-
-
-    return isSelected ? theme.ContentSelection() : theme.ContentHover();
 }
 
 

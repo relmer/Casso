@@ -1954,7 +1954,7 @@ void DxuiTextView::PaintLineGutter (IDxuiPainter & painter, IDxuiTextRenderer & 
     }
     else if (line.first && line.row == m_highlightRow)
     {
-        painter.FillRoundedRect ((float) m_boundsDip.left, (float) y, width, (float) GetLineHeightPx (lineIndex), radius, theme.ContentHover());
+        painter.FillRect ((float) m_boundsDip.left, (float) y, width, (float) GetLineHeightPx (lineIndex), theme.ContentSelection());
     }
 
     if (row.background != 0)

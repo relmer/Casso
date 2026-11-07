@@ -584,10 +584,9 @@ namespace SourceDocumentInputTests
         }
 
 
-        //  The tip over the focused line takes the selection's fill while the
-        //  view has the focus and no text is selected, as the view draws that
-        //  line; any other line's tip takes the hover's.
-        TEST_METHOD (AFocusedLinesTipTakesTheSelectionFill)
+        //  The tip over a source line is in the selection color over the view's
+        //  background, on the focused line and any other alike.
+        TEST_METHOD (ASourceLinesTipIsInTheSelectionColor)
         {
             constexpr uint32_t                 kHover   = 0x40FFFFFF;
 
@@ -601,7 +600,6 @@ namespace SourceDocumentInputTests
             DxuiTextView                     * view     = nullptr;
             RECT                               cell     = {};
             POINT                              at       = {};
-            uint32_t                           lineFill = 0;
             OperandResultTip::Layout           layout;
             SourceWindow::OperandTipCell       tipCell;
             SourceWindow::OperandTipScreen     screen;
@@ -626,22 +624,19 @@ namespace SourceDocumentInputTests
             Assert::IsTrue      (view->GetCellRectPx (1, SourcePane::kAnnotationCell, cell));
             Assert::AreNotEqual (theme.ContentSelection(), theme.ContentHover());
 
-            at       = POINT { cell.left + 1, (cell.top + cell.bottom) / 2 };
-            lineFill = view->GetRows()[1].background;
+            at = POINT { cell.left + 1, (cell.top + cell.bottom) / 2 };
 
             window.FocusControl (view);
             view->SetFocusRow (1);
 
             Assert::IsTrue   (window.GetFocused() == view, L"the document has the focus");
             Assert::IsTrue   (window.GetOperandTips().TryGet (at, scaler, text, screen, layout, tipCell));
-            Assert::AreEqual (DxuiColor::Composite (lineFill, DxuiColor::Composite (theme.ContentSelection(), theme.TextViewBackground())), layout.fill,
-                              L"the focused line's tip is in the hover");
+            Assert::AreEqual (DxuiColor::Composite (theme.ContentSelection(), theme.TextViewBackground()), layout.fill, L"the focused line's tip");
 
             view->SetFocusRow (2);
 
             Assert::IsTrue   (window.GetOperandTips().TryGet (at, scaler, text, screen, layout, tipCell));
-            Assert::AreEqual (DxuiColor::Composite (lineFill, DxuiColor::Composite (theme.ContentHover(), theme.TextViewBackground())), layout.fill,
-                              L"another line's tip is in the selection");
+            Assert::AreEqual (DxuiColor::Composite (theme.ContentSelection(), theme.TextViewBackground()), layout.fill, L"another line's tip");
         }
 
 
@@ -666,12 +661,12 @@ namespace SourceDocumentInputTests
         }
 
 
-        //  A source line's operand and result that start past the view's
-        //  right edge are laid below the line, under where its code starts,
-        //  filled from the view's left edge, with the pointer anywhere on the
-        //  line. The view highlights the line while the tip is up, as a list
-        //  highlights the row under the pointer.
-        TEST_METHOD (ASourceOperandPastTheViewsEdgeShowsBelowItsLine)
+        //  A source line with no comment whose operand starts past the view's
+        //  right edge has the operand on the line's row, where the view
+        //  would draw it, and the result below it from the same left, with
+        //  the pointer anywhere on the line. The view highlights the line
+        //  while the tip is up.
+        TEST_METHOD (ASourceOperandPastTheViewsEdgeExtendsItsLine)
         {
             constexpr int                      kStepPx  = 50;
             constexpr int                      kLeastPx = 200;
@@ -685,7 +680,6 @@ namespace SourceDocumentInputTests
             DxuiTextView                     * view     = nullptr;
             RECT                               cell     = {};
             bool                               isPast   = false;
-            float                              codeLeft = 0.0f;
             DxuiMouseEvent                     move;
             SourceWindow::OperandTipScreen     screen;
 
@@ -712,14 +706,15 @@ namespace SourceDocumentInputTests
             (void) window.OnMouse (move);
 
             Assert::IsTrue   (window.GetOperandTips().HasTip(), L"no tip after a move onto the line's start");
-            Assert::AreEqual (3, window.GetOperandTips().GetLayout().lineCount, L"the operand and the result each on a line below");
+            Assert::AreEqual (2, window.GetOperandTips().GetLayout().lineCount, L"the operand on the line, the result below");
             Assert::AreEqual (std::wstring (L"A=00 X=01"),    window.GetOperandTips().GetLayout().runs[0].text);
+            Assert::AreEqual (0,                              window.GetOperandTips().GetLayout().runs[0].line);
             Assert::AreEqual (std::wstring (L"Result: A=41"), window.GetOperandTips().GetLayout().runs[1].text);
-            Assert::AreEqual (cell.bottom, window.GetOperandTips().GetLayout().rect.top, L"below the line");
+            Assert::AreEqual (1,                              window.GetOperandTips().GetLayout().runs[1].line);
+            Assert::AreEqual (cell.top, window.GetOperandTips().GetLayout().rect.top, L"from the line's own row");
             Assert::AreEqual (view->GetBounds().left, window.GetOperandTips().GetLayout().rect.left, L"from the view's left edge");
-            Assert::IsTrue   (view->GetCellLeftPx (1, SourcePane::kTextCell, codeLeft));
-            Assert::AreEqual (codeLeft + (float) (kCodeChar * kGlyphPx), window.GetOperandTips().GetLayout().runs[0].leftPx, L"under the code");
-            Assert::AreEqual (codeLeft + (float) (kCodeChar * kGlyphPx), window.GetOperandTips().GetLayout().runs[1].leftPx);
+            Assert::AreEqual (window.GetOperandTips().GetLayout().runs[0].leftPx, window.GetOperandTips().GetLayout().runs[1].leftPx,
+                              L"the result under the operand");
             Assert::AreEqual (1, view->GetHighlightRow(), L"the view highlights the line under the tip");
 
             window.GetOperandTips().Hide();

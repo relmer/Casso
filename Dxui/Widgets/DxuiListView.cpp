@@ -4096,8 +4096,11 @@ void DxuiListView::PaintDataRows (
         //  began on is not marked as well.
         bool                       isSel = ((m_listFocused || m_alwaysShowSelection) && !m_hasTextSel &&
                                             (m_multiSelect ? IsRowSelected (r) : r == m_selectedRow));
+        //  A row an in-place tip is up for is drawn in the selection color,
+        //  the tip's fill, so the row and the tip read as one block.
+        bool                       isLit = !isSel && r == m_highlightRow;
         bool                       spans = false;
-        uint32_t                   fill  = isSel ? pal.bgSel : (isHov ? pal.bgHover : pal.bgRow);
+        uint32_t                   fill  = (isSel || isLit) ? pal.bgSel : (isHov ? pal.bgHover : pal.bgRow);
 
         fill = DxuiColor::Composite (fill, pal.bgRow);
 
@@ -4114,7 +4117,11 @@ void DxuiListView::PaintDataRows (
             }
         }
 
-        if (isHov && !isSel)
+        if (isLit)
+        {
+            painter.FillRect (x, ry, layoutW, rowH, pal.bgSel);
+        }
+        else if (isHov && !isSel)
         {
             painter.FillRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), pal.bgHover);
         }

@@ -432,8 +432,10 @@ void OperandResultTip::AddOperand (
     {
         pieces.first.push_back (comment);
     }
-    else if (!isHidden && !segment.isBelowLine)
+    else if ((!isHidden || (placement.isInline && clip == Clip::PastRight)) && !segment.isBelowLine)
     {
+        //  In a source document the operand is part of the line, so past the
+        //  view's right edge it extends the row's line rather than going below.
         operand.leftPx = inPlacePx;
         result.leftPx  = inPlacePx;
         pieces.first.push_back (operand);
@@ -546,7 +548,13 @@ void OperandResultTip::WrapFirst (
 
         WrapPieceAt (placement, text, piece, line, layout);
 
-        line      = layout.lineCount - 1;
+        //  A piece of only spaces doesn't add a run.
+        if (layout.runs.empty())
+        {
+            continue;
+        }
+
+        line      = (std::max) (layout.lineCount - 1, 0);
         endPx     = layout.runs.back().leftPx + MeasurePx (text, layout.runs.back().text, placement.fontPx, placement.face);
         isWrapped = isWrapped || layout.runs.back().line > 0;
     }

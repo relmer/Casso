@@ -61,6 +61,7 @@ public:
         int                     operand      = -1;        // the operand and result part, or -1 for none
         std::wstring            symbol;                   // the operand's symbol as "name = $value", drawn as another operand value
         uint32_t                symbolInk    = 0;         // the operand's color, which the symbol is drawn in
+        bool                    isInline     = false;     // the operand belongs on the row's line, as in a source document, and goes below only for a comment
         int                     padLeftPx    = 0;         // the room either side of a part's text
         int                     padRightPx   = 0;
         float                   fontPx       = 0.0f;
