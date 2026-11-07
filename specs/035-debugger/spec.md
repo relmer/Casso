@@ -2166,9 +2166,10 @@ screenshot: the screenshot has the bars, and every step is one tool call.
      a data line, in the disassembly and in a source document.
   6. **Symbol.** Where the row's operand is written with a symbol, the tip
      MUST include the symbol's "name = $value" among the operand's values,
-     after them and separated as they are, and the symbol tip MUST NOT come up
-     on that row while the in-place tip is up. On a row that is not cut off,
-     the symbol tip MUST come up as it does today.
+     after them and separated as they are, and that symbol's tip MUST NOT come
+     up on that row while the in-place tip is up; the label's and any other
+     symbol's tip on the row MUST come up as usual. On a row that is not cut
+     off, the symbol tip MUST come up as it does today.
   7. **Monitor.** The tip MUST be laid out on the monitor where the row
      starts (the row's left edge) and MUST extend right as far as its text
      runs, limited to that monitor's work area joined with an adjacent
