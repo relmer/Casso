@@ -380,6 +380,10 @@ public:
     std::string           GetPathEcho          (const std::string & path, const char * preposition) const;
     std::string           GetPathEcho          (const std::string & path, const char * preposition, Reply & reply) const;
 
+    //  The full path a file name typed to a command resolves to, for a
+    //  message about the file.
+    std::string           GetFullPath          (const std::string & path) const;
+
     // The last S or SH results, reachable as @1, @2 and so on.
     const std::vector<Word> & GetSearchResults () const                          { return m_searchResults; }
     void                  SetSearchResults     (std::vector<Word> results)        { m_searchResults = std::move (results); m_searchSerial++; }

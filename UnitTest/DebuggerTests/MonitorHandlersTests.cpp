@@ -116,9 +116,9 @@ namespace DebuggerTests
 
 
             Assert::AreEqual ((int) CommandStatus::Error, (int) read.status);
-            Assert::IsTrue   (read.error.detail.find ("type R in the guest's own Monitor") != std::string::npos, Widen (read.error.detail).c_str());
+            Assert::IsTrue   (read.error.detail.find ("type R in the guest's Monitor") != std::string::npos, Widen (read.error.detail).c_str());
             Assert::AreEqual ((int) CommandStatus::Error, (int) write.status);
-            Assert::IsTrue   (write.error.detail.find ("type W in the guest's own Monitor") != std::string::npos, Widen (write.error.detail).c_str());
+            Assert::IsTrue   (write.error.detail.find ("type W in the guest's Monitor") != std::string::npos, Widen (write.error.detail).c_str());
         }
 
 

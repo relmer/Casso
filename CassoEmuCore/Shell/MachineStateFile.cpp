@@ -312,7 +312,7 @@ HRESULT MachineStateFile::Apply (
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = machine.SaveState (before);
-    CHRF (hr, outError = MakeError ("state not loaded", "The machine's own state could not be read, so it was left as it was."));
+    CHRF (hr, outError = MakeError ("state not loaded", "The machine's state in the file could not be read, so nothing was loaded."));
 
     store.SetMediaRetention (true);
     isStaged = true;

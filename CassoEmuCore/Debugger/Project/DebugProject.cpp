@@ -603,7 +603,7 @@ bool DebugProject::TryParse (const std::string & text, const std::wstring & dire
 
         if (!scope->HasString ("kind", kind) || !ProjectScope::TryParseKind (kind, project.scope.kind))
         {
-            error = "The project's scope has a kind unknown to this version.";
+            error = "The project's scope is of a kind added in a later version of Casso.";
             return false;
         }
     }

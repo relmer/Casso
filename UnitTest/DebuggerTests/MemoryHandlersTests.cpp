@@ -352,7 +352,7 @@ namespace DebuggerTests
             Assert::AreEqual ((Byte) 0x03, rig.target.memory[0x6D], L"STREND");
             Assert::AreEqual ((Byte) 0x96, rig.target.memory[0x70], L"FRETOP at MEMSIZ");
 
-            rig.RunFails ("BASICSAVE out.bas", "program not listable");
+            rig.RunFails ("BASICSAVE out.bas", "no program");
         }
 
 

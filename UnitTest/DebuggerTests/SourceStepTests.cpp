@@ -433,7 +433,7 @@ namespace DebuggerTests
 
             lines = rig.RunOk ("BP src/prog.a65:5").text;
             Assert::AreEqual ((size_t) 2, lines.size(), L"the macro's closing line moves to the next line with code");
-            Assert::AreEqual (std::string ("Line 5 produced no code. The breakpoint is on line 6."), lines.at (1));
+            Assert::AreEqual (std::string ("Line 5 has no code, so the breakpoint is on line 6."), lines.at (1));
 
             lines = rig.RunOk ("BP prog.a65:3").text;
             Assert::IsTrue   (lines.at (0).ends_with (" at $0307, prog.a65 line 3."), L"a macro body line, where its expansion put it");

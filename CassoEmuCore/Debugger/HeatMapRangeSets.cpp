@@ -477,13 +477,13 @@ bool HeatMapRangeSets::TryRenameSet (const std::string & from, const std::string
 
     if (trimmed.empty())
     {
-        error = "A set needs a name.";
+        error = "Type a name for the set.";
         return false;
     }
 
     if (trimmed == kpszAllMemory)
     {
-        error = "All memory is the map's choice for every address, so a set cannot take that name.";
+        error = "All memory is the name of the built-in choice for every address, so a set can't use it.";
         return false;
     }
 
@@ -775,7 +775,7 @@ bool HeatMapRangeSets::TryResolve (const HeatMapRange & range, const HeatMapSymb
 
     if (start.empty())
     {
-        error = "A range needs a start: an address or a symbol.";
+        error = "Type a start for the range: an address or a symbol.";
         return false;
     }
 

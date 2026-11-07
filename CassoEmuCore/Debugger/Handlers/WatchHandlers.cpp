@@ -752,7 +752,7 @@ void WatchHandlers::Save (DebugSession & session, const DebugCommand & command, 
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (command.text)));
         return;
     }
 

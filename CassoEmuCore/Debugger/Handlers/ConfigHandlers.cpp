@@ -61,7 +61,7 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     case DebugVerb::ListPanels:
     case DebugVerb::OpenPanel:
     case DebugVerb::ClosePanel:
-        reply.SetError (CommandStatus::NotAvailable, "command not available", "PANEL needs the debugger window.");
+        reply.SetError (CommandStatus::NotAvailable, "command not available", "PANEL is available only in the debugger window.");
         return true;
 
     default:
@@ -277,7 +277,7 @@ void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, 
 
     if (name.empty())
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "Give the script file to run.");
+        reply.SetError (CommandStatus::Error, "invalid arguments", "Type the name of the script file to run.");
         return;
     }
 
@@ -293,7 +293,7 @@ void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, 
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", name));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (name)));
         return;
     }
 
@@ -354,7 +354,7 @@ void ConfigHandlers::SaveAll (DebugSession & session, const DebugCommand & comma
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (command.text)));
         return;
     }
 
@@ -636,7 +636,7 @@ void ConfigHandlers::InsertTape (DebugSession & session, TapeDeck & deck, const 
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", name));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (name)));
         return;
     }
 

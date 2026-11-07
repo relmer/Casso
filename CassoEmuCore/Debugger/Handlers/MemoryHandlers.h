@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ApplesoftTokenizer.h"
 #include "Debugger/IDebugCommandHandler.h"
 
 class IDebugTarget;
@@ -48,6 +49,11 @@ private:
     static constexpr Word  kFreTop          = 0x006F;
     static constexpr Word  kMemSiz          = 0x0073;
     static constexpr Word  kPrgEnd          = 0x00AF;
+
+    //  The tokenizer's reason for a program with no lines at all.
+    static constexpr const char * kNoLinesReason = "holds no program lines at all";
+
+    static std::string  DescribeListingError (const ApplesoftListingError & error, const char * subject);
 
     void         Dump         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Enter        (DebugSession & session, const DebugCommand & command, Reply & reply);

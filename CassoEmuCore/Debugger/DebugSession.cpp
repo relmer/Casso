@@ -530,7 +530,7 @@ Reply DebugSession::Execute (const DebugCommand & command)
     if (IsMachineWrite (command.verb) && m_historyGuard && !m_historyGuard (command))
     {
         SetError (reply, CommandStatus::Error, "history kept",
-                  "This change discards the history recorded after this point. Answer the question in the Casso window to make it.");
+                  "This change discards the history after this point. Answer the question in the Casso window to make the change.");
         return reply;
     }
 
@@ -1229,6 +1229,25 @@ std::string DebugSession::GetPathEcho (const std::string & path, const char * pr
     }
 
     return std::format (" {} {}", preposition, TextEncoding::WideToNarrow (resolved));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::GetFullPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebugSession::GetFullPath (const std::string & path) const
+{
+    std::wstring  resolved = ResolvePath (path);
+
+
+
+    return resolved.empty() ? path : TextEncoding::WideToNarrow (resolved);
 }
 
 
@@ -3230,7 +3249,7 @@ void DebugSession::ExecuteSource (const DebugCommand & command, Reply & reply)
     }
     else
     {
-        message.lines.push_back (std::format ("No source line produced ${:04X}.", pc));
+        message.lines.push_back (std::format ("${:04X} has no source line.", pc));
     }
 
     message.lines.push_back ((m_stepBySource && hasSource)       ? "Source mode."

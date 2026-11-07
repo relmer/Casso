@@ -204,7 +204,7 @@ void LogHandlers::Save (DebugSession & session, IIoEventSource & source, IoLogKi
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", name));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (name)));
         return;
     }
 

@@ -312,7 +312,7 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", name));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (name)));
         return;
     }
 
@@ -681,7 +681,7 @@ void SymbolHandlers::Save (DebugSession & session, const DebugCommand & command,
 
     if (HasOffset (command.text))
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "SAVE takes no offset; only LOAD moves the symbols.");
+        reply.SetError (CommandStatus::Error, "invalid arguments", "SAVE doesn't take an offset; only LOAD moves the symbols.");
         return;
     }
 
@@ -695,7 +695,7 @@ void SymbolHandlers::Save (DebugSession & session, const DebugCommand & command,
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", name));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (name)));
         return;
     }
 
@@ -915,7 +915,7 @@ bool SymbolHandlers::TryGetFileName (const std::string & text, std::string & nam
 
     if (trimmed.empty())
     {
-        error = "Give the symbol file's name.";
+        error = "Type the symbol file's name.";
         return false;
     }
 

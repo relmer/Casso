@@ -395,7 +395,7 @@ void ExecutionHandlers::BreakOnVideoLine (DebugSession & session, const DebugCom
     }
 
     session.SetVideoBreak (command.a1, last);
-    reply.data = MessageData { { std::format ("Breakpoint set on video scanlines ${:X}-${:X}. It clears after it fires.", command.a1, last) } };
+    reply.data = MessageData { { std::format ("Breakpoint set on video scanlines ${:X}-${:X}. It is removed after its first stop.", command.a1, last) } };
 }
 
 
@@ -443,8 +443,8 @@ void ExecutionHandlers::BreakOnBeam (DebugSession & session, const DebugCommand 
 
     session.SetBeamBreak (scanline * VideoTiming::kCyclesPerScanline + cycle);
 
-    reply.data = MessageData { { isVbl ? std::format ("Breakpoint set at the start of vertical blank, scanline ${:X}. It clears after it fires.", scanline)
-                                       : std::format ("Breakpoint set at video scanline ${:X}, cycle ${:X}. It clears after it fires.", scanline, cycle) } };
+    reply.data = MessageData { { isVbl ? std::format ("Breakpoint set at the start of vertical blank, scanline ${:X}. It is removed after its first stop.", scanline)
+                                       : std::format ("Breakpoint set at video scanline ${:X}, cycle ${:X}. It is removed after its first stop.", scanline, cycle) } };
 }
 
 
@@ -928,7 +928,7 @@ void ExecutionHandlers::SaveProfile (DebugSession & session, const std::string &
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", name));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (name)));
         return;
     }
 
@@ -1218,7 +1218,7 @@ void ExecutionHandlers::ShowStopwatch (Reply & reply) const
 
     if (m_stopwatch.IsArmed())
     {
-        lines.push_back (std::format ("Stopwatch from ${:04X} to ${:04X}, in runs the debugger starts.", m_stopwatch.GetStart(), m_stopwatch.GetStop()));
+        lines.push_back (std::format ("Stopwatch set from ${:04X} to ${:04X}. It measures runs started from the debugger.", m_stopwatch.GetStart(), m_stopwatch.GetStop()));
     }
     else
     {
@@ -1343,7 +1343,7 @@ void ExecutionHandlers::ToggleTrace (DebugSession & session, const DebugCommand 
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", name));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (name)));
         return;
     }
 

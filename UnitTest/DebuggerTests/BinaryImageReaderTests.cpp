@@ -83,7 +83,7 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0x0300,   *image.entry);
 
             ReadFails (Bytes (":03030000A94160B1\n"), BinaryFormat::IntelHex, std::nullopt, "checksum");
-            ReadFails (Bytes (kFile), std::nullopt, (Word) 0x0300, "holds its own addresses");
+            ReadFails (Bytes (kFile), std::nullopt, (Word) 0x0300, "has its load addresses in it");
             Assert::AreEqual ((int) BinaryFormat::Raw, (int) ReadOk (Bytes (":03030000A94160B1\n"), std::nullopt, (Word) 0x0300).format,
                               L"a record whose checksum fails is not taken for Intel HEX");
         }
@@ -198,8 +198,8 @@ namespace DebuggerTests
             Assert::AreEqual ((int) BinaryFormat::Raw, (int) image.format, L"a header is never guessed");
             Assert::AreEqual ((size_t) 7,    image.segments.at (0).bytes.size());
 
-            ReadFails (dos, std::nullopt, std::nullopt, "Give the address");
-            ReadFails (std::vector<Byte> { 0x00, 0x03, 0x10, 0x00, 0xA9 }, BinaryFormat::Dos33Binary, std::nullopt, "header says");
+            ReadFails (dos, std::nullopt, std::nullopt, "Type the address");
+            ReadFails (std::vector<Byte> { 0x00, 0x03, 0x10, 0x00, 0xA9 }, BinaryFormat::Dos33Binary, std::nullopt, "header's length");
             ReadFails (std::vector<Byte>(), std::nullopt, (Word) 0x0300, "empty");
         }
 

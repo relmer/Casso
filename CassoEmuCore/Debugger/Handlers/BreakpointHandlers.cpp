@@ -362,7 +362,7 @@ void BreakpointHandlers::SetSourceLine (DebugSession & session, const DebugComma
 
     if (!session.HasDebugFile())
     {
-        reply.SetError (CommandStatus::Error, "no debug file", "A source breakpoint needs a debug file. Use SYM LOAD to load one.");
+        reply.SetError (CommandStatus::Error, "no debug file", "There is no debug file to set a source breakpoint by. Load one with SYM LOAD.");
         return;
     }
 
@@ -386,7 +386,7 @@ void BreakpointHandlers::SetSourceLine (DebugSession & session, const DebugComma
 
     if (!target.has_value())
     {
-        reply.SetError (CommandStatus::Error, "no code", std::format ("No line from {} onward in {} produced code.", command.count, command.text));
+        reply.SetError (CommandStatus::Error, "no code", std::format ("No line from {} onward in {} has code.", command.count, command.text));
         return;
     }
 
@@ -401,7 +401,7 @@ void BreakpointHandlers::SetSourceLine (DebugSession & session, const DebugComma
 
     if (*target != line)
     {
-        message.lines.push_back (std::format ("Line {} produced no code. The breakpoint is on line {}.", line, *target));
+        message.lines.push_back (std::format ("Line {} has no code, so the breakpoint is on line {}.", line, *target));
     }
 
     session.OnStopConditionsChanged();
@@ -997,7 +997,7 @@ void BreakpointHandlers::SetOpcode (DebugSession & session, const DebugCommand &
     {
         if (!TryFindOpcodes (session, mnemonic, found))
         {
-            reply.SetError (CommandStatus::Error, "unknown mnemonic", std::format ("{} is no instruction of this CPU.", mnemonic));
+            reply.SetError (CommandStatus::Error, "unknown mnemonic", std::format ("{} is not an instruction of this CPU.", mnemonic));
             return;
         }
 
@@ -1288,11 +1288,11 @@ void BreakpointHandlers::ReportUnwritten (DebugSession & session, Reply & reply)
 
     if (!status.isOn)
     {
-        message.lines.push_back ("The heat map is off, so no reads are seen.");
+        message.lines.push_back ("The heat map is off, so reads aren't tracked.");
     }
     else if (!status.isTracking)
     {
-        message.lines.push_back ("Not tracking yet: the heat map started after power-on. Power-cycle the machine to start.");
+        message.lines.push_back ("Not tracking yet: the heat map started after power-on. Power-cycle the machine to start tracking.");
     }
     else
     {
@@ -1738,7 +1738,7 @@ void BreakpointHandlers::Save (DebugSession & session, const DebugCommand & comm
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (command.text)));
         return;
     }
 

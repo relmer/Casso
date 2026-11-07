@@ -420,7 +420,7 @@ bool ShellDebugger::TryAllowProjectSwitch (const ProjectScope & scope)
 
     if (!wasHeld)
     {
-        AddConsoleLines ({ std::format ("The debug project for {} and the one for {} each loaded what opens the other, so the debugger stays on {} "
+        AddConsoleLines ({ std::format ("The debug project for {} and the one for {} each load a file that opens the other, so switching stops at {} "
                                         "until the debug file, binary or machine changes.",
                                         m_project.scope.label, scope.label, m_project.scope.label) });
     }

@@ -259,13 +259,13 @@ namespace DebuggerTests
 
             reply = rig.RunOk ("BRKUNINIT");
             Assert::AreEqual (std::string ("Break on read before written: off"),          reply.text.at (0));
-            Assert::AreEqual (std::string ("The heat map is off, so no reads are seen."), reply.text.at (1));
+            Assert::AreEqual (std::string ("The heat map is off, so reads aren't tracked."), reply.text.at (1));
 
             LoadReadThenStore (rig);
             rig.RunOk ("T 1");
 
             reply = rig.RunOk ("BRKUNINIT ON");
-            Assert::AreEqual (std::string ("Not tracking yet: the heat map started after power-on. Power-cycle the machine to start."), reply.text.at (1));
+            Assert::AreEqual (std::string ("Not tracking yet: the heat map started after power-on. Power-cycle the machine to start tracking."), reply.text.at (1));
 
             rig.RunFails ("BRKUNINIT MAYBE", "invalid arguments");
 

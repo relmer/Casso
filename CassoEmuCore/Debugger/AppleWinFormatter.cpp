@@ -533,7 +533,7 @@ void AppleWinFormatter::AppendVideoBreak (const BreakpointListData & data, std::
 {
     if (data.videoBreak.has_value())
     {
-        lines.push_back (std::format ("Video break on scanlines ${:X}-${:X}, cleared when it fires.", data.videoBreak->first, data.videoBreak->second));
+        lines.push_back (std::format ("Video break on scanlines ${:X}-${:X}, removed after its first stop.", data.videoBreak->first, data.videoBreak->second));
     }
 }
 

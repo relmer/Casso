@@ -231,7 +231,7 @@ void MemoryHandlers::Move (DebugSession & session, const DebugCommand & command,
 
     if (!command.hasA3)
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} needs a destination and a source range.", command.sourceName));
+        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} takes a destination and a source range.", command.sourceName));
         return;
     }
 
@@ -502,7 +502,7 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", name));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (name)));
         return;
     }
 
@@ -696,7 +696,7 @@ void MemoryHandlers::SaveBinary (DebugSession & session, const DebugCommand & co
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", Unquote (command.text)));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (Unquote (command.text))));
         return;
     }
 
@@ -706,6 +706,35 @@ void MemoryHandlers::SaveBinary (DebugSession & session, const DebugCommand & co
     data.requested   = (uint32_t) content.size();
     data.transferred = (uint32_t) content.size();
     reply.data       = data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::DescribeListingError
+//
+//  The tokenizer's reason as a sentence: most reasons are about a line,
+//  "is numbered above ...", so the line's number or `subject` goes first;
+//  one about the whole listing or program starts with "the".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MemoryHandlers::DescribeListingError (const ApplesoftListingError & error, const char * subject)
+{
+    std::string  reason = error.reason;
+
+
+
+    if (reason.starts_with ("the "))
+    {
+        reason[0] = 'T';
+        return reason + ".";
+    }
+
+    return error.hasLineNumber ? std::format ("Line {} {}.", error.lineNumber, reason) : std::format ("{} {}.", subject, reason);
 }
 
 
@@ -732,7 +761,6 @@ void MemoryHandlers::LoadBasic (DebugSession & session, const DebugCommand & com
     std::string              content;
     std::vector<Byte>        bytes;
     ApplesoftListingError    error;
-    Word                     end     = 0;
     Word                     top     = 0;
     size_t                   lines   = 0;
     bool                     isBlank = true;
@@ -755,7 +783,7 @@ void MemoryHandlers::LoadBasic (DebugSession & session, const DebugCommand & com
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", name));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (name)));
         return;
     }
 
@@ -763,27 +791,21 @@ void MemoryHandlers::LoadBasic (DebugSession & session, const DebugCommand & com
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not loadable",
-                        error.hasLineNumber ? std::format ("Line {}: {}", error.lineNumber, error.reason) : error.reason);
+        reply.SetError (CommandStatus::Error, "file not loadable", DescribeListingError (error, "A line"));
         return;
     }
-
-    end = (Word) (ApplesoftTokenizer::kProgramBase + bytes.size());
 
     if (!IsWritable (target, ApplesoftTokenizer::kProgramBase, bytes.size(), reply) || !TryPeekWord (target, kMemSiz, top, reply))
     {
         return;
     }
 
-    if (!TryPokeRange (target, ApplesoftTokenizer::kProgramBase, bytes, reply) ||
-        !TryPokeWord  (target, ApplesoftProgram::kTxtTab, ApplesoftTokenizer::kProgramBase, reply) ||
-        !TryPokeWord  (target, ApplesoftProgram::kVarTab, end, reply) ||
-        !TryPokeWord  (target, ApplesoftProgram::kAryTab, end, reply) ||
-        !TryPokeWord  (target, ApplesoftProgram::kStrEnd, end, reply) ||
-        !TryPokeWord  (target, kPrgEnd, end, reply) ||
-        !TryPokeWord  (target, kFreTop, top, reply))
+    for (const auto & [address, write] : ApplesoftProgram::MakeLoadWrites (bytes, top))
     {
-        return;
+        if (!TryPokeRange (target, address, write, reply))
+        {
+            return;
+        }
     }
 
     //  The lines that have anything on them.
@@ -914,7 +936,8 @@ void MemoryHandlers::SaveBasic (DebugSession & session, const DebugCommand & com
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "program not listable", error.reason);
+        reply.SetError (CommandStatus::Error, error.reason == kNoLinesReason ? "no program" : "program not listable",
+                        error.reason == kNoLinesReason ? std::string ("There is no Applesoft program in memory.") : DescribeListingError (error, "A line in memory"));
         return;
     }
 
@@ -922,7 +945,7 @@ void MemoryHandlers::SaveBasic (DebugSession & session, const DebugCommand & com
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", name));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (name)));
         return;
     }
 
@@ -1034,7 +1057,7 @@ void MemoryHandlers::SaveText (DebugSession & session, const DebugCommand & comm
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (command.text)));
         return;
     }
 

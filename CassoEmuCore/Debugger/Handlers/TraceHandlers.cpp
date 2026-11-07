@@ -260,7 +260,7 @@ void TraceHandlers::Save (DebugSession & session, const DebugCommand & command, 
     }
 
     hr = files->WriteAllText (session.ResolvePath (command.text), text);
-    CHRF (hr, reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text)));
+    CHRF (hr, reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (command.text))));
 
     saved = (first > 0) ? std::format ("the newest {} of {}", entries.size(), total) : std::format ("{}", entries.size());
 

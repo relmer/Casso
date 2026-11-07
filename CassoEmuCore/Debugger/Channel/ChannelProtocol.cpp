@@ -114,7 +114,7 @@ bool ChannelProtocol::TryParseRequest (const std::string & line, ChannelRequest 
 
     if (!root.HasString ("line", request.line))
     {
-        SetError (error, "malformed request", "A command needs a line.");
+        SetError (error, "malformed request", "A command request has no command line.");
         return false;
     }
 

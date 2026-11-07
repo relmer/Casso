@@ -56,7 +56,7 @@ void StateFileHandlers::Request (DebugSession & session, const DebugCommand & co
 
     if (name.empty())
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} needs a file name.", command.sourceName));
+        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} takes a file name.", command.sourceName));
         return;
     }
 

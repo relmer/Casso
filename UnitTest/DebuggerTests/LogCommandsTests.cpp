@@ -61,7 +61,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("No laps."),       lines.at (1));
 
             lines = rig.RunOk ("STOPWATCH 310 312").text;
-            Assert::AreEqual (std::string ("Stopwatch from $0310 to $0312, in runs the debugger starts."), lines.at (0));
+            Assert::AreEqual (std::string ("Stopwatch set from $0310 to $0312. It measures runs started from the debugger."), lines.at (0));
 
             rig.session.GetBreakpoints().AddAddress (0x0306, 0x0306);
             rig.session.OnStopConditionsChanged();
