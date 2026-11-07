@@ -56,6 +56,7 @@ public:
         int   clickCalls   = 0;
         bool  lastLabeled  = true;
         bool  consumeClick = true;
+        int   minWidth     = -1;    // GetMinWidthPx, or the width when negative
         RECT  lastRc       = {};
 
         int  GetWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const override
@@ -63,6 +64,11 @@ public:
             (void) scaler; (void) text;
             const_cast<StubEntry *> (this)->widthCalls++;
             return labeled ? 90 : 35;
+        }
+
+        int  GetMinWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const override
+        {
+            return (minWidth >= 0) ? minWidth : GetWidthPx (labeled, scaler, text);
         }
 
         void  Layout (const RECT & rc, bool labeled, const DxuiDpiScaler & scaler) override
@@ -932,6 +938,37 @@ public:
         Assert::AreEqual (1, stub.clickCalls);
         Assert::IsTrue   (f.bar.IsMenuOpen());
     }
+
+    //  A pinned entry stays on the strip however narrow it gets, and a custom
+    //  entry shrinks toward its minimum to make room for it.
+    TEST_METHOD (Pinned_StaysOnTheStrip_AndACustomEntryShrinksForIt)
+    {
+        Fixture                          f;
+        StubEntry                        stub;
+        std::vector<DxuiToolbar::Entry>  entries (2);
+        int                              wide   = s_kBarPadPx * 2 + CollapsedPx() + s_kBtnGapPx + 90;
+
+        stub.minWidth = 40;
+
+        entries[0].command  = f.alpha;
+        entries[0].iconOnly = true;
+        entries[0].pinned   = true;
+        entries[1].command  = f.beta;
+        entries[1].custom   = &stub;
+
+        f.bar.EnableSeeMore (L"m", L"See more");
+        f.bar.SetEntries (std::move (entries));
+
+        f.LayoutAt (wide - 30);
+
+        Assert::IsFalse  (f.bar.IsInSeeMore (1), L"The pinned entry stays on the strip");
+        Assert::AreEqual (60L, stub.lastRc.right - stub.lastRc.left, L"and the custom entry is narrower by the difference");
+
+        f.LayoutAt (wide - 200);
+        Assert::IsFalse  (f.bar.IsInSeeMore (1));
+        Assert::AreEqual (40L, stub.lastRc.right - stub.lastRc.left, L"but no more than down to its minimum");
+    }
+
 
     TEST_METHOD (SeeMore_IsHiddenWhileEverythingFits)
     {

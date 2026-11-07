@@ -188,12 +188,14 @@ void DxuiToolbar::PlanSeeMore (int clientWidthPx)
             continue;
         }
 
-        slot.hidden = slot.entry.seeMoreOnly;
-        any         = any || slot.hidden;
+        slot.hidden   = slot.entry.seeMoreOnly;
+        slot.shrinkPx = 0;
+        any           = any || slot.hidden;
     }
 
     if (moreSlot == nullptr)
     {
+        ShrinkCustomEntries (clientWidthPx);
         return;
     }
 
@@ -206,7 +208,7 @@ void DxuiToolbar::PlanSeeMore (int clientWidthPx)
 
         for (Slot & slot : m_slots)
         {
-            if (!slot.hidden && !slot.entry.trailing && &slot != moreSlot && slot.entry.custom == nullptr)
+            if (!slot.hidden && !slot.entry.trailing && !slot.entry.pinned && &slot != moreSlot && slot.entry.custom == nullptr)
             {
                 victim = &slot;
             }
@@ -216,7 +218,7 @@ void DxuiToolbar::PlanSeeMore (int clientWidthPx)
         {
             if (victim == nullptr || victim->entry.trailing)
             {
-                if (!slot.hidden && slot.entry.trailing && slot.entry.custom == nullptr)
+                if (!slot.hidden && slot.entry.trailing && !slot.entry.pinned && slot.entry.custom == nullptr)
                 {
                     victim = &slot;
                 }
@@ -232,6 +234,73 @@ void DxuiToolbar::PlanSeeMore (int clientWidthPx)
         moreSlot->hidden = false;
         m_overflowed     = true;
     }
+
+    ShrinkCustomEntries (clientWidthPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::ShrinkCustomEntries
+//
+//  The strip's overrun after every movable entry is in See more comes out
+//  of the custom entries, in proportion to how far each can shrink.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::ShrinkCustomEntries (int clientWidthPx)
+{
+    int  over = GetTotalWidthPx ((int) m_slots.size()) - clientWidthPx;
+    int  room = 0;
+
+
+
+    if (over <= 0)
+    {
+        return;
+    }
+
+    for (const Slot & slot : m_slots)
+    {
+        if (!slot.hidden && slot.entry.custom != nullptr)
+        {
+            room += GetCustomRoomPx (slot);
+        }
+    }
+
+    if (room <= 0)
+    {
+        return;
+    }
+
+    for (Slot & slot : m_slots)
+    {
+        if (!slot.hidden && slot.entry.custom != nullptr)
+        {
+            int  share = GetCustomRoomPx (slot);
+
+            slot.shrinkPx = (std::min) (share, (over * share + room - 1) / room);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::GetCustomRoomPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiToolbar::GetCustomRoomPx (const Slot & slot) const
+{
+    return (std::max) (0, slot.entry.custom->GetWidthPx    (true, m_scaler, m_textRenderer)
+                        - slot.entry.custom->GetMinWidthPx (true, m_scaler, m_textRenderer));
 }
 
 
@@ -769,7 +838,8 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
 
     if (slot.entry.custom != nullptr)
     {
-        return slot.entry.custom->GetWidthPx (labeled, m_scaler, m_textRenderer);
+        return (std::max) (slot.entry.custom->GetMinWidthPx (labeled, m_scaler, m_textRenderer),
+                           slot.entry.custom->GetWidthPx    (labeled, m_scaler, m_textRenderer) - slot.shrinkPx);
     }
 
     labeled = labeled || !HasGlyph (slot);

@@ -155,6 +155,24 @@ int DxuiToolbarEditBox::GetWidthPx (bool labeled, const DxuiDpiScaler & scaler, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbarEditBox::GetMinWidthPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiToolbarEditBox::GetMinWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const
+{
+    (void) labeled;
+    (void) text;
+
+    return scaler.ToPx ((std::min) (m_minWidthDip, m_widthDip));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbarEditBox::Layout
 //
 //  The input takes the field less a small inset on the left and, with a

@@ -62,6 +62,10 @@ public:
     virtual ~IDxuiToolbarCustomEntry() = default;
 
     virtual int              GetWidthPx    (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const = 0;
+
+    //  The narrowest the entry can be drawn, which the strip shrinks it toward
+    //  when a pinned entry would otherwise not fit. Its width by default.
+    virtual int              GetMinWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const { return GetWidthPx (labeled, scaler, text); }
     virtual void             Layout        (const RECT & rc, bool labeled, const DxuiDpiScaler & scaler)                = 0;
     virtual void             Paint         (IDxuiPainter      & painter,
                                             IDxuiTextRenderer & text,
@@ -165,6 +169,10 @@ public:
         //  Lives in the See more menu whatever the room, never on the strip,
         //  as Explorer keeps its rarer commands there.
         bool  seeMoreOnly = false;
+
+        //  Never moves into See more. Custom entries shrink toward their
+        //  minimum widths to make room for it instead.
+        bool  pinned = false;
     };
 
     DxuiToolbar  ();
@@ -360,11 +368,12 @@ private:
     struct Slot
     {
         Entry  entry;
-        RECT   rc      = {};
-        bool   hovered = false;
-        bool   pressed = false;
-        bool   labeled = true;
-        bool   hidden  = false;   // in the See more menu rather than on the strip
+        RECT   rc       = {};
+        bool   hovered  = false;
+        bool   pressed  = false;
+        bool   labeled  = true;
+        bool   hidden   = false;   // in the See more menu rather than on the strip
+        int    shrinkPx = 0;       // a custom entry's width less this, to fit a pinned entry
     };
 
     struct Picker
@@ -412,6 +421,8 @@ private:
     void          OpenDropDown         (int commandId);
     void          OpenSeeMore          ();
     void          PlanSeeMore          (int clientWidthPx);
+    void          ShrinkCustomEntries  (int clientWidthPx);
+    int           GetCustomRoomPx      (const Slot & slot) const;
 
     std::function<void (POINT)>  m_onDropDownClickOutside;
     void          WireDropDown         ();

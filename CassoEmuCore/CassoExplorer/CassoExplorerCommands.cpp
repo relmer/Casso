@@ -580,7 +580,9 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntrie
         entry.iconOnly   = row.iconOnly;
         entry.vectorIcon = GetCommandBarIcon (row.id);
 
-        //  The two forms' faces are code and the bytes it assembles to.
+        //  The two forms stay on the strip at any width. Their faces are code
+        //  and the bytes it assembles to.
+        entry.pinned   = row.id == kShowDisassembly || row.id == kShowBytes;
         entry.faceText = (row.id == kShowDisassembly) ? s_kpszDisassemblyFace
                        : (row.id == kShowBytes)       ? s_kpszBytesFace
                                                       : nullptr;

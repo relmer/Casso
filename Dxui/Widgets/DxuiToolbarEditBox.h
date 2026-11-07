@@ -48,6 +48,9 @@ public:
     void  SetError    (bool error)                  { m_error = error; }
     bool  IsInError   () const                      { return m_error; }
 
+    //  The narrowest the strip may shrink the field to.
+    void  SetMinWidthDip (int widthDip) { m_minWidthDip = widthDip; }
+
     //  Told on every edit, on Enter and on Escape.
     void  SetOnChange (TextFn fn)   { m_onChange = std::move (fn); }
     void  SetOnSubmit (ActionFn fn) { m_onSubmit = std::move (fn); }
@@ -68,6 +71,7 @@ public:
     bool  OnKey (const DxuiKeyEvent & ev);
 
     int              GetWidthPx    (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const override;
+    int              GetMinWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const override;
     void             Layout        (const RECT & rc, bool labeled, const DxuiDpiScaler & scaler) override;
     void             Paint         (IDxuiPainter      & painter,
                                     IDxuiTextRenderer & text,
@@ -81,8 +85,9 @@ public:
     void             OnMouseLeave  () override;
     bool             OnLButtonDown (int x, int y) override;
 
-    static constexpr int    kDefaultWidthDip = 220;
-    static constexpr float  kFontDip         = 14.0f;
+    static constexpr int    kDefaultWidthDip    = 220;
+    static constexpr int    kDefaultMinWidthDip = 80;
+    static constexpr float  kFontDip            = 14.0f;
 
 private:
     bool  Contains       (int x, int y) const;
@@ -96,6 +101,7 @@ private:
     RECT             m_rc             = {};
     const wchar_t  * m_glyph          = nullptr;
     int              m_widthDip       = kDefaultWidthDip;
+    int              m_minWidthDip    = kDefaultMinWidthDip;
     std::wstring     m_tooltip;
     bool             m_focused        = false;
     bool             m_hover          = false;
