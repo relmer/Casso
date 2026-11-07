@@ -5,6 +5,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/CodeMargins.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/GutterGlyph.h"
@@ -568,7 +569,7 @@ namespace SourceDocumentInputTests
                               L"the view cuts the long operand off");
             Assert::AreEqual (view->GetRows()[1].cells[(size_t) SourcePane::kAnnotationCell], layout.text);
             Assert::AreEqual (cell.left, layout.textOrigin.x, L"the tip's text starts at the cell's");
-            Assert::IsTrue   (layout.lines.size() > 1, L"and wraps in the view's width");
+            Assert::AreEqual ((size_t) 2, layout.lines.size(), L"the operand on one line and the result on the next");
 
             Assert::IsTrue   (view->GetCellRectPx (2, SourcePane::kAnnotationCell, cell));
             Assert::IsFalse  (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell),
@@ -622,6 +623,116 @@ namespace SourceDocumentInputTests
             Assert::AreEqual (view->GetRows()[1].cells[(size_t) SourcePane::kAnnotationCell], window.GetOperandTips().GetLayout().text);
             Assert::AreEqual (cell.bottom, window.GetOperandTips().GetLayout().textOrigin.y, L"below the line");
             Assert::AreEqual ((LONG) view->GetTextAreaLeftPx(), window.GetOperandTips().GetLayout().rect.left, L"from the view's text");
+        }
+
+
+        //  A source line's operand and result are in the colors the
+        //  disassembly uses for an instruction's: the operand in the operand
+        //  color, not the view's text color, and the result in the result
+        //  color.
+        TEST_METHOD (ASourceOperandIsInTheDisassemblysColors)
+        {
+            CassoTheme                       theme    = CassoTheme::MakeSkeuomorphic();
+            SourceHost                       host;
+            SourceWindow                     window   (theme, host);
+            auto                             snapshot = MakeSnapshot();
+            DebuggerTextColors::Set          colors   = DebuggerTextColors::MakeFor (theme);
+            DisassemblyOptions               options;
+            DebuggerViewSnapshot::CodeLine   lda;
+            std::vector<DxuiListView::Cell>  cells (DisassemblyCells::kColumnCount);
+            DxuiTextView  * view      = nullptr;
+            int             resultAt  = 0;
+            bool            isOperand = false;
+            bool            isResult  = false;
+
+
+
+            snapshot->source->lineOperands = std::make_shared<const DebuggerViewSnapshot::LineOperands> (
+                                                 DebuggerViewSnapshot::LineOperands { { { 0, 2 }, { "A=00 X=01", "A=41" } } });
+
+            view = OpenDocument (window, snapshot);
+
+            lda.instruction               = "LDA #$41";
+            lda.annotationParts.registers = "A=00 X=01";
+            lda.effect                    = "A=41";
+            (void) DisassemblyCells::FillCodeRow (cells, lda, options, colors);
+
+            Assert::AreEqual (cells[DisassemblyCells::kOperandColumn].text, view->GetRows()[1].cells[(size_t) SourcePane::kAnnotationCell],
+                              L"the same text as the disassembly's");
+
+            resultAt = std::get<0> (cells[DisassemblyCells::kOperandColumn].colorRanges.front());
+
+            for (const DxuiTextView::Span & span : view->GetRows()[1].spans)
+            {
+                isOperand = isOperand || (span.cell == SourcePane::kAnnotationCell && span.start == 0 &&
+                                          span.argb == cells[DisassemblyCells::kOperandColumn].argb);
+                isResult  = isResult  || (span.cell == SourcePane::kAnnotationCell && span.start == resultAt &&
+                                          span.argb == std::get<2> (cells[DisassemblyCells::kOperandColumn].colorRanges.front()));
+            }
+
+            Assert::IsTrue (isOperand, L"the operand in the disassembly's operand color");
+            Assert::IsTrue (isResult,  L"the result in the disassembly's result color");
+        }
+
+
+        //  A source line's tip follows the disassembly's rules: the result on
+        //  the line below, from the operand's left, and the tip run on past
+        //  the view to the end of the wider part, in the operand's color.
+        TEST_METHOD (ASourceOperandsTipFollowsTheDisassemblysRules)
+        {
+            CassoTheme                         theme    = CassoTheme::MakeSkeuomorphic();
+            SourceHost                         host;
+            SourceWindow                       window   (theme, host);
+            MockDxuiTextRenderer               text;
+            MockDxuiPainter                    painter;
+            DxuiDpiScaler                      scaler;
+            auto                               snapshot = MakeSnapshot();
+            std::string                        operand;
+            DxuiTextView                     * view     = nullptr;
+            RECT                               cell     = {};
+            std::vector<float>                 lefts;
+            OperandResultTip::Layout           layout;
+            SourceWindow::OperandTipCell       tipCell;
+            SourceWindow::OperandTipScreen     screen;
+
+
+
+            for (int i = 0; i < 40; i++)
+            {
+                operand += "A=00 X=01 ";
+            }
+
+            snapshot->source->lineOperands = std::make_shared<const DebuggerViewSnapshot::LineOperands> (
+                                                 DebuggerViewSnapshot::LineOperands { { { 0, 2 }, { operand, "A=41" } } });
+
+            scaler.SetDpi (96);
+            screen.workAreas.push_back (RECT { 0, 0, 4000, 3000 });
+            view = OpenDocument (window, snapshot);
+            window.GetOperandTips().SetDeviceForTest (&text, screen);
+
+            Assert::IsTrue   (view->GetCellRectPx (1, SourcePane::kAnnotationCell, cell));
+            Assert::IsTrue   (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell));
+
+            Assert::AreEqual ((size_t) 2, layout.lines.size());
+            Assert::AreEqual (std::wstring (L"Result: A=41"), layout.text.substr ((size_t) layout.lines[1].start, (size_t) layout.lines[1].length));
+            Assert::AreEqual (0.0f, layout.lines[1].indentPx, L"the result from the operand's left");
+            Assert::IsTrue   (layout.rect.left  < cell.left,                      L"from the cell's padding");
+            Assert::IsTrue   (layout.rect.right > view->GetTextAreaRightPx(),     L"run on past the view");
+            Assert::AreEqual (DxuiColor::ComputeInkForContrast (DebuggerTextColors::MakeFor (theme).annotation, layout.fill, DebuggerTextColors::s_kMinTextContrast),
+                              layout.colors[0], L"the operand in the operand color");
+
+            OperandResultTip::Paint (layout, painter, text);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                if (call.kind == RecordedTextKind::DrawString)
+                {
+                    lefts.push_back (call.x);
+                }
+            }
+
+            Assert::AreEqual ((size_t) 2, lefts.size());
+            Assert::AreEqual (lefts[0], lefts[1], L"the result starts where the operand does");
         }
 
 

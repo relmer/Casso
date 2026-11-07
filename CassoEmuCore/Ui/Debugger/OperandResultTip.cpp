@@ -13,11 +13,12 @@
 //  OperandResultTip::TryMakeLayout
 //
 //  Only where the list cuts the text off: at the pane's edge, or at the
-//  column's own where the column has been made narrower than its text. The
-//  tip wraps in the room the text has there, so it grows down rather than
-//  out, and covers the whole of the cell the pane shows, so none of the cut
-//  text shows beside it; the cell's padding is either side of the text, and
-//  its outline a pixel past the row above and below, as Explorer's is.
+//  column's edge where the column has been made narrower than its text. The
+//  tip extends past the pane to the end of its text, wraps only at the
+//  screen's right edge, and covers the whole of the cell in view, so none of
+//  the cut text is visible beside it; the cell's padding is either side of
+//  the text, and its outline a pixel past the row above and below, as
+//  Explorer's is.
 //
 //  The tip stays inside the work area it is given without moving off the
 //  cell: a popup kept on the screen by being moved would no longer line its
@@ -25,7 +26,7 @@
 //
 //  A cell wholly outside the pane has no text in view to lay the first line
 //  over, so every line, the operand's and then the result's, lies below the
-//  row, from the pane's left edge, wrapped in the pane's width.
+//  row, from the pane's left edge.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +62,7 @@ bool OperandResultTip::TryMakeLayout (
     {
         textLeft  = (std::max) (placement.visibleLeft, (int) placement.workArea.left) + placement.padLeftPx;
         rowTop   += rowHeight;
-        cellRight = placement.visibleRight;
+        cellRight = textLeft;
     }
 
     //  A start scrolled out of sight, or off the screen, leaves nothing to
@@ -77,6 +78,9 @@ bool OperandResultTip::TryMakeLayout (
     layout.lineHeight = rowHeight;
     layout.border     = placement.border;
     layout.textOrigin = POINT { textLeft, rowTop };
+    layout.leadLeft   = textLeft;
+    layout.fill       = MakeFill   (cell, placement.rowFill, placement.contentBackground);
+    layout.colors     = MakeColors (cell, placement.ink, layout.fill);
 
     //  Text that cannot be measured cannot be said to be cut off. Measured
     //  against the box the view clips its text to, the tip is up exactly
@@ -84,13 +88,15 @@ bool OperandResultTip::TryMakeLayout (
     fullPx = MeasurePx (text, cell.text, placement.fontPx, placement.face);
     CBR (fullPx > 0.0f && (isHidden || fullPx > placement.clipRightPx - placement.clipLeftPx));
 
-    doesFit = TryWrapOnScreen (text, placement, (float) (cellRight - placement.padRightPx - textLeft), layout, widestPx);
+    if (placement.isWholeLine && !isHidden)
+    {
+        SetLead (placement, text, layout);
+    }
+
+    doesFit = TryWrapOnScreen (text, placement, layout, widestPx);
     CBR (doesFit);
 
-    layout.fill      = MakeFill   (cell, placement.rowFill, placement.contentBackground);
-    layout.colors    = MakeColors (cell, placement.ink, layout.fill);
-    layout.rect      = PlaceRect  (placement, layout, cellRight, widestPx);
-    layout.firstLeft = (std::max) ({ textLeft - placement.padLeftPx, placement.visibleLeft, (int) placement.workArea.left });
+    layout.rect = PlaceRect (placement, layout, cellRight, widestPx);
 
     out    = std::move (layout);
     isMade = true;
@@ -143,7 +149,8 @@ bool OperandResultTip::IsSame (
     const Layout  & b)
 {
     return a.rect.left    == b.rect.left    &&
-           a.firstLeft    == b.firstLeft    &&
+           a.leadLeft     == b.leadLeft     &&
+           a.leadLength   == b.leadLength   &&
            a.rect.top     == b.rect.top     &&
            a.rect.right   == b.rect.right   &&
            a.rect.bottom  == b.rect.bottom  &&
@@ -167,10 +174,9 @@ bool OperandResultTip::IsSame (
 //
 //  OperandResultTip::Paint
 //
-//  A rectangular tip's popup is cleared to the layout's fill before this
-//  runs, so only the outline and the text are drawn. An L-shaped tip's is
-//  cleared to transparent, so its row's own columns show left of its first
-//  line, and the fill is drawn here.
+//  The tip's popup is cleared to the layout's fill before this runs, so only
+//  the outline and the text are drawn: the lead from its left on the first
+//  line, then each line from its indent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -183,36 +189,21 @@ void OperandResultTip::Paint (
     float  height = (float) (layout.rect.bottom - layout.rect.top);
     float  x      = (float) (layout.textOrigin.x - layout.rect.left);
     float  y      = (float) (layout.textOrigin.y - layout.rect.top);
-    float  step   = (float) (layout.firstLeft - layout.rect.left);
-    float  below  = y + (float) layout.lineHeight;
+    float  lead   = (float) (layout.leadLeft     - layout.rect.left);
     float  edge   = (float) kBorderPx;
 
 
 
-    if (!IsShaped (layout))
-    {
-        painter.OutlineRect (0.0f, 0.0f, width, height, edge, layout.border);
-    }
-    else
-    {
-        //  The first line from the cell's left, the lines below it across
-        //  the pane; then the L's six edges. The step's edge runs one pixel
-        //  past the first line's left edge, which ends at the step, to close
-        //  the corner between them.
-        painter.FillRect (step, 0.0f,  width - step, below,          layout.fill);
-        painter.FillRect (0.0f, below, width,        height - below, layout.fill);
+    painter.OutlineRect (0.0f, 0.0f, width, height, edge, layout.border);
 
-        painter.FillRect (step,         0.0f,          width - step, edge,           layout.border);
-        painter.FillRect (width - edge, 0.0f,          edge,         height,         layout.border);
-        painter.FillRect (0.0f,         height - edge, width,        edge,           layout.border);
-        painter.FillRect (0.0f,         below,         edge,         height - below, layout.border);
-        painter.FillRect (0.0f,         below,         step + edge,  edge,           layout.border);
-        painter.FillRect (step,         0.0f,          edge,         below,          layout.border);
+    if (layout.leadLength > 0)
+    {
+        PaintLine (layout, Line { 0, layout.leadLength }, lead, y, x - lead, text);
     }
 
     for (const Line & line : layout.lines)
     {
-        PaintLine (layout, line, x, y, width - x, text);
+        PaintLine (layout, line, x + line.indentPx, y, width - x - line.indentPx, text);
         y += (float) layout.lineHeight;
     }
 }
@@ -281,6 +272,8 @@ float OperandResultTip::MeasurePx (
 //
 //  OperandResultTip::MeasureWidestPx
 //
+//  From the text origin to the end of the line that ends furthest right.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 float OperandResultTip::MeasureWidestPx (
@@ -288,12 +281,14 @@ float OperandResultTip::MeasureWidestPx (
     const Layout       & layout)
 {
     float  widestPx = 0.0f;
+    float  linePx   = 0.0f;
 
 
 
     for (const Line & line : layout.lines)
     {
-        widestPx = (std::max) (widestPx, MeasurePx (text, layout.text.substr ((size_t) line.start, (size_t) line.length), layout.fontPx, layout.face));
+        linePx   = MeasurePx (text, layout.text.substr ((size_t) line.start, (size_t) line.length), layout.fontPx, layout.face);
+        widestPx = (std::max) (widestPx, line.indentPx + linePx);
     }
 
     return widestPx;
@@ -324,33 +319,29 @@ int OperandResultTip::GetBottomPx (const Layout & layout)
 //
 //  OperandResultTip::TryWrapOnScreen
 //
-//  The text wraps in the room the pane gives it, never narrower than the
-//  tip's least width and never wider than the screen has room for right of
-//  the text; at the screen's right edge it grows down instead. Where that is
-//  too tall for the screen below the row, it wraps again across all the room
-//  the screen has. False where it still does not fit.
+//  The text extends to the right to its end, and wraps only where it is
+//  wider than the room on the screen right of it. False where it is
+//  then too tall for the screen below the row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool OperandResultTip::TryWrapOnScreen (
     IDxuiTextRenderer  & text,
     const Placement    & placement,
-    float                paneRoomPx,
     Layout             & layout,
     float              & widestPx)
 {
     float  roomPx   = (float) (placement.workArea.right - placement.padRightPx - layout.textOrigin.x);
-    float  minPx    = MeasurePx (text, std::wstring (kMinWrapChars, L'0'), placement.fontPx, placement.face);
-    float  wrapPx   = (std::min) ((std::max) (paneRoomPx, minPx), roomPx);
     bool   hasLines = false;
 
 
 
-    WrapCell (text, layout, wrapPx);
-
-    if (GetBottomPx (layout) > placement.workArea.bottom && wrapPx < roomPx)
+    if (placement.isWholeLine)
     {
-        layout.lines.clear();
+        WrapLine (text, layout, roomPx);
+    }
+    else
+    {
         WrapCell (text, layout, roomPx);
     }
 
@@ -368,14 +359,10 @@ bool OperandResultTip::TryWrapOnScreen (
 //
 //  OperandResultTip::PlaceRect
 //
-//  From the cell's left to the end of its widest line, or to the edge of the
-//  cell the pane shows where that is further, so the tip covers the whole of
-//  what the list draws. The cell's padding and the outline give way at the
-//  pane's edge and the screen's.
-//
-//  The lines after the first start at the pane's left edge instead, so the
-//  rows they lie on show nothing of their own beside the tip's text; the
-//  layout's firstLeft keeps the cell's left for the first line.
+//  From the line's left, the lead's or the cell's, to the end of its widest
+//  line, or to the edge of the cell in view where that is further, so the
+//  tip covers the whole of what the list draws. The padding and the outline
+//  are dropped at the pane's edge and the screen's.
 //
 //  Its width and height are ones its popup comes up at exactly, larger where
 //  the screen has room and smaller where it does not, so no strip of the
@@ -395,13 +382,7 @@ RECT OperandResultTip::PlaceRect (
 
 
 
-    rect.left   = (std::max) ({ textLeft - placement.padLeftPx, placement.visibleLeft, (int) placement.workArea.left });
-
-    if (layout.lines.size() > 1)
-    {
-        rect.left = (std::max) (placement.visibleLeft, (int) placement.workArea.left);
-    }
-
+    rect.left   = (std::max) ({ layout.leadLeft - placement.padLeftPx, placement.visibleLeft, (int) placement.workArea.left });
     rect.top    = (std::max) ((int) layout.textOrigin.y - kBorderPx, (int) placement.workArea.top);
     rect.right  = (std::min) ((std::max) (cellRight, textRight), (int) placement.workArea.right);
     rect.bottom = GetBottomPx (layout);
@@ -516,6 +497,50 @@ std::vector<uint32_t> OperandResultTip::MakeColors (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OperandResultTip::SetLead
+//
+//  The tip starts at the line's start where that is left of the cell's text.
+//  The part of the line drawn there goes ahead of the cell's text, in its
+//  colors on the tip's fill, where it ends short of the cell's text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void OperandResultTip::SetLead (
+    const Placement    & placement,
+    IDxuiTextRenderer  & text,
+    Layout             & layout)
+{
+    const std::wstring     & lead    = placement.lead.text;
+    std::vector<uint32_t>    colors  = MakeColors (placement.lead, placement.ink, layout.fill);
+    float                    leadPx  = lead.empty() ? 0.0f : MeasurePx (text, lead, placement.fontPx, placement.face);
+    bool                     isAhead = placement.leadLeft < layout.textOrigin.x;
+    bool                     doesFit = (float) placement.leadLeft + leadPx <= (float) layout.textOrigin.x;
+
+
+
+    if (!isAhead)
+    {
+        return;
+    }
+
+    layout.leadLeft = placement.leadLeft;
+
+    if (lead.empty() || !doesFit)
+    {
+        return;
+    }
+
+    layout.text.insert   (0, lead);
+    layout.colors.insert (layout.colors.begin(), colors.begin(), colors.end());
+    layout.leadLength = (int) lead.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OperandResultTip::WrapCell
 //
 //  The operand, then the result from the start of a line of its own. The
@@ -529,23 +554,118 @@ void OperandResultTip::WrapCell (
     Layout             & layout,
     float                maxWidthPx)
 {
-    size_t  resultAt   = layout.text.find (SourcePane::kpszResultPrefix);
+    size_t  resultAt   = layout.text.find (SourcePane::kpszResultPrefix, (size_t) layout.leadLength);
     int     size       = (int) layout.text.size();
     int     operandEnd = (resultAt == std::wstring::npos) ? size : (int) resultAt;
 
 
 
-    while (operandEnd > 0 && layout.text[(size_t) (operandEnd - 1)] == L' ')
+    while (operandEnd > layout.leadLength && layout.text[(size_t) (operandEnd - 1)] == L' ')
     {
         operandEnd--;
     }
 
-    WrapRun (text, layout, 0, operandEnd, maxWidthPx);
+    WrapRun (text, layout, layout.leadLength, operandEnd, maxWidthPx, Indent());
 
     if (resultAt != std::wstring::npos)
     {
-        WrapRun (text, layout, (int) resultAt, size, maxWidthPx);
+        WrapRun (text, layout, (int) resultAt, size, maxWidthPx, Indent());
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperandResultTip::WrapLine
+//
+//  The whole line on one line where it fits the room, and else broken at its
+//  spaces. A line that starts in the comment starts under the comment's
+//  first character, after the ; and the spaces past it; a line that starts
+//  before the comment starts four characters right of the code's start. An
+//  indent with less than the least room after it is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void OperandResultTip::WrapLine (
+    IDxuiTextRenderer  & text,
+    Layout             & layout,
+    float                maxWidthPx)
+{
+    int     first     = layout.leadLength;
+    int     size      = (int) layout.text.size();
+    int     codeAt    = first;
+    float   minRoomPx = MeasurePx (text, std::wstring (kMinIndentRoomChars, L'0'), layout.fontPx, layout.face);
+    float   stepPx    = MeasurePx (text, std::wstring (kCodeIndentChars,    L'0'), layout.fontPx, layout.face);
+    Indent  indent;
+
+
+
+    while (codeAt < size && iswspace (layout.text[(size_t) codeAt]))
+    {
+        codeAt++;
+    }
+
+    indent.commentAt = FindCommentText (layout.text, first);
+    indent.codePx    = MeasurePx (text, layout.text.substr ((size_t) first, (size_t) (codeAt - first)), layout.fontPx, layout.face) + stepPx;
+    indent.commentPx = (indent.commentAt < size)
+                           ? MeasurePx (text, layout.text.substr ((size_t) first, (size_t) (indent.commentAt - first)), layout.fontPx, layout.face)
+                           : 0.0f;
+
+    indent.codePx    = (maxWidthPx - indent.codePx    < minRoomPx) ? 0.0f : indent.codePx;
+    indent.commentPx = (maxWidthPx - indent.commentPx < minRoomPx) ? 0.0f : indent.commentPx;
+
+    WrapRun (text, layout, first, size, maxWidthPx, indent);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperandResultTip::FindCommentText
+//
+//  Where the text of a line's comment starts: past the first ; outside a
+//  string and the spaces after it. A quote with no closing quote after it,
+//  as an immediate character's can be, doesn't start a string. The line's end
+//  where it has no comment text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int OperandResultTip::FindCommentText (
+    const std::wstring  & chars,
+    int                   first)
+{
+    int     size  = (int) chars.size();
+    int     at    = size;
+    size_t  close = 0;
+
+
+
+    for (int k = first; k < size && at == size; k++)
+    {
+        if (chars[(size_t) k] == L'"' || chars[(size_t) k] == L'\'')
+        {
+            close = chars.find (chars[(size_t) k], (size_t) k + 1);
+            k     = (close != std::wstring::npos) ? (int) close : k;
+            continue;
+        }
+
+        if (chars[(size_t) k] == L';')
+        {
+            at = k;
+        }
+    }
+
+    while (at < size && (chars[(size_t) at] == L';' || iswspace (chars[(size_t) at])))
+    {
+        at++;
+    }
+
+    return at;
 }
 
 
@@ -558,7 +678,9 @@ void OperandResultTip::WrapCell (
 //
 //  The characters from `first` to `end` on as many lines as they need, each
 //  broken at its last space where it has one, and mid-word only where a word
-//  is wider than a line. The spaces at a break go with it.
+//  is wider than a line. The spaces at a break go with it. The lines after
+//  the first start at the indent for where they start, with that much less
+//  room.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -567,19 +689,22 @@ void OperandResultTip::WrapRun (
     Layout             & layout,
     int                  first,
     int                  end,
-    float                maxWidthPx)
+    float                maxWidthPx,
+    const Indent       & indent)
 {
-    int   start   = first;
-    int   stop    = 0;
-    int   next    = 0;
-    bool  isShort = false;
+    int    start    = first;
+    int    stop     = 0;
+    int    next     = 0;
+    bool   isShort  = false;
+    float  indentPx = 0.0f;
 
 
 
     while (start < end)
     {
-        stop    = FindFitEnd (text, layout, start, end, maxWidthPx);
-        isShort = stop < end;
+        indentPx = (start == first) ? 0.0f : (start >= indent.commentAt) ? indent.commentPx : indent.codePx;
+        stop     = FindFitEnd (text, layout, start, end, maxWidthPx - indentPx);
+        isShort  = stop < end;
 
         for (int k = stop; isShort && k > start; k--)
         {
@@ -599,7 +724,7 @@ void OperandResultTip::WrapRun (
 
         if (stop > start)
         {
-            layout.lines.push_back ({ start, stop - start });
+            layout.lines.push_back ({ start, stop - start, indentPx });
         }
 
         start = next;
