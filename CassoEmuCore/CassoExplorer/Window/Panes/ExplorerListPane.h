@@ -51,6 +51,7 @@ public:
     void                                     FillList                ();
     void                                     SetListSelection        (std::vector<int> rows);
     void                                     OnSelectionChanged      ();
+    bool                                     IsSelectionOpenable     () const;
     bool                                     SelectRowNamed          (const std::wstring & name);
 
     //  Selects the items with these names in `folder` once a listing has every

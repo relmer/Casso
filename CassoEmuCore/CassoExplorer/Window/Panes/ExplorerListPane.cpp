@@ -930,6 +930,36 @@ void ExplorerListPane::RefreshTip()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListPane::IsSelectionOpenable
+//
+//  Whether a double-click on the selection opens it as a location: a folder,
+//  a drive, a disk image or an archive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListPane::IsSelectionOpenable() const
+{
+    const std::vector<int>         & selected = m_context.browser.GetSelectedRows();
+    const std::vector<CatalogRow>  & rows     = m_context.browser.GetRows();
+
+
+
+    if (selected.size() != 1 || selected[0] < 0 || (size_t) selected[0] >= rows.size())
+    {
+        return false;
+    }
+
+    const CatalogRow &  row = rows[(size_t) selected[0]];
+
+    return row.isDirectory || row.isDrive || row.isDiskImage || row.isArchive;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListPane::OnSelectionChanged
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -938,9 +968,10 @@ void ExplorerListPane::OnSelectionChanged()
 {
     m_context.browser.SetSelectedRows (m_list->GetSelectedRows());
 
-    //  A closed pane that may open is filled after the double-click time, so
-    //  the first press of a double-click on an item doesn't open the pane.
-    if (!m_context.preview.IsShown() && (m_context.prefs.autoPreview || m_context.prefs.previewVisible))
+    //  A closed pane that may open for a folder, disk image or archive is
+    //  filled after the double-click time, so the first press of a double-click
+    //  that opens the item doesn't open the pane. A file's preview fills now.
+    if (!m_context.preview.IsShown() && (m_context.prefs.autoPreview || m_context.prefs.previewVisible) && IsSelectionOpenable())
     {
         SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerAutoPreview, GetDoubleClickTime(), nullptr);
     }
