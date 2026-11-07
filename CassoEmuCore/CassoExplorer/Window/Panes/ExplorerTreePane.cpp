@@ -23,6 +23,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -1449,9 +1450,10 @@ void ExplorerTreePane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
                       ? entry.firewall : std::wstring();
     }
 
-    bool  problem = (broken || warning) && !m_treeTipText.empty();
+    bool          problem  = (broken || warning) && !m_treeTipText.empty();
+    std::wstring  fullPath = (node != nullptr && !problem) ? GetFullPathTip (*node) : std::wstring();
 
-    if (node == nullptr || (node->id != TreeModel::kCassoRootId && !node->dimmed && !adtPro && !problem))
+    if (node == nullptr || (node->id != TreeModel::kCassoRootId && !node->dimmed && !adtPro && !problem && fullPath.empty()))
     {
         m_context.tips.HideHoverTip (ExplorerTips::TipOwner::Tree);
         return;
@@ -1464,5 +1466,50 @@ void ExplorerTreePane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
 
     m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Tree, anchor, adtPro       ? TreeModel::StripLinkCopy (node->id).substr (wcslen (TreeModel::kAdtProId)).c_str()
                                         : problem      ? m_treeTipText.c_str()
-                                        : node->dimmed ? kMissingNodeTip : kCassoNodeTip);
+                                        : node->dimmed ? kMissingNodeTip
+                                        : !fullPath.empty() ? fullPath.c_str() : kCassoNodeTip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTreePane::GetFullPathTip
+//
+//  A folder, disk image or directory under Casso has its full path as its
+//  tip, unless its name already is that path. A directory inside an image
+//  follows the image's path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ExplorerTreePane::GetFullPathTip (const DxuiTreeNode & node) const
+{
+    HRESULT       hr         = S_OK;
+    std::wstring  result;
+    std::wstring  path;
+    Location      location;
+    bool          underCasso = node.id.starts_with (TreeModel::kCassoRootId) && node.id != TreeModel::kCassoRootId;
+
+
+
+    BAIL_OUT_IF (!underCasso || !m_context.browser.TryGetNodeLocation (node.id, location), S_OK);
+    BAIL_OUT_IF (location.kind != Location::Kind::HostFolder && location.kind != Location::Kind::DiskImage && location.kind != Location::Kind::DiskDirectory, S_OK);
+
+    path = location.path;
+
+    if (location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty())
+    {
+        path += L'\\';
+        path += TextEncoding::NarrowToWide (location.innerPath);
+        std::replace (path.begin(), path.end(), L'/', L'\\');
+    }
+
+    BAIL_OUT_IF (_wcsicmp (path.c_str(), node.label.c_str()) == 0, S_OK);
+
+    result = path;
+
+Error:
+    return result;
 }

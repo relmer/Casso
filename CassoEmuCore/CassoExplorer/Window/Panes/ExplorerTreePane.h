@@ -93,6 +93,8 @@ private:
     void  ShowTreeEmptyMenu   (int x, int y);
     void  AddNavPaneToggle    (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option);
 
+    std::wstring  GetFullPathTip (const DxuiTreeNode & node) const;
+
     ExplorerContext  & m_context;
     DxuiTreeView     * m_tree          = nullptr;
     DxuiInPlaceTip     m_labelTip;   // a name the splitter cuts off, shown whole over its row
