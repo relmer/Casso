@@ -17,8 +17,9 @@
 //  length of the simple variables and arrays together, the length of the
 //  simple variables, and the page of HIMEM. The copy is the simple variable
 //  table, the array table and the strings, which STORE moves together so they
-//  end at HIMEM. A string's address is in that memory, so its offset into the
-//  copy is the address less HIMEM, plus the copy's length.
+//  end at HIMEM, followed by the page above HIMEM, which is not part of them.
+//  The aux type is the address the copy starts at, so a string's address
+//  less the aux type is its offset into the copy.
 //
 //  Each table entry is Applesoft's: two name bytes whose high bits indicate the
 //  type, then the value. An integer is high byte first, a real is Applesoft's
@@ -35,7 +36,7 @@ public:
 
     //  The file's variables as name and value; ERROR_INVALID_DATA when its
     //  lengths or an array's entry extend past the file.
-    static HRESULT       Decode     (std::span<const Byte> file, std::vector<std::pair<std::wstring, std::wstring>> & outRows);
+    static HRESULT       Decode     (std::span<const Byte> file, Word auxType, std::vector<std::pair<std::wstring, std::wstring>> & outRows);
 
     //  A five-byte real as PRINT prints it: nine significant digits, without a
     //  leading zero, and in E notation below .01 or from 1E9.
@@ -56,6 +57,7 @@ private:
     static std::wstring  FormatString (std::span<const Byte> value, std::span<const Byte> file, Word origin);
 
     static constexpr size_t  s_kHeaderBytes       = 5;
+    static constexpr size_t  s_kTrailingBytes     = 256;
     static constexpr size_t  s_kEntryBytes        = 7;
     static constexpr size_t  s_kArrayHeaderBytes  = 5;
     static constexpr size_t  s_kRealBytes         = 5;

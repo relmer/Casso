@@ -16,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ApplesoftVariables::Decode (std::span<const Byte> file, std::vector<std::pair<std::wstring, std::wstring>> & outRows)
+HRESULT ApplesoftVariables::Decode (std::span<const Byte> file, Word auxType, std::vector<std::pair<std::wstring, std::wstring>> & outRows)
 {
     HRESULT  hr        = S_OK;
     size_t   himem     = 0;
@@ -42,10 +42,12 @@ HRESULT ApplesoftVariables::Decode (std::span<const Byte> file, std::vector<std:
     end       = s_kHeaderBytes + total;
 
     CBREx (simple <= total && end <= fileBytes && simple % s_kEntryBytes == 0, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (fileBytes - s_kHeaderBytes <= himem,                              HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (fileBytes - s_kHeaderBytes <= himem + s_kTrailingBytes,           HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     //  Where the copy started in memory, which its strings' addresses are in.
-    origin = (Word) (himem - (fileBytes - s_kHeaderBytes));
+    //  STORE writes it to the aux type. For a file copied without its aux
+    //  type, it is worked out from HIMEM: the copy runs a page past HIMEM.
+    origin = (auxType != 0) ? auxType : (Word) (himem + s_kTrailingBytes - (fileBytes - s_kHeaderBytes));
 
     for (; pos < simpleEnd; pos += s_kEntryBytes)
     {

@@ -964,7 +964,7 @@ HRESULT PreviewDecoder::Render (
             break;
 
         case PreviewContent::Kind::Details:
-            hr = ApplesoftVariables::Decode (payload.bytes, outContent.details);
+            hr = ApplesoftVariables::Decode (payload.bytes, payload.hasAuxType ? payload.auxType : entry.auxType, outContent.details);
 
             if (FAILED (hr))
             {
