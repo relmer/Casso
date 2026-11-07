@@ -1363,43 +1363,75 @@ void TreeModel::InvalidateAll()
 //
 //  TreeModel::GetKnownFolderLabels
 //
-//  A folder shows its own name, or its full path where another known folder
-//  has the same name.
+//  A folder's label is its name, or where another known folder has the same
+//  name, that name after as many of the folders above it as make the two
+//  differ: Casso\Disks beside ADTPro-2.1.0\disks. The comparison ignores
+//  case. A folder that differs from another only by its drive, and a drive's
+//  root, are labeled with their full paths.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::wstring> TreeModel::GetKnownFolderLabels (const std::vector<std::wstring> & paths)
 {
-    std::vector<std::wstring>  leaves (paths.size());
-    std::vector<std::wstring>  labels (paths.size());
+    std::vector<std::vector<std::wstring>>  parts  (paths.size());
+    std::vector<std::wstring>               labels (paths.size());
+    //  The last `count` parts of a folder's path, joined.
+    auto  tail = [&parts] (size_t i, size_t count)
+    {
+        std::wstring  joined;
+
+        for (size_t at = parts[i].size() - (std::min) (count, parts[i].size()); at < parts[i].size(); at++)
+        {
+            joined += (joined.empty() ? L"" : L"\\") + parts[i][at];
+        }
+
+        return joined;
+    };
 
 
 
     for (size_t i = 0; i < paths.size(); i++)
     {
         std::wstring  rest  = paths[i];
-        size_t        slash = 0;
+        size_t        start = 0;
 
         while (rest.size() > 3 && rest.back() == L'\\')
         {
             rest.pop_back();
         }
 
-        slash     = rest.rfind (L'\\');
-        leaves[i] = (slash != std::wstring::npos && slash + 1 < rest.size()) ? rest.substr (slash + 1) : rest;
-        labels[i] = leaves[i];
+        for (size_t slash = rest.find (L'\\'); start <= rest.size(); slash = rest.find (L'\\', start))
+        {
+            std::wstring  part = rest.substr (start, (slash == std::wstring::npos) ? std::wstring::npos : slash - start);
+
+            if (!part.empty())
+            {
+                parts[i].push_back (part);
+            }
+
+            start = (slash == std::wstring::npos) ? rest.size() + 1 : slash + 1;
+        }
     }
 
     for (size_t i = 0; i < paths.size(); i++)
     {
-        for (size_t j = 0; j < paths.size(); j++)
+        size_t  count = 1;
+        bool    clash = true;
+
+        while (clash && count < parts[i].size())
         {
-            if (i != j && _wcsicmp (leaves[i].c_str(), leaves[j].c_str()) == 0 && _wcsicmp (paths[i].c_str(), paths[j].c_str()) != 0)
+            clash = false;
+
+            for (size_t j = 0; j < paths.size() && !clash; j++)
             {
-                labels[i] = paths[i];
-                break;
+                clash = j != i && _wcsicmp (paths[i].c_str(), paths[j].c_str()) != 0
+                     && _wcsicmp (tail (i, count).c_str(), tail (j, count).c_str()) == 0;
             }
+
+            count += clash ? 1 : 0;
         }
+
+        labels[i] = (count < parts[i].size()) ? tail (i, count) : paths[i];
     }
 
     return labels;

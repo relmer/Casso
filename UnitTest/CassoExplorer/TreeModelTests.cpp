@@ -363,16 +363,23 @@ public:
 
 
 
-    TEST_METHOD (KnownFolderLabels_SameNamesShowTheirFullPaths)
+    TEST_METHOD (KnownFolderLabels_SameNamesTakeTheFoldersAboveThatMakeThemDiffer)
     {
-        std::vector<std::wstring>  labels = TreeModel::GetKnownFolderLabels ({ L"C:\\Apple\\Disks", L"D:\\Backup\\disks", L"C:\\Games", L"C:\\" });
+        std::vector<std::wstring>  labels = TreeModel::GetKnownFolderLabels ({ L"C:\\Users\\Rob\\AppData\\Local\\Casso\\Disks",
+                                                                               L"C:\\Users\\Rob\\Downloads\\ADTPro-2.1.0\\disks",
+                                                                               L"C:\\Games", L"C:\\",
+                                                                               L"C:\\X\\Same\\Art", L"D:\\Y\\Same\\Art",
+                                                                               L"C:\\Music", L"D:\\Music" });
 
-        Assert::AreEqual (std::wstring (L"C:\\Apple\\Disks"),   labels[0]);
-        Assert::AreEqual (std::wstring (L"D:\\Backup\\disks"),  labels[1]);
-        Assert::AreEqual (std::wstring (L"Games"),              labels[2]);
-        Assert::AreEqual (std::wstring (L"C:\\"),               labels[3]);
+        Assert::AreEqual (std::wstring (L"Casso\\Disks"),        labels[0], L"One folder above tells the two Disks apart");
+        Assert::AreEqual (std::wstring (L"ADTPro-2.1.0\\disks"), labels[1], L"whatever the case of the name");
+        Assert::AreEqual (std::wstring (L"Games"),               labels[2], L"A name no other folder has stands alone");
+        Assert::AreEqual (std::wstring (L"C:\\"),                labels[3], L"A drive's root is its path");
+        Assert::AreEqual (std::wstring (L"X\\Same\\Art"),        labels[4], L"Two folders above, where one is the same");
+        Assert::AreEqual (std::wstring (L"Y\\Same\\Art"),        labels[5]);
+        Assert::AreEqual (std::wstring (L"C:\\Music"),           labels[6], L"Folders that differ only by drive are their paths");
+        Assert::AreEqual (std::wstring (L"D:\\Music"),           labels[7]);
     }
-
 
 
     static std::vector<LinkTreeEntry>  TwoLinks()

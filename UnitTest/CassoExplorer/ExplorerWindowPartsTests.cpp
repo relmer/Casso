@@ -371,6 +371,7 @@ public:
         std::wstring               tipOfImage;
         std::wstring               tipOfDisks;
         std::wstring               tipOfShared;
+        std::wstring               tipOfPath = L"unset";
 
 
 
@@ -378,9 +379,11 @@ public:
         AssertSucceeded (rig.fs.WriteAllText (L"C:\\Disks\\Sub\\note.txt", "x"));
         AssertSucceeded (rig.fs.WriteAllText (L"C:\\A\\games\\a.txt", "x"));
         AssertSucceeded (rig.fs.WriteAllText (L"C:\\B\\games\\b.txt", "x"));
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Music\\c.txt", "x"));
+        AssertSucceeded (rig.fs.WriteAllText (L"D:\\Music\\d.txt", "x"));
         rig.Open();
 
-        rig.browser.GetTreeModel().SetKnownFolders ({ L"C:\\Disks", L"C:\\A\\games", L"C:\\B\\games" });
+        rig.browser.GetTreeModel().SetKnownFolders ({ L"C:\\Disks", L"C:\\A\\games", L"C:\\B\\games", L"C:\\Music", L"D:\\Music" });
         rig.browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring &) { return true; });
         rig.browser.GetTreeModel().InvalidateAll();
         rig.browser.GetTreeRoots (roots);
@@ -400,9 +403,13 @@ public:
                 disksId    = folder.id;
                 tipOfDisks = rig.parts->treePane.GetFullPathTip (folder);
             }
-            else if (folder.label == L"C:\\A\\games")
+            else if (folder.label == L"A\\games")
             {
                 tipOfShared = rig.parts->treePane.GetFullPathTip (folder);
+            }
+            else if (folder.label == L"C:\\Music")
+            {
+                tipOfPath = rig.parts->treePane.GetFullPathTip (folder);
             }
         }
 
@@ -421,7 +428,8 @@ public:
         }
 
         Assert::AreEqual (std::wstring (L"C:\\Disks"), tipOfDisks, L"A folder shown by its name has its path");
-        Assert::IsTrue   (tipOfShared.empty(),          L"A folder shown as its path has no tip");
+        Assert::AreEqual (std::wstring (L"C:\\A\\games"), tipOfShared, L"and so has one labeled with the folder above, to tell it from another");
+        Assert::IsTrue   (tipOfPath.empty(),            L"A folder labeled with its path has no tip");
         Assert::IsTrue   (tipOfSub.empty(),             L"nor has a folder inside one");
         Assert::IsTrue   (tipOfImage.empty(),           L"nor a disk image inside one");
     }

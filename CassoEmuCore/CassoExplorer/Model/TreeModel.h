@@ -226,9 +226,9 @@ public:
     //  An image's error, the detail on a line after what is wrong.
     static std::wstring  BreakAfterFirstSentence (std::wstring text);
 
-    //  The known folders' names as the tree shows them: each folder's own name,
-    //  and for names two folders share, the name of the folder above in
-    //  parentheses -- further up where those match too -- so the two differ.
+    //  The known folders' labels in the tree: each folder's name, or for a name
+    //  two folders share, that name after as many of the folders above it as
+    //  make the two differ, such as Casso\Disks and ADTPro-2.1.0\disks.
     static std::vector<std::wstring>  GetKnownFolderLabels (const std::vector<std::wstring> & paths);
 
     static std::wstring  MakeFolderId    (bool underCasso, const std::wstring & path);
