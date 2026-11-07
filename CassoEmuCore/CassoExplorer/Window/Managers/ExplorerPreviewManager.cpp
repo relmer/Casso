@@ -314,8 +314,8 @@ void ExplorerPreviewManager::FillPreview()
 //
 //  A file of a type with a preview: a listing, text, a picture, 6502 code in
 //  either form, a catalog or archive, an image's details, or the Windows
-//  preview of a PC file. A file in the hex view for want of another preview
-//  is not one.
+//  preview of a PC file. A file in the hex view only because no other
+//  preview fits it is not one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

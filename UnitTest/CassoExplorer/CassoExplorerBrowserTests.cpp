@@ -868,7 +868,7 @@ public:
 
         fallback.kind  = PreviewContent::Kind::Hex;
         fallback.bytes = { 0x00 };
-        Assert::IsFalse (ExplorerPreviewManager::IsKnownPreview (fallback), L"but hex for want of another preview doesn't");
+        Assert::IsFalse (ExplorerPreviewManager::IsKnownPreview (fallback), L"but hex as the fallback is not");
     }
 
 

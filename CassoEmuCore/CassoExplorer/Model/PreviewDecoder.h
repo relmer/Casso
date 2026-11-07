@@ -109,9 +109,9 @@ struct PreviewContent
     //  Set for a hex preview rendered as 6502 instructions in `lines`.
     bool                       disassembly = false;
 
-    //  Set for a hex preview of a file whose type is 6502 code, which is
-    //  previewed in hex or as a disassembly by its type rather than for want
-    //  of another preview.
+    //  Set for a hex preview of a file whose type is 6502 code, which its type
+    //  assigns to the hex view or a disassembly. A file in the hex view only
+    //  because no other preview fits it is not one.
     bool                       executable  = false;
 
     //  A picture's mode, as chosen and as drawn, with its bytes in `bytes` and
