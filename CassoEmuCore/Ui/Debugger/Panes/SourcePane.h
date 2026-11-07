@@ -58,6 +58,7 @@ public:
         std::shared_ptr<const DxuiIconImage>   disabledIcon;
         SourceSyntax::Colors                   syntax;
         uint32_t                               resultArgb   = 0;
+        uint32_t                               operandArgb  = 0;
         std::shared_ptr<const DxuiIconImage>   pcIcon;
         std::shared_ptr<const DxuiIconImage>   hoverIcon;
 

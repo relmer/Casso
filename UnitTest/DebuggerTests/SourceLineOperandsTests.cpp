@@ -164,7 +164,8 @@ namespace DebuggerTests
 
 
 
-            style.resultArgb = 0xFF00FFFF;
+            style.resultArgb  = 0xFF00FFFF;
+            style.operandArgb = 0xFF57A64A;
             rows = SourcePane::BuildRows ({ L"x", L"  lda $10", L"  .byte 1" }, 2, {}, {}, style,
                                           { { 2, { L"$10: 07", L"A=07" } }, { 3, { L"$01: 00", L"" } } });
 
@@ -176,6 +177,10 @@ namespace DebuggerTests
                               {
                                   return span.cell == 3 && span.start == 9 && span.length == 12 && span.argb == 0xFF00FFFFu;
                               }), L"the result is in the result color");
+            Assert::IsTrue   (std::any_of (rows[1].spans.begin(), rows[1].spans.end(), [] (const DxuiTextView::Span & span)
+                              {
+                                  return span.cell == 3 && span.start == 0 && span.length == 7 && span.argb == 0xFF57A64Au;
+                              }), L"the operand is in the operand color");
         }
 
 

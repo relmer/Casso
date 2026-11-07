@@ -1666,8 +1666,9 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
             }
         }
 
-        //  What the line's instruction reads, then in the result color what
-        //  it leaves, as the disassembly pane's operand column has them.
+        //  What the line's instruction reads in the operand color, then the
+        //  result in the result color, as in the disassembly pane's operand
+        //  column.
         //  Only on a line whose opcode is a mnemonic: a directive or a macro
         //  produced its bytes some other way than one instruction.
         if (!lineOperands.empty())
@@ -1680,6 +1681,11 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
             if (found != lineOperands.end() && IsInstructionLine (lines[i], assembler))
             {
                 row.cells.back() = found->second.first;
+
+                if (style.operandArgb != 0 && !row.cells.back().empty())
+                {
+                    row.spans.push_back ({ column, 0, (int) row.cells.back().size(), style.operandArgb });
+                }
 
                 if (!found->second.second.empty())
                 {
