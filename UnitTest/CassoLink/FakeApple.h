@@ -66,6 +66,11 @@ public:
     std::set<std::pair<int, int>>     badSectors;
     std::set<std::pair<int, int>>     onceSectors;
 
+    //  Sectors that fail that many reads of Read sectors and then read, and
+    //  each Read sectors request's track and sectors, in the order received.
+    std::map<std::pair<int, int>, int>              flakySectors;
+    std::vector<std::pair<int, std::vector<Byte>>>  readRequests;
+
     //  Written tracks to fail as not reading back, and the writes received.
     std::atomic<int>                  writeFailures  { 0 };
     std::atomic<int>                  trackWrites    { 0 };
@@ -479,6 +484,7 @@ private:
         size_t             count = request.at (2);
         std::vector<Byte>  wire;
         size_t             done  = 0;
+        Byte               error = CassoLinkHost::kErrorNone;
 
         if (drive < 1 || drive > 2 || drives[(size_t) drive - 1].empty())
         {
@@ -491,14 +497,29 @@ private:
             catalogReads++;
         }
 
+        {
+            std::lock_guard<std::mutex>  guard (lock);
+
+            readRequests.push_back ({ track, std::vector<Byte> (request.begin() + 3, request.begin() + 3 + (ptrdiff_t) count) });
+        }
+
+        //  A sector not found is skipped, and the Status has NOT FOUND.
         for (done = 0; done < count && !stop.stop_requested(); done++)
         {
             Byte  physical = request.at (3 + done);
+            auto  flaky    = flakySectors.find ({ track, physical });
+
+            if (flaky != flakySectors.end() && flaky->second > 0)
+            {
+                flaky->second--;
+                error = CassoLinkHost::kErrorNotFound;
+                continue;
+            }
 
             if (badSectors.contains ({ track, physical }))
             {
-                SendPacket (line, CassoLinkCodec::kStatus, { 1, (Byte) drive, (Byte) track, (Byte) done, CassoLinkHost::kErrorNotFound });
-                return;
+                error = CassoLinkHost::kErrorNotFound;
+                continue;
             }
 
             std::this_thread::sleep_for (std::chrono::milliseconds (sectorDelayMs.load()));
@@ -525,7 +546,7 @@ private:
             }
         }
 
-        SendPacket (line, CassoLinkCodec::kStatus, { 1, (Byte) drive, (Byte) track, (Byte) done, CassoLinkHost::kErrorNone });
+        SendPacket (line, CassoLinkCodec::kStatus, { 1, (Byte) drive, (Byte) track, (Byte) done, error });
     }
 
     void  WriteSectors (std::stop_token stop, Line & line, const std::vector<Byte> & request)

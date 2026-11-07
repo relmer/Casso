@@ -50,6 +50,11 @@ struct CassoLinkPacket
 //  Sector data ($CA), Casso's own, is ordinary framing: track, sector, the
 //  256 bytes unencoded and their CRC-16/XMODEM, LSB first.
 //
+//  The reply to Read sectors ($D5) is a Sector data packet for each sector
+//  read, in the order of the request, then a Status. A sector the Apple
+//  didn't find has no packet, and the Status error is NOT FOUND. Each
+//  packet's sector indicates which sectors arrived.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class CassoLinkCodec
