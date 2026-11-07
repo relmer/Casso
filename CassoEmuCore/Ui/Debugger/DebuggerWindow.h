@@ -131,9 +131,9 @@ public:
     void     RenderFrame ();
 
     //  The caption: the label from `--title`, ahead of Debugger, as on the
-    //  emulator's window.
-    static std::wstring  GetCaption     (const std::wstring & titlePrefix);
-    void                 SetTitlePrefix (const std::wstring & titlePrefix) { SetTitle (GetCaption (titlePrefix)); }
+    //  emulator's window, then the open project's label.
+    static std::wstring  GetCaption     (const std::wstring & titlePrefix, const std::wstring & projectLabel = {});
+    void                 SetTitlePrefix (const std::wstring & titlePrefix) { m_titlePrefix = titlePrefix; SetTitle (GetCaption (m_titlePrefix, m_projectLabel)); }
 
     //  Detaches the host, for a shell tearing down before the window.
     void     DetachHost  () { m_host = nullptr; }
@@ -527,6 +527,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     SaveColumnWidths     ();
     void     ApplyColumnWidths    ();
     void     SaveUndoHistories    ();
+    void     UpdateProjectCaption (int64_t now);
     std::string  GetUndoHistoriesText () const;
     void     OpenSpeedMenu        (const RECT & field);
     void     SaveMemoryToFile     ();
@@ -752,6 +753,12 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  waits until a snapshot shows them -- or a few pass without -- rather
     //  than write back the empty set the window started with.
     static constexpr int                  kSettlingSnapshots    = 10;
+
+    //  The caption's parts, and when the project's label was last read.
+    static constexpr int64_t              kProjectLabelMs       = 500;
+    std::wstring                          m_titlePrefix;
+    std::wstring                          m_projectLabel;
+    int64_t                               m_projectLabelAt      = 0;
     std::string                           m_openViewsSaved;
     bool                                  m_openViewsRestored   = false;
     int                                   m_openViewsSettling   = 0;

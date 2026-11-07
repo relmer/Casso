@@ -124,9 +124,57 @@ DebuggerWindow::~DebuggerWindow()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DebuggerWindow::GetCaption (const std::wstring & titlePrefix)
+std::wstring DebuggerWindow::GetCaption (const std::wstring & titlePrefix, const std::wstring & projectLabel)
 {
-    return titlePrefix.empty() ? std::wstring (s_kpszWindowTitle) : titlePrefix + L" - " + s_kpszWindowTitle;
+    std::wstring  caption = titlePrefix.empty() ? std::wstring (s_kpszWindowTitle) : titlePrefix + L" - " + s_kpszWindowTitle;
+
+
+
+    if (!projectLabel.empty())
+    {
+        caption += L" - " + projectLabel;
+    }
+
+    return caption;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::UpdateProjectCaption
+//
+//  The project's label, read at most every kProjectLabelMs, since a switch
+//  happens on the CPU thread and no notice of it is sent here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UpdateProjectCaption (int64_t now)
+{
+    DebugProject  project;
+    std::wstring  label;
+
+
+
+    if (m_host == nullptr || now - m_projectLabelAt < kProjectLabelMs)
+    {
+        return;
+    }
+
+    m_projectLabelAt = now;
+
+    if (m_host->TryGetDebuggerProject (project))
+    {
+        label = TextEncoding::NarrowToWide (project.scope.label);
+    }
+
+    if (label != m_projectLabel)
+    {
+        m_projectLabel = label;
+        SetTitle (GetCaption (m_titlePrefix, m_projectLabel));
+    }
 }
 
 
@@ -1155,6 +1203,7 @@ void DebuggerWindow::RenderFrame()
     }
 
     SaveUndoHistories();
+    UpdateProjectCaption (now);
 
     if (m_host->TakeDebuggerProjectState())
     {

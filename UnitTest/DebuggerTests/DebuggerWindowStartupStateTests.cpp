@@ -137,6 +137,8 @@ namespace DebuggerStartupStateTests
         {
             Assert::AreEqual (std::wstring (L"Debugger"),                DebuggerWindow::GetCaption (L""));
             Assert::AreEqual (std::wstring (L"035-debugger - Debugger"), DebuggerWindow::GetCaption (L"035-debugger"));
+            Assert::AreEqual (std::wstring (L"035-debugger - Debugger - symbols-demo.dbg"), DebuggerWindow::GetCaption (L"035-debugger", L"symbols-demo.dbg"));
+            Assert::AreEqual (std::wstring (L"Debugger - Apple //e booting Sixies.po"),     DebuggerWindow::GetCaption (L"", L"Apple //e booting Sixies.po"));
         }
 
 
