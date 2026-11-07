@@ -716,16 +716,21 @@ spdwait: lda ACIASTAT,x
 ; Read sectors: the requested sectors read into TRKBUF in the order they pass
 ; under the head, then each one's data in the order of the request, then the status.
 ; Sending a sector takes longer than the gap to the next, so reading and
-; sending in turn would wait most of a revolution for every sector.
+; sending in turn would wait most of a revolution for every sector. A sector
+; not read is skipped and the status has NOT FOUND. The PC then requests
+; only those sectors again.
 doread: lda #OPREAD
         jsr begin
         bcs opdone
         jsr readtrack
-        bcs opdone
 rdnext: jsr showprog
         ldy index
         lda PKTBUF+3,y
         sta sector
+        and #15
+        tax
+        lda PENDING,x
+        bne rdskip
         jsr rawslot
         ifdef FAULTS
         lda #FLTDATA            ; a bit of the data flipped before it is sent
@@ -738,12 +743,15 @@ rdnext: jsr showprog
 rdsend:
         endif
         jsr sendsector
-        jsr pollcancel
+rdskip: jsr pollcancel
         inc index
         lda index
         cmp count
         bne rdnext
         jsr showprog
+        lda err
+        beq opdone
+        jsr firstpend
 ; The motor runs on after an operation, so the next track's read does not wait
 ; for it to spin up again; Idle, with nothing more to do, stops it. During a
 ; Full Send the error row stays clear: an empty drive's check fails with NO
@@ -2441,18 +2449,23 @@ rthit:  lda #0
         beq rtdone
 rtnext: dec tries
         bne rtloop
-rtnone: ldx #0                  ; the first sector not read, for the error
-rtfind: lda PENDING,x
-        bne rtfound
-        inx
-        cpx #15
-        bne rtfind
-rtfound: stx sector
+rtnone: jsr firstpend
         lda #ERRNOTFND
         sta err
         sec
         rts
 rtdone: clc
+        rts
+
+; firstpend: `sector` at the first physical sector readtrack didn't read, for
+; the error.
+firstpend: ldx #0
+fpfind: lda PENDING,x
+        bne fpfound
+        inx
+        cpx #15
+        bne fpfind
+fpfound: stx sector
         rts
 
 ; missed: after rdaddr failed. A whole revolution with no address field,

@@ -348,6 +348,38 @@ public:
 
 
 
+    //  A read with a sector not found returns the track's other sectors, and
+    //  outRead indicates the one missing.
+    TEST_METHOD (AppleUnreadable_ReturnsTheOtherSectors)
+    {
+        Rig                rig;
+        std::vector<Byte>  data;
+        std::vector<bool>  read;
+        CassoLinkStatus    status;
+
+
+
+        rig.Connect();
+        rig.Arm ("apple:unreadable@T17S3");
+
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->ReadSectors (1, kTrack, AllSectors(), data, read, status); }));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNotFound, status.error);
+
+        for (int p = 0; p < 16; p++)
+        {
+            Assert::AreEqual ((size_t) p != kSector, (bool) read[(size_t) p], std::format (L"sector {} read", p).c_str());
+
+            if ((size_t) p != kSector)
+            {
+                Assert::IsTrue (SameSector (data, (size_t) p, rig.dos, DosOffset (kTrack, p)), std::format (L"sector {}", p).c_str());
+            }
+        }
+
+        rig.AssertApplied();
+    }
+
+
+
     //  A sector read wrong with a CRC that matches passes the line's checks;
     //  only reading it again finds the difference, as verified reads do.
     TEST_METHOD (AppleBadData_PassesTheLine_AndDiffersFromTheNextRead)

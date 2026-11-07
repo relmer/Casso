@@ -220,8 +220,11 @@ public:
     HRESULT  ServeOne (DWORD timeoutMs) { return m_adtProServer.ServeOne (timeoutMs); }
 
     //  Casso's client's operations. A sector is the number in its address
-    //  field; data is 256 bytes per sector, in the order of `sectors`.
+    //  field; data is 256 bytes per sector, in the order of `sectors`. A sector
+    //  the Apple didn't find is zeros and has its entry false in outRead, and
+    //  the Status error is NOT FOUND.
     HRESULT  ReadSectors  (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, CassoLinkStatus & outStatus);
+    HRESULT  ReadSectors  (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, std::vector<bool> & outRead, CassoLinkStatus & outStatus);
     HRESULT  WriteSectors (Byte drive, Byte track, std::span<const Byte> sectors, std::span<const Byte> data, CassoLinkStatus & outStatus);
 
     //  Each sector's CRC, read and computed on the Apple, so a read again takes a
@@ -334,7 +337,7 @@ private:
     HRESULT  AwaitReady        ();
     HRESULT  ReadReply         (CassoLinkPacket & outPacket);
     HRESULT  WaitForKeyOnce    (const std::vector<std::string> & lines, Byte mode, Byte & outKey);
-    HRESULT  ReadSectorsOnce   (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, CassoLinkStatus & outStatus);
+    HRESULT  ReadSectorsOnce   (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, std::vector<bool> & outRead, CassoLinkStatus & outStatus);
     HRESULT  ReadCrcsOnce      (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Word> & outCrcs, std::vector<bool> & outRead, CassoLinkStatus & outStatus);
     HRESULT  FormatTrackOnce   (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus, Byte gap);
     HRESULT  TimeDriveOnce     (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus);

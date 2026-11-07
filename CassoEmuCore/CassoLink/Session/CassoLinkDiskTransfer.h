@@ -4,7 +4,9 @@
 
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
 
+class CassoLinkHost;
 class CassoLinkSession;
+struct CassoLinkStatus;
 
 
 
@@ -40,6 +42,19 @@ public:
     //  drive: about two seconds.
     static constexpr Byte  kTimedRevolutions = 10;
     static constexpr int   kWriteRetries     = 2;
+
+    //  Requests after a read with sectors not found, each for only the sectors
+    //  not yet read, so the Apple reads them in whatever order they pass under
+    //  the head. The retries end after a request in which no sector is read.
+    static constexpr int   kRetryPasses      = 3;
+
+    //  The sectors with their entries false in ioRead, read again in up to
+    //  kRetryPasses requests; ioStatus is the last request's.
+    static HRESULT  ReadMissing (CassoLinkHost & host, Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & ioData, std::vector<bool> & ioRead, CassoLinkStatus & ioStatus);
+
+    //  A Status error for sectors not read, rather than for the drive.
+    static bool     IsDamaged   (Byte error);
+
     HRESULT  ReadWholeDisk      (LinkOperation & operation);
     HRESULT  SaveUnreadableList (const LinkOperation & operation);
     HRESULT  WriteWholeDisk     (LinkOperation & operation);

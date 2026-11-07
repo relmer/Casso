@@ -253,9 +253,9 @@ Error:
 //
 //  CassoLinkDiskTransfer::ReadTrack
 //
-//  A track's sixteen sectors in one request. When the drive cannot read one
-//  of them, each is read on its own, and those that fail again are listed
-//  and written as zeros.
+//  A track's sixteen sectors in one request. When the drive cannot read some
+//  of them, those are requested again together, and those that fail again
+//  are listed and written as zeros.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -265,9 +265,9 @@ HRESULT CassoLinkDiskTransfer::ReadTrack (int drive, int track, std::vector<Byte
     HRESULT            disk      = S_OK;
     std::vector<Byte>  physicals;
     std::vector<Byte>  data;
+    std::vector<bool>  read;
     CassoLinkStatus    status;
     bool               damaged   = false;
-    int                missing   = 0;
 
 
 
@@ -276,12 +276,11 @@ HRESULT CassoLinkDiskTransfer::ReadTrack (int drive, int track, std::vector<Byte
         physicals.push_back ((Byte) physical);
     }
 
-    hr = m_session.m_host->ReadSectors ((Byte) drive, (Byte) track, physicals, data, status);
+    hr = m_session.m_host->ReadSectors ((Byte) drive, (Byte) track, physicals, data, read, status);
     CHR (hr);
 
     disk    = CassoLinkSession::FromStatusError (status.error);
-    damaged = status.error == CassoLinkHost::kErrorNotFound || status.error == CassoLinkHost::kErrorData;
-    missing = status.done;
+    damaged = IsDamaged (status.error);
 
     BAIL_OUT_IF (FAILED (disk) && !damaged, disk);
 
@@ -291,33 +290,102 @@ HRESULT CassoLinkDiskTransfer::ReadTrack (int drive, int track, std::vector<Byte
         BAIL_OUT_IF (true, hr);
     }
 
+    hr = ReadMissing (*m_session.m_host, (Byte) drive, (Byte) track, physicals, data, read, status);
+    CHR (hr);
+
+    disk = CassoLinkSession::FromStatusError (status.error);
+    BAIL_OUT_IF (FAILED (disk) && !IsDamaged (status.error), disk);
+
     for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
     {
         int     logical = CassoLinkSession::GetLogicalSector (physical);
         size_t  to      = (size_t) (track * NibblizationLayer::kSectorsPerTrack + logical) * LinkedDisk::kSectorSize;
-        size_t  from    = (size_t) physical * LinkedDisk::kSectorSize;
 
-        if (damaged && physical >= missing)
+        if (!read[(size_t) physical])
         {
-            const Byte  one[] = { (Byte) physical };
-
-            hr = m_session.m_host->ReadSectors ((Byte) drive, (Byte) track, one, data, status);
-            CHR (hr);
-
-            from = 0;
-
-            if (status.error != CassoLinkHost::kErrorNone)
-            {
-                unreadable.push_back ({ track, logical });
-                continue;
-            }
+            unreadable.push_back ({ track, logical });
+            continue;
         }
 
-        std::copy_n (data.begin() + (ptrdiff_t) from, LinkedDisk::kSectorSize, sectors.begin() + (ptrdiff_t) to);
+        std::copy_n (data.begin() + (ptrdiff_t) ((size_t) physical * LinkedDisk::kSectorSize), LinkedDisk::kSectorSize, sectors.begin() + (ptrdiff_t) to);
     }
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::ReadMissing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::ReadMissing (CassoLinkHost & host, Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & ioData, std::vector<bool> & ioRead, CassoLinkStatus & ioStatus)
+{
+    HRESULT              hr    = S_OK;
+    std::vector<Byte>    missing;
+    std::vector<size_t>  places;
+    std::vector<Byte>    data;
+    std::vector<bool>    read;
+    size_t               found = 0;
+
+
+
+    for (int pass = 0; pass < kRetryPasses && IsDamaged (ioStatus.error); pass++)
+    {
+        missing.clear();
+        places.clear();
+
+        for (size_t i = 0; i < sectors.size(); i++)
+        {
+            if (!ioRead[i])
+            {
+                missing.push_back (sectors[i]);
+                places.push_back (i);
+            }
+        }
+
+        BAIL_OUT_IF (missing.empty(), S_OK);
+
+        hr = host.ReadSectors (drive, track, missing, data, read, ioStatus);
+        CHR (hr);
+
+        found = 0;
+
+        for (size_t i = 0; i < missing.size(); i++)
+        {
+            if (read[i])
+            {
+                std::copy_n (data.begin() + (ptrdiff_t) (i * LinkedDisk::kSectorSize), LinkedDisk::kSectorSize, ioData.begin() + (ptrdiff_t) (places[i] * LinkedDisk::kSectorSize));
+                ioRead[places[i]] = true;
+                found++;
+            }
+        }
+
+        BAIL_OUT_IF (found == 0, S_OK);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::IsDamaged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkDiskTransfer::IsDamaged (Byte error)
+{
+    return error == CassoLinkHost::kErrorNotFound || error == CassoLinkHost::kErrorData;
 }
 
 
@@ -347,45 +415,24 @@ HRESULT CassoLinkDiskTransfer::ReadVerifiedTrack (int drive, int track, std::vec
 
         HRESULT  ReadData (std::span<const Byte> list, std::vector<Byte> & outData, std::vector<bool> & outRead) override
         {
-            HRESULT            hr      = S_OK;
-            std::vector<Byte>  one;
-            CassoLinkStatus    status;
-            int                done    = 0;
-            bool               damaged = false;
+            HRESULT          hr = S_OK;
+            CassoLinkStatus  status;
 
-            outRead.assign (list.size(), false);
-
-            hr = host.ReadSectors (drive, track, list, outData, status);
+            hr = host.ReadSectors (drive, track, list, outData, outRead, status);
             Settle();
             CHR (hr);
 
-            damaged = status.error == CassoLinkHost::kErrorNotFound || status.error == CassoLinkHost::kErrorData;
-            done    = status.error == CassoLinkHost::kErrorNone ? (int) list.size() : status.done;
+            hr = CassoLinkSession::FromStatusError (status.error);
+            BAIL_OUT_IF (FAILED (hr) && !IsDamaged (status.error), hr);
+
+            hr = ReadMissing (host, drive, track, list, outData, outRead, status);
+            Settle();
+            CHR (hr);
 
             hr = CassoLinkSession::FromStatusError (status.error);
-            BAIL_OUT_IF (FAILED (hr) && !damaged, hr);
+            BAIL_OUT_IF (FAILED (hr) && !IsDamaged (status.error), hr);
 
             hr = S_OK;
-
-            for (size_t i = 0; i < list.size(); i++)
-            {
-                const Byte  single[] = { list[i] };
-
-                if ((int) i < done)
-                {
-                    outRead[i] = true;
-                    continue;
-                }
-
-                hr = host.ReadSectors (drive, track, single, one, status);
-                CHR (hr);
-
-                if (status.error == CassoLinkHost::kErrorNone)
-                {
-                    outRead[i] = true;
-                    std::copy (one.begin(), one.end(), outData.begin() + (ptrdiff_t) (i * LinkedDisk::kSectorSize));
-                }
-            }
 
         Error:
             return hr;

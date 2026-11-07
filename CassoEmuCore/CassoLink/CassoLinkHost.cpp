@@ -192,7 +192,26 @@ HRESULT CassoLinkHost::SendByte (Byte value)
 
 HRESULT CassoLinkHost::ReadSectors (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, CassoLinkStatus & outStatus)
 {
-    return Resend ([&] () { return ReadSectorsOnce (drive, track, sectors, outData, outStatus); });
+    std::vector<bool>  read;
+
+
+
+    return ReadSectors (drive, track, sectors, outData, read, outStatus);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::ReadSectors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::ReadSectors (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, std::vector<bool> & outRead, CassoLinkStatus & outStatus)
+{
+    return Resend ([&] () { return ReadSectorsOnce (drive, track, sectors, outData, outRead, outStatus); });
 }
 
 
@@ -327,20 +346,22 @@ HRESULT CassoLinkHost::TimeDrive (Byte drive, Byte track, Byte revolutions, doub
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::ReadSectorsOnce (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, CassoLinkStatus & outStatus)
+HRESULT CassoLinkHost::ReadSectorsOnce (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, std::vector<bool> & outRead, CassoLinkStatus & outStatus)
 {
     HRESULT            hr        = S_OK;
     std::vector<Byte>  request   = { drive, track, (Byte) sectors.size() };
     CassoLinkPacket    packet;
+    std::vector<Byte>  one (kSectorSize);
     Byte               gotTrack  = 0;
     Byte               gotSector = 0;
-    size_t             received  = 0;
+    size_t             next      = 0;
     bool               isData    = false;
     bool               matches   = false;
 
 
 
     outData.assign (sectors.size() * kSectorSize, 0);
+    outRead.assign (sectors.size(), false);
     outStatus = {};
 
     request.insert (request.end(), sectors.begin(), sectors.end());
@@ -364,16 +385,25 @@ HRESULT CassoLinkHost::ReadSectorsOnce (Byte drive, Byte track, std::span<const 
             break;
         }
 
-        isData = packet.command == CassoLinkCodec::kSectorData && received < sectors.size();
+        isData = packet.command == CassoLinkCodec::kSectorData;
         CBREx (isData, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-        hr = CassoLinkCodec::ParseSectorData (packet, gotTrack, gotSector, std::span<Byte> (outData).subspan (received * kSectorSize, kSectorSize));
+        hr = CassoLinkCodec::ParseSectorData (packet, gotTrack, gotSector, one);
         CHR (hr);
 
-        matches = gotTrack == track && gotSector == sectors[received];
+        //  The sectors not read are skipped, so the packet is the next of the
+        //  request's sectors with its number.
+        while (next < sectors.size() && sectors[next] != gotSector)
+        {
+            next++;
+        }
+
+        matches = gotTrack == track && next < sectors.size();
         CBREx (matches, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-        received++;
+        std::copy (one.begin(), one.end(), outData.begin() + (ptrdiff_t) (next * kSectorSize));
+        outRead[next] = true;
+        next++;
     }
 
 Error:

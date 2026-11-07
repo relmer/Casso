@@ -736,6 +736,132 @@ public:
 
 
 
+    //  Each Read sectors request for `track`, in the order received.
+    static std::vector<std::vector<Byte>>  GetTrackRequests (FakeApple & apple, int track)
+    {
+        std::lock_guard<std::mutex>     guard (apple.lock);
+        std::vector<std::vector<Byte>>  requests;
+
+        for (const auto & [read, sectors] : apple.readRequests)
+        {
+            if (read == track)
+            {
+                requests.push_back (sectors);
+            }
+        }
+
+        return requests;
+    }
+
+    //  A track of drive 1 with every byte set, so a sector left as zeros differs.
+    static void  FillTrack (Rig & rig, int track)
+    {
+        std::lock_guard<std::mutex>  guard (rig.apple.lock);
+        auto                         at = rig.apple.drives[0].begin() + track * 16 * 256;
+
+        for (int i = 0; i < 16 * 256; i++)
+        {
+            at[i] = (Byte) (i * 7 + 1);
+        }
+    }
+
+
+
+
+    TEST_METHOD (ReadDisk_WithAPartialTrack_RequestsOnlyTheMissingSectorsAgain_InOneRequest)
+    {
+        Rig  rig;
+
+        rig.apple.flakySectors = { { { 3, 5 }, 1 }, { { 3, 9 }, 1 } };
+        FillTrack (rig, 3);
+        rig.Start();
+        rig.session->SetVerifySettings (false, false, false);
+
+        auto  read     = rig.Finish (rig.session->ReadDisk (1, "partial.dsk", false));
+        auto  requests = GetTrackRequests (rig.apple, 3);
+
+        AssertSucceeded (read->result);
+        Assert::IsTrue   (read->unreadable.empty());
+        Assert::IsTrue   (rig.fileIo.files["partial.dsk"] == rig.Drive (1), L"the sectors of the partial read, and the two read again");
+        Assert::AreEqual (size_t (2), requests.size());
+        Assert::AreEqual (size_t (16), requests[0].size());
+        Assert::IsTrue   (requests[1] == std::vector<Byte> { 5, 9 }, L"the retry is for only the sectors missing");
+    }
+
+
+
+
+    TEST_METHOD (ReadDisk_StopsRetrying_AfterARequestWithNoSectorRead)
+    {
+        Rig                rig;
+        std::vector<Byte>  expected;
+        int                logical = CassoLinkSession::GetLogicalSector (5);
+
+        rig.apple.badSectors   = { { 3, 5 } };
+        rig.apple.flakySectors = { { { 3, 9 }, 1 } };
+        FillTrack (rig, 3);
+        rig.Start();
+        rig.session->SetVerifySettings (false, false, false);
+
+        auto  read     = rig.Finish (rig.session->ReadDisk (1, "bad.dsk", true));
+        auto  requests = GetTrackRequests (rig.apple, 3);
+
+        AssertSucceeded (read->result);
+        Assert::IsTrue (read->unreadable == std::vector<std::pair<int, int>> { { 3, logical } });
+        Assert::IsTrue (requests == std::vector<std::vector<Byte>> { requests[0], { 5, 9 }, { 5 } }, L"9 read on the first retry; none on the second ends the retries");
+
+        expected = rig.Drive (1);
+        std::fill_n (expected.begin() + (3 * 16 + logical) * 256, 256, (Byte) 0);
+        Assert::IsTrue (rig.fileIo.files["bad.dsk"] == expected);
+    }
+
+
+
+
+    TEST_METHOD (ReadDisk_RetriesAtMostKRetryPasses_WhileEachReadsASector)
+    {
+        Rig  rig;
+
+        rig.apple.flakySectors = { { { 3, 1 }, 1 }, { { 3, 2 }, 2 }, { { 3, 3 }, 3 }, { { 3, 4 }, 4 } };
+        FillTrack (rig, 3);
+        rig.Start();
+        rig.session->SetVerifySettings (false, false, false);
+
+        auto  read     = rig.Finish (rig.session->ReadDisk (1, "slow.dsk", true));
+        auto  requests = GetTrackRequests (rig.apple, 3);
+
+        AssertSucceeded (read->result);
+        Assert::AreEqual (size_t (1 + CassoLinkDiskTransfer::kRetryPasses), requests.size());
+        Assert::IsTrue   (requests[1] == std::vector<Byte> { 1, 2, 3, 4 });
+        Assert::IsTrue   (requests[3] == std::vector<Byte> { 3, 4 });
+        Assert::IsTrue   (read->unreadable == std::vector<std::pair<int, int>> { { 3, CassoLinkSession::GetLogicalSector (4) } });
+    }
+
+
+
+
+    TEST_METHOD (VerifiedReadDisk_WithAPartialTrack_RequestsOnlyTheMissingSectorsAgain)
+    {
+        Rig  rig;
+
+        rig.apple.flakySectors = { { { 3, 5 }, 1 }, { { 3, 9 }, 1 } };
+        FillTrack (rig, 3);
+        rig.Start();
+
+        auto  read     = rig.Finish (rig.session->ReadDisk (1, "verified.dsk", false, true));
+        auto  requests = GetTrackRequests (rig.apple, 3);
+
+        AssertSucceeded (read->result);
+        Assert::IsTrue (rig.fileIo.files["verified.dsk"] == rig.Drive (1));
+        Assert::IsTrue (requests.size() >= 2);
+        Assert::IsTrue (requests[1] == std::vector<Byte> { 5, 9 }, L"the verifier's data read retries the missing sectors together");
+        Assert::IsTrue (std::none_of (requests.begin() + 1, requests.end(), [] (const std::vector<Byte> & r) { return r == std::vector<Byte> { 5 } || r == std::vector<Byte> { 9 }; }),
+                        L"and never one sector at a time");
+    }
+
+
+
+
     TEST_METHOD (VerifiedReadDisk_WithASectorReadOnce_ListsItAsUnreliable)
     {
         Rig  rig;
