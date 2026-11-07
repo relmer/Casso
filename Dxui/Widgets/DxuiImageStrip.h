@@ -130,16 +130,17 @@ public:
     LPCWSTR          GetCursorAt   (int x, int y) const override;
 
 private:
-    static constexpr float  kDefaultAspect  = 560.0f / 384.0f;
-    static constexpr float  kMarkerDip      = 4.0f;
-    static constexpr int    kMinThicknessPx = 1;
-    static constexpr float  kPlayheadDip    = 3.0f;
-    static constexpr float  kLineReachDip   = 4.0f;   // how far the line runs past the pictures
-    static constexpr float  kLabelFontDip   = 11.0f;
-    static constexpr float  kLabelPadDip    = 3.0f;
-    static constexpr float  kSidePadDip     = 6.0f;
-    static constexpr float  kLiveDotDip     = 6.0f;
-    static constexpr float  kHoverLineDip   = 1.0f;   // the line at the pointer, thinner than the playhead's
+    static constexpr float  kDefaultAspect    = 560.0f / 384.0f;
+    static constexpr float  kMarkerDip        = 4.0f;
+    static constexpr int    kMinThicknessPx   = 1;
+    static constexpr float  kPlayheadDip      = 3.0f;
+    static constexpr float  kLineReachDip     = 4.0f;   // how far the line runs past the pictures
+    static constexpr float  kLabelFontDip     = 11.0f;
+    static constexpr float  kLabelPadDip      = 3.0f;
+    static constexpr float  kPreviewBorderDip = 1.0f;
+    static constexpr float  kSidePadDip       = 6.0f;
+    static constexpr float  kLiveDotDip       = 6.0f;
+    static constexpr float  kHoverLineDip     = 1.0f;   // the line at the pointer, thinner than the playhead's
 
     //  The end labels, each a button.
     enum class Part { None, Leading, Trailing };
@@ -188,6 +189,7 @@ private:
     float                           m_pendingCenterX     = 0.0f;
     IDxuiImageStripSource::Image    m_previewImage;
     IDxuiImageStripSource::Image    m_previewThumb;   // the hovered cell's picture when the preview was chosen
+    uint32_t                        m_previewBorderArgb  = 0;   // the theme's tooltip border, from the last paint
     SIZE                            m_previewDip         = {};   // the last full-size picture's size; a thumbnail scales to it
     POINT                           m_pointer            = {};   // where the pointer last moved over the strip
     float                           m_aspect             = kDefaultAspect;

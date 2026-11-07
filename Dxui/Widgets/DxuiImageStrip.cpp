@@ -357,6 +357,7 @@ void DxuiImageStrip::Paint (
     UNREFERENCED_PARAMETER (pressed);
 
     m_isLabelPairPending = false;
+    m_previewBorderArgb  = theme.TooltipBorder();
     UNREFERENCED_PARAMETER (labeled);
 
     //  The playhead line takes the place of the marked cell's bar; while it
@@ -1138,7 +1139,9 @@ RECT DxuiImageStrip::GetPreviewRectPx() const
 //
 //  DxuiImageStrip::RenderPreview
 //
-//  Popup-local pixels: the picture fills the popup.
+//  Popup-local pixels: the picture fills the popup, framed by a line in the
+//  theme's tooltip border color, drawn over its edge pixels so the picture's
+//  size is the same.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1148,6 +1151,9 @@ void DxuiImageStrip::RenderPreview (
 {
     const DxuiDpiScaler  * scaler = nullptr;
     HRESULT                hr     = S_OK;
+    float                  width  = 0.0f;
+    float                  height = 0.0f;
+    float                  edge   = 0.0f;
 
 
 
@@ -1159,12 +1165,24 @@ void DxuiImageStrip::RenderPreview (
     }
 
     scaler = &m_popupHost->GetScaler();
+    width  = scaler->ToPxf ((float) m_previewDip.cx);
+    height = scaler->ToPxf ((float) m_previewDip.cy);
+    edge   = (std::max) (1.0f, std::round (scaler->ToPxf (kPreviewBorderDip)));
 
-    hr = text.DrawFramebuffer (m_previewImage->bgraPremul.data(), m_previewImage->width, m_previewImage->height,
-                               0.0f, 0.0f,
-                               scaler->ToPxf ((float) m_previewDip.cx),
-                               scaler->ToPxf ((float) m_previewDip.cy));
+    hr = text.DrawFramebuffer (m_previewImage->bgraPremul.data(), m_previewImage->width, m_previewImage->height, 0.0f, 0.0f, width, height);
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (m_previewBorderArgb == 0)
+    {
+        return;
+    }
+
+    for (const auto & [x, y, w, h] : { std::array<float, 4> { 0.0f, 0.0f, width, edge }, std::array<float, 4> { 0.0f, height - edge, width, edge },
+                                       std::array<float, 4> { 0.0f, 0.0f, edge, height }, std::array<float, 4> { width - edge, 0.0f, edge, height } })
+    {
+        hr = text.FillRect (x, y, w, h, m_previewBorderArgb);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 }
 
 
