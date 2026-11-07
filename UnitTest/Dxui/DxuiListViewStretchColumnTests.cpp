@@ -262,4 +262,40 @@ public:
         Assert::AreEqual (165, list.GetColumnOverrideWidthPx (0), L"A width set at 96 dpi is half again as wide at 144");
         Assert::AreEqual (-1,  list.GetColumnOverrideWidthPx (1), L"and a column with none still has none");
     }
+
+
+    //  Each canned width is the text's width as measured at that DPI.
+    TEST_METHOD (SetDpi_MeasuresAFittedColumnAgain)
+    {
+        DxuiListView                                  list;
+        MockDxuiPainter                               painter;
+        MockDxuiTextRenderer                          text;
+        MockDxuiTheme                                 theme;
+        DxuiDpiScaler                                 scaler;
+        std::vector<std::vector<DxuiListView::Cell>>  rows  = { { { L"a name" } } };
+        int                                           at96  = 0;
+        int                                           at144 = 0;
+
+        text.SetCannedMetrics (L"a name", SIZE { 100, 16 });
+
+        scaler.SetDpi (96);
+        list.SetColumns        ({ DxuiListView::Column { L"", 0, false } });
+        list.SetShowHeader     (false);
+        list.SetPreciseAutoFit (true);
+        list.SetRows           (std::move (rows));
+        list.Layout            (RECT { 0, 0, 600, 300 }, scaler);
+        list.Paint             (painter, text, theme);
+
+        at96 = list.GetColumnEffectiveWidthPx (0);
+
+        text.SetCannedMetrics (L"a name", SIZE { 150, 16 });
+        scaler.SetDpi (144);
+        list.Layout (RECT { 0, 0, 600, 300 }, scaler);
+        list.Paint  (painter, text, theme);
+
+        at144 = list.GetColumnEffectiveWidthPx (0);
+
+        Assert::IsTrue (at96 >= 100 && at96 < 150, L"At 96 dpi the column fits the name as measured there");
+        Assert::IsTrue (at144 >= 150,              L"and at 144 dpi it is measured again, not left at its 96 dpi width");
+    }
 };

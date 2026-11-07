@@ -1116,7 +1116,9 @@ void DxuiListView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //
 //  A width the user gave a column is held in pixels, so a new DPI scales it
 //  with everything else: a column set before the window knew its monitor, or
-//  one moved to a monitor of another DPI, stays the same size to the eye.
+//  one moved to a monitor of another DPI, stays the same size to the eye. A
+//  fitted column's measured width is in pixels too, so it is measured again
+//  at the new DPI.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1132,6 +1134,8 @@ void DxuiListView::SetDpi (UINT dpi)
     {
         return;
     }
+
+    m_columnSizing.m_measuredWPx.clear();
 
     for (int & width : m_columnSizing.m_overrideWPx)
     {
