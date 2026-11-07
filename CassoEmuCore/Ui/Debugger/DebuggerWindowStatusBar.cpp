@@ -82,7 +82,8 @@ int DebuggerWindow::PlaceStatusBar (
 
     m_statusBar->Layout (RECT { 0, top, width, height }, m_scaler);
 
-    m_windowZoom.PlaceAtButton (m_statusBar->GetFieldRect (kStatusZoom), RECT { 0, 0, width, height }, m_scaler);
+    m_windowZoom.PlaceAtButton (m_statusBar->GetFieldRect (kStatusZoom), RECT { 0, 0, width, height }, m_scaler,
+                                (float) DxuiStatusBar::kFieldPadDip, DxuiStatusBar::kFontDip);
     return top;
 }
 
@@ -264,7 +265,7 @@ void DebuggerWindow::CloseZoomPopup()
 //  the field and the panel, except during a drag of its thumb. A press or
 //  drag on its track sets the size there, Reset sets 100%, and a press
 //  anywhere else closes it; a press on the zoom field toggles it. The wheel
-//  over the zoom field steps the size. Then the status bar takes the pointer
+//  over the zoom field or the panel steps the size. Then the status bar takes the pointer
 //  over its band.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -314,6 +315,13 @@ bool DebuggerWindow::RouteStatusBarMouse (const DxuiMouseEvent & ev)
     else if (ev.kind == DxuiMouseEventKind::Leave && m_windowZoom.IsOpen())
     {
         CloseZoomPopup();
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Wheel && !ev.wheelHorizontal && ev.wheelDelta != 0.0f && hit != Hit::None)
+    {
+        StepTextZoom (ev.wheelDelta > 0.0f ? 1 : -1);
+        Invalidate();
+        return true;
     }
 
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && hit == Hit::Button)

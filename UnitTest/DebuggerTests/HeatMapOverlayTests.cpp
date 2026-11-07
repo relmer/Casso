@@ -199,10 +199,9 @@ namespace DebuggerTests
             Paint (view, text);
 
             Assert::AreEqual (HeatMapView::kMaxCellPx, view.GetCellPx());
-            Assert::IsTrue  (HasText (text, L"A9"));
-            Assert::IsTrue  (HasText (text, L"LDA #.."),  L"an opcode, its form");
-            Assert::IsTrue  (HasText (text, L"41"));
-            Assert::IsTrue  (HasText (text, L"01000001"), L"an operand, its bits");
+            Assert::IsTrue  (HasText (text, L"LDA #$41"), L"the instruction across its opcode's and operand's cells");
+            Assert::IsTrue  (HasText (text, L"A9 41"),    L"its bytes under it");
+            Assert::IsFalse (HasText (text, L"01000001"), L"the operand drawn as part of the instruction");
             Assert::IsFalse (HasText (text, L"FF"),       L"a byte not known shows nothing");
         }
 

@@ -169,6 +169,11 @@ public:
 
     static Detail        GetDetail          (long widthPx, long heightPx, float maxFontPx, float minFontPx, float padPx);
     static std::wstring  GetDetailLine      (Byte value, bool isOpcode, const std::string & form);
+
+    //  An instruction's length in bytes from its opcode's form ("LDA ....",
+    //  3), and its text with the operand bytes filled in.
+    static int           GetInstructionLength (const std::string & form);
+    std::wstring         GetInstructionText   (const std::string & form, Word cpu, const std::vector<Byte> & operands) const;
     static uint32_t      GetDetailTextColor (uint32_t cell, uint32_t foreground, uint32_t background);
 
     static constexpr int    kAddressCount   = 0x10000;
@@ -491,6 +496,7 @@ private:
     void                 PaintHover     (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void                 PaintOverlays  (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void                 PaintDetail    (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Place & place, Word address) const;
+    bool                 TryPaintInstruction (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Place & place, Word address, int & covered) const;
     void                 PaintOutlines  (IDxuiTextRenderer & text, const Place & place, Word address) const;
     void                 MarkSymbols    ();
     void                 ForEachVisible (const std::function<void (const Place &, Word)> & visit) const;

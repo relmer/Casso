@@ -11,10 +11,12 @@
 //  HeatMapZoomWidget
 //
 //  The heat map's zoom, in the map's bottom-right corner: a button that shows
-//  the zoom as a percentage of the starting cell size, and, opened by a click
-//  on it, a panel above it with a slider from the smallest cell to the
-//  largest and a Reset button. The slider runs on the cell size's logarithm,
-//  so each step along it scales the cells by the same factor.
+//  the zoom as a percentage of the starting cell size, and, opened by hovering
+//  over it, a panel that grows out of it: the slider, from the smallest cell
+//  to the largest, across the top row, and on the button's row Reset at the
+//  left and the percentage at the right, where the button has it. The slider
+//  runs on the cell size's logarithm, so each step along it scales the cells
+//  by the same factor.
 //
 //  It is drawn with the text renderer, over the map's picture, and decides
 //  nothing about the map: the view places it against the map's rect, hands
@@ -38,7 +40,6 @@ public:
     static constexpr int  kButtonWidthDip  = 84;
     static constexpr int  kButtonHeightDip = 20;
     static constexpr int  kPanelWidthDip   = 220;
-    static constexpr int  kPanelHeightDip  = 58;
     static constexpr int  kMarginDip       = 6;
     static constexpr int  kPadDip          = 10;
     static constexpr int  kRowDip          = 20;
@@ -67,9 +68,11 @@ public:
     //  the view's bounds.
     void  Place (const RECT & corner, const RECT & bounds, const DxuiDpiScaler & scaler);
 
-    //  Another control's rect as the button, which the widget doesn't draw;
-    //  the panel opens above it.
-    void  PlaceAtButton (const RECT & button, const RECT & bounds, const DxuiDpiScaler & scaler);
+    //  Another control's rect as the button, which the widget doesn't draw
+    //  while closed; open, the panel grows out of it and draws the label as
+    //  that control does: left-aligned labelInsetDip in, in the body face at
+    //  labelFontDip, centered on its cap height.
+    void  PlaceAtButton (const RECT & button, const RECT & bounds, const DxuiDpiScaler & scaler, float labelInsetDip, float labelFontDip);
 
     RECT  GetButtonRect () const { return m_button; }
     RECT  GetPanelRect  () const;
@@ -100,6 +103,7 @@ public:
 private:
     static bool  Contains (const RECT & rect, POINT point);
     static void  PaintBox (IDxuiTextRenderer & text, const RECT & rect, uint32_t fill, uint32_t edge);
+    void         PaintLabel (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label) const;
 
     DxuiDpiScaler  m_scaler;
     RECT           m_button      = {};
@@ -108,4 +112,6 @@ private:
     bool           m_isDragging  = false;
     bool           m_isOwnButton = true;
     bool           m_isHoverHeld = false;   // a press closed the panel with the pointer on the button
+    float          m_labelInset  = 0.0f;    // another control's label: its inset, in DIPs
+    float          m_labelFont   = 0.0f;    // and its font size, in DIPs
 };

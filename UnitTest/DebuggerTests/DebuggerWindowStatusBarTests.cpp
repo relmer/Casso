@@ -199,7 +199,7 @@ namespace DebuggerStatusBarTests
 
             Assert::IsTrue (window.IsZoomPopupOpen(), L"the pointer over the zoom opens the panel");
             Assert::IsTrue (window.HasTopLayer());
-            Assert::IsTrue (window.GetZoomPopupRect().bottom <= window.GetStatusBar()->GetBounds().top, L"the panel opens above the bar");
+            Assert::AreEqual (window.GetWindowZoom().GetButtonRect().bottom, window.GetZoomPopupRect().bottom, L"the panel grows up out of the zoom field");
 
             track  = window.GetWindowZoom().GetTrackRect();
             middle = (track.top + track.bottom) / 2;

@@ -316,6 +316,49 @@ namespace DebuggerTests
 
 
 
+        //  The panel grows out of the button: its bottom right is the
+        //  button's, the slider's row is above the button, and Reset is on
+        //  the button's row at the panel's left. The wheel over the button
+        //  or the panel zooms.
+        TEST_METHOD (TheZoomPanelGrowsOutOfTheButton)
+        {
+            HeatMapView     view;
+            DxuiMouseEvent  ev;
+            RECT            button = {};
+            RECT            panel  = {};
+            RECT            track  = {};
+            RECT            reset  = {};
+            int             before = 0;
+
+
+
+            Place (view);
+            button = view.GetZoomWidget().GetButtonRect();
+
+            ev.kind        = DxuiMouseEventKind::Move;
+            ev.positionDip = POINT { (button.left + button.right) / 2, (button.top + button.bottom) / 2 };
+            view.OnMouse (ev);
+            Assert::IsTrue (view.GetZoomWidget().IsOpen(), L"open on hover");
+
+            panel = view.GetZoomWidget().GetPanelRect();
+            track = view.GetZoomWidget().GetTrackRect();
+            reset = view.GetZoomWidget().GetResetRect();
+
+            Assert::AreEqual (button.right,  panel.right);
+            Assert::AreEqual (button.bottom, panel.bottom);
+            Assert::IsTrue   (track.bottom <= button.top,                     L"the slider's row above the button");
+            Assert::IsTrue   (reset.top >= button.top && reset.bottom <= button.bottom && reset.right <= button.left, L"Reset left of the percentage on its row");
+
+            before         = view.GetCellPx();
+            ev.kind        = DxuiMouseEventKind::Wheel;
+            ev.wheelDelta  = 1.0f;
+            ev.positionDip = POINT { (track.left + track.right) / 2, panel.top + 1 };
+            view.OnMouse (ev);
+            Assert::IsTrue (view.GetCellPx() > before, L"the wheel over the panel zooms in");
+        }
+
+
+
         //  The slider stays open with the pointer over it or near it, and
         //  closes once the pointer moves further away or off the map. During a
         //  drag of its thumb it is open wherever the pointer goes.

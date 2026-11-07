@@ -2759,6 +2759,7 @@ void HeatMapView::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme & th
     float             pad        = m_scaler.ToPxf ((float) kDetailPadDip);
     bool              hasDetail  = m_values.size() == kCount && (float) m_cellPx >= minFont * kLinePerEm + pad * 2.0f;
     bool              hasMarks   = m_pc.has_value() || m_stack.has_value() || !m_breakpoints.empty();
+    int               covered    = 0;
     HRESULT           hr         = S_OK;
 
 
@@ -2779,7 +2780,12 @@ void HeatMapView::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme & th
 
 
 
-        if (hasDetail)
+        //  An instruction's operand cells are drawn as part of its opcode's.
+        if (covered > 0)
+        {
+            covered--;
+        }
+        else if (hasDetail && !TryPaintInstruction (text, theme, place, address, covered))
         {
             PaintDetail (text, theme, place, address);
         }
@@ -2946,6 +2952,249 @@ void HeatMapView::PaintDetail (IDxuiTextRenderer & text, const IDxuiTheme & them
 
     hr = text.PopClipRect();
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetInstructionLength
+//
+//  From the opcode's form, its operand's digits dots: a branch has one byte
+//  of offset however its target is written, BBR and BBS a zero-page byte
+//  and an offset, and any other operand a byte for each two dots.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int HeatMapView::GetInstructionLength (const std::string & form)
+{
+    static constexpr const char *  kBranches[] = { "BCC", "BCS", "BEQ", "BMI", "BNE", "BPL", "BVC", "BVS", "BRA" };
+    size_t                         space       = form.find (' ');
+    std::string                    mnemonic    = form.substr (0, space);
+
+
+
+    if (form.empty() || space == std::string::npos)
+    {
+        return 1;
+    }
+
+    if (mnemonic.starts_with ("BBR") || mnemonic.starts_with ("BBS"))
+    {
+        return 3;
+    }
+
+    if (std::ranges::find (kBranches, mnemonic) != std::end (kBranches))
+    {
+        return 2;
+    }
+
+    return 1 + (int) std::ranges::count (form, '.') / 2;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetInstructionText
+//
+//  The form with its dots filled in from the operand bytes: an address with
+//  a symbol is the symbol's name; any other one, an immediate value or a zero
+//  page address in hex; a branch's offset is its target.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HeatMapView::GetInstructionText (const std::string & form, Word cpu, const std::vector<Byte> & operands) const
+{
+    int           length   = GetInstructionLength (form);
+    std::string   mnemonic = form.substr (0, form.find (' '));
+    bool          isBranch = length == 2 && form.find ('#') == std::string::npos && std::ranges::count (form, '.') == 4;
+    std::string   text;
+    std::string   name;
+    size_t        next     = 0;
+    int           group    = 0;
+    auto          symbolic = [this, &name] (Word address, int digits)
+    {
+        name.clear();
+
+        if (m_symbols != nullptr && m_symbols->TryGetNameAt (address, name) && !name.empty())
+        {
+            return name;
+        }
+
+        return (digits == 4) ? std::format ("${:04X}", address) : std::format ("${:02X}", address);
+    };
+
+
+
+    for (size_t i = 0; i < form.size(); i = next)
+    {
+        size_t  run      = 0;
+        bool    isImmed  = i > 0 && form[i - 1] == '#';
+        Word    at       = 0;
+        size_t  operand  = (size_t) group;
+
+
+
+        next = i + 1;
+
+        if (form[i] != '.')
+        {
+            text += form[i];
+            continue;
+        }
+
+        while (i + run < form.size() && form[i + run] == '.')
+        {
+            run++;
+        }
+
+        next = i + run;
+
+        if (mnemonic.starts_with ("BBR") || mnemonic.starts_with ("BBS"))
+        {
+            at    = (group == 0) ? (Word) operands.at (0) : (Word) (cpu + 3 + (int8_t) operands.at (1));
+            text += (group == 0) ? symbolic (at, 2) : symbolic (at, 4);
+        }
+        else if (isBranch)
+        {
+            text += symbolic ((Word) (cpu + 2 + (int8_t) operands.at (0)), 4);
+        }
+        else if (run == 4)
+        {
+            text += symbolic ((Word) (operands.at (operand) | (operands.at (operand + 1) << 8)), 4);
+        }
+        else if (isImmed)
+        {
+            text += std::format ("${:02X}", operands.at (operand));
+        }
+        else
+        {
+            text += symbolic (operands.at (operand), 2);
+        }
+
+        group++;
+    }
+
+    return TextEncoding::NarrowToWide (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::TryPaintInstruction
+//
+//  A byte run as an opcode, drawn as its whole instruction across its
+//  cell and its operands' cells when they are on its row: the
+//  instruction with its operand as a symbol where there is one, and under
+//  it the bytes in hex, smaller and dimmer, as the disassembly draws a
+//  line's bytes under its source. False where the instruction can't be
+//  drawn so; the byte's detail is drawn then.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapView::TryPaintInstruction (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Place & place, Word address, int & covered) const
+{
+    constexpr float     kBytesScale = 0.8f;
+    constexpr float     kBytesDim   = 0.45f;
+    const Placed      & placed      = m_placed[place.band];
+    DxuiFontHandle      font        = theme.MonospaceFont();
+    float               minFont     = m_scaler.ToPxf (kMinDetailFontDip);
+    float               pad         = m_scaler.ToPxf ((float) kDetailPadDip);
+    int16_t             stored      = m_values[address];
+    std::string         form;
+    int                 length      = 0;
+    std::vector<Byte>   operands;
+    std::wstring        bytes;
+    std::wstring        instruction;
+    RECT                first       = {};
+    RECT                last        = {};
+    long                wide        = 0;
+    long                tall        = 0;
+    float               fontPx      = 0.0f;
+    float               lineH       = 0.0f;
+    float               top         = 0.0f;
+    uint32_t            fill        = 0;
+    uint32_t            ink         = 0;
+    HRESULT             hr          = S_OK;
+
+
+
+    if (stored < 0 || m_opcodes.size() != (size_t) kAddressCount || m_opcodes[address] == 0 || m_opcodeForms == nullptr ||
+        m_opcodeForms->size() <= (size_t) (Byte) stored || GetCellKind (address) != CellKind::Code)
+    {
+        return false;
+    }
+
+    form   = (*m_opcodeForms)[(Byte) stored];
+    length = GetInstructionLength (form);
+
+    if (form.empty() || place.offset % placed.columns + length > placed.columns || place.offset + length > m_bands[place.band].count)
+    {
+        return false;
+    }
+
+    bytes = std::format (L"{:02X}", (Byte) stored);
+
+    for (int i = 1; i < length; i++)
+    {
+        int16_t  value = m_values[(Word) (address + i)];
+
+
+
+        if (value < 0)
+        {
+            return false;
+        }
+
+        operands.push_back ((Byte) value);
+        bytes += std::format (L" {:02X}", (Byte) value);
+    }
+
+    first  = GetPlaceRect (place);
+    last   = GetPlaceRect (Place { place.band, place.offset + length - 1 });
+    wide   = last.right - first.left;
+    tall   = first.bottom - first.top;
+    fontPx = std::min ({ m_scaler.ToPxf (font.sizeDip), ((float) tall - pad * 2.0f) / (kLinePerEm * 2.0f) });
+
+    if (fontPx < minFont)
+    {
+        return false;
+    }
+
+    instruction = GetInstructionText (form, HeatMapOptions::GetCpuAddress (m_shownBank, address), operands);
+    fontPx      = std::max (minFont, std::min (fontPx, ((float) wide - pad * 2.0f) / ((float) std::max (instruction.size(), bytes.size()) * kAdvancePerEm)));
+    lineH       = fontPx * kLinePerEm;
+    top         = (float) first.top + ((float) tall - lineH * 2.0f) / 2.0f;
+    fill        = GetCellColor (address) | 0xFF000000u;
+    ink         = GetDetailTextColor (fill, theme.Foreground(), m_palette.background);
+
+    hr = text.FillRect ((float) first.left, (float) first.top, (float) wide, (float) tall, fill);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.PushClipRect ((float) first.left, (float) first.top, (float) wide, (float) tall);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (instruction.c_str(), (float) first.left, top, (float) wide, lineH, ink, fontPx, font.face,
+                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (bytes.c_str(), (float) first.left, top + lineH, (float) wide, lineH, DxuiColor::Mix (ink, fill, kBytesDim) | 0xFF000000u,
+                          std::max (minFont, fontPx * kBytesScale), font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    covered = length - 1;
+    return true;
 }
 
 
@@ -3234,6 +3483,14 @@ bool HeatMapView::OnWheel (const DxuiMouseEvent & ev)
     int   step  = (int) std::lround (ev.wheelDelta * (float) (rows * pitch));
 
 
+
+    //  Over the zoom's button or its panel, the wheel zooms about the map's
+    //  middle, as the slider does.
+    if (m_zoomWidget.HitTest (ev.positionDip) != HeatMapZoomWidget::Hit::None && ev.wheelDelta != 0.0f && !ev.wheelHorizontal)
+    {
+        ZoomAt ({ (m_map.left + m_map.right) / 2, (m_map.top + m_map.bottom) / 2 }, ev.wheelDelta);
+        return true;
+    }
 
     if (!IsOverMap (ev.positionDip) || ev.wheelDelta == 0.0f || ev.wheelHorizontal)
     {

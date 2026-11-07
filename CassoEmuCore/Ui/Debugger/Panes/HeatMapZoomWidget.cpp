@@ -139,16 +139,19 @@ void HeatMapZoomWidget::Place (const RECT & corner, const RECT & bounds, const D
 //  HeatMapZoomWidget::PlaceAtButton
 //
 //  Another control's rect is the button, as the status bar's zoom field is:
-//  the panel opens above it, and the widget doesn't draw it.
+//  the widget doesn't draw it while closed, and open draws its label as the
+//  control does, so the percentage stays where it was.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HeatMapZoomWidget::PlaceAtButton (const RECT & button, const RECT & bounds, const DxuiDpiScaler & scaler)
+void HeatMapZoomWidget::PlaceAtButton (const RECT & button, const RECT & bounds, const DxuiDpiScaler & scaler, float labelInsetDip, float labelFontDip)
 {
     m_scaler      = scaler;
     m_bounds      = bounds;
     m_button      = button;
     m_isOwnButton = false;
+    m_labelInset  = labelInsetDip;
+    m_labelFont   = labelFontDip;
 }
 
 
@@ -182,14 +185,16 @@ float HeatMapZoomWidget::GetPositionAt (POINT point) const
 //
 //  HeatMapZoomWidget::GetPanelRect
 //
-//  Above the button, its right edge on the button's, and kept below the
-//  view's top; empty while closed.
+//  Grown up and left out of the button: its bottom right is the button's,
+//  so the button is its bottom row's right end, with the slider's row above,
+//  no higher than the view's top; empty while closed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT HeatMapZoomWidget::GetPanelRect() const
 {
     RECT  panel = {};
+    long  pad   = m_scaler.ToPx (kPadDip);
 
 
 
@@ -199,9 +204,9 @@ RECT HeatMapZoomWidget::GetPanelRect() const
     }
 
     panel.right  = m_button.right;
-    panel.left   = panel.right - m_scaler.ToPx (kPanelWidthDip);
-    panel.bottom = m_button.top - m_scaler.ToPx (kMarginDip);
-    panel.top    = std::max (m_bounds.top, panel.bottom - (long) m_scaler.ToPx (kPanelHeightDip));
+    panel.bottom = m_button.bottom;
+    panel.left   = std::min (m_button.left, panel.right - (long) m_scaler.ToPx (kPanelWidthDip));
+    panel.top    = std::max (m_bounds.top, m_button.top - pad - (long) m_scaler.ToPx (kRowDip));
 
     return panel;
 }
@@ -214,7 +219,8 @@ RECT HeatMapZoomWidget::GetPanelRect() const
 //
 //  HeatMapZoomWidget::GetResetRect
 //
-//  The panel's top row, at its right.
+//  The button's row, at the panel's left, a pixel in from the row's top and
+//  bottom.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -230,7 +236,7 @@ RECT HeatMapZoomWidget::GetResetRect() const
         return {};
     }
 
-    return { panel.right - pad - m_scaler.ToPx (kResetWidthDip), panel.top + pad / 2, panel.right - pad, panel.top + pad / 2 + m_scaler.ToPx (kRowDip) };
+    return { panel.left + pad, m_button.top + 1, panel.left + pad + m_scaler.ToPx (kResetWidthDip), m_button.bottom - 1 };
 }
 
 
@@ -241,7 +247,7 @@ RECT HeatMapZoomWidget::GetResetRect() const
 //
 //  HeatMapZoomWidget::GetTrackRect
 //
-//  The panel's bottom row, inside its padding: the thumb's center runs from
+//  The panel's top row, inside its padding: the thumb's center runs from
 //  the left edge to the right.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -259,7 +265,7 @@ RECT HeatMapZoomWidget::GetTrackRect() const
         return {};
     }
 
-    return { panel.left + pad, panel.bottom - pad / 2 - row, panel.right - pad, panel.bottom - pad / 2 };
+    return { panel.left + pad, panel.top + pad / 2, panel.right - pad, panel.top + pad / 2 + row };
 }
 
 
@@ -435,16 +441,15 @@ void HeatMapZoomWidget::PaintBox (IDxuiTextRenderer & text, const RECT & rect, u
 //
 //  HeatMapZoomWidget::Paint
 //
-//  The button with the percentage, unless the button is another control's;
-//  open, the panel above it.
+//  Closed, the button with the percentage, unless the button is another
+//  control's; open, the panel, which has the percentage where the button
+//  does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapZoomWidget::Paint (IDxuiTextRenderer & text, const IDxuiTheme & theme, int cellPx, int startCellPx, int maxCellPx) const
 {
-    HRESULT          hr      = S_OK;
-    DxuiFontHandle   font    = theme.BodyFont();
-    std::wstring     percent = GetPercentLabel (cellPx, startCellPx);
+    std::wstring  percent = GetPercentLabel (cellPx, startCellPx);
 
 
 
@@ -453,14 +458,10 @@ void HeatMapZoomWidget::Paint (IDxuiTextRenderer & text, const IDxuiTheme & them
         return;
     }
 
-    if (m_isOwnButton)
+    if (m_isOwnButton && !m_isOpen)
     {
-        PaintBox (text, m_button, m_isOpen ? theme.PressedBackground() : theme.BackgroundElevated(), theme.Border());
-
-        hr = text.DrawString (percent.c_str(), (float) m_button.left, (float) m_button.top,
-                              (float) (m_button.right - m_button.left), (float) (m_button.bottom - m_button.top),
-                              theme.Foreground(), m_scaler.ToPxf (font.sizeDip), font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        PaintBox (text, m_button, theme.BackgroundElevated(), theme.Border());
+        PaintLabel (text, theme, percent);
     }
 
     PaintPanel (text, theme, percent, GetPosition (cellPx, maxCellPx));
@@ -472,10 +473,49 @@ void HeatMapZoomWidget::Paint (IDxuiTextRenderer & text, const IDxuiTheme & them
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapZoomWidget::PaintLabel
+//
+//  In the button's rect, as the button draws it: centered in the body font
+//  on the widget's button; on another control's, as that control does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapZoomWidget::PaintLabel (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label) const
+{
+    HRESULT         hr     = S_OK;
+    DxuiFontHandle  font   = theme.BodyFont();
+    float           left   = (float) m_button.left;
+    float           top    = (float) m_button.top;
+    float           width  = (float) (m_button.right - m_button.left);
+    float           height = (float) (m_button.bottom - m_button.top);
+    float           inset  = m_scaler.ToPxf (m_labelInset);
+
+
+
+    if (m_isOwnButton)
+    {
+        hr = text.DrawString (label.c_str(), left, top, width, height, theme.Foreground(), m_scaler.ToPxf (font.sizeDip), font.face,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        return;
+    }
+
+    hr = text.DrawString (label.c_str(), left + inset, top, std::max (0.0f, width - 2.0f * inset), height, theme.ForegroundMuted(),
+                          m_scaler.ToPxf (m_labelFont), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
+                          DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapZoomWidget::PaintPanel
 //
-//  Open, the panel with the label, Reset, and the track with its thumb at
-//  `position`, 0 at the left to 1 at the right.
+//  Open, the panel with the track and its thumb at `position`, 0 at the left
+//  to 1 at the right, then Reset and the label on the button's row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -485,7 +525,6 @@ void HeatMapZoomWidget::PaintPanel (IDxuiTextRenderer & text, const IDxuiTheme &
     HRESULT          hr        = S_OK;
     DxuiFontHandle   font      = theme.BodyFont();
     float            sizePx    = m_scaler.ToPxf (font.sizeDip);
-    uint32_t         ink       = theme.Foreground();
     RECT             panel     = GetPanelRect();
     RECT             reset     = GetResetRect();
     RECT             track     = GetTrackRect();
@@ -501,12 +540,7 @@ void HeatMapZoomWidget::PaintPanel (IDxuiTextRenderer & text, const IDxuiTheme &
     }
 
     PaintBox (text, panel, theme.BackgroundElevated(), theme.Border());
-
-    hr = text.DrawString (label.c_str(), (float) track.left, (float) reset.top,
-                          (float) (reset.left - track.left), (float) (reset.bottom - reset.top),
-                          ink, sizePx, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
+    PaintLabel (text, theme, label);
     PaintBox (text, reset, theme.ButtonIdle(), theme.ButtonBorder());
 
     hr = text.DrawString (L"Reset", (float) reset.left, (float) reset.top,
