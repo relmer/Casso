@@ -350,10 +350,11 @@ Error:
 
 HRESULT CassoLinkConnector::ConnectOrBootstrap (std::stop_token stop)
 {
-    HRESULT  hr      = S_OK;
-    HRESULT  probed  = S_OK;
-    bool     waiting = false;
-    bool     typable = (m_session.m_settings.transport == LinkTransport::Serial || m_session.m_settings.transport == LinkTransport::Emulated) && !m_adtPro;
+    HRESULT  hr       = S_OK;
+    HRESULT  probed   = S_OK;
+    HRESULT  reopened = S_OK;
+    bool     waiting  = false;
+    bool     typable  = (m_session.m_settings.transport == LinkTransport::Serial || m_session.m_settings.transport == LinkTransport::Emulated) && !m_adtPro;
 
 
 
@@ -361,6 +362,17 @@ HRESULT CassoLinkConnector::ConnectOrBootstrap (std::stop_token stop)
     BAIL_OUT_IF (SUCCEEDED (hr) || !typable || stop.stop_requested(), hr);
 
     probed = ProbeForPrompt (stop, waiting);
+
+    //  The probe left the line at the bootstrap speed. A boot disk's shim
+    //  sends its Ready at the link's speed every second or so, and the line
+    //  goes back to that speed for the wait before the next attempt, so a
+    //  Ready sent during the wait is read rather than lost.
+    if (SUCCEEDED (probed) && !waiting && m_session.m_settings.transport == LinkTransport::Serial && m_session.m_settings.baud != m_session.m_settings.bootstrapBaud)
+    {
+        reopened = OpenStream (m_session.m_settings.baud, stop);
+        IGNORE_RETURN_VALUE (reopened, S_OK);
+    }
+
     BAIL_OUT_IF (FAILED (probed) || !waiting, hr);
 
     m_bootstrap       = std::make_shared<LinkOperation>();

@@ -747,11 +747,19 @@ rdsend:
 ; The motor runs on after an operation, so the next track's read does not wait
 ; for it to spin up again; Idle, with nothing more to do, stops it. During a
 ; Full Send the error row stays clear: an empty drive's check fails with NO
-; SECTOR, and the drive's row has EMPTY OR NO RECOGNIZED SECTORS for it.
+; SECTOR, and the drive's row has EMPTY OR NO RECOGNIZED SECTORS for it. The
+; same is true of any operation on a drive just marked that way, such as the
+; PC's read of an empty drive's catalog when it connects.
 opdone: jsr notedisk
         lda fsmode
         bne odstatus
-        jsr showerr
+        ldx drive
+        dex
+        cpx #2
+        bcs odshow
+        lda nodisk,x
+        bne odstatus
+odshow: jsr showerr
 odstatus: jsr sendstatus
         jmp main
 
