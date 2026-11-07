@@ -107,7 +107,7 @@ bool PreviewDecoder::IsBinaryType (Byte type, VolumeKind kind)
 
 bool PreviewDecoder::IsExecutableType (Byte type, VolumeKind kind)
 {
-    return IsBinaryType (type, kind) || (kind == VolumeKind::ProDos && (type == ProDosVolume::kTypeSystem || type == ProDosVolume::kTypeRelocatable));
+    return IsBinaryType (type, kind) || IsAlwaysCodeType (type, kind);
 }
 
 
@@ -118,13 +118,31 @@ bool PreviewDecoder::IsExecutableType (Byte type, VolumeKind kind)
 //
 //  PreviewDecoder::IsAlwaysCodeType
 //
-//  ProDOS runs a SYS file, and a REL file is relocated code.
+//  ProDOS runs a SYS file, BASIC.SYSTEM runs a CMD file, and a REL file is
+//  relocated code.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PreviewDecoder::IsAlwaysCodeType (Byte type, VolumeKind kind)
 {
-    return kind == VolumeKind::ProDos && (type == ProDosVolume::kTypeSystem || type == ProDosVolume::kTypeRelocatable);
+    return kind == VolumeKind::ProDos && (type == ProDosVolume::kTypeSystem  ||
+                                          type == ProDosVolume::kTypeCommand ||
+                                          type == ProDosVolume::kTypeRelocatable);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::IsCodeAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDecoder::IsCodeAddress (Word origin)
+{
+    return origin >= s_kFirstCodeAddress && (origin < s_kIoSpaceStart || origin >= s_kIoSpaceEnd);
 }
 
 
@@ -908,6 +926,11 @@ HRESULT PreviewDecoder::Render (
                 origin = s_kSystemLoadAddress;
             }
 
+            if (kind == VolumeKind::ProDos && entry.type == ProDosVolume::kTypeCommand)
+            {
+                origin = s_kCommandLoadAddress;
+            }
+
             //  A relocatable file's aux type is the address its code was assembled at.
             if (relocatable)
             {
@@ -916,10 +939,11 @@ HRESULT PreviewDecoder::Render (
 
             outContent.executable = IsExecutableType (entry.type, kind);
 
-            //  A SYS or REL file is run as code. A binary may be data, such as a
-            //  font, which opens as bytes.
+            //  A SYS, CMD or REL file is run as code. A binary may be data, such
+            //  as a font, which opens as bytes. So does a binary at an address
+            //  where code can't be loaded.
             if (hexForm == HexForm::Disassembly || (hexForm == HexForm::Auto && outContent.executable &&
-                                                    (IsAlwaysCodeType (entry.type, kind) || LooksLikeCode (payload.bytes, origin))))
+                                                    (IsAlwaysCodeType (entry.type, kind) || (IsCodeAddress (origin) && LooksLikeCode (payload.bytes, origin)))))
             {
                 RenderDisassembly (payload.bytes, origin, kind, relocatable, outContent.lines);
                 outContent.disassembly = true;

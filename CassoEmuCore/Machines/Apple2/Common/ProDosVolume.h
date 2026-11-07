@@ -101,6 +101,7 @@ public:
     //  set is 256 values; these are the ones a developer places or extracts.
     static constexpr Byte  kTypeText        = 0x04;
     static constexpr Byte  kTypeBinary      = 0x06;
+    static constexpr Byte  kTypeCommand     = 0xF0;
     static constexpr Byte  kTypeBasic       = 0xFC;
     static constexpr Byte  kTypeRelocatable = 0xFE;
     static constexpr Byte  kTypeSystem      = 0xFF;

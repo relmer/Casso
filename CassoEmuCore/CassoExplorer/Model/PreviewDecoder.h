@@ -159,13 +159,17 @@ public:
     static PreviewContent::Kind  Decide (const FileEntry & entry, VolumeKind kind, size_t byteCount, Word loadAddress, bool hasLoadAddress);
 
     //  Whether a file's type marks it as 6502 code: a DOS 3.3 B file, or a
-    //  ProDOS BIN or SYS file.
+    //  ProDOS BIN, SYS, REL or CMD file.
     static bool  IsExecutableType (Byte type, VolumeKind kind);
     static bool  IsAlwaysCodeType (Byte type, VolumeKind kind);
 
     //  Whether a binary's first instructions read as 6502 code rather than
     //  as data.
     static bool  LooksLikeCode (std::span<const Byte> bytes, Word origin);
+
+    //  Whether code can be loaded at an address: not over the zero page or
+    //  the stack, and not into the I/O space at $C000 to $CFFF.
+    static bool  IsCodeAddress (Word origin);
 
     //  The whole preview for one file's payload. `bus` is handed to the video
     //  modes and never read; a test proves it with a bus that fails on read.
@@ -235,6 +239,14 @@ private:
     //  Where ProDOS loads a SYS file. A SYS file's directory entry doesn't have a
     //  load address.
     static constexpr Word    s_kSystemLoadAddress = 0x2000;
+
+    //  Where BASIC.SYSTEM loads and runs a CMD file.
+    static constexpr Word    s_kCommandLoadAddress = 0x4000;
+
+    //  The first address past the stack, and the I/O space's range.
+    static constexpr Word    s_kFirstCodeAddress = 0x0200;
+    static constexpr Word    s_kIoSpaceStart     = 0xC000;
+    static constexpr Word    s_kIoSpaceEnd       = 0xD000;
 
     static constexpr const wchar_t *  s_kMonths[12] =
     {

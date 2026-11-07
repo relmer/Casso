@@ -410,6 +410,45 @@ public:
         Assert::IsTrue (content.bytes.empty());
         Assert::IsTrue (!content.lines.empty());
         Assert::IsTrue (content.lines[0].rfind (L"0803  ", 0) == 0, L"the first line sits at the load address");
+
+        payload.loadAddress = 0x0000;
+
+        AssertSucceeded (PreviewDecoder::Render (FindEntry (listing, "ODD"), VolumeKind::Dos33, payload, PreviewDecoder::HexForm::Auto, bus, content));
+
+        Assert::IsFalse (content.disassembly, L"Code loaded over the zero page is data");
+        Assert::IsTrue  (content.executable);
+
+        payload.loadAddress = 0xC080;
+
+        AssertSucceeded (PreviewDecoder::Render (FindEntry (listing, "ODD"), VolumeKind::Dos33, payload, PreviewDecoder::HexForm::Auto, bus, content));
+
+        Assert::IsFalse (content.disassembly, L"and so is code loaded into the I/O space");
+
+        AssertSucceeded (PreviewDecoder::Render (FindEntry (listing, "ODD"), VolumeKind::Dos33, payload, PreviewDecoder::HexForm::Disassembly, bus, content));
+
+        Assert::IsTrue (content.disassembly, L"unless the disassembly is chosen");
+    }
+
+
+
+    //  BASIC.SYSTEM loads a CMD file at $4000 and runs it.
+    TEST_METHOD (Command_DisassemblesAtItsLoadAddress)
+    {
+        PreviewContent  content;
+        FileEntry       entry;
+        FilePayload     payload;
+        MemoryBus       bus;
+
+        entry.name    = "BEEP";
+        entry.type    = ProDosVolume::kTypeCommand;
+        payload.bytes = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 };
+
+        AssertSucceeded (PreviewDecoder::Render (entry, VolumeKind::ProDos, payload, PreviewDecoder::HexForm::Auto, bus, content));
+
+        Assert::IsTrue (content.kind == Kind::Hex);
+        Assert::IsTrue (content.executable,  L"A CMD file is 6502 code");
+        Assert::IsTrue (content.disassembly, L"and always opens as a disassembly");
+        Assert::IsTrue (content.lines[0].rfind (L"4000  ", 0) == 0, L"at $4000");
     }
 
 
