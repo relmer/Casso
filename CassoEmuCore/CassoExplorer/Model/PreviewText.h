@@ -53,4 +53,10 @@ public:
     //  An NMOS 6502 undocumented instruction's mnemonic, which a disassembly
     //  colors as an instruction.
     static bool  IsUndocumentedMnemonic (const std::wstring & word);
+
+    //  A BASIC listing's coloring: a row's address and line number cells, and
+    //  its statements' keywords, variables, strings, numbers and REM.
+    static void                            AddBasicSpans     (DxuiTextView::Row & ioRow, const SourceSyntax::Colors & colors);
+    static std::vector<SourceSyntax::Run>  GetBasicRuns      (const std::wstring & statements);
+    static size_t                          MatchBasicKeyword (const std::wstring & text, size_t at);
 };

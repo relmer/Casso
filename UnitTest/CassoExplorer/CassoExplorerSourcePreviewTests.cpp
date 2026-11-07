@@ -66,6 +66,38 @@ public:
 
 
 
+    TEST_METHOD (BasicListingRows_HaveTheirNumberAndStatementsColored)
+    {
+        PreviewContent                  preview;
+        SourceSyntax::Colors            colors;
+        std::vector<DxuiTextView::Row>  rows;
+        std::vector<std::wstring>       colored;
+
+        preview.kind  = PreviewContent::Kind::Listing;
+        preview.lines = { L"10  PRINT \"HI\";SCORE: GOTO 10: REM LOOP" };
+
+        colors.mnemonic = 0xFF000001;
+        colors.comment  = 0xFF000002;
+        colors.number   = 0xFF000003;
+        colors.symbol   = 0xFF000004;
+        colors.address  = 0xFF000005;
+        colors.string   = 0xFF000007;
+
+        rows = PreviewText::BuildTextRows (preview, false, colors);
+
+        Assert::AreEqual ((size_t) 2, rows[0].cells.size());
+
+        for (const DxuiTextView::Span & span : rows[0].spans)
+        {
+            colored.push_back (std::format (L"{:X}:{}", span.argb & 0xFF, rows[0].cells[(size_t) span.cell].substr ((size_t) span.start, (size_t) span.length)));
+        }
+
+        Assert::IsTrue (colored == std::vector<std::wstring> { L"5:10", L"1:PRINT", L"7:\"HI\"", L"4:SCORE", L"1:GOTO", L"3:10", L"2:REM LOOP" },
+                        L"The number, then keywords, a string, a variable that starts like a keyword, a number and the REM");
+    }
+
+
+
     TEST_METHOD (DisassemblyRows_HaveTheirAddressBytesAndInstructionColored)
     {
         PreviewContent                  preview;

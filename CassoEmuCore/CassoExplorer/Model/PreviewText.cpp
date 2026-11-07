@@ -2,6 +2,9 @@
 
 #include "CassoExplorer/Model/PreviewText.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "Core/TextEncoding.h"
+#include "ApplesoftTokenizer.h"
+#include "IntegerBasicDetokenizer.h"
 
 
 
@@ -128,6 +131,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
             DxuiTextView::Row  row { SplitLineNumber (preview.lines[i]) };
 
             row.cells.insert (row.cells.begin(), (i < addresses.size()) ? std::format (L"${:04X}", addresses[i]) : std::wstring());
+            AddBasicSpans (row, colors);
             rows.push_back (std::move (row));
         }
     }
@@ -196,6 +200,11 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
         {
             rows.push_back (DxuiTextView::Row { (preview.kind == PreviewContent::Kind::Listing) ? SplitLineNumber (line)
                                                                                                : std::vector<std::wstring> { line } });
+
+            if (preview.kind == PreviewContent::Kind::Listing)
+            {
+                AddBasicSpans (rows.back(), colors);
+            }
         }
     }
 
@@ -223,6 +232,171 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
     }
 
     return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::AddBasicSpans
+//
+//  A listing row's cells are its load address, when the address column is
+//  on, its line number and its statements. The address and the number are in the muted color, and the
+//  statements are colored as GetBasicRuns reads them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewText::AddBasicSpans (DxuiTextView::Row & ioRow, const SourceSyntax::Colors & colors)
+{
+    int  last = (int) ioRow.cells.size() - 1;
+
+
+
+    if (colors.mnemonic == 0 || last < 0)
+    {
+        return;
+    }
+
+    for (int cell = 0; cell < last; cell++)
+    {
+        ioRow.spans.push_back ({ cell, 0, (int) ioRow.cells[(size_t) cell].size(), colors.address });
+    }
+
+    for (const SourceSyntax::Run & run : GetBasicRuns (ioRow.cells[(size_t) last]))
+    {
+        ioRow.spans.push_back ({ last, run.start, run.length, colors.Get (run.token) });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::GetBasicRuns
+//
+//  Applesoft and Integer BASIC statements: a keyword of either dialect where
+//  a word starts, a variable for any other word, strings, numbers, and a REM
+//  to the end of the line as a comment.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<SourceSyntax::Run> PreviewText::GetBasicRuns (const std::wstring & statements)
+{
+    std::vector<SourceSyntax::Run>  runs;
+    size_t                          i = 0;
+    size_t                          n = statements.size();
+
+
+
+    while (i < n)
+    {
+        wchar_t  ch     = statements[i];
+        size_t   end    = i + 1;
+        bool     isWord = iswalpha (ch) && (i == 0 || !iswalnum (statements[i - 1]));
+        size_t   length = isWord ? MatchBasicKeyword (statements, i) : 0;
+
+        if (ch == L'"')
+        {
+            end = statements.find (L'"', i + 1);
+            end = (end == std::wstring::npos) ? n : end + 1;
+            runs.push_back ({ (int) i, (int) (end - i), SourceSyntax::Token::String });
+        }
+        else if (length > 0 && statements.compare (i, length, L"REM") == 0)
+        {
+            runs.push_back ({ (int) i, (int) (n - i), SourceSyntax::Token::Comment });
+            end = n;
+        }
+        else if (length > 0)
+        {
+            end = i + length;
+            runs.push_back ({ (int) i, (int) length, SourceSyntax::Token::Mnemonic });
+        }
+        else if (isWord)
+        {
+            while (end < n && (iswalnum (statements[end]) || statements[end] == L'$' || statements[end] == L'%'))
+            {
+                end++;
+            }
+
+            runs.push_back ({ (int) i, (int) (end - i), SourceSyntax::Token::Symbol });
+        }
+        else if (iswdigit (ch) || (ch == L'.' && end < n && iswdigit (statements[end])))
+        {
+            while (end < n && (iswdigit (statements[end]) || statements[end] == L'.'))
+            {
+                end++;
+            }
+
+            runs.push_back ({ (int) i, (int) (end - i), SourceSyntax::Token::Number });
+        }
+
+        i = end;
+    }
+
+    return runs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::MatchBasicKeyword
+//
+//  The length of the longest keyword of either dialect at `at`, or zero. The
+//  keywords are the detokenizers' keywords that start with a letter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t PreviewText::MatchBasicKeyword (const std::wstring & text, size_t at)
+{
+    static const std::vector<std::wstring>  s_keywords = []()
+    {
+        std::set<std::wstring>     found;
+        std::vector<std::wstring>  sorted;
+
+        for (int token = ApplesoftTokenizer::kFirstToken; token <= ApplesoftTokenizer::kLastToken; token++)
+        {
+            const char *  keyword = ApplesoftTokenizer::GetKeyword ((Byte) token);
+
+            found.insert ((keyword != nullptr) ? TextEncoding::NarrowToWide (keyword) : std::wstring());
+        }
+
+        for (int token = 0; token <= IntegerBasicDetokenizer::kLastToken; token++)
+        {
+            const char *  keyword = IntegerBasicDetokenizer::GetKeyword ((Byte) token);
+
+            found.insert ((keyword != nullptr) ? TextEncoding::NarrowToWide (keyword) : std::wstring());
+        }
+
+        for (const std::wstring & keyword : found)
+        {
+            if (!keyword.empty() && iswalpha (keyword[0]))
+            {
+                sorted.push_back (keyword);
+            }
+        }
+
+        std::ranges::sort (sorted, [] (const std::wstring & a, const std::wstring & b) { return a.size() > b.size(); });
+        return sorted;
+    }();
+
+
+
+    for (const std::wstring & keyword : s_keywords)
+    {
+        if (text.compare (at, keyword.size(), keyword) == 0)
+        {
+            return keyword.size();
+        }
+    }
+
+    return 0;
 }
 
 
