@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "Seams/ShellVerbs/Win32ShellNamespace.h"
 #include "CassoExplorer/CassoExplorerCommands.h"
 #include "../EhmTestHelper.h"
@@ -858,6 +859,10 @@ public:
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"HELLO") });
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"ODD") });
         Assert::IsTrue (host.browser.GetPreview().disassembly, L"and opens so again after another file");
+        Assert::IsTrue (ExplorerPreviewManager::IsKnownPreview (host.browser.GetPreview()), L"A disassembly opens the pane by itself");
+
+        host.browser.SetHexForm (PreviewDecoder::HexForm::Bytes);
+        Assert::IsFalse (ExplorerPreviewManager::IsKnownPreview (host.browser.GetPreview()), L"and bytes alone don't");
     }
 
 

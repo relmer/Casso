@@ -313,8 +313,8 @@ void ExplorerPreviewManager::FillPreview()
 //  ExplorerPreviewManager::IsKnownPreview
 //
 //  A file previewed as more than its bytes: a listing, text, a picture, a
-//  catalog or archive, an image's details, or the Windows preview of a PC
-//  file.
+//  disassembly, a catalog or archive, an image's details, or the Windows
+//  preview of a PC file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -323,7 +323,7 @@ bool ExplorerPreviewManager::IsKnownPreview (const PreviewContent & preview)
     using Kind = PreviewContent::Kind;
 
     return preview.kind == Kind::Listing || preview.kind == Kind::Text    || preview.kind == Kind::Catalog
-        || preview.kind == Kind::Details || preview.kind == Kind::Shell
+        || preview.kind == Kind::Details || preview.kind == Kind::Shell   || preview.disassembly
         || (preview.kind == Kind::Picture && !preview.bgra.empty());
 }
 
