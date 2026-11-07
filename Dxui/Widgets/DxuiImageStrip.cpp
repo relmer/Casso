@@ -1002,11 +1002,37 @@ void DxuiImageStrip::FollowPointer()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiImageStrip::GetBalloonPx
+//
+//  How tall the balloon below the strip comes up: a line of its text, its
+//  padding and its border either side, and a gap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiImageStrip::GetBalloonPx (const DxuiDpiScaler & scaler) const
+{
+    constexpr float  kLineScale = 1.4f;
+    constexpr float  kPadDip    = 6.0f;
+    constexpr float  kGapDip    = 2.0f;
+
+
+
+    return scaler.ToPx ((int) std::ceil (m_bottomLabel.GetFontSizeDip() * kLineScale + 2.0f * kPadDip + kGapDip));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiImageStrip::GetPreviewAnchor
 //
 //  In screen pixels: as wide as the preview and centered on the pointer
 //  along the strip, and across it the whole entry, labels included, so the
-//  preview opens past the hovered cell's labels rather than over them.
+//  preview opens past the hovered cell's labels rather than over them. With
+//  the labels in balloons outside the strip, the balloon below it is
+//  included too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1031,6 +1057,11 @@ RECT DxuiImageStrip::GetPreviewAnchor() const
     {
         anchor.left  = m_pointer.x - widthPx / 2;
         anchor.right = anchor.left + widthPx;
+
+        if (m_isLabelsOutside)
+        {
+            anchor.bottom += GetBalloonPx (*scaler);
+        }
     }
 
     topLeft  = POINT { anchor.left,  anchor.top };

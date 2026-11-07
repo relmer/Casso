@@ -159,6 +159,7 @@ private:
     void  PaintSideLabel   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, const RECT & rc, bool isTrailing);
     void  MovePreview      ();
     RECT  GetPreviewAnchor () const;
+    int   GetBalloonPx     (const DxuiDpiScaler & scaler) const;
     void  RenderPreview    (IDxuiPainter & painter, IDxuiTextRenderer & text);
     void  PaintPlayhead    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float offset, const std::wstring & top, const std::wstring & bottom);
     void  PaintLabel       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float centerX, float top, float height);

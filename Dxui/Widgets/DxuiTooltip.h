@@ -100,6 +100,7 @@ public:
     void  SetDwellOpenMs  (int ms) { m_dwellOpenMs = ms; }
     void  SetDwellCloseMs (int ms) { m_dwellCloseMs = ms; }
     void  SetFontSizeDip  (float dip) { m_fontDip = dip; }
+    float GetFontSizeDip  () const    { return m_fontDip; }
 
     //  A fixed-width face, for a tip of code or bytes. A tip whose columns
     //  are separated by tabs lines them up in either face (TableLayout).
