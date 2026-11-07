@@ -213,19 +213,20 @@ std::vector<ApplesoftVariables::Section> ApplesoftVariables::Arrange (
     Column                             column,
     bool                               descending)
 {
-    std::vector<Section>  sections;
-    std::vector<size_t>   arrayOrder;
-    std::wstring          lower  = filter;
-    Section               simple;
-    bool                  byName = column == Column::Name;
+    std::vector<Section>      sections;
+    std::vector<VariableRow>  keys;
+    std::vector<size_t>       order;
+    std::vector<Section>      sorted;
+    std::wstring              lower  = filter;
+    bool                      byName = column == Column::Name;
     auto  matches = [&lower] (const VariableRow & row)
     {
         return lower.empty() || Contains (row.name, lower) || Contains (row.value, lower);
     };
     auto  less = [&rows, column, descending, byName] (size_t a, size_t b)
     {
-        int  cmp = byName && rows[a].array >= 0 ? ((rows[a].index < rows[b].index) ? -1 : (rows[a].index > rows[b].index) ? 1 : 0)
-                                                : Compare (rows[a], rows[b], column);
+        int  cmp = byName ? ((rows[a].index < rows[b].index) ? -1 : (rows[a].index > rows[b].index) ? 1 : 0)
+                          : Compare (rows[a], rows[b], column);
 
         if (cmp == 0)
         {
@@ -239,37 +240,23 @@ std::vector<ApplesoftVariables::Section> ApplesoftVariables::Arrange (
 
     std::transform (lower.begin(), lower.end(), lower.begin(), [] (wchar_t c) { return (wchar_t) towlower (c); });
 
+    //  Each simple variable is a one-row section, sorted on that row.
     for (size_t i = 0; i < rows.size(); i++)
     {
         if (rows[i].array < 0 && matches (rows[i]))
         {
-            simple.rows.push_back (i);
+            sections.push_back ({ -1, { i } });
+            keys.push_back (rows[i]);
         }
     }
 
-    std::stable_sort (simple.rows.begin(), simple.rows.end(), less);
-
-    if (!simple.rows.empty())
-    {
-        sections.push_back (std::move (simple));
-    }
-
+    //  Each array is sorted on its name, its elements' type and its element
+    //  count, with its elements sorted within it.
     for (size_t a = 0; a < arrays.size(); a++)
     {
-        arrayOrder.push_back (a);
-    }
-
-    std::stable_sort (arrayOrder.begin(), arrayOrder.end(), [&arrays, descending, byName] (size_t a, size_t b)
-    {
-        int  cmp = StrCmpLogicalW (arrays[a].name.c_str(), arrays[b].name.c_str());
-
-        return (descending && byName) ? (cmp > 0) : (cmp < 0);
-    });
-
-    for (size_t a : arrayOrder)
-    {
-        Section  section;
-        bool     whole = lower.empty() || Contains (arrays[a].name + arrays[a].dimensions, lower);
+        Section      section;
+        VariableRow  key;
+        bool         whole = lower.empty() || Contains (arrays[a].name + arrays[a].dimensions, lower);
 
         section.array = (int) a;
 
@@ -281,15 +268,44 @@ std::vector<ApplesoftVariables::Section> ApplesoftVariables::Arrange (
             }
         }
 
+        if (section.rows.empty())
+        {
+            continue;
+        }
+
         std::stable_sort (section.rows.begin(), section.rows.end(), less);
 
-        if (!section.rows.empty())
-        {
-            sections.push_back (std::move (section));
-        }
+        key.name   = arrays[a].name;
+        key.type   = rows[section.rows.front()].type;
+        key.length = std::to_wstring (arrays[a].count);
+
+        sections.push_back (std::move (section));
+        keys.push_back (key);
     }
 
-    return sections;
+    for (size_t i = 0; i < sections.size(); i++)
+    {
+        order.push_back (i);
+    }
+
+    std::stable_sort (order.begin(), order.end(), [&keys, column, descending] (size_t a, size_t b)
+    {
+        int  cmp = Compare (keys[a], keys[b], column);
+
+        if (cmp == 0 && column != Column::Name)
+        {
+            cmp = Compare (keys[a], keys[b], Column::Name);
+        }
+
+        return descending ? (cmp > 0) : (cmp < 0);
+    });
+
+    for (size_t i : order)
+    {
+        sorted.push_back (std::move (sections[i]));
+    }
+
+    return sorted;
 }
 
 

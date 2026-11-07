@@ -258,6 +258,107 @@ public:
 
 
 
+    //  A VAR file with A = 1, N% = -2, S$ = "HI", FN F, B%(2) and C(1,2),
+    //  whose copy of memory starts at $95AE and ends at HIMEM, $9600.
+    static std::vector<Byte> BuildVariablesFile()
+    {
+        std::vector<Byte>  file =
+        {
+            80, 0, 28, 0, 0x96,
+            0x41, 0x00,  0x81, 0x00, 0x00, 0x00, 0x00,
+            0xCE, 0x80,  0xFF, 0xFE, 0x00, 0x00, 0x00,
+            0x53, 0x80,  0x02, 0xFE, 0x95, 0x00, 0x00,
+            0xC6, 0x00,  0x01, 0x08, 0x10, 0x90, 0xB0,
+            0xC2, 0x80,  13, 0,  1,  0x00, 0x03,  0x00, 0x01,  0x00, 0x02,  0x00, 0x03,
+            0x43, 0x00,  39, 0,  2,  0x00, 0x03,  0x00, 0x02,
+            0x00, 0x00, 0x00, 0x00, 0x00,  0x81, 0x00, 0x00, 0x00, 0x00,  0x82, 0x00, 0x00, 0x00, 0x00,
+            0x82, 0x40, 0x00, 0x00, 0x00,  0x83, 0x00, 0x00, 0x00, 0x00,  0x83, 0x20, 0x00, 0x00, 0x00,
+            0x48, 0x49,
+        };
+
+        file.resize (file.size() + 256);
+
+        return file;
+    }
+
+
+
+    //  The preview's search box, clicked and typed into through the window's
+    //  input handlers, filters a VAR file's variables.
+    TEST_METHOD (VarPreview_SearchBox_TakesAClickAndFiltersAsTyped)
+    {
+        Rig                            rig;
+        std::vector<Byte>              bytes = BuildVariablesFile();
+        RECT                           box   = {};
+        DxuiMouseEvent                 mouse;
+        DxuiKeyEvent                   key;
+        int                            all   = 0;
+        std::vector<std::wstring>      names;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Drop\\SAVED#FD95AE", std::string (bytes.begin(), bytes.end())));
+        rig.io.files["C:\\Drop\\SAVED#FD95AE"]  = bytes;
+        rig.io.stamps["C:\\Drop\\SAVED#FD95AE"] = FileStamp { bytes.size(), 100 };
+        rig.Open();
+
+        //  The name's suffix sets the file's type and aux type, as in CiderPress.
+        Assert::IsTrue (rig.browser.GetOperations().Put ("C:\\Disks\\prodos.po", "C:\\Drop\\SAVED#FD95AE", std::string(), std::string(), false, 0,
+                                                         DiskOperations::Encoding::Verbatim).Succeeded());
+
+        rig.prefs.previewVisible = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        rig.parts->listPane.FillList();
+
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"SAVED"));
+
+        rig.parts->preview.FillPreview();
+        rig.parts->layout.RecomputeLayout();
+
+        Assert::IsTrue (rig.parts->preview.GetListing().IsVariables(), L"A VAR file's preview is its variables");
+
+        all = rig.parts->preview.GetListing().GetList()->GetRowCount();
+
+        for (int row = 0; row < all; row++)
+        {
+            names.push_back (rig.parts->preview.GetListing().GetVariableNameAt (row));
+        }
+
+        Assert::IsTrue (names == std::vector<std::wstring> { L"A", L"B%(2)", L"C(1,2)", L"FN F", L"N%", L"S$" },
+                        L"The arrays, closed, sort in among the simple variables by name");
+        box = rig.parts->preview.GetFind().GetSearchBox()->GetRect();
+        Assert::IsTrue (box.right > box.left, L"The search box is on the preview's toolbar");
+
+        mouse.kind        = DxuiMouseEventKind::Down;
+        mouse.button      = DxuiMouseButton::Left;
+        mouse.positionDip = { (box.left + box.right) / 2, (box.top + box.bottom) / 2 };
+        rig.parts->input.HandleMouse (mouse);
+        mouse.kind = DxuiMouseEventKind::Up;
+        rig.parts->input.HandleMouse (mouse);
+
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::Search, L"A click in the search box gives it focus");
+
+        for (wchar_t ch : std::wstring (L"hi"))
+        {
+            key.kind = DxuiKeyEventKind::Char;
+            key.vk   = ch;
+            rig.parts->input.HandleKey (key);
+        }
+
+        Assert::AreEqual (std::wstring (L"hi"), rig.parts->preview.GetFind().GetSearchBox()->GetText());
+        Assert::IsTrue   (rig.parts->preview.GetListing().GetList()->GetRowCount() < all, L"The rows are filtered as the search is typed");
+        Assert::AreEqual (1, rig.parts->preview.GetListing().GetList()->GetRowCount(), L"Only S$, whose value has HI in it");
+
+        key.kind = DxuiKeyEventKind::Down;
+        key.vk   = VK_ESCAPE;
+        rig.parts->input.HandleKey (key);
+
+        Assert::AreEqual (all, rig.parts->preview.GetListing().GetList()->GetRowCount(), L"Escape clears the search and every row is back");
+    }
+
+
+
     TEST_METHOD (Rename_InADiskImage_SelectsTheRowUnderItsNewName)
     {
         Rig           rig;

@@ -39,7 +39,7 @@ public:
     //  The preview's columns, in order.
     enum class Column { Name, Type, Length, Value };
 
-    //  The simple variables (array -1) or one array's elements, as indexes
+    //  One simple variable (array -1) or one array's elements, as indexes
     //  into the rows, in display order.
     struct Section
     {
@@ -52,9 +52,10 @@ public:
     static HRESULT  Decode (std::span<const Byte> file, Word auxType, std::vector<VariableRow> & outRows, std::vector<VariableArray> & outArrays);
 
     //  The rows that contain `filter` in their name or value, or are elements
-    //  of an array whose name contains it, sorted on `column`: the simple variables
-    //  first, then each array. An array's elements are in subscript order when
-    //  sorted by name, as are the arrays.
+    //  of an array whose name contains it, sorted on `column`: each simple
+    //  variable and each array sorted together, an array on its name, its
+    //  elements' type and its element count. An array's elements are in
+    //  subscript order when sorted by name.
     static std::vector<Section>  Arrange (const std::vector<VariableRow>   & rows,
                                           const std::vector<VariableArray> & arrays,
                                           const std::wstring               & filter,

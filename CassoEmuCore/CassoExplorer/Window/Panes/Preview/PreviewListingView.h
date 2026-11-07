@@ -46,6 +46,10 @@ public:
     void                  SetVariablesFilter   (const std::wstring & filter);
     void                  UpdateValueTipAt     (const DxuiMouseEvent & ev);
 
+    //  A VAR file's row's name: a variable's, an element's, or an array's with
+    //  its subscripts; empty past the last row.
+    std::wstring          GetVariableNameAt    (int row) const { return (row >= 0 && row < (int) m_varLines.size()) ? m_varLines[(size_t) row].name : std::wstring(); }
+
     bool     HandleCapturedMouse (const DxuiMouseEvent & ev);
     bool     HandleMouse         (const DxuiMouseEvent & ev);
     bool     HandleShortcutKey   (const DxuiKeyEvent & ev);

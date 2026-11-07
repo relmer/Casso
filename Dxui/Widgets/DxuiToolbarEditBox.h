@@ -64,7 +64,10 @@ public:
 
     bool  IsFocused  () const { return m_focused; }
     bool  IsCaretOn  () const { return m_input.IsCaretOn(); }
-    void  SetFocused (bool focused);
+
+    //  Where the strip last laid the field out, in the host's pixels.
+    const RECT  & GetRect    () const { return m_rc; }
+    void          SetFocused (bool focused);
 
     //  Key and character events while the field has focus. Tab, and keys the
     //  field has no use for, are left for the host.

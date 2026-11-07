@@ -197,7 +197,22 @@ public:
 
 
 
-    TEST_METHOD (Arrange_SortsTheVariablesAndKeepsEachArraysElementsInOrder)
+    //  Each section's name: a simple variable's, or an array's.
+    static std::vector<std::wstring> GetSectionNames (const std::vector<VariableRow> & rows, const std::vector<VariableArray> & arrays, const std::vector<ApplesoftVariables::Section> & sections)
+    {
+        std::vector<std::wstring>  names;
+
+        for (const ApplesoftVariables::Section & section : sections)
+        {
+            names.push_back ((section.array < 0) ? rows[section.rows.front()].name : arrays[(size_t) section.array].name);
+        }
+
+        return names;
+    }
+
+
+
+    TEST_METHOD (Arrange_SortsArraysAmongTheVariablesAndKeepsEachArraysElementsInOrder)
     {
         std::vector<Byte>                         file = BuildFile();
         std::vector<VariableRow>                  rows;
@@ -208,21 +223,28 @@ public:
 
         sections = ApplesoftVariables::Arrange (rows, arrays, L"", Column::Name, false);
 
-        Assert::AreEqual ((size_t) 3, sections.size(), L"The simple variables, then each array");
-        Assert::IsTrue   (GetNames (rows, sections[0]) == std::vector<std::wstring> { L"A", L"FN F", L"N%", L"S$" });
-        Assert::AreEqual (0, sections[1].array);
-        Assert::IsTrue   (GetNames (rows, sections[1]) == std::vector<std::wstring> { L"B%(0)", L"B%(1)", L"B%(2)" });
+        Assert::IsTrue (GetSectionNames (rows, arrays, sections) == std::vector<std::wstring> { L"A", L"B%", L"C", L"FN F", L"N%", L"S$" },
+                        L"The arrays sort in among the simple variables");
+        Assert::IsTrue (GetNames (rows, sections[1]) == std::vector<std::wstring> { L"B%(0)", L"B%(1)", L"B%(2)" }, L"An array's elements in subscript order");
 
         sections = ApplesoftVariables::Arrange (rows, arrays, L"", Column::Name, true);
 
-        Assert::IsTrue   (GetNames (rows, sections[0]) == std::vector<std::wstring> { L"S$", L"N%", L"FN F", L"A" }, L"Descending");
-        Assert::AreEqual (1, sections[1].array, L"and the arrays too");
+        Assert::IsTrue (GetSectionNames (rows, arrays, sections) == std::vector<std::wstring> { L"S$", L"N%", L"FN F", L"C", L"B%", L"A" }, L"Descending");
+
+        sections = ApplesoftVariables::Arrange (rows, arrays, L"", Column::Length, true);
+
+        Assert::AreEqual (std::wstring (L"C"), GetSectionNames (rows, arrays, sections).front(), L"An array's length is its element count");
 
         sections = ApplesoftVariables::Arrange (rows, arrays, L"", Column::Value, true);
 
-        Assert::AreEqual (std::wstring (L"C(1,2)"), rows[sections[2].rows[0]].name, L"An array's elements sort on their values");
+        for (const ApplesoftVariables::Section & section : sections)
+        {
+            if (section.array == 1)
+            {
+                Assert::AreEqual (std::wstring (L"C(1,2)"), rows[section.rows.front()].name, L"An array's elements sort on their values");
+            }
+        }
     }
-
 
 
     TEST_METHOD (Arrange_FiltersOnNamesValuesAndArrays)

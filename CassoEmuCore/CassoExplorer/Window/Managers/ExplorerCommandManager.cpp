@@ -204,7 +204,9 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kSavePicture:       return m_context.browser.GetPreview().kind == PreviewContent::Kind::Picture && !m_context.browser.GetPreview().bgra.empty();
         case CassoExplorerCommands::kEditWozMetadata:   return !m_context.browser.GetPreview().wozPath.empty();
         case CassoExplorerCommands::kFindNext:          return m_context.preview.GetFind().CanFindNext();
-        case CassoExplorerCommands::kFind:
+
+        //  The search box finds in the hex view and filters a VAR file's variables.
+        case CassoExplorerCommands::kFind:              return m_context.preview.GetHex().IsShowing() || m_context.preview.GetListing().IsVariables();
         case CassoExplorerCommands::kNoData:
         case CassoExplorerCommands::kFormatHex:
         case CassoExplorerCommands::kFormatSigned:
