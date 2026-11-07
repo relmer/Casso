@@ -146,6 +146,9 @@ public:
     //  before the request it goes with, as the line colors are.
     void  SetLineScales   (std::vector<std::vector<uint32_t>> scales) { m_lineScales = std::move (scales); }
 
+    //  How wide a line's scale is drawn, which a color key's scales match.
+    static constexpr float  kLineScaleWidthDip = 64.0f;
+
     //  A color scale drawn under the text, its stops spread evenly from left
     //  to right, with an arrow under it at `mark`, from 0 at the left to 1 at
     //  the right; a mark outside that range has no arrow. No stops, no scale.
@@ -274,7 +277,6 @@ private:
     static constexpr int    kPointerGapDip     = 4;
     static constexpr float  kGradientGapDip    = 6.0f;
     static constexpr float  kGradientHeightDip = 10.0f;
-    static constexpr float  kLineScaleWidthDip = 64.0f;
 
     static constexpr float  kGradientArrowDip = 6.0f;
     static constexpr float  kGradientWidthDip = 200.0f;

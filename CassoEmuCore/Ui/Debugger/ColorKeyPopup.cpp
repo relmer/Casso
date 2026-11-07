@@ -27,14 +27,15 @@ std::vector<ColorKeyPopup::Row> ColorKeyPopup::MakeRows (ColorLegend::Pane pane,
     {
         Row  row;
 
-        row.swatch = entry.swatch;
-        row.argb   = ColorLegend::GetArgb (entry.meaning, palette);
-        row.text   = ColorLegend::GetText (entry.meaning);
+        row.swatch   = entry.swatch;
+        row.argb     = ColorLegend::GetArgb (entry.meaning, palette);
+        row.fromArgb = ColorLegend::GetFaintest (row.argb, palette);
+        row.text     = ColorLegend::GetText (entry.meaning);
 
         if (entry.swatch != ColorLegend::Swatch::Row && entry.swatch != ColorLegend::Swatch::Text && entry.swatch != ColorLegend::Swatch::Italic &&
-            entry.swatch != ColorLegend::Swatch::Marker)
+            entry.swatch != ColorLegend::Swatch::Marker && entry.swatch != ColorLegend::Swatch::Ramp)
         {
-            row.icon = ColorLegend::MakeSwatchIcon (entry.swatch, row.argb, ColorLegend::GetFaintest (row.argb, palette));
+            row.icon = ColorLegend::MakeSwatchIcon (entry.swatch, row.argb);
         }
 
         rows.push_back (std::move (row));
@@ -289,11 +290,62 @@ SIZE ColorKeyPopup::MeasureDip (UINT dpi) const
         widest = std::max (widest, std::min (w, m_scaler.ToPxf ((float) kMaxTextDip)));
     }
 
-    widthPx  = m_scaler.ToPxf ((float) (kPadDip * 2 + kSwatchDip + kGapDip)) + std::ceil (widest);
+    widthPx  = m_scaler.ToPxf ((float) (kPadDip * 2 + kGapDip) + GetSwatchColumnDip()) + std::ceil (widest);
     heightPx = m_scaler.ToPxf ((float) (kPadDip * 2)) + m_scaler.ToPxf ((float) kRowDip) * (float) m_rows.size();
 
     return SIZE { (LONG) std::ceil (widthPx  * (float) DxuiDpiScaler::kBaseDpi / (float) scale),
                   (LONG) std::ceil (heightPx * (float) DxuiDpiScaler::kBaseDpi / (float) scale) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorKeyPopup::GetSwatchColumnDip
+//
+//  A key with a heat color is as wide as a tip's line scale before its text,
+//  so its Ramp swatches are the length the heat column heading's are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float ColorKeyPopup::GetSwatchColumnDip() const
+{
+    bool  hasRamp = std::ranges::any_of (m_rows, [] (const Row & row) { return row.swatch == ColorLegend::Swatch::Ramp; });
+
+
+
+    return hasRamp ? (std::max) ((float) kSwatchDip, DxuiTooltip::kLineScaleWidthDip) : (float) kSwatchDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorKeyPopup::PaintRamp
+//
+//  In thin slices from the faintest shade on the left to the full color on
+//  the right, outlined in the key's border color, as a tip draws a scale.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ColorKeyPopup::PaintRamp (IDxuiPainter & painter, const Row & row, float left, float top, float width, float height) const
+{
+    constexpr int  kSlices = 64;
+    float          slice   = width / (float) kSlices;
+
+
+
+    for (int i = 0; i < kSlices; i++)
+    {
+        painter.FillRect (left + slice * (float) i, top, slice + 0.5f, height,
+                          DxuiColor::Mix (row.fromArgb, row.argb, ((float) i + 0.5f) / (float) kSlices) | 0xFF000000u);
+    }
+
+    painter.OutlineRect (left, top, width, height, 1.0f, m_border);
 }
 
 
@@ -341,10 +393,14 @@ void ColorKeyPopup::Render (IDxuiPainter & painter, IDxuiTextRenderer & text) co
         const Row  & row  = m_rows[i];
         float        top  = pad + rowPx * (float) i;
         float        boxY = top + (rowPx - swatch) / 2.0f;
-        float        left = pad + swatch + gap;
+        float        left = pad + m_scaler.ToPxf (GetSwatchColumnDip()) + gap;
 
         switch (row.swatch)
         {
+        case ColorLegend::Swatch::Ramp:
+            PaintRamp (painter, row, pad, boxY, m_scaler.ToPxf (DxuiTooltip::kLineScaleWidthDip), swatch);
+            break;
+
         case ColorLegend::Swatch::Row:
             hr = text.FillRect (pad, boxY, swatch, swatch, row.argb);
             IGNORE_RETURN_VALUE (hr, S_OK);

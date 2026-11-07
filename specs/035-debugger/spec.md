@@ -3987,7 +3987,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   symbol tint and the outlines for the PC, the stack pointer, breakpoints
   and read and write data breakpoints. Each heat color's swatch MUST be
   shaded across from its faintest shade, which the least touched cell is
-  drawn in, to its full color, which the busiest is drawn in.
+  drawn in, to its full color, which the busiest is drawn in, as long as the
+  scales in the heat column heading's tip. Every color key with such a scale
+  MUST draw it that long.
 - **FR-394**: The tip over a heat map cell MUST start with a small square in
   the cell's color beside the meaning of that color, as the color key words it
   ("Value changed", "Written", "Untouched"), ahead of the cell's address and

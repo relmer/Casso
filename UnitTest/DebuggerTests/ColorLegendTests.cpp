@@ -376,6 +376,17 @@ namespace ColorLegendTests
 
 
             Assert::IsTrue (red (left) < 0x50,  L"faint at the left");
+            //  In the key, a heat color is drawn as a scale from its faintest
+            //  shade, not an image.
+            for (const ColorKeyPopup::Row & row : ColorKeyPopup::MakeRows (ColorLegend::Pane::HeatMap, MakeDistinctPalette()))
+            {
+                if (row.swatch == ColorLegend::Swatch::Ramp)
+                {
+                    Assert::IsNull      (row.icon.get(), row.text.c_str());
+                    Assert::AreNotEqual (row.argb, row.fromArgb, row.text.c_str());
+                }
+            }
+
             Assert::IsTrue (red (right) > 0xB0, L"full at the right");
 
             for (const ColorLegend::Entry & entry : ColorLegend::GetEntriesFor (ColorLegend::Pane::HeatMapBlend))
