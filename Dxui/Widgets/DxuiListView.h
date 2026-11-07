@@ -578,7 +578,7 @@ public:
     void  ClearSelection        ()                               { SetSelectedRows ({}, -1); if (m_onSelectionChanged) { m_onSelectionChanged (-1); } }
     void  SetOnActivateRow      (std::function<void (int)>  cb)  { m_onActivateRow      = std::move (cb); }
 
-    //  Paste (Ctrl+V and Edit > Paste) on the list; none leaves it off.
+    //  Paste (Ctrl+V and Edit > Paste) on the list; with none, Paste is off.
     void  SetOnPaste            (std::function<void()>      cb)  { m_onPaste            = std::move (cb); }
     void  SetOnSortColumn       (std::function<void (int)>  cb)  { m_onSortColumn       = std::move (cb); }
 
