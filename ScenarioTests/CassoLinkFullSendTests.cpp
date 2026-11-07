@@ -2,6 +2,7 @@
 
 #include "EhmTestHelper.h"
 #include "FixtureProvider.h"
+#include "GuestSession.h"
 #include "TestMachine.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "EmuTests/FakeDiskFileIo.h"
@@ -758,19 +759,20 @@ public:
             { "Where in the World is Carmen Sandiego side B.woz", 1, FullSendManifest::kStatusSent      },
         };
 
-        FixtureProvider  fixtures;
-        auto             demos = std::filesystem::path (fixtures.GetRoot()).parent_path().parent_path() / "Apple2" / "Demos";
-
-
-
         for (const Expected & expected : s_kExpected)
         {
-            Rig            rig;
-            std::ifstream  in (demos / expected.image, std::ios::binary);
-            Image          woz ((std::istreambuf_iterator<char> (in)), std::istreambuf_iterator<char>());
-            std::wstring   what = TextEncoding::NarrowToWide (expected.image);
+            Rig           rig;
+            std::wstring  what = TextEncoding::NarrowToWide (expected.image);
+            Image         woz  = GuestSession::FindGameImage (what.c_str());
 
-            Assert::IsFalse (woz.empty(), what.c_str());
+
+
+            //  The images are in the Casso Disks folder, out of the repo.
+            if (woz.empty())
+            {
+                Logger::WriteMessage ((L"SKIPPED: not in the Casso Disks folder: " + what).c_str());
+                continue;
+            }
 
             rig.machine.GetDiskStore().Eject (kSlot, 1);
             rig.Mount (1, DiskFormat::Woz, woz);

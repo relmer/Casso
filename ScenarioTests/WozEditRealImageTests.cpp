@@ -18,7 +18,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  WozEditRealImageTests
 //
-//  Disk properties' edits made in real WOZ images from the repo, an
+//  Disk properties' edits made in real WOZ images from the Casso Disks folder, an
 //  Applesauce WOZ 2 and a WOZ 1, in memory: the edited bytes load, their CRC
 //  matches, the edits read back, and every byte before META is as it was but
 //  INFO's edited fields and the header CRC.
@@ -29,9 +29,23 @@ TEST_CLASS (WozEditRealImageTests)
 {
 public:
 
-    static constexpr const char *  kWoz2Path = "Apple2/Demos/The Print Shop Color side A.woz";
-    static constexpr const char *  kWoz1Path = "Apple2/Demos/Karateka.woz";
-    static constexpr size_t        kInfoAt   = WozLoader::kHeaderSize + 8;   // INFO's payload, after its id and size
+    static constexpr const wchar_t *  kWoz2Name = L"The Print Shop Color side A.woz";
+    static constexpr const wchar_t *  kWoz1Name = L"Karateka.woz";
+    static constexpr size_t           kInfoAt   = WozLoader::kHeaderSize + 8;   // INFO's payload, after its id and size
+
+    //  The image from the Casso Disks folder, or empty when it isn't there,
+    //  and the test is skipped.
+    static std::vector<Byte> LoadGame (const wchar_t * name)
+    {
+        std::vector<Byte>  bytes = GuestSession::FindGameImage (name);
+
+        if (bytes.empty())
+        {
+            Logger::WriteMessage ((L"SKIPPED: not in the Casso Disks folder: " + std::wstring (name)).c_str());
+        }
+
+        return bytes;
+    }
 
     static WozLoader::Edits MakeEdits (const WozLoader::Description & woz)
     {
@@ -74,12 +88,17 @@ public:
 
     TEST_METHOD (Woz2_Edits_LoadAndReadBack_WithTheTracksUntouched)
     {
-        std::vector<Byte>       before = GuestSession::RequireRepoImage (kWoz2Path);
+        std::vector<Byte>       before = LoadGame (kWoz2Name);
         std::vector<Byte>       after  = before;
         WozLoader::Description  woz;
         WozLoader::Description  edited;
         DiskImage               image;
         size_t                  meta   = 0;
+
+        if (before.empty())
+        {
+            return;
+        }
 
         WozLoader::Describe (before, woz);
         Assert::IsTrue (woz.isWoz && woz.hasBootSectorFormat, L"the image has a version 2 INFO");
@@ -111,13 +130,18 @@ public:
 
     TEST_METHOD (Woz1_TakesMetaAndWriteProtection_ButNotTheVersion2Fields)
     {
-        std::vector<Byte>       bytes = GuestSession::RequireRepoImage (kWoz1Path);
+        std::vector<Byte>       bytes = LoadGame (kWoz1Name);
         std::vector<Byte>       kept  = bytes;
         WozLoader::Description  woz;
         WozLoader::Description  edited;
         WozLoader::Edits        edits;
         DiskImage               image;
         HRESULT                 hr    = S_OK;
+
+        if (bytes.empty())
+        {
+            return;
+        }
 
         WozLoader::Describe (bytes, woz);
         Assert::IsTrue  (woz.isWoz);
@@ -142,13 +166,18 @@ public:
 
     TEST_METHOD (Woz2_Details_HaveBothHeadings_AndAValuePerLine)
     {
-        std::vector<Byte>                                   bytes = GuestSession::RequireRepoImage (kWoz2Path);
+        std::vector<Byte>                                   bytes = LoadGame (kWoz2Name);
         std::vector<std::pair<std::wstring, std::wstring>>  details;
         auto                                                is    = [&details] (size_t at, const wchar_t * label, const wchar_t * value)
         {
             return at < details.size() && details[at].first == label && details[at].second == value;
         };
         size_t                                              developer = 0;
+
+        if (bytes.empty())
+        {
+            return;
+        }
 
         Assert::IsTrue (PreviewDecoder::ParseDetails (DiskImageSession::DescribeWozChunks (bytes), details));
 
@@ -163,12 +192,17 @@ public:
 
     TEST_METHOD (HardHatMack_MetaAsTheEditorSavesIt_KeepsEveryValue)
     {
-        std::vector<Byte>                                    bytes = GuestSession::RequireRepoImage ("Apple2/Demos/HardHatMack.woz");
+        std::vector<Byte>                                    bytes = LoadGame (L"HardHatMack.woz");
         WozLoader::Description                               woz;
         WozLoader::Description                               saved;
         WozLoader::Edits                                     edits;
         std::vector<std::pair<std::string, std::wstring>>    typed;
         std::string                                          text;
+
+        if (bytes.empty())
+        {
+            return;
+        }
 
         WozLoader::Describe (bytes, woz);
         Assert::IsFalse (woz.meta.empty());
@@ -206,9 +240,14 @@ public:
 
     TEST_METHOD (Choplifter_Details_ListCustomKeysAsStored_UnderCustom)
     {
-        std::vector<Byte>                                   bytes = GuestSession::RequireRepoImage ("Apple2/Demos/Choplifter.woz");
+        std::vector<Byte>                                   bytes = LoadGame (L"Choplifter.woz");
         std::vector<std::pair<std::wstring, std::wstring>>  details;
         size_t                                              custom = 0;
+
+        if (bytes.empty())
+        {
+            return;
+        }
 
         Assert::IsTrue (PreviewDecoder::ParseDetails (DiskImageSession::DescribeWozChunks (bytes), details));
 
