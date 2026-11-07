@@ -33,9 +33,13 @@ namespace DebuggerTests
         static constexpr Byte  kJsr          = 0x20;
         static constexpr Byte  kIncZeroPage  = 0xE6;
         static constexpr Byte  kBne          = 0xD0;
+        static constexpr Byte  kLdaIndirectY = 0xB1;
+        static constexpr Byte  kJmpAbsolute  = 0x4C;
 
-        static void Read  (AccessHeatMap & map, Word address) { map.OnWatchedAccess (address, 0, BusAccess::Read,  std::nullopt); }
-        static void Write (AccessHeatMap & map, Word address) { map.OnWatchedAccess (address, 0, BusAccess::Write, std::nullopt); }
+        static void Read       (AccessHeatMap & map, Word address)             { map.OnWatchedAccess (address, 0,     BusAccess::Read,  std::nullopt); }
+        static void Write      (AccessHeatMap & map, Word address)             { map.OnWatchedAccess (address, 0,     BusAccess::Write, std::nullopt); }
+        static void ReadValue  (AccessHeatMap & map, Word address, Byte value) { map.OnWatchedAccess (address, value, BusAccess::Read,  std::nullopt); }
+        static void WriteValue (AccessHeatMap & map, Word address, Byte value) { map.OnWatchedAccess (address, value, BusAccess::Write, std::nullopt); }
 
         //  An instruction as the CPU runs it: the opcode read, its fetch,
         //  then its operand bytes.
@@ -630,11 +634,11 @@ namespace DebuggerTests
         }
 
 
-        //  Applesoft's statement loop calls CHRGET at $D81D at the start of
-        //  every statement, and CHRGET's LDA at $00B7 then reads the
-        //  statement's first token; for a line's first statement that is
-        //  the line's address plus 4. The read is counted as a statement
-        //  there, and as a read.
+        //  Applesoft's statement loop calls CHRGET, which reads the
+        //  statement's first token through TXTPTR, then calls the statement
+        //  dispatcher from $D820; for a line's first statement the token is
+        //  at the line's address plus 4. It is counted as a statement there,
+        //  and as a read.
         TEST_METHOD (AStatementIsCountedAtItsFirstToken)
         {
             AccessHeatMap  map;
@@ -668,7 +672,7 @@ namespace DebuggerTests
             Run (map, 0xD9AA, kJsr, 2);
             RunChrGet (map, 0x0806);
 
-            // A statement's start, then a later read by $00B7 with no call at $D81D.
+            // A statement's start, then a later CHRGET with no dispatch at $D820.
             RunStatement (map, 0x0805);
             RunChrGet    (map, 0x0807);
             map.Fold (0);
@@ -680,26 +684,54 @@ namespace DebuggerTests
 
 
 
+        //  Under ProDOS, BASIC.SYSTEM's statement loop reads the token with
+        //  LDA ($B8),Y and jumps to $D820 without calling CHRGET; each of its
+        //  statements counts too.
+        TEST_METHOD (BasicSystemsStatementsAreCounted)
+        {
+            AccessHeatMap  map;
+
+
+
+            map.Start (GetCpu65C02InstructionSet(), 0);
+
+            Run       (map, 0x9F2F, kLdaIndirectY, 1);
+            ReadValue (map, 0x00B8, 0x11);
+            ReadValue (map, 0x00B9, 0x08);
+            Read      (map, 0x0811);
+            Run       (map, 0x9F33, kJmpAbsolute, 2);
+            Run       (map, 0xD820, kJsr, 2);
+            map.Fold (0);
+
+            Assert::AreEqual (1.0f, map.GetHeat (HeatKind::Statement, 0x0811));
+        }
+
+
+
         //  CHRGET as Applesoft has it in zero page: INC $B8, BNE $00B7, then
         //  LDA from the address in $B8 and $B9, which reads the token there.
         static void RunChrGet (AccessHeatMap & map, Word token)
         {
-            Run   (map, 0x00B1, kIncZeroPage, 1);
-            Read  (map, 0x00B8);
-            Write (map, 0x00B8);
-            Run   (map, 0x00B3, kBne, 1);
-            Run   (map, 0x00B7, kLdaAbsolute, 2);
-            Read  (map, token);
+            Run        (map, 0x00B1, kIncZeroPage, 1);
+            ReadValue  (map, 0x00B8, (Byte) (token - 1));
+            WriteValue (map, 0x00B8, (Byte) token);
+            Run        (map, 0x00B3, kBne, 1);
+            Read       (map, 0x00B7);
+            map.OnFetch (0x00B7, kLdaAbsolute);
+            ReadValue  (map, 0x00B8, (Byte) token);
+            ReadValue  (map, 0x00B9, (Byte) (token >> 8));
+            Read       (map, token);
         }
 
-        //  The statement loop's JSR CHRGET at $D81D, then CHRGET reading the
-        //  statement's first token.
+        //  The statement loop's JSR CHRGET at $D81D, CHRGET reading the
+        //  statement's first token, then the JSR to the dispatcher at $D820.
         static void RunStatement (AccessHeatMap & map, Word token)
         {
             Run       (map, 0xD81D, kJsr, 2);
             Write     (map, 0x01FD);
             Write     (map, 0x01FC);
             RunChrGet (map, token);
+            Run       (map, 0xD820, kJsr, 2);
         }
     };
 }

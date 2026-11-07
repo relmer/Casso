@@ -124,6 +124,31 @@ namespace DebuggerTests
             Assert::AreEqual (1u, basic.Hits (0));
         }
 
+        //  FR-175: the program's first line stops too, a REM line included.
+        TEST_METHOD (ABreakpointOnTheFirstLineStops)
+        {
+            BasicRig  basic ({ "10 REM START", "20 A = 1" });
+
+
+
+            basic.rig.RunOk ("BPBASIC 10");
+
+            AssertBasicStop (basic.Run(), StopReason::Breakpoint, 10, L"line 10");
+        }
+
+        //  Under ProDOS the language card often reads ROM and writes RAM; a
+        //  stop is found by the ROM, whatever the RAM under it contains.
+        TEST_METHOD (ABreakpointStopsWithTheLanguageCardWritingRam)
+        {
+            BasicRig  basic ({ "10 X = PEEK (49281): X = PEEK (49281): POKE 55328,0", "20 A = 1" });
+
+
+
+            basic.rig.RunOk ("BPBASIC 20");
+
+            AssertBasicStop (basic.Run(), StopReason::Breakpoint, 20, L"line 20");
+        }
+
         //  FR-174: a statement step goes to each statement in turn, a line
         //  step to the next line.
         TEST_METHOD (StepsGoByStatementAndByLine)

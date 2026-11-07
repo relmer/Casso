@@ -55,26 +55,28 @@ struct BasicStop
 //  BasicStopMonitor
 //
 //  Applesoft's breakpoints, its error stop and the BASIC steps, tested where
-//  the interpreter's own code passes (research R-043): NEWSTT's call of
-//  CHRGET, where every statement begins with CURLIN and TXTPTR set; NEWSTT
-//  finding the end of the program; and ERROR, with the error's code in X.
-//  The hook filter marks those pages only while an entry or a step is
-//  armed, so a run with none pays nothing.
+//  the interpreter's code passes (research R-043): the JSR to the statement
+//  dispatcher, which executes in NEWSTT and in BASIC.SYSTEM's statement
+//  loop under ProDOS with CURLIN set and TXTPTR on the statement's first
+//  token; NEWSTT finding the end of the program; and ERROR, with the
+//  error's code in X. The hook filter marks those pages only while an entry
+//  or a step is armed, so a run with none pays nothing.
 //
-//  A line begins where TXTPTR is on the high byte of the line's own number,
-//  where NEWSTT sets it after a new line's header; after a colon it is on
-//  the colon. A variable entry compares the value at each statement boundary of
-//  the program with the value at the one before, so the statement that made
-//  a change stops at the boundary after it. A boundary after one in direct
-//  mode only takes the values, so RUN's clearing and a value typed at the
-//  prompt stop nothing.
+//  A line begins where TXTPTR is just past the high byte of the line's
+//  number, as it is after a new line's header; after a colon it is just
+//  past the colon. A variable entry compares the value at each statement
+//  boundary of the program with the value at the one before, so the
+//  statement that made a change stops at the boundary after it. A boundary
+//  after one in direct mode only takes the values, so RUN's clearing and a
+//  value typed at the prompt stop nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class BasicStopMonitor
 {
 public:
-    static constexpr Word  kStatement  = 0xD81D;    // NEWSTT's JSR CHRGET: a statement begins
+    static constexpr Word  kSignature  = 0xD81D;    // NEWSTT's JSR CHRGET, JSR the dispatcher: Applesoft's mark
+    static constexpr Word  kStatement  = 0xD820;    // the JSR to the statement dispatcher: a statement begins
     static constexpr Word  kProgramEnd = 0xD826;    // NEWSTT at the program's end
     static constexpr Word  kError      = 0xD412;    // ERROR, the error's code in X
     static constexpr Word  kMessages   = 0xD260;    // the error messages, each one's last character with its high bit set

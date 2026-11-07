@@ -332,7 +332,10 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 //  Every read is a peek. A real is written by the ROM's own FOUT, run on an
 //  overlay, which costs a few hundred instructions a value, so the values
 //  are read only while the machine is stopped in a running program: with
-//  no program, the variable table's pointers can span most of memory.
+//  no program, the variable table's pointers can span most of memory. The
+//  text pointer is the statement's first token: at a statement's start
+//  the loop has moved TXTPTR onto it, and elsewhere TXTPTR is on the byte
+//  before it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -357,7 +360,7 @@ DebuggerViewSnapshot::BasicState DebuggerViewState::ReadBasic (DebugSession & se
 
     state.hasProgram  = program.TryGetListing (state.lines);
     state.line        = program.IsAtPrompt (session.GetTarget().GetRegisters().sp) ? std::nullopt : program.GetCurrentLine();
-    state.textPointer = (Word) ((low | (high << 8)) + 1);
+    state.textPointer = (Word) ((low | (high << 8)) + (session.GetTarget().GetRegisters().pc == BasicStopMonitor::kStatement ? 0 : 1));
     state.hasValues   = isPaused && state.hasProgram && state.line.has_value();
 
     if (state.hasValues)

@@ -308,7 +308,8 @@ name as a program writes it; Applesoft compares the first two characters and
 the type, and a variable that does not exist yet reads as 0 or "". The value
 is compared at each statement's start with the value at the start of the one
 before, both in the program, so the stop comes as the next statement begins.
-A line, variable or step stop is at $D81D, NEWSTT's call of CHRGET; an error
+A line, variable or step stop is at $D820, the JSR to the statement
+dispatcher, which executes in NEWSTT and in BASIC.SYSTEM's statement loop; an error
 stop is at ERROR, $D412, with the code in X. `BRKBASIC` alone reports the
 setting. `BPL` lists them as other breakpoints, `on BASIC line 100`,
 `on BASIC variable A changing` and `on BASIC error`, and `BPSAVE` writes the

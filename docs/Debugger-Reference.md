@@ -1737,7 +1737,7 @@ BASIC error: ?DIVISION BY ZERO ERROR IN 20 (code $85, ONERR on)
   the start of the statement before. A value typed at the prompt, and the
   variables `RUN` clears, stop nothing.
 - A line breakpoint may be set before the line is in the program.
-- After a line, variable or step stop the PC is $D81D, where the interpreter
+- After a line, variable or step stop the PC is $D820, where the interpreter
   starts each statement; after an error stop it is $D412, before the message
   is printed or `ONERR`'s handler runs.
 - The steps and the two lists work only with Applesoft in the $D000 bank. On

@@ -37,7 +37,7 @@ bool BasicStopMonitor::IsApplesoftVisible (const IDebugExpressionContext & conte
 
 
 
-        isSame = context.TryPeek ((Word) (kStatement + i), value) && value == kEntry[i];
+        isSame = context.TryPeek ((Word) (kSignature + i), value) && value == kEntry[i];
     }
 
     return isSame;
@@ -439,10 +439,11 @@ BasicStopMonitor::Peek BasicStopMonitor::MakePeek (const IDebugExpressionContext
 //
 //  BasicStopMonitor::IsLineStart
 //
-//  After a new line's header TXTPTR is on its number's high byte, with the
-//  low byte before it and the zero that ends the line before, or the one
-//  before the program, three bytes further back. After a colon TXTPTR is on
-//  the colon, which no line number's high byte and zero together match.
+//  At a new line's first statement TXTPTR is on the token just past its
+//  number's high byte, with the low byte before that and the zero that ends
+//  the line before, or the one before the program, three bytes further
+//  back. After a colon the byte before the token is the colon, which no
+//  line number's high byte and zero together match.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -457,7 +458,7 @@ bool BasicStopMonitor::IsLineStart (Word line, const IDebugExpressionContext & c
 
     context.TryPeek (ApplesoftProgram::kTxtPtr,              low);
     context.TryPeek ((Word) (ApplesoftProgram::kTxtPtr + 1), high);
-    text = (Word) (low | (high << 8));
+    text = (Word) ((low | (high << 8)) - 1);
 
     context.TryPeek (text,              high);
     context.TryPeek ((Word) (text - 1), low);

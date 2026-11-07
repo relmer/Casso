@@ -111,12 +111,12 @@ class AccessHeatMap : public IWatchSink, public IFetchSink
 public:
     static constexpr size_t    kAddressCount    = 0x10000;
 
-    //  Applesoft's statement loop, NEWSTT, calls CHRGET at kNewStatement at
-    //  the start of every statement; CHRGET runs from kChrGet in zero page,
-    //  and its LDA at kChrGetRead reads the token at TXTPTR, its operand.
-    static constexpr Word      kNewStatement    = 0xD81D;
-    static constexpr Word      kChrGet          = 0x00B1;
-    static constexpr Word      kChrGetRead      = 0x00B7;
+    //  In Applesoft's statement loop, NEWSTT, and in BASIC.SYSTEM's under
+    //  ProDOS, the JSR to the statement dispatcher at kStatementStart
+    //  executes with TXTPTR, at kTxtPtr, on the statement's first token,
+    //  just read through TXTPTR.
+    static constexpr Word      kStatementStart  = 0xD820;
+    static constexpr Word      kTxtPtr          = 0x00B8;
     static constexpr Byte      kJsr             = 0x20;
     static constexpr size_t    kKindCount       = 6;
     static constexpr size_t    kSpaceCount      = 4;
@@ -313,6 +313,7 @@ private:
     void           RecordLast       (bool isWrite, Word address, const Landing & landing);
     void           OnWrite          (Word address, Byte value);
     void           OnRead           (Word address, Byte value);
+    void           NoteTextPointer  (Word address, Byte value);
     void           TakeBackLastRead (Word address);
     static bool    IsStore          (Microcode::Operation operation);
 
@@ -400,9 +401,12 @@ private:
     bool                                 m_isLastReadUnwritten = false;
     bool                                 m_isLastReadStop      = false;
 
-    //  Whether Applesoft's statement loop called CHRGET and CHRGET hasn't
-    //  yet read the statement's first token.
-    bool                                 m_isStatementPending  = false;
+    //  TXTPTR, from the last reads and writes of it, and the last read
+    //  through it: a statement's first token when the JSR at
+    //  kStatementStart executes.
+    Word                                 m_txtPtr              = 0;
+    std::optional<Word>                  m_tokenRead;
+    Landing                              m_tokenLanding;
 
     //  The byte the write the CPU is about to make replaces, and where.
     std::optional<Byte>                  m_previous;
