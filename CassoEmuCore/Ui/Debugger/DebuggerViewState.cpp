@@ -446,8 +446,10 @@ void DebuggerViewState::BuildCodeViews (DebugSession & session, DebuggerViewSnap
     {
         if (view == 0 || m_code[(size_t) view].open)
         {
-            snapshot.codeViews[(size_t) view] = BuildCode (session, snapshot, view);
-            snapshot.codeOpen[(size_t) view]  = true;
+            snapshot.codeViews[(size_t) view]  = BuildCode (session, snapshot, view);
+            snapshot.codeOpen[(size_t) view]   = true;
+            snapshot.codeSelect[(size_t) view] = m_code[(size_t) view].selectOn;
+            m_code[(size_t) view].selectOn.reset();
         }
     }
 }

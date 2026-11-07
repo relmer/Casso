@@ -1191,6 +1191,7 @@ void DisassemblyGroup::ApplyView (int view)
 
     list->SetRows (std::move (rows));
     m_views[(size_t) view]->SetSourceParts (std::move (parts));
+    SelectAsked (view, *snapshot, lines, built);
 
     if (SelectScrolledEdge (view, built))
     {
@@ -1529,6 +1530,47 @@ void DisassemblyGroup::SelectEdgeAfterScroll (int view, bool isTop)
 
     m_edgeAfterScroll[(size_t) view]  = isTop;
     m_edgeScrolledFrom[(size_t) view] = lines.empty() ? std::nullopt : std::optional<Word> (lines.front().address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::SelectAsked
+//
+//  The instruction a snapshot asks the view to select, as Show last writer
+//  does, once per snapshot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisassemblyGroup::SelectAsked (
+    int                                                   view,
+    const DebuggerViewSnapshot                          & snapshot,
+    const std::vector<DebuggerViewSnapshot::CodeLine>   & lines,
+    const std::vector<DisassemblyOptions::Row>          & built)
+{
+    std::optional<Word>  asked = snapshot.codeSelect[(size_t) view];
+
+
+
+    if (!asked.has_value() || m_askedFrom[(size_t) view] == &snapshot)
+    {
+        return;
+    }
+
+    m_askedFrom[(size_t) view] = &snapshot;
+
+    for (size_t i = 0; i < lines.size(); i++)
+    {
+        if (lines[i].address == *asked)
+        {
+            m_selected[(size_t) view] = *asked;
+            GetCodeList (view)->SetSelectedRow (DisassemblyOptions::GetRowOfLine (built, (int) i));
+            return;
+        }
+    }
 }
 
 

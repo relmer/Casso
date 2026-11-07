@@ -305,6 +305,10 @@ struct DebuggerViewSnapshot
     std::array<std::vector<CodeLine>, 4>  codeViews;
     std::array<bool, 4>                   codeOpen      = {};
     int                                   followView    = 0;
+
+    //  An instruction to select in a view, in this snapshot only, as Show
+    //  last writer and Show last reader ask.
+    std::array<std::optional<Word>, 4>    codeSelect    = {};
     std::vector<RegisterRow>              registers;
     std::string                           flags;
     std::optional<BeamState>              beam;
@@ -586,6 +590,7 @@ public:
     //  middle as the top of memory allows. Every navigation goes through
     //  here, so what was asked for is never on an edge.
     void  CenterCodeOn     (Word address, int view = 0) { m_code[(size_t) view].centerOn = address; m_code[(size_t) view].scrollLines = 0; }
+    void  SelectCodeAt     (Word address, int view = 0) { CenterCodeOn (address, view); m_code[(size_t) view].selectOn = address; }
 
     //  Scrolls a code view by instructions, down when positive, up when
     //  negative, through the whole address space.
@@ -1022,6 +1027,7 @@ private:
         std::optional<Word>      pinnedAtPc;
         bool                     centerOnPc   = false;
         std::optional<Word>      centerOn;
+        std::optional<Word>      selectOn;
         int                      scrollLines  = 0;
         std::optional<uint64_t>  scrolledAtMs;
         bool                     isMenuHeld   = false;

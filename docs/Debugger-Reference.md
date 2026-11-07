@@ -1176,8 +1176,8 @@ in their bytes' colors, and the Language Card's and aux RAM's in the memory
 map's. While the boxes are drawn, the gaps before and after the values are a
 character wider, so a box's edge doesn't crowd the addresses or the text.
 
-Right-click a byte for **Show last writer**, **Show last reader**, **Go to last
-write** and **Go to last read**; see
+Right-click a byte for **Show last writer**, **Show last reader**, **Rewind to last
+write time** and **Rewind to last read time**; see
 [last writer and last reader](#last-writer-and-last-reader).
 **Add as pointer watch** over a byte in zero page runs `ZP`.
 
@@ -1476,8 +1476,10 @@ pushes onto the stack count as the interrupted instruction's.
   PC, and a step back runs to it. A write older than the history, or made
   while history recording was off, is reported in the console instead.
 - Right-click a cell, or a byte in a memory window, for the same four actions
-  as menu rows: **Show last writer**, **Show last reader**, **Go to last
-  write** and **Go to last read**. A memory window's rows use the CPU's view
+  as menu rows: **Show last writer**, **Show last reader**, **Rewind to last
+  write time** and **Rewind to last read time**, labeled **Fast-forward** instead while
+  history is replayed from before the access. A row is grayed out for an access
+  that never happened, or a rewind to one older than the history. A memory window's rows use the CPU's view
   of the byte.
 
 The last writers and readers follow the machine through history as the

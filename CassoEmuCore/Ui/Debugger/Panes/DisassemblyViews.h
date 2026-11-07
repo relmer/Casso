@@ -229,6 +229,8 @@ private:
     void                             MarkRow        (int view, int row, const DebuggerViewSnapshot::CodeLine & line, std::optional<Word> target, bool isMarked,
                                                      std::vector<DxuiListView::Cell> & cells, uint32_t & fill, std::wstring & rowTip);
     bool                             SelectScrolledEdge (int view, const std::vector<DisassemblyOptions::Row> & built);
+    void                             SelectAsked        (int view, const DebuggerViewSnapshot & snapshot, const std::vector<DebuggerViewSnapshot::CodeLine> & lines,
+                                                         const std::vector<DisassemblyOptions::Row> & built);
     bool                             GetOneBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const;
     bool                             TryGetSourceText (int fileId, int line, std::wstring & text);
 
@@ -256,4 +258,8 @@ private:
     const DebuggerViewSnapshot                          * m_missesFor = nullptr;
     ByteChanges                                           m_changes;
     std::string                                           m_machine;
+
+    //  The snapshot each view last took an asked selection from, so applying
+    //  the view again doesn't select it again over the user's.
+    std::array<const DebuggerViewSnapshot *, DebuggerViewState::kMaxCodeViews>  m_askedFrom = {};
 };

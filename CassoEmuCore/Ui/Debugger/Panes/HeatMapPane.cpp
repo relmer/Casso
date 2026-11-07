@@ -15,12 +15,12 @@
 
 
 //  The rows a menu on a byte or a heat map cell gets for its last accesses.
-static constexpr std::pair<const wchar_t *, HeatMapView::PickAction>  s_kAccessRows[] =
+static constexpr HeatMapView::PickAction  s_kAccessRows[] =
 {
-    { L"Show last writer", HeatMapView::PickAction::ShowWriter    },
-    { L"Show last reader", HeatMapView::PickAction::ShowReader    },
-    { L"Go to last write", HeatMapView::PickAction::RewindToWrite },
-    { L"Go to last read",  HeatMapView::PickAction::RewindToRead  },
+    HeatMapView::PickAction::ShowWriter,
+    HeatMapView::PickAction::ShowReader,
+    HeatMapView::PickAction::RewindToWrite,
+    HeatMapView::PickAction::RewindToRead,
 };
 
 
@@ -1077,10 +1077,76 @@ void HeatMapPane::RequestAccess (Word address, HeatMapView::PickAction action, H
 
 void HeatMapPane::AddAccessItems (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items)
 {
-    for (const auto & [label, action] : s_kAccessRows)
+    const HeatAccessHover  * hover = (m_hover != nullptr && m_hover->address == address && m_hover->bank == bank) ? m_hover.get() : nullptr;
+
+
+
+    for (HeatMapView::PickAction action : s_kAccessRows)
     {
-        items.push_back ({ label, [this, address, bank, action = action] { RequestAccess (address, action, bank); } });
+        bool  isWrite  = action == HeatMapView::PickAction::ShowWriter || action == HeatMapView::PickAction::RewindToWrite;
+        bool  isRewind = action == HeatMapView::PickAction::RewindToWrite || action == HeatMapView::PickAction::RewindToRead;
+
+
+
+        items.push_back ({ GetAccessLabel (action, hover, m_cycles),
+                           IsAccessRowEnabled (hover, isWrite, isRewind) ? std::function<void()> ([this, address, bank, action] { RequestAccess (address, action, bank); })
+                                                                         : std::function<void()>() });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapPane::GetAccessLabel
+//
+//  "Show last writer", "Show last reader", and for a jump to the access's
+//  time "Rewind to last write time", or "Fast-forward to last write time"
+//  while the history is replayed from before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HeatMapPane::GetAccessLabel (HeatMapView::PickAction action, const HeatAccessHover * hover, uint64_t cycles)
+{
+    bool                    isWrite = action == HeatMapView::PickAction::ShowWriter || action == HeatMapView::PickAction::RewindToWrite;
+    const HeatAccessInfo  * info    = (hover == nullptr) ? nullptr : (isWrite ? &hover->writer : &hover->reader);
+    bool                    isAhead = info != nullptr && info->has && info->cycle > cycles;
+
+
+
+    switch (action)
+    {
+    case HeatMapView::PickAction::ShowWriter: return L"Show last writer";
+    case HeatMapView::PickAction::ShowReader: return L"Show last reader";
+    default:                                  break;
+    }
+
+    return std::format (L"{} to last {} time", isAhead ? L"Fast-forward" : L"Rewind", isWrite ? L"write" : L"read");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapPane::IsAccessRowEnabled
+//
+//  Until the machine has looked up the cell's accesses, every row is on. A
+//  cell never written has no writer to show or go back to, and one written
+//  before the history kept has no time to go back to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapPane::IsAccessRowEnabled (const HeatAccessHover * hover, bool isWrite, bool isRewind)
+{
+    const HeatAccessInfo  * info = (hover == nullptr) ? nullptr : (isWrite ? &hover->writer : &hover->reader);
+
+
+
+    return info == nullptr || (info->has && (!isRewind || !info->isTooOld));
 }
 
 
@@ -1171,6 +1237,12 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
     }
 
     m_view->SetHoverAccess (state.hover);
+    m_cycles = snapshot.cycles;
+
+    if (state.hover != nullptr)
+    {
+        m_hover = state.hover;
+    }
 
     //  The tip over the map lists the last writer and reader as soon as they
     //  come in, without waiting for the mouse to move, and a tip pending

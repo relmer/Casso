@@ -578,6 +578,34 @@ namespace DebuggerCodeMenuTests
         }
 
 
+        //  Show last writer's snapshot asks the view to select the writer's
+        //  instruction, and its row is selected; the next snapshot asks
+        //  nothing and the row is selected after it.
+        TEST_METHOD (ASnapshotsAskedInstructionIsSelected)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            MenuWindow         window   (theme, host);
+            DxuiDpiScaler      scaler;
+            auto               asked    = MakeSnapshot();
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            asked->codeSelect[0] = 0x0302;
+            window.TakeSnapshot (asked);
+            window.ApplyCodeSnapshot (asked, 0);
+            Assert::AreEqual (1, window.GetCodeList (0)->GetSelectedRow(), L"the JSR's row");
+
+            window.TakeSnapshot (MakeSnapshot());
+            window.ApplyCodeSnapshot (MakeSnapshot(), 0);
+            Assert::AreEqual (1, window.GetCodeList (0)->GetSelectedRow(), L"the JSR's row after the next snapshot");
+        }
+
+
         //  With Show heat on, a line's heat cell has its color, on the PC's row
         //  as on the others; the row's other cells have the row's fill.
         TEST_METHOD (TheHeatCellKeepsItsColorOnEveryRow)

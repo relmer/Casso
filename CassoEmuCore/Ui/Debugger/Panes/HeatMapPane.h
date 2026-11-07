@@ -99,6 +99,11 @@ public:
     bool                             TryGetTipAt         (POINT clientPx, DxuiTip & tip);
     void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
+    //  An access row's label and whether it is on, for the cell's accesses
+    //  as the machine looked them up, or none yet.
+    static std::wstring  GetAccessLabel     (HeatMapView::PickAction action, const HeatAccessHover * hover, uint64_t cycles);
+    static bool          IsAccessRowEnabled (const HeatAccessHover * hover, bool isWrite, bool isRewind);
+
 private:
     void  SetIgnoreMenu  ();
     void  RequestAccess  (Word address, HeatMapView::PickAction action, HeatMapOptions::Bank bank);
@@ -123,6 +128,11 @@ private:
     //  a snapshot brings the cell's last writer and reader.
     std::optional<POINT>                         m_tipAt;
     bool                                         m_isTipPending  = false;
+
+    //  The last cell's accesses the machine looked up, and the CPU's cycle
+    //  at the last snapshot, for the access rows of a menu.
+    std::shared_ptr<const HeatAccessHover>       m_hover;
+    uint64_t                                     m_cycles        = 0;
 
     //  When the wheel last zoomed the map. TryGetTip returns false for
     //  kZoomQuietMs after, since each notch moves every cell under the pointer and a tip

@@ -1341,7 +1341,12 @@ void ShellDebugger::RunDebugHeatMapAccess (const HeatAccessRequest & request)
     switch (plan.kind)
     {
     case HeatAccessPlan::Kind::ShowCode:
-        SetDebugView ("code", plan.pc);
+        {
+            std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+            m_debugViewState.SelectCodeAt (plan.pc);
+        }
+
         break;
 
     case HeatAccessPlan::Kind::Seek:
