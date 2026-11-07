@@ -360,6 +360,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: When does the in-place tip for a cut-off operand and result appear? -> A: On the first pointer move over the cell. The owner: "the in-place tip should not have a delay, it should be instant" (FR-026a).
 - Q: What does the tip do when the Operand and result cell is wholly out of view, as when the columns left of it are widened past the pane's edge? -> A: It comes up with the pointer anywhere on the row, with every line below the row from the pane's left edge, in the same font, colors and fill (FR-026a).
 - Q: How wide is the tip, and where does it wrap? -> A: It extends to the right to the end of its text and wraps only at the screen's edge. The owner: "There will almost always be space to the right to extend the line as far as we need." An instruction's result goes on the line below its operand, from the same left, and the tip is as wide as the wider of the two. A source or data line is drawn on one line from its start, its label rather than its directive, and only a line wider than the screen wraps: under the comment's first character in a comment, four characters right of the code otherwise. A source document's operand and result take the disassembly's colors, and its tip follows the same rules (FR-026a).
+- Q: How is the in-place tip filled and laid out, and which rows have one? -> A: One model for every disassembly row and source line. Every line of the tip has the row's highlight across the whole row, from the row's start to the tip's right edge; the owner: "The highlight should start at the BEGINNING OF THE LINE. The WHOLE LINE should have the highlight color." The first line is the row's text where the view draws it, run on to include everything cut off; the operand and then the result go below it, under the code ("The operand and result should begin under 'bne'"), except that an operand in view but cut off stays on the first line with its result under it. A source row's comment takes the first line in place of its operand and result, which go below. Any cut-off text has a tip, a comment or source line among them. An operand's symbol joins the tip as another operand value, and the symbol tip does not appear on that row while the in-place tip is up. The tip starts on the monitor the row starts on and extends right as far as its text runs, into the monitor beside it, with no other repositioning: "If it doesn't fit due to monitor arrangement ... too bad, the user can move their windows around." An italic data line draws an italic tip (FR-026a).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -2129,34 +2130,66 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   pane's edge with its text cut off there, so the view has no horizontal scroll
   bar. A width the user drags for that column MUST last only until Casso exits
   and MUST NOT be saved in the layout or the debug project. A pane MUST be tall
-  enough by default to show at least eight entries. Where the column's text is
-  cut off, it MUST be drawn whole in an in-place tip from the first pointer
-  move over the cell, with no delay, in the cell's font and colors on the
-  hovered row's fill, with no outline. The tip MUST be a rectangle that runs
-  on past the pane's right edge to the end of its text, and MUST wrap only
-  where its text is wider than the screen's room to the right. An
-  instruction's operand MUST be on the tip's first line, starting at the
-  cell's text, and its result on the next line, starting at the same left;
-  the tip MUST be as wide as the wider of the two, and a part that wraps MUST
-  continue at that same left. A source line or data line that runs on across
-  the row (FR-362) MUST be drawn on one line, with the tip and its fill
-  starting at the line's start, such as its label, rather than at its
-  directive. Where such a line wraps, it MUST break at spaces where it can,
-  and the lines after the first MUST start under the first character of the
+  enough by default for at least eight entries. Where a code row's text is
+  cut off, in a disassembly view, the BASIC program or a source document, it
+  MUST be drawn whole in an in-place tip from the first pointer move over the
+  row, with no delay and no outline, exactly when the view's drawing of some
+  text in the row is clipped. The pointer MUST pass through the tip to the row
+  beneath. One model applies to every such row:
+  1. **Fill.** Every line of the tip MUST be filled with the row's highlight
+     (the hover's, or the selection's on a selected row) across the whole row,
+     from the row's start (the list's or text view's left edge, as the view
+     highlights the row) to the tip's right edge, which is the pane's right
+     edge or past it, whichever is further. The row itself and each line
+     below it MUST look like highlighted rows, not a box behind the text. A
+     source document, which doesn't draw a hover, MUST highlight the row
+     while its tip is up.
+  2. **The row's line.** The tip's first line MUST be the row's text,
+     each part where the view draws it, run on past the pane's edge far enough
+     to include everything the view cuts off: an operand, source text, a
+     data line, a label or a comment. A part drawn whole that the part ahead
+     of it, run on, would run into MUST follow that part, a padding's width
+     apart.
+  3. **Operand and result.** Below the first line, in order, MUST come the
+     operand, where the first line doesn't have it whole, and then the
+     result, each starting under where the row's code starts: the
+     mnemonic in the disassembly, past the label in a source document. An
+     operand in view but cut off MUST stay on the first line where the view
+     draws it, with its result on the next line under the operand's start.
+  4. **A source line's comment.** Where a source row's operand and result run
+     on to the row's end with the line's comment after them, and the view
+     cuts them off, the first line MUST be the source line itself with its
+     comment in their place; the operand MUST follow on the next line and the
+     result below it, both under the code's start.
+  5. **Any cut-off text.** Every clipped part of a row MUST have the tip, not
+     only the Operand and result column: a comment, a label, source text and
+     a data line, in the disassembly and in a source document.
+  6. **Symbol.** Where the row's operand is written with a symbol, the tip
+     MUST include the symbol's "name = $value" among the operand's values,
+     after them and separated as they are, and the symbol tip MUST NOT come up
+     on that row while the in-place tip is up. On a row that is not cut off,
+     the symbol tip MUST come up as it does today.
+  7. **Monitor.** The tip MUST be laid out on the monitor where the row
+     starts (the row's left edge) and MUST extend right as far as its text
+     runs, limited to that monitor's work area joined with an adjacent
+     monitor directly to its right, if any, and MUST NOT be moved otherwise.
+     It MUST wrap only where its text is wider than that room. Where the row
+     starts on no monitor, or the tip is taller than the room below the row,
+     it MUST NOT appear.
+  8. **Italics.** A row drawn in italics, as a data line is, MUST draw its tip
+     in italics, in the same face and size.
+  Where a part wraps, it MUST break at spaces where it can. A source or data
+  line's lines after the first MUST start under the first character of the
   comment's text, past the `;` and its spaces, where the break is in the
   comment, and four characters right of where the line's code starts
-  otherwise. Where the cell lies wholly outside the pane's visible area,
-  past its right edge or scrolled out of view to the left, the tip MUST come
-  up with the pointer anywhere on the row, with all of its lines, the
-  operand's and then the result's, below the row from the pane's left edge,
-  by the same rules. The same applies to a source document's operand and
-  result, which MUST be in the disassembly's colors: the operand in the
-  operand color and the result in the result color. The
-  tip MUST stay up while the pointer moves from the row down into it. After
-  the wheel or a step, the tip MUST stay up, laid out for the cell under the
-  resting pointer: the same tip for the same cell and text, the tip of the
-  row now under the pointer where its cell is cut off, and no tip where
-  nothing under the pointer is cut off (amended 2026-11-06).
+  otherwise; any other part MUST continue at its left. A source
+  document's operand and result MUST be in the disassembly's colors: the
+  operand in the operand color and the result in the result color. The tip
+  MUST stay up while the pointer moves from the row down into it. After the
+  wheel or a step, the tip MUST stay up, laid out for the row under the
+  resting pointer: the same tip for the same row and text, the tip of the row
+  now under the pointer where its text is cut off, and no tip where nothing
+  under the pointer is cut off (amended 2026-11-06).
 - **FR-026b**: A Monitor-mode `R` or `W` entered in the window with no file
   name MUST open a file picker and run the command with the chosen file.
 - **FR-026c**: The window's step, step over, step out, run, pause and toggle-
