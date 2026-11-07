@@ -398,6 +398,38 @@ public:
 
 
 
+    //  An EDASM REL file: its code's length, the code, a relocation record for
+    //  the JSR's operand, the record list's ending zero, and an external
+    //  symbol dictionary.
+    TEST_METHOD (Relocatable_DisassemblesItsCodeAndListsItsRelocationRecords)
+    {
+        std::vector<Byte>          bytes = { 0x04, 0x00, 0x20, 0x03, 0x10, 0x60, 0x81, 0x01, 0x00, 0x00, 0x00, 0xC1, 0x00 };
+        std::vector<std::wstring>  lines;
+
+        PreviewDecoder::RenderDisassembly (bytes, 0x1000, VolumeKind::ProDos, true, lines);
+
+        Assert::AreEqual ((size_t) 5, lines.size());
+        Assert::AreEqual (std::wstring (L"1000  20 03 10  JSR $1003  ; relocated"),                 lines[0], L"The code starts past its length, at its origin");
+        Assert::AreEqual (std::wstring (L"1003  60        RTS"),                                   lines[1]);
+        Assert::AreEqual (std::wstring (L"1004            DFB $81,$01,$00,$00  ; relocation record"), lines[2]);
+        Assert::AreEqual (std::wstring (L"1008            DFB $00  ; end of relocation records"),     lines[3]);
+        Assert::AreEqual (std::wstring (L"1009            DFB $C1,$00  ; external symbols"),          lines[4]);
+    }
+
+
+
+    TEST_METHOD (Disassembly_NamesTheMonitorsEntryPoints)
+    {
+        std::vector<Byte>          bytes = { 0x20, 0x58, 0xFC };
+        std::vector<std::wstring>  lines;
+
+        PreviewDecoder::RenderDisassembly (bytes, 0x0800, VolumeKind::Dos33, false, lines);
+
+        Assert::AreEqual (std::wstring (L"0800  20 58 FC  JSR HOME"), lines[0]);
+    }
+
+
+
     TEST_METHOD (Catalog_RowsForAnImage)
     {
         vector<Byte>    sectors;

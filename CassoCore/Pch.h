@@ -37,8 +37,10 @@
 #include <functional>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <print>
 #include <memory>
+#include <optional>
 #include <span>
 #include <sstream>
 #include <string>

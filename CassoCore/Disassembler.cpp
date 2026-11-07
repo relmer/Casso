@@ -139,6 +139,12 @@ std::string Disassembler::FormatLine (const DisassembledLine & line)
         text += line.operand;
     }
 
+    if (!line.comment.empty())
+    {
+        text += "  ; ";
+        text += line.comment;
+    }
+
     return text;
 }
 
@@ -161,7 +167,8 @@ void Disassembler::Disassemble (
     std::span<const Byte>            bytes,
     Word                             origin,
     const Microcode                * instructionSet,
-    std::vector<DisassembledLine>  & outLines)
+    std::vector<DisassembledLine>  & outLines,
+    const DisassemblyOptions       & options)
 {
     size_t  at    = 0;
     size_t  count = bytes.size();
@@ -177,16 +184,18 @@ void Disassembler::Disassemble (
 
     while (at < count)
     {
-        DisassembledLine    line;
-        Byte                opcode      = bytes[at];
-        const Microcode   & microcode   = instructionSet[opcode];
-        size_t              operandSize = OpcodeTable::GetOperandSize (microcode.globalAddressingMode);
-        size_t              length      = 1 + operandSize;
-        bool                fits        = (at + length) <= count;
+        DisassembledLine                      line;
+        Byte                                  opcode       = bytes[at];
+        const Microcode                     & microcode    = instructionSet[opcode];
+        const UndocumentedOpcode            * undocumented = (!microcode.isLegal && options.nmosUndocumented) ? FindUndocumented (opcode) : nullptr;
+        GlobalAddressingMode::AddressingMode  mode         = (undocumented != nullptr) ? undocumented->mode : microcode.globalAddressingMode;
+        size_t                                operandSize  = OpcodeTable::GetOperandSize (mode);
+        size_t                                length       = 1 + operandSize;
+        bool                                  fits         = (at + length) <= count;
 
         line.address = (Word) (origin + at);
 
-        if (!microcode.isLegal)
+        if (!microcode.isLegal && undocumented == nullptr)
         {
             line.bytes.push_back (opcode);
             line.mnemonic  = kUndefinedMnemonic;
@@ -206,13 +215,124 @@ void Disassembler::Disassemble (
         }
 
         line.bytes.assign (bytes.begin() + (ptrdiff_t) at, bytes.begin() + (ptrdiff_t) (at + length));
-        line.mnemonic  = microcode.instructionName;
-        line.operand   = FormatOperand (microcode.globalAddressingMode,
-                                        (operandSize > 0) ? &bytes[at + 1] : nullptr,
-                                        line.address);
+        line.mnemonic  = (undocumented != nullptr) ? undocumented->mnemonic : microcode.instructionName;
+        line.operand   = FormatOperand (mode, (operandSize > 0) ? &bytes[at + 1] : nullptr, line.address);
         line.isDefined = true;
+
+        if (options.symbols != nullptr)
+        {
+            ApplySymbol (line, mode, *options.symbols);
+        }
 
         outLines.push_back (line);
         at += length;
+
+        //  The MLI returns past its call number and parameter list's address,
+        //  so the three bytes after its JSR are data.
+        if (opcode == s_kJsrOpcode && options.mliEntry.has_value() && at + 3 <= count &&
+            (Word) (line.bytes[1] | (line.bytes[2] << 8)) == *options.mliEntry)
+        {
+            DisassembledLine  call;
+            DisassembledLine  parameters;
+
+            call.address   = (Word) (origin + at);
+            call.bytes     = { bytes[at] };
+            call.mnemonic  = kByteDirective;
+            call.operand   = "$" + FormatHexByte (bytes[at]);
+            call.isDefined = true;
+
+            if (options.mliCalls != nullptr && options.mliCalls->contains (bytes[at]))
+            {
+                call.comment = options.mliCalls->at (bytes[at]);
+            }
+
+            parameters.address   = (Word) (origin + at + 1);
+            parameters.bytes     = { bytes[at + 1], bytes[at + 2] };
+            parameters.mnemonic  = kWordDirective;
+            parameters.operand   = "$" + FormatHexWord ((Word) (bytes[at + 1] | (bytes[at + 2] << 8)));
+            parameters.isDefined = true;
+
+            outLines.push_back (call);
+            outLines.push_back (parameters);
+            at += 3;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disassembler::FindUndocumented
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const Disassembler::UndocumentedOpcode * Disassembler::FindUndocumented (Byte opcode)
+{
+    for (const UndocumentedOpcode & entry : s_kUndocumentedOpcodes)
+    {
+        if (entry.opcode == opcode)
+        {
+            return &entry;
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disassembler::ApplySymbol
+//
+//  An absolute operand at a known address is written as the address's name,
+//  with its index or indirection in place: `STA TXTCLR`, `JMP (SOFTEV)`,
+//  `LDA KBD,X`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disassembler::ApplySymbol (DisassembledLine & line, GlobalAddressingMode::AddressingMode mode, const std::map<Word, std::string> & symbols)
+{
+    Word                                         target = 0;
+    std::string                                  number;
+    size_t                                       at     = 0;
+    std::map<Word, std::string>::const_iterator  found;
+
+
+
+    switch (mode)
+    {
+        case GlobalAddressingMode::Absolute:
+        case GlobalAddressingMode::JumpAbsolute:
+        case GlobalAddressingMode::AbsoluteX:
+        case GlobalAddressingMode::AbsoluteY:
+        case GlobalAddressingMode::AbsoluteXIndirect:
+        case GlobalAddressingMode::JumpIndirect:
+        case GlobalAddressingMode::JumpIndirectCmos:
+            break;
+
+        default:
+            return;
+    }
+
+    target = (Word) (line.bytes[1] | (line.bytes[2] << 8));
+    found  = symbols.find (target);
+
+    if (found == symbols.end())
+    {
+        return;
+    }
+
+    number = "$" + FormatHexWord (target);
+    at     = line.operand.find (number);
+
+    if (at != std::string::npos)
+    {
+        line.operand.replace (at, number.size(), found->second);
     }
 }

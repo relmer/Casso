@@ -217,4 +217,67 @@ public:
 
         Assert::AreEqual (std::string ("2000  A9 01     LDA #$01"), Disassembler::FormatLine (lines[0]));
     }
+
+
+
+    TEST_METHOD (NmosUndocumented_DecodesTheOpcodesTheTableLeavesUndefined)
+    {
+        Cpu                            cpu;
+        std::vector<Byte>              bytes   = { 0x0B, 0x7F, 0x9C, 0x00, 0x20, 0x02 };
+        std::vector<DisassembledLine>  lines;
+        DisassemblyOptions             options;
+
+        options.nmosUndocumented = true;
+
+        Disassembler::Disassemble (bytes, kOrigin, cpu.GetInstructionSet(), lines, options);
+
+        Assert::AreEqual ((size_t) 3, lines.size());
+        Assert::AreEqual (std::string ("0300  0B 7F     ANC #$7F"),    Disassembler::FormatLine (lines[0]));
+        Assert::AreEqual (std::string ("0302  9C 00 20  SHY $2000,X"), Disassembler::FormatLine (lines[1]));
+        Assert::AreEqual (std::string ("0305  02        JAM"),         Disassembler::FormatLine (lines[2]));
+
+        Disassembler::Disassemble (bytes, kOrigin, cpu.GetInstructionSet(), lines);
+        Assert::AreEqual (std::string (Disassembler::kUndefinedMnemonic), lines[0].mnemonic, L"Without the option, the opcode is undefined");
+    }
+
+
+
+    TEST_METHOD (Symbols_NameAbsoluteOperands_AndNotZeroPage)
+    {
+        Cpu                            cpu;
+        std::vector<Byte>              bytes   = { 0x20, 0xED, 0xFD, 0xBD, 0x00, 0xC0, 0xA5, 0x24, 0x6C, 0xF2, 0x03 };
+        std::vector<DisassembledLine>  lines;
+        DisassemblyOptions             options;
+        std::map<Word, std::string>    symbols = { { 0xFDED, "COUT" }, { 0xC000, "KBD" }, { 0x0024, "CH" }, { 0x03F2, "SOFTEV" } };
+
+        options.symbols = &symbols;
+
+        Disassembler::Disassemble (bytes, kOrigin, cpu.GetInstructionSet(), lines, options);
+
+        Assert::AreEqual (std::string ("COUT"),     lines[0].operand);
+        Assert::AreEqual (std::string ("KBD,X"),    lines[1].operand, L"with its index");
+        Assert::AreEqual (std::string ("$24"),      lines[2].operand, L"zero page stays a number");
+        Assert::AreEqual (std::string ("(SOFTEV)"), lines[3].operand, L"and an indirect jump has its parentheses");
+    }
+
+
+
+    TEST_METHOD (MliCall_IsFollowedByItsCallNumberAndParameterList)
+    {
+        Cpu                            cpu;
+        std::vector<Byte>              bytes = { 0x20, 0x00, 0xBF, 0xC8, 0x00, 0x03, 0x60 };
+        std::vector<DisassembledLine>  lines;
+        DisassemblyOptions             options;
+        std::map<Byte, std::string>    calls = { { 0xC8, "OPEN" } };
+
+        options.mliEntry = (Word) 0xBF00;
+        options.mliCalls = &calls;
+
+        Disassembler::Disassemble (bytes, kOrigin, cpu.GetInstructionSet(), lines, options);
+
+        Assert::AreEqual ((size_t) 4, lines.size());
+        Assert::AreEqual (std::string ("0303  C8        DFB $C8  ; OPEN"), Disassembler::FormatLine (lines[1]));
+        Assert::AreEqual (std::string ("0304  00 03     DW $0300"),        Disassembler::FormatLine (lines[2]));
+        Assert::AreEqual (std::string ("RTS"),                             lines[3].mnemonic, L"and the code goes on after them");
+    }
 };

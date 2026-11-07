@@ -173,8 +173,16 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
                 row.spans.push_back ({ 0, 0, (int) s_kAddressDigits, colors.address });
                 row.spans.push_back ({ 0, (int) s_kBytesColumn, (int) (s_kInstructionColumn - s_kBytesColumn), colors.bytes });
 
-                for (const SourceSyntax::Run & run : SourceSyntax::GetInstructionRuns (line.substr (s_kInstructionColumn)))
+                for (SourceSyntax::Run run : SourceSyntax::GetInstructionRuns (line.substr (s_kInstructionColumn)))
                 {
+                    //  A data line's DFB or DW, and ??? over bytes that aren't
+                    //  an instruction, are not mnemonics.
+                    if (run.token == SourceSyntax::Token::Mnemonic && !SourceSyntax::IsMnemonic (line.substr (s_kInstructionColumn + run.start, run.length)) &&
+                        !IsUndocumentedMnemonic (line.substr (s_kInstructionColumn + run.start, run.length)))
+                    {
+                        run.token = SourceSyntax::Token::Directive;
+                    }
+
                     row.spans.push_back ({ 0, (int) s_kInstructionColumn + run.start, run.length, colors.Get (run.token) });
                 }
             }
@@ -215,6 +223,31 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
     }
 
     return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::IsUndocumentedMnemonic
+//
+//  The NMOS 6502's undocumented instructions, as a disassembly writes them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewText::IsUndocumentedMnemonic (const std::wstring & word)
+{
+    static const std::set<std::wstring>  s_kMnemonics =
+    {
+        L"ALR", L"ANC", L"ANE", L"ARR", L"DCP", L"ISC", L"JAM", L"LAS", L"LAX", L"LXA", L"RLA", L"RRA",
+        L"SAX", L"SBX", L"SHA", L"SHX", L"SHY", L"SLO", L"SRE", L"TAS",
+    };
+
+
+
+    return s_kMnemonics.contains (word);
 }
 
 

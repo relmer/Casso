@@ -49,4 +49,8 @@ public:
     static std::vector<Word>               GetLineAddresses   (const std::vector<Byte> & program, bool integerBasic);
     static std::vector<std::wstring>       SplitLineNumber    (const std::wstring & line);
     static std::wstring                    FormatPreviewError (const std::wstring & message);
+
+    //  An NMOS 6502 undocumented instruction's mnemonic, which a disassembly
+    //  colors as an instruction.
+    static bool  IsUndocumentedMnemonic (const std::wstring & word);
 };

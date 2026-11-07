@@ -17,6 +17,7 @@
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Devices/Disk/DiskImageSession.h"
+#include "Debugger/RomSymbols.h"
 
 
 
@@ -105,7 +106,7 @@ bool PreviewDecoder::IsBinaryType (Byte type, VolumeKind kind)
 
 bool PreviewDecoder::IsExecutableType (Byte type, VolumeKind kind)
 {
-    return IsBinaryType (type, kind) || (kind == VolumeKind::ProDos && type == ProDosVolume::kTypeSystem);
+    return IsBinaryType (type, kind) || (kind == VolumeKind::ProDos && (type == ProDosVolume::kTypeSystem || type == ProDosVolume::kTypeRelocatable));
 }
 
 
@@ -129,6 +130,106 @@ const Microcode * PreviewDecoder::GetNmosTable()
 
 
     return cpu.GetInstructionSet();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::GetSymbols
+//
+//  The names of known addresses in a disassembly: the Monitor, the //e's
+//  switches and Applesoft everywhere, and the entry points of the disk's
+//  operating system. Where two tables have one address, the first table's
+//  name is used, so $C000 is KBD rather than 80STOREOFF.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::map<Word, std::string> & PreviewDecoder::GetSymbols (VolumeKind kind)
+{
+    static const std::map<Word, std::string>  s_common = ParseSymbols ({ RomSymbols::GetMain (s_kpszSymbolMachine), RomSymbols::GetBasic() });
+    static const std::map<Word, std::string>  s_dos33  = ParseSymbols ({ RomSymbols::GetMain (s_kpszSymbolMachine), RomSymbols::GetBasic(), RomSymbols::GetDos33() });
+    static const std::map<Word, std::string>  s_proDos = ParseSymbols ({ RomSymbols::GetMain (s_kpszSymbolMachine), RomSymbols::GetBasic(), RomSymbols::GetProDos() });
+
+
+
+    return (kind == VolumeKind::Dos33)  ? s_dos33
+         : (kind == VolumeKind::ProDos) ? s_proDos
+                                        : s_common;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::ParseSymbols
+//
+//  Debug file text: a NAME=$ADDR line a symbol, and ; a comment.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<Word, std::string> PreviewDecoder::ParseSymbols (std::initializer_list<const char *> tables)
+{
+    std::map<Word, std::string>  symbols;
+
+
+
+    for (const char * table : tables)
+    {
+        std::istringstream  stream (table);
+        std::string         line;
+
+        while (std::getline (stream, line))
+        {
+            size_t  equals = line.find ("=$");
+
+            if (line.empty() || line[0] == ';' || equals == std::string::npos)
+            {
+                continue;
+            }
+
+            symbols.emplace ((Word) std::stoul (line.substr (equals + 2), nullptr, 16), line.substr (0, equals));
+        }
+    }
+
+    return symbols;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::GetMliCalls
+//
+//  The ProDOS 8 MLI's call numbers. Source: ProDOS 8 Technical Reference
+//  Manual (Apple Computer, 1985), chapter 4.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::map<Byte, std::string> & PreviewDecoder::GetMliCalls()
+{
+    static const std::map<Byte, std::string>  s_calls =
+    {
+        { 0x40, "ALLOC_INTERRUPT" }, { 0x41, "DEALLOC_INTERRUPT" }, { 0x65, "QUIT"     },
+        { 0x80, "READ_BLOCK"      }, { 0x81, "WRITE_BLOCK"       }, { 0x82, "GET_TIME" },
+        { 0xC0, "CREATE"          }, { 0xC1, "DESTROY"           }, { 0xC2, "RENAME"   },
+        { 0xC3, "SET_FILE_INFO"   }, { 0xC4, "GET_FILE_INFO"     }, { 0xC5, "ON_LINE"  },
+        { 0xC6, "SET_PREFIX"      }, { 0xC7, "GET_PREFIX"        }, { 0xC8, "OPEN"     },
+        { 0xC9, "NEWLINE"         }, { 0xCA, "READ"              }, { 0xCB, "WRITE"    },
+        { 0xCC, "CLOSE"           }, { 0xCD, "FLUSH"             }, { 0xCE, "SET_MARK" },
+        { 0xCF, "GET_MARK"        }, { 0xD0, "SET_EOF"           }, { 0xD1, "GET_EOF"  },
+        { 0xD2, "SET_BUF"         }, { 0xD3, "GET_BUF"           },
+    };
+
+
+
+    return s_calls;
 }
 
 
@@ -435,22 +536,141 @@ std::wstring PreviewDecoder::FormatAppleSingleDate (int32_t secondsFrom2000)
 void PreviewDecoder::RenderDisassembly (
     std::span<const Byte>        bytes,
     Word                         origin,
-    const Microcode            * table,
+    VolumeKind                   kind,
+    bool                         relocatable,
     std::vector<std::wstring>  & outLines)
 {
     std::vector<DisassembledLine>  lines;
+    DisassemblyOptions             options;
+    std::span<const Byte>          code     = bytes;
+    std::span<const Byte>          trailer;
+    size_t                         codeSize = 0;
 
 
 
     outLines.clear();
 
-    Disassembler::Disassemble (bytes, origin, table, lines);
+    options.symbols          = &GetSymbols (kind);
+    options.nmosUndocumented = true;
+
+    if (kind == VolumeKind::ProDos)
+    {
+        options.mliEntry = s_kMliEntry;
+        options.mliCalls = &GetMliCalls();
+    }
+
+    //  An EDASM relocatable file is its code's length, the code, and then its
+    //  relocation and external symbol dictionaries.
+    if (relocatable && bytes.size() >= 2)
+    {
+        codeSize = (size_t) (bytes[0] | (bytes[1] << 8));
+
+        if (2 + codeSize <= bytes.size())
+        {
+            code    = bytes.subspan (2, codeSize);
+            trailer = bytes.subspan (2 + codeSize);
+        }
+    }
+
+    Disassembler::Disassemble (code, origin, GetNmosTable(), lines, options);
+
+    if (!trailer.empty())
+    {
+        AddRelocationLines (trailer, origin, (Word) (origin + codeSize), lines);
+    }
 
     for (const DisassembledLine & line : lines)
     {
         std::string  text = Disassembler::FormatLine (line);
 
         outLines.emplace_back (text.begin(), text.end());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::AddRelocationLines
+//
+//  An EDASM relocation dictionary is four-byte records ended by a zero
+//  flags byte: the flags, the offset in the code of the field to relocate,
+//  and a byte that, for a reference to an external symbol, is the symbol's
+//  number. Flags bit 4 marks that reference. Each field's instruction is
+//  marked, and the records and the external symbol dictionary after them
+//  are listed as data past the code.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDecoder::AddRelocationLines (std::span<const Byte> trailer, Word origin, Word end, std::vector<DisassembledLine> & ioLines)
+{
+    size_t  at        = 0;
+    size_t  codeLines = ioLines.size();
+
+
+
+    while (at + s_kRelocationRecordSize <= trailer.size() && trailer[at] != 0)
+    {
+        Byte              flags    = trailer[at];
+        Word              field    = (Word) (origin + (trailer[at + 1] | (trailer[at + 2] << 8)));
+        bool              external = (flags & s_kRelocationExternal) != 0;
+        DisassembledLine  record;
+
+        for (size_t i = 0; i < codeLines; i++)
+        {
+            DisassembledLine &  line = ioLines[i];
+
+            if (field >= line.address && field < line.address + line.bytes.size())
+            {
+                line.comment = external ? std::format ("external symbol {}", (unsigned) trailer[at + 3]) : "relocated";
+                break;
+            }
+        }
+
+        record.address   = (Word) (end + at);
+        record.mnemonic  = Disassembler::kByteDirective;
+        record.operand   = std::format ("${:02X},${:02X},${:02X},${:02X}", (unsigned) trailer[at], (unsigned) trailer[at + 1], (unsigned) trailer[at + 2], (unsigned) trailer[at + 3]);
+        record.comment   = "relocation record";
+        record.isDefined = true;
+        ioLines.push_back (record);
+
+        at += s_kRelocationRecordSize;
+    }
+
+    if (at < trailer.size() && trailer[at] == 0)
+    {
+        DisassembledLine  last;
+
+        last.address   = (Word) (end + at);
+        last.mnemonic  = Disassembler::kByteDirective;
+        last.operand   = "$00";
+        last.comment   = "end of relocation records";
+        last.isDefined = true;
+        ioLines.push_back (last);
+
+        at++;
+    }
+
+    //  The external symbol dictionary, a row of bytes at a time.
+    while (at < trailer.size())
+    {
+        size_t            count = (std::min) (s_kDataBytesPerLine, trailer.size() - at);
+        DisassembledLine  data;
+
+        data.address   = (Word) (end + at);
+        data.mnemonic  = Disassembler::kByteDirective;
+        data.comment   = "external symbols";
+        data.isDefined = true;
+
+        for (size_t i = 0; i < count; i++)
+        {
+            data.operand += ((i == 0) ? "$" : ",$") + Disassembler::FormatHexByte (trailer[at + i]);
+        }
+
+        ioLines.push_back (data);
+        at += count;
     }
 }
 
@@ -517,14 +737,15 @@ HRESULT PreviewDecoder::Render (
     PicturePreview::Monitor  monitor,
     uint32_t                 customArgb)
 {
-    HRESULT                   hr      = S_OK;
-    PreviewContent::Kind      decided = (kind == VolumeKind::Cpm) ? DecideCpm (payload)
-                                                                  : Decide (entry, kind, payload.bytes.size(), payload.loadAddress, payload.hasLoadAddress);
-    Word                      origin  = payload.hasLoadAddress ? payload.loadAddress : 0;
+    HRESULT                   hr          = S_OK;
+    PreviewContent::Kind      decided     = (kind == VolumeKind::Cpm) ? DecideCpm (payload)
+                                                                      : Decide (entry, kind, payload.bytes.size(), payload.loadAddress, payload.hasLoadAddress);
+    Word                      origin      = payload.hasLoadAddress ? payload.loadAddress : 0;
     std::string               text;
     ApplesoftListingError     applesoftError;
     IntegerBasicListingError  integerError;
-    PicturePreview::Mode      mode    = PicturePreview::Mode::None;
+    PicturePreview::Mode      mode        = PicturePreview::Mode::None;
+    bool                      relocatable = kind == VolumeKind::ProDos && entry.type == ProDosVolume::kTypeRelocatable;
 
 
 
@@ -630,9 +851,15 @@ HRESULT PreviewDecoder::Render (
                 origin = s_kSystemLoadAddress;
             }
 
+            //  A relocatable file's aux type is the address its code was assembled at.
+            if (relocatable)
+            {
+                origin = payload.hasAuxType ? payload.auxType : entry.auxType;
+            }
+
             if (hexForm == HexForm::Disassembly || (hexForm == HexForm::Auto && IsExecutableType (entry.type, kind)))
             {
-                RenderDisassembly (payload.bytes, origin, GetNmosTable(), outContent.lines);
+                RenderDisassembly (payload.bytes, origin, kind, relocatable, outContent.lines);
                 outContent.disassembly = true;
             }
             else

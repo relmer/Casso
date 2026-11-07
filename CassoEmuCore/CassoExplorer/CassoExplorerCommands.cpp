@@ -581,6 +581,9 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntrie
         entry.trailing   = row.trailing;
         entry.iconOnly   = row.iconOnly;
         entry.vectorIcon = GetCommandBarIcon (row.id);
+
+        //  The two forms' icons are text, which reads only at the button's size.
+        entry.fillsButton = row.id == kShowDisassembly || row.id == kShowBytes;
         entry.custom     = (row.id == kFind)       ? search
                          : (row.id == kGoToOffset) ? goTo
                                                    : nullptr;

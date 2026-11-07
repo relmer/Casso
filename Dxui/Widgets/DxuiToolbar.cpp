@@ -1897,6 +1897,12 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     icon.size = iconDip;
     icon.rowH = bh;
 
+    if (slot.entry.fillsButton && !slot.labeled)
+    {
+        icon.size = (std::min) (bw, bh) - 2.0f * m_scaler.ToPxf (kFillMarginDip);
+        icon.x    = bl + (bw - icon.size) * 0.5f;
+    }
+
     PaintEntryIcon (slot, text, icon, ink, accent);
 
     if (slot.entry.decoration)

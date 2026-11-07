@@ -145,6 +145,11 @@ public:
         //  Forward, Up and Refresh buttons. The tooltip text is unchanged.
         bool  iconOnly = false;
 
+        //  The vector icon of an unlabeled entry is drawn over the whole
+        //  button less a thin margin, for an icon of text too small to read
+        //  at the glyph size.
+        bool  fillsButton = false;
+
         //  Sits at the strip's trailing end rather than after the entry
         //  before it, like Explorer's Details button. Trailing entries come
         //  last in the list; with no room to spare they close up normally.
@@ -325,6 +330,7 @@ private:
     static constexpr int       kFlyoutPadDp      = 8;
     static constexpr int       kFlyoutDropDp     = 2;    // gap under the bar
     static constexpr float     kIconDip          = 15.0f;
+    static constexpr float     kFillMarginDip    = 2.0f;   // around an icon that fills its button
     static constexpr float     kFallbackFontDip  = 13.0f;  // size the char estimate was taken at
     static constexpr float     kFallbackCharPx   = 7.5f;
     static constexpr uint32_t  kDisabledInkAlpha = 0x60000000u;

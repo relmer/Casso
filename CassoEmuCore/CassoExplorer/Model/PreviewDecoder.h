@@ -9,6 +9,7 @@
 
 class MemoryBus;
 class Microcode;
+struct DisassembledLine;
 enum class VolumeKind;
 struct ApplesoftListingError;
 
@@ -190,7 +191,14 @@ public:
     //  and dates, as label and value.
     static void  RenderAppleSingle (const AppleSingleFile & file, PreviewContent & outContent);
 
-    static void  RenderDisassembly (std::span<const Byte> bytes, Word origin, const Microcode * table, std::vector<std::wstring> & outLines);
+    //  6502 code with the names of the Monitor's, Applesoft's and the disk's
+    //  operating system's entry points, the NMOS undocumented opcodes, and on
+    //  ProDOS its MLI calls. A relocatable file's code is read past its length,
+    //  and its relocation dictionary is listed after it.
+    static void  RenderDisassembly (std::span<const Byte> bytes, Word origin, VolumeKind kind, bool relocatable, std::vector<std::wstring> & outLines);
+
+    static const std::map<Word, std::string>  & GetSymbols  (VolumeKind kind);
+    static const std::map<Byte, std::string>  & GetMliCalls ();
 
     //  Whether a file's leading bytes read as text, with or without the high
     //  bit Apple text uses; a DOS 3.3 file's zero padding does not count.
@@ -225,4 +233,20 @@ private:
 
     static void               SplitIntoLines (const std::string & text, std::vector<std::wstring> & outLines);
     static const Microcode  * GetNmosTable   ();
+
+    static std::map<Word, std::string>  ParseSymbols       (std::initializer_list<const char *> tables);
+    static void                         AddRelocationLines (std::span<const Byte> trailer, Word origin, Word end, std::vector<DisassembledLine> & ioLines);
+
+    //  The machine whose Monitor and switch names a disassembly uses.
+    static constexpr const char *  s_kpszSymbolMachine = "Apple //e";
+
+    //  The MLI's entry, on ProDOS's global page.
+    static constexpr Word          s_kMliEntry = 0xBF00;
+
+    //  An EDASM relocation record: flags, the field's offset, and a byte.
+    static constexpr size_t        s_kRelocationRecordSize = 4;
+    static constexpr Byte          s_kRelocationExternal   = 0x10;
+
+    //  Bytes of a dictionary listed a line.
+    static constexpr size_t        s_kDataBytesPerLine = 8;
 };
