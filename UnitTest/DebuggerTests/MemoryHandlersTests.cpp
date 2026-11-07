@@ -314,8 +314,11 @@ namespace DebuggerTests
             Assert::AreEqual ((Byte) (end & 0xFF), rig.target.memory[0x6D], L"STREND");
             Assert::AreEqual ((Byte) 0x96,         rig.target.memory[0x70], L"FRETOP at MEMSIZ");
 
-            rig.RunOk ("BASICSAVE out.bas");
+            Assert::AreEqual (std::string ("Loaded 2 lines, 20 bytes, as the BASIC program from C:\\Work\\prog.bas."), reply.text.at (0), L"the relative name's full path");
+
+            reply = rig.RunOk ("BASICSAVE out.bas");
             Assert::IsTrue (rig.files.PeekContent (L"C:\\Work\\out.bas").find ("20  GOTO 10") != std::string::npos, L"the listing saved");
+            Assert::IsTrue (reply.text.at (0).ends_with ("bytes to C:\\Work\\out.bas."), L"the relative name's full path");
 
             rig.RunFails ("BASICLOAD missing.bas", "file not found");
 

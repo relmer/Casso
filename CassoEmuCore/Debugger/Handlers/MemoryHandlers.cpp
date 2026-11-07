@@ -800,7 +800,7 @@ void MemoryHandlers::LoadBasic (DebugSession & session, const DebugCommand & com
         }
     }
 
-    reply.data = MessageData { { std::format ("Loaded {} lines, {} bytes, from {} as the BASIC program.", lines, bytes.size(), name) } };
+    reply.data = MessageData { { std::format ("Loaded {} lines, {} bytes, as the BASIC program{}.", lines, bytes.size(), session.GetPathEcho (name, "from", reply)) } };
 }
 
 
@@ -926,7 +926,7 @@ void MemoryHandlers::SaveBasic (DebugSession & session, const DebugCommand & com
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved the BASIC program, {} bytes, to {}.", bytes.size(), name) } };
+    reply.data = MessageData { { std::format ("Saved the BASIC program, {} bytes{}.", bytes.size(), session.GetPathEcho (name, "to", reply)) } };
 }
 
 
