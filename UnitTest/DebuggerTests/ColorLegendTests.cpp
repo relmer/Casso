@@ -7,6 +7,7 @@
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/ColorKeyPopup.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DiskHeadView.h"
 #include "Ui/Debugger/Panes/MemoryMapBar.h"
@@ -226,6 +227,25 @@ namespace ColorLegendTests
         //  on: Self-modifying only with Blend on in All, Value changed only in
         //  Changed, Read before written only in All and Data, and the outlines
         //  in every view.
+        //  The heat map's code, read and write rows ramp through the heat
+        //  column's scales, as their cells are drawn; the other heat rows
+        //  have no stops.
+        TEST_METHOD (TheHeatRampsAreTheHeatColumnsScales)
+        {
+            ColorLegend::Palette     palette = MakeDistinctPalette();
+            std::array<uint32_t, 3>  run     = HeatStrip::GetScaleStops (HeatStrip::Kind::Run);
+            std::array<uint32_t, 3>  read    = HeatStrip::GetScaleStops (HeatStrip::Kind::Read);
+
+
+
+            Assert::IsTrue   (ColorLegend::GetRampStops (Meaning::HeatCode, palette) == std::vector<uint32_t> (run.begin(), run.end()));
+            Assert::IsTrue   (ColorLegend::GetRampStops (Meaning::HeatRead, palette) == std::vector<uint32_t> (read.begin(), read.end()));
+            Assert::AreEqual (run.back(), ColorLegend::GetArgb (Meaning::HeatCode, palette), L"the row's color is the hottest");
+            Assert::IsTrue   (ColorLegend::GetRampStops (Meaning::HeatChanged, palette).empty());
+        }
+
+
+
         TEST_METHOD (TheHeatMapsKeyListsOnlyWhatItsViewDraws)
         {
             using View = HeatMapOptions::View;

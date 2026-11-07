@@ -419,6 +419,7 @@ public:
     //  Ramp swatch draws it, and where on it the cell's level lies, 0 to 1;
     //  false for an untouched cell and a Blend mix, which have no one scale.
     bool                 TryGetCellScale (Word address, std::vector<uint32_t> & gradient, float & mark) const;
+    std::vector<uint32_t>  GetScaleStops (CellKind kind) const;
 
     //  Whether the tip for a point is whole: the last writer and reader of
     //  the cell it picks are in, or nothing looks them up. A tip shown before

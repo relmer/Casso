@@ -37,9 +37,9 @@ namespace DebuggerTests
 
         static constexpr uint32_t  kBackground    = 0xFF000000;
         static constexpr uint32_t  kCold          = 0xFF303030;
-        static constexpr uint32_t  kExecute       = 0xFF0000FF;
-        static constexpr uint32_t  kRead          = 0xFF00FF00;
-        static constexpr uint32_t  kWrite         = 0xFFFF0000;
+        static constexpr uint32_t  kExecute       = 0xFFE0201C;   // the heat column's hottest run color, HeatStrip::GetScaleStops
+        static constexpr uint32_t  kRead          = 0xFF9AEEFF;
+        static constexpr uint32_t  kWrite         = 0xFFFFA6E8;
         static constexpr uint32_t  kPc            = 0xFFFFFF00;
         static constexpr uint32_t  kStack         = 0xFF00FFFF;
         static constexpr uint32_t  kBreakpoint    = 0xFFF04040;
@@ -444,7 +444,7 @@ namespace DebuggerTests
 
             Assert::AreEqual (kExecute,       HeatMapView::GetColor (Mode::All,  255, 0,   255, palette),               L"without Blend, the hottest kind");
             Assert::AreEqual (kSelfModifying, HeatMapView::GetColor (Mode::All,  255, 0,   255, palette, false, true));
-            Assert::AreEqual (0xFF808000u,    HeatMapView::GetColor (Mode::All,  0,   255, 255, palette, false, true),  L"read and written alike, half each");
+            Assert::AreEqual (0xFFCDCAF4u,    HeatMapView::GetColor (Mode::All,  0,   255, 255, palette, false, true),  L"read and written alike, half each");
             Assert::AreEqual (kExecute,       HeatMapView::GetColor (Mode::Code, 255, 0,   255, palette, false, true),  L"Code shows the code alone");
             Assert::AreEqual (kWrite,         HeatMapView::GetColor (Mode::Data, 255, 0,   255, palette, false, true),  L"Data shows the data alone");
             Assert::AreEqual (kCold,          HeatMapView::GetColor (Mode::All,  0,   0,   0,   palette, false, true));

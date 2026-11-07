@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
+#include "Ui/Debugger/HeatStrip.h"
 #include "Core/TextEncoding.h"
 
 
@@ -343,10 +344,10 @@ uint32_t ColorLegend::GetArgb (Meaning meaning, const Palette & palette)
     case Meaning::MapRom:             return palette.text.mapRom;
     case Meaning::MapSlotRom:         return palette.text.mapSlotRom;
     case Meaning::MapIo:              return palette.text.mapIo;
-    case Meaning::HeatCode:           return palette.text.syntax.mnemonic;
-    case Meaning::HeatOperand:        return DxuiColor::Mix (palette.text.syntax.mnemonic | 0xFF000000u, palette.text.heatCold | 0xFF000000u, HeatMapView::kOperandDim);
-    case Meaning::HeatRead:           return palette.text.annotation;
-    case Meaning::HeatWrite:          return palette.text.changed;
+    case Meaning::HeatCode:
+    case Meaning::HeatOperand:
+    case Meaning::HeatRead:
+    case Meaning::HeatWrite:          return GetRampStops (meaning, palette).back();
     case Meaning::HeatSelfModifying:  return palette.text.heatSelfModifying;
     case Meaning::HeatSymbol:         return DxuiColor::Mix (palette.text.heatCold | 0xFF000000u, palette.text.syntax.symbol | 0xFF000000u, HeatMapView::kSymbolTint);
     case Meaning::HeatPc:             return palette.pcMarker;
@@ -532,6 +533,45 @@ std::shared_ptr<DxuiIconImage> ColorLegend::MakeSwatchIcon (Swatch swatch, uint3
 uint32_t ColorLegend::GetFaintest (uint32_t argb, const Palette & palette)
 {
     return DxuiColor::Mix (palette.text.heatCold | 0xFF000000u, argb | 0xFF000000u, HeatMapView::kFaintest) | 0xFF000000u;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetRampStops
+//
+//  The heat column's scale for code, an operand, a read and a write, as the
+//  heat map draws those cells; none for the other meanings, whose Ramp runs
+//  from GetFaintest to GetArgb.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<uint32_t> ColorLegend::GetRampStops (Meaning meaning, const Palette & palette)
+{
+    std::vector<uint32_t>  stops;
+    HeatStrip::Kind        kind      = HeatStrip::Kind::Run;
+    bool                   isOperand = meaning == Meaning::HeatOperand;
+
+
+
+    switch (meaning)
+    {
+    case Meaning::HeatCode:
+    case Meaning::HeatOperand: kind = HeatStrip::Kind::Run; break;
+    case Meaning::HeatRead:    kind = HeatStrip::Kind::Read;    break;
+    case Meaning::HeatWrite:   kind = HeatStrip::Kind::Write;   break;
+    default:                   return stops;
+    }
+
+    for (uint32_t stop : HeatStrip::GetScaleStops (kind))
+    {
+        stops.push_back (isOperand ? DxuiColor::Mix (stop, palette.text.heatCold | 0xFF000000u, HeatMapView::kOperandDim) | 0xFF000000u : stop);
+    }
+
+    return stops;
 }
 
 

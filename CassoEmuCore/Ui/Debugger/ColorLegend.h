@@ -185,6 +185,10 @@ public:
 
     //  A heat color's faintest shade, the left end of its Ramp swatch.
     static uint32_t  GetFaintest (uint32_t argb, const Palette & palette);
+
+    //  A Ramp's colors, faintest to full, where the heat map draws a meaning
+    //  on a scale of more than two stops; empty for the rest.
+    static std::vector<uint32_t>  GetRampStops (Meaning meaning, const Palette & palette);
     //  Lines joined one to a line, empty ones left out.
     static std::wstring  JoinLines (const std::vector<std::wstring> & lines);
 

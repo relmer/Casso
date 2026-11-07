@@ -39,6 +39,7 @@ public:
         ColorLegend::Swatch              swatch   = ColorLegend::Swatch::Fill;
         uint32_t                         argb     = 0;
         uint32_t                         fromArgb = 0;   // a Ramp's faintest shade
+        std::vector<uint32_t>            stops;          // a Ramp's colors, faintest to full
         std::wstring                     text;
         std::shared_ptr<DxuiIconImage>   icon;
     };

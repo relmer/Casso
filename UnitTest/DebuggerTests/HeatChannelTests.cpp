@@ -7,6 +7,7 @@
 #include "Shell/CpuCommandDispatcher.h"
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/HeatMapBarCommands.h"
+#include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Core/TextEncoding.h"
 
@@ -37,9 +38,9 @@ namespace DebuggerTests
         using Mode = HeatMapView::Mode;
 
         static constexpr uint32_t  kCold      = 0xFF303030;
-        static constexpr uint32_t  kExecute   = 0xFF0000FF;
-        static constexpr uint32_t  kRead      = 0xFF00FF00;
-        static constexpr uint32_t  kWrite     = 0xFFFF0000;
+        static constexpr uint32_t  kExecute   = 0xFFE0201C;   // the heat column's hottest colors, HeatStrip::GetScaleStops
+        static constexpr uint32_t  kRead      = 0xFF9AEEFF;
+        static constexpr uint32_t  kWrite     = 0xFFFFA6E8;
         static constexpr uint32_t  kUnwritten = 0xFFFF00FF;
         static constexpr uint32_t  kChanged   = 0xFFFFA000;
 
@@ -183,6 +184,7 @@ namespace DebuggerTests
             std::vector<Byte>       unwritten (0x10000, 0);
             std::vector<Byte>       changed   (0x10000, 0);
             std::vector<uint32_t>   gradient;
+            auto                    stops     = HeatStrip::GetScaleStops (HeatStrip::Kind::Write);
             float                   mark      = -1.0f;
 
 
@@ -199,9 +201,8 @@ namespace DebuggerTests
 
             Assert::IsTrue   (view.TryGetCellScale (0x2001, gradient, mark));
             Assert::AreEqual ((size_t) 3, gradient.size());
-            Assert::AreEqual (DxuiColor::Mix (kCold | 0xFF000000u, kWrite | 0xFF000000u, HeatMapView::kFaintest) | 0xFF000000u, gradient.front(),
-                              L"from the faintest shade");
-            Assert::AreEqual (kWrite | 0xFF000000u, gradient.back(), L"to the full color");
+            Assert::IsTrue   (gradient == std::vector<uint32_t> (stops.begin(), stops.end()),
+                              L"the heat column's write scale, as the cell is drawn");
             Assert::AreEqual ((float) kLevel / 255.0f, mark, L"the cell's level on the scale");
             Assert::IsFalse  (view.TryGetCellScale (0x4000, gradient, mark), L"an untouched cell");
 

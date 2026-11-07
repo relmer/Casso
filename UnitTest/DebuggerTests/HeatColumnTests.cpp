@@ -178,7 +178,7 @@ namespace DebuggerTests
             palette.background   = 0xFF000000;
             levels.write[0x0400] = 255;
 
-            Assert::AreEqual (DxuiColor::Mix (0xFF000000, kWrite, 0.5f) | 0xFF000000u, MemoryPane::GetHeatFill (levels, 0x0400, palette));
+            Assert::AreEqual (DxuiColor::Mix (0xFF000000, HeatStrip::GetScaleColor (HeatStrip::Kind::Write, 255, palette), 0.5f) | 0xFF000000u, MemoryPane::GetHeatFill (levels, 0x0400, palette));
             Assert::AreEqual (0u, MemoryPane::GetHeatFill (levels, 0x0401, palette));
         }
 

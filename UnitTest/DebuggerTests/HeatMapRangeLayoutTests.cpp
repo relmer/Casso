@@ -30,7 +30,7 @@ namespace DebuggerTests
 
         static constexpr uint32_t  kBackground = 0xFF000000;
         static constexpr uint32_t  kCold       = 0xFF303030;
-        static constexpr uint32_t  kExecute    = 0xFF0000FF;
+        static constexpr uint32_t  kExecute    = 0xFFE0201C;   // the heat column's hottest run color, HeatStrip::GetScaleStops
         static constexpr int       kWidth      = 600;
         static constexpr int       kHeight     = 400;
 

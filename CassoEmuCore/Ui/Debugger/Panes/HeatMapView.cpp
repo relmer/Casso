@@ -6,6 +6,7 @@
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
+#include "Ui/Debugger/HeatStrip.h"
 
 
 
@@ -914,9 +915,10 @@ bool HeatMapView::TickScrollbars (int64_t nowMs)
 //  HeatMapView::GetColor
 //
 //  An address takes the color of the kind that touched it most, as the mode
-//  lets it be seen, mixed toward that color from the cold gray by how hot it
-//  is. Where code and data are equally hot, code shows. A write shows over a
-//  read as hot. An address nothing touched is the cold gray.
+//  lets it be seen, at its level on that kind's scale, the disassembly's
+//  heat column's (HeatStrip::GetScaleColor). Where code and data are equally
+//  hot, code is drawn. A write is drawn over a read as hot. An address nothing
+//  touched is the cold gray.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -936,8 +938,9 @@ uint32_t HeatMapView::GetColor (Mode mode, Byte execute, Byte read, Byte write, 
 //  An operand byte's code color is drawn part of the way to the cold gray,
 //  so an instruction's opcode stands out from the bytes after it. With
 //  Blend, an address takes the colors of every kind the mode shows that
-//  touched it, each weighted by how hot it is, at the hottest's brightness;
-//  one both run as code and written takes the self-modifying color instead.
+//  touched it, each at its level on its scale and weighted by how hot it
+//  is; one both run as code and written takes the self-modifying color,
+//  mixed toward it from the cold gray by how hot it is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -955,45 +958,58 @@ uint32_t HeatMapView::GetColor (
     constexpr int    kGreenShift     = 8;
     constexpr int    kBlueShift      = 0;
     uint32_t         cold            = palette.cold | 0xFF000000u;
-    uint32_t         code            = isOperand ? DxuiColor::Mix (palette.execute | 0xFF000000u, cold, kOperandDim) : (palette.execute | 0xFF000000u);
     Byte             ran             = (mode == Mode::Data) ? (Byte) 0 : execute;
     Byte             got             = (mode == Mode::Code) ? (Byte) 0 : read;
     Byte             put             = (mode == Mode::Code) ? (Byte) 0 : write;
     Byte             data            = std::max (read, write);
-    uint32_t         hue             = (write >= read) ? palette.write : palette.read;
-    Byte             level           = data;
-    bool             isSelfModifying = ran > 0 && put > 0;
+    Byte             level           = std::max ({ ran, got, put });
     float            total           = std::max (1.0f, (float) ran + (float) got + (float) put);   // at least 1, so C4723 cannot fire; a nonzero total of whole counts is 1 or more already
+    auto             getCode         = [&] (Byte at)
+    {
+        uint32_t  color = HeatStrip::GetScaleColor (HeatStrip::Kind::Run, at, palette);
+
+
+
+        return isOperand ? DxuiColor::Mix (color, cold, kOperandDim) | 0xFF000000u : color;
+    };
+    uint32_t         code            = getCode (ran);
+    uint32_t         readColor       = HeatStrip::GetScaleColor (HeatStrip::Kind::Read,  got, palette);
+    uint32_t         writeColor      = HeatStrip::GetScaleColor (HeatStrip::Kind::Write, put, palette);
     auto             mixChannel      = [&] (int shift)
     {
-        float  sum = (float) ((code >> shift) & 0xFF) * ran + (float) ((palette.read >> shift) & 0xFF) * got + (float) ((palette.write >> shift) & 0xFF) * put;
+        float  sum = (float) ((code >> shift) & 0xFF) * ran + (float) ((readColor >> shift) & 0xFF) * got + (float) ((writeColor >> shift) & 0xFF) * put;
 
         return (uint32_t) std::lround (sum / total) << shift;
     };
 
 
 
-    if (isBlend)
-    {
-        level = std::max ({ ran, got, put });
-
-        if (level > 0)
-        {
-            hue = isSelfModifying ? palette.selfModifying : (mixChannel (kRedShift) | mixChannel (kGreenShift) | mixChannel (kBlueShift));
-        }
-    }
-    else if (mode == Mode::Code || (mode == Mode::All && execute >= data))
-    {
-        hue   = code;
-        level = execute;
-    }
-
-    if (level == 0)
+    if (isBlend && level == 0)
     {
         return cold;
     }
 
-    return DxuiColor::Mix (cold, hue | 0xFF000000u, kFaintest + (1.0f - kFaintest) * (float) level / kTop) | 0xFF000000u;
+    if (isBlend && ran > 0 && put > 0)
+    {
+        return DxuiColor::Mix (cold, palette.selfModifying | 0xFF000000u, kFaintest + (1.0f - kFaintest) * (float) level / kTop) | 0xFF000000u;
+    }
+
+    if (isBlend)
+    {
+        return mixChannel (kRedShift) | mixChannel (kGreenShift) | mixChannel (kBlueShift) | 0xFF000000u;
+    }
+
+    if (mode == Mode::Code || (mode == Mode::All && execute >= data))
+    {
+        return (execute == 0) ? cold : getCode (execute);
+    }
+
+    if (data == 0)
+    {
+        return cold;
+    }
+
+    return HeatStrip::GetScaleColor ((write >= read) ? HeatStrip::Kind::Write : HeatStrip::Kind::Read, data, palette);
 }
 
 
@@ -2071,12 +2087,59 @@ bool HeatMapView::TryGetCellScale (Word address, std::vector<uint32_t> & gradien
         return false;
     }
 
+    mark = (float) level / kTop;
+
+    gradient = GetScaleStops (GetCellKind (address));
+
+    if (!gradient.empty())
+    {
+        return true;
+    }
+
     hue      |= 0xFF000000u;
     gradient  = { DxuiColor::Mix (cold, hue, kFaintest) | 0xFF000000u,
                   DxuiColor::Mix (cold, hue, kFaintest + (1.0f - kFaintest) * kMiddle) | 0xFF000000u,
                   hue };
-    mark      = (float) level / kTop;
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetScaleStops
+//
+//  A kind's scale as the cells draw it: the heat column's stops for code,
+//  an operand, a read or a write, an operand's dimmed toward the cold gray
+//  as its cells are; none for the other kinds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<uint32_t> HeatMapView::GetScaleStops (CellKind kind) const
+{
+    std::vector<uint32_t>  stops;
+    bool                   isOperand = kind == CellKind::Operand;
+    HeatStrip::Kind        strip     = HeatStrip::Kind::Run;
+
+
+
+    switch (kind)
+    {
+    case CellKind::Code:
+    case CellKind::Operand: strip = HeatStrip::Kind::Run; break;
+    case CellKind::Read:    strip = HeatStrip::Kind::Read;    break;
+    case CellKind::Written: strip = HeatStrip::Kind::Write;   break;
+    default:                return stops;
+    }
+
+    for (uint32_t stop : HeatStrip::GetScaleStops (strip))
+    {
+        stops.push_back (isOperand ? DxuiColor::Mix (stop, m_palette.cold | 0xFF000000u, kOperandDim) | 0xFF000000u : stop);
+    }
+
+    return stops;
 }
 
 

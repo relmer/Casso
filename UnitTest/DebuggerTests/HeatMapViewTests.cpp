@@ -30,9 +30,9 @@ namespace DebuggerTests
 
         static constexpr uint32_t  kBackground = 0xFF000000;
         static constexpr uint32_t  kCold       = 0xFF303030;
-        static constexpr uint32_t  kExecute    = 0xFF0000FF;
-        static constexpr uint32_t  kRead       = 0xFF00FF00;
-        static constexpr uint32_t  kWrite      = 0xFFFF0000;
+        static constexpr uint32_t  kExecute    = 0xFFE0201C;   // the heat column's hottest run color, HeatStrip::GetScaleStops
+        static constexpr uint32_t  kRead       = 0xFF9AEEFF;
+        static constexpr uint32_t  kWrite      = 0xFFFFA6E8;
 
         //  The pane's size, at 96 dpi.
         static constexpr int       kWidth      = 600;
@@ -169,8 +169,8 @@ namespace DebuggerTests
 
 
             Assert::AreNotEqual (kCold, faint);
-            Assert::IsTrue      ((faint & 0xFF) > 0x60, L"at least kFaintest of the way to the color");
-            Assert::IsTrue      ((faint & 0xFF) < (hot & 0xFF));
+            Assert::AreEqual    (0xFFD8C060u, faint, L"the first stop of the heat column's run scale");
+            Assert::AreNotEqual (hot, faint);
         }
 
 

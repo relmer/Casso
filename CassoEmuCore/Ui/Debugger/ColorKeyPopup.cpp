@@ -30,6 +30,7 @@ std::vector<ColorKeyPopup::Row> ColorKeyPopup::MakeRows (ColorLegend::Pane pane,
         row.swatch   = entry.swatch;
         row.argb     = ColorLegend::GetArgb (entry.meaning, palette);
         row.fromArgb = ColorLegend::GetFaintest (row.argb, palette);
+        row.stops    = ColorLegend::GetRampStops (entry.meaning, palette);
         row.text     = ColorLegend::GetText (entry.meaning);
 
         if (entry.swatch != ColorLegend::Swatch::Row && entry.swatch != ColorLegend::Swatch::Text && entry.swatch != ColorLegend::Swatch::Italic &&
@@ -327,22 +328,23 @@ float ColorKeyPopup::GetSwatchColumnDip() const
 //
 //  ColorKeyPopup::PaintRamp
 //
-//  In thin slices from the faintest shade on the left to the full color on
+//  In thin slices through the row's stops, faintest on the left to full on
 //  the right, outlined in the key's border color, as a tip draws a scale.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ColorKeyPopup::PaintRamp (IDxuiPainter & painter, const Row & row, float left, float top, float width, float height) const
 {
-    constexpr int  kSlices = 64;
-    float          slice   = width / (float) kSlices;
+    constexpr int          kSlices = 64;
+    float                  slice   = width / (float) kSlices;
+    std::vector<uint32_t>  stops   = row.stops.empty() ? std::vector<uint32_t> { row.fromArgb, row.argb } : row.stops;
 
 
 
     for (int i = 0; i < kSlices; i++)
     {
         painter.FillRect (left + slice * (float) i, top, slice + 0.5f, height,
-                          DxuiColor::Mix (row.fromArgb, row.argb, ((float) i + 0.5f) / (float) kSlices) | 0xFF000000u);
+                          DxuiTooltip::GetGradientColor (stops, ((float) i + 0.5f) / (float) kSlices) | 0xFF000000u);
     }
 
     painter.OutlineRect (left, top, width, height, 1.0f, m_border);
