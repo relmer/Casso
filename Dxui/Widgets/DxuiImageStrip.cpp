@@ -1032,8 +1032,8 @@ int DxuiImageStrip::GetBalloonPx (const DxuiDpiScaler & scaler) const
 //  In screen pixels: as wide as the preview and centered on the pointer
 //  along the strip, and across it the whole entry, labels included, so the
 //  preview opens past the hovered cell's labels rather than over them. With
-//  the labels in balloons outside the strip, the balloon below it is
-//  included too.
+//  the labels in balloons outside the strip, the balloons above and below
+//  it are included too, so a preview flipped above clears the top balloon.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1061,6 +1061,7 @@ RECT DxuiImageStrip::GetPreviewAnchor() const
 
         if (m_isLabelsOutside)
         {
+            anchor.top    -= GetBalloonPx (*scaler);
             anchor.bottom += GetBalloonPx (*scaler);
         }
     }
@@ -1139,9 +1140,9 @@ RECT DxuiImageStrip::GetPreviewRectPx() const
 //
 //  DxuiImageStrip::RenderPreview
 //
-//  Popup-local pixels: the picture fills the popup, framed by a line in the
-//  theme's tooltip border color, drawn over its edge pixels so the picture's
-//  size is the same.
+//  Popup-local pixels: the picture fills the popup, and the painter, which
+//  draws over the text renderer's pictures, outlines it in the theme's
+//  tooltip border color, as DxuiTooltip outlines its card.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1151,13 +1152,11 @@ void DxuiImageStrip::RenderPreview (
 {
     const DxuiDpiScaler  * scaler = nullptr;
     HRESULT                hr     = S_OK;
+    RECT                   placed = {};
     float                  width  = 0.0f;
     float                  height = 0.0f;
-    float                  edge   = 0.0f;
 
 
-
-    UNREFERENCED_PARAMETER (painter);
 
     if (m_previewImage == nullptr || m_popupHost == nullptr)
     {
@@ -1167,22 +1166,19 @@ void DxuiImageStrip::RenderPreview (
     scaler = &m_popupHost->GetScaler();
     width  = scaler->ToPxf ((float) m_previewDip.cx);
     height = scaler->ToPxf ((float) m_previewDip.cy);
-    edge   = (std::max) (1.0f, std::round (scaler->ToPxf (kPreviewBorderDip)));
 
     hr = text.DrawFramebuffer (m_previewImage->bgraPremul.data(), m_previewImage->width, m_previewImage->height, 0.0f, 0.0f, width, height);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    if (m_previewBorderArgb == 0)
+    if (m_previewBorderArgb == 0 || m_preview == nullptr)
     {
         return;
     }
 
-    for (const auto & [x, y, w, h] : { std::array<float, 4> { 0.0f, 0.0f, width, edge }, std::array<float, 4> { 0.0f, height - edge, width, edge },
-                                       std::array<float, 4> { 0.0f, 0.0f, edge, height }, std::array<float, 4> { width - edge, 0.0f, edge, height } })
-    {
-        hr = text.FillRect (x, y, w, h, m_previewBorderArgb);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
+    placed = m_preview->GetPlacedRectScreenPx();
+
+    painter.OutlineRect (0.0f, 0.0f, (float) (placed.right - placed.left), (float) (placed.bottom - placed.top),
+                         (std::max) (1.0f, std::round (scaler->ToPxf (kPreviewBorderDip))), m_previewBorderArgb);
 }
 
 

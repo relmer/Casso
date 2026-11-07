@@ -343,6 +343,35 @@ public:
     }
 
 
+    //  With the labels outside, the preview's anchor takes in the balloon
+    //  above the strip and the one below, so a preview placed either way
+    //  covers neither.
+    TEST_METHOD (ThePreviewAnchorTakesInBothBalloons)
+    {
+        DxuiImageStrip        strip;
+        RecordingStripSource  source;
+        MockDxuiTextRenderer  text;
+        DxuiDpiScaler         scaler;
+        RECT                  anchor  = {};
+        int                   balloon = 0;
+
+
+
+        strip.SetSource        (&source);
+        strip.SetAspect        (s_kStripAspect);
+        strip.SetTextRenderer  (&text);
+        strip.SetLabelsOutside (true);
+        strip.Layout           (RECT { 0, 100, 600, 134 }, true, scaler);
+
+        anchor  = strip.GetPreviewAnchor();
+        balloon = strip.GetBalloonPx (scaler);
+
+        Assert::IsTrue   (balloon > 0);
+        Assert::AreEqual ((LONG) (100 - balloon), anchor.top,    L"the balloon above");
+        Assert::AreEqual ((LONG) (134 + balloon), anchor.bottom, L"the balloon below");
+    }
+
+
     //  Lying down with label room, the label where the strip begins sits left
     //  of the first picture and the trailing label right of the last, both
     //  plain text centered on the pictures top to bottom; the trailing one is

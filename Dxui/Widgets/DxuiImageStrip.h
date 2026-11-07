@@ -95,6 +95,12 @@ public:
     int   GetHoveredCell   () const { return m_hovered; }
     bool  IsPreviewShown   () const { return m_preview != nullptr; }
 
+    //  Where the preview opens against, in screen pixels: the strip and its
+    //  balloons, so the preview clears them on either side; and a balloon's
+    //  height.
+    RECT  GetPreviewAnchor () const;
+    int   GetBalloonPx     (const DxuiDpiScaler & scaler) const;
+
     //  Where the preview's picture sits on screen, empty with none up, and
     //  the picture it shows.
     RECT                                  GetPreviewRectPx () const;
@@ -159,8 +165,6 @@ private:
     int   GetSideLabelPx   (const std::wstring & label, bool isTrailing) const;
     void  PaintSideLabel   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, const RECT & rc, bool isTrailing);
     void  MovePreview      ();
-    RECT  GetPreviewAnchor () const;
-    int   GetBalloonPx     (const DxuiDpiScaler & scaler) const;
     void  RenderPreview    (IDxuiPainter & painter, IDxuiTextRenderer & text);
     void  PaintPlayhead    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float offset, const std::wstring & top, const std::wstring & bottom);
     void  PaintLabel       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float centerX, float top, float height);
