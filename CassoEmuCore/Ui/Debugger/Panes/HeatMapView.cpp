@@ -1599,8 +1599,8 @@ std::optional<Word> HeatMapView::GetPickAt (POINT point) const
 //  HeatMapView::GetPickPlaceAt
 //
 //  The search stays in the row under the mouse, so moving up or down always
-//  lands on the next row, however cold; along the row the nearest hot cell
-//  within reach wins.
+//  lands on the next row, however cold; along the row the pick is the
+//  nearest hot cell within kSnapDip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
