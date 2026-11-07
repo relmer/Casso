@@ -916,7 +916,7 @@ public:
         Assert::IsTrue (rows[0].name == L"Recycle" && rows[1].name == L"Shortcut" && rows[2].name == L"Folder");
 
         CatalogModel::Sort (rows, CatalogModel::Column::Name, true);
-        Assert::IsTrue (rows[0].name == L"Folder" && rows[1].name == L"Recycle" && rows[2].name == L"Shortcut", L"Descending puts the folders first");
+        Assert::IsTrue (rows[0].name == L"Folder" && rows[1].name == L"Shortcut" && rows[2].name == L"Recycle", L"Descending reverses the folder's order whole, as File Explorer's desktop does");
     }
 
 

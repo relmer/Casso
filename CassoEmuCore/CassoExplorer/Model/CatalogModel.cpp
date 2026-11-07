@@ -480,13 +480,12 @@ bool CatalogModel::IsBefore (const CatalogRow & a, const CatalogRow & b, Column 
 //
 //  Folders first, then the column's order. Descending, as File Explorer's is,
 //  the folders go last, except by type, where the folders' type sorts first
-//  both ways, and in a shell folder such as the desktop. Rows equal on the
-//  column go by name from A to Z either way.
+//  both ways. Rows equal on the column go by name from A to Z either way.
 //
-//  Ascending by name, a shell folder's items go in the folder's order alone,
-//  folders among them: the desktop's order puts the public desktop's
-//  shortcuts and its system items that are not folders ahead of the user's
-//  folders.
+//  By name, a shell folder's items go in the folder's order alone, folders
+//  among them, and descending reverses that order whole: the desktop's order
+//  puts the public desktop's shortcuts and its system items that are not
+//  folders ahead of the user's folders.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -495,8 +494,7 @@ void CatalogModel::Sort (std::vector<CatalogRow> & rows, Column column, bool des
     std::stable_sort (rows.begin(), rows.end(),
                       [column, descending] (const CatalogRow & a, const CatalogRow & b)
                       {
-                          bool  shellOrdered = a.shellOrder > 0 && b.shellOrder > 0;
-                          bool  shellByName  = column == Column::Name && !descending && shellOrdered;
+                          bool  shellByName = column == Column::Name && a.shellOrder > 0 && b.shellOrder > 0;
 
                           //  Folders and files are mixed, as File Explorer mixes them.
                           //  Descending, as File Explorer opens a search, is the most
@@ -513,7 +511,7 @@ void CatalogModel::Sort (std::vector<CatalogRow> & rows, Column column, bool des
 
                           if (a.isDirectory != b.isDirectory && !shellByName)
                           {
-                              return (descending && column != Column::Type && !shellOrdered) ? b.isDirectory : a.isDirectory;
+                              return (descending && column != Column::Type) ? b.isDirectory : a.isDirectory;
                           }
 
                           return descending ? IsBefore (b, a, column, true) : IsBefore (a, b, column);
