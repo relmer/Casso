@@ -282,6 +282,7 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "BASICSTACK",  V::ShowBasicStack,           F::Engine,      A::Headless,     nullptr,     nullptr },
     { "BASICLOAD",   V::LoadBasic,                F::Engine,      A::Headless,     nullptr,     nullptr },
     { "BASICSAVE",   V::SaveBasic,                F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "BASICCLEAR",  V::ClearBasic,               F::Engine,      A::Headless,     nullptr,     nullptr },
 
     // Window only: cursor
     { ".",           V::View,                     F::Cursor,      A::WindowOnly,   nullptr,     nullptr },

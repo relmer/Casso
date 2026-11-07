@@ -170,6 +170,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
 
     { "BASICLOAD",   H::SymbolsAndSource,   "BASICLOAD file",                                 "Replace the Applesoft program in memory with the listing in a text file"                },
     { "BASICSAVE",   H::SymbolsAndSource,   "BASICSAVE file",                                 "Save the Applesoft program in memory to a text file as a listing"                        },
+    { "BASICCLEAR",  H::SymbolsAndSource,   "BASICCLEAR",                                     "Clear the Applesoft program in memory, as NEW does"                                      },
     { "BASICSTACK",  H::SymbolsAndSource,   "BASICSTACK",                                     "List the Applesoft program's active GOSUB returns and FOR loops"                         },
     { "BASICVARS",   H::SymbolsAndSource,   "BASICVARS",                                      "List the Applesoft program's variables and arrays with their values"                     },
     { "SRC",         H::SymbolsAndSource,   "SRC [ON|OFF]",                                   "Show the source line at PC, or step by source lines"                                     },

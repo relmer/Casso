@@ -536,6 +536,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     LoadBasicProgram     (const std::wstring & path);
     void     OpenBasicProgram     () override;
     void     SaveBasicProgram     () override;
+    void     ClearBasicProgram    () override;
     DxuiToolbar::Entry  MakeFindEntry (const std::wstring & pane);
     bool     RouteSourceBarMouse  (DxuiToolbar * bar, const DxuiMouseEvent & ev);
     bool     IsDocumentPane     (const std::wstring & pane) const;

@@ -1663,7 +1663,7 @@ namespace OperandResultTipTests
 
         //  The BASIC listing's menu copies, has the line's breakpoint, and
         //  loads and saves the program.
-        TEST_METHOD (TheBasicListingsMenuCopiesAndLoadsAndSaves)
+        TEST_METHOD (TheBasicListingsMenuCopiesLoadsSavesAndClears)
         {
             CassoTheme                                    theme  = CassoTheme::MakeSkeuomorphic();
             TipHost                                       host;
@@ -1687,7 +1687,7 @@ namespace OperandResultTipTests
                 labels.push_back (label);
             }
 
-            Assert::IsTrue (labels == std::vector<std::wstring> { L"Copy", L"", L"Load BASIC program...", L"Save BASIC program..." });
+            Assert::IsTrue (labels == std::vector<std::wstring> { L"Copy", L"", L"Load BASIC program...", L"Save BASIC program...", L"Clear BASIC program..." });
         }
 
 

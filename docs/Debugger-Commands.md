@@ -275,6 +275,7 @@ Casso commands:
     PATCH addr value ...      Store values at addr, ROM included
     SWITCHES                  Show the soft switches
   Symbols and source
+    BASICCLEAR                Clear the Applesoft program in memory, as NEW does
     BASICLOAD file            Replace the Applesoft program in memory with the listing in a text file
     BASICSAVE file            Save the Applesoft program in memory to a text file as a listing
     BASICSTACK                List the Applesoft program's active GOSUB returns and FOR loops
@@ -502,6 +503,7 @@ Casso commands:
                               Mark memory as words, 4 a line
     /X addr[,len|:last]       Make a data block code again
   Symbols and source
+    /BASICCLEAR               Clear the Applesoft program in memory, as NEW does
     /BASICLOAD file           Replace the Applesoft program in memory with the listing in a text file
     /BASICSAVE file           Save the Applesoft program in memory to a text file as a listing
     /BASICSTACK               List the Applesoft program's active GOSUB returns and FOR loops
@@ -771,6 +773,7 @@ Casso commands:
     Z [name [=]] [addr[,len|:last]]
                               Mark memory as bytes, or list the data blocks
   Symbols and source
+    BASICCLEAR                Clear the Applesoft program in memory, as NEW does
     BASICLOAD file            Replace the Applesoft program in memory with the listing in a text file
     BASICSAVE file            Save the Applesoft program in memory to a text file as a listing
     BASICSTACK                List the Applesoft program's active GOSUB returns and FOR loops
@@ -1028,6 +1031,7 @@ Casso commands:
                               Mark memory as words, 4 a line
     !X addr[,len|:last]       Make a data block code again
   Symbols and source
+    !BASICCLEAR               Clear the Applesoft program in memory, as NEW does
     !BASICLOAD file           Replace the Applesoft program in memory with the listing in a text file
     !BASICSAVE file           Save the Applesoft program in memory to a text file as a listing
     !BASICSTACK               List the Applesoft program's active GOSUB returns and FOR loops
@@ -1280,6 +1284,7 @@ Casso commands:
     U [addr[,len|:last]]      Disassemble, or continue the last listing
     X addr[,len|:last]        Make a data block code again
   Symbols and source
+    BASICCLEAR                Clear the Applesoft program in memory, as NEW does
     BASICLOAD file            Replace the Applesoft program in memory with the listing in a text file
     BASICSAVE file            Save the Applesoft program in memory to a text file as a listing
     BASICSTACK                List the Applesoft program's active GOSUB returns and FOR loops

@@ -114,9 +114,11 @@ public:
     virtual void                   ShowPcCode       () = 0;
 
     //  An Applesoft listing the user picks, loaded as the program in memory,
-    //  and the program saved to a file the user picks.
+    //  the program saved to a file the user picks, and the program cleared,
+    //  as NEW clears it, once the user confirms.
     virtual void                   OpenBasicProgram () = 0;
     virtual void                   SaveBasicProgram () = 0;
+    virtual void                   ClearBasicProgram () = 0;
     virtual void                   ShowMemoryAddress (Word address) = 0;
     virtual void                   GoToMemory       (Word address) = 0;
 

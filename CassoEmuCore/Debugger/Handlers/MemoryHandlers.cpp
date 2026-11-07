@@ -40,6 +40,7 @@ bool MemoryHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     case DebugVerb::SaveBinary:        SaveBinary   (session, command, reply); return true;
     case DebugVerb::LoadBasic:         LoadBasic    (session, command, reply); return true;
     case DebugVerb::SaveBasic:         SaveBasic    (session, command, reply); return true;
+    case DebugVerb::ClearBasic:        ClearBasic   (session, reply);          return true;
     case DebugVerb::SaveText:          SaveText     (session, command, reply); return true;
     case DebugVerb::ReadIo:            ReadIo       (session, command, reply); return true;
     case DebugVerb::WriteIo:           WriteIo      (session, command, reply); return true;
@@ -800,6 +801,55 @@ void MemoryHandlers::LoadBasic (DebugSession & session, const DebugCommand & com
     }
 
     reply.data = MessageData { { std::format ("Loaded {} lines, {} bytes, from {} as the BASIC program.", lines, bytes.size(), name) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::ClearBasic
+//
+//  BASICCLEAR does what Applesoft's NEW does: the program at TXTTAB is made
+//  the empty one, a zero link, and the variables, arrays and strings are
+//  empty after it, with string space from the top of memory down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryHandlers::ClearBasic (DebugSession & session, Reply & reply)
+{
+    IDebugTarget             & target = session.GetTarget();
+    const std::vector<Byte>    empty  = { 0x00, 0x00 };
+    Word                       start  = 0;
+    Word                       end    = 0;
+    Word                       top    = 0;
+
+
+
+    if (!TryPeekWord (target, ApplesoftProgram::kTxtTab, start, reply) || !TryPeekWord (target, kMemSiz, top, reply))
+    {
+        return;
+    }
+
+    end = (Word) (start + empty.size());
+
+    if (!IsWritable (target, start, empty.size(), reply))
+    {
+        return;
+    }
+
+    if (!TryPokeRange (target, start, empty, reply) ||
+        !TryPokeWord  (target, ApplesoftProgram::kVarTab, end, reply) ||
+        !TryPokeWord  (target, ApplesoftProgram::kAryTab, end, reply) ||
+        !TryPokeWord  (target, ApplesoftProgram::kStrEnd, end, reply) ||
+        !TryPokeWord  (target, kPrgEnd, end, reply) ||
+        !TryPokeWord  (target, kFreTop, top, reply))
+    {
+        return;
+    }
+
+    reply.data = MessageData { { "Cleared the BASIC program." } };
 }
 
 

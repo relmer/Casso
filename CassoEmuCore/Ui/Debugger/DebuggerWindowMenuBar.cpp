@@ -213,6 +213,7 @@ void DebuggerWindow::SetWindowMenus()
     add (file, DebuggerMenuCommand::Make (L"Save memory to file...", [this] { SaveMemoryToFile(); }));
     add (file, DebuggerMenuCommand::Make (L"Load BASIC program...", [this] { OpenBasicProgram(); }));
     add (file, DebuggerMenuCommand::Make (L"Save BASIC program...", [this] { SaveBasicProgram(); }));
+    add (file, DebuggerMenuCommand::Make (L"Clear BASIC program...", [this] { ClearBasicProgram(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
     add (file, DebuggerMenuCommand::Make (L"Open project...", [this] { OpenProject(); }));
     add (file, DebuggerMenuCommand::Make (L"Save project as...", [this] { SaveProjectAs(); }));
@@ -1003,6 +1004,36 @@ void DebuggerWindow::OpenBasicProgram()
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ClearBasicProgram
+//
+//  The user confirms first, as for a load over the program, unless the
+//  program is known to be empty. BASIC breakpoints aren't removed, so the
+//  same program loaded again has them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ClearBasicProgram()
+{
+    bool  isKnownEmpty = m_snapshot != nullptr && m_snapshot->basic.has_value() && (!m_snapshot->basic->hasProgram || m_snapshot->basic->lines.empty());
+
+
+
+    if (!isKnownEmpty &&
+        ShowMessageBox (GetHwnd(), L"Clear the BASIC program in memory?", L"Clear BASIC program", MB_YESNO | MB_ICONQUESTION) != IDYES)
+    {
+        return;
+    }
+
+    RunAction (DebuggerActions::GetClearBasic (GetMode()));
+    ShowPane  (DebuggerLayout::kBasicProgram);
 }
 
 

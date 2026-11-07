@@ -4019,6 +4019,12 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   switching MUST pause on the current project, with one console line added
   for the reason, until the debug file, binary or machine changes to a project
   outside them.
+- **FR-399**: BASICCLEAR MUST clear the Applesoft program in memory as NEW
+  does: an empty program at TXTTAB, and the variables, arrays and strings
+  empty after it, with string space from the top of memory down. The BASIC
+  pane's toolbar and menu and the File menu MUST offer it as Clear BASIC
+  program, confirmed first unless the program is empty. BASIC breakpoints
+  MUST NOT be removed, so the same program loaded again has them.
 
 ### Key Entities
 

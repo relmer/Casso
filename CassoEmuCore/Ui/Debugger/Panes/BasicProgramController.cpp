@@ -115,8 +115,9 @@ std::vector<DxuiToolbar::Entry> BasicProgramController::MakeBarEntries() const
 
     std::vector<Row>                 rows    =
     {
-        { L"Load", s_kpszMdl2OpenFile, L"Load an Applesoft listing from a file as the program in memory", [this] { m_host.OpenBasicProgram(); } },
-        { L"Save", s_kpszMdl2Save,   L"Save the program in memory to a file as a listing",              [this] { m_host.SaveBasicProgram(); } },
+        { L"Load",  s_kpszMdl2OpenFile, L"Load an Applesoft listing from a file as the program in memory", [this] { m_host.OpenBasicProgram(); } },
+        { L"Save",  s_kpszMdl2Save,     L"Save the program in memory to a file as a listing",              [this] { m_host.SaveBasicProgram(); } },
+        { L"Clear", s_kpszMdl2Delete,   L"Clear the program in memory, as NEW does",                       [this] { m_host.ClearBasicProgram(); } },
     };
     std::vector<DxuiToolbar::Entry>  entries;
 
@@ -541,6 +542,7 @@ bool BasicProgramController::AddMenuItems (DxuiListView * list, int row, PaneMen
     items.push_back (PaneMenu::MakeSeparator());
     items.push_back ({ L"Load BASIC program...", [this] { m_host.OpenBasicProgram(); } });
     items.push_back ({ L"Save BASIC program...", [this] { m_host.SaveBasicProgram(); } });
+    items.push_back ({ L"Clear BASIC program...", [this] { m_host.ClearBasicProgram(); } });
 
     return true;
 }

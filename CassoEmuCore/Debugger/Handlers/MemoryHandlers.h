@@ -63,6 +63,7 @@ private:
     static void  SaveText     (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  LoadBasic    (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SaveBasic    (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  ClearBasic   (DebugSession & session, Reply & reply);
     static bool  TryPokeWord  (IDebugTarget & target, Word address, Word value, Reply & reply);
     static bool  TryPeekWord  (IDebugTarget & target, Word address, Word & value, Reply & reply);
     static void  ReadIo       (DebugSession & session, const DebugCommand & command, Reply & reply);

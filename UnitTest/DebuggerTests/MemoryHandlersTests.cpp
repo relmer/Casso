@@ -324,6 +324,34 @@ namespace DebuggerTests
         }
 
 
+        //  BASICCLEAR writes the empty program NEW writes, at TXTTAB, with the
+        //  variables and strings empty after it.
+        TEST_METHOD (BASICCLEAR_WritesTheEmptyProgramNewWrites)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.target.memory[0x73] = 0x00;
+            rig.target.memory[0x74] = 0x96;
+            rig.files.WriteAllText (L"C:\\Work\\prog.bas", "10 PRINT \"HI\"\n20 GOTO 10\n");
+            rig.RunOk ("BASICLOAD prog.bas");
+
+            reply = rig.RunOk ("BASICCLEAR");
+            Assert::AreEqual (std::string ("Cleared the BASIC program."), reply.text.at (0));
+
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0x0801], L"a zero link at TXTTAB");
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0x0802]);
+            Assert::AreEqual ((Byte) 0x03, rig.target.memory[0x69], L"VARTAB after it");
+            Assert::AreEqual ((Byte) 0x08, rig.target.memory[0x6A]);
+            Assert::AreEqual ((Byte) 0x03, rig.target.memory[0x6B], L"ARYTAB");
+            Assert::AreEqual ((Byte) 0x03, rig.target.memory[0x6D], L"STREND");
+            Assert::AreEqual ((Byte) 0x96, rig.target.memory[0x70], L"FRETOP at MEMSIZ");
+
+            rig.RunFails ("BASICSAVE out.bas", "program not listable");
+        }
+
 
         //  The reply gives the address loaded at, and the path only when it
         //  was typed relative -- as the absolute path it resolved to.

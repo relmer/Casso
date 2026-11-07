@@ -254,6 +254,7 @@ enum class DebugVerb
     ShowBasicStack,
     LoadBasic,
     SaveBasic,
+    ClearBasic,
     ShowHistory,
     SetHistory,
     SaveHistory,
