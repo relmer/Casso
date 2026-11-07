@@ -263,12 +263,12 @@ void OperandTipController::SetHighlight (int view, int row)
 
     if (m_lit != nullptr)
     {
-        m_lit->SetHighlightRow (row);
+        m_lit->SetHighlightRow (row, (int) m_host.GetTipParts (view, row).rowColumn);
     }
 
     if (m_litList != nullptr)
     {
-        m_litList->SetHighlightRow (row);
+        m_litList->SetHighlightRow (row, m_host.GetTipParts (view, row).rowColumn);
     }
 }
 
@@ -724,6 +724,15 @@ bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler
     placement.padLeftPx         = scaler.ToPx (list->GetCellPadLeftDip());
     placement.padRightPx        = scaler.ToPx (list->GetCellPadRightDip());
     placement.fill              = DxuiColor::Composite (theme->ContentSelection(), list->GetRowBackground (*theme));
+    placement.isInline          = parts.commentChar < 0;
+
+    //  The row's line starts at its address or line number, past the heat
+    //  column and the gutter, which are drawn as usual.
+    if (list->GetCellTextRectPx (row, parts.rowColumn, cell))
+    {
+        placement.row.left = bounds.left + cell.left - placement.padLeftPx;
+    }
+
     placement.dpi               = scaler.GetDpi();
     placement.workArea          = GetRowWorkArea (placement.row, screen.workAreas);
 
@@ -942,6 +951,7 @@ bool OperandTipController::TryMakeOnText (int view, int row, const DxuiDpiScaler
     DxuiTextView                * textView = m_host.GetTipTextView (view);
     OperandTipParts               parts    = m_host.GetTipParts (view, row);
     RECT                          cell     = {};
+    float                         rowLeft  = 0.0f;
     bool                          isShown  = false;
     bool                          hasRoom  = false;
     bool                          isMade   = false;
@@ -965,6 +975,14 @@ bool OperandTipController::TryMakeOnText (int view, int row, const DxuiDpiScaler
     //  the operand. On a line with a comment, the comment stays on the line
     //  and the operand goes below.
     placement.isInline          = !HasLineComment (*textView, row);
+
+    //  The row's line starts at its line number, past the heat band and the
+    //  gutter, which are drawn as usual.
+    if (textView->GetCellLeftPx (row, (int) parts.rowColumn, rowLeft))
+    {
+        placement.row.left = (LONG) rowLeft;
+    }
+
     placement.dpi               = scaler.GetDpi();
     placement.workArea          = GetRowWorkArea (placement.row, screen.workAreas);
 

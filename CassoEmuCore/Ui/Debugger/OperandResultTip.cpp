@@ -281,9 +281,11 @@ bool OperandResultTip::TryGetPieces (
     int                 operand   = (placement.operand >= 0 && placement.operand < (int) count) ? placement.operand : -1;
     float               gapPx     = (float) (placement.padLeftPx + placement.padRightPx);
     float               rightPx   = -FLT_MAX;
+    float               drawnPx   = -FLT_MAX;
     float               leftPx    = 0.0f;
     float               textPx    = 0.0f;
     bool                isHidden  = false;
+    bool                isRunOn   = false;
     bool                isMade    = false;
     Piece               piece;
 
@@ -303,6 +305,12 @@ bool OperandResultTip::TryGetPieces (
 
         clips[i] = GetClip (segment, textPx, placement);
 
+        //  Where the text the view draws ahead of the operand ends.
+        if ((int) i < operand && clips[i] != Clip::PastRight && clips[i] != Clip::PastLeft && clips[i] != Clip::StartHidden)
+        {
+            drawnPx = (std::max) (drawnPx, segment.leftPx + textPx);
+        }
+
         if (first < 0 && (clips[i] == Clip::Cut || (clips[i] == Clip::PastRight && (int) i != operand)))
         {
             first = (int) i;
@@ -314,6 +322,10 @@ bool OperandResultTip::TryGetPieces (
     CBR (first >= 0 || isHidden);
 
     hasSymbol = operand >= 0 && !placement.symbol.empty();
+
+    //  An operand drawn on the row's line, past the view's edge, runs
+    //  on two spaces after the text ahead of it rather than at its column.
+    isRunOn = placement.isInline && operand >= 0 && clips[(size_t) operand] == Clip::PastRight;
 
     for (int i = (first >= 0) ? first : (int) count; i < (int) count; i++)
     {
@@ -328,6 +340,7 @@ bool OperandResultTip::TryGetPieces (
 
         if (i == operand)
         {
+            leftPx = (isRunOn && (std::max) (rightPx, drawnPx) > -FLT_MAX) ? (std::max) (rightPx, drawnPx) + MeasurePx (text, L"  ", placement.fontPx, placement.face) : leftPx;
             AddOperand (placement, segment, clips[(size_t) i], leftPx, clips[(size_t) i] != Clip::Whole || hasSymbol || segment.isBelowLine, out);
             continue;
         }
@@ -342,7 +355,8 @@ bool OperandResultTip::TryGetPieces (
     //  off, lie wholly below the row.
     if (isHidden && (first < 0 || clips[(size_t) operand] == Clip::PastLeft))
     {
-        AddOperand (placement, placement.segments[(size_t) operand], clips[(size_t) operand], placement.segments[(size_t) operand].leftPx, true, out);
+        leftPx = (isRunOn && drawnPx > -FLT_MAX) ? drawnPx + MeasurePx (text, L"  ", placement.fontPx, placement.face) : placement.segments[(size_t) operand].leftPx;
+        AddOperand (placement, placement.segments[(size_t) operand], clips[(size_t) operand], leftPx, true, out);
     }
 
     isMade = !out.first.empty() || !out.below.empty();

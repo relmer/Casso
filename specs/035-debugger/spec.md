@@ -2138,10 +2138,11 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   beneath. One model applies to every such row:
   1. **Fill.** Every line of the tip MUST be filled with the selection color,
      the one the row the keyboard is on has, across the whole row, from the
-     row's start (the list's or text view's left edge) to the tip's right
-     edge, which is the pane's right edge or past it, whichever is further.
-     The view MUST draw the tip's row itself in that color from its left
-     edge while the tip is up, so the row and each line below it look like
+     row's start (its address or line number, past the gutter and the heat
+     column, which are drawn as usual) to the tip's right edge, which is the
+     pane's right edge or past it, whichever is further. The view MUST draw
+     the tip's row itself in that color from that start while the tip is
+     up, so the row and each line below it look like
      one highlighted block, not a box behind the text. No cell's color,
      such as the heat strip's or the PC's row, MUST be used for the fill.
   2. **The row's line.** The tip's first line MUST be the row's text,
@@ -2150,16 +2151,14 @@ screenshot: the screenshot has the bars, and every step is one tool call.
      data line, a label or a comment. A part drawn whole that the part ahead
      of it, run on, would run into MUST follow that part, a padding's width
      apart.
-  3. **Operand and result.** Below the first line, in order, MUST come the
-     operand, where the first line doesn't have it whole, and then the
-     result, each starting under where the row's code starts: the
-     mnemonic in the disassembly, past the label in a source document. An
-     operand in view but cut off MUST stay on the first line where the view
-     draws it, with its result on the next line under the operand's start. In
-     a source document the operand is part of the line: on a line with no
-     comment, an operand past the view's right edge MUST also stay on the
-     first line where the view would draw it, with its result below it, and
-     MUST go below only where the line's comment takes its place.
+  3. **Operand and result.** The operand MUST stay on the first line: where
+     the view draws it when it is in view but cut off, and two spaces after
+     the row's code when it lies past the view's right edge. The result MUST
+     go on the next line under the operand's start. The operand MUST go
+     below only where the line's comment takes its place on the first line,
+     or where it is scrolled out of sight to the left; it and the result then
+     start under where the row's code starts: the mnemonic in the
+     disassembly, past the label in a source document.
   4. **A source line's comment.** Where a source row's operand and result run
      on to the row's end with the line's comment after them, and the view
      cuts them off, the first line MUST be the source line itself with its

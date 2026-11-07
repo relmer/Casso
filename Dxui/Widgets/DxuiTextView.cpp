@@ -1927,16 +1927,17 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 void DxuiTextView::PaintLineGutter (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex)
 {
-    HRESULT       hr     = S_OK;
-    const Line  & line   = m_lines[(size_t) lineIndex];
-    const Row   & row    = m_rows[(size_t) line.row];
-    int           left   = GetTextBaseLeft();
-    int           y      = (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip) + GetLineOffsetPx (lineIndex);
-    int           gutter = GetGutterPx();
-    float         iconPx = m_scaler.ToPxf ((float) m_gutterIconDip);
-    float         iconX  = (float) (left - gutter) + ((float) gutter - iconPx) * 0.5f;
-    float         width  = (float) (GetTextAreaRightPx() - m_boundsDip.left);
-    float         radius = m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip);
+    HRESULT       hr       = S_OK;
+    const Line  & line     = m_lines[(size_t) lineIndex];
+    const Row   & row      = m_rows[(size_t) line.row];
+    int           left     = GetTextBaseLeft();
+    int           y        = (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip) + GetLineOffsetPx (lineIndex);
+    int           gutter   = GetGutterPx();
+    float         iconPx   = m_scaler.ToPxf ((float) m_gutterIconDip);
+    float         iconX    = (float) (left - gutter) + ((float) gutter - iconPx) * 0.5f;
+    float         width    = (float) (GetTextAreaRightPx() - m_boundsDip.left);
+    float         radius   = m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip);
+    float         cellLeft = 0.0f;
 
 
 
@@ -1952,15 +1953,18 @@ void DxuiTextView::PaintLineGutter (IDxuiPainter & painter, IDxuiTextRenderer & 
                                         (std::max) (1.0f, m_scaler.ToPxf (1.0f)), theme.ContentSelectionEdge());
         }
     }
-    else if (line.first && line.row == m_highlightRow)
-    {
-        painter.FillRect ((float) m_boundsDip.left, (float) y, width, (float) GetLineHeightPx (lineIndex), theme.ContentSelection());
-    }
 
     if (row.background != 0)
     {
         painter.FillRect ((float) m_boundsDip.left, (float) y, (float) (m_boundsDip.right - m_boundsDip.left), (float) GetLineHeightPx (lineIndex),
                           row.background);
+    }
+
+    //  The row an in-place tip is up for, in the tip's color from its
+    //  highlight cell to the text area's right, over the row's fill.
+    if (line.first && line.row == m_highlightRow && GetCellLeftPx (line.row, m_highlightCell, cellLeft))
+    {
+        painter.FillRect (cellLeft, (float) y, (float) GetTextAreaRightPx() - cellLeft, (float) GetLineHeightPx (lineIndex), theme.ContentSelection());
     }
 
     if (row.gutterFill != 0 && m_bandWidthDip > 0)

@@ -399,6 +399,7 @@ OperandTipParts DebuggerWindow::GetTipParts (int view, int row) const
     {
         parts.operandColumn = kCodeOperandColumn;
         parts.codeColumn    = kCodeInstructionColumn;
+        parts.rowColumn     = DisassemblyCells::kAddressColumn;
 
         if (m_code->TryGetSourceParts (view, row, source))
         {
@@ -416,6 +417,7 @@ OperandTipParts DebuggerWindow::GetTipParts (int view, int row) const
 
     parts.operandColumn = (size_t) SourcePane::kAnnotationCell;
     parts.codeColumn    = (size_t) SourcePane::kTextCell;
+    parts.rowColumn     = (size_t) SourcePane::kNumberCell;
 
     hasLine = row >= 0 && row < (int) text->GetRows().size() && text->GetRows()[(size_t) row].cells.size() > (size_t) SourcePane::kTextCell;
 

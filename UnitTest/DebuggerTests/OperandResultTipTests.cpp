@@ -230,6 +230,20 @@ namespace OperandResultTipTests
         }
 
 
+        //  Where a disassembly row's line starts, as the list highlights it:
+        //  the address column's left edge, past the gutter and heat columns.
+        static LONG  GetRowStart (DxuiListView & list, int row)
+        {
+            RECT           address = {};
+            DxuiDpiScaler  scaler;
+
+
+
+            Assert::IsTrue (list.GetCellTextRectPx (row, DisassemblyCells::kAddressColumn, address));
+            return list.GetBounds().left + address.left - scaler.ToPx (list.GetCellPadLeftDip());
+        }
+
+
         //  The runs on a line of the tip, left to right.
         static std::vector<OperandResultTip::Run>  GetLine (const OperandResultTip::Layout & layout, int line)
         {
@@ -1112,7 +1126,7 @@ namespace OperandResultTipTests
             Assert::AreEqual ((float) (bounds.left + cell.left), GetLine (layout, 1)[0].leftPx, L"the result from the operand's left");
             Assert::AreEqual (bounds.top + cell.top, (LONG) layout.rowTop);
             Assert::IsTrue   (layout.rect.right > bounds.right, L"the tip runs on past the pane to the end of the operand");
-            Assert::AreEqual (bounds.left, layout.rect.left, L"from the row's start, as the list highlights it");
+            Assert::AreEqual (GetRowStart (*list, 0), layout.rect.left, L"from the row's address, as the list highlights it");
             Assert::AreEqual ((int) (bounds.left + cell.left - scaler.ToPx (list->GetCellPadLeftDip())), layout.firstLeft,
                               L"the row's line from the cell's padding");
 
@@ -1188,10 +1202,11 @@ namespace OperandResultTipTests
 
         //  With the columns ahead of it widened past the pane's right edge,
         //  the operand and result are wholly out of view. With the pointer
-        //  anywhere on the row, the tip is up below it, under the mnemonic,
-        //  filled from the row's start, and it stays up as the pointer moves
-        //  down into it.
-        TEST_METHOD (AnOperandPastThePanesEdgeShowsBelowItsRowFromAnywhereOnIt)
+        //  anywhere on the row, the tip is up with the operand on the row's
+        //  line, two spaces after the code rather than at its column past the
+        //  pane, and the list draws the row in the tip's color from its
+        //  address.
+        TEST_METHOD (AnOperandPastThePanesEdgeRunsOnAfterTheCode)
         {
             CassoTheme                 theme   = CassoTheme::MakeSkeuomorphic();
             TipHost                    host;
@@ -1226,20 +1241,16 @@ namespace OperandResultTipTests
 
             Assert::IsTrue   (window.GetOperandTips().HasTip(), L"no tip after a move onto the row's address");
             Assert::AreEqual (kLastRow, window.GetOperandTips().GetCell().row);
-            Assert::AreEqual (bounds.left, window.GetOperandTips().GetCell().area.left,  L"the whole row in view is the tip's");
+            Assert::AreEqual (GetRowStart (*list, kLastRow), window.GetOperandTips().GetCell().area.left, L"the row in view from its address is the tip's");
             Assert::AreEqual ((LONG) right, window.GetOperandTips().GetCell().area.right);
-            Assert::AreEqual (bounds.top + cell.bottom, window.GetOperandTips().GetLayout().rect.top, L"the tip is below the row");
-            Assert::AreEqual (bounds.left, window.GetOperandTips().GetLayout().rect.left, L"from the pane's left edge");
-            Assert::IsTrue   (GetLine (window.GetOperandTips().GetLayout(), 0).empty(), L"nothing of the row's line is cut off");
-            Assert::AreEqual (2, window.GetOperandTips().GetLayout().lineCount, L"the operand on one line, run on past the pane");
+            Assert::AreEqual (bounds.top + cell.top, window.GetOperandTips().GetLayout().rect.top, L"from the row's line");
+            Assert::AreEqual (1, window.GetOperandTips().GetLayout().lineCount, L"the operand, which has no result, on the row's line");
+            Assert::AreEqual (kLastRow, list->GetHighlightRow(), L"the list draws the row in the tip's color");
 
             Assert::IsTrue   (list->GetCellTextRectPx (kLastRow, DisassemblyCells::kInstructionColumn, code));
-            Assert::AreEqual ((float) (bounds.left + code.left), GetLine (window.GetOperandTips().GetLayout(), 1)[0].leftPx, L"under the mnemonic");
+            Assert::IsTrue   (GetLine (window.GetOperandTips().GetLayout(), 0)[0].leftPx > (float) (bounds.left + code.left), L"after the code");
+            Assert::IsTrue   (GetLine (window.GetOperandTips().GetLayout(), 0)[0].leftPx < (float) right, L"not at its column past the pane");
 
-            //  Below the last row, so no other row's tip is under the pointer.
-            Send (window, DxuiMouseEventKind::Move, POINT { at.x, window.GetOperandTips().GetLayout().rect.bottom - 2 });
-            Assert::IsTrue   (window.GetOperandTips().HasTip(), L"the tip went down as the pointer moved into it");
-            Assert::AreEqual (kLastRow, window.GetOperandTips().GetCell().row);
 
             Send (window, DxuiMouseEventKind::Move, POINT { bounds.left + 1, bounds.bottom + kGapPx });
             Assert::IsFalse  (window.GetOperandTips().HasTip(), L"the tip is up with the pointer off the pane");
@@ -1373,9 +1384,9 @@ namespace OperandResultTipTests
 
             Send (window, DxuiMouseEventKind::Move, at);
             Assert::IsTrue   (window.GetOperandTips().HasTip(), L"the operand out of view has no tip");
-            Assert::AreEqual (std::wstring (L"Z=0 w_inner = $60BA"), GetLine (window.GetOperandTips().GetLayout(), 1)[0].text,
-                              L"the symbol after the operand's values");
-            Assert::AreEqual (std::wstring (L"Result: PC=$60BA; 3 cycles"), GetLine (window.GetOperandTips().GetLayout(), 2)[0].text);
+            Assert::AreEqual (std::wstring (L"Z=0 w_inner = $60BA"), GetLine (window.GetOperandTips().GetLayout(), 0)[0].text,
+                              L"the symbol after the operand's values, on the row's line");
+            Assert::AreEqual (std::wstring (L"Result: PC=$60BA; 3 cycles"), GetLine (window.GetOperandTips().GetLayout(), 1)[0].text);
 
             tip = DxuiTip();
             Assert::IsFalse (list->TryGetTip (local, tip) && tip.text.find (L"w_inner = ") != std::wstring::npos, L"the symbol tip over the in-place tip");
@@ -2405,7 +2416,7 @@ namespace OperandResultTipTests
             Assert::IsTrue   (window.GetOperandTips().HasTip());
             Assert::IsTrue   (window.GetOperandTips().GetLayout().rect.right <= split + kSecondPx, L"the tip runs onto the third monitor");
             Assert::IsTrue   (window.GetOperandTips().GetLayout().lineCount > 2, L"the operand wraps at the second monitor's edge");
-            Assert::AreEqual (window.GetCodeList (0)->GetBounds().left, window.GetOperandTips().GetLayout().rect.left, L"from the row's start, unmoved");
+            Assert::AreEqual (GetRowStart (*window.GetCodeList (0), 0), window.GetOperandTips().GetLayout().rect.left, L"from the row's address, unmoved");
         }
 
 

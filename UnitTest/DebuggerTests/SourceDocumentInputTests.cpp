@@ -545,15 +545,16 @@ namespace SourceDocumentInputTests
             CassoTheme                         theme    = CassoTheme::MakeSkeuomorphic();
             SourceHost                         host;
             SourceWindow                       window   (theme, host);
-            MockDxuiTextRenderer               text;
-            DxuiDpiScaler                      scaler;
-            auto                               snapshot = MakeSnapshot();
-            std::string                        operand;
-            DxuiTextView                     * view     = nullptr;
-            RECT                               cell     = {};
-            OperandResultTip::Layout           layout;
-            SourceWindow::OperandTipCell       tipCell;
-            SourceWindow::OperandTipScreen     screen;
+            MockDxuiTextRenderer              text;
+            DxuiDpiScaler                     scaler;
+            auto                              snapshot   = MakeSnapshot();
+            std::string                       operand;
+            DxuiTextView                    * view       = nullptr;
+            RECT                              cell       = {};
+            float                             numberLeft = 0.0f;
+            OperandResultTip::Layout          layout;
+            SourceWindow::OperandTipCell      tipCell;
+            SourceWindow::OperandTipScreen    screen;
 
 
 
@@ -576,7 +577,8 @@ namespace SourceDocumentInputTests
             Assert::AreEqual (2, layout.lineCount, L"the operand on one line and the result on the next");
             Assert::AreEqual (TextEncoding::NarrowToWide (operand.substr (0, operand.size() - 1)), layout.runs[0].text);
             Assert::AreEqual ((float) cell.left, layout.runs[0].leftPx, L"the tip's text starts at the cell's");
-            Assert::AreEqual (view->GetBounds().left, layout.rect.left, L"the line below from the view's left edge");
+            Assert::IsTrue   (view->GetCellLeftPx (1, SourcePane::kNumberCell, numberLeft));
+            Assert::AreEqual ((LONG) numberLeft, layout.rect.left, L"the line below from the line's number");
 
             Assert::IsTrue   (view->GetCellRectPx (2, SourcePane::kAnnotationCell, cell));
             Assert::IsFalse  (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell),
@@ -674,14 +676,15 @@ namespace SourceDocumentInputTests
             CassoTheme                         theme    = CassoTheme::MakeSkeuomorphic();
             SourceHost                         host;
             SourceWindow                       window   (theme, host);
-            MockDxuiTextRenderer               text;
-            DxuiDpiScaler                      scaler;
-            auto                               snapshot = MakeSnapshot();
-            DxuiTextView                     * view     = nullptr;
-            RECT                               cell     = {};
-            bool                               isPast   = false;
-            DxuiMouseEvent                     move;
-            SourceWindow::OperandTipScreen     screen;
+            MockDxuiTextRenderer              text;
+            DxuiDpiScaler                     scaler;
+            auto                              snapshot   = MakeSnapshot();
+            DxuiTextView                    * view       = nullptr;
+            RECT                              cell       = {};
+            float                             numberLeft = 0.0f;
+            bool                              isPast     = false;
+            DxuiMouseEvent                    move;
+            SourceWindow::OperandTipScreen    screen;
 
 
 
@@ -702,7 +705,8 @@ namespace SourceDocumentInputTests
             Assert::IsTrue (isPast, L"a narrower window puts LDA's operand past the view's edge");
 
             move.kind        = DxuiMouseEventKind::Move;
-            move.positionDip = POINT { view->GetTextAreaLeftPx() + 1, (cell.top + cell.bottom) / 2 };
+            Assert::IsTrue   (view->GetCellLeftPx (1, SourcePane::kNumberCell, numberLeft));
+            move.positionDip = POINT { (LONG) numberLeft + 1, (cell.top + cell.bottom) / 2 };
             (void) window.OnMouse (move);
 
             Assert::IsTrue   (window.GetOperandTips().HasTip(), L"no tip after a move onto the line's start");
@@ -712,7 +716,7 @@ namespace SourceDocumentInputTests
             Assert::AreEqual (std::wstring (L"Result: A=41"), window.GetOperandTips().GetLayout().runs[1].text);
             Assert::AreEqual (1,                              window.GetOperandTips().GetLayout().runs[1].line);
             Assert::AreEqual (cell.top, window.GetOperandTips().GetLayout().rect.top, L"from the line's own row");
-            Assert::AreEqual (view->GetBounds().left, window.GetOperandTips().GetLayout().rect.left, L"from the view's left edge");
+            Assert::AreEqual ((LONG) numberLeft, window.GetOperandTips().GetLayout().rect.left, L"from the line's number");
             Assert::AreEqual (window.GetOperandTips().GetLayout().runs[0].leftPx, window.GetOperandTips().GetLayout().runs[1].leftPx,
                               L"the result under the operand");
             Assert::AreEqual (1, view->GetHighlightRow(), L"the view highlights the line under the tip");

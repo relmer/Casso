@@ -175,7 +175,7 @@ public:
     void  SetTheme        (const IDxuiTheme * theme)       { m_theme = theme; }
     void  SetShowHeader   (bool b)                         { m_showHeader = b; }
     void  SetHoveredRow   (int row)                        { m_hovered = row; }
-    void  SetHighlightRow (int row)                        { m_highlightRow = row; }
+    void  SetHighlightRow (int row, size_t fromColumn = 0) { m_highlightRow = row; m_highlightColumn = fromColumn; }
     void  SetSortIndicator (int column, bool descending)   { m_sortColumn = column; m_sortDescending = descending; }
     void  SetRect         (const RECT & rect);
     void  SetColumns      (std::vector<Column> cols);
@@ -934,6 +934,7 @@ private:
     mutable std::vector<Cell>  m_providerScratch;
     int                        m_hovered           = -1;
     int                        m_highlightRow      = -1;
+    size_t                     m_highlightColumn   = 0;
     int                        m_selectedRow       = -1;
     std::wstring               m_findNeedle;
     bool                       m_findCase          = false;

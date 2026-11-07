@@ -4097,10 +4097,11 @@ void DxuiListView::PaintDataRows (
         bool                       isSel = ((m_listFocused || m_alwaysShowSelection) && !m_hasTextSel &&
                                             (m_multiSelect ? IsRowSelected (r) : r == m_selectedRow));
         //  A row an in-place tip is up for is drawn in the selection color,
-        //  the tip's fill, so the row and the tip read as one block.
-        bool                       isLit = !isSel && r == m_highlightRow;
+        //  the tip's fill, from its highlight column on, so the row and the
+        //  tip read as one block.
+        bool                       isLit = r == m_highlightRow;
         bool                       spans = false;
-        uint32_t                   fill  = (isSel || isLit) ? pal.bgSel : (isHov ? pal.bgHover : pal.bgRow);
+        uint32_t                   fill  = isSel ? pal.bgSel : (isHov ? pal.bgHover : pal.bgRow);
 
         fill = DxuiColor::Composite (fill, pal.bgRow);
 
@@ -4117,11 +4118,7 @@ void DxuiListView::PaintDataRows (
             }
         }
 
-        if (isLit)
-        {
-            painter.FillRect (x, ry, layoutW, rowH, pal.bgSel);
-        }
-        else if (isHov && !isSel)
+        if (isHov && !isSel && !isLit)
         {
             painter.FillRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), pal.bgHover);
         }
@@ -4137,8 +4134,10 @@ void DxuiListView::PaintDataRows (
 
         for (size_t c = 0; c < m_columns.size() && c < cells.size() && !spans; ++c)
         {
+            bool      isLitCell = isLit && c >= m_highlightColumn;
             uint32_t  argb      = (cells[c].argb != 0) ? cells[c].argb : (cells[c].dim ? pal.fgDim : pal.fg);
-            uint32_t  under     = (cells[c].background != 0) ? DxuiColor::Composite (cells[c].background, fill) : fill;
+            uint32_t  under     = isLitCell ? DxuiColor::Composite (pal.bgSel, pal.bgRow) :
+                                  (cells[c].background != 0) ? DxuiColor::Composite (cells[c].background, fill) : fill;
             float     iconShift = 0.0f;
             float     cellW     = (float) colWPx[c];
             float     trailPx   = m_scaler.ToPxf ((float) cells[c].trailDip);
@@ -4162,7 +4161,13 @@ void DxuiListView::PaintDataRows (
 
             //  The first column's fill runs back over the pane lead to the
             //  list's left, so a colored cell still meets the pane's edge.
-            if (cells[c].background != 0)
+            if (isLitCell)
+            {
+                float  fillW = (c == lastColumn) ? (std::max) (cellW, layoutW - colOff - (float) colXPx[c]) : cellW;
+
+                painter.FillRect (x + colOff + (float) colXPx[c], ry, fillW, rowH, pal.bgSel);
+            }
+            else if (cells[c].background != 0)
             {
                 float  fillX = (colXPx[c] == lead) ? 0.0f : (float) colXPx[c];
                 float  fillW = cellW + (float) colXPx[c] - fillX;

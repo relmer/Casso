@@ -160,7 +160,7 @@ public:
     //  A row drawn in the theme's hover across the view, under the row's
     //  fill, as a list draws the row under the pointer, for a tip laid over
     //  it. -1, the default, is no row.
-    void  SetHighlightRow  (int row)              { m_highlightRow = row; }
+    void  SetHighlightRow  (int row, int fromCell = 0) { m_highlightRow = row; m_highlightCell = fromCell; }
     int   GetHighlightRow  () const               { return m_highlightRow; }
 
     //  The left and right of the text area, past the gutter and short of the
@@ -514,4 +514,5 @@ private:
     int                m_focusRow      = -1;
     bool               m_isFocused     = false;
     int                m_highlightRow  = -1;
+    int                m_highlightCell = 0;
 };

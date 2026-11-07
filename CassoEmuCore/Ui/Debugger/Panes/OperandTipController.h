@@ -48,6 +48,7 @@ struct OperandTipParts
     int           commentChar   = -1;
     size_t        codeColumn    = kNone;
     int           codeChar      = 0;
+    size_t        rowColumn     = 0;       // where the row's line starts: its line number or address, past the heat column
     std::wstring  symbol;
 };
 
