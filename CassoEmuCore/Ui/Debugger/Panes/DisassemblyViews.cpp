@@ -1118,6 +1118,7 @@ void DisassemblyGroup::ApplyView (int view)
             if (operandMoved)
             {
                 (void) DisassemblyCells::FillCodeRow (scratch, lines[(size_t) gutter], m_options, textColors);
+                AddOperandSymbol (scratch[DisassemblyCells::kOperandColumn], lines[(size_t) gutter], textColors.syntax.symbol);
             }
 
             parts.back() = DisassemblyCells::FillSourceRow (cells, *list, each.sourceLine, text, numbers, textColors,
@@ -1140,6 +1141,7 @@ void DisassemblyGroup::ApplyView (int view)
             line = &lines[(size_t) each.codeLine];
 
             (void) DisassemblyCells::FillCodeRow (cells, *line, m_options, textColors);
+            AddOperandSymbol (cells[DisassemblyCells::kOperandColumn], *line, textColors.syntax.symbol);
 
             if (operandMoved && DisassemblyOptions::IsFronted (built, at))
             {
@@ -2122,6 +2124,49 @@ DxuiListView * DisassemblyGroup::FindCodeListAt (POINT clientPx, int & view) con
     }
 
     return list;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::AddOperandSymbol
+//
+//  The symbol the instruction's operand is written with, "COUT = $FDED",
+//  ahead of the operand column's values, its name in the symbol color, so
+//  it is read without the operand tip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisassemblyGroup::AddOperandSymbol (DxuiListView::Cell & cell, const DebuggerViewSnapshot::CodeLine & line, uint32_t symbolArgb)
+{
+    std::string   name;
+    Word          address = 0;
+    std::wstring  symbol;
+    int           shift   = 0;
+
+
+
+    GetLineSymbol (line, (int) DisassemblyCells::kInstructionColumn, name, address);
+
+    if (name.empty())
+    {
+        return;
+    }
+
+    symbol = std::format (L"{} = ${:04X}", TextEncoding::NarrowToWide (name), address);
+    shift  = (int) symbol.size() + (cell.text.empty() ? 0 : 2);
+
+    for (auto & [start, end, argb] : cell.colorRanges)
+    {
+        start += shift;
+        end   += shift;
+    }
+
+    cell.colorRanges.insert (cell.colorRanges.begin(), { 0, (int) name.size(), symbolArgb });
+    cell.text = symbol + (cell.text.empty() ? std::wstring() : L"  " + cell.text);
 }
 
 

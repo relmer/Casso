@@ -1367,6 +1367,8 @@ namespace OperandResultTipTests
             window.GetOperandTips().SetDeviceForTest (&text, MakeScreen());
 
             list = window.GetCodeList (0);
+            Assert::IsTrue (list->GetCellsOfRow (0)[DisassemblyCells::kOperandColumn].text.starts_with (L"w_inner = $60BA  Z=0"), L"the operand column has the symbol");
+
             list->Paint (painter, text, theme);
 
             bounds = list->GetBounds();
@@ -1384,8 +1386,8 @@ namespace OperandResultTipTests
 
             Send (window, DxuiMouseEventKind::Move, at);
             Assert::IsTrue   (window.GetOperandTips().HasTip(), L"the operand out of view has no tip");
-            Assert::AreEqual (std::wstring (L"Z=0 w_inner = $60BA"), GetLine (window.GetOperandTips().GetLayout(), 0)[0].text,
-                              L"the symbol after the operand's values, on the row's line");
+            Assert::AreEqual (std::wstring (L"w_inner = $60BA  Z=0"), GetLine (window.GetOperandTips().GetLayout(), 0)[0].text,
+                              L"the symbol first among the operand's values, as in its column");
             Assert::AreEqual (std::wstring (L"Result: PC=$60BA; 3 cycles"), GetLine (window.GetOperandTips().GetLayout(), 1)[0].text);
 
             tip = DxuiTip();

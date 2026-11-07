@@ -225,6 +225,7 @@ private:
     void                             ClickSourceArrow (SourcePane & document);
     DxuiListView                   * FindCodeListAt (POINT clientPx, int & view) const;
     static void                      GetLineSymbol  (const DebuggerViewSnapshot::CodeLine & line, int column, std::string & name, Word & address);
+    static void                      AddOperandSymbol (DxuiListView::Cell & cell, const DebuggerViewSnapshot::CodeLine & line, uint32_t symbolArgb);
     static int                       GetCodeEnd     (const DisassemblyCells::SourceParts & parts);
     void                             MarkRow        (int view, int row, const DebuggerViewSnapshot::CodeLine & line, std::optional<Word> target, bool isMarked,
                                                      std::vector<DxuiListView::Cell> & cells, uint32_t & fill, std::wstring & rowTip);

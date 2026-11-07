@@ -427,8 +427,9 @@ void OperandResultTip::AddOperand (
 
     comment.isWholeLine = true;
 
-    //  The symbol is another of the operand's values, a space after them.
-    if (!placement.symbol.empty())
+    //  The symbol is another of the operand's values, a space after them,
+    //  unless the operand's column already has it, as the disassembly's does.
+    if (!placement.symbol.empty() && operand.text.find (placement.symbol) == std::wstring::npos)
     {
         operand.text += operand.text.empty() ? L"" : L" ";
         operand.text += placement.symbol;

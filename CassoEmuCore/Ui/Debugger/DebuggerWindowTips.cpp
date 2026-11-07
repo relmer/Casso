@@ -410,6 +410,9 @@ OperandTipParts DebuggerWindow::GetTipParts (int view, int row) const
             parts.codeChar      = source.codeChar;
         }
 
+        //  The disassembly's operand column has the symbol already
+        //  (DisassemblyGroup::AddOperandSymbol); the tip finds it there and
+        //  doesn't add it again.
         hasSymbol = m_code->TryGetOperandSymbol (view, row, parts.symbol);
         IGNORE_RETURN_VALUE (hasSymbol, false);
         return parts;
