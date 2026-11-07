@@ -461,6 +461,11 @@ private:
         { kCancelLinkOperation, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Cancel,   L"Cancel",       L"Cancel the running operation"       },
     };
 
+    //  The faces of the hex preview's two forms: 6502 code, and the bytes it
+    //  assembles to.
+    static constexpr const wchar_t *  s_kpszDisassemblyFace = L"LDA\nRTS";
+    static constexpr const wchar_t *  s_kpszBytesFace       = L"A9\n60";
+
     static constexpr ToolbarRow  kPreviewToolbarRows[] =
     {
         { kLineAddresses,     DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Tag,       L"Show address",  L"Show where each line starts in memory"                   },

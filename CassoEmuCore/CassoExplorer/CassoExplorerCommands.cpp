@@ -456,20 +456,18 @@ const DxuiVectorIcon * CassoExplorerCommands::GetCommandBarIcon (int id)
 {
     switch (id)
     {
-        case kNew:             return &CassoExplorerIcons::s_kNew;
-        case kCutItems:        return &CassoExplorerIcons::s_kCut;
-        case kCopyItems:       return &CassoExplorerIcons::s_kCopy;
-        case kPasteItems:      return &CassoExplorerIcons::s_kPaste;
-        case kRenameItem:      return &CassoExplorerIcons::s_kRename;
-        case kShareItems:      return &CassoExplorerIcons::s_kShare;
-        case kDeleteItems:     return &CassoExplorerIcons::s_kDelete;
-        case kSort:            return &CassoExplorerIcons::s_kSort;
-        case kView:            return &CassoExplorerIcons::s_kView;
-        case kTogglePreview:   return &CassoExplorerIcons::s_kPreview;
-        case kTheme:           return &CassoExplorerIcons::s_kTheme;
-        case kShowDisassembly: return &CassoExplorerIcons::s_kDisassembly;
-        case kShowBytes:       return &CassoExplorerIcons::s_kBytes;
-        default:               return nullptr;
+        case kNew:           return &CassoExplorerIcons::s_kNew;
+        case kCutItems:      return &CassoExplorerIcons::s_kCut;
+        case kCopyItems:     return &CassoExplorerIcons::s_kCopy;
+        case kPasteItems:    return &CassoExplorerIcons::s_kPaste;
+        case kRenameItem:    return &CassoExplorerIcons::s_kRename;
+        case kShareItems:    return &CassoExplorerIcons::s_kShare;
+        case kDeleteItems:   return &CassoExplorerIcons::s_kDelete;
+        case kSort:          return &CassoExplorerIcons::s_kSort;
+        case kView:          return &CassoExplorerIcons::s_kView;
+        case kTogglePreview: return &CassoExplorerIcons::s_kPreview;
+        case kTheme:         return &CassoExplorerIcons::s_kTheme;
+        default:             return nullptr;
     }
 }
 
@@ -582,8 +580,10 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntrie
         entry.iconOnly   = row.iconOnly;
         entry.vectorIcon = GetCommandBarIcon (row.id);
 
-        //  The two forms' icons are text, which reads only at the button's size.
-        entry.fillsButton = row.id == kShowDisassembly || row.id == kShowBytes;
+        //  The two forms' faces are code and the bytes it assembles to.
+        entry.faceText = (row.id == kShowDisassembly) ? s_kpszDisassemblyFace
+                       : (row.id == kShowBytes)       ? s_kpszBytesFace
+                                                      : nullptr;
         entry.custom     = (row.id == kFind)       ? search
                          : (row.id == kGoToOffset) ? goTo
                                                    : nullptr;

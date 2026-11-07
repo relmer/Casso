@@ -81,32 +81,6 @@ FIT = {
     'Sort':   (0.762, 0.0),    # 21 units of ink to 16
 }
 
-#  The preview's Disassembly and Bytes buttons, which Fluent has no icons
-#  for, are text in a pixel font of this script's: 6502 code, LDA and RTS,
-#  and the bytes they assemble to. name -> rows of text.
-PIXEL_TEXT = {
-    'Disassembly': ['LDA', 'RTS'],
-    'Bytes':       ['A9', '60'],
-}
-
-#  Each glyph is 3 pixels wide and 5 tall, '#' for ink.
-PIXEL_FONT = {
-    'A': ['.#.', '#.#', '###', '#.#', '#.#'],
-    'D': ['##.', '#.#', '#.#', '#.#', '##.'],
-    'L': ['#..', '#..', '#..', '#..', '###'],
-    'R': ['##.', '#.#', '##.', '#.#', '#.#'],
-    'S': ['.##', '#..', '.#.', '..#', '##.'],
-    'T': ['###', '.#.', '.#.', '.#.', '.#.'],
-    '0': ['###', '#.#', '#.#', '#.#', '###'],
-    '6': ['.##', '#..', '###', '#.#', '###'],
-    '9': ['###', '#.#', '###', '..#', '##.'],
-}
-
-#  A font pixel is two screen pixels at 150%, where a unit is 1.2, and the
-#  gap between rows one font pixel, so every edge falls on a screen pixel.
-PIXEL = 5.0 / 3.0     # units per font pixel
-ROW_GAP = PIXEL       # units between rows of text
-
 B = '/' * 80
 
 
@@ -141,79 +115,6 @@ def bars_path(count, left, right, pitch, thickness):
     first = 10.0 - pitch * (count - 1) / 2.0
 
     return ''.join(rounded_rect(left, first + i * pitch - thickness / 2.0, right, first + i * pitch + thickness / 2.0, thickness / 2.0, True) for i in range(count))
-
-
-def pixel_text_path(rows):
-    """Rows of text, centered. Each glyph's pixels are merged into outlines:
-    every pixel adds its four edges clockwise, an edge two pixels share
-    cancels, and what is left is chained into loops, so a hole runs the
-    other way round and the nonzero rule leaves it empty."""
-    height = len(rows) * 5 * PIXEL + (len(rows) - 1) * ROW_GAP
-    top = (20.0 - height) / 2.0
-    loops = []
-
-    for r, text in enumerate(rows):
-        width = (len(text) * 4 - 1) * PIXEL
-        left = (20.0 - width) / 2.0
-        y0 = top + r * (5 * PIXEL + ROW_GAP)
-
-        for g, ch in enumerate(text):
-            edges = set()
-
-            for py, line in enumerate(PIXEL_FONT[ch]):
-                for px, cell in enumerate(line):
-                    if cell != '#':
-                        continue
-
-                    x, y = g * 4 + px, py
-                    for edge in (((x, y), (x + 1, y)), ((x + 1, y), (x + 1, y + 1)),
-                                 ((x + 1, y + 1), (x, y + 1)), ((x, y + 1), (x, y))):
-                        reverse = (edge[1], edge[0])
-
-                        if reverse in edges:
-                            edges.remove(reverse)
-                        else:
-                            edges.add(edge)
-
-            loops += [[(left + px * PIXEL, y0 + py * PIXEL) for px, py in loop] for loop in chain_loops(edges)]
-
-    n = lambda v: f'{v:g}'
-    return ''.join('M' + 'L'.join(f'{n(x)} {n(y)}' for x, y in loop) + 'Z' for loop in loops)
-
-
-def chain_loops(edges):
-    "Closed loops from directed edges, with the corners of straight runs dropped."
-    starts = {}
-
-    for a, b in sorted(edges):
-        starts.setdefault(a, []).append(b)
-
-    loops = []
-
-    while starts:
-        first = min(starts)
-        loop = [first]
-        point = first
-
-        while True:
-            ends = starts[point]
-            nxt = ends.pop()
-
-            if not ends:
-                del starts[point]
-
-            if nxt == first:
-                break
-
-            loop.append(nxt)
-            point = nxt
-
-        corners = [p for i, p in enumerate(loop)
-                   if (p[0] - loop[i - 1][0]) * (loop[(i + 1) % len(loop)][1] - p[1])
-                   != (p[1] - loop[i - 1][1]) * (loop[(i + 1) % len(loop)][0] - p[0])]
-        loops.append(corners)
-
-    return loops
 
 
 def path_of(name):
@@ -296,8 +197,7 @@ def main():
     out('//')
     out("//  The command bar's and the View menu's icons: Microsoft's Fluent UI")
     out('//  System Icons, MIT licensed, in the two tones File Explorer gives them,')
-    out("//  and the three icon views' frames and the preview's Disassembly and")
-    out('//  Bytes text, which the script draws itself.')
+    out("//  and the three icon views' frames, which the script draws itself.")
     out('//')
     out(B)
     out('')
@@ -316,7 +216,6 @@ def main():
     #  and the right pane's outline. Fluent's outline is one path, so it is
     #  split here at the divider, each half closed along it.
     entries += [('Preview', 'panel_right_20_regular, split at the divider', PREVIEW_PATH, [([0, 1], False, 0, 0), ([2, 3], True, 0, 0)])]
-    entries += [(name, 'drawn by this script', pixel_text_path(rows), ALL) for name, rows in PIXEL_TEXT.items()]
 
     for name, svg, d, layers in entries:
         if layers == ALL:

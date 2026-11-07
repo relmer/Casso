@@ -150,6 +150,13 @@ public:
         //  at the glyph size.
         bool  fillsButton = false;
 
+        //  An unlabeled entry's face drawn as lines of text, split at '\n',
+        //  in `faceFont`, as large as the button allows less a thin margin.
+        //  For a button whose icon is text, such as code or hex digits. The
+        //  strings are constant data; not owned.
+        const wchar_t  * faceText = nullptr;
+        const wchar_t  * faceFont = nullptr;
+
         //  Sits at the strip's trailing end rather than after the entry
         //  before it, like Explorer's Details button. Trailing entries come
         //  last in the list; with no room to spare they close up normally.
@@ -331,6 +338,11 @@ private:
     static constexpr int       kFlyoutDropDp     = 2;    // gap under the bar
     static constexpr float     kIconDip          = 15.0f;
     static constexpr float     kFillMarginDip    = 2.0f;   // around an icon that fills its button
+    static constexpr float     kFaceReferencePx  = 100.0f; // face text is measured at this size, then scaled
+
+    //  Face text's font when the entry doesn't set one: monospaced, as code and
+    //  hex are.
+    static constexpr const wchar_t *  kFaceFont = L"Consolas";
     static constexpr float     kFallbackFontDip  = 13.0f;  // size the char estimate was taken at
     static constexpr float     kFallbackCharPx   = 7.5f;
     static constexpr uint32_t  kDisabledInkAlpha = 0x60000000u;
@@ -370,7 +382,7 @@ private:
     //  An entry without a glyph is its label alone: it spends no room on an
     //  icon, never collapses to one, and as a drop-down shows a chevron. An
     //  icon its decoration draws is a glyph too.
-    static bool  HasGlyph (const Slot & slot) { return slot.entry.vectorIcon != nullptr || static_cast<bool> (slot.entry.decoration) ||
+    static bool  HasGlyph (const Slot & slot) { return slot.entry.vectorIcon != nullptr || slot.entry.faceText != nullptr || static_cast<bool> (slot.entry.decoration) ||
                                                        (slot.entry.command != nullptr && slot.entry.command->glyph != nullptr && slot.entry.command->glyph[0] != 0); }
 
     static constexpr int    kChevronDp      = 8;
@@ -407,6 +419,7 @@ private:
 
     void  PaintSlot      (Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  PaintEntryIcon (const Slot & slot, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink, uint32_t accent);
+    void  PaintFaceText  (const Slot & slot, IDxuiTextRenderer & text, float left, float top, float width, float height, uint32_t ink);
     void  PaintFlyout    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
 

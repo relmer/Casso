@@ -1743,6 +1743,76 @@ void DxuiToolbar::OpenDropDown (int commandId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbar::PaintFaceText
+//
+//  The lines are measured at a reference size and scaled together to the
+//  smaller of two sizes: the widest line as wide as the button, or the lines
+//  as tall as it. The block of lines is centered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::PaintFaceText (const Slot & slot, IDxuiTextRenderer & text, float left, float top, float width, float height, uint32_t ink)
+{
+    HRESULT                    hr       = S_OK;
+    std::vector<std::wstring>  lines;
+    std::wstring_view          face     = slot.entry.faceText;
+    const wchar_t            * font     = (slot.entry.faceFont != nullptr) ? slot.entry.faceFont : kFaceFont;
+    float                      margin   = m_scaler.ToPxf (kFillMarginDip);
+    float                      widest   = 0.0f;
+    float                      lineH    = 0.0f;
+    float                      scale    = 0.0f;
+    float                      size     = 0.0f;
+    float                      y        = 0.0f;
+    size_t                     start    = 0;
+
+
+
+    while (start <= face.size())
+    {
+        size_t  end = face.find (L'\n', start);
+
+        end = (end == std::wstring_view::npos) ? face.size() : end;
+        lines.emplace_back (face.substr (start, end - start));
+        start = end + 1;
+    }
+
+    for (const std::wstring & line : lines)
+    {
+        float  w = 0.0f;
+        float  h = 0.0f;
+
+        hr = text.MeasureString (line.c_str(), kFaceReferencePx, font, w, h);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        widest = (std::max) (widest, w);
+        lineH  = (std::max) (lineH, h);
+    }
+
+    if (widest <= 0.0f || lineH <= 0.0f)
+    {
+        return;
+    }
+
+    scale = (std::min) ((width - 2.0f * margin) / widest, (height - 2.0f * margin) / (lineH * (float) lines.size()));
+    size  = kFaceReferencePx * scale;
+    y     = top + (height - lineH * scale * (float) lines.size()) * 0.5f;
+
+    for (const std::wstring & line : lines)
+    {
+        hr = text.DrawString (line.c_str(), left, y, width, lineH * scale, ink, size, font,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Top, DxuiFontWeight::SemiBold, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        y += lineH * scale;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbar::PaintEntryIcon
 //
 //  One glyph in the icon face, left-aligned in its column and vertically
@@ -1903,7 +1973,14 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
         icon.x    = bl + (bw - icon.size) * 0.5f;
     }
 
-    PaintEntryIcon (slot, text, icon, ink, accent);
+    if (slot.entry.faceText != nullptr && !slot.labeled)
+    {
+        PaintFaceText (slot, text, bl, bt, bw, bh, ink);
+    }
+    else
+    {
+        PaintEntryIcon (slot, text, icon, ink, accent);
+    }
 
     if (slot.entry.decoration)
     {
