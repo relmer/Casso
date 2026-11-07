@@ -44,16 +44,6 @@ void DebuggerWindow::CreateStatusBar()
 
     m_statusBar = CreateChild<DxuiStatusBar>();
     m_statusBar->SetFields (std::move (fields));
-
-    m_zoomSlider.SetRange         (kMinTextZoom * DebuggerStatusText::kPercent, kMaxTextZoom * DebuggerStatusText::kPercent);
-    m_zoomSlider.SetStep          (kTextZoomStep * DebuggerStatusText::kPercent);
-    m_zoomSlider.SetSuffix        (L"%");
-    m_zoomSlider.SetDecimalPlaces (0);
-    m_zoomSlider.SetValue         (m_textZoom * DebuggerStatusText::kPercent);
-    m_zoomSlider.SetOnChange      ([this] (float percent) { ApplyTextZoom (percent / DebuggerStatusText::kPercent); });
-    m_zoomSlider.SetTickValues    ({ kMinTextZoom * DebuggerStatusText::kPercent, kDefaultTextZoom * DebuggerStatusText::kPercent, kMaxTextZoom * DebuggerStatusText::kPercent });
-    m_zoomSlider.SetDefaultValue  (kDefaultTextZoom * DebuggerStatusText::kPercent);
-    m_zoomSlider.SetWheelStepping (true);
 }
 
 
@@ -64,9 +54,9 @@ void DebuggerWindow::CreateStatusBar()
 //
 //  DebuggerWindow::PlaceStatusBar
 //
-//  The band along the bottom edge, and the zoom popup, while open, over the
-//  zoom field's right end. Returns the band's top, which is where the panes
-//  above it end.
+//  The band along the bottom edge, and the zoom panel, opened from the zoom
+//  field, above it. Returns the band's top, which is where the panes above
+//  it end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,10 +66,6 @@ int DebuggerWindow::PlaceStatusBar (
 {
     int                   bandPx  = m_scaler.ToPx (DxuiStatusBar::GetBandDp());
     int                   top     = (std::max) (0, height - bandPx);
-    int                   popupW  = m_scaler.ToPx (kZoomPopupWidthDip);
-    int                   popupH  = m_scaler.ToPx (kZoomPopupHeightDip);
-    int                   pad     = m_scaler.ToPx (DxuiStatusBar::kFieldPadDip);
-    RECT                  field   = {};
     IDxuiTextRenderer   * text    = GetTextRenderer();
 
 
@@ -96,11 +82,7 @@ int DebuggerWindow::PlaceStatusBar (
 
     m_statusBar->Layout (RECT { 0, top, width, height }, m_scaler);
 
-    field      = m_statusBar->GetFieldRect (kStatusZoom);
-    m_zoomRect = RECT { (std::max) (0L, field.right - popupW), field.top - popupH, field.right, field.top };
-
-    m_zoomSlider.Layout (RECT { m_zoomRect.left + pad, m_zoomRect.top, m_zoomRect.right - pad, m_zoomRect.bottom }, m_scaler);
-    m_zoomSlider.SetDpi (m_scaler.GetDpi());
+    m_windowZoom.PlaceAtButton (m_statusBar->GetFieldRect (kStatusZoom), RECT { 0, 0, width, height }, m_scaler);
     return top;
 }
 
@@ -249,8 +231,7 @@ void DebuggerWindow::ToggleBeamMark()
 
 void DebuggerWindow::OpenZoomPopup()
 {
-    m_zoomSlider.SetValue (m_textZoom * DebuggerStatusText::kPercent);
-    m_zoomOpen = true;
+    m_windowZoom.SetOpen (true);
     Invalidate();
 }
 
@@ -266,7 +247,7 @@ void DebuggerWindow::OpenZoomPopup()
 
 void DebuggerWindow::CloseZoomPopup()
 {
-    m_zoomOpen = false;
+    m_windowZoom.SetOpen (false);
     Invalidate();
 }
 
@@ -278,18 +259,22 @@ void DebuggerWindow::CloseZoomPopup()
 //
 //  DebuggerWindow::RouteStatusBarMouse
 //
-//  While the zoom popup is open, the slider takes the pointer over the popup
-//  and for the whole of a drag, and a press anywhere else closes it; a press
-//  on the zoom field that opened it only closes it, so the field toggles.
-//  A press on the slider's percentage sets 100%. The wheel over the zoom field
-//  steps the size with the popup closed. Then the status bar takes the pointer
+//  The zoom panel works as the heat map's does: it opens with the pointer
+//  over the zoom field, and closes once the pointer moves kNearDip away from
+//  the field and the panel, except during a drag of its thumb. A press or
+//  drag on its track sets the size there, Reset sets 100%, and a press
+//  anywhere else closes it; a press on the zoom field toggles it. The wheel
+//  over the zoom field steps the size. Then the status bar takes the pointer
 //  over its band.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::RouteStatusBarMouse (const DxuiMouseEvent & ev)
 {
+    using Hit = HeatMapZoomWidget::Hit;
+
     POINT  point = ev.positionDip;
+    Hit    hit   = Hit::None;
 
 
 
@@ -298,32 +283,65 @@ bool DebuggerWindow::RouteStatusBarMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    if (m_zoomOpen)
+    hit = m_windowZoom.HitTest (point);
+
+    if (m_windowZoom.IsDragging())
     {
-        if (DxuiDockSite::Contains (m_zoomRect, point) || m_zoomSlider.IsDragging())
+        if (ev.kind == DxuiMouseEventKind::Move)
         {
-            if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left &&
-                DxuiDockSite::Contains (GetZoomResetRect(), point))
-            {
-                ResetTextZoom();
-                Invalidate();
-                return true;
-            }
+            ApplyTextZoom (GetTextZoomAt (m_windowZoom.GetPositionAt (point)));
+        }
+        else if (ev.kind == DxuiMouseEventKind::Up)
+        {
+            m_windowZoom.SetDragging (false);
+        }
 
-            m_zoomSlider.OnMouse (ev);
+        Invalidate();
+        return true;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Move)
+    {
+        bool  wasOpen = m_windowZoom.IsOpen();
+
+        m_windowZoom.OnHover (point);
+
+        if (m_windowZoom.IsOpen() != wasOpen)
+        {
             Invalidate();
-            return true;
         }
+    }
+    else if (ev.kind == DxuiMouseEventKind::Leave && m_windowZoom.IsOpen())
+    {
+        CloseZoomPopup();
+    }
 
-        if (ev.kind == DxuiMouseEventKind::Down)
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && hit == Hit::Button)
+    {
+        m_windowZoom.Toggle();
+        Invalidate();
+        return true;
+    }
+
+    if (m_windowZoom.IsOpen() && hit != Hit::None && hit != Hit::Button)
+    {
+        if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && hit == Hit::Reset)
         {
-            CloseZoomPopup();
-
-            if (m_statusBar->FindFieldAt (point) == (int) kStatusZoom)
-            {
-                return true;
-            }
+            ResetTextZoom();
         }
+        else if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && hit == Hit::Track)
+        {
+            m_windowZoom.SetDragging (true);
+            ApplyTextZoom (GetTextZoomAt (m_windowZoom.GetPositionAt (point)));
+        }
+
+        Invalidate();
+        return true;
+    }
+
+    if (m_windowZoom.IsOpen() && ev.kind == DxuiMouseEventKind::Down && hit != Hit::Button)
+    {
+        CloseZoomPopup();
     }
 
     if (ev.kind == DxuiMouseEventKind::Wheel && !ev.wheelHorizontal && ev.wheelDelta != 0.0f &&
@@ -376,28 +394,60 @@ bool DebuggerWindow::RouteStatusBarMouse (const DxuiMouseEvent & ev)
 //
 //  DebuggerWindow::PaintZoomPopup
 //
-//  A raised card with an edge, and the slider on it.
+//  The heat map's zoom panel, above the zoom field, with the window's size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::PaintZoomPopup (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    float  lineW = (float) (std::max) (1L, std::lround (m_scaler.ToPxf (1.0f)));
-    float  left  = (float) m_zoomRect.left;
-    float  top   = (float) m_zoomRect.top;
-    float  w     = (float) (m_zoomRect.right - m_zoomRect.left);
-    float  h     = (float) (m_zoomRect.bottom - m_zoomRect.top);
+    UNREFERENCED_PARAMETER (painter);
+
+    m_windowZoom.PaintPanel (text, theme, DebuggerStatusText::GetZoomText (m_textZoom), GetTextZoomPosition (m_textZoom));
+}
 
 
 
-    if (!m_zoomOpen)
-    {
-        return;
-    }
 
-    painter.FillRect    (left, top, w, h, theme.BackgroundElevated());
-    painter.OutlineRect (left, top, w, h, lineW, theme.Border());
-    m_zoomSlider.Paint  (painter, text, theme);
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetTextZoomPosition
+//
+//  The size's logarithm across the slider, from kMinTextZoom at the left to
+//  kMaxTextZoom at the right, as the heat map's cell size is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DebuggerWindow::GetTextZoomPosition (float zoom)
+{
+    double  span = std::log ((double) kMaxTextZoom / (double) kMinTextZoom);
+
+
+
+    return (float) std::clamp (std::log ((double) zoom / (double) kMinTextZoom) / span, 0.0, 1.0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetTextZoomAt
+//
+//  The size at a slider position, to the nearest kTextZoomStep.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DebuggerWindow::GetTextZoomAt (float position)
+{
+    double  span = std::log ((double) kMaxTextZoom / (double) kMinTextZoom);
+    double  zoom = (double) kMinTextZoom * std::exp (std::clamp ((double) position, 0.0, 1.0) * span);
+
+
+
+    zoom = std::round (zoom / (double) kTextZoomStep) * (double) kTextZoomStep;
+    return (float) std::clamp (zoom, (double) kMinTextZoom, (double) kMaxTextZoom);
 }
 
 

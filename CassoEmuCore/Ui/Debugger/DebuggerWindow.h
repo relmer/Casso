@@ -41,6 +41,7 @@
 #include "Ui/Debugger/WatchHistory.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/DiskLogPane.h"
+#include "Ui/Debugger/Panes/HeatMapZoomWidget.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
 #include "Ui/Debugger/ToolbarBoxEntry.h"
 #include "Ui/Debugger/Panes/ConsolePanes.h"
@@ -355,10 +356,14 @@ protected:
     static constexpr size_t  kStatusZoom    = 4;
 
     DxuiStatusBar *  GetStatusBar        () const { return m_statusBar; }
-    DxuiSlider &     GetZoomSlider       ()       { return m_zoomSlider; }
-    bool             IsZoomPopupOpen     () const { return m_zoomOpen; }
-    RECT             GetZoomPopupRect    () const { return m_zoomRect; }
-    RECT             GetZoomResetRect    () const { return m_zoomSlider.GetValueRect(); }
+    HeatMapZoomWidget & GetWindowZoom    ()       { return m_windowZoom; }
+    bool             IsZoomPopupOpen     () const { return m_windowZoom.IsOpen(); }
+    RECT             GetZoomPopupRect    () const { return m_windowZoom.GetPanelRect(); }
+    RECT             GetZoomResetRect    () const { return m_windowZoom.GetResetRect(); }
+
+    //  The window's text size along the zoom panel's track, and back.
+    static float     GetTextZoomPosition (float zoom);
+    static float     GetTextZoomAt       (float position);
     void             UpdateStatusBar     ();
     bool             RouteStatusBarMouse (const DxuiMouseEvent & ev);
     void             FitHistoryField     (IDxuiTextRenderer & text);
@@ -790,19 +795,16 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
     //  The status bar along the bottom, and the zoom popup its zoom field
     //  opens above it, drawn on the top layer.
-    static constexpr int                  kZoomPopupWidthDip    = 240;
-    static constexpr int                  kZoomPopupHeightDip   = 52;
     static constexpr int                  kStatusZoomDip        = 64;
     static constexpr int                  kStatusSpeedDip       = 90;
     static constexpr int                  kStatusHistoryDip     = 480;
     static constexpr int                  kStatusBeamDip        = 220;
     DxuiStatusBar                       * m_statusBar           = nullptr;
-    DxuiSlider                            m_zoomSlider;
-    bool                                  m_zoomOpen            = false;
+    HeatMapZoomWidget                     m_windowZoom;
     bool                                  m_isSpeedPressed      = false;
     bool                                  m_isHistoryPressed    = false;
     std::optional<bool>                   m_liveTraceRequest;           // the live trace state requested of the session, until a snapshot has it
-    RECT                                  m_zoomRect            = {};
+
     bool                                  m_isHistoryFitted     = false;
 
     std::shared_ptr<const DxuiIconImage>  m_breakpointIcons[2];

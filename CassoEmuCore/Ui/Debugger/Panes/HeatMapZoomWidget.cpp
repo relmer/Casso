@@ -120,13 +120,58 @@ void HeatMapZoomWidget::Place (const RECT & corner, const RECT & bounds, const D
 
 
 
-    m_scaler = scaler;
-    m_bounds = bounds;
+    m_scaler      = scaler;
+    m_bounds      = bounds;
+    m_isOwnButton = true;
 
     m_button.right  = corner.right  - margin;
     m_button.bottom = corner.bottom - margin;
     m_button.left   = m_button.right  - scaler.ToPx (kButtonWidthDip);
     m_button.top    = m_button.bottom - scaler.ToPx (kButtonHeightDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapZoomWidget::PlaceAtButton
+//
+//  Another control's rect is the button, as the status bar's zoom field is:
+//  the panel opens above it, and the widget doesn't draw it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapZoomWidget::PlaceAtButton (const RECT & button, const RECT & bounds, const DxuiDpiScaler & scaler)
+{
+    m_scaler      = scaler;
+    m_bounds      = bounds;
+    m_button      = button;
+    m_isOwnButton = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapZoomWidget::GetPositionAt
+//
+//  Along the track from 0 at its left to 1 at its right, the ends taken past
+//  either end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float HeatMapZoomWidget::GetPositionAt (POINT point) const
+{
+    RECT  track = GetTrackRect();
+    long  width = std::max (1L, track.right - track.left - 1);
+
+
+
+    return std::clamp ((float) (point.x - track.left) / (float) width, 0.0f, 1.0f);
 }
 
 
@@ -243,6 +288,56 @@ void HeatMapZoomWidget::SetOpen (bool open)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapZoomWidget::OnHover
+//
+//  A move: over the button, the panel opens; away from the button and the
+//  panel by more than kNearDip, it closes, except during a drag of its thumb.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapZoomWidget::OnHover (POINT point)
+{
+    bool  isOnButton = Contains (m_button, point);
+
+
+
+    m_isHoverHeld = m_isHoverHeld && isOnButton;
+
+    if (isOnButton && !m_isOpen && !m_isHoverHeld)
+    {
+        SetOpen (true);
+    }
+    else if (m_isOpen && !m_isDragging && !IsNear (point))
+    {
+        SetOpen (false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapZoomWidget::Toggle
+//
+//  A press on the button. Closed this way, the panel doesn't open again from
+//  the pointer's hover until the pointer moves off the button.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapZoomWidget::Toggle()
+{
+    SetOpen (!m_isOpen);
+    m_isHoverHeld = !m_isOpen;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapZoomWidget::Contains
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -299,13 +394,7 @@ HeatMapZoomWidget::Hit HeatMapZoomWidget::HitTest (POINT point) const
 
 int HeatMapZoomWidget::GetCellPxAt (POINT point, int maxCellPx) const
 {
-    RECT   track = GetTrackRect();
-    long   width = std::max (1L, track.right - track.left - 1);
-    float  along = (float) (point.x - track.left) / (float) width;
-
-
-
-    return GetCellPxAtPosition (along, maxCellPx);
+    return GetCellPxAtPosition (GetPositionAt (point), maxCellPx);
 }
 
 
@@ -346,20 +435,56 @@ void HeatMapZoomWidget::PaintBox (IDxuiTextRenderer & text, const RECT & rect, u
 //
 //  HeatMapZoomWidget::Paint
 //
-//  The button with the percentage; open, the panel above it with the zoom
-//  again, Reset, and the track with its thumb at the zoom.
+//  The button with the percentage, unless the button is another control's;
+//  open, the panel above it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapZoomWidget::Paint (IDxuiTextRenderer & text, const IDxuiTheme & theme, int cellPx, int startCellPx, int maxCellPx) const
 {
+    HRESULT          hr      = S_OK;
+    DxuiFontHandle   font    = theme.BodyFont();
+    std::wstring     percent = GetPercentLabel (cellPx, startCellPx);
+
+
+
+    if (m_button.right <= m_button.left)
+    {
+        return;
+    }
+
+    if (m_isOwnButton)
+    {
+        PaintBox (text, m_button, m_isOpen ? theme.PressedBackground() : theme.BackgroundElevated(), theme.Border());
+
+        hr = text.DrawString (percent.c_str(), (float) m_button.left, (float) m_button.top,
+                              (float) (m_button.right - m_button.left), (float) (m_button.bottom - m_button.top),
+                              theme.Foreground(), m_scaler.ToPxf (font.sizeDip), font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    PaintPanel (text, theme, percent, GetPosition (cellPx, maxCellPx));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapZoomWidget::PaintPanel
+//
+//  Open, the panel with the label, Reset, and the track with its thumb at
+//  `position`, 0 at the left to 1 at the right.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapZoomWidget::PaintPanel (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float position) const
+{
     constexpr float  kTrackDip = 2.0f;
     HRESULT          hr        = S_OK;
     DxuiFontHandle   font      = theme.BodyFont();
     float            sizePx    = m_scaler.ToPxf (font.sizeDip);
-    std::wstring     percent   = GetPercentLabel (cellPx, startCellPx);
-    uint32_t         fill      = theme.BackgroundElevated();
-    uint32_t         edge      = theme.Border();
     uint32_t         ink       = theme.Foreground();
     RECT             panel     = GetPanelRect();
     RECT             reset     = GetResetRect();
@@ -370,26 +495,14 @@ void HeatMapZoomWidget::Paint (IDxuiTextRenderer & text, const IDxuiTheme & them
 
 
 
-    if (m_button.right <= m_button.left)
-    {
-        return;
-    }
-
-    PaintBox (text, m_button, m_isOpen ? theme.PressedBackground() : fill, edge);
-
-    hr = text.DrawString (percent.c_str(), (float) m_button.left, (float) m_button.top,
-                          (float) (m_button.right - m_button.left), (float) (m_button.bottom - m_button.top),
-                          ink, sizePx, font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
     if (!m_isOpen || panel.right <= panel.left)
     {
         return;
     }
 
-    PaintBox (text, panel, fill, edge);
+    PaintBox (text, panel, theme.BackgroundElevated(), theme.Border());
 
-    hr = text.DrawString (percent.c_str(), (float) track.left, (float) reset.top,
+    hr = text.DrawString (label.c_str(), (float) track.left, (float) reset.top,
                           (float) (reset.left - track.left), (float) (reset.bottom - reset.top),
                           ink, sizePx, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -402,7 +515,7 @@ void HeatMapZoomWidget::Paint (IDxuiTextRenderer & text, const IDxuiTheme & them
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     middle = (float) (track.top + track.bottom) / 2.0f;
-    thumbX = (float) track.left + GetPosition (cellPx, maxCellPx) * (float) (track.right - track.left - 1);
+    thumbX = (float) track.left + std::clamp (position, 0.0f, 1.0f) * (float) (track.right - track.left - 1);
 
     hr = text.DrawLine ((float) track.left, middle, (float) track.right, middle, m_scaler.ToPxf (kTrackDip), theme.ForegroundMuted());
     IGNORE_RETURN_VALUE (hr, S_OK);

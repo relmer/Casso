@@ -490,7 +490,7 @@ bool DebuggerWindow::IsOperandTipCovered (
 
 
     //  The zoom popup and a slid pane lie over this window's panes only.
-    isCovered = isMain && m_zoomOpen && Meets (m_zoomRect, clientPx, tipRect);
+    isCovered = isMain && m_windowZoom.IsOpen() && Meets (m_windowZoom.GetPanelRect(), clientPx, tipRect);
 
     isCovered = isCovered || (isMain && m_dockSite != nullptr && !m_dockSite->GetSlidPane().empty() &&
                               m_dockSite->GetSlidPane() != GetTipPaneId (view) &&
@@ -589,7 +589,7 @@ bool DebuggerWindow::TryGetTip (POINT clientPx, DxuiTip & tip) const
 
 
 
-    if (isMain && m_zoomOpen && DxuiDockSite::Contains (m_zoomRect, clientPx))
+    if (isMain && m_windowZoom.IsOpen() && DxuiDockSite::Contains (m_windowZoom.GetPanelRect(), clientPx))
     {
         if (!DxuiDockSite::Contains (GetZoomResetRect(), clientPx))
         {

@@ -700,7 +700,7 @@ void DebuggerWindow::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & 
 
 bool DebuggerWindow::HasTopLayer() const
 {
-    if (DxuiWindow::HasTopLayer() || m_zoomOpen)
+    if (DxuiWindow::HasTopLayer() || m_windowZoom.IsOpen())
     {
         return true;
     }

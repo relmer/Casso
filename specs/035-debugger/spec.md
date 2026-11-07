@@ -2257,14 +2257,15 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-083**: Ctrl+Plus, Ctrl+Minus and Ctrl+0 MUST enlarge, reduce and reset
   the text size of every debugger content pane, floating panes included, and
   MUST NOT change any other Casso window, the debugger's caption, or its
-  command bar. The status bar's zoom field MUST open a slider that sets the
-  overall text size from 50% to 300% in steps of 10%, which each pane's own
-  size multiplies. The slider MUST have tick marks only at its two ends and at
-  100%. The mouse wheel over the slider, or over the zoom field with the
-  slider closed, MUST change the size by one step per notch, up being larger,
-  without Ctrl. A double-click on the slider, or a click on the percentage
-  beside it, which has the tip "Reset to 100%", MUST set 100%. Ctrl+0 MUST
-  still reset only the pane it is used over.
+  command bar. The status bar's zoom field MUST open the same zoom panel the
+  heat map has (FR-383), above the field, when the pointer moves over it or
+  it is clicked: the size as a label, a Reset button with the tip "Reset to
+  100%", and a track that sets the overall text size from 50% to 300% in steps
+  of 10%, which each pane's zoom multiplies. It MUST close as the heat map's
+  does, and a click on the field MUST close it, the pointer resting on the
+  field then not opening it again until it moves off. The mouse wheel over the
+  zoom field MUST change the size by one step per notch, up being larger,
+  without Ctrl. Ctrl+0 MUST reset only the pane it is used over.
 - **FR-084**: Every pane MUST have a context menu of actions on its content,
   drawn by the debugger's own menu widget like every other menu in Casso.
   Actions on the tab or window (dock, float, auto-hide, close) MUST be in the
@@ -3934,7 +3935,8 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-383**: At every zoom, every heat map row MUST fit the pane's width, with
   no horizontal scroll bar: the rows reflow as the pane's width changes, and
   only the vertical bar scrolls. A row scrolled partly off the top MUST have no
-  label. The zoom slider MUST close when the focus moves to another pane, and
+  label. The zoom slider MUST open when the pointer moves over the zoom
+  button, or the floating window's Zoom %, as well as on a click. It MUST close when the focus moves to another pane, and
   when the pointer moves more than 16 DIPs from the zoom button and its
   slider or moves off the map, except while the slider's thumb is being dragged.
 - **FR-384**: A floating pane dragged from a monitor at one scale MUST bring up the
@@ -4000,7 +4002,8 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   its window's pin, MUST return to the tab index it had in its group, clamped to
   the group's size when the group has shrunk, and MUST be the group's active
   tab. The index MUST be saved with the layout, and a layout saved without it
-  MUST load and dock the pane last.
+  MUST load and dock the pane last. The history timeline's large preview
+  MUST be framed by a one-pixel line in the tooltip border color.
 - **FR-396**: A file MUST be read as a symbol file only when one line form
   fits at least nine in ten of its lines that aren't blank or comments, with
   each name a symbol's name (letters, digits and `_ . @ ?`, or a Merlin

@@ -1623,21 +1623,11 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    //  The zoom popup, while open, takes Escape to close and the keys its
-    //  slider moves by.
-    if (m_zoomOpen && ev.kind == DxuiKeyEventKind::Down)
+    //  The zoom panel, while open, takes Escape to close.
+    if (m_windowZoom.IsOpen() && ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE)
     {
-        if (ev.vk == VK_ESCAPE)
-        {
-            CloseZoomPopup();
-            return true;
-        }
-
-        if (m_zoomSlider.OnKey (ev))
-        {
-            Invalidate();
-            return true;
-        }
+        CloseZoomPopup();
+        return true;
     }
 
     //  While a replay runs, Escape stops it where it has reached.

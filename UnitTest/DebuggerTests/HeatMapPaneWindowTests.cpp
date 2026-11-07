@@ -602,8 +602,7 @@ namespace HeatMapPaneWindowTests
             Assert::IsTrue   (window.GetTooltip().WantsTick(), L"the pointer resting on the zoom asks for no tip");
             Assert::IsFalse  (view->GetHover().has_value(), L"a cell under the zoom is framed");
 
-            ClickAt (window, GetCenter (button));
-            Assert::IsTrue   (view->GetZoomWidget().IsOpen(), L"a click opens the slider");
+            Assert::IsTrue   (view->GetZoomWidget().IsOpen(), L"the pointer on the zoom opens the slider");
 
             track = view->GetZoomWidget().GetTrackRect();
             ClickAt (window, POINT { track.right - 1, GetCenter (track).y });
@@ -619,7 +618,13 @@ namespace HeatMapPaneWindowTests
             Assert::AreEqual (view->GetStartCellPx(), view->GetCellPx(), L"Reset fits the map again");
 
             ClickAt (window, GetCenter (button));
-            Assert::IsFalse  (view->GetZoomWidget().IsOpen(), L"a second click closes it");
+            Assert::IsFalse  (view->GetZoomWidget().IsOpen(), L"a click on the zoom closes it");
+
+            (void) window.OnMouse (MakePress (DxuiMouseEventKind::Move, GetCenter (button)));
+            Assert::IsFalse  (view->GetZoomWidget().IsOpen(), L"and the pointer resting there doesn't open it again");
+
+            ClickAt (window, GetCenter (button));
+            Assert::IsTrue   (view->GetZoomWidget().IsOpen(), L"a click opens it");
         }
 
 

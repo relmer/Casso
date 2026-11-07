@@ -67,6 +67,10 @@ public:
     //  the view's bounds.
     void  Place (const RECT & corner, const RECT & bounds, const DxuiDpiScaler & scaler);
 
+    //  Another control's rect as the button, which the widget doesn't draw;
+    //  the panel opens above it.
+    void  PlaceAtButton (const RECT & button, const RECT & bounds, const DxuiDpiScaler & scaler);
+
     RECT  GetButtonRect () const { return m_button; }
     RECT  GetPanelRect  () const;
     RECT  GetTrackRect  () const;
@@ -75,6 +79,11 @@ public:
     bool  IsOpen      () const { return m_isOpen; }
     void  SetOpen     (bool open);
     bool  IsDragging  () const { return m_isDragging; }
+
+    //  The pointer over the button opens the panel, unless a press on the
+    //  button closed it; then not until the pointer moves off the button.
+    void  OnHover     (POINT point);
+    void  Toggle      ();
     void  SetDragging (bool dragging) { m_isDragging = dragging && m_isOpen; }
 
     Hit   HitTest     (POINT point) const;
@@ -83,16 +92,20 @@ public:
     //  The cell size the point stands for along the track, the ends taken
     //  past either end.
     int   GetCellPxAt (POINT point, int maxCellPx) const;
+    float GetPositionAt (POINT point) const;
 
-    void  Paint (IDxuiTextRenderer & text, const IDxuiTheme & theme, int cellPx, int startCellPx, int maxCellPx) const;
+    void  Paint      (IDxuiTextRenderer & text, const IDxuiTheme & theme, int cellPx, int startCellPx, int maxCellPx) const;
+    void  PaintPanel (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float position) const;
 
 private:
     static bool  Contains (const RECT & rect, POINT point);
     static void  PaintBox (IDxuiTextRenderer & text, const RECT & rect, uint32_t fill, uint32_t edge);
 
     DxuiDpiScaler  m_scaler;
-    RECT           m_button     = {};
-    RECT           m_bounds     = {};
-    bool           m_isOpen     = false;
-    bool           m_isDragging = false;
+    RECT           m_button      = {};
+    RECT           m_bounds      = {};
+    bool           m_isOpen      = false;
+    bool           m_isDragging  = false;
+    bool           m_isOwnButton = true;
+    bool           m_isHoverHeld = false;   // a press closed the panel with the pointer on the button
 };

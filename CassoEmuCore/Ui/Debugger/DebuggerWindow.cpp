@@ -644,9 +644,8 @@ void DebuggerWindow::ApplyTextZoom (float zoom)
         m_host->SetDebuggerTextZoomPercent ((int) std::lround (m_textZoom * DebuggerStatusText::kPercent));
     }
 
-    //  The status bar's zoom and its slider follow a change from anywhere,
-    //  the slider included.
-    m_zoomSlider.SetValue (m_textZoom * DebuggerStatusText::kPercent);
+    //  The status bar's zoom and its panel follow a change from anywhere, the
+    //  panel included.
     UpdateStatusBar();
 
     ApplyTextSizes();

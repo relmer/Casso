@@ -3268,7 +3268,7 @@ bool HeatMapView::OnZoomWidget (const DxuiMouseEvent & ev)
     switch (hit)
     {
     case Hit::Button:
-        m_zoomWidget.SetOpen (!m_zoomWidget.IsOpen());
+        m_zoomWidget.Toggle();
         return true;
 
     case Hit::Track:
@@ -3422,10 +3422,15 @@ void HeatMapView::OnFocusChanged (bool focused)
 
 bool HeatMapView::OnMouse (const DxuiMouseEvent & ev)
 {
-    //  The zoom slider closes once the pointer moves away from it or off the
-    //  map, except while its thumb is being dragged.
-    if (m_zoomWidget.IsOpen() && !m_zoomWidget.IsDragging() &&
-        (ev.kind == DxuiMouseEventKind::Leave || (ev.kind == DxuiMouseEventKind::Move && !m_zoomWidget.IsNear (ev.positionDip))))
+    //  The zoom slider opens with the pointer over its button, and closes
+    //  once the pointer moves away from it or off the map, except while its
+    //  thumb is being dragged.
+    if (ev.kind == DxuiMouseEventKind::Move && !m_zoomWidget.IsDragging())
+    {
+        PlaceZoomWidget();
+        m_zoomWidget.OnHover (ev.positionDip);
+    }
+    else if (ev.kind == DxuiMouseEventKind::Leave && m_zoomWidget.IsOpen() && !m_zoomWidget.IsDragging())
     {
         m_zoomWidget.SetOpen (false);
     }
