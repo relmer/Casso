@@ -199,8 +199,9 @@ public:
     //  How far one notch of the wheel scrolls, rounded to whole rows.
     static constexpr int    kWheelStepDip   = 48;
 
-    //  Below this side a cell is hard to land on, and the pick is the busiest
-    //  cell within kSnapDip of the mouse instead.
+    //  Below this side a cell is hard to land on, and over a cold cell the
+    //  pick is the nearest hot cell in the same row within kSnapDip of the
+    //  mouse.
     static constexpr int    kComfortCellDip = 8;
     static constexpr int    kSnapDip        = 4;
 

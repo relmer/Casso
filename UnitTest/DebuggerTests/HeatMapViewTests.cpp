@@ -1081,12 +1081,13 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (WhileCellsAreSmallTheHottestCellNearbyIsPicked)
+        TEST_METHOD (WhileCellsAreSmallTheNearestHotCellIsPicked)
         {
             HeatMapView        view;
             std::vector<Byte>  read (0x10000, 0);
             std::vector<Byte>  none;
             Word               below = 0;
+            RECT               hot   = {};
 
 
 
@@ -1096,12 +1097,40 @@ namespace DebuggerTests
             read[below]  = 200;
             read[0x2010] = 255;
             view.SetLevels (none, read, none);
+            hot = view.GetCellRect (0x2001);
 
-            //  Over cold $2000, three pixels from $2001 and four from the cell
-            //  under it.
-            Assert::AreEqual (below,         view.GetPickAt (GetPointOf (view, 0x2000, 2)).value_or (0), L"the hotter of the two near it");
+            Assert::AreEqual ((Word) 0x2001, view.GetPickAt ({ hot.left - 1, hot.top }).value_or (0),     L"a pixel from $2001's edge, $2001 over the hotter cell further off");
             Assert::AreEqual ((Word) 0x2001, view.GetPickAt (GetPointOf (view, 0x2001)).value_or (0),    L"a touched cell under the mouse is its own");
             Assert::AreEqual ((Word) 0x2008, view.GetPickAt (GetPointOf (view, 0x2008)).value_or (0),    L"nothing touched near it, the cell under it");
+        }
+
+
+
+        //  In a cumulative map a row nothing touched can lie between two hot
+        //  rows; its cells are picked from their middles, not skipped.
+        TEST_METHOD (AColdRowBetweenHotRowsCanBePicked)
+        {
+            HeatMapView        view;
+            std::vector<Byte>  read (0x10000, 0);
+            std::vector<Byte>  none;
+            Word               columns = 0;
+            RECT               cell    = {};
+
+
+
+            Place (view);
+            columns = (Word) view.GetColumns();
+
+            for (Word column = 0; column < columns; column++)
+            {
+                read[(Word) (0x0000 + column)]               = 255;
+                read[(Word) (0x0000 + 2 * columns + column)] = 255;
+            }
+
+            view.SetLevels (none, read, none);
+            cell = view.GetCellRect ((Word) (0x0000 + columns + 5));
+
+            Assert::AreEqual ((Word) (0x0000 + columns + 5), view.GetPickAt ({ (cell.left + cell.right) / 2, (cell.top + cell.bottom) / 2 }).value_or (0));
         }
 
 

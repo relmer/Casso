@@ -1598,21 +1598,22 @@ std::optional<Word> HeatMapView::GetPickAt (POINT point) const
 //
 //  HeatMapView::GetPickPlaceAt
 //
-//  The search runs through every range the reach crosses, so a hot cell
-//  just past a header is found as one in the same range is.
+//  The search stays in the row under the mouse, so moving up or down always
+//  lands on the next row, however cold; along the row the nearest hot cell
+//  within reach wins.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::optional<HeatMapView::Place> HeatMapView::GetPickPlaceAt (POINT point) const
 {
     std::optional<Place>  under   = GetPlaceAt (point);
-    long                  pitch   = GetPitch();
     long                  reach   = m_scaler.ToPx (kSnapDip);
     long                  atX     = point.x - m_map.left;
-    long                  atY     = point.y - m_map.top + m_scrollTop;
+    const Placed        * placed  = nullptr;
+    long                  row     = 0;
+    long                  lastCol = 0;
     Place                 best;
-    Byte                  hottest = 0;
-    double                nearest = 0.0;
+    long                  nearest = reach + 1;
 
 
 
@@ -1621,45 +1622,25 @@ std::optional<HeatMapView::Place> HeatMapView::GetPickPlaceAt (POINT point) cons
         return under;
     }
 
-    best = *under;
+    best    = *under;
+    placed  = &m_placed[under->band];
+    row     = under->offset / placed->columns;
+    lastCol = std::min ((long) placed->columns - 1, (long) GetColumnAt (*placed, atX + reach));
 
-    for (size_t band = 0; band < m_placed.size(); band++)
+    for (long column = GetColumnAt (*placed, atX - reach); column <= lastCol; column++)
     {
-        const Placed  & placed   = m_placed[band];
-        long            firstRow = std::max (0L, atY - reach - placed.rowsTop) / pitch;
-        long            lastRow  = std::min (placed.rows - 1, (atY + reach - placed.rowsTop) / pitch);
-        long            lastCol  = GetColumnAt (placed, atX + reach);
+        Place  place    = { under->band, row * placed->columns + column };
+        Byte   level    = (place.offset < m_bands[under->band].count) ? GetShownLevel (GetAddressOf (place)) : (Byte) 0;
+        long   left     = GetColumnLeft (*placed, column);
+        long   right    = GetColumnLeft (*placed, column + 1) - kStreetPx;
+        long   distance = std::max ({ left - atX, 0L, atX - right });
 
 
 
-        if (atY + reach < placed.rowsTop)
+        if (level > 0 && distance < nearest)
         {
-            continue;
-        }
-
-        for (long row = firstRow; row <= lastRow; row++)
-        {
-            for (long column = GetColumnAt (placed, atX - reach); column <= lastCol; column++)
-            {
-                Place   place    = { band, row * placed.columns + column };
-                Byte    level    = (place.offset < m_bands[band].count) ? GetShownLevel (GetAddressOf (place)) : (Byte) 0;
-                double  left     = (double) GetColumnLeft (placed, column);
-                double  wide     = (double) (GetColumnLeft (placed, column + 1) - kStreetPx) - left;
-                double  dx       = left + wide / 2.0 - (double) atX;
-                double  dy       = (double) (placed.rowsTop + row * pitch) + (double) m_cellPx / 2.0 - (double) atY;
-                double  distance = dx * dx + dy * dy;
-
-
-
-                if (level == 0 || level < hottest || (level == hottest && distance >= nearest))
-                {
-                    continue;
-                }
-
-                best    = place;
-                hottest = level;
-                nearest = distance;
-            }
+            best    = place;
+            nearest = distance;
         }
     }
 
