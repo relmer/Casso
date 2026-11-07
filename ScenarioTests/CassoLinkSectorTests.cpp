@@ -606,7 +606,7 @@ public:
         }
 
         rows = TextScreenScraper::Scrape (rig.machine);
-        Assert::IsTrue (rows[10].starts_with ("D2: NO READABLE DISK"), TextEncoding::NarrowToWide (rows[10]).c_str());
+        Assert::IsTrue (rows[10].starts_with ("D2: EMPTY OR NO RECOGNIZED SECTORS"), TextEncoding::NarrowToWide (rows[10]).c_str());
 
         AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Po, rig.prodos));
         rig.Read (2, 0, sectors);

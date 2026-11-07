@@ -62,7 +62,7 @@ std::vector<std::string> FullSendScreen::GetRows() const
             case FullSendDriveState::Idle:     row += "IDLE";               break;
             case FullSendDriveState::Checking: row += "CHECKING";           break;
             case FullSendDriveState::Sending:  row += (verify ? "VERIFYING " : "SENDING ") + names[i]; break;
-            case FullSendDriveState::Empty:    row += "NO READABLE DISK";   break;
+            case FullSendDriveState::Empty:    row += "EMPTY OR NO RECOGNIZED SECTORS";   break;
             case FullSendDriveState::Repeat:    row += GetDuplicateText (names[i], "?"); break;
             case FullSendDriveState::Sent:     row += "SENT " + names[i];   break;
             case FullSendDriveState::Protected: row += "LIKELY COPY-PROTECTED " + names[i]; break;

@@ -747,7 +747,7 @@ rdsend:
 ; The motor runs on after an operation, so the next track's read does not wait
 ; for it to spin up again; Idle, with nothing more to do, stops it. During a
 ; Full Send the error row stays clear: an empty drive's check fails with NO
-; SECTOR, and the drive's row has NO READABLE DISK for it.
+; SECTOR, and the drive's row has EMPTY OR NO RECOGNIZED SECTORS for it.
 opdone: jsr notedisk
         lda fsmode
         bne odstatus
@@ -755,7 +755,7 @@ opdone: jsr notedisk
 odstatus: jsr sendstatus
         jmp main
 
-; notedisk: the drive's NO READABLE DISK, set by an operation that found no
+; notedisk: the drive's EMPTY OR NO RECOGNIZED SECTORS, set by an operation that found no
 ; address field for eight revolutions in a row, which is no disk or an
 ; unformatted one, and cleared by one that succeeded.
 notedisk: ldx drive
@@ -3710,7 +3710,7 @@ optext: .word oidle, oread, owrite, oformat
 
 oidle:   .text "IDLE"
          .byte 0
-onodisk: .text "NO READABLE DISK"
+onodisk: .text "EMPTY OR NO RECOGNIZED SECTORS"
          .byte 0
 oread:   .text "READING"
          .byte 0
