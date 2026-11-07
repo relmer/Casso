@@ -573,7 +573,7 @@ std::string BreakpointColumns::GetName (const DebuggerViewSnapshot::BreakpointLi
     case BreakpointKind::MemoryValue:   return std::format ("{} = ${:02X}", named, info.value.value_or (0));
     case BreakpointKind::Memory:        return named;
     case BreakpointKind::Disk:          return GetDiskName (info);
-    case BreakpointKind::BasicLine:     return std::format ("Line {}", info.address);
+    case BreakpointKind::BasicLine:     return std::format ("Line {}{}", info.address, bp.isAbsent ? " (not in the program)" : "");
     case BreakpointKind::BasicVariable: return info.basicName;
     case BreakpointKind::BasicError:    return "BASIC errors";
     case BreakpointKind::UnwrittenRead: return info.isTracking ? "Reading uninitialized memory" : "Reading uninitialized memory, from the next power cycle";

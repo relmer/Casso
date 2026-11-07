@@ -305,6 +305,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     if (m_isBasicShown || isPaused)
     {
         snapshot.basic = ReadBasic (session, isPaused);
+        MarkAbsentBasicLines (snapshot);
     }
 
     //  A BASIC watch's value is read with the program's, once the machine is
@@ -319,6 +320,35 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     }
 
     return snapshot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::MarkAbsentBasicLines
+//
+//  Only once a program is read: with no Applesoft, or no program, the lines
+//  there will be are not known.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::MarkAbsentBasicLines (DebuggerViewSnapshot & snapshot)
+{
+    if (!snapshot.basic.has_value() || !snapshot.basic->isApplesoft || !snapshot.basic->hasProgram)
+    {
+        return;
+    }
+
+    for (DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
+    {
+        if (bp.info.kind == BreakpointKind::BasicLine)
+        {
+            bp.isAbsent = std::ranges::none_of (snapshot.basic->lines, [&bp] (const BasicLine & line) { return line.number == bp.info.address; });
+        }
+    }
 }
 
 

@@ -9,6 +9,7 @@
 #include "EmuTests/GuestSession.h"
 #include "EmuTests/KeystrokeInjector.h"
 #include "EmuTests/MachineIdle.h"
+#include "Ui/Debugger/BreakpointColumns.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
@@ -138,6 +139,27 @@ namespace DebuggerTests
             bp.info.address = line;
             bp.info.enabled = enabled;
             return bp;
+        }
+
+
+        //  A line breakpoint whose line the program doesn't have is marked,
+        //  with "(not in the program)" after its name; one on a line the
+        //  program has is not.
+        TEST_METHOD (ALineBreakpointOnALineNotInTheProgramIsMarked)
+        {
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            snapshot.basic = MakeState ({ MakeLine (0x0801, 10, { " PRINT ", "A" }) }, std::nullopt, 0x0801);
+            snapshot.breakpoints.push_back (MakeLineBreakpoint (0, 10,   true));
+            snapshot.breakpoints.push_back (MakeLineBreakpoint (1, 2630, true));
+
+            DebuggerViewState::MarkAbsentBasicLines (snapshot);
+
+            Assert::IsFalse (snapshot.breakpoints[0].isAbsent);
+            Assert::IsTrue  (snapshot.breakpoints[1].isAbsent);
+            Assert::AreEqual (std::string ("Line 2630 (not in the program)"), BreakpointColumns::GetCells (snapshot, snapshot.breakpoints[1])[(size_t) BreakpointColumns::Column::Name]);
         }
 
 

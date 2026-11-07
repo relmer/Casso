@@ -1127,7 +1127,7 @@ void BreakpointsPane::ApplyRows()
             DxuiListView::Cell  cell;
 
             cell.text = TextEncoding::NarrowToWide (text);
-            cell.dim  = !bp.enabled;
+            cell.dim  = !bp.enabled || bp.isAbsent;
             row.push_back (cell);
         }
 

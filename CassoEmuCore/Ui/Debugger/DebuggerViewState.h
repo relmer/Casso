@@ -149,6 +149,10 @@ struct DebuggerViewSnapshot
 
         //  The symbol at the breakpoint's address, or empty.
         std::string     label;
+
+        //  A BASIC line breakpoint on a line the program in memory doesn't
+        //  have, so it cannot stop.
+        bool            isAbsent = false;
     };
 
     //  basicName is a BASIC watch's variable, empty for an address;
@@ -658,6 +662,10 @@ public:
     //  The Applesoft program and, while paused, its values, for the BASIC
     //  panes.
     static DebuggerViewSnapshot::BasicState  ReadBasic (DebugSession & session, bool isPaused);
+
+    //  Marks each BASIC line breakpoint on a line the program read doesn't
+    //  have (BreakpointLine::isAbsent).
+    static void          MarkAbsentBasicLines (DebuggerViewSnapshot & snapshot);
 
     //  The heat map pane: while it is shown the machine's accesses are
     //  counted and each snapshot carries their levels; hidden, the machine
