@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Model/PreviewDecoder.h"
+
 
 
 
@@ -11,7 +13,7 @@
 //  ApplesoftVariables
 //
 //  A ProDOS VAR file, the Applesoft variables that BASIC.SYSTEM's STORE writes,
-//  as one name and value for each variable and array element.
+//  as rows: each simple variable, then each array's elements.
 //
 //  The file is a five-byte header and then a copy of memory. The header is the
 //  length of the simple variables and arrays together, the length of the
@@ -34,9 +36,30 @@ class ApplesoftVariables
 public:
     static constexpr Byte  kProDosType = 0xFD;
 
-    //  The file's variables as name and value; ERROR_INVALID_DATA when its
-    //  lengths or an array's entry extend past the file.
-    static HRESULT       Decode     (std::span<const Byte> file, Word auxType, std::vector<std::pair<std::wstring, std::wstring>> & outRows);
+    //  The preview's columns, in order.
+    enum class Column { Name, Type, Length, Value };
+
+    //  The simple variables (array -1) or one array's elements, as indexes
+    //  into the rows, in display order.
+    struct Section
+    {
+        int                  array = -1;
+        std::vector<size_t>  rows;
+    };
+
+    //  The file's variables and arrays; ERROR_INVALID_DATA when its lengths or
+    //  an array's entry extend past the file.
+    static HRESULT  Decode (std::span<const Byte> file, Word auxType, std::vector<VariableRow> & outRows, std::vector<VariableArray> & outArrays);
+
+    //  The rows that contain `filter` in their name or value, or are elements
+    //  of an array whose name contains it, sorted on `column`: the simple variables
+    //  first, then each array. An array's elements are in subscript order when
+    //  sorted by name, as are the arrays.
+    static std::vector<Section>  Arrange (const std::vector<VariableRow>   & rows,
+                                          const std::vector<VariableArray> & arrays,
+                                          const std::wstring               & filter,
+                                          Column                             column,
+                                          bool                               descending);
 
     //  A five-byte real as PRINT prints it: nine significant digits, without a
     //  leading zero, and in E notation below .01 or from 1E9.
@@ -48,13 +71,18 @@ public:
 private:
     enum class Type { Real, Integer, String, Function };
 
-    //  One array's rows, from its entry at `pos`, and the entry's length.
-    static HRESULT       AddArrayRows (std::span<const Byte> file, size_t pos, Word origin, std::vector<std::pair<std::wstring, std::wstring>> & ioRows, size_t & outLength);
+    //  One array's elements and the array itself, from its entry at `pos`,
+    //  and the entry's length.
+    static HRESULT       AddArray     (std::span<const Byte> file, size_t pos, Word origin, std::vector<VariableRow> & ioRows, std::vector<VariableArray> & ioArrays, size_t & outLength);
 
-    static Type          GetType      (Byte first, Byte second);
-    static size_t        GetValueSize (Type type);
-    static std::wstring  FormatValue  (Type type, std::span<const Byte> value, std::span<const Byte> file, Word origin);
-    static std::wstring  FormatString (std::span<const Byte> value, std::span<const Byte> file, Word origin);
+    static VariableRow      MakeRow      (const std::wstring & name, Type type, std::span<const Byte> value, std::span<const Byte> file, Word origin);
+    static Type             GetType      (Byte first, Byte second);
+    static const wchar_t  * GetTypeName  (Type type);
+    static size_t           GetValueSize (Type type);
+    static std::wstring     FormatValue  (Type type, std::span<const Byte> value, std::span<const Byte> file, Word origin);
+    static std::wstring     FormatString (std::span<const Byte> value, std::span<const Byte> file, Word origin);
+    static bool             Contains     (const std::wstring & text, const std::wstring & lowerFilter);
+    static int              Compare      (const VariableRow & a, const VariableRow & b, Column column);
 
     static constexpr size_t  s_kHeaderBytes       = 5;
     static constexpr size_t  s_kTrailingBytes     = 256;
@@ -66,9 +94,6 @@ private:
     static constexpr size_t  s_kSignificantDigits = 9;
     static constexpr int     s_kExponentBias      = 128;
     static constexpr int     s_kMantissaBits      = 32;
-
-    //  The elements of one array listed before the rest are counted.
-    static constexpr size_t  s_kElementsShown = 100;
 
     //  The decimal exponents PRINT prints without E notation.
     static constexpr int     s_kFixedExponentLow  = -2;

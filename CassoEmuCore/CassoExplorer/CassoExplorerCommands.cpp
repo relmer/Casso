@@ -653,11 +653,12 @@ int CassoExplorerCommands::GetPreviewBar (int id)
 //
 //  CassoExplorerCommands::IsOnPreviewBar
 //
-//  Save as PNG is on both picture bars.
+//  Save as PNG is on both picture bars, and Search on the variables' bar as
+//  well as the hex view's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CassoExplorerCommands::IsOnPreviewBar (int id, int bar)
 {
-    return GetPreviewBar (id) == bar || (id == kSavePicture && bar == kPreviewBarSave);
+    return GetPreviewBar (id) == bar || (id == kSavePicture && bar == kPreviewBarSave) || (id == kFind && bar == kPreviewBarVariables);
 }

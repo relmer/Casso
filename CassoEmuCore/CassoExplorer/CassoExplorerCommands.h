@@ -211,6 +211,9 @@ public:
     //  A WOZ image's catalog: Edit metadata.
     static constexpr int  kPreviewBarWoz     = 5;
 
+    //  A VAR file's variables: the search box, which filters them.
+    static constexpr int  kPreviewBarVariables = 6;
+
     std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries  (int bar, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;
     static std::vector<int>          GetPreviewToolbarCommandIds (int bar);
     static int                       GetPreviewBar               (int id);

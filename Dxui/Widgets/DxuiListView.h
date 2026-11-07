@@ -315,6 +315,12 @@ public:
 
     //  The cells' font size; zero restores the default.
     void  SetFontDip                   (float dip)             { m_fontDip = (dip > 0.0f) ? dip : s_kFontDip; }
+    float GetFontDip                   () const                { return m_fontDip; }
+
+    //  The width that fits a column's title and every row in full, measured
+    //  now, and the padding around a cell's text.
+    int   MeasureColumnContentPx       (IDxuiTextRenderer & text, size_t column) const { return m_columnSizing.GetColumnContentWidthPx (text, column); }
+    int   GetCellPaddingPx             (size_t column) const   { return m_columnSizing.GetCellPadLeftPx (column) + m_scaler.ToPx (s_kCellPadRightDip); }
     int   GetRowHeightDip              () const                { return m_rowHeightDip; }
 
     //  A row height in pixels for a DPI, for a list that has to match one

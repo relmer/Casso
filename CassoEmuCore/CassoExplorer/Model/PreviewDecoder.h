@@ -46,6 +46,42 @@ enum class HostCharset
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  VariableRow
+//
+//  One Applesoft variable, or one element of an array, from a VAR file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct VariableRow
+{
+    std::wstring  name;          // A, N%, S$, FN F, or an element such as B%(2)
+    std::wstring  type;          // Real, Integer, String or Function
+    std::wstring  value;
+    std::wstring  length;        // a string's length; empty for any other type
+    int           array = -1;    // the element's array, in `arrays`; -1 for a simple variable
+    size_t        index = 0;     // the element's place in its array
+
+    bool  operator== (const VariableRow &) const = default;
+};
+
+
+
+//  An array in a VAR file: its name and the subscripts in its DIM.
+struct VariableArray
+{
+    std::wstring  name;          // B%
+    std::wstring  dimensions;    // (2) or (1,2)
+    size_t        count = 0;
+
+    bool  operator== (const VariableArray &) const = default;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewContent
 //
 //  What the preview pane shows for one entry, by kind. Text-shaped kinds
@@ -57,7 +93,8 @@ enum class HostCharset
 struct PreviewContent
 {
     //  Shell is Windows' own preview of a host file, which the window hosts.
-    enum class Kind { Listing, Text, Picture, Hex, Catalog, Details, Error, Shell };
+    //  Variables is a VAR file's Applesoft variables.
+    enum class Kind { Listing, Text, Picture, Hex, Catalog, Details, Error, Shell, Variables };
 
     Kind                       kind   = Kind::Hex;
     std::vector<std::wstring>  lines;
@@ -81,6 +118,10 @@ struct PreviewContent
     //  What an image with no file system says about itself, as label and value.
     std::vector<std::pair<std::wstring, std::wstring>>  details;
     std::wstring                                        message;
+
+    //  A VAR file's simple variables and array elements, and its arrays.
+    std::vector<VariableRow>                            variables;
+    std::vector<VariableArray>                          arrays;
     size_t                                              offset  = 0;
 
     //  A hex preview hands its bytes over as they are, for a view that reads

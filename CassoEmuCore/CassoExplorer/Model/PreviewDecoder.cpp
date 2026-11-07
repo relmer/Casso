@@ -342,7 +342,7 @@ PreviewContent::Kind PreviewDecoder::Decide (
 
     if (kind == VolumeKind::ProDos && entry.type == ApplesoftVariables::kProDosType)
     {
-        return PreviewContent::Kind::Details;
+        return PreviewContent::Kind::Variables;
     }
 
     if (IsBinaryType (entry.type, kind) && hasLoadAddress
@@ -963,14 +963,19 @@ HRESULT PreviewDecoder::Render (
 
             break;
 
-        case PreviewContent::Kind::Details:
-            hr = ApplesoftVariables::Decode (payload.bytes, payload.hasAuxType ? payload.auxType : entry.auxType, outContent.details);
+        case PreviewContent::Kind::Variables:
+            hr = ApplesoftVariables::Decode (payload.bytes, payload.hasAuxType ? payload.auxType : entry.auxType, outContent.variables, outContent.arrays);
 
             if (FAILED (hr))
             {
                 outContent.kind    = PreviewContent::Kind::Error;
                 outContent.message = L"Its variable tables run past the end of the file.";
                 hr                 = S_OK;
+            }
+            else if (outContent.variables.empty())
+            {
+                outContent.kind  = PreviewContent::Kind::Text;
+                outContent.lines = { L"No variables were stored." };
             }
 
             break;

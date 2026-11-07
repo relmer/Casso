@@ -218,7 +218,8 @@ void ExplorerPreviewManager::FillPreview()
     bool                    error    = preview.kind == PreviewContent::Kind::Error || (hostFile && !opened);
     bool                    hex      = preview.kind == PreviewContent::Kind::Hex && (!preview.bytes.empty() || opened);
     bool                    disasm   = preview.kind == PreviewContent::Kind::Hex && preview.disassembly;
-    bool                    columns  = preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty();
+    bool                    vars     = preview.kind == PreviewContent::Kind::Variables;
+    bool                    columns  = (preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty()) || vars;
     bool                    program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
     bool                    forms    = picture && m_context.browser.CanTogglePictureColor();
     bool                    shell    = preview.kind == PreviewContent::Kind::Shell;
@@ -231,6 +232,7 @@ void ExplorerPreviewManager::FillPreview()
                                      : program  ? CassoExplorerCommands::kPreviewBarListing
                                      : forms    ? CassoExplorerCommands::kPreviewBarPicture
                                      : picture  ? CassoExplorerCommands::kPreviewBarSave
+                                     : vars     ? CassoExplorerCommands::kPreviewBarVariables
                                      : woz      ? CassoExplorerCommands::kPreviewBarWoz
                                                 : CassoExplorerCommands::kPreviewBarNone;
 
@@ -268,8 +270,10 @@ void ExplorerPreviewManager::FillPreview()
             m_toolbar->SetEntries (m_context.commands.BuildPreviewToolbarEntries (mode, m_find.GetSearchBox(), m_find.GetGoToBox()));
         }
 
-        //  The boxes go with the hex view's toolbar, and their focus with it.
-        if (mode != CassoExplorerCommands::kPreviewBarHex && (m_context.input.GetFocusPane() == ExplorerPane::Search || m_context.input.GetFocusPane() == ExplorerPane::GoTo))
+        //  The boxes go with the hex view's toolbar, and their focus with it;
+        //  the variables' toolbar has the search box alone.
+        if (mode != CassoExplorerCommands::kPreviewBarHex && (m_context.input.GetFocusPane() == ExplorerPane::GoTo
+                                                           || (m_context.input.GetFocusPane() == ExplorerPane::Search && mode != CassoExplorerCommands::kPreviewBarVariables)))
         {
             m_context.input.SetFocusPane (ExplorerPane::Preview);
         }
@@ -324,7 +328,7 @@ bool ExplorerPreviewManager::IsKnownPreview (const PreviewContent & preview)
     using Kind = PreviewContent::Kind;
 
     return preview.kind == Kind::Listing || preview.kind == Kind::Text    || preview.kind == Kind::Catalog
-        || preview.kind == Kind::Details || preview.kind == Kind::Shell   || preview.executable
+        || preview.kind == Kind::Details || preview.kind == Kind::Shell   || preview.kind == Kind::Variables || preview.executable
         || (preview.kind == Kind::Picture && !preview.bgra.empty());
 }
 

@@ -266,6 +266,13 @@ void PreviewFindBar::GoToTyped (const std::wstring & text)
 
 void PreviewFindBar::HandleSearchChanged (const std::wstring & text)
 {
+    //  A VAR file's variables are filtered by the search as it is typed.
+    if (m_preview.GetListing().IsVariables())
+    {
+        m_preview.GetListing().SetVariablesFilter (text);
+        return;
+    }
+
     if (!ActionsGoTo::TryParseSearch (text, m_findBytes, m_findIsText))
     {
         m_findBytes.clear();

@@ -26,7 +26,7 @@ TEST_CLASS (ApplesoftVariablesTests)
 {
 public:
 
-    using Rows = std::vector<std::pair<std::wstring, std::wstring>>;
+    using Column = ApplesoftVariables::Column;
 
     //  Where the test file's copy of memory starts: its aux type.
     static constexpr Word  s_kOrigin = 0x95AE;
@@ -70,38 +70,57 @@ public:
 
 
 
-    TEST_METHOD (Decode_ListsEachVariableAndArrayElement)
+    static std::vector<std::wstring> GetNames (const std::vector<VariableRow> & rows, const ApplesoftVariables::Section & section)
     {
-        std::vector<Byte>  file = BuildFile();
-        Rows               rows;
-        Rows               expected =
+        std::vector<std::wstring>  names;
+
+        for (size_t index : section.rows)
         {
-            { L"A",          L"1" },
-            { L"N%",         L"-2" },
-            { L"S$",         L"\"HI\"" },
-            { L"FN F",       L"Function" },
-            { L"DIM B%(2)",  L"3 elements" },
-            { L"B%(0)",      L"1" },
-            { L"B%(1)",      L"2" },
-            { L"B%(2)",      L"3" },
-            { L"DIM C(1,2)", L"6 elements" },
-            { L"C(0,0)",     L"0" },
-            { L"C(1,0)",     L"1" },
-            { L"C(0,1)",     L"2" },
-            { L"C(1,1)",     L"3" },
-            { L"C(0,2)",     L"4" },
-            { L"C(1,2)",     L"5" },
-        };
-
-        AssertSucceeded (ApplesoftVariables::Decode (file, s_kOrigin, rows));
-
-        Assert::AreEqual (expected.size(), rows.size());
-
-        for (size_t i = 0; i < expected.size(); i++)
-        {
-            Assert::AreEqual (expected[i].first,  rows[i].first);
-            Assert::AreEqual (expected[i].second, rows[i].second);
+            names.push_back (rows[index].name);
         }
+
+        return names;
+    }
+
+
+
+    TEST_METHOD (Decode_ListsEachVariableAndEveryArrayElement)
+    {
+        std::vector<Byte>           file = BuildFile();
+        std::vector<VariableRow>    rows;
+        std::vector<VariableArray>  arrays;
+        std::vector<std::wstring>   names;
+        std::vector<std::wstring>   expected = { L"A", L"N%", L"S$", L"FN F", L"B%(0)", L"B%(1)", L"B%(2)",
+                                                 L"C(0,0)", L"C(1,0)", L"C(0,1)", L"C(1,1)", L"C(0,2)", L"C(1,2)" };
+
+        AssertSucceeded (ApplesoftVariables::Decode (file, s_kOrigin, rows, arrays));
+
+        for (const VariableRow & row : rows)
+        {
+            names.push_back (row.name);
+        }
+
+        Assert::IsTrue (names == expected, L"The simple variables, then each array's elements, the first subscript fastest");
+
+        Assert::AreEqual (std::wstring (L"Real"),     rows[0].type);
+        Assert::AreEqual (std::wstring (L"1"),        rows[0].value);
+        Assert::AreEqual (std::wstring (L"Integer"),  rows[1].type);
+        Assert::AreEqual (std::wstring (L"-2"),       rows[1].value);
+        Assert::AreEqual (std::wstring (L"String"),   rows[2].type);
+        Assert::AreEqual (std::wstring (L"\"HI\""),   rows[2].value);
+        Assert::AreEqual (std::wstring (L"2"),        rows[2].length, L"A string has its length");
+        Assert::IsTrue   (rows[0].length.empty(),     L"and a number has none");
+        Assert::AreEqual (std::wstring (L"Function"), rows[3].type);
+        Assert::AreEqual (-1,                         rows[3].array);
+        Assert::AreEqual (0,                          rows[4].array);
+        Assert::AreEqual (std::wstring (L"5"),        rows[12].value);
+        Assert::AreEqual (1,                          rows[12].array);
+
+        Assert::AreEqual ((size_t) 2,                 arrays.size());
+        Assert::AreEqual (std::wstring (L"B%"),       arrays[0].name);
+        Assert::AreEqual (std::wstring (L"(2)"),      arrays[0].dimensions);
+        Assert::AreEqual (std::wstring (L"(1,2)"),    arrays[1].dimensions);
+        Assert::AreEqual ((size_t) 6,                 arrays[1].count);
     }
 
 
@@ -110,12 +129,13 @@ public:
     //  from HIMEM and the page past it.
     TEST_METHOD (Decode_WithoutAnAuxType_FindsItsStringsFromHimem)
     {
-        std::vector<Byte>  file = BuildFile();
-        Rows               rows;
+        std::vector<Byte>           file = BuildFile();
+        std::vector<VariableRow>    rows;
+        std::vector<VariableArray>  arrays;
 
-        AssertSucceeded (ApplesoftVariables::Decode (file, 0, rows));
+        AssertSucceeded (ApplesoftVariables::Decode (file, 0, rows, arrays));
 
-        Assert::AreEqual (std::wstring (L"\"HI\""), rows[2].second);
+        Assert::AreEqual (std::wstring (L"\"HI\""), rows[2].value);
     }
 
 
@@ -124,23 +144,26 @@ public:
     //  would be, has no characters in the file.
     TEST_METHOD (Decode_AStringNotInTheFile_SaysSo)
     {
-        std::vector<Byte>  file = BuildFile();
-        Rows               rows;
+        std::vector<Byte>           file = BuildFile();
+        std::vector<VariableRow>    rows;
+        std::vector<VariableArray>  arrays;
 
         file[5 + 14 + 4] = 0x08;
 
-        AssertSucceeded (ApplesoftVariables::Decode (file, s_kOrigin, rows));
+        AssertSucceeded (ApplesoftVariables::Decode (file, s_kOrigin, rows, arrays));
 
-        Assert::AreEqual (std::wstring (L"Not in the file"), rows[2].second);
+        Assert::AreEqual (std::wstring (L"Not in the file"), rows[2].value);
+        Assert::AreEqual (std::wstring (L"2"),               rows[2].length, L"Its length is in its entry");
     }
 
 
 
-    TEST_METHOD (Decode_ABigArray_ListsItsFirstElementsAndCountsTheRest)
+    TEST_METHOD (Decode_ABigArray_ListsEveryElement)
     {
-        std::vector<Byte>  file   = { 0, 0, 0, 0, 0x96, 0xC4, 0x80, 0, 0, 1, 0x00, 150 };
-        size_t             length = 7 + 150 * 2;
-        Rows               rows;
+        std::vector<Byte>           file   = { 0, 0, 0, 0, 0x96, 0xC4, 0x80, 0, 0, 1, 0x00, 150 };
+        size_t                      length = 7 + 150 * 2;
+        std::vector<VariableRow>    rows;
+        std::vector<VariableArray>  arrays;
 
         file[7] = (Byte) length;
         file[8] = (Byte) (length >> 8);
@@ -148,41 +171,84 @@ public:
         file[0] = (Byte) length;
         file[1] = (Byte) (length >> 8);
 
-        AssertSucceeded (ApplesoftVariables::Decode (file, s_kOrigin, rows));
+        AssertSucceeded (ApplesoftVariables::Decode (file, s_kOrigin, rows, arrays));
 
-        Assert::AreEqual ((size_t) 102, rows.size(), L"The DIM, a hundred elements and the count of the rest");
-        Assert::AreEqual (std::wstring (L"D%(...)"),          rows.back().first);
-        Assert::AreEqual (std::wstring (L"50 more elements"), rows.back().second);
+        Assert::AreEqual ((size_t) 150, rows.size(), L"Every element");
+        Assert::AreEqual (std::wstring (L"D%(149)"), rows.back().name);
     }
 
 
 
     TEST_METHOD (Decode_LengthsPastTheEndOfTheFile_AreInvalidData)
     {
-        std::vector<Byte>  file = BuildFile();
-        Rows               rows;
+        std::vector<Byte>           file = BuildFile();
+        std::vector<VariableRow>    rows;
+        std::vector<VariableArray>  arrays;
 
         file[1] = 0xFF;
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), ApplesoftVariables::Decode (file, s_kOrigin, rows));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), ApplesoftVariables::Decode (file, s_kOrigin, rows, arrays));
 
         file = BuildFile();
         file[5 + 28 + 2] = 0xFF;
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), ApplesoftVariables::Decode (file, s_kOrigin, rows), L"An array entry longer than the table");
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), ApplesoftVariables::Decode (file, s_kOrigin, rows, arrays), L"An array entry longer than the table");
     }
 
 
 
-    TEST_METHOD (Decode_NoVariables_SaysNone)
+    TEST_METHOD (Arrange_SortsTheVariablesAndKeepsEachArraysElementsInOrder)
     {
-        std::vector<Byte>  file = { 0, 0, 0, 0, 0x96 };
-        Rows               rows;
+        std::vector<Byte>                         file = BuildFile();
+        std::vector<VariableRow>                  rows;
+        std::vector<VariableArray>                arrays;
+        std::vector<ApplesoftVariables::Section>  sections;
 
-        AssertSucceeded (ApplesoftVariables::Decode (file, s_kOrigin, rows));
+        AssertSucceeded (ApplesoftVariables::Decode (file, s_kOrigin, rows, arrays));
 
-        Assert::AreEqual ((size_t) 1, rows.size());
-        Assert::AreEqual (std::wstring (L"None"), rows[0].second);
+        sections = ApplesoftVariables::Arrange (rows, arrays, L"", Column::Name, false);
+
+        Assert::AreEqual ((size_t) 3, sections.size(), L"The simple variables, then each array");
+        Assert::IsTrue   (GetNames (rows, sections[0]) == std::vector<std::wstring> { L"A", L"FN F", L"N%", L"S$" });
+        Assert::AreEqual (0, sections[1].array);
+        Assert::IsTrue   (GetNames (rows, sections[1]) == std::vector<std::wstring> { L"B%(0)", L"B%(1)", L"B%(2)" });
+
+        sections = ApplesoftVariables::Arrange (rows, arrays, L"", Column::Name, true);
+
+        Assert::IsTrue   (GetNames (rows, sections[0]) == std::vector<std::wstring> { L"S$", L"N%", L"FN F", L"A" }, L"Descending");
+        Assert::AreEqual (1, sections[1].array, L"and the arrays too");
+
+        sections = ApplesoftVariables::Arrange (rows, arrays, L"", Column::Value, true);
+
+        Assert::AreEqual (std::wstring (L"C(1,2)"), rows[sections[2].rows[0]].name, L"An array's elements sort on their values");
+    }
+
+
+
+    TEST_METHOD (Arrange_FiltersOnNamesValuesAndArrays)
+    {
+        std::vector<Byte>                         file = BuildFile();
+        std::vector<VariableRow>                  rows;
+        std::vector<VariableArray>                arrays;
+        std::vector<ApplesoftVariables::Section>  sections;
+
+        AssertSucceeded (ApplesoftVariables::Decode (file, s_kOrigin, rows, arrays));
+
+        sections = ApplesoftVariables::Arrange (rows, arrays, L"hi", Column::Name, false);
+
+        Assert::AreEqual ((size_t) 1, sections.size());
+        Assert::IsTrue   (GetNames (rows, sections[0]) == std::vector<std::wstring> { L"S$" }, L"A value matches, whatever its case");
+
+        sections = ApplesoftVariables::Arrange (rows, arrays, L"C(1,2)", Column::Name, false);
+
+        Assert::AreEqual ((size_t) 1,  sections.size());
+        Assert::AreEqual ((size_t) 6, sections[0].rows.size(), L"An array's name matches all of its elements");
+
+        sections = ApplesoftVariables::Arrange (rows, arrays, L"3", Column::Name, false);
+
+        Assert::AreEqual ((size_t) 2, sections.size());
+        Assert::IsTrue   (GetNames (rows, sections[0]) == std::vector<std::wstring> { L"B%(2)" }, L"and an element's value matches it alone");
+        Assert::IsTrue   (GetNames (rows, sections[1]) == std::vector<std::wstring> { L"C(1,1)" });
     }
 
 
@@ -225,10 +291,18 @@ public:
 
         AssertSucceeded (PreviewDecoder::Render (entry, VolumeKind::ProDos, payload, PreviewDecoder::HexForm::Auto, bus, content));
 
-        Assert::IsTrue (content.kind == PreviewContent::Kind::Details);
-        Assert::AreEqual (std::wstring (L"\"HI\""), content.details[2].second);
-        Assert::IsTrue (ExplorerPreviewManager::IsKnownPreview (content));
+        Assert::IsTrue   (content.kind == PreviewContent::Kind::Variables);
+        Assert::AreEqual (std::wstring (L"\"HI\""), content.variables[2].value);
+        Assert::AreEqual ((size_t) 2, content.arrays.size());
+        Assert::IsTrue   (ExplorerPreviewManager::IsKnownPreview (content));
 
+        payload.bytes = { 0, 0, 0, 0, 0x96 };
+
+        AssertSucceeded (PreviewDecoder::Render (entry, VolumeKind::ProDos, payload, PreviewDecoder::HexForm::Auto, bus, content));
+
+        Assert::IsTrue (content.kind == PreviewContent::Kind::Text, L"A file with no variables says so");
+
+        payload.bytes    = BuildFile();
         payload.bytes[1] = 0xFF;
 
         AssertSucceeded (PreviewDecoder::Render (entry, VolumeKind::ProDos, payload, PreviewDecoder::HexForm::Auto, bus, content));

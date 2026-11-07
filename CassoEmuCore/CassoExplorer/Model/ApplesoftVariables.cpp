@@ -2,6 +2,8 @@
 
 #include "CassoExplorer/Model/ApplesoftVariables.h"
 
+#pragma comment(lib, "shlwapi.lib")
+
 
 
 
@@ -11,12 +13,11 @@
 //  ApplesoftVariables::Decode
 //
 //  The simple variables, in the order the program first used them, then each
-//  array: its DIM, then its elements up to s_kElementsShown and a count of the
-//  rest.
+//  array's elements, all of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ApplesoftVariables::Decode (std::span<const Byte> file, Word auxType, std::vector<std::pair<std::wstring, std::wstring>> & outRows)
+HRESULT ApplesoftVariables::Decode (std::span<const Byte> file, Word auxType, std::vector<VariableRow> & outRows, std::vector<VariableArray> & outArrays)
 {
     HRESULT  hr        = S_OK;
     size_t   himem     = 0;
@@ -32,6 +33,7 @@ HRESULT ApplesoftVariables::Decode (std::span<const Byte> file, Word auxType, st
 
 
     outRows.clear();
+    outArrays.clear();
 
     CBREx (fileBytes >= s_kHeaderBytes, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
@@ -51,19 +53,15 @@ HRESULT ApplesoftVariables::Decode (std::span<const Byte> file, Word auxType, st
 
     for (; pos < simpleEnd; pos += s_kEntryBytes)
     {
-        outRows.push_back ({ FormatName (file[pos], file[pos + 1]),
-                             FormatValue (GetType (file[pos], file[pos + 1]), file.subspan (pos + 2, s_kRealBytes), file, origin) });
+        outRows.push_back (MakeRow (FormatName (file[pos], file[pos + 1]), GetType (file[pos], file[pos + 1]),
+                                    file.subspan (pos + 2, s_kRealBytes), file, origin));
+        outRows.back().index = outRows.size() - 1;
     }
 
     for (; pos < end; pos += length)
     {
-        hr = AddArrayRows (file.first (end), pos, origin, outRows, length);
+        hr = AddArray (file.first (end), pos, origin, outRows, outArrays, length);
         CHR (hr);
-    }
-
-    if (outRows.empty())
-    {
-        outRows.push_back ({ L"Variables", L"None" });
     }
 
 Error:
@@ -76,19 +74,20 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ApplesoftVariables::AddArrayRows
+//  ApplesoftVariables::AddArray
 //
 //  One array's entry at `pos`: its name, the length of the entry, the count of
 //  dimensions, each dimension's element count, then the elements.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ApplesoftVariables::AddArrayRows (
-    std::span<const Byte>                                 file,
-    size_t                                                pos,
-    Word                                                  origin,
-    std::vector<std::pair<std::wstring, std::wstring>>  & ioRows,
-    size_t                                              & outLength)
+HRESULT ApplesoftVariables::AddArray (
+    std::span<const Byte>          file,
+    size_t                         pos,
+    Word                           origin,
+    std::vector<VariableRow>     & ioRows,
+    std::vector<VariableArray>   & ioArrays,
+    size_t                       & outLength)
 {
     HRESULT              hr          = S_OK;
     size_t               fileBytes   = file.size();
@@ -98,11 +97,11 @@ HRESULT ApplesoftVariables::AddArrayRows (
     size_t               valueBytes  = 0;
     size_t               count       = 1;
     size_t               elements    = 0;
-    size_t               shown       = 0;
     size_t               rest        = 0;
     std::wstring         name;
     std::wstring         subscripts;
     std::vector<size_t>  counts;
+    VariableArray        array;
 
 
 
@@ -143,12 +142,13 @@ HRESULT ApplesoftVariables::AddArrayRows (
         subscripts += std::format (L"{}{}", (i == 0) ? L"" : L",", counts[i] - 1);
     }
 
-    ioRows.push_back ({ std::format (L"DIM {}({})", name, subscripts), std::format (L"{} {}", count, (count == 1) ? L"element" : L"elements") });
-
-    shown = (std::min) (count, s_kElementsShown);
+    array.name       = name;
+    array.dimensions = L"(" + subscripts + L")";
+    array.count      = count;
+    ioArrays.push_back (array);
 
     //  The first subscript varies fastest.
-    for (size_t element = 0; element < shown; element++)
+    for (size_t element = 0; element < count; element++)
     {
         subscripts.clear();
         rest = element;
@@ -159,17 +159,190 @@ HRESULT ApplesoftVariables::AddArrayRows (
             rest       /= counts[i];
         }
 
-        ioRows.push_back ({ std::format (L"{}({})", name, subscripts),
-                            FormatValue (type, file.subspan (pos + headerBytes + element * valueBytes, valueBytes), file, origin) });
-    }
-
-    if (count > shown)
-    {
-        ioRows.push_back ({ name + L"(...)", std::format (L"{} more elements", count - shown) });
+        ioRows.push_back (MakeRow (std::format (L"{}({})", name, subscripts), type,
+                                   file.subspan (pos + headerBytes + element * valueBytes, valueBytes), file, origin));
+        ioRows.back().array = (int) ioArrays.size() - 1;
+        ioRows.back().index = element;
     }
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplesoftVariables::MakeRow
+//
+//  A string's length is its first byte, whether or not its characters are in
+//  the file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+VariableRow ApplesoftVariables::MakeRow (const std::wstring & name, Type type, std::span<const Byte> value, std::span<const Byte> file, Word origin)
+{
+    VariableRow  row;
+
+
+
+    row.name   = name;
+    row.type   = GetTypeName (type);
+    row.value  = FormatValue (type, value, file, origin);
+    row.length = (type == Type::String) ? std::to_wstring (value[0]) : std::wstring();
+
+    return row;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplesoftVariables::Arrange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<ApplesoftVariables::Section> ApplesoftVariables::Arrange (
+    const std::vector<VariableRow>   & rows,
+    const std::vector<VariableArray> & arrays,
+    const std::wstring               & filter,
+    Column                             column,
+    bool                               descending)
+{
+    std::vector<Section>  sections;
+    std::vector<size_t>   arrayOrder;
+    std::wstring          lower  = filter;
+    Section               simple;
+    bool                  byName = column == Column::Name;
+    auto  matches = [&lower] (const VariableRow & row)
+    {
+        return lower.empty() || Contains (row.name, lower) || Contains (row.value, lower);
+    };
+    auto  less = [&rows, column, descending, byName] (size_t a, size_t b)
+    {
+        int  cmp = byName && rows[a].array >= 0 ? ((rows[a].index < rows[b].index) ? -1 : (rows[a].index > rows[b].index) ? 1 : 0)
+                                                : Compare (rows[a], rows[b], column);
+
+        if (cmp == 0)
+        {
+            cmp = (rows[a].index < rows[b].index) ? -1 : (rows[a].index > rows[b].index) ? 1 : 0;
+        }
+
+        return descending ? (cmp > 0) : (cmp < 0);
+    };
+
+
+
+    std::transform (lower.begin(), lower.end(), lower.begin(), [] (wchar_t c) { return (wchar_t) towlower (c); });
+
+    for (size_t i = 0; i < rows.size(); i++)
+    {
+        if (rows[i].array < 0 && matches (rows[i]))
+        {
+            simple.rows.push_back (i);
+        }
+    }
+
+    std::stable_sort (simple.rows.begin(), simple.rows.end(), less);
+
+    if (!simple.rows.empty())
+    {
+        sections.push_back (std::move (simple));
+    }
+
+    for (size_t a = 0; a < arrays.size(); a++)
+    {
+        arrayOrder.push_back (a);
+    }
+
+    std::stable_sort (arrayOrder.begin(), arrayOrder.end(), [&arrays, descending, byName] (size_t a, size_t b)
+    {
+        int  cmp = StrCmpLogicalW (arrays[a].name.c_str(), arrays[b].name.c_str());
+
+        return (descending && byName) ? (cmp > 0) : (cmp < 0);
+    });
+
+    for (size_t a : arrayOrder)
+    {
+        Section  section;
+        bool     whole = lower.empty() || Contains (arrays[a].name + arrays[a].dimensions, lower);
+
+        section.array = (int) a;
+
+        for (size_t i = 0; i < rows.size(); i++)
+        {
+            if (rows[i].array == (int) a && (whole || matches (rows[i])))
+            {
+                section.rows.push_back (i);
+            }
+        }
+
+        std::stable_sort (section.rows.begin(), section.rows.end(), less);
+
+        if (!section.rows.empty())
+        {
+            sections.push_back (std::move (section));
+        }
+    }
+
+    return sections;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplesoftVariables::Contains
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ApplesoftVariables::Contains (const std::wstring & text, const std::wstring & lowerFilter)
+{
+    std::wstring  lower = text;
+
+
+
+    std::transform (lower.begin(), lower.end(), lower.begin(), [] (wchar_t c) { return (wchar_t) towlower (c); });
+
+    return lower.find (lowerFilter) != std::wstring::npos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplesoftVariables::Compare
+//
+//  Text compares as File Explorer sorts files, any numbers in it in numeric
+//  order. Lengths compare as numbers, an empty length first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ApplesoftVariables::Compare (const VariableRow & a, const VariableRow & b, Column column)
+{
+    int  result = 0;
+
+
+
+    switch (column)
+    {
+        case Column::Type:    result = StrCmpLogicalW (a.type.c_str(),  b.type.c_str());   break;
+        case Column::Value:   result = StrCmpLogicalW (a.value.c_str(), b.value.c_str());  break;
+        case Column::Length:  result = (a.length.size() != b.length.size()) ? ((a.length.size() < b.length.size()) ? -1 : 1)
+                                                                            : a.length.compare (b.length);
+                              break;
+        case Column::Name:    result = StrCmpLogicalW (a.name.c_str(),  b.name.c_str());   break;
+    }
+
+    return result;
 }
 
 
@@ -310,6 +483,33 @@ ApplesoftVariables::Type ApplesoftVariables::GetType (Byte first, Byte second)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ApplesoftVariables::GetTypeName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * ApplesoftVariables::GetTypeName (Type type)
+{
+    const wchar_t *  name = L"Real";
+
+
+
+    switch (type)
+    {
+        case Type::Real:      name = L"Real";      break;
+        case Type::Integer:   name = L"Integer";   break;
+        case Type::String:    name = L"String";    break;
+        case Type::Function:  name = L"Function";  break;
+    }
+
+    return name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ApplesoftVariables::GetValueSize
 //
 //  The size of an array element. A simple variable's value takes five bytes
@@ -347,7 +547,7 @@ std::wstring ApplesoftVariables::FormatValue (Type type, std::span<const Byte> v
     {
         case Type::Integer:   text = std::to_wstring ((int16_t) ((value[0] << 8) | value[1]));  break;
         case Type::String:    text = FormatString (value, file, origin);                         break;
-        case Type::Function:  text = L"Function";                                                break;
+        case Type::Function:  text.clear();                                                      break;
         case Type::Real:
         default:              text = FormatReal (value);                                         break;
     }
