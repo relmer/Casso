@@ -219,6 +219,29 @@ namespace DebuggerTests
 
 
 
+        //  With the language card reading RAM, a peek reads the RAM and a
+        //  ROM peek reads the ROM banked under it.
+        TEST_METHOD (PeekRom_ReadsTheRomUnderLanguageCardRam)
+        {
+            TestMachine      machine ("Apple2e", TestMachine::Slots::DiskOnly);
+            DebugMemoryView  view (machine);
+            Byte             ram     = 0xFF;
+            Byte             rom     = 0;
+
+
+
+            machine.GetMemoryBus().ReadByte  (0xC083);
+            machine.GetMemoryBus().ReadByte  (0xC083);
+            machine.GetMemoryBus().WriteByte (0xD81D, 0x00);
+
+            Assert::IsTrue   (view.TryPeek    (0xD81D, ram));
+            Assert::IsTrue   (view.TryPeekRom (0xD81D, rom));
+            Assert::AreEqual ((Byte) 0x00, ram, L"the RAM banked in");
+            Assert::AreEqual ((Byte) 0x20, rom, L"Applesoft's JSR CHRGET under it");
+        }
+
+
+
         TEST_METHOD (Peek_ChangesNoSwitches)
         {
             TestMachine       machine ("Apple2e", TestMachine::Slots::DiskOnly);

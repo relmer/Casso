@@ -445,6 +445,32 @@ namespace DebuggerTests
         //  The rows are LIST's, row for row, from a program typed into the
         //  machine; stopped at line 30's breakpoint, the snapshot has line
         //  30 and the pointer on its first statement.
+        //  While ProDOS banks language card RAM over Applesoft, the program
+        //  is listed from memory, with no values read.
+        TEST_METHOD (TheProgramListsWhileRamIsBankedOverApplesoft)
+        {
+            MachineHandlerRig<BasicHandlers>  rig { "Apple2eEnhanced", TestMachine::Slots::Empty };
+            DebuggerViewSnapshot::BasicState  state;
+
+
+
+            MachineIdle::RunUntilIdle (rig.machine, 20'000'000);
+            GuestSession::TypeAndCollect (rig.machine, "10 PRINT 1");
+
+            rig.machine.GetMemoryBus().ReadByte  (0xC083);
+            rig.machine.GetMemoryBus().ReadByte  (0xC083);
+            rig.machine.GetMemoryBus().WriteByte (0xD81D, 0x00);
+
+            state = DebuggerViewState::ReadBasic (rig.session, true);
+
+            Assert::IsFalse  (BasicStopMonitor::IsApplesoftVisible (rig.session), L"RAM is banked over the ROM");
+            Assert::IsTrue   (state.isApplesoft && state.hasProgram);
+            Assert::AreEqual ((size_t) 1, state.lines.size());
+            Assert::IsFalse  (state.hasValues);
+        }
+
+
+
         TEST_METHOD (TheRowsAreWhatListPrints)
         {
             MachineHandlerRig<BasicHandlers>    rig { "Apple2eEnhanced", TestMachine::Slots::Empty };

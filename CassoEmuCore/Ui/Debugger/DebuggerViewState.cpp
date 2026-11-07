@@ -332,8 +332,11 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 //  Every read is a peek. A real is written by the ROM's own FOUT, run on an
 //  overlay, which costs a few hundred instructions a value, so the values
 //  are read only while the machine is stopped in a running program: with
-//  no program, the variable table's pointers can span most of memory. The
-//  text pointer is the statement's first token: at a statement's start
+//  no program, the variable table's pointers can span most of memory.
+//  While the language card banks RAM over Applesoft, as during ProDOS's
+//  calls, Applesoft is found in the ROM image and the program is listed,
+//  but no values are read, since FOUT would run whatever the RAM contains.
+//  The text pointer is the statement's first token: at a statement's start
 //  the loop has moved TXTPTR onto it, and elsewhere TXTPTR is on the byte
 //  before it.
 //
@@ -343,12 +346,14 @@ DebuggerViewSnapshot::BasicState DebuggerViewState::ReadBasic (DebugSession & se
 {
     DebuggerViewSnapshot::BasicState  state;
     ApplesoftProgram                  program ([&session] (Word address) { Byte value = 0; session.TryPeek (address, value); return value; });
-    Byte                              low     = 0;
-    Byte                              high    = 0;
+    Byte                              low       = 0;
+    Byte                              high      = 0;
+    bool                              isVisible = false;
 
 
 
-    state.isApplesoft = BasicStopMonitor::IsApplesoftVisible (session);
+    isVisible         = BasicStopMonitor::IsApplesoftVisible (session);
+    state.isApplesoft = isVisible || BasicStopMonitor::IsApplesoftInRom (session.GetTarget());
 
     if (!state.isApplesoft)
     {
@@ -361,7 +366,7 @@ DebuggerViewSnapshot::BasicState DebuggerViewState::ReadBasic (DebugSession & se
     state.hasProgram  = program.TryGetListing (state.lines);
     state.line        = program.IsAtPrompt (session.GetTarget().GetRegisters().sp) ? std::nullopt : program.GetCurrentLine();
     state.textPointer = (Word) ((low | (high << 8)) + (session.GetTarget().GetRegisters().pc == BasicStopMonitor::kStatement ? 0 : 1));
-    state.hasValues   = isPaused && state.hasProgram && state.line.has_value();
+    state.hasValues   = isPaused && isVisible && state.hasProgram && state.line.has_value();
 
     if (state.hasValues)
     {

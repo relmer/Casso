@@ -359,6 +359,50 @@ MemoryRegion DebugMemoryView::GetRegion (Word address) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugMemoryView::TryPeekRom
+//
+//  The ROM a language card banks $D000-$FFFF over, else any ROM device
+//  covering the address, even where the bus maps RAM or another device
+//  there first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugMemoryView::TryPeekRom (Word address, Byte & value) const
+{
+    LanguageCard  * lc = m_host.GetRefs().languageCard;
+
+
+
+    value = 0;
+
+    if (lc != nullptr && address >= kLcFirst)
+    {
+        value = lc->ReadRom (address);
+        return true;
+    }
+
+    for (const BusEntry & entry : m_host.GetMemoryBus().GetEntries())
+    {
+        const RomDevice  * rom = dynamic_cast<const RomDevice *> (entry.device);
+
+
+
+        if (rom != nullptr && address >= entry.start && address <= entry.end)
+        {
+            value = rom->GetData()[address - entry.start];
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugMemoryView::TryPeekRomDevice
 //
 //  The first bus entry covering address answers only if it is a ROM device,

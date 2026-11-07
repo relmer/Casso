@@ -3,6 +3,7 @@
 #include "Debugger/Basic/BasicStopMonitor.h"
 #include "Debugger/BreakpointTable.h"
 #include "Debugger/IDebugExpressionContext.h"
+#include "Debugger/IDebugTarget.h"
 
 
 
@@ -20,11 +21,49 @@ static constexpr int   kMaxMessage   = 32;
 //
 //  BasicStopMonitor::IsApplesoftVisible
 //
+////////////////////////////////////////////////////////////////////////////////
+
+bool BasicStopMonitor::IsApplesoftVisible (const IDebugExpressionContext & context)
+{
+    return IsApplesoftIn (MakePeek (context));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicStopMonitor::IsApplesoftInRom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BasicStopMonitor::IsApplesoftInRom (const IDebugTarget & target)
+{
+    return IsApplesoftIn ([&target] (Word address)
+    {
+        Byte  value = 0;
+
+
+
+        target.TryPeekRom (address, value);
+        return value;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicStopMonitor::IsApplesoftIn
+//
 //  JSR CHRGET, JSR the statement dispatcher, at the statement entry.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BasicStopMonitor::IsApplesoftVisible (const IDebugExpressionContext & context)
+bool BasicStopMonitor::IsApplesoftIn (const Peek & peek)
 {
     static constexpr Byte  kEntry[] = { 0x20, 0xB1, 0x00, 0x20, 0x28, 0xD8 };
     bool                   isSame   = true;
@@ -33,11 +72,7 @@ bool BasicStopMonitor::IsApplesoftVisible (const IDebugExpressionContext & conte
 
     for (size_t i = 0; i < std::size (kEntry) && isSame; i++)
     {
-        Byte  value = 0;
-
-
-
-        isSame = context.TryPeek ((Word) (kSignature + i), value) && value == kEntry[i];
+        isSame = peek ((Word) (kSignature + i)) == kEntry[i];
     }
 
     return isSame;

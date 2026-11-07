@@ -8,6 +8,7 @@
 
 class BreakpointTable;
 class IDebugExpressionContext;
+class IDebugTarget;
 
 
 
@@ -87,6 +88,10 @@ public:
     //  enhanced //e and //c ROMs; false while the $D000 bank has other code.
     static bool  IsApplesoftVisible (const IDebugExpressionContext & context);
 
+    //  The same test of the ROM image, true too while the language card
+    //  banks RAM over Applesoft, as ProDOS does during its calls.
+    static bool  IsApplesoftInRom   (const IDebugTarget & target);
+
     //  The pages the enabled entries are tested on.
     void  MarkPages            (DebugHookFilter::Table & pages) const;
     void  ForgetDisabledValues ();
@@ -134,6 +139,7 @@ private:
     bool  IsStepDone   (bool isLine, const IDebugExpressionContext & context) const;
 
     static Peek         MakePeek        (const IDebugExpressionContext & context);
+    static bool         IsApplesoftIn   (const Peek & peek);
     static bool         IsLineStart     (Word line, const IDebugExpressionContext & context);
     static std::string  FormatBytes     (const ApplesoftProgram & program, BasicType type, const std::vector<Byte> & bytes);
     static std::string  GetErrorMessage (Byte code, const IDebugExpressionContext & context);

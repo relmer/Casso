@@ -100,6 +100,10 @@ public:
     //  (MemoryBus::TryPeekIo). TryPeek, and so every memory pane, never
     //  reads I/O; only the trial run of the PC's instruction calls this.
     virtual bool                TryPeekIo         (Word address, Byte & value) const { (void) address; value = 0; return false; }
+
+    //  A byte of the ROM image at the address, whatever the bank switches
+    //  map there now; false where no ROM covers it.
+    virtual bool                TryPeekRom        (Word address, Byte & value) const { (void) address; value = 0; return false; }
     virtual bool                TryPoke           (Word address, Byte value) = 0;
 
     //  Everything TryPeek and GetRegion would answer, all at once. A target

@@ -38,6 +38,7 @@ public:
 
     bool                TryPeek           (Word address, Byte & value) const override;
     bool                TryPeekIo         (Word address, Byte & value) const override;
+    bool                TryPeekRom        (Word address, Byte & value) const override;
     bool                TryPoke           (Word address, Byte value) override;
     bool                TryPatch          (Word address, Byte value) override;
     MemoryRegion        GetRegion         (Word address) const override;
