@@ -156,7 +156,6 @@ void BrowserPreviewer::PreviewAppleEntry (const std::string & entryPath, const F
     std::string   message;
     int           slot        = 0;
     int           drive       = 0;
-    bool          disassemble = m_browser.m_model.HasTabs() && m_browser.m_model.GetActiveTab().disassemble;
 
 
 
@@ -171,7 +170,7 @@ void BrowserPreviewer::PreviewAppleEntry (const std::string & entryPath, const F
 
     if (SUCCEEDED (hr))
     {
-        hr = PreviewDecoder::Render (entry, m_browser.m_kind, payload, disassemble, m_bus, m_preview, m_previewMonitor, m_customArgb);
+        hr = PreviewDecoder::Render (entry, m_browser.m_kind, payload, GetHexForm (m_browser.GetLocation().path + L"|" + TextEncoding::NarrowToWide (entryPath)), m_bus, m_preview, m_previewMonitor, m_customArgb);
     }
 
     if (FAILED (hr) && m_preview.message.empty())
@@ -187,19 +186,38 @@ void BrowserPreviewer::PreviewAppleEntry (const std::string & entryPath, const F
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BrowserPreviewer::SetDisassemble
+//  BrowserPreviewer::SetHexForm
+//
+//  The form applies to the file previewed now. Another file opens in its
+//  default form.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BrowserPreviewer::SetDisassemble (bool disassemble)
+void BrowserPreviewer::SetHexForm (PreviewDecoder::HexForm form)
 {
-    if (!m_browser.m_model.HasTabs())
+    m_hexForm = form;
+    UpdatePreview();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::GetHexForm
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PreviewDecoder::HexForm BrowserPreviewer::GetHexForm (const std::wstring & fileKey)
+{
+    if (fileKey != m_hexFormKey)
     {
-        return;
+        m_hexFormKey = fileKey;
+        m_hexForm    = PreviewDecoder::HexForm::Auto;
     }
 
-    m_browser.m_model.GetActiveTab().disassemble = disassemble;
-    UpdatePreview();
+    return m_hexForm;
 }
 
 
@@ -1172,7 +1190,6 @@ void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::
     DiskOperations::Result  result;
     FilePayload             payload;
     HRESULT                 hr          = S_OK;
-    bool                    disassemble = m_browser.m_model.HasTabs() && m_browser.m_model.GetActiveTab().disassemble;
 
 
 
@@ -1191,7 +1208,7 @@ void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::
         return;
     }
 
-    hr = PreviewDecoder::Render (entry, kind, payload, disassemble, m_bus, m_preview, m_previewMonitor, m_customArgb);
+    hr = PreviewDecoder::Render (entry, kind, payload, GetHexForm (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath)), m_bus, m_preview, m_previewMonitor, m_customArgb);
 
     //  A double hi-res picture's monitor follows its form, which is known once
     //  it is decoded.

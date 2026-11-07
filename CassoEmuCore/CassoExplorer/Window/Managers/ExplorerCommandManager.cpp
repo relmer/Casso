@@ -196,7 +196,8 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kBack:              return model.HasTabs() && model.CanGoBack();
         case CassoExplorerCommands::kForward:           return model.HasTabs() && model.CanGoForward();
         case CassoExplorerCommands::kUp:                return m_context.browser.CanGoUp();
-        case CassoExplorerCommands::kToggleDisassembly: return model.HasTabs() && m_context.browser.GetPreview().kind == PreviewContent::Kind::Hex && m_context.browser.GetPreview().hostPath.empty();
+        case CassoExplorerCommands::kShowDisassembly:
+        case CassoExplorerCommands::kShowBytes:         return model.HasTabs() && m_context.browser.GetPreview().kind == PreviewContent::Kind::Hex && m_context.browser.GetPreview().hostPath.empty();
         case CassoExplorerCommands::kLineAddresses:     return m_context.preview.GetBarMode() == CassoExplorerCommands::kPreviewBarListing;
         case CassoExplorerCommands::kPictureMonochrome:
         case CassoExplorerCommands::kPictureColor:      return m_context.browser.CanTogglePictureColor();
@@ -292,7 +293,8 @@ bool ExplorerCommandManager::IsChecked (int id) const
         case CassoExplorerCommands::kGroupAscending:    return model.HasTabs() && !model.GetActiveTab().groupDescending;
         case CassoExplorerCommands::kGroupDescending:   return model.HasTabs() && model.GetActiveTab().groupDescending;
         case CassoExplorerCommands::kLineAddresses:     return m_context.prefs.lineAddresses;
-        case CassoExplorerCommands::kToggleDisassembly: return model.HasTabs() && model.GetActiveTab().disassemble;
+        case CassoExplorerCommands::kShowDisassembly:   return m_context.browser.GetPreview().disassembly;
+        case CassoExplorerCommands::kShowBytes:         return m_context.browser.GetPreview().kind == PreviewContent::Kind::Hex && !m_context.browser.GetPreview().disassembly;
         case CassoExplorerCommands::kThemeLight:        return m_context.prefs.theme == CassoExplorerPrefs::kThemeLight;
         case CassoExplorerCommands::kThemeDark:         return m_context.prefs.theme == CassoExplorerPrefs::kThemeDark;
         case CassoExplorerCommands::kThemeSystem:       return m_context.prefs.theme != CassoExplorerPrefs::kThemeLight && m_context.prefs.theme != CassoExplorerPrefs::kThemeDark
@@ -512,13 +514,14 @@ void ExplorerCommandManager::Dispatch (int id)
             m_context.layout.RecomputeLayout();
             break;
 
-        case CassoExplorerCommands::kToggleDisassembly:
-            if (m_context.browser.GetBrowserModel().HasTabs())
-            {
-                m_context.browser.SetDisassemble (!m_context.browser.GetBrowserModel().GetActiveTab().disassemble);
-                m_context.preview.FillPreview();
-            }
+        case CassoExplorerCommands::kShowDisassembly:
+            m_context.browser.SetHexForm (PreviewDecoder::HexForm::Disassembly);
+            m_context.preview.FillPreview();
+            break;
 
+        case CassoExplorerCommands::kShowBytes:
+            m_context.browser.SetHexForm (PreviewDecoder::HexForm::Bytes);
+            m_context.preview.FillPreview();
             break;
 
         case CassoExplorerCommands::kThemeLight:         m_context.themes.Select (CassoExplorerPrefs::kThemeLight);         break;

@@ -999,7 +999,7 @@ public:
         text.bytes.assign (words.begin(), words.end());
         text.textForm = PayloadTextForm::CpmRecords;
 
-        AssertSucceeded (PreviewDecoder::Render (entry, VolumeKind::Cpm, text, false, bus, content));
+        AssertSucceeded (PreviewDecoder::Render (entry, VolumeKind::Cpm, text, PreviewDecoder::HexForm::Auto, bus, content));
 
         Assert::IsTrue (content.kind == PreviewContent::Kind::Text);
         Assert::AreEqual ((size_t) 2, content.lines.size());
@@ -1008,7 +1008,7 @@ public:
         program.bytes    = { 0xC3, 0x67, 0x09, 0xC9, 0x00 };
         program.textForm = PayloadTextForm::CpmRecords;
 
-        AssertSucceeded (PreviewDecoder::Render (entry, VolumeKind::Cpm, program, false, bus, content));
+        AssertSucceeded (PreviewDecoder::Render (entry, VolumeKind::Cpm, program, PreviewDecoder::HexForm::Auto, bus, content));
 
         Assert::IsTrue (content.kind == PreviewContent::Kind::Hex);
     }

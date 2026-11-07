@@ -66,6 +66,41 @@ public:
 
 
 
+    TEST_METHOD (DisassemblyRows_HaveTheirAddressBytesAndInstructionColored)
+    {
+        PreviewContent                  preview;
+        SourceSyntax::Colors            colors;
+        std::vector<DxuiTextView::Row>  rows;
+        std::wstring                    line = L"2000  A9 01     LDA #$01";
+        std::vector<std::wstring>       colored;
+
+        preview.kind        = PreviewContent::Kind::Hex;
+        preview.disassembly = true;
+        preview.lines       = { line };
+
+        colors.mnemonic = 0xFF000001;
+        colors.number   = 0xFF000003;
+        colors.address  = 0xFF000005;
+        colors.bytes    = 0xFF000006;
+
+        rows = PreviewText::BuildTextRows (preview, false, colors);
+
+        Assert::AreEqual ((size_t) 1, rows.size());
+        Assert::AreEqual (line, rows[0].cells[0]);
+
+        for (const DxuiTextView::Span & span : rows[0].spans)
+        {
+            colored.push_back (std::format (L"{:X}:{}", span.argb & 0xFF, line.substr ((size_t) span.start, (size_t) span.length)));
+        }
+
+        Assert::IsTrue (std::ranges::find (colored, std::wstring (L"5:2000"))       != colored.end(), L"The address in its color");
+        Assert::IsTrue (std::ranges::find (colored, std::wstring (L"6:A9 01     ")) != colored.end(), L"the bytes in theirs");
+        Assert::IsTrue (std::ranges::find (colored, std::wstring (L"1:LDA"))        != colored.end(), L"and the mnemonic in the mnemonic color");
+        Assert::IsTrue (PreviewText::BuildTextRows (preview, false)[0].spans.empty(), L"Without colors, no spans");
+    }
+
+
+
     //  Visual Studio's dark code colors on a dark background, a listing's
     //  columns in the muted text color, and none without a theme.
     TEST_METHOD (SourceColors_OnADarkBackground_AreVisualStudiosDark)

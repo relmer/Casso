@@ -37,7 +37,6 @@ public:
         tab.groupBy         = RowGrouping::Field::Type;
         tab.groupDescending = true;
         tab.previewScroll   = 37;
-        tab.disassemble     = true;
 
         return tab;
     }
@@ -102,7 +101,6 @@ public:
         Assert::IsTrue   (tab.groupBy == RowGrouping::Field::Type);
         Assert::IsTrue   (tab.groupDescending);
         Assert::AreEqual (37, tab.previewScroll);
-        Assert::IsTrue   (tab.disassemble);
     }
 
 

@@ -99,6 +99,21 @@ bool PreviewDecoder::IsBinaryType (Byte type, VolumeKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewDecoder::IsExecutableType
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDecoder::IsExecutableType (Byte type, VolumeKind kind)
+{
+    return IsBinaryType (type, kind) || (kind == VolumeKind::ProDos && type == ProDosVolume::kTypeSystem);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewDecoder::GetNmosTable
 //
 //  One CPU for the process, so the table's register pointers stay valid; the
@@ -496,7 +511,7 @@ HRESULT PreviewDecoder::Render (
     const FileEntry    & entry,
     VolumeKind           kind,
     const FilePayload  & payload,
-    bool                 disassemble,
+    HexForm              hexForm,
     MemoryBus          & bus,
     PreviewContent     & outContent,
     PicturePreview::Monitor  monitor,
@@ -610,9 +625,15 @@ HRESULT PreviewDecoder::Render (
             break;
 
         case PreviewContent::Kind::Hex:
-            if (disassemble)
+            if (kind == VolumeKind::ProDos && entry.type == ProDosVolume::kTypeSystem && !payload.hasLoadAddress)
+            {
+                origin = s_kSystemLoadAddress;
+            }
+
+            if (hexForm == HexForm::Disassembly || (hexForm == HexForm::Auto && IsExecutableType (entry.type, kind)))
             {
                 RenderDisassembly (payload.bytes, origin, GetNmosTable(), outContent.lines);
+                outContent.disassembly = true;
             }
             else
             {

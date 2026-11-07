@@ -30,7 +30,7 @@ public:
         kExit = 100,
         kRefresh,
         kTogglePreview,
-        kToggleDisassembly,
+        kShowDisassembly,
         kThemeLight,
         kThemeDark,
         kThemeSystem,
@@ -144,6 +144,10 @@ public:
 
         //  A search's results by relevance, on the Sort menu only there.
         kSortByRelevance,
+
+        //  A hex preview's bytes in hex, the other form of the preview from
+        //  kShowDisassembly.
+        kShowBytes,
 
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
@@ -304,7 +308,8 @@ private:
         { kRefresh,           Menu::View, L"&Refresh",            L"F5",       false },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kTogglePreview,     Menu::View, L"&Preview pane",       L"Alt+P",    true  },
-        { kToggleDisassembly, Menu::View, L"&Disassemble binary", nullptr,     true  },
+        { kShowDisassembly,   Menu::View, L"&Disassembly",        nullptr,     true  },
+        { kShowBytes,         Menu::View, L"&Bytes",              nullptr,     true  },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kZoomIn,            Menu::View, L"Zoom &in",            L"Ctrl++",   false },
         { kZoomOut,           Menu::View, L"Zoom &out",           L"Ctrl+-",   false },
@@ -459,7 +464,8 @@ private:
     static constexpr ToolbarRow  kPreviewToolbarRows[] =
     {
         { kLineAddresses,     DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Tag,       L"Show address",  L"Show where each line starts in memory"                   },
-        { kToggleDisassembly, DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Code,      L"Disassemble",   L"Show the bytes as 6502 instructions"                    },
+        { kShowDisassembly,   DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Disassembly",   L"Show the bytes as 6502 instructions",                    true },
+        { kShowBytes,         DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Bytes",         L"Show the bytes in hex",                                  true },
         //  The Go to and search boxes, which the host supplies as custom entries.
         { kGoToOffset,        DxuiToolbar::Kind::Command, 0, nullptr,             L"Go to",         L""                                                       },
         { kFind,              DxuiToolbar::Kind::Command, 1, nullptr,             L"Search",        L"",                                                       false, true },

@@ -849,9 +849,15 @@ public:
 
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"ODD") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Hex);
+        Assert::IsTrue (host.browser.GetPreview().disassembly, L"A binary file opens as a disassembly");
 
-        host.browser.SetDisassemble (true);
-        Assert::IsFalse (host.browser.GetPreview().lines.empty());
+        host.browser.SetHexForm (PreviewDecoder::HexForm::Bytes);
+        Assert::IsFalse (host.browser.GetPreview().disassembly);
+        Assert::IsFalse (host.browser.GetPreview().bytes.empty());
+
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"HELLO") });
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"ODD") });
+        Assert::IsTrue (host.browser.GetPreview().disassembly, L"and opens so again after another file");
     }
 
 

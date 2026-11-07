@@ -205,7 +205,7 @@ public:
     //  A shell preview that failed or took too long is replaced by the file's
     //  bytes.
     void  ShowShellPreviewBytes () { m_previewer.ShowShellPreviewBytes(); }
-    void  SetDisassemble        (bool disassemble) { m_previewer.SetDisassemble (disassemble); }
+    void  SetHexForm            (PreviewDecoder::HexForm form) { m_previewer.SetHexForm (form); }
 
     const std::vector<CatalogRow>  & GetRows    () const { return m_rows;      }
     const PreviewContent           & GetPreview () const { return m_previewer.m_preview;   }

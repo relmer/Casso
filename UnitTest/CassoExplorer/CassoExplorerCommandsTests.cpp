@@ -164,7 +164,7 @@ public:
         CassoExplorerCommands  commands ({});
 
         Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarListing) == std::vector<int> { CassoExplorerCommands::kLineAddresses });
-        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarHex)     == std::vector<int> { CassoExplorerCommands::kToggleDisassembly, CassoExplorerCommands::kGoToOffset, CassoExplorerCommands::kFind });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarHex)     == std::vector<int> { CassoExplorerCommands::kShowDisassembly, CassoExplorerCommands::kShowBytes, CassoExplorerCommands::kGoToOffset, CassoExplorerCommands::kFind });
         Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarPicture) == std::vector<int> { CassoExplorerCommands::kPictureMonochrome, CassoExplorerCommands::kPictureColor, CassoExplorerCommands::kSavePicture });
         Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarSave)    == std::vector<int> { CassoExplorerCommands::kSavePicture });
         Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarNone).empty());

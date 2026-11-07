@@ -93,7 +93,7 @@ public:
 
 
 
-    static void RenderDos33 (const char * name, bool disassemble, PreviewContent & outContent)
+    static void RenderDos33 (const char * name, PreviewDecoder::HexForm hexForm, PreviewContent & outContent)
     {
         vector<Byte>         sectors;
         VolumeListing        listing;
@@ -112,7 +112,7 @@ public:
         bus.AddDevice (&device);
 
         AssertSucceeded (PreviewDecoder::Render (FindEntry (listing, name), VolumeKind::Dos33, payload,
-                                                 disassemble, bus, outContent));
+                                                 hexForm, bus, outContent));
     }
 
 
@@ -121,32 +121,32 @@ public:
     {
         PreviewContent  content;
 
-        RenderDos33 ("HELLO", false, content);
+        RenderDos33 ("HELLO", PreviewDecoder::HexForm::Auto, content);
         Assert::IsTrue (content.kind == Kind::Listing);
         Assert::AreEqual (std::wstring (L"10  PRINT \"HELLO, CASSQUE\""), content.lines[0]);
 
-        RenderDos33 ("INTPROG", false, content);
+        RenderDos33 ("INTPROG", PreviewDecoder::HexForm::Auto, content);
         Assert::IsTrue (content.kind == Kind::Listing);
         Assert::AreEqual (std::wstring (L"15 DSP I"), content.lines[1]);
 
         //  Text is lines, the high bit cleared.
-        RenderDos33 ("NOTES", false, content);
+        RenderDos33 ("NOTES", PreviewDecoder::HexForm::Auto, content);
         Assert::IsTrue (content.kind == Kind::Text);
         Assert::IsTrue (!content.lines.empty() && content.lines[0].starts_with (L"C"),
             L"The first line is the file's, without the high bit Apple text uses");
 
-        RenderDos33 ("PICTURE", false, content);
+        RenderDos33 ("PICTURE", PreviewDecoder::HexForm::Auto, content);
         Assert::IsTrue (content.kind == Kind::Picture);
         Assert::AreEqual (PicturePreview::kWidth,  content.width);
         Assert::AreEqual (PicturePreview::kHeight, content.height);
 
-        RenderDos33 ("LORES", false, content);
+        RenderDos33 ("LORES", PreviewDecoder::HexForm::Auto, content);
         Assert::IsTrue (content.kind == Kind::Picture);
 
-        RenderDos33 ("DHIRES", false, content);
+        RenderDos33 ("DHIRES", PreviewDecoder::HexForm::Auto, content);
         Assert::IsTrue (content.kind == Kind::Picture);
 
-        RenderDos33 ("ODD", false, content);
+        RenderDos33 ("ODD", PreviewDecoder::HexForm::Auto, content);
         Assert::IsTrue (content.kind == Kind::Hex);
     }
 
@@ -352,7 +352,7 @@ public:
 
         //  The failing device is attached inside RenderDos33; reaching here
         //  at all proves the bus was never read.
-        RenderDos33 ("PICTURE", false, content);
+        RenderDos33 ("PICTURE", PreviewDecoder::HexForm::Auto, content);
 
         Assert::AreEqual ((size_t) PicturePreview::kWidth * PicturePreview::kHeight, content.bgra.size());
 
@@ -370,7 +370,7 @@ public:
     {
         PreviewContent  content;
 
-        RenderDos33 ("ODD", false, content);
+        RenderDos33 ("ODD", PreviewDecoder::HexForm::Bytes, content);
 
         //  The bytes are passed unchanged, for a view that draws only the
         //  visible rows, rather than rendered into lines of text here.
@@ -383,13 +383,15 @@ public:
 
 
 
-    TEST_METHOD (Hex_DisassemblyToggleRendersMnemonicRows)
+    TEST_METHOD (Hex_ABinaryFileOpensAsADisassembly)
     {
         PreviewContent  content;
 
-        RenderDos33 ("ODD", true, content);
+        RenderDos33 ("ODD", PreviewDecoder::HexForm::Auto, content);
 
         Assert::IsTrue (content.kind == Kind::Hex);
+        Assert::IsTrue (content.disassembly);
+        Assert::IsTrue (content.bytes.empty());
         Assert::IsTrue (!content.lines.empty());
         Assert::IsTrue (content.lines[0].rfind (L"0803  ", 0) == 0, L"the first line sits at the load address");
     }
@@ -436,7 +438,7 @@ public:
         applesoft.bytes[1] = 0x55;
 
         AssertSucceeded (PreviewDecoder::Render (FindEntry (listing, "HELLO"), VolumeKind::Dos33, applesoft,
-                                                 false, bus, content));
+                                                 PreviewDecoder::HexForm::Auto, bus, content));
 
         Assert::IsTrue  (content.kind == Kind::Error);
         Assert::IsTrue  (content.lines.empty());
@@ -446,7 +448,7 @@ public:
         integer.bytes.resize (integer.bytes.size() - 2);
 
         AssertSucceeded (PreviewDecoder::Render (FindEntry (listing, "INTPROG"), VolumeKind::Dos33, integer,
-                                                 false, bus, content));
+                                                 PreviewDecoder::HexForm::Auto, bus, content));
 
         Assert::IsTrue   (content.kind == Kind::Error);
         Assert::AreEqual (integer.bytes.size() - 3, content.offset, L"the offset of the line that was cut");

@@ -270,7 +270,6 @@ JsonValue CassoExplorerSession::TabToJson (const BrowserModel::Tab & tab)
     fields.emplace_back ("groupBy",         JsonValue ((double) tab.groupBy));
     fields.emplace_back ("groupDescending", JsonValue (tab.groupDescending));
     fields.emplace_back ("previewScroll",   JsonValue ((double) tab.previewScroll));
-    fields.emplace_back ("disassemble",     JsonValue (tab.disassemble));
 
     return JsonValue (std::move (fields));
 }
@@ -310,8 +309,7 @@ bool CassoExplorerSession::TryTabFromJson (const JsonValue & value, BrowserModel
         && value.HasBool ("sortDescending",  tab.sortDescending)
         && value.HasInt  ("groupBy",         group)
         && value.HasBool ("groupDescending", tab.groupDescending)
-        && value.HasInt  ("previewScroll",   tab.previewScroll)
-        && value.HasBool ("disassemble",     tab.disassemble);
+        && value.HasInt  ("previewScroll",   tab.previewScroll);
 
     //  A sort by a shell property or by relevance is past the fixed columns; a
     //  column no longer known falls back to Name when the folder's view is

@@ -105,6 +105,9 @@ struct PreviewContent
     //  numbers.
     bool                       source = false;
 
+    //  Set for a hex preview rendered as 6502 instructions in `lines`.
+    bool                       disassembly = false;
+
     //  A picture's mode, as chosen and as drawn, with its bytes in `bytes` and
     //  its load address in `origin`, so it can be drawn again for another
     //  monitor, or a double hi-res picture the other way, without a read.
@@ -134,22 +137,31 @@ struct PreviewContent
 //  as a hex dump.
 //
 //  A hex preview contains the payload's bytes and their start address, and
-//  the hex view reads them directly; the disassembly toggle renders the same
-//  bytes through the NMOS table from the same address into lines.
+//  the hex view reads them directly. A disassembly renders the same bytes
+//  through the NMOS table from the same address into lines. An executable
+//  file opens as a disassembly, and any other binary as bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class PreviewDecoder
 {
 public:
+    //  How a hex preview is drawn: Auto is a disassembly for an executable
+    //  file and bytes for any other.
+    enum class HexForm { Auto, Bytes, Disassembly };
+
     static PreviewContent::Kind  Decide (const FileEntry & entry, VolumeKind kind, size_t byteCount, Word loadAddress, bool hasLoadAddress);
+
+    //  Whether a file's type marks it as 6502 code: a DOS 3.3 B file, or a
+    //  ProDOS BIN or SYS file.
+    static bool  IsExecutableType (Byte type, VolumeKind kind);
 
     //  The whole preview for one file's payload. `bus` is handed to the video
     //  modes and never read; a test proves it with a bus that fails on read.
     static HRESULT  Render (const FileEntry    & entry,
                             VolumeKind           kind,
                             const FilePayload  & payload,
-                            bool                 disassemble,
+                            HexForm              hexForm,
                             MemoryBus          & bus,
                             PreviewContent     & outContent,
                             PicturePreview::Monitor  monitor    = PicturePreview::Monitor::Color,
@@ -200,7 +212,11 @@ private:
     static bool          IsCutOff              (const ApplesoftListingError & error);
     static std::wstring  DescribeCutOff        (const ApplesoftListingError & error);
 
-    static constexpr size_t  s_kTextSampleBytes = 4096;
+    static constexpr size_t  s_kTextSampleBytes   = 4096;
+
+    //  Where ProDOS loads a SYS file. A SYS file's directory entry doesn't have a
+    //  load address.
+    static constexpr Word    s_kSystemLoadAddress = 0x2000;
 
     static constexpr const wchar_t *  s_kMonths[12] =
     {

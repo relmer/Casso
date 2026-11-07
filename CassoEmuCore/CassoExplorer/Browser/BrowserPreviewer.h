@@ -76,7 +76,7 @@ public:
     static constexpr uintmax_t  s_kArchiveProbeMaxBytes = 64ull * 1024 * 1024;
 
     void  ShowShellPreviewBytes ();
-    void  SetDisassemble        (bool disassemble);
+    void  SetHexForm            (PreviewDecoder::HexForm form);
 
     void                     SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb = PicturePreview::kDefaultCustomArgb);
 
@@ -112,10 +112,17 @@ public:
 private:
     friend class CassoExplorerBrowser;
 
+    //  The form for a file, Auto when it isn't the file previewed last.
+    PreviewDecoder::HexForm  GetHexForm (const std::wstring & fileKey);
+
     CassoExplorerBrowser  & m_browser;
 
     MemoryBus                           m_bus;
     PicturePreview::Monitor             m_previewMonitor = PicturePreview::Monitor::Color;
     uint32_t                            m_customArgb     = PicturePreview::kDefaultCustomArgb;
     PreviewContent                      m_preview;
+
+    //  The form of the file previewed now, which another file resets.
+    PreviewDecoder::HexForm             m_hexForm        = PreviewDecoder::HexForm::Auto;
+    std::wstring                        m_hexFormKey;
 };

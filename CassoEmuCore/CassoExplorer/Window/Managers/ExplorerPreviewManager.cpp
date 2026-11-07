@@ -217,7 +217,7 @@ void ExplorerPreviewManager::FillPreview()
     bool                    opened   = m_hex.OpenHostFile (preview, charset);
     bool                    error    = preview.kind == PreviewContent::Kind::Error || (hostFile && !opened);
     bool                    hex      = preview.kind == PreviewContent::Kind::Hex && (!preview.bytes.empty() || opened);
-    bool                    disasm   = preview.kind == PreviewContent::Kind::Hex && preview.bytes.empty() && !preview.lines.empty();
+    bool                    disasm   = preview.kind == PreviewContent::Kind::Hex && preview.disassembly;
     bool                    columns  = preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty();
     bool                    program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
     bool                    forms    = picture && m_context.browser.CanTogglePictureColor();

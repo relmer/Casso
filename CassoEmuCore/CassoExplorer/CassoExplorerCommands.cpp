@@ -41,7 +41,8 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
         command->radio       = (row.id >= kSortByColumn) || (row.id == kSortByRelevance) || (row.id >= kSortAscending && row.id <= kSortDescending)
                             || (row.id >= kGroupAscending && row.id <= kGroupDescending)
                             || (row.id >= kThemeLight && row.id <= kThemeRetroTerminal)
-                            || (row.id >= kPictureMonochrome && row.id <= kPictureColor);
+                            || (row.id >= kPictureMonochrome && row.id <= kPictureColor)
+                            || row.id == kShowDisassembly || row.id == kShowBytes;
 
         command->dispatch = [this, id]()
         {
@@ -455,18 +456,20 @@ const DxuiVectorIcon * CassoExplorerCommands::GetCommandBarIcon (int id)
 {
     switch (id)
     {
-        case kNew:           return &CassoExplorerIcons::s_kNew;
-        case kCutItems:      return &CassoExplorerIcons::s_kCut;
-        case kCopyItems:     return &CassoExplorerIcons::s_kCopy;
-        case kPasteItems:    return &CassoExplorerIcons::s_kPaste;
-        case kRenameItem:    return &CassoExplorerIcons::s_kRename;
-        case kShareItems:    return &CassoExplorerIcons::s_kShare;
-        case kDeleteItems:   return &CassoExplorerIcons::s_kDelete;
-        case kSort:          return &CassoExplorerIcons::s_kSort;
-        case kView:          return &CassoExplorerIcons::s_kView;
-        case kTogglePreview: return &CassoExplorerIcons::s_kPreview;
-        case kTheme:         return &CassoExplorerIcons::s_kTheme;
-        default:             return nullptr;
+        case kNew:             return &CassoExplorerIcons::s_kNew;
+        case kCutItems:        return &CassoExplorerIcons::s_kCut;
+        case kCopyItems:       return &CassoExplorerIcons::s_kCopy;
+        case kPasteItems:      return &CassoExplorerIcons::s_kPaste;
+        case kRenameItem:      return &CassoExplorerIcons::s_kRename;
+        case kShareItems:      return &CassoExplorerIcons::s_kShare;
+        case kDeleteItems:     return &CassoExplorerIcons::s_kDelete;
+        case kSort:            return &CassoExplorerIcons::s_kSort;
+        case kView:            return &CassoExplorerIcons::s_kView;
+        case kTogglePreview:   return &CassoExplorerIcons::s_kPreview;
+        case kTheme:           return &CassoExplorerIcons::s_kTheme;
+        case kShowDisassembly: return &CassoExplorerIcons::s_kDisassembly;
+        case kShowBytes:       return &CassoExplorerIcons::s_kBytes;
+        default:               return nullptr;
     }
 }
 
@@ -572,13 +575,15 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntrie
             continue;
         }
 
-        entry.command  = Find (row.id);
-        entry.kind     = row.kind;
-        entry.group    = row.group;
-        entry.trailing = row.trailing;
-        entry.custom   = (row.id == kFind)       ? search
-                       : (row.id == kGoToOffset) ? goTo
-                                                 : nullptr;
+        entry.command    = Find (row.id);
+        entry.kind       = row.kind;
+        entry.group      = row.group;
+        entry.trailing   = row.trailing;
+        entry.iconOnly   = row.iconOnly;
+        entry.vectorIcon = GetCommandBarIcon (row.id);
+        entry.custom     = (row.id == kFind)       ? search
+                         : (row.id == kGoToOffset) ? goTo
+                                                   : nullptr;
 
         entries.push_back (std::move (entry));
     }

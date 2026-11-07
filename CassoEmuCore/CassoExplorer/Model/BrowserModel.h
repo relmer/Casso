@@ -21,9 +21,8 @@ enum class VolumeKind;
 //
 //  Every tab the window holds and what each one is looking at: its location,
 //  the history behind and ahead of it, what is selected, how the list is
-//  sorted, where the preview is scrolled, and whether the hex view is
-//  disassembling. Preview-pane visibility is not here; it is one setting
-//  for the window.
+//  sorted and where the preview is scrolled. Preview-pane visibility is not
+//  here; it is one setting for the window.
 //
 //  Each tab keeps the last catalog it read, so switching back to a tab does
 //  not re-read a disk nothing wrote to. A write invalidates the cache in
@@ -48,7 +47,6 @@ public:
         bool                       previewOpen     = false;
         int                        listTopRow      = 0;
         int                        treeTopRow      = -1;
-        bool                       disassemble     = false;
 
         //  The cached catalog and the image it belongs to.
         bool                       hasCatalog     = false;

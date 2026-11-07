@@ -160,6 +160,28 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
             rows.push_back (std::move (row));
         }
     }
+    else if (preview.disassembly)
+    {
+        //  A disassembled line is its address, its bytes and its instruction
+        //  at fixed columns, colored as the debugger colors them.
+        for (const std::wstring & line : preview.lines)
+        {
+            DxuiTextView::Row  row { { line } };
+
+            if (colors.mnemonic != 0 && line.size() > s_kInstructionColumn)
+            {
+                row.spans.push_back ({ 0, 0, (int) s_kAddressDigits, colors.address });
+                row.spans.push_back ({ 0, (int) s_kBytesColumn, (int) (s_kInstructionColumn - s_kBytesColumn), colors.bytes });
+
+                for (const SourceSyntax::Run & run : SourceSyntax::GetInstructionRuns (line.substr (s_kInstructionColumn)))
+                {
+                    row.spans.push_back ({ 0, (int) s_kInstructionColumn + run.start, run.length, colors.Get (run.token) });
+                }
+            }
+
+            rows.push_back (std::move (row));
+        }
+    }
     else
     {
         for (const std::wstring & line : preview.lines)

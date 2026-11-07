@@ -18,8 +18,8 @@
 //  One window of a session: where it was on the screen, every tab it had, and
 //  which tab was active. A tab is all of what it was showing -- its location,
 //  the history behind and ahead of it, the selection, the sort and grouping,
-//  the preview's scroll and whether the hex view disassembles. The catalog a
-//  tab cached is not part of it; the tab reads its disk again.
+//  and the preview's scroll. The catalog a tab cached is not part of it; the
+//  tab reads its disk again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

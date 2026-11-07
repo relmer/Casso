@@ -30,8 +30,14 @@ public:
     //  Half of the largest luminance GetSourceColors weighs, 255 times 1000.
     static constexpr uint32_t  s_kDarkLumaLimit   = 127500;
 
+    //  The columns of Disassembler::FormatLine: four address digits, two
+    //  spaces, the bytes padded to nine, a space, then the instruction.
+    static constexpr size_t    s_kAddressDigits     = 4;
+    static constexpr size_t    s_kBytesColumn       = 6;
+    static constexpr size_t    s_kInstructionColumn = 16;
+
     //  The text view's rows for a preview; given colors, an assembler's source
-    //  has its syntax colored.
+    //  and a disassembly have their syntax colored.
     static std::vector<DxuiTextView::Row>  BuildTextRows      (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors = {});
     static std::vector<DxuiTextView::Row>  BuildDetailRows    (const std::vector<std::pair<std::wstring, std::wstring>> & details);
 
