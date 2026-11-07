@@ -190,6 +190,8 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
     std::vector<DWORD>  speeds   = { m_session.m_settings.baud };
     ComSettings         search;
     DWORD               opened   = 0;
+    size_t              next     = 0;
+    auto                deadline = std::chrono::steady_clock::time_point();
     Byte                control  = 0;
     Byte                driveMap = 0;
     bool                ready    = false;
@@ -241,12 +243,21 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
         CHR (hr);
     }
 
-    for (DWORD speed : speeds)
+    //  With two speeds, the line takes them in turn in slices, so a shim that
+    //  starts at either, and sends its Ready about once a second, is read
+    //  within a slice or two rather than after half the attempt. Once a shim
+    //  is read the line stays at its speed, as the program loads at it.
+    deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (m_connectTimeoutMs);
+
+    while (!ready && !stop.stop_requested() && std::chrono::steady_clock::now() < deadline)
     {
-        if (ready || stop.stop_requested())
-        {
-            break;
-        }
+        DWORD  speed   = speeds[next % speeds.size()];
+        DWORD  left    = (DWORD) std::chrono::duration_cast<std::chrono::milliseconds> (deadline - std::chrono::steady_clock::now()).count();
+        DWORD  sliceMs = (speeds.size() > 1) ? (std::min) ({ kSpeedSliceMs, m_connectTimeoutMs / (DWORD) speeds.size(), left }) : left;
+
+
+
+        next++;
 
         if (openAt == 0)
         {
@@ -258,8 +269,13 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
 
         opened = speed;
 
-        hr = AwaitProgram (stop, m_connectTimeoutMs / (DWORD) speeds.size(), ready);
+        hr = AwaitProgram (stop, sliceMs, ready);
         CHR (hr);
+
+        if (!ready && m_session.m_host->HasClient())
+        {
+            speeds = { speed };
+        }
     }
 
     CBREx (ready, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));

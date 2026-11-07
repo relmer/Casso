@@ -250,6 +250,36 @@ public:
 
 
 
+    //  The two speeds are taken in turn in slices, so a shim at the second is
+    //  read within a slice or two rather than after half the attempt's time.
+    TEST_METHOD (AShimAtTheBootstrapSpeed_IsReadWithinASlice)
+    {
+        constexpr DWORD  kConnectTimeoutMs = 20000;
+        constexpr DWORD  kWithinMs         = 7000;
+
+        Rig                rig;
+        CassoLinkSettings  settings;
+
+
+
+        rig.factory.comPorts            = { { L"COM3", Port::Apple } };
+        rig.factory.peerReady           = 1;
+        rig.factory.peerLagReads        = 3;
+        rig.factory.appleBaud           = 9600;
+        rig.factory.appleBaudAfterSpeed = 115200;
+
+        settings.name      = "Test";
+        settings.transport = LinkTransport::Serial;
+        settings.port      = "COM3";
+
+        rig.session->SetConnectTimeout (kConnectTimeoutMs);
+        AssertSucceeded (rig.session->Start (settings));
+        Assert::IsTrue  (rig.sink.WaitForState (LinkState::Ready, kWithinMs), L"connected at the bootstrap speed in its first slice");
+    }
+
+
+
+
     TEST_METHOD (ABootstrapWithNoPort_UsesThePCsOnlyComPort)
     {
         Rig                             rig;

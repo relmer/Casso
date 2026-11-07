@@ -49,6 +49,7 @@ public:
                                                           "    S=S*16+46216\r",
                                                           "    IF ABS(S-49352)<49 THEN POKE S,165\r" };
     static constexpr DWORD         kPromptProbeWaitMs = 1500;
+    static constexpr DWORD         kSpeedSliceMs      = 2000;   // each speed's turn while a line waits for a Ready at two
     HRESULT  StartWithBootstrap (const CassoLinkSettings & settings, std::shared_ptr<LinkOperation> & outOperation);
     HRESULT  Connect            (std::stop_token stop, DWORD openAt = 0);
     HRESULT  RunBootstrap       (std::stop_token stop, LinkOperation & operation);
