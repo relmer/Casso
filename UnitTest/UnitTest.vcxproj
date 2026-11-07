@@ -382,6 +382,7 @@
     <ClCompile Include="CassoExplorer\HostFileNamingTests.cpp" />
     <ClCompile Include="CassoExplorer\ContentSnifferTests.cpp" />
     <ClCompile Include="CassoExplorer\CatalogModelTests.cpp" />
+    <ClCompile Include="CassoExplorer\ApplesoftVariablesTests.cpp" />
     <ClCompile Include="CassoExplorer\PreviewDecoderTests.cpp" />
     <ClCompile Include="CassoExplorer\DiskOperationsTests.cpp" />
     <ClCompile Include="CassoExplorer\TreeModelTests.cpp" />

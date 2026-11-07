@@ -392,6 +392,7 @@
     <ClCompile Include="CassoExplorer\Model\PicturePreview.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewDecoder.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewText.cpp" />
+    <ClCompile Include="CassoExplorer\Model\ApplesoftVariables.cpp" />
     <ClCompile Include="CassoExplorer\Model\TreeModel.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkConnections.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkLogFile.cpp" />
@@ -916,6 +917,7 @@
     <ClInclude Include="CassoExplorer\Model\PicturePreview.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewDecoder.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewText.h" />
+    <ClInclude Include="CassoExplorer\Model\ApplesoftVariables.h" />
     <ClInclude Include="CassoExplorer\Model\TreeModel.h" />
     <ClInclude Include="CassoExplorer\Model\CassoLinkConnections.h" />
     <ClInclude Include="CassoExplorer\Model\CassoLinkLogFile.h" />

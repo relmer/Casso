@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Core/AppleSingleCodec.h"
+#include "CassoExplorer/Model/ApplesoftVariables.h"
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "Core/TextEncoding.h"
@@ -337,6 +338,11 @@ PreviewContent::Kind PreviewDecoder::Decide (
     if (IsTextType (entry.type, kind))
     {
         return PreviewContent::Kind::Text;
+    }
+
+    if (kind == VolumeKind::ProDos && entry.type == ApplesoftVariables::kProDosType)
+    {
+        return PreviewContent::Kind::Details;
     }
 
     if (IsBinaryType (entry.type, kind) && hasLoadAddress
@@ -953,6 +959,18 @@ HRESULT PreviewDecoder::Render (
                 outContent.bytes    = payload.bytes;
                 outContent.origin   = origin;
                 outContent.textFile = LooksLikeText (payload.bytes);
+            }
+
+            break;
+
+        case PreviewContent::Kind::Details:
+            hr = ApplesoftVariables::Decode (payload.bytes, outContent.details);
+
+            if (FAILED (hr))
+            {
+                outContent.kind    = PreviewContent::Kind::Error;
+                outContent.message = L"Its variable tables run past the end of the file.";
+                hr                 = S_OK;
             }
 
             break;
