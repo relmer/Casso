@@ -235,6 +235,10 @@ public:
     static std::wstring  MakeImageId     (bool underCasso, const std::wstring & path);
     static std::wstring  MakeDirectoryId (bool underCasso, const std::wstring & path, const std::string & inner, size_t occurrence = 0);
 
+    //  Whether a node is below Casso: a folder, a disk image or a directory in
+    //  one, though not the Casso node itself.
+    static bool          IsUnderCasso    (const std::wstring & id);
+
     static constexpr const wchar_t *  kCassoRootId  = L"casso:";
     static constexpr const wchar_t *  kThisPcRootId = L"pc:";
     static constexpr const wchar_t *  kShellRootTag = L"nav:";

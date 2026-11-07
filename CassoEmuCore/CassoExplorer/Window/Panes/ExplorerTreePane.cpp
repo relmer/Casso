@@ -1490,7 +1490,7 @@ std::wstring ExplorerTreePane::GetFullPathTip (const DxuiTreeNode & node) const
     std::wstring  result;
     std::wstring  path;
     Location      location;
-    bool          underCasso = node.id.starts_with (TreeModel::kCassoRootId) && node.id != TreeModel::kCassoRootId;
+    bool          underCasso = TreeModel::IsUnderCasso (node.id);
 
 
 

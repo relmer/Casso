@@ -231,6 +231,31 @@ std::wstring TreeModel::MakeDirectoryId (bool underCasso, const std::wstring & p
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::IsUnderCasso
+//
+//  A folder's id starts with the Casso node's; an image's or a directory's
+//  has the Casso tag after its prefix.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::IsUnderCasso (const std::wstring & id)
+{
+    bool          underCasso = false;
+    std::wstring  path;
+    std::string   inner;
+
+
+
+    return id.starts_with (kCassoRootId) ? id != kCassoRootId
+                                         : TryParseImageOrDirectoryId (id, underCasso, path, inner) && underCasso;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::TryParseImageOrDirectoryId
 //
 ////////////////////////////////////////////////////////////////////////////////

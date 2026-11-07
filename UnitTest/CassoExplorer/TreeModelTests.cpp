@@ -669,4 +669,16 @@ public:
         Assert::IsFalse  (TreeModel::TryParseLinkId (L"link:Apple|9,1", name, slot, drive));
         Assert::IsFalse  (TreeModel::TryParseLinkId (L"pc:C:\\", name, slot, drive));
     }
+
+
+
+    TEST_METHOD (IsUnderCasso_TakesItsFoldersImagesAndDirectories)
+    {
+        Assert::IsTrue  (TreeModel::IsUnderCasso (TreeModel::MakeFolderId    (true, L"C:\\Disks")));
+        Assert::IsTrue  (TreeModel::IsUnderCasso (TreeModel::MakeImageId     (true, L"C:\\Disks\\a.po")));
+        Assert::IsTrue  (TreeModel::IsUnderCasso (TreeModel::MakeDirectoryId (true, L"C:\\Disks\\a.po", "MP")), L"A directory inside an image");
+        Assert::IsFalse (TreeModel::IsUnderCasso (TreeModel::kCassoRootId), L"but not the Casso node itself");
+        Assert::IsFalse (TreeModel::IsUnderCasso (TreeModel::MakeImageId     (false, L"C:\\Disks\\a.po")), L"nor This PC's");
+        Assert::IsFalse (TreeModel::IsUnderCasso (TreeModel::MakeDirectoryId (false, L"C:\\Disks\\a.po", "MP")));
+    }
 };
