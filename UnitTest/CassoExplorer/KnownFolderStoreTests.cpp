@@ -223,6 +223,22 @@ public:
     }
 
 
+    TEST_METHOD (RootFolders_AreListedMostRecentlyUsedFirst)
+    {
+        InMemoryFileSystem                    fs;
+        std::vector<KnownFolderStore::Entry>  entries;
+        std::vector<std::wstring>             folders;
+
+        entries.push_back (KnownFolderStore::Entry { L"C:\\Old",    10 });
+        entries.push_back (KnownFolderStore::Entry { L"C:\\Newest", 30 });
+        entries.push_back (KnownFolderStore::Entry { L"C:\\Middle", 20 });
+
+        folders = KnownFolderStore::ListRootFolders (fs, kBase, entries);
+
+        Assert::IsTrue (folders == std::vector<std::wstring> { L"C:\\Newest", L"C:\\Middle", L"C:\\Old" });
+    }
+
+
     TEST_METHOD (LowercaseDriveLetter_IsListedAndRecordedInCapitals)
     {
         InMemoryFileSystem                    fs;

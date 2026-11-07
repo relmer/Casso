@@ -40,11 +40,16 @@ std::vector<std::wstring> KnownFolderStore::ListRootFolders (
 {
     std::vector<std::wstring>  folders;
     std::vector<std::wstring>  directories;
-    HRESULT                    hr = S_OK;
+    std::vector<Entry>         recent  = entries;
+    HRESULT                    hr      = S_OK;
 
 
 
-    for (const Entry & entry : entries)
+    //  The folder used most recently first: a disk loaded from it, an image
+    //  written to it, or the folder added.
+    std::stable_sort (recent.begin(), recent.end(), [] (const Entry & a, const Entry & b) { return a.lastUsedUnix > b.lastUsedUnix; });
+
+    for (const Entry & entry : recent)
     {
         //  A list written before the seeding dropped them can still hold a
         //  relative path, and no listing of it would find anything.
