@@ -926,12 +926,12 @@ bool DebuggerWindow::RouteWindowMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  A disassembly row's operand and result that the pane cuts off show
-    //  whole over their cell while the pointer is on it. This runs ahead of
-    //  everything that lies over the panes, so IsOperandTipCovered tests for
-    //  each of them. A move event records whether the left button was down
-    //  when the pointer moved; that, not the button's state at this moment,
-    //  marks a drag over the cell.
+    //  A code row's text that its view cuts off is drawn whole over the row
+    //  while the pointer is on the row. This runs ahead of everything that
+    //  lies over the panes, so IsOperandTipCovered tests for each of them. A
+    //  move event's button indicates whether the left button was down when
+    //  the pointer moved; that, not the button's state at this moment, marks
+    //  a drag over the row.
     m_operandTips->Update (ev, ev.button == DxuiMouseButton::Left);
 
     //  A pane's own box being edited, such as a breakpoint's name, a watch, a

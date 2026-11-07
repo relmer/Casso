@@ -1919,8 +1919,9 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //  DxuiTextView::PaintLineGutter
 //
 //  A row's fill, which runs across the view on each of its lines, gutter and
-//  all, the gutter band's fill on each of them too, and on its first line
-//  the gutter's icon.
+//  all, over the focused row's selection or the highlighted row's hover,
+//  the gutter band's fill on each of them too, and on its first line the
+//  gutter's icon.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1950,6 +1951,10 @@ void DxuiTextView::PaintLineGutter (IDxuiPainter & painter, IDxuiTextRenderer & 
             painter.OutlineRoundedRect ((float) m_boundsDip.left, (float) y, width, (float) GetLineHeightPx (lineIndex), radius,
                                         (std::max) (1.0f, m_scaler.ToPxf (1.0f)), theme.ContentSelectionEdge());
         }
+    }
+    else if (line.first && line.row == m_highlightRow)
+    {
+        painter.FillRoundedRect ((float) m_boundsDip.left, (float) y, width, (float) GetLineHeightPx (lineIndex), radius, theme.ContentHover());
     }
 
     if (row.background != 0)

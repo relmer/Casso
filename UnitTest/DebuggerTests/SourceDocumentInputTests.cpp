@@ -10,6 +10,7 @@
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/GutterGlyph.h"
 #include "Debugger/Source/SourcePathList.h"
+#include "Core/TextEncoding.h"
 #include "Ui/Debugger/OperandResultTip.h"
 #include "Ui/Debugger/Panes/OperandTipController.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
@@ -128,6 +129,11 @@ namespace SourceDocumentInputTests
         static constexpr int  kPadPx        = 6;
         static constexpr int  kTextX        = 300;
         static constexpr int  kMenuX        = 150;
+
+        //  The mock renderer measures every character this wide, and LDA's
+        //  code starts this many characters into its line.
+        static constexpr int  kGlyphPx      = 7;
+        static constexpr int  kCodeChar     = 8;
 
 
         //  Stopped at line 2 of main.a65, with a breakpoint on line 3.
@@ -567,9 +573,10 @@ namespace SourceDocumentInputTests
             Assert::IsTrue   (view->GetCellRectPx (1, SourcePane::kAnnotationCell, cell), L"LDA's operand is in view");
             Assert::IsTrue   (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell),
                               L"the view cuts the long operand off");
-            Assert::AreEqual (view->GetRows()[1].cells[(size_t) SourcePane::kAnnotationCell], layout.text);
-            Assert::AreEqual (cell.left, layout.textOrigin.x, L"the tip's text starts at the cell's");
-            Assert::AreEqual ((size_t) 2, layout.lines.size(), L"the operand on one line and the result on the next");
+            Assert::AreEqual (2, layout.lineCount, L"the operand on one line and the result on the next");
+            Assert::AreEqual (TextEncoding::NarrowToWide (operand.substr (0, operand.size() - 1)), layout.runs[0].text);
+            Assert::AreEqual ((float) cell.left, layout.runs[0].leftPx, L"the tip's text starts at the cell's");
+            Assert::AreEqual (view->GetBounds().left, layout.rect.left, L"the line below from the view's left edge");
 
             Assert::IsTrue   (view->GetCellRectPx (2, SourcePane::kAnnotationCell, cell));
             Assert::IsFalse  (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell),
@@ -578,8 +585,10 @@ namespace SourceDocumentInputTests
 
 
         //  A source line's operand and result that start past the view's
-        //  right edge are laid below the line, from the view's text, with
-        //  the pointer anywhere on the line.
+        //  right edge are laid below the line, under where its code starts,
+        //  filled from the view's left edge, with the pointer anywhere on the
+        //  line. The view highlights the line while the tip is up, as a list
+        //  highlights the row under the pointer.
         TEST_METHOD (ASourceOperandPastTheViewsEdgeShowsBelowItsLine)
         {
             constexpr int                      kStepPx  = 50;
@@ -594,6 +603,7 @@ namespace SourceDocumentInputTests
             DxuiTextView                     * view     = nullptr;
             RECT                               cell     = {};
             bool                               isPast   = false;
+            float                              codeLeft = 0.0f;
             DxuiMouseEvent                     move;
             SourceWindow::OperandTipScreen     screen;
 
@@ -620,9 +630,75 @@ namespace SourceDocumentInputTests
             (void) window.OnMouse (move);
 
             Assert::IsTrue   (window.GetOperandTips().HasTip(), L"no tip after a move onto the line's start");
-            Assert::AreEqual (view->GetRows()[1].cells[(size_t) SourcePane::kAnnotationCell], window.GetOperandTips().GetLayout().text);
-            Assert::AreEqual (cell.bottom, window.GetOperandTips().GetLayout().textOrigin.y, L"below the line");
-            Assert::AreEqual ((LONG) view->GetTextAreaLeftPx(), window.GetOperandTips().GetLayout().rect.left, L"from the view's text");
+            Assert::AreEqual (3, window.GetOperandTips().GetLayout().lineCount, L"the operand and the result each on a line below");
+            Assert::AreEqual (std::wstring (L"A=00 X=01"),    window.GetOperandTips().GetLayout().runs[0].text);
+            Assert::AreEqual (std::wstring (L"Result: A=41"), window.GetOperandTips().GetLayout().runs[1].text);
+            Assert::AreEqual (cell.bottom, window.GetOperandTips().GetLayout().rect.top, L"below the line");
+            Assert::AreEqual (view->GetBounds().left, window.GetOperandTips().GetLayout().rect.left, L"from the view's left edge");
+            Assert::IsTrue   (view->GetCellLeftPx (1, SourcePane::kTextCell, codeLeft));
+            Assert::AreEqual (codeLeft + (float) (kCodeChar * kGlyphPx), window.GetOperandTips().GetLayout().runs[0].leftPx, L"under the code");
+            Assert::AreEqual (codeLeft + (float) (kCodeChar * kGlyphPx), window.GetOperandTips().GetLayout().runs[1].leftPx);
+            Assert::AreEqual (1, view->GetHighlightRow(), L"the view highlights the line under the tip");
+
+            window.GetOperandTips().Hide();
+            Assert::AreEqual (-1, view->GetHighlightRow(), L"the highlight goes with the tip");
+        }
+
+
+        //  The source window's rule: the source line itself, its comment and
+        //  all, is the tip's first line, run on past the view, and the
+        //  operand and then the result go below it, under the code. A line
+        //  with no operand whose comment the view cuts off has the tip too.
+        TEST_METHOD (ACutOffSourceLineKeepsItsCommentOnItsOwnLine)
+        {
+            CassoTheme                         theme    = CassoTheme::MakeSkeuomorphic();
+            SourceHost                         host;
+            SourceWindow                       window   (theme, host);
+            MockDxuiTextRenderer               text;
+            DxuiDpiScaler                      scaler;
+            auto                               snapshot = MakeSnapshot();
+            std::wstring                       comment  = L"; " + std::wstring (300, L'c');
+            std::vector<DxuiTextView::Row>     rows;
+            DxuiTextView                     * view     = nullptr;
+            RECT                               cell     = {};
+            float                              codeLeft = 0.0f;
+            OperandResultTip::Layout           layout;
+            SourceWindow::OperandTipCell       tipCell;
+            SourceWindow::OperandTipScreen     screen;
+
+
+
+            snapshot->source->lineOperands = std::make_shared<const DebuggerViewSnapshot::LineOperands> (
+                                                 DebuggerViewSnapshot::LineOperands { { { 0, 2 }, { "A=00 X=01", "A=41" } } });
+
+            scaler.SetDpi (96);
+            screen.workAreas.push_back (RECT { 0, 0, 4000, 3000 });
+            view = OpenDocument (window, snapshot);
+            window.GetOperandTips().SetDeviceForTest (&text, screen);
+
+            //  LDA's line with a comment longer than the view, then a line of
+            //  comment alone, as long.
+            rows = view->GetRows();
+            rows[1].cells[(size_t) SourcePane::kTextCell] += L" " + comment;
+            rows[0].cells[(size_t) SourcePane::kTextCell]  = comment;
+            view->UpdateRows (std::move (rows));
+
+            Assert::IsTrue   (view->GetCellRectPx (1, SourcePane::kTextCell, cell));
+            Assert::IsTrue   (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell),
+                              L"the view cuts the line off");
+            Assert::AreEqual (3, layout.lineCount);
+            Assert::AreEqual (view->GetRows()[1].cells[(size_t) SourcePane::kTextCell], layout.runs[0].text, L"the line, comment and all, on the tip's first line");
+            Assert::AreEqual (0, layout.runs[0].line);
+            Assert::AreEqual (std::wstring (L"A=00 X=01"),    layout.runs[1].text);
+            Assert::AreEqual (std::wstring (L"Result: A=41"), layout.runs[2].text);
+            Assert::IsTrue   (view->GetCellLeftPx (1, SourcePane::kTextCell, codeLeft));
+            Assert::AreEqual (codeLeft + (float) (kCodeChar * kGlyphPx), layout.runs[1].leftPx, L"the operand under the code");
+
+            Assert::IsTrue   (view->GetCellRectPx (0, SourcePane::kTextCell, cell));
+            Assert::IsTrue   (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell),
+                              L"a comment line the view cuts off has no tip");
+            Assert::AreEqual (1, layout.lineCount);
+            Assert::AreEqual (comment, layout.runs[0].text);
         }
 
 
@@ -713,13 +789,13 @@ namespace SourceDocumentInputTests
             Assert::IsTrue   (view->GetCellRectPx (1, SourcePane::kAnnotationCell, cell));
             Assert::IsTrue   (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell));
 
-            Assert::AreEqual ((size_t) 2, layout.lines.size());
-            Assert::AreEqual (std::wstring (L"Result: A=41"), layout.text.substr ((size_t) layout.lines[1].start, (size_t) layout.lines[1].length));
-            Assert::AreEqual (0.0f, layout.lines[1].indentPx, L"the result from the operand's left");
-            Assert::IsTrue   (layout.rect.left  < cell.left,                      L"from the cell's padding");
+            Assert::AreEqual (2, layout.lineCount);
+            Assert::AreEqual (std::wstring (L"Result: A=41"), layout.runs[1].text);
+            Assert::AreEqual (layout.runs[0].leftPx, layout.runs[1].leftPx, L"the result from the operand's left");
+            Assert::IsTrue   (layout.firstLeft  < cell.left,                      L"from the cell's padding");
             Assert::IsTrue   (layout.rect.right > view->GetTextAreaRightPx(),     L"run on past the view");
             Assert::AreEqual (DxuiColor::ComputeInkForContrast (DebuggerTextColors::MakeFor (theme).annotation, layout.fill, DebuggerTextColors::s_kMinTextContrast),
-                              layout.colors[0], L"the operand in the operand color");
+                              layout.runs[0].colors[0], L"the operand in the operand color");
 
             OperandResultTip::Paint (layout, painter, text);
 

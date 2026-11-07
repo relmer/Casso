@@ -100,6 +100,15 @@ public:
     //  comment, and where the word starts; null for none.
     static const SymbolInfo *  FindSymbolAt (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, int & start);
 
+    //  Where a line's code starts: past its label and the spaces after it, or
+    //  at its start for a line with no code past a label.
+    static int   FindCodeStart (const std::wstring & line);
+
+    //  The first symbol the operand of the instruction starting at `codeAt`
+    //  is written with, before a comment, as "count_text = $60F2". False for
+    //  an operand with none.
+    static bool  TryGetOperandSymbolText (const std::wstring & line, int codeAt, const std::vector<SymbolInfo> & symbols, std::wstring & text);
+
     SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run);
 
     SourcePane (const SourcePane &)             = delete;

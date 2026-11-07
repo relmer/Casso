@@ -2275,6 +2275,51 @@ bool DisassemblyGroup::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstr
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyGroup::TryGetOperandSymbol
+//
+//  A source row's code is in the instruction column while the label column
+//  is visible, starting at its mnemonic.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::TryGetOperandSymbol (int view, int row, std::wstring & text) const
+{
+    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    DxuiListView                * list     = (view >= 0 && view < DebuggerViewState::kMaxCodeViews) ? GetCodeList (view) : nullptr;
+    int                           index    = (list != nullptr) ? GetCodeLineOfRow (view, row) : -1;
+    std::string                   name;
+    Word                          address  = 0;
+
+
+
+    if (snapshot == nullptr || list == nullptr || row < 0 || row >= list->GetRowCount())
+    {
+        return false;
+    }
+
+    if (index >= 0)
+    {
+        GetLineSymbol (GetCodeLines (view)[(size_t) index], (int) DisassemblyCells::kInstructionColumn, name, address);
+
+        if (name.empty())
+        {
+            return false;
+        }
+
+        text = std::format (L"{} = ${:04X}", TextEncoding::NarrowToWide (name), address);
+        return true;
+    }
+
+    return snapshot->symbols != nullptr && list->GetCellsOfRow (row).size() > DisassemblyCells::kInstructionColumn &&
+           SourcePane::TryGetOperandSymbolText (list->GetCellsOfRow (row)[DisassemblyCells::kInstructionColumn].text, 0, snapshot->symbols->symbols, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyGroup::TryGetSourceSymbolTip
 //
 //  Over a word of a source row, the symbol it is.

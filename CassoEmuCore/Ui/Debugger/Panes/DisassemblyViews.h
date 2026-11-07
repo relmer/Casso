@@ -192,6 +192,11 @@ public:
     bool                             TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
     bool                             TryGetSourceSymbolTip (const DxuiListView & list, POINT clientPx, RECT & anchor, std::wstring & text) const;
     bool                             TryGetSymbolAt   (POINT clientPx, std::string & name, Word & address) const;
+
+    //  The symbol a row's operand is written with, as "name = $value": an
+    //  instruction's, or the first a source row's code has after its
+    //  mnemonic. False for a row with none.
+    bool                             TryGetOperandSymbol (int view, int row, std::wstring & text) const;
     static bool                      TryGetIoRegisterTip (const std::vector<DiagnosticsIoRegister> & registers, Word address, std::wstring & text);
 
     //  The source row representing the PC's instruction, the first its line

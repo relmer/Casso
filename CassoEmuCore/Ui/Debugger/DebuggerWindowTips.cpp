@@ -238,13 +238,9 @@ int DebuggerWindow::FindOperandTipView (POINT clientPx) const
 //
 //  DebuggerWindow::TryFindOperandTipRow
 //
-//  The view and row whose cut-off text at the right edge lies under a
-//  point: a disassembly row's operand and result, or the cell spanning the
-//  row that ends it, from that cell's column to the row's end, or from the
-//  label column for a source or data line; the BASIC program's values; or a
-//  source line's operand and result.
-//
-//  Where that cell starts out of view, a point anywhere along its row counts.
+//  The view and row under a point: a disassembly row, a line of the BASIC
+//  program, or a line of a source document in front. Any part of the row
+//  counts, since the tip covers the whole row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -258,19 +254,13 @@ bool DebuggerWindow::TryFindOperandTipRow (
     DxuiListView   * basic    = (m_basicProgram != nullptr) ? m_basicProgram->GetList() : nullptr;
     RECT             bounds   = {};
     bool             isOver   = false;
-    int              column   = -1;
-    size_t           tip      = 0;
-    size_t           start    = 0;
-    bool             isSpan   = false;
-    bool             isLine   = false;
 
 
 
     view = FindOperandTipView (clientPx);
     row  = -1;
 
-    //  Off the disassembly, the BASIC program's values, then the source
-    //  documents.
+    //  Off the disassembly, the BASIC program, then the source documents.
     if (view < 0 && basic != nullptr && IsRoutable (basic) && basic->IsVisible() && DxuiDockSite::Contains (basic->GetBounds(), clientPx))
     {
         view = kBasicTipView;
@@ -287,13 +277,7 @@ bool DebuggerWindow::TryFindOperandTipRow (
 
     bounds = list->GetBounds();
     row    = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
-    CBR (row >= 0);
-
-    column = GetColumnAt (list, clientPx.x - bounds.left);
-    tip    = GetTipColumn (view, row);
-    isSpan = tip < list->GetCellsOfRow (row).size() && list->GetCellsOfRow (row)[tip].spansRow;
-    isLine = TryGetTipLineColumn (view, row, start);
-    isOver = column == (int) tip || (isSpan && column > (int) tip) || (isLine && column >= (int) start) || IsTipCellOutOfView (list, row, tip);
+    isOver = row >= 0;
 
 Error:
     return isOver;
@@ -307,11 +291,7 @@ Error:
 //
 //  DebuggerWindow::TryFindSourceTipRow
 //
-//  The line of a source document in front whose operand and result lie
-//  under a point.
-//
-//  Where the operand and result start out of view, a point anywhere along
-//  the line counts.
+//  The line of a source document in front under a point.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -320,10 +300,6 @@ bool DebuggerWindow::TryFindSourceTipRow (
     int    & view,
     int    & row) const
 {
-    RECT  cell = {};
-
-
-
     for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
     {
         const SourceDocumentPane  & document = m_sources->GetDocument (slot);
@@ -337,10 +313,7 @@ bool DebuggerWindow::TryFindSourceTipRow (
 
         at = text->HitTest (clientPx).row;
 
-        if (at >= 0 && at < (int) text->GetRows().size() && text->GetRows()[(size_t) at].cells.size() > (size_t) SourcePane::kAnnotationCell &&
-            !text->GetRows()[(size_t) at].cells[(size_t) SourcePane::kAnnotationCell].empty() &&
-            text->GetCellRectPx (at, SourcePane::kAnnotationCell, cell) &&
-            (DxuiDockSite::Contains (cell, clientPx) || cell.left >= text->GetTextAreaRightPx() || cell.left < text->GetTextAreaLeftPx()))
+        if (at >= 0 && at < (int) text->GetRows().size())
         {
             view = kSourceTipView + slot;
             row  = at;
@@ -349,35 +322,6 @@ bool DebuggerWindow::TryFindSourceTipRow (
     }
 
     return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::IsTipCellOutOfView
-//
-//  Whether a row's cell starts out of the list's view. A point anywhere on
-//  such a row is then tested for the operand tip: a cell wholly out of view
-//  has its text laid below the row, and a cell partly in view has no tip.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::IsTipCellOutOfView (
-    const DxuiListView  * list,
-    int                   row,
-    size_t                column)
-{
-    RECT  bounds  = list->GetBounds();
-    RECT  cell    = {};
-    int   visible = (int) (bounds.right - bounds.left) - (list->IsScrollbarVisible() ? list->GetScrollbarWidthPx() : 0);
-    bool  isShown = list->GetCellTextRectPx (row, column, cell);
-
-
-
-    return isShown && (cell.left >= visible || cell.right <= 0);
 }
 
 
@@ -425,75 +369,61 @@ DxuiTextView * DebuggerWindow::GetTipTextView (int view) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetTipColumn
+//  DebuggerWindow::GetTipParts
 //
-//
-//  A disassembly row's text at the right edge is in its operand and result,
-//  unless a cell ahead of them runs on to the row's end, as a data line's or
-//  a source line's does.
+//  A disassembly row's operand and result, its code from the instruction
+//  column, and the symbol its operand is written with. A source line's
+//  operand and result, its code past its label, and the symbol its operand
+//  is written with. The BASIC program's lines have no such parts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t DebuggerWindow::GetTipColumn (int view, int row) const
+OperandTipParts DebuggerWindow::GetTipParts (int view, int row) const
 {
-    DxuiListView  * list = (view < kBasicTipView) ? m_code->GetCodeList (view) : nullptr;
+    OperandTipParts            parts;
+    DxuiTextView             * text      = GetTipTextView (view);
+    const DxuiTextView::Row  * textRow   = nullptr;
+    bool                       hasSymbol = false;
+    bool                       hasLine   = false;
 
 
 
     if (view == kBasicTipView)
     {
-        return BasicProgramPane::kValuesColumn;
+        return parts;
     }
 
-    if (view >= kSourceTipView)
+    if (text == nullptr)
     {
-        return (size_t) SourcePane::kAnnotationCell;
+        parts.operandColumn = kCodeOperandColumn;
+        parts.codeColumn    = kCodeInstructionColumn;
+
+        hasSymbol = m_code->TryGetOperandSymbol (view, row, parts.symbol);
+        IGNORE_RETURN_VALUE (hasSymbol, false);
+        return parts;
     }
 
-    for (size_t c = 0; list != nullptr && row >= 0 && row < list->GetRowCount() && c < list->GetCellsOfRow (row).size() && c < kCodeOperandColumn; c++)
+    parts.operandColumn = (size_t) SourcePane::kAnnotationCell;
+    parts.codeColumn    = (size_t) SourcePane::kTextCell;
+
+    hasLine = row >= 0 && row < (int) text->GetRows().size() && text->GetRows()[(size_t) row].cells.size() > (size_t) SourcePane::kTextCell;
+
+    if (!hasLine)
     {
-        if (list->IsColumnVisible (c) && list->GetCellsOfRow (row)[c].spansRow)
-        {
-            return c;
-        }
+        return parts;
     }
 
-    return kCodeOperandColumn;
-}
+    textRow          = &text->GetRows()[(size_t) row];
+    parts.codeChar = SourcePane::FindCodeStart (textRow->cells[(size_t) SourcePane::kTextCell]);
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::TryGetTipLineColumn
-//
-//  A disassembly row whose tip cell runs on to the row's end ahead of the
-//  operand is a source line's or a data line's, which starts in the label
-//  column while that column is visible.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::TryGetTipLineColumn (
-    int       view,
-    int       row,
-    size_t  & column) const
-{
-    DxuiListView  * list   = (view >= 0 && view < kBasicTipView) ? m_code->GetCodeList (view) : nullptr;
-    size_t          tip    = GetTipColumn (view, row);
-    bool            isLine = list != nullptr && tip != kCodeOperandColumn;
-
-
-
-    column = tip;
-
-    if (isLine && tip > kCodeLabelColumn && list->IsColumnVisible (kCodeLabelColumn))
+    if (m_snapshot != nullptr && m_snapshot->symbols != nullptr && textRow->cells.size() > (size_t) SourcePane::kAnnotationCell &&
+        !textRow->cells[(size_t) SourcePane::kAnnotationCell].empty())
     {
-        column = kCodeLabelColumn;
+        hasSymbol = SourcePane::TryGetOperandSymbolText (textRow->cells[(size_t) SourcePane::kTextCell], parts.codeChar, m_snapshot->symbols->symbols, parts.symbol);
+        IGNORE_RETURN_VALUE (hasSymbol, false);
     }
 
-    return isLine;
+    return parts;
 }
 
 
@@ -765,7 +695,8 @@ bool DebuggerWindow::MarkImmediate (bool isFound, DxuiTip & tip)
 //  Over a disassembly row: the PC's branch arrow, or a symbol and what the
 //  color of its cell means. A symbol's tip is code, so it reads in the
 //  fixed-width face. Over the heat column, the cell's heat. Elsewhere the
-//  list has its cells' tips.
+//  list has its cells' tips. A row whose in-place tip is up with its
+//  operand's symbol in it has no symbol tip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -783,7 +714,7 @@ bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, D
         return true;
     }
 
-    if (!m_code->TryGetSymbolTip (clientPx, anchor, text))
+    if (m_operandTips->IsSymbolShownAt (clientPx) || !m_code->TryGetSymbolTip (clientPx, anchor, text))
     {
         return GetColumnAt (&list, clientPx.x - bounds.left) == (int) DisassemblyCells::kHeatColumn &&
                list.TryGetCellTip (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, tip);
@@ -810,7 +741,8 @@ bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, D
 //  DebuggerWindow::TryGetSourceSymbolTip
 //
 //  Over a word of a source document, the symbol it is, in the fixed-width
-//  face since it is code.
+//  face since it is code; none on a line whose in-place tip is up with its
+//  operand's symbol in it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -821,7 +753,7 @@ bool DebuggerWindow::TryGetSourceSymbolTip (const SourceDocumentPane & document,
 
 
 
-    if (m_snapshot == nullptr || m_snapshot->symbols == nullptr || !document.IsShown() ||
+    if (m_snapshot == nullptr || m_snapshot->symbols == nullptr || !document.IsShown() || m_operandTips->IsSymbolShownAt (clientPx) ||
         !document.GetModel().TryGetSymbolTip (clientPx, m_snapshot->symbols->symbols, text, anchor))
     {
         return false;

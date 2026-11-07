@@ -153,6 +153,12 @@ public:
     int   GetFocusRow      () const               { return m_focusRow; }
     void  SetFocusRow      (int row);
 
+    //  A row drawn in the theme's hover across the view, under the row's
+    //  fill, as a list draws the row under the pointer, for a tip laid over
+    //  it. -1, the default, is no row.
+    void  SetHighlightRow  (int row)              { m_highlightRow = row; }
+    int   GetHighlightRow  () const               { return m_highlightRow; }
+
     //  The left and right of the text area, past the gutter and short of the
     //  scroll bar; and a cell's rect from its left to the text area's right,
     //  on the first line of its row, false when that line is not drawn.
@@ -503,4 +509,5 @@ private:
     bool               m_rowFocus      = false;
     int                m_focusRow      = -1;
     bool               m_isFocused     = false;
+    int                m_highlightRow  = -1;
 };

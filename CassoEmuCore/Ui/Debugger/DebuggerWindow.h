@@ -642,13 +642,11 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     HWND                   GetTipOwner          () const override { return GetHwnd(); }
     bool                   IsTipBlocked         () const override;
     bool                   TryFindTipRow        (POINT clientPx, int & view, int & row) const override { return TryFindOperandTipRow (clientPx, view, row); }
-    size_t                 GetTipColumn         (int view, int row) const override;
-    bool                   TryGetTipLineColumn  (int view, int row, size_t & column) const override;
+    OperandTipParts        GetTipParts          (int view, int row) const override;
     bool                   IsTipCovered         (int view, POINT clientPx, const RECT & tipRect, const OperandTipScreen & screen) const override
                                                 { return IsOperandTipCovered (view, clientPx, tipRect, screen); }
     int                    FindOperandTipView   (POINT clientPx) const;
     bool                   TryFindOperandTipRow (POINT clientPx, int & view, int & row) const;
-    static bool            IsTipCellOutOfView   (const DxuiListView * list, int row, size_t column);
     bool                   TryFindSourceTipRow  (POINT clientPx, int & view, int & row) const;
     bool                   IsOperandTipCovered  (int view, POINT clientPx, const RECT & tipRect, const OperandTipScreen & screen) const;
     std::wstring           GetTipPaneId         (int view) const;

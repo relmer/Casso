@@ -1534,6 +1534,85 @@ const SymbolInfo * SourcePane::FindSymbolAt (const std::wstring & line, int ch, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourcePane::FindCodeStart
+//
+//  A line that starts with a space has no label; a comment line has no code.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SourcePane::FindCodeStart (const std::wstring & line)
+{
+    int   size    = (int) line.size();
+    int   at      = 0;
+    bool  isAll   = size > 0 && (line[0] == L';' || line[0] == L'*');
+
+
+
+    while (!isAll && at < size && !iswspace (line[(size_t) at]))
+    {
+        at++;
+    }
+
+    while (!isAll && at < size && iswspace (line[(size_t) at]))
+    {
+        at++;
+    }
+
+    return (isAll || at >= size || line[(size_t) at] == L';') ? 0 : at;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::TryGetOperandSymbolText
+//
+//  Past the mnemonic, each word in turn, up to the comment; only the
+//  symbol's first line, not the byte a < or > takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::TryGetOperandSymbolText (const std::wstring & line, int codeAt, const std::vector<SymbolInfo> & symbols, std::wstring & text)
+{
+    auto          isWordChar = [] (wchar_t each) { return iswalnum (each) || each == L'_' || each == L'.' || each == L'@'; };
+    int           size       = (int) line.size();
+    int           at         = std::clamp (codeAt, 0, size);
+    bool          isFound    = false;
+    std::wstring  found;
+
+
+
+    while (at < size && !iswspace (line[(size_t) at]))
+    {
+        at++;
+    }
+
+    for (; at < size && line[(size_t) at] != L';' && !isFound; at++)
+    {
+        if (!isWordChar (line[(size_t) at]) || (at > 0 && isWordChar (line[(size_t) at - 1])))
+        {
+            continue;
+        }
+
+        isFound = TryGetSymbolText (line, at, symbols, found);
+    }
+
+    if (isFound)
+    {
+        text = found.substr (0, found.find (L'\n'));
+    }
+
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourcePane::TryGetSymbolText
 //
 ////////////////////////////////////////////////////////////////////////////////
