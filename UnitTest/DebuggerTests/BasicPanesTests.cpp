@@ -471,6 +471,28 @@ namespace DebuggerTests
 
 
 
+        //  After a run ends its values are in memory; at the prompt they are
+        //  read, running or not.
+        TEST_METHOD (TheValuesAreReadAtThePromptAfterARun)
+        {
+            MachineHandlerRig<BasicHandlers>  rig { "Apple2eEnhanced", TestMachine::Slots::Empty };
+            DebuggerViewSnapshot::BasicState  state;
+
+
+
+            MachineIdle::RunUntilIdle (rig.machine, 20'000'000);
+            GuestSession::TypeAndCollect (rig.machine, "10 A = 5");
+            GuestSession::TypeAndCollect (rig.machine, "RUN");
+
+            state = DebuggerViewState::ReadBasic (rig.session, false);
+
+            Assert::IsFalse  (state.line.has_value(), L"at the prompt");
+            Assert::IsTrue   (state.hasValues);
+            Assert::AreEqual ((size_t) 1, state.variables.size());
+        }
+
+
+
         TEST_METHOD (TheRowsAreWhatListPrints)
         {
             MachineHandlerRig<BasicHandlers>    rig { "Apple2eEnhanced", TestMachine::Slots::Empty };

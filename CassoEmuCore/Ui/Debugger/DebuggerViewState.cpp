@@ -331,8 +331,10 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 //
 //  Every read is a peek. A real is written by the ROM's own FOUT, run on an
 //  overlay, which costs a few hundred instructions a value, so the values
-//  are read only while the machine is stopped in a running program: with
-//  no program, the variable table's pointers can span most of memory.
+//  are read only while the machine is stopped or at the prompt, where they
+//  do not change, and only with a program, since with none the variable
+//  table's pointers can span most of memory. After a run ends the values
+//  stay in memory until RUN, NEW or CLEAR, so they are read at the prompt.
 //  While the language card banks RAM over Applesoft, as during ProDOS's
 //  calls, Applesoft is found in the ROM image and the program is listed,
 //  but no values are read, since FOUT would run whatever the RAM contains.
@@ -366,7 +368,7 @@ DebuggerViewSnapshot::BasicState DebuggerViewState::ReadBasic (DebugSession & se
     state.hasProgram  = program.TryGetListing (state.lines);
     state.line        = program.IsAtPrompt (session.GetTarget().GetRegisters().sp) ? std::nullopt : program.GetCurrentLine();
     state.textPointer = (Word) ((low | (high << 8)) + (session.GetTarget().GetRegisters().pc == BasicStopMonitor::kStatement ? 0 : 1));
-    state.hasValues   = isPaused && isVisible && state.hasProgram && state.line.has_value();
+    state.hasValues   = (isPaused || !state.line.has_value()) && isVisible && state.hasProgram;
 
     if (state.hasValues)
     {
