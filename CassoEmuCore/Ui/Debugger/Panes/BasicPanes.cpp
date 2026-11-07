@@ -57,6 +57,75 @@ BasicProgramPane::BasicProgramPane (DxuiListView * list, ToggleFn toggle) :
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BasicProgramPane::GetGutterRowAt
+//
+//  The row under a point in the gutter column, -1 off it or on a line's
+//  wrapped row, where a breakpoint has no place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BasicProgramPane::GetGutterRowAt (POINT clientPx) const
+{
+    RECT  bounds = (m_list != nullptr) ? m_list->GetBounds() : RECT {};
+    int   x      = clientPx.x - bounds.left;
+    int   row    = -1;
+
+
+
+    if (m_list == nullptr || clientPx.x < bounds.left || clientPx.x >= bounds.right || clientPx.y < bounds.top || clientPx.y >= bounds.bottom ||
+        x + m_list->GetLeftPx() >= m_list->GetPaneLeadPx() + m_list->GetColumnEffectiveWidthPx (kGutterColumn))
+    {
+        return -1;
+    }
+
+    row = m_list->HitTestRow (x, clientPx.y - bounds.top);
+
+    return (row >= 0 && (size_t) row < m_rows.size() && m_rows[(size_t) row].isFirst) ? row : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramPane::OnGutterMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BasicProgramPane::OnGutterMouse (const DxuiMouseEvent & ev)
+{
+    int  row = GetGutterRowAt (ev.positionDip);
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Move)
+    {
+        SetHoverRow (row);
+        return false;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Leave)
+    {
+        SetHoverRow (-1);
+        return false;
+    }
+
+    if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left || row < 0 || (size_t) row >= m_rowLines.size())
+    {
+        return false;
+    }
+
+    m_toggle (m_rowLines[(size_t) row]);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BasicProgramPane::Configure
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,15 +152,6 @@ void BasicProgramPane::Configure (int gutterDip)
     //  copies them.
     m_list->SetTextSelection (true);
 
-    m_list->SetActivateOnDoubleClick (true);
-
-    m_list->SetOnActivateRow ([this] (int row)
-    {
-        if (row >= 0 && row < (int) m_rowLines.size())
-        {
-            m_toggle (m_rowLines[(size_t) row]);
-        }
-    });
 }
 
 
@@ -567,6 +627,7 @@ std::vector<std::vector<DxuiListView::Cell>> BasicProgramPane::GetCells (
         rowCells[kListingColumn].text = row.text;
         rowCells[kGutterColumn].icon = hasArrow ? (!hasDot ? style.pcIcon : isEnabled ? style.pcOnEnabledIcon : style.pcOnDisabledIcon)
                          : hasDot   ? (isEnabled ? style.enabledIcon : style.disabledIcon)
+                         : (row.isFirst && (int) (&row - rows.data()) == style.hoverRow) ? style.hoverIcon
                          :            nullptr;
 
         std::vector<int>  starts = GetStatementStarts (line);

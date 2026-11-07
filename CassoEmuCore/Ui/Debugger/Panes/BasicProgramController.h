@@ -57,6 +57,7 @@ public:
     bool                             Tick           (int64_t nowMs) override;
     bool                             OnMappedAction (DebuggerKeySchemes::Action action, IDxuiControl * focused) override;
     bool                             AddMenuItems   (DxuiListView * list, int row, PaneMenuItems & items) override;
+    bool                             RouteEarlyMouse (const DxuiMouseEvent & ev) override;
 
 private:
     void                             Follow         (const DebuggerViewSnapshot & snapshot);

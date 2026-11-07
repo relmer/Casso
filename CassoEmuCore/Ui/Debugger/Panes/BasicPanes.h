@@ -37,6 +37,8 @@ public:
         std::shared_ptr<const DxuiIconImage>  disabledIcon;
         std::shared_ptr<const DxuiIconImage>  pcOnEnabledIcon;
         std::shared_ptr<const DxuiIconImage>  pcOnDisabledIcon;
+        std::shared_ptr<const DxuiIconImage>  hoverIcon;       // the gray breakpoint a click in the gutter would set
+        int                                   hoverRow  = -1;  // the row the pointer is over in the gutter
         uint32_t                              pcRowArgb = 0;
         uint32_t                              textArgb  = 0;   // the listing's text where no syntax color applies
         SourceSyntax::Colors                  syntax;
@@ -68,6 +70,18 @@ public:
 
     void  Configure (int gutterDip);
     void  SetStyle  (const Style & style) { m_style = style; }
+    const Style & GetStyle () const { return m_style; }
+
+    //  The gutter row with the gray breakpoint, -1 for none; the rows are
+    //  built again when it changes.
+    void  SetHoverRow (int row) { if (row != m_style.hoverRow) { m_style.hoverRow = row; Build(); } }
+
+    //  The mouse over the list, in the window's pixels, as the disassembly's
+    //  gutter takes it: over a line's first row in the gutter the gray
+    //  breakpoint is drawn, and a press there sets or clears the line's
+    //  breakpoint, which is true; anything else is the list's.
+    bool  OnGutterMouse (const DxuiMouseEvent & ev);
+    int   GetGutterRowAt (POINT clientPx) const;
 
     //  The heat's levels and colors while Show heat is on: the Heat column,
     //  visible while there are colors, and a compound line's statements.
