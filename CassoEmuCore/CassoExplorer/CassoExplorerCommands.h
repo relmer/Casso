@@ -469,8 +469,8 @@ private:
     static constexpr ToolbarRow  kPreviewToolbarRows[] =
     {
         { kLineAddresses,     DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Tag,       L"Show address",  L"Show where each line starts in memory"                   },
-        { kShowDisassembly,   DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Disassembly",   L"Show the bytes as 6502 instructions",                    true },
-        { kShowBytes,         DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Bytes",         L"Show the bytes in hex",                                  true },
+        { kShowDisassembly,   DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Disassembly",   L"Show disassembly",                                       true },
+        { kShowBytes,         DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Bytes",         L"Show bytes",                                             true },
         //  The Go to and search boxes, which the host supplies as custom entries.
         { kGoToOffset,        DxuiToolbar::Kind::Command, 0, nullptr,             L"Go to",         L""                                                       },
         { kFind,              DxuiToolbar::Kind::Command, 1, nullptr,             L"Search",        L"",                                                       false, true },
