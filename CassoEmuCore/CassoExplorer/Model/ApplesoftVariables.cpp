@@ -340,6 +340,9 @@ bool ApplesoftVariables::Contains (const std::wstring & text, const std::wstring
 //  Text compares as File Explorer sorts files, any numbers in it in numeric
 //  order. Lengths compare as numbers, an empty length first.
 //
+//  Values compare by kind: an empty value first, as a function's or an
+//  array's row has, then numbers by their values, then strings as text.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int ApplesoftVariables::Compare (const VariableRow & a, const VariableRow & b, Column column)
@@ -351,7 +354,7 @@ int ApplesoftVariables::Compare (const VariableRow & a, const VariableRow & b, C
     switch (column)
     {
         case Column::Type:    result = StrCmpLogicalW (a.type.c_str(),  b.type.c_str());   break;
-        case Column::Value:   result = StrCmpLogicalW (a.value.c_str(), b.value.c_str());  break;
+        case Column::Value:   result = CompareValues (a, b);                               break;
         case Column::Length:  result = (a.length.size() != b.length.size()) ? ((a.length.size() < b.length.size()) ? -1 : 1)
                                                                             : a.length.compare (b.length);
                               break;
@@ -359,6 +362,59 @@ int ApplesoftVariables::Compare (const VariableRow & a, const VariableRow & b, C
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplesoftVariables::CompareValues
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ApplesoftVariables::CompareValues (const VariableRow & a, const VariableRow & b)
+{
+    int     result  = 0;
+    int     kindA   = a.value.empty() ? 0 : IsNumber (a) ? 1 : 2;
+    int     kindB   = b.value.empty() ? 0 : IsNumber (b) ? 1 : 2;
+    double  numberA = 0.0;
+    double  numberB = 0.0;
+
+
+
+    if (kindA != kindB)
+    {
+        result = (kindA < kindB) ? -1 : 1;
+    }
+    else if (kindA == 1)
+    {
+        numberA = wcstod (a.value.c_str(), nullptr);
+        numberB = wcstod (b.value.c_str(), nullptr);
+        result  = (numberA < numberB) ? -1 : (numberA > numberB) ? 1 : 0;
+    }
+    else
+    {
+        result = StrCmpLogicalW (a.value.c_str(), b.value.c_str());
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplesoftVariables::IsNumber
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ApplesoftVariables::IsNumber (const VariableRow & row)
+{
+    return row.type == GetTypeName (Type::Real) || row.type == GetTypeName (Type::Integer);
 }
 
 

@@ -76,14 +76,16 @@ private:
     //  and the entry's length.
     static HRESULT       AddArray     (std::span<const Byte> file, size_t pos, Word origin, std::vector<VariableRow> & ioRows, std::vector<VariableArray> & ioArrays, size_t & outLength);
 
-    static VariableRow      MakeRow      (const std::wstring & name, Type type, std::span<const Byte> value, std::span<const Byte> file, Word origin);
-    static Type             GetType      (Byte first, Byte second);
-    static const wchar_t  * GetTypeName  (Type type);
-    static size_t           GetValueSize (Type type);
-    static std::wstring     FormatValue  (Type type, std::span<const Byte> value, std::span<const Byte> file, Word origin);
-    static std::wstring     FormatString (std::span<const Byte> value, std::span<const Byte> file, Word origin);
-    static bool             Contains     (const std::wstring & text, const std::wstring & lowerFilter);
-    static int              Compare      (const VariableRow & a, const VariableRow & b, Column column);
+    static VariableRow      MakeRow       (const std::wstring & name, Type type, std::span<const Byte> value, std::span<const Byte> file, Word origin);
+    static Type             GetType       (Byte first, Byte second);
+    static const wchar_t  * GetTypeName   (Type type);
+    static size_t           GetValueSize  (Type type);
+    static std::wstring     FormatValue   (Type type, std::span<const Byte> value, std::span<const Byte> file, Word origin);
+    static std::wstring     FormatString  (std::span<const Byte> value, std::span<const Byte> file, Word origin);
+    static bool             Contains      (const std::wstring & text, const std::wstring & lowerFilter);
+    static int              Compare       (const VariableRow & a, const VariableRow & b, Column column);
+    static int              CompareValues (const VariableRow & a, const VariableRow & b);
+    static bool             IsNumber      (const VariableRow & row);
 
     static constexpr size_t  s_kHeaderBytes       = 5;
     static constexpr size_t  s_kTrailingBytes     = 256;

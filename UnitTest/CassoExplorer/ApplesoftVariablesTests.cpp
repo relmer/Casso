@@ -247,6 +247,23 @@ public:
     }
 
 
+    TEST_METHOD (Arrange_ByValue_PutsEmptyValuesFirstThenNumbersByValueThenStrings)
+    {
+        std::vector<Byte>                         file = BuildFile();
+        std::vector<VariableRow>                  rows;
+        std::vector<VariableArray>                arrays;
+        std::vector<ApplesoftVariables::Section>  sections;
+
+        AssertSucceeded (ApplesoftVariables::Decode (file, s_kOrigin, rows, arrays));
+
+        sections = ApplesoftVariables::Arrange (rows, arrays, L"", Column::Value, false);
+
+        Assert::IsTrue (GetSectionNames (rows, arrays, sections) == std::vector<std::wstring> { L"B%", L"C", L"FN F", L"N%", L"A", L"S$" },
+                        L"The arrays and the function have no value, -2 is less than 1, and the string is last");
+    }
+
+
+
     TEST_METHOD (Arrange_FiltersOnNamesValuesAndArrays)
     {
         std::vector<Byte>                         file = BuildFile();
