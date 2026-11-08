@@ -1817,6 +1817,7 @@ std::wstring HeatMapView::GetTipText (Word address) const
         text += L"  untouched";
     }
 
+    text += DescribeInstruction (address);
     text += DescribeMarks (address);
 
     if (m_edited.size() == kCount && m_edited[address] != 0)
@@ -3106,6 +3107,59 @@ std::wstring HeatMapView::GetInstructionText (const std::string & form, Word cpu
     }
 
     return TextEncoding::NarrowToWide (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::DescribeInstruction
+//
+//  For a byte run as an opcode, a line with its instruction as the merged
+//  cell writes it and the instruction's bytes, "LDA KBD  (AD 00 C0)"; empty
+//  for any other byte, or one whose instruction's bytes are not all known.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HeatMapView::DescribeInstruction (Word address) const
+{
+    constexpr size_t   kCount = (size_t) kAddressCount;
+    int16_t            stored = (m_values.size() == kCount) ? m_values[address] : (int16_t) -1;
+    std::string        form;
+    std::vector<Byte>  operands;
+    std::wstring       bytes;
+    int                length = 0;
+
+
+
+    if (stored < 0 || m_opcodes.size() != kCount || m_opcodes[address] == 0 || m_opcodeForms == nullptr ||
+        m_opcodeForms->size() <= (size_t) (Byte) stored || (*m_opcodeForms)[(Byte) stored].empty())
+    {
+        return {};
+    }
+
+    form   = (*m_opcodeForms)[(Byte) stored];
+    length = GetInstructionLength (form);
+    bytes  = std::format (L"{:02X}", (Byte) stored);
+
+    for (int i = 1; i < length; i++)
+    {
+        int16_t  value = m_values[(Word) (address + i)];
+
+
+
+        if (value < 0)
+        {
+            return {};
+        }
+
+        operands.push_back ((Byte) value);
+        bytes += std::format (L" {:02X}", (Byte) value);
+    }
+
+    return L"\n" + GetInstructionText (form, HeatMapOptions::GetCpuAddress (m_shownBank, address), operands) + L"  (" + bytes + L")";
 }
 
 

@@ -265,6 +265,7 @@ namespace DebuggerTests
             Assert::IsFalse  (HasText (text, L"00"),           L"the operand drawn as part of the instruction");
             Assert::IsTrue   (isRing (first),                  L"the PC's ring around the first piece");
             Assert::IsTrue   (isRing (second),                 L"and around the second");
+            Assert::IsTrue   (Contains (view.GetTipText (at), L"\nLDA $C000  (AD 00 C0)"), L"the tip has the instruction and its bytes");
             Assert::AreEqual ((int) at, (int) *view.GetPickAt (POINT { (second.left + second.right) / 2, (second.top + second.bottom) / 2 }),
                               L"a point over an operand picks the instruction");
         }
