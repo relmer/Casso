@@ -1,8 +1,7 @@
 #include "Pch.h"
 
 #include "EmuTests/TestMachine.h"
-#include "EmuTests/TextScreenScraper.h"
-#include "Machines/Apple2/Common/AppleKeyboard.h"
+#include "MonitorRomOracle.h"
 
 #include "CppUnitTest.h"
 
@@ -47,11 +46,6 @@ namespace DebuggerTests
         static constexpr Word      kDispatchPage   = 0xFE00;
         static constexpr Word      kIntegerAsm     = 0xF666;
         static constexpr Byte      kBangCharacter  = '!';
-
-        //  A cold boot to the BASIC prompt, then a line at a time. Ceilings,
-        //  not targets: MachineIdle stops as soon as the machine goes quiet.
-        static constexpr uint64_t  kBootCycles     = 20'000'000;
-        static constexpr uint64_t  kLineCycles     = 5'000'000;
 
 
 
@@ -212,108 +206,6 @@ namespace DebuggerTests
 
 
 
-        ////////////////////////////////////////////////////////////////////////
-        //
-        //  ReachMonitorPrompt
-        //
-        //  THROUGH THE MONITOR'S OWN RESET ENTRY, not through BASIC.
-        //
-        //  `CALL -151` is how a person reaches the Monitor, and it is not
-        //  available here: with no disk the //e spins in its startup firmware
-        //  showing only its banner, and the //c stops at "Check Disk Drive",
-        //  so neither machine ever offers a BASIC prompt to type it at.
-        //
-        //  $FF59 is byte-identical on all five shipped ROMs -- SETNORM, INIT,
-        //  SETVID, SETKBD, CLD, BELL, then MONZ, whose `LDA #$AA` is the `*`
-        //  prompt. Entering there sets up the screen and the input and output
-        //  hooks exactly as a reset does, with no operating system in the way.
-        //
-        ////////////////////////////////////////////////////////////////////////
-
-        static void ReachMonitorPrompt (TestMachine & machine)
-        {
-            static constexpr Word  kMonitorReset = 0xFF59;
-
-
-
-            machine.PowerCycle();
-            machine.RunCycles (kBootCycles);
-
-            machine.GetCpu()->SetPC (kMonitorReset);
-            machine.RunCycles (kLineCycles);
-        }
-
-
-
-        ////////////////////////////////////////////////////////////////////////
-        //
-        //  Type
-        //
-        //  One key, held on the latch until the ROM takes it.
-        //
-        //  On the base AppleKeyboard rather than the //e one: the //e-specific
-        //  pointer is what KeystrokeInjector waits on, and waiting on it here
-        //  landed no keys at all. This is the path MachineDebugTarget::
-        //  InjectKey already uses.
-        //
-        ////////////////////////////////////////////////////////////////////////
-
-        static void Type (TestMachine & machine, Byte character)
-        {
-            static constexpr uint64_t  kSlice     = 20'000;
-            static constexpr int       kMaxSlices = 200;
-            AppleKeyboard *            keyboard   = machine.GetRefs().keyboard;
-            int                        slice      = 0;
-
-
-
-            Assert::IsNotNull (keyboard, L"the machine must have a keyboard");
-
-            keyboard->PressKey (character);
-
-            for (slice = 0; slice < kMaxSlices && !keyboard->IsStrobeClear(); ++slice)
-            {
-                machine.RunCycles (kSlice);
-            }
-
-            Assert::IsTrue (keyboard->IsStrobeClear(),
-                            std::format (L"the ROM did not take ${:02X} off the keyboard latch", character).c_str());
-        }
-
-
-
-        static void TypeLine (TestMachine & machine, const std::string & text)
-        {
-            static constexpr Byte  kReturn = 0x0D;
-
-
-
-            for (char character : text)
-            {
-                Type (machine, (Byte) character);
-            }
-
-            Type (machine, kReturn);
-            machine.RunCycles (kLineCycles);
-        }
-
-
-
-        static std::string Screen (MachineHost & machine)
-        {
-            std::string  text;
-
-            for (const std::string & row : TextScreenScraper::Scrape (machine))
-            {
-                text += row;
-                text += '\n';
-            }
-
-            return text;
-        }
-
-
-
         //  LOWERCASE REACHES THE MONITOR on the machines whose keyboards can
         //  produce it. Driven through the ROM's own input path -- typed at the
         //  real `*` prompt, read off the real screen -- because upshifting is
@@ -327,10 +219,10 @@ namespace DebuggerTests
 
 
 
-                ReachMonitorPrompt (machine);
-                TypeLine (machine, "300l");
+                RomMonitor::ReachMonitorPrompt (machine);
+                RomMonitor::TypeLine (machine, "300l");
 
-                screen = Screen (machine);
+                screen = RomMonitor::Screen (machine);
 
                 Assert::IsTrue (screen.find ("0300-") != std::string::npos,
                                 Widen (std::string (machineId) + ": lowercase 300l produced no listing\n" + screen).c_str());

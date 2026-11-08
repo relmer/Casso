@@ -41,7 +41,8 @@ public:
     //  Rows broken on eight-byte boundaries, so `303.30F` is five bytes
     //  against $0303 and then eight against $0308. The Monitor labels a row
     //  with the address that starts it rather than with wherever the reader
-    //  began, which is why this differs from the AppleWin dump.
+    //  began, which is why this differs from the AppleWin dump. A last
+    //  address below the first wraps through $FFFF.
     static MemoryData  MakeRows (IDebugTarget & target, Word first, Word last);
 
 private:
@@ -64,14 +65,14 @@ private:
 
     static constexpr Word  kSlotBase      = 0xC000;
     static constexpr Word  kSlotStride    = 0x0100;
-    static constexpr int   kLastSlot      = 7;
+    static constexpr int   kSlotMask      = 0x0F;
     static constexpr int   kListLines     = 20;
     static constexpr int   kBytesPerRow   = 8;
     static constexpr Byte  kLowByte       = 0xFF;
 
     static void  Examine        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Deposit        (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  List           (DebugSession & session, const DebugCommand & command, Reply & reply);
+    void         List           (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Verify         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Arithmetic     (const DebugCommand & command, Reply & reply);
     static void  SetTextMode    (DebugSession & session, bool isInverse, Reply & reply);
@@ -90,4 +91,8 @@ private:
     static Word  GetLast        (const DebugCommand & command);
     static Byte  Peek           (IDebugTarget & target, Word address);
     static void  PokeWord       (IDebugTarget & target, Word address, Word value);
+
+    //  Where the next `L` with no address lists from: where the last one
+    //  ended, or the program counter before any listing.
+    std::optional<Word>  m_nextList;
 };

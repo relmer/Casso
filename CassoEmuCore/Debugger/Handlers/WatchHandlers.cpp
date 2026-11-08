@@ -118,7 +118,7 @@ WatchListData WatchHandlers::MakeList (DebugSession & session, WatchListKind kin
 
         if (kind != WatchListKind::Bookmark)
         {
-            entry.value = PeekWord (session, item.address);
+            entry.value = PeekWord (session, kind, item.address);
         }
 
         data.entries.push_back (entry);
@@ -135,29 +135,130 @@ WatchListData WatchHandlers::MakeList (DebugSession & session, WatchListKind kin
 //
 //  WatchHandlers::Add
 //
-//  ZP0-ZP7 and P0-P4 carry a slot in their name and fill it; the others
-//  take the next id. The reply lists the entry.
+//  An address adds an entry, and the reply lists that entry alone. With no
+//  address the reply is the whole list, under the list's own verb, so a
+//  format that writes an add and a list differently writes a list.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WatchHandlers::Add (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply)
 {
-    WatchTable     & table = GetTable (session, kind);
-    WatchListData    list  = MakeList (session, kind);
-    WatchListData    one;
-    int              slot  = 0;
-    int              id    = 0;
+    static constexpr DebugVerb    kListVerbs[] = { DebugVerb::ListWatches, DebugVerb::ListZeroPagePointers, DebugVerb::ListBookmarks };
+    WatchTable                  & table        = GetTable (session, kind);
+    int                           id           = 0;
 
 
 
     if (!command.hasA1)
     {
-        reply.data = list;
+        reply.verb = kListVerbs[(int) kind];
+        reply.data = MakeList (session, kind);
         return;
     }
 
-    id   = TryGetSlot (command.sourceName, slot) ? table.AddAt (slot, command.a1) : table.Add (command.a1);
-    list = MakeList (session, kind);
+    if (kind != WatchListKind::ZeroPage)
+    {
+        id = table.Add (command.a1);
+    }
+    else if (!TryAddPointer (table, command, reply, id))
+    {
+        return;
+    }
+
+    reply.data = MakeEntry (session, kind, id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHandlers::TryAddPointer
+//
+//  A ZERO-PAGE POINTER HAS ONE OF EIGHT SLOTS, as AppleWin's do. ZP0-ZP7 and
+//  P0-P4 fill the slot their name carries, replacing what was there; ZP and
+//  ZPA take the lowest free slot, and there is none once all eight are set.
+//  That keeps every entry one ZPSAVE can write as a command that recreates
+//  it.
+//
+//  The address is in zero page, where the pointer's two bytes are: a
+//  pointer at $FF takes its high byte from $00, as the 6502 does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchHandlers::TryAddPointer (WatchTable & table, const DebugCommand & command, Reply & reply, int & id)
+{
+    int  slot = 0;
+
+
+
+    if (command.a1 > kLastZeroPage)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments",
+                        std::format ("${:04X} is not in zero page. A zero-page pointer is at an address from $00 to $FF.", command.a1));
+        return false;
+    }
+
+    if (!TryGetSlot (command.sourceName, slot) && !TryFindFreeSlot (table, slot))
+    {
+        reply.SetError (CommandStatus::Error, "zero-page pointers full",
+                        "All eight zero-page pointers are set. Clear one with ZPC, or replace one with ZP0 to ZP7.");
+        return false;
+    }
+
+    id = table.AddAt (slot, command.a1);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHandlers::TryFindFreeSlot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchHandlers::TryFindFreeSlot (const WatchTable & table, int & slot)
+{
+    WatchItem  item;
+
+
+
+    for (int candidate = 0; candidate <= kLastSlot; ++candidate)
+    {
+        if (!table.TryFind (candidate, item))
+        {
+            slot = candidate;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHandlers::MakeEntry
+//
+//  The list holding only the entry with the given id, as an add or an enable
+//  replies.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+WatchListData WatchHandlers::MakeEntry (DebugSession & session, WatchListKind kind, int id)
+{
+    WatchListData  list = MakeList (session, kind);
+    WatchListData  one;
+
+
+
     one.kind = kind;
 
     for (const WatchEntry & entry : list.entries)
@@ -168,7 +269,7 @@ void WatchHandlers::Add (DebugSession & session, const DebugCommand & command, W
         }
     }
 
-    reply.data = one;
+    return one;
 }
 
 
@@ -184,7 +285,6 @@ void WatchHandlers::Add (DebugSession & session, const DebugCommand & command, W
 void WatchHandlers::Clear (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply)
 {
     WatchTable  & table = GetTable (session, kind);
-    int           id    = (int) command.count;
 
 
 
@@ -195,13 +295,13 @@ void WatchHandlers::Clear (DebugSession & session, const DebugCommand & command,
         return;
     }
 
-    if (!table.TryClear (id))
+    if (!table.TryClear ((int) command.count))
     {
-        SetNoSuch (reply, kind, id);
+        SetNoSuch (reply, kind, command.count);
         return;
     }
 
-    reply.data = MessageData { { std::format ("{} #{} cleared.", GetNoun (kind), id) } };
+    reply.data = MessageData { { std::format ("{} #{} cleared.", Capitalize (GetNoun (kind)), command.count) } };
 }
 
 
@@ -216,10 +316,7 @@ void WatchHandlers::Clear (DebugSession & session, const DebugCommand & command,
 
 void WatchHandlers::Enable (DebugSession & session, const DebugCommand & command, WatchListKind kind, bool enabled, Reply & reply)
 {
-    WatchTable     & table = GetTable (session, kind);
-    int              id    = (int) command.count;
-    WatchListData    list;
-    WatchListData    one;
+    WatchTable  & table = GetTable (session, kind);
 
 
 
@@ -234,24 +331,13 @@ void WatchHandlers::Enable (DebugSession & session, const DebugCommand & command
         return;
     }
 
-    if (!table.TrySetEnabled (id, enabled))
+    if (!table.TrySetEnabled ((int) command.count, enabled))
     {
-        SetNoSuch (reply, kind, id);
+        SetNoSuch (reply, kind, command.count);
         return;
     }
 
-    list     = MakeList (session, kind);
-    one.kind = kind;
-
-    for (const WatchEntry & entry : list.entries)
-    {
-        if (entry.id == id)
-        {
-            one.entries.push_back (entry);
-        }
-    }
-
-    reply.data = one;
+    reply.data = MakeEntry (session, kind, (int) command.count);
 }
 
 
@@ -262,7 +348,8 @@ void WatchHandlers::Enable (DebugSession & session, const DebugCommand & command
 //
 //  WatchHandlers::GoTo
 //
-//  BMG # lists 20 lines of code at the bookmark.
+//  BMG # lists 20 lines of code at the bookmark. There is one listing, so
+//  `*` is not an id here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -273,9 +360,15 @@ void WatchHandlers::GoTo (DebugSession & session, const DebugCommand & command, 
 
 
 
-    if (command.text == "*" || !session.GetBookmarks().TryFind ((int) command.count, item))
+    if (command.text == "*")
     {
-        SetNoSuch (reply, WatchListKind::Bookmark, (int) command.count);
+        reply.SetError (CommandStatus::Error, "invalid arguments", "BMG takes one bookmark id, not *.");
+        return;
+    }
+
+    if (!session.GetBookmarks().TryFind ((int) command.count, item))
+    {
+        SetNoSuch (reply, WatchListKind::Bookmark, command.count);
         return;
     }
 
@@ -296,6 +389,7 @@ void WatchHandlers::GoTo (DebugSession & session, const DebugCommand & command, 
 void WatchHandlers::Save (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply)
 {
     IFileSystem  * files = session.GetFileSystem();
+    size_t         count = GetTable (session, kind).GetAll().size();
     HRESULT        hr    = S_OK;
 
 
@@ -320,7 +414,7 @@ void WatchHandlers::Save (DebugSession & session, const DebugCommand & command, 
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved {} {} to {}.", GetTable (session, kind).GetAll().size(), GetPlural (kind), command.text) } };
+    reply.data = MessageData { { std::format ("Saved {} {} to {}.", count, count == 1 ? GetNoun (kind) : GetPlural (kind), command.text) } };
 }
 
 
@@ -387,6 +481,32 @@ const char * WatchHandlers::GetNoun (WatchListKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WatchHandlers::Capitalize
+//
+//  A noun that starts a sentence.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WatchHandlers::Capitalize (const std::string & text)
+{
+    std::string  result = text;
+
+
+
+    if (!result.empty())
+    {
+        result[0] = (char) toupper ((unsigned char) result[0]);
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WatchHandlers::TryGetSlot
 //
 //  A name ending in a digit, ZP3 or P1, carries a slot.
@@ -416,18 +536,29 @@ bool WatchHandlers::TryGetSlot (const std::string & sourceName, int & slot)
 //
 //  WatchHandlers::PeekWord
 //
+//  The word at address, low byte first, read as the CPU would see it. A
+//  zero-page pointer's high byte wraps within zero page. A word with a byte
+//  the debugger cannot read without disturbing the machine -- an I/O address
+//  -- has no value, rather than a zero that reads like one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-Word WatchHandlers::PeekWord (DebugSession & session, Word address)
+std::optional<Word> WatchHandlers::PeekWord (DebugSession & session, WatchListKind kind, Word address)
 {
-    static constexpr int  kByteBits = 8;
-    Byte                  low       = 0;
-    Byte                  high      = 0;
+    static constexpr int  kByteBits  = 8;
+    Word                  next       = (kind == WatchListKind::ZeroPage) ? (Word) ((address + 1) & kLastZeroPage) : (Word) (address + 1);
+    Byte                  low        = 0;
+    Byte                  high       = 0;
+    bool                  isLowRead  = session.TryPeek (address, low);
+    bool                  isHighRead = session.TryPeek (next, high);
 
 
 
-    session.TryPeek (address,              low);
-    session.TryPeek ((Word) (address + 1), high);
+    if (!isLowRead || !isHighRead)
+    {
+        return std::nullopt;
+    }
+
     return (Word) (low | (high << kByteBits));
 }
 
@@ -439,9 +570,12 @@ Word WatchHandlers::PeekWord (DebugSession & session, Word address)
 //
 //  WatchHandlers::SetNoSuch
 //
+//  The id as it was typed, so an id above the largest int is not reported
+//  as a negative number.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void WatchHandlers::SetNoSuch (Reply & reply, WatchListKind kind, int id)
+void WatchHandlers::SetNoSuch (Reply & reply, WatchListKind kind, uint32_t id)
 {
     reply.SetError (CommandStatus::Error, std::string ("no such ") + GetNoun (kind),
                     std::format ("There is no {} #{}.", GetNoun (kind), id));

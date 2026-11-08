@@ -33,7 +33,9 @@ public:
     static WatchListData  MakeList   (DebugSession & session, WatchListKind kind);
 
 private:
-    static constexpr int  kListLines = 20;
+    static constexpr int   kListLines    = 20;
+    static constexpr int   kLastSlot     = 7;
+    static constexpr Word  kLastZeroPage = 0x00FF;
 
     static void  Add    (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply);
     static void  Clear  (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply);
@@ -41,10 +43,14 @@ private:
     static void  GoTo   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Save   (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply);
 
-    static WatchTable  & GetTable   (DebugSession & session, WatchListKind kind);
-    static const char  * GetNoun    (WatchListKind kind);
-    static const char  * GetPlural  (WatchListKind kind);
-    static bool          TryGetSlot (const std::string & sourceName, int & slot);
-    static Word          PeekWord   (DebugSession & session, Word address);
-    static void          SetNoSuch  (Reply & reply, WatchListKind kind, int id);
+    static bool                 TryAddPointer   (WatchTable & table, const DebugCommand & command, Reply & reply, int & id);
+    static bool                 TryFindFreeSlot (const WatchTable & table, int & slot);
+    static WatchListData        MakeEntry       (DebugSession & session, WatchListKind kind, int id);
+    static WatchTable         & GetTable        (DebugSession & session, WatchListKind kind);
+    static const char         * GetNoun         (WatchListKind kind);
+    static const char         * GetPlural       (WatchListKind kind);
+    static std::string          Capitalize      (const std::string & text);
+    static bool                 TryGetSlot      (const std::string & sourceName, int & slot);
+    static std::optional<Word>  PeekWord        (DebugSession & session, WatchListKind kind, Word address);
+    static void                 SetNoSuch       (Reply & reply, WatchListKind kind, uint32_t id);
 };

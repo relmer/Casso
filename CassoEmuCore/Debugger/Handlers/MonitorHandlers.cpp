@@ -55,16 +55,21 @@ bool MonitorHandlers::TryExecute (DebugSession & session, const DebugCommand & c
 //  AppleWin dump starts its first row wherever the reader asked, so the two
 //  cannot share a row builder.
 //
+//  A last address below the first runs on through $FFFF to $0000, which is
+//  where a deposit that passes the end of memory wrote.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 MemoryData MonitorHandlers::MakeRows (IDebugTarget & target, Word first, Word last)
 {
-    MemoryData  data;
-    uint32_t    address = first;
+    static constexpr uint32_t  kAddressSpace = 0x10000;
+    MemoryData                 data;
+    uint32_t                   address       = first;
+    uint32_t                   end           = (last >= first) ? last : last + kAddressSpace;
 
 
 
-    while (address <= last)
+    while (address <= end)
     {
         MemoryRow  row;
         uint32_t   rowEnd = (address | (kBytesPerRow - 1));
@@ -74,7 +79,7 @@ MemoryData MonitorHandlers::MakeRows (IDebugTarget & target, Word first, Word la
         row.address = (Word) address;
         row.region  = target.GetRegion ((Word) address);
 
-        for (; address <= rowEnd && address <= last; ++address)
+        for (; address <= rowEnd && address <= end; ++address)
         {
             Byte  value = 0;
 
@@ -142,23 +147,32 @@ void MonitorHandlers::Deposit (DebugSession & session, const DebugCommand & comm
 //
 //  MonitorHandlers::List
 //
-//  Twenty instructions, which is what the Monitor's L shows.
+//  TWENTY INSTRUCTIONS, WHATEVER FOLLOWS THE ADDRESS. The ROM's LIST ($FE5E)
+//  copies A1 to its PC and lists twenty lines; it never reads A2, so
+//  `300.305L` is `300L`. Its PC is sixteen bits, so a listing that reaches
+//  $FFFF goes on at $0000.
+//
+//  `L` alone goes on from where the last listing ended, as the ROM's does
+//  from the PC it left. Before any listing that is the CPU's program counter.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MonitorHandlers::List (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    DisassemblyData      data;
-    std::optional<Word>  last;
+    DisassemblyData  data;
+    Word             first = command.hasA1 ? command.a1 : m_nextList.value_or (session.GetTarget().GetRegisters().pc);
+    Word             next  = 0;
 
 
 
-    if (command.hasA2)
+    next = DataDirectiveHandlers::Disassemble (session, first, std::nullopt, kListLines, data);
+
+    if ((int) data.lines.size() < kListLines)
     {
-        last = command.a2;
+        next = DataDirectiveHandlers::Disassemble (session, next, std::nullopt, kListLines, data);
     }
 
-    DataDirectiveHandlers::Disassemble (session, command.a1, last, kListLines, data);
+    m_nextList = next;
     reply.data = data;
 }
 
@@ -258,25 +272,20 @@ void MonitorHandlers::SetTextMode (DebugSession & session, bool isInverse, Reply
 //  `n^K` points the input hook at slot n's $Cn00 and `n^P` the output hook;
 //  slot 0 restores the ROM's own keyboard and screen routines.
 //
+//  THE SLOT IS THE LOW HEX DIGIT, as the ROM's IOPRT ($FE9B) takes it: it
+//  ands A2L with $0F. So `13^K` is slot 3, `10^K` is slot 0, and `8^K` points
+//  the hook at $C800, as it would on the machine.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MonitorHandlers::SetHook (DebugSession & session, const DebugCommand & command, bool isInput, Reply & reply)
 {
     Word  hook    = isInput ? kInputHook : kOutputHook;
     Word  restore = isInput ? kKeyIn : kCharacterOut;
-    int   slot    = (int) command.count;
-    Word  target  = 0;
+    int   slot    = (int) (command.count & kSlotMask);
+    Word  target  = (slot == 0) ? restore : (Word) (kSlotBase + kSlotStride * slot);
 
 
-
-    if (slot < 0 || slot > kLastSlot)
-    {
-        reply.SetError (CommandStatus::Error, "invalid arguments",
-                        std::format ("There is no slot {}. The slots are 0 to {}.", slot, kLastSlot));
-        return;
-    }
-
-    target = (slot == 0) ? restore : (Word) (kSlotBase + kSlotStride * slot);
 
     PokeWord (session.GetTarget(), hook, target);
 
@@ -334,7 +343,7 @@ void MonitorHandlers::EditRegisters (DebugSession & session, const DebugCommand 
     }
 
     target.SetRegisters (registers);
-    reply.data = RegistersData { registers };
+    reply.data = RegistersData { target.GetRegisters() };
 }
 
 
@@ -345,8 +354,8 @@ void MonitorHandlers::EditRegisters (DebugSession & session, const DebugCommand 
 //
 //  MonitorHandlers::ReadFile
 //
-//  Reads the smaller of the file and the range, and says so when they differ
-//  (FR-020).
+//  Reads the smaller of the file and the range, and says so when their
+//  sizes differ, whichever is the larger.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -354,13 +363,19 @@ void MonitorHandlers::ReadFile (DebugSession & session, const DebugCommand & com
 {
     IFileSystem      * files   = nullptr;
     Word               last    = GetLast (command);
-    uint32_t           wanted  = (uint32_t) (last - command.a1 + 1);
+    uint32_t           wanted  = (uint32_t) last - (uint32_t) command.a1 + 1;
     std::string        content;
     std::vector<Byte>  bytes;
     FileIoData         data;
     HRESULT            hr      = S_OK;
 
 
+
+    if (!command.hasA1)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "R takes the range to read into: first.lastR name.");
+        return;
+    }
 
     if (command.text.empty())
     {
@@ -391,7 +406,7 @@ void MonitorHandlers::ReadFile (DebugSession & session, const DebugCommand & com
     data.path        = command.text;
     data.requested   = wanted;
     data.transferred = (uint32_t) bytes.size();
-    data.mismatch    = data.transferred != wanted;
+    data.mismatch    = content.size() != wanted;
     reply.data       = data;
 }
 
@@ -414,6 +429,12 @@ void MonitorHandlers::WriteFile (DebugSession & session, const DebugCommand & co
     HRESULT        hr    = S_OK;
 
 
+
+    if (!command.hasA1)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "W takes the range to write: first.lastW name.");
+        return;
+    }
 
     if (command.text.empty())
     {
@@ -490,7 +511,7 @@ bool MonitorHandlers::TryGetFiles (DebugSession & session, Reply & reply, IFileS
 
     if (files == nullptr)
     {
-        reply.SetError (CommandStatus::Error, "no file access", "This session has no file system.");
+        reply.SetError (CommandStatus::Error, "no file access", "This session cannot read or write host files.");
         return false;
     }
 
@@ -535,11 +556,15 @@ bool MonitorHandlers::TryPokeRange (DebugSession & session, Word first, std::spa
 //
 //  MonitorHandlers::GetLast
 //
+//  A RANGE THAT ENDS BEFORE IT STARTS IS ITS FIRST BYTE. The ROM's loops act
+//  on A1 and only then compare it with A2 (NXTA1 at $FCBA), so XAM, VFY and
+//  the tape commands always handle A1 once.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Word MonitorHandlers::GetLast (const DebugCommand & command)
 {
-    return command.hasA2 ? command.a2 : command.a1;
+    return (command.hasA2 && command.a2 >= command.a1) ? command.a2 : command.a1;
 }
 
 
