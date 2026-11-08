@@ -47,6 +47,8 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- In the desk scene, a monitor standing on the desk without its drives is no
+  longer framed by a wide band of empty desk.
 - Menus are drawn without the pale outline around them. The shadow under a
   menu is what separates it from the window, as it is in Windows and in
   Visual Studio.

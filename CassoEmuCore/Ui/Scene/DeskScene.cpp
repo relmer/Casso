@@ -271,8 +271,14 @@ DeskSceneMetrics DeskScene::Metrics() const
 
     // The room the contact shadows need on the floor, so the containment
     // solve keeps them inside the picture instead of clipping them away.
-    metrics.monitorPadSideMm  = kMonitorShadowMarginSideMm;
-    metrics.monitorPadDepthMm = kMonitorShadowMarginDepthMm;
+    //
+    // The monitor reserves only a drive's room, not its full shadow. The
+    // reserve matters only when the monitor is on the desk alone, and
+    // there its long forward margin, nearer the eye than the monitor, framed
+    // the monitor in a wide band of empty floor. The near end of its shadow
+    // is under its bezel anyway, and only the faint outer penumbra is cut.
+    metrics.monitorPadSideMm  = kShadowMarginSideMm;
+    metrics.monitorPadDepthMm = kShadowMarginDepthMm;
     metrics.drivePadSideMm    = kShadowMarginSideMm;
     metrics.drivePadDepthMm   = kShadowMarginDepthMm;
 
