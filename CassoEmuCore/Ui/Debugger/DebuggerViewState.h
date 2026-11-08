@@ -258,8 +258,9 @@ public:
     static constexpr int  kMaxCodeViews = 4;
 
     //  Where a code view starts. The one following the PC follows it unless
-    //  the user moved it; the memory pane starts at the zero page.
-    void  SetCodeAddress   (std::optional<Word> address, int view = 0) { CodeView & v = m_code[(size_t) view]; v.address = address; v.centerOn.reset(); v.scrollLines = 0; }
+    //  the user moved it; the memory pane starts at the zero page. A move
+    //  still waiting for the next build is dropped, since this one came later.
+    void  SetCodeAddress   (std::optional<Word> address, int view = 0);
 
     //  Moves a code view so `address` is on its middle line, or as near the
     //  middle as the top of memory allows. Every navigation goes through
@@ -445,10 +446,16 @@ public:
     void  RequestGoTo (DebugSession & session, int window, const std::string & text);
 
 private:
-    void  MoveCodePane   (DebugSession & session, const std::string & name, Reply & reply);
+    //  A pane's own AppleWin line, run past the line assembler.
+    static Reply  RunPaneLine (DebugSession & session, const std::string & line);
+
+    void  MoveCodePane     (DebugSession & session, const std::string & name, Reply & reply);
+    void  NavigateCodePane (DebugSession & session, const std::string & name, Word at, Reply & reply);
+    Word  GetScrolledTop   (DebugSession & session, const std::string & name, Word top) const;
 
     static DebuggerViewSnapshot::MemoryWindow  ReadMemoryWindow (DebugSession & session, int id, Word address);
     void  MoveMemoryPane (const std::string & name, const std::string & argument, Reply & reply);
+    void  SetGoTo        (int window, std::optional<Word> address, const std::string & text);
     void  ShowWindowPane (DebugSession & session, const std::string & name, Reply & reply);
 
     void  BuildSource    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
@@ -473,6 +480,7 @@ private:
     //  anchor that puts the PC in the middle.
     Word         ChooseCodeStart (DebugSession & session, Word pc, int view) const;
     std::vector<DebuggerViewSnapshot::CodeLine>  BuildCode (DebugSession & session, const DebuggerViewSnapshot & snapshot, int view) const;
+    static DebuggerViewSnapshot::CodeLine  MakeCodeLine (DebugSession & session, const DebuggerViewSnapshot & snapshot, const DisassemblyLine & line);
     void         BuildAutoWatches (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     static bool  IsSameRegisters  (const Cpu6502Registers & left, const Cpu6502Registers & right);
     static void  AddAutoWatches   (DebugSession & session, const InstructionTouches::Result & touches,

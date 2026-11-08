@@ -1635,174 +1635,6 @@ namespace DebuggerViewStateTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  WindowCommandTests
-    //
-    //  The AppleWin names that need the window, carried out on its panes.
-    //
-    ////////////////////////////////////////////////////////////////////////////////
-
-    TEST_CLASS (WindowCommandTests)
-    {
-    public:
-
-        static Reply RunInWindow (MachineRig & rig, const std::string & line, CommandMode mode = CommandMode::AppleWin)
-        {
-            return rig.view.ExecuteWindowLine (rig.controller.GetSession(), line, mode);
-        }
-
-
-
-        TEST_METHOD (CursorCommandsMoveTheCodePane)
-        {
-            MachineRig  rig;
-
-
-
-            Assert::IsTrue   (RunInWindow (rig, "V").status == CommandStatus::Ok);
-            Assert::AreEqual ((Word) 0x0302, rig.view.GetCodeAddress().value_or (0), L"V passes LDA #$41");
-
-            RunInWindow (rig, "v");
-            Assert::AreEqual ((Word) 0x0305, rig.view.GetCodeAddress().value_or (0), L"and STA $0400");
-
-            RunInWindow (rig, "^");
-            Assert::AreEqual ((Word) 0x0302, rig.view.GetCodeAddress().value_or (0), L"^ goes back one instruction");
-
-            RunInWindow (rig, "PAGEDOWN256");
-            Assert::AreEqual ((Word) 0x0402, rig.view.GetCodeAddress().value_or (0), L"PAGEDOWN256");
-
-            RunInWindow (rig, "PAGEUP4K");
-            Assert::AreEqual ((Word) 0xF402, rig.view.GetCodeAddress().value_or (0), L"PAGEUP4K wraps");
-
-            RunInWindow (rig, ".");
-            Assert::IsFalse  (rig.view.GetCodeAddress().has_value(), L". follows the PC again");
-        }
-
-
-
-        TEST_METHOD (RetAndArrowGoToTheAddressesTheyRead)
-        {
-            MachineRig        rig;
-            Cpu6502Registers  r    = rig.controller.GetSession().GetTarget().GetRegisters();
-            Reply             reply;
-
-
-
-            r.sp = 0xFD;
-            rig.controller.GetSession().GetTarget().SetRegisters (r);
-            rig.machine.GetMemoryBus().WriteByte (0x01FE, 0x34);
-            rig.machine.GetMemoryBus().WriteByte (0x01FF, 0x12);
-
-            RunInWindow (rig, "RET");
-            Assert::AreEqual ((Word) 0x1235, rig.view.GetCodeAddress().value_or (0), L"one past the pushed address");
-
-            rig.view.SetCodeAddress (0x0302);
-            RunInWindow (rig, "->");
-            Assert::AreEqual ((Word) 0x0400, rig.view.GetCodeAddress().value_or (0), L"STA $0400's address");
-
-            rig.view.SetCodeAddress (0x0300);
-            reply = RunInWindow (rig, "->");
-            Assert::IsTrue   (reply.status == CommandStatus::Error, L"LDA #$41 has no address");
-            Assert::AreEqual ((Word) 0x0300, rig.view.GetCodeAddress().value_or (0), L"and the pane stays");
-        }
-
-
-
-        TEST_METHOD (MiniMemoryCommandsMoveTheMemoryPane)
-        {
-            MachineRig  rig;
-
-
-
-            Assert::IsTrue   (RunInWindow (rig, "MD1 1000").status == CommandStatus::Ok);
-            Assert::AreEqual ((Word) 0x1000, rig.view.GetMemoryAddress());
-
-            Assert::IsTrue   (RunInWindow (rig, "/MT2 $2000", CommandMode::Monitor).status == CommandStatus::Ok);
-            Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryAddress(), L"a / line in Monitor mode");
-
-            Assert::IsTrue   (RunInWindow (rig, "MA1").status == CommandStatus::Error, L"no address");
-            Assert::IsTrue   (RunInWindow (rig, "MA1 XYZ").status == CommandStatus::Error, L"not hex");
-            Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryAddress(), L"a bad address leaves the pane");
-        }
-
-
-
-        //  CODE, DATA and CONSOLE bring a pane forward; the second disassembly
-        //  and memory window open when they are not.
-        TEST_METHOD (WindowNamesBringAPaneForward)
-        {
-            MachineRig            rig;
-            DebugSession        & session  = rig.controller.GetSession();
-            DebuggerViewSnapshot  snapshot = rig.view.Build (session);
-            uint32_t              serial   = snapshot.showPaneSerial;
-
-
-
-            Assert::IsTrue   (RunInWindow (rig, "CONSOLE").status == CommandStatus::Ok);
-            snapshot = rig.view.Build (session);
-            Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), snapshot.showPane);
-            Assert::AreEqual (serial + 1, snapshot.showPaneSerial);
-
-            Assert::IsFalse  (rig.view.IsCodeViewOpen (1));
-            RunInWindow (rig, "code2");
-            snapshot = rig.view.Build (session);
-            Assert::AreEqual (DebuggerLayout::GetCodePaneId (1), snapshot.showPane);
-            Assert::IsTrue   (rig.view.IsCodeViewOpen (1), L"CODE2 opens the second disassembly");
-
-            RunInWindow (rig, "DATA2");
-            snapshot = rig.view.Build (session);
-            Assert::AreEqual (DebuggerLayout::GetMemoryPaneId (2), snapshot.showPane);
-            Assert::IsTrue   (rig.view.GetMemoryWindowAddress (2).has_value(), L"DATA2 opens the second memory window");
-
-            RunInWindow (rig, "DATA2");
-            Assert::AreEqual (serial + 4, rig.view.Build (session).showPaneSerial, L"the same pane asked again is asked again");
-
-            RunInWindow (rig, "/CODE", CommandMode::Monitor);
-            Assert::AreEqual (DebuggerLayout::GetCodePaneId (0), rig.view.Build (session).showPane, L"a / line in Monitor mode");
-        }
-
-
-
-        TEST_METHOD (LayoutViewAndAppearanceNamesReplyWithoutChangingThePanes)
-        {
-            MachineRig  rig;
-
-
-
-            Assert::IsTrue (RunInWindow (rig, "WIN").status     == CommandStatus::Ok,           L"every pane is shown");
-            Assert::IsTrue (RunInWindow (rig, "SOURCE1").status == CommandStatus::NotAvailable, L"no listing link");
-            Assert::IsTrue (RunInWindow (rig, "HGR").status     == CommandStatus::NotAvailable, L"a screen view");
-            Assert::IsTrue (RunInWindow (rig, "BW").status      == CommandStatus::NotAvailable, L"appearance");
-
-            Assert::IsFalse  (rig.view.GetCodeAddress().has_value());
-            Assert::AreEqual ((Word) 0x0000, rig.view.GetMemoryAddress());
-        }
-
-
-
-        //  Outside the window the same names still need it, and every other line
-        //  runs as the command box always ran it.
-        TEST_METHOD (OtherLinesAndOtherCallersAreUnchanged)
-        {
-            MachineRig  rig;
-            Reply       viaWindow  = RunInWindow (rig, "U 300");
-            Reply       viaSession = rig.Run ("U 300");
-
-
-
-            Assert::IsTrue   (rig.controller.GetSession().ExecuteLine ("V", CommandMode::AppleWin).status == CommandStatus::NotAvailable);
-            Assert::IsTrue   (RunInWindow (rig, "V", CommandMode::Monitor).status != CommandStatus::Ok ||
-                              !rig.view.GetCodeAddress().has_value(), L"a Monitor line without / is the Monitor's");
-            Assert::AreEqual (viaSession.text.size(), viaWindow.text.size());
-            Assert::AreEqual (viaSession.text.front(), viaWindow.text.front());
-        }
-    };
-
-
-
-
-
-    ////////////////////////////////////////////////////////////////////////////////
-    //
     //  ActionTests
     //
     //  What each keyboard-scheme action sends. A key and the button it stands
@@ -1838,9 +1670,9 @@ namespace DebuggerViewStateTests
 
 
 
-            Assert::AreEqual (DebuggerViewState::GetRunLine(),      *DebuggerViewState::GetActionLine (Action::Run,      &snapshot, -1));
-            Assert::AreEqual (DebuggerViewState::GetStepLine(),     *DebuggerViewState::GetActionLine (Action::StepInto, &snapshot, -1));
-            Assert::AreEqual (DebuggerViewState::GetStepOverLine(), *DebuggerViewState::GetActionLine (Action::StepOver, &snapshot, -1));
+            Assert::AreEqual (std::string ("G"),                    *DebuggerViewState::GetActionLine (Action::Run,      &snapshot, -1));
+            Assert::AreEqual (std::string ("T"),                    *DebuggerViewState::GetActionLine (Action::StepInto, &snapshot, -1));
+            Assert::AreEqual (std::string ("P"),                    *DebuggerViewState::GetActionLine (Action::StepOver, &snapshot, -1));
             Assert::AreEqual (std::string ("RTS"),                  *DebuggerViewState::GetActionLine (Action::StepOut,  &snapshot, -1));
         }
 
@@ -1861,10 +1693,8 @@ namespace DebuggerViewStateTests
 
 
 
-            Assert::AreEqual (DebuggerViewState::GetRunToCursorLine (0x0302),
-                              *DebuggerViewState::GetActionLine (Action::RunToCursor, &snapshot, 1));
-            Assert::AreEqual (DebuggerViewState::GetToggleBreakpointLine (snapshot, 0x0302),
-                              *DebuggerViewState::GetActionLine (Action::ToggleBreakpoint, &snapshot, 1));
+            Assert::AreEqual (std::string ("G 0302"),  *DebuggerViewState::GetActionLine (Action::RunToCursor,      &snapshot, 1));
+            Assert::AreEqual (std::string ("BP 0302"), *DebuggerViewState::GetActionLine (Action::ToggleBreakpoint, &snapshot, 1));
         }
 
 
@@ -1874,8 +1704,7 @@ namespace DebuggerViewStateTests
 
 
 
-            Assert::AreEqual (DebuggerViewState::GetToggleBreakpointLine (snapshot, 0x0300),
-                              *DebuggerViewState::GetActionLine (Action::ToggleBreakpoint, &snapshot, -1));
+            Assert::AreEqual (std::string ("BP 0300"), *DebuggerViewState::GetActionLine (Action::ToggleBreakpoint, &snapshot, -1));
         }
 
 
@@ -2223,8 +2052,9 @@ namespace DebuggerViewStateTests
     //
     //  DiagnosticsPanelTests
     //
-    //  Device panels in the window's snapshot, the PANEL command, and the rows
-    //  a panel draws, all from a provider that stands for no real device.
+    //  Device panels in the window's snapshot and the rows a panel draws, all
+    //  from a provider that stands for no real device. The PANEL command is in
+    //  WindowPaneCommandTests.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -2252,30 +2082,7 @@ namespace DebuggerViewStateTests
                 handlers.Attach (session);
                 target.diagnosticsProviders = { &provider };
             }
-
-
-
-            Reply Run (const std::string & line, CommandMode mode = CommandMode::AppleWin)
-            {
-                return view.ExecuteWindowLine (session, line, mode);
-            }
         };
-
-
-
-        static std::string Join (const std::vector<std::string> & lines)
-        {
-            std::string  text;
-
-
-
-            for (const std::string & line : lines)
-            {
-                text += line + "\n";
-            }
-
-            return text;
-        }
 
 
 
@@ -2325,58 +2132,6 @@ namespace DebuggerViewStateTests
         }
 
 
-        TEST_METHOD (ThePanelCommandOpensListsAndCloses)
-        {
-            PanelRig  rig;
-            Reply     reply;
-
-
-
-            reply = rig.Run ("PANEL LIST");
-            Assert::IsTrue (reply.status == CommandStatus::Ok);
-            Assert::IsTrue (Join (reply.text).find ("fake") != std::string::npos);
-
-            reply = rig.Run ("panel FAKE");
-            Assert::IsTrue (reply.status == CommandStatus::Ok);
-            Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"by id, either case");
-            Assert::IsTrue (Join (rig.Run ("PANEL").text).find ("(open)") != std::string::npos, L"PANEL alone lists");
-
-            reply = rig.Run ("PANEL CLOSE Fake");
-            Assert::IsTrue  (reply.status == CommandStatus::Ok);
-            Assert::IsFalse (rig.view.IsPanelOpen ("fake"), L"by title");
-
-            (void) rig.Run ("/PANEL fake", CommandMode::Monitor);
-            Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"as an AppleWin line from Monitor mode");
-        }
-
-
-        TEST_METHOD (APanelTheMachineLacksIsAnError)
-        {
-            PanelRig  rig;
-            Reply     reply = rig.Run ("PANEL mmu");
-
-
-
-            Assert::IsTrue  (reply.status == CommandStatus::Error);
-            Assert::IsTrue  (Join (reply.text).find ("PANEL LIST") != std::string::npos);
-            Assert::IsFalse (rig.view.IsPanelOpen ("mmu"));
-            Assert::IsTrue  (rig.Run ("PANEL CLOSE").status == CommandStatus::Error, L"CLOSE needs a name");
-        }
-
-
-        //  Batch and the pipe have no window to put a panel in.
-        TEST_METHOD (OutsideTheWindowPanelIsNotAvailable)
-        {
-            PanelRig  rig;
-            Reply     reply = DebuggerViewState::ExecuteLine (rig.session, "PANEL fake", CommandMode::AppleWin);
-
-
-
-            Assert::IsTrue  (reply.status == CommandStatus::NotAvailable);
-            Assert::IsFalse (rig.view.IsPanelOpen ("fake"));
-        }
-
-
         //  A machine switch or an emptied slot takes the device away; its panel
         //  closes and stays closed when a device of that id returns.
         TEST_METHOD (APanelClosesWhenItsDeviceLeaves)
@@ -2405,23 +2160,6 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (std::string ("PANEL disk"),        DebuggerViewState::GetPanelLine ("disk", true));
             Assert::AreEqual (std::string ("PANEL CLOSE disk"),  DebuggerViewState::GetPanelLine ("disk", false));
             Assert::AreEqual (std::string ("/PANEL disk"),       DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("disk", true), CommandMode::Monitor));
-        }
-
-
-        //  A real machine's MMU panel arrives with its map.
-        TEST_METHOD (TheMmuPanelOfARealMachine)
-        {
-            MachineRig            rig;
-            DebuggerViewSnapshot  snapshot;
-
-
-
-            (void) rig.view.ExecuteWindowLine (rig.controller.GetSession(), "PANEL mmu", CommandMode::AppleWin);
-            snapshot = rig.view.Build (rig.controller.GetSession());
-
-            Assert::AreEqual ((size_t) 1, snapshot.diagnostics.size());
-            Assert::AreEqual (std::string ("mmu"), snapshot.diagnostics[0].id);
-            Assert::IsTrue   (std::holds_alternative<DiagnosticsMemoryMap> (snapshot.diagnostics[0].visual));
         }
 
 

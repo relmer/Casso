@@ -239,6 +239,10 @@
     <ClCompile Include="DebuggerTests\WinDbgCommandSweepTests.cpp" />
     <ClCompile Include="DebuggerTests\WinDbgFormatterTests.cpp" />
     <ClCompile Include="DebuggerTests\WinDbgParserTests.cpp" />
+    <ClCompile Include="DebuggerTests\WindowCommandRoutingTests.cpp" />
+    <ClCompile Include="DebuggerTests\WindowCursorCommandTests.cpp" />
+    <ClCompile Include="DebuggerTests\WindowMemoryCommandTests.cpp" />
+    <ClCompile Include="DebuggerTests\WindowPaneCommandTests.cpp" />
     <ClCompile Include="DebuggerTests\EmulatorDebugWiringTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorCommandTableTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorRomFactsTests.cpp" />
