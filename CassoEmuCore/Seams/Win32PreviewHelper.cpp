@@ -298,6 +298,11 @@ LRESULT CALLBACK Win32PreviewHelper::WindowProc (HWND hwnd, UINT msg, WPARAM wPa
 
                 hr = ShowHandler (*state);
                 PostMessageW (state->owner, (UINT) AppMessage::PreviewHelperResult, (WPARAM) state->header.request, (LPARAM) hr);
+
+                if (GetForegroundWindow() == hwnd && IsWindow (state->owner))
+                {
+                    SetForegroundWindow (state->owner);
+                }
             }
 
             return 0;
@@ -316,6 +321,21 @@ LRESULT CALLBACK Win32PreviewHelper::WindowProc (HWND hwnd, UINT msg, WPARAM wPa
             }
 
             return 0;
+
+        //  When a handler activates this window, as the text previewer does
+        //  when it loads, the owner is made the foreground window again, so
+        //  the list receives the keystrokes. A click in the preview doesn't
+        //  activate it, as in File Explorer.
+        case WM_ACTIVATE:
+            if (LOWORD (wParam) != WA_INACTIVE && IsWindow (state->owner))
+            {
+                SetForegroundWindow (state->owner);
+            }
+
+            return 0;
+
+        case WM_MOUSEACTIVATE:
+            return MA_NOACTIVATE;
 
         case WM_ERASEBKGND:
             brush = CreateSolidBrush (state->background);
