@@ -357,7 +357,8 @@ void DxuiImageStrip::Paint (
     UNREFERENCED_PARAMETER (pressed);
 
     m_isLabelPairPending = false;
-    m_previewBorderArgb  = theme.ForegroundMuted();
+    m_previewBorderArgb  = theme.ButtonBorder();
+    m_previewBackArgb    = theme.TooltipBackground();
     UNREFERENCED_PARAMETER (labeled);
 
     //  The playhead line takes the place of the marked cell's bar; while it
@@ -925,8 +926,8 @@ void DxuiImageStrip::ShowPreview()
     params.input            = DxuiPopupInput::PassThrough;
     params.shadow           = true;
     params.grabsCapture     = false;
-    params.sizeDip          = m_previewDip;
-    params.backgroundArgb   = DxuiPopupHost::kDefaultMenuBackgroundArgb;
+    params.sizeDip          = GetPreviewSizeDip();
+    params.backgroundArgb   = (m_previewBackArgb != 0) ? m_previewBackArgb : DxuiPopupHost::kDefaultMenuBackgroundArgb;
     params.renderContent    = [this] (IDxuiPainter & painter, IDxuiTextRenderer & text) { RenderPreview (painter, text); };
     params.onClosed         = [this] () { m_preview = nullptr; };
 
@@ -957,7 +958,7 @@ void DxuiImageStrip::MovePreview()
 
 
 
-    hr = m_preview->MoveTo (GetPreviewAnchor(), m_previewDip);
+    hr = m_preview->MoveTo (GetPreviewAnchor(), GetPreviewSizeDip());
 
     if (FAILED (hr))
     {
@@ -1027,6 +1028,21 @@ int DxuiImageStrip::GetBalloonPx (const DxuiDpiScaler & scaler) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiImageStrip::GetPreviewSizeDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DxuiImageStrip::GetPreviewSizeDip() const
+{
+    return SIZE { m_previewDip.cx + 2 * kPreviewPadDip, m_previewDip.cy + 2 * kPreviewPadDip };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiImageStrip::GetPreviewAnchor
 //
 //  In screen pixels: as wide as the preview and centered on the pointer
@@ -1040,8 +1056,9 @@ int DxuiImageStrip::GetBalloonPx (const DxuiDpiScaler & scaler) const
 RECT DxuiImageStrip::GetPreviewAnchor() const
 {
     const DxuiDpiScaler  * scaler   = (m_popupHost != nullptr) ? &m_popupHost->GetScaler() : &m_scaler;
-    int                    widthPx  = scaler->ToPx (m_previewDip.cx);
-    int                    heightPx = scaler->ToPx (m_previewDip.cy);
+    SIZE                   sizeDip  = GetPreviewSizeDip();
+    int                    widthPx  = scaler->ToPx (sizeDip.cx);
+    int                    heightPx = scaler->ToPx (sizeDip.cy);
     RECT                   anchor   = m_outer;
     POINT                  topLeft  = {};
     POINT                  botRight = {};
@@ -1140,11 +1157,10 @@ RECT DxuiImageStrip::GetPreviewRectPx() const
 //
 //  DxuiImageStrip::RenderPreview
 //
-//  Popup-local pixels: the picture fills the popup, outlined in the theme's
-//  muted text color: a tooltip's border color can be as dark as a black
-//  picture, and the outline must be visible against any picture. The outline is
-//  drawn by the text renderer that draws the picture, after it, so the
-//  picture never covers it.
+//  Popup-local pixels: a frame as a tooltip's, the picture inset by
+//  kPreviewPadDip on the tooltip background, outlined one pixel wide in the
+//  toolbar border color. The outline is drawn by the text renderer that
+//  draws the picture, after it, so the picture never covers it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1160,6 +1176,7 @@ void DxuiImageStrip::RenderPreview (
     float                  wide   = 0.0f;
     float                  tall   = 0.0f;
     float                  line   = 0.0f;
+    float                  pad    = 0.0f;
 
 
 
@@ -1173,8 +1190,9 @@ void DxuiImageStrip::RenderPreview (
     scaler = &m_popupHost->GetScaler();
     width  = scaler->ToPxf ((float) m_previewDip.cx);
     height = scaler->ToPxf ((float) m_previewDip.cy);
+    pad    = std::round (scaler->ToPxf ((float) kPreviewPadDip));
 
-    hr = text.DrawFramebuffer (m_previewImage->bgraPremul.data(), m_previewImage->width, m_previewImage->height, 0.0f, 0.0f, width, height);
+    hr = text.DrawFramebuffer (m_previewImage->bgraPremul.data(), m_previewImage->width, m_previewImage->height, pad, pad, width, height);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (m_previewBorderArgb == 0 || m_preview == nullptr)
@@ -1185,7 +1203,7 @@ void DxuiImageStrip::RenderPreview (
     placed = m_preview->GetPlacedRectScreenPx();
     wide   = (float) (placed.right  - placed.left);
     tall   = (float) (placed.bottom - placed.top);
-    line   = (std::max) (1.0f, std::round (scaler->ToPxf (kPreviewBorderDip)));
+    line   = 1.0f;
 
     hr = text.FillRect (0.0f,        0.0f,        wide, line, m_previewBorderArgb | 0xFF000000u);
     IGNORE_RETURN_VALUE (hr, S_OK);

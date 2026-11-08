@@ -101,7 +101,10 @@ public:
     RECT  GetPreviewAnchor () const;
     int   GetBalloonPx     (const DxuiDpiScaler & scaler) const;
 
-    //  Where the preview's picture sits on screen, empty with none up, and
+    //  The popup's size: the picture and the frame's padding on each side.
+    SIZE  GetPreviewSizeDip () const;
+
+    //  Where the preview's popup sits on screen, empty with none up, and
     //  the picture it shows.
     RECT                                  GetPreviewRectPx () const;
     const IDxuiImageStripSource::Image &  GetShownPreview  () const { return m_previewImage; }
@@ -143,7 +146,7 @@ private:
     static constexpr float  kLineReachDip     = 4.0f;   // how far the line runs past the pictures
     static constexpr float  kLabelFontDip     = 11.0f;
     static constexpr float  kLabelPadDip      = 3.0f;
-    static constexpr float  kPreviewBorderDip = 1.0f;
+    static constexpr int    kPreviewPadDip    = 4;   // between the preview's frame and its picture
     static constexpr float  kSidePadDip       = 6.0f;
     static constexpr float  kLiveDotDip       = 6.0f;
     static constexpr float  kHoverLineDip     = 1.0f;   // the line at the pointer, thinner than the playhead's
@@ -193,7 +196,8 @@ private:
     float                           m_pendingCenterX     = 0.0f;
     IDxuiImageStripSource::Image    m_previewImage;
     IDxuiImageStripSource::Image    m_previewThumb;   // the hovered cell's picture when the preview was chosen
-    uint32_t                        m_previewBorderArgb  = 0;   // the theme's muted text color, from the last paint
+    uint32_t                        m_previewBorderArgb  = 0;   // the theme's toolbar border color, from the last paint
+    uint32_t                        m_previewBackArgb    = 0;   // the theme's tooltip background, from the last paint
     SIZE                            m_previewDip         = {};   // the last full-size picture's size; a thumbnail scales to it
     POINT                           m_pointer            = {};   // where the pointer last moved over the strip
     float                           m_aspect             = kDefaultAspect;
