@@ -37,6 +37,9 @@ public:
     // either side of it.
     static constexpr float  kEdgeTolerancePx  = 0.5f;
 
+    // The room left under sliding drives for their labels.
+    static constexpr int    kSlideClearPx     = 30;
+
     // Metrics mirroring the real models: Monitor //c 248x280x226 with the
     // generated glass rect, Disk II 155x222x86 (model space X/Y-back/Z-up).
     static DeskSceneMetrics MakeMetrics()
@@ -210,7 +213,7 @@ public:
 
 
 
-            AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, progress, sliding));
+            AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, progress, kSlideClearPx, sliding));
 
             Assert::AreEqual (0, memcmp (alone.viewProj, sliding.viewProj, sizeof (alone.viewProj)), L"the camera is the monitor-only camera");
             Assert::AreEqual (0, memcmp (alone.monitorWorld, sliding.monitorWorld, sizeof (alone.monitorWorld)), L"the monitor stays on the desk");
@@ -228,7 +231,7 @@ public:
 
         metrics.hasRecorder = true;
 
-        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.0f, comp));
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.0f, kSlideClearPx, comp));
 
         Assert::AreEqual (0, comp.driveCount);
         Assert::AreEqual (0, comp.hasRecorder);
@@ -246,15 +249,16 @@ public:
 
 
 
-        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.25f, quarter));
-        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.5f,  half));
-        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f,  full));
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.25f, kSlideClearPx, quarter));
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.5f,  kSlideClearPx, half));
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f,  kSlideClearPx, full));
 
         Assert::AreEqual (2, full.driveCount);
         Assert::IsTrue (quarter.driveRectPx[0].top > half.driveRectPx[0].top, L"the drives rise as the slide progresses");
         Assert::IsTrue (half.driveRectPx[0].top > full.driveRectPx[0].top);
         Assert::IsTrue (full.driveRectPx[0].top < vp.bottom, L"fully up, the drives are in the frame");
-        Assert::AreEqual (0.0f, full.driveWorld[0][13], L"fully up, the drives are on the desk");
+        Assert::IsTrue (full.driveRectPx[0].bottom <= vp.bottom - kSlideClearPx + 1, L"fully up, the fronts and the labels are inside the frame");
+        Assert::IsTrue (full.driveWorld[0][13] >= 0.0f, L"fully up, the drives are on the desk or raised off it, never sunk into it");
 
         // Model Y points back and maps to world -Z, so a drive's back is its
         // world Z less its depth.

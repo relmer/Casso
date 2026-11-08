@@ -351,6 +351,7 @@ private:
     RECT                     m_deskSlideCoverPx    = {};
 
     void    UpdateDeskSlideCover (const DeskSceneComposition & comp);
+    int     GetDeskSlideClearPx  () const;
 
     // Whether the current WINDOW height was sized for a Disk ][ controller
     // being present. Written by OnSize (the authoritative layout, WM_SIZE-only)

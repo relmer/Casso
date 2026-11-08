@@ -194,14 +194,17 @@ public:
                              const DeskSceneView    & view = DeskSceneView {});
 
     // Auto-hide on the desk: the camera and framing of the monitor alone,
-    // with the drives and the recorder on the desk in front of it at true
-    // scale. At a `slideProgress` of 0 they are omitted, at 1 they are on the
-    // desk, and in between they rise from just below the frame.
+    // with the drives and the recorder in front of it at true scale. At a
+    // `slideProgress` of 0 they are omitted, and in between they rise from
+    // just below the frame. At 1 they are on the desk, or raised off it just
+    // far enough for their fronts and `slideClearPx` of labels under them to
+    // be inside the frame.
     static HRESULT  ComputeSliding (const RECT             & viewportPx,
                                     UINT                     dpi,
                                     int                      driveCount,
                                     const DeskSceneMetrics & metrics,
                                     float                    slideProgress,
+                                    int                      slideClearPx,
                                     DeskSceneComposition   & out,
                                     const DeskSceneView    & view = DeskSceneView {});
 
@@ -447,14 +450,32 @@ private:
                                       float                    dropMm,
                                       DeskSceneComposition   & out,
                                       const DeskSceneView    & view          = DeskSceneView {},
-                                      float                    slideProgress = kNoSlide);
+                                      float                    slideProgress = kNoSlide,
+                                      int                      slideClearPx  = 0);
 
-    // Whether a model box, lowered by `dropMm`, is entirely below the bottom
-    // of a view whose vertical half-tangent is `tanHalfY`.
-    static bool     IsBoxBelowFrame  (const float              view[16],
-                                      float                    tanHalfY,
+    // The vertical tangent range a model box, raised by `offsetMm`, covers in
+    // a view, widened into [ioLo, ioHi].
+    static bool     GetBoxTanRange   (const float              view[16],
                                       const float              world[16],
                                       const float              boxMin[3],
                                       const float              boxMax[3],
-                                      float                    dropMm);
+                                      float                    offsetMm,
+                                      float                  & ioLo,
+                                      float                  & ioHi);
+
+    // The same over every sliding device in a composition.
+    static bool     GetSlideTanRange (const DeskSceneComposition & comp,
+                                      const DeskSceneMetrics     & metrics,
+                                      int                          driveCount,
+                                      float                        offsetMm,
+                                      float                      & outLo,
+                                      float                      & outHi);
+
+    // How far the sliding devices are moved up or down to put them past a
+    // vertical tangent.
+    static float    SolveSlideOffset (const DeskSceneComposition & comp,
+                                      const DeskSceneMetrics     & metrics,
+                                      int                          driveCount,
+                                      float                        direction,
+                                      float                        limitTan);
 };

@@ -888,7 +888,8 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
             if (sliding)
             {
                 hrLayout = DeskSceneLayout::ComputeSliding (sceneBox, m_shell.m_scaler.GetDpi(), driveCount, metrics,
-                                                            m_deskSlideProgress, comp, m_shell.m_scene->GetView());
+                                                            m_deskSlideProgress, GetDeskSlideClearPx(), comp,
+                                                            m_shell.m_scene->GetView());
             }
             else
             {
@@ -1034,7 +1035,8 @@ void ShellChrome::ComposeDeskSlide (float progress)
     m_deskSlideProgress = progress;
 
     hr = DeskSceneLayout::ComputeSliding (m_deskSlideBox, m_shell.m_scaler.GetDpi(), m_shell.m_scene->DeskSceneDriveCount(),
-                                          m_shell.m_scene->GetScene().Metrics(), progress, comp, m_shell.m_scene->GetView());
+                                          m_shell.m_scene->GetScene().Metrics(), progress, GetDeskSlideClearPx(), comp,
+                                          m_shell.m_scene->GetView());
     BAIL_OUT_IF (hr != S_OK, S_OK);
 
     m_shell.m_scene->GetScene().SetComposition (comp);
@@ -1044,6 +1046,34 @@ void ShellChrome::ComposeDeskSlide (float progress)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::GetDeskSlideClearPx
+//
+//  How much room under the sliding devices has to be inside the frame for
+//  their labels: the disk name strip and its gap, and the recorder's counter
+//  row under its tape name when the recorder is attached.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellChrome::GetDeskSlideClearPx() const
+{
+    int  clearPx = m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+
+
+
+    if (m_shell.m_scene->GetScene().HasRecorder() && m_shell.m_tapeDeck->IsTapeRecorderShown())
+    {
+        clearPx += m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+    }
+
+    return clearPx;
 }
 
 

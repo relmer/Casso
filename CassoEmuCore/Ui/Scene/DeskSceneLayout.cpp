@@ -184,11 +184,12 @@ HRESULT DeskSceneLayout::ComputeSliding (const RECT             & viewportPx,
                                          int                      driveCount,
                                          const DeskSceneMetrics & metrics,
                                          float                    slideProgress,
+                                         int                      slideClearPx,
                                          DeskSceneComposition   & out,
                                          const DeskSceneView    & view)
 {
     return SolveComposition (viewportPx, dpi, driveCount, metrics, kDriveDeskGapMm, out, view,
-                             std::clamp (slideProgress, 0.0f, 1.0f));
+                             std::clamp (slideProgress, 0.0f, 1.0f), std::max (slideClearPx, 0));
 }
 
 
@@ -197,19 +198,22 @@ HRESULT DeskSceneLayout::ComputeSliding (const RECT             & viewportPx,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DeskSceneLayout::IsBoxBelowFrame
+//  DeskSceneLayout::GetBoxTanRange
 //
-//  A corner at or behind the near plane counts as visible, so a drop is only
-//  accepted once every corner is in front of the eye and under the frame.
+//  Widens [ioLo, ioHi] by the view-space vertical tangent (y over depth) of
+//  each corner of a model box, raised by `offsetMm` in world Y. Returns false
+//  when a corner is at or behind the near plane, where the tangent has no
+//  meaning.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DeskSceneLayout::IsBoxBelowFrame (const float  view[16],
-                                       float        tanHalfY,
-                                       const float  world[16],
-                                       const float  boxMin[3],
-                                       const float  boxMax[3],
-                                       float        dropMm)
+bool DeskSceneLayout::GetBoxTanRange (const float    view[16],
+                                      const float    world[16],
+                                      const float    boxMin[3],
+                                      const float    boxMax[3],
+                                      float          offsetMm,
+                                      float        & ioLo,
+                                      float        & ioHi)
 {
     for (int corner = 0; corner < 8; corner++)
     {
@@ -225,7 +229,7 @@ bool DeskSceneLayout::IsBoxBelowFrame (const float  view[16],
             return false;
         }
 
-        worldPt[1] -= dropMm;
+        worldPt[1] += offsetMm;
 
         if (!SceneCamera::TransformPoint (view, worldPt, viewPt))
         {
@@ -234,13 +238,118 @@ bool DeskSceneLayout::IsBoxBelowFrame (const float  view[16],
 
         depth = -viewPt[2];
 
-        if (depth <= kNearMm || viewPt[1] / depth > -tanHalfY)
+        if (depth <= kNearMm)
         {
             return false;
         }
+
+        ioLo = std::min (ioLo, viewPt[1] / depth);
+        ioHi = std::max (ioHi, viewPt[1] / depth);
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::GetSlideTanRange
+//
+//  The vertical tangent range the sliding drives and recorder cover when
+//  raised by `offsetMm` (negative lowers them).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskSceneLayout::GetSlideTanRange (const DeskSceneComposition  & comp,
+                                        const DeskSceneMetrics      & metrics,
+                                        int                           driveCount,
+                                        float                         offsetMm,
+                                        float                       & outLo,
+                                        float                       & outHi)
+{
+    bool  ok = true;
+
+
+
+    outLo = FLT_MAX;
+    outHi = -FLT_MAX;
+
+    for (int i = 0; i < driveCount && ok; i++)
+    {
+        ok = GetBoxTanRange (comp.view, comp.driveWorld[i], metrics.driveMin, metrics.driveMax, offsetMm, outLo, outHi);
+    }
+
+    if (ok && comp.hasRecorder != 0)
+    {
+        ok = GetBoxTanRange (comp.view, comp.recorderWorld, metrics.recorderMin, metrics.recorderMax, offsetMm, outLo, outHi);
+    }
+
+    return ok;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::SolveSlideOffset
+//
+//  The smallest distance, in millimeters, the sliding devices are moved along
+//  world Y to put them past a vertical tangent. Moving down (`direction` -1),
+//  their highest point ends at `limitTan` or below; moving up (+1), their
+//  lowest point ends at it or above. Zero when that is true already, and
+//  kMaxSlideDropMm when no distance in range satisfies it. A bisection: the
+//  tangent of each point changes monotonically as the devices move.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DeskSceneLayout::SolveSlideOffset (const DeskSceneComposition  & comp,
+                                         const DeskSceneMetrics      & metrics,
+                                         int                           driveCount,
+                                         float                         direction,
+                                         float                         limitTan)
+{
+    constexpr int  kSearchSteps = 24;
+    float          lo           = 0.0f;
+    float          hi           = kMaxSlideDropMm;
+
+
+
+    for (int step = -1; step < kSearchSteps; step++)
+    {
+        // The first pass tests zero, so devices already past the limit are
+        // not moved by the bisection's last interval.
+        float  dist    = (step < 0) ? 0.0f : (lo + hi) * 0.5f;
+        float  tanLo   = 0.0f;
+        float  tanHi   = 0.0f;
+        bool   ok      = GetSlideTanRange (comp, metrics, driveCount, dist * direction, tanLo, tanHi);
+        bool   reached = ok && ((direction < 0.0f) ? (tanHi <= limitTan) : (tanLo >= limitTan));
+
+        if (step < 0 && reached)
+        {
+            return 0.0f;
+        }
+
+        if (step < 0)
+        {
+            continue;
+        }
+
+        if (reached)
+        {
+            hi = dist;
+        }
+        else
+        {
+            lo = dist;
+        }
+    }
+
+    return hi;
 }
 
 
@@ -305,11 +414,12 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
                                            float                    dropMm,
                                            DeskSceneComposition   & out,
                                            const DeskSceneView    & view,
-                                           float                    slideProgress)
+                                           float                    slideProgress,
+                                           int                      slideClearPx)
 {
     HRESULT  hr            = S_OK;
     bool     sliding       = slideProgress >= 0.0f;
-    float    slideDropMm   = 0.0f;
+    float    slideOffsetMm = 0.0f;
     float    stackMin[3]   = {};
     float    stackMax[3]   = {};
     float    spareMin[3]   = {};
@@ -624,53 +734,26 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
         }
 
         // Sliding: find how far the devices have to be lowered to sit wholly
-        // under the frame, then raise them by `slideProgress` of that. At 0
-        // they are left out, so nothing is drawn or hit-tested below the
-        // frame. Done here, against the unrotated view, so the orbit below
-        // turns them with the monitor.
+        // under the frame, and how far they have to be raised off the desk
+        // for their fronts, and `slideClearPx` of labels under them, to be
+        // wholly inside it (zero when they already are). The slide runs
+        // between the two. At 0 they are left out, so nothing is drawn or
+        // hit-tested below the frame. Done here, against the unrotated view,
+        // so the orbit below turns them with the monitor.
         if (sliding)
         {
-            constexpr int    kSearchSteps = 24;
-            float            lo           = 0.0f;
-            float            hi           = kMaxSlideDropMm;
+            float  hideMm   = SolveSlideOffset (out, metrics, driveCount, -1.0f, -tanHalfY);
+            float  clearTan = (float) slideClearPx * 2.0f * tanHalfY / (float) viewportH;
+            float  liftMm   = SolveSlideOffset (out, metrics, driveCount, 1.0f, -tanHalfY + clearTan);
 
-
-
-            for (int step = 0; step < kSearchSteps; step++)
-            {
-                float  mid   = (lo + hi) * 0.5f;
-                bool   below = true;
-
-
-
-                for (int i = 0; i < driveCount && below; i++)
-                {
-                    below = IsBoxBelowFrame (out.view, tanHalfY, out.driveWorld[i], metrics.driveMin, metrics.driveMax, mid);
-                }
-
-                if (below && out.hasRecorder != 0)
-                {
-                    below = IsBoxBelowFrame (out.view, tanHalfY, out.recorderWorld, metrics.recorderMin, metrics.recorderMax, mid);
-                }
-
-                if (below)
-                {
-                    hi = mid;
-                }
-                else
-                {
-                    lo = mid;
-                }
-            }
-
-            slideDropMm = hi * (1.0f - slideProgress);
+            slideOffsetMm = -hideMm + slideProgress * (hideMm + liftMm);
 
             for (int i = 0; i < driveCount; i++)
             {
-                out.driveWorld[i][13] -= slideDropMm;
+                out.driveWorld[i][13] += slideOffsetMm;
             }
 
-            out.recorderWorld[13] -= slideDropMm;
+            out.recorderWorld[13] += slideOffsetMm;
 
             if (slideProgress <= 0.0f)
             {
