@@ -1086,6 +1086,7 @@ void BreakpointsPane::ApplyRows()
     std::vector<int>                                selectedRows;
     int                                             anchorId = GetIdOfRow (m_list->GetAnchorRow());
     int                                             rowId    = GetIdOfRow (m_list->GetSelectedRow());
+    const DxuiTheme                               * theme    = m_host.GetTheme();
 
 
 
@@ -1122,17 +1123,23 @@ void BreakpointsPane::ApplyRows()
         BreakpointColumns::Cells                      cells = BreakpointColumns::GetCells (*snapshot, bp);
         std::vector<DxuiListView::Cell>               row;
 
+        //  A breakpoint on a BASIC line the program does not have is drawn as
+        //  one that can't be bound: in the disabled color and italic, with its
+        //  checkbox disabled and the disabled breakpoint's icon.
         for (const std::string & text : cells)
         {
             DxuiListView::Cell  cell;
 
-            cell.text = TextEncoding::NarrowToWide (text);
-            cell.dim  = !bp.enabled || bp.isAbsent;
+            cell.text   = TextEncoding::NarrowToWide (text);
+            cell.dim    = !bp.enabled && !bp.isAbsent;
+            cell.argb   = (bp.isAbsent && theme != nullptr) ? theme->ForegroundDisabled() : 0;
+            cell.weight = bp.isAbsent ? DxuiFontWeight::Italic : DxuiFontWeight::Normal;
             row.push_back (cell);
         }
 
-        row[(size_t) BreakpointColumns::Column::Name].check = bp.enabled;
-        row[(size_t) BreakpointColumns::Column::Name].icon  = m_host.GetBreakpointIcon (bp.enabled);
+        row[(size_t) BreakpointColumns::Column::Name].check           = bp.enabled;
+        row[(size_t) BreakpointColumns::Column::Name].isCheckDisabled = bp.isAbsent;
+        row[(size_t) BreakpointColumns::Column::Name].icon            = m_host.GetBreakpointIcon (bp.enabled && !bp.isAbsent);
         rows.push_back (std::move (row));
     }
 

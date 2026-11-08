@@ -88,8 +88,11 @@ public:
 
         //  A checkbox at the start of the cell, ahead of the icon, checked or
         //  not; none draws none. Pressing it, or Space on its row, reports the
-        //  toggle to the host, which sets the new state with the next rows.
+        //  toggle to the host, which sets the new state with the next rows. A
+        //  disabled one is drawn in the theme's disabled color and does not
+        //  toggle.
         std::optional<bool>  check;
+        bool                 isCheckDisabled = false;
 
         //  Drawn at the start of the cell, the text moved along past it.
         std::shared_ptr<const DxuiIconImage>  icon;
@@ -1027,7 +1030,7 @@ private:
     int           GetCellExtraPx       (const Cell & cell) const;
     int           HitTestCheck         (int lx, int ly, int row) const;
     bool          ToggleChecks         (bool apply);
-    void          PaintCheck           (IDxuiPainter & painter, IDxuiTextRenderer & text, float x, float y, float size, bool checked) const;
+    void          PaintCheck           (IDxuiPainter & painter, IDxuiTextRenderer & text, float x, float y, float size, bool checked, bool isDisabled = false) const;
     bool          GetCellTextSelection (int row, size_t col, int length, int & start, int & end) const;
     void          SelectWordAt         (int lx, int ly);
     std::wstring  GetTextSelectionText () const;

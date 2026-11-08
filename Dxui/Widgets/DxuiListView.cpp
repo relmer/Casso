@@ -3512,6 +3512,11 @@ bool DxuiListView::ToggleChecks (bool apply)
                 continue;
             }
 
+            if (cells[c].isCheckDisabled)
+            {
+                break;
+            }
+
             if (!target.has_value())
             {
                 target = !*cells[c].check;
@@ -3543,7 +3548,7 @@ bool DxuiListView::ToggleChecks (bool apply)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiListView::PaintCheck (IDxuiPainter & painter, IDxuiTextRenderer & text, float x, float y, float size, bool checked) const
+void DxuiListView::PaintCheck (IDxuiPainter & painter, IDxuiTextRenderer & text, float x, float y, float size, bool checked, bool isDisabled) const
 {
     static constexpr uint32_t  kMarkArgb  = 0xFFFFFFFFu;   // the check mark, on the accent
     static constexpr float     kCornerDip = 3.0f;
@@ -3555,15 +3560,22 @@ void DxuiListView::PaintCheck (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 
 
+    if (!checked || isDisabled)
+    {
+        painter.OutlineRoundedRect (x, y, size, size, corner, line, isDisabled ? m_theme->ForegroundDisabled() : DxuiColor::ScaleAlpha (m_theme->Foreground(), kEdgeAlpha));
+    }
+
     if (!checked)
     {
-        painter.OutlineRoundedRect (x, y, size, size, corner, line, DxuiColor::ScaleAlpha (m_theme->Foreground(), kEdgeAlpha));
         return;
     }
 
-    painter.FillRoundedRect (x, y, size, size, corner, m_theme->Accent());
+    if (!isDisabled)
+    {
+        painter.FillRoundedRect (x, y, size, size, corner, m_theme->Accent());
+    }
 
-    hr = text.DrawString (s_kpszMdl2Accept, x, y, size, size, kMarkArgb, size * kMarkScale, L"Segoe MDL2 Assets",
+    hr = text.DrawString (s_kpszMdl2Accept, x, y, size, size, isDisabled ? m_theme->ForegroundDisabled() : kMarkArgb, size * kMarkScale, L"Segoe MDL2 Assets",
                           DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
@@ -4185,7 +4197,7 @@ void DxuiListView::PaintDataRows (
                 float  checkPx = (float) m_scaler.ToPx (s_kCellCheckDip);
 
                 PaintCheck (painter, text, x + colOff + (float) colXPx[c] + cellPadL, ry + (float) (((int) rowH - (int) checkPx) / 2),
-                            checkPx, *cells[c].check);
+                            checkPx, *cells[c].check, cells[c].isCheckDisabled);
 
                 iconShift = checkPx + m_scaler.ToPxf ((float) s_kCellCheckGapDip);
             }
@@ -4876,7 +4888,7 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
     //  where it was, as it does in Visual Studio's Breakpoints window.
     if (int checkCol = (row >= 0) ? HitTestCheck (lx, ly, row) : -1; checkCol >= 0)
     {
-        if (m_onCheckToggled)
+        if (m_onCheckToggled && !GetRowCells (row)[(size_t) checkCol].isCheckDisabled)
         {
             m_onCheckToggled (row, (size_t) checkCol, !GetRowCells (row)[(size_t) checkCol].check.value_or (false));
         }
