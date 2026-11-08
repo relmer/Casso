@@ -65,14 +65,14 @@ public:
     void  SetOnApplyThemeNow    (ApplyThemeNowFn     fn) { m_onApplyThemeNow   = std::move (fn); }
 
     // The CRT monitor opt in/out (the monitor alone -- the 3D drives always
-    // render). The checkbox applies live through the callback and shows only
-    // while a skeuomorphic (non-compact) theme is selected.
+    // render). The callback stages the value for OK. The checkbox is visible
+    // only while a skeuomorphic (non-compact) theme is selected.
     using CrtMonitorFn = std::function<void (bool enabled)>;
     void  SetOnCrtMonitorToggled (CrtMonitorFn fn) { m_onCrtMonitorToggled = std::move (fn); }
     void  SetCrtMonitorChecked   (bool checked)   { m_crtMonitorCheckbox.SetChecked (checked); }
 
-    // The drive bar's auto-hide, for every theme. Applies live through the
-    // callback, like the CRT checkbox.
+    // The drive bar's auto-hide, for every theme. The callback stages the
+    // value for OK, like the CRT checkbox.
     using AutoHideDrivesFn = std::function<void (bool enabled)>;
     void  SetOnAutoHideDrivesToggled (AutoHideDrivesFn fn) { m_onAutoHideDrivesToggled = std::move (fn); }
     void  SetAutoHideDrivesChecked   (bool checked)       { m_autoHideDrivesCheckbox.SetChecked (checked); }

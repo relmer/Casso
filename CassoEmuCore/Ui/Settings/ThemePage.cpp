@@ -408,9 +408,8 @@ ThemePage::ThemePage(std::wstring title)
     m_applyNowButton.SetOnClick ([this] { if (m_onApplyThemeNow) { m_onApplyThemeNow(); } });
 
     // The CRT monitor opt in/out -- the monitor only; the 3D drives are not
-    // optional. Applies live (the change is visible on the real chrome behind
-    // the sheet immediately); enabled only while a skeuomorphic theme is
-    // selected.
+    // optional. The mock window previews it at once, and OK applies it to the
+    // real chrome. Enabled only while a skeuomorphic theme is selected.
     m_crtMonitorCheckbox.SetLabel (L"3D CRT monitor (uses more screen space)");
     m_crtMonitorCheckbox.SetSingleLineLabel (true);
     m_crtMonitorCheckbox.SetOnChange ([this] (bool checked)
