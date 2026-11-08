@@ -23,10 +23,9 @@ Entries before versioning was introduced use dates only.
   what the image declares and marks whether the running machine meets each
   requirement. In the flat themes, on the desk and on the fullscreen drive
   strip.
-- Auto-hide drives, in every theme: the drives stay hidden until the pointer is
-  near the bottom of the window, as in full screen, and the picture uses their
-  space. Turn it on in Settings > Theme, the View menu, or a drive's
-  right-click menu.
+- An optional setting to auto-hide drives. The drives stay hidden until the
+  pointer is near the bottom of the window, like they did in full screen. Turn
+  it on in Settings > Theme, the View menu, or right-click on a drive.
 
 ### Changed
 
@@ -47,10 +46,8 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
-- In the desk scene, a monitor standing on the desk without its drives is no
-  longer framed by a wide band of empty desk.
-- Settings > Theme's 3D CRT monitor checkbox takes effect on OK, and Cancel
-  discards it.
+- Settings > Theme's 3D CRT monitor checkbox now correctly respects the OK and
+  Cancel buttons.
 - Menus are drawn without the pale outline around them. The shadow under a
   menu is what separates it from the window, as it is in Windows and in
   Visual Studio.
