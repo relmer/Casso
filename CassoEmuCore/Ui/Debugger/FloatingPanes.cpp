@@ -1265,6 +1265,22 @@ void FloatingPanes::Float (const std::wstring & key)
     window->SetAcceptsDroppedFiles (true);
     window->SetOnFocusChanged      ([this, key] (bool focused)              { m_host.OnFloatFocusChanged (GetActivePane (key), focused); });
 
+    //  A press on the pane's title bar activates the window, as a press in
+    //  the pane does, and the pane takes the focus with it.
+    window->GetSite().SetOnFocusRequested ([this, key] (const std::wstring & pane)
+    {
+        DxuiDockedWindow  * floater = Find (pane);
+
+
+
+        if (floater != nullptr && floater->GetHwnd() != nullptr)
+        {
+            (void) SetActiveWindow (floater->GetHwnd());
+        }
+
+        m_host.OnFloatFocusChanged (GetActivePane (key), true);
+    });
+
     //  A place saved on a larger screen, or one no longer there, is moved
     //  inside the work area as well as sized to it. A pane torn off is put
     //  under the pointer after this (PlaceUnderGrab).
