@@ -849,10 +849,15 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
         DeskSceneComposition  comp;
         RECT                  full     = { 0, 0, widthPx, heightPx };
 
+        // The drives slide up in front of the glass, as on the windowed desk.
         hrLayout = DeskSceneLayout::ComputeGlassFill (full, m_shell.m_scaler.GetDpi(),
                                                       kFramebufferWidth, kFramebufferHeight,
-                                                      m_shell.m_scene->GetScene().Metrics(), comp);
+                                                      m_shell.m_scene->GetScene().Metrics(), comp,
+                                                      m_shell.m_scene->DeskSceneDriveCount(), m_deskSlideProgress,
+                                                      GetDeskSlideClearPx());
         BAIL_OUT_IF (hrLayout != S_OK, S_OK);
+
+        m_deskSlideBox = full;
 
         m_shell.m_scene->GetScene().SetComposition (comp);
         m_chromeSceneScale = comp.sceneScale * s_kDeskDriveScale;
@@ -1034,9 +1039,19 @@ void ShellChrome::ComposeDeskSlide (float progress)
 
     m_deskSlideProgress = progress;
 
-    hr = DeskSceneLayout::ComputeSliding (m_deskSlideBox, m_shell.m_scaler.GetDpi(), m_shell.m_scene->DeskSceneDriveCount(),
-                                          m_shell.m_scene->GetScene().Metrics(), progress, GetDeskSlideClearPx(), comp,
-                                          m_shell.m_scene->GetView());
+    if (m_shell.m_renderer->GetD3D().IsFullscreen())
+    {
+        hr = DeskSceneLayout::ComputeGlassFill (m_deskSlideBox, m_shell.m_scaler.GetDpi(), kFramebufferWidth, kFramebufferHeight,
+                                                m_shell.m_scene->GetScene().Metrics(), comp,
+                                                m_shell.m_scene->DeskSceneDriveCount(), progress, GetDeskSlideClearPx());
+    }
+    else
+    {
+        hr = DeskSceneLayout::ComputeSliding (m_deskSlideBox, m_shell.m_scaler.GetDpi(), m_shell.m_scene->DeskSceneDriveCount(),
+                                              m_shell.m_scene->GetScene().Metrics(), progress, GetDeskSlideClearPx(), comp,
+                                              m_shell.m_scene->GetView());
+    }
+
     BAIL_OUT_IF (hr != S_OK, S_OK);
 
     m_shell.m_scene->GetScene().SetComposition (comp);

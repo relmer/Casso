@@ -237,22 +237,20 @@ HRESULT ShellRenderer::InitializeRenderer()
                 // Drive overlay strip, in fullscreen or with auto-hide on: the
                 // slid band composed by TryPresentUiFrame's FSM tick, plus the
                 // hidden-state activity glimmer in the corner (FR-015).
-                if (m_shell.AreDrivesOnStrip())
+                if (m_shell.AreDrivesOnStrip() &&
+                    m_shell.m_scene->m_stripRectPx.bottom > m_shell.m_scene->m_stripRectPx.top)
                 {
-                    int   bbW = m_d3dRenderer.GetBackBufferWidth();
-                    int   bbH = m_d3dRenderer.GetBackBufferHeight();
+                    HRESULT  hrStrip = RenderClippedStrip (m_shell.m_host->GetBackBufferRtv());
 
-                    if (m_shell.m_scene->m_stripRectPx.bottom > m_shell.m_scene->m_stripRectPx.top)
-                    {
-                        HRESULT  hrStrip = RenderClippedStrip (m_shell.m_host->GetBackBufferRtv());
+                    IGNORE_RETURN_VALUE (hrStrip, S_OK);
+                }
 
-                        IGNORE_RETURN_VALUE (hrStrip, S_OK);
-                    }
-
-                    if (m_shell.m_scene->m_stripState.ActivityIndicator() && m_d3dRenderer.IsFullscreen())
-                    {
-                        m_shell.m_scene->m_deskScene.DrawDebugRect (GetStripGlimmerRect(), bbW, bbH, 0xFFB01818);
-                    }
+                // Fullscreen only, whether the drives are on the strip or
+                // slide up on the desk.
+                if (m_shell.m_scene->m_stripState.ActivityIndicator() && m_d3dRenderer.IsFullscreen())
+                {
+                    m_shell.m_scene->m_deskScene.DrawDebugRect (GetStripGlimmerRect(), m_d3dRenderer.GetBackBufferWidth(),
+                                                                m_d3dRenderer.GetBackBufferHeight(), 0xFFB01818);
                 }
 
                 // Layout diagnosis overlay: scene viewport red, projected

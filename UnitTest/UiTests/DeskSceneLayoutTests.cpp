@@ -1218,6 +1218,33 @@ public:
     }
 
 
+    TEST_METHOD (Fullscreen_Drives_Slide_Up_Without_Moving_The_Glass)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  screen  = { 0, 0, 1920, 1080 };
+        DeskSceneComposition  glass;
+        DeskSceneComposition  hidden;
+        DeskSceneComposition  raised;
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH, metrics, glass));
+        Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH, metrics, hidden,
+                                                                   2, 0.0f, kSlideClearPx));
+        Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH, metrics, raised,
+                                                                   2, 1.0f, kSlideClearPx));
+
+        Assert::AreEqual (0, memcmp (glass.viewProj, raised.viewProj, sizeof (glass.viewProj)), L"the camera is the same with the drives up");
+        Assert::AreEqual (0, memcmp (&glass.glassRectPx, &raised.glassRectPx, sizeof (RECT)));
+        Assert::AreEqual (0, hidden.driveCount, L"hidden, the drives are out of the composition");
+        Assert::AreEqual (2, raised.driveCount);
+        Assert::IsTrue (raised.driveRectPx[0].left >= screen.left && raised.driveRectPx[1].right <= screen.right,
+                        L"the row fits the screen's width");
+        Assert::IsTrue (raised.driveRectPx[0].bottom <= screen.bottom - kSlideClearPx + 1,
+                        L"the fronts and the labels are on screen");
+    }
+
+
     TEST_METHOD (Fullscreen_Glass_Still_Covers_A_Screen_Shaped_Like_The_Glass)
     {
         // And where covering costs no picture, nothing changed: the glass

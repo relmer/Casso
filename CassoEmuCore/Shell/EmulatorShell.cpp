@@ -539,14 +539,15 @@ bool EmulatorShell::AreDrivesAutoHidden() const
 //
 //  EmulatorShell::IsDeskSlideActive
 //
-//  Fullscreen uses the strip: the glass fills the screen there, and drives
-//  at the monitor's scale would be larger than the screen.
+//  Windowed with auto-hide on, and always in fullscreen. The desk without a
+//  monitor has no monitor to place the drives in front of, so it uses the
+//  strip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool EmulatorShell::IsDeskSlideActive() const
 {
-    return m_settings->GetPrefs().autoHideDrives && CrtMonitorActive() && !m_renderer->GetD3D().IsFullscreen();
+    return AreDrivesAutoHidden() && CrtMonitorActive();
 }
 
 

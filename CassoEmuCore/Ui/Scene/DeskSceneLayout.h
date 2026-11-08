@@ -221,19 +221,23 @@ public:
 
     // The fullscreen presentation: a straight-on camera at the closest
     // distance that does not crop the picture, showing the tube alone on
-    // black (the composition sets `glassOnly`, and the drives come from the
-    // overlay strip). Closest means the glass covers the viewport; on a
-    // viewport wide enough that covering would crop the raster, the picture's
-    // own containment distance applies instead and black fills what that
-    // leaves beside the tube. `displayW` x `displayH` is the emulated grid,
-    // which determines the picture's band on the glass. Same S_FALSE contract
-    // for an empty viewport.
+    // black (the composition sets `glassOnly`). Closest means the glass
+    // covers the viewport; on a viewport wide enough that covering would crop
+    // the raster, the picture's containment distance applies instead and the
+    // rest of the screen beside the tube is black. `displayW` x `displayH` is
+    // the emulated grid, which determines the picture's band on the glass.
+    // Same S_FALSE contract for an empty viewport. With a `slideProgress` of 0
+    // or more, `driveCount` drives and the recorder slide up in front of the
+    // glass, as documented at ComputeSliding.
     static HRESULT  ComputeGlassFill (const RECT             & viewportPx,
                                       UINT                     dpi,
                                       int                      displayW,
                                       int                      displayH,
                                       const DeskSceneMetrics & metrics,
-                                      DeskSceneComposition   & out);
+                                      DeskSceneComposition   & out,
+                                      int                      driveCount    = 0,
+                                      float                    slideProgress = kNoSlide,
+                                      int                      slideClearPx  = 0);
 
     // The fullscreen drive overlay strip: the drive row alone, full model
     // scale, its own contained camera over the strip's viewport band --
@@ -480,6 +484,29 @@ private:
                                       int                          axis,
                                       float                      & outLo,
                                       float                      & outHi);
+
+    // Places the drives and the recorder for a sliding composition.
+    static void     PlaceSlidingDevices (const DeskSceneMetrics & metrics,
+                                         int                      driveCount,
+                                         DeskSceneComposition   & out);
+
+    // Scales, fits and raises the placed devices for a slide position, and
+    // returns the drive count left in the composition.
+    static int      SlideDevices     (DeskSceneComposition       & out,
+                                      const DeskSceneMetrics     & metrics,
+                                      int                          driveCount,
+                                      float                        eyeDistMm,
+                                      float                        tanHalfX,
+                                      float                        tanHalfY,
+                                      int                          viewportH,
+                                      float                        slideProgress,
+                                      int                          slideClearPx);
+
+    // The drives' and recorder's screen rects and the drives' label anchors.
+    static void     ProjectDeviceRects (DeskSceneComposition     & out,
+                                        const DeskSceneMetrics   & metrics,
+                                        int                        driveCount,
+                                        const RECT               & viewportPx);
 
     // Scales the sliding devices down, about the row's back-bottom center,
     // until the row fits within a horizontal tangent.

@@ -590,12 +590,12 @@ private:
     // and windowed when auto-hide is on.
     bool    AreDrivesAutoHidden  () const;
 
-    // Auto-hide on the windowed desk with the monitor: the drives are real
-    // scene objects that rise onto the desk in front of the monitor.
+    // Auto-hidden on the desk with the monitor, windowed or fullscreen: the
+    // drives are real scene objects that rise in front of the monitor.
     bool    IsDeskSlideActive    () const;
 
     // The drives are on the slide-up strip at the bottom edge: auto-hidden
-    // anywhere but the windowed desk with the monitor.
+    // anywhere but the desk with the monitor.
     bool    AreDrivesOnStrip     () const;
 
     // A file dropped on a drive or the recorder.

@@ -2563,6 +2563,18 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
             CHRA (hr);
         }
 
+        // Glass only, the sliding drives and recorder are the only bodies,
+        // and they are in front of the tube: they go in this plate, over the
+        // raster, depth-tested against the glass already in the buffer.
+        if (glassOnly && (m_comp.driveCount > 0 || m_comp.hasRecorder != 0))
+        {
+            hr = DrawDrives (m_comp, viewport);
+            CHRA (hr);
+
+            hr = DrawRecorder (m_comp, viewport);
+            CHRA (hr);
+        }
+
         // The mask and the sheen are the faceplate's own layers, so they ride
         // the tube.
         if (!m_maskVerts.empty())
@@ -2597,14 +2609,24 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     // they test depth without writing it, which is what keeps a name from
     // leaving its transparent rectangle in the buffer.
     //
-    // Both belong to bodies the glass-only presentation leaves out: the names
-    // are anchored to the drives, and the only glow is the power lamp's.
+    // Glass only, the disk labels and drive lamps are drawn only while the
+    // sliding drives are in the composition.
     if (!glassOnly)
     {
         hr = DrawDiskLabels (m_comp, viewport);
         CHRA (hr);
 
         hr = DrawLampGlows (m_comp, viewport, true);
+        CHRA (hr);
+    }
+    else if (m_comp.driveCount > 0)
+    {
+        // The sliding drives' labels and lamps. The monitor's lamp is on the
+        // case, which is not drawn glass-only.
+        hr = DrawDiskLabels (m_comp, viewport);
+        CHRA (hr);
+
+        hr = DrawLampGlows (m_comp, viewport, false);
         CHRA (hr);
     }
 

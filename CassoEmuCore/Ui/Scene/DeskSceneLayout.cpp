@@ -396,6 +396,198 @@ void DeskSceneLayout::ScaleSlideDevices (DeskSceneComposition & comp,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneLayout::PlaceSlidingDevices
+//
+//  The drives and the recorder for a sliding composition, on the desk: the
+//  drives side by side with their backs kSlideMonitorGapMm in front of the
+//  monitor's frontmost point, so no part of a drive is ever inside the
+//  monitor, and the recorder beside them. The row is then centered under the
+//  monitor as one group, so the recorder does not push it off one side of
+//  the frame. SlideDevices scales and raises them afterward.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::PlaceSlidingDevices (const DeskSceneMetrics & metrics,
+                                           int                      driveCount,
+                                           DeskSceneComposition   & out)
+{
+    float  driveW      = metrics.driveMax[0] - metrics.driveMin[0];
+    float  driveCx     = (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f;
+    float  forwardMm   = -metrics.monitorMin[1] + kSlideMonitorGapMm + metrics.driveMax[1];
+    float  driveTx[2]  = { (driveCount == 2) ? -(driveW + kDriveGapMm) * 0.5f : 0.0f,
+                           (driveW + kDriveGapMm) * 0.5f };
+    float  stackMin[3] = { FLT_MAX, FLT_MAX, FLT_MAX };
+    float  stackMax[3] = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    float  spareMin[3] = {};
+    float  spareMax[3] = {};
+    float  shiftX      = 0.0f;
+
+
+
+    for (int i = 0; i < driveCount; i++)
+    {
+        float  dlo[3] = { metrics.driveMin[0] - driveCx + driveTx[i], metrics.driveMin[2], forwardMm - metrics.driveMax[1] };
+        float  dhi[3] = { metrics.driveMax[0] - driveCx + driveTx[i], metrics.driveMax[2], forwardMm - metrics.driveMin[1] };
+
+
+
+        MakeDeviceWorld (driveTx[i] - driveCx, 0.0f, forwardMm, 1.0f, out.driveWorld[i]);
+
+        for (int axis = 0; axis < 3; axis++)
+        {
+            stackMin[axis] = std::min (stackMin[axis], dlo[axis]);
+            stackMax[axis] = std::max (stackMax[axis], dhi[axis]);
+        }
+    }
+
+    if (driveCount <= 0)
+    {
+        return;
+    }
+
+    if (metrics.hasRecorder)
+    {
+        PlaceRecorder (metrics, forwardMm - metrics.driveFrontY, stackMin, stackMax, spareMin, spareMax, out);
+    }
+
+    shiftX = -(stackMin[0] + stackMax[0]) * 0.5f;
+
+    for (int i = 0; i < driveCount; i++)
+    {
+        out.driveWorld[i][12] += shiftX;
+    }
+
+    out.recorderWorld[12] += shiftX;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::SlideDevices
+//
+//  Scales the placed devices so their fronts look the monitor's size, shrinks
+//  the row further if it is wider than the frame, then finds how far they
+//  have to be lowered to sit wholly under the frame, and how far they have
+//  to be raised off the desk for their fronts, and `slideClearPx` of labels
+//  under them, to be wholly inside it (zero when they already are). The
+//  slide runs between the two. At 0 they are left out, so nothing is drawn
+//  or hit-tested below the frame. Returns the drive count left in the
+//  composition.
+//
+//  Their fronts are nearer the eye than the monitor's, so they are scaled by
+//  (D - gap) / (D + depth), D the eye's distance to the monitor's front:
+//  then a front face projects at the monitor's scale. The pivot is the row's
+//  back edge, so the backs stay just in front of the monitor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DeskSceneLayout::SlideDevices (DeskSceneComposition   & out,
+                                   const DeskSceneMetrics & metrics,
+                                   int                      driveCount,
+                                   float                    eyeDistMm,
+                                   float                    tanHalfX,
+                                   float                    tanHalfY,
+                                   int                      viewportH,
+                                   float                    slideProgress,
+                                   int                      slideClearPx)
+{
+    float  backZ    = -metrics.monitorMin[1] + kSlideMonitorGapMm;
+    float  depthMm  = metrics.driveMax[1] - metrics.driveMin[1];
+    float  clearTan = (float) slideClearPx * 2.0f * tanHalfY / (float) std::max (viewportH, 1);
+    float  hideMm   = 0.0f;
+    float  liftMm   = 0.0f;
+    float  offsetMm = 0.0f;
+
+
+
+    if (eyeDistMm > depthMm)
+    {
+        ScaleSlideDevices (out, driveCount, (eyeDistMm - kSlideMonitorGapMm) / (eyeDistMm + depthMm), backZ);
+    }
+
+    FitSlideDevices (out, metrics, driveCount, tanHalfX * kSlideFitMargin, backZ);
+
+    hideMm   = SolveSlideOffset (out, metrics, driveCount, -1.0f, -tanHalfY);
+    liftMm   = SolveSlideOffset (out, metrics, driveCount, 1.0f, -tanHalfY + clearTan);
+    offsetMm = -hideMm + slideProgress * (hideMm + liftMm);
+
+    for (int i = 0; i < driveCount; i++)
+    {
+        out.driveWorld[i][13] += offsetMm;
+    }
+
+    out.recorderWorld[13] += offsetMm;
+
+    if (slideProgress <= 0.0f)
+    {
+        driveCount      = 0;
+        out.hasRecorder = 0;
+    }
+
+    out.driveCount = driveCount;
+
+    return driveCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::ProjectDeviceRects
+//
+//  The drives' and the recorder's screen bounds, which are the tooltip
+//  anchors and drag-drop targets, and each drive's label anchor: its
+//  front-bottom center, one FIXED model point rather than the box's swelling
+//  projected bounds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::ProjectDeviceRects (DeskSceneComposition   & out,
+                                          const DeskSceneMetrics & metrics,
+                                          int                      driveCount,
+                                          const RECT             & viewportPx)
+{
+    for (int i = 0; i < driveCount; i++)
+    {
+        float  anchor[3]  = { (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f, metrics.driveMin[1], metrics.driveMin[2] };
+        float  worldPt[3] = {};
+        float  px[2]      = {};
+
+
+
+        ProjectModelBox (out.driveWorld[i], metrics.driveMin, metrics.driveMax, out.viewProj, viewportPx, out.driveRectPx[i]);
+
+        if (out.driveRectPx[i].right > out.driveRectPx[i].left &&
+            SceneCamera::TransformPoint (out.driveWorld[i], anchor, worldPt) &&
+            SceneCamera::ProjectToScreen (out.viewProj, worldPt, viewportPx, px))
+        {
+            out.driveLabelPx[i].x = (LONG) std::lround (px[0]);
+            out.driveLabelPx[i].y = (LONG) std::lround (px[1]);
+
+            out.driveLabelWorld[i][0] = worldPt[0];
+            out.driveLabelWorld[i][1] = worldPt[1];
+            out.driveLabelWorld[i][2] = worldPt[2];
+        }
+    }
+
+    if (out.hasRecorder != 0)
+    {
+        ProjectModelBox (out.recorderWorld, metrics.recorderMin, metrics.recorderMax,
+                         out.viewProj, viewportPx, out.recorderRectPx);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneLayout::SolveSlideOffset
 //
 //  The smallest distance, in millimeters, the sliding devices are moved along
@@ -519,11 +711,6 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
 {
     HRESULT  hr            = S_OK;
     bool     sliding       = slideProgress >= 0.0f;
-    float    slideOffsetMm = 0.0f;
-    float    stackMin[3]   = {};
-    float    stackMax[3]   = {};
-    float    spareMin[3]   = {};
-    float    spareMax[3]   = {};
     int      viewportW     = viewportPx.right - viewportPx.left;
     int      viewportH     = viewportPx.bottom - viewportPx.top;
     float    aspect        = 0.0f;
@@ -615,15 +802,6 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // coplanarity is worth a door that opens through the thing above it.
     forwardMm += metrics.driveDoorClearMm;
 
-    // Sliding, the drives' backs are kSlideMonitorGapMm in front of the
-    // monitor's frontmost point, so no part of a drive is ever inside the
-    // monitor. The slide below scales them so their fronts look the monitor's
-    // size from the eye.
-    if (sliding)
-    {
-        forwardMm = -metrics.monitorMin[1] + kSlideMonitorGapMm + metrics.driveMax[1];
-    }
-
     (void) dropMm;
 
     for (int i = 0; i < driveCount; i++)
@@ -669,19 +847,8 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
         sceneMax[2] = deviceMax[2] + monPadDepth;
     }
 
-    // Sliding, the drives and the recorder are excluded from the framing: their
-    // bounds go to a separate stack, which only places the recorder. The
-    // stack starts empty, so the recorder goes beside the drives rather than
-    // beside the monitor.
-    memcpy (stackMin, deviceMin, sizeof (stackMin));
-    memcpy (stackMax, deviceMax, sizeof (stackMax));
-
-    if (sliding && driveCount > 0)
-    {
-        stackMin[0] = stackMin[1] = stackMin[2] = FLT_MAX;
-        stackMax[0] = stackMax[1] = stackMax[2] = -FLT_MAX;
-    }
-
+    // Sliding, the drives and the recorder are excluded from the framing;
+    // PlaceSlidingDevices puts them in front of the monitor afterward.
     for (int i = 0; i < driveCount; i++)
     {
         float   dlo[3] = { metrics.driveMin[0] - driveCx + driveTx[i],
@@ -694,52 +861,26 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
         float   hi[3]  = { dhi[0] + metrics.drivePadSideMm, dhi[1],
                            dhi[2] + metrics.drivePadDepthMm };
 
-        for (int axis = 0; axis < 3; axis++)
+        for (int axis = 0; axis < 3 && !sliding; axis++)
         {
-            stackMin[axis] = std::min (stackMin[axis], dlo[axis]);
-            stackMax[axis] = std::max (stackMax[axis], dhi[axis]);
-
-            if (!sliding)
-            {
-                deviceMin[axis] = std::min (deviceMin[axis], dlo[axis]);
-                deviceMax[axis] = std::max (deviceMax[axis], dhi[axis]);
-                sceneMin[axis]  = std::min (sceneMin[axis],  lo[axis]);
-                sceneMax[axis]  = std::max (sceneMax[axis],  hi[axis]);
-            }
+            deviceMin[axis] = std::min (deviceMin[axis], dlo[axis]);
+            deviceMax[axis] = std::max (deviceMax[axis], dhi[axis]);
+            sceneMin[axis]  = std::min (sceneMin[axis],  lo[axis]);
+            sceneMax[axis]  = std::max (sceneMax[axis],  hi[axis]);
         }
     }
 
     // The cassette recorder joins both bounds, so the camera fit contains it
     // and its shadow exactly as it does the stack.
-    if (metrics.hasRecorder && sliding)
-    {
-        memcpy (spareMin, sceneMin, sizeof (spareMin));
-        memcpy (spareMax, sceneMax, sizeof (spareMax));
-
-        PlaceRecorder (metrics, forwardMm - metrics.driveFrontY, stackMin, stackMax,
-                       spareMin, spareMax, out);
-    }
-    else if (metrics.hasRecorder)
+    if (metrics.hasRecorder && !sliding)
     {
         PlaceRecorder (metrics, forwardMm - metrics.driveFrontY, deviceMin, deviceMax,
                        sceneMin, sceneMax, out);
     }
 
-    // Sliding, the row of drives and recorder is centered under the monitor
-    // as one group, so the recorder beside the drives does not push the row
-    // off one side of the frame.
-    if (sliding && driveCount > 0)
+    if (sliding)
     {
-        float  shiftX = -(stackMin[0] + stackMax[0]) * 0.5f;
-
-
-
-        for (int i = 0; i < driveCount; i++)
-        {
-            out.driveWorld[i][12] += shiftX;
-        }
-
-        out.recorderWorld[12] += shiftX;
+        PlaceSlidingDevices (metrics, driveCount, out);
     }
 
     // The camera looks at the glass center from slightly above (a person at
@@ -862,55 +1003,12 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
             }
         }
 
-        // Sliding: shrink the row if it is wider than the frame, then find
-        // how far the devices have to be lowered to sit wholly under the
-        // frame, and how far they have to be raised off the desk for their
-        // fronts, and `slideClearPx` of labels under them, to be wholly inside
-        // it (zero when they already are). The slide runs between the two. At
-        // 0 they are left out, so nothing is drawn or hit-tested below the
-        // frame. Done here, against the unrotated view, so the orbit below
-        // turns them with the monitor.
+        // Sliding: done here, against the unrotated view, so the orbit below
+        // turns the devices with the monitor.
         if (sliding)
         {
-            float  hideMm   = 0.0f;
-            float  clearTan = (float) slideClearPx * 2.0f * tanHalfY / (float) viewportH;
-            float  liftMm   = 0.0f;
-            float  backZ    = -metrics.monitorMin[1] + kSlideMonitorGapMm;
-            float  eyeDist  = eyeZ - (-metrics.monitorMin[1]);
-            float  depthMm  = metrics.driveMax[1] - metrics.driveMin[1];
-
-
-
-            // Their fronts are nearer the eye than the monitor's, so they are
-            // scaled down by (D - gap) / (D + depth), D the eye's distance to
-            // the monitor's front: then a front face projects at the monitor's
-            // scale. The pivot is the row's back edge, so the backs stay just
-            // in front of the monitor.
-            if (eyeDist > depthMm)
-            {
-                ScaleSlideDevices (out, driveCount, (eyeDist - kSlideMonitorGapMm) / (eyeDist + depthMm), backZ);
-            }
-
-            FitSlideDevices (out, metrics, driveCount, tanHalfX * kSlideFitMargin, backZ);
-
-            hideMm = SolveSlideOffset (out, metrics, driveCount, -1.0f, -tanHalfY);
-            liftMm = SolveSlideOffset (out, metrics, driveCount, 1.0f, -tanHalfY + clearTan);
-
-            slideOffsetMm = -hideMm + slideProgress * (hideMm + liftMm);
-
-            for (int i = 0; i < driveCount; i++)
-            {
-                out.driveWorld[i][13] += slideOffsetMm;
-            }
-
-            out.recorderWorld[13] += slideOffsetMm;
-
-            if (slideProgress <= 0.0f)
-            {
-                driveCount      = 0;
-                out.driveCount  = 0;
-                out.hasRecorder = 0;
-            }
+            driveCount = SlideDevices (out, metrics, driveCount, eyeZ - (-metrics.monitorMin[1]),
+                                       tanHalfX, tanHalfY, viewportH, slideProgress, slideClearPx);
         }
 
         // THE ORBIT ROTATES THE SCENE, NOT THE CAMERA. The eye stays in its
@@ -1029,72 +1127,12 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     }
 
     // Projected per-device bounds: each device's model box through its own
-    // world matrix. The drive rects are the tooltip anchors and drag-drop
-    // targets (the 2D widgets' OuterRects); the monitor rect is what the
-    // in-scene chrome (the input-mode button row) lays out against.
-    for (int i = -1; i < driveCount; i++)
-    {
-        const float  * world    = (i < 0) ? out.monitorWorld : out.driveWorld[i];
-        const float  * boxMin   = (i < 0) ? metrics.monitorMin : metrics.driveMin;
-        const float  * boxMax   = (i < 0) ? metrics.monitorMax : metrics.driveMax;
-        RECT         & outPx    = (i < 0) ? out.monitorRectPx : out.driveRectPx[i];
-        float          pxMin[2] = { FLT_MAX, FLT_MAX };
-        float          pxMax[2] = { -FLT_MAX, -FLT_MAX };
-        bool           all      = true;
+    // world matrix. The monitor rect is what the in-scene chrome (the
+    // input-mode button row) lays out against.
+    ProjectModelBox (out.monitorWorld, metrics.monitorMin, metrics.monitorMax,
+                     out.viewProj, viewportPx, out.monitorRectPx);
 
-        for (int corner = 0; corner < 8; corner++)
-        {
-            float   pt[3]     = { (corner & 1) ? boxMax[0] : boxMin[0],
-                                  (corner & 2) ? boxMax[1] : boxMin[1],
-                                  (corner & 4) ? boxMax[2] : boxMin[2] };
-            float   worldPt[3] = {};
-            float   px[2]      = {};
-
-            if (!SceneCamera::TransformPoint (world, pt, worldPt) ||
-                !SceneCamera::ProjectToScreen (out.viewProj, worldPt, viewportPx, px))
-            {
-                all = false;
-                break;
-            }
-
-            pxMin[0] = std::min (pxMin[0], px[0]);  pxMax[0] = std::max (pxMax[0], px[0]);
-            pxMin[1] = std::min (pxMin[1], px[1]);  pxMax[1] = std::max (pxMax[1], px[1]);
-        }
-
-        if (all)
-        {
-            outPx.left   = (LONG) std::floor (pxMin[0]);
-            outPx.top    = (LONG) std::floor (pxMin[1]);
-            outPx.right  = (LONG) std::ceil (pxMax[0]);
-            outPx.bottom = (LONG) std::ceil (pxMax[1]);
-        }
-
-        // The label anchor: the drive's front-bottom center, one FIXED model
-        // point rather than the box's swelling projected bounds.
-        if (i >= 0 && all)
-        {
-            float   anchor[3]  = { (boxMin[0] + boxMax[0]) * 0.5f, boxMin[1], boxMin[2] };
-            float   worldPt[3] = {};
-            float   px[2]      = {};
-
-            if (SceneCamera::TransformPoint (world, anchor, worldPt) &&
-                SceneCamera::ProjectToScreen (out.viewProj, worldPt, viewportPx, px))
-            {
-                out.driveLabelPx[i].x = (LONG) std::lround (px[0]);
-                out.driveLabelPx[i].y = (LONG) std::lround (px[1]);
-
-                out.driveLabelWorld[i][0] = worldPt[0];
-                out.driveLabelWorld[i][1] = worldPt[1];
-                out.driveLabelWorld[i][2] = worldPt[2];
-            }
-        }
-    }
-
-    if (out.hasRecorder != 0)
-    {
-        ProjectModelBox (out.recorderWorld, metrics.recorderMin, metrics.recorderMax,
-                         out.viewProj, viewportPx, out.recorderRectPx);
-    }
+    ProjectDeviceRects (out, metrics, driveCount, viewportPx);
 
     // Scene scale and the projected glass rect: the glass's on-screen
     // bounds against the 2D chrome's native 384 dp. All four glass corners
@@ -1343,7 +1381,10 @@ HRESULT DeskSceneLayout::ComputeGlassFill (const RECT             & viewportPx,
                                            int                      displayW,
                                            int                      displayH,
                                            const DeskSceneMetrics & metrics,
-                                           DeskSceneComposition   & out)
+                                           DeskSceneComposition   & out,
+                                           int                      driveCount,
+                                           float                    slideProgress,
+                                           int                      slideClearPx)
 {
     HRESULT   hr        = S_OK;
     int       viewportW = viewportPx.right - viewportPx.left;
@@ -1407,6 +1448,23 @@ HRESULT DeskSceneLayout::ComputeGlassFill (const RECT             & viewportPx,
 
     nativeHPx      = (float) kScreenNativeHDp * (float) dpi / 96.0f;
     out.sceneScale = (halfHpx * 2.0f) / nativeHPx;
+
+    // The drives slide up in front of the glass exactly as they do on the
+    // windowed desk, under this camera. The eye is the standoff in front of
+    // the glass plane.
+    if (slideProgress >= 0.0f && driveCount > 0)
+    {
+        float  eyeDistMm = (-metrics.glass.baseY + standoff) - (-metrics.monitorMin[1]);
+
+
+
+        PlaceSlidingDevices (metrics, driveCount, out);
+
+        driveCount = SlideDevices (out, metrics, driveCount, eyeDistMm, tanY * aspect, tanY, viewportH,
+                                   std::clamp (slideProgress, 0.0f, 1.0f), std::max (slideClearPx, 0));
+
+        ProjectDeviceRects (out, metrics, driveCount, viewportPx);
+    }
 
 Error:
     return hr;
