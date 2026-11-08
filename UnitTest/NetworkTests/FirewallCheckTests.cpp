@@ -77,6 +77,26 @@ public:
     }
 
 
+    //  Tailscale's rule allows every program and port, but only on the PC's
+    //  Tailscale address, so it doesn't admit what arrives from the LAN. A port with
+    //  only that rule has no rule, and opening it brings up Windows' prompt.
+    TEST_METHOD (AnAllowRuleForSomeAddressesOnly_DoesNotAdmit)
+    {
+        FirewallRule     tailscale;
+        FirewallVerdict  verdict;
+
+        tailscale.name       = L"Tailscale-In";
+        tailscale.localPorts = L"*";
+        tailscale.profiles   = FirewallProfile::Private;
+        tailscale.anyAddress = false;
+
+        verdict = Check (MakeSnapshot (FirewallProfile::Private, { tailscale }));
+
+        Assert::IsFalse  (verdict.IsAdmitted());
+        Assert::AreEqual ((int) FirewallAdmission::NoRule, (int) verdict.admission);
+    }
+
+
     TEST_METHOD (ABlockRule_WinsOverAnAllowRule)
     {
         FirewallRule     block   = MakeRule (false, FirewallProfile::Public);

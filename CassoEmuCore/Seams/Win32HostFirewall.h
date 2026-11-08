@@ -42,7 +42,8 @@ public:
     static FirewallProfile  GetCategoryProfile (NLM_NETWORK_CATEGORY category);
 
 private:
-    static std::wstring  TakeString (BSTR text);
+    static std::wstring  TakeString     (BSTR text);
+    static HRESULT       ReadAnyAddress (INetFwRule * rule, bool & outAny);
 
     //  The profiles of the networks the PC is connected to, with the
     //  firewall's current profiles in their place when there are none.

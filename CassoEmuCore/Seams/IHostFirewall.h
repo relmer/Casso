@@ -79,6 +79,12 @@ struct FirewallRule
     FirewallProfile  profiles    = FirewallProfile::All;
     bool             allow       = true;
     bool             enabled     = true;
+
+    //  False for a rule limited to some local or remote addresses or some
+    //  interfaces, such as Tailscale's for the PC's Tailscale address. Such a
+    //  rule doesn't admit what arrives from the LAN, so its allow doesn't
+    //  admit a port. Its block counts.
+    bool             anyAddress  = true;
 };
 
 

@@ -299,9 +299,64 @@ HRESULT Win32HostFirewall::ReadRule (INetFwRule * rule, bool & outInbound, Firew
     CHR (hr);
     outRule.enabled = enabled == VARIANT_TRUE;
 
+    hr = ReadAnyAddress (rule, outRule.anyAddress);
+    CHR (hr);
+
     outInbound = true;
 
 Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32HostFirewall::ReadAnyAddress
+//
+//  Whether a rule covers every local and remote address and every interface:
+//  "*" for each address list, no interface list, and "All" for the interface
+//  types.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32HostFirewall::ReadAnyAddress (INetFwRule * rule, bool & outAny)
+{
+    HRESULT       hr         = S_OK;
+    BSTR          text       = nullptr;
+    VARIANT       interfaces = {};
+    std::wstring  local;
+    std::wstring  remote;
+    std::wstring  types;
+
+
+
+    VariantInit (&interfaces);
+
+    hr = rule->get_LocalAddresses (&text);
+    CHR (hr);
+    local = TakeString (text);
+
+    hr = rule->get_RemoteAddresses (&text);
+    CHR (hr);
+    remote = TakeString (text);
+
+    hr = rule->get_InterfaceTypes (&text);
+    CHR (hr);
+    types = TakeString (text);
+
+    hr = rule->get_Interfaces (&interfaces);
+    CHR (hr);
+
+    outAny = (local.empty() || local == L"*") && (remote.empty() || remote == L"*")
+          && (types.empty() || _wcsicmp (types.c_str(), L"All") == 0)
+          && (interfaces.vt == VT_EMPTY || interfaces.vt == VT_NULL);
+
+Error:
+    VariantClear (&interfaces);
+
     return hr;
 }
 

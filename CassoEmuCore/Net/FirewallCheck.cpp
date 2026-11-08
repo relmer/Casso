@@ -52,8 +52,8 @@ FirewallVerdict FirewallCheck::Evaluate (const FirewallSnapshot & snapshot, cons
                 here.rule = rule.name;
             }
 
-            allowed   = allowed   || (rule.allow && covers);
-            elsewhere = elsewhere || (rule.allow && !covers);
+            allowed   = allowed   || (rule.allow && rule.anyAddress && covers);
+            elsewhere = elsewhere || (rule.allow && rule.anyAddress && !covers);
         }
 
         here.profile   = profile;
