@@ -12,6 +12,8 @@
 #include "CassoLink/LinkProgram.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/RamDevice.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
@@ -161,6 +163,24 @@ public:
             return text.substr (0, text.find_last_not_of (' ') + 1);
         }
 
+        //  A row of the text page in 80 columns, each auxiliary memory byte
+        //  ahead of the main memory byte at the same offset, with its trailing
+        //  spaces cut.
+        std::string  Row80 (Word address)
+        {
+            const Byte  * mainRam = machine.GetRefs().mainRamDev->GetData();
+            const Byte  * auxRam  = machine.GetMmu()->GetAuxBuffer();
+            std::string   text;
+
+            for (int i = 0; i < 40; i++)
+            {
+                text += (char) (auxRam[address + i] & 0x7F);
+                text += (char) (mainRam[address + i] & 0x7F);
+            }
+
+            return text.substr (0, text.find_last_not_of (' ') + 1);
+        }
+
         //  Drive 2's disk, as DOS-logical sectors.
         std::vector<Byte>  Sectors()
         {
@@ -243,8 +263,8 @@ public:
             Assert::AreEqual (catalog.entries[0].name, list->listing.entries[0].name);
             Assert::AreEqual (LinkProgram::kProgramVersion, (Word) (rig.machine.GetCpu()->ReadByte (0x0803) | (rig.machine.GetCpu()->ReadByte (0x0804) << 8)), L"the program was loaded");
             Assert::AreEqual (std::string ("CASSOLINK: CONNECTED"),  rig.Row (kRow0));
-            Assert::AreEqual (std::string ("UTHERNET II, SLOT 3, 26502"), rig.Row (kRow1));
-            Assert::AreEqual (std::format ("ADDRESS:    127.0.0.1:{}", kPort), rig.Row (kRow2));
+            Assert::AreEqual (std::string ("UTHERNET II, SLOT 3"), rig.Row (kRow1));
+            Assert::AreEqual (std::format ("127.0.0.1:{}", kPort), rig.Row (kRow2), L"the address and port under the connection");
 
             AssertSucceeded (Dos33Volume (dos).Write (FilePath::Parse ("FROMPC"), payload, written));
 
@@ -299,6 +319,54 @@ public:
 
 
 
+    //  In 80 columns the connection is at the top row's right edge, and the
+    //  address and port at the right edge of the row below it.
+    TEST_METHOD (TheW5100Program_In80Columns_PutsTheAddressUnderTheConnection)
+    {
+        constexpr uint16_t     kWidePort = kPort + 5;
+        Rig                    rig;
+        FixtureProvider        fixtures;
+        std::vector<uint8_t>   bytes;
+        std::vector<Byte>      dos;
+        std::vector<Byte>      boot;
+        LinkShimOptions        options;
+        CassoLinkSettings      settings;
+        std::string            address = std::format ("127.0.0.1:{}", kWidePort);
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
+        dos.assign (bytes.begin(), bytes.end());
+
+        options.chip            = LinkChip::W5100;
+        options.slot            = kSlot;
+        options.network.address = { 127, 0, 0, 1 };
+        options.network.port    = kWidePort;
+
+        AssertSucceeded (LinkProgram::BuildBootDisk (options, boot));
+
+        GuestSession::Mount (rig.machine, boot);
+        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, dos));
+        rig.machine.RunCycles (kBootCycles);
+
+        settings.name      = "Uthernet";
+        settings.transport = LinkTransport::Uthernet;
+        settings.address   = address;
+
+        {
+            CassoLinkSession  session (rig.factory, rig.folder, rig.fileIo, rig.sink);
+
+            session.SetRetryInterval (kRetryMs);
+            AssertSucceeded (session.Start (settings));
+
+            auto  list = rig.Finish (session.Enumerate (2, FilePath()));
+
+            AssertSucceeded (list->result);
+            Assert::IsTrue   (rig.Row80 (kRow0).ends_with ("UTHERNET II, SLOT 3"), TextEncoding::NarrowToWide (rig.Row80 (kRow0)).c_str());
+            Assert::AreEqual (std::string (80 - address.size(), ' ') + address, rig.Row80 (kRow1), L"the address right-justified under the connection");
+            Assert::AreEqual (std::string(), rig.Row80 (kRow2), L"and nothing on the row the address was on");
+        }
+    }
+
+
     //  A Casso link at the card's address, the wrong kind of link for it:
     //  the shim's Ready indicates the W5100, so the program sent is the W5100
     //  build, and not the 6551 build for the link's transport.
@@ -344,7 +412,8 @@ public:
 
             AssertSucceeded (list->result);
             Assert::AreEqual (catalog.entries.size(), list->listing.entries.size(), L"drive 2's catalog through a Casso link");
-            Assert::IsTrue (rig.Row (kRow1).starts_with (std::format ("UTHERNET II, SLOT 3, {}", kOtherPort)), L"the W5100 program's connection row");
+            Assert::AreEqual (std::string ("UTHERNET II, SLOT 3"), rig.Row (kRow1), L"the W5100 program's connection row");
+            Assert::AreEqual (std::format ("127.0.0.1:{}", kOtherPort), rig.Row (kRow2));
         }
     }
 
@@ -435,6 +504,31 @@ public:
             AssertSucceeded (list->result);
             Assert::AreEqual (catalog.entries.size(), list->listing.entries.size(), L"drive 2's catalog over the card the disk found");
         }
+
+        //  With the PC gone, the program listens again and sends an
+        //  announcement, so a Casso Explorer started again lists the Apple.
+        Win32LinkAnnouncements  again (LinkProgram::kAnnouncePort);
+
+        AssertSucceeded (again.SetListening (true));
+
+        auto  findAgain = [&] ()
+        {
+            for (const LinkAnnouncement & announcement : again.GetAnnounced())
+            {
+                if (announcement.mac == cardMac)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+
+        rig.RunUntil (findAgain, kWaitMs);
+        Assert::IsTrue (findAgain(), L"an announcement is sent from the program after the PC disconnects");
+        Assert::AreEqual (LinkProgram::kProgramVersion, (Word) (rig.machine.GetCpu()->ReadByte (0x0803) | (rig.machine.GetCpu()->ReadByte (0x0804) << 8)),
+                          L"from the program, not the disk's first stage");
+        AssertSucceeded (again.SetListening (false));
     }
 
     //  Two Cassos on the PC boot the universal disk with one port. The second

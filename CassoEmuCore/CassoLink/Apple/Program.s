@@ -80,7 +80,9 @@
 ; The shim has socket 0 connected to the PC: bytes to send go in the chip's
 ; transmit memory and are sent before each wait for a byte, or once 128 are
 ; waiting. When the PC disconnects, the socket listens again, and the PC's
-; silence is reported as on a serial line. Set speed is acknowledged and
+; silence is reported as on a serial line. While the socket listens, an Apple
+; booted from the universal disk sends its announcement each second, so Casso
+; Explorer finds it again. Set speed is acknowledged and
 ; changes nothing, and Exit disconnects the socket.
 
         ifndef PROGVER
@@ -132,6 +134,10 @@ STLISTEN = $14
 STSYNRCV = $16
 STESTAB  = $17
 IRSENDOK = $10
+IRSENT   = $18                  ; SEND_OK or TIMEOUT
+STUDP    = $22
+ANNREG   = $05                  ; socket 1's registers' page, for the announcements
+ANNTX    = $50                  ; and its transmit memory's page, for 4 KB
         endif
 
 ; The Disk II, through diskx: slot * 16, $60 for slot 6.
@@ -192,6 +198,7 @@ SHIMTEXT  = SHIM + $06            ; its speed's text, six characters
 SHIMDIAL  = SHIM + $0C            ; a Wi-Fi modem's dial command
 SHIMADDR  = SHIM + $0C            ; a W5100 shim's address
 SHIMPORT  = SHIM + $1E            ; a W5100 shim's TCP port, high byte first
+SHIMMAC   = SHIM + $18            ; a W5100 shim's MAC address
 SHIMSAVED = SHIM + $34            ; nonzero once the shim saved the machine's state
 SHIMRESET = SHIM + $35            ; the reset vector the shim found, and its check
 ZPSAVE    = $3A00                 ; the zero page the shim found, below the shim
@@ -1707,10 +1714,11 @@ gbpoll: ldy #SKRXRSR
         cmp #STESTAB
         beq gbnone
         cmp #STLISTEN
-        beq gbnone
+        beq gbann
         cmp #STSYNRCV
         beq gbnone
         jsr wzlisten
+gbann:  jsr announce
 gbnone: ldx savex
         ldy wsavy
         sec
@@ -1794,6 +1802,95 @@ flsent: ldy #SKIR
         sta txn
 fldone: rts
 fldrop: jmp wzsync
+
+; announce: while socket 0 listens, CASSOLINK, the version, the address, the
+; port and the MAC address, from socket 1 to UDP port 6510 everywhere, as the
+; universal disk's first stage sends them. Casso Explorer finds the Apple
+; again after the PC disconnects or restarts. Only the universal disk opens
+; socket 1 for UDP, so no announcement is sent from an Apple booted from
+; another disk.
+announce: lda #ANNREG
+        ldy #SKSR
+        jsr wzptr
+        lda WZDATA,x
+        cmp #STUDP
+        bne andone
+        lda #ANNREG
+        ldy #SKTXWR
+        jsr wzptr
+        lda WZDATA,x
+        sta annwr+1
+        lda WZDATA,x
+        sta annwr
+        ldx #0
+antag:  lda anntag,x
+        jsr anput
+        inx
+        cpx #annend-anntag
+        bne antag
+        ldx #0
+anaddr: lda SHIMADDR,x
+        jsr anput
+        inx
+        cpx #4
+        bne anaddr
+        lda SHIMPORT
+        jsr anput
+        lda SHIMPORT+1
+        jsr anput
+        ldx #0
+anmac:  lda SHIMMAC,x
+        jsr anput
+        inx
+        cpx #6
+        bne anmac
+        lda #ANNREG
+        ldy #SKTXWR
+        jsr wzptr
+        lda annwr+1
+        jsr wzput
+        lda annwr
+        jsr wzput
+        lda #ANNREG
+        ldy #SKCR
+        jsr wzptr
+        lda #CMSEND
+        jsr wzput
+anwait: lda #ANNREG
+        ldy #SKIR
+        jsr wzptr
+        lda WZDATA,x
+        and #IRSENT
+        beq anwait
+        lda #ANNREG
+        ldy #SKIR
+        jsr wzptr
+        lda #IRSENT
+        jsr wzput
+andone: rts
+
+; anput: A into socket 1's transmit memory, at $5000 + (annwr & $0FFF), and
+; annwr advanced. X is restored.
+anput:  stx anx
+        pha
+        lda annwr+1
+        and #$0F
+        ora #ANNTX
+        ldy annwr
+        jsr wzptr
+        pla
+        jsr wzput
+        inc annwr
+        bne anpdone
+        inc annwr+1
+anpdone: ldx anx
+        rts
+
+annwr:  .byte 0, 0              ; announce: socket 1's Sn_TX_WR
+anx:    .byte 0                 ; anput: X
+anntag: .text "CASSOLINK"
+        .byte 1
+annend:
 
 ; rxdone: the bytes read given back to the chip, Sn_RX_RD and RECV.
 rxdone: ldy #SKRXRD
@@ -3104,8 +3201,8 @@ dsaux:  sta $0400,y
         sta PAGE2OFF
 dsmain:
 dsdone: jsr fschrome
-        jsr showaddr
         jsr showconn
+        jsr showaddr
         jmp showstatus
 
 titletxt: .text "CASSOLINK"
@@ -3308,22 +3405,12 @@ conndraw: lda #<conntext
         sta ptr+1
         jsr puttext
         ifdef W5100
-        lda slotx               ; the card, its slot and the port, as
-        lsr a                   ; UTHERNET II, SLOT 3, 6502
+        lda slotx               ; the card and its slot, as UTHERNET II,
+        lsr a                   ; SLOT 3; the port is in the address below
         lsr a
         lsr a
         lsr a
-        jsr putdec
-        lda #<connport
-        sta ptr
-        lda #>connport
-        sta ptr+1
-        jsr puttext
-        lda SHIMPORT+1
-        sta wnum
-        lda SHIMPORT
-        sta wnum+1
-        jmp putword
+        jmp putdec
         else
         ldx #0                  ; what the 6551 is: a card or a //c's port,
         lda $FBB3               ; by cable or through a Wi-Fi modem, as
@@ -3371,9 +3458,6 @@ scfound: lda speeds+1,x
 
         ifdef W5100
 conntext: .text "UTHERNET II, SLOT "
-        .byte 0
-connport: .byte $2C
-        .text " "
         .byte 0
 
 ; putword: wnum in decimal, without leading zeros, into the field from Y.
@@ -3429,27 +3513,36 @@ connnames: .byte <connssc, >connssc, <connsscm, >connsscm
 
 
 ; showaddr: below the connection, where the link goes when it has an
-; address: DIALED: and the target a Wi-Fi modem dialed, as the command has it
-; after ATDT and its spaces, or ADDRESS: and the Uthernet II's address and
-; port.
+; address. A Wi-Fi modem's is DIALED: and the target it dialed, as the
+; command has it after ATDT and its spaces. An Uthernet II's is its address
+; and port, under the connection: in 80 columns at the right edge of the row
+; below the top row, and in 40 on the row below the connection, from its
+; first column. It is drawn after the connection, whose rows are cleared
+; first.
 showaddr:
-        ifndef W5100
-        lda SHIMDIAL
-        bne sahas
-        rts
-sahas:
-        endif
+        ifdef W5100
         ldx #<ROW2
         lda #>ROW2
         jsr fullrow
-        lda #<addrlabel
-        sta ptr
-        lda #>addrlabel
-        sta ptr+1
-        jsr puttext
-        ldy #FIELD
-        ifdef W5100
+        bit wide
+        bpl sadraw
+        lda rowwidth            ; with a row width of 0 nothing is drawn, and
+        pha                     ; Y ends at the address's length
         lda #0
+        sta rowwidth
+        ldy #0
+        jsr sadraw
+        sty salen
+        pla
+        sta rowwidth
+        sec
+        sbc salen
+        tay
+        lda #<ROW1
+        sta scr
+        lda #>ROW1
+        sta scr+1
+sadraw: lda #0
         sta sacount
 saip:   ldx sacount             ; the address, a byte at a time, then the port
         lda SHIMADDR,x
@@ -3469,6 +3562,18 @@ saport: lda #':'
         sta wnum+1
         jmp putword
         else
+        lda SHIMDIAL
+        bne sahas
+        rts
+sahas:  ldx #<ROW2
+        lda #>ROW2
+        jsr fullrow
+        lda #<addrlabel
+        sta ptr
+        lda #>addrlabel
+        sta ptr+1
+        jsr puttext
+        ldy #FIELD
         ldx #4
 saskip: lda SHIMDIAL,x
         cmp #' '
@@ -3489,8 +3594,7 @@ sadone: rts
 pcend:  .byte 0                  ; the top row's column where the PC's blanks end
         ifdef W5100
 sacount: .byte 0                ; showaddr: the address's bytes drawn
-addrlabel: .text "ADDRESS"
-        .byte $3A, 0
+salen:  .byte 0                 ; and in 80 columns, its length
         else
 addrlabel: .text "DIALED"
         .byte $3A, 0

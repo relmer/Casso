@@ -2072,6 +2072,16 @@ source and read the manifest. Repeat on a real //c with real floppies.
   Casso. The card's infobar MUST report the move. Allow MUST admit the whole
   range with one rule, 6502-6509 for the link, so a later Casso that moves
   doesn't require another Allow.
+- **FR-154**: An Apple booted from the universal disk MUST go on sending an
+  announcement each second while its program listens with no PC connected,
+  so Casso Explorer lists it again after the link drops or Casso Explorer
+  restarts. An Apple booted from another link disk MUST NOT send
+  announcements. The program's status screen MUST have an Uthernet II's
+  connection without its port, as `UTHERNET II, SLOT 3`, and the address and
+  port, with no label, below it: at the right edge of the row below the top
+  row in 80 columns, and on the row below the connection in 40. This replaces
+  the port in the connection's name and the `ADDRESS:` row in the
+  clarifications above.
 
 **Full Send**
 
