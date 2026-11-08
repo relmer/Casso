@@ -244,7 +244,7 @@ public:
         DeskSceneComposition  quarter;
         DeskSceneComposition  half;
         DeskSceneComposition  full;
-        float                 driveFrontZ   = 0.0f;
+        float                 driveBackZ    = 0.0f;
         float                 monitorFrontZ = -metrics.monitorMin[1];
 
 
@@ -261,18 +261,20 @@ public:
         Assert::IsTrue (full.driveWorld[0][13] >= 0.0f, L"fully up, the drives are on the desk or raised off it, never sunk into it");
 
         // Model Y points back and maps to world -Z at the row's scale (cell 0),
-        // so a drive's front is its world Z less its scaled frontmost model Y.
-        driveFrontZ = full.driveWorld[0][14] - full.driveWorld[0][0] * metrics.driveMin[1];
-        Assert::AreEqual (monitorFrontZ + DeskSceneLayout::kSlideFrontGapMm, driveFrontZ, 0.01f,
-                          L"the drives' fronts are just ahead of the monitor's, at its distance from the eye");
+        // so a drive's back is its world Z less its scaled rearmost model Y.
+        driveBackZ = full.driveWorld[0][14] - full.driveWorld[0][0] * metrics.driveMax[1];
+        Assert::IsTrue (driveBackZ >= monitorFrontZ + DeskSceneLayout::kSlideMonitorGapMm - 0.01f,
+                        L"the drives are wholly in front of the monitor, never inside it");
+        Assert::IsTrue (full.driveWorld[0][0] < 1.0f, L"nearer the eye than the monitor, the drives are scaled to look its size");
     }
 
     TEST_METHOD (Sliding_Row_Fits_Within_The_Frame)
     {
-        DeskSceneMetrics      metrics = MakeMetrics();
-        RECT                  narrow  = { 0, 0, 700, 900 };
-        RECT                  wide    = { 0, 0, 2400, 768 };
+        DeskSceneMetrics      metrics     = MakeMetrics();
+        RECT                  narrow      = { 0, 0, 700, 900 };
+        RECT                  wide        = { 0, 0, 2400, 768 };
         DeskSceneComposition  comp;
+        float                 narrowScale = 0.0f;
 
 
 
@@ -287,11 +289,12 @@ public:
 
         Assert::IsTrue (comp.driveRectPx[0].left    >= narrow.left,  L"the row is inside the frame on the left");
         Assert::IsTrue (comp.recorderRectPx.right   <= narrow.right, L"the recorder is inside the frame on the right");
-        Assert::IsTrue (comp.driveWorld[0][0] < 1.0f,                L"a row wider than the frame is scaled down to fit");
+
+        narrowScale = comp.driveWorld[0][0];
 
         AssertSucceeded (DeskSceneLayout::ComputeSliding (wide, 96, 2, metrics, 1.0f, kSlideClearPx, comp));
 
-        Assert::AreEqual (1.0f, comp.driveWorld[0][0], L"a row that fits is at the monitor's scale");
+        Assert::IsTrue (comp.driveWorld[0][0] > narrowScale, L"only a row wider than the frame is shrunk to fit");
         Assert::IsTrue (comp.recorderRectPx.right <= wide.right);
     }
 

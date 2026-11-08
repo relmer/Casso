@@ -300,12 +300,11 @@ bool DeskSceneLayout::GetSlideTanRange (const DeskSceneComposition  & comp,
 //
 //  DeskSceneLayout::FitSlideDevices
 //
-//  The row is at the monitor's scale whenever it fits. When it is wider
-//  than `limitTanX` allows, every sliding device is scaled down uniformly
-//  about the row's front-bottom center (x 0, the desk, `frontZ`), so the
-//  fronts stay in their plane and the row stays centered and on the desk. A
-//  few passes, because the tangent of a point is not exactly linear in the
-//  scale.
+//  When the row is wider than `limitTanX` allows, every sliding device is
+//  scaled down uniformly about the row's back-bottom center (x 0, the desk,
+//  `pivotZ`), so the backs stay just in front of the monitor and the row
+//  stays centered and on the desk. A few passes, because the tangent of a
+//  point is not exactly linear in the scale.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -313,10 +312,9 @@ void DeskSceneLayout::FitSlideDevices (DeskSceneComposition  & comp,
                                        const DeskSceneMetrics & metrics,
                                        int                      driveCount,
                                        float                    limitTanX,
-                                       float                    frontZ)
+                                       float                    pivotZ)
 {
     constexpr int  kFitPasses = 3;
-    constexpr int  kAxisCells = 12;   // rows 0-2 of the matrix, the scaled axes
 
 
 
@@ -343,26 +341,52 @@ void DeskSceneLayout::FitSlideDevices (DeskSceneComposition  & comp,
 
         factor = limitTanX / extent;
 
-        for (int i = -1; i < driveCount; i++)
+        ScaleSlideDevices (comp, driveCount, factor, pivotZ);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::ScaleSlideDevices
+//
+//  Scales every sliding device uniformly about (x 0, the desk, `pivotZ`):
+//  the axes of each world matrix shrink, and each translation moves toward
+//  the pivot by the same factor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::ScaleSlideDevices (DeskSceneComposition & comp,
+                                         int                    driveCount,
+                                         float                  factor,
+                                         float                  pivotZ)
+{
+    constexpr int  kAxisCells = 12;   // rows 0-2 of the matrix, the scaled axes
+
+
+
+    for (int i = -1; i < driveCount; i++)
+    {
+        float  * world = (i < 0) ? comp.recorderWorld : comp.driveWorld[i];
+
+
+
+        if (i < 0 && comp.hasRecorder == 0)
         {
-            float  * world = (i < 0) ? comp.recorderWorld : comp.driveWorld[i];
-
-
-
-            if (i < 0 && comp.hasRecorder == 0)
-            {
-                continue;
-            }
-
-            for (int cell = 0; cell < kAxisCells; cell++)
-            {
-                world[cell] *= factor;
-            }
-
-            world[12] *= factor;
-            world[13] *= factor;
-            world[14]  = frontZ + (world[14] - frontZ) * factor;
+            continue;
         }
+
+        for (int cell = 0; cell < kAxisCells; cell++)
+        {
+            world[cell] *= factor;
+        }
+
+        world[12] *= factor;
+        world[13] *= factor;
+        world[14]  = pivotZ + (world[14] - pivotZ) * factor;
     }
 }
 
@@ -591,13 +615,13 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // coplanarity is worth a door that opens through the thing above it.
     forwardMm += metrics.driveDoorClearMm;
 
-    // Sliding, the drives' fronts are kSlideFrontGapMm in front of the
-    // monitor's frontmost point, which puts them at the monitor's distance
-    // from the eye and so at the monitor's scale. Their bodies extend back
-    // into the monitor, where its case hides them.
+    // Sliding, the drives' backs are kSlideMonitorGapMm in front of the
+    // monitor's frontmost point, so no part of a drive is ever inside the
+    // monitor. The slide below scales them so their fronts look the monitor's
+    // size from the eye.
     if (sliding)
     {
-        forwardMm = -metrics.monitorMin[1] + kSlideFrontGapMm + metrics.driveMin[1];
+        forwardMm = -metrics.monitorMin[1] + kSlideMonitorGapMm + metrics.driveMax[1];
     }
 
     (void) dropMm;
@@ -851,10 +875,23 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
             float  hideMm   = 0.0f;
             float  clearTan = (float) slideClearPx * 2.0f * tanHalfY / (float) viewportH;
             float  liftMm   = 0.0f;
+            float  backZ    = -metrics.monitorMin[1] + kSlideMonitorGapMm;
+            float  eyeDist  = eyeZ - (-metrics.monitorMin[1]);
+            float  depthMm  = metrics.driveMax[1] - metrics.driveMin[1];
 
 
 
-            FitSlideDevices (out, metrics, driveCount, tanHalfX * kSlideFitMargin, forwardMm - metrics.driveMin[1]);
+            // Their fronts are nearer the eye than the monitor's, so they are
+            // scaled down by (D - gap) / (D + depth), D the eye's distance to
+            // the monitor's front: then a front face projects at the monitor's
+            // scale. The pivot is the row's back edge, so the backs stay just
+            // in front of the monitor.
+            if (eyeDist > depthMm)
+            {
+                ScaleSlideDevices (out, driveCount, (eyeDist - kSlideMonitorGapMm) / (eyeDist + depthMm), backZ);
+            }
+
+            FitSlideDevices (out, metrics, driveCount, tanHalfX * kSlideFitMargin, backZ);
 
             hideMm = SolveSlideOffset (out, metrics, driveCount, -1.0f, -tanHalfY);
             liftMm = SolveSlideOffset (out, metrics, driveCount, 1.0f, -tanHalfY + clearTan);

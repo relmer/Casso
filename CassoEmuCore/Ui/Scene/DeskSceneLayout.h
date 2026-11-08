@@ -317,9 +317,9 @@ public:
     // frame, and the slide progress that marks an ordinary, unsliding solve.
     static constexpr float  kMaxSlideDropMm        = 4000.0f;
 
-    // How far the sliding drives' fronts are ahead of the monitor's
-    // frontmost point: enough that the two surfaces never share a depth.
-    static constexpr float  kSlideFrontGapMm       = 3.0f;
+    // How far the sliding drives' backs are ahead of the monitor's frontmost
+    // point: enough that the two never share a depth.
+    static constexpr float  kSlideMonitorGapMm       = 3.0f;
 
     // The share of the frame's half-width the sliding row may fill before it
     // is scaled down to fit, so it never touches the window's sides.
@@ -481,13 +481,19 @@ private:
                                       float                      & outLo,
                                       float                      & outHi);
 
-    // Scales the sliding devices down, about the row's front-bottom center,
+    // Scales the sliding devices down, about the row's back-bottom center,
     // until the row fits within a horizontal tangent.
     static void     FitSlideDevices  (DeskSceneComposition       & comp,
                                       const DeskSceneMetrics     & metrics,
                                       int                          driveCount,
                                       float                        limitTanX,
-                                      float                        frontZ);
+                                      float                        pivotZ);
+
+    // Scales every sliding device uniformly about (x 0, the desk, pivotZ).
+    static void     ScaleSlideDevices (DeskSceneComposition      & comp,
+                                       int                         driveCount,
+                                       float                       factor,
+                                       float                       pivotZ);
 
     // How far the sliding devices are moved up or down to put them past a
     // vertical tangent.
