@@ -1093,6 +1093,7 @@ void DxuiTooltip::MeasureBoxPx (
     }
 
     margins  = GetContentMargins();
+    textWPx += GetCornerTagPx (nullptr);
     widthPx  = std::ceil (textWPx) + margins.left + margins.right;
     heightPx = std::ceil (textHPx) + margins.top  + margins.bottom;
 
@@ -1128,9 +1129,9 @@ void DxuiTooltip::MeasureBoxPx (
 //  GetContentMargins
 //
 //  In a frame, the same inset on every side from the tip's edge to the frame,
-//  where the top's is to the top of the label, then the same gap inside the
-//  frame to the content, half of it under the label, whose lower half is
-//  already inside the frame.
+//  where the top's is to the top of the label's letters, then the same gap
+//  inside the frame to the content, where the top's is from the bottom of
+//  the label's letters.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1146,7 +1147,7 @@ DxuiTooltip::Margins DxuiTooltip::GetContentMargins() const
         return Margins { GetPadXPx(), GetPadYPx(), GetPadXPx(), GetPadYPx() };
     }
 
-    return Margins { inset + gap, inset + GetFrameLabelHPx() + gap / 2.0f, inset + gap, inset + gap };
+    return Margins { inset + gap, GetFrameEdgePx() + GetFrameLabelPx() * kFrameCapEm + gap, inset + gap, inset + gap };
 }
 
 
@@ -1370,7 +1371,9 @@ bool DxuiTooltip::IsNewLook() const
            m_gradient     != m_shownGradient     ||
            m_gradientMark != m_shownGradientMark ||
            m_frameLabel   != m_shownFrameLabel   ||
-           m_frameArgb    != m_shownFrameArgb;
+           m_frameArgb    != m_shownFrameArgb    ||
+           m_cornerTag    != m_shownCornerTag    ||
+           m_cornerTagArgb != m_shownCornerTagArgb;
 }
 
 
@@ -1390,8 +1393,10 @@ void DxuiTooltip::TakeLook()
     m_shownLineScales   = m_lineScales;
     m_shownGradient     = m_gradient;
     m_shownGradientMark = m_gradientMark;
-    m_shownFrameLabel   = m_frameLabel;
-    m_shownFrameArgb    = m_frameArgb;
+    m_shownFrameLabel    = m_frameLabel;
+    m_shownFrameArgb     = m_frameArgb;
+    m_shownCornerTag     = m_cornerTag;
+    m_shownCornerTagArgb = m_cornerTagArgb;
 }
 
 
@@ -1637,11 +1642,14 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
 
         if (SUCCEEDED (hr))
         {
-            DrawTable (painter, text, table, margins.left, margins.top);
+            DrawTable     (painter, text, table, margins.left, margins.top);
+            DrawCornerTag (text, width - margins.right, margins.top, table.lineHeight);
         }
 
         return;
     }
+
+    DrawCornerTag (text, width - margins.right, margins.top, fontPx * s_kEstLineHeightEm);
 
     hr = text.DrawString (m_text.c_str(),
                           margins.left,
@@ -1651,6 +1659,80 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
                           m_textArgb,
                           fontPx,
                           GetFace());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCornerTagPx
+//
+//  The room the tag takes on the first line: its width and a gap before it.
+//  Measured by the popup's renderer when there is one up, else estimated.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetCornerTagPx (IDxuiTextRenderer * text) const
+{
+    float    fontPx = m_scaler.ToPxf (m_fontDip);
+    float    width  = (float) m_shownCornerTag.size() * fontPx * s_kEstCharWidthEm;
+    float    height = 0.0f;
+    HRESULT  hr     = S_OK;
+
+
+
+    if (m_shownCornerTag.empty())
+    {
+        return 0.0f;
+    }
+
+    if (text != nullptr)
+    {
+        hr = text->MeasureStringWrapped (m_shownCornerTag.c_str(), fontPx, GetFace(), s_kNoWrapPx, width, height);
+    }
+    else if (m_activePopup != nullptr)
+    {
+        hr = m_activePopup->MeasureTextWrapped (m_shownCornerTag.c_str(), fontPx, GetFace(), s_kNoWrapPx, width, height);
+    }
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    return std::ceil (width) + m_scaler.ToPxf (kFrameGapDip) * 2.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawCornerTag
+//
+//  Right-aligned against `right` on the first line, over whatever the line
+//  has there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::DrawCornerTag (IDxuiTextRenderer & text, float right, float top, float lineHeight) const
+{
+    float     fontPx = m_scaler.ToPxf (m_fontDip);
+    float     width  = GetCornerTagPx (&text);
+    uint32_t  ink    = (m_shownCornerTagArgb != 0) ? (m_shownCornerTagArgb | 0xFF000000u) : m_textArgb;
+    HRESULT   hr     = S_OK;
+
+
+
+    if (m_shownCornerTag.empty())
+    {
+        return;
+    }
+
+    hr = text.DrawString (m_shownCornerTag.c_str(), right - width, top, width, lineHeight,
+                          DxuiColor::ComputeInkForContrast (ink, m_bgArgb, kMinTextContrast) | 0xFF000000u,
+                          fontPx, GetFace(), DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -1678,7 +1760,7 @@ void DxuiTooltip::DrawFrame (IDxuiPainter & painter, IDxuiTextRenderer & text, f
     float                    inset   = std::round (m_scaler.ToPxf (kFrameInsetDip));
     float                    left    = inset;
     float                    right   = width  - inset;
-    float                    top     = inset + std::round (labelH / 2.0f);
+    float                    top     = GetFrameEdgePx();
     float                    bottom  = height - inset;
     float                    pad     = m_scaler.ToPxf (kFrameGapDip) / 2.0f;
     float                    labelX  = left + m_scaler.ToPxf (kFrameCornerDip) + pad;
@@ -1708,9 +1790,9 @@ void DxuiTooltip::DrawFrame (IDxuiPainter & painter, IDxuiTextRenderer & text, f
 
     labelW += pad * 2.0f;
 
-    painter.FillRect (std::round (labelX - pad), inset, std::ceil (labelW), labelH, m_bgArgb);
+    painter.FillRect (std::round (labelX - pad), top - labelH / 2.0f, std::ceil (labelW), labelH, m_bgArgb);
 
-    hr = text.DrawString (m_shownFrameLabel.c_str(), std::round (labelX - pad), inset, std::ceil (labelW), labelH,
+    hr = text.DrawString (m_shownFrameLabel.c_str(), std::round (labelX - pad), top - labelH / 2.0f, std::ceil (labelW), labelH,
                           ink, labelPx, GetFace(), DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

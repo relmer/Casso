@@ -1001,6 +1001,7 @@ bool HeatMapPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
     if (m_view->GetPickAt (clientPx).has_value())
     {
         m_view->GetTipFrame (*m_view->GetPickAt (clientPx), tip.frameLabel, tip.frameArgb);
+        m_view->GetTipTag   (*m_view->GetPickAt (clientPx), tip.cornerTag,  tip.cornerTagArgb);
     }
 
     tip.isPending  = m_isTipPending;

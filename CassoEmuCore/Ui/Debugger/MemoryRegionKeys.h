@@ -70,6 +70,11 @@ public:
     //  (Disk2.rom)". A range of no ROM has its label alone.
     static std::wstring  GetRomLabel  (uint16_t key, Word address, const SlotCards & cards, const RomFiles & roms);
 
+    //  The same for a range of `count` addresses from `first`, which can
+    //  span several parts of the system ROM: "ROM: Applesoft BASIC, Monitor
+    //  (Apple2eEnhanced.rom)".
+    static std::wstring  GetRangeLabel (uint16_t key, Word first, int count, const SlotCards & cards, const RomFiles & roms);
+
     static uint16_t      GetKey       (MemoryRegion region, Word address);
     static std::wstring  GetLabel     (uint16_t key, const SlotCards & cards);
     static std::wstring  GetCardText  (const std::string & card);

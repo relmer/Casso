@@ -53,9 +53,9 @@ uint16_t MemoryRegionKeys::GetKey (MemoryRegion region, Word address)
 //
 //  MemoryRegionKeys::GetLabel
 //
-//  A slot's ranges by the card in it, "Slot 2: Super Serial Card", and an
-//  empty slot's ROM page or I/O by the slot alone. Slot 0's I/O is the
-//  language card's.
+//  A slot's ranges by the card in it, "Slot 2: Super Serial Card", or
+//  "Slot 3: empty" for a slot with no card. Slot 0's I/O is the language
+//  card's switches, which bank its RAM in at $D000-$FFFF.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +69,7 @@ std::wstring MemoryRegionKeys::GetLabel (uint16_t key, const SlotCards & cards)
     {
         slot = key - kRegionSlotRom;
 
-        return cards[(size_t) slot].empty() ? std::format (L"Slot {} ROM", slot)
+        return cards[(size_t) slot].empty() ? std::format (L"Slot {}: empty", slot)
                                             : std::format (L"Slot {}: {}", slot, GetCardText (cards[(size_t) slot]));
     }
 
@@ -79,10 +79,10 @@ std::wstring MemoryRegionKeys::GetLabel (uint16_t key, const SlotCards & cards)
 
         if (slot == 0)
         {
-            return L"Slot 0: language card";
+            return L"Slot 0: language card switches";
         }
 
-        return cards[(size_t) slot].empty() ? std::format (L"Slot {} I/O", slot)
+        return cards[(size_t) slot].empty() ? std::format (L"Slot {}: empty", slot)
                                             : std::format (L"Slot {}: {}", slot, GetCardText (cards[(size_t) slot]));
     }
 
@@ -189,6 +189,58 @@ std::wstring MemoryRegionKeys::GetRomLabel (uint16_t key, Word address, const Sl
     if (!file.empty())
     {
         label += L" (" + TextEncoding::NarrowToWide (file) + L")";
+    }
+
+    return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryRegionKeys::GetRangeLabel
+//
+//  The system ROM's parts in the range, each once, in order; they change
+//  only at page boundaries, so a page apart is close enough.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring MemoryRegionKeys::GetRangeLabel (uint16_t key, Word first, int count, const SlotCards & cards, const RomFiles & roms)
+{
+    constexpr uint32_t         kPage = 0x100;
+    std::vector<std::wstring>  areas;
+    std::wstring               label = L"ROM";
+    uint32_t                   end   = (uint32_t) first + (uint32_t) std::max (1, count);
+
+
+
+    if (key != kRegionRom)
+    {
+        return GetRomLabel (key, first, cards, roms);
+    }
+
+    for (uint32_t address = first; address < end; address += kPage)
+    {
+        std::wstring  area = GetRomArea (roms.machineId, (Word) address);
+
+
+
+        if (!area.empty() && std::ranges::find (areas, area) == areas.end())
+        {
+            areas.push_back (area);
+        }
+    }
+
+    for (size_t i = 0; i < areas.size(); i++)
+    {
+        label += ((i == 0) ? L": " : L", ") + areas[i];
+    }
+
+    if (!roms.system.empty())
+    {
+        label += L" (" + TextEncoding::NarrowToWide (roms.system) + L")";
     }
 
     return label;

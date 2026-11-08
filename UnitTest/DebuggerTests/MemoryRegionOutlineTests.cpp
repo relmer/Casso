@@ -64,8 +64,8 @@ namespace DebuggerTests
 
 
             Assert::AreNotEqual (slot5, slot6);
-            Assert::AreEqual    (std::wstring (L"Slot 5 ROM"),    MemoryEditModel::GetRegionLabel (slot5));
-            Assert::AreEqual    (std::wstring (L"Slot 6 ROM"),    MemoryEditModel::GetRegionLabel (slot6));
+            Assert::AreEqual    (std::wstring (L"Slot 5: empty"), MemoryEditModel::GetRegionLabel (slot5));
+            Assert::AreEqual    (std::wstring (L"Slot 6: empty"), MemoryEditModel::GetRegionLabel (slot6));
             Assert::AreEqual    (std::wstring (L"Expansion ROM"), MemoryEditModel::GetRegionLabel (MemoryEditModel::GetRegionKey (MemoryRegion::SlotRom, 0xC800)));
         }
 
@@ -111,9 +111,9 @@ namespace DebuggerTests
             Assert::AreEqual (std::wstring (L"Slot 2: Super Serial Card"),   MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC200), cards));
             Assert::AreEqual (std::wstring (L"Slot 2: Super Serial Card"),   MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0AF), cards));
             Assert::AreEqual (std::wstring (L"Slot 1: parallel printer"),    MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC100), cards), L"a common noun in sentence case");
-            Assert::AreEqual (std::wstring (L"Slot 4 ROM"),                  MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC400), cards));
-            Assert::AreEqual (std::wstring (L"Slot 4 I/O"),                  MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0C0), cards));
-            Assert::AreEqual (std::wstring (L"Slot 0: language card"),       MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC080), cards));
+            Assert::AreEqual (std::wstring (L"Slot 4: empty"),               MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC400), cards));
+            Assert::AreEqual (std::wstring (L"Slot 4: empty"),               MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0C0), cards));
+            Assert::AreEqual (std::wstring (L"Slot 0: language card switches"), MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC080), cards));
             Assert::AreEqual (std::wstring (L"I/O"),                         MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC07F), cards));
             Assert::IsTrue   (MemoryRegionKeys::IsIo  (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0AF)), L"a slot's I/O is drawn as I/O");
             Assert::IsTrue   (MemoryRegionKeys::IsRom (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC200)), L"a slot's page as ROM");
@@ -146,6 +146,8 @@ namespace DebuggerTests
                               MemoryRegionKeys::GetRomLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC600), 0xC600, cards, roms));
             Assert::AreEqual (std::wstring (L"LC bank 2"),
                               MemoryRegionKeys::GetRomLabel (MemoryRegionKeys::kRegionLcBank2, 0xD000, cards, roms), L"no ROM behind it");
+            Assert::AreEqual (std::wstring (L"ROM: Applesoft BASIC, Monitor (Apple2eEnhanced.rom)"),
+                              MemoryRegionKeys::GetRangeLabel (MemoryRegionKeys::kRegionRom, 0xD000, 0x3000, cards, roms), L"a range's parts, each once");
         }
 
 

@@ -166,6 +166,12 @@ public:
     //  empty label has no frame. Set before the request it goes with, as the
     //  line colors are.
     void  SetFrame        (std::wstring label, uint32_t argb) { m_frameLabel = std::move (label); m_frameArgb = argb; }
+
+    //  A word at the right end of the first line, such as a mark on what the
+    //  tip is about, in `argb` or the text color for 0, moved until its
+    //  contrast with the background is kMinTextContrast. The tip is widened
+    //  by it, so a mark that comes and goes doesn't add a line. Empty for none.
+    void  SetCornerTag    (std::wstring tag, uint32_t argb)   { m_cornerTag = std::move (tag); m_cornerTagArgb = argb; }
     static HRESULT  LayOutTable (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table);
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
@@ -318,9 +324,17 @@ private:
         float  bottom = 0.0f;
     };
 
+    //  The label's line is drawn centered on the frame's top edge; its
+    //  letters extend about kFrameCapEm of the label's size above and below
+    //  the middle, so the inset above them matches the one beside the frame.
+    static constexpr float  kFrameCapEm = 0.36f;
+
     Margins  GetContentMargins () const;
     float    GetFrameLabelPx   () const { return m_scaler.ToPxf (m_fontDip) * kFrameLabelScale; }
     float    GetFrameLabelHPx  () const { return std::ceil (GetFrameLabelPx() * kFrameLineEm); }
+    float    GetFrameEdgePx    () const { return std::round (m_scaler.ToPxf (kFrameInsetDip) + GetFrameLabelPx() * kFrameCapEm); }
+    float    GetCornerTagPx    (IDxuiTextRenderer * text) const;
+    void     DrawCornerTag     (IDxuiTextRenderer & text, float right, float top, float lineHeight) const;
     void     DrawFrame         (IDxuiPainter & painter, IDxuiTextRenderer & text, float width, float height) const;
 
     //  The system's tip lifetime: ten double-click times, as Windows sets
@@ -381,41 +395,41 @@ private:
     HRESULT  LayOutTableWith (IDxuiTextRenderer & text, TableLayout & table) const;
 
     DxuiDpiScaler                         m_scaler;
-    RECT                                  m_anchor            = {};
+    RECT                                  m_anchor             = {};
     std::wstring                          m_text;
     std::wstring                          m_pendingText;
-    RECT                                  m_pendingAnchor     = {};
-    bool                                  m_isPointerTip      = true;
-    bool                                  m_isNextPointerTip  = true;
-    int64_t                               m_showAtMs          = 0;
-    int64_t                               m_hideAtMs          = 0;
-    int                                   m_dwellOpenMs       = 500;
-    int                                   m_dwellCloseMs      = 100;
-    float                                 m_fontDip           = 12.0f;
-    bool                                  m_monospace         = false;
-    uint32_t                              m_bgArgb            = 0xFF2D2D2D;
-    uint32_t                              m_borderArgb        = 0xFF606060;
-    uint32_t                              m_textArgb          = 0xFFE8EEF4;
-    float                                 m_cornerDip         = DxuiTheme::kOverlayCornerRadiusDip;
-    bool                                  m_isWholePixelFrame = false;
+    RECT                                  m_pendingAnchor      = {};
+    bool                                  m_isPointerTip       = true;
+    bool                                  m_isNextPointerTip   = true;
+    int64_t                               m_showAtMs           = 0;
+    int64_t                               m_hideAtMs           = 0;
+    int                                   m_dwellOpenMs        = 500;
+    int                                   m_dwellCloseMs       = 100;
+    float                                 m_fontDip            = 12.0f;
+    bool                                  m_monospace          = false;
+    uint32_t                              m_bgArgb             = 0xFF2D2D2D;
+    uint32_t                              m_borderArgb         = 0xFF606060;
+    uint32_t                              m_textArgb           = 0xFFE8EEF4;
+    float                                 m_cornerDip          = DxuiTheme::kOverlayCornerRadiusDip;
+    bool                                  m_isWholePixelFrame  = false;
     DxuiShadow::Style                     m_shadowOnDark;
     DxuiShadow::Style                     m_shadowOnLight;
-    int                                   m_viewportWPx       = 0;
-    int                                   m_viewportHPx       = 0;
-    bool                                  m_visible           = false;
-    bool                                  m_pending           = false;
-    bool                                  m_fadingOut         = false;
-    bool                                  m_isInstant         = false;
-    DxuiHwndSource                      * m_popupHost         = nullptr;
-    DxuiPopupHost                       * m_activePopup       = nullptr;
-    PointerMeasurer                       m_pfnMeasurePointer = MeasurePointerExtent;
-    PointerLocator                        m_pfnLocatePointer  = LocatePointer;
-    ActiveTest                            m_pfnIsActive       = s_pfnDefaultIsActive;
-    DxuiPopupPlacement                    m_placement         = DxuiPopupPlacement::Below;
-    bool                                  m_hasLifetime       = false;
-    PointerExtent                         m_pointerExtent     = {};
-    bool                                  m_hasPointerExtent  = false;
-    int                                   m_showCount         = 0;
+    int                                   m_viewportWPx        = 0;
+    int                                   m_viewportHPx        = 0;
+    bool                                  m_visible            = false;
+    bool                                  m_pending            = false;
+    bool                                  m_fadingOut          = false;
+    bool                                  m_isInstant          = false;
+    DxuiHwndSource                      * m_popupHost          = nullptr;
+    DxuiPopupHost                       * m_activePopup        = nullptr;
+    PointerMeasurer                       m_pfnMeasurePointer  = MeasurePointerExtent;
+    PointerLocator                        m_pfnLocatePointer   = LocatePointer;
+    ActiveTest                            m_pfnIsActive        = s_pfnDefaultIsActive;
+    DxuiPopupPlacement                    m_placement          = DxuiPopupPlacement::Below;
+    bool                                  m_hasLifetime        = false;
+    PointerExtent                         m_pointerExtent      = {};
+    bool                                  m_hasPointerExtent   = false;
+    int                                   m_showCount          = 0;
     std::vector<uint32_t>                 m_lineArgbs;
     std::vector<uint32_t>                 m_shownLineArgbs;
     std::vector<uint32_t>                 m_lineSwatches;
@@ -424,10 +438,14 @@ private:
     std::vector<std::vector<uint32_t>>    m_shownLineScales;
     std::vector<uint32_t>                 m_gradient;
     std::vector<uint32_t>                 m_shownGradient;
-    float                                 m_gradientMark      = -1.0f;
-    float                                 m_shownGradientMark = -1.0f;
+    float                                 m_gradientMark       = -1.0f;
+    float                                 m_shownGradientMark  = -1.0f;
+    std::wstring                          m_cornerTag;
+    std::wstring                          m_shownCornerTag;
+    uint32_t                              m_cornerTagArgb      = 0;
+    uint32_t                              m_shownCornerTagArgb = 0;
     std::wstring                          m_frameLabel;
     std::wstring                          m_shownFrameLabel;
-    uint32_t                              m_frameArgb         = 0;
-    uint32_t                              m_shownFrameArgb    = 0;
+    uint32_t                              m_frameArgb          = 0;
+    uint32_t                              m_shownFrameArgb     = 0;
 };

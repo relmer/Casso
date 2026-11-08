@@ -309,6 +309,10 @@ public:
     //  frame in a bank with no regions.
     void   GetTipFrame     (Word address, std::wstring & label, uint32_t & argb) const;
 
+    //  The tag at the end of a cell's tip's first line: "PC", "SP" or both,
+    //  in the PC's or the stack's color; empty for neither.
+    void   GetTipTag       (Word address, std::wstring & tag, uint32_t & argb) const;
+
     //  The outlines around an address's cell, outermost first: the PC's, the
     //  stack pointer's, then each breakpoint's on it.
     std::vector<uint32_t>  GetOutlineColors (Word address) const;
@@ -346,7 +350,14 @@ public:
     //  The height of a range's header, the room after a section's rows, and
     //  the note in place of an empty set.
     static constexpr int              kHeaderDip       = 20;
-    static constexpr int              kSectionAfterDip = 6;
+    static constexpr int              kSectionAfterDip = 10;
+
+    //  A section's label's size, its header's height, and the room between
+    //  its box and its cells on every side, which the label's line runs
+    //  through at the top.
+    static constexpr float            kSectionLabelDip  = 9.0f;
+    static constexpr int              kSectionHeaderDip = 16;
+    static constexpr int              kSectionPadDip    = 7;
     static constexpr const wchar_t  * kpszNoRangesNote = L"No ranges in this set. Include some with Edit ranges.";
 
     //  The ranges the map is focused on, which it then fits to the pane; or

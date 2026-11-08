@@ -376,6 +376,7 @@ void HeatMapView::PlaceBands()
 {
     long  pitch  = GetPitch();
     long  header = m_scaler.ToPx (kHeaderDip);
+    long  label  = m_scaler.ToPx (kSectionHeaderDip);
     long  after  = m_scaler.ToPx (kSectionAfterDip);
     long  y      = 0;
 
@@ -393,7 +394,7 @@ void HeatMapView::PlaceBands()
 
         placed.columns   = m_bands[i].isSection ? m_columns : GetColumnsOf (m_columns, count);
         placed.headerTop = y;
-        placed.rowsTop   = y + (isHeaded ? header : 0);
+        placed.rowsTop   = y + (!isHeaded ? 0L : m_bands[i].isSection ? label : header);
         placed.rows      = (count + placed.columns - 1) / placed.columns;
 
         y = placed.rowsTop + std::max (placed.rows * pitch, isHeaded ? m_labelLinePx : 0L) + (m_bands[i].isSection ? after : 0L);
@@ -753,9 +754,16 @@ void HeatMapView::PlaceMap()
 
     SyncBands();
 
+    //  Sections' boxes are kSectionPadDip out from the cells on each side.
+    if (m_isSplit)
+    {
+        left  += m_scaler.ToPx (kSectionPadDip);
+        right  = std::max (left, right - m_scaler.ToPx (kSectionPadDip));
+    }
+
     for (int pass = 0; pass <= kPasses; pass++)
     {
-        width     = std::max (0L, right - left - (hasVert ? bar : 0));
+        width     = std::max (0L, right - left - (hasVert ? bar + (m_isSplit ? m_scaler.ToPx (kSectionPadDip) : 0L) : 0L));
         m_columns = GetColumnsFor (width, pitch);
 
         PlaceBands();
@@ -2072,6 +2080,31 @@ std::wstring HeatMapView::GetContentsLine (Word address) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::GetTipTag
+//
+//  The PC and the stack pointer move as the machine runs, so they are a tag
+//  at the end of the tip's first line rather than separate lines that come
+//  and go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::GetTipTag (Word address, std::wstring & tag, uint32_t & argb) const
+{
+    bool  isPc    = m_pc    == address;
+    bool  isStack = m_stack == address;
+
+
+
+    tag  = (isPc && isStack) ? L"PC, SP" : isPc ? L"PC" : isStack ? L"SP" : L"";
+    argb = isPc ? m_palette.pc : isStack ? m_palette.stack : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::GetTipFrame
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2273,16 +2306,6 @@ std::wstring HeatMapView::DescribeMarks (Word address) const
     if (hasRun && hasWrite)
     {
         text += L"\nSelf-modifying: run as code and written";
-    }
-
-    if (m_pc == address)
-    {
-        text += L"\nPC";
-    }
-
-    if (m_stack == address)
-    {
-        text += L"\nStack pointer";
     }
 
     for (const Breakpoint & breakpoint : m_breakpoints)
@@ -3452,7 +3475,8 @@ void HeatMapView::PaintRegions (IDxuiTextRenderer & text) const
 //  HeatMapView::PaintSections
 //
 //  Each section in view as a box: a rounded outline in the range's color the
-//  width of the map around its rows, at least a row label's line tall, with its label on the top edge from
+//  width of the map around its rows, at least a row label's line tall,
+//  kSectionPadDip from the cells on every side, with its label on the top edge from
 //  the left, past the corner's curve, in the header's room above the cells,
 //  over a patch of the page that breaks the line there. The section of RAM
 //  has its label alone, since a memory window doesn't outline main RAM.
@@ -3462,14 +3486,12 @@ void HeatMapView::PaintRegions (IDxuiTextRenderer & text) const
 void HeatMapView::PaintSections (IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
     constexpr float  kOutlineMix = 0.6f;
-    constexpr float  kLabelScale = 0.8f;
     constexpr float  kCornerDip  = 4.0f;
-    constexpr float  kGapDip     = 2.0f;
     DxuiFontHandle   font        = theme.MonospaceFont();
-    float            fontPx      = m_scaler.ToPxf (font.sizeDip) * kLabelScale;
+    float            fontPx      = m_scaler.ToPxf (kSectionLabelDip);
     float            labelH      = fontPx * kLinePerEm;
     float            pad         = m_scaler.ToPxf ((float) kDetailPadDip);
-    float            gap         = m_scaler.ToPxf (kGapDip);
+    float            inside      = (float) m_scaler.ToPx (kSectionPadDip);
     float            radius      = m_scaler.ToPxf (kCornerDip);
     float            thickness   = m_scaler.ToPxf (1.0f);
     float            street      = (float) kStreetPx;
@@ -3488,13 +3510,13 @@ void HeatMapView::PaintSections (IDxuiTextRenderer & text, const IDxuiTheme & th
         const Placed            & placed    = m_placed[i];
         bool                      isRam     = band.first < kSectionStarts.front();
         uint16_t                  key       = isRam ? (uint16_t) 0 : GetRegionAt (band.first);
-        std::wstring              label     = isRam ? std::wstring (L"RAM") : MemoryRegionKeys::GetLabel (key, m_slotCards);
+        std::wstring              label     = isRam ? std::wstring (L"RAM") : MemoryRegionKeys::GetRangeLabel (key, band.first, band.count, m_slotCards, m_romFiles);
         uint32_t                  color     = isRam ? theme.ForegroundMuted() : MemoryRegionKeys::GetColor (key, m_regionColors);
         float                     top       = (float) (m_map.top + placed.rowsTop - m_scrollTop);
-        float                     left      = (float) m_map.left - gap;
-        float                     right     = (float) (m_map.left + m_rowPx) - street + gap;
-        float                     edge      = top - street - labelH / 2.0f - 1.0f;
-        float                     bottom    = top + (float) std::max (placed.rows * pitch, m_labelLinePx) - street + gap;
+        float                     left      = (float) m_map.left - street - inside;
+        float                     right     = (float) (m_map.left + m_rowPx) + inside;
+        float                     edge      = top - street - inside;
+        float                     bottom    = top + (float) std::max (placed.rows * pitch, m_labelLinePx) + inside;
         float                     labelW    = (float) label.size() * fontPx * kAdvancePerEm + pad * 2.0f;
         float                     labelX    = left + radius + pad;
         std::vector<DxuiPointF>   points    = { { left, edge }, { right, edge }, { right, bottom }, { left, bottom } };

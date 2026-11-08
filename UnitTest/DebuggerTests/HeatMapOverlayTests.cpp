@@ -344,6 +344,8 @@ namespace DebuggerTests
             MockDxuiTextRenderer  text;
             RECT                  cell     = {};
             bool                  isFramed = false;
+            std::wstring          tag;
+            uint32_t              argb     = 0;
 
 
 
@@ -353,8 +355,14 @@ namespace DebuggerTests
             Assert::IsTrue (std::vector<uint32_t> { kPc }    == view.GetOutlineColors (0x0302));
             Assert::IsTrue (std::vector<uint32_t> { kStack } == view.GetOutlineColors (0x01FD));
             Assert::IsTrue (view.GetOutlineColors (0x0303).empty());
-            Assert::IsTrue (Contains (view.GetTipText (0x0302), L"\nPC"));
-            Assert::IsTrue (Contains (view.GetTipText (0x01FD), L"\nStack pointer"));
+            view.GetTipTag (0x0302, tag, argb);
+            Assert::AreEqual (std::wstring (L"PC"), tag, L"a tag on the tip's first line, not a line that comes and goes");
+            Assert::AreEqual (kPc, argb);
+            view.GetTipTag (0x01FD, tag, argb);
+            Assert::AreEqual (std::wstring (L"SP"), tag);
+            Assert::IsFalse  (Contains (view.GetTipText (0x0302), L"\nPC"));
+            view.GetTipTag (0x0303, tag, argb);
+            Assert::IsTrue   (tag.empty());
 
             Paint (view, text);
             cell     = view.GetCellRect (0x0302);

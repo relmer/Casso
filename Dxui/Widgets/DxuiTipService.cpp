@@ -288,6 +288,7 @@ void DxuiTipService::ApplyLook (const DxuiTip & tip)
     m_tooltip.SetLineScales   (tip.lineScales);
     m_tooltip.SetGradient     (tip.gradient, tip.gradientMark);
     m_tooltip.SetFrame        (tip.frameLabel, tip.frameArgb);
+    m_tooltip.SetCornerTag    (tip.cornerTag,  tip.cornerTagArgb);
 }
 
 

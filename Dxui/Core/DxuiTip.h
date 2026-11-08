@@ -72,9 +72,11 @@ struct DxuiTip
     std::vector<uint32_t>               gradient;
     float                               gradientMark = -1.0f;
 
-    //  DxuiTooltip::SetFrame; an empty label for none.
+    //  DxuiTooltip::SetFrame and SetCornerTag; empty for none.
     std::wstring                        frameLabel;
-    uint32_t                            frameArgb    = 0;
+    uint32_t                            frameArgb     = 0;
+    std::wstring                        cornerTag;
+    uint32_t                            cornerTagArgb = 0;
 
     //  The tip is what a color means, as a list cell's is. Placed under an
     //  in-place tip that is up, such as a cut-off cell's whole text.
