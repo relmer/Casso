@@ -105,18 +105,26 @@ std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
 //
 //  AppleWinFormatter::FormatCondition
 //
-//  The IF expression that let the stop through and its value, or nothing.
+//  The IF expression that let the stop through and its value, or nothing. A
+//  negative value keeps its sign, as the JSON record's does, rather than
+//  showing as its 32-bit two's complement.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string AppleWinFormatter::FormatCondition (const StopEvent & stop)
 {
+    int64_t  value = 0;
+
+
+
     if (stop.condition.empty() || !stop.conditionValue.has_value())
     {
         return std::string();
     }
 
-    return std::format (", IF {} is ${:X}", stop.condition, (uint32_t) *stop.conditionValue);
+    value = *stop.conditionValue;
+
+    return std::format (", IF {} is {}${:X}", stop.condition, value < 0 ? "-" : "", value < 0 ? -value : value);
 }
 
 
@@ -803,7 +811,8 @@ std::string AppleWinFormatter::FormatCallFrame (const CallStackFrame & frame)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinFormatter::FormatProfile//
+//  AppleWinFormatter::FormatProfile
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppleWinFormatter::FormatProfile (const ProfileData & data, Lines & lines)

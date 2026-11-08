@@ -228,3 +228,32 @@ std::string CommandModeNames::GetList()
 
     return list;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeNames::GetUpperList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CommandModeNames::GetUpperList()
+{
+    std::string  list;
+
+
+
+    for (size_t i = 0; i < std::size (s_kModes); ++i)
+    {
+        if (i > 0)
+        {
+            list += (i + 1 == std::size (s_kModes)) ? ", and " : ", ";
+        }
+
+        list += GetUpperName (s_kModes[i].mode);
+    }
+
+    return list;
+}
