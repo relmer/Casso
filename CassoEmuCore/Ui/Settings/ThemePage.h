@@ -158,6 +158,7 @@ public:
     {
         None,        // compact theme: the flat mock is the whole preview
         Full,        // monitor and drives, the CRT checkbox on
+        MonitorOnly, // CRT on with auto-hide: the drives are out of sight
         DrivesOnly,  // CRT opted out: flat picture, 3D drives beneath it
     };
 
@@ -206,6 +207,9 @@ private:
                                      MainMenu                             & previewMenu,
                                      bool                                 & chromeConfigured,
                                      bool                                   crtMonitor,
+                                     bool                                   autoHideDrives,
+                                     float                                  pageScale,
+                                     uint32_t                               frameArgb,
                                      PreviewSceneRequest                  & outScene);
 
     std::vector<std::string>      m_themeIds;
