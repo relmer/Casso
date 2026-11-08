@@ -1902,40 +1902,6 @@ HRESULT SettingsPanelState::ExtractHardware (
 
 
 
-    static const struct { const char * id; const char * display; }  s_kDeviceDisplayNames[] =
-    {
-        { "disk-ii",                 "Disk ][" },
-        { "smartport",               "SmartPort" },
-        { "mockingboard",            "Mockingboard A (sound)" },
-        { "mockingboard-c",          "Mockingboard C (sound + speech)" },
-        { kpszNetworkCardDevice,     kpszNetworkCardName },
-        { "passport",                "Passport MIDI" },
-        { "serial",                  "Super Serial Card" },
-        { "super-serial-card",       "Super Serial Card" },
-        { "parallel",                "Parallel printer" },
-        { "videx",                   "Videx 80-Column" },
-        { "ramworks",                "RamWorks" },
-        { "ramfactor",               "RAMFactor" },
-        { "saturn128",               "Saturn 128K" },
-        { "language-card",           "Language Card" },
-        { "extended-80-column",      "Extended 80-Column Card" },
-        { "cassette",                "Cassette" },
-        { "speaker",                 "Speaker" },
-        { "keyboard",                "Keyboard" },
-        { "joystick",                "Joystick" },
-        { "paddle",                  "Paddle" },
-        { "monitor",                 "Monitor" },
-        { "apple2-family-keyboard",         "Keyboard" },
-        { "apple2-family-speaker",          "Speaker" },
-        { "apple2-family-softswitches",     "Soft switches" },
-        { "apple2-family-cassette",         "Cassette port" },
-        // The //e-generation keyboard/soft-switch controllers are shared by the
-        // //e and the //c, so the label stays machine-neutral (the machine name
-        // is already shown at the top of the panel) rather than hardcoding //e.
-        { "apple2e-family-keyboard",        "Keyboard" },
-        { "apple2e-family-softswitches",    "Soft switches" },
-        { "apple2e-family-mmu",             "Memory management unit" },
-    };
 
     mergedRootType = JsonType::Null;
 
@@ -1958,16 +1924,7 @@ HRESULT SettingsPanelState::ExtractHardware (
             }
 
             std::string    devType = GetStringOpt (entry, "type", "");
-            friendly = devType;
-
-            for (j = 0; j < sizeof (s_kDeviceDisplayNames) / sizeof (s_kDeviceDisplayNames[0]); ++j)
-            {
-                if (devType == s_kDeviceDisplayNames[j].id)
-                {
-                    friendly = s_kDeviceDisplayNames[j].display;
-                    break;
-                }
-            }
+            friendly = DeviceDisplayNames::Get (devType);
 
             hw.kind        = HardwareEntryKind::InternalDevice;
             hw.jsonIndex   = (int) i;
@@ -1998,16 +1955,7 @@ HRESULT SettingsPanelState::ExtractHardware (
 
             int            slotNum  = GetIntOpt (entry, "slot", 0);
             std::string    dev      = GetStringOpt (entry, "device", "");
-            devNice = dev;
-
-            for (j = 0; j < sizeof (s_kDeviceDisplayNames) / sizeof (s_kDeviceDisplayNames[0]); ++j)
-            {
-                if (dev == s_kDeviceDisplayNames[j].id)
-                {
-                    devNice = s_kDeviceDisplayNames[j].display;
-                    break;
-                }
-            }
+            devNice = DeviceDisplayNames::Get (dev);
 
             hw.kind        = HardwareEntryKind::Slot;
             hw.jsonIndex   = (int) i;

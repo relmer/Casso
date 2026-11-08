@@ -5,6 +5,7 @@
 #include "Ui/Debugger/ConsoleLinks.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/InstructionEffect.h"
+#include "Ui/Debugger/MemoryRegionKeys.h"
 
 #include "Debugger/AccessHeatMap.h"
 #include "Debugger/CommandModeHelp.h"
@@ -147,6 +148,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     snapshot.redoBreakpointsText = m_breakpointHistory.GetRedoText();
     snapshot.machine        = machineInfo.name;
     snapshot.ioRegisters    = machineInfo.ioRegisters;
+    snapshot.slotCards      = machineInfo.slotCards;
     snapshot.symbolSources  = DescribeSymbolSources (session.GetSymbols());
     snapshot.heatMapSymbols = GetHeatMapSymbols (session.GetSymbols());
 
@@ -748,7 +750,7 @@ void DebuggerViewState::ReadHeatMap (
         }
     }
 
-    ReadHeatValues (target, map, state.bank, state.values);
+    ReadHeatValues (target, map, state.bank, state.values, state.regions);
     FindHeatMarks  (target, map, state);
 
     state.opcodeForms = GetOpcodeForms (target);
@@ -763,9 +765,10 @@ void DebuggerViewState::ReadHeatMap (
 //  DebuggerViewState::ReadHeatValues
 //
 //  The bank's bytes as they stand, for the cells large enough to show them.
-//  The CPU's are what it would read, I/O left unread since reading it
-//  changes the machine; ROM's only where a read reaches ROM now; a RAM
-//  bank's straight from its buffer, whatever is banked in.
+//  The CPU's are what it would read, I/O as its devices' side-effect-free
+//  peeks work it out; ROM's only where a read returns ROM now; a RAM bank's
+//  straight from its buffer, whatever is banked in. In the CPU's bank, each
+//  address's region, read a page at a time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -773,24 +776,38 @@ void DebuggerViewState::ReadHeatValues (
     IDebugTarget              & target,
     const AccessHeatMap       & map,
     HeatMapOptions::Bank        bank,
-    std::vector<int16_t>      & values)
+    std::vector<int16_t>      & values,
+    std::vector<uint16_t>     & regions)
 {
-    constexpr int16_t     kUnknown = -1;
-    HeatSpace             space    = HeatMapOptions::GetSpace (bank);
-    const HeatBankMap   & bankMap  = map.GetBankMap();
+    constexpr int16_t     kUnknown  = -1;
+    constexpr size_t      kPageSize = 0x100;
+    HeatSpace             space     = HeatMapOptions::GetSpace (bank);
+    const HeatBankMap   & bankMap   = map.GetBankMap();
     HeatLocation          location;
-    Byte                  value    = 0;
-    bool                  isRead   = false;
+    MemoryRegion          region    = MemoryRegion::MainRam;
+    Byte                  value     = 0;
+    bool                  isRead    = false;
 
 
 
     values.assign (AccessHeatMap::kAddressCount, kUnknown);
+    regions.clear();
+
+    if (space == HeatSpace::Cpu)
+    {
+        regions.assign (AccessHeatMap::kAddressCount, 0);
+    }
 
     for (size_t index = 0; index < AccessHeatMap::kAddressCount; index++)
     {
         Word  address = (Word) index;
 
 
+
+        if (space == HeatSpace::Cpu && index % kPageSize == 0)
+        {
+            region = target.GetRegion (address);
+        }
 
         if (!HeatMapOptions::IsShown (bank, address))
         {
@@ -800,7 +817,8 @@ void DebuggerViewState::ReadHeatValues (
         switch (space)
         {
         case HeatSpace::Cpu:
-            isRead = target.TryPeek (address, value);
+            regions[index] = MemoryRegionKeys::GetKey (region, address);
+            isRead         = (region == MemoryRegion::Io) ? target.TryPeekIo (address, value) : target.TryPeek (address, value);
             break;
 
         case HeatSpace::Rom:

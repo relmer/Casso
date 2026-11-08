@@ -80,8 +80,8 @@ bool DebugMemoryView::TryPeek (Word address, Byte & value) const
 //  DebugMemoryView::CopyAll
 //
 //  The answers TryPeek and GetRegion give, page by page: a page the bus maps
-//  directly is copied whole, I/O is left unread, and only the slot ROM pages
-//  and any page no device maps directly are read a byte at a time.
+//  directly is copied whole, I/O is what TryPeekIo reads, and only the slot
+//  ROM pages and any page no device maps directly are read a byte at a time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,11 +101,9 @@ void DebugMemoryView::CopyAll (DebugMemoryImage & image) const
 
         if (first >= kIoFirst && first <= kIoLast)
         {
-            std::fill_n (image.bytes.begin() + first, DebugMemoryImage::kPageBytes, (Byte) 0);
-
             for (size_t offset = 0; offset < DebugMemoryImage::kPageBytes; offset++)
             {
-                image.readable[first + offset] = false;
+                image.readable[first + offset] = TryPeekIo ((Word) (first + offset), image.bytes[first + offset]);
             }
 
             continue;

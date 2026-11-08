@@ -651,6 +651,16 @@ public:
             L"no I/O STROBE while INTCXROM is set");
     }
 
+    TEST_METHOD (ExpansionCard_PeekReadsThePageWithoutSelecting)
+    {
+        ExpansionFixture  x;
+        Byte              value = 0;
+
+        Assert::IsTrue  (x.f.mmu.GetCxxxRouter()->TryPeek (0xC200, value), L"the card's page has a side-effect-free byte");
+        Assert::AreEqual (static_cast<Byte> (0x99), value);
+        Assert::IsFalse (x.card.m_selected, L"a peek does not select the card");
+    }
+
     TEST_METHOD (ExpansionCard_IntC8RomHidesExpansionAndKeepsTheCardSelected)
     {
         ExpansionFixture  x;

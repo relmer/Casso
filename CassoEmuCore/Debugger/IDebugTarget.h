@@ -50,6 +50,10 @@ struct DebugMachineInfo
 
     //  The cards' and ports' bus registers, for the operand tips.
     std::vector<DiagnosticsIoRegister>  ioRegisters;
+
+    //  The card in each slot by its display name, empty for an empty slot,
+    //  which labels the slot's ranges in the memory panes.
+    std::array<std::string, 8>          slotCards;
 };
 
 //  The Disk II controller's state, read from its getters, never through the
@@ -106,18 +110,21 @@ public:
     virtual bool                TryPeekRom        (Word address, Byte & value) const { (void) address; value = 0; return false; }
     virtual bool                TryPoke           (Word address, Byte value) = 0;
 
-    //  Everything TryPeek and GetRegion would answer, all at once. A target
-    //  that can copy whole pages overrides this; the default peeks each byte.
+    //  Everything TryPeek, TryPeekIo for I/O, and GetRegion would answer, all
+    //  at once. A target that can copy whole pages overrides this; the
+    //  default peeks each byte.
     virtual void                TakeMemoryImage   (DebugMemoryImage & image) const
     {
-        for (size_t address = 0; address < DebugMemoryImage::kBytes; address++)
-        {
-            image.readable[address] = TryPeek ((Word) address, image.bytes[address]);
-        }
-
         for (size_t page = 0; page < DebugMemoryImage::kPages; page++)
         {
             image.regions[page] = GetRegion ((Word) (page * DebugMemoryImage::kPageBytes));
+        }
+
+        for (size_t address = 0; address < DebugMemoryImage::kBytes; address++)
+        {
+            image.readable[address] = (image.regions[address / DebugMemoryImage::kPageBytes] == MemoryRegion::Io)
+                                    ? TryPeekIo ((Word) address, image.bytes[address])
+                                    : TryPeek   ((Word) address, image.bytes[address]);
         }
     }
 

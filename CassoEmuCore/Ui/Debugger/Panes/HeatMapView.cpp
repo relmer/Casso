@@ -5,6 +5,7 @@
 #include "Debugger/Reply.h"
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/ColorLegend.h"
+#include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/HeatStrip.h"
 
@@ -2809,9 +2810,10 @@ void HeatMapView::ForEachVisible (const std::function<void (const Place &, Word)
 //
 //  Over the cells in view, clipped to the map: each one's value and second
 //  line where the cells are large enough, or its whole instruction, then
-//  its outlines, around the whole instruction for its opcode. A cell is
-//  checked against the marks before its outlines are gathered, so a map
-//  with none costs a comparison a cell.
+//  its outlines, around the whole instruction for its opcode, and last the
+//  labeled ranges' outlines and labels. A cell is checked against the marks
+//  before its outlines are gathered, so a map with none costs a comparison
+//  a cell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2822,6 +2824,7 @@ void HeatMapView::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme & th
     float             pad        = m_scaler.ToPxf ((float) kDetailPadDip);
     bool              hasDetail  = m_values.size() == kCount && (float) m_cellPx >= minFont * kLinePerEm + pad * 2.0f;
     bool              hasMarks   = m_pc.has_value() || m_stack.has_value() || !m_breakpoints.empty();
+    bool              hasRegions = m_regions.size() == kCount && m_cellPx >= kRegionCellPx;
     int               covered    = 0;
     HRESULT           hr         = S_OK;
     auto              isMarked   = [this] (Word address)
@@ -2836,7 +2839,7 @@ void HeatMapView::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme & th
 
 
 
-    if (!hasDetail && !hasMarks)
+    if (!hasDetail && !hasMarks && !hasRegions)
     {
         return;
     }
@@ -2880,6 +2883,11 @@ void HeatMapView::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme & th
             PaintOutlines (text, { GetPlaceRect (place) }, address);
         }
     });
+
+    if (hasRegions)
+    {
+        PaintRegions (text, theme, hasDetail);
+    }
 
     hr = text.PopClipRect();
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -2985,8 +2993,13 @@ uint32_t HeatMapView::GetDetailTextColor (uint32_t cell, uint32_t foreground, ui
 //  HeatMapView::PaintDetail
 //
 //  The value in hex, and under it the second line, centered in the cell. A
-//  form longer than kDetailChars is made smaller to fit, but no smaller
-//  than kMinDetailFontDip, and is clipped to its cell beyond that.
+//  cell with a symbol has the symbol's name over the value, in place of the
+//  second line where three lines do not fit, wherever the cell is tall enough
+//  for two: the name is made smaller to fit across. A form or a name longer
+//  than the cell is made smaller to fit, but no smaller than
+//  kMinDetailFontDip, and is clipped to its cell beyond that. The value is
+//  in ROM's or I/O's color for a byte in either, and the name in the
+//  symbol color, each moved until it reads on the cell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2996,18 +3009,35 @@ void HeatMapView::PaintDetail (IDxuiTextRenderer & text, const IDxuiTheme & them
     RECT            cell     = GetPlaceRect (place);
     long            wide     = cell.right  - cell.left;
     long            tall     = cell.bottom - cell.top;
+    float           maxFont  = m_scaler.ToPxf (font.sizeDip);
     float           minFont  = m_scaler.ToPxf (kMinDetailFontDip);
     float           pad      = m_scaler.ToPxf ((float) kDetailPadDip);
-    Detail          detail   = GetDetail (wide, tall, m_scaler.ToPxf (font.sizeDip), minFont, pad);
+    Detail          detail   = GetDetail (wide, tall, maxFont, minFont, pad);
     int16_t         stored   = m_values[address];
     Byte            value    = (Byte) stored;
     bool            isOpcode = m_opcodes.size() == (size_t) kAddressCount && m_opcodes[address] != 0;
-    uint32_t        color    = GetDetailTextColor (GetCellColor (address), theme.Foreground(), m_palette.background);
-    float           lineH    = detail.fontPx * kLinePerEm;
-    float           top      = (float) cell.top + ((float) tall - lineH * (float) detail.lines) / 2.0f;
+    uint32_t        fill     = GetCellColor (address) | 0xFF000000u;
+    uint32_t        plain    = GetDetailTextColor (fill, theme.Foreground(), m_palette.background);
+    uint32_t        ink      = GetValueInk (address, fill, plain);
+    float           two      = std::min ({ maxFont, ((float) tall - pad * 2.0f) / (kLinePerEm * 2.0f), ((float) wide - pad * 2.0f) / ((float) kValueChars  * kAdvancePerEm) });
+    float           three    = std::min ({ maxFont, ((float) tall - pad * 2.0f) / (kLinePerEm * 3.0f), ((float) wide - pad * 2.0f) / ((float) kDetailChars * kAdvancePerEm) });
+    std::wstring    name     = (two >= minFont) ? TextEncoding::NarrowToWide (GetSymbolAt (address)) : std::wstring();
+    int             lines    = detail.lines;
+    float           fontPx   = detail.fontPx;
+    float           lineH    = 0.0f;
+    float           y        = 0.0f;
     std::wstring    second;
-    float           fit      = 0.0f;
     HRESULT         hr       = S_OK;
+    auto            drawFit  = [&] (const std::wstring & line, float lineTop, uint32_t color)
+    {
+        float  fit = ((float) wide - pad * 2.0f) / ((float) std::max<size_t> (1, line.size()) * kAdvancePerEm);
+
+
+
+        hr = text.DrawString (line.c_str(), (float) cell.left, lineTop, (float) wide, lineH, color,
+                              std::max (minFont, std::min (fontPx, fit)), font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    };
 
 
 
@@ -3016,26 +3046,233 @@ void HeatMapView::PaintDetail (IDxuiTextRenderer & text, const IDxuiTheme & them
         return;
     }
 
-    hr = text.DrawString (std::format (L"{:02X}", value).c_str(), (float) cell.left, top, (float) wide, lineH, color,
-                          detail.fontPx, font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    if (detail.lines < 2)
+    if (!name.empty() && three >= minFont)
     {
-        return;
+        lines  = 3;
+        fontPx = three;
+    }
+    else if (!name.empty())
+    {
+        lines  = 2;
+        fontPx = two;
     }
 
-    second = GetDetailLine (value, isOpcode, (m_opcodeForms != nullptr && m_opcodeForms->size() > value) ? (*m_opcodeForms)[value] : std::string());
-    fit    = ((float) wide - pad * 2.0f) / ((float) second.size() * kAdvancePerEm);
+    lineH = fontPx * kLinePerEm;
+    y     = (float) cell.top + ((float) tall - lineH * (float) lines) / 2.0f;
 
     hr = text.PushClipRect ((float) cell.left, (float) cell.top, (float) wide, (float) tall);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawString (second.c_str(), (float) cell.left, top + lineH, (float) wide, lineH, color,
-                          std::max (minFont, std::min (detail.fontPx, fit)), font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    if (!name.empty())
+    {
+        drawFit (name, y, DebuggerTextColors::GetReadable (m_palette.symbol | 0xFF000000u, fill));
+        y += lineH;
+        lines--;
+    }
+
+    hr = text.DrawString (std::format (L"{:02X}", value).c_str(), (float) cell.left, y, (float) wide, lineH, ink,
+                          fontPx, font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
+    if (lines >= 2)
+    {
+        second = GetDetailLine (value, isOpcode, (m_opcodeForms != nullptr && m_opcodeForms->size() > value) ? (*m_opcodeForms)[value] : std::string());
+        drawFit (second, y + lineH, plain);
+    }
+
     hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetValueInk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t HeatMapView::GetValueInk (Word address, uint32_t cell, uint32_t plain) const
+{
+    uint16_t  key = GetRegionAt (address);
+
+
+
+    if (MemoryRegionKeys::IsRom (key) && m_regionColors.rom != 0)
+    {
+        return DebuggerTextColors::GetReadable (m_regionColors.rom | 0xFF000000u, cell | 0xFF000000u);
+    }
+
+    if (MemoryRegionKeys::IsIo (key) && m_regionColors.io != 0)
+    {
+        return DebuggerTextColors::GetReadable (m_regionColors.io | 0xFF000000u, cell | 0xFF000000u);
+    }
+
+    return plain;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetSymbolAt
+//
+//  The marks are checked first, so a cell with no symbol costs a lookup in
+//  a table rather than a search of the symbols.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string HeatMapView::GetSymbolAt (Word address) const
+{
+    std::string  name;
+
+
+
+    if (m_symbols == nullptr || m_symbolMarks.size() != (size_t) kAddressCount || m_symbolMarks[address] == 0)
+    {
+        return {};
+    }
+
+    if (!m_symbols->TryGetNameAt (HeatMapOptions::GetCpuAddress (m_shownBank, address), name))
+    {
+        name.clear();
+    }
+
+    return name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::PaintRegions
+//
+//  Each cell in a labeled range has a line in the street on each side whose
+//  neighbor is in another range, or in none, so the lines outline the whole
+//  range: a range that ends partway along a row steps in there. The lines
+//  are the range's color, and with `hasLabels` the first cell of each range
+//  in view has its label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::PaintRegions (IDxuiTextRenderer & text, const IDxuiTheme & theme, bool hasLabels) const
+{
+    constexpr float                           kOutlineMix = 0.8f;
+    std::vector<std::pair<Place, uint16_t>>   starts;
+    HRESULT                                   hr          = S_OK;
+
+
+
+    ForEachVisible ([&] (const Place & place, Word address)
+    {
+        uint16_t        key     = GetRegionAt (address);
+        const Placed  & placed  = m_placed[place.band];
+        long            count   = m_bands[place.band].count;
+        long            column  = place.offset % placed.columns;
+        RECT            cell    = {};
+        float           street  = (float) kStreetPx;
+        float           wide    = 0.0f;
+        float           tall    = 0.0f;
+        uint32_t        stroke  = 0;
+        auto            isSame  = [&] (long offset)
+        {
+            return offset >= 0 && offset < count && GetRegionAt (GetAddressOf (Place { place.band, offset })) == key;
+        };
+
+
+
+        if (key == 0)
+        {
+            return;
+        }
+
+        cell   = GetPlaceRect (place);
+        wide   = (float) (cell.right  - cell.left);
+        tall   = (float) (cell.bottom - cell.top);
+        stroke = DxuiColor::Mix (m_palette.background | 0xFF000000u, MemoryRegionKeys::GetColor (key, m_regionColors) | 0xFF000000u, kOutlineMix) | 0xFF000000u;
+
+        if (!isSame (place.offset - placed.columns))
+        {
+            hr = text.FillRect ((float) cell.left - street, (float) cell.top - street, wide + street * 2.0f, street, stroke);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        if (!isSame (place.offset + placed.columns))
+        {
+            hr = text.FillRect ((float) cell.left - street, (float) cell.bottom, wide + street * 2.0f, street, stroke);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        if (column == 0 || !isSame (place.offset - 1))
+        {
+            hr = text.FillRect ((float) cell.left - street, (float) cell.top - street, street, tall + street * 2.0f, stroke);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        if (column == placed.columns - 1 || !isSame (place.offset + 1))
+        {
+            hr = text.FillRect ((float) cell.right, (float) cell.top - street, street, tall + street * 2.0f, stroke);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        if (hasLabels && !isSame (place.offset - 1))
+        {
+            starts.emplace_back (place, key);
+        }
+    });
+
+    for (const auto & [place, key] : starts)
+    {
+        PaintRegionLabel (text, theme, place, key);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::PaintRegionLabel
+//
+//  The range's label across its top line from its first cell, as a memory
+//  window labels a range: in the range's color, over a patch of the page
+//  that breaks the line there, at the smallest size a cell's text is drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::PaintRegionLabel (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Place & place, uint16_t key) const
+{
+    std::wstring    label  = MemoryRegionKeys::GetLabel (key, m_slotCards);
+    DxuiFontHandle  font   = theme.MonospaceFont();
+    RECT            cell   = GetPlaceRect (place);
+    float           fontPx = m_scaler.ToPxf (kMinDetailFontDip);
+    float           pad    = m_scaler.ToPxf ((float) kDetailPadDip);
+    float           tall   = fontPx * kLinePerEm;
+    float           wide   = (float) label.size() * fontPx * kAdvancePerEm + pad * 4.0f;
+    float           top    = (float) cell.top - (float) kStreetPx / 2.0f - tall / 2.0f;
+    uint32_t        back   = m_palette.background | 0xFF000000u;
+    uint32_t        ink    = DebuggerTextColors::GetReadable (MemoryRegionKeys::GetColor (key, m_regionColors) | 0xFF000000u, back);
+    HRESULT         hr     = S_OK;
+
+
+
+    if (label.empty())
+    {
+        return;
+    }
+
+    hr = text.FillRect ((float) cell.left, top, wide, tall, back);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (label.c_str(), (float) cell.left, top, wide, tall, ink, fontPx, font.face,
+                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -3445,7 +3682,7 @@ void HeatMapView::PaintInstruction (IDxuiTextRenderer & text, const IDxuiTheme &
     float               fontPx      = 0.0f;
     float               lineH       = 0.0f;
     uint32_t            fill        = GetCellColor (merged.opcode) | 0xFF000000u;
-    uint32_t            ink         = GetDetailTextColor (fill, theme.Foreground(), m_palette.background);
+    uint32_t            ink         = GetValueInk (merged.opcode, fill, GetDetailTextColor (fill, theme.Foreground(), m_palette.background));
     HRESULT             hr          = S_OK;
 
 

@@ -517,29 +517,31 @@ bool CxxxRomRouter::IsInternalRomSelected (Word address) const
 //  TryPeek
 //
 //  ResolveByte without Read's INTC8ROM side effects. A slot page delegated to
-//  an I/O device has no side-effect-free answer.
+//  an I/O device is that device's TryPeekIo, which works out the byte without
+//  the read's effects.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CxxxRomRouter::TryPeek (Word address, Byte & value) const
 {
-    bool  isDevicePage = GetSlotIoDevice (address) != nullptr;
+    MemoryDevice  * io = GetSlotIoDevice (address);
 
 
 
     value = kFloatingBusByte;
 
-    if (!isDevicePage && IsIoStrobeAsserted (address))
+    if (io != nullptr)
+    {
+        return io->TryPeekIo (address, value);
+    }
+
+    if (IsIoStrobeAsserted (address))
     {
         return m_expansionRomBus->TryPeekIo (address, value);
     }
 
-    if (!isDevicePage)
-    {
-        value = ResolveByte (address);
-    }
-
-    return !isDevicePage;
+    value = ResolveByte (address);
+    return true;
 }
 
 

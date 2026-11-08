@@ -475,78 +475,6 @@ bool MemoryEditModel::TryGetByteTip (uint64_t offset, std::wstring & tip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryEditModel::GetRegionKey
-//
-//  A slot's ROM in $C100-$C7FF is that slot's, by its page; slot ROM above
-//  $C7FF is the card's expansion ROM.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint16_t MemoryEditModel::GetRegionKey (MemoryRegion region, Word address)
-{
-    constexpr Word  kFirstSlotPage = 0xC1;
-    constexpr Word  kLastSlotPage  = 0xC7;
-    constexpr Word  kSlotMask      = 0x07;
-    Word            page           = (Word) (address >> 8);
-
-
-
-    switch (region)
-    {
-    case MemoryRegion::Rom:     return kRegionRom;
-    case MemoryRegion::Io:      return kRegionIo;
-    case MemoryRegion::LcBank1: return kRegionLcBank1;
-    case MemoryRegion::LcBank2: return kRegionLcBank2;
-    case MemoryRegion::AuxRam:  return kRegionAux;
-    case MemoryRegion::SlotRom:
-        return (page >= kFirstSlotPage && page <= kLastSlotPage) ? (uint16_t) (kRegionSlotRom + (page & kSlotMask)) : kRegionExpansionRom;
-    case MemoryRegion::MainRam: return 0;
-    }
-
-    return 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryEditModel::GetRegionLabel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring MemoryEditModel::GetRegionLabel (uint16_t key)
-{
-    constexpr uint16_t  kSlotCount = 7;
-
-
-
-    if (key > kRegionSlotRom && key <= kRegionSlotRom + kSlotCount)
-    {
-        return std::format (L"Slot {} ROM", key - kRegionSlotRom);
-    }
-
-    switch (key)
-    {
-    case kRegionRom:          return L"ROM";
-    case kRegionIo:           return L"I/O";
-    case kRegionLcBank1:      return L"LC bank 1";
-    case kRegionLcBank2:      return L"LC bank 2";
-    case kRegionAux:          return L"Aux RAM";
-    case kRegionExpansionRom: return L"Expansion ROM";
-    default:                  break;
-    }
-
-    return {};
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  MemoryEditModel::ReadRegions
 //
 //  The region of each byte as the last read to reach it gave it, so a window
@@ -578,23 +506,16 @@ void MemoryEditModel::ReadRegions (uint64_t offset, std::span<uint16_t> out) con
 //
 //  MemoryEditModel::TryGetRegionStyle
 //
-//  A slot's ROM and expansion ROM are outlined in ROM's color, as their bytes
-//  are drawn.
+//  A slot's ROM and expansion ROM are outlined in ROM's color and a slot's
+//  I/O in I/O's, as their bytes are drawn, and a slot's ranges are labeled
+//  with its card.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MemoryEditModel::TryGetRegionStyle (uint16_t region, uint32_t & outArgb, std::wstring & outLabel) const
 {
-    outLabel = GetRegionLabel (region);
-
-    switch (region)
-    {
-    case kRegionIo:      outArgb = m_regionColors.io;      break;
-    case kRegionLcBank1: outArgb = m_regionColors.lcBank1; break;
-    case kRegionLcBank2: outArgb = m_regionColors.lcBank2; break;
-    case kRegionAux:     outArgb = m_regionColors.aux;     break;
-    default:             outArgb = m_regionColors.rom;     break;
-    }
+    outLabel = MemoryRegionKeys::GetLabel (region, m_slotCards);
+    outArgb  = MemoryRegionKeys::GetColor (region, m_regionColors);
 
     return !outLabel.empty() && outArgb != 0;
 }

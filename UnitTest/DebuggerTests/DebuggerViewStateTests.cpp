@@ -2236,18 +2236,23 @@ namespace DebuggerViewStateTests
         }
 
 
-        TEST_METHOD (IoBytesAreEmptyAndMarked)
+        //  An I/O byte is its device's side-effect-free peek: the keyboard's
+        //  key is in the window, and its strobe is not cleared.
+        TEST_METHOD (IoBytesAreReadWithoutTheirEffects)
         {
             MachineRig            rig;
             DebuggerViewSnapshot  snapshot;
+            IDebugTarget        & target = rig.controller.GetSession().GetTarget();
 
 
 
+            target.InjectKey (0xC1);
             rig.view.OpenMemoryWindow (2, 0xC000);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::IsFalse (Window (snapshot, 2).bytes[0].has_value(), L"reading I/O would change the machine");
+            Assert::IsTrue  (Window (snapshot, 2).bytes[0] == std::optional<Byte> (0xC1), L"the key, with its strobe bit");
             Assert::IsTrue  (Window (snapshot, 2).regions[0] == MemoryRegion::Io);
+            Assert::IsTrue  (target.IsKeyPending(), L"the strobe is not cleared");
         }
 
 

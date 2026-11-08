@@ -3,6 +3,7 @@
 #include "Debugger/MachineDebugTarget.h"
 
 #include "Core/Cpu65C02.h"
+#include "Core/DeviceDisplayNames.h"
 #include "Core/TextEncoding.h"
 #include "Debugger/IRunDriver.h"
 #include "Devices/RamDevice.h"
@@ -1123,9 +1124,9 @@ const Microcode * MachineDebugTarget::GetInstructionSet() const
 //
 //  MachineDebugTarget::GetMachineInfo
 //
-//  The machine's name, its devices' bus registers, and slot 6's two drives,
-//  with an empty entry for an empty drive. A machine with no Disk II
-//  controller has no drives.
+//  The machine's name, its devices' bus registers, the card in each slot that
+//  is turned on, and slot 6's two drives, with an empty entry for an empty
+//  drive. A machine with no Disk II controller has no drives.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1143,6 +1144,14 @@ DebugMachineInfo MachineDebugTarget::GetMachineInfo() const
     for (const IDiagnosticsProvider * provider : GetDiagnosticsProviders())
     {
         provider->AddIoRegisters (info.ioRegisters);
+    }
+
+    for (const SlotConfig & slot : m_host.GetConfig().slots)
+    {
+        if (slot.enabled && !slot.device.empty() && slot.slot >= 0 && slot.slot < (int) info.slotCards.size())
+        {
+            info.slotCards[(size_t) slot.slot] = DeviceDisplayNames::Get (slot.device);
+        }
     }
 
     if (m_host.GetRefs().diskController == nullptr)

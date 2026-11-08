@@ -9,6 +9,7 @@
 #include "Debugger/HeatMapSymbols.h"
 #include "Debugger/Reply.h"
 #include "Ui/Debugger/ColorLegend.h"
+#include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -388,7 +389,10 @@ namespace DebuggerTests
             Assert::AreEqual (kCount, snapshot.heatMap.values.size());
             Assert::AreEqual ((int16_t) 0xA9, snapshot.heatMap.values[0x0300]);
             Assert::AreEqual ((int16_t) 0x41, snapshot.heatMap.values[0x0301]);
-            Assert::AreEqual ((int16_t) -1,   snapshot.heatMap.values[0xC000], L"I/O is not read");
+            Assert::IsTrue   (snapshot.heatMap.values[0xC000] >= 0,          L"I/O is read by its side-effect-free peek");
+            Assert::AreEqual (MemoryRegionKeys::kRegionIo,                    snapshot.heatMap.regions[0xC000]);
+            Assert::AreEqual ((uint16_t) (MemoryRegionKeys::kRegionSlotIo + 6), snapshot.heatMap.regions[0xC0E0], L"slot 6's I/O is a separate range");
+            Assert::AreEqual ((uint16_t) 0,                                   snapshot.heatMap.regions[0x0300], L"main RAM is in none");
             Assert::AreEqual ((Byte) 1,       snapshot.heatMap.opcodes[0x0300]);
             Assert::AreEqual ((Byte) 0,       snapshot.heatMap.opcodes[0x0301]);
             Assert::IsTrue   (snapshot.heatMap.pc    == Word (0x0302));
@@ -498,6 +502,72 @@ namespace DebuggerTests
             Assert::AreEqual (tinted, view.GetCellColor (0xFDED));
             Assert::AreEqual (kCold,  view.GetCellColor (0x0010), L"a constant is no address");
             Assert::IsTrue   (Contains (view.GetTipText (0xFDED), L"\nSymbol COUT"));
+        }
+
+
+
+        //  Zoomed in, a cell with a symbol has its name over its value, an I/O
+        //  byte's value is in I/O's color, each labeled range is outlined in its
+        //  color, and its first cell has its label, a slot's by its card.
+        TEST_METHOD (ZoomedInSymbolsRangesAndCardsAreLabeled)
+        {
+            HeatMapView                      view;
+            MockDxuiTextRenderer             text;
+            std::shared_ptr<HeatMapSymbols>  symbols = std::make_shared<HeatMapSymbols>();
+            std::vector<int16_t>             values  (kCount, -1);
+            std::vector<uint16_t>            regions (kCount, 0);
+            MemoryRegionKeys::Colors         colors;
+            MemoryRegionKeys::SlotCards      cards;
+            uint32_t                         stroke  = 0;
+            auto                             findInk = [&text] (const std::wstring & wanted)
+            {
+                for (const RecordedTextCall & call : text.Calls())
+                {
+                    if (call.kind == RecordedTextKind::DrawString && call.text == wanted)
+                    {
+                        return call.argb;
+                    }
+                }
+
+                return 0u;
+            };
+
+
+
+            //  $0000-$0003 I/O, $0004-$0007 slot 2's I/O, $0008 main RAM.
+            for (Word address = 0; address < 9; address++)
+            {
+                values[address] = 0xC1;
+            }
+
+            for (Word address = 0; address < 4; address++)
+            {
+                regions[address]     = MemoryRegionKeys::kRegionIo;
+                regions[address + 4] = MemoryRegionKeys::kRegionSlotIo + 2;
+            }
+
+            symbols->Add ("KBD", 0x0000);
+            cards[2] = "Super Serial Card";
+
+            Place (view);
+            view.SetLevels       ({}, {}, {});
+            view.SetValues       (values);
+            view.SetSymbols      (symbols);
+            view.SetRegions      (regions);
+            view.SetSlotCards    (cards);
+            view.SetRegionColors (colors);
+            view.ZoomAt ({ 300, 200 }, 40.0f);
+            view.ScrollBy (-1000000);
+            Paint (view, text);
+
+            stroke = DxuiColor::Mix (kBackground | 0xFF000000u, colors.io, 0.8f) | 0xFF000000u;
+
+            Assert::IsTrue   (HasText (text, L"KBD"),                          L"the symbol's name in its cell");
+            Assert::IsTrue   (HasText (text, L"I/O"),                          L"the I/O range's label");
+            Assert::IsTrue   (HasText (text, L"Super Serial Card in slot 2"),  L"slot 2's range by its card");
+            Assert::AreEqual (DebuggerTextColors::GetReadable (colors.io, view.GetCellColor (0x0000) | 0xFF000000u), findInk (L"C1"), L"an I/O value in I/O's color");
+            Assert::IsTrue   (std::ranges::any_of (text.Calls(), [stroke] (const RecordedTextCall & call) { return call.kind == RecordedTextKind::FillRect && call.argb == stroke; }),
+                              L"the range outlined in its color");
         }
 
 

@@ -57,3 +57,20 @@ void SlotRomPage::Write (Word address, Byte value)
 {
     (void) m_card.OnSlotPageAccess (address, true, value);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPeekIo
+//
+//  The card's byte with its expansion ROM left as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SlotRomPage::TryPeekIo (Word address, Byte & value)
+{
+    return m_card.TryPeekSlotPage (address, value);
+}

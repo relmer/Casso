@@ -1223,6 +1223,8 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
     m_view->SetCpuMarks     (state.pc, state.stack);
     m_view->SetBreakpoints  (std::move (breakpoints));
     m_view->SetRebuilding   (state.isRebuilding);
+    m_view->SetSlotCards    (snapshot.slotCards);
+    m_view->SetRegionColors (MemoryRegionKeys::GetColors (m_host.GetTextColors()));
 
     //  The machine reads its map only now and then while it runs, and the
     //  snapshots between have the same reading, whose cells are already
@@ -1233,6 +1235,7 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
 
         m_view->SetOpcodes       (state.opcodes);
         m_view->SetValues        (state.values);
+        m_view->SetRegions       (state.regions);
         m_view->SetChannelLevels (state.unwritten, state.changed, state.edited);
         m_view->SetLevels        (state.execute, state.read, state.write);
     }

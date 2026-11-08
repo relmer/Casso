@@ -89,9 +89,32 @@ namespace DebuggerTests
 
             Show (model, 0xC000, { MemoryRegion::Io, MemoryRegion::SlotRom });
 
-            Assert::AreEqual (MemoryEditModel::kRegionIo, ReadRegion (model, 0xC0FF));
+            Assert::AreEqual (MemoryEditModel::kRegionIo, ReadRegion (model, 0xC07F));
+            Assert::AreEqual ((uint16_t) (MemoryEditModel::kRegionSlotIo + 7), ReadRegion (model, 0xC0FF), L"slot 7's I/O is a separate range");
             Assert::AreEqual (MemoryEditModel::GetRegionKey (MemoryRegion::SlotRom, 0xC100), ReadRegion (model, 0xC100));
             Assert::AreEqual ((uint16_t) 0, ReadRegion (model, 0x0300), L"a byte the window never read has a region");
+        }
+
+
+        //  A slot's ROM page and its I/O are labeled with the card in it; an
+        //  empty slot's with its number, and slot 0's I/O is the language
+        //  card's.
+        TEST_METHOD (ASlotsRangesAreLabeledWithItsCard)
+        {
+            MemoryRegionKeys::SlotCards  cards;
+
+
+
+            cards[2] = "Super Serial Card";
+
+            Assert::AreEqual (std::wstring (L"Super Serial Card in slot 2"), MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC200), cards));
+            Assert::AreEqual (std::wstring (L"Super Serial Card in slot 2"), MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0AF), cards));
+            Assert::AreEqual (std::wstring (L"Slot 4 ROM"),                  MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC400), cards));
+            Assert::AreEqual (std::wstring (L"Slot 4 I/O"),                  MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0C0), cards));
+            Assert::AreEqual (std::wstring (L"Language card"),               MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC080), cards));
+            Assert::AreEqual (std::wstring (L"I/O"),                         MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC07F), cards));
+            Assert::IsTrue   (MemoryRegionKeys::IsIo  (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0AF)), L"a slot's I/O is drawn as I/O");
+            Assert::IsTrue   (MemoryRegionKeys::IsRom (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC200)), L"a slot's page as ROM");
         }
 
 

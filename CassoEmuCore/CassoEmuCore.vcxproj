@@ -204,6 +204,7 @@
     <ClCompile Include="Ui\Debugger\DebuggerViewState.cpp" />
     <ClCompile Include="Ui\Debugger\StopChanges.cpp" />
     <ClCompile Include="Ui\Debugger\ByteChanges.cpp" />
+    <ClCompile Include="Ui\Debugger\MemoryRegionKeys.cpp" />
     <ClCompile Include="Ui\Debugger\OpeningFocusDeferral.cpp" />
     <ClCompile Include="Ui\Debugger\StopFocus.cpp" />
     <ClCompile Include="Debugger\Events\DebugEventHistory.cpp" />
@@ -451,6 +452,7 @@
     <ClCompile Include="Core\Cpu65C02.cpp" />
     <ClCompile Include="Core\Cpu65C02Table.cpp" />
     <ClCompile Include="Core\Prng.cpp" />
+    <ClCompile Include="Core\DeviceDisplayNames.cpp" />
     <ClCompile Include="Core\DramPowerOnPattern.cpp" />
     <ClCompile Include="Core\TextEncoding.cpp" />
     <ClCompile Include="Devices\RamDevice.cpp" />
@@ -909,6 +911,7 @@
     <ClInclude Include="Ui\Debugger\DebuggerViewState.h" />
     <ClInclude Include="Ui\Debugger\StopChanges.h" />
     <ClInclude Include="Ui\Debugger\ByteChanges.h" />
+    <ClInclude Include="Ui\Debugger\MemoryRegionKeys.h" />
     <ClInclude Include="Ui\Debugger\OpeningFocusDeferral.h" />
     <ClInclude Include="Ui\Debugger\StopFocus.h" />
     <ClInclude Include="Core\ObserverSlots.h" />
@@ -1163,6 +1166,7 @@
     <ClInclude Include="Core\MachineScanner.h" />
     <ClInclude Include="Core\PathResolver.h" />
     <ClInclude Include="Core\Prng.h" />
+    <ClInclude Include="Core\DeviceDisplayNames.h" />
     <ClInclude Include="Core\DramPowerOnPattern.h" />
     <ClInclude Include="Core\TextEncoding.h" />
     <ClInclude Include="Core\IInterruptController.h" />

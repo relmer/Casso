@@ -92,6 +92,44 @@ Byte SuperSerialCard::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeekIo
+//
+//  Read's byte, with the 6551's from Acia6551::TryPeekIo, so no status bit
+//  is cleared and no received byte is taken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SuperSerialCard::TryPeekIo (Word address, Byte & value)
+{
+    Word  offset   = static_cast<Word> (address - m_ioStart);
+    Byte  floating = m_bus.GetFloatingBusValue();
+
+
+
+    value = floating;
+
+    if (offset == kDipSwitch1Offset)
+    {
+        value = m_switches.GetDipSwitch1Byte (floating);
+    }
+    else if (offset == kDipSwitch2Offset)
+    {
+        value = m_switches.GetDipSwitch2Byte (m_acia.IsCtsTrue(), floating);
+    }
+    else if (offset >= kAciaOffset && offset < kAciaOffset + Acia6551::kRegisterCount)
+    {
+        return m_acia.TryPeekIo (address, value);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Write
 //
 //  Only the 6551 accepts writes; the switch registers are read-only buffers.
@@ -191,6 +229,36 @@ Byte SuperSerialCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPeekSlotPage
+//
+//  The firmware's last page, with the expansion ROM's latch left as it is.
+//  The floating bus with no firmware has no side-effect-free value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SuperSerialCard::TryPeekSlotPage (Word address, Byte & value) const
+{
+    constexpr Word  kPageMask = 0x00FF;
+
+
+
+    value = 0;
+
+    if (m_firmware.empty())
+    {
+        return false;
+    }
+
+    value = m_firmware[kFirmwarePageOffset + (address & kPageMask)];
+    return true;
 }
 
 

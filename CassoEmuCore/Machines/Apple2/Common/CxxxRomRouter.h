@@ -81,7 +81,8 @@ public:
 
     // Side-effect-free read for the debugger: the byte a CPU read would
     // return, without latching or clearing INTC8ROM. A slot page owned by an
-    // I/O device is not readable this way, since reading a device has effects.
+    // I/O device is the device's side-effect-free peek, false where it has
+    // none.
     bool TryPeek (Word address, Byte & value) const;
 
     // The debugger's I/O peek: a slot page owned by an I/O device is that

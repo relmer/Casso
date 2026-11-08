@@ -192,23 +192,13 @@ uint32_t MemoryPane::GetHeatFill (const DebuggerViewSnapshot::HeatColumnLevels &
 
 void MemoryPane::SetTextColors (const DebuggerTextColors::Set & colors)
 {
-    MemoryEditModel::RegionColors  regions;
-
-
-
     m_changedArgb = colors.changed;
     m_romArgb     = colors.rom;
     m_ioArgb      = colors.io;
     m_unreadArgb  = colors.muted;
     m_differsArgb = colors.result;
 
-    regions.rom     = colors.rom;
-    regions.io      = colors.io;
-    regions.lcBank1 = colors.mapLcBank1;
-    regions.lcBank2 = colors.mapLcBank2;
-    regions.aux     = colors.mapAux;
-
-    m_model.SetRegionColors (regions);
+    m_model.SetRegionColors (MemoryRegionKeys::GetColors (colors));
 }
 
 

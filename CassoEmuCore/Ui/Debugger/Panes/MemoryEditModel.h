@@ -2,6 +2,7 @@
 
 #include "Debugger/Reply.h"
 #include "Ui/Debugger/ByteChanges.h"
+#include "Ui/Debugger/MemoryRegionKeys.h"
 
 
 
@@ -50,32 +51,25 @@ public:
     //  A byte that differs from its counterpart in the range compared with.
     static constexpr uint8_t  kMarkDiffers = 5;
 
-    //  The regions a window outlines: one for each run with a label of its
-    //  own, every slot's ROM apart from the next. Main RAM is in none.
-    static constexpr uint16_t  kRegionRom          = 1;
-    static constexpr uint16_t  kRegionIo           = 2;
-    static constexpr uint16_t  kRegionLcBank1      = 3;
-    static constexpr uint16_t  kRegionLcBank2      = 4;
-    static constexpr uint16_t  kRegionAux          = 5;
-    static constexpr uint16_t  kRegionExpansionRom = 6;
-    static constexpr uint16_t  kRegionSlotRom      = 8;     // plus the slot, 1 to 7
+    //  The regions a window outlines, as MemoryRegionKeys has them.
+    static constexpr uint16_t  kRegionRom          = MemoryRegionKeys::kRegionRom;
+    static constexpr uint16_t  kRegionIo           = MemoryRegionKeys::kRegionIo;
+    static constexpr uint16_t  kRegionLcBank1      = MemoryRegionKeys::kRegionLcBank1;
+    static constexpr uint16_t  kRegionLcBank2      = MemoryRegionKeys::kRegionLcBank2;
+    static constexpr uint16_t  kRegionAux          = MemoryRegionKeys::kRegionAux;
+    static constexpr uint16_t  kRegionExpansionRom = MemoryRegionKeys::kRegionExpansionRom;
+    static constexpr uint16_t  kRegionSlotRom      = MemoryRegionKeys::kRegionSlotRom;
+    static constexpr uint16_t  kRegionSlotIo       = MemoryRegionKeys::kRegionSlotIo;
 
-    //  The outline colors: ROM's and I/O's are their bytes' own, and the
-    //  language card's and aux RAM's the memory map's. Until the window has
-    //  the theme's, the dark themes' defaults.
-    struct RegionColors
-    {
-        uint32_t  rom     = 0xFF7FB2E5;
-        uint32_t  io      = 0xFF909090;
-        uint32_t  lcBank1 = 0xFF5BB36A;
-        uint32_t  lcBank2 = 0xFF2E8B57;
-        uint32_t  aux     = 0xFFD98A4A;
-    };
+    using RegionColors = MemoryRegionKeys::Colors;
 
-    static uint16_t      GetRegionKey   (MemoryRegion region, Word address);
-    static std::wstring  GetRegionLabel (uint16_t key);
+    static uint16_t      GetRegionKey   (MemoryRegion region, Word address) { return MemoryRegionKeys::GetKey (region, address); }
+    static std::wstring  GetRegionLabel (uint16_t key)                       { return MemoryRegionKeys::GetLabel (key, {}); }
 
-    void  SetRegionColors (const RegionColors & colors) { m_regionColors = colors; }
+    void  SetRegionColors (const RegionColors & colors)             { m_regionColors = colors; }
+
+    //  The card in each slot, which labels the slot's ranges.
+    void  SetSlotCards    (const MemoryRegionKeys::SlotCards & cards) { m_slotCards = cards; }
     //  An edit's bytes, which the window writes at the address directly. For
     //  an undo or redo, `required` is what memory must contain there first;
     //  for a new edit it is empty.
@@ -200,4 +194,5 @@ private:
     std::optional<Unconfirmed>                m_unconfirmed;
     PatchFn                                   m_onPatch;
     RegionColors                              m_regionColors;
+    MemoryRegionKeys::SlotCards               m_slotCards;
 };

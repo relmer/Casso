@@ -74,6 +74,9 @@ public:
     //  Whether the machine is stopped, which holds the changed marks.
     void  SetPaused (bool isPaused) { m_model.SetPaused (isPaused); }
 
+    //  The card in each slot, which labels the slot's outlined ranges.
+    void  SetSlotCards (const MemoryRegionKeys::SlotCards & cards) { m_model.SetSlotCards (cards); }
+
     //  The bytes the snapshot read for this window. The first one places the
     //  view there; later ones leave the view where the user has it.
     void  Apply (const DebuggerViewSnapshot::MemoryWindow & window);

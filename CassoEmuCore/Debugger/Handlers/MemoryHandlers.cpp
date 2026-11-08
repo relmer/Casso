@@ -60,8 +60,9 @@ bool MemoryHandlers::TryExecute (DebugSession & session, const DebugCommand & co
 //
 //  MemoryHandlers::MakeRows
 //
-//  An unreadable byte, which is any in $C000-$C0FF, is an empty cell. A row
-//  ends early where the region changes, so its region holds for every byte.
+//  An I/O byte is what its device's side-effect-free peek returns, and a byte
+//  no peek can read is an empty cell. A row ends early where the region
+//  changes, so its region applies to every byte.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,7 +88,11 @@ MemoryData MemoryHandlers::MakeRows (IDebugTarget & target, Word first, Word las
 
 
 
-            row.bytes.push_back (target.TryPeek ((Word) address, value) ? std::optional<Byte> (value) : std::nullopt);
+            bool  isRead = (row.region == MemoryRegion::Io) ? target.TryPeekIo ((Word) address, value) : target.TryPeek ((Word) address, value);
+
+
+
+            row.bytes.push_back (isRead ? std::optional<Byte> (value) : std::nullopt);
         }
 
         data.rows.push_back (row);

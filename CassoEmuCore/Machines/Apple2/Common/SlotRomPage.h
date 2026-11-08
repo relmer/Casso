@@ -28,6 +28,7 @@ public:
 
     Byte Read     (Word address) override;
     void Write    (Word address, Byte value) override;
+    bool TryPeekIo (Word address, Byte & value) override;
     Word GetStart () const override { return m_start; }
     Word GetEnd   () const override { return m_end; }
     void Reset    () override {}

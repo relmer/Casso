@@ -286,6 +286,9 @@ struct DebuggerViewSnapshot
     //  The cards' and ports' bus registers, for the operand tips.
     std::vector<DiagnosticsIoRegister>  ioRegisters;
 
+    //  The card in each slot, which labels the slot's ranges.
+    std::array<std::string, 8>          slotCards;
+
     //  The CPU's instruction set, which the code pane assembles an edited
     //  instruction with, and the copy that owns it when the snapshot was
     //  built from a capture.
@@ -389,8 +392,9 @@ struct DebuggerViewSnapshot
     //  a cell, its last writer and reader in that bank. Beside the levels:
     //  which addresses were fetched as opcodes, the bank's bytes as they
     //  stand (-1 where one cannot be read without changing the machine), each
-    //  opcode's mnemonic with its operand's form ("LDA (..),Y"), and where in
-    //  the bank the PC and the stack pointer are, when they are in it.
+    //  address's MemoryRegionKeys key in the CPU's bank (empty in any other),
+    //  each opcode's mnemonic with its operand's form ("LDA (..),Y"), and
+    //  where in the bank the PC and the stack pointer are, when they are in it.
     using OpcodeForms = std::vector<std::string>;
 
     struct HeatMapState
@@ -400,6 +404,7 @@ struct DebuggerViewSnapshot
         std::vector<Byte>                       write;
         std::vector<Byte>                       opcodes;
         std::vector<int16_t>                    values;
+        std::vector<uint16_t>                   regions;
         std::shared_ptr<const OpcodeForms>      opcodeForms;
         std::optional<Word>                     pc;
         std::optional<Word>                     stack;
@@ -953,7 +958,7 @@ private:
 
     std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>  ReadHeatColumns (const AccessHeatMap & map) const;
     static HeatAccessInfo  GetHeatAccess (DebugSession & session, HeatSpace space, bool isWrite, Word address);
-    static void            ReadHeatValues (IDebugTarget & target, const AccessHeatMap & map, HeatMapOptions::Bank bank, std::vector<int16_t> & values);
+    static void            ReadHeatValues (IDebugTarget & target, const AccessHeatMap & map, HeatMapOptions::Bank bank, std::vector<int16_t> & values, std::vector<uint16_t> & regions);
     static void            FindHeatMarks  (IDebugTarget & target, const AccessHeatMap & map, DebuggerViewSnapshot::HeatMapState & state);
 
     //  Every opcode's form for the instruction set, made again only when the

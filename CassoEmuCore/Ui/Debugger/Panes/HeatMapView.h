@@ -4,6 +4,7 @@
 
 #include "Debugger/HeatAccessJump.h"
 #include "Debugger/HeatMapOptions.h"
+#include "Ui/Debugger/MemoryRegionKeys.h"
 #include "Ui/Debugger/Panes/HeatMapZoomWidget.h"
 
 struct BreakpointInfo;
@@ -270,6 +271,26 @@ public:
     void   SetBreakpoints  (std::vector<Breakpoint> breakpoints);
     void   SetSymbols      (std::shared_ptr<const HeatMapSymbols> symbols);
 
+    //  The labeled ranges: each address's MemoryRegionKeys key, empty for a
+    //  bank with none; the card in each slot, which labels a slot's ranges;
+    //  and the colors the ranges are outlined in and their bytes drawn in.
+    //  A range is outlined once cells are kRegionCellPx, and labeled at its
+    //  start once they are large enough for values.
+    static constexpr int  kRegionCellPx = 4;
+
+    void      SetRegions      (const std::vector<uint16_t> & regions)       { m_regions = regions; }
+    void      SetSlotCards    (const MemoryRegionKeys::SlotCards & cards)   { m_slotCards = cards; }
+    void      SetRegionColors (const MemoryRegionKeys::Colors & colors)     { m_regionColors = colors; }
+    uint16_t  GetRegionAt     (Word address) const { return (m_regions.size() == (size_t) kAddressCount) ? m_regions[address] : (uint16_t) 0; }
+
+    //  The ink for a byte's text on its cell: ROM's and I/O's colors as a
+    //  memory window draws those bytes, `plain` for any other, each moved
+    //  until it reads on the cell.
+    uint32_t  GetValueInk     (Word address, uint32_t cell, uint32_t plain) const;
+
+    //  The symbol at an address in the current bank, empty for none.
+    std::string  GetSymbolAt  (Word address) const;
+
     //  The outlines around an address's cell, outermost first: the PC's, the
     //  stack pointer's, then each breakpoint's on it.
     std::vector<uint32_t>  GetOutlineColors (Word address) const;
@@ -524,6 +545,8 @@ private:
     std::vector<RECT>      GetMergedRects      (const Merged & merged) const;
     void                   PaintInstruction    (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Merged & merged) const;
     void                   PaintOutlines       (IDxuiTextRenderer & text, const std::vector<RECT> & rects, Word address) const;
+    void                   PaintRegions        (IDxuiTextRenderer & text, const IDxuiTheme & theme, bool hasLabels) const;
+    void                   PaintRegionLabel    (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Place & place, uint16_t key) const;
     void                   MarkSymbols         ();
     void                   ForEachVisible      (const std::function<void (const Place &, Word)> & visit) const;
     std::wstring           DescribeMarks       (Word address) const;
@@ -583,6 +606,9 @@ private:
     std::shared_ptr<const HeatMapSymbols>            m_symbols;
     Bank                                             m_symbolsBank   = Bank::Cpu;
     std::vector<Byte>                                m_symbolMarks;
+    std::vector<uint16_t>                            m_regions;
+    MemoryRegionKeys::SlotCards                      m_slotCards;
+    MemoryRegionKeys::Colors                         m_regionColors;
     HeatMapZoomWidget                                m_zoomWidget;
     RECT                                             m_zoomPlacedFor = {};   // the bounds the zoom widget was placed in
 };

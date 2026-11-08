@@ -32,6 +32,7 @@ public:
     void                SetRegisters      (const Cpu6502Registers &) override {}
 
     bool                TryPeek           (Word address, Byte & value) const override;
+    bool                TryPeekIo         (Word address, Byte & value) const override;
     bool                TryPoke           (Word, Byte) override { return false; }
     bool                TryPatch          (Word, Byte) override { return false; }
     void                TakeMemoryImage   (DebugMemoryImage & image) const override { image = m_capture->memory; }

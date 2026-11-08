@@ -4,6 +4,7 @@
 
 #include "Config/NetworkCardSettings.h"
 #include "Controllers/ControllerTypes.h"
+#include "Core/DeviceDisplayNames.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
 
@@ -371,8 +372,8 @@ public:
     // The Uthernet II. The machine's slot list places it and the Machine tab
     // turns it on; turned on with no MAC address, it gets a random locally
     // administered one.
-    static constexpr const char *  kpszNetworkCardDevice = "uthernet2";
-    static constexpr const char *  kpszNetworkCardName   = "Uthernet II (Ethernet)";
+    static constexpr const char *  kpszNetworkCardDevice = DeviceDisplayNames::kpszNetworkCardDevice;
+    static constexpr const char *  kpszNetworkCardName   = DeviceDisplayNames::kpszNetworkCardName;
 
     const HardwareEntry *  GetNetworkCard        () const;
     bool                   HasEnabledNetworkCard () const;
