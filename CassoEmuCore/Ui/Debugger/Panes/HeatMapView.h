@@ -488,6 +488,8 @@ private:
     void                   ApplyCellPx         (int cellPx, POINT point);
     void                   PlaceMap            ();
     void                   ClampScroll         ();
+    void                   LimitScroll         (long lowest, long highest);
+    long                   GetMaxScroll        () const;
     void                   SyncScrollbars      ();
     void                   BuildCells          ();
     void                   BuildFrame          ();
@@ -546,6 +548,7 @@ private:
     int                        m_gutterPx     = 0;
     long                       m_labelLinePx  = 0;       // a row label's line, measured with the gutter
     RECT                       m_map          = {};
+    long                       m_areaBottom   = 0;       // the bottom of the map's area, which a map scrolled past an end fills
     bool                       m_hasVertBar   = false;
     long                       m_scrollTop    = 0;
     std::optional<POINT>       m_press;

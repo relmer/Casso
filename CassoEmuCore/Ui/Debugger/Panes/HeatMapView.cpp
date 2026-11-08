@@ -633,6 +633,7 @@ void HeatMapView::PlaceMap()
 
     m_hasVertBar = hasVert;
     m_rowPx      = width;
+    m_areaBottom = top + height;
     m_map        = { left, top, left + width, top + std::min (height, m_contentH) };
 
     PlaceZoomWidget();
@@ -674,22 +675,22 @@ void HeatMapView::ApplyCellPx (int cellPx, POINT point)
 
     PlaceMap();
 
+    pitch = GetPitch();
+
     if (!place.has_value())
     {
         m_scrollTop = (long) std::lround (down * (double) m_contentH) - (point.y - m_map.top);
-
-        ClampScroll();
-        m_isFrameStale = true;
-        return;
+    }
+    else
+    {
+        placed      = &m_placed[place->band];
+        row         = place->offset / placed->columns;
+        m_scrollTop = placed->rowsTop + (long) std::lround (((double) row + fracY) * (double) pitch) - (point.y - m_map.top);
     }
 
-    placed = &m_placed[place->band];
-    pitch  = GetPitch();
-    row    = place->offset / placed->columns;
-
-    m_scrollTop = placed->rowsTop + (long) std::lround (((double) row + fracY) * (double) pitch) - (point.y - m_map.top);
-
-    ClampScroll();
+    //  The row stays under the pointer even where that scrolls the map past
+    //  either end of memory, as long as a row of it stays in view.
+    LimitScroll (std::min (0L, pitch - (m_areaBottom - m_map.top)), std::max (GetMaxScroll(), m_contentH - pitch));
     m_isFrameStale = true;
 }
 
@@ -795,9 +796,14 @@ void HeatMapView::ZoomTo (int cellPx)
 
 void HeatMapView::ScrollBy (int dy)
 {
+    long  from = m_scrollTop;
+
+
+
+    //  A map zoomed past an end scrolls back toward it, not farther past.
     m_scrollTop += dy;
 
-    ClampScroll();
+    LimitScroll (std::min (0L, from), std::max (GetMaxScroll(), from));
     m_isFrameStale = true;
 }
 
@@ -834,7 +840,49 @@ void HeatMapView::ResetZoom()
 
 void HeatMapView::ClampScroll()
 {
-    m_scrollTop = std::clamp (m_scrollTop, 0L, std::max (0L, m_contentH - (m_map.bottom - m_map.top)));
+    LimitScroll (0, GetMaxScroll());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetMaxScroll
+//
+//  The farthest the map scrolls with its bottom no higher than the area's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+long HeatMapView::GetMaxScroll() const
+{
+    return std::max (0L, m_contentH - (m_areaBottom - m_map.top));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::LimitScroll
+//
+//  The scroll is clamped between lowest and highest. Past either end of
+//  memory, the map fills its whole area, so the rows scrolled into it are
+//  drawn and the empty part around memory is part of the map.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::LimitScroll (long lowest, long highest)
+{
+    bool  isPast = false;
+
+
+
+    m_scrollTop  = std::clamp (m_scrollTop, lowest, std::max (lowest, highest));
+    isPast       = m_scrollTop < 0 || m_scrollTop > GetMaxScroll();
+    m_map.bottom = m_map.top + (isPast ? m_areaBottom - m_map.top : std::min (m_areaBottom - m_map.top, m_contentH));
 
     SyncScrollbars();
 }
@@ -3811,7 +3859,7 @@ bool HeatMapView::OnDragOrHover (const DxuiMouseEvent & ev)
 
     m_scrollTop = m_pressTop - dy;
 
-    ClampScroll();
+    LimitScroll (std::min (0L, m_pressTop), std::max (GetMaxScroll(), m_pressTop));
     m_isFrameStale = true;
     return true;
 }

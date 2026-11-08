@@ -856,17 +856,48 @@ namespace DebuggerTests
 
                     view.ZoomAt (point, notch);
 
-                    //  Zoomed out, the end of memory comes into view, and the
-                    //  map can't scroll past it.
-                    if (view.GetScrollTop() >= view.GetRows() * (view.GetCellPx() + HeatMapView::kStreetPx) - (view.GetMapRect().bottom - view.GetMapRect().top))
-                    {
-                        break;
-                    }
-
                     Assert::IsTrue (IsAtHeight (view, under, point.y),
                                     std::format (L"${:04X} under the pointer after step {} of {}", under, steps, notch).c_str());
                 }
             }
+        }
+
+
+
+        //  At the sizes at which all of memory fits the pane, a zoom scrolls the
+        //  map past an end where the pointer's row would otherwise move. A scroll
+        //  then moves it back toward the end and not farther past, and Reset
+        //  zoom puts memory back at the top.
+        TEST_METHOD (ZoomingAtTheFitSizesKeepsThePointersRow)
+        {
+            HeatMapView  view;
+            POINT        point = {};
+            Word         under = 0;
+            long         past  = 0;
+
+
+
+            Place (view, 420, 2400);
+            view.ResetZoom();
+            view.ZoomAt (GetPointOf (view, 0x0000), -1.0f);
+
+            point = GetPointOf (view, 0x8000);
+            under = view.GetAddressAt (point).value_or (0);
+
+            view.ZoomAt (point, 1.0f);
+            Assert::IsTrue (IsAtHeight (view, under, point.y), L"zoomed in from a size that fits, the row is under the pointer");
+            Assert::IsTrue (view.GetScrollTop() < 0 || view.GetScrollTop() > view.GetRows() * (view.GetCellPx() + HeatMapView::kStreetPx) - (view.GetMapRect().bottom - view.GetMapRect().top),
+                            L"the map is scrolled past an end, so the row is where it was");
+
+            past = view.GetScrollTop();
+            view.ScrollBy (past < 0 ? -1 : 1);
+            Assert::AreEqual (past, view.GetScrollTop(), L"a scroll farther past the end is not taken");
+
+            view.ScrollBy (past < 0 ? 1 : -1);
+            Assert::AreEqual (past < 0 ? past + 1 : past - 1, view.GetScrollTop(), L"a scroll back toward it is");
+
+            view.ResetZoom();
+            Assert::AreEqual (0L, view.GetScrollTop(), L"Reset zoom puts memory back at the top");
         }
 
 
