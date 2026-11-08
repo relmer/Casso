@@ -1282,10 +1282,10 @@ void ShellChrome::ApplyThemeToChrome (const CassoTheme & theme)
     // Bottom drive-bar thickness, full and compact. Full is the desk scene's
     // drive band, which SyncChromeBands scales by m_chromeSceneScale
     // (s_kDeskDriveScale at 100%) so it hugs the scaled 3D drives without a
-    // separate constant. Compact holds the flat drive widget, bottom-anchored
-    // under an 8 dp gap.
+    // separate constant. Compact is the 2D drive widget's 36 dp stack, an
+    // 8 dp gap above it, and the 2 dp bottom margin.
     constexpr int  s_kFullDriveBarDp    = 190;
-    constexpr int  s_kCompactDriveBarDp = 70;
+    constexpr int  s_kCompactDriveBarDp = 46;
 
 
 

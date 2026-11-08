@@ -31,6 +31,7 @@ Entries before versioning was introduced use dates only.
 - The //c's serial ports send and receive bytes at the selected baud rate, not
   instantly.
 - Changed the drive strip's hotkey from Ctrl+D to F8.
+- Remove unneeded height from the drive bar in flat themes.
 - EmulatorShell is split into components: audio, Disk II drives, tape deck,
   printer, update notification, settings, desk scene, chrome, renderer and
   window. The shell owns them, routes window messages and runs the CPU

@@ -119,7 +119,7 @@ private:
     static constexpr int  kPrevTitleBarDp      = 32;
     static constexpr int  kPrevNavStripDp      = 32;
     static constexpr int  kPrevDriveBarFullDp  = 190;
-    static constexpr int  kPrevDriveBarCmptDp  = 70;
+    static constexpr int  kPrevDriveBarCmptDp  = 46;
     // No system-button or caption/menu font metrics here any more: the real
     // DxuiCaptionBar and MainMenu carry their own, and a second set of
     // numbers describing the same chrome is precisely how the mock drifted
