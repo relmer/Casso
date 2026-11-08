@@ -88,20 +88,30 @@ void RegisterHandlers::ShowRegisters (IDebugTarget & target, Reply & reply)
 //
 //  A, X, Y and P take a byte. S takes a byte, or a stack address $0100-$01FF
 //  whose low byte is the pointer. PC takes a word. The reply shows the
-//  registers as they now are.
+//  registers as they now are. A name that is none of these is refused here as
+//  well as by the parsers, so it can never fall through to PC.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void RegisterHandlers::SetRegister (IDebugTarget & target, const DebugCommand & command, Reply & reply)
 {
-    static constexpr Word  kStackLast = 0x01FF;
-    Cpu6502Registers       registers  = target.GetRegisters();
-    Word                   value      = command.a1;
-    bool                   isStack    = command.text == "S";
-    bool                   isByte     = command.text != "PC";
+    static constexpr Word  kStackLast     = 0x01FF;
+    Cpu6502Registers       registers      = target.GetRegisters();
+    Word                   value          = command.a1;
+    bool                   isStack        = command.text == "S";
+    bool                   isByte         = command.text != "PC";
     bool                   isStackAddress = isStack && value >= kStackPage && value <= kStackLast;
+    bool                   isKnown        = command.text == "A" || command.text == "X" || command.text == "Y" ||
+                                            command.text == "P" || isStack || !isByte;
 
 
+
+    if (!isKnown)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments",
+                        std::format ("{} is not a register. The registers are A, X, Y, P, S, and PC.", command.text));
+        return;
+    }
 
     if (isByte && value > kMaxByte && !isStackAddress)
     {
@@ -114,7 +124,7 @@ void RegisterHandlers::SetRegister (IDebugTarget & target, const DebugCommand & 
     else if (command.text == "X")  { registers.x  = (Byte) value; }
     else if (command.text == "Y")  { registers.y  = (Byte) value; }
     else if (command.text == "P")  { registers.p  = (Byte) value; }
-    else if (command.text == "S")  { registers.sp = (Byte) value; }
+    else if (isStack)              { registers.sp = (Byte) value; }
     else                           { registers.pc = value; }
 
     target.SetRegisters (registers);

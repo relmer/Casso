@@ -119,16 +119,22 @@ bool DebugMemoryView::TryPoke (Word address, Byte value)
 //
 //  DebugMemoryView::TryPatch
 //
-//  What a memory window's edit does (FR-037): RAM and language-card RAM take
-//  it as a poke, ROM takes it into the image the CPU reads from, and an I/O
-//  address refuses it, since writing one is a side effect only OUT may cause.
+//  What a memory window's edit does: RAM and language-card RAM take it in the
+//  bank the debugger reads, which is the one the window shows, ROM takes it
+//  into the image the CPU reads from, and an I/O address is not written,
+//  since writing one is a side effect only OUT may cause.
+//
+//  THE READ BANK, NOT THE WRITE BANK. With RAMRD and RAMWRT apart a CPU
+//  write lands in the other bank, so a patch written as one would change a
+//  byte the window does not show, and the edit would seem not to take.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebugMemoryView::TryPatch (Word address, Byte value)
 {
-    MemoryRegion  region  = GetRegion (address);
-    bool          patched = false;
+    MemoryRegion    region  = GetRegion (address);
+    Byte          * page    = nullptr;
+    bool            patched = false;
 
 
 
@@ -143,7 +149,14 @@ bool DebugMemoryView::TryPatch (Word address, Byte value)
         break;
 
     default:
-        patched = TryPoke (address, value);
+        page = m_host.GetMemoryBus().GetShadowReadPage (address);
+
+        if (page != nullptr)
+        {
+            page[address & kPageMask] = value;
+            patched                   = true;
+        }
+
         break;
     }
 

@@ -13,8 +13,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DebugMemoryViewPatchTests
 //
-//  A memory window's edit (FR-037): RAM takes it as a write, ROM takes it into
-//  the image the CPU reads from, and an I/O address refuses it.
+//  A memory window's edit: RAM takes it as a write, ROM takes it into the
+//  image the CPU reads from, and an I/O address is not written.
 //
 //  THE CPU IS THE ORACLE. A patch is only a patch if the machine then reads the
 //  new byte, so every ROM case checks a bus read as well as the debugger's peek.

@@ -89,6 +89,37 @@ MemoryData MemoryHandlers::MakeRows (IDebugTarget & target, Word first, Word las
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryHandlers::MakeWrittenRows
+//
+//  The rows of count bytes written from first. A write that ran past $FFFF
+//  went on at $0000, so its rows are the part up to $FFFF and then the part
+//  from $0000.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MemoryData MemoryHandlers::MakeWrittenRows (IDebugTarget & target, Word first, size_t count)
+{
+    uint32_t    end     = (uint32_t) first + (uint32_t) count - 1;
+    MemoryData  data    = MakeRows (target, first, (Word) std::min<uint32_t> (end, kAddressSpace));
+    MemoryData  wrapped;
+
+
+
+    if (end > kAddressSpace)
+    {
+        wrapped = MakeRows (target, 0, (Word) (end - kAddressSpace - 1));
+        data.rows.insert (data.rows.end(), wrapped.rows.begin(), wrapped.rows.end());
+    }
+
+    return data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryHandlers::Dump
 //
 //  D range shows the range; D addr shows 64 bytes from it; D alone continues
@@ -99,9 +130,14 @@ MemoryData MemoryHandlers::MakeRows (IDebugTarget & target, Word first, Word las
 void MemoryHandlers::Dump (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
     Word  first = command.hasA1 ? command.a1 : m_nextDump;
-    Word  last  = command.hasA2 ? command.a2 : (Word) std::min<uint32_t> ((uint32_t) first + kDefaultDump - 1, kAddressSpace);
+    Word  last  = (Word) std::min<uint32_t> ((uint32_t) first + kDefaultDump - 1, kAddressSpace);
 
 
+
+    if (command.hasA2 && !TryGetRange (command, first, last, reply))
+    {
+        return;
+    }
 
     reply.data = MakeRows (session.GetTarget(), first, last);
     m_nextDump = (Word) (last + 1);
@@ -119,23 +155,23 @@ void MemoryHandlers::Dump (DebugSession & session, const DebugCommand & command,
 //  bytes; MEW takes words. The parser has already laid the bytes out low
 //  byte first. The reply shows the rows written.
 //
+//  Only the addr:bytes form can arrive with no values, since the parsers
+//  refuse every named form without one; its name is the address the user
+//  typed, so the message does not use it as a command name.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryHandlers::Enter (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    Word  last = (Word) (command.a1 + command.values.size() - 1);
-
-
-
     if (command.values.empty())
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} takes an address and one or more values.", command.sourceName));
+        reply.SetError (CommandStatus::Error, "invalid arguments", "A deposit takes an address and one or more values, as 300: A9 00.");
         return;
     }
 
     if (TryPokeRange (session.GetTarget(), command.a1, command.values, reply))
     {
-        reply.data = MakeRows (session.GetTarget(), command.a1, last);
+        reply.data = MakeWrittenRows (session.GetTarget(), command.a1, command.values.size());
     }
 }
 
@@ -156,7 +192,6 @@ void MemoryHandlers::Enter (DebugSession & session, const DebugCommand & command
 void MemoryHandlers::Patch (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
     IDebugTarget  & target = session.GetTarget();
-    Word            last   = (Word) (command.a1 + command.values.size() - 1);
 
 
 
@@ -182,7 +217,7 @@ void MemoryHandlers::Patch (DebugSession & session, const DebugCommand & command
         }
     }
 
-    reply.data = MakeRows (target, command.a1, last);
+    reply.data = MakeWrittenRows (target, command.a1, command.values.size());
 }
 
 
@@ -194,26 +229,38 @@ void MemoryHandlers::Patch (DebugSession & session, const DebugCommand & command
 //  MemoryHandlers::Move
 //
 //  M dest range: the source is read whole before anything is written, so an
-//  overlapping move is as if through a buffer.
+//  overlapping move is as if through a buffer. A source that reaches I/O is
+//  refused before anything is written, since reading it would change the
+//  machine and a zero in its place would be a byte that was never there.
+//
+//  The Monitor's M without `dest<` has no destination at all, and is refused
+//  rather than taken as $0000.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryHandlers::Move (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
     IDebugTarget      & target = session.GetTarget();
-    Word                last   = GetLast (command);
+    Word                first  = command.a1;
+    Word                last   = command.a1;
     std::vector<Byte>   bytes;
 
 
 
-    for (uint32_t address = command.a1; address <= last; ++address)
+    if (!command.hasA3)
     {
-        bytes.push_back (Peek (target, (Word) address));
+        reply.SetError (CommandStatus::Error, "invalid arguments", "A move needs a destination, as 300<800.8FFM.");
+        return;
+    }
+
+    if (!TryGetRange (command, first, last, reply) || !TryReadRange (target, first, last, "moved", bytes, reply))
+    {
+        return;
     }
 
     if (TryPokeRange (target, command.a3, bytes, reply))
     {
-        reply.data = MessageData { { std::format ("Moved {} bytes from ${:04X} to ${:04X}.", bytes.size(), command.a1, command.a3) } };
+        reply.data = MessageData { { std::format ("Moved {} from ${:04X} to ${:04X}.", FormatByteCount (bytes.size()), first, command.a3) } };
     }
 }
 
@@ -226,25 +273,37 @@ void MemoryHandlers::Move (DebugSession & session, const DebugCommand & command,
 //  MemoryHandlers::Compare
 //
 //  MC dest range: each byte of the range against the byte at the same offset
-//  from dest.
+//  from dest. A pair with an I/O byte in it is not compared, and not counted
+//  as compared, since that byte cannot be read without changing the machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryHandlers::Compare (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
     IDebugTarget  & target = session.GetTarget();
-    Word            last   = GetLast (command);
+    Word            first  = command.a1;
+    Word            last   = command.a1;
     CompareData     data;
 
 
 
-    for (uint32_t address = command.a1; address <= last; ++address)
+    if (!TryGetRange (command, first, last, reply))
     {
-        Word  other      = (Word) (command.a3 + (address - command.a1));
-        Byte  value      = Peek (target, (Word) address);
-        Byte  otherValue = Peek (target, other);
+        return;
+    }
+
+    for (uint32_t address = first; address <= last; ++address)
+    {
+        Word  other      = (Word) (command.a3 + (address - first));
+        Byte  value      = 0;
+        Byte  otherValue = 0;
 
 
+
+        if (!target.TryPeek ((Word) address, value) || !target.TryPeek (other, otherValue))
+        {
+            continue;
+        }
 
         ++data.compared;
 
@@ -271,7 +330,8 @@ void MemoryHandlers::Compare (DebugSession & session, const DebugCommand & comma
 
 void MemoryHandlers::Fill (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    Word               last = GetLast (command);
+    Word               first = command.a1;
+    Word               last  = command.a1;
     std::vector<Byte>  bytes;
 
 
@@ -282,14 +342,19 @@ void MemoryHandlers::Fill (DebugSession & session, const DebugCommand & command,
         return;
     }
 
-    for (uint32_t address = command.a1; address <= last; ++address)
+    if (!TryGetRange (command, first, last, reply))
     {
-        bytes.push_back (command.values[(address - command.a1) % command.values.size()]);
+        return;
     }
 
-    if (TryPokeRange (session.GetTarget(), command.a1, bytes, reply))
+    for (uint32_t address = first; address <= last; ++address)
     {
-        reply.data = MessageData { { std::format ("Filled {} bytes at ${:04X}-${:04X}.", bytes.size(), command.a1, last) } };
+        bytes.push_back (command.values[(address - first) % command.values.size()]);
+    }
+
+    if (TryPokeRange (session.GetTarget(), first, bytes, reply))
+    {
+        reply.data = MessageData { { std::format ("Filled {} at ${:04X}-${:04X}.", FormatByteCount (bytes.size()), first, last) } };
     }
 }
 
@@ -302,19 +367,27 @@ void MemoryHandlers::Fill (DebugSession & session, const DebugCommand & command,
 //  MemoryHandlers::Search
 //
 //  Every position in the range where each pattern byte matches under its
-//  mask. The results replace the session's, so @1 is the first hit.
+//  mask. The results replace the session's, so @1 is the first hit. A byte
+//  that cannot be read, which is any in $C000-$C0FF, matches nothing, not
+//  even a wildcard: nothing is known to be there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryHandlers::Search (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
     IDebugTarget    & target = session.GetTarget();
-    Word              last   = GetLast (command);
+    Word              first  = command.a1;
+    Word              last   = command.a1;
     SearchHitsData    data;
 
 
 
-    for (uint32_t address = command.a1; address + command.values.size() - 1 <= last; ++address)
+    if (!TryGetRange (command, first, last, reply))
+    {
+        return;
+    }
+
+    for (uint32_t address = first; address + command.values.size() - 1 <= last; ++address)
     {
         bool  isMatch = true;
 
@@ -322,11 +395,12 @@ void MemoryHandlers::Search (DebugSession & session, const DebugCommand & comman
 
         for (size_t i = 0; i < command.values.size() && isMatch; ++i)
         {
-            Byte  value = Peek (target, (Word) (address + i));
+            Byte  value = 0;
 
 
 
-            isMatch = (value & command.mask[i]) == (command.values[i] & command.mask[i]);
+            isMatch = target.TryPeek ((Word) (address + i), value) &&
+                      (value & command.mask[i]) == (command.values[i] & command.mask[i]);
         }
 
         if (isMatch)
@@ -368,12 +442,16 @@ void MemoryHandlers::ShowResults (DebugSession & session, Reply & reply)
 //  file name because its header cannot be told from data. A length caps a
 //  single-segment load.
 //
+//  The format word may sit inside the quotes or after them: `"a.bin",DOS` as
+//  typed, and `"a.bin,DOS"` as GSSquared's load passes it on. The name is
+//  reported without its quotes.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
     IFileSystem                  * files     = nullptr;
-    std::string                    name      = command.text;
+    std::string                    name      = Unquote (command.text);
     std::optional<BinaryFormat>    format;
     std::optional<Word>            address;
     BinaryFormat                   chosen    = BinaryFormat::Raw;
@@ -383,6 +461,8 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
     BinaryImage                    image;
     size_t                         requested = 0;
     size_t                         loaded    = 0;
+    Word                           first     = command.a1;
+    Word                           last      = command.a1;
     FileIoData                     data;
     HRESULT                        hr        = S_OK;
 
@@ -391,7 +471,12 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
     if (comma != std::string::npos && BinaryImageReader::TryGetFormatName (name.substr (comma + 1), chosen))
     {
         format = chosen;
-        name   = name.substr (0, comma);
+        name   = Unquote (name.substr (0, comma));
+    }
+
+    if (command.hasA2 && !TryGetRange (command, first, last, reply))
+    {
+        return;
     }
 
     if (command.hasA1)
@@ -428,7 +513,7 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
 
         if (command.hasA2 && image.segments.size() == 1)
         {
-            count = std::min<size_t> (count, (size_t) (command.a2 - command.a1) + 1);
+            count = std::min<size_t> (count, (size_t) (last - first) + 1);
         }
 
         count      = std::min<size_t> (count, (size_t) (kAddressSpace - segment.address) + 1);
@@ -457,17 +542,22 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
 //
 //  MemoryHandlers::SaveBinary
 //
-//  BSAVE file range writes the range's bytes as they read now.
+//  BSAVE file range writes the range's bytes as they read now. A range that
+//  reaches I/O is refused and nothing is written, since those bytes cannot be
+//  read without changing the machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryHandlers::SaveBinary (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    IFileSystem  * files = nullptr;
-    Word           last  = GetLast (command);
-    std::string    content;
-    FileIoData     data;
-    HRESULT        hr    = S_OK;
+    IFileSystem        * files = nullptr;
+    std::string          name  = Unquote (command.text);
+    Word                 first = command.a1;
+    Word                 last  = command.a1;
+    std::vector<Byte>    bytes;
+    std::string          content;
+    FileIoData           data;
+    HRESULT              hr    = S_OK;
 
 
 
@@ -477,25 +567,22 @@ void MemoryHandlers::SaveBinary (DebugSession & session, const DebugCommand & co
         return;
     }
 
-    if (!TryGetFiles (session, reply, files))
+    if (!TryGetRange (command, first, last, reply) || !TryGetFiles (session, reply, files) ||
+        !TryReadRange (session.GetTarget(), first, last, "saved", bytes, reply))
     {
         return;
     }
 
-    for (uint32_t address = command.a1; address <= last; ++address)
-    {
-        content.push_back ((char) Peek (session.GetTarget(), (Word) address));
-    }
-
-    hr = files->WriteAllText (session.ResolvePath (command.text), content);
+    content.assign (bytes.begin(), bytes.end());
+    hr = files->WriteAllText (session.ResolvePath (name), content);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", name));
         return;
     }
 
-    data.path        = command.text;
+    data.path        = name;
     data.requested   = (uint32_t) content.size();
     data.transferred = (uint32_t) content.size();
     reply.data       = data;
@@ -559,11 +646,11 @@ void MemoryHandlers::SaveText (DebugSession & session, const DebugCommand & comm
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", Unquote (command.text)));
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved the text screen to {}.", command.text) } };
+    reply.data = MessageData { { std::format ("Saved the text screen to {}.", Unquote (command.text)) } };
 }
 
 
@@ -623,7 +710,7 @@ void MemoryHandlers::WriteIo (DebugSession & session, const DebugCommand & comma
         session.GetTarget().WriteIo ((Word) (command.a1 + i), command.values[i]);
     }
 
-    reply.data = MessageData { { std::format ("Wrote {} bytes at ${:04X}.", command.values.size(), command.a1) } };
+    reply.data = MessageData { { std::format ("Wrote {} at ${:04X}.", FormatByteCount (command.values.size()), command.a1) } };
 }
 
 
@@ -706,13 +793,106 @@ bool MemoryHandlers::TryGetFiles (DebugSession & session, Reply & reply, IFileSy
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryHandlers::GetLast
+//  MemoryHandlers::TryGetRange
+//
+//  The command's range: from a1 to a2, or a1 alone. A range whose end is
+//  below its start is refused rather than cut to one byte. Every range the
+//  parsers produce runs upward, so this is a range typed backward, or a
+//  length that carried its end past $FFFF and round to the bottom.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Word MemoryHandlers::GetLast (const DebugCommand & command)
+bool MemoryHandlers::TryGetRange (const DebugCommand & command, Word & first, Word & last, Reply & reply)
 {
-    return command.hasA2 ? std::max (command.a1, command.a2) : command.a1;
+    first = command.a1;
+    last  = command.hasA2 ? command.a2 : command.a1;
+
+    if (last < first)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments",
+                        std::format ("${:04X}-${:04X} ends before it starts. A range runs up from its first address to its last, and stops at $FFFF.",
+                                     first, last));
+        return false;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::TryReadRange
+//
+//  Every byte from first to last, or false at the first that cannot be read
+//  without changing the machine, which is any in $C000-$C0FF. verb says what
+//  the command does with them, for the message.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryHandlers::TryReadRange (
+    IDebugTarget       & target,
+    Word                 first,
+    Word                 last,
+    const char         * verb,
+    std::vector<Byte>  & bytes,
+    Reply              & reply)
+{
+    for (uint32_t address = first; address <= last; ++address)
+    {
+        Byte  value = 0;
+
+
+
+        if (!target.TryPeek ((Word) address, value))
+        {
+            reply.SetError (CommandStatus::Error, "memory not readable",
+                            std::format ("${:04X} is I/O, and reading it would change the machine. Nothing was {}.", (Word) address, verb));
+            return false;
+        }
+
+        bytes.push_back (value);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::FormatByteCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MemoryHandlers::FormatByteCount (size_t count)
+{
+    return std::format ("{} {}", count, count == 1 ? "byte" : "bytes");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::Unquote
+//
+//  A file name without the quotes it was typed in, as the replies show it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MemoryHandlers::Unquote (const std::string & text)
+{
+    bool  isQuoted = text.size() >= 2 && (text.front() == '"' || text.front() == '\'') && text.back() == text.front();
+
+
+
+    return isQuoted ? text.substr (1, text.size() - 2) : text;
 }
 
 

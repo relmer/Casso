@@ -55,10 +55,19 @@ private:
     static void  ShowSwitches (DebugSession & session, Reply & reply);
     static void  Patch        (DebugSession & session, const DebugCommand & command, Reply & reply);
 
-    static bool  TryPokeRange (IDebugTarget & target, Word first, std::span<const Byte> bytes, Reply & reply);
-    static bool  TryGetFiles  (DebugSession & session, Reply & reply, IFileSystem *& files);
-    static Word  GetLast      (const DebugCommand & command);
-    static Byte  Peek         (IDebugTarget & target, Word address);
+    static MemoryData   MakeWrittenRows (IDebugTarget & target, Word first, size_t count);
+    static bool         TryPokeRange    (IDebugTarget & target, Word first, std::span<const Byte> bytes, Reply & reply);
+    static bool         TryGetFiles     (DebugSession & session, Reply & reply, IFileSystem *& files);
+    static bool         TryGetRange     (const DebugCommand & command, Word & first, Word & last, Reply & reply);
+    static bool         TryReadRange    (IDebugTarget      & target,
+                                         Word                first,
+                                         Word                last,
+                                         const char        * verb,
+                                         std::vector<Byte> & bytes,
+                                         Reply             & reply);
+    static std::string  FormatByteCount (size_t count);
+    static std::string  Unquote         (const std::string & text);
+    static Byte         Peek            (IDebugTarget & target, Word address);
 
     Word  m_nextDump = 0;
 };
