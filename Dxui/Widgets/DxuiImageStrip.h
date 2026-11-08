@@ -146,7 +146,7 @@ private:
     static constexpr float  kLineReachDip     = 4.0f;   // how far the line runs past the pictures
     static constexpr float  kLabelFontDip     = 11.0f;
     static constexpr float  kLabelPadDip      = 3.0f;
-    static constexpr int    kPreviewPadDip    = 4;   // between the preview's frame and its picture
+    static constexpr int    kPreviewPadDip    = 6;   // between the preview's frame and its picture, past the corners' curve
     static constexpr float  kSidePadDip       = 6.0f;
     static constexpr float  kLiveDotDip       = 6.0f;
     static constexpr float  kHoverLineDip     = 1.0f;   // the line at the pointer, thinner than the playhead's

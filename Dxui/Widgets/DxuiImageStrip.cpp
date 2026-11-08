@@ -1158,9 +1158,11 @@ RECT DxuiImageStrip::GetPreviewRectPx() const
 //  DxuiImageStrip::RenderPreview
 //
 //  Popup-local pixels: a frame as a tooltip's, the picture inset by
-//  kPreviewPadDip on the tooltip background, outlined one pixel wide in the
-//  toolbar border color. The outline is drawn by the text renderer that
-//  draws the picture, after it, so the picture never covers it.
+//  kPreviewPadDip on the popup's card, which has the tooltip background and
+//  a floating pane's rounded corners. The card is outlined one pixel wide in
+//  the toolbar border color, along its curve. The padding is wider than the
+//  space the curve cuts from a corner, so the outline never crosses the
+//  picture.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1179,8 +1181,6 @@ void DxuiImageStrip::RenderPreview (
     float                  pad    = 0.0f;
 
 
-
-    UNREFERENCED_PARAMETER (painter);
 
     if (m_previewImage == nullptr || m_popupHost == nullptr)
     {
@@ -1205,14 +1205,7 @@ void DxuiImageStrip::RenderPreview (
     tall   = (float) (placed.bottom - placed.top);
     line   = 1.0f;
 
-    hr = text.FillRect (0.0f,        0.0f,        wide, line, m_previewBorderArgb | 0xFF000000u);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-    hr = text.FillRect (0.0f,        tall - line, wide, line, m_previewBorderArgb | 0xFF000000u);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-    hr = text.FillRect (0.0f,        0.0f,        line, tall, m_previewBorderArgb | 0xFF000000u);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-    hr = text.FillRect (wide - line, 0.0f,        line, tall, m_previewBorderArgb | 0xFF000000u);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    painter.OutlineRoundedRect (0.0f, 0.0f, wide, tall, scaler->ToPxf (DxuiTheme::kOverlayCornerRadiusDip), line, m_previewBorderArgb | 0xFF000000u);
 }
 
 
