@@ -161,6 +161,7 @@ private:
     size_t           CaretFromX      (IDxuiTextRenderer & text, int xPx) const;
     size_t           GetWordBoundary (size_t from, bool forward) const;
     const wchar_t  * GetFace         () const;
+    bool             IsInFront       () const;
 
     enum class CharClass
     {
@@ -274,6 +275,10 @@ private:
     // land on the character under the cursor regardless of scroll.
     // Mutable because Paint() is const but owns the auto-scroll math.
     mutable float         m_scrollPx   = 0.0f;
+
+    // The caret's distance in pixels from the field's left edge at the
+    // last paint, where the menu key opens the edit menu.
+    mutable float         m_caretLeftPx = 0.0f;
 
     // Caret-blink phase anchor (ms, GetTickCount64 base). Seeded on the
     // first paint after focus and reset to 0 on every edit / caret move

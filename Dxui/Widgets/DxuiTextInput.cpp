@@ -665,6 +665,8 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    m_caretLeftPx = padL + caretX - m_scrollPx;
+
     if (m_focused)
     {
         constexpr float    s_kEmptyCaretFactor = 1.3f;
@@ -1353,7 +1355,8 @@ void DxuiTextInput::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler
 //  DxuiTextInput::IsCaretOn
 //
 //  Whether the blinking caret shows now, so a host that repaints on a timer
-//  can repaint only when it turns on or off.
+//  can repaint only when it turns on or off. The caret is off while another
+//  window is in front, as an edit control's is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1365,6 +1368,11 @@ bool DxuiTextInput::IsCaretOn() const
 
 
 
+    if (!IsInFront())
+    {
+        return false;
+    }
+
     // INFINITE means the user disabled caret blinking -- keep it solid.
     if (blinkMs == INFINITE || m_blinkAnchorMs == 0)
     {
@@ -1372,6 +1380,43 @@ bool DxuiTextInput::IsCaretOn() const
     }
 
     return ((((int64_t) GetTickCount64() - m_blinkAnchorMs) / halfMs) % 2) == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextInput::IsInFront
+//
+//  Whether the field's window, or a window it owns such as its edit menu, is
+//  the foreground window. Without a window handle, any window of this
+//  process counts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextInput::IsInFront() const
+{
+    HWND   front   = GetForegroundWindow();
+    HWND   root    = (m_hwnd != nullptr) ? GetAncestor (m_hwnd, GA_ROOT) : nullptr;
+    DWORD  process = 0;
+    bool   inFront = false;
+
+
+
+    if (root == nullptr)
+    {
+        GetWindowThreadProcessId (front, &process);
+        inFront = (process == GetCurrentProcessId());
+    }
+
+    for (HWND window = front; root != nullptr && window != nullptr && !inFront; window = GetWindow (window, GW_OWNER))
+    {
+        inFront = (window == root);
+    }
+
+    return inFront;
 }
 
 
@@ -1576,19 +1621,25 @@ LPCWSTR DxuiTextInput::GetCursorForPoint (POINT clientPx) const
 //
 //  DxuiTextInput::OnKey  (IDxuiControl override)
 //
-//  Down events dispatch to OnKey(vk); Char events dispatch to OnChar.
+//  Down events dispatch to OnKey(vk); Char events dispatch to OnChar. The
+//  menu key and Shift+F10 open the edit menu under the caret.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTextInput::OnKey (const DxuiKeyEvent & ev)
 {
-    bool  handled = false;
+    bool  handled  = false;
+    bool  menuKey  = ev.vk == VK_APPS || (ev.vk == VK_F10 && ev.shift);
 
 
 
     if (ev.kind == DxuiKeyEventKind::Char)
     {
         handled = OnChar ((wchar_t) ev.vk);
+    }
+    else if (ev.kind == DxuiKeyEventKind::Down && menuKey && m_focused && m_enabled)
+    {
+        handled = ShowContextMenu (m_boundsDip.left + (int) m_caretLeftPx, m_boundsDip.bottom);
     }
     else if (ev.kind == DxuiKeyEventKind::Down)
     {
