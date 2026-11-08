@@ -160,7 +160,9 @@
     <ClCompile Include="CpuIrqTests.cpp" />
     <ClCompile Include="AddressingModeTests.cpp" />
     <ClCompile Include="OpcodeTableTests.cpp" />
+    <ClCompile Include="DebuggerTests\DirectoryCommandTests.cpp" />
     <ClCompile Include="DebuggerTests\DisassemblerTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiskCommandTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorListing1979Tests.cpp" />
     <ClCompile Include="DebuggerTests\LineAssemblerTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugExpressionEvaluatorTests.cpp" />
@@ -198,7 +200,9 @@
     <ClCompile Include="DebuggerTests\TraceTests.cpp" />
     <ClCompile Include="DebuggerTests\TraceHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchHandlersTests.cpp" />
-    <ClCompile Include="DebuggerTests\ConfigHandlersTests.cpp" />
+    <ClCompile Include="DebuggerTests\SaveConfigTests.cpp" />
+    <ClCompile Include="DebuggerTests\ScriptCommandTests.cpp" />
+    <ClCompile Include="DebuggerTests\SessionSettingTests.cpp" />
     <ClCompile Include="DebuggerTests\SymbolFileReaderTests.cpp" />
     <ClCompile Include="DebuggerTests\RomSymbolsTests.cpp" />
     <ClCompile Include="DebuggerTests\SymbolHandlersTests.cpp" />

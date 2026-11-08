@@ -52,6 +52,9 @@ public:
     //  What goes ahead of a Casso command's name in the mode: "/", "!" or "".
     static const char            * GetMarker      (CommandMode mode);
 
+    //  The mode's help command as it is typed: HELP, /HELP, help or .help.
+    static const char            * GetHelpCommand (CommandMode mode);
+
     //  Whether the mode runs a Casso command -- a name or alias from the
     //  AppleWin command table -- typed after its marker.
     static bool                    IsCassoCommandReachable (CommandMode mode, const std::string & name);
@@ -59,9 +62,10 @@ public:
     //  HELP with no word: the lines it prints.
     static std::vector<std::string>  BuildHelp    (CommandMode mode);
 
-    //  HELP word: the line describing it, or, for a Casso command the mode
-    //  cannot run, which modes run it. False for a word that is no command.
-    static bool                    TryDescribe    (CommandMode mode, const std::string & word, std::string & line);
+    //  HELP word: the line describing it; for a Casso command the mode has
+    //  forms of its own for, a line for each form; for one it cannot run,
+    //  which modes run it. False for a word that is no command.
+    static bool                    TryDescribe    (CommandMode mode, const std::string & word, std::vector<std::string> & lines);
 
 private:
     struct Row
@@ -72,10 +76,14 @@ private:
     };
 
     static bool         IsCoveredByMode   (CommandMode mode, const std::string & cassoName);
+    static bool         IsCassoNameIn     (const char * cassoNames, const std::string & cassoName);
     static bool         IsWordOfMode      (CommandMode mode, const std::string & name);
     static bool         IsHexWord         (const std::string & name);
     static std::string  GetShownSyntax    (CommandMode mode, const CassoCommandReference::Entry & entry);
     static std::string  GetModesThatRun   (const std::string & name);
     static void         AppendSection     (const std::string & heading, std::vector<Row> rows, size_t width, std::vector<std::string> & lines);
     static std::string  ToUpper           (const std::string & text);
+
+    //  HELP word for a word that is only another mode's.
+    static bool         TryDescribeOtherModesWord (CommandMode mode, const std::string & word, std::vector<std::string> & lines);
 };

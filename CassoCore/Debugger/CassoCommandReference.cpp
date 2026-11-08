@@ -198,7 +198,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "CD",          H::SessionAndSettings, "CD dir",                                         "Change the current directory"                                                            },
     { "ECHO",        H::SessionAndSettings, "ECHO text",                                      "Print text"                                                                              },
     { "HELP",        H::SessionAndSettings, "HELP [command]",                                 "List the commands, or describe one"                                                      },
-    { "LOAD",        H::SessionAndSettings, "LOAD file",                                      "Run a script of commands, such as one SAVE wrote"                                        },
+    { "LOAD",        H::SessionAndSettings, "LOAD file",                                      "Run a script of AppleWin commands, such as one SAVE wrote"                               },
     { "LOG",         H::SessionAndSettings, "LOG [level]",                                    "Show or set which notifications print"                                                   },
     { "MODE",        H::SessionAndSettings, "MODE [mode]",                                    "Show or set the command mode, which sets the output too"                                 },
     { "MOTD",        H::SessionAndSettings, "MOTD",                                           "Show the message of the day"                                                             },

@@ -40,15 +40,17 @@ static constexpr CommandModeHelp::Entry  s_kMonitor[] =
     { "",       C::Memory,             "value<first.lastS", "Search first..last for value",                       "S SH"   },
     { "R",      C::Memory,             "first.lastR name",  "Read a file into first..last",                       "BLOAD"  },
     { "W",      C::Memory,             "first.lastW name",  "Write first..last to a file",                        "BSAVE"  },
-    { "",       C::RegistersAndFlags,  "Ctrl+E",            "Show the registers; a : after it changes them",      "R"      },
+    { "",       C::RegistersAndFlags,  "^E",                "Show the registers; a : after it changes them",      "R"      },
     { "!",      C::DisassemblyAndData, "!",                 "Enter the mini-assembler",                           "A"      },
     { "I",      C::DisplayAndPanels,   "I",                 "Inverse text",                                       ""       },
     { "N",      C::DisplayAndPanels,   "N",                 "Normal text",                                        ""       },
-    { "",       C::SessionAndSettings, "slot Ctrl+K",       "Take input from a slot",                             ""       },
-    { "",       C::SessionAndSettings, "slot Ctrl+P",       "Send output to a slot",                              ""       },
-    { "",       C::RunningAndStepping, "Ctrl+B",            "BASIC cold start",                                   ""       },
-    { "",       C::RunningAndStepping, "Ctrl+C",            "BASIC warm start",                                   ""       },
-    { "",       C::RunningAndStepping, "Ctrl+Y",            "Jump through the user vector at $03F8",              ""       },
+    { "",       C::SessionAndSettings, "slot^K",            "Take input from a slot",                             ""       },
+    { "",       C::SessionAndSettings, "slot^P",            "Send output to a slot",                              ""       },
+    { "",       C::RunningAndStepping, "^B",                "BASIC cold start",                                   ""       },
+    { "",       C::RunningAndStepping, "^C",                "BASIC warm start",                                   ""       },
+    { "",       C::RunningAndStepping, "^Y",                "Jump through the user vector at $03F8",              ""       },
+    { "+",      C::SessionAndSettings, "value+value",       "Add two values, keeping the low byte",               ""       },
+    { "-",      C::SessionAndSettings, "value-value",       "Subtract two values, keeping the low byte",          ""       },
 };
 
 
@@ -85,7 +87,7 @@ static constexpr CommandModeHelp::Entry  s_kGSSquared[] =
     { "o",       C::RunningAndStepping, "o",                        "Step over",                                          "P"             },
     { "r",       C::RunningAndStepping, "r",                        "Step out",                                           "RTS"           },
     { "g",       C::RunningAndStepping, "g, or Return",             "Run",                                                "G"             },
-    { "help",    C::SessionAndSettings, "help [word]",              "This list, or one command",                          "HELP ?"        },
+    { "help",    C::SessionAndSettings, "help",                     "List the commands",                                  "HELP"          },
 };
 
 
@@ -115,6 +117,7 @@ static constexpr CommandModeHelp::Entry  s_kWinDbg[] =
     { "r",        C::RegistersAndFlags,  "r [reg[=value]]",   "Show or change the registers",                "R"             },
     { "db",       C::Memory,             "db addr [l n]",     "Show bytes",                                  "D"             },
     { "dw",       C::Memory,             "dw addr [l n]",     "Show words",                                  "D"             },
+    { "dd",       C::Memory,             "dd addr [l n]",     "Show double words",                           "D"             },
     { "da",       C::Memory,             "da addr [l n]",     "Show text",                                   "D"             },
     { "eb",       C::Memory,             "eb addr bb bb ...", "Store bytes",                                 "ME MEB"        },
     { "ew",       C::Memory,             "ew addr ww ...",    "Store words",                                 "MEW"           },
@@ -127,7 +130,8 @@ static constexpr CommandModeHelp::Entry  s_kWinDbg[] =
     { "x",        C::SymbolsAndSource,   "x name",            "Look up a symbol",                            "SYM"           },
     { "?",        C::SessionAndSettings, "? expr",            "Evaluate an expression",                      "CALC"          },
     { ".formats", C::SessionAndSettings, ".formats expr",     "Show a value in every base",                  "CALC"          },
-    { "l+s",      C::SymbolsAndSource,   "l+s, l-s",          "Show or hide source lines",                   "SRC"           },
+    { "l+s",      C::SymbolsAndSource,   "l+s",               "Step by source line",                         "SRC"           },
+    { "l-s",      C::SymbolsAndSource,   "l-s",               "Step by instruction",                         "SRC"           },
     { "lsa",      C::SymbolsAndSource,   "lsa",               "Show the source line at the PC",              "SRC"           },
     { ".help",    C::SessionAndSettings, ".help [word]",      "This list, or one command",                   "HELP ?"        },
 };
@@ -370,54 +374,141 @@ std::vector<std::string> CommandModeHelp::BuildHelp (CommandMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandModeHelp::TryDescribe
+//  CommandModeHelp::GetHelpCommand
 //
-//  The mode's own word first, then a Casso command it runs. A Casso command
-//  it cannot run is answered with the modes that can, never described as if
-//  it ran here.
+//  How the mode asks for help: Monitor mode reaches HELP through its slash,
+//  as it reaches every AppleWin command.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CommandModeHelp::TryDescribe (CommandMode mode, const std::string & word, std::string & line)
+const char * CommandModeHelp::GetHelpCommand (CommandMode mode)
 {
-    const Entry                          * own       = Find (mode, word);
-    const CassoCommandReference::Entry   * reference = CassoCommandReference::Find (word);
-    const AppleWinCommand                * command   = AppleWinCommandTable::Find (word);
-    std::string                            upper     = ToUpper (word);
+    switch (mode)
+    {
+    case CommandMode::Monitor:   return "/HELP";
+    case CommandMode::GSSquared: return "help";
+    case CommandMode::WinDbg:    return ".help";
+    default:                     return "HELP";
+    }
+}
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::TryDescribe
+//
+//  The mode's own word first, then a Casso command it runs. A word written
+//  with the mode's marker, as help lists it (`/W`, `!DB`), is the Casso
+//  command and never the mode's own word of the same letters. A Casso command
+//  the mode has forms of its own for is answered with those forms, and one it
+//  cannot run at all with the modes that can; neither is described as if it
+//  ran here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandModeHelp::TryDescribe (CommandMode mode, const std::string & word, std::vector<std::string> & lines)
+{
+    std::string                            marker    = GetMarker (mode);
+    bool                                   isMarked  = !marker.empty() && word.size() > marker.size() && word.starts_with (marker);
+    std::string                            name      = isMarked ? word.substr (marker.size()) : word;
+    const Entry                          * own       = isMarked ? nullptr : Find (mode, word);
+    const CassoCommandReference::Entry   * reference = CassoCommandReference::Find (name);
+    const AppleWinCommand                * command   = AppleWinCommandTable::Find (name);
+    std::string                            upper     = ToUpper (name);
+
+
+
+    lines.clear();
 
     if (own != nullptr)
     {
-        line = std::format ("{}: {}", own->syntax, own->description);
+        lines.push_back (std::format ("{}: {}", own->syntax, own->description));
         return true;
     }
 
     if (command == nullptr)
     {
-        return false;
+        return TryDescribeOtherModesWord (mode, name, lines);
     }
 
-    if (reference != nullptr && IsCassoCommandReachable (mode, word))
+    if (reference != nullptr && IsCassoCommandReachable (mode, name))
     {
-        line = std::format ("{}: {}", GetShownSyntax (mode, *reference), reference->description);
+        lines.push_back (std::format ("{}: {}", GetShownSyntax (mode, *reference), reference->description));
         return true;
     }
 
     if (command->availability == CommandAvailability::NotAvailable && command->reason != nullptr)
     {
-        line = std::format ("{}: {}", upper, command->reason);
+        lines.push_back (std::format ("{}: {}", upper, command->reason));
         return true;
     }
 
     //  A name AppleWin's scripts use that has no effect in Casso.
     if (reference == nullptr)
     {
-        line = std::format ("{}: not available in Casso", upper);
+        lines.push_back (std::format ("{}: not available in Casso", upper));
         return true;
     }
 
-    line = std::format ("{} does not run in {} mode. It runs in {}.", upper, GetTitle (mode), GetModesThatRun (word));
+    for (const Entry & entry : GetEntries (mode))
+    {
+        if (IsCassoNameIn (entry.casso, reference->name))
+        {
+            lines.push_back (std::format ("{}: {}", entry.syntax, entry.description));
+        }
+    }
+
+    if (lines.empty())
+    {
+        lines.push_back (std::format ("{} does not run in {} mode. It runs in {}.", upper, GetTitle (mode), GetModesThatRun (name)));
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::TryDescribeOtherModesWord
+//
+//  A word that is no Casso command but is another mode's own, such as
+//  GSSquared's `nobp` asked about in AppleWin mode: which modes have it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandModeHelp::TryDescribeOtherModesWord (CommandMode mode, const std::string & word, std::vector<std::string> & lines)
+{
+    std::vector<std::string>  modes;
+    std::string               list;
+
+
+
+    for (CommandMode other : s_kModes)
+    {
+        if (other != mode && Find (other, word) != nullptr)
+        {
+            modes.push_back (GetTitle (other));
+        }
+    }
+
+    if (modes.empty())
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < modes.size(); i++)
+    {
+        list += (i == 0) ? "" : (i + 1 == modes.size()) ? " and " : ", ";
+        list += modes[i];
+    }
+
+    lines.push_back (std::format ("{} does not run in {} mode. It runs in {} mode{}.", ToUpper (word), GetTitle (mode), list, modes.size() == 1 ? "" : "s"));
     return true;
 }
 
@@ -437,15 +528,39 @@ bool CommandModeHelp::IsCoveredByMode (CommandMode mode, const std::string & cas
 {
     for (const Entry & entry : GetEntries (mode))
     {
-        std::istringstream  names (entry.casso);
-        std::string         each;
-
-        while (names >> each)
+        if (IsCassoNameIn (entry.casso, cassoName))
         {
-            if (_stricmp (each.c_str(), cassoName.c_str()) == 0)
-            {
-                return true;
-            }
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::IsCassoNameIn
+//
+//  Whether an entry's space-separated Casso names include the name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandModeHelp::IsCassoNameIn (const char * cassoNames, const std::string & cassoName)
+{
+    std::istringstream  names (cassoNames);
+    std::string         each;
+
+
+
+    while (names >> each)
+    {
+        if (_stricmp (each.c_str(), cassoName.c_str()) == 0)
+        {
+            return true;
         }
     }
 

@@ -29,9 +29,9 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     {
     case DebugVerb::PrintDirectory:       PrintDirectory  (session, reply);          return true;
     case DebugVerb::ChangeDirectory:      ChangeDirectory (session, command, reply); return true;
-    case DebugVerb::RunScript:
-    case DebugVerb::LoadConfig:           RunFile         (session, command.text, reply);  return true;
-    case DebugVerb::RunStartup:           RunFile         (session, kStartupScript, reply); return true;
+    case DebugVerb::RunScript:            RunFile         (session, command.text, std::nullopt, reply);        return true;
+    case DebugVerb::LoadConfig:           RunFile         (session, command.text, CommandMode::AppleWin, reply); return true;
+    case DebugVerb::RunStartup:           RunFile         (session, kStartupScript, std::nullopt, reply);      return true;
     case DebugVerb::SaveConfig:           SaveAll         (session, command, reply); return true;
     case DebugVerb::ConfigureDisassembly: Disassembly     (command, reply);          return true;
     case DebugVerb::DiskCommand:          Disk            (session, command, reply); return true;
@@ -42,12 +42,9 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     case DebugVerb::Calculate:            reply.data = CalcData { command.a1 };      return true;
     case DebugVerb::Help:                 Help            (session, command, reply); return true;
     case DebugVerb::ShowVersion:          reply.data = MessageData { { "Casso " VERSION_STRING } }; return true;
+    case DebugVerb::ShowMessageOfTheDay:  MessageOfTheDay (session, reply);          return true;
     case DebugVerb::ShowOutputFormat:
     case DebugVerb::SetOutputFormat:      Output          (session, command, reply); return true;
-
-    case DebugVerb::ShowMessageOfTheDay:
-        reply.data = MessageData { { "Casso debugger. Use HELP to list the commands, or MODE MONITOR to switch to Apple II Monitor syntax." } };
-        return true;
 
     //  Device panels are the window's; the window runs PANEL itself, so any
     //  PANEL that reaches here came from batch or the pipe.
@@ -70,22 +67,41 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
 //
 //  ConfigHandlers::RunScript
 //
+//  Each line executed in turn, in the given mode or else the session's, and
+//  its reply's text collected. A byte-order mark is not part of the first
+//  line. A line whose first non-blank character is ; is a comment; a blank
+//  line is skipped, as batch skips it, except in the line assembler, where it
+//  ends the assembly. The end of the script ends an assembly it left open, so
+//  the next line typed is a command again rather than source.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void ConfigHandlers::RunScript (DebugSession & session, const std::string & content, MessageData & output)
+void ConfigHandlers::RunScript (
+    DebugSession                & session,
+    const std::string           & content,
+    std::optional<CommandMode>    mode,
+    MessageData                 & output,
+    ScriptOutcome               & outcome)
 {
-    size_t  start = 0;
+    static constexpr std::string_view  kByteOrderMark = "\xEF\xBB\xBF";
+    size_t                             start          = content.starts_with (kByteOrderMark) ? kByteOrderMark.size() : 0;
+    int                                number         = 0;
+    Reply                              ending;
 
 
 
     while (start <= content.size())
     {
-        size_t       end  = content.find ('\n', start);
-        std::string  line = content.substr (start, end == std::string::npos ? std::string::npos : end - start);
+        size_t       end           = content.find ('\n', start);
+        std::string  line          = content.substr (start, end == std::string::npos ? std::string::npos : end - start);
         size_t       firstNonBlank = line.find_first_not_of (" \t\r");
+        bool         isBlank       = firstNonBlank == std::string::npos;
+        bool         isFailure     = false;
         Reply        reply;
 
 
+
+        ++number;
 
         if (!line.empty() && line.back() == '\r')
         {
@@ -97,11 +113,19 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
             break;
         }
 
-        if (firstNonBlank == std::string::npos || line[firstNonBlank] != ';')
+        if ((!isBlank || session.IsAssembling()) && (isBlank || line[firstNonBlank] != ';'))
         {
-            reply = session.ExecuteLine (line);
+            reply = mode.has_value() ? session.ExecuteLine (line, *mode) : session.ExecuteLine (line);
             session.FormatReply (reply);
             output.lines.insert (output.lines.end(), reply.text.begin(), reply.text.end());
+
+            isFailure = reply.status == CommandStatus::Error || reply.status == CommandStatus::Unknown;
+        }
+
+        if (isFailure)
+        {
+            outcome.firstFailedLine = (outcome.failed == 0) ? number : outcome.firstFailedLine;
+            ++outcome.failed;
         }
 
         if (end == std::string::npos)
@@ -110,6 +134,13 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
         }
 
         start = end + 1;
+    }
+
+    if (session.IsAssembling())
+    {
+        ending = session.ExecuteLine (std::string());
+        session.FormatReply (ending);
+        output.lines.insert (output.lines.end(), ending.text.begin(), ending.text.end());
     }
 }
 
@@ -146,13 +177,18 @@ void ConfigHandlers::PrintDirectory (DebugSession & session, Reply & reply)
 
 void ConfigHandlers::ChangeDirectory (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    if (command.text.empty())
+    std::wstring  directory = session.ResolvePath (command.text);
+
+
+
+    //  Empty quotes are no directory either.
+    if (directory.empty())
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", "CD takes a directory.");
         return;
     }
 
-    session.SetCurrentDirectory (session.ResolvePath (command.text));
+    session.SetCurrentDirectory (directory);
     PrintDirectory (session, reply);
 }
 
@@ -164,14 +200,21 @@ void ConfigHandlers::ChangeDirectory (DebugSession & session, const DebugCommand
 //
 //  ConfigHandlers::RunFile
 //
+//  A script whose lines all ran replies with their text. One with a line that
+//  failed replies with the same text and fails itself, so batch's exit status
+//  and a channel client see the failure; the error says which line. A script
+//  that runs scripts that run it would otherwise recurse until the stack ran
+//  out, so nesting stops at kMaxScriptDepth.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, Reply & reply)
+void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, std::optional<CommandMode> mode, Reply & reply)
 {
-    IFileSystem  * files = session.GetFileSystem();
-    std::string    content;
-    MessageData    output;
-    HRESULT        hr    = S_OK;
+    IFileSystem    * files = session.GetFileSystem();
+    std::string      content;
+    MessageData      output;
+    ScriptOutcome    outcome;
+    HRESULT          hr    = S_OK;
 
 
 
@@ -187,6 +230,13 @@ void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, 
         return;
     }
 
+    if (m_scriptDepth >= kMaxScriptDepth)
+    {
+        reply.SetError (CommandStatus::Error, "scripts nested too deep",
+                        std::format ("RUN, LOAD and STARTUP nest at most {} deep.", kMaxScriptDepth));
+        return;
+    }
+
     hr = files->ReadAllText (session.ResolvePath (name), content);
 
     if (FAILED (hr))
@@ -195,8 +245,20 @@ void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, 
         return;
     }
 
-    RunScript (session, content, output);
-    reply.data = output;
+    ++m_scriptDepth;
+    RunScript (session, content, mode, output, outcome);
+    --m_scriptDepth;
+
+    if (outcome.failed == 0)
+    {
+        reply.data = output;
+        return;
+    }
+
+    reply.text = output.lines;
+    reply.SetError (CommandStatus::Error, "script failed",
+                    outcome.failed == 1 ? std::format ("Line {} of {} failed.", outcome.firstFailedLine, name)
+                                        : std::format ("{} lines of {} failed, the first at line {}.", outcome.failed, name, outcome.firstFailedLine));
 }
 
 
@@ -256,7 +318,7 @@ void ConfigHandlers::SaveAll (DebugSession & session, const DebugCommand & comma
 //  ConfigHandlers::Disassembly
 //
 //  DISASM lists the settings, DISASM name shows one, DISASM name 0|1 sets
-//  it. The disassembly views read them.
+//  it. They last as long as the session; no disassembly reads them yet.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -461,19 +523,21 @@ void ConfigHandlers::Print (DebugSession & session, const DebugCommand & command
 //
 //  PRINTF "format"[,expr]: %x and %X give four hex digits, %d decimal, %z
 //  eight binary digits, %c the character, %% a percent sign, and \n ends a
-//  line.
+//  line. A conversion letter is checked before an expression is taken for
+//  it, so a bad one is reported as bad whether or not an expression is left.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    std::vector<std::string>  items;
-    std::string               format;
-    std::string               line;
-    std::string               error;
-    MessageData               message;
-    size_t                    next  = 1;
-    Word                      value = 0;
+    static constexpr std::string_view  kConversions = "XDZC";
+    std::vector<std::string>           items;
+    std::string                        format;
+    std::string                        line;
+    std::string                        error;
+    MessageData                        message;
+    size_t                             next  = 1;
+    Word                               value = 0;
 
 
 
@@ -487,8 +551,9 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
 
     for (size_t i = 0; i < format.size(); ++i)
     {
-        char  ch   = format[i];
-        char  spec = (i + 1 < format.size()) ? format[i + 1] : '\0';
+        char  ch     = format[i];
+        char  spec   = (i + 1 < format.size()) ? format[i + 1] : '\0';
+        char  letter = (char) toupper ((unsigned char) spec);
 
 
 
@@ -514,24 +579,32 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
             continue;
         }
 
-        if (next >= items.size() || !TryEvaluate (session, items[next], value, error))
+        if (spec == '\0' || kConversions.find (letter) == std::string_view::npos)
         {
-            reply.SetError (CommandStatus::Error, "invalid arguments",
-                            error.empty() ? "PRINTF has more conversions than expressions." : error);
+            reply.SetError (CommandStatus::Error, "invalid arguments", "PRINTF conversions are %x, %d, %z, %c and %%.");
+            return;
+        }
+
+        if (next >= items.size())
+        {
+            reply.SetError (CommandStatus::Error, "invalid arguments", "PRINTF has more conversions than expressions.");
+            return;
+        }
+
+        if (!TryEvaluate (session, items[next], value, error))
+        {
+            reply.SetError (CommandStatus::Error, "invalid arguments", error);
             return;
         }
 
         ++next;
 
-        switch (toupper ((unsigned char) spec))
+        switch (letter)
         {
         case 'X': line += std::format ("{:04X}", value);        break;
         case 'D': line += std::format ("{}", value);            break;
         case 'Z': line += std::format ("{:08b}", (Byte) value); break;
-        case 'C': line += (char) value;                         break;
-        default:
-            reply.SetError (CommandStatus::Error, "invalid arguments", "PRINTF conversions are %x, %d, %z, %c and %%.");
-            return;
+        default:  line += GetPrintable (value);                 break;
         }
     }
 
@@ -545,34 +618,66 @@ void ConfigHandlers::PrintFormatted (DebugSession & session, const DebugCommand 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ConfigHandlers::GetPrintable
+//
+//  %c's character: the low byte with its high bit dropped, as Apple II text
+//  sets it, and a period for a control character, as a memory dump shows
+//  one. The raw byte could be half of no UTF-8 character, which a console
+//  and a JSON record both mangle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+char ConfigHandlers::GetPrintable (Word value)
+{
+    static constexpr Byte  kLowBits    = 0x7F;
+    static constexpr Byte  kFirstPrint = 0x20;
+    static constexpr Byte  kDelete     = 0x7F;
+    Byte                   ch          = (Byte) (value & kLowBits);
+
+
+
+    return (ch < kFirstPrint || ch == kDelete) ? '.' : (char) ch;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ConfigHandlers::Help
 //
 //  HELP alone lists what can be typed in the session's mode; HELP name
 //  describes one command, or says which modes run a Casso command this one
-//  cannot.
+//  cannot. Only the first word is the name; anything after it is ignored, as
+//  it is after a command that takes no arguments.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ConfigHandlers::Help (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    CommandMode  mode = session.GetMode();
-    std::string  text;
+    CommandMode               mode = session.GetMode();
+    std::istringstream        stream (command.text);
+    std::string               word;
+    std::vector<std::string>  lines;
 
 
 
-    if (command.text.empty())
+    stream >> word;
+
+    if (word.empty())
     {
         reply.data = MessageData { CommandModeHelp::BuildHelp (mode) };
         return;
     }
 
-    if (!CommandModeHelp::TryDescribe (mode, command.text, text))
+    if (!CommandModeHelp::TryDescribe (mode, word, lines))
     {
-        reply.SetError (CommandStatus::Unknown, "unknown command", std::format ("{} is not a command.", ToUpper (command.text)));
+        reply.SetError (CommandStatus::Unknown, "unknown command", std::format ("{} is not a command.", ToUpper (word)));
         return;
     }
 
-    reply.data = MessageData { { text } };
+    reply.data = MessageData { lines };
 }
 
 
@@ -663,17 +768,32 @@ bool ConfigHandlers::TryUnquote (const std::string & item, std::string & text)
 //
 //  ConfigHandlers::TryEvaluate
 //
+//  A value outside 16 bits is an error, as it is for CALC, rather than the
+//  low 16 bits printed as though they were the value.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ConfigHandlers::TryEvaluate (DebugSession & session, const std::string & text, Word & value, std::string & error)
 {
-    int32_t  result = 0;
-    HRESULT  hr     = DebugExpressionEvaluator::ParseAndEvaluate (text, session, result, error);
+    static constexpr int32_t  kMaxWord = 0xFFFF;
+    int32_t                   result   = 0;
+    HRESULT                   hr       = DebugExpressionEvaluator::ParseAndEvaluate (text, session, result, error);
 
 
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    if (result < 0 || result > kMaxWord)
+    {
+        error = std::format ("{} is outside $0000-$FFFF.", text);
+        return false;
+    }
 
     value = (Word) result;
-    return SUCCEEDED (hr);
+    return true;
 }
 
 
@@ -721,4 +841,30 @@ void ConfigHandlers::Output (DebugSession & session, const DebugCommand & comman
     }
 
     reply.data = MessageData { { "Output: " + CommandModeNames::GetUpperName (session.GetOutputFormat()) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConfigHandlers::MessageOfTheDay
+//
+//  The help and MODE commands as the session's mode types them, so the line
+//  works when it is typed back. Monitor mode is offered AppleWin's syntax,
+//  and every other mode the Monitor's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConfigHandlers::MessageOfTheDay (DebugSession & session, Reply & reply)
+{
+    CommandMode  mode      = session.GetMode();
+    bool         isMonitor = mode == CommandMode::Monitor;
+    std::string  target    = isMonitor ? "APPLEWIN to switch to AppleWin" : "MONITOR to switch to Apple II Monitor";
+
+
+
+    reply.data = MessageData { { std::format ("Casso debugger. Use {} to list the commands, or {}MODE {} syntax.",
+                                              CommandModeHelp::GetHelpCommand (mode), CommandModeHelp::GetMarker (mode), target) } };
 }
