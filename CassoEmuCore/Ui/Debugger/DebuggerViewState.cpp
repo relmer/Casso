@@ -448,8 +448,8 @@ void DebuggerViewState::BuildCodeViews (DebugSession & session, DebuggerViewSnap
         {
             snapshot.codeViews[(size_t) view]  = BuildCode (session, snapshot, view);
             snapshot.codeOpen[(size_t) view]   = true;
-            snapshot.codeSelect[(size_t) view] = m_code[(size_t) view].selectOn;
-            m_code[(size_t) view].selectOn.reset();
+            snapshot.codeSelect[(size_t) view]       = m_code[(size_t) view].selectOn;
+            snapshot.codeSelectSerial[(size_t) view] = m_code[(size_t) view].selectSerial;
         }
     }
 }

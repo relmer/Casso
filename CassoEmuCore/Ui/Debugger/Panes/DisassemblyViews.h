@@ -260,7 +260,7 @@ private:
     ByteChanges                                           m_changes;
     std::string                                           m_machine;
 
-    //  The snapshot each view last took an asked selection from, so applying
-    //  the view again doesn't select it again over the user's.
-    std::array<const DebuggerViewSnapshot *, DebuggerViewState::kMaxCodeViews>  m_askedFrom = {};
+    //  The serial of the request each view last applied, so a rebuild of the
+    //  view doesn't select the row again over the user's selection.
+    std::array<uint32_t, DebuggerViewState::kMaxCodeViews>  m_askedSerial = {};
 };

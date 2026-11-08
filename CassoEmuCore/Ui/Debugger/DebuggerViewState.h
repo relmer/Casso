@@ -306,9 +306,12 @@ struct DebuggerViewSnapshot
     std::array<bool, 4>                   codeOpen      = {};
     int                                   followView    = 0;
 
-    //  An instruction to select in a view, in this snapshot only, as Show
-    //  last writer and Show last reader ask.
-    std::array<std::optional<Word>, 4>    codeSelect    = {};
+    //  The instruction to select in each view, set by the heat map's
+    //  last-writer and last-reader menu rows, and a count that rises with
+    //  each request, so a view selects each one once, in the first snapshot
+    //  that contains it.
+    std::array<std::optional<Word>, 4>    codeSelect       = {};
+    std::array<uint32_t, 4>               codeSelectSerial = {};
     std::vector<RegisterRow>              registers;
     std::string                           flags;
     std::optional<BeamState>              beam;
@@ -590,7 +593,7 @@ public:
     //  middle as the top of memory allows. Every navigation goes through
     //  here, so what was asked for is never on an edge.
     void  CenterCodeOn     (Word address, int view = 0) { m_code[(size_t) view].centerOn = address; m_code[(size_t) view].scrollLines = 0; }
-    void  SelectCodeAt     (Word address, int view = 0) { CenterCodeOn (address, view); m_code[(size_t) view].selectOn = address; }
+    void  SelectCodeAt     (Word address, int view = 0) { CenterCodeOn (address, view); m_code[(size_t) view].selectOn = address; m_code[(size_t) view].selectSerial++; }
 
     //  Scrolls a code view by instructions, down when positive, up when
     //  negative, through the whole address space.
@@ -1028,6 +1031,7 @@ private:
         bool                     centerOnPc   = false;
         std::optional<Word>      centerOn;
         std::optional<Word>      selectOn;
+        uint32_t                 selectSerial = 0;
         int                      scrollLines  = 0;
         std::optional<uint64_t>  scrolledAtMs;
         bool                     isMenuHeld   = false;

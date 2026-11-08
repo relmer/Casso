@@ -579,8 +579,8 @@ namespace DebuggerCodeMenuTests
 
 
         //  Show last writer's snapshot asks the view to select the writer's
-        //  instruction, and its row is selected; the next snapshot asks
-        //  nothing and the row is selected after it.
+        //  instruction, and its row is selected and the view focused; a
+        //  later snapshot with the same request selects nothing.
         TEST_METHOD (ASnapshotsAskedInstructionIsSelected)
         {
             CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
@@ -588,6 +588,7 @@ namespace DebuggerCodeMenuTests
             MenuWindow         window   (theme, host);
             DxuiDpiScaler      scaler;
             auto               asked    = MakeSnapshot();
+            auto               again    = MakeSnapshot();
 
 
 
@@ -595,14 +596,24 @@ namespace DebuggerCodeMenuTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            asked->codeSelect[0] = 0x0302;
+            asked->codeSelect[0]       = 0x0302;
+            asked->codeSelectSerial[0] = 1;
             window.TakeSnapshot (asked);
             window.ApplyCodeSnapshot (asked, 0);
             Assert::AreEqual (1, window.GetCodeList (0)->GetSelectedRow(), L"the JSR's row");
+            Assert::IsTrue   (window.GetCodeList (0)->IsListFocused(), L"the view has the focus");
 
-            window.TakeSnapshot (MakeSnapshot());
-            window.ApplyCodeSnapshot (MakeSnapshot(), 0);
-            Assert::AreEqual (1, window.GetCodeList (0)->GetSelectedRow(), L"the JSR's row after the next snapshot");
+            again                      = MakeSnapshot();
+            again->codeSelect[0]       = 0x0300;
+            again->codeSelectSerial[0] = 1;
+            window.TakeSnapshot (again);
+            window.ApplyCodeSnapshot (again, 0);
+            Assert::AreEqual (1, window.GetCodeList (0)->GetSelectedRow(), L"a request already applied selects nothing");
+
+            again->codeSelectSerial[0] = 2;
+            window.TakeSnapshot (again);
+            window.ApplyCodeSnapshot (again, 0);
+            Assert::AreEqual (0, window.GetCodeList (0)->GetSelectedRow(), L"a new request selects its row");
         }
 
 
