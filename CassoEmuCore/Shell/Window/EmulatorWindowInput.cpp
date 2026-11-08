@@ -1748,7 +1748,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
             // A browse opened from the strip pins it (the FSM must not
             // auto-hide under the dialog).
-            m_scene->m_stripBrowseOpen = inStrip;
+            m_scene->m_stripBrowseOpen = inStrip || IsDeskSlideActive();
             m_disks->BrowseForDisk (sceneHit.driveIndex,
                                     inStrip ? &m_scene->m_stripComp.driveRectPx[sceneHit.driveIndex]
                                             : &m_scene->m_deskScene.Composition().driveRectPx[sceneHit.driveIndex]);
@@ -1760,7 +1760,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         // The labels under the recorder: its counter sets the position and
         // its name picks a tape, as on the flat deck -- on the strip too,
         // which a dialog opened from it pins, as a drive's browse does.
-        m_scene->m_stripBrowseOpen = inStrip;
+        m_scene->m_stripBrowseOpen = inStrip || IsDeskSlideActive();
 
         if (PtInRect (&m_scene->m_sceneTapeCounterRect, pt))
         {
