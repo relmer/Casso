@@ -37,13 +37,13 @@ std::string CassoLinkPacketText::Describe (Byte command, std::span<const Byte> p
             return (size >= 1) ? std::format ("Load program: {} pages", payload[0]) : std::string ("Load program");
 
         case CassoLinkCodec::kReadSectors:
-            return (size >= 3) ? std::format ("Read sectors: drive {}, track {}, {}", payload[0], payload[1], GetSectors (payload)) : std::string ("Read sectors");
+            return (size >= 3) ? std::format ("Read sectors: drive {}{}, track {}, {}", payload[0] & ~CassoLinkHost::kQuietDrive, GetQuietText (payload[0]), payload[1], GetSectors (payload)) : std::string ("Read sectors");
 
         case CassoLinkCodec::kWriteSectors:
             return (size >= 3) ? std::format ("Write sectors: drive {}, track {}, {}", payload[0], payload[1], GetSectors (payload)) : std::string ("Write sectors");
 
         case CassoLinkCodec::kReadCrcs:
-            return (size >= 3) ? std::format ("Read sector checksums: drive {}, track {}, {}", payload[0], payload[1], GetSectors (payload)) : std::string ("Read sector checksums");
+            return (size >= 3) ? std::format ("Read sector checksums: drive {}{}, track {}, {}", payload[0] & ~CassoLinkHost::kQuietDrive, GetQuietText (payload[0]), payload[1], GetSectors (payload)) : std::string ("Read sector checksums");
 
         case CassoLinkCodec::kSectorData:
             return (size >= 2) ? std::format ("Sector data: track {}, sector {}", payload[0], payload[1]) : std::string ("Sector data");
@@ -181,6 +181,23 @@ std::string CassoLinkPacketText::GetErrorText (Byte error)
         case CassoLinkHost::kErrorChanged:        return "the directory differs from the one checked";
         default:                                  return std::format ("error {:02X}", error);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkPacketText::GetQuietText
+//
+//  A request's drive marked as a check the PC reports itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkPacketText::GetQuietText (Byte drive)
+{
+    return ((drive & CassoLinkHost::kQuietDrive) != 0) ? std::string (" (check)") : std::string();
 }
 
 

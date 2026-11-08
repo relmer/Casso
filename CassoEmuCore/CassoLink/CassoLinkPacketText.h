@@ -26,5 +26,6 @@ public:
 
 private:
     static std::string  GetSectors   (std::span<const Byte> payload);
+    static std::string  GetQuietText (Byte drive);
     static std::string  GetText      (std::span<const Byte> text);
 };

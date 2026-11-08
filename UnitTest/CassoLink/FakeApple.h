@@ -47,6 +47,8 @@ public:
     std::atomic<int>                  sectorDelayMs  { 0 };
     std::atomic<int>                  sectorsRead    { 0 };
     std::atomic<int>                  catalogReads   { 0 };   // read requests on drive 1's track 17, a DOS 3.3 catalog's
+    std::atomic<int>                  quietReads     { 0 };   // read requests marked as checks the PC reports itself
+    std::atomic<int>                  plainReads     { 0 };   // and the other read requests
     std::atomic<bool>                 speedSet       { false };   // a Set speed has arrived
     std::atomic<int>                  blanksReceived { 0 };       // Write track's sectors of zeros, sent as their numbers
     std::atomic<int>                  sectorsWritten { 0 };
@@ -451,7 +453,7 @@ private:
 
     void  ReadCrcs (Line & line, const std::vector<Byte> & request)
     {
-        int                drive = request.at (0);
+        int                drive = request.at (0) & ~CassoLinkHost::kQuietDrive;
         int                track = request.at (1);
         size_t             count = request.at (2);
         std::vector<Byte>  reply;
@@ -479,7 +481,7 @@ private:
 
     void  ReadSectors (std::stop_token stop, Line & line, const std::vector<Byte> & request)
     {
-        int                drive = request.at (0);
+        int                drive = request.at (0) & ~CassoLinkHost::kQuietDrive;
         int                track = request.at (1);
         size_t             count = request.at (2);
         std::vector<Byte>  wire;
@@ -495,6 +497,15 @@ private:
         if (drive == 1 && track == 17)
         {
             catalogReads++;
+        }
+
+        if ((request.at (0) & CassoLinkHost::kQuietDrive) != 0)
+        {
+            quietReads++;
+        }
+        else
+        {
+            plainReads++;
         }
 
         {
@@ -551,7 +562,7 @@ private:
 
     void  WriteSectors (std::stop_token stop, Line & line, const std::vector<Byte> & request)
     {
-        int                drive = request.at (0);
+        int                drive = request.at (0) & ~CassoLinkHost::kQuietDrive;
         int                track = request.at (1);
         size_t             count = request.at (2);
         CassoLinkPacket    packet;

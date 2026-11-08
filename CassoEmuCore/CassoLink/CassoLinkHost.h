@@ -268,6 +268,14 @@ public:
     void     SetProgress    (Byte start, Byte end) { m_progressStart = start; m_progressEnd = end; }
     Byte     GetProgressEnd () const                { return m_progressEnd; }
 
+    //  Whether the reads that follow are checks the PC reports itself, such as
+    //  its read of each drive's catalog when it connects. Their requests set
+    //  kQuietDrive in the drive, and no error is drawn on the Apple for them.
+    static constexpr Byte  kQuietDrive = 0x80;
+
+    void     SetQuiet       (bool quiet)            { m_quiet = quiet; }
+    bool     IsQuiet        () const                { return m_quiet; }
+
     //  The client acknowledges at the old speed and then switches; the
     //  caller switches the line after this returns.
     HRESULT  SetSpeed     (Byte control);
@@ -337,6 +345,7 @@ private:
     HRESULT  AwaitReady        ();
     HRESULT  ReadReply         (CassoLinkPacket & outPacket);
     HRESULT  WaitForKeyOnce    (const std::vector<std::string> & lines, Byte mode, Byte & outKey);
+    Byte     GetRequestDrive   (Byte drive) const { return m_quiet ? (Byte) (drive | kQuietDrive) : drive; }
     HRESULT  ReadSectorsOnce   (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, std::vector<bool> & outRead, CassoLinkStatus & outStatus);
     HRESULT  ReadCrcsOnce      (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Word> & outCrcs, std::vector<bool> & outRead, CassoLinkStatus & outStatus);
     HRESULT  FormatTrackOnce   (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus, Byte gap);
@@ -404,6 +413,7 @@ private:
     std::atomic<uint64_t>           m_lastHeardMs     { GetTickCount64() };
     Byte                            m_progressStart   = 0;
     Byte                            m_progressEnd     = 0;
+    bool                            m_quiet           = false;
     TraceFn                         m_trace;
     std::string                     m_tracedReady;     // text of the last Ready traced
     bool                            m_faultProgram    = false;

@@ -206,6 +206,8 @@ OPFORMAT = 3
 OPSPEED  = 4
 OPDISK   = 5                    ; a Full Send's pause, on the status row alone
 
+QUIETDRIVE = $80                ; the drive's bit for a check the PC reports itself
+
 ; Errors.
 ERRNONE    = $00
 ERRPROTECT = $10                ; the disk is write-protected
@@ -757,9 +759,12 @@ rdskip: jsr pollcancel
 ; Full Send the error row stays clear: an empty drive's check fails with NO
 ; SECTOR, and the drive's row has EMPTY OR NO RECOGNIZED SECTORS for it. The
 ; same is true of any operation on a drive just marked that way, such as the
-; PC's read of an empty drive's catalog when it connects.
+; PC's read of an empty drive's catalog when it connects, and of a check the PC
+; reports itself.
 opdone: jsr notedisk
         lda fsmode
+        bne odstatus
+        lda quiet
         bne odstatus
         ldx drive
         dex
@@ -790,6 +795,7 @@ ndok:   lda err
 nddone: rts
 
 nodisk: .byte 0, 0
+quiet:  .byte 0                 ; nonzero for a check the PC reports itself
 
 ; Read CRCs: the requested sectors read as for Read sectors, and each one's CRC
 ; sent with a flag for whether it was read. A sector not read isn't an error here,
@@ -1140,7 +1146,9 @@ csbad:  lda #ERRVERIFY
         rts
 ; begin: the operation in A; drive and track from the payload, the sector
 ; count after them. Draw them, start the motor and seek. The carry is set
-; with err when the drive is not 1 or 2.
+; with err when the drive is not 1 or 2. Bit 7 of the drive marks a check the
+; PC reports itself, such as its read of a disk's catalog when it connects:
+; the operation's error is not drawn.
 begin:  sta op
         ifdef FAULTS
         lda fltpend             ; the fault armed for this operation
@@ -1158,6 +1166,10 @@ bgarmed:
         sta idles
         sta misses
         lda PKTBUF
+        and #QUIETDRIVE
+        sta quiet
+        lda PKTBUF
+        and #$7F
         sta drive
         lda PKTBUF+1
         sta track

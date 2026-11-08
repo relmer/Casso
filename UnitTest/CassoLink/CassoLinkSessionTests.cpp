@@ -366,6 +366,35 @@ public:
 
 
 
+    //  A catalog read is a check the PC reports itself, so its requests are
+    //  marked and no error is drawn on the Apple for them. A file's read is the
+    //  user's, and its requests are not marked.
+    TEST_METHOD (Enumerate_MarksItsReadsQuiet_AndReadFileDoesNot)
+    {
+        Rig          rig;
+        FilePayload  payload = Binary (Dos33Volume::kTypeBinary, 1500, 7);
+
+        rig.Start();
+
+        rig.apple.quietReads = 0;
+        rig.apple.plainReads = 0;
+
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
+        Assert::IsTrue   (rig.apple.quietReads > 0, L"the catalog is read");
+        Assert::AreEqual (0, (int) rig.apple.plainReads, L"and only by marked requests");
+
+        AssertSucceeded (rig.Finish (rig.session->WriteFile (1, FilePath::Parse ("NEWFILE"), payload))->result);
+
+        rig.apple.quietReads = 0;
+        rig.apple.plainReads = 0;
+
+        AssertSucceeded (rig.Finish (rig.session->ReadFile (1, FilePath::Parse ("NEWFILE")))->result);
+        Assert::IsTrue   (rig.apple.plainReads > 0, L"a file's read is the user's");
+        Assert::AreEqual (0, (int) rig.apple.quietReads, L"and none of its requests are marked");
+    }
+
+
+
 
     TEST_METHOD (DeleteRenameAndMakeDirectory_OnProDos)
     {

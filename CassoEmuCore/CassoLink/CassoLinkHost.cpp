@@ -245,7 +245,7 @@ HRESULT CassoLinkHost::ReadCrcsOnce (Byte drive, Byte track, std::span<const Byt
 {
     constexpr size_t   kEntryBytes = 3;
     HRESULT            hr          = S_OK;
-    std::vector<Byte>  request     = { drive, track, (Byte) sectors.size() };
+    std::vector<Byte>  request     = { GetRequestDrive (drive), track, (Byte) sectors.size() };
     CassoLinkPacket    packet;
     bool               valid       = false;
 
@@ -349,7 +349,7 @@ HRESULT CassoLinkHost::TimeDrive (Byte drive, Byte track, Byte revolutions, doub
 HRESULT CassoLinkHost::ReadSectorsOnce (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, std::vector<bool> & outRead, CassoLinkStatus & outStatus)
 {
     HRESULT            hr        = S_OK;
-    std::vector<Byte>  request   = { drive, track, (Byte) sectors.size() };
+    std::vector<Byte>  request   = { GetRequestDrive (drive), track, (Byte) sectors.size() };
     CassoLinkPacket    packet;
     std::vector<Byte>  one (kSectorSize);
     Byte               gotTrack  = 0;

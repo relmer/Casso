@@ -41,6 +41,7 @@ public:
     static constexpr Byte      kFastControl = 0x10;     // 115,200 baud
     static constexpr Byte      kTrack       = 17;
     static constexpr size_t    kSector      = 3;
+    static constexpr Word      kRowError    = 0x06A8;   // the program's error row in the text page
 
     struct Rig
     {
@@ -158,6 +159,21 @@ public:
             Assert::AreEqual (S_OK, Run ([&] () { return host->ReadSectors (drive, track, sectors, data, status); }));
             Assert::AreEqual<int> (expectedError, status.error);
             return data;
+        }
+
+        //  A row of the text page, as text with its trailing spaces cut.
+        std::string  Row (Word address)
+        {
+            std::string  text;
+
+
+
+            for (int i = 0; i < 40; i++)
+            {
+                text += (char) (machine.GetCpu()->ReadByte ((Word) (address + i)) & 0x7F);
+            }
+
+            return text.substr (0, text.find_last_not_of (' ') + 1);
         }
 
         std::vector<Byte>  Image (int drive)
@@ -376,6 +392,31 @@ public:
         }
 
         rig.AssertApplied();
+    }
+
+
+
+    //  After a read the PC marks as a check it reports itself, as its read of
+    //  a protected disk's catalog when it connects, the Apple's error row is
+    //  blank. After the same read unmarked, the row has the error.
+    TEST_METHOD (AppleUnreadable_InAQuietRead_DrawsNoErrorRow)
+    {
+        Rig  rig;
+
+
+
+        rig.Connect();
+        rig.Arm ("apple:unreadable@T17S3");
+        rig.host->SetQuiet (true);
+        rig.Read (1, kTrack, AllSectors(), CassoLinkHost::kErrorNotFound);
+
+        Assert::AreEqual (std::string(), rig.Row (kRowError), L"no error row for a quiet read");
+
+        rig.Arm ("apple:unreadable@T17S3");
+        rig.host->SetQuiet (false);
+        rig.Read (1, kTrack, AllSectors(), CassoLinkHost::kErrorNotFound);
+
+        Assert::AreEqual (std::string ("ERROR: NO SECTOR D1, T17, S3"), rig.Row (kRowError), L"and one for the same read unmarked");
     }
 
 

@@ -1037,6 +1037,10 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
 
     ArmNextFault();
 
+    //  A catalog read and a check of the disk are reported here, in the drive's
+    //  listing, so no error is drawn on the Apple for them.
+    m_host->SetQuiet (operation.kind == LinkOperationKind::Enumerate || operation.kind == LinkOperationKind::CheckLinkDisk);
+
     if (operation.kind != LinkOperationKind::ReadDisk && operation.kind != LinkOperationKind::WriteDisk && operation.kind != LinkOperationKind::CheckLinkDisk && operation.kind != LinkOperationKind::FullSend)
     {
         hr = Revalidate (operation.drive);
@@ -1118,6 +1122,11 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
     CHR (hr);
 
 Error:
+    if (m_host)
+    {
+        m_host->SetQuiet (false);
+    }
+
     return hr;
 }
 
