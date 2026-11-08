@@ -120,6 +120,10 @@ void CpuManagerRunDriver::Pause()
 //  the same slice as a budget ran out is a breakpoint. The reason a client is
 //  told is the reason it would act on, and "budget" for an instruction it had
 //  set a breakpoint on would send it looking for a fault that is not there.
+//  For the same reason a slice that spent the budget has the hook asked about
+//  the next instruction before the budget is reported: a step that ended on
+//  the budget's last instruction, or a breakpoint the run has just reached, is
+//  what stopped the run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,11 +135,16 @@ bool CpuManagerRunDriver::OnSliceExecuted (uint32_t cyclesExecuted)
 
     if (!m_isRunning)
     {
-        return false;
+        return TryDeliverFreeRunStop();
     }
 
     m_spent    += cyclesExecuted;
     budgetSpent = m_budget.has_value() && m_spent >= *m_budget;
+
+    if (budgetSpent && !m_hook.HasStopped())
+    {
+        m_hook.CheckStopBefore (m_host.GetCpu()->GetPC());
+    }
 
     if (m_hook.HasStopped())
     {
@@ -156,6 +165,49 @@ bool CpuManagerRunDriver::OnSliceExecuted (uint32_t cyclesExecuted)
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpuManagerRunDriver::TryDeliverFreeRunStop
+//
+//  A stop condition that fired with no debugger run going: a breakpoint or a
+//  watchpoint armed while the machine runs freely. The hook holds the machine
+//  on the instruction it stopped before, and nothing else would ever tell the
+//  session, so the machine is paused there and the stop delivered as a run's
+//  is. Ending the hook releases it, so the machine runs again when resumed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuManagerRunDriver::TryDeliverFreeRunStop()
+{
+    StopEvent  stop;
+
+
+
+    if (!m_hook.HasStopped())
+    {
+        return false;
+    }
+
+    m_cpuManager.SetPaused (true);
+
+    stop.reason    = m_hook.GetReason();
+    stop.registers = m_host.GetCpu()->GetCpu6502()->GetRegisters();
+    stop.pc        = stop.registers.pc;
+
+    m_hook.End();
+
+    if (m_observer != nullptr)
+    {
+        m_observer->OnStopped (stop);
+    }
+
+    return true;
 }
 
 

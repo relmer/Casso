@@ -36,6 +36,10 @@ class MachineHost;
 //  instruction step out. An instruction with no line never ends a source
 //  step, so code without source runs through.
 //
+//  A step's count is the number of steps it takes: instructions, a stepped-
+//  over call counting as one, source lines, or levels to step out of. A
+//  trace takes no count and runs until a stop condition or the budget.
+//
 //  A step into, by instruction or by source line, whose JSR reaches a routine
 //  in the request's step filter runs that call as a step over would.
 //
@@ -59,6 +63,7 @@ public:
     bool        IsActive         () const { return m_active; }
     bool        HasStopped       () const;
     StopReason  GetReason        () const;
+    bool        CheckStopBefore  (Word pc);
 
     bool        ShouldStopBefore (Word pc) override;
     bool        HasPendingStop   () const override;
@@ -67,10 +72,11 @@ private:
     static constexpr Byte             kJsr             = 0x20;
     static constexpr DebugHookFilter  s_kNoInstruction = [] { DebugHookFilter none; none.everyInstruction = false; none.pages = {}; return none; }();
 
-    void        UseIdleFilter    ();
+    void        UseIdleFilter     ();
+    void        RecordInstruction (Word pc);
 
-    bool        IsRunComplete    (Word pc, Byte sp) const;
-    bool        IsSourceStepComplete (Word pc, Byte sp) const;
+    bool        IsRunComplete    (Word pc) const;
+    void        CountProgress    (Word pc, Byte sp);
     void        TrackCall        (Word pc, Byte sp);
     static bool IsTransfer       (Byte opcode);
     Byte        PeekOpcode       (Word pc) const;
@@ -89,12 +95,12 @@ private:
     bool                     m_stopped      = false;
     StopReason               m_reason       = StopReason::Pause;
     uint64_t                 m_instructions = 0;
+    uint32_t                 m_steps        = 0;
     Byte                     m_startSp      = 0;
     Byte                     m_lastOpcode   = 0;
-    bool                     m_overCall     = false;
 
     //  The stack pointer before the outermost call the step is inside, while
-    //  it is inside one, and the line the step began on.
+    //  it is inside one, and the line the last step ended on.
     std::optional<Byte>                  m_callSp;
     std::optional<std::pair<int, int>>   m_startLine;
 };

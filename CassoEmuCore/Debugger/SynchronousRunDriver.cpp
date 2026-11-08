@@ -35,6 +35,10 @@ SynchronousRunDriver::SynchronousRunDriver (MachineHost & host, RunStopHook & ho
 //  before the run is restored afterwards, so stop conditions that were
 //  installed stay installed.
 //
+//  A run that reached its end on the instruction that spent the budget ends
+//  as that run: the hook is asked about the next instruction, as the next
+//  chunk would have asked it, before the budget is reported.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT SynchronousRunDriver::Start (const RunRequest & request)
@@ -61,6 +65,11 @@ HRESULT SynchronousRunDriver::Start (const RunRequest & request)
 
         spent       += m_host.RunCycles (chunk);
         budgetSpent  = request.budget.has_value() && spent >= *request.budget;
+    }
+
+    if (budgetSpent && !m_hook.HasStopped())
+    {
+        m_hook.CheckStopBefore (m_host.GetCpu()->GetPC());
     }
 
     stop.reason    = m_hook.HasStopped() ? m_hook.GetReason() : (budgetSpent ? StopReason::Budget : StopReason::Pause);

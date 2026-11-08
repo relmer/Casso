@@ -66,9 +66,6 @@ void RunStopHook::UseIdleFilter()
 //
 //  RunStopHook::Begin
 //
-//  A step over a JSR is over when the stack pointer is back at its level
-//  before the call; a step over anything else is a single step.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void RunStopHook::Begin (const RunRequest & request)
@@ -82,9 +79,9 @@ void RunStopHook::Begin (const RunRequest & request)
     m_stopped      = false;
     m_reason       = StopReason::Pause;
     m_instructions = 0;
+    m_steps        = 0;
     m_startSp      = m_host.GetCpu()->GetSP();
     m_lastOpcode   = 0;
-    m_overCall     = request.kind == RunKind::StepOver && PeekOpcode (pc) == kJsr;
     m_callSp.reset();
     m_startLine    = GetStepLine (pc);
 
@@ -121,8 +118,33 @@ void RunStopHook::End()
 
 bool RunStopHook::ShouldStopBefore (Word pc)
 {
-    Byte  sp            = m_host.GetCpu()->GetSP();
-    bool  isFirst       = m_active && m_instructions == 0;
+    if (!CheckStopBefore (pc))
+    {
+        RecordInstruction (pc);
+    }
+
+    return m_stopped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunStopHook::CheckStopBefore
+//
+//  Whether the machine stops before the instruction at pc, decided as
+//  ShouldStopBefore decides it, without taking the instruction as run. A run
+//  driver asks this when a run's budget is spent, so a run that has just
+//  reached its end, or a stop condition, is reported rather than the budget.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool RunStopHook::CheckStopBefore (Word pc)
+{
+    Byte  sp      = m_host.GetCpu()->GetSP();
+    bool  isFirst = m_active && m_instructions == 0;
 
 
 
@@ -133,10 +155,11 @@ bool RunStopHook::ShouldStopBefore (Word pc)
 
     if (m_active && !isFirst)
     {
-        TrackCall (pc, sp);
+        TrackCall     (pc, sp);
+        CountProgress (pc, sp);
     }
 
-    if (m_active && !isFirst && IsRunComplete (pc, sp))
+    if (m_active && !isFirst && IsRunComplete (pc))
     {
         m_stopped = true;
         m_reason  = (m_request.kind == RunKind::RunTo || m_request.kind == RunKind::Go) ? StopReason::RunTo : StopReason::Step;
@@ -147,21 +170,33 @@ bool RunStopHook::ShouldStopBefore (Word pc)
         m_reason  = StopReason::Breakpoint;
     }
 
-    if (!m_stopped)
-    {
-        if (m_active)
-        {
-            m_lastOpcode = PeekOpcode (pc);
-            ++m_instructions;
-        }
+    return m_stopped;
+}
 
-        if (m_conditions != nullptr)
-        {
-            m_conditions->OnInstruction (pc);
-        }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunStopHook::RecordInstruction
+//
+//  The instruction at pc is about to run.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RunStopHook::RecordInstruction (Word pc)
+{
+    if (m_active)
+    {
+        m_lastOpcode = PeekOpcode (pc);
+        ++m_instructions;
     }
 
-    return m_stopped;
+    if (m_conditions != nullptr)
+    {
+        m_conditions->OnInstruction (pc);
+    }
 }
 
 
@@ -224,22 +259,18 @@ StopReason RunStopHook::GetReason() const
 //
 //  RunStopHook::IsRunComplete
 //
-//  Called before every instruction after the first.
+//  Called before every instruction after the first. A step is complete when
+//  its count of steps is done; a trace runs until a stop condition or the
+//  budget ends it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool RunStopHook::IsRunComplete (Word pc, Byte sp) const
+bool RunStopHook::IsRunComplete (Word pc) const
 {
     bool  isComplete  = false;
     bool  hasLeftSkip = m_request.hasSkip && (pc < m_request.skipFirst || pc > m_request.skipLast);
-    bool  isSource    = m_request.lineTable != nullptr && m_request.kind != RunKind::StepOut;
 
 
-
-    if (isSource)
-    {
-        return IsSourceStepComplete (pc, sp);
-    }
 
     switch (m_request.kind)
     {
@@ -248,17 +279,9 @@ bool RunStopHook::IsRunComplete (Word pc, Byte sp) const
         break;
 
     case RunKind::StepInto:
-    case RunKind::Trace:
-        isComplete = m_instructions >= m_request.count && !m_callSp.has_value();
-        break;
-
     case RunKind::StepOver:
-        isComplete = !m_overCall || !m_callSp.has_value();
-        break;
-
     case RunKind::StepOut:
-        isComplete = m_request.hasLeftFrame ? m_request.hasLeftFrame (pc, sp)
-                                            : sp > m_startSp && IsTransfer (m_lastOpcode);
+        isComplete = m_steps >= m_request.count;
         break;
 
     case RunKind::Go:
@@ -278,38 +301,63 @@ bool RunStopHook::IsRunComplete (Word pc, Byte sp) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RunStopHook::IsSourceStepComplete
+//  RunStopHook::CountProgress
 //
-//  Into: the first instruction of a line other than the one the step began
-//  on. Over: the same, outside any call the step made, or any instruction
-//  once the routine the step began in has returned.
+//  The steps finished by the time the instruction at pc is reached.
+//
+//  By instruction, into or over: each instruction that ran outside a call the
+//  step follows is a step, so a stepped-over or filtered call is one.
+//
+//  By source line: into, the first instruction of a line other than the one
+//  the last step ended on; over, the same, outside any call the step made,
+//  or any instruction once the routine the step began in has returned.
+//
+//  Out: the recorded frame the request chose has ended, which covers every
+//  level asked for; with no frame, the stack pointer has risen above its
+//  level at the last step and a return or a jump has just run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool RunStopHook::IsSourceStepComplete (Word pc, Byte sp) const
+void RunStopHook::CountProgress (Word pc, Byte sp)
 {
-    std::optional<std::pair<int, int>>  line       = GetStepLine (pc);
-    bool                                isNewLine  = line.has_value() && line != m_startLine;
-    bool                                isComplete = false;
+    std::optional<std::pair<int, int>>  line;
+    bool                                isOutside = !m_callSp.has_value();
+    bool                                isSource  = m_request.lineTable != nullptr;
+    bool                                isDone    = false;
 
 
 
     switch (m_request.kind)
     {
     case RunKind::StepInto:
-    case RunKind::Trace:
-        isComplete = isNewLine && !m_callSp.has_value();
+    case RunKind::StepOver:
+        line   = GetStepLine (pc);
+        isDone = !isSource ? isOutside
+               : isOutside && ((line.has_value() && line != m_startLine) || (m_request.kind == RunKind::StepOver && sp > m_startSp));
         break;
 
-    case RunKind::StepOver:
-        isComplete = !m_callSp.has_value() && (isNewLine || sp > m_startSp);
+    case RunKind::StepOut:
+        if (m_request.hasLeftFrame && m_request.hasLeftFrame (pc, sp))
+        {
+            m_steps = m_request.count;
+            return;
+        }
+
+        isDone = !m_request.hasLeftFrame && sp > m_startSp && IsTransfer (m_lastOpcode);
         break;
 
     default:
         break;
     }
 
-    return isComplete;
+    if (!isDone)
+    {
+        return;
+    }
+
+    ++m_steps;
+    m_startLine = line;
+    m_startSp   = std::max (m_startSp, sp);
 }
 
 

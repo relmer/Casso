@@ -48,10 +48,10 @@ public:
     void     Pause          () override;
 
     //  Called from the CPU thread after each slice. Returns true when the run
-    //  has ended, which is the frame loop's cue to stop executing this frame.
+    //  has ended, or a stop condition stopped a machine running freely, which
+    //  is the frame loop's cue to stop executing this frame.
     //
-    //  Also the whole of the driver's per-slice cost when no run is active: a
-    //  machine nobody is debugging pays one comparison per slice.
+    //  With no run active the cost is one question to the hook per slice.
     bool     OnSliceExecuted (uint32_t cyclesExecuted);
 
     //  Ends the run at once, with reason pause. For a machine the user has
@@ -62,7 +62,8 @@ public:
     bool     IsRunning       () const { return m_isRunning; }
 
 private:
-    void     Finish          (StopReason reason, uint64_t cycles);
+    void     Finish                (StopReason reason, uint64_t cycles);
+    bool     TryDeliverFreeRunStop ();
 
     MachineHost   & m_host;
     CpuManager    & m_cpuManager;
