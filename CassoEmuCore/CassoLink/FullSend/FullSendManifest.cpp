@@ -367,3 +367,37 @@ const FullSendRow * FullSendManifest::FindImageByHash (const std::string & hash)
 
     return found == m_rows.end() ? nullptr : &*found;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendManifest::RenameImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendManifest::RenameImage (const std::string & oldName, const std::string & newName)
+{
+    bool  changed = false;
+
+
+
+    for (FullSendRow & row : m_rows)
+    {
+        if (!row.file.empty() && _stricmp (row.file.c_str(), oldName.c_str()) == 0)
+        {
+            row.file = newName;
+            changed  = true;
+        }
+
+        if (!row.duplicateOf.empty() && _stricmp (row.duplicateOf.c_str(), oldName.c_str()) == 0)
+        {
+            row.duplicateOf = newName;
+            changed         = true;
+        }
+    }
+
+    return changed;
+}

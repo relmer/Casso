@@ -14,8 +14,10 @@
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/Window/ExplorerWindowParts.h"
+#include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/AppMessages.h"
 #include "Core/AppTimerIds.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -464,6 +466,57 @@ public:
 
         Assert::AreEqual ((size_t) 1, rig.browser.GetSelectedRows().size());
         Assert::AreEqual (std::wstring (L"BYE"), rig.browser.GetRows()[(size_t) rig.browser.GetSelectedRows()[0]].name);
+    }
+
+
+
+    //  An image renamed in a Full Send folder is renamed in the folder's
+    //  manifest as well.
+    TEST_METHOD (Rename_OfAnImageInAFullSendFolder_RenamesItInTheManifest)
+    {
+        Rig                rig;
+        DxuiKeyEvent       key;
+        FullSendManifest   manifest;
+        FullSendRow        row;
+        FullSendManifest   read;
+        std::wstring       renamed;
+        std::string        path    = "C:\\Sends\\" + std::string (FullSendManifest::kFileName);
+
+
+
+        row.sequence    = 1;
+        row.file        = "Disk 001.dsk";
+        row.fingerprint = std::string (64, 'a');
+        row.hash        = std::string (64, 'b');
+        row.time        = "2026-11-08T10:00:00";
+        row.status      = FullSendManifest::kStatusSent;
+        manifest.Add (row);
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Sends\\Disk 001.dsk");
+        rig.io.files[path] = manifest.Format();
+        rig.verbs->onRename = [&renamed] (const std::wstring &, const std::wstring & name) { renamed = name; return S_OK; };
+
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Sends"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"Disk 001.dsk"));
+
+        rig.parts->fileOps.BeginRename();
+
+        for (wchar_t ch : std::wstring (L"Archon"))
+        {
+            key.kind = DxuiKeyEventKind::Char;
+            key.vk   = ch;
+            rig.parts->fileOps.HandleRenameKey (key);
+        }
+
+        key.kind = DxuiKeyEventKind::Down;
+        key.vk   = VK_RETURN;
+        rig.parts->fileOps.HandleRenameKey (key);
+
+        AssertSucceeded (read.Parse (rig.io.files[path]));
+        Assert::IsFalse  (renamed.empty(), L"the image is renamed");
+        Assert::AreEqual (TextEncoding::WideToNarrow (renamed), read.GetRows()[0].file, L"and the manifest has its new name");
     }
 
 

@@ -33,6 +33,10 @@ public:
     std::wstring                  previewExtension;
     std::vector<Byte>             itemBytes;
 
+    //  What a rename does, the item's path and its new name; with none, a
+    //  rename fails.
+    std::function<HRESULT (const std::wstring &, const std::wstring &)>  onRename;
+
     HRESULT  ListShellFolder      (const std::wstring &, std::vector<ShellFolderItem> & outItems) override  { outItems = shellItems; return S_OK; }
     HRESULT  ListNavigationRoots  (std::vector<ShellFolderItem> & outRoots) override                   { outRoots = navRoots; return S_OK; }
     HRESULT  ListPinnedFolders    (std::vector<ShellFolderItem> & outFolders) override                 { outFolders = pinned; return S_OK; }
@@ -67,7 +71,7 @@ public:
     HRESULT  RunRecycledVerb     (HWND, const std::vector<std::wstring> &, RecycledVerb) override       { return E_NOTIMPL; }
     HRESULT  ShowRecycledMenu    (HWND, const std::vector<std::wstring> &, POINT) override              { return E_NOTIMPL; }
     HRESULT  EmptyRecycleBin     (HWND) override                                                        { return E_NOTIMPL; }
-    HRESULT  RenameItem          (HWND, const std::wstring &, const std::wstring &) override            { return E_NOTIMPL; }
+    HRESULT  RenameItem          (HWND, const std::wstring & path, const std::wstring & name) override  { return onRename ? onRename (path, name) : E_NOTIMPL; }
     HRESULT  PlaceOnClipboard    (HWND, const std::vector<std::wstring> &, bool) override               { return E_NOTIMPL; }
     bool     ClipboardHasFiles   () const override                                                      { return false; }
     HRESULT  PasteInto           (HWND, const std::wstring &, PasteResult &) override                   { return E_NOTIMPL; }

@@ -5,6 +5,7 @@
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
+#include "CassoLink/FullSend/FullSendManifestFile.h"
 #include "CassoLink/FullSend/FullSendSession.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkProgram.h"
@@ -1561,5 +1562,125 @@ public:
         Assert::IsTrue   (rig.link.diskReads.empty());
         Assert::AreEqual (std::string ("0001.dsk"), session->GetManifest().GetRows()[0].file);
         Assert::AreEqual (std::string ("New.dsk"),  session->GetManifest().GetRows()[1].file);
+    }
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendManifestRenameTests
+//
+//  An image renamed in Casso Explorer is renamed in its folder's manifest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (FullSendManifestRenameTests)
+{
+public:
+
+    static constexpr const char *  kFolder = "C:\\Sends";
+
+    //  A sent image and a later duplicate of it.
+    static FullSendManifest MakeManifest()
+    {
+        FullSendManifest  manifest;
+        FullSendRow       sent;
+        FullSendRow       duplicate;
+
+        sent.sequence         = 1;
+        sent.file             = "Disk 001.dsk";
+        sent.fingerprint      = std::string (64, 'a');
+        sent.hash             = std::string (64, 'b');
+        sent.time             = "2026-11-08T10:00:00";
+        sent.status           = FullSendManifest::kStatusSent;
+        duplicate.sequence    = 2;
+        duplicate.fingerprint = sent.fingerprint;
+        duplicate.hash        = sent.hash;
+        duplicate.time        = "2026-11-08T10:05:00";
+        duplicate.status      = FullSendManifest::kStatusDuplicate;
+        duplicate.duplicateOf = sent.file;
+
+        manifest.Add (sent);
+        manifest.Add (duplicate);
+
+        return manifest;
+    }
+
+
+    static std::string ManifestPath()
+    {
+        return std::string (kFolder) + "\\" + FullSendManifest::kFileName;
+    }
+
+
+
+
+    TEST_METHOD (ARenamedImage_IsRenamedInEveryRowThatHasIt)
+    {
+        FullSendManifest  manifest = MakeManifest();
+
+        Assert::IsTrue   (manifest.RenameImage ("disk 001.DSK", "Archon.dsk"), L"the comparison ignores case");
+        Assert::AreEqual (std::string ("Archon.dsk"), manifest.GetRows()[0].file);
+        Assert::AreEqual (std::string ("Archon.dsk"), manifest.GetRows()[1].duplicateOf);
+        Assert::IsTrue   (manifest.GetRows()[1].file.empty(), L"a duplicate has no image to rename");
+        Assert::IsFalse  (manifest.RenameImage ("Other.dsk", "Else.dsk"));
+    }
+
+
+    TEST_METHOD (NoteRename_WritesTheManifestWithTheNewName)
+    {
+        FakeDiskFileIo     io;
+        std::vector<Byte>  bytes;
+        FullSendManifest   read;
+
+        AssertSucceeded (io.WriteAllBytes (ManifestPath(), MakeManifest().Format()));
+        AssertSucceeded (FullSendManifestFile::NoteRename (io, kFolder, "Disk 001.dsk", "Archon.dsk"));
+        AssertSucceeded (io.ReadAllBytes (ManifestPath(), bytes));
+        AssertSucceeded (read.Parse (bytes));
+
+        Assert::AreEqual (std::string ("Archon.dsk"), read.GetRows()[0].file);
+        Assert::AreEqual (std::string ("Archon.dsk"), read.GetRows()[1].duplicateOf);
+    }
+
+
+    TEST_METHOD (NoteRename_OfAFileTheManifestLacks_LeavesItAsItIs)
+    {
+        FakeDiskFileIo     io;
+        std::vector<Byte>  before = MakeManifest().Format();
+        std::vector<Byte>  after;
+
+        AssertSucceeded (io.WriteAllBytes (ManifestPath(), before));
+        AssertSucceeded (FullSendManifestFile::NoteRename (io, kFolder, "Notes.txt", "Notes2.txt"));
+        AssertSucceeded (io.ReadAllBytes (ManifestPath(), after));
+
+        Assert::IsTrue (after == before);
+    }
+
+
+    TEST_METHOD (NoteRename_InAFolderWithNoManifest_WritesNothing)
+    {
+        FakeDiskFileIo  io;
+
+        AssertSucceeded (FullSendManifestFile::NoteRename (io, kFolder, "Disk 001.dsk", "Archon.dsk"));
+        Assert::IsFalse (io.Exists (ManifestPath()));
+    }
+
+
+    //  A manifest that can't be read is left for the user to repair.
+    TEST_METHOD (NoteRename_OfADamagedManifest_FailsAndWritesNothing)
+    {
+        FakeDiskFileIo     io;
+        std::vector<Byte>  damaged = { 'n', 'o', 't', ',', 'a' };
+        std::vector<Byte>  after;
+        HRESULT            noted   = S_OK;
+
+        AssertSucceeded (io.WriteAllBytes (ManifestPath(), damaged));
+        noted = FullSendManifestFile::NoteRename (io, kFolder, "Disk 001.dsk", "Archon.dsk");
+        Assert::IsTrue  (FAILED (noted));
+        AssertSucceeded (io.ReadAllBytes (ManifestPath(), after));
+        Assert::IsTrue  (after == damaged);
     }
 };

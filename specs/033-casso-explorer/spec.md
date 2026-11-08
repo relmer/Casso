@@ -2084,6 +2084,14 @@ source and read the manifest. Repeat on a real //c with real floppies.
   row in 80 columns, and on the row below the connection in 40. This replaces
   the port in the connection's name and the `ADDRESS:` row in the
   clarifications above.
+- **FR-155**: An image renamed in Casso Explorer in a folder with a Full Send
+  manifest MUST be renamed in the manifest as well: each row with the old
+  file name, and each duplicate's reference to it, MUST be set to the new
+  name.
+  Undoing the rename MUST put the old name back in the manifest. The
+  manifest MUST be written under the folder's lock, which a session sending
+  to the folder takes, and a manifest that can't be read MUST be left as it
+  is.
 
 **Full Send**
 

@@ -117,8 +117,9 @@ private:
         ActionsAppleDrive::DriveDeletion  drive;
     };
 
-    void  ReportPasted (IDataObject * data, const CassoExplorerActions::Outcome & outcome);
-    bool  IsCutFrom    (const std::string & inner) const;
+    void  ReportPasted       (IDataObject * data, const CassoExplorerActions::Outcome & outcome);
+    bool  IsCutFrom          (const std::string & inner) const;
+    void  NoteManifestRename (const std::wstring & oldPath, const std::wstring & newName);
 
     ExplorerContext        & m_context;
     CutSource                m_cut;

@@ -217,6 +217,10 @@ public:
     //  The result for the user: the counts and why the session ended.
     const std::string       & GetMessage   () const { return m_message; }
 
+    //  The lock every session in the process takes around a change to a
+    //  folder's manifest and images, also taken by a rename in the folder.
+    static std::mutex       & GetFolderLock (const std::string & folder);
+
 private:
     enum class DiskCheck
     {
@@ -265,7 +269,6 @@ private:
     static std::string               GetScreenName (int sequence, const std::string & catalogTitle);
     void                             SetDriveState (int drive, FullSendDriveState state) { m_screen.drives[(size_t) drive - 1] = state; }
     std::string                      GetPath       (const std::string & file) const;
-    static std::mutex              & GetFolderLock (const std::string & folder);
 
     IFullSendLink             & m_link;
     IDiskFileIo               & m_fileIo;

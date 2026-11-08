@@ -78,6 +78,11 @@ public:
     //  The latest row with this fingerprint, or nullptr.
     const FullSendRow *  FindByFingerprint (const std::string & fingerprint) const;
 
+    //  An image renamed in the folder: each row's file and duplicateOf with
+    //  the old name, compared without case as Windows compares paths, are
+    //  set to the new one. False when no row has the old name.
+    bool                 RenameImage       (const std::string & oldName, const std::string & newName);
+
 private:
     static constexpr size_t  kColumns       = 12;
     static constexpr size_t  kLegacyColumns = 9;

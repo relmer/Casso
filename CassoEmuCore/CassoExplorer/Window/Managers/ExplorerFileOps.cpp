@@ -9,6 +9,7 @@
 #include "CassoExplorer/CassoExplorerProperties.h"
 #include "CassoExplorer/Model/HostAppleFile.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
+#include "CassoLink/FullSend/FullSendManifestFile.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "CassoExplorer/Model/CassoTargeting.h"
 #include "CassoExplorer/CassoExplorerPromptDialog.h"
@@ -264,6 +265,32 @@ void ExplorerFileOps::BeginTreeRename (const std::wstring & id)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerFileOps::NoteManifestRename
+//
+//  An image renamed in a Full Send folder is renamed in its manifest as
+//  well. A manifest that can't be updated doesn't undo the rename.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFileOps::NoteManifestRename (const std::wstring & oldPath, const std::wstring & newName)
+{
+    std::filesystem::path  old (oldPath);
+    HRESULT                hr  = FullSendManifestFile::NoteRename (m_context.browser.GetOperations().GetFileIo(),
+                                                                   TextEncoding::WideToNarrow (old.parent_path().wstring()),
+                                                                   TextEncoding::WideToNarrow (old.filename().wstring()),
+                                                                   TextEncoding::WideToNarrow (newName));
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerFileOps::EndRename
 //
 //  A name left as it was, or emptied, changes nothing. A renamed row is
@@ -329,6 +356,7 @@ void ExplorerFileOps::EndRename (bool commit)
             if (SUCCEEDED (hr))
             {
                 PushUndo (UndoStep { UndoStep::Kind::HostRename, Location(), { (std::filesystem::path (path).parent_path() / newName).wstring() }, oldName, newName });
+                NoteManifestRename (path, newName);
             }
         }
 
@@ -1402,6 +1430,12 @@ void ExplorerFileOps::UndoLast()
 
         case UndoStep::Kind::HostRename:
             hr = m_context.shellVerbs.RenameItem (m_context.window.GetHwnd(), step.paths[0], step.oldName);
+
+            if (SUCCEEDED (hr))
+            {
+                NoteManifestRename (step.paths[0], step.oldName);
+            }
+
             break;
 
         case UndoStep::Kind::HostNewFolder:
