@@ -3,6 +3,7 @@
 #pragma comment(lib, "shlwapi.lib")
 
 #include "CassoExplorer/Model/CatalogModel.h"
+#include "CassoExplorer/Model/ApplesoftVariables.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/AppleFileName.h"
@@ -210,15 +211,16 @@ std::wstring CatalogModel::GetDisplayName (const std::wstring & name, std::vecto
 //
 //  Size is the recorded length where the filesystem records one, else the
 //  units it occupies times the unit size. The address column shows a load
-//  address when the entry holds one and the auxiliary type otherwise, and
-//  stays blank when neither flag is set rather than showing a zero that
-//  would read as a real address.
+//  address when the entry has one, else the address a ProDOS file loads or
+//  runs at. It is blank for any other file rather than showing a number that
+//  would read as an address.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 CatalogRow CatalogModel::FromFileEntry (const FileEntry & entry, VolumeKind kind, size_t sourceIndex)
 {
     CatalogRow  row;
+    Word        address = 0;
 
 
 
@@ -245,12 +247,56 @@ CatalogRow CatalogModel::FromFileEntry (const FileEntry & entry, VolumeKind kind
     {
         row.addressText = FormatAddress (entry.loadAddress);
     }
-    else if (entry.hasAuxType)
+    else if (entry.hasAuxType && TryGetProDosAddress (entry, address))
     {
-        row.addressText = FormatAddress (entry.auxType);
+        row.addressText = FormatAddress (address);
     }
 
     return row;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::TryGetProDosAddress
+//
+//  The address a ProDOS file loads or runs at. BASIC.SYSTEM loads a CMD file
+//  at $4000 and ProDOS loads a SYS file at $2000, whatever their auxiliary
+//  types are. A BAS file's auxiliary type is where the program loads, and a
+//  VAR file's is where its variables were saved from. Any other type's
+//  auxiliary type is not an address: a TXT file's is its record length.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CatalogModel::TryGetProDosAddress (const FileEntry & entry, Word & outAddress)
+{
+    constexpr Word  s_kCommandAddress = 0x4000;
+    constexpr Word  s_kSystemAddress  = 0x2000;
+    bool            found             = true;
+
+
+
+    switch (entry.type)
+    {
+    case ProDosVolume::kTypeCommand:
+        outAddress = s_kCommandAddress;
+        break;
+    case ProDosVolume::kTypeSystem:
+        outAddress = s_kSystemAddress;
+        break;
+    case ProDosVolume::kTypeBasic:
+    case ApplesoftVariables::kProDosType:
+        outAddress = entry.auxType;
+        break;
+    default:
+        found = false;
+        break;
+    }
+
+    return found;
 }
 
 

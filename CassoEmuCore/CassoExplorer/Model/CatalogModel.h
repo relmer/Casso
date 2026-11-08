@@ -207,7 +207,8 @@ public:
 
     static std::wstring  GetPascalKindText (Byte kind);
 
-    static std::wstring  FormatAddress (Word address);
+    static std::wstring  FormatAddress       (Word address);
+    static bool          TryGetProDosAddress (const FileEntry & entry, Word & outAddress);
 
     //  A name as displayed in the list. DOS 3.3 names can contain control
     //  characters (a heading entry uses backspaces to overwrite CATALOG's type

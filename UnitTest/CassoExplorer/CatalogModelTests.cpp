@@ -4,6 +4,7 @@
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FixtureProvider.h"
 #include "CassoExplorer/Model/CatalogModel.h"
+#include "CassoExplorer/Model/ApplesoftVariables.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -143,6 +144,33 @@ public:
         Assert::IsTrue   (FindRow (rows, L"SUBDIR").isDirectory);
         Assert::IsTrue   (FindRow (rows, L"NOTES").hasModified);
         Assert::AreEqual ((int64_t) 461594040,      FindRow (rows, L"NOTES").modifiedUnix);
+    }
+
+
+
+    //  The address of a CMD or SYS file is where it runs, whatever its
+    //  auxiliary type is. It is blank for a file whose auxiliary type is not
+    //  an address.
+    TEST_METHOD (ProDosRows_AddressIsWhereTheFileLoadsOrRuns)
+    {
+        FileEntry  entry;
+
+        entry.hasAuxType = true;
+        entry.auxType    = 0x0000;
+
+        entry.type = ProDosVolume::kTypeCommand;
+        Assert::AreEqual (std::wstring (L"$4000"), CatalogModel::FromFileEntry (entry, VolumeKind::ProDos, 0).addressText);
+
+        entry.type = ProDosVolume::kTypeSystem;
+        Assert::AreEqual (std::wstring (L"$2000"), CatalogModel::FromFileEntry (entry, VolumeKind::ProDos, 0).addressText);
+
+        entry.type    = ApplesoftVariables::kProDosType;
+        entry.auxType = 0x9292;
+        Assert::AreEqual (std::wstring (L"$9292"), CatalogModel::FromFileEntry (entry, VolumeKind::ProDos, 0).addressText);
+
+        entry.type    = ProDosVolume::kTypeText;
+        entry.auxType = 0x0050;
+        Assert::IsTrue (CatalogModel::FromFileEntry (entry, VolumeKind::ProDos, 0).addressText.empty(), L"a record length is not an address");
     }
 
 
