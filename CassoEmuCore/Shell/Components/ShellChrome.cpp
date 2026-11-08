@@ -268,13 +268,15 @@ void ShellChrome::SetChromeHiddenForFullscreenScene (bool hidden)
     // The band surface only exists for the 2D chrome; under the desk scene
     // the drives paint from the scene and the band would read as a leftover
     // bar along the window's bottom edge.
-    m_driveBandSurface.SetVisible (!hidden && !m_shell.DeskSceneActive());
+    // With auto-hide on, they stay hidden after fullscreen too, and reappear on
+    // the strip when the pointer is at the bottom edge.
+    m_driveBandSurface.SetVisible (!hidden && !m_shell.DeskSceneActive() && !m_shell.AreDrivesOnStrip());
     m_switchBar.SetVisible (!hidden);
 
     // Leaving fullscreen must not hand the flat widgets back to a scene that
     // has already retired them.
-    m_shell.m_disks->GetDriveChrome()[0].SetVisible (!hidden && !m_shell.DeskSceneActive());
-    m_shell.m_disks->GetDriveChrome()[1].SetVisible (!hidden && !m_shell.DeskSceneActive());
+    m_shell.m_disks->GetDriveChrome()[0].SetVisible (!hidden && !m_shell.DeskSceneActive() && !m_shell.AreDrivesOnStrip());
+    m_shell.m_disks->GetDriveChrome()[1].SetVisible (!hidden && !m_shell.DeskSceneActive() && !m_shell.AreDrivesOnStrip());
 
     if (hidden)
     {
@@ -863,7 +865,19 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
         // The basename strip under the drive row is chrome, not scene, so the
         // composition is solved into a center rect short by its height and
         // the labels hang in what is left.
-        int  labelStripPx = m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+        //
+        // With auto-hide on, the desk has the monitor alone: the drives and
+        // the recorder slide up from the bottom edge on the strip, so the
+        // composition doesn't include them or a label strip.
+        bool              onStrip      = m_shell.AreDrivesOnStrip();
+        int               labelStripPx = onStrip ? 0 : m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+        int               driveCount   = onStrip ? 0 : m_shell.m_scene->DeskSceneDriveCount();
+        DeskSceneMetrics  metrics      = m_shell.m_scene->GetScene().Metrics();
+
+        if (onStrip)
+        {
+            metrics.hasRecorder = false;
+        }
 
         for (int pass = 0; pass < s_kSceneScaleSettlePasses; pass++)
         {
@@ -875,8 +889,8 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
             sceneBox          = center;
             sceneBox.bottom   = std::max (center.top, center.bottom - labelStripPx);
 
-            hrLayout = DeskSceneLayout::Compute (sceneBox, m_shell.m_scaler.GetDpi(), m_shell.m_scene->DeskSceneDriveCount(),
-                                                 m_shell.m_scene->GetScene().Metrics(), comp,
+            hrLayout = DeskSceneLayout::Compute (sceneBox, m_shell.m_scaler.GetDpi(), driveCount,
+                                                 metrics, comp,
                                                  m_shell.m_scaler.ToPx (s_kSceneDriveGapDp + s_kStripEdgeZoneDp),
                                                  m_shell.m_scene->GetView());
             BAIL_OUT_IF (hrLayout != S_OK, S_OK);
@@ -931,7 +945,8 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
 
         // A machine with no Disk ][ controller composes no row at all, and a
         // band too small to solve leaves the scene empty rather than stale.
-        if (m_shell.m_scene->DeskSceneDriveCount() > 0)
+        // With auto-hide on, the band is gone and the strip has the drives.
+        if (m_shell.m_scene->DeskSceneDriveCount() > 0 && !m_shell.AreDrivesOnStrip())
         {
             composed = DeskSceneLayout::ComputeStrip (driveRow, m_shell.m_scaler.GetDpi(), m_shell.m_scene->DeskSceneDriveCount(),
                                                       m_shell.m_scene->GetScene().Metrics(), comp,
@@ -969,6 +984,11 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
         m_shell.m_scene->LayoutSceneCompass();
     }
 
+    // Windowed, the strip rises from the bottom of the center band, so it
+    // covers the picture, and the //c switch strip under it stays in view.
+    m_driveStripAreaPx = m_shell.m_renderer->GetD3D().IsFullscreen() ? RECT { 0, 0, widthPx, heightPx }
+                                                                     : m_centerBand.GetBounds();
+
     m_shell.m_viewport->Layout (viewportRect, m_shell.m_scaler);
 
 Error:
@@ -1002,6 +1022,7 @@ void ShellChrome::SyncChromeBands()
     // the shell and stamps the answers onto the bands' docked heights.
     inputs.hasDiskController   = (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
     inputs.crtMonitorActive    = m_shell.CrtMonitorActive();
+    inputs.drivesOnStrip       = m_shell.AreDrivesOnStrip();
     inputs.hasCaseSwitches     = m_shell.MachineHasCaseSwitches();
     inputs.driveBarThicknessDp = m_driveBarThicknessDp;
     inputs.chromeSceneScale    = m_chromeSceneScale;
@@ -1212,8 +1233,9 @@ void ShellChrome::ReflowChromeForMachineChange()
     if (haveWindow && layoutChanged &&
         !IsIconic (m_shell.m_hwnd) && !IsZoomed (m_shell.m_hwnd) && !m_shell.m_renderer->GetD3D().IsFullscreen())
     {
-        int  oldDriveDp  = m_chromeSizedForHasDisk ? m_driveBarThicknessDp : 0;
-        int  newDriveDp  = newHasDisk              ? m_driveBarThicknessDp : 0;
+        int  bandDp      = m_shell.AreDrivesOnStrip() ? 0 : m_driveBarThicknessDp;
+        int  oldDriveDp  = m_chromeSizedForHasDisk ? bandDp : 0;
+        int  newDriveDp  = newHasDisk              ? bandDp : 0;
         int  oldSwitchDp = m_chromeSizedForApple2c ? ChromeBandLayout::kSwitchBandDp : 0;
         int  newSwitchDp = newIsApple2c            ? ChromeBandLayout::kSwitchBandDp : 0;
         int  deltaPx     = (m_shell.m_scaler.ToPx (newDriveDp)  - m_shell.m_scaler.ToPx (oldDriveDp)) +
@@ -1429,6 +1451,43 @@ void ShellChrome::SetCrtMonitorEnabled (bool enabled)
     }
 
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (m_shell.m_hwnd != nullptr && GetClientRect (m_shell.m_hwnd, &rcClient))
+    {
+        (void) m_shell.OnSize ((UINT) (rcClient.right - rcClient.left),
+                               (UINT) (rcClient.bottom - rcClient.top));
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::SetAutoHideDrives
+//
+//  Persists the choice, then re-runs the OnSize layout at the current client
+//  size. The window size stays the same, so with auto-hide on the picture
+//  area is taller by the drive band's height.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::SetAutoHideDrives (bool enabled)
+{
+    HRESULT  hr       = S_OK;
+    RECT     rcClient = {};
+
+
+
+    BAIL_OUT_IF (m_shell.m_settings->GetPrefs().autoHideDrives == enabled, S_OK);
+
+    m_shell.m_settings->GetPrefs().autoHideDrives = enabled;
+    m_shell.m_settings->SaveGlobalPrefs();
 
     if (m_shell.m_hwnd != nullptr && GetClientRect (m_shell.m_hwnd, &rcClient))
     {

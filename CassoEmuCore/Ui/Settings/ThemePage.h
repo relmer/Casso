@@ -71,6 +71,12 @@ public:
     void  SetOnCrtMonitorToggled (CrtMonitorFn fn) { m_onCrtMonitorToggled = std::move (fn); }
     void  SetCrtMonitorChecked   (bool checked)   { m_crtMonitorCheckbox.SetChecked (checked); }
 
+    // The drive bar's auto-hide, for every theme. Applies live through the
+    // callback, like the CRT checkbox.
+    using AutoHideDrivesFn = std::function<void (bool enabled)>;
+    void  SetOnAutoHideDrivesToggled (AutoHideDrivesFn fn) { m_onAutoHideDrivesToggled = std::move (fn); }
+    void  SetAutoHideDrivesChecked   (bool checked)       { m_autoHideDrivesCheckbox.SetChecked (checked); }
+
     // Scene antialiasing, in SAMPLES (1 / 2 / 4) at this boundary -- the
     // slider's three stops are an interior detail.
     using AntiAliasingFn = std::function<void (int samples)>;
@@ -227,11 +233,13 @@ private:
     HasDiskSourceFn      m_hasDiskSource;
     ApplyThemeNowFn      m_onApplyThemeNow;
     CrtMonitorFn         m_onCrtMonitorToggled;
+    AutoHideDrivesFn     m_onAutoHideDrivesToggled;
 
     DxuiLabel      m_themeLabel;
     DxuiComboBox   m_themeDropdown;
     DxuiButton     m_applyNowButton;
     DxuiCheckbox   m_crtMonitorCheckbox;
+    DxuiCheckbox   m_autoHideDrivesCheckbox;
     DxuiLabel      m_aaLabel;
     DxuiSlider     m_aaSlider;
     AntiAliasingFn m_onAntiAliasingChanged;

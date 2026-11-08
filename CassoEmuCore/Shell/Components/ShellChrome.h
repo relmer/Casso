@@ -120,6 +120,10 @@ public:
     // out the chrome in place -- and persists to GlobalUserPrefs.
     void    SetCrtMonitorEnabled (bool enabled);
 
+    // The drive bar's auto-hide, from Settings > Theme, the View menu and the
+    // drive context menu. Applies live and persists to GlobalUserPrefs.
+    void    SetAutoHideDrives    (bool enabled);
+
     // Fullscreen presentation (FR-014): every chrome element collapses to
     // nothing -- host caption, menu bar, toolbar, joystick row, drive band,
     // //c switch strip -- so the glass-fill scene owns the whole client.
@@ -326,6 +330,11 @@ private:
     ChromeBand               m_switchBand;
     ChromeBand               m_centerBand;
     int                      m_driveBarThicknessDp = s_kInitialDriveBandDp;
+
+    // The rect the drive strip slides up into, anchored to its bottom edge:
+    // the whole client in fullscreen, the center band windowed. Written by
+    // UpdateViewportLayout.
+    RECT                     m_driveStripAreaPx    = {};
 
     // Whether the current WINDOW height was sized for a Disk ][ controller
     // being present. Written by OnSize (the authoritative layout, WM_SIZE-only)

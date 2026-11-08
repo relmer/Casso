@@ -130,6 +130,10 @@
 // screenshot carries the pose it was taken from. Same default rule.
 #define IDM_VIEW_SCENE_VIEW         40073
 
+// Collapse the drives off the bottom edge until the pointer comes near it.
+// Taken from a separate block: open branches use the 40089-40499 range.
+#define IDM_VIEW_AUTOHIDE_DRIVES    40500
+
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_CHECK_UPDATES      40041
 #define IDM_HELP_ABOUT              40042

@@ -402,6 +402,7 @@ ThemePage::ThemePage(std::wstring title)
     Adopt (m_themeDropdown);
     Adopt (m_applyNowButton);
     Adopt (m_crtMonitorCheckbox);
+    Adopt (m_autoHideDrivesCheckbox);
 
     m_applyNowButton.SetLabel   (L"Apply now");
     m_applyNowButton.SetOnClick ([this] { if (m_onApplyThemeNow) { m_onApplyThemeNow(); } });
@@ -415,6 +416,15 @@ ThemePage::ThemePage(std::wstring title)
     m_crtMonitorCheckbox.SetOnChange ([this] (bool checked)
     {
         if (m_onCrtMonitorToggled) { m_onCrtMonitorToggled (checked); }
+    });
+
+    // Auto-hide applies to every theme, flat or desk scene, so this row is
+    // never removed.
+    m_autoHideDrivesCheckbox.SetLabel (L"Auto-hide drives");
+    m_autoHideDrivesCheckbox.SetSingleLineLabel (true);
+    m_autoHideDrivesCheckbox.SetOnChange ([this] (bool checked)
+    {
+        if (m_onAutoHideDrivesToggled) { m_onAutoHideDrivesToggled (checked); }
     });
 
     // Antialiasing, as SAMPLES rather than a quality word, because that is
@@ -633,11 +643,12 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int   y          = rect.top  + pad;
     int   rowGap     = scaler.ToPx (8);
     int   previewGap = scaler.ToPx (24);
-    // Theme, then edge smoothing, with the CRT opt-in between them only on a
-    // skeuomorphic theme -- so the stack above the preview is two rows or
-    // three depending on whether the CRT row is shown.
-    int   rowsAbove  = m_crtRowShown ? 3 : 2;
-    int   aaRowIndex = m_crtRowShown ? 2 : 1;
+    // Theme, auto-hide, then edge smoothing, with the CRT opt-in under the
+    // theme row only on a skeuomorphic theme -- so the stack above the preview
+    // is three rows or four depending on whether the theme has a CRT row.
+    int   rowsAbove  = m_crtRowShown ? 4 : 3;
+    int   hideRowIdx = m_crtRowShown ? 2 : 1;
+    int   aaRowIndex = m_crtRowShown ? 3 : 2;
     int   previewTop = y + rowsAbove * rowHeight + (rowsAbove - 1) * rowGap + previewGap;
     RECT  rowBounds  = { x, y, x + labelWidth + dropWidth, y + rowHeight };
     int   applyGap   = 0;
@@ -701,6 +712,17 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         // Layout writes bounds unconditionally, so re-assert the hidden state
         // the selection put the row in -- a compact theme keeps it away.
         m_crtMonitorCheckbox.SetVisible (m_crtRowShown);
+    }
+
+    // Auto-hide row under it, or directly under the theme row on a compact
+    // theme, at the same width as the CRT row.
+    {
+        RECT  cbRect = MakeRect (x, y + (rowHeight + rowGap) * hideRowIdx,
+                                 labelWidth + dropWidth + applyGap + applyWidth,
+                                 rowHeight);
+
+        m_autoHideDrivesCheckbox.Layout (cbRect, scaler);
+        m_autoHideDrivesCheckbox.SetDpi (dpi);
     }
 
     // Edge-smoothing row under it, laid out on the same grid as the theme row
@@ -785,6 +807,8 @@ void ThemePage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
     {
         m_crtMonitorCheckbox.Paint (painter, text, theme);
     }
+
+    m_autoHideDrivesCheckbox.Paint (painter, text, theme);
 
     m_aaLabel.Paint             (painter, text, theme);
     m_aaSlider.Paint            (painter, text, theme);

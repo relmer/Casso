@@ -630,8 +630,9 @@ SceneHitResult ShellDeskScene::StripHit (int xPx, int yPx) const
 //
 //  ShellDeskScene::RecorderHit
 //
-//  In fullscreen the recorder exists only on the strip, and only while the
-//  strip is up; the desk composition there holds the glass alone.
+//  In fullscreen, and with auto-hide on, the recorder exists only on the
+//  strip, and only while the strip is up; the desk composition doesn't
+//  include it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -641,7 +642,7 @@ SceneHitResult ShellDeskScene::RecorderHit (int xPx, int yPx) const
 
 
 
-    if (!m_shell.m_renderer->GetD3D().IsFullscreen())
+    if (!m_shell.AreDrivesOnStrip())
     {
         return DeskSceneHit (xPx, yPx);
     }
@@ -670,14 +671,14 @@ SceneHitResult ShellDeskScene::RecorderHit (int xPx, int yPx) const
 
 RECT ShellDeskScene::GetVolumeWheelRect (float * widthPx) const
 {
-    bool                          fs      = m_shell.m_renderer->GetD3D().IsFullscreen();
-    bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top;
+    bool                          stripOn = m_shell.AreDrivesOnStrip();
+    bool                          onStrip = stripOn && m_stripRectPx.bottom > m_stripRectPx.top;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
     const float *                 box     = m_deskScene.RecorderModel().VolumeWheelBox();
     float                         lo[2]   = { FLT_MAX, FLT_MAX };
     float                         hi[2]   = { -FLT_MAX, -FLT_MAX };
     int                           grow    = m_shell.m_scaler.ToPx (s_kVolumeWheelSlopDp);
-    bool                          isShown = m_shell.DeskSceneActive() && (!fs || onStrip) && comp.hasRecorder != 0 &&
+    bool                          isShown = m_shell.DeskSceneActive() && (!stripOn || onStrip) && comp.hasRecorder != 0 &&
                                             m_deskScene.HasRecorder() && box[3] > box[0];
     RECT                          rect    = {};
 
@@ -1334,15 +1335,15 @@ void ShellDeskScene::SyncSceneDriveChrome()
 
 void ShellDeskScene::SyncSceneDriveLabels()
 {
-    // FULLSCREEN LABELS THE STRIP'S DRIVES, not the desk's: the overlay is
-    // the only place drives appear there, and a drive worth revealing is
-    // worth naming. Its composition is the strip's, and the labels come and
-    // go with the slide.
-    bool                          fs      = m_shell.m_renderer->GetD3D().IsFullscreen();
-    bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top &&
+    // FULLSCREEN AND AUTO-HIDE LABEL THE STRIP'S DRIVES, not the desk's: the
+    // overlay is the only place drives appear there, and a drive worth
+    // revealing is worth labeling. Its composition is the strip's, and the
+    // labels come and go with the slide.
+    bool                          stripOn = m_shell.AreDrivesOnStrip();
+    bool                          onStrip = stripOn && m_stripRectPx.bottom > m_stripRectPx.top &&
                                             m_stripComp.driveCount > 0;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
-    bool                          visible = m_shell.DeskSceneActive() && (!fs || onStrip);
+    bool                          visible = m_shell.DeskSceneActive() && (!stripOn || onStrip);
     float                         fontDip = s_kSceneDriveLabelFontDip;
     // The strip has nothing in front of its drives, so it keeps the chrome
     // label; the desk hands its names to the scene instead.
@@ -1625,9 +1626,10 @@ void ShellDeskScene::SetStripLabelMarquee (DxuiShadowedText & label, int cell, c
 
 bool ShellDeskScene::UpdateSceneLabelHover (int x, int y, int64_t nowMs)
 {
-    // In fullscreen the names are the strip's, while it is up.
-    bool                          fs      = m_shell.m_renderer->GetD3D().IsFullscreen();
-    bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top;
+    // In fullscreen and with auto-hide on, the disk labels are under the
+    // strip's drives, while the strip is up.
+    bool                          stripOn = m_shell.AreDrivesOnStrip();
+    bool                          onStrip = stripOn && m_stripRectPx.bottom > m_stripRectPx.top;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
     POINT                         pt      = { x, y };
     int                           hovered = -1;
@@ -1635,7 +1637,7 @@ bool ShellDeskScene::UpdateSceneLabelHover (int x, int y, int64_t nowMs)
 
 
 
-    if (m_shell.DeskSceneActive() && (!fs || onStrip))
+    if (m_shell.DeskSceneActive() && (!stripOn || onStrip))
     {
         for (int i = 0; i < comp.driveCount && i < (int) m_sceneDriveLabelRect.size(); i++)
         {
@@ -1885,11 +1887,12 @@ bool ShellDeskScene::SyncRecorderKeys (int64_t nowMs)
 
 void ShellDeskScene::SyncSceneTapeLabel()
 {
-    // In fullscreen the recorder is on the strip, while the strip is up.
-    bool                          fs        = m_shell.m_renderer->GetD3D().IsFullscreen();
-    bool                          onStrip   = fs && m_stripRectPx.bottom > m_stripRectPx.top;
+    // In fullscreen and with auto-hide on, the recorder is on the strip, while
+    // the strip is up.
+    bool                          stripOn   = m_shell.AreDrivesOnStrip();
+    bool                          onStrip   = stripOn && m_stripRectPx.bottom > m_stripRectPx.top;
     const DeskSceneComposition &  comp      = onStrip ? m_stripComp : m_deskScene.Composition();
-    bool                          visible   = m_shell.DeskSceneActive() && (!fs || onStrip) &&
+    bool                          visible   = m_shell.DeskSceneActive() && (!stripOn || onStrip) &&
                                               comp.hasRecorder != 0 && m_deskScene.HasRecorder() &&
                                               m_shell.m_tapeDeck->IsTapeRecorderShown();
     TapeDeckView                  view      = m_shell.m_tapeDeck->GetTapeView();

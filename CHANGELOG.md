@@ -23,6 +23,10 @@ Entries before versioning was introduced use dates only.
   what the image declares and marks whether the running machine meets each
   requirement. In the flat themes, on the desk and on the fullscreen drive
   strip.
+- Auto-hide drives, in every theme: the drives stay hidden until the pointer is
+  near the bottom of the window, as in full screen, and the picture uses their
+  space. Turn it on in Settings > Theme, the View menu, or a drive's
+  right-click menu.
 
 ### Changed
 

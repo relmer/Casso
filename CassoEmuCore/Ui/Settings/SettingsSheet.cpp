@@ -336,6 +336,13 @@ HRESULT SettingsSheet::OpenModeless (
         m_emuShell->GetChrome().SetCrtMonitorEnabled (enabled);
     });
 
+    // Auto-hide takes the same live-and-persist path.
+    m_themePage->SetAutoHideDrivesChecked (prefs.autoHideDrives);
+    m_themePage->SetOnAutoHideDrivesToggled ([this] (bool enabled)
+    {
+        m_emuShell->GetChrome().SetAutoHideDrives (enabled);
+    });
+
     // The General page: every control is live and persisted on the click,
     // like the CRT opt-in above, so Cancel has nothing to revert.
     m_generalPage->SetAutoUpdateChecked (prefs.autoUpdateCheck);

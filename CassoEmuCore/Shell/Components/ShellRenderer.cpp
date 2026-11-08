@@ -234,10 +234,10 @@ HRESULT ShellRenderer::InitializeRenderer()
                                                                    displaySrv, uv,
                                                                    kFramebufferWidth, kFramebufferHeight);
 
-                // Fullscreen drive overlay strip: the slid band composed by
-                // TryPresentUiFrame's FSM tick, plus the hidden-state
-                // activity glimmer in the corner (FR-015).
-                if (m_d3dRenderer.IsFullscreen())
+                // Drive overlay strip, in fullscreen or with auto-hide on: the
+                // slid band composed by TryPresentUiFrame's FSM tick, plus the
+                // hidden-state activity glimmer in the corner (FR-015).
+                if (m_shell.AreDrivesOnStrip())
                 {
                     int   bbW = m_d3dRenderer.GetBackBufferWidth();
                     int   bbH = m_d3dRenderer.GetBackBufferHeight();
@@ -251,9 +251,7 @@ HRESULT ShellRenderer::InitializeRenderer()
 
                     if (m_shell.m_scene->m_stripState.ActivityIndicator())
                     {
-                        RECT  glimmer = { bbW - 34, bbH - 14, bbW - 12, bbH - 8 };
-
-                        m_shell.m_scene->m_deskScene.DrawDebugRect (glimmer, bbW, bbH, 0xFFB01818);
+                        m_shell.m_scene->m_deskScene.DrawDebugRect (GetStripGlimmerRect(), bbW, bbH, 0xFFB01818);
                     }
                 }
 
@@ -327,11 +325,11 @@ HRESULT ShellRenderer::InitializeRenderer()
             return;
         }
 
-        if (m_d3dRenderer.IsFullscreen())
+        if (m_shell.AreDrivesOnStrip())
         {
-            // Fullscreen without the monitor: the picture owns the client and
-            // the drives live in the slide-up overlay strip, same as they do
-            // with the monitor on.
+            // Fullscreen without the monitor, or auto-hide on: the drives
+            // live in the slide-up overlay strip, same as they do with the
+            // monitor on.
             if (m_shell.m_scene->m_stripRectPx.bottom > m_shell.m_scene->m_stripRectPx.top)
             {
                 hrDrives = m_shell.m_scene->m_deskScene.RenderStrip (rtv, m_shell.m_scene->m_stripComp);
@@ -339,9 +337,7 @@ HRESULT ShellRenderer::InitializeRenderer()
 
             if (m_shell.m_scene->m_stripState.ActivityIndicator())
             {
-                RECT  glimmer = { bbW - 34, bbH - 14, bbW - 12, bbH - 8 };
-
-                m_shell.m_scene->m_deskScene.DrawDebugRect (glimmer, bbW, bbH, 0xFFB01818);
+                m_shell.m_scene->m_deskScene.DrawDebugRect (GetStripGlimmerRect(), bbW, bbH, 0xFFB01818);
             }
         }
         else
@@ -833,12 +829,13 @@ bool ShellRenderer::TryPresentUiFrame()
                          ? m_shell.m_scene->DeskSceneDriveCount() > 0
                          : (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
 
-    if (m_d3dRenderer.IsFullscreen() && stripHasDrives)
+    if (m_shell.AreDrivesOnStrip() && stripHasDrives)
     {
         StripInputs   inputs;
         StripEffects  effects;
         POINT         cursor  = {};
         RECT          client  = {};
+        RECT          area    = m_shell.m_chrome->m_driveStripAreaPx;
         int64_t       stripNowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                        std::chrono::steady_clock::now().time_since_epoch()).count();
 
@@ -846,9 +843,12 @@ bool ShellRenderer::TryPresentUiFrame()
 
         inputs.nowMs = stripNowMs;
 
+        // The edge is the bottom of the strip's area: the screen's bottom in
+        // fullscreen, the picture's bottom in a window with auto-hide on.
         if (GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor) && PtInRect (&client, cursor))
         {
-            inputs.pointerAtBottomEdge = cursor.y >= client.bottom - m_shell.m_scaler.ToPx (s_kStripEdgeZoneDp);
+            inputs.pointerAtBottomEdge = PtInRect (&area, cursor) &&
+                                         cursor.y >= area.bottom - m_shell.m_scaler.ToPx (s_kStripEdgeZoneDp);
             inputs.pointerOverStrip    = m_shell.m_scene->m_stripState.Mode() != StripMode::Hidden &&
                                          PtInRect (&m_shell.m_scene->m_stripRectPx, cursor);
         }
@@ -856,7 +856,10 @@ bool ShellRenderer::TryPresentUiFrame()
         inputs.hotkey        = m_shell.m_scene->m_stripHotkeyPending;
         m_shell.m_scene->m_stripHotkeyPending = false;
 
-        inputs.pinned        = m_shell.m_scene->m_stripBrowseOpen || m_shell.m_chrome->m_driveTooltip.IsVisible();
+        // A drive's menu pins the strip too, or the drive it was opened on
+        // would slide away while the pointer is on the menu.
+        inputs.pinned        = m_shell.m_scene->m_stripBrowseOpen || m_shell.m_chrome->m_driveTooltip.IsVisible() ||
+                               (m_shell.m_host != nullptr && m_shell.m_host->GetContextMenu().IsVisible());
 
         // LIVE, not Active: Mouse mode being CONFIGURED is not the guest
         // owning the pointer. At a BASIC prompt in Mouse mode the host
@@ -902,8 +905,8 @@ bool ShellRenderer::TryPresentUiFrame()
 
             if (progress > 0.0f)
             {
-                m_shell.m_scene->m_stripRectPx = { 0, client.bottom - (int) (progress * (float) bandH),
-                                                   client.right, client.bottom - (int) (progress * (float) bandH) + bandH };
+                m_shell.m_scene->m_stripRectPx = { area.left, area.bottom - (int) (progress * (float) bandH),
+                                                   area.right, area.bottom - (int) (progress * (float) bandH) + bandH };
 
                 if (m_shell.DeskSceneActive())
                 {
@@ -942,7 +945,7 @@ bool ShellRenderer::TryPresentUiFrame()
                     // after the picture, so they ride over it.
                     m_shell.m_chrome->m_driveBandSurface.SetBounds (m_shell.m_scene->m_stripRectPx);
                     m_shell.m_chrome->m_driveBandSurface.SetVisible (true);
-                    m_shell.m_chrome->LayoutDriveWidgetsInCommandBar (m_shell.m_disks->GetDriveChrome(), bandH, client.right,
+                    m_shell.m_chrome->LayoutDriveWidgetsInCommandBar (m_shell.m_disks->GetDriveChrome(), bandH, area.right,
                                                                       m_shell.m_scene->m_stripRectPx.bottom, m_shell.m_scaler.GetDpi(), 1.0f,
                                                                       m_shell.m_disks->ShouldShowExternalDrive() ? 2 : 1);
 
@@ -983,8 +986,8 @@ bool ShellRenderer::TryPresentUiFrame()
     }
     else
     {
-        // Not presenting the strip (windowed, or fullscreen left): never
-        // strand a suppressed guest mouse.
+        // Not presenting the strip (windowed without auto-hide, or fullscreen
+        // left): never strand a suppressed guest mouse.
         m_shell.m_scene->m_stripSuppressGuestMouse = false;
         m_shell.m_scene->m_stripRectPx             = {};
     }
@@ -1358,6 +1361,36 @@ void ShellRenderer::ServiceCaptureRequest (CapturePoint atPoint)
     m_pendingCapture.captured = SUCCEEDED (hr);
 
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetStripGlimmerRect
+//
+//  Anchored to the strip's area rather than the back buffer, so with
+//  auto-hide on in a window it lights at the bottom of the picture instead of
+//  over the chrome under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT ShellRenderer::GetStripGlimmerRect() const
+{
+    constexpr int  kRightInsetPx  = 12;
+    constexpr int  kBottomInsetPx = 8;
+    constexpr int  kWidthPx       = 22;
+    constexpr int  kHeightPx      = 6;
+    RECT           area           = m_shell.m_chrome->m_driveStripAreaPx;
+
+
+
+    return RECT { area.right  - kRightInsetPx  - kWidthPx,
+                  area.bottom - kBottomInsetPx - kHeightPx,
+                  area.right  - kRightInsetPx,
+                  area.bottom - kBottomInsetPx };
 }
 
 

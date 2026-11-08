@@ -199,6 +199,10 @@ private:
     // entries a mode emits is decided by the composer in core.
     ScreenshotFacts  BuildScreenshotFacts (ScreenshotMode mode, const SYSTEMTIME & when) const;
 
+    // The red bar in the bottom-right corner of the strip's area that lights
+    // while a hidden drive is busy.
+    RECT  GetStripGlimmerRect () const;
+
     // Atomic flags (UI writes, CPU reads)
     atomic<ColorMode>             m_colorMode{ColorMode::Color};
 

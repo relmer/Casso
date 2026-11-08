@@ -586,6 +586,10 @@ private:
     // pointer mapping, the Ctrl+0 solve -- follows this, not DeskSceneActive.
     bool    CrtMonitorActive     () const;
 
+    // The drives are on the slide-up strip at the bottom edge instead of in
+    // the drive band: always in fullscreen, and windowed when auto-hide is on.
+    bool    AreDrivesOnStrip     () const;
+
     // A file dropped on a drive or the recorder.
     void    OnFileDropped      (int tag, const std::wstring & path);
 

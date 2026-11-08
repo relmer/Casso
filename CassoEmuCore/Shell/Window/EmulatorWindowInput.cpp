@@ -606,7 +606,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
             }
         }
 
-        if (tip.empty() && DeskSceneActive() && m_renderer->m_d3dRenderer.IsFullscreen())
+        if (tip.empty() && DeskSceneActive() && AreDrivesOnStrip())
         {
             POINT  pt = { x, y };
 
@@ -1761,7 +1761,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (DeskSceneActive())
     {
         POINT           pt      = { x, y };
-        bool            inStrip = m_renderer->m_d3dRenderer.IsFullscreen() &&
+        bool            inStrip = AreDrivesOnStrip() &&
                                   m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
                                   PtInRect (&m_scene->m_stripRectPx, pt);
         SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
@@ -1841,12 +1841,12 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                     m_disks->Eject (6, drive.GetDrive());
                 }
 
-                // In fullscreen the widget is riding the overlay strip, and a
-                // browse opened from the strip pins it (the FSM must not
-                // auto-hide under the dialog).
+                // When the widget is on the overlay strip (fullscreen or
+                // auto-hide), a browse opened from it pins the strip, so the
+                // FSM doesn't hide it under the dialog.
                 RECT  driveRect = drive.GetOuterRect();
 
-                m_scene->m_stripBrowseOpen = m_renderer->m_d3dRenderer.IsFullscreen();
+                m_scene->m_stripBrowseOpen = AreDrivesOnStrip();
                 m_disks->BrowseForDisk (drive.GetDrive(), &driveRect);
                 m_scene->m_stripBrowseOpen = false;
 
@@ -2042,7 +2042,7 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
 
     if (DeskSceneActive())
     {
-        bool            inStrip  = m_renderer->m_d3dRenderer.IsFullscreen() &&
+        bool            inStrip  = AreDrivesOnStrip() &&
                                    m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
                                    PtInRect (&m_scene->m_stripRectPx, pt);
         SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);

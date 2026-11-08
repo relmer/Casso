@@ -522,6 +522,24 @@ bool EmulatorShell::CrtMonitorActive() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::AreDrivesOnStrip
+//
+//  Every path that places, draws or hit-tests the drives calls this instead
+//  of testing for fullscreen, so auto-hide and fullscreen use the same strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::AreDrivesOnStrip() const
+{
+    return m_renderer->GetD3D().IsFullscreen() || m_settings->GetPrefs().autoHideDrives;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LayoutDriveRowForTest
 //
 //  The flat drive band's row, for the band layout tests: lays the row out in
