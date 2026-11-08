@@ -25,7 +25,7 @@ void MonitorFormatter::Format (Reply & reply)
         return;
     }
 
-    if (!TryFormatData (reply.data, reply.text))
+    if (!TryFormatData (reply, reply.text))
     {
         AppleWinFormatter::Format (reply);
     }
@@ -39,16 +39,28 @@ void MonitorFormatter::Format (Reply & reply)
 //
 //  MonitorFormatter::TryFormatData
 //
+//  `=FE` is the Monitor's own arithmetic, whose value the handler has
+//  already cut to eight bits. A value from AppleWin's sixteen-bit CALC,
+//  reached with `/CALC`, keeps CALC's own layout rather than losing its high
+//  byte to this one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MonitorFormatter::TryFormatData (const ReplyData & data, Lines & lines)
+bool MonitorFormatter::TryFormatData (const Reply & reply, Lines & lines)
 {
+    const ReplyData  & data = reply.data;
+
+
+
     if      (auto * v = std::get_if<MemoryData>      (&data)) { FormatMemory      (*v, lines); }
     else if (auto * v = std::get_if<DisassemblyData> (&data)) { FormatDisassembly (*v, lines); }
     else if (auto * v = std::get_if<CompareData>     (&data)) { FormatCompare     (*v, lines); }
     else if (auto * v = std::get_if<SearchHitsData>  (&data)) { FormatSearchHits  (*v, lines); }
     else if (auto * v = std::get_if<RegistersData>   (&data)) { lines.push_back (FormatRegisters (v->registers)); }
-    else if (auto * v = std::get_if<CalcData>        (&data)) { lines.push_back (std::format ("={:02X}", v->value & 0xFF)); }
+    else if (auto * v = std::get_if<CalcData>        (&data); v != nullptr && reply.verb == DebugVerb::Arithmetic)
+    {
+        lines.push_back (std::format ("={:02X}", v->value));
+    }
     else
     {
         return false;

@@ -265,13 +265,69 @@ bool GSSquaredParser::TryParseWord (Line & line)
     else if (word == "watch" || word == "nowatch")  { ParseWatch           (line); }
     else if (word == "load" || word == "save")      { ParseFile            (line, word == "load"); }
     else if (word == "sload" || word == "slookup" || word == "sclear") { ParseSymbols (line, word); }
-    else if (word == "help")                        { ParseNoArguments     (line, "HELP"); }
+    else if (word == "help")                        { ParseHelp            (line); }
     else if (word == "s")                           { ParseNoArguments     (line, "T"); }
     else if (word == "o")                           { ParseNoArguments     (line, "P"); }
     else if (word == "r")                           { ParseNoArguments     (line, "RTS"); }
-    else                                            { ParseNoArguments     (line, "G"); }
+    else                                            { ParseGo              (line); }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredParser::ParseHelp
+//
+//  `help` lists the commands and `help word` describes one, as `?` does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GSSquaredParser::ParseHelp (Line & line)
+{
+    if (line.tokens.size() > 2)
+    {
+        SetInvalid (line, "HELP takes a command or nothing.");
+        return;
+    }
+
+    ParseAppleWin (line, line.tokens.size() == 2 ? "HELP " + line.tokens[1] : std::string ("HELP"), "help");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredParser::ParseGo
+//
+//  `g` resumes, and `g addr` runs until the PC reaches addr: the line the
+//  window's run to cursor sends is AppleWin's `G addr`, which reads as this.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GSSquaredParser::ParseGo (Line & line)
+{
+    Word  address = 0;
+
+
+
+    if (line.tokens.size() > 2)
+    {
+        SetInvalid (line, "G takes an address or nothing.");
+    }
+    else if (line.tokens.size() == 1)
+    {
+        ParseAppleWin (line, "G", "g");
+    }
+    else if (TryParseAddress (line, line.tokens[1], address))
+    {
+        ParseAppleWin (line, std::format ("G {}", FormatHex (address)), "g");
+    }
 }
 
 
@@ -296,6 +352,12 @@ void GSSquaredParser::ParseDeposit (Line & line, const std::string & address, co
     std::string              appleWin;
 
 
+
+    if (address.empty())
+    {
+        SetInvalid (line, "A deposit starts with its address: addr: bb bb.");
+        return;
+    }
 
     if (!TryParseAddress (line, address, start))
     {
@@ -568,7 +630,10 @@ void GSSquaredParser::ParseWatch (Line & line)
 //  GSSquaredParser::ParseFile
 //
 //  `load "file" addr` and `save "file" first.last`, as BLOAD and BSAVE. The
-//  quotes GSSquared requires are optional here.
+//  quotes GSSquared requires are optional here, and are not passed on:
+//  BLOAD and BSAVE keep quotes as part of the name they report, where
+//  GSSquared reports the bare name. A name holding a comma keeps them, so
+//  BLOAD does not read what follows the comma as a format.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -590,9 +655,14 @@ void GSSquaredParser::ParseFile (Line & line, bool isLoad)
 
     if (isLoad)
     {
+        if (file.find (',') != std::string::npos)
+        {
+            file = "\"" + file + "\"";
+        }
+
         if (TryParseAddress (line, line.tokens[2], first))
         {
-            ParseAppleWin (line, std::format ("BLOAD \"{}\" {}", file, FormatHex (first)), "load");
+            ParseAppleWin (line, std::format ("BLOAD {} {}", file, FormatHex (first)), "load");
         }
 
         return;
@@ -600,7 +670,7 @@ void GSSquaredParser::ParseFile (Line & line, bool isLoad)
 
     if (TryParseRange (line, line.tokens[2], first, last))
     {
-        ParseAppleWin (line, std::format ("BSAVE \"{}\" {}:{}", file, FormatHex (first), FormatHex (last)), "save");
+        ParseAppleWin (line, std::format ("BSAVE {} {}:{}", file, FormatHex (first), FormatHex (last)), "save");
     }
 }
 
@@ -651,7 +721,7 @@ void GSSquaredParser::ParseSymbols (Line & line, const std::string & word)
 //
 //  GSSquaredParser::ParseNoArguments
 //
-//  A word that takes nothing: help, sclear, and the step and run additions.
+//  A word that takes nothing: sclear, and the step additions.
 //  The command keeps its AppleWin name only where that name selects
 //  something, which is SYM's case.
 //
@@ -790,6 +860,14 @@ bool GSSquaredParser::TryParseRange (Line & line, const std::string & token, Wor
 
         last = first;
         return true;
+    }
+
+    //  With nothing on one side of the period there is no address to quote,
+    //  so the whole token is.
+    if (period == 0 || period + 1 == token.size())
+    {
+        SetInvalid (line, std::format ("{} is not a range. A range is first.last in hex.", token));
+        return false;
     }
 
     if (!TryParseAddress (line, token.substr (0, period), first))

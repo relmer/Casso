@@ -41,12 +41,15 @@ private:
     //  the AppleWin formatter instead.
     static bool  TryFormatData        (const Reply & reply, Lines & lines);
 
-    static void  FormatMemory         (const MemoryData         & data, Lines & lines);
+    static void  FormatMemory         (const MemoryData         & data, bool isRange, Lines & lines);
     static void  FormatDisassembly    (const DisassemblyData    & data, Lines & lines);
     static void  FormatBreakpointList (const BreakpointListData & data, Lines & lines);
     static void  FormatWatchList      (const WatchListData      & data, bool isAdd, Lines & lines);
     static void  FormatSymbols        (const SymbolData         & data, Lines & lines);
     static void  TrimTrailingSpaces   (Lines & lines);
+
+    static std::string  DescribeFlags (const BreakpointInfo & breakpoint);
+    static bool         IsRange       (const std::string & command);
 
     static constexpr size_t  kBytesPerLine    = 16;
     static constexpr size_t  kOperandColumn   = 23;

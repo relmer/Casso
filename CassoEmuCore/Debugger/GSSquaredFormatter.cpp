@@ -37,8 +37,8 @@ void GSSquaredFormatter::Format (Reply & reply)
 //  GSSquaredFormatter::TryFormatData
 //
 //  A deposit prints nothing, as GSSquared's does, though the reply carries
-//  the rows written. A watch that was just set is reported by its id, and a
-//  list by its entries.
+//  the rows written; so does clearing a breakpoint or a watch. A watch that
+//  was just set is reported by its id, and a list by its entries.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,12 +48,12 @@ bool GSSquaredFormatter::TryFormatData (const Reply & reply, Lines & lines)
 
 
 
-    if (reply.verb == DebugVerb::EnterBytes)
+    if (reply.verb == DebugVerb::EnterBytes || reply.verb == DebugVerb::ClearBreakpoint || reply.verb == DebugVerb::ClearWatch)
     {
         return true;
     }
 
-    if      (auto * v = std::get_if<MemoryData>         (&data)) { FormatMemory         (*v, lines); }
+    if      (auto * v = std::get_if<MemoryData>         (&data)) { FormatMemory         (*v, IsRange (reply.command), lines); }
     else if (auto * v = std::get_if<DisassemblyData>    (&data)) { FormatDisassembly    (*v, lines); }
     else if (auto * v = std::get_if<BreakpointListData> (&data)) { FormatBreakpointList (*v, lines); }
     else if (auto * v = std::get_if<SymbolData>         (&data)) { FormatSymbols        (*v, lines); }
@@ -92,9 +92,12 @@ bool GSSquaredFormatter::TryFormatData (const Reply & reply, Lines & lines)
 //  printable ASCII as a period, then a blank line. A short last line is
 //  padded so its characters line up with the lines above.
 //
+//  A range of one byte, `300.300`, is still a dump: GSSquared tells the two
+//  apart by the form typed, an address or a range, and so does this.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void GSSquaredFormatter::FormatMemory (const MemoryData & data, Lines & lines)
+void GSSquaredFormatter::FormatMemory (const MemoryData & data, bool isRange, Lines & lines)
 {
     static constexpr Byte             kLowBits    = 0x7F;
     static constexpr Byte             kFirstPrint = 0x20;
@@ -109,7 +112,7 @@ void GSSquaredFormatter::FormatMemory (const MemoryData & data, Lines & lines)
         bytes.insert (bytes.end(), row.bytes.begin(), row.bytes.end());
     }
 
-    if (bytes.size() == 1)
+    if (bytes.size() == 1 && !isRange)
     {
         lines.push_back (FormatAddress (first) + (bytes[0].has_value() ? std::format (": {:02X}", *bytes[0]) : std::string (": ??")));
         return;
@@ -193,6 +196,12 @@ void GSSquaredFormatter::FormatDisassembly (const DisassemblyData & data, Lines 
 //  `[id] exec 00/0300`, `[id] exec 00/0300.030F`, `[id] data 00/C019 r`. A
 //  kind GSSquared has no word for is described as AppleWin describes it.
 //
+//  GSSquared's entries are all enabled, unconditional and stop every time,
+//  so its list says nothing more. Casso's can be otherwise, from another
+//  mode's commands, and an entry that will not stop as its line suggests
+//  says why after it, in AppleWin's words: `if A == 1`, `, before the
+//  access`, `, temporary`, `, counts only`, `, disabled`.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void GSSquaredFormatter::FormatBreakpointList (const BreakpointListData & data, Lines & lines)
@@ -206,6 +215,7 @@ void GSSquaredFormatter::FormatBreakpointList (const BreakpointListData & data, 
     for (const BreakpointInfo & breakpoint : data.breakpoints)
     {
         std::string  place = FormatAddress (breakpoint.address);
+        std::string  line;
 
 
 
@@ -217,22 +227,73 @@ void GSSquaredFormatter::FormatBreakpointList (const BreakpointListData & data, 
         switch (breakpoint.kind)
         {
         case BreakpointKind::Address:
-            lines.push_back (std::format ("[{}] exec {}", breakpoint.id, place));
+            line = std::format ("[{}] exec {}", breakpoint.id, place) + DescribeFlags (breakpoint);
             break;
 
         case BreakpointKind::Memory:
-            lines.push_back (std::format ("[{}] data {} {}", breakpoint.id, place, kAccess[(int) breakpoint.access]));
+            line = std::format ("[{}] data {} {}", breakpoint.id, place, kAccess[(int) breakpoint.access]) + DescribeFlags (breakpoint);
             break;
 
         case BreakpointKind::Io:
-            lines.push_back (std::format ("[{}] io {} rw", breakpoint.id, place));
+            line = std::format ("[{}] io {} {}", breakpoint.id, place, kAccess[(int) breakpoint.access]) + DescribeFlags (breakpoint);
             break;
 
+        //  AppleWin's description already carries the flags but the enabled
+        //  one, which its list gives in a column of its own.
         default:
-            lines.push_back (std::format ("[{}] {}", breakpoint.id, AppleWinFormatter::DescribeBreakpoint (breakpoint)));
+            line = std::format ("[{}] {}", breakpoint.id, AppleWinFormatter::DescribeBreakpoint (breakpoint));
+            line += breakpoint.enabled ? "" : ", disabled";
             break;
         }
+
+        lines.push_back (line);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredFormatter::DescribeFlags
+//
+//  Whatever about an entry is off its default, or nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string GSSquaredFormatter::DescribeFlags (const BreakpointInfo & breakpoint)
+{
+    std::string  flags;
+
+
+
+    if (!breakpoint.condition.empty())
+    {
+        flags += " if " + breakpoint.condition;
+    }
+
+    if (breakpoint.mode == WatchMode::Before)
+    {
+        flags += ", before the access";
+    }
+
+    if (breakpoint.temporary)
+    {
+        flags += ", temporary";
+    }
+
+    if (!breakpoint.stops)
+    {
+        flags += ", counts only";
+    }
+
+    if (!breakpoint.enabled)
+    {
+        flags += ", disabled";
+    }
+
+    return flags;
 }
 
 
@@ -300,6 +361,28 @@ void GSSquaredFormatter::FormatSymbols (const SymbolData & data, Lines & lines)
 std::string GSSquaredFormatter::FormatAddress (Word address)
 {
     return std::format ("00/{:04X}", address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GSSquaredFormatter::IsRange
+//
+//  Whether the line's first token was typed as a range, `first.last`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool GSSquaredFormatter::IsRange (const std::string & command)
+{
+    size_t  first = command.find_first_not_of (" \t");
+    size_t  end   = command.find_first_of (" \t", first == std::string::npos ? 0 : first);
+
+
+
+    return first != std::string::npos && command.substr (first, end - first).find ('.') != std::string::npos;
 }
 
 

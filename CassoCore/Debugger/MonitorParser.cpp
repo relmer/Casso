@@ -63,30 +63,38 @@ static constexpr Word  s_kBytesPerLine     = 8;
 //  it. `:`, `R` and `W` take the rest of the line, because what follows them
 //  is a byte list or a file name rather than more commands.
 //
+//  The scan works on a copy of the state, kept only when the line parses: a
+//  line with an error runs nothing, so it changes nothing either.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState & state)
 {
-    MonitorParseResult  result;
-    Scan                scan;
-    size_t              index    = 0;
-    size_t              opening  = line.find_first_not_of (" \t");
+    static constexpr char  kShowRegisters = 0x05;
+    MonitorParseResult     result;
+    MonitorState           scratch        = state;
+    Scan                   scan;
+    size_t                 index          = 0;
+    size_t                 opening        = line.find_first_not_of (" \t");
 
 
 
-    //  A `/` line was never the Monitor's.
+    //  A `/` line was never the Monitor's. It is input other than a `:`, so
+    //  it ends a register edit `^E` armed.
     if (opening != std::string::npos && line[opening] == '/')
     {
-        result.status       = ParseStatus::Ok;
-        result.appleWinLine = Trim (line.substr (opening + 1));
+        result.status             = ParseStatus::Ok;
+        result.appleWinLine       = Trim (line.substr (opening + 1));
+        state.registerEditPending = false;
         return result;
     }
 
     while (index < line.size())
     {
         DebugCommand  command;
-        char          character = 0;
-        int           digit     = 0;
+        char          character   = 0;
+        int           digit       = 0;
+        bool          isSeparator = false;
 
 
 
@@ -97,83 +105,105 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
             return result;
         }
 
+        isSeparator = character == ' ' || character == '\t' || character == '\r' || character == '\n';
+
+        //  Anything typed but a separator, a `:` or `^E` itself is input
+        //  other than a `:`, and ends the register edit `^E` armed.
+        if (!isSeparator && character != ':' && character != kShowRegisters)
+        {
+            scratch.registerEditPending = false;
+        }
+
         if (TryHexDigit (character, digit))
         {
             scan.value = (Word) ((scan.value.value_or (0) << 4) | digit);
             continue;
         }
 
+        //  The digits, if there were any, end here.
+        NoteTypedValue (scan, scratch);
+
         switch (character)
         {
         //  A `.` with nothing in front of it continues from the last byte
-        //  examined, which is what makes `.30F` mean "on to $030F".
+        //  examined, which is what makes `.30F` mean "on to $030F". A second
+        //  `.` keeps the start the first one set, as the Monitor's A1 stays.
         case '.':
-            scan.first = scan.value.has_value() ? *scan.value : (Word) (state.lastExamined + 1);
+            if (scan.value.has_value())
+            {
+                scan.first = scan.value;
+            }
+            else if (!scan.first.has_value())
+            {
+                scan.first = (Word) (scratch.lastExamined + 1);
+            }
+
             scan.value.reset();
             continue;
 
+        //  The destination is the Monitor's A4, which M and V move on past
+        //  the bytes they cover, so it outlasts the line.
         case '<':
-            scan.dest = scan.value.value_or (0);
+            scan.dest  = scan.value.value_or (0);
+            scratch.a4 = *scan.dest;
             scan.value.reset();
             continue;
 
+        //  A second operator keeps the first operand, as the Monitor's A1
+        //  does: `5+3-1` is 5-1.
         case '+':
         case '-':
-            scan.first = scan.value.value_or (0);
-            scan.op    = character;
+            if (scan.op == 0)
+            {
+                scan.first = scan.value.value_or (0);
+            }
+
+            scan.op = character;
             scan.value.reset();
             continue;
 
         //  Return is $0D, which is why it is not listed again as a control
         //  command: reaching the end of what was typed and pressing Return
-        //  are the same thing to the scan.
+        //  are the same thing to the scan. A separator with nothing in front
+        //  of it does nothing; only a line with nothing on it at all
+        //  continues examining.
         case ' ':
         case '\t':
         case '\r':
         case '\n':
-            FlushExamine (scan, state, result);
+            if (scan.op != 0)
+            {
+                result.commands.push_back (MakeArithmetic (scan));
+                scan = Scan();
+            }
+            else if (scan.value.has_value() || scan.first.has_value())
+            {
+                FlushExamine (scan, scratch, result);
+            }
+
             continue;
 
         //  Everything after the colon is the byte list.
         case ':':
-        {
-            std::vector<Byte>  values;
-
-            if (!TryParseBytes (line.substr (index), values))
+            if (!TryParseColon (line, index, scan, scratch, command, result.error))
             {
-                result.error  = "A deposit takes hex bytes.";
                 result.status = ParseStatus::Invalid;
                 result.commands.clear();
                 return result;
             }
 
-            if (state.registerEditPending)
-            {
-                command        = MakeCommand (DebugVerb::EditRegisters, ':');
-                command.values = values;
-
-                state.registerEditPending = false;
-            }
-            else
-            {
-                command        = MakeCommand (DebugVerb::Deposit, ':');
-                command.a1     = scan.value.value_or (state.storeAddress);
-                command.hasA1  = true;
-                command.values = values;
-
-                state.storeAddress = (Word) (command.a1 + values.size());
-            }
-
             index = line.size();
             break;
-        }
 
         //  And everything after R or W is the file name.
         case 'R':
         case 'W':
-            command      = MakeCommand (character == 'R' ? DebugVerb::ReadFile : DebugVerb::WriteFile, character);
-            command.text = Unquote (Trim (line.substr (index)));
-            ApplyRange (scan, command);
+            if (!TryParseFile (character, line.substr (index), scan, command, result.error))
+            {
+                result.status = ParseStatus::Invalid;
+                result.commands.clear();
+                return result;
+            }
 
             index = line.size();
             break;
@@ -203,42 +233,18 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
             }
             else
             {
-                command       = MakeCommand (DebugVerb::StepInto, 'S');
-                command.a1    = scan.value.value_or (0);
-                command.hasA1 = scan.value.has_value();
-                command.count = 1;
+                command = MakeStep (DebugVerb::StepInto, 'S', scan);
             }
 
             break;
 
         case 'M':
         case 'V':
-            command = MakeCommand (character == 'M' ? DebugVerb::MoveMemory : DebugVerb::Verify, character);
-            ApplyRange (scan, command);
-
-            if (scan.dest.has_value())
-            {
-                command.a3    = *scan.dest;
-                command.hasA3 = true;
-            }
-
+            command = MakeMoveOrVerify (character, scan, scratch);
             break;
 
-        //  `F666G` IS AN ALIAS FOR `!`, NOT A JUMP. $F666 is the
-        //  mini-assembler only in the original ]['s ROM; on the other four
-        //  machines those bytes are Applesoft.
         case 'G':
-            if (scan.value.has_value() && *scan.value == s_kIntegerAssembler)
-            {
-                command = MakeCommand (DebugVerb::EnterAssembler, 'G');
-            }
-            else
-            {
-                command       = MakeCommand (DebugVerb::Go, 'G');
-                command.a3    = scan.value.value_or (0);
-                command.hasA3 = scan.value.has_value();
-            }
-
+            command = MakeGo (scan);
             break;
 
         case 'L':
@@ -247,9 +253,7 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
             break;
 
         case 'T':
-            command       = MakeCommand (DebugVerb::Trace, 'T');
-            command.a1    = scan.value.value_or (0);
-            command.hasA1 = scan.value.has_value();
+            command = MakeStep (DebugVerb::Trace, 'T', scan);
             break;
 
         case 'I':
@@ -260,8 +264,12 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
             command = MakeCommand (DebugVerb::SetNormal, 'N');
             break;
 
+        //  An address in front of `!` is where the assembly starts; with
+        //  none it starts at the PC.
         case '!':
-            command = MakeCommand (DebugVerb::EnterAssembler, '!');
+            command       = MakeCommand (DebugVerb::EnterAssembler, '!');
+            command.a1    = GetAddress (scan).value_or (0);
+            command.hasA1 = GetAddress (scan).has_value();
             break;
 
         case 0x0B:
@@ -286,13 +294,13 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
             command = MakeCommand (DebugVerb::UserVector, character);
             break;
 
-        case 0x05:
-            command                   = MakeCommand (DebugVerb::ShowRegistersForEdit, character);
-            state.registerEditPending = true;
+        case kShowRegisters:
+            command                     = MakeCommand (DebugVerb::ShowRegistersForEdit, character);
+            scratch.registerEditPending = true;
             break;
 
         default:
-            result.error  = std::format ("{} is not a Monitor command.", MakeCommand (DebugVerb::None, character).sourceName);
+            result.error  = std::format ("{} is not a Monitor command.", GetUnknownCharacter (line, index, character));
             result.status = ParseStatus::Invalid;
             result.commands.clear();
             return result;
@@ -302,24 +310,19 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
         scan = Scan();
     }
 
+    NoteTypedValue (scan, scratch);
+
     if (scan.op != 0)
     {
-        DebugCommand  arithmetic = MakeCommand (DebugVerb::Arithmetic, scan.op);
-
-        arithmetic.a1    = scan.first.value_or (0);
-        arithmetic.a2    = scan.value.value_or (0);
-        arithmetic.hasA1 = true;
-        arithmetic.hasA2 = true;
-        arithmetic.text  = std::string (1, scan.op);
-
-        result.commands.push_back (arithmetic);
+        result.commands.push_back (MakeArithmetic (scan));
     }
     else
     {
-        FlushExamine (scan, state, result);
+        FlushExamine (scan, scratch, result);
     }
 
     result.status = result.commands.empty() ? ParseStatus::Empty : ParseStatus::Ok;
+    state         = scratch;
     return result;
 }
 
@@ -336,7 +339,8 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
 //  With nothing accumulated it is the Monitor's continuation -- a bare
 //  Return or space shows the next line of eight bytes -- but only when the
 //  line has produced no other command, so a separator between two commands
-//  does not turn into a third.
+//  does not turn into a third. A continuation is input other than a `:`, so
+//  it ends a register edit `^E` armed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -352,6 +356,8 @@ void MonitorParser::FlushExamine (Scan & scan, MonitorState & state, MonitorPars
         {
             return;
         }
+
+        state.registerEditPending = false;
 
         //  TO THE END OF THE ROW, NOT EIGHT BYTES ON. Rows are labeled on
         //  eight-byte boundaries, so continuing from $0301 shows seven bytes
@@ -383,13 +389,19 @@ void MonitorParser::FlushExamine (Scan & scan, MonitorState & state, MonitorPars
 //  MonitorParser::ApplyRange
 //
 //  The same fields AppleWin's own range commands fill, so one handler serves
-//  both modes.
+//  both modes. After `+` or `-` the value is the second operand rather than
+//  the end of a range, so a command there acts on the first alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MonitorParser::ApplyRange (const Scan & scan, DebugCommand & command)
 {
-    if (scan.first.has_value())
+    if (scan.op != 0)
+    {
+        command.a1    = scan.first.value_or (0);
+        command.hasA1 = true;
+    }
+    else if (scan.first.has_value())
     {
         command.a1    = *scan.first;
         command.a2    = scan.value.value_or (*scan.first);
@@ -533,7 +545,7 @@ bool MonitorParser::TryParseBytes (const std::string & text, std::vector<Byte> &
 
 DebugCommand MonitorParser::MakeCommand (DebugVerb verb, char source)
 {
-    static constexpr char  kFirstPrintable = 0x20;
+    static constexpr Byte  kFirstPrintable = 0x20;
     DebugCommand           command;
 
 
@@ -541,11 +553,300 @@ DebugCommand MonitorParser::MakeCommand (DebugVerb verb, char source)
     command.verb = verb;
     command.mode = CommandMode::Monitor;
 
-    command.sourceName = (source < kFirstPrintable)
+    command.sourceName = ((Byte) source < kFirstPrintable)
                        ? std::string ("^") + (char) (source + 'A' - 1)
                        : std::string (1, source);
 
     return command;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonitorParser::GetAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> MonitorParser::GetAddress (const Scan & scan)
+{
+    return scan.first.has_value() ? scan.first : scan.value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonitorParser::NoteTypedValue
+//
+//  The Monitor copies an address typed outside a range or an operator into
+//  A3, the pointer `:` stores through, so after `300` or `300.30F` a `: 12`
+//  stores at $0300. storeAddress is A3.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MonitorParser::NoteTypedValue (const Scan & scan, MonitorState & state)
+{
+    if (scan.value.has_value() && !scan.first.has_value() && scan.op == 0)
+    {
+        state.storeAddress = *scan.value;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonitorParser::TryParseColon
+//
+//  `: bytes` stores at A3 and moves it past them, unless `^E` armed the colon
+//  and nothing has been typed since, when the bytes set the registers. A
+//  colon with no bytes after it is an error, as is anything but hex bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MonitorParser::TryParseColon (
+    const std::string  & line,
+    size_t               index,
+    const Scan         & scan,
+    MonitorState       & state,
+    DebugCommand       & command,
+    std::string        & error)
+{
+    std::vector<Byte>  values;
+    bool               isEdit = state.registerEditPending && !scan.value.has_value() && !scan.first.has_value();
+
+
+
+    if (!TryParseBytes (line.substr (index), values))
+    {
+        error = "A deposit takes hex bytes.";
+        return false;
+    }
+
+    if (values.empty())
+    {
+        error = isEdit ? "A register change takes one or more bytes." : "A deposit takes one or more bytes.";
+        return false;
+    }
+
+    if (isEdit)
+    {
+        command                   = MakeCommand (DebugVerb::EditRegisters, ':');
+        command.values            = values;
+        state.registerEditPending = false;
+        return true;
+    }
+
+    command        = MakeCommand (DebugVerb::Deposit, ':');
+    command.a1     = state.storeAddress;
+    command.hasA1  = true;
+    command.values = values;
+
+    state.storeAddress = (Word) (command.a1 + values.size());
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonitorParser::TryParseFile
+//
+//  `first.lastR name` and `first.lastW name`. A file transfer needs a range
+//  that runs forward: with none, or one that ends before it starts, there is
+//  no length to read or write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MonitorParser::TryParseFile (
+    char                 character,
+    const std::string  & rest,
+    const Scan         & scan,
+    DebugCommand       & command,
+    std::string        & error)
+{
+    command      = MakeCommand (character == 'R' ? DebugVerb::ReadFile : DebugVerb::WriteFile, character);
+    command.text = Unquote (Trim (rest));
+    ApplyRange (scan, command);
+
+    if (!command.hasA1)
+    {
+        error = std::format ("{} takes a range: first.last{} name.", character, character);
+        return false;
+    }
+
+    if (command.hasA2 && command.a2 < command.a1)
+    {
+        error = std::format ("{:04X}.{:04X} ends before it starts.", command.a1, command.a2);
+        return false;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonitorParser::MakeMoveOrVerify
+//
+//  The destination is the Monitor's A4: the `<` value, or with no `<` on the
+//  line wherever the last move or verify left it. Each moves it past the
+//  bytes it covered, at least one, so `500.5FFM` after `300<400.4FFM`
+//  carries on at $0400 as it does on the ROM.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebugCommand MonitorParser::MakeMoveOrVerify (char character, const Scan & scan, MonitorState & state)
+{
+    DebugCommand  command = MakeCommand (character == 'M' ? DebugVerb::MoveMemory : DebugVerb::Verify, character);
+    uint32_t      count   = 1;
+
+
+
+    ApplyRange (scan, command);
+
+    if (command.hasA2 && command.a2 > command.a1)
+    {
+        count = (uint32_t) (command.a2 - command.a1) + 1;
+    }
+
+    command.a3    = state.a4;
+    command.hasA3 = true;
+    state.a4      = (Word) (state.a4 + count);
+
+    return command;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonitorParser::MakeStep
+//
+//  `addrS` steps one instruction from addr, and `addrT` traces from it until
+//  a stop condition or the budget ends the run, as the Monitor's T runs on
+//  until something stops it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebugCommand MonitorParser::MakeStep (DebugVerb verb, char character, const Scan & scan)
+{
+    static constexpr uint32_t  kUntilStopped = UINT32_MAX;
+    DebugCommand               command       = MakeCommand (verb, character);
+    std::optional<Word>        address       = GetAddress (scan);
+
+
+
+    command.a1    = address.value_or (0);
+    command.hasA1 = address.has_value();
+    command.count = (verb == DebugVerb::Trace) ? kUntilStopped : 1;
+    return command;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonitorParser::MakeGo
+//
+//  `F666G` IS AN ALIAS FOR `!`, NOT A JUMP. $F666 is the mini-assembler only
+//  in the original ]['s ROM; on the other four machines those bytes are
+//  Applesoft.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebugCommand MonitorParser::MakeGo (const Scan & scan)
+{
+    std::optional<Word>  address = GetAddress (scan);
+    DebugCommand         command;
+
+
+
+    if (address == s_kIntegerAssembler)
+    {
+        return MakeCommand (DebugVerb::EnterAssembler, 'G');
+    }
+
+    command       = MakeCommand (DebugVerb::Go, 'G');
+    command.a3    = address.value_or (0);
+    command.hasA3 = address.has_value();
+    return command;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonitorParser::MakeArithmetic
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebugCommand MonitorParser::MakeArithmetic (const Scan & scan)
+{
+    DebugCommand  arithmetic = MakeCommand (DebugVerb::Arithmetic, scan.op);
+
+
+
+    arithmetic.a1    = scan.first.value_or (0);
+    arithmetic.a2    = scan.value.value_or (0);
+    arithmetic.hasA1 = true;
+    arithmetic.hasA2 = true;
+    arithmetic.text  = std::string (1, scan.op);
+    return arithmetic;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MonitorParser::GetUnknownCharacter
+//
+//  A character that is not a command, as the reader typed it. A byte outside
+//  ASCII starts a UTF-8 character the window sent, and is quoted whole
+//  rather than read as a control code.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MonitorParser::GetUnknownCharacter (const std::string & line, size_t index, char character)
+{
+    static constexpr Byte  kFirstNonAscii  = 0x80;
+    static constexpr Byte  kLeadingBits    = 0xC0;
+    size_t                 end             = index;
+
+
+
+    if ((Byte) character < kFirstNonAscii)
+    {
+        return MakeCommand (DebugVerb::None, character).sourceName;
+    }
+
+    //  A continuation byte is 10xxxxxx.
+    while (end < line.size() && ((Byte) line[end] & kLeadingBits) == kFirstNonAscii)
+    {
+        ++end;
+    }
+
+    return line.substr (index - 1, end - index + 1);
 }
 
 

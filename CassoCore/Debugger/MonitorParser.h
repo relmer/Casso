@@ -54,6 +54,8 @@ struct MonitorParseResult
 //
 //  The state carries across lines, because the Monitor does: a bare Return
 //  continues examining, and `:` after `^E` sets registers rather than memory.
+//  A line that does not parse leaves the state as it found it, since nothing
+//  on such a line runs.
 //
 //  Numbers are bare hex, with no expressions and no symbols. That is the
 //  Monitor's own syntax, and it is why this parser needs no expression
@@ -94,4 +96,19 @@ private:
     static DebugCommand MakeCommand      (DebugVerb verb, char source);
     static std::string  Trim             (const std::string & text);
     static std::string  Unquote          (const std::string & text);
+
+    //  The address a one-address command acts on: the left side of a range
+    //  or an operator when there is one, as the Monitor's A1 is.
+    static std::optional<Word>  GetAddress (const Scan & scan);
+
+    static void         NoteTypedValue      (const Scan & scan, MonitorState & state);
+    static bool         TryParseColon       (const std::string & line, size_t index, const Scan & scan, MonitorState & state,
+                                             DebugCommand & command, std::string & error);
+    static bool         TryParseFile        (char character, const std::string & rest, const Scan & scan,
+                                             DebugCommand & command, std::string & error);
+    static DebugCommand MakeMoveOrVerify    (char character, const Scan & scan, MonitorState & state);
+    static DebugCommand MakeStep            (DebugVerb verb, char character, const Scan & scan);
+    static DebugCommand MakeGo              (const Scan & scan);
+    static DebugCommand MakeArithmetic      (const Scan & scan);
+    static std::string  GetUnknownCharacter (const std::string & line, size_t index, char character);
 };

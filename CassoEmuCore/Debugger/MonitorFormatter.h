@@ -34,9 +34,8 @@ class MonitorFormatter
 public:
     static void         Format          (Reply & reply);
 
-    //  The line a stop prints. With the instruction line a step's reply
-    //  carries, this is the original ]['s step display: the instruction,
-    //  then the registers.
+    //  The line a stop prints: the register line alone, whatever stopped
+    //  the run. It has no program counter, as the Monitor's never did.
     static std::string  FormatStop      (const StopEvent & stop);
 
     static std::string  FormatRegisters (const Cpu6502Registers & registers);
@@ -46,9 +45,9 @@ private:
 
     static void  FormatError       (Reply & reply);
 
-    //  False when the Monitor has no layout for this kind, which is what
-    //  sends the reply to the AppleWin formatter instead.
-    static bool  TryFormatData     (const ReplyData & data, Lines & lines);
+    //  False when the Monitor has no layout for this reply, which is what
+    //  sends it to the AppleWin formatter instead.
+    static bool  TryFormatData     (const Reply & reply, Lines & lines);
 
     static void  FormatMemory      (const MemoryData      & data, Lines & lines);
     static void  FormatDisassembly (const DisassemblyData & data, Lines & lines);
