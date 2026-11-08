@@ -150,6 +150,10 @@ public:
     // Phase 6 / FR-013 read-only modifier accessors used by the soft-switch
     // bank when sourcing bit 7 of $C061/$C062/$C063 status reads.
     bool IsOpenApplePressed   () const { return m_openApple.load   (memory_order_acquire); }
+
+    // Whether $C061 reads Open Apple as down: the key is pressed, or
+    // HoldAppleKeysThroughReset set it for a reset.
+    bool IsOpenAppleDown      () const { return m_openApple.load (memory_order_acquire) || m_holdOpenApple.load (memory_order_acquire); }
     bool IsClosedApplePressed () const { return m_closedApple.load (memory_order_acquire); }
     bool IsShiftPressed       () const { return m_shift.load       (memory_order_acquire); }
 

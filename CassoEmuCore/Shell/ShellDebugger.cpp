@@ -2,6 +2,7 @@
 
 #include "Shell/IDebuggerHost.h"
 #include "Shell/ShellDebugger.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Shell/CpuManager.h"
 
@@ -1663,12 +1664,18 @@ void ShellDebugger::NotifyDebugPauseChanged (bool paused)
 
 void ShellDebugger::NotifyDebugReset (bool isPowerCycle)
 {
+    Apple2eKeyboard  * keyboard = m_machine.GetRefs().iieKeyboard;
+
+
+
     if (m_debugSession != nullptr)
     {
         m_debugSession->OnReset (isPowerCycle);
     }
 
-    if (isPowerCycle)
+    //  Ctrl-Open-Apple-Reset boots the disk in drive 1 as a power cycle
+    //  does: the firmware reads Open Apple after the reset and cold starts.
+    if (isPowerCycle || (keyboard != nullptr && keyboard->IsOpenAppleDown()))
     {
         NoteBootDisk();
     }
