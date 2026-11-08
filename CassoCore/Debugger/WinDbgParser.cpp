@@ -63,7 +63,7 @@ static constexpr WinDbgCommand s_kCommands[] =
 //
 //  The WinDbg commands that assume what a 6502 does not have, by family.
 //  Names that are a family by their first characters (`~0s`, `sxe`,
-//  `!ext.foo`, `$t0`) are matched in TryFindExclusion.
+//  `!ext.foo`, `$t0`, `$$>a<`) are matched in TryFindExclusion.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,6 +83,12 @@ static constexpr WinDbgExclusion s_kExclusions[] =
     { ".thread",     s_kpszThreads    },
     { ".attach",     s_kpszThreads    },
     { ".kill",       s_kpszThreads    },
+    { "!peb",        s_kpszThreads    },
+    { "!teb",        s_kpszThreads    },
+    { "!handle",     s_kpszThreads    },
+    { "!heap",       s_kpszThreads    },
+    { "!address",    s_kpszThreads    },
+    { "!gle",        s_kpszThreads    },
     { "lm",          s_kpszModules    },
     { ".reload",     s_kpszModules    },
     { ".sympath",    s_kpszModules    },
@@ -92,10 +98,15 @@ static constexpr WinDbgExclusion s_kExclusions[] =
     { "sxe",         s_kpszExceptions },
     { "sxd",         s_kpszExceptions },
     { ".lastevent",  s_kpszExceptions },
+    { ".exr",        s_kpszExceptions },
+    { ".cxr",        s_kpszExceptions },
+    { ".ecxr",       s_kpszExceptions },
     { "!analyze",    s_kpszExceptions },
     { "!pte",        s_kpszKernel     },
     { "!pool",       s_kpszKernel     },
     { "!irql",       s_kpszKernel     },
+    { "!process",    s_kpszKernel     },
+    { "!thread",     s_kpszKernel     },
     { ".trap",       s_kpszKernel     },
     { ".dump",       s_kpszDumps      },
     { ".opendump",   s_kpszDumps      },
@@ -105,6 +116,11 @@ static constexpr WinDbgExclusion s_kExclusions[] =
     { "??",          s_kpszTypes      },
     { "dq",          s_kpszTypes      },
     { "dp",          s_kpszTypes      },
+    { "dps",         s_kpszTypes      },
+    { "dqs",         s_kpszTypes      },
+    { "dpa",         s_kpszTypes      },
+    { "dpu",         s_kpszTypes      },
+    { "dpp",         s_kpszTypes      },
     { ".frame",      s_kpszTypes      },
     { ".load",       s_kpszScripting  },
     { ".chain",      s_kpszScripting  },
@@ -115,6 +131,7 @@ static constexpr WinDbgExclusion s_kExclusions[] =
     { ".while",      s_kpszScripting  },
     { "as",          s_kpszScripting  },
     { "$t0",         s_kpszScripting  },
+    { "$$>a<",       s_kpszScripting  },
 };
 
 
@@ -126,8 +143,10 @@ static constexpr WinDbgExclusion s_kExclusions[] =
 //  WinDbgParser::Parse
 //
 //  `!name` is an engine command. `?` needs no space before its expression,
-//  as in WinDbg. Numbers are rewritten from WinDbg's prefixes to AppleWin's
-//  (`0x300` to `$300`, `0n10` to `#10`) except inside `ea`'s quoted text.
+//  as in WinDbg. `*` and `$$` begin a comment, and a line beginning `;` is
+//  one too, as a script's is. Numbers are rewritten from WinDbg's prefixes
+//  to AppleWin's (`0x300` to `$300`, `0n10` to `#10`) except inside quoted
+//  text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,7 +155,6 @@ WinDbgParseResult WinDbgParser::Parse (const std::string & line, const IDebugExp
     WinDbgParseResult          result;
     AppleWinParseResult        parsed;
     Rewrite                    rewrite;
-    Tokens                     tokens;
     std::string                name;
     std::string                rest;
     size_t                     first     = line.find_first_not_of (" \t");
@@ -145,7 +163,7 @@ WinDbgParseResult WinDbgParser::Parse (const std::string & line, const IDebugExp
 
 
 
-    if (first == std::string::npos)
+    if (first == std::string::npos || IsComment (line.substr (first)))
     {
         return result;
     }
@@ -172,20 +190,18 @@ WinDbgParseResult WinDbgParser::Parse (const std::string & line, const IDebugExp
 
     if (TryFindExclusion (name, exclusion))
     {
-        result.status = ParseStatus::NotAvailable;
-        result.label  = "no meaning on this machine";
-        result.error  = std::format ("{} belongs to WinDbg's {} commands.", name, exclusion->family);
+        SetExclusion (name, *exclusion, result);
         return result;
     }
 
-    if (name != "ea")
+    if (HasSeparator (line.substr (first)))
     {
-        rest = NormalizeNumbers (rest);
+        result.status = ParseStatus::NotAvailable;
+        result.error  = "Several commands on one line are not available yet. Put each command on a line of its own.";
+        return result;
     }
 
-    tokens = Split (rest);
-
-    if (!TryRewrite (name, tokens, rest, context, rewrite))
+    if (!TryRewrite (name, rest, context, rewrite))
     {
         result.status = rewrite.isDeferred ? ParseStatus::NotAvailable
                       : rewrite.error.empty() ? ParseStatus::Unknown
@@ -198,6 +214,12 @@ WinDbgParseResult WinDbgParser::Parse (const std::string & line, const IDebugExp
     result.status  = parsed.status;
     result.command = parsed.command;
     result.error   = parsed.error;
+
+    if (parsed.status == ParseStatus::Ok)
+    {
+        ApplyRewrite (name, rewrite, result.command);
+    }
+
     return result;
 }
 
@@ -237,11 +259,71 @@ std::span<const WinDbgExclusion> WinDbgParser::GetExclusions()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WinDbgParser::IsComment
+//
+//  WinDbg's `*` comment line and `$$` comment. A `$$<` or `$$>` runs a
+//  script and is left to the exclusions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::IsComment (const std::string & line)
+{
+    bool  isScript = line.starts_with ("$$<") || line.starts_with ("$$>");
+
+
+
+    return line.starts_with ('*') || line.starts_with (';') || (line.starts_with ("$$") && !isScript);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::HasSeparator
+//
+//  A `;` outside quotes, which WinDbg reads as the end of one command and the
+//  start of the next.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::HasSeparator (const std::string & line)
+{
+    char  quote = '\0';
+
+
+
+    for (char ch : line)
+    {
+        if (quote == '\0' && (ch == '"' || ch == '\''))
+        {
+            quote = ch;
+        }
+        else if (ch == quote)
+        {
+            quote = '\0';
+        }
+        else if (quote == '\0' && ch == ';')
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WinDbgParser::TryParseEngine
 //
-//  `!name ...` for a Casso command WinDbg reaches (CommandModeHelp), parsed
-//  as AppleWin mode parses the same line without the `!`. An excluded `!`
-//  command is left to Parse, which reports its family.
+//  `!name ...`, or `! name ...`, for a Casso command WinDbg reaches
+//  (CommandModeHelp), parsed as AppleWin mode parses the same line without
+//  the `!`. An excluded `!` command replies with its family.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -249,6 +331,7 @@ bool WinDbgParser::TryParseEngine (const std::string & line, const IDebugExpress
 {
     std::string                text;
     Tokens                     tokens;
+    std::string                bang;
     const WinDbgExclusion    * exclusion = nullptr;
     AppleWinParseResult        parsed;
 
@@ -262,19 +345,34 @@ bool WinDbgParser::TryParseEngine (const std::string & line, const IDebugExpress
     text   = line.substr (1);
     tokens = Split (text);
 
-    if (tokens.empty() || TryFindExclusion ("!" + ToLower (tokens[0]), exclusion))
+    if (tokens.empty())
     {
         return false;
     }
 
-    if (!CommandModeHelp::IsCassoCommandReachable (CommandMode::WinDbg, tokens[0]))
+    bang = "!" + ToLower (tokens[0]);
+
+    if (TryFindExclusion (bang, exclusion))
     {
-        result.status = ParseStatus::Unknown;
-        result.error  = std::format ("!{} does not run in WinDbg mode. Use .help {} to see where it runs.", tokens[0], tokens[0]);
+        SetExclusion (bang, *exclusion, result);
         return true;
     }
 
-    parsed         = AppleWinParser::Parse (NormalizeNumbers (text), context);
+    result.status = ParseStatus::Unknown;
+
+    if (AppleWinCommandTable::Find (tokens[0]) == nullptr)
+    {
+        result.error = std::format ("!{} is not a command.", tokens[0]);
+        return true;
+    }
+
+    if (!CommandModeHelp::IsCassoCommandReachable (CommandMode::WinDbg, tokens[0]))
+    {
+        result.error = std::format ("!{} does not run in WinDbg mode. Use .help {} to see where it runs.", tokens[0], tokens[0]);
+        return true;
+    }
+
+    parsed         = AppleWinParser::Parse (NormalizeEngineLine (Trim (text)), context);
     result.status  = parsed.status;
     result.command = parsed.command;
     result.error   = parsed.error;
@@ -307,9 +405,10 @@ bool WinDbgParser::TryFindExclusion (const std::string & name, const WinDbgExclu
         }
     }
 
-    if      (name.starts_with ('~') || name.starts_with ('|'))  { family = s_kpszThreads;    }
-    else if (name.starts_with ("sx"))                           { family = s_kpszExceptions; }
-    else if (name.starts_with ("!ext."))                        { family = s_kpszScripting;  }
+    if      (name.starts_with ('~') || name.starts_with ('|'))       { family = s_kpszThreads;    }
+    else if (name.starts_with ("sx"))                                { family = s_kpszExceptions; }
+    else if (name.starts_with ("!ext."))                             { family = s_kpszScripting;  }
+    else if (name.starts_with ("$$<") || name.starts_with ("$$>"))   { family = s_kpszScripting;  }
     else if (name.size() >= kPseudoRegisterLength && name.starts_with ("$t") && isdigit ((unsigned char) name[2]))
     {
         family = s_kpszScripting;
@@ -333,6 +432,62 @@ bool WinDbgParser::TryFindExclusion (const std::string & name, const WinDbgExclu
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WinDbgParser::SetExclusion
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WinDbgParser::SetExclusion (const std::string & name, const WinDbgExclusion & exclusion, WinDbgParseResult & result)
+{
+    result.status = ParseStatus::NotAvailable;
+    result.label  = "no meaning on this machine";
+    result.error  = std::format ("{} belongs to WinDbg's {} commands.", name, exclusion.family);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::ApplyRewrite
+//
+//  What the AppleWin line could not carry. The command keeps the WinDbg
+//  word as its name, so a reply or an error says `eb` where the user typed
+//  it; x keeps SYM's, which is how the symbol handlers choose the tables.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WinDbgParser::ApplyRewrite (const std::string & name, const Rewrite & rewrite, DebugCommand & command)
+{
+    if (name != "x")
+    {
+        command.sourceName = name;
+    }
+
+    if (rewrite.startPc.has_value())
+    {
+        command.a1    = *rewrite.startPc;
+        command.hasA1 = true;
+    }
+
+    if (rewrite.sourceFile.has_value())
+    {
+        command.text = *rewrite.sourceFile;
+    }
+
+    if (rewrite.lookup.has_value())
+    {
+        command.verb = DebugVerb::LookupSymbol;
+        command.text = *rewrite.lookup;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WinDbgParser::TryRewrite
 //
 //  The AppleWin-mode line for one WinDbg command. False with no error for a
@@ -342,54 +497,708 @@ bool WinDbgParser::TryFindExclusion (const std::string & name, const WinDbgExclu
 
 bool WinDbgParser::TryRewrite (
     const std::string              & name,
-    const Tokens                   & args,
     const std::string              & rest,
     const IDebugExpressionContext  & context,
     Rewrite                        & rewrite)
 {
+    static constexpr const char * kRuns[]        = { "t", "p", "gu", "g", "pa", "ta" };
+    static constexpr const char * kBreakpoints[] = { "bp", "ba", "bl", "bc", "bd", "be" };
+    static constexpr const char * kMemory[]      = { "db", "dw", "dd", "da", "eb", "ew", "ea", "f", "s", "m" };
+
+
+
+    if (std::find (std::begin (kRuns), std::end (kRuns), name) != std::end (kRuns))
+    {
+        return TryRewriteRun (name, Split (NormalizeExpression (rest)), context, rewrite);
+    }
+
+    if (std::find (std::begin (kBreakpoints), std::end (kBreakpoints), name) != std::end (kBreakpoints))
+    {
+        return TryRewriteBreakpoints (name, rest, context, rewrite);
+    }
+
+    if (std::find (std::begin (kMemory), std::end (kMemory), name) != std::end (kMemory))
+    {
+        return TryRewriteMemory (name, rest, context, rewrite);
+    }
+
+    return TryRewriteOther (name, rest, rewrite);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::TryRewriteRun
+//
+//  t and p take a count and `=addr` to start from; g takes `=addr` to start
+//  from or one address to stop at; pa and ta take the address to stop at.
+//  WinDbg's g stops at any of several addresses, which a Casso run cannot,
+//  so a second address is an error rather than a skip range.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::TryRewriteRun (
+    const std::string              & name,
+    const Tokens                   & args,
+    const IDebugExpressionContext  & context,
+    Rewrite                        & rewrite)
+{
     std::string  & line = rewrite.appleWinLine;
+    size_t         next = 0;
 
 
 
-    if      (name == "t")        { line = "T " + rest; }
-    else if (name == "p")        { line = "P " + rest; }
-    else if (name == "gu")       { line = "RTS"; }
-    else if (name == "g")        { line = "G " + rest; }
-    else if (name == "bl")       { line = "BPL"; }
-    else if (name == "bc")       { line = "BPC " + rest; }
-    else if (name == "bd")       { line = "BPD " + rest; }
-    else if (name == "be")       { line = "BPE " + rest; }
-    else if (name == "eb")       { line = "MEB " + rest; }
-    else if (name == "ew")       { line = "MEW " + rest; }
-    else if (name == "x")        { line = "SYM " + rest; }
-    else if (name == "?")        { line = "CALC " + rest; }
-    else if (name == ".formats") { line = "CALC " + rest; }
-    else if (name == "l+s")      { line = "SRC ON"; }
-    else if (name == "l-s")      { line = "SRC OFF"; }
-    else if (name == ".help")    { line = "HELP " + rest; }
-    else if (name == "bp")       { return TryRewriteBreakpoint (args, rest, rewrite); }
-    else if (name == "ba")       { return TryRewriteAccess     (args, rewrite); }
-    else if (name == "r")        { return TryRewriteRegister   (rest, rewrite); }
-    else if (name == "ea")       { return TryRewriteText       (args, rest, rewrite); }
-    else if (name == "db" || name == "dw" || name == "dd" || name == "da")
+    if (name == "gu")
     {
-        return TryRewriteDump (name, args, context, rewrite);
+        rewrite.error = "gu takes no arguments.";
+        line          = "RTS";
+        return args.empty();
     }
-    else if (name == "f" || name == "s" || name == "m")
-    {
-        return TryRewriteRange (name, args, rewrite);
-    }
-    else if (name == "pa" || name == "ta")
+
+    if (name == "pa" || name == "ta")
     {
         rewrite.error = std::format ("{} takes the address to stop at.", name);
-        line          = "G " + rest;
-        return args.size() == 1;
+        line          = "G " + Join (args, 0);
+        return args.size() == 1 && !args[0].starts_with ('=');
     }
-    else if (name == "u")
+
+    if (!TryRewriteStart (args, context, rewrite, next))
     {
-        rewrite.error = "u takes one address, or none to continue.";
-        line          = "U " + rest;
-        return args.size() <= 1;
+        return false;
+    }
+
+    if (name == "g" && rewrite.startPc.has_value())
+    {
+        rewrite.isDeferred = next < args.size();
+        rewrite.error      = "g =addr with an address to stop at is not available yet. Use g =addr, or r pc=addr and then g addr.";
+        line               = std::format ("${:04X}G", *rewrite.startPc);
+        rewrite.startPc.reset();
+        return next == args.size();
+    }
+
+    if (name == "g")
+    {
+        rewrite.error = "g takes one address to stop at.";
+        line          = "G " + Join (args, next);
+        return args.size() - next <= 1;
+    }
+
+    rewrite.error = std::format ("{} takes a count, and =addr to start from: {} =300 3.", name, name);
+    line          = (name == "t" ? "T " : "P ") + Join (args, next);
+    return args.size() - next <= 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::TryRewriteStart
+//
+//  WinDbg's `=addr` start address, written `=300` or `= 300`, ahead of any
+//  other argument. next is the index of the argument after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::TryRewriteStart (const Tokens & args, const IDebugExpressionContext & context, Rewrite & rewrite, size_t & next)
+{
+    std::string  text;
+    uint32_t     start = 0;
+
+
+
+    next = 0;
+
+    if (args.empty() || !args[0].starts_with ('='))
+    {
+        return true;
+    }
+
+    text = args[0].substr (1);
+    next = 1;
+
+    if (text.empty() && args.size() > 1)
+    {
+        text = args[1];
+        next = 2;
+    }
+
+    if (text.empty())
+    {
+        rewrite.error = "= takes the address to start from, as =300.";
+        return false;
+    }
+
+    if (!TryEvaluateAddress (text, context, start, rewrite.error))
+    {
+        return false;
+    }
+
+    rewrite.startPc = (Word) start;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::TryRewriteBreakpoints
+//
+//  bp, ba, bl, bc, bd and be. bl takes ids to list, which the formatter
+//  picks from the whole list; bc, bd and be take one id or *, since a Casso
+//  line acts on one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::TryRewriteBreakpoints (
+    const std::string              & name,
+    const std::string              & rest,
+    const IDebugExpressionContext  & context,
+    Rewrite                        & rewrite)
+{
+    static constexpr std::pair<const char *, const char *>  kIdCommands[] =
+    {
+        { "bc", "BPC" }, { "bd", "BPD" }, { "be", "BPE" },
+    };
+    Tokens  args = Split (NormalizeExpression (rest));
+
+
+
+    if (name == "bp")
+    {
+        return TryRewriteBreakpoint (rest, rewrite);
+    }
+
+    if (name == "ba")
+    {
+        return TryRewriteAccess (args, context, rewrite);
+    }
+
+    if (name == "bl")
+    {
+        rewrite.error        = "bl takes ids to list, or * for all.";
+        rewrite.appleWinLine = "BPL";
+
+        return std::all_of (args.begin(), args.end(), [] (const std::string & id)
+        {
+            return id == "*" || id.find_first_not_of ("0123456789") == std::string::npos;
+        });
+    }
+
+    for (const auto & [windbg, appleWin] : kIdCommands)
+    {
+        if (name == windbg)
+        {
+            rewrite.error        = std::format ("{} takes one id, or * for all.", name);
+            rewrite.appleWinLine = std::format ("{} {}", appleWin, Join (args, 0));
+        }
+    }
+
+    return args.size() <= 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::TryRewriteBreakpoint
+//
+//  `bp addr [IF expr]`, and a source line with or without WinDbg's
+//  backquotes. An address written with spaces around an operator, as
+//  `bp start + 3`, is one expression. WinDbg's pass count, command string
+//  and options have no Casso equivalent and say so.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::TryRewriteBreakpoint (const std::string & rest, Rewrite & rewrite)
+{
+    size_t       open       = rest.find ('`');
+    size_t       close      = (open == std::string::npos) ? std::string::npos : rest.find ('`', open + 1);
+    Tokens       tokens;
+    std::string  expression;
+    size_t       ifAt       = 0;
+    size_t       next       = 1;
+
+
+
+    rewrite.error = "bp takes an address or a source line.";
+
+    if (open != std::string::npos)
+    {
+        return close != std::string::npos && Trim (rest.substr (0, open)).empty() &&
+               TryRewriteSourceLine (rest.substr (open + 1, close - open - 1), rest.substr (close + 1), rewrite);
+    }
+
+    tokens = Split (NormalizeExpression (rest));
+
+    if (tokens.empty())
+    {
+        return false;
+    }
+
+    ifAt = (size_t) (std::find_if (tokens.begin(), tokens.end(), [] (const std::string & token) { return ToLower (token) == "if"; }) - tokens.begin());
+
+    if (tokens[0].starts_with ('/'))
+    {
+        rewrite.isDeferred = true;
+        rewrite.error      = std::format ("bp {} is not available yet. Casso breakpoints take no options.", tokens[0]);
+        return false;
+    }
+
+    expression = tokens[0];
+
+    while (next < ifAt && (IsOperatorEdge (expression.back()) || IsOperatorEdge (tokens[next].front())))
+    {
+        expression += tokens[next++];
+    }
+
+    if (next < ifAt)
+    {
+        rewrite.isDeferred = true;
+        rewrite.error      = tokens[next].starts_with ('"')
+                           ? "bp with a command string is not available yet. Use bp addr IF expr to stop only when a condition holds."
+                           : "bp with a pass count is not available yet. Use bp addr IF expr to stop only when a condition holds.";
+        return false;
+    }
+
+    rewrite.appleWinLine = "BP " + expression + (ifAt < tokens.size() ? " " + Join (tokens, ifAt) : std::string());
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::TryRewriteSourceLine
+//
+//  ``bp `file:line` ``: always a source line, whatever the file is called,
+//  even a name that would evaluate as an address or one holding a space. A
+//  module before `!` is dropped, since a 6502 program has none. The file is
+//  set on the command after parsing, so the AppleWin line carries a stand-in
+//  that cannot be read as an address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::TryRewriteSourceLine (const std::string & inner, const std::string & after, Rewrite & rewrite)
+{
+    std::string  text   = Trim (inner);
+    size_t       bang   = text.rfind ('!');
+    size_t       colon  = 0;
+    std::string  file;
+    std::string  number;
+
+
+
+    text   = (bang == std::string::npos) ? text : text.substr (bang + 1);
+    colon  = text.rfind (':');
+    file   = (colon == std::string::npos) ? text : Trim (text.substr (0, colon));
+    number = (colon == std::string::npos) ? std::string() : Trim (text.substr (colon + 1));
+
+    if (colon != std::string::npos && file.empty())
+    {
+        rewrite.isDeferred = true;
+        rewrite.error      = "bp `:line` is not available yet. Give the file, as bp `main.s:12`.";
+        return false;
+    }
+
+    if (number.empty() || number.find_first_not_of ("0123456789") != std::string::npos)
+    {
+        rewrite.error = "A backquoted source line is a file and a line number, as bp `main.s:12`.";
+        return false;
+    }
+
+    rewrite.sourceFile   = file;
+    rewrite.appleWinLine = "BP (:" + number + (Trim (after).empty() ? std::string() : " " + Trim (after));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::TryRewriteAccess
+//
+//  `ba r1|w1|e1 addr [IF expr] [BEFORE|AFTER]`: a read or write watchpoint,
+//  or for execute a breakpoint. The size is decimal, as in WinDbg, and a
+//  size above one covers that many bytes, stopping at $FFFF as a dump does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::TryRewriteAccess (const Tokens & args, const IDebugExpressionContext & context, Rewrite & rewrite)
+{
+    static constexpr size_t    kMaxSizeDigits = 5;
+    static constexpr uint32_t  kLastAddress   = 0xFFFF;
+    std::string                access         = args.empty() ? std::string() : ToLower (args[0]);
+    std::string                size           = access.size() > 1 ? access.substr (1) : std::string();
+    uint32_t                   address        = 0;
+    uint32_t                   count          = 0;
+    uint32_t                   last           = 0;
+    std::string                target;
+
+
+
+    rewrite.error = "ba takes an access and a size, then an address: ba r1 C000, ba w1 400, ba e1 300.";
+
+    if (args.size() < 2 || size.empty() || size.size() > kMaxSizeDigits || size.find_first_not_of ("0123456789") != std::string::npos)
+    {
+        return false;
+    }
+
+    count = (uint32_t) std::stoul (size);
+
+    if (count == 0 || (access[0] != 'r' && access[0] != 'w' && access[0] != 'e'))
+    {
+        return false;
+    }
+
+    if (!TryEvaluateAddress (args[1], context, address, rewrite.error))
+    {
+        return false;
+    }
+
+    last   = std::min (address + count - 1, kLastAddress);
+    target = (last == address) ? std::format ("${:04X}", address) : std::format ("${:04X}:${:04X}", address, last);
+
+    rewrite.appleWinLine = (access[0] == 'r') ? "BPMR " : (access[0] == 'w') ? "BPMW " : "BP ";
+    rewrite.appleWinLine += target + (args.size() > 2 ? " " + Join (args, 2) : std::string());
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::TryRewriteMemory
+//
+//  The dumps, the edits, and fill, search and move.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::TryRewriteMemory (
+    const std::string              & name,
+    const std::string              & rest,
+    const IDebugExpressionContext  & context,
+    Rewrite                        & rewrite)
+{
+    std::string  normalized = NormalizeExpression (rest);
+
+
+
+    if (name == "ea")
+    {
+        return TryRewriteText (rest, rewrite);
+    }
+
+    if (name == "eb" || name == "ew")
+    {
+        return TryRewriteEnter (name, Split (normalized), context, rewrite);
+    }
+
+    if (name == "f" || name == "s" || name == "m")
+    {
+        return TryRewriteRange (name, normalized, context, rewrite);
+    }
+
+    return TryRewriteDump (name, Split (normalized), context, rewrite);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::TryRewriteDump
+//
+//  `db addr [l count]` and `db start end`, as a D range. The count is in the
+//  command's own units, and the default is WinDbg's: 128 bytes whatever the
+//  unit. dw and dd show whole units, so an end inside one takes it all. A
+//  range running past $FFFF stops there. No address continues where the
+//  last dump stopped, as D alone does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::TryRewriteDump (
+    const std::string              & name,
+    const Tokens                   & args,
+    const IDebugExpressionContext  & context,
+    Rewrite                        & rewrite)
+{
+    static constexpr uint64_t  kDefaultBytes = 0x80;
+    static constexpr uint64_t  kLastAddress  = 0xFFFF;
+    uint64_t                   unit          = (name == "dw") ? 2 : (name == "dd") ? 4 : 1;
+    uint32_t                   address       = 0;
+    uint32_t                   end           = 0;
+    uint32_t                   count         = 0;
+    uint64_t                   last          = 0;
+    std::string                length;
+    size_t                     next          = 1;
+
+
+
+    if (args.empty())
+    {
+        rewrite.appleWinLine = "D";
+        return true;
+    }
+
+    if (!TryEvaluateAddress (args[0], context, address, rewrite.error))
+    {
+        return false;
+    }
+
+    last = address + kDefaultBytes - 1;
+
+    if (TrySplitLength (args, 1, length, next))
+    {
+        if (!TryEvaluate (length, context, count, rewrite.error))
+        {
+            return false;
+        }
+
+        if (count == 0)
+        {
+            rewrite.error = "A length must be at least 1.";
+            return false;
+        }
+
+        last = address + (uint64_t) count * unit - 1;
+    }
+    else if (args.size() > 1)
+    {
+        if (!TryEvaluateAddress (args[1], context, end, rewrite.error))
+        {
+            return false;
+        }
+
+        if (end < address)
+        {
+            rewrite.error = std::format ("The end, ${:04X}, is before the start, ${:04X}.", end, address);
+            return false;
+        }
+
+        last = address + ((end - address) / unit + 1) * unit - 1;
+        next = 2;
+    }
+
+    if (next < args.size())
+    {
+        rewrite.error = std::format ("{} takes an address and a length, as {} 2000 l20.", name, name);
+        return false;
+    }
+
+    rewrite.appleWinLine = std::format ("D ${:04X}:${:04X}", address, std::min (last, kLastAddress));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::TryRewriteEnter
+//
+//  `eb addr bytes` and `ew addr words`. eb takes bytes only, as WinDbg does;
+//  a larger value is an error rather than two bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::TryRewriteEnter (
+    const std::string              & name,
+    const Tokens                   & args,
+    const IDebugExpressionContext  & context,
+    Rewrite                        & rewrite)
+{
+    static constexpr uint32_t  kMaxByte = 0xFF;
+    uint32_t                   value    = 0;
+
+
+
+    if (args.size() < 2)
+    {
+        rewrite.error = (name == "eb") ? "eb takes an address and bytes: eb 300 a9 41."
+                                       : "ew takes an address and words: ew 300 1234.";
+        return false;
+    }
+
+    for (size_t i = 1; name == "eb" && i < args.size(); i++)
+    {
+        if (!TryEvaluate (args[i], context, value, rewrite.error))
+        {
+            return false;
+        }
+
+        if (value > kMaxByte)
+        {
+            rewrite.error = std::format ("{} is not a byte.", args[i]);
+            return false;
+        }
+    }
+
+    rewrite.appleWinLine = (name == "eb" ? "MEB " : "MEW ") + Join (args, 0);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::TryRewriteText
+//
+//  `ea addr "text"`: the text's characters as bytes, as MEB takes them, with
+//  the high bit clear and spaces kept. Only the address is normalized.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::TryRewriteText (const std::string & rest, Rewrite & rewrite)
+{
+    size_t       open    = rest.find ('"');
+    size_t       close   = (open == std::string::npos) ? std::string::npos : rest.find ('"', open + 1);
+    Tokens       before  = Split (rest.substr (0, open == std::string::npos ? rest.size() : open));
+    std::string  after   = (close == std::string::npos) ? std::string() : rest.substr (close + 1);
+
+
+
+    rewrite.error = "ea takes an address and quoted text: ea 400 \"HELLO\".";
+
+    if (before.size() != 1 || close == std::string::npos || close == open + 1 || !Trim (after).empty())
+    {
+        return false;
+    }
+
+    rewrite.appleWinLine = "MEB " + NormalizeExpression (before[0]);
+
+    for (size_t i = open + 1; i < close; i++)
+    {
+        rewrite.appleWinLine += std::format (" ${:02X}", (Byte) rest[i]);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::TryRewriteRange
+//
+//  `f addr l n bytes`, `s addr l n items` and `m src l n dest`, whose length
+//  is required. A range running past $FFFF stops there, as a dump does. The
+//  bytes and items keep their spacing, so quoted text searches as typed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::TryRewriteRange (
+    const std::string              & name,
+    const std::string              & normalized,
+    const IDebugExpressionContext  & context,
+    Rewrite                        & rewrite)
+{
+    static constexpr uint64_t  kLastAddress = 0xFFFF;
+    Tokens                     args         = Split (normalized);
+    std::string                length;
+    size_t                     next         = 0;
+    uint32_t                   address      = 0;
+    uint32_t                   count        = 0;
+    std::string                range;
+    std::string                tail;
+
+
+
+    if (name == "s" && !args.empty() && args[0].starts_with ('-'))
+    {
+        rewrite.isDeferred = true;
+        rewrite.error      = std::format ("s {} is not available yet. Use s addr l n bytes to search for bytes.", args[0]);
+        return false;
+    }
+
+    rewrite.error = (name == "m") ? "m takes a source, a length and a destination: m 300 l10 2000."
+                                  : std::format ("{} takes an address, a length and bytes: {} 2000 l20 00.", name, name);
+
+    if (args.empty() || !TrySplitLength (args, 1, length, next) || next >= args.size())
+    {
+        return false;
+    }
+
+    if (name == "m" && next + 1 != args.size())
+    {
+        return false;
+    }
+
+    if (!TryEvaluateAddress (args[0], context, address, rewrite.error) || !TryEvaluate (length, context, count, rewrite.error))
+    {
+        return false;
+    }
+
+    if (count == 0)
+    {
+        rewrite.error = "A range length must be at least 1.";
+        return false;
+    }
+
+    range = std::format ("${:04X}:${:04X}", address, std::min ((uint64_t) address + count - 1, kLastAddress));
+    tail  = GetTail (normalized, next);
+
+    rewrite.appleWinLine = (name == "m") ? std::format ("M {} {}", args[next], range)
+                         : (name == "f") ? std::format ("F {} {}", range, tail)
+                         :                 std::format ("S {} {}", range, NormalizeSearchItems (tail));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::TryRewriteOther
+//
+//  Registers, disassembly, symbols, the call stack, evaluation, source and
+//  help. False with no error for a name that is none of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::TryRewriteOther (const std::string & name, const std::string & rest, Rewrite & rewrite)
+{
+    std::string    normalized = NormalizeExpression (rest);
+    Tokens         args       = Split (normalized);
+    std::string  & line       = rewrite.appleWinLine;
+
+
+
+    if      (name == "r")   { return TryRewriteRegister    (rest, rewrite); }
+    else if (name == "u")   { return TryRewriteDisassemble (args, rewrite); }
+    else if (name == "x")   { return TryRewriteLookup      (NormalizeNumbers (rest), rewrite); }
+    else if (name == "l+s") { line = "SRC ON";  }
+    else if (name == "l-s") { line = "SRC OFF"; }
+    else if (name == ".help")
+    {
+        line = "HELP " + (rest.starts_with ('!') ? rest.substr (1) : rest);
+    }
+    else if (name == "?" || name == ".formats")
+    {
+        rewrite.error = std::format ("{} needs an expression.", name);
+        line          = "CALC " + normalized;
+        return !args.empty();
     }
     else if (name == "k")
     {
@@ -424,157 +1233,12 @@ bool WinDbgParser::TryRewrite (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WinDbgParser::TryRewriteDump
-//
-//  `db addr [l count]` and `db start end`, as a D range. The count is in the
-//  command's own units, and the default is WinDbg's: 128 bytes whatever the
-//  unit. A range running past $FFFF stops there. No address continues where
-//  the last dump stopped, as D alone does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool WinDbgParser::TryRewriteDump (
-    const std::string              & name,
-    const Tokens                   & args,
-    const IDebugExpressionContext  & context,
-    Rewrite                        & rewrite)
-{
-    static constexpr uint32_t  kDefaultBytes = 0x80;
-    static constexpr uint32_t  kLastAddress  = 0xFFFF;
-    uint32_t                   unit          = (name == "dw") ? 2 : (name == "dd") ? 4 : 1;
-    uint32_t                   address       = 0;
-    uint32_t                   last          = 0;
-    uint32_t                   count         = 0;
-    std::string                length;
-    size_t                     next          = 1;
-
-
-
-    if (args.empty())
-    {
-        rewrite.appleWinLine = "D";
-        return true;
-    }
-
-    if (!TryEvaluate (args[0], context, address, rewrite.error))
-    {
-        return false;
-    }
-
-    last = address + kDefaultBytes - 1;
-
-    if (TrySplitLength (args, 1, length, next))
-    {
-        if (!TryEvaluate (length, context, count, rewrite.error))
-        {
-            return false;
-        }
-
-        if (count == 0)
-        {
-            rewrite.error = "A length must be at least 1.";
-            return false;
-        }
-
-        last = address + count * unit - 1;
-    }
-    else if (args.size() > 1)
-    {
-        if (!TryEvaluate (args[1], context, last, rewrite.error))
-        {
-            return false;
-        }
-
-        next = 2;
-    }
-
-    if (next < args.size())
-    {
-        rewrite.error = std::format ("{} takes an address and a length, as {} 2000 l20.", name, name);
-        return false;
-    }
-
-    rewrite.appleWinLine = std::format ("D ${:04X}:${:04X}", address, std::min (last, kLastAddress));
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WinDbgParser::TryRewriteAccess
-//
-//  `ba r1|w1|e1 addr [IF expr]`: a read or write watchpoint, or for execute
-//  a breakpoint. A size above one covers that many bytes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool WinDbgParser::TryRewriteAccess (const Tokens & args, Rewrite & rewrite)
-{
-    std::string  access = args.empty() ? std::string() : ToLower (args[0]);
-    std::string  size   = access.size() > 1 ? access.substr (1) : std::string();
-    std::string  target;
-
-
-
-    rewrite.error = "ba takes an access and a size, then an address: ba r1 C000, ba w1 400, ba e1 300.";
-
-    if (args.size() < 2 || size.empty() || size.find_first_not_of ("0123456789") != std::string::npos || size == "0")
-    {
-        return false;
-    }
-
-    target = (size == "1") ? args[1] : std::format ("{},{}", args[1], size);
-
-    switch (access[0])
-    {
-    case 'r': rewrite.appleWinLine = "BPMR "; break;
-    case 'w': rewrite.appleWinLine = "BPMW "; break;
-    case 'e': rewrite.appleWinLine = "BP ";   break;
-    default:  return false;
-    }
-
-    rewrite.appleWinLine += target + " " + Join (args, 2);
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WinDbgParser::TryRewriteBreakpoint
-//
-//  `bp addr` and `bp file:line`, the source line with or without WinDbg's
-//  backquotes. Anything after the address, such as an IF clause, passes on.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool WinDbgParser::TryRewriteBreakpoint (const Tokens & args, const std::string & rest, Rewrite & rewrite)
-{
-    if (args.empty())
-    {
-        rewrite.error = "bp takes an address or a source line.";
-        return false;
-    }
-
-    rewrite.appleWinLine = "BP " + StripBackquotes (rest);
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  WinDbgParser::TryRewriteRegister
 //
-//  `r` shows the registers; `r a=41` sets one. WinDbg's names for the stack
-//  pointer and the flags are sp and fl.
+//  `r` shows the registers, `r a` one of them, and `r a=41` sets one.
+//  WinDbg's names for the stack pointer and the flags are sp and fl, and it
+//  may write a register @a. The formatter picks the one register `r a` asks
+//  for from the whole set.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -584,29 +1248,38 @@ bool WinDbgParser::TryRewriteRegister (const std::string & rest, Rewrite & rewri
     {
         { "a", "A" }, { "x", "X" }, { "y", "Y" }, { "sp", "S" }, { "pc", "PC" }, { "fl", "P" }, { "p", "P" },
     };
-    std::string  joined = rest;
-    size_t       split  = 0;
-    std::string  name;
+    std::string  text  = Trim (rest);
+    size_t       split = text.find_first_of ("= \t");
+    std::string  name  = ToLower (text.substr (0, split));
+    std::string  value = (split == std::string::npos) ? std::string() : Trim (text.substr (split));
 
 
 
-    if (rest.empty())
+    rewrite.appleWinLine = "R";
+
+    if (text.empty())
     {
-        rewrite.appleWinLine = "R";
         return true;
     }
 
-    std::replace (joined.begin(), joined.end(), '=', ' ');
-    split = joined.find_first_of (" \t");
-    name  = ToLower (joined.substr (0, split));
+    name  = name.starts_with ('@') ? name.substr (1) : name;
+    value = value.starts_with ('=') ? Trim (value.substr (1)) : value;
 
     for (const auto & [windbg, applewin] : kNames)
     {
-        if (name == windbg)
+        if (name != windbg)
         {
-            rewrite.appleWinLine = std::format ("R {} {}", applewin, split == std::string::npos ? std::string() : joined.substr (split));
-            return true;
+            continue;
         }
+
+        if (value.find (',') != std::string::npos)
+        {
+            rewrite.error = "r sets one register at a time, as r a=41.";
+            return false;
+        }
+
+        rewrite.appleWinLine = value.empty() ? std::string ("R") : std::format ("R {} {}", applewin, NormalizeExpression (value));
+        return true;
     }
 
     rewrite.error = std::format ("{} is not a register. The registers are a, x, y, sp, pc and fl.", name);
@@ -619,33 +1292,32 @@ bool WinDbgParser::TryRewriteRegister (const std::string & rest, Rewrite & rewri
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WinDbgParser::TryRewriteText
+//  WinDbgParser::TryRewriteDisassemble
 //
-//  `ea addr "text"`: the text's characters as bytes, as MEB takes them.
+//  `u` continues, `u addr` disassembles from addr, and `u start end` the
+//  instructions between. WinDbg's length counts instructions, which a U
+//  range cannot give.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool WinDbgParser::TryRewriteText (const Tokens & args, const std::string & rest, Rewrite & rewrite)
+bool WinDbgParser::TryRewriteDisassemble (const Tokens & args, Rewrite & rewrite)
 {
-    size_t  open  = rest.find ('"');
-    size_t  close = (open == std::string::npos) ? std::string::npos : rest.find ('"', open + 1);
+    std::string  length;
+    size_t       next   = 0;
 
 
 
-    if (args.empty() || close == std::string::npos || close == open + 1)
+    rewrite.error = "u takes an address, or a start and an end, or none to continue.";
+
+    if (args.size() == 2 && TrySplitLength (args, 1, length, next))
     {
-        rewrite.error = "ea takes an address and quoted text: ea 400 \"HELLO\".";
+        rewrite.isDeferred = true;
+        rewrite.error      = "u with a length is not available yet. Use u start end.";
         return false;
     }
 
-    rewrite.appleWinLine = "MEB " + NormalizeNumbers (args[0]);
-
-    for (size_t i = open + 1; i < close; i++)
-    {
-        rewrite.appleWinLine += std::format (" ${:02X}", (Byte) rest[i]);
-    }
-
-    return true;
+    rewrite.appleWinLine = (args.size() == 2) ? std::format ("U {}:{}", args[0], args[1]) : "U " + Join (args, 0);
+    return args.size() <= 2;
 }
 
 
@@ -654,45 +1326,30 @@ bool WinDbgParser::TryRewriteText (const Tokens & args, const std::string & rest
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WinDbgParser::TryRewriteRange
+//  WinDbgParser::TryRewriteLookup
 //
-//  `f addr l n bytes`, `s addr l n bytes` and `m src l n dest`, whose
-//  length is required.
+//  `x pattern` looks symbols up and does nothing else, even when the
+//  pattern is a word SYM would take as a subcommand (CLEAR, LOAD). WinDbg's
+//  `module!` qualifier is dropped, since every table is searched.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool WinDbgParser::TryRewriteRange (const std::string & name, const Tokens & args, Rewrite & rewrite)
+bool WinDbgParser::TryRewriteLookup (const std::string & rest, Rewrite & rewrite)
 {
-    std::string  length;
-    size_t       next   = 0;
-    std::string  range;
+    std::string  pattern = Trim (rest);
+    size_t       bang    = pattern.rfind ('!');
 
 
 
-    if (name == "s" && !args.empty() && args[0].starts_with ('-'))
+    pattern = (bang == std::string::npos) ? pattern : Trim (pattern.substr (bang + 1));
+
+    rewrite.appleWinLine = "SYM";
+
+    if (!pattern.empty())
     {
-        rewrite.isDeferred = true;
-        rewrite.error      = std::format ("s {} is not available yet. Use s addr l n bytes to search for bytes.", args[0]);
-        return false;
+        rewrite.lookup = pattern;
     }
 
-    rewrite.error = (name == "m") ? "m takes a source, a length and a destination: m 300 l10 2000."
-                                  : std::format ("{} takes an address, a length and bytes: {} 2000 l20 00.", name, name);
-
-    if (args.empty() || !TrySplitLength (args, 1, length, next) || next >= args.size())
-    {
-        return false;
-    }
-
-    range = std::format ("{},{}", args[0], length);
-
-    if (name == "m")
-    {
-        rewrite.appleWinLine = std::format ("M {} {}", args[next], range);
-        return next + 1 == args.size();
-    }
-
-    rewrite.appleWinLine = std::format ("{} {} {}", name == "f" ? "F" : "S", range, Join (args, next));
     return true;
 }
 
@@ -705,7 +1362,8 @@ bool WinDbgParser::TryRewriteRange (const std::string & name, const Tokens & arg
 //  WinDbgParser::TrySplitLength
 //
 //  `l20` or `l 20` at args[first], leaving the count in length and the
-//  index after it in next.
+//  index after it in next. The count takes WinDbg's prefixes as any number
+//  does, so `l0x20` is 32.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -717,7 +1375,7 @@ bool WinDbgParser::TrySplitLength (const Tokens & args, size_t first, std::strin
 
     if (token.size() > 1 && token[0] == 'l')
     {
-        length = args[first].substr (1);
+        length = NormalizeExpression (args[first].substr (1));
         next   = first + 1;
         return true;
     }
@@ -774,11 +1432,47 @@ bool WinDbgParser::TryEvaluate (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WinDbgParser::TryEvaluateAddress
+//
+//  A value that must be an address, $0000-$FFFF.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::TryEvaluateAddress (
+    const std::string              & text,
+    const IDebugExpressionContext  & context,
+    uint32_t                       & value,
+    std::string                    & error)
+{
+    static constexpr uint32_t  kLastAddress = 0xFFFF;
+
+
+
+    if (!TryEvaluate (text, context, value, error))
+    {
+        return false;
+    }
+
+    if (value > kLastAddress)
+    {
+        error = std::format ("{} is outside $0000-$FFFF.", text);
+        return false;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WinDbgParser::NormalizeNumbers
 //
 //  WinDbg's `0x` hex and `0n` decimal prefixes as AppleWin's `$` and `#`,
-//  where the prefix starts a number rather than sitting inside a name. A
-//  bare number is hex in both, so it needs nothing.
+//  where the prefix starts a number rather than sitting inside a name or
+//  quoted text. A bare number is hex in both, so it needs nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -786,7 +1480,7 @@ std::string WinDbgParser::NormalizeNumbers (const std::string & text)
 {
     std::string  result;
     size_t       i        = 0;
-    bool         inQuotes = false;
+    char         quote    = '\0';
     bool         isStart  = false;
     char         prefix   = 0;
 
@@ -794,11 +1488,19 @@ std::string WinDbgParser::NormalizeNumbers (const std::string & text)
 
     while (i < text.size())
     {
-        inQuotes = (text[i] == '"') ? !inQuotes : inQuotes;
-        isStart  = i == 0 || !(isalnum ((unsigned char) text[i - 1]) || text[i - 1] == '_' || text[i - 1] == '$');
-        prefix   = (i + 1 < text.size()) ? (char) tolower ((unsigned char) text[i + 1]) : 0;
+        if (quote == '\0' && (text[i] == '"' || text[i] == '\''))
+        {
+            quote = text[i];
+        }
+        else if (text[i] == quote)
+        {
+            quote = '\0';
+        }
 
-        if (!inQuotes && isStart && text[i] == '0' && i + 2 < text.size() &&
+        isStart = i == 0 || !(isalnum ((unsigned char) text[i - 1]) || text[i - 1] == '_' || text[i - 1] == '$');
+        prefix  = (i + 1 < text.size()) ? (char) tolower ((unsigned char) text[i + 1]) : 0;
+
+        if (quote == '\0' && isStart && text[i] == '0' && i + 2 < text.size() &&
             ((prefix == 'x' && isxdigit ((unsigned char) text[i + 2])) || (prefix == 'n' && isdigit ((unsigned char) text[i + 2]))))
         {
             result += (prefix == 'x') ? '$' : '#';
@@ -819,25 +1521,273 @@ std::string WinDbgParser::NormalizeNumbers (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WinDbgParser::StripBackquotes
+//  WinDbgParser::NormalizeExpression
+//
+//  The numbers, and WinDbg's `@` register syntax as the registers' own
+//  names: `@pc`, `@a`, `@sp` and `@fl`. `@` and digits stays a search
+//  result.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string WinDbgParser::StripBackquotes (const std::string & text)
+std::string WinDbgParser::NormalizeExpression (const std::string & text)
 {
-    std::string  result;
-
-
-
-    for (char ch : text)
+    static constexpr std::pair<const char *, const char *>  kRegisters[] =
     {
-        if (ch != '`')
+        { "pc", "PC" }, { "sp", "S" }, { "fl", "P" }, { "a", "A" }, { "x", "X" }, { "y", "Y" }, { "p", "P" },
+    };
+    std::string  numbers = NormalizeNumbers (text);
+    std::string  result;
+    size_t       i       = 0;
+    char         quote   = '\0';
+    const char * own     = nullptr;
+    size_t       length  = 0;
+
+
+
+    while (i < numbers.size())
+    {
+        quote = (quote == '\0' && (numbers[i] == '"' || numbers[i] == '\'')) ? numbers[i] : (numbers[i] == quote) ? '\0' : quote;
+        own   = nullptr;
+
+        for (const auto & [windbg, name] : kRegisters)
         {
-            result += ch;
+            size_t  end = i + 1 + strlen (windbg);
+
+
+
+            if (own == nullptr && quote == '\0' && numbers[i] == '@' && end <= numbers.size() &&
+                ToLower (numbers.substr (i + 1, strlen (windbg))) == windbg &&
+                (end == numbers.size() || !(isalnum ((unsigned char) numbers[end]) || numbers[end] == '_')))
+            {
+                own    = name;
+                length = strlen (windbg);
+            }
         }
+
+        if (own != nullptr)
+        {
+            result += own;
+            i      += 1 + length;
+            continue;
+        }
+
+        result += numbers[i];
+        i++;
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::NormalizeEngineLine
+//
+//  An engine command's line takes WinDbg's number prefixes in its values,
+//  but not in its text: ECHO's words are left as typed, and so is any word
+//  holding a path separator or a period, which is a file name. BUDGET counts
+//  in decimal, so `0n1000` and `0x100` become its digits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgParser::NormalizeEngineLine (const std::string & text)
+{
+    Tokens       tokens = Split (text);
+    std::string  word   = tokens.empty() ? std::string() : ToLower (tokens[0]);
+    std::string  result;
+    std::string  token;
+    char         quote  = '\0';
+    size_t       i      = 0;
+
+
+
+    if (word == "echo")
+    {
+        return text;
+    }
+
+    if (word == "budget" && tokens.size() > 1)
+    {
+        return tokens[0] + " " + GetDecimalBudget (tokens[1]) + (tokens.size() > 2 ? " " + Join (tokens, 2) : std::string());
+    }
+
+    while (i <= text.size())
+    {
+        bool  isEnd = i == text.size() || (quote == '\0' && isspace ((unsigned char) text[i]));
+
+
+
+        if (!isEnd)
+        {
+            quote  = (quote == '\0' && (text[i] == '"' || text[i] == '\'')) ? text[i] : (text[i] == quote) ? '\0' : quote;
+            token += text[i];
+            i++;
+            continue;
+        }
+
+        result += (token.find_first_of ("/\\.") != std::string::npos) ? token : NormalizeNumbers (token);
+        result += (i < text.size()) ? std::string (1, text[i]) : std::string();
+        token.clear();
+        i++;
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::GetDecimalBudget
+//
+//  `0n1000` as `1000` and `0x100` as `256`; any other token as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgParser::GetDecimalBudget (const std::string & token)
+{
+    static constexpr size_t  kPrefixLength = 2;
+    static constexpr size_t  kMaxHexDigits = 8;
+    static constexpr int     kHexBase      = 16;
+    std::string              lower         = ToLower (token);
+    std::string              digits        = lower.size() > kPrefixLength ? lower.substr (kPrefixLength) : std::string();
+
+
+
+    if (lower.starts_with ("0n") && !digits.empty() && digits.find_first_not_of ("0123456789") == std::string::npos)
+    {
+        return digits;
+    }
+
+    if (lower.starts_with ("0x") && !digits.empty() && digits.size() <= kMaxHexDigits &&
+        digits.find_first_not_of ("0123456789abcdef") == std::string::npos)
+    {
+        return std::to_string (std::stoul (digits, nullptr, kHexBase));
+    }
+
+    return token;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::NormalizeSearchItems
+//
+//  A search item written with a prefix, `0x41` or `0n65`, is the byte or
+//  word its value is. S reads an item longer than two digits as a word, and
+//  `$41` is three, so each becomes its bare hex digits: two for a byte and
+//  four for a word. Quoted text is left alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgParser::NormalizeSearchItems (const std::string & text)
+{
+    static constexpr uint32_t  kMaxByte    = 0xFF;
+    static constexpr uint32_t  kMaxWord    = 0xFFFF;
+    static constexpr size_t    kMaxDigits  = 5;
+    static constexpr int       kHexBase    = 16;
+    static constexpr int       kDecimal    = 10;
+    std::string                result;
+    std::string                token;
+    std::string                digits;
+    size_t                     i           = 0;
+    char                       quote       = '\0';
+    uint32_t                   value       = 0;
+    bool                       isHex       = false;
+    bool                       isDecimal   = false;
+
+
+
+    while (i <= text.size())
+    {
+        bool  isEnd = i == text.size() || (quote == '\0' && isspace ((unsigned char) text[i]));
+
+
+
+        if (!isEnd)
+        {
+            quote  = (quote == '\0' && (text[i] == '"' || text[i] == '\'')) ? text[i] : (text[i] == quote) ? '\0' : quote;
+            token += text[i];
+            i++;
+            continue;
+        }
+
+        digits    = (token.size() > 1 && token.size() <= kMaxDigits + 1) ? token.substr (1) : std::string();
+        isHex     = token.starts_with ('$') && !digits.empty() && digits.find_first_not_of ("0123456789ABCDEFabcdef") == std::string::npos;
+        isDecimal = token.starts_with ('#') && !digits.empty() && digits.find_first_not_of ("0123456789") == std::string::npos;
+
+        if (isHex || isDecimal)
+        {
+            value = (uint32_t) std::stoul (digits, nullptr, isHex ? kHexBase : kDecimal);
+            token = (value <= kMaxByte) ? std::format ("{:02X}", value)
+                  : (value <= kMaxWord) ? std::format ("{:04X}", value)
+                  :                       token;
+        }
+
+        result += token;
+        result += (i < text.size()) ? std::string (1, text[i]) : std::string();
+        token.clear();
+        i++;
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::IsOperatorEdge
+//
+//  Whether a character joins the words either side of it into one
+//  expression, as the `+` in `start + 3` does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WinDbgParser::IsOperatorEdge (char ch)
+{
+    static constexpr std::string_view  kOperators = "+-*/%&|^<>=!(";
+
+
+
+    return kOperators.find (ch) != std::string_view::npos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgParser::GetTail
+//
+//  text from its index-th word onward, spacing kept.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgParser::GetTail (const std::string & text, size_t index)
+{
+    size_t  at = text.find_first_not_of (" \t");
+
+
+
+    for (size_t word = 0; word < index && at != std::string::npos; word++)
+    {
+        at = text.find_first_of (" \t", at);
+        at = (at == std::string::npos) ? at : text.find_first_not_of (" \t", at);
+    }
+
+    return (at == std::string::npos) ? std::string() : text.substr (at);
 }
 
 
@@ -896,6 +1846,26 @@ std::string WinDbgParser::ToLower (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WinDbgParser::Trim
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgParser::Trim (const std::string & text)
+{
+    size_t  first = text.find_first_not_of (" \t");
+    size_t  last  = text.find_last_not_of  (" \t");
+
+
+
+    return (first == std::string::npos) ? std::string() : text.substr (first, last - first + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WinDbgParser::Join
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -913,6 +1883,7 @@ std::string WinDbgParser::Join (const Tokens & tokens, size_t first)
 
     return result;
 }
+
 
 
 

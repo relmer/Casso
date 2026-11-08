@@ -4,7 +4,6 @@
 
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/CallStack.h"
-#include "Debugger/ReplyJson.h"
 
 
 
@@ -25,7 +24,7 @@ void WinDbgFormatter::Format (Reply & reply)
 
 
 
-    if (reply.status != CommandStatus::Ok || !TryFormatData (name, reply.data, reply.text))
+    if (reply.status != CommandStatus::Ok || !TryFormatData (reply.command, name, reply.data, reply.text))
     {
         AppleWinFormatter::Format (reply);
     }
@@ -73,6 +72,36 @@ std::string WinDbgFormatter::FormatRegisters (const Cpu6502Registers & registers
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WinDbgFormatter::FormatRegister
+//
+//  `r a` alone: `a=41`, under the name it was asked for, which may be
+//  written @a. The flags show as a byte, `fl=34`. A word that is not one
+//  register gets the whole line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgFormatter::FormatRegister (const std::string & word, const Cpu6502Registers & registers)
+{
+    std::string  name = ToLower (word.starts_with ('@') ? word.substr (1) : word);
+
+
+
+    if (name == "a")                 { return std::format ("a={:02x}",     registers.a);  }
+    if (name == "x")                 { return std::format ("x={:02x}",     registers.x);  }
+    if (name == "y")                 { return std::format ("y={:02x}",     registers.y);  }
+    if (name == "sp")                { return std::format ("sp={:02x}",    registers.sp); }
+    if (name == "pc")                { return std::format ("pc={:04x}",    registers.pc); }
+    if (name == "fl" || name == "p") { return std::format ("{}={:02x}", name, registers.p); }
+
+    return FormatRegisters (registers);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WinDbgFormatter::FormatFlags
 //
 //  N V - B D I Z C, lowercase where clear and uppercase where set, as WinDbg
@@ -109,20 +138,24 @@ std::string WinDbgFormatter::FormatFlags (Byte p)
 //
 //  WinDbgFormatter::TryFormatData
 //
-//  False for a kind with no WinDbg layout.
+//  False for a kind with no WinDbg layout. `r a` shows one register, and
+//  `bl 1 3` the breakpoints it gives, from the whole set the reply holds.
+//  bd and be show the entry they changed as bl lists it, so the e or d
+//  reads back; bp and ba keep AppleWin's line, which gives the new id.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool WinDbgFormatter::TryFormatData (const std::string & name, const ReplyData & data, Lines & lines)
+bool WinDbgFormatter::TryFormatData (const std::string & command, const std::string & name, const ReplyData & data, Lines & lines)
 {
     static constexpr size_t  kWord       = 2;
     static constexpr size_t  kDoubleWord = 4;
+    std::string              words       = GetArguments (command);
 
 
 
     if (auto * v = std::get_if<RegistersData> (&data))
     {
-        lines.push_back (FormatRegisters (v->registers));
+        lines.push_back ((name == "r" && !words.empty()) ? FormatRegister (words, v->registers) : FormatRegisters (v->registers));
     }
     else if (auto * v = std::get_if<MemoryData> (&data))
     {
@@ -131,8 +164,12 @@ bool WinDbgFormatter::TryFormatData (const std::string & name, const ReplyData &
         else if (name == "da") { FormatString (*v, lines); }
         else                   { FormatBytes  (*v, lines); }
     }
+    else if (auto * v = std::get_if<BreakpointSetData> (&data); v != nullptr && (name == "bd" || name == "be"))
+    {
+        FormatBreakpoints (BreakpointListData { { v->breakpoint } }, std::string(), lines);
+    }
     else if (auto * v = std::get_if<DisassemblyData>    (&data)) { FormatDisassembly (*v, lines); }
-    else if (auto * v = std::get_if<BreakpointListData> (&data)) { FormatBreakpoints (*v, lines); }
+    else if (auto * v = std::get_if<BreakpointListData> (&data)) { FormatBreakpoints (*v, name == "bl" ? words : std::string(), lines); }
     else if (auto * v = std::get_if<CallStackData>      (&data)) { FormatCallStack   (*v, lines); }
     else if (auto * v = std::get_if<CalcData>           (&data))
     {
@@ -206,7 +243,8 @@ void WinDbgFormatter::FormatBytes (const MemoryData & data, Lines & lines)
 //  WinDbgFormatter::FormatUnits
 //
 //  dw and dd: little-endian words or double words, sixteen bytes a line. A
-//  unit with an unreadable byte is question marks.
+//  unit with an unreadable byte is question marks, and so is a last unit the
+//  range ends inside, as at $FFFF.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,13 +256,13 @@ void WinDbgFormatter::FormatUnits (const MemoryData & data, size_t unit, Lines &
 
 
 
-    for (size_t line = 0; line + unit <= bytes.size(); line += kBytesPerLine)
+    for (size_t line = 0; line < bytes.size(); line += kBytesPerLine)
     {
         std::string  text = std::format ("{:04x} ", (Word) (address + line));
 
 
 
-        for (size_t at = line; at < line + kBytesPerLine && at + unit <= bytes.size(); at += unit)
+        for (size_t at = line; at < line + kBytesPerLine && at < bytes.size(); at += unit)
         {
             uint32_t  value    = 0;
             bool      isKnown  = true;
@@ -233,8 +271,12 @@ void WinDbgFormatter::FormatUnits (const MemoryData & data, size_t unit, Lines &
 
             for (size_t i = 0; i < unit; i++)
             {
-                isKnown = isKnown && bytes[at + i].has_value();
-                value  |= bytes[at + i].has_value() ? (uint32_t) *bytes[at + i] << (i * kBitsPerByte) : 0;
+                bool  isPresent = at + i < bytes.size() && bytes[at + i].has_value();
+
+
+
+                isKnown = isKnown && isPresent;
+                value  |= isPresent ? (uint32_t) *bytes[at + i] << (i * kBitsPerByte) : 0;
             }
 
             text += " " + (isKnown ? std::format ("{:0{}x}", value, unit * 2) : std::string (unit * 2, '?'));
@@ -254,6 +296,7 @@ void WinDbgFormatter::FormatUnits (const MemoryData & data, size_t unit, Lines &
 //
 //  da: the characters up to the first zero byte, quoted. Apple II text sets
 //  the high bit, so it is cleared before a character is judged printable.
+//  An empty range shows nothing, having no address to show.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -267,6 +310,11 @@ void WinDbgFormatter::FormatString (const MemoryData & data, Lines & lines)
     std::string                       text;
 
 
+
+    if (data.rows.empty())
+    {
+        return;
+    }
 
     for (const std::optional<Byte> & cell : bytes)
     {
@@ -294,14 +342,23 @@ void WinDbgFormatter::FormatString (const MemoryData & data, Lines & lines)
 //  WinDbgFormatter::FormatDisassembly
 //
 //  u: a label on a line of its own, then address, bytes and instruction.
+//  The byte column fits the widest line, which is a data line's when the
+//  listing holds one. An operand is lowercased as WinDbg shows one, except a
+//  symbol and quoted text, which keep their case.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WinDbgFormatter::FormatDisassembly (const DisassemblyData & data, Lines & lines)
 {
     static constexpr size_t  kBytesWidth = 6;
+    size_t                   width       = kBytesWidth;
 
 
+
+    for (const DisassemblyLine & line : data.lines)
+    {
+        width = std::max (width, line.instruction.bytes.size() * 2);
+    }
 
     for (const DisassemblyLine & line : data.lines)
     {
@@ -309,6 +366,7 @@ void WinDbgFormatter::FormatDisassembly (const DisassemblyData & data, Lines & l
         std::string  mnemonic = line.instruction.mnemonic;
         std::string  operand  = line.GetShownOperand();
         std::string  text;
+        char         quote    = '\0';
 
 
 
@@ -329,10 +387,21 @@ void WinDbgFormatter::FormatDisassembly (const DisassemblyData & data, Lines & l
 
         for (char & ch : operand)
         {
-            ch = line.operandSymbol.empty() ? (char) tolower ((unsigned char) ch) : ch;
+            if (quote == '\0' && (ch == '"' || ch == '\''))
+            {
+                quote = ch;
+            }
+            else if (ch == quote)
+            {
+                quote = '\0';
+            }
+            else if (quote == '\0' && line.operandSymbol.empty())
+            {
+                ch = (char) tolower ((unsigned char) ch);
+            }
         }
 
-        text = std::format ("{:04x} {:<{}}  {} {}", line.instruction.address, bytes, kBytesWidth, mnemonic, operand);
+        text = std::format ("{:04x} {:<{}}  {} {}", line.instruction.address, bytes, width, mnemonic, operand);
 
         while (!text.empty() && text.back() == ' ')
         {
@@ -351,45 +420,100 @@ void WinDbgFormatter::FormatDisassembly (const DisassemblyData & data, Lines & l
 //
 //  WinDbgFormatter::FormatBreakpoints
 //
-//  bl: id, e or d, the address, an access watchpoint's kind and size, and
-//  WinDbg's pass count, which is always one: a Casso breakpoint stops on
-//  its first hit. A condition follows.
+//  bl: id, e or d, where the entry stops, and WinDbg's pass count, which is
+//  always one: a Casso breakpoint stops on its first hit. Where is the
+//  address, with an access watchpoint's kind and size after it, or for the
+//  kinds with no address, what they stop on. A condition follows, then the
+//  hits and any setting off its default, as BPL gives them. ids limits the
+//  list to those entries; empty or * lists them all.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void WinDbgFormatter::FormatBreakpoints (const BreakpointListData & data, Lines & lines)
+void WinDbgFormatter::FormatBreakpoints (const BreakpointListData & data, const std::string & ids, Lines & lines)
 {
+    std::istringstream        stream (ids);
+    std::set<std::string>     wanted;
+    std::string               id;
+
+
+
+    while (stream >> id)
+    {
+        id.erase (0, std::min (id.find_first_not_of ('0'), id.size() - 1));
+        wanted.insert (id);
+    }
+
     for (const BreakpointInfo & breakpoint : data.breakpoints)
     {
-        std::string  address = (breakpoint.last > breakpoint.address)
-                             ? std::format ("{:04x}-{:04x}", breakpoint.address, breakpoint.last)
-                             : std::format ("{:04x}", breakpoint.address);
-        std::string  kind;
-        std::string  text;
+        std::string                text   = std::format ("{} {} {} 0001 (0001)", breakpoint.id, breakpoint.enabled ? "e" : "d", GetBreakpointPlace (breakpoint));
+        std::vector<std::string>   extras;
 
 
 
-        if (breakpoint.kind == BreakpointKind::Memory || breakpoint.kind == BreakpointKind::Io)
+        if (!wanted.empty() && !wanted.contains ("*") && !wanted.contains (std::to_string (breakpoint.id)))
         {
-            kind = std::format ("{}{} ",
-                                breakpoint.access == WatchAccess::Read  ? "r"
-                              : breakpoint.access == WatchAccess::Write ? "w"
-                              :                                           "rw",
-                                breakpoint.last - breakpoint.address + 1);
-        }
-        else if (breakpoint.kind != BreakpointKind::Address)
-        {
-            kind = std::string (ReplyJson::GetBreakpointKindName (breakpoint.kind)) + " ";
+            continue;
         }
 
-        text = std::format ("{} {} {} {}0001 (0001)", breakpoint.id, breakpoint.enabled ? "e" : "d", address, kind);
-
-        if (!breakpoint.condition.empty())
+        if (!breakpoint.condition.empty() && breakpoint.kind != BreakpointKind::Register)
         {
             text += "  IF " + breakpoint.condition;
         }
 
+        if (breakpoint.hits > 0)                     { extras.push_back (std::format ("hits {}", breakpoint.hits)); }
+        if (breakpoint.temporary)                    { extras.push_back ("temporary");                             }
+        if (!breakpoint.stops)                       { extras.push_back ("counts only");                           }
+        if (breakpoint.mode == WatchMode::Before)    { extras.push_back ("before the access");                     }
+
+        for (size_t i = 0; i < extras.size(); i++)
+        {
+            text += (i == 0 ? "  " : ", ") + extras[i];
+        }
+
         lines.push_back (text);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgFormatter::GetBreakpointPlace
+//
+//  An address or a range; an access watchpoint's with `r`, `w` or `rw` and
+//  its size in bytes; and for the kinds with no address, the opcode, the
+//  register comparison, BRK or an interrupt, and a value breakpoint's
+//  address and the value it waits for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgFormatter::GetBreakpointPlace (const BreakpointInfo & breakpoint)
+{
+    std::string  address = (breakpoint.last > breakpoint.address)
+                         ? std::format ("{:04x}-{:04x}", breakpoint.address, breakpoint.last)
+                         : std::format ("{:04x}", breakpoint.address);
+    int          size    = (int) (Word) (breakpoint.last - breakpoint.address) + 1;
+
+
+
+    switch (breakpoint.kind)
+    {
+    case BreakpointKind::Memory:
+    case BreakpointKind::Io:
+        return std::format ("{} {}{}", address,
+                            breakpoint.access == WatchAccess::Read  ? "r"
+                          : breakpoint.access == WatchAccess::Write ? "w"
+                          :                                           "rw",
+                            size);
+
+    case BreakpointKind::Opcode:      return std::format ("opcode {:02x}", breakpoint.opcode);
+    case BreakpointKind::Register:    return "register " + breakpoint.condition;
+    case BreakpointKind::Brk:         return "brk";
+    case BreakpointKind::Interrupt:   return "interrupt";
+    case BreakpointKind::MemoryValue: return std::format ("{:04x} value {:02x}", breakpoint.address, breakpoint.value.value_or (0));
+    default:                          return address;
     }
 }
 
@@ -448,14 +572,17 @@ void WinDbgFormatter::FormatCallStack (const CallStackData & data, Lines & lines
 //  WinDbgFormatter::FormatCallFrame
 //
 //  The call site, the target and its symbol, then how it was entered and
-//  which mechanism found it.
+//  which mechanism found it. A symbol too long for its column keeps a space
+//  before the how.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string WinDbgFormatter::FormatCallFrame (const CallStackFrame & frame)
 {
-    std::string  how = std::format ("{} {}", CallStack::GetKindName (frame.kind),
-                                    frame.provenance == CallProvenance::Recorded ? "recorded" : "guessed");
+    static constexpr size_t  kTargetWidth = 14;
+    std::string              how          = std::format ("{} {}", CallStack::GetKindName (frame.kind),
+                                                         frame.provenance == CallProvenance::Recorded ? "recorded" : "guessed");
+    std::string              target       = std::format ("{:04x} {}", frame.target, frame.symbol);
 
 
 
@@ -469,8 +596,12 @@ std::string WinDbgFormatter::FormatCallFrame (const CallStackFrame & frame)
         how += ", " + frame.note;
     }
 
-    return std::format ("{:<11}{:<14}{}", std::format ("{:04x}", frame.callSite),
-                        std::format ("{:04x} {}", frame.target, frame.symbol), how);
+    if (target.size() >= kTargetWidth)
+    {
+        target += " ";
+    }
+
+    return std::format ("{:<11}{:<14}{}", std::format ("{:04x}", frame.callSite), target, how);
 }
 
 
@@ -560,12 +691,55 @@ std::string WinDbgFormatter::GetCommandName (const std::string & command)
     end  = command.find_first_of (" \t", first);
     name = command.substr (first, end == std::string::npos ? std::string::npos : end - first);
 
-    for (char & ch : name)
+    return ToLower (name);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgFormatter::GetArguments
+//
+//  What follows the command's first word, trimmed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgFormatter::GetArguments (const std::string & command)
+{
+    size_t  first = command.find_first_not_of (" \t");
+    size_t  end   = (first == std::string::npos) ? std::string::npos : command.find_first_of (" \t", first);
+    size_t  from  = (end == std::string::npos) ? std::string::npos : command.find_first_not_of (" \t", end);
+    size_t  last  = command.find_last_not_of (" \t");
+
+
+
+    return (from == std::string::npos) ? std::string() : command.substr (from, last - from + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WinDbgFormatter::ToLower
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgFormatter::ToLower (const std::string & text)
+{
+    std::string  result = text;
+
+
+
+    for (char & ch : result)
     {
         ch = (char) tolower ((unsigned char) ch);
     }
 
-    return name;
+    return result;
 }
 
 

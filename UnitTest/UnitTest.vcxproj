@@ -239,6 +239,8 @@
     <ClCompile Include="DebuggerTests\WinDbgCommandSweepTests.cpp" />
     <ClCompile Include="DebuggerTests\WinDbgFormatterTests.cpp" />
     <ClCompile Include="DebuggerTests\WinDbgParserTests.cpp" />
+    <ClCompile Include="DebuggerTests\WinDbgProbeTests.cpp" />
+    <ClCompile Include="DebuggerTests\WinDbgRunCommandTests.cpp" />
     <ClCompile Include="DebuggerTests\EmulatorDebugWiringTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorCommandTableTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorRomFactsTests.cpp" />
