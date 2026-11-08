@@ -1567,11 +1567,12 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (std::string ("nobp 3"),         DebuggerViewState::GetModeLine ("BPC 3",        CommandMode::GSSquared));
             Assert::AreEqual (std::string ("0300: 41"),       DebuggerViewState::GetModeLine ("MEB 0300 41",  CommandMode::GSSquared));
             Assert::AreEqual (std::string ("SRC ON"),         DebuggerViewState::GetModeLine ("SRC ON",       CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("REGISTER P 30"),  DebuggerViewState::GetModeLine ("R P 30",       CommandMode::GSSquared));
             Assert::AreEqual (std::string ("T"),              DebuggerViewState::GetModeLine ("T",            CommandMode::AppleWin));
 
             rig.controller.GetSession().ExecuteLine ("MODE GSSQUARED");
 
-            for (const char * line : { "BP 0300", "MEB 0300 41", "BPC 0" })
+            for (const char * line : { "BP 0300", "MEB 0300 41", "BPC 0", "R A 41", "R P 30" })
             {
                 Reply  reply = DebuggerViewState::ExecuteLine (rig.controller.GetSession(),
                                                                DebuggerViewState::GetModeLine (line, CommandMode::GSSquared),

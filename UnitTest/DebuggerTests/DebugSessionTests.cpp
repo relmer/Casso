@@ -201,7 +201,7 @@ namespace DebuggerTests
 
 
 
-            for (const char * line : { "R A 41", "SEC", "MEB 0300 41", "F 0300 0310 00" })
+            for (const char * line : { "R A 41", "SEC", "MEB 0300 41", "F 0300 0310 00", "IN C030", "OUT C030 00" })
             {
                 Reply  refused  = running.ExecuteLine (line);
                 Reply  accepted = paused.ExecuteLine (line);

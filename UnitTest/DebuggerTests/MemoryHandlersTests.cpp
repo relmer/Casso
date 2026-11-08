@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/Handlers/ExecutionHandlers.h"
 #include "Debugger/Handlers/MemoryHandlers.h"
 #include "HandlerTestRig.h"
 
@@ -342,6 +344,83 @@ namespace DebuggerTests
 
 
             Assert::AreEqual (std::string ("Filled 1 byte at $0300-$0300."), rig.RunOk ("F 300:300 AA").text.at (0));
+        }
+
+
+
+        TEST_METHOD (IN_OnAWatchedPage_IsNotAWatchHit)
+        {
+            static constexpr Byte              kNop = 0xEA;
+            MachineHandlerRig<MemoryHandlers>  rig;
+            BreakpointHandlers                 breakpoints;
+            ExecutionHandlers                  execution;
+
+
+
+            rig.session.AddHandler (&breakpoints);
+            rig.session.AddHandler (&execution);
+            rig.Load (0x0300, { kNop, kNop }, 0x0300);
+
+            rig.RunOk ("BPMR C030");
+            rig.RunOk ("IN C030");
+            rig.RunOk ("T");
+
+            Assert::IsTrue   (rig.LastStop().reason == StopReason::Step, L"the step ran; the debugger's own read hit nothing");
+            Assert::AreEqual ((Word) 0x0301, rig.LastStop().pc);
+        }
+
+
+
+        TEST_METHOD (UnreadableIo_IsNotReadAsZero)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            reply = rig.RunOk ("S BF00:C1FF 00");
+            Assert::AreEqual ((size_t) 0x200, std::get<SearchHitsData> (reply.data).addresses.size(), L"no hit in $C000-$C0FF");
+
+            rig.target.memory[0x0300] = 0x55;
+            rig.RunFails ("M 300 C000:C00F",     "memory not readable");
+            Assert::AreEqual ((Byte) 0x55, rig.target.memory[0x0300], L"nothing moved");
+            rig.RunFails ("MC 300 C000:C00F",    "memory not readable");
+            rig.RunFails ("BSAVE out.bin BFFF:C000", "memory not readable");
+            Assert::IsFalse (rig.files.Exists (L"C:\\Work\\out.bin"), L"no file written");
+        }
+
+
+
+        TEST_METHOD (TSAVE_InverseAndFlashing_KeepTheirCharacters)
+        {
+            Rig                       rig;
+            std::string               content;
+
+
+
+            Store (rig, 0x0400, { 0x01, 0x21, 0x41, 0x61, 0x81, 0xE1, 0x1B });
+            rig.RunOk ("TSAVE screen.txt");
+
+            content = rig.files.PeekContent (L"C:\\Work\\screen.txt");
+            Assert::IsTrue (content.starts_with ("A!A!Aa["), L"inverse, flashing and normal text as the letters they show");
+        }
+
+
+
+        TEST_METHOD (BLOAD_BSAVE_QuotedNames)
+        {
+            Rig  rig;
+
+
+
+            Store (rig, 0x0300, { 0xA9, 0x41, 0x60 });
+
+            Assert::AreEqual (std::string ("out.bin: 3 of 3 bytes"),     rig.RunOk ("BSAVE \"out.bin\" 300:302").text.at (0));
+            Assert::AreEqual (std::string ("my file.bin: 3 of 3 bytes"), rig.RunOk ("BSAVE \"my file.bin\" 300:302").text.at (0));
+            Assert::AreEqual (std::string ("\xA9\x41\x60", 3), rig.files.PeekContent (L"C:\\Work\\my file.bin"));
+
+            rig.RunOk ("BLOAD \"my file.bin\" 400");
+            Assert::AreEqual ((Byte) 0x60, rig.target.memory[0x0402]);
         }
     };
 }
