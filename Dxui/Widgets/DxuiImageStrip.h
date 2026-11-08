@@ -193,7 +193,7 @@ private:
     float                           m_pendingCenterX     = 0.0f;
     IDxuiImageStripSource::Image    m_previewImage;
     IDxuiImageStripSource::Image    m_previewThumb;   // the hovered cell's picture when the preview was chosen
-    uint32_t                        m_previewBorderArgb  = 0;   // the theme's tooltip border, from the last paint
+    uint32_t                        m_previewBorderArgb  = 0;   // the theme's muted text color, from the last paint
     SIZE                            m_previewDip         = {};   // the last full-size picture's size; a thumbnail scales to it
     POINT                           m_pointer            = {};   // where the pointer last moved over the strip
     float                           m_aspect             = kDefaultAspect;

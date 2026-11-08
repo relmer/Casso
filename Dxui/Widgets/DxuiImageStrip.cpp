@@ -357,7 +357,7 @@ void DxuiImageStrip::Paint (
     UNREFERENCED_PARAMETER (pressed);
 
     m_isLabelPairPending = false;
-    m_previewBorderArgb  = theme.TooltipBorder();
+    m_previewBorderArgb  = theme.ForegroundMuted();
     UNREFERENCED_PARAMETER (labeled);
 
     //  The playhead line takes the place of the marked cell's bar; while it
@@ -1141,7 +1141,8 @@ RECT DxuiImageStrip::GetPreviewRectPx() const
 //  DxuiImageStrip::RenderPreview
 //
 //  Popup-local pixels: the picture fills the popup, outlined in the theme's
-//  tooltip border color, as DxuiTooltip outlines its card. The outline is
+//  muted text color: a tooltip's border color can be as dark as a black
+//  picture, and the outline must be visible against any picture. The outline is
 //  drawn by the text renderer that draws the picture, after it, so the
 //  picture never covers it.
 //
