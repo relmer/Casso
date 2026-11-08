@@ -53,7 +53,6 @@ public:
         MapSlotRom,
         MapIo,
         HeatCode,
-        HeatOperand,
         HeatRead,
         HeatWrite,
         HeatSelfModifying,

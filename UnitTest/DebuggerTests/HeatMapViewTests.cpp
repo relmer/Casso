@@ -788,6 +788,92 @@ namespace DebuggerTests
 
 
 
+        //  A touchpad turns the wheel in fractions of a notch. Over a row far
+        //  down the map, the row stays under the pointer after each one, all
+        //  the way in and back out.
+        TEST_METHOD (FractionalNotchesKeepARowFarDownUnderThePointer)
+        {
+            HeatMapView  view;
+            POINT        point = {};
+            RECT         cell  = {};
+            Word         under = 0;
+            int          steps = 0;
+
+
+
+            Place (view, 420, 700);
+            view.ZoomAt (GetPointOf (view, 0x1000), 2.0f);
+            view.ScrollBy ((int) (view.GetCellRect (0xC283).top - (view.GetMapRect().top + view.GetMapRect().bottom) / 2));
+
+            cell  = view.GetCellRect (0xC283);
+            point = { (cell.left + cell.right) / 2, (cell.top + cell.bottom) / 2 };
+
+            for (float notch : { 0.25f, -0.25f })
+            {
+                for (steps = 0; steps < 60; steps++)
+                {
+                    under = view.GetAddressAt (point).value_or (0);
+
+                    view.ZoomAt (point, notch);
+
+                    //  Zoomed out, the end of memory comes into view, and the
+                    //  map can't scroll past it.
+                    if (view.GetScrollTop() >= view.GetRows() * (view.GetCellPx() + HeatMapView::kStreetPx) - (view.GetMapRect().bottom - view.GetMapRect().top))
+                    {
+                        break;
+                    }
+
+                    Assert::IsTrue (IsAtHeight (view, under, point.y),
+                                    std::format (L"${:04X} under the pointer after step {} of {}", under, steps, notch).c_str());
+                }
+            }
+        }
+
+
+
+        //  The arrows move the framed cell a cell or a row, Ctrl+End to the last
+        //  address, scrolling it into view, and Enter opens it in a memory
+        //  window as a click does.
+        TEST_METHOD (TheKeysMoveTheFramedCell)
+        {
+            HeatMapView   view;
+            DxuiKeyEvent  key;
+            Word          opened = 0;
+            RECT          cell   = {};
+            auto          press  = [&view, &key] (WPARAM vk, bool ctrl = false)
+            {
+                key.vk   = vk;
+                key.ctrl = ctrl;
+                return view.OnKey (key);
+            };
+
+
+
+            Place (view);
+            view.SetOnPickAddress ([&opened] (Word address) { opened = address; });
+
+            Assert::IsTrue   (press (VK_RIGHT), L"the first key frames a cell");
+            Assert::AreEqual ((Word) 0x0000, view.GetHover().value_or (0xFFFF));
+
+            Assert::IsTrue   (press (VK_RIGHT));
+            Assert::AreEqual ((Word) 0x0001, *view.GetHover());
+
+            Assert::IsTrue   (press (VK_DOWN));
+            Assert::AreEqual ((Word) (0x0001 + view.GetColumns()), *view.GetHover(), L"a row down");
+
+            Assert::IsTrue   (press (VK_END, true));
+            Assert::AreEqual ((Word) 0xFFFF, *view.GetHover(), L"Ctrl+End, the last address");
+            cell = view.GetCellRect (0xFFFF);
+            Assert::IsTrue   (cell.bottom <= view.GetMapRect().bottom, L"scrolled into view");
+
+            Assert::IsTrue   (press (VK_RETURN));
+            Assert::AreEqual ((Word) 0xFFFF, opened, L"Enter opens it");
+
+            Assert::IsFalse  (press ('A'), L"other keys are left to the window");
+        }
+
+
+
         TEST_METHOD (ZoomThatKeepsTheRowKeepsTheStretchedCellUnderThePointer)
         {
             HeatMapView  view;

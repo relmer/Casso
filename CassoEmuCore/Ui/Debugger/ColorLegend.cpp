@@ -60,7 +60,6 @@ const std::vector<ColorLegend::Entry> & ColorLegend::GetEntries()
         { Pane::MemoryMap,      Meaning::MapSlotRom,        Swatch::Fill    },
         { Pane::MemoryMap,      Meaning::MapIo,             Swatch::Fill    },
         { Pane::HeatMap,        Meaning::HeatCode,          Swatch::Ramp    },
-        { Pane::HeatMap,        Meaning::HeatOperand,       Swatch::Ramp    },
         { Pane::HeatMap,        Meaning::HeatRead,          Swatch::Ramp    },
         { Pane::HeatMap,        Meaning::HeatWrite,         Swatch::Ramp    },
         { Pane::HeatMap,        Meaning::HeatUnwritten,     Swatch::Ramp    },
@@ -71,7 +70,6 @@ const std::vector<ColorLegend::Entry> & ColorLegend::GetEntries()
         { Pane::HeatMap,        Meaning::HeatReadWatch,     Swatch::Outline },
         { Pane::HeatMap,        Meaning::HeatWriteWatch,    Swatch::Outline },
         { Pane::HeatMapBlend,   Meaning::HeatCode,          Swatch::Ramp    },
-        { Pane::HeatMapBlend,   Meaning::HeatOperand,       Swatch::Ramp    },
         { Pane::HeatMapBlend,   Meaning::HeatRead,          Swatch::Ramp    },
         { Pane::HeatMapBlend,   Meaning::HeatWrite,         Swatch::Ramp    },
         { Pane::HeatMapBlend,   Meaning::HeatSelfModifying, Swatch::Ramp    },
@@ -83,7 +81,6 @@ const std::vector<ColorLegend::Entry> & ColorLegend::GetEntries()
         { Pane::HeatMapBlend,   Meaning::HeatReadWatch,     Swatch::Outline },
         { Pane::HeatMapBlend,   Meaning::HeatWriteWatch,    Swatch::Outline },
         { Pane::HeatMapCode,    Meaning::HeatCode,          Swatch::Ramp    },
-        { Pane::HeatMapCode,    Meaning::HeatOperand,       Swatch::Ramp    },
         { Pane::HeatMapCode,    Meaning::HeatSymbol,        Swatch::Fill    },
         { Pane::HeatMapCode,    Meaning::HeatPc,            Swatch::Outline },
         { Pane::HeatMapCode,    Meaning::HeatStack,         Swatch::Outline },
@@ -256,7 +253,6 @@ const wchar_t * ColorLegend::GetText (Meaning meaning)
     case Meaning::MapSlotRom:         return L"Slot ROM";
     case Meaning::MapIo:              return L"I/O";
     case Meaning::HeatCode:           return L"Run as code";
-    case Meaning::HeatOperand:        return L"Run as code, but only ever as an instruction's operand";
     case Meaning::HeatRead:           return L"Read";
     case Meaning::HeatWrite:          return L"Written";
     case Meaning::HeatSelfModifying:  return L"Self-modifying: run as code and written, with Blend on";
@@ -345,7 +341,6 @@ uint32_t ColorLegend::GetArgb (Meaning meaning, const Palette & palette)
     case Meaning::MapSlotRom:         return palette.text.mapSlotRom;
     case Meaning::MapIo:              return palette.text.mapIo;
     case Meaning::HeatCode:
-    case Meaning::HeatOperand:
     case Meaning::HeatRead:
     case Meaning::HeatWrite:          return GetRampStops (meaning, palette).back();
     case Meaning::HeatSelfModifying:  return palette.text.heatSelfModifying;
@@ -552,23 +547,21 @@ uint32_t ColorLegend::GetFaintest (uint32_t argb, const Palette & palette)
 std::vector<uint32_t> ColorLegend::GetRampStops (Meaning meaning, const Palette & palette)
 {
     std::vector<uint32_t>  stops;
-    HeatStrip::Kind        kind      = HeatStrip::Kind::Run;
-    bool                   isOperand = meaning == Meaning::HeatOperand;
+    HeatStrip::Kind        kind  = HeatStrip::Kind::Run;
 
 
 
     switch (meaning)
     {
-    case Meaning::HeatCode:
-    case Meaning::HeatOperand: kind = HeatStrip::Kind::Run; break;
-    case Meaning::HeatRead:    kind = HeatStrip::Kind::Read;    break;
-    case Meaning::HeatWrite:   kind = HeatStrip::Kind::Write;   break;
-    default:                   return stops;
+    case Meaning::HeatCode:  kind = HeatStrip::Kind::Run;   break;
+    case Meaning::HeatRead:  kind = HeatStrip::Kind::Read;  break;
+    case Meaning::HeatWrite: kind = HeatStrip::Kind::Write; break;
+    default:                 return stops;
     }
 
     for (uint32_t stop : HeatStrip::GetScaleStops (kind))
     {
-        stops.push_back (isOperand ? DxuiColor::Mix (stop, palette.text.heatCold | 0xFF000000u, HeatMapView::kOperandDim) | 0xFF000000u : stop);
+        stops.push_back (stop);
     }
 
     return stops;

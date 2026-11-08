@@ -207,6 +207,70 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (AnInstructionPastTheEndOfItsRowContinuesOnTheNext)
+        {
+            HeatMapView           view;
+            MockDxuiTextRenderer  text;
+            std::vector<Byte>     execute (kCount, 0);
+            std::vector<Byte>     opcodes (kCount, 0);
+            std::vector<int16_t>  values  (kCount, -1);
+            auto                  forms   = std::make_shared<std::vector<std::string>> (256);
+            Word                  at      = 0;
+            RECT                  first   = {};
+            RECT                  second  = {};
+            int                   drawn   = 0;
+            auto                  isRing  = [&text] (const RECT & cell)
+            {
+                return std::ranges::any_of (text.Calls(), [&cell] (const RecordedTextCall & call)
+                {
+                    return call.kind == RecordedTextKind::FillRect && call.argb == kPc &&
+                           call.x == (float) (cell.left - HeatMapView::kStreetPx) && call.y == (float) (cell.top - HeatMapView::kStreetPx);
+                });
+            };
+
+
+
+            Place (view);
+            view.ZoomAt ({ 300, 200 }, 40.0f);
+            view.ScrollBy (-1000000);
+
+            // LDA $C000 at the last address of the first row, its operand on the second.
+            at                    = (Word) (view.GetColumns() - 1);
+            values[at]            = 0xAD;
+            values[at + 1]        = 0x00;
+            values[at + 2]        = 0xC0;
+            execute[at]           = 200;
+            execute[at + 1]       = 200;
+            execute[at + 2]       = 200;
+            opcodes[at]           = 1;
+            (*forms)[0xAD]        = "LDA ....";
+
+            view.SetOpcodes     (opcodes);
+            view.SetValues      (values);
+            view.SetOpcodeForms (forms);
+            view.SetLevels      (execute, {}, {});
+            view.SetCpuMarks    (at, std::nullopt);
+            Paint (view, text);
+
+            drawn = (int) std::ranges::count_if (text.Calls(), [] (const RecordedTextCall & call)
+            {
+                return call.kind == RecordedTextKind::DrawString && call.text == L"LDA $C000";
+            });
+
+            first  = view.GetCellRect (at);
+            second = view.GetCellRect ((Word) (at + 1));
+
+            Assert::AreEqual (2,    drawn,                     L"the text on each piece, one continuing the other");
+            Assert::IsTrue   (second.top > first.top,          L"the operand starts the next row");
+            Assert::IsFalse  (HasText (text, L"00"),           L"the operand drawn as part of the instruction");
+            Assert::IsTrue   (isRing (first),                  L"the PC's ring around the first piece");
+            Assert::IsTrue   (isRing (second),                 L"and around the second");
+            Assert::AreEqual ((int) at, (int) *view.GetPickAt (POINT { (second.left + second.right) / 2, (second.top + second.bottom) / 2 }),
+                              L"a point over an operand picks the instruction");
+        }
+
+
+
         TEST_METHOD (AnOpcodeIsMarkedWhereItWasFetchedAndItsOperandsAreNot)
         {
             AccessHeatMap      map;
@@ -239,12 +303,11 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (AnOperandByteIsDrawnDimmerThanItsOpcode)
+        TEST_METHOD (AnOperandByteIsDrawnAsHotAsItsOpcode)
         {
             HeatMapView        view;
             std::vector<Byte>  execute (kCount, 0);
             std::vector<Byte>  opcodes (kCount, 0);
-            uint32_t           dimmed  = DxuiColor::Mix (kExecute, kCold, HeatMapView::kOperandDim) | 0xFF000000u;
 
 
 
@@ -262,8 +325,8 @@ namespace DebuggerTests
             view.SetLevels  (execute, {}, {});
 
             Assert::AreEqual (kExecute, view.GetCellColor (0x0300));
-            Assert::AreEqual (dimmed,   view.GetCellColor (0x0301));
-            Assert::AreEqual (dimmed,   view.GetCellColor (0x0302));
+            Assert::AreEqual (kExecute, view.GetCellColor (0x0301), L"an operand, as hot as its opcode");
+            Assert::AreEqual (kExecute, view.GetCellColor (0x0302));
             Assert::IsTrue   (Contains (view.GetTipText (0x0301), L"executed as an operand"));
             Assert::IsFalse  (Contains (view.GetTipText (0x0300), L"as an operand"));
         }
@@ -442,11 +505,11 @@ namespace DebuggerTests
 
 
             Assert::AreEqual (kExecute,       HeatMapView::GetColor (Mode::All,  255, 0,   255, palette),               L"without Blend, the hottest kind");
-            Assert::AreEqual (kSelfModifying, HeatMapView::GetColor (Mode::All,  255, 0,   255, palette, false, true));
-            Assert::AreEqual (0xFFCDCAF4u,    HeatMapView::GetColor (Mode::All,  0,   255, 255, palette, false, true),  L"read and written alike, half each");
-            Assert::AreEqual (kExecute,       HeatMapView::GetColor (Mode::Code, 255, 0,   255, palette, false, true),  L"Code shows the code alone");
-            Assert::AreEqual (kWrite,         HeatMapView::GetColor (Mode::Data, 255, 0,   255, palette, false, true),  L"Data shows the data alone");
-            Assert::AreEqual (kCold,          HeatMapView::GetColor (Mode::All,  0,   0,   0,   palette, false, true));
+            Assert::AreEqual (kSelfModifying, HeatMapView::GetColor (Mode::All,  255, 0,   255, palette, true));
+            Assert::AreEqual (0xFFCDCAF4u,    HeatMapView::GetColor (Mode::All,  0,   255, 255, palette, true),  L"read and written alike, half each");
+            Assert::AreEqual (kExecute,       HeatMapView::GetColor (Mode::Code, 255, 0,   255, palette, true),  L"Code shows the code alone");
+            Assert::AreEqual (kWrite,         HeatMapView::GetColor (Mode::Data, 255, 0,   255, palette, true),  L"Data shows the data alone");
+            Assert::AreEqual (kCold,          HeatMapView::GetColor (Mode::All,  0,   0,   0,   palette, true));
         }
 
 
@@ -515,7 +578,7 @@ namespace DebuggerTests
                 }
             }
 
-            Assert::IsTrue (std::vector<Meaning> { Meaning::HeatCode, Meaning::HeatOperand, Meaning::HeatRead, Meaning::HeatWrite, Meaning::HeatUnwritten,
+            Assert::IsTrue (std::vector<Meaning> { Meaning::HeatCode, Meaning::HeatRead, Meaning::HeatWrite, Meaning::HeatUnwritten,
                                                    Meaning::HeatSymbol, Meaning::HeatPc, Meaning::HeatStack, Meaning::HeatBreakpoint,
                                                    Meaning::HeatReadWatch, Meaning::HeatWriteWatch } == listed);
 

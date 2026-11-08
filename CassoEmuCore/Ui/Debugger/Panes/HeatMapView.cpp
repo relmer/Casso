@@ -924,7 +924,7 @@ bool HeatMapView::TickScrollbars (int64_t nowMs)
 
 uint32_t HeatMapView::GetColor (Mode mode, Byte execute, Byte read, Byte write, const Palette & palette)
 {
-    return GetColor (mode, execute, read, write, palette, false, false);
+    return GetColor (mode, execute, read, write, palette, false);
 }
 
 
@@ -935,9 +935,7 @@ uint32_t HeatMapView::GetColor (Mode mode, Byte execute, Byte read, Byte write, 
 //
 //  HeatMapView::GetColor
 //
-//  An operand byte's code color is drawn part of the way to the cold gray,
-//  so an instruction's opcode stands out from the bytes after it. With
-//  Blend, an address takes the colors of every kind the mode shows that
+//  With Blend, an address takes the colors of every kind the mode shows that
 //  touched it, each at its level on its scale and weighted by how hot it
 //  is; one both run as code and written takes the self-modifying color,
 //  mixed toward it from the cold gray by how hot it is.
@@ -950,7 +948,6 @@ uint32_t HeatMapView::GetColor (
     Byte               read,
     Byte               write,
     const Palette    & palette,
-    bool               isOperand,
     bool               isBlend)
 {
     constexpr float  kTop            = 255.0f;
@@ -964,15 +961,7 @@ uint32_t HeatMapView::GetColor (
     Byte             data            = std::max (read, write);
     Byte             level           = std::max ({ ran, got, put });
     float            total           = std::max (1.0f, (float) ran + (float) got + (float) put);   // at least 1, so C4723 cannot fire; a nonzero total of whole counts is 1 or more already
-    auto             getCode         = [&] (Byte at)
-    {
-        uint32_t  color = HeatStrip::GetScaleColor (HeatStrip::Kind::Run, at, palette);
-
-
-
-        return isOperand ? DxuiColor::Mix (color, cold, kOperandDim) | 0xFF000000u : color;
-    };
-    uint32_t         code            = getCode (ran);
+    uint32_t         code            = HeatStrip::GetScaleColor (HeatStrip::Kind::Run, ran, palette);
     uint32_t         readColor       = HeatStrip::GetScaleColor (HeatStrip::Kind::Read,  got, palette);
     uint32_t         writeColor      = HeatStrip::GetScaleColor (HeatStrip::Kind::Write, put, palette);
     auto             mixChannel      = [&] (int shift)
@@ -1001,7 +990,7 @@ uint32_t HeatMapView::GetColor (
 
     if (mode == Mode::Code || (mode == Mode::All && execute >= data))
     {
-        return (execute == 0) ? cold : getCode (execute);
+        return (execute == 0) ? cold : HeatStrip::GetScaleColor (HeatStrip::Kind::Run, execute, palette);
     }
 
     if (data == 0)
@@ -1152,7 +1141,6 @@ void HeatMapView::BuildCells()
                                      hasRead    ? m_read[address]    : (Byte) 0,
                                      hasWrite   ? m_write[address]   : (Byte) 0,
                                      m_palette,
-                                     IsOperand ((Word) address),
                                      m_options.blend);
 
         m_cells[address] = GetChannelColor (m_options.view,
@@ -1616,7 +1604,8 @@ std::optional<Word> HeatMapView::GetPickAt (POINT point) const
 //
 //  The search stays in the row under the mouse, so moving up or down always
 //  lands on the next row, however cold; along the row the pick is the
-//  nearest hot cell within kSnapDip.
+//  nearest hot cell within kSnapDip. Over an instruction drawn as one cell,
+//  the pick is its opcode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1632,6 +1621,11 @@ std::optional<HeatMapView::Place> HeatMapView::GetPickPlaceAt (POINT point) cons
     long                  nearest = reach + 1;
 
 
+
+    if (under.has_value() && GetMergedAt (*under).has_value())
+    {
+        return GetMergedAt (*under)->first;
+    }
 
     if (!under.has_value() || m_cellPx >= m_scaler.ToPx (kComfortCellDip) || GetShownLevel (GetAddressOf (*under)) > 0)
     {
@@ -1961,8 +1955,8 @@ HeatMapView::TipLead HeatMapView::GetTipLead (Word address) const
 
     switch (GetCellKind (address))
     {
-    case CellKind::Code:          lead.meaning = ColorLegend::GetLabel (ColorLegend::Meaning::HeatCode);          break;
-    case CellKind::Operand:       lead.meaning = ColorLegend::GetLabel (ColorLegend::Meaning::HeatOperand);       break;
+    case CellKind::Code:
+    case CellKind::Operand:       lead.meaning = ColorLegend::GetLabel (ColorLegend::Meaning::HeatCode);          break;
     case CellKind::Read:          lead.meaning = ColorLegend::GetLabel (ColorLegend::Meaning::HeatRead);          break;
     case CellKind::Written:       lead.meaning = ColorLegend::GetLabel (ColorLegend::Meaning::HeatWrite);         break;
     case CellKind::SelfModifying: lead.meaning = ColorLegend::GetLabel (ColorLegend::Meaning::HeatSelfModifying); break;
@@ -2067,13 +2061,14 @@ bool HeatMapView::TryGetCellScale (Word address, std::vector<uint32_t> & gradien
     Byte              changed    = (m_changed.size()   == kCount) ? m_changed[address]   : (Byte) 0;
     uint32_t          hue        = 0;
     Byte              level      = 0;
+    float             floor      = kFaintest;
 
 
 
     switch (GetCellKind (address))
     {
-    case CellKind::Code:          hue = m_palette.execute;                                                           level = execute;                          break;
-    case CellKind::Operand:       hue = DxuiColor::Mix (m_palette.execute | 0xFF000000u, cold, kOperandDim);         level = execute;                          break;
+    case CellKind::Code:
+    case CellKind::Operand:       hue = m_palette.execute;                                                           level = execute;                          break;
     case CellKind::Read:          hue = m_palette.read;                                                              level = read;                             break;
     case CellKind::Written:       hue = m_palette.write;                                                             level = write;                            break;
     case CellKind::SelfModifying: hue = m_palette.selfModifying;                                                     level = std::max ({ execute, read, write }); break;
@@ -2112,16 +2107,14 @@ bool HeatMapView::TryGetCellScale (Word address, std::vector<uint32_t> & gradien
 //  HeatMapView::GetScaleStops
 //
 //  A kind's scale as the cells draw it: the heat column's stops for code,
-//  an operand, a read or a write, an operand's dimmed toward the cold gray
-//  as its cells are; none for the other kinds.
+//  an operand, a read or a write; none for the other kinds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<uint32_t> HeatMapView::GetScaleStops (CellKind kind) const
 {
     std::vector<uint32_t>  stops;
-    bool                   isOperand = kind == CellKind::Operand;
-    HeatStrip::Kind        strip     = HeatStrip::Kind::Run;
+    HeatStrip::Kind        strip = HeatStrip::Kind::Run;
 
 
 
@@ -2136,7 +2129,7 @@ std::vector<uint32_t> HeatMapView::GetScaleStops (CellKind kind) const
 
     for (uint32_t stop : HeatStrip::GetScaleStops (strip))
     {
-        stops.push_back (isOperand ? DxuiColor::Mix (stop, m_palette.cold | 0xFF000000u, kOperandDim) | 0xFF000000u : stop);
+        stops.push_back (stop);
     }
 
     return stops;
@@ -2746,7 +2739,8 @@ void HeatMapView::ForEachVisible (const std::function<void (const Place &, Word)
 //  HeatMapView::PaintOverlays
 //
 //  Over the cells in view, clipped to the map: each one's value and second
-//  line where the cells are large enough, then its outlines. A cell is
+//  line where the cells are large enough, or its whole instruction, then
+//  its outlines, around the whole instruction for its opcode. A cell is
 //  checked against the marks before its outlines are gathered, so a map
 //  with none costs a comparison a cell.
 //
@@ -2761,6 +2755,15 @@ void HeatMapView::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme & th
     bool              hasMarks   = m_pc.has_value() || m_stack.has_value() || !m_breakpoints.empty();
     int               covered    = 0;
     HRESULT           hr         = S_OK;
+    auto              isMarked   = [this] (Word address)
+    {
+        Word  cpu = HeatMapOptions::GetCpuAddress (m_shownBank, address);
+
+
+
+        return m_pc == address || m_stack == address ||
+               std::ranges::any_of (m_breakpoints, [cpu] (const Breakpoint & each) { return cpu >= each.first && cpu <= each.last; });
+    };
 
 
 
@@ -2774,25 +2777,38 @@ void HeatMapView::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme & th
 
     ForEachVisible ([&] (const Place & place, Word address)
     {
-        Word  cpu      = HeatMapOptions::GetCpuAddress (m_shownBank, address);
-        bool  isMarked = m_pc == address || m_stack == address ||
-                         std::ranges::any_of (m_breakpoints, [cpu] (const Breakpoint & each) { return cpu >= each.first && cpu <= each.last; });
+        std::optional<Merged>  merged;
 
 
 
-        //  An instruction's operand cells are drawn as part of its opcode's.
+        //  An instruction's operand cells are drawn as part of its opcode's,
+        //  and so is the first one in view when its opcode is above it.
         if (covered > 0)
         {
             covered--;
         }
-        else if (hasDetail && !TryPaintInstruction (text, theme, place, address, covered))
+        else if (hasDetail)
         {
-            PaintDetail (text, theme, place, address);
+            merged = GetMergedAt (place);
+
+            if (merged.has_value())
+            {
+                PaintInstruction (text, theme, *merged);
+                covered = (int) (merged->first.offset + merged->length - 1 - place.offset);
+            }
+            else
+            {
+                PaintDetail (text, theme, place, address);
+            }
         }
 
-        if (isMarked)
+        if (merged.has_value() && isMarked (merged->opcode))
         {
-            PaintOutlines (text, place, address);
+            PaintOutlines (text, GetMergedRects (*merged), merged->opcode);
+        }
+        else if ((!merged.has_value() || merged->opcode != address) && isMarked (address))
+        {
+            PaintOutlines (text, { GetPlaceRect (place) }, address);
         }
     });
 
@@ -3089,112 +3105,241 @@ std::wstring HeatMapView::GetInstructionText (const std::string & form, Word cpu
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapView::TryPaintInstruction
+//  HeatMapView::IsMergeZoom
 //
-//  A byte run as an opcode, drawn as its whole instruction across its
-//  cell and its operands' cells when they are on its row: the
-//  instruction with its operand as a symbol where there is one, and under
-//  it the bytes in hex, smaller and dimmer, as the disassembly draws a
-//  line's bytes under its source. False where the instruction can't be
-//  drawn so; the byte's detail is drawn then.
+//  Whether the cells are tall enough for an instruction's two lines, so an
+//  instruction is drawn as one cell across its bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool HeatMapView::TryPaintInstruction (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Place & place, Word address, int & covered) const
+bool HeatMapView::IsMergeZoom() const
+{
+    float  minFont = m_scaler.ToPxf (kMinDetailFontDip);
+    float  pad     = m_scaler.ToPxf ((float) kDetailPadDip);
+
+
+
+    return m_values.size() == (size_t) kAddressCount && m_opcodes.size() == (size_t) kAddressCount && m_opcodeForms != nullptr &&
+           ((float) m_cellPx - pad * 2.0f) / (kLinePerEm * 2.0f) >= minFont;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetMergeLength
+//
+//  The length of the instruction whose opcode is at a place, when it is
+//  drawn as one cell: a byte run as an opcode, drawn in the code color, with its form
+//  and every byte of it known, inside its range. Zero otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int HeatMapView::GetMergeLength (const Place & place, Word address) const
+{
+    int16_t  stored = m_values[address];
+    int      length = 0;
+
+
+
+    if (stored < 0 || m_opcodes[address] == 0 || m_opcodeForms->size() <= (size_t) (Byte) stored ||
+        (*m_opcodeForms)[(Byte) stored].empty() || GetCellKind (address) != CellKind::Code)
+    {
+        return 0;
+    }
+
+    length = GetInstructionLength ((*m_opcodeForms)[(Byte) stored]);
+
+    if (place.offset + length > m_bands[place.band].count)
+    {
+        return 0;
+    }
+
+    for (int i = 1; i < length; i++)
+    {
+        if (m_values[(Word) (address + i)] < 0)
+        {
+            return 0;
+        }
+    }
+
+    return length;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetMergedAt
+//
+//  The instruction drawn as one cell that contains a place: the instruction
+//  at the place when the place is an opcode, else the one whose opcode is up
+//  to two bytes before the place and whose length covers it. None at a zoom
+//  too small to merge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<HeatMapView::Merged> HeatMapView::GetMergedAt (const Place & place) const
+{
+    constexpr long  kMaxOperands = 2;
+
+
+
+    if (!IsMergeZoom())
+    {
+        return std::nullopt;
+    }
+
+    for (long back = 0; back <= kMaxOperands && back <= place.offset; back++)
+    {
+        Place  start   = { place.band, place.offset - back };
+        Word   address = GetAddressOf (start);
+        int    length  = GetMergeLength (start, address);
+
+
+
+        if (length > back)
+        {
+            return Merged { start, address, length };
+        }
+
+        //  An opcode is never part of the instruction before it.
+        if (m_opcodes[address] != 0)
+        {
+            return std::nullopt;
+        }
+    }
+
+    return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetMergedRects
+//
+//  An instruction's cell, one rectangle for each row it is on: one that
+//  passes the end of its row continues at the start of the next.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<RECT> HeatMapView::GetMergedRects (const Merged & merged) const
+{
+    const Placed       & placed = m_placed[merged.first.band];
+    std::vector<RECT>    rects;
+    long                 offset = merged.first.offset;
+    long                 end    = merged.first.offset + merged.length;
+
+
+
+    while (offset < end)
+    {
+        long  rowEnd = std::min (end, (offset / placed.columns + 1) * placed.columns);
+        RECT  first  = GetPlaceRect (Place { merged.first.band, offset });
+        RECT  last   = GetPlaceRect (Place { merged.first.band, rowEnd - 1 });
+
+
+
+        rects.push_back (RECT { first.left, first.top, last.right, last.bottom });
+        offset = rowEnd;
+    }
+
+    return rects;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::PaintInstruction
+//
+//  The instruction with its operand as a symbol where there is one, and
+//  under it the bytes in hex, smaller and dimmer, as the disassembly draws
+//  a line's bytes under its source. An instruction on two rows is drawn as
+//  one line of text across its two pieces laid end to end, so the text
+//  continues from the end of the first row to the start of the second.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::PaintInstruction (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Merged & merged) const
 {
     constexpr float     kBytesScale = 0.8f;
     constexpr float     kBytesDim   = 0.45f;
-    const Placed      & placed      = m_placed[place.band];
     DxuiFontHandle      font        = theme.MonospaceFont();
     float               minFont     = m_scaler.ToPxf (kMinDetailFontDip);
     float               pad         = m_scaler.ToPxf ((float) kDetailPadDip);
-    int16_t             stored      = m_values[address];
-    std::string         form;
-    int                 length      = 0;
+    std::vector<RECT>   pieces      = GetMergedRects (merged);
+    Byte                opcode      = (Byte) m_values[merged.opcode];
     std::vector<Byte>   operands;
-    std::wstring        bytes;
+    std::wstring        bytes       = std::format (L"{:02X}", opcode);
     std::wstring        instruction;
-    RECT                first       = {};
-    RECT                last        = {};
     long                wide        = 0;
-    long                tall        = 0;
+    long                tall        = pieces.front().bottom - pieces.front().top;
+    long                before      = 0;
     float               fontPx      = 0.0f;
     float               lineH       = 0.0f;
-    float               top         = 0.0f;
-    uint32_t            fill        = 0;
-    uint32_t            ink         = 0;
+    uint32_t            fill        = GetCellColor (merged.opcode) | 0xFF000000u;
+    uint32_t            ink         = GetDetailTextColor (fill, theme.Foreground(), m_palette.background);
     HRESULT             hr          = S_OK;
 
 
 
-    if (stored < 0 || m_opcodes.size() != (size_t) kAddressCount || m_opcodes[address] == 0 || m_opcodeForms == nullptr ||
-        m_opcodeForms->size() <= (size_t) (Byte) stored || GetCellKind (address) != CellKind::Code)
+    for (int i = 1; i < merged.length; i++)
     {
-        return false;
+        Byte  value = (Byte) m_values[(Word) (merged.opcode + i)];
+
+
+
+        operands.push_back (value);
+        bytes += std::format (L" {:02X}", value);
     }
 
-    form   = (*m_opcodeForms)[(Byte) stored];
-    length = GetInstructionLength (form);
-
-    if (form.empty() || place.offset % placed.columns + length > placed.columns || place.offset + length > m_bands[place.band].count)
+    for (const RECT & piece : pieces)
     {
-        return false;
+        wide += piece.right - piece.left;
     }
 
-    bytes = std::format (L"{:02X}", (Byte) stored);
-
-    for (int i = 1; i < length; i++)
-    {
-        int16_t  value = m_values[(Word) (address + i)];
-
-
-
-        if (value < 0)
-        {
-            return false;
-        }
-
-        operands.push_back ((Byte) value);
-        bytes += std::format (L" {:02X}", (Byte) value);
-    }
-
-    first  = GetPlaceRect (place);
-    last   = GetPlaceRect (Place { place.band, place.offset + length - 1 });
-    wide   = last.right - first.left;
-    tall   = first.bottom - first.top;
-    fontPx = std::min ({ m_scaler.ToPxf (font.sizeDip), ((float) tall - pad * 2.0f) / (kLinePerEm * 2.0f) });
-
-    if (fontPx < minFont)
-    {
-        return false;
-    }
-
-    instruction = GetInstructionText (form, HeatMapOptions::GetCpuAddress (m_shownBank, address), operands);
+    instruction = GetInstructionText ((*m_opcodeForms)[opcode], HeatMapOptions::GetCpuAddress (m_shownBank, merged.opcode), operands);
+    fontPx      = std::min (m_scaler.ToPxf (font.sizeDip), ((float) tall - pad * 2.0f) / (kLinePerEm * 2.0f));
     fontPx      = std::max (minFont, std::min (fontPx, ((float) wide - pad * 2.0f) / ((float) std::max (instruction.size(), bytes.size()) * kAdvancePerEm)));
     lineH       = fontPx * kLinePerEm;
-    top         = (float) first.top + ((float) tall - lineH * 2.0f) / 2.0f;
-    fill        = GetCellColor (address) | 0xFF000000u;
-    ink         = GetDetailTextColor (fill, theme.Foreground(), m_palette.background);
 
-    hr = text.FillRect ((float) first.left, (float) first.top, (float) wide, (float) tall, fill);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    for (const RECT & piece : pieces)
+    {
+        float  left  = (float) (piece.left - before);
+        float  top   = (float) piece.top + ((float) tall - lineH * 2.0f) / 2.0f;
+        float  width = (float) (piece.right - piece.left);
 
-    hr = text.PushClipRect ((float) first.left, (float) first.top, (float) wide, (float) tall);
-    IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawString (instruction.c_str(), (float) first.left, top, (float) wide, lineH, ink, fontPx, font.face,
-                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawString (bytes.c_str(), (float) first.left, top + lineH, (float) wide, lineH, DxuiColor::Mix (ink, fill, kBytesDim) | 0xFF000000u,
-                          std::max (minFont, fontPx * kBytesScale), font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = text.FillRect ((float) piece.left, (float) piece.top, width, (float) tall, fill);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.PopClipRect();
-    IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = text.PushClipRect ((float) piece.left, (float) piece.top, width, (float) tall);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
-    covered = length - 1;
-    return true;
+        hr = text.DrawString (instruction.c_str(), left, top, (float) wide, lineH, ink, fontPx, font.face,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        hr = text.DrawString (bytes.c_str(), left, top + lineH, (float) wide, lineH, DxuiColor::Mix (ink, fill, kBytesDim) | 0xFF000000u,
+                              std::max (minFont, fontPx * kBytesScale), font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        hr = text.PopClipRect();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        before += piece.right - piece.left;
+    }
 }
 
 
@@ -3211,10 +3356,9 @@ bool HeatMapView::TryPaintInstruction (IDxuiTextRenderer & text, const IDxuiThem
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HeatMapView::PaintOutlines (IDxuiTextRenderer & text, const Place & place, Word address) const
+void HeatMapView::PaintOutlines (IDxuiTextRenderer & text, const std::vector<RECT> & rects, Word address) const
 {
     constexpr int          kThickCellPx = 12;
-    RECT                   cell         = GetPlaceRect (place);
     long                   line         = (m_cellPx >= kThickCellPx) ? 2 : 1;
     std::vector<uint32_t>  colors       = GetOutlineColors (address);
     RECT                   ring         = {};
@@ -3227,10 +3371,14 @@ void HeatMapView::PaintOutlines (IDxuiTextRenderer & text, const Place & place, 
 
 
 
-    for (size_t k = 0; k < colors.size(); k++)
+    for (size_t k = 0; k < colors.size() * rects.size(); k++)
     {
-        ring = cell;
-        InflateRect (&ring, kStreetPx - (long) k * line, kStreetPx - (long) k * line);
+        long  inset = (long) (k / rects.size()) * line;
+
+
+
+        ring = rects[k % rects.size()];
+        InflateRect (&ring, kStreetPx - inset, kStreetPx - inset);
 
         if (ring.right - ring.left <= line * 2 || ring.bottom - ring.top <= line * 2)
         {
@@ -3242,13 +3390,13 @@ void HeatMapView::PaintOutlines (IDxuiTextRenderer & text, const Place & place, 
         wide = (float) (ring.right  - ring.left);
         tall = (float) (ring.bottom - ring.top);
 
-        hr = text.FillRect (left,                top,                wide,  thick, colors[k] | 0xFF000000u);
+        hr = text.FillRect (left,                top,                wide,  thick, colors[k / rects.size()] | 0xFF000000u);
         IGNORE_RETURN_VALUE (hr, S_OK);
-        hr = text.FillRect (left,                top + tall - thick, wide,  thick, colors[k] | 0xFF000000u);
+        hr = text.FillRect (left,                top + tall - thick, wide,  thick, colors[k / rects.size()] | 0xFF000000u);
         IGNORE_RETURN_VALUE (hr, S_OK);
-        hr = text.FillRect (left,                top,                thick, tall,  colors[k] | 0xFF000000u);
+        hr = text.FillRect (left,                top,                thick, tall,  colors[k / rects.size()] | 0xFF000000u);
         IGNORE_RETURN_VALUE (hr, S_OK);
-        hr = text.FillRect (left + wide - thick, top,                thick, tall,  colors[k] | 0xFF000000u);
+        hr = text.FillRect (left + wide - thick, top,                thick, tall,  colors[k / rects.size()] | 0xFF000000u);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
@@ -3262,20 +3410,19 @@ void HeatMapView::PaintOutlines (IDxuiTextRenderer & text, const Place & place, 
 //  HeatMapView::PaintHover
 //
 //  A frame around the cell the mouse picks, drawn in the streets around it,
-//  so a snap to a busier cell shows where it went.
+//  so a snap to a busier cell shows where it went. An instruction drawn as
+//  one cell is framed whole, a piece on each row it is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::PaintHover (IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
-    RECT      cell  = {};
-    float     left  = 0.0f;
-    float     top   = 0.0f;
-    float     wide  = 0.0f;
-    float     tall  = (float) (m_cellPx + 2 * kStreetPx);
-    float     line  = (float) kStreetPx;
-    uint32_t  color = theme.Foreground();
-    HRESULT   hr    = S_OK;
+    std::optional<Merged>  merged;
+    std::vector<RECT>      rects;
+    float                  tall  = (float) (m_cellPx + 2 * kStreetPx);
+    float                  line  = (float) kStreetPx;
+    uint32_t               color = theme.Foreground();
+    HRESULT                hr    = S_OK;
 
 
 
@@ -3284,24 +3431,169 @@ void HeatMapView::PaintHover (IDxuiTextRenderer & text, const IDxuiTheme & theme
         return;
     }
 
-    cell = GetPlaceRect (*m_hover);
-    left = (float) (cell.left - kStreetPx);
-    top  = (float) (cell.top  - kStreetPx);
-    wide = (float) (cell.right - cell.left + 2 * kStreetPx);
+    merged = GetMergedAt (*m_hover);
+    rects  = merged.has_value() ? GetMergedRects (*merged) : std::vector<RECT> { GetPlaceRect (*m_hover) };
 
-    if (left + wide <= (float) m_map.left || left >= (float) m_map.right || top + tall <= (float) m_map.top || top >= (float) m_map.bottom)
+    for (const RECT & cell : rects)
     {
-        return;
+        float  left = (float) (cell.left - kStreetPx);
+        float  top  = (float) (cell.top  - kStreetPx);
+        float  wide = (float) (cell.right - cell.left + 2 * kStreetPx);
+
+
+
+        if (left + wide <= (float) m_map.left || left >= (float) m_map.right || top + tall <= (float) m_map.top || top >= (float) m_map.bottom)
+        {
+            continue;
+        }
+
+        hr = text.FillRect (left,               top,               wide, line, color);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = text.FillRect (left,               top + tall - line, wide, line, color);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = text.FillRect (left,               top,               line, tall, color);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = text.FillRect (left + wide - line, top,               line, tall, color);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::OnKey
+//
+//  The arrow, page, Home and End keys move the frame to another cell, as the
+//  mouse does, and the map is scrolled so the cell is in view. Enter opens
+//  the cell's address in a memory window, as a click does. With no cell
+//  framed, the first key frames the first cell in view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapView::OnKey (const DxuiKeyEvent & ev)
+{
+    std::optional<Place>  target;
+
+
+
+    if (ev.kind != DxuiKeyEventKind::Down || m_placed.empty())
+    {
+        return false;
     }
 
-    hr = text.FillRect (left,               top,               wide, line, color);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-    hr = text.FillRect (left,               top + tall - line, wide, line, color);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-    hr = text.FillRect (left,               top,               line, tall, color);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-    hr = text.FillRect (left + wide - line, top,               line, tall, color);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    if (ev.vk == VK_RETURN)
+    {
+        if (m_hover.has_value() && m_onPickAddress)
+        {
+            m_onPickAddress (GetAddressOf (*m_hover));
+        }
+
+        return m_hover.has_value();
+    }
+
+    target = GetKeyTarget (ev);
+
+    if (!target.has_value())
+    {
+        return false;
+    }
+
+    ScrollToPlace (*target);
+    SetHover (target);
+    m_isFrameStale = true;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetKeyTarget
+//
+//  The cell a key moves the frame to, within the frame's range: the arrows
+//  a cell or a row, an instruction drawn as one cell at a time; Page Up and
+//  Page Down a map's height of rows; Home and End the row's ends, or with
+//  Ctrl the range's. None for any other key.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<HeatMapView::Place> HeatMapView::GetKeyTarget (const DxuiKeyEvent & ev) const
+{
+    std::optional<Place>   from    = m_hover.has_value() ? m_hover : GetPlaceAt (POINT { m_map.left + 1, m_map.top + 1 });
+    std::optional<Merged>  merged;
+    long                   columns = 0;
+    long                   count   = 0;
+    long                   page    = 0;
+    long                   offset  = 0;
+
+
+
+    if (!from.has_value() || from->band >= m_placed.size())
+    {
+        return std::nullopt;
+    }
+
+    if (!m_hover.has_value())
+    {
+        return from;
+    }
+
+    merged  = GetMergedAt (*from);
+    columns = m_placed[from->band].columns;
+    count   = m_bands[from->band].count;
+    page    = std::max (1L, (m_map.bottom - m_map.top) / std::max (1, GetPitch())) * columns;
+    offset  = from->offset;
+
+    switch (ev.vk)
+    {
+    case VK_LEFT:  offset -= 1;                                                                    break;
+    case VK_RIGHT: offset  = merged.has_value() ? merged->first.offset + merged->length : offset + 1; break;
+    case VK_UP:    offset -= columns;                                                              break;
+    case VK_DOWN:  offset += columns;                                                              break;
+    case VK_PRIOR: offset -= page;                                                                 break;
+    case VK_NEXT:  offset += page;                                                                 break;
+    case VK_HOME:  offset  = ev.ctrl ? 0         : offset - offset % columns;                      break;
+    case VK_END:   offset  = ev.ctrl ? count - 1 : offset - offset % columns + columns - 1;        break;
+    default:       return std::nullopt;
+    }
+
+    offset = std::clamp (offset, 0L, count - 1);
+    merged = GetMergedAt (Place { from->band, offset });
+
+    return merged.has_value() ? merged->first : Place { from->band, offset };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::ScrollToPlace
+//
+//  As little as brings the cell's row wholly into the map's area.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::ScrollToPlace (const Place & place)
+{
+    RECT  cell = GetPlaceRect (place);
+
+
+
+    if (cell.top < m_map.top)
+    {
+        ScrollBy ((int) (cell.top - m_map.top - kStreetPx));
+    }
+    else if (cell.bottom > m_map.bottom)
+    {
+        ScrollBy ((int) (cell.bottom - m_map.bottom + kStreetPx));
+    }
 }
 
 

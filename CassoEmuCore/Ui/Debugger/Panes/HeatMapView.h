@@ -64,10 +64,9 @@ class  HeatMapSymbols;
 //  pane.
 //
 //  Over the heat, outlines mark the PC, the stack pointer's byte and every
-//  enabled breakpoint, and an address with a symbol is tinted; a byte only
-//  ever run as an instruction's operand is drawn dimmer than its opcode, so
-//  where each instruction starts shows. Zoomed in far enough, a cell shows
-//  its value, and further in, its opcode's form or its bits.
+//  enabled breakpoint, and an address with a symbol is tinted. Zoomed in far
+//  enough, a cell shows its value, and further in, its opcode's form or its
+//  bits, and an instruction's bytes merge into one cell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,10 +141,8 @@ public:
     //  register, BRK, an interrupt).
     static std::optional<BreakKind>  GetBreakKind (const BreakpointInfo & info);
 
-    //  How far an address with a symbol is tinted toward the symbol color,
-    //  and an operand byte's code color toward the cold gray.
+    //  How far an address with a symbol is tinted toward the symbol color.
     static constexpr float  kSymbolTint  = 0.25f;
-    static constexpr float  kOperandDim  = 0.55f;
 
     //  What a cell large enough shows inside it: its value in hex on one
     //  line, and on a second the opcode's form when it was run as one, or
@@ -349,9 +346,9 @@ public:
 
     static uint32_t      GetColor     (Mode mode, Byte execute, Byte read, Byte write, const Palette & palette);
 
-    //  The same with an operand byte's code dimmed, and with Blend mixing
-    //  the kinds that touched it instead of showing the hottest.
-    static uint32_t      GetColor     (Mode mode, Byte execute, Byte read, Byte write, const Palette & palette, bool isOperand, bool isBlend);
+    //  The same with Blend mixing the kinds that touched it instead of
+    //  showing the hottest.
+    static uint32_t      GetColor     (Mode mode, Byte execute, Byte read, Byte write, const Palette & palette, bool isBlend);
 
     //  An address's color with the reads before written and the changes
     //  drawn as the mode shows them, from its color without them.
@@ -438,6 +435,7 @@ public:
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    bool                OnKey             (const DxuiKeyEvent & ev) override;
     void                OnFocusChanged    (bool focused) override;
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
     std::wstring        GetAccessibleName () const override { return L"Heat map"; }
@@ -460,47 +458,62 @@ private:
         long    offset = 0;
     };
 
-    Byte                 GetShownLevel  (Word address) const;
-    int                  GetPitch       () const { return m_cellPx + kStreetPx; }
-    long                 GetColumnLeft  (const Placed & placed, long column) const;
-    long                 GetColumnAt    (const Placed & placed, long x) const;
-    long                 GetBandAt      (long y) const;
-    std::optional<Place> GetPlaceAt     (POINT point) const;
-    std::optional<Place> GetPickPlaceAt (POINT point) const;
-    std::optional<Place> GetPlaceOf     (Word address) const;
-    RECT                 GetPlaceRect   (const Place & place) const;
-    Word                 GetAddressOf   (const Place & place) const;
-    void                 PlaceBands     ();
-    void                 FitRanges      ();
-    int                  ComputeFitCellPx ();
-    void                 RescaleForDpi  (const RECT & boundsPx, const DxuiDpiScaler & scaler);
-    std::wstring         FormatAmount   (Byte level) const;
-    void                 ApplyCellPx    (int cellPx, POINT point);
-    void                 PlaceMap       ();
-    void                 ClampScroll    ();
-    void                 SyncScrollbars ();
-    void                 BuildCells     ();
-    void                 BuildFrame     ();
-    bool                 OnPress        (const DxuiMouseEvent & ev);
-    bool                 OnRelease      (const DxuiMouseEvent & ev);
-    bool                 OnDragOrHover  (const DxuiMouseEvent & ev);
-    bool                 OnWheel        (const DxuiMouseEvent & ev);
-    bool                 OnZoomWidget   (const DxuiMouseEvent & ev);
-    RECT                 GetZoomCorner  () const;
-    void                 PlaceZoomWidget();
-    void                 SetHover       (const std::optional<Place> & hover);
-    void                 MeasureGutter  (IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    void                 PaintBar       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void                 PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void                 PaintHeaders   (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void                 PaintHover     (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void                 PaintOverlays  (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void                 PaintDetail    (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Place & place, Word address) const;
-    bool                 TryPaintInstruction (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Place & place, Word address, int & covered) const;
-    void                 PaintOutlines  (IDxuiTextRenderer & text, const Place & place, Word address) const;
-    void                 MarkSymbols    ();
-    void                 ForEachVisible (const std::function<void (const Place &, Word)> & visit) const;
-    std::wstring         DescribeMarks  (Word address) const;
+    //  An instruction drawn as one cell across its bytes: its opcode's place
+    //  and address, and its length.
+    struct Merged
+    {
+        Place  first;
+        Word   opcode = 0;
+        int    length = 0;
+    };
+
+    Byte                   GetShownLevel    (Word address) const;
+    int                    GetPitch         () const { return m_cellPx + kStreetPx; }
+    long                   GetColumnLeft    (const Placed & placed, long column) const;
+    long                   GetColumnAt      (const Placed & placed, long x) const;
+    long                   GetBandAt        (long y) const;
+    std::optional<Place>   GetPlaceAt       (POINT point) const;
+    std::optional<Place>   GetPickPlaceAt   (POINT point) const;
+    std::optional<Place>   GetPlaceOf       (Word address) const;
+    RECT                   GetPlaceRect     (const Place & place) const;
+    Word                   GetAddressOf     (const Place & place) const;
+    void                   PlaceBands       ();
+    void                   FitRanges        ();
+    int                    ComputeFitCellPx ();
+    void                   RescaleForDpi    (const RECT & boundsPx, const DxuiDpiScaler & scaler);
+    std::wstring           FormatAmount     (Byte level) const;
+    void                   ApplyCellPx      (int cellPx, POINT point);
+    void                   PlaceMap         ();
+    void                   ClampScroll      ();
+    void                   SyncScrollbars   ();
+    void                   BuildCells       ();
+    void                   BuildFrame       ();
+    bool                   OnPress          (const DxuiMouseEvent & ev);
+    bool                   OnRelease        (const DxuiMouseEvent & ev);
+    bool                   OnDragOrHover    (const DxuiMouseEvent & ev);
+    bool                   OnWheel          (const DxuiMouseEvent & ev);
+    bool                   OnZoomWidget     (const DxuiMouseEvent & ev);
+    RECT                   GetZoomCorner    () const;
+    void                   PlaceZoomWidget  ();
+    void                   SetHover         (const std::optional<Place> & hover);
+    std::optional<Place>   GetKeyTarget     (const DxuiKeyEvent & ev) const;
+    void                   ScrollToPlace    (const Place & place);
+    void                   MeasureGutter    (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void                   PaintBar         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void                   PaintRowLabels   (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void                   PaintHeaders     (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void                   PaintHover       (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void                   PaintOverlays    (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void                   PaintDetail      (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Place & place, Word address) const;
+    bool                   IsMergeZoom      () const;
+    int                    GetMergeLength   (const Place & place, Word address) const;
+    std::optional<Merged>  GetMergedAt      (const Place & place) const;
+    std::vector<RECT>      GetMergedRects   (const Merged & merged) const;
+    void                   PaintInstruction (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Merged & merged) const;
+    void                   PaintOutlines    (IDxuiTextRenderer & text, const std::vector<RECT> & rects, Word address) const;
+    void                   MarkSymbols      ();
+    void                   ForEachVisible   (const std::function<void (const Place &, Word)> & visit) const;
+    std::wstring           DescribeMarks    (Word address) const;
 
     std::vector<Byte>          m_execute;
     std::vector<Byte>          m_read;
