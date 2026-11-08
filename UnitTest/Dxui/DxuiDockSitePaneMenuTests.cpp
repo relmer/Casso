@@ -12,9 +12,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DxuiDockSitePaneMenuTests
 //
-//  The menu of a pane's tab and of a tool window's title bar, as Visual
-//  Studio shows it: Dock, Dock in tab group, Auto hide, Move to new window
-//  (from a tab only), All to new window, and Close.
+//  The menu of a pane's tab and of a tool window's title bar: Dock, Dock in
+//  tab group, Auto hide, Move to new window, All to new window, and Close.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,7 +87,7 @@ namespace DxuiDockSitePaneMenuTests
         TEST_METHOD (ATabMenuHasVisualStudiosItemsInOrder)
         {
             Rig                    rig;
-            std::vector<MenuItem>  items    = rig.site.GetPaneMenu (L"console", true);
+            std::vector<MenuItem>  items    = rig.site.GetPaneMenu (L"console");
             const wchar_t        * kOrder[] = { L"Dock", L"Dock in tab group", L"Auto hide", L"Move to new window",
                                                 L"All to new window", L"", L"Close" };
 
@@ -108,14 +107,14 @@ namespace DxuiDockSitePaneMenuTests
         }
 
 
-        TEST_METHOD (ATitleBarMenuLeavesOutMoveToNewWindow)
+        TEST_METHOD (ATitleBarMenuHasMoveToNewWindow)
         {
             Rig                    rig;
-            std::vector<MenuItem>  items = rig.site.GetPaneMenu (L"console", false);
+            std::vector<MenuItem>  items = rig.site.GetPaneMenu (L"console");
 
 
 
-            Assert::IsNull    (Find (items, L"Move to new window"));
+            Assert::IsNotNull (Find (items, L"Move to new window"));
             Assert::IsNotNull (Find (items, L"All to new window"));
         }
 
@@ -123,7 +122,7 @@ namespace DxuiDockSitePaneMenuTests
         TEST_METHOD (DockInTabGroupTabsTheToolWindowWithTheDocuments)
         {
             Rig                    rig;
-            std::vector<MenuItem>  items = rig.site.GetPaneMenu (L"console", true);
+            std::vector<MenuItem>  items = rig.site.GetPaneMenu (L"console");
             const MenuItem       * item  = Find (items, L"Dock in tab group");
             std::vector<std::wstring>  group;
 
@@ -140,7 +139,7 @@ namespace DxuiDockSitePaneMenuTests
         TEST_METHOD (ADocumentCannotDockInTabGroup)
         {
             Rig                    rig;
-            std::vector<MenuItem>  items = rig.site.GetPaneMenu (L"code", true);
+            std::vector<MenuItem>  items = rig.site.GetPaneMenu (L"code");
             const MenuItem       * item  = Find (items, L"Dock in tab group");
 
 
@@ -161,7 +160,7 @@ namespace DxuiDockSitePaneMenuTests
             Assert::IsTrue (rig.site.EditPaneLayout().AutoHide (L"console", DxuiDockSide::Bottom));
             rig.site.Relayout();
 
-            items = rig.site.GetPaneMenu (L"console", false);
+            items = rig.site.GetPaneMenu (L"console");
             item  = Find (items, L"Dock");
 
             RequireItem (item);
@@ -174,7 +173,7 @@ namespace DxuiDockSitePaneMenuTests
         TEST_METHOD (MoveToNewWindowFloatsThePane)
         {
             Rig                    rig;
-            std::vector<MenuItem>  items = rig.site.GetPaneMenu (L"stack", true);
+            std::vector<MenuItem>  items = rig.site.GetPaneMenu (L"stack");
             const MenuItem       * item  = Find (items, L"Move to new window");
 
 
@@ -189,8 +188,8 @@ namespace DxuiDockSitePaneMenuTests
         TEST_METHOD (AllToNewWindowFloatsALonePane)
         {
             Rig                    rig;
-            std::vector<MenuItem>  lone   = rig.site.GetPaneMenu (L"console", false);
-            std::vector<MenuItem>  tabbed = rig.site.GetPaneMenu (L"stack", false);
+            std::vector<MenuItem>  lone   = rig.site.GetPaneMenu (L"console");
+            std::vector<MenuItem>  tabbed = rig.site.GetPaneMenu (L"stack");
             const MenuItem       * item   = Find (lone, L"All to new window");
 
 
@@ -209,7 +208,7 @@ namespace DxuiDockSitePaneMenuTests
         TEST_METHOD (CloseClosesThePane)
         {
             Rig                    rig;
-            std::vector<MenuItem>  items = rig.site.GetPaneMenu (L"regs", true);
+            std::vector<MenuItem>  items = rig.site.GetPaneMenu (L"regs");
             const MenuItem       * item  = Find (items, L"Close");
 
 

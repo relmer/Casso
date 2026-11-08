@@ -62,8 +62,8 @@
 //  DebuggerWindow::ShowDockToMenu
 //
 //  The menu of a pane's tab or title bar, as Visual Studio's: the pane's own
-//  actions, then Dock, Dock in tab group, Auto hide, Move to new window (from
-//  a tab), All to new window and Close. The one chosen runs through the site like a drop would.
+//  actions, then Dock, Dock in tab group, Auto hide, Move to new window, All
+//  to new window and Close. The one chosen runs through the site like a drop would.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,7 +72,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
     RECT                                 tab     = {};
     std::wstring                         tip;
     bool                                 fromTab = m_floating->GetRoutingPane().empty() && !m_dockSite->GetTabAt (clientPx, tab, tip).empty();
-    std::vector<DxuiDockSite::MenuItem>  items   = m_dockSite->GetPaneMenu (pane, fromTab);
+    std::vector<DxuiDockSite::MenuItem>  items   = m_dockSite->GetPaneMenu (pane);
     std::vector<DxuiPopupMenuItem>       menu;
     DxuiHwndSource                     * host    = GetMenuHost();
     int                                  slot    = GetSourceSlotOf (pane);

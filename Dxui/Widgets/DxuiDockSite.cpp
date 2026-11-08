@@ -1914,7 +1914,7 @@ std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetDockToMenu (const std::wstr
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetPaneMenu (const std::wstring & pane, bool fromTab)
+std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetPaneMenu (const std::wstring & pane)
 {
     std::vector<MenuItem>      items;
     std::vector<MenuItem>      dockTo     = GetDockToMenu (pane);
@@ -1972,11 +1972,7 @@ std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetPaneMenu (const std::wstrin
                        !documents.empty() && !IsFloatingSite() });
     items.push_back ({ kAutoHideLabel, autoHide.action, autoHide.action != nullptr });
 
-    if (fromTab)
-    {
-        items.push_back ({ L"Move to new window", floatPane, canFloat });
-    }
-
+    items.push_back ({ L"Move to new window", floatPane, canFloat });
     items.push_back ({ L"All to new window", floatPane, canFloat && mine.size() == 1 });
     items.push_back ({ L"", nullptr, false });
     items.push_back ({ L"Close", [this, pane] { m_onClosePane (pane); return true; }, canClose, L"Shift+Esc" });

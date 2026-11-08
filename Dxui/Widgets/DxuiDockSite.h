@@ -233,10 +233,10 @@ public:
     std::vector<MenuItem>  GetDockToMenu   (const std::wstring & pane);
     bool                   MovePaneByArrow (const std::wstring & pane, DxuiDockSide direction);
 
-    //  Visual Studio's menu for a pane's tab, or for its group's title bar and
-    //  menu button: Dock, Dock in tab group, Auto hide, Move to new window (a
-    //  tab's only), All to new window, and Close.
-    std::vector<MenuItem>  GetPaneMenu     (const std::wstring & pane, bool fromTab);
+    //  The menu for a pane's tab, or for its group's title bar and menu
+    //  button: Dock, Dock in tab group, Auto hide, Move to new window, All to
+    //  new window, and Close.
+    std::vector<MenuItem>  GetPaneMenu     (const std::wstring & pane);
 
     //  Auto-hidden panes: the one slid out, if any, and where it lies. A slid
     //  pane lies over the docked panes rather than taking room from them, so
