@@ -36,6 +36,15 @@ public:
     //  protocol other than TCP or UDP; outRule is then incomplete.
     static HRESULT  ReadRule       (INetFwRule * rule, bool & outInbound, FirewallRule & outRule);
 
+    //  The profile of a network in a category: an authenticated domain
+    //  network the domain profile, a private one the private profile, and
+    //  any other the public profile.
+    static FirewallProfile  GetCategoryProfile (NLM_NETWORK_CATEGORY category);
+
 private:
     static std::wstring  TakeString (BSTR text);
+
+    //  The profiles of the networks the PC is connected to, with the
+    //  firewall's current profiles in their place when there are none.
+    static HRESULT  ReadConnectedProfiles (INetFwPolicy2 * policy, FirewallProfile & outActive);
 };

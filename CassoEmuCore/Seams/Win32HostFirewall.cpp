@@ -23,7 +23,6 @@ HRESULT Win32HostFirewall::Read (FirewallSnapshot & outSnapshot)
     Microsoft::WRL::ComPtr<INetFwRules>    rules;
     Microsoft::WRL::ComPtr<IUnknown>       unknown;
     Microsoft::WRL::ComPtr<IEnumVARIANT>   items;
-    long                                   active   = 0;
     VARIANT_BOOL                           on       = VARIANT_FALSE;
     FirewallSnapshot                       snapshot;
 
@@ -34,10 +33,8 @@ HRESULT Win32HostFirewall::Read (FirewallSnapshot & outSnapshot)
     hr = CoCreateInstance (__uuidof (NetFwPolicy2), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&policy));
     CHR (hr);
 
-    hr = policy->get_CurrentProfileTypes (&active);
+    hr = ReadConnectedProfiles (policy.Get(), snapshot.active);
     CHR (hr);
-
-    snapshot.active = (FirewallProfile) ((uint32_t) active & (uint32_t) FirewallProfile::All);
 
     for (FirewallProfile profile : { FirewallProfile::Domain, FirewallProfile::Private, FirewallProfile::Public })
     {
@@ -107,20 +104,114 @@ HRESULT Win32HostFirewall::ReadActiveProfiles (FirewallProfile & outActive)
 {
     HRESULT                                hr     = S_OK;
     Microsoft::WRL::ComPtr<INetFwPolicy2>  policy;
-    long                                   active = 0;
 
 
 
     hr = CoCreateInstance (__uuidof (NetFwPolicy2), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&policy));
     CHR (hr);
 
-    hr = policy->get_CurrentProfileTypes (&active);
+    hr = ReadConnectedProfiles (policy.Get(), outActive);
     CHR (hr);
-
-    outActive = (FirewallProfile) ((uint32_t) active & (uint32_t) FirewallProfile::All);
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32HostFirewall::ReadConnectedProfiles
+//
+//  The firewall's current profiles include the public profile for any
+//  interface with no network identified, such as Hyper-V's Default Switch,
+//  which no other computer on the LAN sends through. The connected networks'
+//  categories are the networks traffic arrives on. When the network list
+//  cannot be read or has no connected network, the firewall's current
+//  profiles are used.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32HostFirewall::ReadConnectedProfiles (INetFwPolicy2 * policy, FirewallProfile & outActive)
+{
+    HRESULT                                       hr        = S_OK;
+    HRESULT                                       hrList    = S_OK;
+    Microsoft::WRL::ComPtr<INetworkListManager>   manager;
+    Microsoft::WRL::ComPtr<IEnumNetworks>         networks;
+    FirewallProfile                               connected = FirewallProfile::None;
+    long                                          current   = 0;
+
+
+
+    hrList = CoCreateInstance (CLSID_NetworkListManager, nullptr, CLSCTX_ALL, IID_PPV_ARGS (&manager));
+
+    if (SUCCEEDED (hrList))
+    {
+        hrList = manager->GetNetworks (NLM_ENUM_NETWORK_CONNECTED, &networks);
+    }
+
+    for (;;)
+    {
+        Microsoft::WRL::ComPtr<INetwork>  network;
+        ULONG                             fetched    = 0;
+        NLM_NETWORK_CATEGORY              category   = NLM_NETWORK_CATEGORY_PUBLIC;
+        HRESULT                           hrCategory = S_OK;
+
+        if (FAILED (hrList) || networks->Next (1, &network, &fetched) != S_OK || fetched == 0)
+        {
+            break;
+        }
+
+        hrCategory = network->GetCategory (&category);
+
+        if (SUCCEEDED (hrCategory))
+        {
+            connected = connected | GetCategoryProfile (category);
+        }
+    }
+
+    if (connected == FirewallProfile::None)
+    {
+        hr = policy->get_CurrentProfileTypes (&current);
+        CHR (hr);
+
+        connected = (FirewallProfile) ((uint32_t) current & (uint32_t) FirewallProfile::All);
+    }
+
+    outActive = connected;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32HostFirewall::GetCategoryProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FirewallProfile Win32HostFirewall::GetCategoryProfile (NLM_NETWORK_CATEGORY category)
+{
+    FirewallProfile  profile = FirewallProfile::Public;
+
+
+
+    if (category == NLM_NETWORK_CATEGORY_DOMAIN_AUTHENTICATED)
+    {
+        profile = FirewallProfile::Domain;
+    }
+    else if (category == NLM_NETWORK_CATEGORY_PRIVATE)
+    {
+        profile = FirewallProfile::Private;
+    }
+
+    return profile;
 }
 
 

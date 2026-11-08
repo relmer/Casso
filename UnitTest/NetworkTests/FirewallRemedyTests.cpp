@@ -2,6 +2,7 @@
 
 #include "../EhmTestHelper.h"
 #include "Net/FirewallRemedy.h"
+#include "Seams/Win32HostFirewall.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -74,6 +75,32 @@ public:
         Assert::AreEqual ((uint32_t) FirewallProfile::Public, (uint32_t) plan.profiles);
         Assert::AreEqual ((size_t) 2, plan.ports.size(), L"the TCP port has no rule at all");
         Assert::IsFalse  (plan.markPrivate);
+    }
+
+
+    //  A PC on a private LAN with Hyper-V's Default Switch: the firewall's
+    //  current profiles are private and public, since the switch has no
+    //  network identified, but the only connected network is private. The
+    //  connected networks' profile is the one admitted.
+    TEST_METHOD (APrivateLanWithAHyperVSwitch_IsAdmittedOnPrivateOnly)
+    {
+        FirewallSnapshot  snapshot;
+        FirewallPlan      plan;
+
+        snapshot.active = Win32HostFirewall::GetCategoryProfile (NLM_NETWORK_CATEGORY_PRIVATE);
+        snapshot.rules  = { MakeCanceledPromptRule (HostSocketKind::Udp) };
+
+        plan = MakePlan (snapshot, false);
+
+        Assert::AreEqual ((uint32_t) FirewallProfile::Private, (uint32_t) plan.profiles);
+    }
+
+
+    TEST_METHOD (NetworkCategories_MapToTheirProfiles)
+    {
+        Assert::AreEqual ((uint32_t) FirewallProfile::Domain,  (uint32_t) Win32HostFirewall::GetCategoryProfile (NLM_NETWORK_CATEGORY_DOMAIN_AUTHENTICATED));
+        Assert::AreEqual ((uint32_t) FirewallProfile::Private, (uint32_t) Win32HostFirewall::GetCategoryProfile (NLM_NETWORK_CATEGORY_PRIVATE));
+        Assert::AreEqual ((uint32_t) FirewallProfile::Public,  (uint32_t) Win32HostFirewall::GetCategoryProfile (NLM_NETWORK_CATEGORY_PUBLIC));
     }
 
 
