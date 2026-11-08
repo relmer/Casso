@@ -39,7 +39,10 @@ constexpr FirewallProfile operator& (FirewallProfile a, FirewallProfile b) { ret
 //
 //  FirewallPort
 //
-//  A protocol and a port on the PC that other computers send to.
+//  A protocol and a port on the PC that other computers send to. A listener
+//  that moves to a later port when its port is in use has a range: basePort
+//  and lastPort are the range's ends, and port is the one it uses now. An
+//  allow rule for the port covers the whole range.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +50,12 @@ struct FirewallPort
 {
     HostSocketKind  protocol = HostSocketKind::Tcp;
     uint16_t        port     = 0;
+    uint16_t        lastPort = 0;   // the range's last port, or 0 for port alone
+    uint16_t        basePort = 0;   // the range's first port, or 0 for port alone
+
+    //  The range an allow rule covers.
+    uint16_t  GetFirstPort () const { return basePort == 0 ? port : basePort; }
+    uint16_t  GetLastPort  () const { return lastPort == 0 ? port : lastPort; }
 
     bool operator== (const FirewallPort & other) const = default;
 };

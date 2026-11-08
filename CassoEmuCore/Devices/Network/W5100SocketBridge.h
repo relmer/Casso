@@ -31,11 +31,25 @@ class W5100SocketBridge : public IW5100Backend
 {
 public:
 
-    //  A listen the PC could not open: the guest's port, and why.
+    //  A listener whose port the PC has in use moves to the next port, up to
+    //  this many ports from the guest's, so a second Casso on the PC listens
+    //  as well as the first.
+    static constexpr int  kListenPorts = 8;
+
+    //  A listen the PC could not open: the guest's port, the last port a
+    //  listen was attempted on, and why.
     struct ListenFailure
     {
-        uint16_t  port = 0;
-        HRESULT   hr   = S_OK;
+        uint16_t  port     = 0;
+        uint16_t  lastPort = 0;
+        HRESULT   hr       = S_OK;
+    };
+
+    //  A listener on a later PC port than the guest's.
+    struct MovedListen
+    {
+        uint16_t  guestPort = 0;
+        uint16_t  hostPort  = 0;
     };
 
     W5100SocketBridge (W5100 & chip, VirtualNetwork & network) : m_chip (chip), m_network (network) {}
@@ -69,10 +83,16 @@ public:
     //  The PC ports of the deferred sockets, in socket order.
     std::vector<FirewallPort>   GetDeferredPorts     () const;
 
+    //  The listeners on a later PC port than the guest's, in socket order.
+    std::vector<MovedListen>    GetMovedListens      () const;
+
     //  A failed listen as a notice's sentence. `serialPort` is the serial
     //  port whose connector has the same TCP port, 0 for none, and `onCard`
     //  is whether that port is a Super Serial Card's.
     static std::string  DescribeListenFailure (const ListenFailure & failure, int serialPort, bool onCard);
+
+    //  A moved listener as a notice's sentence.
+    static std::string  DescribeMovedListen   (const MovedListen & moved);
 
 private:
 
@@ -108,21 +128,23 @@ private:
         bool                          deferred    = false;   // waiting for the gate to admit hostPort
     };
 
-    bool  IsDeferred        (HostSocketKind protocol, uint16_t port) const;
-    void  OpenDeferred      ();
-    void  OpenUdp           (int socket);
-    void  CloseSlot         (int socket);
-    void  OnOpen            (int socket);
-    void  OnConnect         (int socket);
-    void  OnListen          (int socket);
-    void  Relisten          (int socket);
-    void  OnDisconnect      (int socket);
-    void  OnSend            (int socket);
-    void  SendTcp           (int socket);
-    void  SendUdp           (int socket);
-    void  SendMacRaw        (int socket, uint64_t now);
-    void  Fail              (int socket, Byte interrupt);
-    void  NoteListenFailure (uint16_t port, HRESULT hr);
+    bool          IsDeferred          (HostSocketKind protocol, uint16_t port) const;
+    FirewallPort  GetListenRange      (int socket) const;
+    void          OpenDeferred        ();
+    void          OpenUdp             (int socket);
+    void          CloseSlot           (int socket);
+    void          OnOpen              (int socket);
+    void          OnConnect           (int socket);
+    void          OnListen            (int socket);
+    HRESULT       BindListener        (int socket);
+    void          Relisten            (int socket);
+    void          OnDisconnect        (int socket);
+    void          OnSend              (int socket);
+    void          SendTcp             (int socket);
+    void          SendUdp             (int socket);
+    void          RewriteAnnouncement (std::vector<Byte> & payload) const;
+    void          SendMacRaw          (int socket, uint64_t now);
+    void          Fail                (int socket, Byte interrupt);
 
     void  PumpSocket         (int socket, uint64_t now);
     void  PumpConnecting     (int socket);
@@ -135,14 +157,14 @@ private:
 
     static uint64_t  PackEndpoint (const HostEndpoint & endpoint);
 
-    W5100                         & m_chip;
-    VirtualNetwork                & m_network;
-    IHostNetwork                  * m_hostNetwork = nullptr;
-    const ListenGate              * m_gate        = nullptr;
-    uint32_t                        m_gateVersion = 0;   // the gate's version when deferred sockets were last tried
-    bool                            m_lanAccess   = false;
-    uint64_t                        m_now         = 0;
-    std::array<Slot, kSocketCount>  m_slots;
-    std::vector<Byte>               m_buffer;
-    std::map<uint16_t, HRESULT>     m_failedListens;   // each port's last failed listen
+    W5100                              & m_chip;
+    VirtualNetwork                     & m_network;
+    IHostNetwork                       * m_hostNetwork   = nullptr;
+    const ListenGate                   * m_gate          = nullptr;
+    uint32_t                             m_gateVersion   = 0;   // the gate's version when deferred sockets were last tried
+    bool                                 m_lanAccess     = false;
+    uint64_t                             m_now           = 0;
+    std::array<Slot, kSocketCount>       m_slots;
+    std::vector<Byte>                    m_buffer;
+    std::map<uint16_t, ListenFailure>    m_failedListens;   // each guest port's last failed listen
 };

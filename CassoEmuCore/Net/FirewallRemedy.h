@@ -52,8 +52,10 @@ public:
     static FirewallPlan   MakePlan        (const FirewallSnapshot & snapshot, const FirewallProgram & program, const std::wstring & title,
                                            const std::vector<FirewallPort> & ports, bool markPrivate);
 
-    //  The allow rule's name for a port, as "Casso Explorer, UDP 6510".
+    //  The allow rule's name for a port, as "Casso Explorer, UDP 6510" or
+    //  "Casso, TCP 6502-6509", and its ports as the rule lists them.
     static std::wstring   MakeRuleName    (const FirewallPlan & plan, const FirewallPort & port);
+    static std::wstring   FormatPorts     (const FirewallPort & port);
 
     //  Whether a rule is an enabled block rule the plan disables for a port.
     static bool           IsBlocking      (const FirewallRule & rule, const FirewallPlan & plan, const FirewallPort & port);

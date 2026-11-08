@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "CassoLink/LinkAnnouncement.h"
+#include "CassoLink/LinkProgram.h"
 #include "Devices/Network/VirtualSubnet.h"
 #include "Net/ListenGate.h"
 
@@ -47,6 +49,36 @@ namespace W5100SocketBridgeTests
     static Word ReadWord (UthernetRig & rig, int socket, Word offset)
     {
         return rig.bus.PeekWord (W5100Driver::SocketReg (socket, offset));
+    }
+
+
+    //  The PC ports a listener on the guest's port can use.
+    static FirewallPort MakeListenRange (uint16_t port, uint16_t now)
+    {
+        return { HostSocketKind::Tcp, now, (uint16_t) (port + W5100SocketBridge::kListenPorts - 1), port };
+    }
+
+
+    //  Every port a listener on kAdtPro can use, in use on the PC.
+    static void OccupyListenRange (UthernetRig & rig)
+    {
+        for (int i = 0; i < W5100SocketBridge::kListenPorts; i++)
+        {
+            rig.network.OccupyPort (HostSocketKind::Tcp, (uint16_t) (kAdtPro + i));
+        }
+    }
+
+
+    //  A CassoLink announcement of 10.0.65.15 and the port.
+    static std::vector<Byte> MakeAnnouncement (uint16_t port)
+    {
+        std::vector<Byte>  bytes = { 'C', 'A', 'S', 'S', 'O', 'L', 'I', 'N', 'K', LinkAnnouncement::kVersion, 10, 0, 65, 15 };
+
+        bytes.push_back ((Byte) (port >> 8));
+        bytes.push_back ((Byte) port);
+        bytes.insert (bytes.end(), { 0x02, 0x00, 0x00, 0x12, 0x34, 0x56 });
+
+        return bytes;
     }
 
 
@@ -351,7 +383,7 @@ namespace W5100SocketBridgeTests
             ports = rig.card.GetInboundPorts();
 
             Assert::AreEqual ((size_t) 2, ports.size());
-            Assert::IsTrue   (ports[0] == FirewallPort { HostSocketKind::Tcp, kAdtPro });
+            Assert::IsTrue   (ports[0] == MakeListenRange (kAdtPro, kAdtPro), L"a listener's range is one Allow admits");
             Assert::IsTrue   (ports[1] == FirewallPort { HostSocketKind::Udp, kPeerPort });
         }
 
@@ -369,16 +401,88 @@ namespace W5100SocketBridgeTests
         }
 
 
-        TEST_METHOD (ListenOnAPortInUseClosesWithTimeout)
+        TEST_METHOD (ListenWithEveryPortInUseClosesWithTimeout)
         {
             UthernetRig  rig;
 
-            rig.network.OccupyPort (HostSocketKind::Tcp, kAdtPro);
+            OccupyListenRange (rig);
             rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
             rig.bus.Command (0, R::kCmdListen);
 
             Assert::AreEqual (R::kSockClosed,  rig.bus.Status (0));
             Assert::AreEqual (R::kSnIrTimeout, (Byte) (rig.bus.Interrupts (0) & R::kSnIrTimeout));
+        }
+
+
+        //  A second Casso on the PC listens on the next port, and the guest's
+        //  socket is on 6502.
+        TEST_METHOD (AListenOnAPortInUse_MovesToTheNextPort)
+        {
+            UthernetRig                                  rig;
+            std::vector<W5100SocketBridge::MovedListen>  moved;
+
+            rig.network.OccupyPort (HostSocketKind::Tcp, kAdtPro);
+            rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
+            rig.bus.Command (0, R::kCmdListen);
+            rig.Pump();
+
+            auto  listener = rig.network.FindBound (HostSocketKind::Tcp, kAdtPro + 1);
+
+            Assert::AreEqual  (R::kSockListen, rig.bus.Status (0));
+            Assert::IsNotNull (listener.get());
+            Assert::IsTrue    (listener->listening);
+            Assert::IsTrue    (rig.card.GetBridge().GetFailedListens().empty(), L"a moved listen is not a failed one");
+            Assert::IsTrue    (rig.card.GetInboundPorts() == std::vector<FirewallPort> { MakeListenRange (kAdtPro, kAdtPro + 1) }, L"the PC port is the inbound one");
+
+            moved = rig.card.GetBridge().GetMovedListens();
+
+            Assert::AreEqual ((size_t) 1, moved.size());
+            Assert::AreEqual ((uint16_t) kAdtPro,       moved[0].guestPort);
+            Assert::AreEqual ((uint16_t) (kAdtPro + 1), moved[0].hostPort);
+            Assert::AreEqual (std::string ("The Uthernet II is listening on TCP port 6503, because port 6502 is in use on this PC."),
+                              W5100SocketBridge::DescribeMovedListen (moved[0]));
+
+            rig.network.OfferConnection (listener, { VirtualSubnet::kLoopbackIp, kPeerPort });
+            rig.Pump();
+
+            Assert::AreEqual (R::kSockEstablished, rig.bus.Status (0), L"a connection to the PC's port is established on the guest's socket");
+        }
+
+
+        //  Casso Explorer connects to the port an announcement contains, so a
+        //  moved listener's announcement has the PC's port.
+        TEST_METHOD (AnAnnouncement_HasTheMovedListenersPort)
+        {
+            UthernetRig       rig;
+            LinkAnnouncement  sent;
+
+            rig.network.OccupyPort (HostSocketKind::Tcp, kAdtPro);
+            rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
+            rig.bus.Command (0, R::kCmdListen);
+            rig.OpenSocket (1, R::kProtocolUdp, kPeerPort);
+            rig.SetDestination (1, VirtualSubnet::kBroadcastIp, LinkProgram::kAnnouncePort);
+            rig.bus.Send (1, MakeAnnouncement (kAdtPro));
+
+            auto  socket = rig.network.FindBound (HostSocketKind::Udp, kPeerPort);
+
+            Assert::AreEqual ((size_t) 1, socket->sentDatagrams.size());
+            Assert::IsTrue   (LinkAnnouncement::Parse (socket->sentDatagrams[0].bytes, sent));
+            Assert::AreEqual ((uint16_t) (kAdtPro + 1), sent.port);
+        }
+
+
+        TEST_METHOD (AnAnnouncementOfAListenerOnItsPort_IsSentAsItIs)
+        {
+            UthernetRig  rig;
+
+            rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
+            rig.bus.Command (0, R::kCmdListen);
+            rig.OpenSocket (1, R::kProtocolUdp, kPeerPort);
+            rig.SetDestination (1, VirtualSubnet::kBroadcastIp, LinkProgram::kAnnouncePort);
+            rig.bus.Send (1, MakeAnnouncement (kAdtPro));
+
+            Assert::IsTrue (rig.network.FindBound (HostSocketKind::Udp, kPeerPort)->sentDatagrams[0].bytes == MakeAnnouncement (kAdtPro));
+            Assert::IsTrue (rig.card.GetBridge().GetMovedListens().empty());
         }
 
 
@@ -389,7 +493,7 @@ namespace W5100SocketBridgeTests
             UthernetRig                                    rig;
             std::vector<W5100SocketBridge::ListenFailure>  failures;
 
-            rig.network.OccupyPort (HostSocketKind::Tcp, kAdtPro);
+            OccupyListenRange (rig);
             rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
             rig.bus.Command (0, R::kCmdListen);
             rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
@@ -399,6 +503,7 @@ namespace W5100SocketBridgeTests
 
             Assert::AreEqual ((size_t) 1, failures.size(), L"two listens, one entry");
             Assert::AreEqual ((uint16_t) kAdtPro, failures[0].port);
+            Assert::AreEqual ((uint16_t) (kAdtPro + W5100SocketBridge::kListenPorts - 1), failures[0].lastPort);
             Assert::AreEqual (HRESULT_FROM_WIN32 (WSAEADDRINUSE), failures[0].hr);
 
             rig.network.ReleasePort (HostSocketKind::Tcp, kAdtPro);
@@ -413,7 +518,7 @@ namespace W5100SocketBridgeTests
         {
             UthernetRig  rig;
 
-            rig.network.OccupyPort (HostSocketKind::Tcp, kAdtPro);
+            OccupyListenRange (rig);
             rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
             rig.bus.Command (0, R::kCmdListen);
             rig.card.GetBridge().OnReset();
@@ -423,8 +528,9 @@ namespace W5100SocketBridgeTests
 
         TEST_METHOD (AFailedListen_IsDescribedByWhatHasThePort)
         {
-            W5100SocketBridge::ListenFailure  inUse { 6502, HRESULT_FROM_WIN32 (WSAEADDRINUSE) };
-            W5100SocketBridge::ListenFailure  other { 6502, E_FAIL };
+            W5100SocketBridge::ListenFailure  inUse { 6502, 0, HRESULT_FROM_WIN32 (WSAEADDRINUSE) };
+            W5100SocketBridge::ListenFailure  range { 6502, 6509, HRESULT_FROM_WIN32 (WSAEADDRINUSE) };
+            W5100SocketBridge::ListenFailure  other { 6502, 0, E_FAIL };
 
             Assert::AreEqual (std::string ("The Uthernet II cannot listen on TCP port 6502, because the Super Serial Card in slot 2 is already using that port. "
                                            "Change the card's serial connector on the Serial card tab in Settings."),
@@ -434,6 +540,8 @@ namespace W5100SocketBridgeTests
                               W5100SocketBridge::DescribeListenFailure (inUse, 2, false));
             Assert::AreEqual (std::string ("The Uthernet II cannot listen on TCP port 6502, because another program on this PC has it."),
                               W5100SocketBridge::DescribeListenFailure (inUse, 0, false));
+            Assert::AreEqual (std::string ("The Uthernet II cannot listen on TCP port 6502 or any port after it up to 6509, because other programs on this PC have them."),
+                              W5100SocketBridge::DescribeListenFailure (range, 0, false));
             Assert::AreEqual (std::string ("The Uthernet II cannot listen on TCP port 6502."),
                               W5100SocketBridge::DescribeListenFailure (other, 0, false));
         }
@@ -681,7 +789,7 @@ namespace W5100SocketBridgeTests
 
             Assert::AreEqual (R::kSockListen, rig.bus.Status (0), L"the guest's socket listens");
             Assert::IsNull   (rig.network.FindBound (HostSocketKind::Tcp, kAdtPro).get(), L"and no PC socket is opened");
-            Assert::IsTrue   (rig.card.GetBridge().GetDeferredPorts() == std::vector<FirewallPort> { { HostSocketKind::Tcp, kAdtPro } });
+            Assert::IsTrue   (rig.card.GetBridge().GetDeferredPorts() == std::vector<FirewallPort> { MakeListenRange (kAdtPro, kAdtPro) });
             Assert::IsTrue   (rig.card.GetBridge().GetFailedListens().empty(), L"a deferred port is not a failed listen");
 
             gate.Set (MakeSnapshot ({ { HostSocketKind::Tcp, kAdtPro } }), MakeProgram());
@@ -689,6 +797,32 @@ namespace W5100SocketBridgeTests
 
             Assert::IsNotNull (rig.network.FindBound (HostSocketKind::Tcp, kAdtPro).get(), L"the PC socket opens once admitted");
             Assert::AreEqual  (R::kSockListen, rig.bus.Status (0));
+            Assert::IsTrue    (rig.card.GetBridge().GetDeferredPorts().empty());
+        }
+
+
+        //  A port an older rule admits alone, in use, moves the listener to
+        //  the next port, which is deferred until Allow admits the range.
+        TEST_METHOD (AMovedListenTheGateRefuses_IsDeferredOnTheNextPort)
+        {
+            UthernetRig  rig (MakeLanSettings());
+            ListenGate   gate;
+
+            gate.Set (MakeSnapshot ({ { HostSocketKind::Tcp, kAdtPro } }), MakeProgram());
+            rig.card.GetBridge().SetListenGate (&gate);
+            rig.network.OccupyPort (HostSocketKind::Tcp, kAdtPro);
+
+            rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
+            rig.bus.Command (0, R::kCmdListen);
+            rig.Pump();
+
+            Assert::AreEqual (R::kSockListen, rig.bus.Status (0));
+            Assert::IsTrue   (rig.card.GetBridge().GetDeferredPorts() == std::vector<FirewallPort> { MakeListenRange (kAdtPro, kAdtPro + 1) });
+
+            gate.Set (MakeSnapshot ({ { HostSocketKind::Tcp, kAdtPro }, { HostSocketKind::Tcp, kAdtPro + 1 } }), MakeProgram());
+            rig.Pump();
+
+            Assert::IsNotNull (rig.network.FindBound (HostSocketKind::Tcp, kAdtPro + 1).get(), L"the next port opens once admitted");
             Assert::IsTrue    (rig.card.GetBridge().GetDeferredPorts().empty());
         }
 

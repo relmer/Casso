@@ -18,8 +18,9 @@
 
 struct LinkAnnouncement
 {
-    static constexpr Byte    kVersion = 1;
-    static constexpr size_t  kLength  = 22;
+    static constexpr Byte    kVersion    = 1;
+    static constexpr size_t  kLength     = 22;
+    static constexpr size_t  kPortOffset = 14;
 
     std::array<Byte, 4>  address = {};
     uint16_t             port    = 0;
@@ -28,7 +29,11 @@ struct LinkAnnouncement
     bool  operator== (const LinkAnnouncement &) const = default;
 
     //  False for a datagram that is not an announcement of this version.
-    static bool  Parse (std::span<const Byte> datagram, LinkAnnouncement & outAnnouncement);
+    static bool  Parse   (std::span<const Byte> datagram, LinkAnnouncement & outAnnouncement);
+
+    //  Replaces the TCP port in an announcement Parse accepted, for a
+    //  listener the PC moved to another port.
+    static void  SetPort (std::span<Byte> datagram, uint16_t port);
 
     //  The address and port, as 192.168.1.20:6502.
     std::string  GetAddressText () const;

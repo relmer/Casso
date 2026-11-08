@@ -261,11 +261,10 @@ void EmulatorShell::ConfigureNetworkCard (const NetworkCardSettings & settings)
 //
 //  ReportUthernetListenFailures
 //
-//  The ports the guest cannot listen on, as the network card's infobar
-//  sentence, with the machine's serial connector when that connector has the
-//  port, and then the ports deferred until the firewall admits them. Passed to
-//  the infobar only when it changes; a frame with no failed or deferred listen
-//  builds nothing.
+//  The network card's infobar text: the ports deferred until the firewall
+//  admits them, the listeners moved to a later port, and the ports the guest
+//  cannot listen on, with the machine's serial connector when that connector
+//  has the port. Passed to the infobar only when it changes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -273,6 +272,7 @@ void EmulatorShell::ReportUthernetListenFailures()
 {
     UthernetCard *                                 card     = m_machine.GetRefs().uthernet;
     std::vector<W5100SocketBridge::ListenFailure>  failures;
+    std::vector<W5100SocketBridge::MovedListen>    moved;
     std::vector<FirewallPort>                      deferred;
     std::wstring                                   text;
     std::wstring                                   serialText;
@@ -284,10 +284,16 @@ void EmulatorShell::ReportUthernetListenFailures()
     if (card != nullptr)
     {
         failures = card->GetBridge().GetFailedListens();
+        moved    = card->GetBridge().GetMovedListens();
         deferred = card->GetDeferredPorts();
     }
 
     text = FirewallText::DescribeBlocked (ShellNetworkCard::kFirewallTitle, deferred);
+
+    for (const W5100SocketBridge::MovedListen & listen : moved)
+    {
+        text += (text.empty() ? L"" : L"\n") + TextEncoding::NarrowToWide (W5100SocketBridge::DescribeMovedListen (listen));
+    }
 
     for (const W5100SocketBridge::ListenFailure & failure : failures)
     {

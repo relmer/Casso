@@ -437,6 +437,115 @@ public:
         }
     }
 
+    //  Two Cassos on the PC boot the universal disk with one port. The second
+    //  card's listener moves to the next port, its announcement contains that
+    //  port, and a session links to each Apple.
+    TEST_METHOD (TwoCassosOnThePc_AnnounceTwoPorts_AndBothLink)
+    {
+        constexpr uint16_t                   kSharedPort = kPort + 4;
+        std::array<std::unique_ptr<Rig>, 2>  rigs;
+        std::array<std::array<Byte, 6>, 2>   macs        = {};
+        std::array<uint16_t, 2>              ports       = {};
+        FixtureProvider                      fixtures;
+        std::vector<uint8_t>                 bytes;
+        std::vector<Byte>                    dos;
+        std::vector<Byte>                    boot;
+        LinkShimOptions                      options;
+        VolumeListing                        catalog;
+        Win32LinkAnnouncements               listener (LinkProgram::kAnnouncePort);
+        ULONGLONG                            start   = 0;
+        uint64_t                             ran     = 0;
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
+        dos.assign (bytes.begin(), bytes.end());
+        AssertSucceeded (Dos33Volume (dos).Enumerate (catalog));
+
+        options.network.address = { 192, 168, 77, 77 };
+        options.network.mac     = { 0x00, 0x08, 0xDC, 0x11, 0x22, 0x33 };
+        options.network.port    = kSharedPort;
+
+        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, boot));
+        AssertSucceeded (listener.SetListening (true));
+
+        for (size_t apple = 0; apple < rigs.size(); apple++)
+        {
+            rigs[apple] = std::make_unique<Rig>();
+
+            GuestSession::Mount (rigs[apple]->machine, boot);
+            AssertSucceeded (rigs[apple]->machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, dos));
+            rigs[apple]->machine.GetMemoryBus().WriteByte (0x5000, (Byte) (0x11 * (apple + 1)));
+        }
+
+        //  Both Apples run together at 1.023 MHz of wall time until each one's
+        //  announcement has arrived.
+        auto  findBoth = [&] ()
+        {
+            size_t  found = 0;
+
+            for (size_t apple = 0; apple < rigs.size(); apple++)
+            {
+                for (size_t at = 0; at < macs[apple].size(); at++)
+                {
+                    macs[apple][at] = rigs[apple]->machine.GetCpu()->ReadByte ((Word) (LinkProgram::kUniversalW5100 + LinkProgram::kNetMacOffset + at));
+                }
+
+                for (const LinkAnnouncement & announcement : listener.GetAnnounced())
+                {
+                    if (announcement.mac == macs[apple])
+                    {
+                        ports[apple] = announcement.port;
+                        found++;
+                    }
+                }
+            }
+
+            return found == rigs.size();
+        };
+
+        start = GetTickCount64();
+
+        while (!findBoth() && GetTickCount64() - start < kWaitMs)
+        {
+            uint64_t  due = (GetTickCount64() - start) * kCyclesPerMs;
+
+            if (ran < due)
+            {
+                rigs[0]->machine.RunCycles (due - ran);
+                ran += rigs[1]->machine.RunCycles (due - ran);
+            }
+            else
+            {
+                Sleep (1);
+            }
+        }
+
+        Assert::IsTrue   (findBoth(), L"an announcement from each card's MAC address");
+        AssertSucceeded (listener.SetListening (false));
+        Assert::IsTrue   (ports[0] != ports[1], L"each Apple's announcement contains the port its listener is on");
+        Assert::IsTrue   (ports[0] == kSharedPort || ports[1] == kSharedPort, L"one listener is on the disk's port");
+        Assert::IsTrue   (ports[0] == kSharedPort + 1 || ports[1] == kSharedPort + 1, L"and the other on the next port");
+
+        for (size_t apple = 0; apple < rigs.size(); apple++)
+        {
+            CassoLinkSettings  settings;
+            CassoLinkSession   session (rigs[apple]->factory, rigs[apple]->folder, rigs[apple]->fileIo, rigs[apple]->sink);
+
+            settings.name      = "Uthernet";
+            settings.transport = LinkTransport::Uthernet;
+            settings.address   = std::format ("127.0.0.1:{}", ports[apple]);
+            settings.use40     = true;
+
+            session.SetRetryInterval (kRetryMs);
+            AssertSucceeded (session.Start (settings));
+
+            auto  list = rigs[apple]->Finish (session.Enumerate (2, FilePath()));
+
+            AssertSucceeded (list->result);
+            Assert::AreEqual (catalog.entries.size(), list->listing.entries.size(), L"drive 2's catalog on each Apple");
+        }
+    }
+
+
     //  The disk's MAC address is salted with the Apple's own memory, so two
     //  Apples booted from copies of one disk have two addresses.
     TEST_METHOD (TheUniversalDisksMac_DiffersBetweenTwoApples)

@@ -253,7 +253,7 @@ HRESULT Win32FirewallHelper::AddRule (INetFwRules * rules, const FirewallPlan & 
     BSTR                                name     = SysAllocString (FirewallRemedy::MakeRuleName (plan, port).c_str());
     BSTR                                group    = SysAllocString (FirewallRemedy::kGrouping);
     BSTR                                program  = SysAllocString (plan.program.c_str());
-    BSTR                                ports    = SysAllocString (std::to_wstring (port.port).c_str());
+    BSTR                                ports    = SysAllocString (FirewallRemedy::FormatPorts (port).c_str());
     bool                                strings  = name != nullptr && group != nullptr && program != nullptr && ports != nullptr;
 
 

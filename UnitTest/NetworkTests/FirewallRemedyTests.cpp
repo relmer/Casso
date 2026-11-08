@@ -195,13 +195,62 @@ public:
     }
 
 
+    //  A listener on 6503 that can move from 6502 to 6509 is admitted with
+    //  one rule for the whole range, so a second Allow isn't required when
+    //  the next Casso moves.
+    TEST_METHOD (AListenRange_IsAdmittedWithOneRuleForTheRange)
+    {
+        FirewallSnapshot  snapshot;
+        FirewallRule      single;
+        FirewallPlan      plan;
+        FirewallPlan      parsed;
+        FirewallPort      range { HostSocketKind::Tcp, 6503, 6509, 6502 };
+
+        single.application = kProgram;
+        single.anyProtocol = false;
+        single.protocol    = HostSocketKind::Tcp;
+        single.localPorts  = L"6502";
+
+        snapshot.active = FirewallProfile::Private;
+        snapshot.rules  = { single };
+
+        plan = FirewallRemedy::MakePlan (snapshot, MakeProgram(), L"Casso", { range }, false);
+
+        Assert::AreEqual ((size_t) 1, plan.ports.size(), L"6502 alone is admitted, and the rest of the range is not");
+        Assert::IsTrue   (plan.ports[0] == FirewallPort { HostSocketKind::Tcp, 6502, 6509 });
+        Assert::AreEqual (std::wstring (L"Casso, TCP 6502-6509"), FirewallRemedy::MakeRuleName (plan, plan.ports[0]));
+        Assert::AreEqual (std::wstring (L"6502-6509"),            FirewallRemedy::FormatPorts (plan.ports[0]));
+
+        AssertSucceeded (FirewallRemedy::ParseArguments (FirewallRemedy::FormatArguments (plan), parsed));
+        Assert::IsTrue  (parsed == plan);
+    }
+
+
+    TEST_METHOD (AListenRangeTheRulesAdmit_IsLeftOut)
+    {
+        FirewallSnapshot  snapshot;
+        FirewallRule      allow;
+
+        allow.application = kProgram;
+        allow.anyProtocol = false;
+        allow.protocol    = HostSocketKind::Tcp;
+        allow.localPorts  = L"6502-6509";
+
+        snapshot.active = FirewallProfile::Private;
+        snapshot.rules  = { allow };
+
+        Assert::IsTrue (FirewallRemedy::MakePlan (snapshot, MakeProgram(), L"Casso", { { HostSocketKind::Tcp, 6503, 6509, 6502 } }, false).ports.empty());
+    }
+
+
     //  The helper runs elevated, so nothing it cannot read is run.
     TEST_METHOD (ArgumentsThatAreNotAPlan_FailAsData)
     {
         FirewallPlan  plan;
 
         for (const wchar_t * text : { L"", L"2|4|0|Casso|C:\\Casso.exe|U6510", L"1|8|0|Casso|C:\\Casso.exe|U6510", L"1|4|0|Casso|C:\\Casso.exe|X6510",
-                                      L"1|4|0|Casso|C:\\Casso.exe|U0", L"1|4|0|Casso|C:\\Casso.exe|U70000", L"1|4|0||C:\\Casso.exe|U6510" })
+                                      L"1|4|0|Casso|C:\\Casso.exe|U0", L"1|4|0|Casso|C:\\Casso.exe|U70000", L"1|4|0||C:\\Casso.exe|U6510",
+                                      L"1|4|0|Casso|C:\\Casso.exe|T6509-6502", L"1|4|0|Casso|C:\\Casso.exe|T6502-", L"1|4|0|Casso|C:\\Casso.exe|T6502-70000" })
         {
             Assert::IsTrue (FirewallRemedy::ParseArguments (text, plan) == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), text);
         }

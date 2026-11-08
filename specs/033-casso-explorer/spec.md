@@ -2064,6 +2064,14 @@ source and read the manifest. Repeat on a real //c with real floppies.
   wait, with the program's warning and its Allow, and MUST open once the
   port is admitted. An interface with no network identified, such as Hyper-V's
   Default Switch, MUST NOT add its category.
+- **FR-153**: When the PC has an Uthernet II listener's port in use, such as
+  6502 in a second Casso on the PC, the listener MUST move to the next port
+  the PC has free, up to the seventh port after the guest's. The guest's
+  socket MUST remain on the guest's port. A CassoLink announcement MUST
+  contain the port the listener moved to, so Casso Explorer connects to each
+  Casso. The card's infobar MUST report the move. Allow MUST admit the whole
+  range with one rule, 6502-6509 for the link, so a later Casso that moves
+  doesn't require another Allow.
 
 **Full Send**
 
