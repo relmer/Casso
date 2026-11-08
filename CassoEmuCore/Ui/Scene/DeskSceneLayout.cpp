@@ -1092,7 +1092,8 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
         if (sliding)
         {
             driveCount = SlideDevices (out, metrics, driveCount, eyeZ - (-metrics.monitorMin[1]),
-                                       tanHalfX, tanHalfY, viewportH, slideProgress, slideClearPx, 0.0f, 1.0f);
+                                       tanHalfX, tanHalfY, viewportH, slideProgress, slideClearPx, 0.0f,
+                                       kWindowedSlideScale);
         }
 
         // THE ORBIT ROTATES THE SCENE, NOT THE CAMERA. The eye stays in its
