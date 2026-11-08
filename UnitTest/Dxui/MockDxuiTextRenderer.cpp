@@ -142,6 +142,35 @@ HRESULT MockDxuiTextRenderer::FillRect (float xDip, float yDip, float widthDip, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MockDxuiTextRenderer::DrawLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MockDxuiTextRenderer::DrawLine (float x0Dip, float y0Dip, float x1Dip, float y1Dip, float thicknessDip, uint32_t argbColor)
+{
+    RecordedTextCall  call;
+
+
+
+    (void) thicknessDip;
+
+    call.kind   = RecordedTextKind::DrawLine;
+    call.x      = x0Dip;
+    call.y      = y0Dip;
+    call.width  = x1Dip;
+    call.height = y1Dip;
+    call.argb   = argbColor;
+    m_calls.push_back (call);
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MeasureString
 //
 //  Returns the canned size if the caller registered one for the

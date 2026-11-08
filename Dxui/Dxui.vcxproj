@@ -178,6 +178,7 @@
     <ClCompile Include="Render\DxuiCoverageRaster.cpp" />
     <ClCompile Include="Render\DxuiPainter.cpp" />
     <ClCompile Include="Render\DxuiShadow.cpp" />
+    <ClCompile Include="Render\DxuiRoundedOutline.cpp" />
     <ClCompile Include="Render\DxuiTextRenderer.cpp" />
     <ClCompile Include="Theme\DxuiDwm.cpp" />
     <ClCompile Include="Theme\DxuiMenuMetrics.cpp" />
@@ -304,6 +305,7 @@
     <ClInclude Include="Render\DxuiCoverageRaster.h" />
     <ClInclude Include="Render\DxuiPainter.h" />
     <ClInclude Include="Render\DxuiShadow.h" />
+    <ClInclude Include="Render\DxuiRoundedOutline.h" />
     <ClInclude Include="Render\DxuiTextRenderer.h" />
     <ClInclude Include="Render\IDxuiPainter.h" />
     <ClInclude Include="Render\IDxuiTextRenderer.h" />

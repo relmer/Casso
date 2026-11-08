@@ -134,6 +134,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Render/DxuiCoverageRaster.h"
 #include "Render/DxuiPainter.h"
 #include "Render/DxuiTextRenderer.h"
+#include "Render/DxuiRoundedOutline.h"
 #include "Render/Dxui3DRenderer.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/DxuiWindowsThemeColors.h"

@@ -274,11 +274,13 @@ public:
     //  The labeled ranges: each address's MemoryRegionKeys key, empty for a
     //  bank with none; the card in each slot, which labels a slot's ranges;
     //  and the colors the ranges are outlined in and their bytes drawn in.
-    //  A range is outlined once cells are kRegionCellPx, and labeled at its
-    //  start once they are large enough for values.
+    //  A range is outlined once cells are kRegionCellPx. Once they are large
+    //  enough for values, the map is cut into sections at kSectionStarts,
+    //  each starting a row under a header with its label, as a memory window
+    //  outlines and labels its ranges.
     static constexpr int  kRegionCellPx = 4;
 
-    void      SetRegions      (const std::vector<uint16_t> & regions)       { m_regions = regions; }
+    void      SetRegions      (const std::vector<uint16_t> & regions);
     void      SetSlotCards    (const MemoryRegionKeys::SlotCards & cards)   { m_slotCards = cards; }
     void      SetRegionColors (const MemoryRegionKeys::Colors & colors)     { m_regionColors = colors; }
     uint16_t  GetRegionAt     (Word address) const { return (m_regions.size() == (size_t) kAddressCount) ? m_regions[address] : (uint16_t) 0; }
@@ -300,11 +302,30 @@ public:
     struct Band
     {
         std::wstring  title;
-        Word          first = 0;
-        int           count = 0;
+        Word          first     = 0;
+        int           count     = 0;
+        bool          isSection = false;   // a piece cut at kSectionStarts, labeled by its region
 
         bool operator== (const Band & other) const = default;
     };
+
+    //  Where the sections start: the I/O, each slot's I/O, each slot's ROM
+    //  page, the expansion ROM, and the ROM or language card above it. The
+    //  addresses are fixed, so banking changes a section's label and color
+    //  and never the layout.
+    static constexpr std::array<Word, 18>  kSectionStarts =
+    {
+        0xC000, 0xC080, 0xC090, 0xC0A0, 0xC0B0, 0xC0C0, 0xC0D0, 0xC0E0, 0xC0F0,
+        0xC100, 0xC200, 0xC300, 0xC400, 0xC500, 0xC600, 0xC700, 0xC800, 0xD000,
+    };
+
+    //  The ranges cut at kSectionStarts, each piece a section. A range no
+    //  start cuts is left whole, and a section only where `isAllMemory`.
+    static std::vector<Band>  SplitAtSections (const std::vector<Band> & ranges, bool isAllMemory);
+
+    //  Whether the map is cut into sections now, and the ranges on the map.
+    bool                       IsSplit  () const { return m_isSplit; }
+    const std::vector<Band> &  GetBands () const { return m_bands; }
 
     //  The height of a range's header, and the note an empty set shows.
     static constexpr int              kHeaderDip       = 20;
@@ -545,8 +566,11 @@ private:
     std::vector<RECT>      GetMergedRects      (const Merged & merged) const;
     void                   PaintInstruction    (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Merged & merged) const;
     void                   PaintOutlines       (IDxuiTextRenderer & text, const std::vector<RECT> & rects, Word address) const;
-    void                   PaintRegions        (IDxuiTextRenderer & text, const IDxuiTheme & theme, bool hasLabels) const;
-    void                   PaintRegionLabel    (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Place & place, uint16_t key) const;
+    void                   PaintRegions        (IDxuiTextRenderer & text) const;
+    void                   PaintSections       (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void                   SyncBands           ();
+    bool                   IsSplitZoom         () const;
+    bool                   HasHeader           (size_t band) const { return m_hasRanges || (band < m_bands.size() && m_bands[band].isSection); }
     void                   MarkSymbols         ();
     void                   ForEachVisible      (const std::function<void (const Place &, Word)> & visit) const;
     std::wstring           DescribeMarks       (Word address) const;
@@ -567,6 +591,8 @@ private:
     std::optional<Place>       m_hover;
     std::vector<Band>          m_bands        = { Band { {}, 0, kAddressCount } };
     std::vector<Placed>        m_placed;
+    std::vector<Band>          m_ranges       = { Band { {}, 0, kAddressCount } };   // the set's ranges, or all of memory, before sections cut them
+    bool                       m_isSplit      = false;
     long                       m_contentH     = 0;
     bool                       m_hasRanges    = false;
     bool                       m_isFitted     = true;

@@ -31,6 +31,7 @@ enum class RecordedTextKind
     PushClipRect,
     PopClipRect,
     DrawFramebuffer,      // text carries nothing; width and height are the destination
+    DrawLine,             // x and y are the start, width and height the end
 };
 
 
@@ -88,6 +89,7 @@ public:
     HRESULT  PopClipRect   () override;
 
     HRESULT  FillRect      (float xDip, float yDip, float widthDip, float heightDip, uint32_t argbColor) override;
+    HRESULT  DrawLine      (float x0Dip, float y0Dip, float x1Dip, float y1Dip, float thicknessDip, uint32_t argbColor) override;
 
     HRESULT  MeasureString (const wchar_t * text,
                             float           fontSizeDip,

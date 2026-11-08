@@ -506,10 +506,12 @@ namespace DebuggerTests
 
 
 
-        //  Zoomed in, a cell with a symbol has its name over its value, an I/O
-        //  byte's value is in I/O's color, each labeled range is outlined in its
-        //  color, and its first cell has its label, a slot's by its card.
-        TEST_METHOD (ZoomedInSymbolsRangesAndCardsAreLabeled)
+        //  Zoomed in, the map is cut into sections at their fixed starts, each
+        //  starting a row under a header. A section is outlined in its range's
+        //  color with its label on the top edge, a slot's by its card; a cell
+        //  with a symbol has its name over its value, and an I/O byte's value
+        //  is in I/O's color.
+        TEST_METHOD (ZoomedInTheMapIsCutIntoLabeledSections)
         {
             HeatMapView                      view;
             MockDxuiTextRenderer             text;
@@ -518,7 +520,8 @@ namespace DebuggerTests
             std::vector<uint16_t>            regions (kCount, 0);
             MemoryRegionKeys::Colors         colors;
             MemoryRegionKeys::SlotCards      cards;
-            uint32_t                         stroke  = 0;
+            uint32_t                         stroke  = DxuiColor::Mix (kBackground | 0xFF000000u, colors.io, 0.6f) | 0xFF000000u;
+            RECT                             first   = {};
             auto                             findInk = [&text] (const std::wstring & wanted)
             {
                 for (const RecordedTextCall & call : text.Calls())
@@ -534,40 +537,80 @@ namespace DebuggerTests
 
 
 
-            //  $0000-$0003 I/O, $0004-$0007 slot 2's I/O, $0008 main RAM.
-            for (Word address = 0; address < 9; address++)
+            for (uint32_t address = 0xC000; address < 0xC100; address++)
             {
-                values[address] = 0xC1;
+                values[address]  = 0xC1;
+                regions[address] = MemoryRegionKeys::GetKey (MemoryRegion::Io, (Word) address);
             }
 
-            for (Word address = 0; address < 4; address++)
-            {
-                regions[address]     = MemoryRegionKeys::kRegionIo;
-                regions[address + 4] = MemoryRegionKeys::kRegionSlotIo + 2;
-            }
-
-            symbols->Add ("KBD", 0x0000);
+            symbols->Add ("KBD", 0xC000);
             cards[2] = "Super Serial Card";
 
             Place (view);
             view.SetLevels       ({}, {}, {});
             view.SetValues       (values);
             view.SetSymbols      (symbols);
-            view.SetRegions      (regions);
-            view.SetSlotCards    (cards);
             view.SetRegionColors (colors);
+            view.SetSlotCards    (cards);
+            Assert::IsFalse (view.IsSplit(), L"without regions, one range");
+
+            view.SetRegions (regions);
+            Assert::IsFalse (view.IsSplit(), L"at the fitted size, one range");
+
             view.ZoomAt ({ 300, 200 }, 40.0f);
-            view.ScrollBy (-1000000);
+            Assert::IsTrue   (view.IsSplit(), L"zoomed in, cut into sections");
+            Assert::AreEqual ((size_t) (HeatMapView::kSectionStarts.size() + 1), view.GetBands().size());
+            Assert::AreEqual ((int) 0x0080, view.GetBands()[1].count, L"the I/O to $C07F");
+            Assert::AreEqual ((int) 0x0010, view.GetBands()[3].count, L"slot 2's sixteen addresses");
+
+            view.ScrollBy ((int) (view.GetCellRect (0xC000).top - view.GetMapRect().top - 60));
+            first = view.GetCellRect (0xC090);
+            Assert::AreEqual (view.GetCellRect (0xC000).left, first.left, L"a section starts a row at the first column");
+            Assert::IsTrue   (first.top - view.GetCellRect (0xC08F).bottom > HeatMapView::kStreetPx, L"under a header's room");
+
             Paint (view, text);
 
-            stroke = DxuiColor::Mix (kBackground | 0xFF000000u, colors.io, 0.8f) | 0xFF000000u;
+            Assert::IsTrue   (HasText (text, L"KBD"),                         L"the symbol's name in its cell");
+            Assert::IsTrue   (HasText (text, L"I/O"),                         L"the I/O section's label");
+            Assert::AreEqual (DebuggerTextColors::GetReadable (colors.io, view.GetCellColor (0xC000) | 0xFF000000u), findInk (L"C1"), L"an I/O value in I/O's color");
+            Assert::IsTrue   (std::ranges::any_of (text.Calls(), [stroke] (const RecordedTextCall & call) { return call.kind == RecordedTextKind::DrawLine && call.argb == stroke; }),
+                              L"the section outlined in its color");
 
-            Assert::IsTrue   (HasText (text, L"KBD"),                          L"the symbol's name in its cell");
-            Assert::IsTrue   (HasText (text, L"I/O"),                          L"the I/O range's label");
-            Assert::IsTrue   (HasText (text, L"Slot 2: Super Serial Card"),    L"slot 2's range by its card");
-            Assert::AreEqual (DebuggerTextColors::GetReadable (colors.io, view.GetCellColor (0x0000) | 0xFF000000u), findInk (L"C1"), L"an I/O value in I/O's color");
-            Assert::IsTrue   (std::ranges::any_of (text.Calls(), [stroke] (const RecordedTextCall & call) { return call.kind == RecordedTextKind::FillRect && call.argb == stroke; }),
-                              L"the range outlined in its color");
+            view.ScrollBy ((int) (view.GetCellRect (0xC0A0).top - view.GetMapRect().top - 60));
+            Paint (view, text);
+            Assert::IsTrue   (HasText (text, L"Slot 2: Super Serial Card"),   L"slot 2's section by its card");
+
+            view.ResetZoom();
+            Assert::IsFalse  (view.IsSplit(), L"back at the fitted size, one range again");
+            Assert::AreEqual ((size_t) 1, view.GetBands().size());
+        }
+
+
+
+        //  The ranges are cut at every start inside them; a range no start is
+        //  inside is left whole, a section only in all of memory.
+        TEST_METHOD (RangesAreCutAtTheSectionStarts)
+        {
+            std::vector<HeatMapView::Band>  bands;
+
+
+
+            bands = HeatMapView::SplitAtSections ({ HeatMapView::Band { L"Mixed", 0xBF00, 0x0190 } }, false);
+            Assert::AreEqual ((size_t) 3, bands.size());
+            Assert::AreEqual ((int) 0xBF00, (int) bands[0].first);
+            Assert::AreEqual ((int) 0x0100, bands[0].count);
+            Assert::AreEqual ((int) 0xC000, (int) bands[1].first);
+            Assert::AreEqual ((int) 0x0080, bands[1].count);
+            Assert::AreEqual ((int) 0xC080, (int) bands[2].first);
+            Assert::IsTrue   (bands[0].isSection && bands[2].isSection, L"each piece a section");
+
+            bands = HeatMapView::SplitAtSections ({ HeatMapView::Band { L"Text", 0x0400, 0x0400 } }, false);
+            Assert::AreEqual ((size_t) 1, bands.size());
+            Assert::IsFalse  (bands[0].isSection, L"a range no start is inside has a header of the set's");
+
+            bands = HeatMapView::SplitAtSections ({ HeatMapView::Band { {}, 0, HeatMapView::kAddressCount } }, true);
+            Assert::AreEqual ((int) 0xD000, (int) bands.back().first);
+            Assert::AreEqual ((int) 0x3000, bands.back().count, L"the ROM or language card to the end");
         }
 
 
