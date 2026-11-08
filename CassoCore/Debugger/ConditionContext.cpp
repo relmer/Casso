@@ -72,6 +72,12 @@ bool ConditionContext::IsMet (
 //
 //  ConditionContext::Validate
 //
+//  The machine is not yet in the state the condition will see at a hit, so
+//  this judges only what no later state can fix: a name nothing resolves, a
+//  byte that cannot be read, and a read of an I/O address. A division by a
+//  value that is zero now is left to the hit, where it is false if it is
+//  still zero.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ConditionContext::Validate (
@@ -85,12 +91,11 @@ HRESULT ConditionContext::Validate (
     std::optional<Word>  access   = hasAccess ? std::optional<Word> (0) : std::nullopt;
     std::optional<Byte>  value    = hasValue  ? std::optional<Byte> (0) : std::nullopt;
     ConditionContext     context  (inner, access, value);
-    int32_t              result   = 0;
     bool                 isIoRead = false;
 
 
 
-    hr       = DebugExpressionEvaluator::Evaluate (condition, context, result, error);
+    hr       = DebugExpressionEvaluator::Check (condition, context, error);
     isIoRead = context.m_ioRead.has_value();
 
     CBRFEx (!isIoRead, E_INVALIDARG,

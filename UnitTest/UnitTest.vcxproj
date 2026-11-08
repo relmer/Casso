@@ -191,6 +191,9 @@
     <ClCompile Include="DebuggerTests\ExpressionBreakpointTests.cpp" />
     <ClCompile Include="DebuggerTests\RegisterHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointHandlersTests.cpp" />
+    <ClCompile Include="DebuggerTests\RegisterBreakpointTests.cpp" />
+    <ClCompile Include="DebuggerTests\SetBreakpointTests.cpp" />
+    <ClCompile Include="DebuggerTests\WatchpointCommandTests.cpp" />
     <ClCompile Include="DebuggerTests\MemoryHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\DataDirectiveHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\ExecutionHandlersTests.cpp" />

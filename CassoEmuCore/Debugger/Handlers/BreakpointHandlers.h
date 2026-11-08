@@ -43,6 +43,7 @@ private:
     static constexpr int   kBrkSelector  = 0;
     static constexpr int   kAllSelector  = -1;
     static constexpr int   kMaxLength    = 3;
+    static constexpr Byte  kBrkOpcode    = 0x00;
 
     static void  SetAddress     (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetSourceLine  (DebugSession & session, const DebugCommand & command, Reply & reply);
@@ -51,6 +52,8 @@ private:
     static void  SetWatchpoint  (DebugSession & session, const DebugCommand & command, WatchAccess access, Reply & reply);
     static void  SetValue       (DebugSession & session, const DebugCommand & command, Reply & reply);
     static bool  TryValidateCondition (DebugSession & session, const Expression & condition, bool hasAccess, bool hasValue, Reply & reply);
+    static bool  TryValidateRegisterCondition (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static bool  TryValidateRange     (const DebugCommand & command, Reply & reply);
     static void  SetBoth        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetBrk         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetOpcode      (DebugSession & session, const DebugCommand & command, Reply & reply);
@@ -65,8 +68,11 @@ private:
     static void  AddInvalidOpcodes    (DebugSession & session, int length, BreakpointListData & added);
     static void  RemoveInvalidOpcodes (DebugSession & session, int length);
     static bool  IsInvalidOfLength    (DebugSession & session, Byte opcode, int length);
+    static bool  IsBrkOn              (DebugSession & session);
+    static void  RemoveBrk            (DebugSession & session);
     static void  ReportBrk            (DebugSession & session, Reply & reply);
     static bool  HasInterrupt         (DebugSession & session);
+    static void  DropOrphanedHit      (DebugSession & session);
 
     static bool  TryFindInfo    (DebugSession & session, int id, BreakpointInfo & info);
     static bool  TryMakeEntry   (const DebugCommand & definition, int id, const BreakpointInfo & old, Breakpoint & breakpoint, Watchpoint & watchpoint, bool & isWatchpoint);

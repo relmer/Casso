@@ -33,9 +33,8 @@ public:
                               std::optional<Byte>               value,
                               std::optional<int32_t>          & result);
 
-    //  Evaluates the condition once as it is set, with ACCESS and VALUE
-    //  present as zero where the breakpoint provides them. Fails on an
-    //  unknown symbol or any other error, and on a read of an I/O address.
+    //  Checks the condition once as it is set, with ACCESS and VALUE present
+    //  as zero where the breakpoint provides them.
     static HRESULT  Validate (const Expression                & condition,
                               const IDebugExpressionContext   & inner,
                               bool                              hasAccess,

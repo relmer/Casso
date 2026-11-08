@@ -398,7 +398,9 @@ bool BreakpointTable::HasEnabledStopCondition() const
 //  BreakpointTable::TryMatchBeforeInstruction
 //
 //  Two passes keep the order of precedence: address entries first, through
-//  the bitmap, then every other kind.
+//  the bitmap, then every other kind. The first entry that stops is the hit;
+//  every entry that matches counts one, whether it stops or not and wherever
+//  it falls in id order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -409,6 +411,7 @@ bool BreakpointTable::TryMatchBeforeInstruction (
     int                           & hitId)
 {
     bool                    isAddressPass  = m_addressBits[pc];
+    bool                    isHit          = false;
     std::optional<int32_t>  conditionValue;
 
 
@@ -421,28 +424,23 @@ bool BreakpointTable::TryMatchBeforeInstruction (
 
 
 
-            if (!entry.enabled || isAddressKind != (pass == 0))
+            if (!entry.enabled || isAddressKind != (pass == 0) || !TryMatchEntry (entry, pc, opcode, context, conditionValue))
             {
                 continue;
             }
 
-            if (TryMatchEntry (entry, pc, opcode, context, conditionValue))
+            ++entry.hits;
+
+            if (entry.stops && !isHit)
             {
-                ++entry.hits;
-
-                if (!entry.stops)
-                {
-                    continue;
-                }
-
+                isHit                = true;
                 hitId                = entry.id;
                 m_lastConditionValue = conditionValue;
-                return true;
             }
         }
     }
 
-    return false;
+    return isHit;
 }
 
 
@@ -454,7 +452,9 @@ bool BreakpointTable::TryMatchBeforeInstruction (
 //  BreakpointTable::TryMatchWrite
 //
 //  The write has already happened, so the address holds value; ACCESS and
-//  VALUE give the address and the byte to the IF expression.
+//  VALUE give the address and the byte to the IF expression. As before an
+//  instruction, the first entry that stops is the hit and every entry that
+//  matches counts one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -465,29 +465,33 @@ bool BreakpointTable::TryMatchWrite (
     int                           & hitId,
     std::optional<int32_t>        & conditionValue)
 {
+    bool                    isHit = false;
+    std::optional<int32_t>  evaluated;
+
+
+
     for (Breakpoint & entry : m_entries)
     {
         bool  isTarget = entry.enabled && entry.kind == BreakpointKind::MemoryValue && entry.first == address && entry.value == value;
 
 
 
-        if (!isTarget || !ConditionContext::IsMet (entry.condition, context, address, value, conditionValue))
+        if (!isTarget || !ConditionContext::IsMet (entry.condition, context, address, value, evaluated))
         {
             continue;
         }
 
         ++entry.hits;
 
-        if (!entry.stops)
+        if (entry.stops && !isHit)
         {
-            continue;
+            isHit          = true;
+            hitId          = entry.id;
+            conditionValue = evaluated;
         }
-
-        hitId = entry.id;
-        return true;
     }
 
-    return false;
+    return isHit;
 }
 
 

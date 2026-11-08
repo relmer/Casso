@@ -106,6 +106,11 @@ public:
                                       int32_t                       & value,
                                       std::string                   & error);
 
+    //  Evaluate, with a division by zero giving zero rather than failing.
+    static HRESULT  Check            (const Expression              & expression,
+                                      const IDebugExpressionContext & context,
+                                      std::string                   & error);
+
 private:
     struct OperatorSpelling
     {
@@ -128,8 +133,9 @@ private:
     static bool  IsUnary                  (ExpressionOperator op);
     static int   GetPrecedence            (ExpressionOperator op);
     static void  EmitOperator             (ExpressionOperator op, Expression & expression);
-    static bool  TryApplyToken            (const ExpressionToken & token, const IDebugExpressionContext & context, std::vector<int32_t> & values, std::string & error);
+    static bool  TryEvaluateTokens        (const Expression & expression, const IDebugExpressionContext & context, bool isChecking, int32_t & value, std::string & error);
+    static bool  TryApplyToken            (const ExpressionToken & token, const IDebugExpressionContext & context, bool isChecking, std::vector<int32_t> & values, std::string & error);
     static bool  TryResolveOperand        (const ExpressionToken & token, const IDebugExpressionContext & context, int32_t & value, std::string & error);
     static bool  TryApplyUnary            (ExpressionOperator op, int32_t operand, const IDebugExpressionContext & context, int32_t & result, std::string & error);
-    static bool  TryApplyBinary           (ExpressionOperator op, int32_t lhs, int32_t rhs, int32_t & result, std::string & error);
+    static bool  TryApplyBinary           (ExpressionOperator op, int32_t lhs, int32_t rhs, bool isChecking, int32_t & result, std::string & error);
 };

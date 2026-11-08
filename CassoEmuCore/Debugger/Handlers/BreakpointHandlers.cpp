@@ -200,7 +200,7 @@ void BreakpointHandlers::SetAddress (DebugSession & session, const DebugCommand 
 
 
 
-    if (!TryValidateCondition (session, command.expression, false, false, reply))
+    if (!TryValidateRange (command, reply) || !TryValidateCondition (session, command.expression, false, false, reply))
     {
         return;
     }
@@ -333,18 +333,86 @@ std::optional<int> BreakpointHandlers::FindSourceFile (const DebugFile & file, c
 //
 //  BreakpointHandlers::SetCondition
 //
+//  BPR, and BP with a leading operator, which is BPR on PC.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void BreakpointHandlers::SetCondition (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    int         id = session.GetBreakpoints().AddCondition (command.expression);
+    int         id = 0;
     Breakpoint  entry;
 
 
 
+    if (!TryValidateRegisterCondition (session, command, reply))
+    {
+        return;
+    }
+
+    id = session.GetBreakpoints().AddCondition (command.expression);
     session.OnStopConditionsChanged();
     session.GetBreakpoints().TryFind (id, entry);
     reply.data = BreakpointSetData { MakeInfo (entry) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::TryValidateRegisterCondition
+//
+//  A register condition compares a register: a first operand that is a
+//  number or a symbol names no register, so it could never mean what BPR
+//  says. The rest is checked as an IF is, so a name nothing resolves or a
+//  read of an I/O address is reported now rather than never stopping.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHandlers::TryValidateRegisterCondition (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    const std::vector<ExpressionToken> & postfix    = command.expression.postfix;
+    bool                                 isRegister = !postfix.empty() && postfix.front().kind == ExpressionToken::Kind::Register;
+
+
+
+    if (!isRegister)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments",
+                        std::format ("{} is not a register. BPR compares A, X, Y, P, S, or PC.", command.text));
+        return false;
+    }
+
+    return TryValidateCondition (session, command.expression, false, false, reply);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::TryValidateRange
+//
+//  A range that ends before it starts, typed that way or wrapping past
+//  $FFFF, holds no address, so its breakpoint could never stop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHandlers::TryValidateRange (const DebugCommand & command, Reply & reply)
+{
+    Word  last = command.hasA2 ? command.a2 : command.a1;
+
+
+
+    if (last >= command.a1)
+    {
+        return true;
+    }
+
+    reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("${:04X}-${:04X} ends before it starts.", command.a1, last));
+    return false;
 }
 
 
@@ -366,7 +434,7 @@ void BreakpointHandlers::SetWatchpoint (DebugSession & session, const DebugComma
 
 
 
-    if (!TryValidateCondition (session, command.expression, true, mode == WatchMode::After, reply))
+    if (!TryValidateRange (command, reply) || !TryValidateCondition (session, command.expression, true, mode == WatchMode::After, reply))
     {
         return;
     }
@@ -466,14 +534,21 @@ bool BreakpointHandlers::TryValidateCondition (
 void BreakpointHandlers::SetBoth (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
     Word                last     = command.hasA2 ? command.a2 : command.a1;
-    int                 first    = session.GetBreakpoints().AddAddress (command.a1, last);
-    int                 second   = session.GetWatchpoints().Add (WatchAccess::ReadWrite, command.a1, last);
+    int                 first    = 0;
+    int                 second   = 0;
     BreakpointListData  list;
     Breakpoint          breakpoint;
     Watchpoint          watchpoint;
 
 
 
+    if (!TryValidateRange (command, reply))
+    {
+        return;
+    }
+
+    first  = session.GetBreakpoints().AddAddress (command.a1, last);
+    second = session.GetWatchpoints().Add (WatchAccess::ReadWrite, command.a1, last);
     session.OnStopConditionsChanged();
     session.GetBreakpoints().TryFind (first,  breakpoint);
     session.GetWatchpoints().TryFind (second, watchpoint);
@@ -490,8 +565,12 @@ void BreakpointHandlers::SetBoth (DebugSession & session, const DebugCommand & c
 //  BreakpointHandlers::SetBrk
 //
 //  BRK [0|1|2|3|ALL] [ON|OFF]. 0 is the BRK opcode; 1, 2 and 3 are the
-//  invalid opcodes of that length, each of which becomes an opcode entry.
-//  With no ON or OFF the current setting is reported.
+//  invalid opcodes of that length, each of which becomes an opcode entry;
+//  ALL is all four. With no ON or OFF the current setting is reported.
+//
+//  BRKOP 00 breaks on the same opcode as BRK ON, so it counts as BRK being
+//  on, and BRK 0 OFF clears it too, as BRK 1 OFF clears a BRKOP of a
+//  one-byte invalid opcode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -502,7 +581,7 @@ void BreakpointHandlers::SetBrk (DebugSession & session, const DebugCommand & co
     std::string          error;
     BreakpointListData   added;
     Breakpoint           entry;
-    int                  firstLength = 1;
+    int                  firstLength = kBrkSelector;
     int                  lastLength  = kMaxLength;
 
 
@@ -527,14 +606,14 @@ void BreakpointHandlers::SetBrk (DebugSession & session, const DebugCommand & co
 
     for (int length = firstLength; length <= lastLength; ++length)
     {
-        if (length == kBrkSelector && *isOn && !session.GetBreakpoints().HasBrk())
+        if (length == kBrkSelector && *isOn && !IsBrkOn (session))
         {
             session.GetBreakpoints().TryFind (session.GetBreakpoints().AddBrk(), entry);
             added.breakpoints.push_back (MakeInfo (entry));
         }
         else if (length == kBrkSelector && !*isOn)
         {
-            session.GetBreakpoints().ClearKind (BreakpointKind::Brk);
+            RemoveBrk (session);
         }
         else if (length != kBrkSelector && *isOn)
         {
@@ -664,9 +743,12 @@ void BreakpointHandlers::RemoveInvalidOpcodes (DebugSession & session, int lengt
 //
 //  BreakpointHandlers::IsInvalidOfLength
 //
-//  An opcode the CPU's table does not define, whose length the disassembler
-//  reports as the given one; an undefined opcode with no length counts as
-//  one byte.
+//  An opcode the CPU's documentation does not define, whose length the
+//  disassembler reports as the given one. That is what the disassembler
+//  marks undocumented: an opcode the table leaves undefined, which is one
+//  byte long, and one it runs all the same without the assembler ever
+//  producing it -- the 65C02's reserved NOPs and the 6502's undocumented
+//  instructions, which are one, two and three bytes long.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -678,13 +760,62 @@ bool BreakpointHandlers::IsInvalidOfLength (DebugSession & session, Byte opcode,
 
 
 
-    if (set == nullptr || set[opcode].isLegal)
+    if (set == nullptr || (set[opcode].isLegal && !set[opcode].assemblerHidden))
     {
         return false;
     }
 
     bytes = disassembler.GetLength (opcode);
     return (int) std::max<size_t> (bytes, 1) == length;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::IsBrkOn
+//
+//  BRK ON's entry, or a BRKOP of the BRK opcode, which stops the same way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHandlers::IsBrkOn (DebugSession & session)
+{
+    return session.GetBreakpoints().HasBrk() || session.GetBreakpoints().HasOpcode (kBrkOpcode);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::RemoveBrk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::RemoveBrk (DebugSession & session)
+{
+    std::vector<int>  ids;
+
+
+
+    session.GetBreakpoints().ClearKind (BreakpointKind::Brk);
+
+    for (const Breakpoint & entry : session.GetBreakpoints().GetAll())
+    {
+        if (entry.kind == BreakpointKind::Opcode && entry.opcode == kBrkOpcode)
+        {
+            ids.push_back (entry.id);
+        }
+    }
+
+    for (int id : ids)
+    {
+        session.GetBreakpoints().TryClear (id);
+    }
 }
 
 
@@ -704,7 +835,7 @@ void BreakpointHandlers::ReportBrk (DebugSession & session, Reply & reply)
 
 
 
-    message.lines.push_back (std::string ("BRK opcode: ") + (session.GetBreakpoints().HasBrk() ? "on" : "off"));
+    message.lines.push_back (std::string ("BRK opcode: ") + (IsBrkOn (session) ? "on" : "off"));
 
     for (int length = 1; length <= kMaxLength; ++length)
     {
@@ -869,6 +1000,7 @@ void BreakpointHandlers::Clear (DebugSession & session, const DebugCommand & com
     }
 
     isFound = session.GetBreakpoints().TryClear (id) || session.GetWatchpoints().TryClear (id);
+    DropOrphanedHit (session);
     session.OnStopConditionsChanged();
 
     if (!isFound)
@@ -878,6 +1010,43 @@ void BreakpointHandlers::Clear (DebugSession & session, const DebugCommand & com
     }
 
     reply.data = MessageData { { std::format ("Breakpoint #{} cleared.", id) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::DropOrphanedHit
+//
+//  A hit waiting for the next instruction boundary belongs to the entry that
+//  recorded it. Once that entry is cleared or disabled the hit is dropped,
+//  so no stop reports a breakpoint that is gone or off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::DropOrphanedHit (DebugSession & session)
+{
+    const std::optional<WatchHit> & pending = session.GetWatchpoints().GetPendingHit();
+    Breakpoint                      breakpoint;
+    Watchpoint                      watchpoint;
+    bool                            isLive  = false;
+
+
+
+    if (!pending.has_value())
+    {
+        return;
+    }
+
+    isLive = (session.GetBreakpoints().TryFind (pending->id, breakpoint) && breakpoint.enabled) ||
+             (session.GetWatchpoints().TryFind (pending->id, watchpoint) && watchpoint.enabled);
+
+    if (!isLive)
+    {
+        session.GetWatchpoints().ClearPending();
+    }
 }
 
 
@@ -912,6 +1081,7 @@ void BreakpointHandlers::Enable (DebugSession & session, const DebugCommand & co
             session.GetWatchpoints().TrySetEnabled (entry.id, enabled);
         }
 
+        DropOrphanedHit (session);
         session.OnStopConditionsChanged();
         ListAll (session, list);
         reply.data = list;
@@ -924,6 +1094,7 @@ void BreakpointHandlers::Enable (DebugSession & session, const DebugCommand & co
         return;
     }
 
+    DropOrphanedHit (session);
     session.OnStopConditionsChanged();
     TryFindInfo (session, id, info);
     reply.data = BreakpointSetData { info };
@@ -956,7 +1127,13 @@ void BreakpointHandlers::Edit (DebugSession & session, const DebugCommand & comm
 
 
 
-    if (command.text == "*" || !TryFindInfo (session, id, old))
+    if (command.text == "*")
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "BPEDIT takes one breakpoint's id, not *.");
+        return;
+    }
+
+    if (!TryFindInfo (session, id, old))
     {
         SetNoSuch (reply, id);
         return;
@@ -978,8 +1155,10 @@ void BreakpointHandlers::Edit (DebugSession & session, const DebugCommand & comm
     }
 
     isValueKind = breakpoint.kind == BreakpointKind::MemoryValue;
-    isValid     = isWatchpoint ? TryValidateCondition (session, watchpoint.condition, true, watchpoint.mode == WatchMode::After, reply)
-                               : breakpoint.kind == BreakpointKind::Register || TryValidateCondition (session, breakpoint.condition, isValueKind, isValueKind, reply);
+    isValid     = isWatchpoint                                ? TryValidateRange (parsed.command, reply) && TryValidateCondition (session, watchpoint.condition, true, watchpoint.mode == WatchMode::After, reply)
+                : breakpoint.kind == BreakpointKind::Register ? TryValidateRegisterCondition (session, parsed.command, reply)
+                : breakpoint.kind == BreakpointKind::Address  ? TryValidateRange (parsed.command, reply) && TryValidateCondition (session, breakpoint.condition, false, false, reply)
+                :                                               TryValidateCondition (session, breakpoint.condition, isValueKind, isValueKind, reply);
 
     if (!isValid)
     {
@@ -1096,7 +1275,13 @@ void BreakpointHandlers::Change (DebugSession & session, const DebugCommand & co
 
 
 
-    if (command.text == "*" || !TryFindInfo (session, id, info))
+    if (command.text == "*")
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "BPCHANGE takes one breakpoint's id, not *.");
+        return;
+    }
+
+    if (!TryFindInfo (session, id, info))
     {
         SetNoSuch (reply, id);
         return;
@@ -1128,6 +1313,7 @@ void BreakpointHandlers::Change (DebugSession & session, const DebugCommand & co
         session.GetBreakpoints().TrySetFlags (id, info.temporary, info.stops);
     }
 
+    DropOrphanedHit (session);
     session.OnStopConditionsChanged();
     TryFindInfo (session, id, info);
     reply.data = BreakpointSetData { info };
@@ -1175,7 +1361,7 @@ void BreakpointHandlers::Save (DebugSession & session, const DebugCommand & comm
     }
 
     ListAll (session, list);
-    reply.data = MessageData { { std::format ("Saved {} breakpoints to {}.", list.breakpoints.size(), command.text) } };
+    reply.data = MessageData { { std::format ("Saved {} breakpoint{} to {}.", list.breakpoints.size(), list.breakpoints.size() == 1 ? "" : "s", command.text) } };
 }
 
 

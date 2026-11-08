@@ -293,15 +293,21 @@ bool WatchpointTable::HasEnabledBefore() const
 //
 //  A predicted read-modify-write matches a read, write or read-write
 //  watchpoint; the hit's access is the watchpoint's own where it is single,
-//  and Write for a read-write one.
+//  and Write for a read-write one. Each entry is matched by the first touch
+//  that falls in it and counts one for the instruction, however many of its
+//  touches do; the first entry in id order that stops is the hit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool WatchpointTable::TryMatchBefore (Word pc, const AccessPrediction & prediction, WatchHit & hit)
 {
-    for (const PredictedTouch & touch : prediction.touches)
+    bool  isHit = false;
+
+
+
+    for (Watchpoint & entry : m_entries)
     {
-        for (Watchpoint & entry : m_entries)
+        for (const PredictedTouch & touch : prediction.touches)
         {
             bool                    isInRange = touch.address >= entry.first && touch.address <= entry.last;
             std::optional<int32_t>  conditionValue;
@@ -320,26 +326,26 @@ bool WatchpointTable::TryMatchBefore (Word pc, const AccessPrediction & predicti
 
             ++entry.hits;
 
-            if (!entry.stops)
+            if (entry.stops && !isHit)
             {
-                continue;
+                isHit              = true;
+                hit.id             = entry.id;
+                hit.address        = touch.address;
+                hit.value          = 0;
+                hit.previous.reset();
+                hit.access         = (entry.access == WatchAccess::ReadWrite)
+                                   ? (touch.access == PredictedAccess::Read ? WatchAccess::Read : WatchAccess::Write)
+                                   : entry.access;
+                hit.accessPc       = pc;
+                hit.mode           = WatchMode::Before;
+                hit.conditionValue = conditionValue;
             }
 
-            hit.id             = entry.id;
-            hit.address        = touch.address;
-            hit.value          = 0;
-            hit.previous.reset();
-            hit.access         = (entry.access == WatchAccess::ReadWrite)
-                               ? (touch.access == PredictedAccess::Read ? WatchAccess::Read : WatchAccess::Write)
-                               : entry.access;
-            hit.accessPc       = pc;
-            hit.mode           = WatchMode::Before;
-            hit.conditionValue = conditionValue;
-            return true;
+            break;
         }
     }
 
-    return false;
+    return isHit;
 }
 
 
@@ -452,9 +458,11 @@ WatchedPages WatchpointTable::GetWatchedPages() const
 //  WatchpointTable::OnWatchedAccess
 //
 //  The first matching hit since the last ClearPending is kept, except that a
-//  write to the pending hit's address replaces it (see ShouldReplace). The
-//  first watchpoint that matches takes the access; a write is then offered
-//  to the value breakpoints, which stop as a watchpoint does, after it.
+//  write to the pending hit's address replaces it (see ShouldReplace). Every
+//  watchpoint the access matches counts it; the first of them that stops
+//  records the hit, and one that only counts is passed over rather than
+//  hiding the others. A write is then offered to the value breakpoints,
+//  which stop as a watchpoint does, after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -464,6 +472,7 @@ void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess acces
     std::optional<Byte>     replaced       = (access == BusAccess::Write) ? previous : std::nullopt;
     std::optional<int32_t>  conditionValue;
     int                     hitId          = 0;
+    bool                    isRecorded     = false;
 
 
 
@@ -491,12 +500,11 @@ void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess acces
 
         ++entry.hits;
 
-        if (entry.stops)
+        if (entry.stops && !isRecorded)
         {
             RecordHit (WatchHit { entry.id, address, value, replaced, watched, m_accessPc, WatchMode::After, conditionValue }, access);
+            isRecorded = true;
         }
-
-        break;
     }
 
     if (access != BusAccess::Write || m_valueBreakpoints == nullptr || m_context == nullptr)

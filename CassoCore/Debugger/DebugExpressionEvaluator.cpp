@@ -130,10 +130,67 @@ HRESULT DebugExpressionEvaluator::Evaluate (
     int32_t                        & value,
     std::string                    & error)
 {
-    HRESULT               hr        = S_OK;
+    HRESULT  hr          = S_OK;
+    bool     isEvaluated = TryEvaluateTokens (expression, context, false, value, error);
+
+
+
+    CBR (isEvaluated);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugExpressionEvaluator::Check
+//
+//  What an expression can be judged on before the machine is in the state it
+//  will be evaluated in: every name resolves and every byte it reads can be
+//  read. A divisor is a value of that later state, so a division by zero
+//  gives zero here instead of failing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DebugExpressionEvaluator::Check (
+    const Expression               & expression,
+    const IDebugExpressionContext  & context,
+    std::string                    & error)
+{
+    HRESULT  hr          = S_OK;
+    int32_t  value       = 0;
+    bool     isEvaluated = TryEvaluateTokens (expression, context, true, value, error);
+
+
+
+    CBR (isEvaluated);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugExpressionEvaluator::TryEvaluateTokens
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugExpressionEvaluator::TryEvaluateTokens (
+    const Expression               & expression,
+    const IDebugExpressionContext  & context,
+    bool                             isChecking,
+    int32_t                        & value,
+    std::string                    & error)
+{
     std::vector<int32_t>  values;
-    bool                  isApplied = true;
-    bool                  isSingle  = false;
 
 
 
@@ -142,17 +199,20 @@ HRESULT DebugExpressionEvaluator::Evaluate (
 
     for (const ExpressionToken & token : expression.postfix)
     {
-        isApplied = TryApplyToken (token, context, values, error);
-        CBR (isApplied);
+        if (!TryApplyToken (token, context, isChecking, values, error))
+        {
+            return false;
+        }
     }
 
-    isSingle = values.size() == 1;
-    CBRF (isSingle, error = "The expression is incomplete.");
+    if (values.size() != 1)
+    {
+        error = "The expression is incomplete.";
+        return false;
+    }
 
     value = values.back();
-
-Error:
-    return hr;
+    return true;
 }
 
 
@@ -595,6 +655,7 @@ void DebugExpressionEvaluator::EmitOperator (ExpressionOperator op, Expression &
 bool DebugExpressionEvaluator::TryApplyToken (
     const ExpressionToken          & token,
     const IDebugExpressionContext  & context,
+    bool                             isChecking,
     std::vector<int32_t>           & values,
     std::string                    & error)
 {
@@ -631,7 +692,7 @@ bool DebugExpressionEvaluator::TryApplyToken (
         {
             lhs = values.back();
             values.pop_back();
-            isDone = TryApplyBinary (token.op, lhs, rhs, result, error);
+            isDone = TryApplyBinary (token.op, lhs, rhs, isChecking, result, error);
         }
     }
 
@@ -750,7 +811,7 @@ bool DebugExpressionEvaluator::TryApplyUnary (
 //
 //  DebugExpressionEvaluator::TryApplyBinary
 //
-//  Comparisons produce 1 or 0.
+//  Comparisons produce 1 or 0. While checking, a division by zero gives 0.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -758,12 +819,19 @@ bool DebugExpressionEvaluator::TryApplyBinary (
     ExpressionOperator   op,
     int32_t              lhs,
     int32_t              rhs,
+    bool                 isChecking,
     int32_t            & result,
     std::string        & error)
 {
     bool  isDivision = op == ExpressionOperator::Divide || op == ExpressionOperator::Modulo;
 
 
+
+    if (isDivision && rhs == 0 && isChecking)
+    {
+        result = 0;
+        return true;
+    }
 
     if (isDivision && rhs == 0)
     {
