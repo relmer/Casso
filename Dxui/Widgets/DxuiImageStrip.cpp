@@ -1140,9 +1140,10 @@ RECT DxuiImageStrip::GetPreviewRectPx() const
 //
 //  DxuiImageStrip::RenderPreview
 //
-//  Popup-local pixels: the picture fills the popup, and the painter, which
-//  draws over the text renderer's pictures, outlines it in the theme's
-//  tooltip border color, as DxuiTooltip outlines its card.
+//  Popup-local pixels: the picture fills the popup, outlined in the theme's
+//  tooltip border color, as DxuiTooltip outlines its card. The outline is
+//  drawn by the text renderer that draws the picture, after it, so the
+//  picture never covers it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1155,8 +1156,13 @@ void DxuiImageStrip::RenderPreview (
     RECT                   placed = {};
     float                  width  = 0.0f;
     float                  height = 0.0f;
+    float                  wide   = 0.0f;
+    float                  tall   = 0.0f;
+    float                  line   = 0.0f;
 
 
+
+    UNREFERENCED_PARAMETER (painter);
 
     if (m_previewImage == nullptr || m_popupHost == nullptr)
     {
@@ -1176,9 +1182,18 @@ void DxuiImageStrip::RenderPreview (
     }
 
     placed = m_preview->GetPlacedRectScreenPx();
+    wide   = (float) (placed.right  - placed.left);
+    tall   = (float) (placed.bottom - placed.top);
+    line   = (std::max) (1.0f, std::round (scaler->ToPxf (kPreviewBorderDip)));
 
-    painter.OutlineRect (0.0f, 0.0f, (float) (placed.right - placed.left), (float) (placed.bottom - placed.top),
-                         (std::max) (1.0f, std::round (scaler->ToPxf (kPreviewBorderDip))), m_previewBorderArgb);
+    hr = text.FillRect (0.0f,        0.0f,        wide, line, m_previewBorderArgb | 0xFF000000u);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    hr = text.FillRect (0.0f,        tall - line, wide, line, m_previewBorderArgb | 0xFF000000u);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    hr = text.FillRect (0.0f,        0.0f,        line, tall, m_previewBorderArgb | 0xFF000000u);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    hr = text.FillRect (wide - line, 0.0f,        line, tall, m_previewBorderArgb | 0xFF000000u);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
