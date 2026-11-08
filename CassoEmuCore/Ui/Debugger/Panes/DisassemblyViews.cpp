@@ -1542,8 +1542,11 @@ void DisassemblyGroup::SelectEdgeAfterScroll (int view, bool isTop)
 //
 //  DisassemblyGroup::SelectAsked
 //
-//  The instruction a snapshot asks the view to select, as Show last writer
-//  does, once per snapshot.
+//  Selects the instruction a snapshot specifies (codeSelect), once per
+//  request (codeSelectSerial). The view's tab is brought to the front and the
+//  view is focused, so the row is drawn in the focused selection color. A
+//  request whose line is not in the view yet is applied from a later
+//  snapshot that contains it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1553,23 +1556,25 @@ void DisassemblyGroup::SelectAsked (
     const std::vector<DebuggerViewSnapshot::CodeLine>   & lines,
     const std::vector<DisassemblyOptions::Row>          & built)
 {
-    std::optional<Word>  asked = snapshot.codeSelect[(size_t) view];
+    std::optional<Word>  asked  = snapshot.codeSelect[(size_t) view];
+    uint32_t             serial = snapshot.codeSelectSerial[(size_t) view];
 
 
 
-    if (!asked.has_value() || m_askedFrom[(size_t) view] == &snapshot)
+    if (!asked.has_value() || serial == m_askedSerial[(size_t) view])
     {
         return;
     }
-
-    m_askedFrom[(size_t) view] = &snapshot;
 
     for (size_t i = 0; i < lines.size(); i++)
     {
         if (lines[i].address == *asked)
         {
-            m_selected[(size_t) view] = *asked;
+            m_askedSerial[(size_t) view] = serial;
+            m_selected[(size_t) view]    = *asked;
             GetCodeList (view)->SetSelectedRow (DisassemblyOptions::GetRowOfLine (built, (int) i));
+            m_host.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
+            m_host.FocusControl (GetCodeList (view));
             return;
         }
     }
@@ -2134,7 +2139,7 @@ DxuiListView * DisassemblyGroup::FindCodeListAt (POINT clientPx, int & view) con
 //
 //  DisassemblyGroup::AddOperandSymbol
 //
-//  The symbol the instruction's operand is written with, "COUT = $FDED",
+//  The symbol the instruction's operand is written with, "COUT=$FDED",
 //  ahead of the operand column's values, its name in the symbol color, so
 //  it is read without the operand tip.
 //
@@ -2156,7 +2161,7 @@ void DisassemblyGroup::AddOperandSymbol (DxuiListView::Cell & cell, const Debugg
         return;
     }
 
-    symbol = std::format (L"{} = ${:04X}", TextEncoding::NarrowToWide (name), address);
+    symbol = std::format (L"{}=${:04X}", TextEncoding::NarrowToWide (name), address);
     shift  = (int) symbol.size() + (cell.text.empty() ? 0 : 2);
 
     for (auto & [start, end, argb] : cell.colorRanges)
@@ -2343,7 +2348,7 @@ bool DisassemblyGroup::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstr
     }
 
     about = SymbolDescriptions::Find (name);
-    text  = std::format (L"{} = ${:04X}", TextEncoding::NarrowToWide (name), address);
+    text  = std::format (L"{}=${:04X}", TextEncoding::NarrowToWide (name), address);
 
     if (about != nullptr)
     {
@@ -2400,7 +2405,7 @@ bool DisassemblyGroup::TryGetOperandSymbol (int view, int row, std::wstring & te
             return false;
         }
 
-        text = std::format (L"{} = ${:04X}", TextEncoding::NarrowToWide (name), address);
+        text = std::format (L"{}=${:04X}", TextEncoding::NarrowToWide (name), address);
         return true;
     }
 

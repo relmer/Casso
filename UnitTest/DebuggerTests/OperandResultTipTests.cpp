@@ -511,12 +511,12 @@ namespace OperandResultTipTests
             placement.segments.push_back (MakeSegment (L"BNE w_inner", kCodeLeft, placement));
             placement.segments.push_back (MakeOperand ("Z=0", "PC=$60BA; 3 cycles", placement));
             placement.operand = 1;
-            placement.symbol  = L"w_inner = $60BA";
+            placement.symbol  = L"w_inner=$60BA";
 
             Assert::IsTrue   (OperandResultTip::TryMakeLayout (placement, text, layout));
             Assert::AreEqual (3, layout.lineCount);
-            Assert::AreEqual (std::wstring (L"BNE w_inner"),                GetLineText (layout, 0));
-            Assert::AreEqual (std::wstring (L"Z=0 w_inner = $60BA"),        GetLineText (layout, 1), L"the symbol another of the operand's values");
+            Assert::AreEqual (std::wstring (L"BNE w_inner"),       GetLineText (layout, 0));
+            Assert::AreEqual (std::wstring (L"Z=0 w_inner=$60BA"), GetLineText (layout, 1), L"the symbol another of the operand's values");
             Assert::AreEqual (std::wstring (L"Result: PC=$60BA; 3 cycles"), GetLineText (layout, 2));
             Assert::AreEqual ((float) kCodeLeft, GetLine (layout, 1)[0].leftPx, L"the operand under the mnemonic");
             Assert::AreEqual ((float) kCodeLeft, GetLine (layout, 2)[0].leftPx, L"the result under the mnemonic");
@@ -553,10 +553,10 @@ namespace OperandResultTipTests
             Assert::AreEqual (kResult,  GetLine (layout, 1)[0].colors.front(), L"the result's color");
 
             //  The symbol joins the operand on its line.
-            placement.symbol = L"w_inner = $60BA";
+            placement.symbol = L"w_inner=$60BA";
 
             Assert::IsTrue   (OperandResultTip::TryMakeLayout (placement, text, layout));
-            Assert::AreEqual (std::wstring (L"A=00 X=01 $1234=41 w_inner = $60BA"), GetLineText (layout, 0));
+            Assert::AreEqual (std::wstring (L"A=00 X=01 $1234=41 w_inner=$60BA"), GetLineText (layout, 0));
         }
 
 
@@ -1367,7 +1367,7 @@ namespace OperandResultTipTests
             window.GetOperandTips().SetDeviceForTest (&text, MakeScreen());
 
             list = window.GetCodeList (0);
-            Assert::IsTrue (list->GetCellsOfRow (0)[DisassemblyCells::kOperandColumn].text.starts_with (L"w_inner = $60BA  Z=0"), L"the operand column has the symbol");
+            Assert::IsTrue (list->GetCellsOfRow (0)[DisassemblyCells::kOperandColumn].text.starts_with (L"w_inner=$60BA  Z=0"), L"the operand column has the symbol");
 
             list->Paint (painter, text, theme);
 
@@ -1379,14 +1379,14 @@ namespace OperandResultTipTests
             Send (window, DxuiMouseEventKind::Move, at);
             Assert::IsFalse (window.GetOperandTips().HasTip(), L"the row fits");
             Assert::IsTrue  (list->TryGetTip (local, tip), L"the symbol has no tip");
-            Assert::IsTrue  (tip.text.starts_with (L"w_inner = $60BA"), tip.text.c_str());
+            Assert::IsTrue  (tip.text.starts_with (L"w_inner=$60BA"), tip.text.c_str());
 
             list->SetColumnOverrideWidthPx (DisassemblyCells::kInstructionColumn, kWindowWidth * 2);
             list->Paint (painter, text, theme);
 
             Send (window, DxuiMouseEventKind::Move, at);
             Assert::IsTrue   (window.GetOperandTips().HasTip(), L"the operand out of view has no tip");
-            Assert::AreEqual (std::wstring (L"w_inner = $60BA  Z=0"), GetLine (window.GetOperandTips().GetLayout(), 0)[0].text,
+            Assert::AreEqual (std::wstring (L"w_inner=$60BA  Z=0"), GetLine (window.GetOperandTips().GetLayout(), 0)[0].text,
                               L"the symbol first among the operand's values, as in its column");
             Assert::AreEqual (std::wstring (L"Result: PC=$60BA; 3 cycles"), GetLine (window.GetOperandTips().GetLayout(), 1)[0].text);
 
@@ -1451,7 +1451,7 @@ namespace OperandResultTipTests
             Assert::IsTrue (window.GetOperandTips().HasTip(), L"the operand out of view has no tip");
             Assert::IsTrue (window.GetOperandTips().GetLayout().hasSymbol);
 
-            Assert::IsTrue (list->TryGetTip (POINT { label.left + 1, (label.top + label.bottom) / 2 }, tip) && tip.text.starts_with (L"w_outer = $6100"),
+            Assert::IsTrue (list->TryGetTip (POINT { label.left + 1, (label.top + label.bottom) / 2 }, tip) && tip.text.starts_with (L"w_outer=$6100"),
                             L"the label's symbol tip doesn't come up");
 
             tip = DxuiTip();
