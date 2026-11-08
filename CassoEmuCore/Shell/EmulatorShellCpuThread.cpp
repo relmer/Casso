@@ -24,6 +24,7 @@
 #include "Machines/Apple2/Common/SscSwitches.h"
 #include "Machines/Apple2/Common/SuperSerialCard.h"
 #include "Machines/Apple2/Common/UthernetCard.h"
+#include "Net/FirewallText.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Core/TextEncoding.h"
 #include "Ui/PrinterPanel.h"
@@ -262,8 +263,9 @@ void EmulatorShell::ConfigureNetworkCard (const NetworkCardSettings & settings)
 //
 //  The ports the guest cannot listen on, as the network card's infobar
 //  sentence, with the machine's serial connector when that connector has the
-//  port. Passed to the infobar only when it changes; a frame with no failed
-//  listen builds nothing.
+//  port, and then the ports deferred until the firewall admits them. Passed to
+//  the infobar only when it changes; a frame with no failed or deferred listen
+//  builds nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -271,6 +273,7 @@ void EmulatorShell::ReportUthernetListenFailures()
 {
     UthernetCard *                                 card     = m_machine.GetRefs().uthernet;
     std::vector<W5100SocketBridge::ListenFailure>  failures;
+    std::vector<FirewallPort>                      deferred;
     std::wstring                                   text;
     std::wstring                                   serialText;
     std::wstring                                   sentence;
@@ -281,6 +284,13 @@ void EmulatorShell::ReportUthernetListenFailures()
     if (card != nullptr)
     {
         failures = card->GetBridge().GetFailedListens();
+        deferred = card->GetDeferredPorts();
+    }
+
+    for (const FirewallPort & port : deferred)
+    {
+        sentence = FirewallText::DescribeCause (m_listenGate.Check (port.protocol, port.port), ShellNetworkCard::kFirewallTitle, port);
+        text    += (text.empty() ? L"" : L"\n") + sentence;
     }
 
     for (const W5100SocketBridge::ListenFailure & failure : failures)
@@ -298,7 +308,7 @@ void EmulatorShell::ReportUthernetListenFailures()
     if (text != m_lastListenProblem)
     {
         m_lastListenProblem = text;
-        m_networkCard->NoteListenProblem (text, serialText);
+        m_networkCard->NoteListenProblem (text, serialText, deferred);
     }
 }
 

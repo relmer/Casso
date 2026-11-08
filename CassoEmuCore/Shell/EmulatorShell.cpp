@@ -185,6 +185,7 @@ EmulatorShell::EmulatorShell() :
     m_printer->BindBuildServices (services);
 
     services.hostNetwork            = &m_hostNetwork;
+    services.listenGate             = &m_listenGate;
     services.traceCapacity          = &m_traceCapacity;
     services.imageWatchDisabled     = &m_imageWatchDisabled;
     services.streamFactory          = m_streamFactory.get();
@@ -745,6 +746,9 @@ HRESULT EmulatorShell::Initialize (
     CHRA (hr);
 
     m_window->m_fOleInitialized = true;
+
+    //  The firewall's verdicts, before the guest can listen on a port.
+    m_networkCard->ReadFirewall (true);
 
     m_renderer->AllocateFramebuffers();
 

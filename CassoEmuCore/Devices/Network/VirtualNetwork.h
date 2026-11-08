@@ -63,6 +63,10 @@ public:
     //  LAN access is on.
     void  GetInboundPorts (std::vector<FirewallPort> & outPorts) const { m_udp.GetInboundPorts (outPorts); }
 
+    //  The port forwards deferred until the firewall admits their host ports.
+    void  SetListenGate    (const ListenGate * gate) { m_forwarder.SetListenGate (gate); }
+    void  GetDeferredPorts (std::vector<FirewallPort> & outPorts) const { m_forwarder.GetDeferredPorts (outPorts); }
+
     // The DHCP server, for DHCP that arrives through a hardware UDP socket.
     std::vector<Byte>  ProcessDhcp (std::span<const Byte> request) const { return m_dhcp.Process (request); }
 

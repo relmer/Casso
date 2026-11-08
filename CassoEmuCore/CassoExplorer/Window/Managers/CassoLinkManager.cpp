@@ -974,6 +974,12 @@ void CassoLinkManager::PollFirewall()
     if (m_context.app.firewall->GetVersion() != m_firewallVersion)
     {
         m_firewallVersion = m_context.app.firewall->GetVersion();
+
+        if (m_context.app.links != nullptr)
+        {
+            m_context.app.links->ApplyFirewall();
+        }
+
         RefreshCassoLinkViews();
     }
 }

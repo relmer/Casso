@@ -72,6 +72,11 @@ public:
     // thread: the pump copies them under a lock.
     std::vector<FirewallPort>  GetInboundPorts () const;
 
+    // The gate the guest's listeners and the port forwards wait on, and the
+    // ports deferred until it admits them. GetDeferredPorts is for the CPU thread.
+    void                       SetListenGate    (const ListenGate * gate) { m_bridge.SetListenGate (gate); m_network.SetListenGate (gate); }
+    std::vector<FirewallPort>  GetDeferredPorts () const;
+
     void  Tick (uint32_t cycles)
     {
         m_cyclesSincePump += cycles;

@@ -155,6 +155,7 @@
     <ClCompile Include="Core\JsonParser.cpp" />
     <ClCompile Include="Net\FirewallCheck.cpp" />
     <ClCompile Include="Net\FirewallMonitor.cpp" />
+    <ClCompile Include="Net\ListenGate.cpp" />
     <ClCompile Include="Net\FirewallRemedy.cpp" />
     <ClCompile Include="Net\FirewallText.cpp" />
     <ClCompile Include="Net\WinHttpClient.cpp" />
@@ -704,6 +705,7 @@
     <ClInclude Include="Net\IHttpClient.h" />
     <ClInclude Include="Net\FirewallCheck.h" />
     <ClInclude Include="Net\FirewallMonitor.h" />
+    <ClInclude Include="Net\ListenGate.h" />
     <ClInclude Include="Net\FirewallRemedy.h" />
     <ClInclude Include="Net\FirewallText.h" />
     <ClInclude Include="Net\WinHttpClient.h" />

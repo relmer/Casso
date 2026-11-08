@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Network/VirtualSubnet.h"
+#include "Net/ListenGate.h"
 
 #include "DhcpTestPackets.h"
 #include "UthernetRig.h"
@@ -595,6 +596,142 @@ namespace W5100SocketBridgeTests
             Assert::AreEqual (DhcpTestPackets::kOffer,    DhcpTestPackets::GetMessageType (got.payload));
             Assert::AreEqual (VirtualSubnet::kGuestIp,    DhcpTestPackets::GetYourAddress (got.payload));
             Assert::AreEqual (kXid,                       DhcpTestPackets::GetXid (got.payload));
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  W5100SocketBridgeGateTests
+    //
+    //  A port the firewall does not admit is deferred rather than opened, so
+    //  no Windows Firewall prompt appears for it. It opens once the gate
+    //  admits it.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (W5100SocketBridgeGateTests)
+    {
+    public:
+
+        static constexpr const wchar_t *  kProgram = L"C:\\Casso\\Casso.exe";
+
+        static FirewallProgram MakeProgram()
+        {
+            FirewallProgram  program;
+
+            program.path = kProgram;
+
+            return program;
+        }
+
+
+        //  A private network with the firewall on and no rule for Casso, or
+        //  with an allow rule for each port given.
+        static FirewallSnapshot MakeSnapshot (std::initializer_list<FirewallPort> admitted)
+        {
+            FirewallSnapshot  snapshot;
+
+            snapshot.active = FirewallProfile::Private;
+
+            for (const FirewallPort & port : admitted)
+            {
+                FirewallRule  rule;
+
+                rule.name        = L"Casso";
+                rule.application = kProgram;
+                rule.anyProtocol = false;
+                rule.protocol    = port.protocol;
+                rule.localPorts  = std::to_wstring (port.port);
+                rule.profiles    = FirewallProfile::Private;
+
+                snapshot.rules.push_back (rule);
+            }
+
+            return snapshot;
+        }
+
+
+        static NetworkCardSettings MakeLanSettings()
+        {
+            NetworkCardSettings  settings;
+
+            settings.lanAccess = true;
+
+            return settings;
+        }
+
+
+
+
+        TEST_METHOD (AListenTheGateRefuses_ListensWithNoPcSocket_UntilAdmitted)
+        {
+            UthernetRig  rig (MakeLanSettings());
+            ListenGate   gate;
+
+            gate.Set (MakeSnapshot ({}), MakeProgram());
+            rig.card.GetBridge().SetListenGate (&gate);
+
+            rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
+            rig.bus.Command (0, R::kCmdListen);
+            rig.Pump();
+
+            Assert::AreEqual (R::kSockListen, rig.bus.Status (0), L"the guest's socket listens");
+            Assert::IsNull   (rig.network.FindBound (HostSocketKind::Tcp, kAdtPro).get(), L"and no PC socket is opened");
+            Assert::IsTrue   (rig.card.GetBridge().GetDeferredPorts() == std::vector<FirewallPort> { { HostSocketKind::Tcp, kAdtPro } });
+            Assert::IsTrue   (rig.card.GetBridge().GetFailedListens().empty(), L"a deferred port is not a failed listen");
+
+            gate.Set (MakeSnapshot ({ { HostSocketKind::Tcp, kAdtPro } }), MakeProgram());
+            rig.Pump();
+
+            Assert::IsNotNull (rig.network.FindBound (HostSocketKind::Tcp, kAdtPro).get(), L"the PC socket opens once admitted");
+            Assert::AreEqual  (R::kSockListen, rig.bus.Status (0));
+            Assert::IsTrue    (rig.card.GetBridge().GetDeferredPorts().empty());
+        }
+
+
+        //  With LAN access off a listener binds 127.0.0.1, which the firewall
+        //  does not filter, so nothing is deferred.
+        TEST_METHOD (WithLanAccessOff_AListenIsNotHeld)
+        {
+            UthernetRig  rig;
+            ListenGate   gate;
+
+            gate.Set (MakeSnapshot ({}), MakeProgram());
+            rig.card.GetBridge().SetListenGate (&gate);
+
+            rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
+            rig.bus.Command (0, R::kCmdListen);
+            rig.Pump();
+
+            Assert::IsNotNull (rig.network.FindBound (HostSocketKind::Tcp, kAdtPro).get());
+            Assert::IsTrue    (rig.card.GetBridge().GetDeferredPorts().empty());
+        }
+
+
+        TEST_METHOD (AUdpSocketTheGateRefuses_OpensWithNoPcSocket_UntilAdmitted)
+        {
+            UthernetRig  rig (MakeLanSettings());
+            ListenGate   gate;
+
+            gate.Set (MakeSnapshot ({}), MakeProgram());
+            rig.card.GetBridge().SetListenGate (&gate);
+
+            rig.OpenSocket (1, R::kProtocolUdp, kPeerPort);
+            rig.Pump();
+
+            Assert::AreEqual (R::kSockUdp, rig.bus.Status (1), L"the guest's socket is open");
+            Assert::IsNull   (rig.network.FindBound (HostSocketKind::Udp, kPeerPort).get(), L"and no PC socket is bound");
+            Assert::IsTrue   (rig.card.GetInboundPorts() == std::vector<FirewallPort> { { HostSocketKind::Udp, kPeerPort } }, L"the deferred port is one Allow admits");
+
+            gate.Set (MakeSnapshot ({ { HostSocketKind::Udp, kPeerPort } }), MakeProgram());
+            rig.Pump();
+
+            Assert::IsNotNull (rig.network.FindBound (HostSocketKind::Udp, kPeerPort).get(), L"the PC socket binds once admitted");
+            Assert::IsTrue    (rig.card.GetBridge().GetDeferredPorts().empty());
         }
     };
 }

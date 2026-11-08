@@ -2055,6 +2055,12 @@ source and read the manifest. Repeat on a real //c with real floppies.
   opened: a port forward's, which the user chooses, and any other port the
   guest opens that the address translation mirrors onto the PC. Only the
   link's own ports are fixed enough to declare.
+- **FR-152**: Neither program MUST open a port on the PC's addresses that the
+  firewall does not admit on the categories of the networks the PC is
+  connected to, so no Windows Firewall prompt appears for it. The port MUST
+  wait, with the program's warning and its Allow, and MUST open once the
+  port is admitted. An interface with no network identified, such as Hyper-V's
+  Default Switch, MUST NOT add its category.
 
 **Full Send**
 

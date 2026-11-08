@@ -64,6 +64,10 @@ struct MachineBuildServices
     IHostNetwork   *  hostNetwork             = nullptr;
     uint64_t       *  printerAutoOpenActivity = nullptr;
 
+    //  Whether the firewall admits a port the Uthernet II listens on. With
+    //  null, every port opens.
+    const class ListenGate *  listenGate = nullptr;
+
     const float  *  drivePan          = nullptr;    // two entries
     const float  *  driveMotorVolume  = nullptr;
     const float  *  driveHeadVolume   = nullptr;

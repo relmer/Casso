@@ -57,21 +57,83 @@ CassoLinkConnections::~CassoLinkConnections()
 
 void CassoLinkConnections::SetLinks (const std::vector<CassoLinkSettings> & links)
 {
+    m_saved = links;
+
+    //  The verdicts are read before a link starts or the listener opens, so
+    //  no port the firewall does not admit is opened at launch.
+    if (m_firewall != nullptr)
+    {
+        m_firewall->Update();
+        m_gate.Set (m_firewall->GetSnapshot(), m_firewall->GetProgram());
+    }
+
+    ApplyListening();
+    Merge();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::ApplyFirewall
+//
+//  A Wi-Fi modem whose port the gate did not admit opens on its session's next attempt.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::ApplyFirewall()
+{
+    if (m_firewall != nullptr)
+    {
+        m_gate.Set (m_firewall->GetSnapshot(), m_firewall->GetProgram());
+    }
+
+    ApplyListening();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::ApplyListening
+//
+//  With the port bound by another program without reuse, no Apple is listed
+//  from an announcement; nothing else depends on them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::ApplyListening()
+{
     HRESULT  hr = S_OK;
 
 
 
-    m_saved = links;
-
-    //  With the port bound by another program without reuse, no Apple is
-    //  listed from an announcement; nothing else depends on them.
     if (m_announcements != nullptr)
     {
-        hr = m_announcements->SetListening (IsSearching());
+        hr = m_announcements->SetListening (IsSearching() && IsAnnounceAdmitted());
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
+}
 
-    Merge();
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::IsAnnounceAdmitted
+//
+//  Until the firewall is read, nothing is known to admit the port.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::IsAnnounceAdmitted() const
+{
+    return m_firewall == nullptr || (m_firewall->GetVersion() != 0 && m_firewall->Check (HostSocketKind::Udp, LinkProgram::kAnnouncePort).IsAdmitted());
 }
 
 
@@ -646,6 +708,7 @@ HRESULT CassoLinkConnections::StartLink (const std::string & name, bool search, 
     }
 
     link->session  = std::make_unique<CassoLinkSession> (m_factory, link->folder ? *link->folder : m_folder, m_fileIo, *link->sink);
+    link->session->SetListenGate (&m_gate);
 
     {
         std::lock_guard<std::mutex>  lock (m_lock);

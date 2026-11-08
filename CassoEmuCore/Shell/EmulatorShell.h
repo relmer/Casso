@@ -14,6 +14,7 @@
 #include "Seams/Win32HostFirewall.h"
 #include "Seams/Win32NetworkChanges.h"
 #include "Net/FirewallMonitor.h"
+#include "Net/ListenGate.h"
 #include "Shell/Input/CapsLockTracker.h"
 #include "Shell/Input/ShellKeyRouting.h"
 #include "Shell/CpuCommandDispatcher.h"
@@ -730,6 +731,7 @@ private:
     Win32NetworkChanges     m_networkChanges;
     Win32HostFirewall       m_hostFirewall;
     FirewallMonitor         m_firewall;
+    ListenGate              m_listenGate;   // the firewall's verdicts, for the Uthernet II's CPU-thread listens
 
     //  Notices raised before the window exists, displayed once it does.
     std::vector<std::wstring>  m_pendingNotices;

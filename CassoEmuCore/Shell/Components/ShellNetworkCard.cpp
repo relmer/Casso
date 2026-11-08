@@ -1,6 +1,10 @@
 #include "Pch.h"
 
 #include "Shell/Components/ShellNetworkCard.h"
+#include "Devices/Disk/ChangePrompt.h"
+#include "Net/FirewallRemedy.h"
+#include "Net/FirewallText.h"
+#include "Seams/Win32FirewallHelper.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/EmulatorShell.h"
 
@@ -21,6 +25,28 @@ ShellNetworkCard::ShellNetworkCard (EmulatorShell & shell)
     m_banner.SetDismissible (true);
     m_banner.SetVisible     (false);
     m_banner.SetOnDismiss   ([this] () { Show (false); });
+    m_banner.SetOnAction    ([this] (size_t) { OnAllow(); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ~ShellNetworkCard
+//
+//  A running helper is left to exit; only the handle is closed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellNetworkCard::~ShellNetworkCard()
+{
+    if (m_firewallHelper != nullptr)
+    {
+        CloseHandle (m_firewallHelper);
+        m_firewallHelper = nullptr;
+    }
 }
 
 
@@ -36,7 +62,7 @@ ShellNetworkCard::ShellNetworkCard (EmulatorShell & shell)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellNetworkCard::NoteListenProblem (const wstring & text, const wstring & serialText)
+void ShellNetworkCard::NoteListenProblem (const wstring & text, const wstring & serialText, const std::vector<FirewallPort> & deferred)
 {
     lock_guard<mutex>  guard (m_pendingLock);
 
@@ -44,9 +70,10 @@ void ShellNetworkCard::NoteListenProblem (const wstring & text, const wstring & 
 
     m_pendingSerial = serialText;
 
-    if (text != m_pending)
+    if (text != m_pending || deferred != m_pendingDeferred)
     {
-        m_pending = text;
+        m_pending     = text;
+        m_pendingDeferred = deferred;
         ++m_pendingGeneration;
     }
 }
@@ -110,10 +137,19 @@ void ShellNetworkCard::Tick()
 
 
 
+    ReadFirewall (false);
+
     if (generation != m_appliedGeneration)
     {
-        m_appliedGeneration = generation;
-        text                = GetListenProblem();
+        {
+            lock_guard<mutex>  guard (m_pendingLock);
+
+            m_appliedGeneration = generation;
+            text                = m_pending;
+            m_deferred              = m_pendingDeferred;
+        }
+
+        m_banner.SetActions (m_deferred.empty() ? std::vector<std::wstring>() : std::vector<std::wstring> { FirewallText::kAllowShortAction });
 
         if (text != m_shown)
         {
@@ -121,6 +157,93 @@ void ShellNetworkCard::Tick()
             m_banner.SetText (text);
             Show (!text.empty());
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadFirewall
+//
+//  The helper changes the rules without a notification, so its exit marks
+//  the snapshot out of date. The gate is set only when the monitor read the
+//  firewall again, so a deferred socket opens only after a new reading.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellNetworkCard::ReadFirewall (bool force)
+{
+    HRESULT   result = S_OK;
+    uint64_t  now    = GetTickCount64();
+
+
+
+    if (m_firewallHelper != nullptr && Win32FirewallHelper::TryFinish (m_firewallHelper, result))
+    {
+        m_shell.m_firewall.Invalidate();
+        force = true;
+
+        if (FAILED (result))
+        {
+            m_shown = m_shown + L"\nWindows Firewall could not be changed: " + ChangePrompt::DescribeError (result);
+            m_banner.SetText (m_shown);
+            Show (true);
+        }
+    }
+
+    if (!force && now < m_nextFirewallReadMs)
+    {
+        return;
+    }
+
+    m_nextFirewallReadMs = now + kFirewallReadMs;
+    m_shell.m_firewall.Update();
+
+    if (m_shell.m_firewall.GetVersion() != m_gateFirewallVersion)
+    {
+        m_gateFirewallVersion = m_shell.m_firewall.GetVersion();
+        m_shell.m_listenGate.Set (m_shell.m_firewall.GetSnapshot(), m_shell.m_firewall.GetProgram());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnAllow
+//
+//  The helper admits every deferred port on the profiles of the networks the PC
+//  is connected to. Declining the UAC prompt changes nothing and is not an
+//  error.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellNetworkCard::OnAllow()
+{
+    HRESULT       hr = S_OK;
+    FirewallPlan  plan;
+
+
+
+    BAIL_OUT_IF (m_deferred.empty() || m_firewallHelper != nullptr, S_OK);
+
+    plan = FirewallRemedy::MakePlan (m_shell.m_firewall.GetSnapshot(), m_shell.m_firewall.GetProgram(), kFirewallTitle, m_deferred, false);
+    BAIL_OUT_IF (plan.ports.empty(), S_OK);
+
+    hr = Win32FirewallHelper::Launch (m_shell.m_hwnd, plan, m_firewallHelper);
+    BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED), S_OK);
+    CHR (hr);
+
+Error:
+    if (FAILED (hr))
+    {
+        m_shown = m_shown + L"\nWindows Firewall could not be changed: " + ChangePrompt::DescribeError (hr);
+        m_banner.SetText (m_shown);
     }
 }
 

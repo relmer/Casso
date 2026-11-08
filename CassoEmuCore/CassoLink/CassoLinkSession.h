@@ -12,6 +12,7 @@
 class IByteStream;
 class IByteStreamFactory;
 class IDiskFileIo;
+class ListenGate;
 
 
 
@@ -65,6 +66,12 @@ public:
 
     //  How long a disconnected session waits before connecting again.
     void       SetRetryInterval (DWORD retryMs) { m_connector.m_retryMs = retryMs; }
+
+    //  Whether the firewall admits the port a Wi-Fi modem connection listens
+    //  on. A port it does not admit is not opened, so no Windows Firewall
+    //  prompt appears for it, and the next attempt opens it once admitted.
+    //  With null, every port opens.
+    void       SetListenGate (const ListenGate * gate) { m_gate = gate; }
 
     //  The pauses after each line of the loader and each of its characters.
     void  SetBootstrapPause (DWORD pauseMs, DWORD charPauseUs = LinkBootstrap::kCharPauseUs) { m_connector.m_bootstrapPauseMs = pauseMs; m_connector.m_charPauseUs = charPauseUs; }
@@ -195,6 +202,7 @@ private:
     std::array<std::atomic<VolumeKind>, 2>         m_chosenKinds = {};
     std::atomic<bool>                              m_stopping    { false };   // Stop closed the line
     std::shared_ptr<LinkOperation>                 m_running;
+    const ListenGate                             * m_gate        = nullptr;
 
     //  The session's parts, each with the state it uses.
     friend class CassoLinkConnector;

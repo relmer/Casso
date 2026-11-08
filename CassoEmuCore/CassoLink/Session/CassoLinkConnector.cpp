@@ -5,6 +5,7 @@
 #include "CassoLink/CassoLinkSearch.h"
 #include "Core/TextEncoding.h"
 #include "CassoLink/LinkFault.h"
+#include "Net/ListenGate.h"
 #include "Seams/FaultInjectingByteStream.h"
 
 
@@ -655,6 +656,7 @@ HRESULT CassoLinkConnector::OpenStream (DWORD baud, std::stop_token stop)
     std::from_chars_result        digits    = {};
     bool                          addressed = false;
     bool                          reusable  = IsLineOpen() && (!m_session.m_settings.IsComPort() || m_openBaud == baud);
+    bool                          admitted  = false;
 
 
 
@@ -700,6 +702,9 @@ HRESULT CassoLinkConnector::OpenStream (DWORD baud, std::stop_token stop)
 
         if (m_session.m_settings.transport == LinkTransport::WifiModem)
         {
+            admitted = m_session.m_gate == nullptr || m_session.m_gate->Admits (HostSocketKind::Tcp, port);
+            CBREx (admitted, kDeferredByFirewall);
+
             hr = m_session.m_factory.ListenTcp (port, m_session.m_settings.transport, stream);
         }
         else
@@ -766,6 +771,10 @@ std::string CassoLinkConnector::DescribeOpenFailure (HRESULT hr, uint16_t port, 
     if (hr == HRESULT_FROM_WIN32 (WSAEADDRINUSE))
     {
         text = std::format ("TCP port {} is in use by another program.", port);
+    }
+    else if (hr == kDeferredByFirewall)
+    {
+        text = std::format ("TCP port {} isn't open yet, because Windows Firewall would block it. Allow it in Windows Firewall to open it.", port);
     }
     else if (hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED) && !comPort.empty())
     {

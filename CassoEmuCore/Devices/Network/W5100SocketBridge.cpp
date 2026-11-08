@@ -6,6 +6,7 @@
 #include "Devices/Network/VirtualNetwork.h"
 #include "Devices/Network/VirtualSubnet.h"
 #include "Devices/Network/W5100.h"
+#include "Net/ListenGate.h"
 
 using R = W5100Registers;
 
@@ -187,6 +188,129 @@ std::vector<W5100SocketBridge::ListenFailure> W5100SocketBridge::GetFailedListen
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  W5100SocketBridge::GetDeferredPorts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<FirewallPort> W5100SocketBridge::GetDeferredPorts() const
+{
+    std::vector<FirewallPort>  ports;
+
+
+
+    for (const Slot & slot : m_slots)
+    {
+        if (slot.deferred)
+        {
+            ports.push_back ({ slot.phase == Phase::Udp ? HostSocketKind::Udp : HostSocketKind::Tcp, slot.hostPort });
+        }
+    }
+
+    return ports;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100SocketBridge::IsDeferred
+//
+//  With LAN access off a listener binds 127.0.0.1, which the firewall does
+//  not filter, so only a socket bound to the PC's addresses is deferred.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool W5100SocketBridge::IsDeferred (HostSocketKind protocol, uint16_t port) const
+{
+    return m_lanAccess && m_gate != nullptr && port != 0 && !m_gate->Admits (protocol, port);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100SocketBridge::OpenDeferred
+//
+//  Each deferred socket whose port the gate now admits opens its PC socket. A
+//  deferred listener is bound again as a listener the setting moved would be.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void W5100SocketBridge::OpenDeferred()
+{
+    for (int socket = 0; socket < kSocketCount; socket++)
+    {
+        Slot  & slot = m_slots[(size_t) socket];
+        bool    tcp  = slot.phase == Phase::Listening;
+
+        if (!slot.deferred || IsDeferred (tcp ? HostSocketKind::Tcp : HostSocketKind::Udp, slot.hostPort))
+        {
+            continue;
+        }
+
+        slot.deferred = false;
+
+        if (tcp)
+        {
+            Relisten (socket);
+        }
+        else
+        {
+            OpenUdp (socket);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100SocketBridge::OpenUdp
+//
+//  A UDP socket binds its source port on the PC, or an ephemeral one when
+//  the PC has that port taken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void W5100SocketBridge::OpenUdp (int socket)
+{
+    HRESULT   hr   = S_OK;
+    Slot    & slot = m_slots[(size_t) socket];
+    uint16_t  port = m_chip.GetSourcePort (socket);
+
+
+
+    hr = m_hostNetwork->CreateSocket (HostSocketKind::Udp, slot.host);
+    CHR (hr);
+
+    hr = slot.host->Bind ({ VirtualSubnet::kAnyIp, port }, true);
+    slot.hostPort = SUCCEEDED (hr) ? port : 0;
+
+    if (FAILED (hr))
+    {
+        hr = slot.host->Bind ({ VirtualSubnet::kAnyIp, 0 }, true);
+        CHR (hr);
+    }
+
+Error:
+    if (FAILED (hr))
+    {
+        Fail (socket, 0);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  W5100SocketBridge::DescribeListenFailure
 //
 //  A clash with the machine's serial connector is the one the user can fix in
@@ -264,8 +388,7 @@ void W5100SocketBridge::Fail (
 //
 //  W5100SocketBridge::OnOpen
 //
-//  A UDP socket binds its source port on the PC, or an ephemeral one when
-//  the PC has that port taken. Without a host network a UDP socket opens with
+//  Without a host network, or while its port is deferred, a UDP socket opens with
 //  no host socket, so DHCP to the virtual server works.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -291,24 +414,13 @@ void W5100SocketBridge::OnOpen (int socket)
     slot.phase = Phase::Udp;
     BAIL_OUT_IF (m_hostNetwork == nullptr, S_OK);
 
-    hr = m_hostNetwork->CreateSocket (HostSocketKind::Udp, slot.host);
-    CHR (hr);
+    slot.deferred     = IsDeferred (HostSocketKind::Udp, port);
+    slot.hostPort = slot.deferred ? port : 0;
+    BAIL_OUT_IF (slot.deferred, S_OK);
 
-    hr = slot.host->Bind ({ VirtualSubnet::kAnyIp, port }, true);
-    slot.hostPort = SUCCEEDED (hr) ? port : 0;
-
-    if (FAILED (hr))
-    {
-        hr = slot.host->Bind ({ VirtualSubnet::kAnyIp, 0 }, true);
-        CHR (hr);
-    }
+    OpenUdp (socket);
 
 Error:
-    if (FAILED (hr))
-    {
-        Fail (socket, 0);
-    }
-
     return;
 }
 
@@ -361,7 +473,9 @@ Error:
 //  W5100SocketBridge::OnListen
 //
 //  Loopback only unless LAN access is on. A port the PC already uses closes
-//  the socket with TIMEOUT rather than letting it appear to listen.
+//  the socket with TIMEOUT rather than letting it appear to listen. A deferred
+//  port listens on the guest's side with nothing behind it until the gate
+//  admits it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -376,6 +490,17 @@ void W5100SocketBridge::OnListen (int socket)
 
     BAIL_OUT_IF (status != R::kSockInit, S_OK);
     CBR (m_hostNetwork != nullptr);
+
+    if (IsDeferred (HostSocketKind::Tcp, m_chip.GetSourcePort (socket)))
+    {
+        slot.phase    = Phase::Listening;
+        slot.hostPort = m_chip.GetSourcePort (socket);
+        slot.deferred     = true;
+        m_chip.SetSocketStatus (socket, R::kSockListen);
+        m_failedListens.erase (slot.hostPort);
+    }
+
+    BAIL_OUT_IF (slot.deferred, S_OK);
 
     hr = m_hostNetwork->CreateSocket (HostSocketKind::Tcp, slot.host);
     CHR (hr);
@@ -424,9 +549,17 @@ void W5100SocketBridge::SetLanAccess (bool lanAccess)
 
     for (int socket = 0; changed && socket < kSocketCount; socket++)
     {
-        if (m_slots[(size_t) socket].phase == Phase::Listening)
+        Slot  & slot = m_slots[(size_t) socket];
+
+        if (slot.phase == Phase::Listening)
         {
+            slot.deferred = false;
             Relisten (socket);
+        }
+        else if (slot.phase == Phase::Udp && slot.deferred && !IsDeferred (HostSocketKind::Udp, slot.hostPort))
+        {
+            slot.deferred = false;
+            OpenUdp (socket);
         }
     }
 }
@@ -453,6 +586,9 @@ void W5100SocketBridge::Relisten (int socket)
 
     CBR (m_hostNetwork != nullptr);
 
+    slot.deferred = IsDeferred (HostSocketKind::Tcp, slot.hostPort);
+    BAIL_OUT_IF (slot.deferred, S_OK);
+
     hr = m_hostNetwork->CreateSocket (HostSocketKind::Tcp, slot.host);
     CHR (hr);
 
@@ -461,6 +597,8 @@ void W5100SocketBridge::Relisten (int socket)
 
     hr = slot.host->Listen();
     CHRF (hr, NoteListenFailure (slot.hostPort, hr));
+
+    m_failedListens.erase (slot.hostPort);
 
 Error:
     if (FAILED (hr))
@@ -704,6 +842,13 @@ void W5100SocketBridge::Pump (uint64_t now)
 
     m_now = now;
 
+    //  The verdicts may have changed, so a deferred socket may open now.
+    if (m_gate != nullptr && m_gate->GetVersion() != m_gateVersion)
+    {
+        m_gateVersion = m_gate->GetVersion();
+        OpenDeferred();
+    }
+
     m_network.Pump (now, m_slots[0].phase == Phase::MacRaw);
 
     for (socket = 0; socket < kSocketCount; socket++)
@@ -822,6 +967,12 @@ void W5100SocketBridge::PumpListening (int socket)
     bool                           wouldBlock = false;
 
 
+
+    //  A deferred listener has no PC socket to accept on.
+    if (slot.host == nullptr)
+    {
+        return;
+    }
 
     hr = slot.host->Accept (accepted, peer, wouldBlock);
 

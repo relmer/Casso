@@ -6,6 +6,7 @@
 #include "Seams/IHostFirewall.h"
 #include "Seams/IHostNetwork.h"
 
+class ListenGate;
 class VirtualNetwork;
 class W5100;
 
@@ -43,6 +44,11 @@ public:
     void  SetHostNetwork (IHostNetwork * network) { m_hostNetwork = network; }
     void  SetLanAccess   (bool lanAccess);
 
+    //  While LAN access is on, a socket whose PC port the gate does not admit
+    //  is deferred: the guest's socket opens with no PC socket behind it, and
+    //  Pump opens the PC socket once the gate admits the port.
+    void  SetListenGate  (const ListenGate * gate) { m_gate = gate; }
+
     void  OnCommand      (int socket, Byte command) override;
     void  OnReset        ()                         override;
 
@@ -59,6 +65,9 @@ public:
     //  from the list when a listen on it succeeds or the card is reset, so a
     //  guest that listens again every few seconds is one entry, not many.
     std::vector<ListenFailure>  GetFailedListens () const;
+
+    //  The PC ports of the deferred sockets, in socket order.
+    std::vector<FirewallPort>   GetDeferredPorts     () const;
 
     //  A failed listen as a notice's sentence. `serialPort` is the serial
     //  port whose connector has the same TCP port, 0 for none, and `onCard`
@@ -91,13 +100,17 @@ private:
     {
         Phase                         phase       = Phase::Idle;
         std::unique_ptr<IHostSocket>  host;
-        std::vector<Byte>             txQueue;      // copied from TX, not yet taken by the host
+        std::vector<Byte>             txQueue;   // copied from TX, not yet taken by the host
         bool                          sendPending = false;
-        std::set<uint64_t>            udpPeers;     // packed endpoints sent to
+        std::set<uint64_t>            udpPeers;   // packed endpoints sent to
         std::deque<Datagram>          udpPending;   // received, waiting for RX space
         uint16_t                      hostPort    = 0;   // the PC port a listener or UDP socket has; 0 for an ephemeral one
+        bool                          deferred    = false;   // waiting for the gate to admit hostPort
     };
 
+    bool  IsDeferred        (HostSocketKind protocol, uint16_t port) const;
+    void  OpenDeferred      ();
+    void  OpenUdp           (int socket);
     void  CloseSlot         (int socket);
     void  OnOpen            (int socket);
     void  OnConnect         (int socket);
@@ -125,6 +138,8 @@ private:
     W5100                         & m_chip;
     VirtualNetwork                & m_network;
     IHostNetwork                  * m_hostNetwork = nullptr;
+    const ListenGate              * m_gate        = nullptr;
+    uint32_t                        m_gateVersion = 0;   // the gate's version when deferred sockets were last tried
     bool                            m_lanAccess   = false;
     uint64_t                        m_now         = 0;
     std::array<Slot, kSocketCount>  m_slots;

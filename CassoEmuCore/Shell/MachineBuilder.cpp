@@ -850,6 +850,7 @@ HRESULT MachineBuilder::WireUthernet (const MachineConfig & config)
     hr = card->AttachInterruptController (&m_host.GetInterruptController());
     CHR (hr);
 
+    card->SetListenGate (m_services.listenGate);
     card->AttachNetwork (m_services.hostNetwork, *settings);
     m_host.GetRefs().uthernet = card;
 

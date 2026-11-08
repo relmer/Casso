@@ -659,6 +659,40 @@ public:
     }
 
 
+    //  For a search whose port the firewall blocks, the listener stays closed,
+    //  so no Windows Firewall prompt appears for it. The listener opens once
+    //  the port is admitted and the verdicts are applied again.
+    TEST_METHOD (ABlockedSearch_OpensTheListenerOnlyOnceAdmitted)
+    {
+        Rig                 rig;
+        FakeAnnouncements   announcements;
+        FakeFirewall        firewall;
+        FirewallProgram     program;
+        FirewallMonitor     monitor (firewall, nullptr, program);
+        FirewallRule        rule;
+
+        firewall.snapshot.active = FirewallProfile::Private;
+
+        rig.links->SetAnnouncements (&announcements);
+        rig.links->SetFirewall (&monitor);
+        rig.links->SetLinks ({ MakeSearch() });
+
+        Assert::IsFalse (announcements.listening, L"no listener on a port the firewall blocks");
+
+        rule.anyProtocol = false;
+        rule.protocol    = HostSocketKind::Udp;
+        rule.localPorts  = L"6510";
+        rule.profiles    = FirewallProfile::Private;
+        firewall.snapshot.rules = { rule };
+
+        monitor.Invalidate();
+        monitor.Update();
+        rig.links->ApplyFirewall();
+
+        Assert::IsTrue (announcements.listening, L"the listener opens once admitted");
+    }
+
+
     //  The firewall's cause comes first in the entry, and on a public
     //  network the entry offers making the network private.
     TEST_METHOD (ABlockedSearch_HasTheCauseInItsEntry)

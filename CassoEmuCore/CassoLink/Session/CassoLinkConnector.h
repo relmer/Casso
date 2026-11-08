@@ -28,7 +28,10 @@ class CassoLinkConnector
 public:
     explicit CassoLinkConnector (CassoLinkSession & session);
 
-    static constexpr DWORD  kPeerOffMs        = 500;
+    static constexpr DWORD    kPeerOffMs      = 500;
+
+    //  A Wi-Fi modem's port not opened because the firewall does not admit it.
+    static constexpr HRESULT  kDeferredByFirewall = HRESULT_FROM_WIN32 (ERROR_NETWORK_ACCESS_DENIED);
 
     //  Typed at the bootstrap speed after Ctrl-X: Applesoft stores $A5 in the
     //  6551 of the slot IN# set, which sends it to the PC. KSW's high byte at

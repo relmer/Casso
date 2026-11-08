@@ -9,7 +9,9 @@
 #include "CassoLink/RunningCassoRegistry.h"
 #include "CassoExplorer/Model/CassoLinkLogFile.h"
 #include "CassoExplorer/Model/TreeModel.h"
+#include "Net/FirewallMonitor.h"
 #include "Net/FirewallRemedy.h"
+#include "Net/ListenGate.h"
 
 class FirewallMonitor;
 class ICassoLinkFolder;
@@ -78,8 +80,15 @@ public:
 
     //  The firewall's verdicts, for the tree's entries: a connection that other
     //  computers connect or send to, and that the firewall blocks, has the
-    //  cause in its entry.
-    void                                    SetFirewall (const FirewallMonitor * firewall) { m_firewall = firewall; }
+    //  cause in its entry. A port the firewall does not admit is not opened,
+    //  so no Windows Firewall prompt appears for it: the announcement
+    //  listener stays closed and a Wi-Fi modem does not listen until the
+    //  entry's Allow admits the port.
+    void                                    SetFirewall (FirewallMonitor * firewall) { m_firewall = firewall; }
+
+    //  The verdicts read again, applied to the listeners: the manager calls
+    //  it when the firewall's version changes.
+    void                                    ApplyFirewall ();
 
     //  The port other computers send to for a connection: an Uthernet II with no
     //  address receives announcements on UDP 6510, and a Wi-Fi modem dials in
@@ -334,21 +343,24 @@ private:
     const Link  * FindLink (const std::string & name) const;
     bool          TryGetResult (const std::string & name, int drive, const std::string & key, LinkOperationKind kind,
                                 const std::string & path, std::shared_ptr<LinkOperation> & outOperation);
-    void                      Notify        ();
-    HRESULT                   StartLink     (const std::string & name, bool search, std::shared_ptr<LinkOperation> * outBootstrap);
-    HRESULT                   TakePort      (const std::string & name);
-    void                      ApplyVerify   (Link & link) const;
-    std::vector<std::string>  GetPortRivals (const std::string & name);
-    void                      Merge         ();
-    bool                      IsSearching   () const;
-    void                      AddFirewall   (const CassoLinkSettings & settings, LinkTreeEntry & entry) const;
+    void                      Notify             ();
+    HRESULT                   StartLink          (const std::string & name, bool search, std::shared_ptr<LinkOperation> * outBootstrap);
+    HRESULT                   TakePort           (const std::string & name);
+    void                      ApplyVerify        (Link & link) const;
+    std::vector<std::string>  GetPortRivals      (const std::string & name);
+    void                      Merge              ();
+    bool                      IsSearching        () const;
+    bool                      IsAnnounceAdmitted () const;
+    void                      ApplyListening     ();
+    void                      AddFirewall        (const CassoLinkSettings & settings, LinkTreeEntry & entry) const;
 
     IByteStreamFactory                 & m_factory;
     ICassoLinkFolder                   & m_folder;
     FolderMaker                          m_makeFolder;
     IDiskFileIo                        & m_fileIo;
     ILinkAnnouncements                 * m_announcements = nullptr;
-    const FirewallMonitor              * m_firewall      = nullptr;
+    FirewallMonitor                    * m_firewall      = nullptr;
+    ListenGate                           m_gate;          // the verdicts, for the sessions' threads
     std::vector<CassoLinkSettings>       m_saved;
     std::vector<RunningCasso>            m_running;
     std::vector<LinkAnnouncement>        m_announced;
