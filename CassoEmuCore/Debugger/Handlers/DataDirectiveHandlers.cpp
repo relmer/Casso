@@ -144,18 +144,23 @@ void DataDirectiveHandlers::ChooseOperandSymbol (DebugSession & session, Disasse
 //  DataDirectiveHandlers::Define
 //
 //  [name] [addr | range] or name = addr. A lone address covers one item of
-//  the directive's width; no address at all lists the blocks.
+//  the directive's width; no address at all lists the blocks. A block ends
+//  at or after its first address and no later than $FFFF: one that wrapped
+//  would never be found at any address, so could never be shown or removed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DataDirectiveHandlers::Define (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    DataBlockKind      kind      = DataBlockKind::Bytes;
-    int                perLine   = kBytesPerLine;
-    int                itemBytes = 1;
-    Word               last      = 0;
-    DataBlockListData  list;
-    DataBlockEntry     entry;
+    static constexpr uint32_t  kLastAddress = 0xFFFF;
+    DataBlockKind              kind         = DataBlockKind::Bytes;
+    int                        perLine      = kBytesPerLine;
+    int                        itemBytes    = 1;
+    uint32_t                   itemLast     = 0;
+    Word                       last         = 0;
+    DataBlockListData          list;
+    DataBlockEntry             entry;
+    std::string                name         = command.sourceName;
 
 
 
@@ -167,7 +172,22 @@ void DataDirectiveHandlers::Define (DebugSession & session, const DebugCommand &
         return;
     }
 
-    last = command.hasA2 ? command.a2 : (Word) (command.a1 + itemBytes - 1);
+    if (!IsForwardRange (command, reply))
+    {
+        return;
+    }
+
+    itemLast = (uint32_t) command.a1 + (uint32_t) itemBytes - 1;
+
+    if (!command.hasA2 && itemLast > kLastAddress)
+    {
+        std::transform (name.begin(), name.end(), name.begin(), [] (char ch) { return (char) toupper ((unsigned char) ch); });
+        reply.SetError (CommandStatus::Error, "invalid arguments",
+                        std::format ("{} at ${:04X} would end past $FFFF.", name, command.a1));
+        return;
+    }
+
+    last = command.hasA2 ? command.a2 : (Word) itemLast;
     session.GetDataBlocks().Add (command.text, command.a1, last, kind, perLine);
     session.GetDataBlocks().TryFindAt (command.a1, entry);
 
@@ -194,6 +214,11 @@ void DataDirectiveHandlers::Remove (DebugSession & session, const DebugCommand &
     if (!command.hasA1)
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", "X takes the address or range to mark as code again.");
+        return;
+    }
+
+    if (!IsForwardRange (command, reply))
+    {
         return;
     }
 
@@ -234,7 +259,9 @@ void DataDirectiveHandlers::ListBlocks (DebugSession & session, Reply & reply)
 //  DataDirectiveHandlers::List
 //
 //  U range lists the range; U addr lists 20 lines from it; U alone continues
-//  from where the last listing ended.
+//  from where the last listing ended. A range that ends before it begins,
+//  or a length that runs past $FFFF, lists nothing, so it is an error rather
+//  than an empty listing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,6 +272,11 @@ void DataDirectiveHandlers::List (DebugSession & session, const DebugCommand & c
     std::optional<Word>  last;
 
 
+
+    if (!IsForwardRange (command, reply))
+    {
+        return;
+    }
 
     if (command.hasA2)
     {
@@ -344,6 +376,33 @@ bool DataDirectiveHandlers::TryGetShape (const std::string & name, DataBlockKind
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DataDirectiveHandlers::IsForwardRange
+//
+//  A range from `first:last` or `first,len` has its last address at or after
+//  its first. `last` before `first`, or a length that carried past $FFFF and
+//  wrapped, sets the error and is false. A single address is always forward.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DataDirectiveHandlers::IsForwardRange (const DebugCommand & command, Reply & reply)
+{
+    if (!command.hasA1 || !command.hasA2 || command.a2 >= command.a1)
+    {
+        return true;
+    }
+
+    reply.SetError (CommandStatus::Error, "invalid arguments",
+                    std::format ("${:04X}-${:04X} ends before it begins. A range ends at or after its first address, and no later than $FFFF.",
+                                 command.a1, command.a2));
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DataDirectiveHandlers::MakeDataLine
 //
 //  One line of the block from address: as many whole items as fit on a line
@@ -397,7 +456,10 @@ void DataDirectiveHandlers::MakeDataLine (IDebugTarget & target, const DataBlock
 //
 //  Bytes as $xx, words and addresses as $xxxx low byte first, text in
 //  quotes with the high bit dropped and a control character as a period,
-//  and a float as its decimal value. A trailing partial item shows as bytes.
+//  and a float as its decimal value to the nine significant digits Applesoft
+//  prints: its 32-bit mantissa holds no more, and the double's full expansion
+//  shows binary noise, 0.1 as 0.10000000000582077. A trailing partial item
+//  shows as bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -427,7 +489,7 @@ std::string DataDirectiveHandlers::FormatItems (const DataBlockEntry & block, st
 
     if (block.kind == DataBlockKind::Float && bytes.size() == kFloatBytes)
     {
-        return std::format ("{}", DecodeFloat (bytes));
+        return std::format ("{:.9g}", DecodeFloat (bytes));
     }
 
     for (i = 0; i < bytes.size(); ++i)

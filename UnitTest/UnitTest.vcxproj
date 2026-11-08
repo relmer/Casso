@@ -160,6 +160,7 @@
     <ClCompile Include="CpuIrqTests.cpp" />
     <ClCompile Include="AddressingModeTests.cpp" />
     <ClCompile Include="OpcodeTableTests.cpp" />
+    <ClCompile Include="DebuggerTests\DisassembleCommandTests.cpp" />
     <ClCompile Include="DebuggerTests\DisassemblerTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorListing1979Tests.cpp" />
     <ClCompile Include="DebuggerTests\LineAssemblerTests.cpp" />
@@ -242,6 +243,7 @@
     <ClCompile Include="DebuggerTests\EmulatorDebugWiringTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorCommandTableTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorRomFactsTests.cpp" />
+    <ClCompile Include="DebuggerTests\ZzExploreTests.cpp" />
     <ClCompile Include="CycleReferenceTests.cpp" />
     <ClCompile Include="UtilsTests.cpp" />
     <ClCompile Include="ParserTests.cpp" />

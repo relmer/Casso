@@ -354,7 +354,8 @@ void LineAssembler::GetCandidateModes (const Operand & operand, ModeList & modes
 //  LineAssembler::TryEncodeOperand
 //
 //  Appends the operand bytes. Returns false only for a branch whose target is
-//  out of reach.
+//  out of reach. The distance is taken in 16 bits, as the CPU adds the offset
+//  to the program counter, so a branch near $FFFF reaches past $0000.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -376,13 +377,13 @@ bool LineAssembler::TryEncodeOperand (
 
     if (mode == GlobalAddressingMode::Relative)
     {
-        offset    = (int) operand.value - (address + kBranchLength);
+        offset    = (int) (int16_t) (Word) (operand.value - (address + kBranchLength));
         isInRange = offset >= kMinBranchOffset && offset <= kMaxBranchOffset;
         outBytes.push_back ((Byte) offset);
     }
     else if (mode == GlobalAddressingMode::ZeroPageRelative)
     {
-        offset    = (int) operand.target - (address + kBitBranchLength);
+        offset    = (int) (int16_t) (Word) (operand.target - (address + kBitBranchLength));
         isInRange = offset >= kMinBranchOffset && offset <= kMaxBranchOffset;
         outBytes.push_back ((Byte) operand.value);
         outBytes.push_back ((Byte) offset);

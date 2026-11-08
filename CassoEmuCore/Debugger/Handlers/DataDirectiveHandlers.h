@@ -57,6 +57,7 @@ private:
     static void  EnterAssembler (DebugSession & session, const DebugCommand & command, Reply & reply);
 
     static bool  TryGetShape   (const std::string & name, DataBlockKind & kind, int & perLine, int & itemBytes);
+    static bool  IsForwardRange (const DebugCommand & command, Reply & reply);
     static void  MakeDataLine  (IDebugTarget & target, const DataBlockEntry & block, Word address, DisassemblyLine & line);
     static std::string  FormatItems (const DataBlockEntry & block, std::span<const Byte> bytes);
     static double       DecodeFloat (std::span<const Byte> bytes);

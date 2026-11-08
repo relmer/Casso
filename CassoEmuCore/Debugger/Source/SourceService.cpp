@@ -185,6 +185,10 @@ bool SourceService::TryFolder (const DebugSourceFile & record, const std::wstrin
 //  By hash against every record; failing that, by name, which opens with the
 //  mismatch warning; failing that, as plain text with no record at all.
 //
+//  Only a match is remembered: a folder holding an edited copy is not where
+//  the program's sources are, so a mismatch leaves the folder lists alone, as
+//  a mismatch found by searching does.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 SourceLookup SourceService::MatchDropped (const std::vector<DebugSourceFile> & files, const std::wstring & droppedPath,
@@ -228,7 +232,7 @@ SourceLookup SourceService::MatchDropped (const std::vector<DebugSourceFile> & f
         }
     }
 
-    if (recordIndex >= 0)
+    if (recordIndex >= 0 && result.match != SourceMatch::Mismatch)
     {
         m_paths.AddFound (programKey, GetFolder (droppedPath));
     }
@@ -300,13 +304,23 @@ std::wstring SourceService::GetFileName (const std::wstring & path)
 //  A relative path from a folder, with `.` and `..` resolved and backslash
 //  separators. An absolute path is taken as it is.
 //
+//  THE ROOT STAYS. A drive (`C:`) and a share (`\\server\share`) are not
+//  folders a `..` can leave, and a share keeps both of its leading
+//  separators: with one it would name a folder on the current drive.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring SourceService::Combine (const std::wstring & folder, const std::wstring & relative)
 {
-    bool                        isAbsolute = (relative.size() > 1 && relative[1] == L':') ||
-                                             (!relative.empty() && (relative[0] == L'\\' || relative[0] == L'/'));
-    std::wstring                joined     = isAbsolute ? relative : (folder.empty() ? relative : folder + L"\\" + relative);
+    static constexpr size_t     kShareParts = 2;    // the server and the share
+    auto                        isSeparator = [] (wchar_t c) { return c == L'\\' || c == L'/'; };
+    bool                        isAbsolute  = (relative.size() > 1 && relative[1] == L':') ||
+                                              (!relative.empty() && isSeparator (relative[0]));
+    std::wstring                joined      = isAbsolute ? relative : (folder.empty() ? relative : folder + L"\\" + relative);
+    bool                        isRooted    = !joined.empty() && isSeparator (joined[0]);
+    bool                        isShare     = joined.size() > 1 && isSeparator (joined[0]) && isSeparator (joined[1]);
+    bool                        isDrive     = joined.size() > 1 && joined[1] == L':';
+    size_t                      rootParts   = isShare ? kShareParts : isDrive ? 1 : 0;
     std::vector<std::wstring>   parts;
     std::wstring                part;
     std::wstring                result;
@@ -317,17 +331,19 @@ std::wstring SourceService::Combine (const std::wstring & folder, const std::wst
     {
         wchar_t  c = (i < joined.size()) ? joined[i] : L'\\';
 
-        if (c != L'\\' && c != L'/')
+        if (!isSeparator (c))
         {
             part += c;
             continue;
         }
 
-        if (part == L".." && !parts.empty() && parts.back() != L"..")
+        //  A `..` above a rooted path's root has nowhere to go and is dropped;
+        //  a relative path keeps its leading ones.
+        if (part == L".." && parts.size() > rootParts && parts.back() != L"..")
         {
             parts.pop_back();
         }
-        else if (!part.empty() && part != L".")
+        else if (!part.empty() && part != L"." && !(part == L".." && (isRooted || isDrive)))
         {
             parts.push_back (part);
         }
@@ -340,5 +356,5 @@ std::wstring SourceService::Combine (const std::wstring & folder, const std::wst
         result += (result.empty() ? L"" : L"\\") + each;
     }
 
-    return (!joined.empty() && (joined[0] == L'\\' || joined[0] == L'/')) ? L"\\" + result : result;
+    return isShare ? L"\\\\" + result : isRooted ? L"\\" + result : result;
 }

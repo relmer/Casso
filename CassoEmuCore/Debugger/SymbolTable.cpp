@@ -370,7 +370,9 @@ bool SymbolTable::TryFindNameIn (SymbolTableId table, Word address, std::string 
 //
 //  SymbolTable::LoadFrom
 //
-//  The table is replaced by the file's symbols.
+//  The table is replaced by the file's symbols. The offset moves every
+//  address the file places, and not a value it defines: a cc65 equate stays
+//  what it was written as.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -391,7 +393,7 @@ HRESULT SymbolTable::LoadFrom (SymbolTableId table, const std::string & content,
 
     for (const SymbolFileEntry & symbol : symbols)
     {
-        Add (table, symbol.name, (Word) (symbol.address + offset));
+        Add (table, symbol.name, (Word) (symbol.address + (symbol.isRelocatable ? offset : 0)));
     }
 
     loaded = symbols.size();

@@ -277,14 +277,15 @@ void SymbolHandlers::List (DebugSession & session, const DebugCommand & command,
 
 void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    IFileSystem   * files  = session.GetFileSystem();
-    SymbolTableId   table  = SymbolTableId::User;
-    std::string     name;
-    std::string     content;
-    std::string     error;
-    int             offset = 0;
-    size_t          loaded = 0;
-    HRESULT         hr     = S_OK;
+    IFileSystem       * files  = session.GetFileSystem();
+    SymbolTableId       table  = SymbolTableId::User;
+    SymbolFileFormat    format = SymbolFileFormat::Unknown;
+    std::string         name;
+    std::string         content;
+    std::string         error;
+    int                 offset = 0;
+    size_t              loaded = 0;
+    HRESULT             hr     = S_OK;
 
 
 
@@ -317,8 +318,12 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
     }
 
     //  A Merlin listing with assembled lines is its own source (FR-033b); one
-    //  holding only a symbol table loads its symbols as before.
-    if (SymbolFileReader::Detect (content) == SymbolFileFormat::MerlinListing && IsListingWithLines (content))
+    //  holding only a symbol table loads its symbols as before. A listing
+    //  assembled without its symbol table has no heading to be known by, so
+    //  one that is no other format is tried as a listing too.
+    format = SymbolFileReader::Detect (content);
+
+    if ((format == SymbolFileFormat::MerlinListing || format == SymbolFileFormat::Unknown) && IsListingWithLines (content))
     {
         LoadDebugFile (session, table, name, content, offset, true, reply);
         return;
@@ -345,22 +350,26 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
 //
 //  A cc65 debug file gives the session its source lines as well as its
 //  symbols. The offset moves every segment, and so every line, with the
-//  symbols. A file with lines and no top-level symbols still loads. A Merlin
-//  listing is read the same way, with the listing as its one source file.
+//  symbols, and the file's own labels, which the call stack reads, with them.
+//  A segment placed above $FFFF is left where it is, so its lines are dropped
+//  rather than folded into the first 64K. A file with lines and no top-level
+//  symbols still loads. A Merlin listing is read the same way, with the
+//  listing as its one source file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table, const std::string & name,
                                     const std::string & content, int offset, bool isListing, Reply & reply)
 {
-    DebugFile    file;
-    std::string  error;
-    size_t       loaded = 0;
-    size_t       lines  = 0;
-    size_t       slash  = name.find_last_of ("/\\");
-    std::string  base   = (slash == std::string::npos) ? name : name.substr (slash + 1);
-    HRESULT      hr     = isListing ? DebugFileReader::ReadMerlinListing (content, base, file, error)
-                                    : DebugFileReader::Read (content, file, error);
+    static constexpr uint32_t  kLastAddress = 0xFFFF;
+    DebugFile                  file;
+    std::string                error;
+    size_t                     loaded = 0;
+    size_t                     lines  = 0;
+    size_t                     slash  = name.find_last_of ("/\\");
+    std::string                base   = (slash == std::string::npos) ? name : name.substr (slash + 1);
+    HRESULT                    hr     = isListing ? DebugFileReader::ReadMerlinListing (content, base, file, error)
+                                                  : DebugFileReader::Read (content, file, error);
 
 
 
@@ -372,7 +381,18 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
 
     for (DebugSegment & segment : file.segments)
     {
-        segment.start = (uint32_t) (Word) (segment.start + offset);
+        if (segment.start <= kLastAddress)
+        {
+            segment.start = (uint32_t) (Word) (segment.start + offset);
+        }
+    }
+
+    for (DebugSymbol & symbol : file.symbols)
+    {
+        if (symbol.type == "lab" && symbol.value <= kLastAddress)
+        {
+            symbol.value = (uint32_t) (Word) (symbol.value + offset);
+        }
     }
 
     lines = file.lines.size();
@@ -437,6 +457,14 @@ void SymbolHandlers::Save (DebugSession & session, const DebugCommand & command,
     if (!TryGetFileName (command.text, name, offset, error))
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", error);
+        return;
+    }
+
+    //  An offset moves addresses as they are loaded; a save writes the table
+    //  as it stands, so one given here would change nothing.
+    if (offset != 0)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "SAVE takes a file name and no offset.");
         return;
     }
 

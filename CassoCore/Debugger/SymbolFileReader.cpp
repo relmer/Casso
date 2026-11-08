@@ -79,7 +79,7 @@ HRESULT SymbolFileReader::Read (const std::string & content, std::vector<SymbolF
     case SymbolFileFormat::Cc65Debug:
         hr = DebugFileReader::Read (content, debugFile, error);
         CHR (hr);
-        ReadCc65 (debugFile, symbols);
+        ReadCc65 (content, debugFile, symbols);
         break;
 
     case SymbolFileFormat::MerlinListing: ReadMerlinListing (lines, symbols); break;
@@ -91,6 +91,12 @@ HRESULT SymbolFileReader::Read (const std::string & content, std::vector<SymbolF
     }
 
     hasSymbols = !symbols.empty();
+
+    if (!hasSymbols && error.empty())
+    {
+        error = "The file holds no symbols.";
+    }
+
     CBREx (hasSymbols, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
 Error:
@@ -207,7 +213,47 @@ bool SymbolFileReader::IsViceLine (const std::string & line)
 
 
     stream >> al >> address >> name;
-    return al == "al" && TryParseHex (address, value) && name.size() > 1 && name[0] == '.';
+    return al == "al" && TryParseViceAddress (address, value) && name.size() > 1 && name[0] == '.';
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolFileReader::TryParseViceAddress
+//
+//  VICE writes a label's address after the memory it is in, `C:0300` for the
+//  computer's own; ld65's -Ln writes six digits, `000300`. Either form, or
+//  bare hex, is taken when the address fits in 16 bits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolFileReader::TryParseViceAddress (const std::string & text, Word & value)
+{
+    static constexpr size_t    kMaxDigits  = 6;
+    static constexpr uint32_t  kMaxAddress = 0xFFFF;
+    bool                       hasSpace    = text.size() > 2 && isalpha ((unsigned char) text[0]) && text[1] == ':';
+    std::string                digits      = hasSpace ? text.substr (2) : text;
+    uint32_t                   parsed      = 0;
+
+
+
+    if (digits.empty() || digits.size() > kMaxDigits || digits.find_first_not_of ("0123456789ABCDEFabcdef") != std::string::npos)
+    {
+        return false;
+    }
+
+    parsed = (uint32_t) std::stoul (digits, nullptr, 16);
+
+    if (parsed > kMaxAddress)
+    {
+        return false;
+    }
+
+    value = (Word) parsed;
+    return true;
 }
 
 
@@ -217,6 +263,10 @@ bool SymbolFileReader::IsViceLine (const std::string & line)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SymbolFileReader::HasMerlinHeading
+//
+//  Merlin heads its tables `Symbol table - alphabetical order:` and `Symbol
+//  table - numerical order:`. The words alone are not enough: a comment in
+//  any other format may mention a symbol table.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -231,7 +281,7 @@ bool SymbolFileReader::HasMerlinHeading (const std::string & line)
         ch = (char) toupper ((unsigned char) ch);
     }
 
-    return upper.find ("SYMBOL TABLE") != std::string::npos;
+    return upper.starts_with ("SYMBOL TABLE -");
 }
 
 
@@ -269,19 +319,23 @@ bool SymbolFileReader::TryParseHex (const std::string & text, Word & value)
 //
 //  SymbolFileReader::AddUnique
 //
+//  Names are compared without regard to case, as the symbol table compares
+//  them, so `Loop` and `LOOP` are one symbol and the count the reader gives
+//  is the count the table ends up holding.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void SymbolFileReader::AddUnique (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address)
+void SymbolFileReader::AddUnique (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address, bool isRelocatable)
 {
     for (const SymbolFileEntry & existing : symbols)
     {
-        if (existing.name == name)
+        if (_stricmp (existing.name.c_str(), name.c_str()) == 0)
         {
             return;
         }
     }
 
-    symbols.push_back ({ name, address });
+    symbols.push_back ({ name, address, isRelocatable });
 }
 
 
@@ -322,13 +376,22 @@ void SymbolFileReader::ReadCasso (const std::vector<std::string> & lines, std::v
 //  symbol with no scope at all is taken too. Local labels and the labels
 //  macro expansions made sit in scopes below it.
 //
+//  THE ASSEMBLER'S OWN SYMBOLS STAY OUT. ca65 predefines some thirty CPU_
+//  constants in every file and records them as defined on line 0, which no
+//  source has; taking them put CPU_ISET_4510 on every STA $0400. An import
+//  carries no value of its own and would sit at $0000. A label moves with a
+//  load offset and an equate, a value, does not.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void SymbolFileReader::ReadCc65 (const DebugFile & file, std::vector<SymbolFileEntry> & symbols)
+void SymbolFileReader::ReadCc65 (const std::string & content, const DebugFile & file, std::vector<SymbolFileEntry> & symbols)
 {
     std::set<int>  topLevel;
+    std::set<int>  predefined;
 
 
+
+    FindPredefinedSymbols (content, predefined);
 
     for (const DebugScope & scope : file.scopes)
     {
@@ -340,11 +403,110 @@ void SymbolFileReader::ReadCc65 (const DebugFile & file, std::vector<SymbolFileE
 
     for (const DebugSymbol & symbol : file.symbols)
     {
-        if (symbol.scope < 0 || topLevel.contains (symbol.scope))
+        bool  isTopLevel = symbol.scope < 0 || topLevel.contains (symbol.scope);
+
+
+
+        if (!isTopLevel || symbol.type == "imp" || predefined.contains (symbol.id))
         {
-            AddUnique (symbols, symbol.name, (Word) symbol.value);
+            continue;
+        }
+
+        AddUnique (symbols, symbol.name, (Word) symbol.value, symbol.type == "lab");
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolFileReader::FindPredefinedSymbols
+//
+//  The ids of the sym records whose definition is a line record on line 0,
+//  where ca65 places the symbols it defines itself. A record's def may list
+//  several lines, joined by +; the first is the definition.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolFileReader::FindPredefinedSymbols (const std::string & content, std::set<int> & predefined)
+{
+    std::vector<std::string>  lines;
+    std::set<int>             lineZero;
+
+
+
+    SplitLines (content, lines);
+
+    for (const std::string & line : lines)
+    {
+        int  id     = 0;
+        int  number = 0;
+
+
+
+        if (line.starts_with ("line\t") && TryGetRecordField (line, "id", id) && TryGetRecordField (line, "line", number) && number == 0)
+        {
+            lineZero.insert (id);
         }
     }
+
+    for (const std::string & line : lines)
+    {
+        int  id  = 0;
+        int  def = 0;
+
+
+
+        if (line.starts_with ("sym\t") && TryGetRecordField (line, "id", id) && TryGetRecordField (line, "def", def) && lineZero.contains (def))
+        {
+            predefined.insert (id);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolFileReader::TryGetRecordField
+//
+//  The decimal value of `key=` in a debug file record, up to the first
+//  character that is not a digit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolFileReader::TryGetRecordField (const std::string & record, const std::string & key, int & value)
+{
+    std::string  wanted = key + "=";
+    size_t       at     = record.find ("\t" + wanted);
+    size_t       end    = 0;
+
+
+
+    if (at == std::string::npos)
+    {
+        at = record.find ("," + wanted);
+    }
+
+    if (at == std::string::npos)
+    {
+        return false;
+    }
+
+    at += wanted.size() + 1;
+    end = record.find_first_not_of ("0123456789", at);
+
+    if (end == at)
+    {
+        return false;
+    }
+
+    value = std::stoi (record.substr (at, end == std::string::npos ? std::string::npos : end - at));
+    return true;
 }
 
 
@@ -357,6 +519,12 @@ void SymbolFileReader::ReadCc65 (const DebugFile & file, std::vector<SymbolFileE
 //
 //  Only the lines after the symbol table heading count, and each may hold
 //  several NAME=$ADDR entries.
+//
+//  Each entry starts with Merlin's flag column: E for an entry point, ? for
+//  a symbol nothing refers to, M for a label a macro defined, and MD for a
+//  macro's own name. The column is three wide and a name follows it
+//  directly, so `MD?MOV` is the macro MOV flagged unreferenced, not a symbol
+//  of that spelling.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -371,6 +539,7 @@ void SymbolFileReader::ReadMerlinListing (const std::vector<std::string> & lines
         std::istringstream  stream (line);
         std::string         token;
         std::string         pending;
+        bool                isAwaitingValue = false;
 
 
 
@@ -385,42 +554,81 @@ void SymbolFileReader::ReadMerlinListing (const std::vector<std::string> & lines
             continue;
         }
 
-        // Tokens pair up as NAME =$ADDR, NAME= $ADDR or NAME=$ADDR.
+        // Tokens pair up as NAME =$ADDR, NAME= $ADDR, NAME = $ADDR or
+        // NAME=$ADDR. A flag token before a name is replaced by the name.
         while (stream >> token)
         {
-            size_t  equals = token.find ('=');
+            size_t  equals = 0;
             Word    value  = 0;
 
 
 
-            if (equals == std::string::npos)
-            {
-                pending = token;
-            }
-            else if (equals == 0 && !pending.empty() && TryParseHex (token.substr (1), value))
+            StripMerlinFlags (token);
+            equals = token.find ('=');
+
+            if (isAwaitingValue && TryParseHex (token, value))
             {
                 AddUnique (symbols, pending, value);
                 pending.clear();
+                isAwaitingValue = false;
+                continue;
             }
-            else if (equals == token.size() - 1)
+
+            isAwaitingValue = false;
+
+            if (equals == std::string::npos)
+            {
+                pending = token;
+                continue;
+            }
+
+            if (equals > 0)
             {
                 pending = token.substr (0, equals);
             }
-            else if (equals > 0 && TryParseHex (token.substr (equals + 1), value))
+
+            if (equals == token.size() - 1)
             {
-                AddUnique (symbols, token.substr (0, equals), value);
-                pending.clear();
-            }
-            else if (!pending.empty() && equals == 0 && token.size() == 1)
-            {
+                isAwaitingValue = !pending.empty();
                 continue;
             }
-            else if (!pending.empty() && TryParseHex (token, value))
+
+            if (!pending.empty() && TryParseHex (token.substr (equals + 1), value))
             {
                 AddUnique (symbols, pending, value);
                 pending.clear();
             }
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolFileReader::StripMerlinFlags
+//
+//  A full flag column runs into the name: `MD?MOV` is the flags MD? and the
+//  name MOV, and the token becomes MOV. A name whose third character is not
+//  `?` never had flags joined to it, since the column's last flag is `?` or a
+//  space.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolFileReader::StripMerlinFlags (std::string & token)
+{
+    static constexpr size_t  kFlagColumn = 3;
+    bool                     isJoined    = token.size() > kFlagColumn && token[kFlagColumn - 1] == '?' &&
+                                           token[kFlagColumn] != '=' &&
+                                           token.find_first_not_of ("EMDX", 0) == kFlagColumn - 1;
+
+
+
+    if (isJoined)
+    {
+        token = token.substr (kFlagColumn);
     }
 }
 
@@ -478,7 +686,7 @@ void SymbolFileReader::ReadVice (const std::vector<std::string> & lines, std::ve
 
         stream >> al >> address >> name;
 
-        if (IsViceLine (line) && TryParseHex (address, value))
+        if (IsViceLine (line) && TryParseViceAddress (address, value))
         {
             AddUnique (symbols, name.substr (1), value);
         }
