@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
 #include "HandlerTestRig.h"
 
@@ -509,6 +510,146 @@ namespace DebuggerTests
             rig.RunOk ("TF trace.txt");
             rig.RunOk ("TF");
             Assert::AreEqual ((size_t) 2, SplitLines (rig.files.PeekContent (L"C:\\Work\\trace.txt")).size());
+        }
+
+
+
+        //  An interrupt dispatched in place of the instruction at the PC is not
+        //  that instruction: the trace has no line for it, and the profile
+        //  neither counts it twice nor bills it the dispatch cycles.
+        TEST_METHOD (TF_And_PROFILE_AnInterruptInPlaceOfAnInstruction_IsNotThatInstruction)
+        {
+            static constexpr Word     kNmiUserVector = 0x03FB;
+            MachineRig                rig;
+            std::vector<std::string>  lines;
+
+
+
+            rig.session.SetInstructionObserver (&rig.handlers);
+
+            // $0300: INX / INX / NOP    $03FB: JMP $0320    $0320: RTI
+            rig.Load (0x0300, { 0xE8, 0xE8, 0xEA }, 0x0300);
+            rig.Load (kNmiUserVector, { 0x4C, 0x20, 0x03 }, 0x0300);
+            rig.Load (0x0320, { 0x40 }, 0x0300);
+            rig.session.GetBreakpoints().AddAddress (0x0302, 0x0302);
+            rig.session.OnStopConditionsChanged();
+            rig.machine.GetCpu()->SetInterruptLine (CpuInterruptKind::kNonMaskable, true);
+            rig.machine.GetCpu()->SetInterruptLine (CpuInterruptKind::kNonMaskable, false);
+
+            rig.RunOk ("TF trace.txt");
+            rig.RunOk ("PROFILE ON");
+            rig.RunOk ("G");
+            Assert::AreEqual ((Word) 0x0302, rig.LastStop().pc);
+
+            lines = SplitLines (rig.files.PeekContent (L"C:\\Work\\trace.txt"));
+            Assert::AreEqual ((size_t) 4, lines.size(), L"JMP, RTI and two INX");
+            Assert::IsTrue   (lines[0].ends_with ("  03FB: JMP $0320"), L"no line for the INX the NMI preempted");
+
+            Assert::AreEqual (std::string ("Instructions: 4, cycles: 13"), rig.RunOk ("PROFILE").text.at (0), L"the 7 dispatch cycles are no instruction's");
+        }
+
+
+
+        //  A file that cannot be written is reported, not announced as a trace.
+        TEST_METHOD (TF_AFileThatCannotBeWritten_IsReported)
+        {
+            MachineRig  rig;
+
+
+
+            rig.session.SetInstructionObserver (&rig.handlers);
+            rig.Load (0x0300, { 0xE8, 0xA9, 0x41, 0x4C, 0x00, 0x03 }, 0x0300);
+            rig.session.GetBreakpoints().AddAddress (0x0303, 0x0303);
+            rig.session.OnStopConditionsChanged();
+
+            Assert::AreEqual (S_OK, rig.files.WriteAllText (L"C:\\Work\\locked.txt", "old"));
+            Assert::AreEqual (S_OK, rig.files.SetReadOnlyAttribute (L"C:\\Work\\locked.txt", true));
+            rig.RunFails ("TF locked.txt", "file not written");
+            Assert::AreEqual (std::string ("Trace on: trace.txt"), rig.RunOk ("TF trace.txt").text.at (0), L"tracing did not start");
+
+            Assert::AreEqual (S_OK, rig.files.SetReadOnlyAttribute (L"C:\\Work\\trace.txt", true));
+            rig.RunOk ("G");
+            rig.RunFails ("TF", "file not written");
+            Assert::AreEqual (std::string ("Trace on: other.txt"), rig.RunOk ("TF other.txt").text.at (0), L"the failed trace still ended");
+        }
+
+
+
+        //  A range that is reversed or past the last scanline could never
+        //  stop, and would keep the hook installed.
+        TEST_METHOD (BPV_ARangeThatCannotBeReached_IsAnError)
+        {
+            Rig  rig;
+
+
+
+            rig.RunFails ("BPV 100:50", "invalid arguments");
+            rig.RunFails ("BPV 106",    "invalid arguments");
+            rig.RunFails ("BPV 100,10", "invalid arguments");
+            Assert::IsFalse (rig.session.HasVideoBreak());
+            Assert::IsFalse (rig.target.hookInstalled);
+
+            rig.RunOk ("BPV 105");
+            Assert::IsTrue  (rig.session.HasVideoBreak(), L"the last scanline is in the frame");
+        }
+
+
+
+        //  BPC * clears every breakpoint, the video break with them, and a
+        //  machine switch clears them as well.
+        TEST_METHOD (BPV_IsClearedByBpcStarAndByAMachineSwitch)
+        {
+            Rig                 rig;
+            BreakpointHandlers  breakpoints;
+
+
+
+            rig.session.AddHandler (&breakpoints);
+            rig.RunOk ("BPV A0");
+            rig.RunOk ("BPC *");
+            Assert::IsFalse (rig.session.HasVideoBreak());
+            Assert::IsFalse (rig.target.hookInstalled);
+
+            rig.RunOk ("BPV A0");
+            rig.session.OnMachineChanged ("Apple2e", true);
+            Assert::IsFalse (rig.session.HasVideoBreak());
+            Assert::IsFalse (rig.target.hookInstalled);
+        }
+
+
+
+        //  BPV reads its scanline as hex, so what VIDEOINFO shows and what BPV
+        //  answers are hex too: a line copied from one arms the same line.
+        TEST_METHOD (BPV_AndVIDEOINFO_ShowScanlinesInHex)
+        {
+            Rig  rig;
+
+
+
+            rig.target.videoPosition = { 0xA0, 0x11 };
+            Assert::AreEqual (std::string ("Scanline $A0, cycle $11"), rig.RunOk ("VIDEOINFO").text.at (0));
+            Assert::AreEqual (std::string ("Breakpoint set on video scanlines $A0-$AF. It clears after it fires."), rig.RunOk ("BPV A0,10").text.at (0));
+        }
+
+
+
+        //  The break is on entering the range: armed while the beam is inside
+        //  it, it waits for the beam to leave and come back.
+        TEST_METHOD (BPV_ArmedInsideTheRange_StopsOnlyWhenTheBeamReenters)
+        {
+            Rig  rig;
+
+
+
+            rig.target.videoPosition = { 0xA0, 0 };
+            rig.RunOk ("BPV A0");
+            Assert::IsFalse (rig.session.ShouldStopBefore (0x0300), L"already on the line");
+
+            rig.target.videoPosition.scanline = 0xA1;
+            Assert::IsFalse (rig.session.ShouldStopBefore (0x0300));
+
+            rig.target.videoPosition.scanline = 0xA0;
+            Assert::IsTrue  (rig.session.ShouldStopBefore (0x0300), L"entered again");
         }
 
 
