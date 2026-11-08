@@ -160,12 +160,11 @@ void WindowManager::SaveWindowPlacement (HWND hwnd, bool fullscreen)
     // this covers transitions, where a synchronous WM_SIZE once persisted
     // the full-monitor rect and permanently stomped the user's window size.
     //
-    // MAXIMIZED IS A STATE, NOT A RECT. The old guard simply refused to save
-    // while zoomed, which protected the windowed rect and silently threw the
-    // maximized-ness away: a user who always runs maximized restarted into
-    // whatever normal rect was last saved, somewhere else entirely. A zoomed
-    // window now saves its NORMAL rect (GetWindowPlacement's, which is valid
-    // while zoomed) with the flag set, and restore re-maximizes from there.
+    // MAXIMIZED IS A STATE, NOT A RECT. A zoomed window saves the visible
+    // rect it had when last restored, with the flag set, and restore
+    // re-maximizes from there. Its normal WINDOW rect cannot stand in: the
+    // border measured on a maximized window is wider than the restored one,
+    // and subtracting it shrank the window by the difference every cycle.
     bool  zoomed  = hwnd != nullptr && IsZoomed (hwnd);
     //  THE VISIBLE RECT IS WHAT IS STORED. A window rect takes in the
     //  invisible resize border, and the same stored numbers then mean a
@@ -178,25 +177,10 @@ void WindowManager::SaveWindowPlacement (HWND hwnd, bool fullscreen)
 
     if (savable)
     {
-        wr = DxuiWindowFrame::GetVisibleRect (hwnd);
-    }
+        UpdateNormalPlacement (hwnd);
 
-    if (savable && zoomed)
-    {
-        WINDOWPLACEMENT  wp     = { sizeof (wp) };
-        RECT             border = DxuiWindowFrame::GetBorder (hwnd);
-
-
-
-
-        savable = GetWindowPlacement (hwnd, &wp);
-        //  The normal position is a WINDOW rect; everything here is stored as
-        //  a visible one, so it loses the border the same way.
-        wr             = wp.rcNormalPosition;
-        wr.left       += border.left;
-        wr.top        += border.top;
-        wr.right      -= border.right;
-        wr.bottom     -= border.bottom;
+        wr      = DxuiWindowFrame::GetVisibleRect (hwnd);
+        savable = m_normalPlacement.TryGetNormalRect (!zoomed, wr, wr);
     }
 
     if (savable)
@@ -229,5 +213,82 @@ void WindowManager::SaveWindowPlacement (HWND hwnd, bool fullscreen)
     {
         WindowTrace::LogWindow ("save.refused", "main", hwnd,
                                 fullscreen ? "fullscreen" : "not a windowed rect");
+    }
+}
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetExpectedVisibleRect
+//
+//  The saved visible rect the window was created at. It is what a save
+//  reports until the window has been shown restored, and it is applied again
+//  then, when the restored border can be measured for certain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowManager::SetExpectedVisibleRect (const RECT & visible)
+{
+    m_normalPlacement.SetExpectedRect (visible);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateNormalPlacement
+//
+//  Puts the visible frame exactly on the saved rect the first time the window
+//  is shown restored. A window that starts maximized gets there on its first
+//  restore instead. A restored window's rect is then recorded, so a window
+//  that opened at the default place and is maximized before it ever moves
+//  still has a restored rect to save.
+//
+//  TWICE, ON PURPOSE. Landing on a monitor of a different scale makes Windows
+//  send WM_DPICHANGED and resize the window by the ratio of the two, and the
+//  border scales with it, so it is measured again after the first move.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowManager::UpdateNormalPlacement (HWND hwnd)
+{
+    constexpr UINT  kFlags    = SWP_NOZORDER | SWP_NOACTIVATE;
+    constexpr int   kPasses   = 2;
+    RECT            visible   = {};
+    RECT            placed    = {};
+    bool            restored  = hwnd != nullptr
+                                && IsWindowVisible (hwnd)
+                                && !IsZoomed (hwnd)
+                                && !IsIconic (hwnd);
+    bool            taken     = false;
+    bool            recorded  = false;
+
+
+
+    taken = m_normalPlacement.TryTakePending (restored, visible);
+
+    for (int pass = 0; taken && pass < kPasses; ++pass)
+    {
+        placed = DxuiWindowFrame::ToWindowRect (hwnd, visible);
+
+        SetWindowPos (hwnd, nullptr, placed.left, placed.top,
+                      placed.right - placed.left, placed.bottom - placed.top, kFlags);
+    }
+
+    if (taken)
+    {
+        WindowTrace::LogWindow ("restore.applied", "main", hwnd, "the saved visible rect, with the border measured restored");
+    }
+
+    if (restored)
+    {
+        recorded = m_normalPlacement.TryGetNormalRect (true, DxuiWindowFrame::GetVisibleRect (hwnd), visible);
+        IGNORE_RETURN_VALUE (recorded, false);
     }
 }

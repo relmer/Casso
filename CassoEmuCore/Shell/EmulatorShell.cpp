@@ -573,6 +573,10 @@ HRESULT EmulatorShell::Initialize (
         ShowWindow (m_hwnd, show);
     }
 
+    //  Shown restored, the border is measurable now, so the saved visible
+    //  rect lands exactly. Maximized or minimized, it waits for the restore.
+    m_windowManager.UpdateNormalPlacement (m_hwnd);
+
     UpdateWindow (m_hwnd);
 
     // Reconcile actual client size against the desired framebuffer-sized

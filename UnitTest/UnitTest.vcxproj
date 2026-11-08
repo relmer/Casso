@@ -617,6 +617,7 @@
     <ClCompile Include="UiTests\FileBrowseModelTests.cpp" />
     <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
     <ClCompile Include="UiTests\SettingsSheetSizeTests.cpp" />
+    <ClCompile Include="UiTests\NormalPlacementTrackerTests.cpp" />
     <ClCompile Include="UiTests\WindowPlacementKeyTests.cpp" />
     <ClCompile Include="UiTests\WindowPlacementProfileTests.cpp" />
     <ClCompile Include="Dxui\DxuiCheckboxTests.cpp" />

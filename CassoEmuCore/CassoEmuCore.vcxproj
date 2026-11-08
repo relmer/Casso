@@ -530,6 +530,7 @@
     <ClCompile Include="Shell\MachineManager.cpp" />
     <ClCompile Include="Shell\ModernPrintDialog.cpp" />
     <ClCompile Include="Shell\WindowCommandManager.cpp" />
+    <ClCompile Include="Shell\NormalPlacementTracker.cpp" />
     <ClCompile Include="Shell\WindowManager.cpp" />
     <ClCompile Include="Shell\DiskMru.cpp" />
     <ClCompile Include="AssetBootstrap.cpp" />
@@ -1052,6 +1053,7 @@
     <ClInclude Include="Shell\MachineManager.h" />
     <ClInclude Include="Shell\ModernPrintDialog.h" />
     <ClInclude Include="Shell\WindowCommandManager.h" />
+    <ClInclude Include="Shell\NormalPlacementTracker.h" />
     <ClInclude Include="Shell\WindowManager.h" />
     <ClInclude Include="AssetBootstrap.h" />
     <ClInclude Include="BuildInfo.h" />

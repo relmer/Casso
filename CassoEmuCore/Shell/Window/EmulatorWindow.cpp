@@ -452,7 +452,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     //  Created at the visible rect, which is short by the invisible border
     //  this window turns out to carry. Now it exists, the border can be
     //  measured and the window rect that lands the visible frame where the
-    //  user left it applied.
+    //  user left it applied. The rect is also kept and applied again once
+    //  the window is first shown restored, the only time the restored border
+    //  is certain: a window that starts maximized has never had it.
     if (hadSavedPlacement)
     {
         RECT  visible = { windowX, windowY, windowX + windowW, windowY + windowH };
@@ -463,6 +465,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         SetWindowPos (m_host->GetHwnd(), nullptr, placed.left, placed.top,
                       placed.right - placed.left, placed.bottom - placed.top,
                       SWP_NOZORDER | SWP_NOACTIVATE);
+
+        m_windowManager.SetExpectedVisibleRect (visible);
     }
 
     WindowTrace::LogWindow ("create.actual", "main", m_host->GetHwnd(), "after Create");

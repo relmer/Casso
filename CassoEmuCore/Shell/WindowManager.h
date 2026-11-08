@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Config/WindowPlacementProfile.h"
+#include "Shell/NormalPlacementTracker.h"
 
 struct GlobalUserPrefs;
 
@@ -36,6 +37,8 @@ public:
                                        int     & outW,
                                        int     & outH,
                                        bool    & outMaximized) const;
+    void  SetExpectedVisibleRect    (const RECT & visible);
+    void  UpdateNormalPlacement     (HWND hwnd);
 
     // Exposed for tests and for callers that need the same monitor
     // topology key without going through the load/save helpers.
@@ -44,4 +47,5 @@ public:
 private:
     mutable WindowPlacementProfile  m_profile;
     SavePrefsFn                     m_savePrefs;
+    NormalPlacementTracker          m_normalPlacement;
 };

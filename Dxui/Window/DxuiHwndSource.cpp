@@ -613,6 +613,18 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     CWRA (m_hwnd);
     m_ownsHwnd = true;
 
+    //  THE FRAME IS RECALCULATED ONCE, NOW. Until something sends a frame
+    //  change, DWM keeps the frame it took at creation, in which the window
+    //  rect is all visible. The first maximize, minimize or restore then
+    //  turned the outer edges into the invisible resize border, and the
+    //  visible window shrank by it. A placement measured before that and one
+    //  measured after disagreed by the border on every side.
+    if (params.borderless)
+    {
+        SetWindowPos (m_hwnd, nullptr, 0, 0, 0, 0,
+                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    }
+
     // The NOACTIVATE bit exists only to keep CreateWindowEx from activating
     // the newborn window (stealing focus mid-keystroke); strip it now so the
     // window activates normally from here on (clicks, an activating Show()).
