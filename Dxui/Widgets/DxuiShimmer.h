@@ -176,7 +176,7 @@ class DxuiAreaShimmer
 {
 public:
     static constexpr int     kSweepMs     = 2000;
-    static constexpr int     kRestMs      = 1000;
+    static constexpr int     kRestMs      = 4000;
     static constexpr double  kPeakAlpha   = 150.0;
     static constexpr double  kGlowShare   = 0.2;
     static constexpr double  kBandShare   = 0.6;
