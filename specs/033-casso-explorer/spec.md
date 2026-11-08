@@ -2047,10 +2047,13 @@ source and read the manifest. Repeat on a real //c with real floppies.
   serial cable, MUST carry neither.
 - **FR-104**: Casso MUST show the same warning and the same action on the
   Network settings page, where the setting that widens the binding lives.
-- **FR-105**: The warning MUST distinguish a rule that refuses, a rule that is
-  absent, and a rule that does not cover the network's present category, and
-  MUST say which. On a public network it MUST offer both admitting the
-  program there and the alternative of marking the network private.
+- **FR-105**: The warning MUST name the program and every port the firewall
+  blocks for it, in one sentence: `Windows Firewall is blocking Casso from
+  listening on TCP port 6502 and UDP port 6511.` A connection's pane MUST have
+  only the warning while its port is blocked, since none of its instructions
+  can work until then. On a public network the warning MUST offer both
+  admitting the program there and the alternative of marking the network
+  private.
 - **FR-106**: A port the package cannot name MUST be admitted when it is
   opened: a port forward's, which the user chooses, and any other port the
   guest opens that the address translation mirrors onto the PC. Only the

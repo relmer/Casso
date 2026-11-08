@@ -184,8 +184,8 @@ bool CassoLinkConnections::GetInboundPort (const CassoLinkSettings & settings, F
 //
 //  CassoLinkConnections::AddFirewall
 //
-//  The cause comes before the connection's state in the list, since none of
-//  the state's instructions can work until the port is allowed.
+//  The cause replaces the connection's state in the list, since none of the
+//  state's instructions can work until the port is allowed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -208,10 +208,10 @@ void CassoLinkConnections::AddFirewall (const CassoLinkSettings & settings, Link
         return;
     }
 
-    entry.firewall       = FirewallText::DescribeCause (verdict, kFirewallTitle, port);
+    entry.firewall       = FirewallText::DescribeBlocked (kFirewallTitle, { port });
     entry.firewallPublic = verdict.IsOnPublic();
-    entry.status         = std::format (L"{}{}{}\n\n{}", entry.firewall, entry.firewallPublic ? L" " : L"",
-                                        entry.firewallPublic ? FirewallText::kPublicChoice : L"", entry.status);
+    entry.status         = std::format (L"{}{}{}", entry.firewall, entry.firewallPublic ? L" " : L"",
+                                        entry.firewallPublic ? FirewallText::kPublicChoice : L"");
 }
 
 

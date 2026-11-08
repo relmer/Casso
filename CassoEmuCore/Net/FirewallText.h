@@ -27,6 +27,10 @@ public:
     //  verdict.
     static std::wstring  DescribeCause   (const FirewallVerdict & verdict, const std::wstring & program, const FirewallPort & port);
 
+    //  As "Windows Firewall is blocking Casso from listening on TCP port 6502
+    //  and UDP port 6511."; empty with no port.
+    static std::wstring  DescribeBlocked (const std::wstring & program, const std::vector<FirewallPort> & ports);
+
     //  The two remedies' button labels, and the short ones for a banner's
     //  narrow buttons, with the explanation in the banner's text.
     static constexpr const wchar_t *  kAllowAction        = L"Allow in Windows Firewall";

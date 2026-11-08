@@ -59,4 +59,16 @@ public:
     {
         Assert::IsTrue (Describe (FirewallAdmission::Admitted, FirewallProfile::Public).empty());
     }
+
+
+    TEST_METHOD (BlockedPorts_AreListedInOneSentence)
+    {
+        Assert::AreEqual (std::wstring (L"Windows Firewall is blocking Casso Explorer from listening on UDP port 6510."),
+                          FirewallText::DescribeBlocked (L"Casso Explorer", { { HostSocketKind::Udp, 6510 } }));
+        Assert::AreEqual (std::wstring (L"Windows Firewall is blocking Casso from listening on TCP port 6502 and UDP port 6511."),
+                          FirewallText::DescribeBlocked (L"Casso", { { HostSocketKind::Tcp, 6502 }, { HostSocketKind::Udp, 6511 } }));
+        Assert::AreEqual (std::wstring (L"Windows Firewall is blocking Casso from listening on TCP port 6502, TCP port 8080 and UDP port 6511."),
+                          FirewallText::DescribeBlocked (L"Casso", { { HostSocketKind::Tcp, 6502 }, { HostSocketKind::Tcp, 8080 }, { HostSocketKind::Udp, 6511 } }));
+        Assert::IsTrue    (FirewallText::DescribeBlocked (L"Casso", {}).empty());
+    }
 };

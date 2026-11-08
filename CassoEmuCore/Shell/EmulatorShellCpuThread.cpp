@@ -287,11 +287,7 @@ void EmulatorShell::ReportUthernetListenFailures()
         deferred = card->GetDeferredPorts();
     }
 
-    for (const FirewallPort & port : deferred)
-    {
-        sentence = FirewallText::DescribeCause (m_listenGate.Check (port.protocol, port.port), ShellNetworkCard::kFirewallTitle, port);
-        text    += (text.empty() ? L"" : L"\n") + sentence;
-    }
+    text = FirewallText::DescribeBlocked (ShellNetworkCard::kFirewallTitle, deferred);
 
     for (const W5100SocketBridge::ListenFailure & failure : failures)
     {

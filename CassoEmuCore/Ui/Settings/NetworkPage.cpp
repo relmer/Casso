@@ -621,19 +621,11 @@ void NetworkPage::SyncFirewall()
             continue;
         }
 
-        if (m_blocked.empty())
-        {
-            text     = FirewallText::DescribeCause (verdict, s_kFirewallTitle, port);
-            onPublic = verdict.IsOnPublic();
-        }
-
+        onPublic = onPublic || verdict.IsOnPublic();
         m_blocked.push_back (port);
     }
 
-    if (m_blocked.size() > 1)
-    {
-        text += L" Other ports Casso has open for the network are blocked as well.";
-    }
+    text = FirewallText::DescribeBlocked (s_kFirewallTitle, m_blocked);
 
     if (onPublic)
     {

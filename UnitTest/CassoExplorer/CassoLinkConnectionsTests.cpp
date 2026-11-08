@@ -703,6 +703,7 @@ public:
         Assert::IsTrue   (entries[0].firewall.find (L"UDP port 6510") != std::wstring::npos, entries[0].firewall.c_str());
         Assert::IsTrue   (entries[0].firewallPublic);
         Assert::IsTrue   (entries[0].status.starts_with (entries[0].firewall));
+        Assert::IsTrue   (entries[0].status.find (L"announcement") == std::wstring::npos, L"no instructions that can't work until the port is allowed");
     }
 
 
