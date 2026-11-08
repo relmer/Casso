@@ -997,6 +997,12 @@ bool HeatMapPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
     m_tipAt        = clientPx;
     m_isTipPending = !m_view->IsTipComplete (clientPx);
     tip.placement  = DxuiTip::Placement::FollowPointer;
+
+    if (m_view->GetPickAt (clientPx).has_value())
+    {
+        m_view->GetTipFrame (*m_view->GetPickAt (clientPx), tip.frameLabel, tip.frameArgb);
+    }
+
     tip.isPending  = m_isTipPending;
 
     return true;
@@ -1224,6 +1230,7 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
     m_view->SetBreakpoints  (std::move (breakpoints));
     m_view->SetRebuilding   (state.isRebuilding);
     m_view->SetSlotCards    (snapshot.slotCards);
+    m_view->SetRomFiles     (snapshot.romFiles);
     m_view->SetRegionColors (MemoryRegionKeys::GetColors (m_host.GetTextColors()));
 
     //  The machine reads its map only now and then while it runs, and the

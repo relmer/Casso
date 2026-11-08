@@ -149,6 +149,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     snapshot.machine        = machineInfo.name;
     snapshot.ioRegisters    = machineInfo.ioRegisters;
     snapshot.slotCards      = machineInfo.slotCards;
+    snapshot.romFiles       = { machineInfo.machineId, machineInfo.systemRomFile, machineInfo.slotRomFiles };
     snapshot.symbolSources  = DescribeSymbolSources (session.GetSymbols());
     snapshot.heatMapSymbols = GetHeatMapSymbols (session.GetSymbols());
 

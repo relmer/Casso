@@ -54,6 +54,12 @@ struct DebugMachineInfo
     //  The card in each slot by its display name, empty for an empty slot,
     //  which labels the slot's ranges in the memory panes.
     std::array<std::string, 8>          slotCards;
+
+    //  The model's directory name, the system ROM's file, and each slot's
+    //  ROM or firmware file, for the name of the ROM in a ROM byte's tip.
+    std::string                         machineId;
+    std::string                         systemRomFile;
+    std::array<std::string, 8>          slotRomFiles;
 };
 
 //  The Disk II controller's state, read from its getters, never through the

@@ -1124,8 +1124,8 @@ const Microcode * MachineDebugTarget::GetInstructionSet() const
 //
 //  MachineDebugTarget::GetMachineInfo
 //
-//  The machine's name, its devices' bus registers, the card in each slot that
-//  is turned on, and slot 6's two drives, with an empty entry for an empty
+//  The machine's name, its devices' bus registers, the card and ROM file in
+//  each slot that is turned on, the system ROM's file, and slot 6's two drives, with an empty entry for an empty
 //  drive. A machine with no Disk II controller has no drives.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1146,12 +1146,22 @@ DebugMachineInfo MachineDebugTarget::GetMachineInfo() const
         provider->AddIoRegisters (info.ioRegisters);
     }
 
+    info.machineId     = m_host.GetConfig().machineId;
+    info.systemRomFile = m_host.GetConfig().systemRom.file;
+
     for (const SlotConfig & slot : m_host.GetConfig().slots)
     {
-        if (slot.enabled && !slot.device.empty() && slot.slot >= 0 && slot.slot < (int) info.slotCards.size())
+        if (!slot.enabled || slot.slot < 0 || slot.slot >= (int) info.slotCards.size())
+        {
+            continue;
+        }
+
+        if (!slot.device.empty())
         {
             info.slotCards[(size_t) slot.slot] = DeviceDisplayNames::Get (slot.device);
         }
+
+        info.slotRomFiles[(size_t) slot.slot] = !slot.firmware.empty() ? slot.firmware : slot.rom;
     }
 
     if (m_host.GetRefs().diskController == nullptr)

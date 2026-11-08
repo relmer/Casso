@@ -1,5 +1,7 @@
 #include "Pch.h"
 #include "Theme/DxuiTheme.h"
+#include "Theme/DxuiColor.h"
+#include "Render/DxuiRoundedOutline.h"
 
 #include "DxuiTooltip.h"
 #include "Window/DxuiHwndSource.h"
@@ -1097,6 +1099,24 @@ void DxuiTooltip::MeasureBoxPx (
         widthPx   = std::max (widthPx, std::ceil (m_scaler.ToPxf (kGradientWidthDip)) + GetPadXPx() * 2.0f);
         heightPx += GetGradientExtraPx();
     }
+
+    if (!m_shownFrameLabel.empty())
+    {
+        float  labelW = (float) m_shownFrameLabel.size() * GetFrameLabelPx() * s_kEstCharWidthEm;
+        float  labelH = 0.0f;
+
+
+
+        if (m_activePopup != nullptr)
+        {
+            hr = m_activePopup->MeasureTextWrapped (m_shownFrameLabel.c_str(), GetFrameLabelPx(), GetFace(), s_kNoWrapPx, labelW, labelH);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        widthPx  += GetFrameSidePx() * 2.0f;
+        heightPx += GetFrameTopPx() + GetFrameSidePx();
+        widthPx   = std::max (widthPx, std::ceil (labelW) + (GetPadXPx() + GetFrameSidePx() + m_scaler.ToPxf (kFrameCornerDip)) * 2.0f);
+    }
 }
 
 
@@ -1318,7 +1338,9 @@ bool DxuiTooltip::IsNewLook() const
            m_lineSwatches != m_shownLineSwatches ||
            m_lineScales   != m_shownLineScales   ||
            m_gradient     != m_shownGradient     ||
-           m_gradientMark != m_shownGradientMark;
+           m_gradientMark != m_shownGradientMark ||
+           m_frameLabel   != m_shownFrameLabel   ||
+           m_frameArgb    != m_shownFrameArgb;
 }
 
 
@@ -1338,6 +1360,8 @@ void DxuiTooltip::TakeLook()
     m_shownLineScales   = m_lineScales;
     m_shownGradient     = m_gradient;
     m_shownGradientMark = m_gradientMark;
+    m_shownFrameLabel   = m_frameLabel;
+    m_shownFrameArgb    = m_frameArgb;
 }
 
 
@@ -1565,9 +1589,18 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
 
     painter.OutlineRoundedRect (0.0f, 0.0f, width, height, GetCornerRadiusPx(), borderPx, m_borderArgb);
 
+    if (!m_shownFrameLabel.empty())
+    {
+        DrawFrame (painter, text, width, height);
+    }
+
+    //  Inside a frame, the content starts past its side and its label.
+    padX   += GetFrameSidePx();
+    height -= GetFrameTopPx() + GetFrameSidePx();
+
     if (!m_shownGradient.empty())
     {
-        DrawGradient (painter, padX, width - padX * 2.0f, height - padY);
+        DrawGradient (painter, padX, width - padX * 2.0f, GetFrameTopPx() + height - padY);
         height -= GetGradientExtraPx();
     }
 
@@ -1579,7 +1612,7 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
 
         if (SUCCEEDED (hr))
         {
-            DrawTable (painter, text, table, padX, padY);
+            DrawTable (painter, text, table, padX, padY + GetFrameTopPx());
         }
 
         return;
@@ -1587,12 +1620,65 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
 
     hr = text.DrawString (m_text.c_str(),
                           padX,
-                          padY,
+                          padY + GetFrameTopPx(),
                           width  - padX * 2.0f,
                           height - padY * 2.0f,
                           m_textArgb,
                           fontPx,
                           GetFace());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawFrame
+//
+//  The outline halfway into the tip's padding, its top edge through the
+//  middle of the label's line, and the label centered on it over a patch of
+//  the tip's background that breaks the line there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::DrawFrame (IDxuiPainter & painter, IDxuiTextRenderer & text, float width, float height) const
+{
+    float                    labelPx = GetFrameLabelPx();
+    float                    labelH  = GetFrameTopPx();
+    float                    labelW  = 0.0f;
+    float                    measH   = 0.0f;
+    float                    left    = std::round (GetPadXPx() / 2.0f);
+    float                    right   = width  - left;
+    float                    top     = std::round (GetPadYPx() / 2.0f) + labelH / 2.0f;
+    float                    bottom  = height - std::round (GetPadYPx() / 2.0f);
+    float                    pad     = m_scaler.ToPxf (kFrameGapDip) / 2.0f;
+    uint32_t                 ink     = (m_shownFrameArgb != 0) ? (m_shownFrameArgb | 0xFF000000u) : m_textArgb;
+    uint32_t                 stroke  = (m_shownFrameArgb != 0) ? (DxuiColor::Mix (m_bgArgb, ink, kFrameMix) | 0xFF000000u) : m_borderArgb;
+    HRESULT                  hr      = S_OK;
+
+
+
+    for (const DxuiRoundedOutline::Segment & segment : DxuiRoundedOutline::GetSegments ({ { left, top }, { right, top }, { right, bottom }, { left, bottom } },
+                                                                                      m_scaler.ToPxf (kFrameCornerDip)))
+    {
+        painter.DrawLine (segment.from.x, segment.from.y, segment.to.x, segment.to.y, 1.0f, stroke);
+    }
+
+    hr = text.MeasureStringWrapped (m_shownFrameLabel.c_str(), labelPx, GetFace(), s_kNoWrapPx, labelW, measH);
+
+    if (FAILED (hr) || labelW <= 0.0f)
+    {
+        labelW = (float) m_shownFrameLabel.size() * labelPx * s_kEstCharWidthEm;
+    }
+
+    labelW += pad * 2.0f;
+
+    painter.FillRect (std::round ((width - labelW) / 2.0f), top - labelH / 2.0f, std::ceil (labelW), labelH, m_bgArgb);
+
+    hr = text.DrawString (m_shownFrameLabel.c_str(), std::round ((width - labelW) / 2.0f), top - labelH / 2.0f, std::ceil (labelW), labelH,
+                          ink, labelPx, GetFace(), DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 

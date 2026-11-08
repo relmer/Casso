@@ -106,6 +106,100 @@ std::wstring MemoryRegionKeys::GetLabel (uint16_t key, const SlotCards & cards)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryRegionKeys::GetRomArea
+//
+//  The Monitor is $F800-$FFFF on every model, under Integer BASIC from
+//  $E000 on the original Apple ][ and Applesoft from $D000 on the rest. The
+//  //e's internal $C100-$CFFF has the 80-column firmware at $C300 and in the
+//  expansion space; the rest of it, and all of the //c's, is the machine's
+//  internal firmware.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring MemoryRegionKeys::GetRomArea (const std::string & machineId, Word address)
+{
+    constexpr Word  kMonitor      = 0xF800;
+    constexpr Word  kIntegerBasic = 0xE000;
+    constexpr Word  kApplesoft    = 0xD000;
+    constexpr Word  kFirmware     = 0xC100;
+    constexpr Word  kSlot3Page    = 0xC3;
+    constexpr Word  kExpansion    = 0xC800;
+    bool            isOriginal    = machineId == "Apple2";
+    bool            isIie         = machineId.starts_with ("Apple2e");
+
+
+
+    if (address >= kMonitor)
+    {
+        return L"Monitor";
+    }
+
+    if (isOriginal)
+    {
+        return (address >= kIntegerBasic) ? L"Integer BASIC" : std::wstring();
+    }
+
+    if (address >= kApplesoft)
+    {
+        return L"Applesoft BASIC";
+    }
+
+    if (address < kFirmware)
+    {
+        return {};
+    }
+
+    if (isIie && ((address >> 8) == kSlot3Page || address >= kExpansion))
+    {
+        return L"80-column firmware";
+    }
+
+    return L"internal firmware";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryRegionKeys::GetRomLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring MemoryRegionKeys::GetRomLabel (uint16_t key, Word address, const SlotCards & cards, const RomFiles & roms)
+{
+    std::wstring  label = GetLabel (key, cards);
+    std::wstring  area;
+    std::string   file;
+
+
+
+    if (key == kRegionRom)
+    {
+        area  = GetRomArea (roms.machineId, address);
+        label = area.empty() ? L"ROM" : L"ROM: " + area;
+        file  = roms.system;
+    }
+    else if (key > kRegionSlotRom && key < kRegionSlotRom + kSlotCount)
+    {
+        file = roms.slots[(size_t) (key - kRegionSlotRom)];
+    }
+
+    if (!file.empty())
+    {
+        label += L" (" + TextEncoding::NarrowToWide (file) + L")";
+    }
+
+    return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryRegionKeys::GetCardText
 //
 //  A card's display name after a label's colon, in sentence case: a common

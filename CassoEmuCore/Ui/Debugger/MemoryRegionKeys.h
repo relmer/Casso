@@ -49,6 +49,27 @@ public:
     //  The card in each slot by its display name, empty for an empty slot.
     using SlotCards = std::array<std::string, kSlotCount>;
 
+    //  The machine's model directory ("Apple2eEnhanced"), its system ROM's
+    //  file, and each slot's ROM or firmware file, empty for none.
+    struct RomFiles
+    {
+        std::string                               machineId;
+        std::string                               system;
+        std::array<std::string, kSlotCount>       slots;
+
+        bool operator== (const RomFiles & other) const = default;
+    };
+
+    //  What part of the system ROM an address is in, by the machine:
+    //  "Monitor", "Applesoft BASIC", "Integer BASIC", "80-column firmware"
+    //  or "internal firmware"; empty where no part is known.
+    static std::wstring  GetRomArea   (const std::string & machineId, Word address);
+
+    //  A range's label with the ROM behind an address in it, for a cell's
+    //  tip: "ROM: Applesoft BASIC (Apple2eEnhanced.rom)", "Slot 6: Disk ][
+    //  (Disk2.rom)". A range of no ROM has its label alone.
+    static std::wstring  GetRomLabel  (uint16_t key, Word address, const SlotCards & cards, const RomFiles & roms);
+
     static uint16_t      GetKey       (MemoryRegion region, Word address);
     static std::wstring  GetLabel     (uint16_t key, const SlotCards & cards);
     static std::wstring  GetCardText  (const std::string & card);

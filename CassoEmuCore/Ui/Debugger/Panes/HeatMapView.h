@@ -282,6 +282,7 @@ public:
 
     void      SetRegions      (const std::vector<uint16_t> & regions);
     void      SetSlotCards    (const MemoryRegionKeys::SlotCards & cards)   { m_slotCards = cards; }
+    void      SetRomFiles     (const MemoryRegionKeys::RomFiles & roms)     { m_romFiles = roms; }
     void      SetRegionColors (const MemoryRegionKeys::Colors & colors)     { m_regionColors = colors; }
     uint16_t  GetRegionAt     (Word address) const { return (m_regions.size() == (size_t) kAddressCount) ? m_regions[address] : (uint16_t) 0; }
 
@@ -292,6 +293,17 @@ public:
 
     //  The symbol at an address in the current bank, empty for none.
     std::string  GetSymbolAt  (Word address) const;
+
+    //  A cell's tip's first line, what the cell contains: the symbol and its
+    //  byte, "KBD  (C1)"; an instruction run from it and its bytes, with any
+    //  symbol before it, "LOOP: BPL $1075  (10 FB)"; or the byte alone. Empty
+    //  for a byte not known.
+    std::wstring  GetContentsLine (Word address) const;
+
+    //  The frame a cell's tip is drawn in: its range's label with the ROM
+    //  behind it, and its color, 0 for the tip's. "RAM" for main RAM, and no
+    //  frame in a bank with no regions.
+    void   GetTipFrame     (Word address, std::wstring & label, uint32_t & argb) const;
 
     //  The outlines around an address's cell, outermost first: the PC's, the
     //  stack pointer's, then each breakpoint's on it.
@@ -634,6 +646,7 @@ private:
     std::vector<Byte>                                m_symbolMarks;
     std::vector<uint16_t>                            m_regions;
     MemoryRegionKeys::SlotCards                      m_slotCards;
+    MemoryRegionKeys::RomFiles                       m_romFiles;
     MemoryRegionKeys::Colors                         m_regionColors;
     HeatMapZoomWidget                                m_zoomWidget;
     RECT                                             m_zoomPlacedFor = {};   // the bounds the zoom widget was placed in

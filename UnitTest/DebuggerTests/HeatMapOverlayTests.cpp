@@ -269,7 +269,7 @@ namespace DebuggerTests
             Assert::IsFalse  (HasText (text, L"00"),           L"the operand drawn as part of the instruction");
             Assert::IsTrue   (isRing (first),                  L"the PC's ring around the first piece");
             Assert::IsTrue   (isRing (second),                 L"and around the second");
-            Assert::IsTrue   (Contains (view.GetTipText (at), L"\nLDA $C000  (AD 00 C0)"), L"the tip has the instruction and its bytes");
+            Assert::IsTrue   (view.GetTipText (at).starts_with (L"LDA $C000  (AD 00 C0)\n"), L"the tip starts with the instruction and its bytes");
             Assert::AreEqual ((int) at, (int) *view.GetPickAt (POINT { (second.left + second.right) / 2, (second.top + second.bottom) / 2 }),
                               L"a point over an operand picks the instruction");
         }
@@ -583,6 +583,67 @@ namespace DebuggerTests
             view.ResetZoom();
             Assert::IsFalse  (view.IsSplit(), L"back at the fitted size, one range again");
             Assert::AreEqual ((size_t) 1, view.GetBands().size());
+        }
+
+
+
+        //  A tip's first line is what the cell contains: a symbol and its
+        //  byte, an instruction and its bytes after any symbol, or the byte.
+        //  The tip is framed in the cell's range, a ROM byte's with its ROM.
+        TEST_METHOD (ATipStartsWithTheCellsContentsInItsRangesFrame)
+        {
+            HeatMapView                      view;
+            std::shared_ptr<HeatMapSymbols>  symbols = std::make_shared<HeatMapSymbols>();
+            std::vector<Byte>                opcodes (kCount, 0);
+            std::vector<int16_t>             values  (kCount, -1);
+            std::vector<uint16_t>            regions (kCount, 0);
+            auto                             forms   = std::make_shared<std::vector<std::string>> (256);
+            MemoryRegionKeys::RomFiles       roms    = { "Apple2eEnhanced", "Apple2eEnhanced.rom", {} };
+            std::wstring                     label;
+            uint32_t                         argb    = 0;
+
+
+
+            values[0xC000]  = 0xC1;
+            values[0x0300]  = 0x2C;
+            values[0x0301]  = 0x1F;
+            values[0x0302]  = 0xC0;
+            values[0x0303]  = 0x42;
+            values[0xF800]  = 0x4A;
+            opcodes[0x0300] = 1;
+            (*forms)[0x2C]  = "BIT ....";
+            regions[0xC000] = MemoryRegionKeys::kRegionIo;
+            regions[0xF800] = MemoryRegionKeys::kRegionRom;
+
+            symbols->Add ("KBD",     0xC000);
+            symbols->Add ("LOOP",    0x0300);
+            symbols->Add ("RD80COL", 0xC01F);
+
+            Place (view);
+            view.SetOpcodes     (opcodes);
+            view.SetValues      (values);
+            view.SetOpcodeForms (forms);
+            view.SetSymbols     (symbols);
+            view.SetRegions     (regions);
+            view.SetRomFiles    (roms);
+            view.SetLevels      ({}, {}, {});
+
+            Assert::AreEqual (std::wstring (L"KBD  (C1)"),                       view.GetContentsLine (0xC000));
+            Assert::AreEqual (std::wstring (L"LOOP: BIT RD80COL  (2C 1F C0)"),   view.GetContentsLine (0x0300));
+            Assert::AreEqual (std::wstring (L"42"),                              view.GetContentsLine (0x0303));
+            Assert::IsTrue   (view.GetContentsLine (0x0400).empty(),                              L"a byte not known");
+            Assert::IsTrue   (view.GetTipText (0xC000).starts_with (L"KBD  (C1)\n"));
+
+            view.GetTipFrame (0xF800, label, argb);
+            Assert::AreEqual (std::wstring (L"ROM: Monitor (Apple2eEnhanced.rom)"), label);
+            Assert::AreEqual (MemoryRegionKeys::Colors().rom, argb);
+
+            view.GetTipFrame (0xC000, label, argb);
+            Assert::AreEqual (std::wstring (L"I/O"), label);
+
+            view.GetTipFrame (0x0303, label, argb);
+            Assert::AreEqual (std::wstring (L"RAM"), label);
+            Assert::AreEqual (0u, argb, L"in the tip's colors");
         }
 
 

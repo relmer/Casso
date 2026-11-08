@@ -157,6 +157,12 @@ public:
 
     //  The scale's color at a fraction of its width, 0 to 1.
     static uint32_t  GetGradientColor (const std::vector<uint32_t> & stops, float at);
+
+    //  A rounded outline around everything in the tip, with its label centered
+    //  on the top edge, as a memory window labels a range: in `argb`, or the
+    //  tip's border and text colors for 0. An empty label has no frame. Set
+    //  before the request it goes with, as the line colors are.
+    void  SetFrame        (std::wstring label, uint32_t argb) { m_frameLabel = std::move (label); m_frameArgb = argb; }
     static HRESULT  LayOutTable (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table);
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
@@ -287,6 +293,19 @@ private:
     float  GetGradientExtraPx () const;
     void   DrawGradient       (IDxuiPainter & painter, float left, float width, float bottom) const;
 
+    //  The frame: its label's size, the room it adds beside the content and
+    //  above it, and its outline and label drawn in a popup of a size.
+    static constexpr float  kFrameLabelScale = 0.85f;
+    static constexpr float  kFrameGapDip     = 6.0f;
+    static constexpr float  kFrameCornerDip  = 4.0f;
+    static constexpr float  kFrameMix        = 0.6f;
+    static constexpr float  kFrameLineEm     = 1.4f;
+
+    float  GetFrameLabelPx    () const { return m_scaler.ToPxf (m_fontDip) * kFrameLabelScale; }
+    float  GetFrameSidePx     () const { return m_shownFrameLabel.empty() ? 0.0f : m_scaler.ToPxf (kFrameGapDip); }
+    float  GetFrameTopPx      () const { return m_shownFrameLabel.empty() ? 0.0f : std::ceil (GetFrameLabelPx() * kFrameLineEm); }
+    void   DrawFrame          (IDxuiPainter & painter, IDxuiTextRenderer & text, float width, float height) const;
+
     //  The system's tip lifetime: ten double-click times, as Windows sets
     //  a tooltip control's auto-pop delay.
     static int  GetSystemVisibleMs ();
@@ -390,4 +409,8 @@ private:
     std::vector<uint32_t>                 m_shownGradient;
     float                                 m_gradientMark      = -1.0f;
     float                                 m_shownGradientMark = -1.0f;
+    std::wstring                          m_frameLabel;
+    std::wstring                          m_shownFrameLabel;
+    uint32_t                              m_frameArgb         = 0;
+    uint32_t                              m_shownFrameArgb    = 0;
 };

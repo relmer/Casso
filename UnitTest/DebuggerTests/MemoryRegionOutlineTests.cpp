@@ -120,6 +120,35 @@ namespace DebuggerTests
         }
 
 
+        //  A ROM byte's label has the part of the ROM and its file, by the
+        //  machine; a slot's ROM page has the slot's ROM file.
+        TEST_METHOD (ARomLabelGivesThePartAndTheFile)
+        {
+            MemoryRegionKeys::SlotCards  cards;
+            MemoryRegionKeys::RomFiles   roms = { "Apple2eEnhanced", "Apple2eEnhanced.rom", {} };
+
+
+
+            cards[6]      = "Disk ][";
+            roms.slots[6] = "Disk2.rom";
+
+            Assert::AreEqual (std::wstring (L"Monitor"),            MemoryRegionKeys::GetRomArea ("Apple2Plus",      0xFDED));
+            Assert::AreEqual (std::wstring (L"Applesoft BASIC"),    MemoryRegionKeys::GetRomArea ("Apple2e",         0xD000));
+            Assert::AreEqual (std::wstring (L"Integer BASIC"),      MemoryRegionKeys::GetRomArea ("Apple2",          0xE000));
+            Assert::IsTrue   (MemoryRegionKeys::GetRomArea ("Apple2", 0xD000).empty(), L"no part of the original ROM there");
+            Assert::AreEqual (std::wstring (L"80-column firmware"), MemoryRegionKeys::GetRomArea ("Apple2eEnhanced", 0xC300));
+            Assert::AreEqual (std::wstring (L"80-column firmware"), MemoryRegionKeys::GetRomArea ("Apple2eEnhanced", 0xC800));
+            Assert::AreEqual (std::wstring (L"internal firmware"),  MemoryRegionKeys::GetRomArea ("Apple2c",         0xC300));
+
+            Assert::AreEqual (std::wstring (L"ROM: Applesoft BASIC (Apple2eEnhanced.rom)"),
+                              MemoryRegionKeys::GetRomLabel (MemoryRegionKeys::kRegionRom, 0xE000, cards, roms));
+            Assert::AreEqual (std::wstring (L"Slot 6: Disk ][ (Disk2.rom)"),
+                              MemoryRegionKeys::GetRomLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC600), 0xC600, cards, roms));
+            Assert::AreEqual (std::wstring (L"LC bank 2"),
+                              MemoryRegionKeys::GetRomLabel (MemoryRegionKeys::kRegionLcBank2, 0xD000, cards, roms), L"no ROM behind it");
+        }
+
+
         TEST_METHOD (OutlinesTakeTheirBytesAndTheMapsColors)
         {
             MemoryEditModel                 model;

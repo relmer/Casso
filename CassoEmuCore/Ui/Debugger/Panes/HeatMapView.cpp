@@ -1983,10 +1983,11 @@ std::wstring HeatMapView::FormatAmount (Byte level) const
 
 std::wstring HeatMapView::GetTipText (Word address) const
 {
-    constexpr size_t  kCount = (size_t) kAddressCount;
-    std::wstring      text   = HeatMapOptions::DescribeLocation (m_shownBank, address, m_hasAux);
+    constexpr size_t  kCount   = (size_t) kAddressCount;
+    std::wstring      contents = GetContentsLine (address);
+    std::wstring      text     = HeatMapOptions::DescribeLocation (m_shownBank, address, m_hasAux);
     std::wstring      amount;
-    int               shown  = 0;
+    int               shown    = 0;
     const std::pair<const wchar_t *, const std::vector<Byte> *>  kinds[] =
     {
         { IsOperand (address) ? L"executed as an operand" : L"executed", &m_execute   },
@@ -2021,7 +2022,6 @@ std::wstring HeatMapView::GetTipText (Word address) const
         text += L"  untouched";
     }
 
-    text += DescribeInstruction (address);
     text += DescribeMarks (address);
 
     if (m_edited.size() == kCount && m_edited[address] != 0)
@@ -2035,7 +2035,73 @@ std::wstring HeatMapView::GetTipText (Word address) const
         text += L"\n" + HeatAccessJump::Describe (false, m_hoverAccess->reader);
     }
 
-    return text;
+    return contents.empty() ? text : contents + L"\n" + text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetContentsLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HeatMapView::GetContentsLine (Word address) const
+{
+    int16_t       stored      = (m_values.size() == (size_t) kAddressCount) ? m_values[address] : (int16_t) -1;
+    std::wstring  symbol      = TextEncoding::NarrowToWide (GetSymbolAt (address));
+    std::wstring  instruction = DescribeInstruction (address);
+
+
+
+    if (stored < 0)
+    {
+        return symbol;
+    }
+
+    if (!instruction.empty())
+    {
+        instruction.erase (0, 1);
+        return symbol.empty() ? instruction : symbol + L": " + instruction;
+    }
+
+    return symbol.empty() ? std::format (L"{:02X}", (Byte) stored) : std::format (L"{}  ({:02X})", symbol, (Byte) stored);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetTipFrame
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::GetTipFrame (Word address, std::wstring & label, uint32_t & argb) const
+{
+    uint16_t  key = GetRegionAt (address);
+
+
+
+    label.clear();
+    argb = 0;
+
+    if (m_regions.size() != (size_t) kAddressCount)
+    {
+        return;
+    }
+
+    if (key == 0)
+    {
+        label = L"RAM";
+        return;
+    }
+
+    label = MemoryRegionKeys::GetRomLabel (key, address, m_slotCards, m_romFiles);
+    argb  = MemoryRegionKeys::GetColor (key, m_regionColors);
 }
 
 
@@ -2390,6 +2456,8 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, 
 {
     std::optional<Place>  pick;
     TipLead               lead;
+    std::wstring          contents;
+    std::wstring          rest;
 
 
 
@@ -2405,18 +2473,24 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, 
         return false;
     }
 
-    anchor = GetPlaceRect (*pick);
+    anchor   = GetPlaceRect (*pick);
     InflateRect (&anchor, kStreetPx, kStreetPx);
-    lead   = GetTipLead (GetAddressOf (*pick));
-    text   = GetTipText (GetAddressOf (*pick));
-    swatches.assign (1, lead.argb | 0xFF000000u);
+    lead     = GetTipLead (GetAddressOf (*pick));
+    text     = GetTipText (GetAddressOf (*pick));
+    contents = GetContentsLine (GetAddressOf (*pick));
+    rest     = contents.empty() ? text : text.substr (contents.size() + 1);
 
-    //  An untouched cell's first line already ends in "untouched", so the
-    //  swatch goes on that line in place of a lead line.
+    //  The cell's contents come first, with no swatch. An untouched cell's
+    //  next line already ends in "untouched", so the swatch goes on that line
+    //  in place of a lead line.
     if (GetCellKind (GetAddressOf (*pick)) != CellKind::Untouched)
     {
-        text = lead.meaning + L"\n" + text;
+        rest = lead.meaning + L"\n" + rest;
     }
+
+    text = contents.empty() ? rest : contents + L"\n" + rest;
+    swatches.assign (contents.empty() ? 1 : 2, 0);
+    swatches.back() = lead.argb | 0xFF000000u;
 
     gradient.clear();
     mark = -1.0f;
