@@ -160,6 +160,41 @@ protected:
     //  Protected so a test can apply one as the keys do.
     void     ApplyTextZoom   (float zoom);
 
+    //  What Create and RenderFrame do past the HWND: the saved key scheme
+    //  applied, and the host's snapshot and console lines taken in. Protected
+    //  so a test can drive the window without one.
+    void     ApplySavedKeyScheme ();
+    void     TakeHostUpdate      ();
+
+    //  Opens a context menu at a point in the window the routing event came
+    //  from. The popup host needs an HWND, so a test takes the menu instead.
+    virtual void  PresentMenu (std::vector<DxuiPopupMenuItem> menu, POINT clientPx);
+
+    //  Copies the console's selected text. The clipboard is the system's, so
+    //  a test takes the copy instead.
+    virtual void  CopyConsoleSelection ();
+
+    //  The window's parts, for a test that presses keys at them.
+    DxuiTextInput               * GetCommandBox     () const { return m_commandBox; }
+    DxuiTextInput               * GetMemoryBox      () const { return m_memoryBox; }
+    DxuiTextInput               * GetPokeBox        () const { return m_pokeBox; }
+    DxuiTextView                * GetConsoleView    () const { return m_consoleView; }
+    DxuiListView                * GetCodeList       (int view) const { return m_codeLists[(size_t) view]; }
+    DxuiListView                * GetBreakpointList () const { return m_breakpointList; }
+    DxuiListView                * GetWatchList      () const { return m_watchList; }
+    DxuiListView                * GetRegisterList   () const { return m_registerList; }
+    DxuiTextInput               * GetWatchEditor    () const { return m_watchEditor; }
+    MemoryPane                  * GetMemoryPane     (int id) const { return m_memoryPanes[(size_t) (id - 1)].get(); }
+    const DebuggerCommands      * GetCommands       () const { return m_commands.get(); }
+    DxuiDockSite                * GetDockSite       () const { return m_dockSite; }
+    IDxuiControl                * GetFocusedControl () const { return GetFocused(); }
+    const DebuggerViewSnapshot  * GetSnapshot       () const { return m_snapshot.get(); }
+    float                         GetTextZoom       () const { return m_textZoom; }
+    DebuggerKeyScheme             GetKeyScheme      () const { return m_keyScheme; }
+
+    const std::vector<std::string>                   & GetConsoleLines  () const { return m_console; }
+    const std::vector<std::shared_ptr<DxuiCommand>>  & GetMenuCommands  () const { return m_menuCommands; }
+
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     const CassoTheme     * m_theme = nullptr;
@@ -222,8 +257,9 @@ private:
     void     RunCommand       (const std::string & line);
     void     ApplyKeyScheme   (DebuggerKeyScheme scheme);
     DebuggerKeyScheme  GetSavedKeyScheme () const;
-    void     CycleKeyScheme   ();
     bool     RouteBoxKey      (const DxuiKeyEvent & ev, bool & handled);
+    bool     DoesFocusKeepKey (const DxuiKeyEvent & ev) const;
+    static bool  IsGoToRegister (const std::wstring & text);
     void     ConfigureDockSite  ();
     void     ConfigureCommandBar ();
     void     SetCommandBarMenus  ();
@@ -238,6 +274,7 @@ private:
     void     ClosePane          (const std::wstring & pane);
     std::wstring  GetPaneOfFocus () const;
     void     ShowDockToMenu     (const std::wstring & pane, POINT clientPx);
+    std::vector<DxuiPopupMenuItem>  MakeDockToMenu (const std::wstring & pane);
     bool     ShowContentMenu    (const std::wstring & pane, POINT clientPx);
     void     ShowEditMenu       (IDxuiControl * control, POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> extra);
     void     AddListMenuItems   (DxuiListView * list, int row, int column, std::vector<std::pair<std::wstring, std::function<void()>>> & items);

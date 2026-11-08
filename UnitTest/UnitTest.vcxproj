@@ -223,6 +223,8 @@
     <ClCompile Include="DebuggerTests\DebuggerControllerTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerLayoutTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerViewStateTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerWindowBoxKeysTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerWindowRunKeysTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowTextSizeTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceDocumentsTests.cpp" />
     <ClCompile Include="DebuggerTests\CallRecorderCostTests.cpp" />

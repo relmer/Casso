@@ -147,7 +147,7 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
     hr = DxuiWindow::Create (params);
     CHR (hr);
 
-    ApplyKeyScheme        (GetSavedKeyScheme());
+    ApplySavedKeyScheme();
     ApplySavedPlacement();
 
     SetTheme (m_theme);
@@ -950,8 +950,8 @@ MemoryPane * DebuggerWindow::GetFocusedMemoryPane() const
 //
 //  The snapshot says which windows are open: each one it holds is shown and
 //  given its bytes, and the rest are hidden. A different machine clears every
-//  window's undo, since the addresses it would restore belonged to the old
-//  one.
+//  window's undo, and the watch pane's, since the addresses and registers it
+//  would restore belonged to the old one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -987,6 +987,8 @@ void DebuggerWindow::ApplyMemoryWindows()
         {
             pane->ClearHistory();
         }
+
+        m_watchUndo.clear();
     }
 
     for (const DebuggerViewSnapshot::MemoryWindow & window : m_snapshot->memoryWindows)
@@ -1837,35 +1839,20 @@ void DebuggerWindow::ApplyKeyScheme (DebuggerKeyScheme scheme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::CycleKeyScheme
+//  DebuggerWindow::ApplySavedKeyScheme
 //
-//  Visual Studio, AppleWin, GSSquared, and round again; the choice is saved at
-//  once, so it holds whether or not the window is closed cleanly.
+//  The drop-downs were built with the default scheme before the saved one was
+//  read, so they are built again to check the one now in force.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::CycleKeyScheme()
+void DebuggerWindow::ApplySavedKeyScheme()
 {
-    static constexpr DebuggerKeyScheme  kOrder[] = { DebuggerKeyScheme::VisualStudio,
-                                                     DebuggerKeyScheme::AppleWin,
-                                                     DebuggerKeyScheme::GSSquared };
-    size_t                              next     = 0;
+    ApplyKeyScheme (GetSavedKeyScheme());
 
-
-
-    for (size_t i = 0; i < std::size (kOrder); ++i)
+    if (m_commandBar != nullptr)
     {
-        if (kOrder[i] == m_keyScheme)
-        {
-            next = (i + 1) % std::size (kOrder);
-        }
-    }
-
-    ApplyKeyScheme (kOrder[next]);
-
-    if (m_host != nullptr)
-    {
-        m_host->SetDebuggerKeyScheme (DebuggerKeySchemes::GetName (kOrder[next]));
+        SetCommandBarMenus();
     }
 }
 
@@ -2727,23 +2714,69 @@ std::wstring DebuggerWindow::GetPaneOfFocus() const
 
 void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
 {
-    std::vector<DxuiDockSite::MenuItem>  items = m_dockSite->GetDockToMenu (pane);
-    std::vector<DxuiPopupMenuItem>       menu;
-    DxuiHwndSource                     * host  = GetPopupHost();
-    auto                                 found = m_floats.find (m_routingPane);
-    int                                  slot  = GetSourceSlotOf (pane);
+    std::vector<DxuiPopupMenuItem>  menu = MakeDockToMenu (pane);
 
 
 
-    //  A floating pane's menu opens in its own window, where the click was.
+    if (!menu.empty())
+    {
+        PresentMenu (std::move (menu), clientPx);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PresentMenu
+//
+//  A floating pane's menu opens in its own window, where the click was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PresentMenu (std::vector<DxuiPopupMenuItem> menu, POINT clientPx)
+{
+    DxuiHwndSource  * host  = GetPopupHost();
+    auto              found = m_floats.find (m_routingPane);
+
+
+
     if (!m_routingPane.empty() && found != m_floats.end())
     {
         host = found->second->GetPopupHost();
     }
 
-    if (items.empty() || host == nullptr)
+    if (host != nullptr)
     {
-        return;
+        DxuiContextMenu::Show (*host, clientPx.x, clientPx.y, std::move (menu));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::MakeDockToMenu
+//
+//  Empty for a pane the site offers nothing for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> DebuggerWindow::MakeDockToMenu (const std::wstring & pane)
+{
+    std::vector<DxuiDockSite::MenuItem>  items = m_dockSite->GetDockToMenu (pane);
+    std::vector<DxuiPopupMenuItem>       menu;
+    int                                  slot  = GetSourceSlotOf (pane);
+
+
+
+    if (items.empty())
+    {
+        return menu;
     }
 
     m_menuCommands.clear();
@@ -2811,7 +2844,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
-    DxuiContextMenu::Show (*host, clientPx.x, clientPx.y, std::move (menu));
+    return menu;
 }
 
 
@@ -3174,9 +3207,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
 
 void DebuggerWindow::RenderFrame()
 {
-    std::shared_ptr<const DebuggerViewSnapshot>  snapshot;
-    std::vector<std::string>                     console;
-    int64_t                                      now = (int64_t) GetTickCount64();
+    int64_t  now = (int64_t) GetTickCount64();
 
 
 
@@ -3185,24 +3216,7 @@ void DebuggerWindow::RenderFrame()
         return;
     }
 
-    if (m_host->TakeDebuggerUpdate (snapshot, console))
-    {
-        if (snapshot != nullptr)
-        {
-            m_snapshot = std::move (snapshot);
-            ApplySnapshot();
-
-            //  The drop-downs carry the mode and the panels they were built
-            //  with, so they are rebuilt when either changes.
-            if (GetMenuState() != m_menuState)
-            {
-                m_menuState = GetMenuState();
-                SetCommandBarMenus();
-            }
-        }
-
-        AppendConsole (console);
-    }
+    TakeHostUpdate();
 
     for (DxuiListView * list : GetLists())
     {
@@ -3261,6 +3275,48 @@ void DebuggerWindow::RenderFrame()
     }
 
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TakeHostUpdate
+//
+//  Whatever the CPU thread published since the last frame: the newest
+//  snapshot, and every console line written since.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::TakeHostUpdate()
+{
+    std::shared_ptr<const DebuggerViewSnapshot>  snapshot;
+    std::vector<std::string>                     console;
+
+
+
+    if (m_host == nullptr || !m_host->TakeDebuggerUpdate (snapshot, console))
+    {
+        return;
+    }
+
+    if (snapshot != nullptr)
+    {
+        m_snapshot = std::move (snapshot);
+        ApplySnapshot();
+
+        //  The drop-downs carry the mode and the panels they were built
+        //  with, so they are rebuilt when either changes.
+        if (GetMenuState() != m_menuState)
+        {
+            m_menuState = GetMenuState();
+            SetCommandBarMenus();
+        }
+    }
+
+    AppendConsole (console);
 }
 
 
@@ -3384,6 +3440,13 @@ void DebuggerWindow::ApplySnapshot()
             if (open && view > 0)
             {
                 (void) m_dockSite->EditPaneLayout().Activate (DebuggerLayout::GetCodePaneId (view));
+            }
+
+            //  A closed view has no lines for the cursor keys to act on, so
+            //  they go back to the first view, which never closes.
+            if (!open && m_activeCode == view)
+            {
+                m_activeCode = 0;
             }
 
             m_dockSite->Relayout();
@@ -4140,18 +4203,59 @@ Error:
 
 void DebuggerWindow::SubmitMemoryBox()
 {
-    Word  address = 0;
+    std::wstring  text    = m_memoryBox->GetText();
+    Word          address = 0;
 
 
 
-    if (TryParseHexWord (m_memoryBox->GetText(), address))
+    //  Nothing typed goes nowhere, rather than being reported as an address
+    //  that could not be found.
+    if (text.find_first_not_of (L" \t") == std::wstring::npos)
+    {
+        return;
+    }
+
+    //  A register's name is the register, even the A that is also a hex
+    //  digit, so only the CPU thread, which holds the registers, can say
+    //  where it goes.
+    if (!IsGoToRegister (text) && TryParseHexWord (text, address))
     {
         GetActiveMemoryPane()->GoTo (address);
     }
     else if (m_host != nullptr)
     {
-        m_host->GoToDebuggerMemory (GetActiveMemoryPane()->GetId(), SourcePathList::WideToUtf8 (m_memoryBox->GetText()));
+        m_host->GoToDebuggerMemory (GetActiveMemoryPane()->GetId(), SourcePathList::WideToUtf8 (text));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsGoToRegister
+//
+//  The register names Go to takes, in any case and with spaces around them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsGoToRegister (const std::wstring & text)
+{
+    static constexpr const wchar_t *  kNames[] = { L"A", L"X", L"Y", L"S", L"SP", L"PC" };
+    std::wstring                      trimmed;
+
+
+
+    for (wchar_t ch : text)
+    {
+        if (!iswspace (ch))
+        {
+            trimmed += (wchar_t) towupper (ch);
+        }
+    }
+
+    return std::any_of (std::begin (kNames), std::end (kNames), [&trimmed] (const wchar_t * name) { return trimmed == name; });
 }
 
 
@@ -6199,7 +6303,7 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (ev.kind == DxuiKeyEventKind::Down && focused == m_commandBox && ev.ctrl && !ev.alt && ev.vk == 'C' &&
         m_commandBox->GetSelectionStart() == m_commandBox->GetSelectionEnd() && m_consoleView->HasSelection())
     {
-        m_consoleView->CopySelection();
+        CopyConsoleSelection();
         return true;
     }
 
@@ -6265,10 +6369,15 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         }
     }
 
-    //  Ctrl+Z in a memory window undoes that window's last edit.
+    //  Ctrl+Z in a memory window undoes that window's last edit. An undo is
+    //  an edit, so it waits for the machine to stop, as typing does.
     if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && ev.vk == 'Z' && GetFocusedMemoryPane() != nullptr)
     {
-        (void) GetFocusedMemoryPane()->Undo();
+        if (m_snapshot != nullptr && m_snapshot->isPaused)
+        {
+            (void) GetFocusedMemoryPane()->Undo();
+        }
+
         return true;
     }
 
@@ -6276,14 +6385,67 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     {
         handled = (focused != nullptr) && focused->OnKey (ev);
 
+        //  The order is taken from the panes as they are now laid out and
+        //  shown, since a tab brought forward or a window opened changes
+        //  which controls a Tab can reach.
         if (!handled && ev.vk == VK_TAB && m_routingPane.empty())
         {
+            m_focusMgr.Rebuild();
             m_focusMgr.HandleKey (ev.shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
             handled = true;
         }
+
+        //  A key a box or a memory window keeps is its own even when it did
+        //  nothing with it: its character arrives next, and the scheme must
+        //  not also act on it.
+        handled = handled || DoesFocusKeepKey (ev);
     }
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::DoesFocusKeepKey
+//
+//  A memory window counts as a box that is never empty, since every
+//  character typed into it is an edit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::DoesFocusKeepKey (const DxuiKeyEvent & ev) const
+{
+    DxuiTextInput  * box      = GetFocusedBox();
+    bool             inMemory = GetFocusedMemoryPane() != nullptr;
+    bool             isEmpty  = box != nullptr && box->GetText().empty();
+
+
+
+    if (box == nullptr && !inMemory)
+    {
+        return false;
+    }
+
+    return DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, isEmpty);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::CopyConsoleSelection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::CopyConsoleSelection()
+{
+    m_consoleView->CopySelection();
 }
 
 
