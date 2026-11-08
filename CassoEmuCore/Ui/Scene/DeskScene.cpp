@@ -440,7 +440,18 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
         lighting.shadowStrength = m_stripPass ? 0.0f : kShadowStrength;
     }
 
-    lighting.refDist = DeskSceneModel::kLightRefMm;
+    // The lights are moved into model space through the inverse placement, so
+    // for a device placed at a uniform scale below 1, every light is farther
+    // away by 1 / scale, and the falloff dimmed it. The reference distance is
+    // scaled to match, so a scaled device is lit as brightly as at full size.
+    {
+        float  scale = std::sqrt (world[0] * world[0] + world[1] * world[1] + world[2] * world[2]);
+
+
+
+        lighting.refDist = (scale > 0.0f) ? DeskSceneModel::kLightRefMm / scale : DeskSceneModel::kLightRefMm;
+    }
+
     lighting.span    = DeskSceneModel::kShadeSpan;
     lighting.gain    = 2.05f;
 

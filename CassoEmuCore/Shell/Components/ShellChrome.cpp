@@ -1099,34 +1099,43 @@ int ShellChrome::GetDeskSlideClearPx() const
 //
 //  ShellChrome::UpdateDeskSlideCover
 //
-//  The disk labels are under the devices, so the cover extends down to the
-//  bottom of the picture area. Empty while the devices are out of the
-//  composition.
+//  Updates the two zones the desk's slide reacts to.
+//
+//  The cover (the devices stay up while the pointer is in it) spans
+//  the picture area's width from a margin above the top of the devices'
+//  front faces down to the area's bottom. Their lids, running back into the
+//  scene, are left out. Empty while the devices are out of the composition.
+//
+//  The reveal zone, which brings them up, is the lower half of the desk
+//  between the monitor's bottom and the area's bottom; never less than the
+//  plain edge zone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellChrome::UpdateDeskSlideCover (const DeskSceneComposition & comp)
 {
-    RECT  cover = {};
+    constexpr int  kStayMarginDp = 24;
+    RECT           cover         = {};
+    LONG           frontTopPx    = 0;
+    LONG           edgeTopPx     = m_driveStripAreaPx.bottom - m_shell.m_scaler.ToPx (s_kStripEdgeZoneDp);
+    LONG           monitorBottom = std::min (comp.monitorRectPx.bottom, m_driveStripAreaPx.bottom);
 
 
 
-    for (int i = 0; i < comp.driveCount; i++)
+    if (DeskSceneLayout::GetSlideFrontTopPx (comp, m_shell.m_scene->GetScene().Metrics(), frontTopPx))
     {
-        UnionRect (&cover, &cover, &comp.driveRectPx[i]);
-    }
-
-    if (comp.hasRecorder != 0)
-    {
-        UnionRect (&cover, &cover, &comp.recorderRectPx);
-    }
-
-    if (!IsRectEmpty (&cover))
-    {
-        cover.bottom = std::max (cover.bottom, m_driveStripAreaPx.bottom);
+        cover = RECT { m_driveStripAreaPx.left, frontTopPx - m_shell.m_scaler.ToPx (kStayMarginDp),
+                       m_driveStripAreaPx.right, m_driveStripAreaPx.bottom };
     }
 
     m_deskSlideCoverPx = cover;
+
+    m_deskSlideRevealTopPx = edgeTopPx;
+
+    if (comp.monitorRectPx.bottom > comp.monitorRectPx.top)
+    {
+        m_deskSlideRevealTopPx = std::min (edgeTopPx, monitorBottom + (m_driveStripAreaPx.bottom - monitorBottom) / 2);
+    }
 }
 
 

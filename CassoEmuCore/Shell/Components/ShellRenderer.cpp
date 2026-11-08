@@ -847,11 +847,17 @@ bool ShellRenderer::TryPresentUiFrame()
         inputs.nowMs = stripNowMs;
 
         // The edge is the bottom of the strip's area: the screen's bottom in
-        // fullscreen, the picture's bottom in a window with auto-hide on.
+        // fullscreen, the picture's bottom in a window with auto-hide on. On
+        // the windowed desk it is taller: the lower half of the desk under
+        // the monitor.
         if (GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor) && PtInRect (&client, cursor))
         {
-            inputs.pointerAtBottomEdge = PtInRect (&area, cursor) &&
-                                         cursor.y >= area.bottom - m_shell.m_scaler.ToPx (s_kStripEdgeZoneDp);
+            LONG  edgeTop = (deskSlide && !m_d3dRenderer.IsFullscreen()) ? m_shell.m_chrome->m_deskSlideRevealTopPx
+                                                                         : area.bottom - m_shell.m_scaler.ToPx (s_kStripEdgeZoneDp);
+
+
+
+            inputs.pointerAtBottomEdge = PtInRect (&area, cursor) && cursor.y >= edgeTop;
             inputs.pointerOverStrip    = m_shell.m_scene->m_stripState.Mode() != StripMode::Hidden &&
                                          PtInRect (&engageRect, cursor);
         }

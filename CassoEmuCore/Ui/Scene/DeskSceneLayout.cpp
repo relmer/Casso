@@ -301,9 +301,9 @@ bool DeskSceneLayout::GetSlideTanRange (const DeskSceneComposition  & comp,
 //  DeskSceneLayout::FitSlideDevices
 //
 //  When the row is wider than `limitTanX` allows, every sliding device is
-//  scaled down uniformly about the row's back-bottom center (x 0, the desk,
-//  `pivotZ`), so the backs stay just in front of the monitor and the row
-//  stays centered and on the desk. A few passes, because the tangent of a
+//  scaled down uniformly about the row's back-bottom center (`pivotX`, the
+//  desk, `pivotZ`), so the backs stay just in front of the monitor and the
+//  row stays centered and on the desk. A few passes, because the tangent of a
 //  point is not exactly linear in the scale.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -312,6 +312,7 @@ void DeskSceneLayout::FitSlideDevices (DeskSceneComposition  & comp,
                                        const DeskSceneMetrics & metrics,
                                        int                      driveCount,
                                        float                    limitTanX,
+                                       float                    pivotX,
                                        float                    pivotZ)
 {
     constexpr int  kFitPasses = 3;
@@ -341,7 +342,7 @@ void DeskSceneLayout::FitSlideDevices (DeskSceneComposition  & comp,
 
         factor = limitTanX / extent;
 
-        ScaleSlideDevices (comp, driveCount, factor, pivotZ);
+        ScaleSlideDevices (comp, driveCount, factor, pivotX, pivotZ);
     }
 }
 
@@ -353,7 +354,7 @@ void DeskSceneLayout::FitSlideDevices (DeskSceneComposition  & comp,
 //
 //  DeskSceneLayout::ScaleSlideDevices
 //
-//  Scales every sliding device uniformly about (x 0, the desk, `pivotZ`):
+//  Scales every sliding device uniformly about (`pivotX`, the desk, `pivotZ`):
 //  the axes of each world matrix shrink, and each translation moves toward
 //  the pivot by the same factor.
 //
@@ -362,6 +363,7 @@ void DeskSceneLayout::FitSlideDevices (DeskSceneComposition  & comp,
 void DeskSceneLayout::ScaleSlideDevices (DeskSceneComposition & comp,
                                          int                    driveCount,
                                          float                  factor,
+                                         float                  pivotX,
                                          float                  pivotZ)
 {
     constexpr int  kAxisCells = 12;   // rows 0-2 of the matrix, the scaled axes
@@ -384,7 +386,7 @@ void DeskSceneLayout::ScaleSlideDevices (DeskSceneComposition & comp,
             world[cell] *= factor;
         }
 
-        world[12] *= factor;
+        world[12]  = pivotX + (world[12] - pivotX) * factor;
         world[13] *= factor;
         world[14]  = pivotZ + (world[14] - pivotZ) * factor;
     }
@@ -480,7 +482,9 @@ void DeskSceneLayout::PlaceSlidingDevices (const DeskSceneMetrics & metrics,
 //  Their fronts are nearer the eye than the monitor's, so they are scaled by
 //  (D - gap) / (D + depth), D the eye's distance to the monitor's front:
 //  then a front face projects at the monitor's scale. The pivot is the row's
-//  back edge, so the backs stay just in front of the monitor.
+//  back edge, so the backs stay just in front of the monitor. `extraScale`
+//  then shrinks the row further, about the same pivot; `centerXMm` is the x
+//  the row is centered on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -492,7 +496,9 @@ int DeskSceneLayout::SlideDevices (DeskSceneComposition   & out,
                                    float                    tanHalfY,
                                    int                      viewportH,
                                    float                    slideProgress,
-                                   int                      slideClearPx)
+                                   int                      slideClearPx,
+                                   float                    centerXMm,
+                                   float                    extraScale)
 {
     float  backZ    = -metrics.monitorMin[1] + kSlideMonitorGapMm;
     float  depthMm  = metrics.driveMax[1] - metrics.driveMin[1];
@@ -503,12 +509,27 @@ int DeskSceneLayout::SlideDevices (DeskSceneComposition   & out,
 
 
 
-    if (eyeDistMm > depthMm)
+    // PlaceSlidingDevices centers the row on x 0, the monitor's center; the
+    // camera may aim elsewhere (fullscreen aims at the glass), so the row is
+    // moved under the camera first.
+    for (int i = 0; i < driveCount; i++)
     {
-        ScaleSlideDevices (out, driveCount, (eyeDistMm - kSlideMonitorGapMm) / (eyeDistMm + depthMm), backZ);
+        out.driveWorld[i][12] += centerXMm;
     }
 
-    FitSlideDevices (out, metrics, driveCount, tanHalfX * kSlideFitMargin, backZ);
+    out.recorderWorld[12] += centerXMm;
+
+    if (eyeDistMm > depthMm)
+    {
+        ScaleSlideDevices (out, driveCount, (eyeDistMm - kSlideMonitorGapMm) / (eyeDistMm + depthMm), centerXMm, backZ);
+    }
+
+    FitSlideDevices (out, metrics, driveCount, tanHalfX * kSlideFitMargin, centerXMm, backZ);
+
+    if (extraScale > 0.0f && extraScale < 1.0f)
+    {
+        ScaleSlideDevices (out, driveCount, extraScale, centerXMm, backZ);
+    }
 
     hideMm   = SolveSlideOffset (out, metrics, driveCount, -1.0f, -tanHalfY);
     liftMm   = SolveSlideOffset (out, metrics, driveCount, 1.0f, -tanHalfY + clearTan);
@@ -580,6 +601,69 @@ void DeskSceneLayout::ProjectDeviceRects (DeskSceneComposition   & out,
         ProjectModelBox (out.recorderWorld, metrics.recorderMin, metrics.recorderMax,
                          out.viewProj, viewportPx, out.recorderRectPx);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::GetSlideFrontTopPx
+//
+//  The screen y of the highest point of the devices' front faces: each
+//  drive's and the recorder's front-top edge, both corners, projected. The
+//  rest of each body, its lid running back into the scene, is left out, so
+//  the result is where the faces a user points at begin. False when the
+//  composition has no devices.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskSceneLayout::GetSlideFrontTopPx (const DeskSceneComposition & comp,
+                                          const DeskSceneMetrics     & metrics,
+                                          LONG                       & outTopPx)
+{
+    float  topPx = FLT_MAX;
+
+
+
+    for (int i = -1; i < comp.driveCount; i++)
+    {
+        const float  * world  = (i < 0) ? comp.recorderWorld : comp.driveWorld[i];
+        const float  * boxMin = (i < 0) ? metrics.recorderMin : metrics.driveMin;
+        const float  * boxMax = (i < 0) ? metrics.recorderMax : metrics.driveMax;
+
+
+
+        if (i < 0 && comp.hasRecorder == 0)
+        {
+            continue;
+        }
+
+        for (int side = 0; side < 2; side++)
+        {
+            float  pt[3]      = { side ? boxMax[0] : boxMin[0], boxMin[1], boxMax[2] };
+            float  worldPt[3] = {};
+            float  px[2]      = {};
+
+
+
+            if (SceneCamera::TransformPoint (world, pt, worldPt) &&
+                SceneCamera::ProjectToScreen (comp.viewProj, worldPt, comp.viewportPx, px))
+            {
+                topPx = std::min (topPx, px[1]);
+            }
+        }
+    }
+
+    if (topPx == FLT_MAX)
+    {
+        return false;
+    }
+
+    outTopPx = (LONG) std::floor (topPx);
+
+    return true;
 }
 
 
@@ -1008,7 +1092,7 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
         if (sliding)
         {
             driveCount = SlideDevices (out, metrics, driveCount, eyeZ - (-metrics.monitorMin[1]),
-                                       tanHalfX, tanHalfY, viewportH, slideProgress, slideClearPx);
+                                       tanHalfX, tanHalfY, viewportH, slideProgress, slideClearPx, 0.0f, 1.0f);
         }
 
         // THE ORBIT ROTATES THE SCENE, NOT THE CAMERA. The eye stays in its
@@ -1461,7 +1545,8 @@ HRESULT DeskSceneLayout::ComputeGlassFill (const RECT             & viewportPx,
         PlaceSlidingDevices (metrics, driveCount, out);
 
         driveCount = SlideDevices (out, metrics, driveCount, eyeDistMm, tanY * aspect, tanY, viewportH,
-                                   std::clamp (slideProgress, 0.0f, 1.0f), std::max (slideClearPx, 0));
+                                   std::clamp (slideProgress, 0.0f, 1.0f), std::max (slideClearPx, 0),
+                                   glassCx, kFullscreenSlideScale);
 
         ProjectDeviceRects (out, metrics, driveCount, viewportPx);
     }

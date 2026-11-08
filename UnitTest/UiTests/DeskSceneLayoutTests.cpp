@@ -1245,6 +1245,50 @@ public:
     }
 
 
+    TEST_METHOD (Fullscreen_Drive_Row_Is_Centered_On_The_Screen)
+    {
+        // The glass is off-center in the case, and the camera aims at the
+        // glass, so a row centered on the case would land off to one side.
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  screen  = { 0, 0, 1920, 1080 };
+        DeskSceneComposition  comp;
+        float                 rowMid  = 0.0f;
+
+
+
+        metrics.glass.x0 = 10.0f;
+        metrics.glass.x1 = 200.0f;
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH, metrics, comp,
+                                                                   2, 1.0f, kSlideClearPx));
+
+        rowMid = (float) (comp.driveRectPx[0].left + comp.driveRectPx[1].right) * 0.5f;
+
+        Assert::AreEqual (960.0f, rowMid, 4.0f, L"the row is centered left to right");
+    }
+
+
+    TEST_METHOD (Slide_Front_Top_Ignores_The_Lids)
+    {
+        DeskSceneMetrics      metrics  = MakeMetrics();
+        RECT                  vp       = { 0, 0, 1120, 768 };
+        DeskSceneComposition  comp;
+        LONG                  frontTop = 0;
+
+
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f, kSlideClearPx, comp));
+
+        Assert::IsTrue (DeskSceneLayout::GetSlideFrontTopPx (comp, metrics, frontTop));
+        Assert::IsTrue (frontTop > comp.driveRectPx[0].top, L"the lid behind the face projects higher and is left out");
+        Assert::IsTrue (frontTop < comp.driveRectPx[0].bottom);
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.0f, kSlideClearPx, comp));
+
+        Assert::IsFalse (DeskSceneLayout::GetSlideFrontTopPx (comp, metrics, frontTop), L"no devices, no faces");
+    }
+
+
     TEST_METHOD (Fullscreen_Glass_Still_Covers_A_Screen_Shaped_Like_The_Glass)
     {
         // And where covering costs no picture, nothing changed: the glass

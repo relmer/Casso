@@ -208,6 +208,12 @@ public:
                                     DeskSceneComposition   & out,
                                     const DeskSceneView    & view = DeskSceneView {});
 
+    // The screen y of the highest point of the sliding devices' front faces,
+    // ignoring the bodies behind them. False when there are no devices.
+    static bool     GetSlideFrontTopPx (const DeskSceneComposition & comp,
+                                        const DeskSceneMetrics     & metrics,
+                                        LONG                       & outTopPx);
+
     // Magnify and shift a projection in CLIP SPACE, which is what lets the
     // user's framing ride on top of the fitted composition without disturbing
     // it. Applied before the bounds are projected, so glassRectPx and the
@@ -328,6 +334,10 @@ public:
     // The share of the frame's half-width the sliding row may fill before it
     // is scaled down to fit, so it never touches the window's sides.
     static constexpr float  kSlideFitMargin        = 0.96f;
+
+    // In fullscreen the fitted row is shrunk to this share of its size: at
+    // the full screen width it covered too much of the picture.
+    static constexpr float  kFullscreenSlideScale  = 0.6f;
     static constexpr float  kNoSlide               = -1.0f;
     static constexpr float  kContainMargin         = 1.005f;
 
@@ -500,7 +510,9 @@ private:
                                       float                        tanHalfY,
                                       int                          viewportH,
                                       float                        slideProgress,
-                                      int                          slideClearPx);
+                                      int                          slideClearPx,
+                                      float                        centerXMm,
+                                      float                        extraScale);
 
     // The drives' and recorder's screen rects and the drives' label anchors.
     static void     ProjectDeviceRects (DeskSceneComposition     & out,
@@ -514,12 +526,14 @@ private:
                                       const DeskSceneMetrics     & metrics,
                                       int                          driveCount,
                                       float                        limitTanX,
+                                      float                        pivotX,
                                       float                        pivotZ);
 
-    // Scales every sliding device uniformly about (x 0, the desk, pivotZ).
+    // Scales every sliding device uniformly about (pivotX, the desk, pivotZ).
     static void     ScaleSlideDevices (DeskSceneComposition      & comp,
                                        int                         driveCount,
                                        float                       factor,
+                                       float                       pivotX,
                                        float                       pivotZ);
 
     // How far the sliding devices are moved up or down to put them past a
