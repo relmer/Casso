@@ -422,7 +422,7 @@ std::vector<FullSendRow> FullSendManifest::RemoveImage (const std::string & name
     for (const FullSendRow & row : m_rows)
     {
         bool  image     = !row.file.empty() && _stricmp (row.file.c_str(), name.c_str()) == 0;
-        bool  duplicate = !row.duplicateOf.empty() && _stricmp (row.duplicateOf.c_str(), name.c_str()) == 0;
+        bool  duplicate = row.file.empty() && !row.duplicateOf.empty() && _stricmp (row.duplicateOf.c_str(), name.c_str()) == 0;
 
         if (image || duplicate)
         {

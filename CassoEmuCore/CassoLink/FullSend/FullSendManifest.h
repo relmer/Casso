@@ -84,7 +84,9 @@ public:
     bool                 RenameImage       (const std::string & oldName, const std::string & newName);
 
     //  An image deleted from the folder: its row and the rows of its
-    //  duplicates are removed, and returned so they can be restored.
+    //  duplicates are removed, and returned so they can be restored. A row
+    //  that has an image, as a disk sent again although it was a repeat, is
+    //  not removed.
     std::vector<FullSendRow>  RemoveImage  (const std::string & name);
 
     //  Rows a deletion removed, put back in order of their sequence. A row

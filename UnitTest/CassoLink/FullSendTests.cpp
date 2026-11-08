@@ -1698,6 +1698,30 @@ public:
     }
 
 
+    //  A disk sent again although it was a repeat has an image, and the
+    //  earlier image in duplicateOf. Its row isn't removed when the earlier
+    //  image is deleted.
+    TEST_METHOD (ARowWithAnImage_IsNotRemovedWithTheImageItRepeats)
+    {
+        FullSendManifest          manifest = MakeManifest();
+        FullSendRow               again;
+        std::vector<FullSendRow>  removed;
+
+        again.sequence    = 3;
+        again.file        = "Disk 003.dsk";
+        again.fingerprint = std::string (64, 'a');
+        again.hash        = std::string (64, 'b');
+        again.status      = FullSendManifest::kStatusSent;
+        again.duplicateOf = "Disk 001.dsk";
+        manifest.Add (again);
+
+        removed = manifest.RemoveImage ("Disk 001.dsk");
+
+        Assert::AreEqual ((size_t) 2, removed.size());
+        Assert::AreEqual ((size_t) 1, manifest.GetRows().size());
+        Assert::AreEqual (std::string ("Disk 003.dsk"), manifest.GetRows()[0].file);
+    }
+
     TEST_METHOD (NoteDeleteThenNoteRestore_RoundTripsTheManifest)
     {
         FakeDiskFileIo            io;
