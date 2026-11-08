@@ -194,6 +194,9 @@
     <ClCompile Include="DebuggerTests\MemoryHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\DataDirectiveHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\ExecutionHandlersTests.cpp" />
+    <ClCompile Include="DebuggerTests\BranchRecordTests.cpp" />
+    <ClCompile Include="DebuggerTests\InjectKeyTests.cpp" />
+    <ClCompile Include="DebuggerTests\ProfileCommandTests.cpp" />
     <ClCompile Include="DebuggerTests\ProfileTableTests.cpp" />
     <ClCompile Include="DebuggerTests\TraceTests.cpp" />
     <ClCompile Include="DebuggerTests\TraceHandlersTests.cpp" />

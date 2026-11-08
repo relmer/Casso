@@ -6,6 +6,7 @@
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/DebugSession.h"
 #include "Disassembler.h"
+#include "Machines/Apple2/Common/VideoTiming.h"
 
 
 
@@ -46,13 +47,41 @@ bool ExecutionHandlers::TryExecute (DebugSession & session, const DebugCommand &
 //
 //  ExecutionHandlers::OnInstruction
 //
+//  The instruction before this one is settled first, now that it has run or
+//  an interrupt has been dispatched in its place. This one's state is taken
+//  before it runs: its trace line, and the count the profile bills it from.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExecutionHandlers::OnInstruction (DebugSession & session, Word pc)
 {
+    IDebugTarget        & target  = session.GetTarget();
+    PendingInstruction    pending;
+
+
+
     FeedKeys      (session);
-    RecordProfile (session, pc);
-    RecordTrace   (session, pc);
+    SettlePending (session);
+
+    if (!m_profile.IsOn() && !m_trace.isOn)
+    {
+        return;
+    }
+
+    pending.pc          = pc;
+    pending.opcode      = Peek (target, pc);
+    pending.sp          = target.GetRegisters().sp;
+    pending.startCycles = target.GetCycleCount();
+    pending.isProfiled  = m_profile.IsOn();
+    pending.isTraced    = m_trace.isOn;
+    pending.traceStart  = m_trace.lines.size();
+
+    if (m_trace.isOn)
+    {
+        m_trace.lines += FormatTraceLine (session, pc, m_trace.withVideo);
+    }
+
+    m_pending = pending;
 }
 
 
@@ -65,13 +94,13 @@ void ExecutionHandlers::OnInstruction (DebugSession & session, Word pc)
 //
 //  The trace file is written at every stop, so a script that never turns
 //  tracing off still leaves the file behind. The last instruction of the run
-//  is billed to the profile here, since no next instruction will bill it.
+//  is settled here, since no next instruction will settle it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExecutionHandlers::OnRunStopped (DebugSession & session, const StopEvent & stop)
 {
-    BillProfile (session);
+    SettlePending (session);
 
     m_lastRunCycles = stop.cycles;
     FlushTrace (session);
@@ -222,7 +251,8 @@ void ExecutionHandlers::QueueKeys (DebugSession & session, const DebugCommand & 
 
     m_keys.insert (m_keys.end(), command.values.begin(), command.values.end());
     FeedKeys (session);
-    reply.data = MessageData { { std::format ("Queued {} keys. Keys waiting: {}.", command.values.size(), m_keys.size()) } };
+    reply.data = MessageData { { std::format ("Queued {} key{}. Keys waiting: {}.",
+                                              command.values.size(), command.values.size() == 1 ? "" : "s", m_keys.size()) } };
 }
 
 
@@ -252,15 +282,32 @@ void ExecutionHandlers::FeedKeys (DebugSession & session)
 //
 //  ExecutionHandlers::BreakOnVideoLine
 //
-//  BPV vpos[,len] stops when the scanline enters the range, once.
+//  BPV line[,len|:last] arms the session's one video break, which stops a
+//  run once at the range. A range that ends before it begins, or runs past
+//  the frame's last scanline, could never fire, and would keep every
+//  instruction asked about for as long as it stayed armed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExecutionHandlers::BreakOnVideoLine (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    Word  last = command.hasA2 ? command.a2 : command.a1;
+    static constexpr uint32_t  kLastLine = VideoTiming::kScanlinesPerFrame - 1;
+    Word                       last      = command.hasA2 ? command.a2 : command.a1;
 
 
+
+    if (last < command.a1)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("${:X}-${:X} ends before it begins.", command.a1, last));
+        return;
+    }
+
+    if (last > kLastLine)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments",
+                        std::format ("A frame's scanlines are $0-${:X}, which is 0-{} in decimal.", kLastLine, kLastLine));
+        return;
+    }
 
     session.SetVideoBreak (command.a1, last);
     reply.data = MessageData { { std::format ("Breakpoint set on video scanlines {}-{}. It clears after it fires.", command.a1, last) } };
@@ -316,32 +363,62 @@ void ExecutionHandlers::ShowBranchRecord (DebugSession & session, Reply & reply)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExecutionHandlers::RecordProfile
+//  ExecutionHandlers::SettlePending
 //
-//  The hook reports an instruction before it runs, so its cost is billed at
-//  the next instruction, or at the stop for the last one. Nothing is kept
-//  while profiling is off.
+//  The hook reports an instruction before it runs, so what it did is known
+//  at the next instruction, or at the stop for the last one. One that an
+//  interrupt replaced did not run: it is neither billed nor traced, and is
+//  reported again when it does run, after the handler returns. The dispatch
+//  is no instruction, and is billed to none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExecutionHandlers::RecordProfile (DebugSession & session, Word pc)
+void ExecutionHandlers::SettlePending (DebugSession & session)
 {
-    IDebugTarget        & target  = session.GetTarget();
-    PendingInstruction    pending;
-
-
-
-    if (!m_profile.IsOn())
+    if (!m_pending.has_value())
     {
         return;
     }
 
-    BillProfile (session);
+    if (!WasPreempted (session, *m_pending))
+    {
+        BillProfile (session, *m_pending);
+    }
+    else if (m_pending->isTraced && m_trace.isOn)
+    {
+        m_trace.lines.resize (m_pending->traceStart);
+    }
 
-    pending.pc          = pc;
-    pending.opcode      = Peek (target, pc);
-    pending.startCycles = target.GetCycleCount();
-    m_profilePending    = pending;
+    m_pending.reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::WasPreempted
+//
+//  An interrupt dispatched in place of the instruction pushes three bytes,
+//  the top two the instruction's own address, and goes to a vector. No
+//  instruction does all three: BRK pushes the address two past itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExecutionHandlers::WasPreempted (DebugSession & session, const PendingInstruction & pending)
+{
+    static constexpr int  kByteBits = 8;
+    IDebugTarget        & target    = session.GetTarget();
+    Cpu6502Registers      registers = target.GetRegisters();
+    Byte                  high      = Peek (target, (Word) (kStackPage + pending.sp));
+    Byte                  low       = Peek (target, (Word) (kStackPage + (Byte) (pending.sp - 1)));
+    Word                  pushed    = (Word) ((high << kByteBits) | low);
+    bool                  isVector  = registers.pc == PeekWord (target, kIrqVector) || registers.pc == PeekWord (target, kNmiVector);
+
+
+
+    return registers.sp == (Byte) (pending.sp - kInterruptPushes) && pushed == pending.pc && isVector;
 }
 
 
@@ -352,29 +429,48 @@ void ExecutionHandlers::RecordProfile (DebugSession & session, Word pc)
 //
 //  ExecutionHandlers::BillProfile
 //
-//  The cycles the pending instruction took, from the machine's count, and the
-//  penalties the CPU recorded for it.
+//  The cycles the instruction took, from the machine's count, and the
+//  penalties the CPU recorded for it. A count now below where it started was
+//  reset under the instruction, which leaves its cost unknown, so it is not
+//  billed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExecutionHandlers::BillProfile (DebugSession & session)
+void ExecutionHandlers::BillProfile (DebugSession & session, const PendingInstruction & pending)
 {
     IDebugTarget  & target    = session.GetTarget();
-    uint64_t        cycles    = 0;
-    Byte            penalties = 0;
+    uint64_t        now       = target.GetCycleCount();
+    Byte            penalties = target.GetLastPenalties();
 
 
 
-    if (!m_profilePending.has_value())
+    if (!pending.isProfiled || now < pending.startCycles)
     {
         return;
     }
 
-    cycles    = target.GetCycleCount() - m_profilePending->startCycles;
-    penalties = target.GetLastPenalties();
+    m_profile.Record (pending.pc, pending.opcode, (Byte) std::min (now - pending.startCycles, kMaxBilledCycles), penalties);
+}
 
-    m_profile.Record (m_profilePending->pc, m_profilePending->opcode, (Byte) std::min (cycles, kMaxBilledCycles), penalties);
-    m_profilePending.reset();
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::SkipPendingBill
+//
+//  PROFILE OFF and PROFILE RESET: the instruction under way when either ran
+//  is never billed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::SkipPendingBill()
+{
+    if (m_pending.has_value())
+    {
+        m_pending->isProfiled = false;
+    }
 }
 
 
@@ -525,22 +621,20 @@ void ExecutionHandlers::SaveProfile (DebugSession & session, const std::string &
 //
 //  ExecutionHandlers::Profile
 //
-//  PROFILE ON|OFF|RESET|LIST [ADDR]|SAVE [file]. A bare PROFILE lists.
+//  PROFILE ON|OFF|RESET|LIST [ADDR]|SAVE [file]. A bare PROFILE lists. A
+//  file name with spaces is written in quotes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    std::istringstream  stream (command.text);
-    std::string         verb;
-    std::string         argument;
-    std::string         extra;
-    ProfileData         data;
+    std::vector<std::string>  words    = SplitWords (command.text);
+    std::string               verb     = words.empty() ? std::string() : SymbolTable::ToUpper (words[0]);
+    std::string               argument = words.size() > 1 ? words[1] : std::string();
+    bool                      hasExtra = words.size() > 2;
+    ProfileData               data;
 
 
-
-    stream >> verb >> argument >> extra;
-    verb = SymbolTable::ToUpper (verb);
 
     if (verb == "ON" && argument.empty())
     {
@@ -550,20 +644,20 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
     else if (verb == "OFF" && argument.empty())
     {
         m_profile.SetOn (false);
-        m_profilePending.reset();
+        SkipPendingBill();
         reply.data = MessageData { { "Profiling off." } };
     }
     else if (verb == "RESET" && argument.empty())
     {
         m_profile.Reset();
-        m_profilePending.reset();
+        SkipPendingBill();
         reply.data = MessageData { { "Profile reset." } };
     }
-    else if (verb == "SAVE" && extra.empty())
+    else if (verb == "SAVE" && !hasExtra)
     {
         SaveProfile (session, argument.empty() ? kDefaultProfile : argument, reply);
     }
-    else if ((verb.empty() || verb == "LIST") && extra.empty() && (argument.empty() || SymbolTable::ToUpper (argument) == "ADDR"))
+    else if ((verb.empty() || verb == "LIST") && !hasExtra && (argument.empty() || SymbolTable::ToUpper (argument) == "ADDR"))
     {
         BuildProfile (session, !argument.empty(), data);
         reply.data = data;
@@ -584,31 +678,32 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
 //
 //  TF ["file"] [v] turns the trace file on, or off if it is on. Each
 //  instruction a debugger-driven run executes becomes one line. The file is
-//  written at each stop and when tracing ends.
+//  written at each stop and when tracing ends; turned off between the slices
+//  of a run, the instruction under way is settled first, so the file holds
+//  it only if it ran.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExecutionHandlers::ToggleTrace (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    std::istringstream  stream (command.text);
-    std::string         token;
-    std::string         name;
-    bool                withVideo = false;
+    std::string  name;
+    bool         withVideo = false;
 
 
 
     if (m_trace.isOn)
     {
-        FlushTrace (session);
+        SettlePending (session);
+        FlushTrace    (session);
         reply.data = MessageData { { std::format ("Trace off: {}", m_trace.name) } };
         m_trace    = TraceState();
         return;
     }
 
-    while (stream >> token)
+    for (const std::string & word : SplitWords (command.text))
     {
-        if (token == "v" || token == "V") { withVideo = true; }
-        else                              { name = token; }
+        if (word == "v" || word == "V") { withVideo = true; }
+        else                            { name = word; }
     }
 
     if (session.GetFileSystem() == nullptr)
@@ -630,14 +725,15 @@ void ExecutionHandlers::ToggleTrace (DebugSession & session, const DebugCommand 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExecutionHandlers::RecordTrace
+//  ExecutionHandlers::FormatTraceLine
 //
 //  Cycles, the registers, the flags and the disassembly; with v, the video
-//  scanline and horizontal position replace the cycle count.
+//  scanline and horizontal position replace the cycle count. Built only
+//  while tracing is on, since a run pays for it on every instruction.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExecutionHandlers::RecordTrace (DebugSession & session, Word pc)
+std::string ExecutionHandlers::FormatTraceLine (DebugSession & session, Word pc, bool withVideo)
 {
     IDebugTarget           & target    = session.GetTarget();
     Disassembler             disassembler (target.GetInstructionSet());
@@ -650,11 +746,6 @@ void ExecutionHandlers::RecordTrace (DebugSession & session, Word pc)
 
 
 
-    if (!m_trace.isOn)
-    {
-        return;
-    }
-
     for (size_t i = 0; i < std::size (bytes); ++i)
     {
         bytes[i] = Peek (target, (Word) (pc + i));
@@ -663,7 +754,7 @@ void ExecutionHandlers::RecordTrace (DebugSession & session, Word pc)
     hr = disassembler.DisassembleOne (pc, bytes, instruction);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    line = m_trace.withVideo
+    line = withVideo
          ? std::format ("V{:03} H{:02} ", video.scanline, video.cycleInLine)
          : std::format ("{:08} ", target.GetCycleCount());
 
@@ -672,7 +763,7 @@ void ExecutionHandlers::RecordTrace (DebugSession & session, Word pc)
                          AppleWinFormatter::FormatFlags (registers.p),
                          pc, instruction.mnemonic, instruction.operand);
 
-    m_trace.lines += line;
+    return line;
 }
 
 
@@ -707,7 +798,8 @@ void ExecutionHandlers::FlushTrace (DebugSession & session)
 //  ExecutionHandlers::ShowCycles
 //
 //  CYCLES [ABS|REL|PART]: the machine's count, the last run's, or the count
-//  since RCC.
+//  since RCC. A reset that took the machine's count below the RCC marker
+//  started the count again, so PART is then the count since the reset.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -715,6 +807,7 @@ void ExecutionHandlers::ShowCycles (DebugSession & session, const DebugCommand &
 {
     std::string  which = command.text;
     uint64_t     total = session.GetTarget().GetCycleCount();
+    uint64_t     part  = (total >= m_cycleMarker) ? total - m_cycleMarker : total;
 
 
 
@@ -725,7 +818,7 @@ void ExecutionHandlers::ShowCycles (DebugSession & session, const DebugCommand &
 
     if      (which.empty() || which == "ABS") { reply.data = CyclesData { total }; }
     else if (which == "REL")                  { reply.data = CyclesData { m_lastRunCycles }; }
-    else if (which == "PART")                 { reply.data = CyclesData { total - m_cycleMarker }; }
+    else if (which == "PART")                 { reply.data = CyclesData { part }; }
     else
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", "CYCLES takes ABS, REL or PART.");
@@ -782,4 +875,62 @@ Byte ExecutionHandlers::Peek (IDebugTarget & target, Word address)
 
     target.TryPeek (address, value);
     return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::PeekWord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word ExecutionHandlers::PeekWord (IDebugTarget & target, Word address)
+{
+    static constexpr int  kByteBits = 8;
+
+
+
+    return (Word) (Peek (target, address) | (Peek (target, (Word) (address + 1)) << kByteBits));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::SplitWords
+//
+//  Words split at whitespace, except that a word starting with a double
+//  quote runs to the next one, spaces and all, and keeps both quotes. A
+//  file name with spaces is written that way; ResolvePath drops the quotes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> ExecutionHandlers::SplitWords (const std::string & text)
+{
+    static constexpr const char * kSpace = " \t";
+    std::vector<std::string>      words;
+    size_t                        at     = text.find_first_not_of (kSpace);
+    size_t                        end    = 0;
+
+
+
+    while (at != std::string::npos)
+    {
+        end = (text[at] == '"') ? text.find ('"', at + 1) : text.find_first_of (kSpace, at);
+
+        if (text[at] == '"' && end != std::string::npos)
+        {
+            ++end;
+        }
+
+        words.push_back (text.substr (at, (end == std::string::npos) ? std::string::npos : end - at));
+        at = (end == std::string::npos) ? std::string::npos : text.find_first_not_of (kSpace, end);
+    }
+
+    return words;
 }
