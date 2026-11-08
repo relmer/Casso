@@ -697,7 +697,7 @@ void ShellWindow::InstallDragDropTarget()
     // Drag-drop is an optional convenience -- File > Open and the drive
     // widgets' click-to-browse cover the same mounts -- so a failed
     // registration disables drop but must not prevent launch.
-    // Disks, tapes and BASIC programs; OnFileDropped sends each only to what can take it.
+    // Disks, tapes and BASIC programs; GetDropAction sends each only to what can take it.
     hrDrop = m_dragDropTarget.Initialize (m_shell.m_hwnd,
                                           &m_shell.m_uiShell.GetHitTester(),
                                           [this] (int tag, const std::wstring & path) { m_shell.OnFileDropped (tag, path); },
@@ -1257,6 +1257,8 @@ void ShellWindow::LayOutForSize (UINT widthPx, UINT heightPx)
             else
             {
                 m_shell.m_uiShell.GetHitTester().Clear();
+                m_shell.RegisterScreenDropTarget();
+
                 if (fHasDisk)
                 {
                     m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { m_shell.m_disks->GetDriveChrome()[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });

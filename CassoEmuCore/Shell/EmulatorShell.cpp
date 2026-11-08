@@ -1133,6 +1133,8 @@ HRESULT EmulatorShell::FinishUiShellLayout()
     if (!DeskSceneActive())
     {
         m_uiShell.GetHitTester().Clear();
+        RegisterScreenDropTarget();
+
         if (fHasDisk)
         {
             m_uiShell.GetHitTester().Register (DxuiHitRect { m_disks->GetDriveChrome()[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });

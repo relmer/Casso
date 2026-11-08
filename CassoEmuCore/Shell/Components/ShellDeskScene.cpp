@@ -1283,6 +1283,7 @@ void ShellDeskScene::SyncSceneDriveChrome()
     m_shell.m_disks->GetDriveChrome()[1].Hide();
 
     m_shell.m_uiShell.GetHitTester().Clear();
+    m_shell.RegisterScreenDropTarget();
 
     for (int i = 0; i < comp.driveCount; i++)
     {

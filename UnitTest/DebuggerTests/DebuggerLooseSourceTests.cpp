@@ -5,6 +5,8 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DroppedFiles.h"
+#include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellTapeDeck.h"
 
 #include "CppUnitTest.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
@@ -345,6 +347,29 @@ namespace DebuggerLooseSourceTests
             bytes.assign ({ '7', '0', '0', '0', '0', ' ', 'P', 'R', 'I', 'N', 'T', '\n' });
             Assert::IsFalse  (DroppedFiles::TryGetBasicProgram (L"C:\\Work\\Bad.bas", bytes, tokenized, error));
             Assert::IsFalse  (error.empty(), L"the reason");
+        }
+
+        //  On the emulator window a BASIC program loads wherever it lands but
+        //  the recorder; a disk mounts only on a drive, so one that misses the
+        //  drives mounts nothing; a tape goes only into the recorder.
+        TEST_METHOD (TheEmulatorWindowSendsEachDropToWhatTakesIt)
+        {
+            using Action = EmulatorShell::DropAction;
+
+            constexpr int  kDrive  = 0;
+            constexpr int  kScreen = EmulatorShell::kScreenDropTag;
+            constexpr int  kTape   = ShellTapeDeck::kTapeDropTag;
+
+
+
+            Assert::IsTrue (EmulatorShell::GetDropAction (kScreen, L"C:\\Work\\HELLO.as")     == Action::LoadBasic);
+            Assert::IsTrue (EmulatorShell::GetDropAction (kScreen, L"C:\\Work\\HELLO#fc0801") == Action::LoadBasic);
+            Assert::IsTrue (EmulatorShell::GetDropAction (kDrive,  L"C:\\Work\\Game.bas")     == Action::LoadBasic);
+            Assert::IsTrue (EmulatorShell::GetDropAction (kTape,   L"C:\\Work\\Game.bas")     == Action::None);
+            Assert::IsTrue (EmulatorShell::GetDropAction (kDrive,  L"C:\\Work\\game.dsk")     == Action::MountDisk);
+            Assert::IsTrue (EmulatorShell::GetDropAction (kScreen, L"C:\\Work\\game.dsk")     == Action::None);
+            Assert::IsTrue (EmulatorShell::GetDropAction (kTape,   L"C:\\Work\\game.wav")     == Action::InsertTape);
+            Assert::IsTrue (EmulatorShell::GetDropAction (kScreen, L"C:\\Work\\notes.txt")    == Action::None);
         }
 
         TEST_METHOD (DroppingASourceWithNoDebugFileOpensIt)

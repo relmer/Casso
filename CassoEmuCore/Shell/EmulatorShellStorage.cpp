@@ -27,36 +27,93 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::OnFileDropped
+//  EmulatorShell::GetDropAction
 //
 //  A file dropped on a drive mounts there and one dropped on the recorder is
 //  inserted into it, but only the kind each takes: a tape dropped on a drive,
 //  or a disk on the recorder, is ignored rather than mounted somewhere it
-//  cannot be read.
+//  cannot be read. A BASIC program loads wherever it is dropped except on
+//  the recorder; on the rest of the window, a disk or a tape is ignored, so
+//  a drop that misses a drive mounts nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+EmulatorShell::DropAction EmulatorShell::GetDropAction (int tag, const std::wstring & path)
+{
+    if (tag == ShellTapeDeck::kTapeDropTag)
+    {
+        return TapeImageLoader::IsTapeFileExtension (path) ? DropAction::InsertTape : DropAction::None;
+    }
+
+    if (tag != kScreenDropTag && IsSupportedDiskImageExtension (path))
+    {
+        return DropAction::MountDisk;
+    }
+
+    return DroppedFiles::IsBasicProgramFile (path) ? DropAction::LoadBasic : DropAction::None;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OnFileDropped
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
 {
-    if (tag == ShellTapeDeck::kTapeDropTag)
+    switch (GetDropAction (tag, path))
     {
-        if (TapeImageLoader::IsTapeFileExtension (path))
-        {
-            m_tapeDeck->InsertTape (path);
-        }
-    }
-    else if (IsSupportedDiskImageExtension (path))
-    {
+    case DropAction::InsertTape:
+        m_tapeDeck->InsertTape (path);
+        break;
+
+    case DropAction::MountDisk:
         //  A drop is a hand-off like an insert from another tool: its folder
         //  joins the known-folder list once the mount succeeds, with nobody to
         //  answer.
         m_intentReplies.NoteInsert (tag, fs::path (path).string(), nullptr);
         m_disks->Mount (6, tag, path);
-    }
-    else if (DroppedFiles::IsBasicProgramFile (path))
-    {
+        break;
+
+    case DropAction::LoadBasic:
         LoadDroppedBasic (path);
+        break;
+
+    default:
+        break;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RegisterScreenDropTarget
+//
+//  The whole window as a drop target, registered first after the hit
+//  tester is cleared so the drives and the recorder, registered after it,
+//  are picked ahead of it where they lie.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RegisterScreenDropTarget()
+{
+    RECT  client = {};
+
+
+
+    if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client) || IsRectEmpty (&client))
+    {
+        return;
+    }
+
+    m_uiShell.GetHitTester().Register (DxuiHitRect { client, DxuiHitSlot::Custom, kScreenDropTag });
 }
 
 

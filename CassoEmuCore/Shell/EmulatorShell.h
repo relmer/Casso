@@ -479,9 +479,26 @@ private:
     // pointer mapping, the Ctrl+0 solve -- follows this, not DeskSceneActive.
     bool    CrtMonitorActive     () const;
 
-    // A file dropped on a drive or the recorder.
-    void    OnFileDropped      (int tag, const std::wstring & path);
-    void    LoadDroppedBasic   (const std::wstring & path);
+public:
+    // A file dropped on a drive, the recorder or the rest of the window.
+    // The rest of the window is a drop target registered under the drives
+    // and the recorder, for BASIC programs alone.
+    enum class DropAction
+    {
+        MountDisk,
+        InsertTape,
+        LoadBasic,
+        None,
+    };
+
+    static constexpr int  kScreenDropTag = 3;
+
+    static DropAction  GetDropAction           (int tag, const std::wstring & path);
+
+private:
+    void               OnFileDropped           (int tag, const std::wstring & path);
+    void               LoadDroppedBasic        (const std::wstring & path);
+    void               RegisterScreenDropTarget();
 
     // The operating system's pickers, behind their seam. The shell owns the
     // Win32 implementation; whoever needs to put one up asks for the
