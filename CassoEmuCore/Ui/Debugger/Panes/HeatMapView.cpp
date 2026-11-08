@@ -903,7 +903,12 @@ void HeatMapView::SyncScrollbars()
 
 bool HeatMapView::TickScrollbars (int64_t nowMs)
 {
-    return m_vertBar.Tick (nowMs);
+    bool  isBarMoving  = m_vertBar.Tick (nowMs);
+    bool  isZoomMoving = m_zoomWidget.Tick (nowMs);
+
+
+
+    return isBarMoving || isZoomMoving;
 }
 
 

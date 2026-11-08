@@ -362,6 +362,46 @@ namespace DebuggerTests
         //  The slider stays open with the pointer over it or near it, and
         //  closes once the pointer moves further away or off the map. During a
         //  drag of its thumb it is open wherever the pointer goes.
+        //  Opened, the panel is drawn at the button's rect first, grows to the
+        //  panel's rect over kAnimateMs, and shrinks back to the button's rect
+        //  when it closes.
+        TEST_METHOD (TheZoomPanelGrowsOutOfTheButtonAndShrinksBack)
+        {
+            HeatMapZoomWidget  widget;
+            DxuiDpiScaler      scaler;
+            RECT               button = {};
+            RECT               drawn  = {};
+            RECT               panel  = {};
+
+
+
+            widget.Place (RECT { 0, 0, 600, 400 }, RECT { 0, 0, 600, 400 }, scaler);
+            button = widget.GetButtonRect();
+
+            widget.SetOpen (true);
+            Assert::IsTrue (widget.Tick (1000), L"opening");
+            drawn = widget.GetShownPanelRect();
+            Assert::IsTrue (EqualRect (&drawn, &button) != FALSE, L"from the button");
+
+            Assert::IsTrue (widget.Tick (1000 + HeatMapZoomWidget::kAnimateMs / 2));
+            drawn = widget.GetShownPanelRect();
+            Assert::IsTrue (drawn.left < button.left && drawn.left > widget.GetPanelRect().left, L"part of the way");
+
+            Assert::IsTrue  (widget.Tick (1000 + HeatMapZoomWidget::kAnimateMs));
+            Assert::IsFalse (widget.Tick (2000), L"done");
+            drawn = widget.GetShownPanelRect();
+            panel = widget.GetPanelRect();
+            Assert::IsTrue (EqualRect (&drawn, &panel) != FALSE, L"to the panel");
+
+            widget.SetOpen (false);
+            Assert::IsTrue  (widget.IsShown(), L"drawn while it closes");
+            Assert::IsTrue  (widget.Tick (3000));
+            Assert::IsTrue  (widget.Tick (3000 + HeatMapZoomWidget::kAnimateMs));
+            Assert::IsFalse (widget.IsShown(), L"and gone once closed");
+        }
+
+
+
         TEST_METHOD (TheZoomSliderClosesWhenThePointerMovesAway)
         {
             HeatMapView     view;

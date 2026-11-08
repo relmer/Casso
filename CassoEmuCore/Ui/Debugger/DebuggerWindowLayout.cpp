@@ -747,7 +747,7 @@ void DebuggerWindow::PaintTimelineShimmer (IDxuiPainter & painter)
 
 bool DebuggerWindow::HasTopLayer() const
 {
-    if (DxuiWindow::HasTopLayer() || m_windowZoom.IsOpen() || IsTimelineShimmering())
+    if (DxuiWindow::HasTopLayer() || m_windowZoom.IsShown() || IsTimelineShimmering())
     {
         return true;
     }

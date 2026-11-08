@@ -193,15 +193,27 @@ float HeatMapZoomWidget::GetPositionAt (POINT point) const
 
 RECT HeatMapZoomWidget::GetPanelRect() const
 {
+    return m_isOpen ? GetFullPanelRect() : RECT {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapZoomWidget::GetFullPanelRect
+//
+//  The open panel's rect, whether it is open or not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT HeatMapZoomWidget::GetFullPanelRect() const
+{
     RECT  panel = {};
     long  pad   = m_scaler.ToPx (kPadDip);
 
 
-
-    if (!m_isOpen)
-    {
-        return panel;
-    }
 
     panel.right  = m_button.right;
     panel.bottom = m_button.bottom;
@@ -226,7 +238,21 @@ RECT HeatMapZoomWidget::GetPanelRect() const
 
 RECT HeatMapZoomWidget::GetResetRect() const
 {
-    RECT  panel = GetPanelRect();
+    return GetResetRectIn (GetPanelRect());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapZoomWidget::GetResetRectIn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT HeatMapZoomWidget::GetResetRectIn (const RECT & panel) const
+{
     long  pad   = m_scaler.ToPx (kPadDip);
 
 
@@ -254,7 +280,21 @@ RECT HeatMapZoomWidget::GetResetRect() const
 
 RECT HeatMapZoomWidget::GetTrackRect() const
 {
-    RECT  panel = GetPanelRect();
+    return GetTrackRectIn (GetPanelRect());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapZoomWidget::GetTrackRectIn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT HeatMapZoomWidget::GetTrackRectIn (const RECT & panel) const
+{
     long  pad   = m_scaler.ToPx (kPadDip);
     long  row   = m_scaler.ToPx (kRowDip);
 
@@ -280,12 +320,82 @@ RECT HeatMapZoomWidget::GetTrackRect() const
 
 void HeatMapZoomWidget::SetOpen (bool open)
 {
+    if (open != m_isOpen)
+    {
+        m_animFrom      = m_openness;
+        m_isAnimPending = true;
+    }
+
     m_isOpen = open;
 
     if (!open)
     {
         m_isDragging = false;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapZoomWidget::Tick
+//
+//  Eases out: fast at first and slowing into place, as a menu opens.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapZoomWidget::Tick (int64_t nowMs)
+{
+    float  target = m_isOpen ? 1.0f : 0.0f;
+    float  done   = 0.0f;
+    float  eased  = 0.0f;
+
+
+
+    if (m_isAnimPending)
+    {
+        m_animStartMs   = nowMs;
+        m_isAnimPending = false;
+    }
+
+    if (m_animStartMs < 0)
+    {
+        return false;
+    }
+
+    done       = std::clamp ((float) (nowMs - m_animStartMs) / (float) kAnimateMs, 0.0f, 1.0f);
+    eased      = 1.0f - (1.0f - done) * (1.0f - done) * (1.0f - done);
+    m_openness = m_animFrom + (target - m_animFrom) * eased;
+
+    if (done >= 1.0f)
+    {
+        m_openness    = target;
+        m_animStartMs = -1;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapZoomWidget::GetShownPanelRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT HeatMapZoomWidget::GetShownPanelRect() const
+{
+    RECT  full = GetFullPanelRect();
+    auto  lerp = [this] (long from, long to) { return from + (long) std::lround ((double) (to - from) * (double) m_openness); };
+
+
+
+    return { lerp (m_button.left, full.left), lerp (m_button.top, full.top), lerp (m_button.right, full.right), lerp (m_button.bottom, full.bottom) };
 }
 
 
@@ -458,7 +568,7 @@ void HeatMapZoomWidget::Paint (IDxuiTextRenderer & text, const IDxuiTheme & them
         return;
     }
 
-    if (m_isOwnButton && !m_isOpen)
+    if (m_isOwnButton && !IsShown())
     {
         PaintBox (text, m_button, theme.BackgroundElevated(), theme.Border());
         PaintLabel (text, theme, percent);
@@ -525,22 +635,28 @@ void HeatMapZoomWidget::PaintPanel (IDxuiTextRenderer & text, const IDxuiTheme &
     HRESULT          hr        = S_OK;
     DxuiFontHandle   font      = theme.BodyFont();
     float            sizePx    = m_scaler.ToPxf (font.sizeDip);
-    RECT             panel     = GetPanelRect();
-    RECT             reset     = GetResetRect();
-    RECT             track     = GetTrackRect();
+    RECT             panel     = GetShownPanelRect();
+    RECT             reset     = GetResetRectIn (GetFullPanelRect());
+    RECT             track     = GetTrackRectIn (GetFullPanelRect());
     float            middle    = 0.0f;
     float            thumbX    = 0.0f;
     float            thumb     = m_scaler.ToPxf ((float) kThumbDip);
 
 
 
-    if (!m_isOpen || panel.right <= panel.left)
+    if (!IsShown() || panel.right <= panel.left)
     {
         return;
     }
 
     PaintBox (text, panel, theme.BackgroundElevated(), theme.Border());
     PaintLabel (text, theme, label);
+
+    //  The contents are drawn at their places in the open panel, clipped to
+    //  the panel as drawn now.
+    hr = text.PushClipRect ((float) panel.left, (float) panel.top, (float) (panel.right - panel.left), (float) (panel.bottom - panel.top));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
     PaintBox (text, reset, theme.ButtonIdle(), theme.ButtonBorder());
 
     hr = text.DrawString (L"Reset", (float) reset.left, (float) reset.top,
@@ -558,5 +674,8 @@ void HeatMapZoomWidget::PaintPanel (IDxuiTextRenderer & text, const IDxuiTheme &
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = text.FillEllipse (thumbX, middle, thumb, thumb, theme.Accent());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.PopClipRect();
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

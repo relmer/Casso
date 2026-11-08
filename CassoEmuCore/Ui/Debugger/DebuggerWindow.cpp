@@ -1296,6 +1296,7 @@ void DebuggerWindow::RenderFrame()
     }
 
     isAnimating = m_timelineScrub.IsScrubbing() || IsTimelineShimmering() || isAnimating;
+    isAnimating = m_windowZoom.Tick (now) || isAnimating;
 
     //  A pane pinned or unpinned morphs between its place and its edge tab.
     isAnimating = (m_dockSite != nullptr && m_dockSite->TickAnimation()) || isAnimating;
