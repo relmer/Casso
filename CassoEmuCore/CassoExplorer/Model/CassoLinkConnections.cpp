@@ -238,12 +238,37 @@ void CassoLinkConnections::SetRunning (const std::vector<RunningCasso> & running
 //
 //  CassoLinkConnections::SetAnnounced
 //
+//  Each Apple an announcement lists is connected to, as a saved connection
+//  is at launch, so an Apple is connected again after the link drops or
+//  Casso Explorer restarts. One the user disconnected is left disconnected.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkConnections::SetAnnounced (const std::vector<LinkAnnouncement> & announced)
 {
+    std::vector<std::string>  discovered;
+
+
+
     m_announced = announced;
     Merge();
+
+    for (const CassoLinkSettings & settings : m_links)
+    {
+        bool  apple = settings.transport == LinkTransport::Uthernet && !settings.IsSearch() && IsDiscovered (settings.name);
+
+        if (apple && !IsStarted (settings.name) && !IsHeld (settings.name))
+        {
+            discovered.push_back (settings.name);
+        }
+    }
+
+    for (const std::string & name : discovered)
+    {
+        HRESULT  hr = StartIfFree (name);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 }
 
 

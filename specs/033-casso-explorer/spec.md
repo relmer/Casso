@@ -2075,7 +2075,9 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **FR-154**: An Apple booted from the universal disk MUST go on sending an
   announcement each second while its program listens with no PC connected,
   so Casso Explorer lists it again after the link drops or Casso Explorer
-  restarts. An Apple booted from another link disk MUST NOT send
+  restarts. Casso Explorer MUST connect to each Apple an announcement lists
+  as soon as it is listed, unless the user disconnected it in that session.
+  An Apple booted from another link disk MUST NOT send
   announcements. The program's status screen MUST have an Uthernet II's
   connection without its port, as `UTHERNET II, SLOT 3`, and the address and
   port, with no label, below it: at the right edge of the row below the top

@@ -112,7 +112,8 @@ public:
     //  The Apples of universal boot disks' announcements, each an Uthernet
     //  II link at its announcement's address, never saved. One whose address
     //  a saved link has is left out, and all of them while no saved Uthernet
-    //  II is without an address.
+    //  II is without an address. Each one listed is connected to unless the
+    //  user disconnected it.
     void                                    SetAnnounced (const std::vector<LinkAnnouncement> & announced);
 
     //  Every link: the saved ones, then the running Cassos, then the Apples

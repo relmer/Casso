@@ -792,6 +792,34 @@ public:
     }
 
 
+    //  An Apple an announcement lists is connected to as soon as it is
+    //  listed, so it is connected again after the link drops or Casso
+    //  Explorer restarts.
+    TEST_METHOD (AnAnnouncedApple_IsConnectedToWhenListed)
+    {
+        Rig  rig;
+
+        rig.links->SetLinks ({ MakeSearch() });
+        rig.links->SetAnnounced ({ MakeAnnouncement() });
+
+        Assert::IsTrue  (rig.links->IsStarted ("Uthernet II at 192.168.1.77:6502"));
+        Assert::IsFalse (rig.links->IsStarted (MakeSearch().name), L"the search itself connects to nothing");
+    }
+
+
+    TEST_METHOD (AnAnnouncedAppleTheUserDisconnected_IsLeftDisconnected)
+    {
+        Rig  rig;
+
+        rig.links->SetLinks ({ MakeSearch() });
+        rig.links->SetAnnounced ({ MakeAnnouncement() });
+        rig.links->Disconnect ("Uthernet II at 192.168.1.77:6502");
+        rig.links->SetAnnounced ({ MakeAnnouncement() });
+
+        Assert::IsFalse (rig.links->IsStarted ("Uthernet II at 192.168.1.77:6502"));
+    }
+
+
 
 
     TEST_METHOD (ARunningCassoThatExits_StopsItsLink)
