@@ -813,6 +813,39 @@ HostFileNaming::Style ExplorerCommandManager::GetNamingStyle() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerCommandManager::GetRecycledPaths
+//
+//  Where each of the Recycle Bin's items was when it was deleted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> ExplorerCommandManager::GetRecycledPaths (const std::vector<std::wstring> & ids)
+{
+    std::vector<IShellItemVerbs::RecycledItem>  items;
+    std::vector<std::wstring>                   paths;
+    HRESULT                                     hr    = m_context.shellVerbs.ListRecycled (items);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (const IShellItemVerbs::RecycledItem & item : items)
+    {
+        if (std::find (ids.begin(), ids.end(), item.id) != ids.end())
+        {
+            paths.push_back ((std::filesystem::path (item.originalFolder) / item.name).wstring());
+        }
+    }
+
+    return paths;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerCommandManager::RunRecycleBinVerb
 //
 //  A verb on the Recycle Bin's items, carried out by the bin itself. Whether
@@ -824,8 +857,9 @@ bool ExplorerCommandManager::RunRecycleBinVerb (CassoExplorerActions::Verb verb)
 {
     using Verb = CassoExplorerActions::Verb;
 
-    HRESULT                    hr = S_OK;
+    HRESULT                    hr        = S_OK;
     std::vector<std::wstring>  ids;
+    std::vector<std::wstring>  originals;
 
 
 
@@ -848,8 +882,15 @@ bool ExplorerCommandManager::RunRecycleBinVerb (CassoExplorerActions::Verb verb)
             }
 
             BAIL_OUT_IF (ids.empty(), S_OK);
-            hr = m_context.shellVerbs.RunRecycledVerb (m_context.window.GetHwnd(), ids, (verb == Verb::Restore) ? IShellItemVerbs::RecycledVerb::Restore
-                                                                                       : IShellItemVerbs::RecycledVerb::Delete);
+            originals = GetRecycledPaths (ids);
+            hr        = m_context.shellVerbs.RunRecycledVerb (m_context.window.GetHwnd(), ids, (verb == Verb::Restore) ? IShellItemVerbs::RecycledVerb::Restore
+                                                                                              : IShellItemVerbs::RecycledVerb::Delete);
+
+            if (SUCCEEDED (hr) && verb == Verb::Restore)
+            {
+                m_context.fileOps.NoteManifestRestores (originals);
+            }
+
             m_context.folderSync.RefreshAfterHostChange();
             break;
 
@@ -1093,6 +1134,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
                 if (SUCCEEDED (hr) && !hostPaths.empty() && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.AreSelectedRowsSearchFiles()))
                 {
                     m_context.fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::Recycle, Location(), hostPaths });
+                    m_context.fileOps.NoteManifestDeletes (hostPaths);
                 }
 
                 m_context.folderSync.RefreshAfterHostChange();

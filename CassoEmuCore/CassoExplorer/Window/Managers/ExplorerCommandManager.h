@@ -48,20 +48,21 @@ public:
 
     //  The count of list columns with a Sort by command: the fixed ones and
     //  the shell properties added, up to the ids set aside for them.
-    int                    GetSortColumnCount         () const;
-    void                   CreateDisk                 (const CassoExplorerNewDiskDialog::Outcome & newDisk);
-    void                   ShowOptions                ();
-    bool                   IsToolbarEntryAvailable    (int index) const;
-    bool                   IsCommandBarEntryAvailable (int index) const;
-    HostFileNaming::Style  GetNamingStyle             () const;
-    void                   RunVerb                    (CassoExplorerActions::Verb verb);
-    bool                   RunRecycleBinVerb          (CassoExplorerActions::Verb verb);
-    std::wstring           GetCommandLabel            (int id) const;
-    void                   RunRawVerb                 (CassoExplorerActions::Verb verb);
-    bool                   IsRawTargetCurrent         (const std::wstring & target);
-    void                   ReportOutcome              (const CassoExplorerActions::Outcome & outcome, const wchar_t * verbName);
-    bool                   TryPrepareBootDisk         (const DiskOperations::NewDiskRequest & request);
-    void                   ExtractImageFiles          (const std::wstring & imagePath);
+    int                        GetSortColumnCount         () const;
+    void                       CreateDisk                 (const CassoExplorerNewDiskDialog::Outcome & newDisk);
+    void                       ShowOptions                ();
+    bool                       IsToolbarEntryAvailable    (int index) const;
+    bool                       IsCommandBarEntryAvailable (int index) const;
+    HostFileNaming::Style      GetNamingStyle             () const;
+    void                       RunVerb                    (CassoExplorerActions::Verb verb);
+    bool                       RunRecycleBinVerb          (CassoExplorerActions::Verb verb);
+    std::vector<std::wstring>  GetRecycledPaths           (const std::vector<std::wstring> & ids);
+    std::wstring               GetCommandLabel            (int id) const;
+    void                       RunRawVerb                 (CassoExplorerActions::Verb verb);
+    bool                       IsRawTargetCurrent         (const std::wstring & target);
+    void                       ReportOutcome              (const CassoExplorerActions::Outcome & outcome, const wchar_t * verbName);
+    bool                       TryPrepareBootDisk         (const DiskOperations::NewDiskRequest & request);
+    void                       ExtractImageFiles          (const std::wstring & imagePath);
 
 private:
     ExplorerContext  & m_context;

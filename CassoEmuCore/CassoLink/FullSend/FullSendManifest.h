@@ -83,6 +83,14 @@ public:
     //  set to the new one. False when no row has the old name.
     bool                 RenameImage       (const std::string & oldName, const std::string & newName);
 
+    //  An image deleted from the folder: its row and the rows of its
+    //  duplicates are removed, and returned so they can be restored.
+    std::vector<FullSendRow>  RemoveImage  (const std::string & name);
+
+    //  Rows a deletion removed, put back in order of their sequence. A row
+    //  the manifest has already is left out.
+    void                 RestoreRows       (const std::vector<FullSendRow> & rows);
+
 private:
     static constexpr size_t  kColumns       = 12;
     static constexpr size_t  kLegacyColumns = 9;

@@ -401,3 +401,68 @@ bool FullSendManifest::RenameImage (const std::string & oldName, const std::stri
 
     return changed;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendManifest::RemoveImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<FullSendRow> FullSendManifest::RemoveImage (const std::string & name)
+{
+    std::vector<FullSendRow>  removed;
+    std::vector<FullSendRow>  others;
+
+
+
+    for (const FullSendRow & row : m_rows)
+    {
+        bool  image     = !row.file.empty() && _stricmp (row.file.c_str(), name.c_str()) == 0;
+        bool  duplicate = !row.duplicateOf.empty() && _stricmp (row.duplicateOf.c_str(), name.c_str()) == 0;
+
+        if (image || duplicate)
+        {
+            removed.push_back (row);
+        }
+        else
+        {
+            others.push_back (row);
+        }
+    }
+
+    m_rows = std::move (others);
+
+    return removed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendManifest::RestoreRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendManifest::RestoreRows (const std::vector<FullSendRow> & rows)
+{
+    for (const FullSendRow & row : rows)
+    {
+        bool  listed = std::any_of (m_rows.begin(), m_rows.end(), [&row] (const FullSendRow & other)
+        {
+            return other.sequence == row.sequence && other.file == row.file && other.fingerprint == row.fingerprint;
+        });
+
+        if (!listed)
+        {
+            m_rows.push_back (row);
+        }
+    }
+
+    std::stable_sort (m_rows.begin(), m_rows.end(), [] (const FullSendRow & a, const FullSendRow & b) { return a.sequence < b.sequence; });
+}

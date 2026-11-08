@@ -521,6 +521,71 @@ public:
 
 
 
+    //  An image deleted from a Full Send folder is removed from its manifest,
+    //  and put back when it is restored.
+    TEST_METHOD (Delete_OfAnImageInAFullSendFolder_RemovesItFromTheManifestUntilRestored)
+    {
+        Rig                rig;
+        FullSendManifest   manifest;
+        FullSendRow        row;
+        FullSendManifest   read;
+        std::string        path  = "C:\\Sends\\" + std::string (FullSendManifest::kFileName);
+        std::wstring       image = L"C:\\Sends\\Disk 001.dsk";
+
+
+
+        row.sequence    = 1;
+        row.file        = "Disk 001.dsk";
+        row.fingerprint = std::string (64, 'a');
+        row.hash        = std::string (64, 'b');
+        row.time        = "2026-11-08T10:00:00";
+        row.status      = FullSendManifest::kStatusSent;
+        manifest.Add (row);
+
+        rig.io.files[path] = manifest.Format();
+        rig.Open();
+
+        rig.parts->fileOps.NoteManifestDeletes ({ image });
+        AssertSucceeded (read.Parse (rig.io.files[path]));
+        Assert::IsTrue (read.GetRows().empty(), L"the deleted image's row is removed");
+
+        rig.parts->fileOps.NoteManifestRestores ({ L"c:\\sends\\disk 001.DSK" });
+        AssertSucceeded (read.Parse (rig.io.files[path]));
+        Assert::AreEqual ((size_t) 1, read.GetRows().size(), L"and put back when it is restored");
+        Assert::AreEqual (std::string ("Disk 001.dsk"), read.GetRows()[0].file);
+    }
+
+
+    //  The manifest isn't changed for a file Windows didn't delete, as when
+    //  its confirmation was canceled.
+    TEST_METHOD (Delete_ThatLeftTheImage_LeavesTheManifest)
+    {
+        Rig                rig;
+        FullSendManifest   manifest;
+        FullSendRow        row;
+        std::string        path  = "C:\\Sends\\" + std::string (FullSendManifest::kFileName);
+        std::vector<Byte>  before;
+
+
+
+        row.sequence    = 1;
+        row.file        = "Disk 001.dsk";
+        row.fingerprint = std::string (64, 'a');
+        row.hash        = std::string (64, 'b');
+        row.status      = FullSendManifest::kStatusSent;
+        manifest.Add (row);
+
+        before = manifest.Format();
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Sends\\Disk 001.dsk");
+        rig.io.files[path] = before;
+        rig.Open();
+
+        rig.parts->fileOps.NoteManifestDeletes ({ L"C:\\Sends\\Disk 001.dsk" });
+
+        Assert::IsTrue (rig.io.files[path] == before);
+    }
+
+
     TEST_METHOD (CreateImage_FromADrivesMenu_LeavesTheListWhereItIs)
     {
         Rig                 rig;

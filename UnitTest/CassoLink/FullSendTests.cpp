@@ -1669,6 +1669,57 @@ public:
     }
 
 
+    TEST_METHOD (ADeletedImage_RemovesItsRowAndItsDuplicates_AndRestoringPutsThemBack)
+    {
+        FullSendManifest          manifest = MakeManifest();
+        FullSendRow               later;
+        std::vector<FullSendRow>  removed;
+
+        later.sequence    = 3;
+        later.file        = "Disk 003.dsk";
+        later.fingerprint = std::string (64, 'c');
+        later.hash        = std::string (64, 'd');
+        later.status      = FullSendManifest::kStatusSent;
+        manifest.Add (later);
+
+        removed = manifest.RemoveImage ("DISK 001.dsk");
+
+        Assert::AreEqual ((size_t) 2, removed.size(), L"the image's row and its duplicate's");
+        Assert::AreEqual ((size_t) 1, manifest.GetRows().size());
+        Assert::AreEqual (std::string ("Disk 003.dsk"), manifest.GetRows()[0].file);
+
+        manifest.RestoreRows (removed);
+        manifest.RestoreRows (removed);
+
+        Assert::AreEqual ((size_t) 3, manifest.GetRows().size(), L"a row the manifest has already is left out");
+        Assert::AreEqual (1, manifest.GetRows()[0].sequence, L"in order of sequence");
+        Assert::AreEqual (2, manifest.GetRows()[1].sequence);
+        Assert::AreEqual (3, manifest.GetRows()[2].sequence);
+    }
+
+
+    TEST_METHOD (NoteDeleteThenNoteRestore_RoundTripsTheManifest)
+    {
+        FakeDiskFileIo            io;
+        std::vector<Byte>         before = MakeManifest().Format();
+        std::vector<Byte>         bytes;
+        std::vector<FullSendRow>  rows;
+        FullSendManifest          read;
+
+        AssertSucceeded (io.WriteAllBytes (ManifestPath(), before));
+        AssertSucceeded (FullSendManifestFile::NoteDelete (io, kFolder, "Disk 001.dsk", rows));
+        AssertSucceeded (io.ReadAllBytes (ManifestPath(), bytes));
+        AssertSucceeded (read.Parse (bytes));
+
+        Assert::AreEqual ((size_t) 2, rows.size());
+        Assert::IsTrue   (read.GetRows().empty(), L"the image and its duplicate are removed");
+
+        AssertSucceeded (FullSendManifestFile::NoteRestore (io, kFolder, rows));
+        AssertSucceeded (io.ReadAllBytes (ManifestPath(), bytes));
+
+        Assert::IsTrue (bytes == before, L"restoring puts the rows back as they were");
+    }
+
     //  A manifest that can't be read is left for the user to repair.
     TEST_METHOD (NoteRename_OfADamagedManifest_FailsAndWritesNothing)
     {

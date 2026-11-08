@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerActions.h"
+#include "CassoLink/FullSend/FullSendManifest.h"
 #include "Seams/Win32ProcessLauncher.h"
 
 struct ExplorerContext;
@@ -56,6 +57,12 @@ public:
     static HRESULT          MergeUserMachineDelta (const std::string & machine, IFileSystem & files, std::string & inoutJson);
     void                    OpenSelectedEntries   ();
     void                    PushUndo              (UndoStep step);
+
+    //  Host files deleted, and files restored: each image in a Full Send
+    //  folder is removed from the folder's manifest, and put back when it is
+    //  restored while this window is open.
+    void                    NoteManifestDeletes   (const std::vector<std::wstring> & paths);
+    void                    NoteManifestRestores  (const std::vector<std::wstring> & paths);
     void                    UndoLast              ();
     static const wchar_t  * GetUndoLabel          (UndoStep::Kind kind);
 
@@ -127,6 +134,17 @@ private:
     int                      m_defaultDriveCount = -1;   // the default machine's, once read
     int                      m_cassoDriveCount   = 0;   // the drives the Casso the window targets has
     std::vector<UndoStep>    m_undo;   // newest last
+
+    //  The manifest rows a deleted image's deletion removed, and the folder
+    //  as it was deleted from, by the image's path in lowercase, for when it
+    //  is restored.
+    struct RemovedRows
+    {
+        std::string               folder;
+        std::vector<FullSendRow>  rows;
+    };
+
+    std::map<std::wstring, RemovedRows>  m_removedRows;
 
     //  Rename in place: the box over the name, and the list row being renamed,
     //  or -1, or the tree node.

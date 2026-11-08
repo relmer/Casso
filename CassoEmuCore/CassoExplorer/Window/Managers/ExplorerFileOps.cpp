@@ -291,6 +291,88 @@ void ExplorerFileOps::NoteManifestRename (const std::wstring & oldPath, const st
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerFileOps::NoteManifestDeletes
+//
+//  A path whose file exists was not deleted, as when the user canceled
+//  Windows' confirmation.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFileOps::NoteManifestDeletes (const std::vector<std::wstring> & paths)
+{
+    IDiskFileIo  & io = m_context.browser.GetOperations().GetFileIo();
+
+
+
+    for (const std::wstring & path : paths)
+    {
+        std::filesystem::path  file (path);
+        RemovedRows            removed;
+        std::wstring           key  = path;
+        HRESULT                hr   = S_OK;
+
+        if (io.Exists (TextEncoding::WideToNarrow (path)))
+        {
+            continue;
+        }
+
+        removed.folder = TextEncoding::WideToNarrow (file.parent_path().wstring());
+
+        hr = FullSendManifestFile::NoteDelete (io, removed.folder, TextEncoding::WideToNarrow (file.filename().wstring()), removed.rows);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        std::transform (key.begin(), key.end(), key.begin(), towlower);
+
+        if (!removed.rows.empty())
+        {
+            m_removedRows[key] = std::move (removed);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFileOps::NoteManifestRestores
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFileOps::NoteManifestRestores (const std::vector<std::wstring> & paths)
+{
+    IDiskFileIo  & io = m_context.browser.GetOperations().GetFileIo();
+
+
+
+    for (const std::wstring & path : paths)
+    {
+        std::wstring  key   = path;
+        HRESULT       hr    = S_OK;
+
+        std::transform (key.begin(), key.end(), key.begin(), towlower);
+
+        auto  found = m_removedRows.find (key);
+
+        if (found == m_removedRows.end())
+        {
+            continue;
+        }
+
+        hr = FullSendManifestFile::NoteRestore (io, found->second.folder, found->second.rows);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        m_removedRows.erase (found);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerFileOps::EndRename
 //
 //  A name left as it was, or emptied, changes nothing. A renamed row is
@@ -434,6 +516,7 @@ void ExplorerFileOps::DeleteSelectionPermanently()
     hr = m_context.shellVerbs.DeletePermanently (m_context.window.GetHwnd(), ids);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
+    NoteManifestDeletes (ids);
     m_context.folderSync.RefreshAfterHostChange();
 }
 
@@ -1424,6 +1507,7 @@ void ExplorerFileOps::UndoLast()
     {
         case UndoStep::Kind::Recycle:
             hr = m_context.shellVerbs.RestoreRecycled (m_context.window.GetHwnd(), step.paths);
+            NoteManifestRestores (step.paths);
             m_restoreTicks = kRestoreRetries;
             SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRestore, 1000, nullptr);
             break;
