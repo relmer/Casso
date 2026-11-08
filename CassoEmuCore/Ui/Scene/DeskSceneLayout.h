@@ -316,6 +316,14 @@ public:
     // The furthest the sliding devices are lowered to put them below the
     // frame, and the slide progress that marks an ordinary, unsliding solve.
     static constexpr float  kMaxSlideDropMm        = 4000.0f;
+
+    // How far the sliding drives' fronts are ahead of the monitor's
+    // frontmost point: enough that the two surfaces never share a depth.
+    static constexpr float  kSlideFrontGapMm       = 3.0f;
+
+    // The share of the frame's half-width the sliding row may fill before it
+    // is scaled down to fit, so it never touches the window's sides.
+    static constexpr float  kSlideFitMargin        = 0.96f;
     static constexpr float  kNoSlide               = -1.0f;
     static constexpr float  kContainMargin         = 1.005f;
 
@@ -453,13 +461,14 @@ private:
                                       float                    slideProgress = kNoSlide,
                                       int                      slideClearPx  = 0);
 
-    // The vertical tangent range a model box, raised by `offsetMm`, covers in
-    // a view, widened into [ioLo, ioHi].
+    // The tangent range along `axis` (0 is x, 1 is y) a model box, raised by
+    // `offsetMm`, covers in a view, widened into [ioLo, ioHi].
     static bool     GetBoxTanRange   (const float              view[16],
                                       const float              world[16],
                                       const float              boxMin[3],
                                       const float              boxMax[3],
                                       float                    offsetMm,
+                                      int                      axis,
                                       float                  & ioLo,
                                       float                  & ioHi);
 
@@ -468,8 +477,17 @@ private:
                                       const DeskSceneMetrics     & metrics,
                                       int                          driveCount,
                                       float                        offsetMm,
+                                      int                          axis,
                                       float                      & outLo,
                                       float                      & outHi);
+
+    // Scales the sliding devices down, about the row's front-bottom center,
+    // until the row fits within a horizontal tangent.
+    static void     FitSlideDevices  (DeskSceneComposition       & comp,
+                                      const DeskSceneMetrics     & metrics,
+                                      int                          driveCount,
+                                      float                        limitTanX,
+                                      float                        frontZ);
 
     // How far the sliding devices are moved up or down to put them past a
     // vertical tangent.

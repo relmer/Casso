@@ -200,10 +200,10 @@ HRESULT DeskSceneLayout::ComputeSliding (const RECT             & viewportPx,
 //
 //  DeskSceneLayout::GetBoxTanRange
 //
-//  Widens [ioLo, ioHi] by the view-space vertical tangent (y over depth) of
-//  each corner of a model box, raised by `offsetMm` in world Y. Returns false
-//  when a corner is at or behind the near plane, where the tangent has no
-//  meaning.
+//  Widens [ioLo, ioHi] by the view-space tangent (x or y, by `axis`, over
+//  depth) of each corner of a model box, raised by `offsetMm` in world Y.
+//  Returns false when a corner is at or behind the near plane, where the
+//  tangent has no meaning.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -212,6 +212,7 @@ bool DeskSceneLayout::GetBoxTanRange (const float    view[16],
                                       const float    boxMin[3],
                                       const float    boxMax[3],
                                       float          offsetMm,
+                                      int            axis,
                                       float        & ioLo,
                                       float        & ioHi)
 {
@@ -243,8 +244,8 @@ bool DeskSceneLayout::GetBoxTanRange (const float    view[16],
             return false;
         }
 
-        ioLo = std::min (ioLo, viewPt[1] / depth);
-        ioHi = std::max (ioHi, viewPt[1] / depth);
+        ioLo = std::min (ioLo, viewPt[axis] / depth);
+        ioHi = std::max (ioHi, viewPt[axis] / depth);
     }
 
     return true;
@@ -258,7 +259,7 @@ bool DeskSceneLayout::GetBoxTanRange (const float    view[16],
 //
 //  DeskSceneLayout::GetSlideTanRange
 //
-//  The vertical tangent range the sliding drives and recorder cover when
+//  The tangent range, along `axis`, the sliding drives and recorder cover when
 //  raised by `offsetMm` (negative lowers them).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -267,6 +268,7 @@ bool DeskSceneLayout::GetSlideTanRange (const DeskSceneComposition  & comp,
                                         const DeskSceneMetrics      & metrics,
                                         int                           driveCount,
                                         float                         offsetMm,
+                                        int                           axis,
                                         float                       & outLo,
                                         float                       & outHi)
 {
@@ -279,15 +281,89 @@ bool DeskSceneLayout::GetSlideTanRange (const DeskSceneComposition  & comp,
 
     for (int i = 0; i < driveCount && ok; i++)
     {
-        ok = GetBoxTanRange (comp.view, comp.driveWorld[i], metrics.driveMin, metrics.driveMax, offsetMm, outLo, outHi);
+        ok = GetBoxTanRange (comp.view, comp.driveWorld[i], metrics.driveMin, metrics.driveMax, offsetMm, axis, outLo, outHi);
     }
 
     if (ok && comp.hasRecorder != 0)
     {
-        ok = GetBoxTanRange (comp.view, comp.recorderWorld, metrics.recorderMin, metrics.recorderMax, offsetMm, outLo, outHi);
+        ok = GetBoxTanRange (comp.view, comp.recorderWorld, metrics.recorderMin, metrics.recorderMax, offsetMm, axis, outLo, outHi);
     }
 
     return ok;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::FitSlideDevices
+//
+//  The row is at the monitor's scale whenever it fits. When it is wider
+//  than `limitTanX` allows, every sliding device is scaled down uniformly
+//  about the row's front-bottom center (x 0, the desk, `frontZ`), so the
+//  fronts stay in their plane and the row stays centered and on the desk. A
+//  few passes, because the tangent of a point is not exactly linear in the
+//  scale.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::FitSlideDevices (DeskSceneComposition  & comp,
+                                       const DeskSceneMetrics & metrics,
+                                       int                      driveCount,
+                                       float                    limitTanX,
+                                       float                    frontZ)
+{
+    constexpr int  kFitPasses = 3;
+    constexpr int  kAxisCells = 12;   // rows 0-2 of the matrix, the scaled axes
+
+
+
+    for (int pass = 0; pass < kFitPasses; pass++)
+    {
+        float  lo     = 0.0f;
+        float  hi     = 0.0f;
+        float  extent = 0.0f;
+        float  factor = 0.0f;
+
+
+
+        if (!GetSlideTanRange (comp, metrics, driveCount, 0.0f, 0, lo, hi))
+        {
+            return;
+        }
+
+        extent = std::max (-lo, hi);
+
+        if (extent <= limitTanX)
+        {
+            return;
+        }
+
+        factor = limitTanX / extent;
+
+        for (int i = -1; i < driveCount; i++)
+        {
+            float  * world = (i < 0) ? comp.recorderWorld : comp.driveWorld[i];
+
+
+
+            if (i < 0 && comp.hasRecorder == 0)
+            {
+                continue;
+            }
+
+            for (int cell = 0; cell < kAxisCells; cell++)
+            {
+                world[cell] *= factor;
+            }
+
+            world[12] *= factor;
+            world[13] *= factor;
+            world[14]  = frontZ + (world[14] - frontZ) * factor;
+        }
+    }
 }
 
 
@@ -326,7 +402,7 @@ float DeskSceneLayout::SolveSlideOffset (const DeskSceneComposition  & comp,
         float  dist    = (step < 0) ? 0.0f : (lo + hi) * 0.5f;
         float  tanLo   = 0.0f;
         float  tanHi   = 0.0f;
-        bool   ok      = GetSlideTanRange (comp, metrics, driveCount, dist * direction, tanLo, tanHi);
+        bool   ok      = GetSlideTanRange (comp, metrics, driveCount, dist * direction, 1, tanLo, tanHi);
         bool   reached = ok && ((direction < 0.0f) ? (tanHi <= limitTan) : (tanLo >= limitTan));
 
         if (step < 0 && reached)
@@ -515,12 +591,16 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // coplanarity is worth a door that opens through the thing above it.
     forwardMm += metrics.driveDoorClearMm;
 
-    // Sliding, the drives' backs are dropMm in front of the monitor's
-    // frontmost point, on the desk.
+    // Sliding, the drives' fronts are kSlideFrontGapMm in front of the
+    // monitor's frontmost point, which puts them at the monitor's distance
+    // from the eye and so at the monitor's scale. Their bodies extend back
+    // into the monitor, where its case hides them.
     if (sliding)
     {
-        forwardMm = -metrics.monitorMin[1] + dropMm + metrics.driveMax[1];
+        forwardMm = -metrics.monitorMin[1] + kSlideFrontGapMm + metrics.driveMin[1];
     }
+
+    (void) dropMm;
 
     for (int i = 0; i < driveCount; i++)
     {
@@ -566,9 +646,17 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     }
 
     // Sliding, the drives and the recorder are excluded from the framing: their
-    // bounds go to a separate stack, which only places the recorder.
+    // bounds go to a separate stack, which only places the recorder. The
+    // stack starts empty, so the recorder goes beside the drives rather than
+    // beside the monitor.
     memcpy (stackMin, deviceMin, sizeof (stackMin));
     memcpy (stackMax, deviceMax, sizeof (stackMax));
+
+    if (sliding && driveCount > 0)
+    {
+        stackMin[0] = stackMin[1] = stackMin[2] = FLT_MAX;
+        stackMax[0] = stackMax[1] = stackMax[2] = -FLT_MAX;
+    }
 
     for (int i = 0; i < driveCount; i++)
     {
@@ -611,6 +699,23 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     {
         PlaceRecorder (metrics, forwardMm - metrics.driveFrontY, deviceMin, deviceMax,
                        sceneMin, sceneMax, out);
+    }
+
+    // Sliding, the row of drives and recorder is centered under the monitor
+    // as one group, so the recorder beside the drives does not push the row
+    // off one side of the frame.
+    if (sliding && driveCount > 0)
+    {
+        float  shiftX = -(stackMin[0] + stackMax[0]) * 0.5f;
+
+
+
+        for (int i = 0; i < driveCount; i++)
+        {
+            out.driveWorld[i][12] += shiftX;
+        }
+
+        out.recorderWorld[12] += shiftX;
     }
 
     // The camera looks at the glass center from slightly above (a person at
@@ -733,18 +838,26 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
             }
         }
 
-        // Sliding: find how far the devices have to be lowered to sit wholly
-        // under the frame, and how far they have to be raised off the desk
-        // for their fronts, and `slideClearPx` of labels under them, to be
-        // wholly inside it (zero when they already are). The slide runs
-        // between the two. At 0 they are left out, so nothing is drawn or
-        // hit-tested below the frame. Done here, against the unrotated view,
-        // so the orbit below turns them with the monitor.
+        // Sliding: shrink the row if it is wider than the frame, then find
+        // how far the devices have to be lowered to sit wholly under the
+        // frame, and how far they have to be raised off the desk for their
+        // fronts, and `slideClearPx` of labels under them, to be wholly inside
+        // it (zero when they already are). The slide runs between the two. At
+        // 0 they are left out, so nothing is drawn or hit-tested below the
+        // frame. Done here, against the unrotated view, so the orbit below
+        // turns them with the monitor.
         if (sliding)
         {
-            float  hideMm   = SolveSlideOffset (out, metrics, driveCount, -1.0f, -tanHalfY);
+            float  hideMm   = 0.0f;
             float  clearTan = (float) slideClearPx * 2.0f * tanHalfY / (float) viewportH;
-            float  liftMm   = SolveSlideOffset (out, metrics, driveCount, 1.0f, -tanHalfY + clearTan);
+            float  liftMm   = 0.0f;
+
+
+
+            FitSlideDevices (out, metrics, driveCount, tanHalfX * kSlideFitMargin, forwardMm - metrics.driveMin[1]);
+
+            hideMm = SolveSlideOffset (out, metrics, driveCount, -1.0f, -tanHalfY);
+            liftMm = SolveSlideOffset (out, metrics, driveCount, 1.0f, -tanHalfY + clearTan);
 
             slideOffsetMm = -hideMm + slideProgress * (hideMm + liftMm);
 
