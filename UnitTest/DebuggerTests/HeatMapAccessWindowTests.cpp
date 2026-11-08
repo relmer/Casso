@@ -315,8 +315,10 @@ namespace HeatMapAccessWindowTests
             Assert::IsTrue  (HeatMapPane::IsAccessRowEnabled (&hover,  true,  false), L"a writer older than the history can be shown");
             Assert::IsFalse (HeatMapPane::IsAccessRowEnabled (&hover,  true,  true),  L"but not gone back to");
 
-            Assert::AreEqual (std::wstring (L"Rewind to last write time"),       HeatMapPane::GetAccessLabel (HeatMapView::PickAction::RewindToWrite, &hover, 1000));
-            Assert::AreEqual (std::wstring (L"Fast-forward to last write time"), HeatMapPane::GetAccessLabel (HeatMapView::PickAction::RewindToWrite, &hover, 100));
+            Assert::AreEqual (std::wstring (L"Rewind to last write time"),       HeatMapPane::GetAccessLabel (HeatMapView::PickAction::RewindToWrite, &hover, 1000, true));
+            Assert::AreEqual (std::wstring (L"Fast-forward to last write time"), HeatMapPane::GetAccessLabel (HeatMapView::PickAction::RewindToWrite, &hover, 100,  true));
+            Assert::AreEqual (std::wstring (L"Rewind to last write time"),       HeatMapPane::GetAccessLabel (HeatMapView::PickAction::RewindToWrite, &hover, 100,  false),
+                              L"live, the label is Rewind whatever the snapshot's cycle");
         }
 
 

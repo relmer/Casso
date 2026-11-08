@@ -100,8 +100,9 @@ public:
     void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
     //  An access row's label and whether it is on, for the cell's accesses
-    //  as the machine looked them up, or none yet.
-    static std::wstring  GetAccessLabel     (HeatMapView::PickAction action, const HeatAccessHover * hover, uint64_t cycles);
+    //  as the machine looked them up, or none yet. Only a machine behind
+    //  live, at `cycles`, can go forward to an access.
+    static std::wstring  GetAccessLabel     (HeatMapView::PickAction action, const HeatAccessHover * hover, uint64_t cycles, bool isBehindLive);
     static bool          IsAccessRowEnabled (const HeatAccessHover * hover, bool isWrite, bool isRewind);
 
 private:
@@ -130,9 +131,11 @@ private:
     bool                                         m_isTipPending  = false;
 
     //  The last cell's accesses the machine looked up, and the CPU's cycle
-    //  at the last snapshot, for the access rows of a menu.
+    //  at the last snapshot and whether it was behind live, for the access
+    //  rows of a menu.
     std::shared_ptr<const HeatAccessHover>       m_hover;
     uint64_t                                     m_cycles        = 0;
+    bool                                         m_isBehindLive  = false;
 
     //  When the wheel last zoomed the map. TryGetTip returns false for
     //  kZoomQuietMs after, since each notch moves every cell under the pointer and a tip

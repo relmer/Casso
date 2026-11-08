@@ -1088,7 +1088,7 @@ void HeatMapPane::AddAccessItems (Word address, HeatMapOptions::Bank bank, PaneM
 
 
 
-        items.push_back ({ GetAccessLabel (action, hover, m_cycles),
+        items.push_back ({ GetAccessLabel (action, hover, m_cycles, m_isBehindLive),
                            IsAccessRowEnabled (hover, isWrite, isRewind) ? std::function<void()> ([this, address, bank, action] { RequestAccess (address, action, bank); })
                                                                          : std::function<void()>() });
     }
@@ -1104,15 +1104,16 @@ void HeatMapPane::AddAccessItems (Word address, HeatMapOptions::Bank bank, PaneM
 //
 //  "Show last writer", "Show last reader", and for a jump to the access's
 //  time "Rewind to last write time", or "Fast-forward to last write time"
-//  while the history is replayed from before it.
+//  while the history is replayed from before it. A live machine is past
+//  every access, whatever cycle its last snapshot had.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring HeatMapPane::GetAccessLabel (HeatMapView::PickAction action, const HeatAccessHover * hover, uint64_t cycles)
+std::wstring HeatMapPane::GetAccessLabel (HeatMapView::PickAction action, const HeatAccessHover * hover, uint64_t cycles, bool isBehindLive)
 {
     bool                    isWrite = action == HeatMapView::PickAction::ShowWriter || action == HeatMapView::PickAction::RewindToWrite;
     const HeatAccessInfo  * info    = (hover == nullptr) ? nullptr : (isWrite ? &hover->writer : &hover->reader);
-    bool                    isAhead = info != nullptr && info->has && info->cycle > cycles;
+    bool                    isAhead = isBehindLive && info != nullptr && info->has && info->cycle > cycles;
 
 
 
@@ -1237,7 +1238,8 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
     }
 
     m_view->SetHoverAccess (state.hover);
-    m_cycles = snapshot.cycles;
+    m_cycles       = snapshot.cycles;
+    m_isBehindLive = snapshot.history.isBehindLive;
 
     if (state.hover != nullptr)
     {
