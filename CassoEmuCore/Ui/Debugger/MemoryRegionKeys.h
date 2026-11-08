@@ -31,6 +31,14 @@ public:
     static constexpr uint16_t  kRegionExpansionRom = 6;
     static constexpr uint16_t  kRegionSlotRom      = 8;     // plus the slot, 1 to 7
     static constexpr uint16_t  kRegionSlotIo       = 16;    // plus the slot, 0 to 7
+    static constexpr uint16_t  kRegionRomPart      = 32;    // plus the part's index in kRomParts
+
+    //  The parts of the system ROM GetRomArea finds, which a memory window
+    //  outlines apart.
+    static constexpr std::array<const wchar_t *, 5>  kRomParts =
+    {
+        L"Monitor", L"Integer BASIC", L"Applesoft BASIC", L"80-column firmware", L"internal firmware",
+    };
 
     //  The outline colors: ROM's and I/O's are their bytes' colors, and the
     //  language card's and aux RAM's the memory map's. Until a view has the
@@ -75,6 +83,11 @@ public:
     //  (Apple2eEnhanced.rom)".
     static std::wstring  GetRangeLabel (uint16_t key, Word first, int count, const SlotCards & cards, const RomFiles & roms);
 
+    //  ROM's key with the part of the system ROM at an address, kRegionRom
+    //  where no part is known; and the ROM file behind a key, empty for none.
+    static uint16_t      GetRomPartKey (const std::string & machineId, Word address);
+    static std::string   GetRomFile    (uint16_t key, const RomFiles & roms);
+
     static uint16_t      GetKey       (MemoryRegion region, Word address);
     static std::wstring  GetLabel     (uint16_t key, const SlotCards & cards);
     static std::wstring  GetCardText  (const std::string & card);
@@ -83,5 +96,6 @@ public:
     //  ROM's and I/O's from the bytes' colors, the rest from the memory map's.
     static Colors        GetColors    (const DebuggerTextColors::Set & set) { return Colors { set.rom, set.io, set.mapLcBank1, set.mapLcBank2, set.mapAux }; }
     static bool          IsIo         (uint16_t key) { return key == kRegionIo || (key >= kRegionSlotIo && key < kRegionSlotIo + kSlotCount); }
-    static bool          IsRom        (uint16_t key) { return key == kRegionRom || key == kRegionExpansionRom || (key > kRegionSlotRom && key < kRegionSlotRom + kSlotCount); }
+    static bool          IsRomPart    (uint16_t key) { return key >= kRegionRomPart && key < kRegionRomPart + kRomParts.size(); }
+    static bool          IsRom        (uint16_t key) { return key == kRegionRom || key == kRegionExpansionRom || IsRomPart (key) || (key > kRegionSlotRom && key < kRegionSlotRom + kSlotCount); }
 };

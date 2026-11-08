@@ -68,8 +68,11 @@ public:
 
     void  SetRegionColors (const RegionColors & colors)             { m_regionColors = colors; }
 
-    //  The card in each slot, which labels the slot's ranges.
+    //  The card in each slot, which labels the slot's ranges, and the ROM
+    //  files, which label ROM's.
     void  SetSlotCards    (const MemoryRegionKeys::SlotCards & cards) { m_slotCards = cards; }
+    void  SetRomFiles     (const MemoryRegionKeys::RomFiles & roms)   { m_romFiles = roms; }
+
     //  An edit's bytes, which the window writes at the address directly. For
     //  an undo or redo, `required` is what memory must contain there first;
     //  for a new edit it is empty.
@@ -195,4 +198,5 @@ private:
     PatchFn                                   m_onPatch;
     RegionColors                              m_regionColors;
     MemoryRegionKeys::SlotCards               m_slotCards;
+    MemoryRegionKeys::RomFiles                m_romFiles;
 };

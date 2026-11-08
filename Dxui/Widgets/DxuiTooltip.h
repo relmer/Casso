@@ -326,7 +326,9 @@ private:
 
     //  The label's line is drawn centered on the frame's top edge; its
     //  letters extend about kFrameCapEm of the label's size above and below
-    //  the middle, so the inset above them matches the one beside the frame.
+    //  the middle. The frame's top edge is kFrameInsetDip below the top of
+    //  the letters, and its other edges are as far from the tip's edge as
+    //  its top edge is.
     static constexpr float  kFrameCapEm = 0.36f;
 
     Margins  GetContentMargins () const;

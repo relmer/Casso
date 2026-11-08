@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/TextEncoding.h"
 #include "Ui/Debugger/Panes/MemoryEditModel.h"
 #include "Ui/Debugger/UndoText.h"
 
@@ -479,7 +480,8 @@ bool MemoryEditModel::TryGetByteTip (uint64_t offset, std::wstring & tip) const
 //
 //  The region of each byte as the last read to reach it gave it, so a window
 //  scrolled past its read keeps the outlines it was shown there; a byte no
-//  read has reached is in none.
+//  read has reached is in none. The system ROM is split into its parts, so
+//  each is outlined and labeled apart.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -495,6 +497,11 @@ void MemoryEditModel::ReadRegions (uint64_t offset, std::span<uint16_t> out) con
         Word  address = GetAddressOf (offset + i);
 
         out[i] = TryGetKnown (address, value, region) ? GetRegionKey (region, address) : (uint16_t) 0;
+
+        if (out[i] == kRegionRom)
+        {
+            out[i] = MemoryRegionKeys::GetRomPartKey (m_romFiles.machineId, address);
+        }
     }
 }
 
@@ -507,15 +514,24 @@ void MemoryEditModel::ReadRegions (uint64_t offset, std::span<uint16_t> out) con
 //  MemoryEditModel::TryGetRegionStyle
 //
 //  A slot's ROM and expansion ROM are outlined in ROM's color and a slot's
-//  I/O in I/O's, as their bytes are drawn, and a slot's ranges are labeled
-//  with its card.
+//  I/O in I/O's, as their bytes are drawn. A slot's ranges are labeled with
+//  its card, and a ROM's with its file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MemoryEditModel::TryGetRegionStyle (uint16_t region, uint32_t & outArgb, std::wstring & outLabel) const
 {
+    std::string  file = MemoryRegionKeys::GetRomFile (region, m_romFiles);
+
+
+
     outLabel = MemoryRegionKeys::GetLabel (region, m_slotCards);
     outArgb  = MemoryRegionKeys::GetColor (region, m_regionColors);
+
+    if (!outLabel.empty() && !file.empty())
+    {
+        outLabel += L" (" + TextEncoding::NarrowToWide (file) + L")";
+    }
 
     return !outLabel.empty() && outArgb != 0;
 }

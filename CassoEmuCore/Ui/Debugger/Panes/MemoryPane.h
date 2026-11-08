@@ -74,8 +74,10 @@ public:
     //  Whether the machine is stopped, which holds the changed marks.
     void  SetPaused (bool isPaused) { m_model.SetPaused (isPaused); }
 
-    //  The card in each slot, which labels the slot's outlined ranges.
+    //  The card in each slot, which labels the slot's outlined ranges, and
+    //  the ROM files, which label ROM's.
     void  SetSlotCards (const MemoryRegionKeys::SlotCards & cards) { m_model.SetSlotCards (cards); }
+    void  SetRomFiles  (const MemoryRegionKeys::RomFiles & roms)   { m_model.SetRomFiles (roms); }
 
     //  The bytes the snapshot read for this window. The first one places the
     //  view there; later ones leave the view where the user has it.

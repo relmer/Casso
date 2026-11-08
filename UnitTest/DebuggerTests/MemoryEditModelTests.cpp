@@ -458,7 +458,7 @@ namespace DebuggerTests
             value = rig.Read (0xF805);
 
             Assert::AreEqual (MemoryEditModel::kMarkRom,   mark,   L"ROM the window read before is still marked ROM");
-            Assert::AreEqual (MemoryEditModel::kRegionRom, region, L"and still outlined");
+            Assert::IsTrue   (MemoryRegionKeys::IsRom (region),          L"and outlined as ROM");
             Assert::AreEqual ((Byte) 5,                    value,  L"with the value it read");
 
             Assert::IsFalse (rig.Write (0xF805, { 0x00 }), L"an edit still needs the byte in the window's current read");

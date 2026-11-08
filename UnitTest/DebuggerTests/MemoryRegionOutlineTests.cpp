@@ -151,6 +151,36 @@ namespace DebuggerTests
         }
 
 
+        //  The system ROM is outlined in its parts, each labeled with the part
+        //  and the ROM's file; a slot's ROM page with the slot's file.
+        TEST_METHOD (AWindowOutlinesEachPartOfTheRomWithItsFile)
+        {
+            MemoryEditModel              model;
+            MemoryRegionKeys::RomFiles   roms   = { "Apple2eEnhanced", "Apple2eEnhanced.rom", {} };
+            uint32_t                     argb   = 0;
+            uint16_t                     basic  = 0;
+            uint16_t                     mon    = 0;
+            std::wstring                 label;
+
+
+
+            roms.slots[6] = "Disk2.rom";
+            model.SetRomFiles (roms);
+            Show (model, 0xF700, { MemoryRegion::Rom, MemoryRegion::Rom });
+
+            basic = ReadRegion (model, 0xF7FF);
+            mon   = ReadRegion (model, 0xF800);
+
+            Assert::AreNotEqual (basic, mon, L"Applesoft and the Monitor are one outline");
+            Assert::IsTrue      (model.TryGetRegionStyle (basic, argb, label));
+            Assert::AreEqual    (std::wstring (L"ROM: Applesoft BASIC (Apple2eEnhanced.rom)"), label);
+            Assert::IsTrue      (model.TryGetRegionStyle (mon, argb, label));
+            Assert::AreEqual    (std::wstring (L"ROM: Monitor (Apple2eEnhanced.rom)"), label);
+            Assert::IsTrue      (model.TryGetRegionStyle (MemoryEditModel::GetRegionKey (MemoryRegion::SlotRom, 0xC600), argb, label));
+            Assert::AreEqual    (std::wstring (L"Slot 6: empty (Disk2.rom)"), label);
+        }
+
+
         TEST_METHOD (OutlinesTakeTheirBytesAndTheMapsColors)
         {
             MemoryEditModel                 model;

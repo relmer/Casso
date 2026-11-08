@@ -274,7 +274,7 @@ public:
     //  The labeled ranges: each address's MemoryRegionKeys key, empty for a
     //  bank with none; the card in each slot, which labels a slot's ranges;
     //  and the colors the ranges are outlined in and their bytes drawn in.
-    //  With regions, the map is cut into sections at kSectionStarts, each
+    //  With regions, the map is cut into sections at GetSectionStarts, each
     //  starting a row under a header with its label, in a rounded outline as
     //  a memory window outlines and labels its ranges. Any other labeled
     //  range, such as aux RAM, is outlined once cells are kRegionCellPx.
@@ -324,7 +324,7 @@ public:
         std::wstring  title;
         Word          first     = 0;
         int           count     = 0;
-        bool          isSection = false;   // a piece cut at kSectionStarts, labeled by its region
+        bool          isSection = false;   // a piece cut at GetSectionStarts, labeled by its region
 
         bool operator== (const Band & other) const = default;
     };
@@ -339,7 +339,16 @@ public:
         0xC100, 0xC200, 0xC300, 0xC400, 0xC500, 0xC600, 0xC700, 0xC800, 0xD000,
     };
 
-    //  The ranges cut at kSectionStarts, each piece a section. A range no
+    //  Every section start, in order: kSectionStarts, and below them where
+    //  each built-in range in RAM begins and ends, so zero page, the stack and
+    //  the text and hi-res pages are sections, and so is the RAM between them.
+    static const std::vector<Word> &  GetSectionStarts ();
+
+    //  A section of RAM's label: the built-in range at an address, "Zero
+    //  page", "Hi-res page 1", or "RAM" for none.
+    static std::wstring       GetRamLabel     (Word address);
+
+    //  The ranges cut at GetSectionStarts, each piece a section. A range no
     //  start cuts is left whole, and a section only where `isAllMemory`.
     static std::vector<Band>  SplitAtSections (const std::vector<Band> & ranges, bool isAllMemory);
 

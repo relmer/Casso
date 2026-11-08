@@ -1116,7 +1116,7 @@ void DxuiTooltip::MeasureBoxPx (
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
-        widthPx = std::max (widthPx, std::ceil (labelW) + (m_scaler.ToPxf (kFrameInsetDip) + m_scaler.ToPxf (kFrameCornerDip) + m_scaler.ToPxf (kFrameGapDip)) * 2.0f);
+        widthPx = std::max (widthPx, std::ceil (labelW) + (GetFrameEdgePx() + m_scaler.ToPxf (kFrameCornerDip) + m_scaler.ToPxf (kFrameGapDip)) * 2.0f);
     }
 }
 
@@ -1128,16 +1128,15 @@ void DxuiTooltip::MeasureBoxPx (
 //
 //  GetContentMargins
 //
-//  In a frame, the same inset on every side from the tip's edge to the frame,
-//  where the top's is to the top of the label's letters, then the same gap
-//  inside the frame to the content, where the top's is from the bottom of
-//  the label's letters.
+//  In a frame, the frame is GetFrameEdgePx from the tip's edge on every side,
+//  then the same gap inside the frame to the content, where the top's is
+//  from the bottom of the label's letters.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiTooltip::Margins DxuiTooltip::GetContentMargins() const
 {
-    float  inset = m_scaler.ToPxf (kFrameInsetDip);
+    float  inset = GetFrameEdgePx();
     float  gap   = m_scaler.ToPxf (kFrameGapDip);
 
 
@@ -1147,7 +1146,7 @@ DxuiTooltip::Margins DxuiTooltip::GetContentMargins() const
         return Margins { GetPadXPx(), GetPadYPx(), GetPadXPx(), GetPadYPx() };
     }
 
-    return Margins { inset + gap, GetFrameEdgePx() + GetFrameLabelPx() * kFrameCapEm + gap, inset + gap, inset + gap };
+    return Margins { inset + gap, inset + GetFrameLabelPx() * kFrameCapEm + gap, inset + gap, inset + gap };
 }
 
 
@@ -1744,7 +1743,7 @@ void DxuiTooltip::DrawCornerTag (IDxuiTextRenderer & text, float right, float to
 //
 //  DrawFrame
 //
-//  The outline the same inset from the tip's edge on every side, its top
+//  The outline GetFrameEdgePx from the tip's edge on every side, its top
 //  edge through the middle of the label's line, and the label on it from
 //  the left, past the corner's curve, over a patch of the tip's background
 //  that breaks the line there.
@@ -1757,7 +1756,7 @@ void DxuiTooltip::DrawFrame (IDxuiPainter & painter, IDxuiTextRenderer & text, f
     float                    labelH  = GetFrameLabelHPx();
     float                    labelW  = 0.0f;
     float                    measH   = 0.0f;
-    float                    inset   = std::round (m_scaler.ToPxf (kFrameInsetDip));
+    float                    inset   = GetFrameEdgePx();
     float                    left    = inset;
     float                    right   = width  - inset;
     float                    top     = GetFrameEdgePx();

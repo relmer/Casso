@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/HeatMapView.h"
+#include "Debugger/HeatMapRangeSets.h"
 #include "Debugger/HeatMapSymbols.h"
 #include "Debugger/Reply.h"
 #include "Core/TextEncoding.h"
@@ -169,6 +170,71 @@ void HeatMapView::ClearRanges()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::GetSectionStarts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<Word> & HeatMapView::GetSectionStarts()
+{
+    static const std::vector<Word>  s_starts = []
+    {
+        std::vector<Word>  starts (kSectionStarts.begin(), kSectionStarts.end());
+
+
+
+        for (const HeatMapRangeSets::Preset & preset : HeatMapRangeSets::GetPresets())
+        {
+            //  "My program" has no fixed span, and I/O and the language card are
+            //  cut at kSectionStarts.
+            if (preset.last <= preset.first || preset.last >= kSectionStarts.front())
+            {
+                continue;
+            }
+
+            starts.push_back (preset.first);
+            starts.push_back ((Word) (preset.last + 1));
+        }
+
+        std::ranges::sort (starts);
+        starts.erase (std::unique (starts.begin(), starts.end()), starts.end());
+        std::erase (starts, (Word) 0);
+        return starts;
+    }();
+
+
+
+    return s_starts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetRamLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HeatMapView::GetRamLabel (Word address)
+{
+    for (const HeatMapRangeSets::Preset & preset : HeatMapRangeSets::GetPresets())
+    {
+        if (preset.last > preset.first && preset.last < kSectionStarts.front() && address >= preset.first && address <= preset.last)
+        {
+            return TextEncoding::NarrowToWide (preset.name);
+        }
+    }
+
+    return L"RAM";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::SplitAtSections
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,7 +254,7 @@ std::vector<HeatMapView::Band> HeatMapView::SplitAtSections (const std::vector<B
 
 
 
-        for (Word start : kSectionStarts)
+        for (Word start : GetSectionStarts())
         {
             if (start > first && start < end)
             {
@@ -1055,16 +1121,22 @@ void HeatMapView::LimitScroll (long lowest, long highest)
 //
 //  HeatMapView::GetVerticalBarRect
 //
+//  Past the sections' boxes, which are kSectionPadDip out from the cells.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT HeatMapView::GetVerticalBarRect() const
 {
+    long  left = m_map.right + (m_isSplit ? m_scaler.ToPx (kSectionPadDip) : 0L);
+
+
+
     if (!m_hasVertBar)
     {
         return {};
     }
 
-    return { m_map.right, m_map.top, m_map.right + m_scaler.ToPx (kScrollbarDip), m_map.bottom };
+    return { left, m_map.top, left + m_scaler.ToPx (kScrollbarDip), m_map.bottom };
 }
 
 
@@ -2125,7 +2197,14 @@ void HeatMapView::GetTipFrame (Word address, std::wstring & label, uint32_t & ar
 
     if (key == 0)
     {
-        label = L"RAM";
+        label = GetRamLabel (address);
+        return;
+    }
+
+    if (key == MemoryRegionKeys::kRegionAux && GetRamLabel (address) != L"RAM")
+    {
+        label = L"Aux RAM: " + GetRamLabel (address);
+        argb  = MemoryRegionKeys::GetColor (key, m_regionColors);
         return;
     }
 
@@ -3478,7 +3557,7 @@ void HeatMapView::PaintRegions (IDxuiTextRenderer & text) const
 //  width of the map around its rows, at least a row label's line tall,
 //  kSectionPadDip from the cells on every side, with its label on the top edge from
 //  the left, past the corner's curve, in the header's room above the cells,
-//  over a patch of the page that breaks the line there. The section of RAM
+//  over a patch of the page that breaks the line there. A section of RAM
 //  has its label alone, since a memory window doesn't outline main RAM.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3510,7 +3589,7 @@ void HeatMapView::PaintSections (IDxuiTextRenderer & text, const IDxuiTheme & th
         const Placed            & placed    = m_placed[i];
         bool                      isRam     = band.first < kSectionStarts.front();
         uint16_t                  key       = isRam ? (uint16_t) 0 : GetRegionAt (band.first);
-        std::wstring              label     = isRam ? std::wstring (L"RAM") : MemoryRegionKeys::GetRangeLabel (key, band.first, band.count, m_slotCards, m_romFiles);
+        std::wstring              label     = isRam ? GetRamLabel (band.first) : MemoryRegionKeys::GetRangeLabel (key, band.first, band.count, m_slotCards, m_romFiles);
         uint32_t                  color     = isRam ? theme.ForegroundMuted() : MemoryRegionKeys::GetColor (key, m_regionColors);
         float                     top       = (float) (m_map.top + placed.rowsTop - m_scrollTop);
         float                     left      = (float) m_map.left - street - inside;

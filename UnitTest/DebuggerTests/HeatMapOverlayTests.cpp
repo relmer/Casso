@@ -516,7 +516,8 @@ namespace DebuggerTests
 
         //  With regions, the map is cut into sections at their fixed starts,
         //  each starting a row under a header. A section is outlined in its range's
-        //  color with its label on the top edge, a slot's by its card; a cell
+        //  color with its label on the top edge, a slot's by its card and a
+        //  built-in range's in RAM by its name; a cell
         //  with a symbol has its name over its value, and an I/O byte's value
         //  is in I/O's color.
         TEST_METHOD (ZoomedInTheMapIsCutIntoLabeledSections)
@@ -543,6 +544,18 @@ namespace DebuggerTests
 
                 return 0u;
             };
+            auto                             findBand = [&view] (Word start)
+            {
+                for (const HeatMapView::Band & band : view.GetBands())
+                {
+                    if (band.first == start)
+                    {
+                        return band;
+                    }
+                }
+
+                return HeatMapView::Band {};
+            };
 
 
 
@@ -568,9 +581,12 @@ namespace DebuggerTests
 
             view.ZoomAt ({ 300, 200 }, 40.0f);
             Assert::IsTrue   (view.IsSplit(), L"and zoomed in");
-            Assert::AreEqual ((size_t) (HeatMapView::kSectionStarts.size() + 1), view.GetBands().size());
-            Assert::AreEqual ((int) 0x0080, view.GetBands()[1].count, L"the I/O to $C07F");
-            Assert::AreEqual ((int) 0x0010, view.GetBands()[3].count, L"slot 2's sixteen addresses");
+            Assert::AreEqual ((size_t) (HeatMapView::GetSectionStarts().size() + 1), view.GetBands().size());
+            Assert::AreEqual ((int) 0x0080, findBand (0xC000).count, L"the I/O to $C07F");
+            Assert::AreEqual ((int) 0x0010, findBand (0xC0A0).count, L"slot 2's sixteen addresses");
+            Assert::AreEqual ((int) 0x0100, findBand (0x0000).count, L"zero page, a separate section");
+            Assert::AreEqual ((int) 0x2000, findBand (0x2000).count, L"hi-res page 1");
+            Assert::AreEqual ((int) 0x6000, findBand (0x6000).count, L"the RAM after hi-res page 2 to the I/O");
 
             view.ScrollBy ((int) (view.GetCellRect (0xC000).top - view.GetMapRect().top - 60));
             first = view.GetCellRect (0xC090);
@@ -588,6 +604,12 @@ namespace DebuggerTests
             view.ScrollBy ((int) (view.GetCellRect (0xC0A0).top - view.GetMapRect().top - 60));
             Paint (view, text);
             Assert::IsTrue   (HasText (text, L"Slot 2: Super Serial Card"),   L"slot 2's section by its card");
+
+            view.ScrollBy ((int) (view.GetCellRect (0x0000).top - view.GetMapRect().top - 60));
+            Paint (view, text);
+            Assert::IsTrue   (HasText (text, L"Zero page"),                   L"a built-in range's section by its name");
+            Assert::AreEqual (std::wstring (L"Text page 1"), HeatMapView::GetRamLabel (0x0400));
+            Assert::AreEqual (std::wstring (L"RAM"),         HeatMapView::GetRamLabel (0x0300), L"between the built-in ranges");
 
             view.SetRegions ({});
             Assert::IsFalse  (view.IsSplit(), L"a bank with no regions is one range again");

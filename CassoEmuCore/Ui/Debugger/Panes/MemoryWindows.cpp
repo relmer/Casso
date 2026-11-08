@@ -939,6 +939,7 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
         each->GetModel().SetTextColors (m_host.GetTextColors());
         each->GetModel().SetPaused     (snapshot.isPaused);
         each->GetModel().SetSlotCards  (snapshot.slotCards);
+        each->GetModel().SetRomFiles   (snapshot.romFiles);
         each->GetModel().SetHeat       (snapshot.heatColumns, m_host.GetHeatPalette());
 
         //  Bytes are edited while the machine is stopped, as Visual Studio's

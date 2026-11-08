@@ -86,6 +86,11 @@ std::wstring MemoryRegionKeys::GetLabel (uint16_t key, const SlotCards & cards)
                                             : std::format (L"Slot {}: {}", slot, GetCardText (cards[(size_t) slot]));
     }
 
+    if (IsRomPart (key))
+    {
+        return std::wstring (L"ROM: ") + kRomParts[(size_t) (key - kRegionRomPart)];
+    }
+
     switch (key)
     {
     case kRegionRom:          return L"ROM";
@@ -163,28 +168,72 @@ std::wstring MemoryRegionKeys::GetRomArea (const std::string & machineId, Word a
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryRegionKeys::GetRomPartKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint16_t MemoryRegionKeys::GetRomPartKey (const std::string & machineId, Word address)
+{
+    std::wstring  area = GetRomArea (machineId, address);
+
+
+
+    for (size_t i = 0; i < kRomParts.size(); i++)
+    {
+        if (area == kRomParts[i])
+        {
+            return (uint16_t) (kRegionRomPart + i);
+        }
+    }
+
+    return kRegionRom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryRegionKeys::GetRomFile
+//
+//  The system ROM's file for ROM and its parts, and a slot's ROM's for the
+//  slot's page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MemoryRegionKeys::GetRomFile (uint16_t key, const RomFiles & roms)
+{
+    if (key == kRegionRom || IsRomPart (key))
+    {
+        return roms.system;
+    }
+
+    if (key > kRegionSlotRom && key < kRegionSlotRom + kSlotCount)
+    {
+        return roms.slots[(size_t) (key - kRegionSlotRom)];
+    }
+
+    return {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryRegionKeys::GetRomLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring MemoryRegionKeys::GetRomLabel (uint16_t key, Word address, const SlotCards & cards, const RomFiles & roms)
 {
-    std::wstring  label = GetLabel (key, cards);
-    std::wstring  area;
-    std::string   file;
+    uint16_t      part  = (key == kRegionRom) ? GetRomPartKey (roms.machineId, address) : key;
+    std::wstring  label = GetLabel (part, cards);
+    std::string   file  = GetRomFile (key, roms);
 
 
-
-    if (key == kRegionRom)
-    {
-        area  = GetRomArea (roms.machineId, address);
-        label = area.empty() ? L"ROM" : L"ROM: " + area;
-        file  = roms.system;
-    }
-    else if (key > kRegionSlotRom && key < kRegionSlotRom + kSlotCount)
-    {
-        file = roms.slots[(size_t) (key - kRegionSlotRom)];
-    }
 
     if (!file.empty())
     {
