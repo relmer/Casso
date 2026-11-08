@@ -667,6 +667,7 @@ void HeatMapView::ApplyCellPx (int cellPx, POINT point)
     long                  rowTop = (placed != nullptr) ? placed->rowsTop + row * pitch : 0;
     double                fracY  = (double) std::clamp (atY - rowTop, 0L, pitch) / (double) pitch;
     double                down   = (double) atY / (double) std::max (1L, m_contentH);
+    bool                  isIn   = cellPx > m_cellPx;
 
 
 
@@ -688,9 +689,19 @@ void HeatMapView::ApplyCellPx (int cellPx, POINT point)
         m_scrollTop = placed->rowsTop + (long) std::lround (((double) row + fracY) * (double) pitch) - (point.y - m_map.top);
     }
 
-    //  The row stays under the pointer even where that scrolls the map past
-    //  either end of memory, as long as a row of it stays in view.
-    LimitScroll (std::min (0L, pitch - (m_areaBottom - m_map.top)), std::max (GetMaxScroll(), m_contentH - pitch));
+    //  Zoomed in, the row stays under the pointer even where that scrolls the
+    //  map past either end of memory, as long as a row of it stays in view.
+    //  Zoomed out, the map stops at the ends, so memory that fits the pane is
+    //  at its top.
+    if (isIn)
+    {
+        LimitScroll (std::min (0L, pitch - (m_areaBottom - m_map.top)), std::max (GetMaxScroll(), m_contentH - pitch));
+    }
+    else
+    {
+        ClampScroll();
+    }
+
     m_isFrameStale = true;
 }
 
@@ -3371,13 +3382,47 @@ std::vector<RECT> HeatMapView::GetMergedRects (const Merged & merged) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::SplitInstruction
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeatMapView::InstructionLines HeatMapView::SplitInstruction (const std::wstring & instruction, const std::wstring & bytes, const std::vector<long> & pieceCells)
+{
+    InstructionLines  lines (pieceCells.size());
+    size_t            space = instruction.find (L' ');
+    size_t            gap   = bytes.find (L' ');
+
+
+
+    if (lines.empty())
+    {
+        return lines;
+    }
+
+    if (lines.size() > 1 && pieceCells.front() == 1 && space != std::wstring::npos && gap != std::wstring::npos)
+    {
+        lines[0] = { instruction.substr (0, space), bytes.substr (0, gap) };
+        lines[1] = { instruction.substr (space + 1), bytes.substr (gap + 1) };
+        return lines;
+    }
+
+    lines[0] = { instruction, bytes };
+    return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::PaintInstruction
 //
 //  The instruction with its operand as a symbol where there is one, and
 //  under it the bytes in hex, smaller and dimmer, as the disassembly draws
-//  a line's bytes under its source. An instruction on two rows is drawn as
-//  one line of text across its two pieces laid end to end, so the text
-//  continues from the end of the first row to the start of the second.
+//  a line's bytes under its source. An instruction on two rows is split
+//  between its pieces by SplitInstruction, each piece's text centered in
+//  it, at one font size for all of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3393,9 +3438,10 @@ void HeatMapView::PaintInstruction (IDxuiTextRenderer & text, const IDxuiTheme &
     std::vector<Byte>   operands;
     std::wstring        bytes       = std::format (L"{:02X}", opcode);
     std::wstring        instruction;
-    long                wide        = 0;
+    std::vector<long>   cells;
+    InstructionLines    lines;
+    long                pitch       = GetPitch();
     long                tall        = pieces.front().bottom - pieces.front().top;
-    long                before      = 0;
     float               fontPx      = 0.0f;
     float               lineH       = 0.0f;
     uint32_t            fill        = GetCellColor (merged.opcode) | 0xFF000000u;
@@ -3416,40 +3462,58 @@ void HeatMapView::PaintInstruction (IDxuiTextRenderer & text, const IDxuiTheme &
 
     for (const RECT & piece : pieces)
     {
-        wide += piece.right - piece.left;
+        cells.push_back (std::max (1L, (piece.right - piece.left + HeatMapView::kStreetPx) / std::max (1L, pitch)));
     }
 
     instruction = GetInstructionText ((*m_opcodeForms)[opcode], HeatMapOptions::GetCpuAddress (m_shownBank, merged.opcode), operands);
+    lines       = SplitInstruction (instruction, bytes, cells);
     fontPx      = std::min (m_scaler.ToPxf (font.sizeDip), ((float) tall - pad * 2.0f) / (kLinePerEm * 2.0f));
-    fontPx      = std::max (minFont, std::min (fontPx, ((float) wide - pad * 2.0f) / ((float) std::max (instruction.size(), bytes.size()) * kAdvancePerEm)));
-    lineH       = fontPx * kLinePerEm;
 
-    for (const RECT & piece : pieces)
+    for (size_t i = 0; i < pieces.size(); i++)
     {
-        float  left  = (float) (piece.left - before);
-        float  top   = (float) piece.top + ((float) tall - lineH * 2.0f) / 2.0f;
-        float  width = (float) (piece.right - piece.left);
+        size_t  longest = std::max (lines[i].first.size(), lines[i].second.size());
 
 
 
-        hr = text.FillRect ((float) piece.left, (float) piece.top, width, (float) tall, fill);
+        if (longest > 0)
+        {
+            fontPx = std::min (fontPx, ((float) (pieces[i].right - pieces[i].left) - pad * 2.0f) / ((float) longest * kAdvancePerEm));
+        }
+    }
+
+    fontPx = std::max (minFont, fontPx);
+    lineH  = fontPx * kLinePerEm;
+
+    for (size_t i = 0; i < pieces.size(); i++)
+    {
+        const RECT  & piece = pieces[i];
+        float         left  = (float) piece.left;
+        float         top   = (float) piece.top + ((float) tall - lineH * 2.0f) / 2.0f;
+        float         width = (float) (piece.right - piece.left);
+
+
+
+        hr = text.FillRect (left, (float) piece.top, width, (float) tall, fill);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        hr = text.PushClipRect ((float) piece.left, (float) piece.top, width, (float) tall);
+        if (lines[i].first.empty() && lines[i].second.empty())
+        {
+            continue;
+        }
+
+        hr = text.PushClipRect (left, (float) piece.top, width, (float) tall);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        hr = text.DrawString (instruction.c_str(), left, top, (float) wide, lineH, ink, fontPx, font.face,
+        hr = text.DrawString (lines[i].first.c_str(), left, top, width, lineH, ink, fontPx, font.face,
                               DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        hr = text.DrawString (bytes.c_str(), left, top + lineH, (float) wide, lineH, DxuiColor::Mix (ink, fill, kBytesDim) | 0xFF000000u,
+        hr = text.DrawString (lines[i].second.c_str(), left, top + lineH, width, lineH, DxuiColor::Mix (ink, fill, kBytesDim) | 0xFF000000u,
                               std::max (minFont, fontPx * kBytesScale), font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         hr = text.PopClipRect();
         IGNORE_RETURN_VALUE (hr, S_OK);
-
-        before += piece.right - piece.left;
     }
 }
 

@@ -856,6 +856,12 @@ namespace DebuggerTests
 
                     view.ZoomAt (point, notch);
 
+                    //  Zoomed out, the map stops at an end of memory.
+                    if (notch < 0.0f && (view.GetScrollTop() == 0 || view.GetScrollTop() >= view.GetRows() * (view.GetCellPx() + HeatMapView::kStreetPx) - (view.GetMapRect().bottom - view.GetMapRect().top)))
+                    {
+                        break;
+                    }
+
                     Assert::IsTrue (IsAtHeight (view, under, point.y),
                                     std::format (L"${:04X} under the pointer after step {} of {}", under, steps, notch).c_str());
                 }
@@ -864,10 +870,10 @@ namespace DebuggerTests
 
 
 
-        //  At the sizes at which all of memory fits the pane, a zoom scrolls the
-        //  map past an end where the pointer's row would otherwise move. A scroll
-        //  then moves it back toward the end and not farther past, and Reset
-        //  zoom puts memory back at the top.
+        //  At the sizes at which all of memory fits the pane, a zoom in scrolls
+        //  the map past an end where the pointer's row would otherwise move. A
+        //  scroll then moves it back toward the end and not farther past. A zoom
+        //  out and Reset zoom put memory back at the top.
         TEST_METHOD (ZoomingAtTheFitSizesKeepsThePointersRow)
         {
             HeatMapView  view;
@@ -896,8 +902,42 @@ namespace DebuggerTests
             view.ScrollBy (past < 0 ? 1 : -1);
             Assert::AreEqual (past < 0 ? past + 1 : past - 1, view.GetScrollTop(), L"a scroll back toward it is");
 
+            view.ZoomAt (point, -1.0f);
+            Assert::AreEqual (0L, view.GetScrollTop(), L"zoomed back out to a size that fits, memory is at the top");
+
+            view.ZoomAt (point, 1.0f);
             view.ResetZoom();
             Assert::AreEqual (0L, view.GetScrollTop(), L"Reset zoom puts memory back at the top");
+        }
+
+
+
+        //  An instruction that wraps to the next row after its first cell has
+        //  the mnemonic in that cell and the operand in the next. One that
+        //  wraps after two cells has all of its text in those two.
+        TEST_METHOD (AWrappedInstructionIsSplitAtItsMnemonic)
+        {
+            HeatMapView::InstructionLines  lines;
+
+
+
+            lines = HeatMapView::SplitInstruction (L"LDA KBD", L"AD 00 C0", { 1, 2 });
+            Assert::AreEqual (std::wstring (L"LDA"),   lines[0].first);
+            Assert::AreEqual (std::wstring (L"AD"),    lines[0].second);
+            Assert::AreEqual (std::wstring (L"KBD"),   lines[1].first);
+            Assert::AreEqual (std::wstring (L"00 C0"), lines[1].second);
+
+            lines = HeatMapView::SplitInstruction (L"BNE $0300", L"D0 FE", { 1, 1 });
+            Assert::AreEqual (std::wstring (L"BNE"),   lines[0].first);
+            Assert::AreEqual (std::wstring (L"$0300"), lines[1].first);
+
+            lines = HeatMapView::SplitInstruction (L"LDA KBD", L"AD 00 C0", { 2, 1 });
+            Assert::AreEqual (std::wstring (L"LDA KBD"),  lines[0].first);
+            Assert::AreEqual (std::wstring (L"AD 00 C0"), lines[0].second);
+            Assert::IsTrue   (lines[1].first.empty() && lines[1].second.empty(), L"the wrapped cell has no text");
+
+            lines = HeatMapView::SplitInstruction (L"LDA KBD", L"AD 00 C0", { 3 });
+            Assert::AreEqual (std::wstring (L"LDA KBD"), lines[0].first);
         }
 
 

@@ -173,6 +173,14 @@ public:
     std::wstring         GetInstructionText   (const std::string & form, Word cpu, const std::vector<Byte> & operands) const;
     static uint32_t      GetDetailTextColor (uint32_t cell, uint32_t foreground, uint32_t background);
 
+    //  An instruction's text and bytes for each piece of a cell that wraps to
+    //  the next row, by the number of cells in each piece: a first piece of
+    //  one cell has the mnemonic and opcode byte, and the next the operand and
+    //  its bytes; a longer first piece has all of it, and the rest are empty.
+    using InstructionLines = std::vector<std::pair<std::wstring, std::wstring>>;
+
+    static InstructionLines  SplitInstruction (const std::wstring & instruction, const std::wstring & bytes, const std::vector<long> & pieceCells);
+
     static constexpr int    kAddressCount   = 0x10000;
     static constexpr int    kMinColumns     = 1;
     static constexpr int    kMaxColumns     = 1024;

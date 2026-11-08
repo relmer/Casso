@@ -207,7 +207,7 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (AnInstructionPastTheEndOfItsRowContinuesOnTheNext)
+        TEST_METHOD (AnInstructionPastTheEndOfItsRowIsSplitAtItsMnemonic)
         {
             HeatMapView           view;
             MockDxuiTextRenderer  text;
@@ -260,7 +260,10 @@ namespace DebuggerTests
             first  = view.GetCellRect (at);
             second = view.GetCellRect ((Word) (at + 1));
 
-            Assert::AreEqual (2,    drawn,                     L"the text on each piece, one continuing the other");
+            Assert::AreEqual (0,    drawn,                     L"the instruction split between its pieces");
+            Assert::IsTrue   (HasText (text, L"LDA"),          L"the mnemonic in the first");
+            Assert::IsTrue   (HasText (text, L"$C000"),        L"the operand in the second");
+            Assert::IsTrue   (HasText (text, L"00 C0"),        L"over the operand's bytes");
             Assert::IsTrue   (second.top > first.top,          L"the operand starts the next row");
             Assert::IsFalse  (HasText (text, L"00"),           L"the operand drawn as part of the instruction");
             Assert::IsTrue   (isRing (first),                  L"the PC's ring around the first piece");
