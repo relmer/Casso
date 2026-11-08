@@ -29,7 +29,7 @@ std::vector<ColorKeyPopup::Row> ColorKeyPopup::MakeRows (ColorLegend::Pane pane,
 
         row.swatch   = entry.swatch;
         row.argb     = ColorLegend::GetArgb (entry.meaning, palette);
-        row.fromArgb = ColorLegend::GetFaintest (row.argb, palette);
+        row.fromArgb = ColorLegend::GetFaintest (entry.meaning, row.argb, palette);
         row.stops    = ColorLegend::GetRampStops (entry.meaning, palette);
         row.text     = ColorLegend::GetText (entry.meaning);
 

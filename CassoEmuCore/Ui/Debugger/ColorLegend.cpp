@@ -521,13 +521,18 @@ std::shared_ptr<DxuiIconImage> ColorLegend::MakeSwatchIcon (Swatch swatch, uint3
 //  ColorLegend::GetFaintest
 //
 //  As the heat map draws the least touched address: the color mixed from
-//  the cold gray by HeatMapView::kFaintest.
+//  the cold gray by HeatMapView::kFaintest, or kUnwrittenFaintest for a
+//  read before written.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t ColorLegend::GetFaintest (uint32_t argb, const Palette & palette)
+uint32_t ColorLegend::GetFaintest (Meaning meaning, uint32_t argb, const Palette & palette)
 {
-    return DxuiColor::Mix (palette.text.heatCold | 0xFF000000u, argb | 0xFF000000u, HeatMapView::kFaintest) | 0xFF000000u;
+    float  floor = (meaning == Meaning::HeatUnwritten) ? HeatMapView::kUnwrittenFaintest : HeatMapView::kFaintest;
+
+
+
+    return DxuiColor::Mix (palette.text.heatCold | 0xFF000000u, argb | 0xFF000000u, floor) | 0xFF000000u;
 }
 
 

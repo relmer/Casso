@@ -183,7 +183,7 @@ public:
     static std::shared_ptr<DxuiIconImage>  MakeSwatchIcon (Swatch swatch, uint32_t argb, uint32_t fromArgb = 0);
 
     //  A heat color's faintest shade, the left end of its Ramp swatch.
-    static uint32_t  GetFaintest (uint32_t argb, const Palette & palette);
+    static uint32_t  GetFaintest (Meaning meaning, uint32_t argb, const Palette & palette);
 
     //  A Ramp's colors, faintest to full, where the heat map draws a meaning
     //  on a scale of more than two stops; empty for the rest.

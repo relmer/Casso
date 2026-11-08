@@ -211,8 +211,11 @@ public:
     static constexpr int    kDragDip        = 4;
 
     //  How far from the cold gray toward its color the faintest touched
-    //  address is drawn, so one touch is still visible.
-    static constexpr float  kFaintest       = 0.3f;
+    //  address is drawn, so one touch is still visible; and the faintest
+    //  read before written, which is rare and worth seeing at any count, so
+    //  it is drawn nearly at full strength from the first read.
+    static constexpr float  kFaintest          = 0.3f;
+    static constexpr float  kUnwrittenFaintest = 0.8f;
 
     //  The levels, 0 for cold and 1 to 255 rising with the logarithm of the
     //  rate or the count, and the value level 255 stands for: accesses a

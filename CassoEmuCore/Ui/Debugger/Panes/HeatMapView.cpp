@@ -1011,7 +1011,8 @@ uint32_t HeatMapView::GetColor (
 //
 //  Changed shows the changes alone, mixed toward their color from the cold
 //  gray as the others are. All and Data draw a read before written over
-//  whatever else the address is, since it is the rare thing worth seeing.
+//  whatever else the address is, since it is the rare thing worth seeing,
+//  from kUnwrittenFaintest rather than kFaintest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1022,9 +1023,10 @@ uint32_t HeatMapView::GetChannelColor (
     uint32_t          color,
     const Palette   & palette)
 {
-    constexpr float  kTop  = 255.0f;
-    uint32_t         hue   = palette.unwritten;
-    Byte             level = unwritten;
+    constexpr float  kTop   = 255.0f;
+    uint32_t         hue    = palette.unwritten;
+    Byte             level  = unwritten;
+    float            floor  = kUnwrittenFaintest;
 
 
 
@@ -1032,6 +1034,7 @@ uint32_t HeatMapView::GetChannelColor (
     {
         hue   = palette.changed;
         level = changed;
+        floor = kFaintest;
     }
     else if (mode == Mode::Code || unwritten == 0)
     {
@@ -1044,7 +1047,7 @@ uint32_t HeatMapView::GetChannelColor (
     }
 
     return DxuiColor::Mix (palette.cold | 0xFF000000u, hue | 0xFF000000u,
-                           kFaintest + (1.0f - kFaintest) * (float) level / kTop) | 0xFF000000u;
+                           floor + (1.0f - floor) * (float) level / kTop) | 0xFF000000u;
 }
 
 
@@ -2091,9 +2094,10 @@ bool HeatMapView::TryGetCellScale (Word address, std::vector<uint32_t> & gradien
         return true;
     }
 
+    floor     = (GetCellKind (address) == CellKind::Unwritten) ? kUnwrittenFaintest : kFaintest;
     hue      |= 0xFF000000u;
-    gradient  = { DxuiColor::Mix (cold, hue, kFaintest) | 0xFF000000u,
-                  DxuiColor::Mix (cold, hue, kFaintest + (1.0f - kFaintest) * kMiddle) | 0xFF000000u,
+    gradient  = { DxuiColor::Mix (cold, hue, floor) | 0xFF000000u,
+                  DxuiColor::Mix (cold, hue, floor + (1.0f - floor) * kMiddle) | 0xFF000000u,
                   hue };
     return true;
 }
