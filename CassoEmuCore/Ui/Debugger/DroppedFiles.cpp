@@ -30,7 +30,7 @@ DroppedFiles::Kind DroppedFiles::GetKind (const std::wstring & path)
         return Kind::Source;
     }
 
-    if (HasExtension (path, { L".bas" }))
+    if (IsBasicProgramFile (path))
     {
         return Kind::Basic;
     }

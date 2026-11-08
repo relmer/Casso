@@ -68,6 +68,12 @@ private:
     static void  SaveBinary   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SaveText     (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  LoadBasic    (DebugSession & session, const DebugCommand & command, Reply & reply);
+
+    //  A file BASICLOAD reads as it is rather than tokenizing: an AppleSingle
+    //  file, or one whose name has CiderPress's #fc for a BAS file. Its
+    //  program, and its listing in `content`, for the lines Loaded counts.
+    static bool  IsCiderPressBasic (const std::string & name);
+    static bool  TryGetPackedBasic (const std::string & name, std::string & content, std::vector<Byte> & bytes, Reply & reply);
     static void  SaveBasic    (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  ClearBasic   (DebugSession & session, Reply & reply);
     static bool  TryPokeWord  (IDebugTarget & target, Word address, Word value, Reply & reply);

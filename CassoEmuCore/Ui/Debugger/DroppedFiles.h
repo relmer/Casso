@@ -21,7 +21,8 @@ class DroppedFiles
 {
 public:
     //  By extension: a debug or symbol file SYM LOAD reads, an assembler
-    //  source, an Applesoft listing BASICLOAD reads, or none of them.
+    //  source, a BASIC program BASICLOAD reads (IsBasicProgramFile), or none
+    //  of them.
     enum class Kind
     {
         Symbols,

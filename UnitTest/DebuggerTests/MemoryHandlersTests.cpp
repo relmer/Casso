@@ -5,6 +5,7 @@
 #include "Debugger/Handlers/SymbolHandlers.h"
 #include "HandlerTestRig.h"
 #include "Core/TextEncoding.h"
+#include "Core/AppleSingleCodec.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -324,6 +325,51 @@ namespace DebuggerTests
 
             rig.files.WriteAllText (L"C:\\Work\\bad.bas", "70000 PRINT\n");
             rig.RunFails ("BASICLOAD bad.bas", "file not loadable");
+        }
+
+
+        //  An AppleSingle BAS file and a CiderPress #fc file are the program as
+        //  they are, and load as a listing does; an AppleSingle file of
+        //  another type is not a program.
+        TEST_METHOD (BASICLOAD_TakesAppleSingleAndCiderPressFiles)
+        {
+            Rig                    rig;
+            Reply                  reply;
+            std::vector<Byte>      bytes;
+            std::vector<Byte>      packed;
+            AppleSingleFile        single;
+            ApplesoftListingError  error;
+            HRESULT                hr      = S_OK;
+
+
+
+            hr = ApplesoftTokenizer::Tokenize ("10 PRINT \"HI\"\n20 GOTO 10\n", bytes, error);
+            Assert::IsTrue (SUCCEEDED (hr));
+
+            rig.target.memory[0x73] = 0x00;
+            rig.target.memory[0x74] = 0x96;
+
+            single.data          = bytes;
+            single.hasProDosInfo = true;
+            single.fileType      = 0xFC;
+            single.auxType       = 0x0801;
+            AppleSingleCodec::Encode (single, packed);
+            rig.files.WriteAllText (L"C:\\Work\\HELLO.as", std::string (packed.begin(), packed.end()));
+
+            reply = rig.RunOk ("BASICLOAD HELLO.as");
+            Assert::IsTrue   (reply.text.at (0).starts_with ("Loaded 2 lines, 20 bytes"), TextEncoding::NarrowToWide (reply.text.at (0)).c_str());
+            Assert::AreEqual (bytes[4], rig.target.memory[0x0805], L"the program's bytes at $0801");
+
+            rig.target.memory[0x0805] = 0;
+            rig.files.WriteAllText (L"C:\\Work\\HELLO#fc0801", std::string (bytes.begin(), bytes.end()));
+            reply = rig.RunOk ("BASICLOAD HELLO#fc0801");
+            Assert::IsTrue   (reply.text.at (0).starts_with ("Loaded 2 lines"));
+            Assert::AreEqual (bytes[4], rig.target.memory[0x0805], L"the #fc file's bytes as they are");
+
+            single.fileType = 0x06;
+            AppleSingleCodec::Encode (single, packed);
+            rig.files.WriteAllText (L"C:\\Work\\BIN.as", std::string (packed.begin(), packed.end()));
+            rig.RunFails ("BASICLOAD BIN.as", "file not loadable");
         }
 
 

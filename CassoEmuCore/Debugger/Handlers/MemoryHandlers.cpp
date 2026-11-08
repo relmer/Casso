@@ -11,6 +11,8 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/MemoryMap.h"
 #include "Sha1.h"
+#include "Core/AppleSingleCodec.h"
+#include "Ui/Debugger/DroppedFiles.h"
 
 
 
@@ -749,7 +751,9 @@ std::string MemoryHandlers::DescribeListingError (const ApplesoftListingError & 
 //  program there, with Applesoft's pointers set as its LOAD sets them: the
 //  variables, arrays and strings empty after the program, and string space
 //  from the top of memory down. Nothing is written when the listing does not
-//  tokenize.
+//  tokenize. An AppleSingle file, or one whose name has its ProDOS type as
+//  CiderPress writes it ("HELLO#fc0801"), is loaded as the emulator window
+//  loads it when dropped (DroppedFiles::TryGetBasicProgram).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -787,12 +791,22 @@ void MemoryHandlers::LoadBasic (DebugSession & session, const DebugCommand & com
         return;
     }
 
-    hr = ApplesoftTokenizer::Tokenize (content, bytes, error);
-
-    if (FAILED (hr))
+    if (AppleSingleCodec::IsAppleSingle (std::vector<Byte> (content.begin(), content.end())) || IsCiderPressBasic (name))
     {
-        reply.SetError (CommandStatus::Error, "file not loadable", DescribeListingError (error, "A line"));
-        return;
+        if (!TryGetPackedBasic (name, content, bytes, reply))
+        {
+            return;
+        }
+    }
+    else
+    {
+        hr = ApplesoftTokenizer::Tokenize (content, bytes, error);
+
+        if (FAILED (hr))
+        {
+            reply.SetError (CommandStatus::Error, "file not loadable", DescribeListingError (error, "A line"));
+            return;
+        }
     }
 
     if (!IsWritable (target, ApplesoftTokenizer::kProgramBase, bytes.size(), reply) || !TryPeekWord (target, kMemSiz, top, reply))
@@ -823,6 +837,65 @@ void MemoryHandlers::LoadBasic (DebugSession & session, const DebugCommand & com
     }
 
     reply.data = MessageData { { std::format ("Loaded {} lines, {} bytes, as the BASIC program{}.", lines, bytes.size(), session.GetPathEcho (name, "from", reply)) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::IsCiderPressBasic
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryHandlers::IsCiderPressBasic (const std::string & name)
+{
+    std::wstring  file = std::filesystem::path (TextEncoding::Utf8ToWide (name)).filename().wstring();
+
+
+
+    std::ranges::transform (file, file.begin(), [] (wchar_t ch) { return (wchar_t) towlower (ch); });
+
+    return file.find (L"#fc") != std::wstring::npos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::TryGetPackedBasic
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryHandlers::TryGetPackedBasic (const std::string & name, std::string & content, std::vector<Byte> & bytes, Reply & reply)
+{
+    std::vector<Byte>      raw     (content.begin(), content.end());
+    std::string            reason;
+    std::string            listing;
+    ApplesoftListingError  error;
+    HRESULT                hr      = S_OK;
+
+
+
+    if (!DroppedFiles::TryGetBasicProgram (TextEncoding::Utf8ToWide (name), raw, bytes, reason))
+    {
+        reply.SetError (CommandStatus::Error, "file not loadable", reason);
+        return false;
+    }
+
+    hr = ApplesoftTokenizer::Detokenize (bytes, listing, error);
+
+    if (FAILED (hr))
+    {
+        reply.SetError (CommandStatus::Error, "file not loadable", DescribeListingError (error, "A line in the file"));
+        return false;
+    }
+
+    content = listing;
+    return true;
 }
 
 
