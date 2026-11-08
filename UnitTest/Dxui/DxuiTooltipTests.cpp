@@ -386,7 +386,8 @@ public:
         {
             bool  isZeroLine = call.text == L"Z" || call.text == L"Zero" || call.text == L"1";
 
-            Assert::AreEqual (isZeroLine ? kRed : t.GetTextArgb(), call.argb, call.text.c_str());
+            Assert::AreEqual (DxuiColor::ComputeInkForContrast (isZeroLine ? kRed : t.GetTextArgb(), t.GetBackgroundArgb(), 4.5f), call.argb, call.text.c_str());
+            Assert::IsTrue   (DxuiColor::ComputeContrastRatio (call.argb | 0xFF000000u, t.GetBackgroundArgb()) >= 4.5f, L"each line reads on the tip");
         }
 
         Assert::AreEqual ((size_t) 6, text.Calls().size(), L"three parts on each of two lines");

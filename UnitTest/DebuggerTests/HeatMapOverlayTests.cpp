@@ -506,8 +506,8 @@ namespace DebuggerTests
 
 
 
-        //  Zoomed in, the map is cut into sections at their fixed starts, each
-        //  starting a row under a header. A section is outlined in its range's
+        //  With regions, the map is cut into sections at their fixed starts,
+        //  each starting a row under a header. A section is outlined in its range's
         //  color with its label on the top edge, a slot's by its card; a cell
         //  with a symbol has its name over its value, and an I/O byte's value
         //  is in I/O's color.
@@ -520,7 +520,8 @@ namespace DebuggerTests
             std::vector<uint16_t>            regions (kCount, 0);
             MemoryRegionKeys::Colors         colors;
             MemoryRegionKeys::SlotCards      cards;
-            uint32_t                         stroke  = DxuiColor::Mix (kBackground | 0xFF000000u, colors.io, 0.6f) | 0xFF000000u;
+            uint32_t                         stroke  = DxuiColor::ComputeInkForContrast (DxuiColor::Mix (kBackground | 0xFF000000u, colors.io, 0.6f) | 0xFF000000u,
+                                                                                         kBackground | 0xFF000000u, HeatMapView::kMinLineContrast) | 0xFF000000u;
             RECT                             first   = {};
             auto                             findInk = [&text] (const std::wstring & wanted)
             {
@@ -555,10 +556,10 @@ namespace DebuggerTests
             Assert::IsFalse (view.IsSplit(), L"without regions, one range");
 
             view.SetRegions (regions);
-            Assert::IsFalse (view.IsSplit(), L"at the fitted size, one range");
+            Assert::IsTrue   (view.IsSplit(), L"with regions, cut into sections at any size");
 
             view.ZoomAt ({ 300, 200 }, 40.0f);
-            Assert::IsTrue   (view.IsSplit(), L"zoomed in, cut into sections");
+            Assert::IsTrue   (view.IsSplit(), L"and zoomed in");
             Assert::AreEqual ((size_t) (HeatMapView::kSectionStarts.size() + 1), view.GetBands().size());
             Assert::AreEqual ((int) 0x0080, view.GetBands()[1].count, L"the I/O to $C07F");
             Assert::AreEqual ((int) 0x0010, view.GetBands()[3].count, L"slot 2's sixteen addresses");
@@ -580,15 +581,15 @@ namespace DebuggerTests
             Paint (view, text);
             Assert::IsTrue   (HasText (text, L"Slot 2: Super Serial Card"),   L"slot 2's section by its card");
 
-            view.ResetZoom();
-            Assert::IsFalse  (view.IsSplit(), L"back at the fitted size, one range again");
+            view.SetRegions ({});
+            Assert::IsFalse  (view.IsSplit(), L"a bank with no regions is one range again");
             Assert::AreEqual ((size_t) 1, view.GetBands().size());
         }
 
 
 
-        //  A tip's first line is what the cell contains: a symbol and its
-        //  byte, an instruction and its bytes after any symbol, or the byte.
+        //  A tip's first line is what the cell contains: an instruction and
+        //  its bytes after any symbol, or the symbol or "Value" and the byte.
         //  The tip is framed in the cell's range, a ROM byte's with its ROM.
         TEST_METHOD (ATipStartsWithTheCellsContentsInItsRangesFrame)
         {
@@ -628,11 +629,11 @@ namespace DebuggerTests
             view.SetRomFiles    (roms);
             view.SetLevels      ({}, {}, {});
 
-            Assert::AreEqual (std::wstring (L"KBD  (C1)"),                       view.GetContentsLine (0xC000));
+            Assert::AreEqual (std::wstring (L"KBD: C1"),                         view.GetContentsLine (0xC000));
             Assert::AreEqual (std::wstring (L"LOOP: BIT RD80COL  (2C 1F C0)"),   view.GetContentsLine (0x0300));
-            Assert::AreEqual (std::wstring (L"42"),                              view.GetContentsLine (0x0303));
+            Assert::AreEqual (std::wstring (L"Value: 42"),                       view.GetContentsLine (0x0303));
             Assert::IsTrue   (view.GetContentsLine (0x0400).empty(),                              L"a byte not known");
-            Assert::IsTrue   (view.GetTipText (0xC000).starts_with (L"KBD  (C1)\n"));
+            Assert::IsTrue   (view.GetTipText (0xC000).starts_with (L"KBD: C1\n"));
 
             view.GetTipFrame (0xF800, label, argb);
             Assert::AreEqual (std::wstring (L"ROM: Monitor (Apple2eEnhanced.rom)"), label);

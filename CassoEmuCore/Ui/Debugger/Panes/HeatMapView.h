@@ -274,11 +274,15 @@ public:
     //  The labeled ranges: each address's MemoryRegionKeys key, empty for a
     //  bank with none; the card in each slot, which labels a slot's ranges;
     //  and the colors the ranges are outlined in and their bytes drawn in.
-    //  A range is outlined once cells are kRegionCellPx. Once they are large
-    //  enough for values, the map is cut into sections at kSectionStarts,
-    //  each starting a row under a header with its label, as a memory window
-    //  outlines and labels its ranges.
+    //  With regions, the map is cut into sections at kSectionStarts, each
+    //  starting a row under a header with its label, in a rounded outline as
+    //  a memory window outlines and labels its ranges. Any other labeled
+    //  range, such as aux RAM, is outlined once cells are kRegionCellPx.
     static constexpr int  kRegionCellPx = 4;
+
+    //  The lowest contrast of an outline against the page, WCAG's minimum for
+    //  a control's border; text's is DebuggerTextColors::s_kMinTextContrast.
+    static constexpr float  kMinLineContrast = 3.0f;
 
     void      SetRegions      (const std::vector<uint16_t> & regions);
     void      SetSlotCards    (const MemoryRegionKeys::SlotCards & cards)   { m_slotCards = cards; }
@@ -294,10 +298,10 @@ public:
     //  The symbol at an address in the current bank, empty for none.
     std::string  GetSymbolAt  (Word address) const;
 
-    //  A cell's tip's first line, what the cell contains: the symbol and its
-    //  byte, "KBD  (C1)"; an instruction run from it and its bytes, with any
-    //  symbol before it, "LOOP: BPL $1075  (10 FB)"; or the byte alone. Empty
-    //  for a byte not known.
+    //  A cell's tip's first line, what the cell contains: an instruction run
+    //  from it and its bytes, with any symbol before it, "LOOP: BPL $1075
+    //  (10 FB)"; else its symbol or "Value" and its byte, "KBD: C1",
+    //  "Value: A8". Empty for a byte not known.
     std::wstring  GetContentsLine (Word address) const;
 
     //  The frame a cell's tip is drawn in: its range's label with the ROM
@@ -339,8 +343,10 @@ public:
     bool                       IsSplit  () const { return m_isSplit; }
     const std::vector<Band> &  GetBands () const { return m_bands; }
 
-    //  The height of a range's header, and the note an empty set shows.
+    //  The height of a range's header, the room after a section's rows, and
+    //  the note in place of an empty set.
     static constexpr int              kHeaderDip       = 20;
+    static constexpr int              kSectionAfterDip = 6;
     static constexpr const wchar_t  * kpszNoRangesNote = L"No ranges in this set. Include some with Edit ranges.";
 
     //  The ranges the map is focused on, which it then fits to the pane; or
@@ -581,7 +587,7 @@ private:
     void                   PaintRegions        (IDxuiTextRenderer & text) const;
     void                   PaintSections       (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void                   SyncBands           ();
-    bool                   IsSplitZoom         () const;
+    bool                   CanSplit            () const;
     bool                   HasHeader           (size_t band) const { return m_hasRanges || (band < m_bands.size() && m_bands[band].isSection); }
     void                   MarkSymbols         ();
     void                   ForEachVisible      (const std::function<void (const Place &, Word)> & visit) const;

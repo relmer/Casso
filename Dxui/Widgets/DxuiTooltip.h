@@ -158,10 +158,13 @@ public:
     //  The scale's color at a fraction of its width, 0 to 1.
     static uint32_t  GetGradientColor (const std::vector<uint32_t> & stops, float at);
 
-    //  A rounded outline around everything in the tip, with its label centered
-    //  on the top edge, as a memory window labels a range: in `argb`, or the
-    //  tip's border and text colors for 0. An empty label has no frame. Set
-    //  before the request it goes with, as the line colors are.
+    //  A rounded outline around everything in the tip, with its label on the
+    //  top edge from the left, as a group of controls is labeled: in `argb`,
+    //  or the tip's border and text colors for 0, each moved until its
+    //  contrast with the tip's background is kMinTextContrast or
+    //  kMinLineContrast. An
+    //  empty label has no frame. Set before the request it goes with, as the
+    //  line colors are.
     void  SetFrame        (std::wstring label, uint32_t argb) { m_frameLabel = std::move (label); m_frameArgb = argb; }
     static HRESULT  LayOutTable (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table);
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
@@ -293,18 +296,32 @@ private:
     float  GetGradientExtraPx () const;
     void   DrawGradient       (IDxuiPainter & painter, float left, float width, float bottom) const;
 
-    //  The frame: its label's size, the room it adds beside the content and
-    //  above it, and its outline and label drawn in a popup of a size.
-    static constexpr float  kFrameLabelScale = 0.85f;
-    static constexpr float  kFrameGapDip     = 6.0f;
-    static constexpr float  kFrameCornerDip  = 4.0f;
-    static constexpr float  kFrameMix        = 0.6f;
-    static constexpr float  kFrameLineEm     = 1.4f;
+    //  The frame: its label's size, its inset from the tip's edge on every
+    //  side, the gap between it and the content, and the lowest contrast of
+    //  its label and line, WCAG's minimums for text and a control's border.
+    static constexpr float  kFrameLabelScale  = 0.85f;
+    static constexpr float  kFrameInsetDip    = 4.0f;
+    static constexpr float  kFrameGapDip      = 6.0f;
+    static constexpr float  kFrameCornerDip   = 4.0f;
+    static constexpr float  kFrameMix         = 0.6f;
+    static constexpr float  kFrameLineEm      = 1.4f;
+    static constexpr float  kMinTextContrast  = 4.5f;
+    static constexpr float  kMinLineContrast  = 3.0f;
 
-    float  GetFrameLabelPx    () const { return m_scaler.ToPxf (m_fontDip) * kFrameLabelScale; }
-    float  GetFrameSidePx     () const { return m_shownFrameLabel.empty() ? 0.0f : m_scaler.ToPxf (kFrameGapDip); }
-    float  GetFrameTopPx      () const { return m_shownFrameLabel.empty() ? 0.0f : std::ceil (GetFrameLabelPx() * kFrameLineEm); }
-    void   DrawFrame          (IDxuiPainter & painter, IDxuiTextRenderer & text, float width, float height) const;
+    //  The room around the content on each side: the tip's padding, or in a
+    //  frame its inset and gap, with its label's line above.
+    struct Margins
+    {
+        float  left   = 0.0f;
+        float  top    = 0.0f;
+        float  right  = 0.0f;
+        float  bottom = 0.0f;
+    };
+
+    Margins  GetContentMargins () const;
+    float    GetFrameLabelPx   () const { return m_scaler.ToPxf (m_fontDip) * kFrameLabelScale; }
+    float    GetFrameLabelHPx  () const { return std::ceil (GetFrameLabelPx() * kFrameLineEm); }
+    void     DrawFrame         (IDxuiPainter & painter, IDxuiTextRenderer & text, float width, float height) const;
 
     //  The system's tip lifetime: ten double-click times, as Windows sets
     //  a tooltip control's auto-pop delay.

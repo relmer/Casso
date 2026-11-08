@@ -221,21 +221,15 @@ std::vector<HeatMapView::Band> HeatMapView::SplitAtSections (const std::vector<B
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapView::IsSplitZoom
+//  HeatMapView::CanSplit
 //
-//  Sections require the regions, which only the CPU's bank has, and cells
-//  large enough for their values.
+//  Sections require the regions, which only the CPU's bank has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool HeatMapView::IsSplitZoom() const
+bool HeatMapView::CanSplit() const
 {
-    float  minFont = m_scaler.ToPxf (kMinDetailFontDip);
-    float  pad     = m_scaler.ToPxf ((float) kDetailPadDip);
-
-
-
-    return m_regions.size() == (size_t) kAddressCount && (float) m_cellPx >= minFont * kLinePerEm + pad * 2.0f;
+    return m_regions.size() == (size_t) kAddressCount;
 }
 
 
@@ -246,7 +240,7 @@ bool HeatMapView::IsSplitZoom() const
 //
 //  HeatMapView::SyncBands
 //
-//  The ranges cut into sections at a zoom that has them, and whole at one
+//  The ranges cut into sections in a bank that has regions, and whole in one
 //  that does not. The cell the mouse frames is found again by its address,
 //  since its range and place in the range change.
 //
@@ -254,7 +248,7 @@ bool HeatMapView::IsSplitZoom() const
 
 void HeatMapView::SyncBands()
 {
-    bool                 isSplit = IsSplitZoom();
+    bool                 isSplit = CanSplit();
     std::optional<Word>  hover   = GetHover();
 
 
@@ -373,7 +367,8 @@ int HeatMapView::GetColumnsOf (int columns, int count)
 //  memory is one range with no header, until sections cut it. A range under
 //  a header takes at least a row label's line, so the label of a range of
 //  one short row ends before the next header. A section's rows are as wide
-//  as the map's, so its cells line up with every other section's.
+//  as the map's, so its cells line up with every other section's, and room
+//  after them takes the bottom of its box.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -381,6 +376,7 @@ void HeatMapView::PlaceBands()
 {
     long  pitch  = GetPitch();
     long  header = m_scaler.ToPx (kHeaderDip);
+    long  after  = m_scaler.ToPx (kSectionAfterDip);
     long  y      = 0;
 
 
@@ -400,7 +396,7 @@ void HeatMapView::PlaceBands()
         placed.rowsTop   = y + (isHeaded ? header : 0);
         placed.rows      = (count + placed.columns - 1) / placed.columns;
 
-        y = placed.rowsTop + std::max (placed.rows * pitch, isHeaded ? m_labelLinePx : 0L);
+        y = placed.rowsTop + std::max (placed.rows * pitch, isHeaded ? m_labelLinePx : 0L) + (m_bands[i].isSection ? after : 0L);
     }
 
     m_contentH = y;
@@ -2067,7 +2063,7 @@ std::wstring HeatMapView::GetContentsLine (Word address) const
         return symbol.empty() ? instruction : symbol + L": " + instruction;
     }
 
-    return symbol.empty() ? std::format (L"{:02X}", (Byte) stored) : std::format (L"{}  ({:02X})", symbol, (Byte) stored);
+    return std::format (L"{}: {:02X}", symbol.empty() ? std::wstring (L"Value") : symbol, (Byte) stored);
 }
 
 
@@ -2781,6 +2777,12 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     }
 
     PaintOverlays (text, theme);
+
+    if (m_isSplit)
+    {
+        PaintSections (text, theme);
+    }
+
     PaintHeaders  (text, theme);
     PaintHover    (text, theme);
 
@@ -3028,8 +3030,8 @@ void HeatMapView::ForEachVisible (const std::function<void (const Place &, Word)
 //
 //  Over the cells in view, clipped to the map: each one's value and second
 //  line where the cells are large enough, or its whole instruction, then
-//  its outlines, around the whole instruction for its opcode, then the
-//  labeled ranges' outlines, and last the sections' outlines and labels. A cell is checked against the marks
+//  its outlines, around the whole instruction for its opcode, and last the
+//  labeled ranges' outlines. A cell is checked against the marks
 //  before its outlines are gathered, so a map with none costs a comparison
 //  a cell.
 //
@@ -3109,11 +3111,6 @@ void HeatMapView::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme & th
 
     hr = text.PopClipRect();
     IGNORE_RETURN_VALUE (hr, S_OK);
-
-    if (m_isSplit)
-    {
-        PaintSections (text, theme);
-    }
 }
 
 
@@ -3240,7 +3237,7 @@ void HeatMapView::PaintDetail (IDxuiTextRenderer & text, const IDxuiTheme & them
     Byte            value    = (Byte) stored;
     bool            isOpcode = m_opcodes.size() == (size_t) kAddressCount && m_opcodes[address] != 0;
     uint32_t        fill     = GetCellColor (address) | 0xFF000000u;
-    uint32_t        plain    = GetDetailTextColor (fill, theme.Foreground(), m_palette.background);
+    uint32_t        plain    = DebuggerTextColors::GetReadable (GetDetailTextColor (fill, theme.Foreground(), m_palette.background), fill);
     uint32_t        ink      = GetValueInk (address, fill, plain);
     float           two      = std::min ({ maxFont, ((float) tall - pad * 2.0f) / (kLinePerEm * 2.0f), ((float) wide - pad * 2.0f) / ((float) kValueChars  * kAdvancePerEm) });
     float           three    = std::min ({ maxFont, ((float) tall - pad * 2.0f) / (kLinePerEm * 3.0f), ((float) wide - pad * 2.0f) / ((float) kDetailChars * kAdvancePerEm) });
@@ -3418,6 +3415,7 @@ void HeatMapView::PaintRegions (IDxuiTextRenderer & text) const
         wide   = (float) (cell.right  - cell.left);
         tall   = (float) (cell.bottom - cell.top);
         stroke = DxuiColor::Mix (m_palette.background | 0xFF000000u, MemoryRegionKeys::GetColor (key, m_regionColors) | 0xFF000000u, kOutlineMix) | 0xFF000000u;
+        stroke = DxuiColor::ComputeInkForContrast (stroke, m_palette.background | 0xFF000000u, kMinLineContrast) | 0xFF000000u;
 
         if (!isSame (place.offset - placed.columns))
         {
@@ -3453,12 +3451,11 @@ void HeatMapView::PaintRegions (IDxuiTextRenderer & text) const
 //
 //  HeatMapView::PaintSections
 //
-//  Each section in view as a memory window draws a range: a rounded outline
-//  in the range's color around its cells, stepping in where its last row
-//  ends partway along, with its label centered on the top edge, in the
-//  header's room above the cells, over a patch of the page that breaks the
-//  line there. The section of RAM has its label alone, since a memory
-//  window doesn't outline main RAM.
+//  Each section in view as a box: a rounded outline in the range's color the
+//  width of the map around its rows, at least a row label's line tall, with its label on the top edge from
+//  the left, past the corner's curve, in the header's room above the cells,
+//  over a patch of the page that breaks the line there. The section of RAM
+//  has its label alone, since a memory window doesn't outline main RAM.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3494,16 +3491,13 @@ void HeatMapView::PaintSections (IDxuiTextRenderer & text, const IDxuiTheme & th
         std::wstring              label     = isRam ? std::wstring (L"RAM") : MemoryRegionKeys::GetLabel (key, m_slotCards);
         uint32_t                  color     = isRam ? theme.ForegroundMuted() : MemoryRegionKeys::GetColor (key, m_regionColors);
         float                     top       = (float) (m_map.top + placed.rowsTop - m_scrollTop);
-        long                      lastCount = band.count - (placed.rows - 1) * placed.columns;
         float                     left      = (float) m_map.left - gap;
         float                     right     = (float) (m_map.left + m_rowPx) - street + gap;
-        float                     lastRight = (float) (m_map.left + GetColumnLeft (placed, lastCount)) - street + gap;
         float                     edge      = top - street - labelH / 2.0f - 1.0f;
-        float                     fullEnd   = top + (float) ((placed.rows - 1) * pitch) - street + gap;
-        float                     bottom    = top + (float) (placed.rows * pitch) - street + gap;
+        float                     bottom    = top + (float) std::max (placed.rows * pitch, m_labelLinePx) - street + gap;
         float                     labelW    = (float) label.size() * fontPx * kAdvancePerEm + pad * 2.0f;
-        float                     labelX    = 0.0f;
-        std::vector<DxuiPointF>   points;
+        float                     labelX    = left + radius + pad;
+        std::vector<DxuiPointF>   points    = { { left, edge }, { right, edge }, { right, bottom }, { left, bottom } };
 
 
 
@@ -3514,28 +3508,13 @@ void HeatMapView::PaintSections (IDxuiTextRenderer & text, const IDxuiTheme & th
 
         if (!isRam && key != 0 && color != 0)
         {
-            if (lastCount >= placed.columns)
-            {
-                points = { { left, edge }, { right, edge }, { right, bottom }, { left, bottom } };
-            }
-            else if (placed.rows == 1)
-            {
-                points = { { left, edge }, { lastRight, edge }, { lastRight, bottom }, { left, bottom } };
-            }
-            else
-            {
-                points = { { left, edge }, { right, edge }, { right, fullEnd }, { lastRight, fullEnd }, { lastRight, bottom }, { left, bottom } };
-            }
-
             for (const DxuiRoundedOutline::Segment & segment : DxuiRoundedOutline::GetSegments (points, radius))
             {
                 hr = text.DrawLine (segment.from.x, segment.from.y, segment.to.x, segment.to.y, thickness,
-                                    DxuiColor::Mix (back, color | 0xFF000000u, kOutlineMix) | 0xFF000000u);
+                                    DxuiColor::ComputeInkForContrast (DxuiColor::Mix (back, color | 0xFF000000u, kOutlineMix) | 0xFF000000u, back, kMinLineContrast) | 0xFF000000u);
                 IGNORE_RETURN_VALUE (hr, S_OK);
             }
         }
-
-        labelX = (left + ((placed.rows == 1 && lastCount < placed.columns) ? lastRight : right) - labelW) / 2.0f;
 
         hr = text.FillRect (labelX, edge - labelH / 2.0f, labelW, labelH, back);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -3955,7 +3934,7 @@ void HeatMapView::PaintInstruction (IDxuiTextRenderer & text, const IDxuiTheme &
     float               fontPx      = 0.0f;
     float               lineH       = 0.0f;
     uint32_t            fill        = GetCellColor (merged.opcode) | 0xFF000000u;
-    uint32_t            ink         = GetValueInk (merged.opcode, fill, GetDetailTextColor (fill, theme.Foreground(), m_palette.background));
+    uint32_t            ink         = GetValueInk (merged.opcode, fill, DebuggerTextColors::GetReadable (GetDetailTextColor (fill, theme.Foreground(), m_palette.background), fill));
     HRESULT             hr          = S_OK;
 
 
@@ -4018,7 +3997,7 @@ void HeatMapView::PaintInstruction (IDxuiTextRenderer & text, const IDxuiTheme &
                               DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        hr = text.DrawString (lines[i].second.c_str(), left, top + lineH, width, lineH, DxuiColor::Mix (ink, fill, kBytesDim) | 0xFF000000u,
+        hr = text.DrawString (lines[i].second.c_str(), left, top + lineH, width, lineH, DebuggerTextColors::GetReadable (DxuiColor::Mix (ink, fill, kBytesDim) | 0xFF000000u, fill),
                               std::max (minFont, fontPx * kBytesScale), font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
