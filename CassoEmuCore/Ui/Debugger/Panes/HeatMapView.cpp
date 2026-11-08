@@ -3166,7 +3166,9 @@ void HeatMapView::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme & th
         return;
     }
 
-    hr = text.PushClipRect ((float) m_map.left, (float) m_map.top, (float) (m_map.right - m_map.left), (float) (m_map.bottom - m_map.top));
+    //  A street wider on each side than the map, so the lines in the street
+    //  left of the first column are drawn too.
+    hr = text.PushClipRect ((float) (m_map.left - kStreetPx), (float) m_map.top, (float) (m_map.right - m_map.left + 2 * kStreetPx), (float) (m_map.bottom - m_map.top));
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     ForEachVisible ([&] (const Place & place, Word address)

@@ -681,6 +681,51 @@ namespace DebuggerTests
 
         //  The ranges are cut at every start inside them; a range no start is
         //  inside is left whole, a section only in all of memory.
+        //  A range's outline has its left line in the street before the first
+        //  column, which is inside the clip the overlays are drawn in.
+        TEST_METHOD (ARangesOutlineIsDrawnOnTheLeftOfItsFirstColumn)
+        {
+            HeatMapView            view;
+            MockDxuiTextRenderer   text;
+            std::vector<uint16_t>  regions (kCount, 0);
+            RECT                   cell    = {};
+            float                  clipX   = 1.0e9f;
+            bool                   isDrawn = false;
+
+
+
+            for (uint32_t address = 0xD000; address < kCount; address++)
+            {
+                regions[address] = MemoryRegionKeys::kRegionRom;
+            }
+
+            Place (view);
+            view.SetRanges  ({ { L"Language Card", 0xD000, 0x3000 } });
+            view.SetLevels  ({}, {}, {});
+            view.SetRegions (regions);
+            view.ZoomAt ({ 300, 200 }, 40.0f);
+            view.ScrollBy ((int) (view.GetCellRect (0xD000).top - view.GetMapRect().top));
+
+            Paint (view, text);
+            cell = view.GetCellRect (0xD000);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                if (call.kind == RecordedTextKind::PushClipRect)
+                {
+                    clipX = call.x;
+                }
+                else if (call.kind == RecordedTextKind::FillRect && call.x == (float) (cell.left - HeatMapView::kStreetPx) && call.width == (float) HeatMapView::kStreetPx)
+                {
+                    isDrawn = isDrawn || clipX <= call.x;
+                }
+            }
+
+            Assert::IsTrue (isDrawn, L"the left line is clipped away");
+        }
+
+
+
         TEST_METHOD (RangesAreCutAtTheSectionStarts)
         {
             std::vector<HeatMapView::Band>  bands;
