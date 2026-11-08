@@ -652,7 +652,10 @@ void DxuiDockedWindow::PollCaptionDrag()
 //
 //  DxuiDockedWindow::OnNcLButtonDown
 //
-//  A press on the title bar calls BeginMove.
+//  A press on the title bar activates the window and calls BeginMove. The
+//  press is handled here rather than in DefWindowProc, so the window is
+//  activated here, before the drag, as Windows activates a window on a
+//  press on its caption.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -664,6 +667,11 @@ DxuiMessageResult DxuiDockedWindow::OnNcLButtonDown (LRESULT hitTest, int xScree
     if (hitTest != HTCAPTION)
     {
         return DxuiMessageResult::NotHandled;
+    }
+
+    if (GetHwnd() != nullptr && GetActiveWindow() != GetHwnd())
+    {
+        (void) SetActiveWindow (GetHwnd());
     }
 
     BeginMove();
