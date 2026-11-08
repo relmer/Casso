@@ -57,36 +57,23 @@ public:
     //  The card in each slot by its display name, empty for an empty slot.
     using SlotCards = std::array<std::string, kSlotCount>;
 
-    //  The machine's model directory ("Apple2eEnhanced"), its system ROM's
-    //  file, and each slot's ROM or firmware file, empty for none.
-    struct RomFiles
-    {
-        std::string                               machineId;
-        std::string                               system;
-        std::array<std::string, kSlotCount>       slots;
-
-        bool operator== (const RomFiles & other) const = default;
-    };
-
-    //  What part of the system ROM an address is in, by the machine:
+    //  What part of the system ROM an address is in, by the machine's model
+    //  directory ("Apple2eEnhanced"):
     //  "Monitor", "Applesoft BASIC", "Integer BASIC", "80-column firmware"
     //  or "internal firmware"; empty where no part is known.
     static std::wstring  GetRomArea   (const std::string & machineId, Word address);
 
-    //  A range's label with the ROM behind an address in it, for a cell's
-    //  tip: "ROM: Applesoft BASIC (Apple2eEnhanced.rom)", "Slot 6: Disk ][
-    //  (Disk2.rom)". A range of no ROM has its label alone.
-    static std::wstring  GetRomLabel  (uint16_t key, Word address, const SlotCards & cards, const RomFiles & roms);
+    //  A range's label with the part of the system ROM at an address in it,
+    //  for a cell's tip: "ROM: Applesoft BASIC", "Slot 6: Disk ][".
+    static std::wstring  GetRomLabel  (uint16_t key, Word address, const SlotCards & cards, const std::string & machineId);
 
     //  The same for a range of `count` addresses from `first`, which can
-    //  span several parts of the system ROM: "ROM: Applesoft BASIC, Monitor
-    //  (Apple2eEnhanced.rom)".
-    static std::wstring  GetRangeLabel (uint16_t key, Word first, int count, const SlotCards & cards, const RomFiles & roms);
+    //  span several parts of the system ROM: "ROM: Applesoft BASIC, Monitor".
+    static std::wstring  GetRangeLabel (uint16_t key, Word first, int count, const SlotCards & cards, const std::string & machineId);
 
     //  ROM's key with the part of the system ROM at an address, kRegionRom
-    //  where no part is known; and the ROM file behind a key, empty for none.
+    //  where no part is known.
     static uint16_t      GetRomPartKey (const std::string & machineId, Word address);
-    static std::string   GetRomFile    (uint16_t key, const RomFiles & roms);
 
     static uint16_t      GetKey       (MemoryRegion region, Word address);
     static std::wstring  GetLabel     (uint16_t key, const SlotCards & cards);

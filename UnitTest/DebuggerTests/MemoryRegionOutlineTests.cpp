@@ -120,17 +120,16 @@ namespace DebuggerTests
         }
 
 
-        //  A ROM byte's label has the part of the ROM and its file, by the
-        //  machine; a slot's ROM page has the slot's ROM file.
-        TEST_METHOD (ARomLabelGivesThePartAndTheFile)
+        //  A ROM byte's label has the part of the ROM, by the machine; a slot's
+        //  ROM page has the card in the slot.
+        TEST_METHOD (ARomLabelGivesThePart)
         {
             MemoryRegionKeys::SlotCards  cards;
-            MemoryRegionKeys::RomFiles   roms = { "Apple2eEnhanced", "Apple2eEnhanced.rom", {} };
+            std::string                  machine = "Apple2eEnhanced";
 
 
 
-            cards[6]      = "Disk ][";
-            roms.slots[6] = "Disk2.rom";
+            cards[6] = "Disk ][";
 
             Assert::AreEqual (std::wstring (L"Monitor"),            MemoryRegionKeys::GetRomArea ("Apple2Plus",      0xFDED));
             Assert::AreEqual (std::wstring (L"Applesoft BASIC"),    MemoryRegionKeys::GetRomArea ("Apple2e",         0xD000));
@@ -140,32 +139,29 @@ namespace DebuggerTests
             Assert::AreEqual (std::wstring (L"80-column firmware"), MemoryRegionKeys::GetRomArea ("Apple2eEnhanced", 0xC800));
             Assert::AreEqual (std::wstring (L"internal firmware"),  MemoryRegionKeys::GetRomArea ("Apple2c",         0xC300));
 
-            Assert::AreEqual (std::wstring (L"ROM: Applesoft BASIC (Apple2eEnhanced.rom)"),
-                              MemoryRegionKeys::GetRomLabel (MemoryRegionKeys::kRegionRom, 0xE000, cards, roms));
-            Assert::AreEqual (std::wstring (L"Slot 6: Disk ][ (Disk2.rom)"),
-                              MemoryRegionKeys::GetRomLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC600), 0xC600, cards, roms));
+            Assert::AreEqual (std::wstring (L"ROM: Applesoft BASIC"),
+                              MemoryRegionKeys::GetRomLabel (MemoryRegionKeys::kRegionRom, 0xE000, cards, machine));
+            Assert::AreEqual (std::wstring (L"Slot 6: Disk ]["),
+                              MemoryRegionKeys::GetRomLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC600), 0xC600, cards, machine));
             Assert::AreEqual (std::wstring (L"LC bank 2"),
-                              MemoryRegionKeys::GetRomLabel (MemoryRegionKeys::kRegionLcBank2, 0xD000, cards, roms), L"no ROM behind it");
-            Assert::AreEqual (std::wstring (L"ROM: Applesoft BASIC, Monitor (Apple2eEnhanced.rom)"),
-                              MemoryRegionKeys::GetRangeLabel (MemoryRegionKeys::kRegionRom, 0xD000, 0x3000, cards, roms), L"a range's parts, each once");
+                              MemoryRegionKeys::GetRomLabel (MemoryRegionKeys::kRegionLcBank2, 0xD000, cards, machine), L"no ROM behind it");
+            Assert::AreEqual (std::wstring (L"ROM: Applesoft BASIC, Monitor"),
+                              MemoryRegionKeys::GetRangeLabel (MemoryRegionKeys::kRegionRom, 0xD000, 0x3000, cards, machine), L"a range's parts, each once");
         }
 
 
-        //  The system ROM is outlined in its parts, each labeled with the part
-        //  and the ROM's file; a slot's ROM page with the slot's file.
-        TEST_METHOD (AWindowOutlinesEachPartOfTheRomWithItsFile)
+        //  The system ROM is outlined in its parts, each labeled with the part.
+        TEST_METHOD (AWindowOutlinesEachPartOfTheRom)
         {
-            MemoryEditModel              model;
-            MemoryRegionKeys::RomFiles   roms   = { "Apple2eEnhanced", "Apple2eEnhanced.rom", {} };
-            uint32_t                     argb   = 0;
-            uint16_t                     basic  = 0;
-            uint16_t                     mon    = 0;
-            std::wstring                 label;
+            MemoryEditModel  model;
+            uint32_t         argb  = 0;
+            uint16_t         basic = 0;
+            uint16_t         mon   = 0;
+            std::wstring     label;
 
 
 
-            roms.slots[6] = "Disk2.rom";
-            model.SetRomFiles (roms);
+            model.SetMachineId ("Apple2eEnhanced");
             Show (model, 0xF700, { MemoryRegion::Rom, MemoryRegion::Rom });
 
             basic = ReadRegion (model, 0xF7FF);
@@ -173,11 +169,9 @@ namespace DebuggerTests
 
             Assert::AreNotEqual (basic, mon, L"Applesoft and the Monitor are one outline");
             Assert::IsTrue      (model.TryGetRegionStyle (basic, argb, label));
-            Assert::AreEqual    (std::wstring (L"ROM: Applesoft BASIC (Apple2eEnhanced.rom)"), label);
+            Assert::AreEqual    (std::wstring (L"ROM: Applesoft BASIC"), label);
             Assert::IsTrue      (model.TryGetRegionStyle (mon, argb, label));
-            Assert::AreEqual    (std::wstring (L"ROM: Monitor (Apple2eEnhanced.rom)"), label);
-            Assert::IsTrue      (model.TryGetRegionStyle (MemoryEditModel::GetRegionKey (MemoryRegion::SlotRom, 0xC600), argb, label));
-            Assert::AreEqual    (std::wstring (L"Slot 6: empty (Disk2.rom)"), label);
+            Assert::AreEqual    (std::wstring (L"ROM: Monitor"), label);
         }
 
 

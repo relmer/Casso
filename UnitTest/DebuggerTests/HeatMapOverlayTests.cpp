@@ -629,7 +629,6 @@ namespace DebuggerTests
             std::vector<int16_t>             values  (kCount, -1);
             std::vector<uint16_t>            regions (kCount, 0);
             auto                             forms   = std::make_shared<std::vector<std::string>> (256);
-            MemoryRegionKeys::RomFiles       roms    = { "Apple2eEnhanced", "Apple2eEnhanced.rom", {} };
             std::wstring                     label;
             uint32_t                         argb    = 0;
 
@@ -656,7 +655,7 @@ namespace DebuggerTests
             view.SetOpcodeForms (forms);
             view.SetSymbols     (symbols);
             view.SetRegions     (regions);
-            view.SetRomFiles    (roms);
+            view.SetMachineId   ("Apple2eEnhanced");
             view.SetLevels      ({}, {}, {});
 
             Assert::AreEqual (std::wstring (L"KBD: C1"),                         view.GetContentsLine (0xC000));
@@ -666,7 +665,7 @@ namespace DebuggerTests
             Assert::IsTrue   (view.GetTipText (0xC000).starts_with (L"KBD: C1\n"));
 
             view.GetTipFrame (0xF800, label, argb);
-            Assert::AreEqual (std::wstring (L"ROM: Monitor (Apple2eEnhanced.rom)"), label);
+            Assert::AreEqual (std::wstring (L"ROM: Monitor"), label);
             Assert::AreEqual (MemoryRegionKeys::Colors().rom, argb);
 
             view.GetTipFrame (0xC000, label, argb);
@@ -694,20 +693,20 @@ namespace DebuggerTests
 
 
 
-            for (uint32_t address = 0xD000; address < kCount; address++)
+            for (uint32_t address = 0x2000; address < 0x4000; address++)
             {
-                regions[address] = MemoryRegionKeys::kRegionRom;
+                regions[address] = MemoryRegionKeys::kRegionAux;
             }
 
             Place (view);
-            view.SetRanges  ({ { L"Language Card", 0xD000, 0x3000 } });
+            view.SetRanges  ({ { L"Hi-res page 1", 0x2000, 0x2000 } });
             view.SetLevels  ({}, {}, {});
             view.SetRegions (regions);
             view.ZoomAt ({ 300, 200 }, 40.0f);
-            view.ScrollBy ((int) (view.GetCellRect (0xD000).top - view.GetMapRect().top));
+            view.ScrollBy ((int) (view.GetCellRect (0x2000).top - view.GetMapRect().top));
 
             Paint (view, text);
-            cell = view.GetCellRect (0xD000);
+            cell = view.GetCellRect (0x2000);
 
             for (const RecordedTextCall & call : text.Calls())
             {
@@ -745,9 +744,15 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 1, bands.size());
             Assert::IsFalse  (bands[0].isSection, L"a range no start is inside has a header of the set's");
 
-            bands = HeatMapView::SplitAtSections ({ HeatMapView::Band { {}, 0, HeatMapView::kAddressCount } }, true);
-            Assert::AreEqual ((int) 0xD000, (int) bands.back().first);
-            Assert::AreEqual ((int) 0x3000, bands.back().count, L"the ROM or language card to the end");
+            bands = HeatMapView::SplitAtSections ({ HeatMapView::Band { {}, 0, HeatMapView::kAddressCount } }, true, "Apple2eEnhanced");
+            Assert::AreEqual ((int) 0xF800, (int) bands.back().first, L"the Monitor, a separate section");
+            Assert::AreEqual ((int) 0x0800, bands.back().count);
+            Assert::AreEqual ((int) 0xD000, (int) bands[bands.size() - 2].first);
+            Assert::AreEqual ((int) 0x2800, bands[bands.size() - 2].count, L"Applesoft to the Monitor");
+
+            bands = HeatMapView::SplitAtSections ({ HeatMapView::Band { {}, 0, HeatMapView::kAddressCount } }, true, "Apple2");
+            Assert::AreEqual ((int) 0xE000, (int) bands[bands.size() - 2].first, L"Integer BASIC, a separate section on the original Apple ][");
+            Assert::AreEqual ((int) 0xD000, (int) bands[bands.size() - 3].first);
         }
 
 

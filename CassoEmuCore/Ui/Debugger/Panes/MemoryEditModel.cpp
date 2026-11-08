@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Core/TextEncoding.h"
 #include "Ui/Debugger/Panes/MemoryEditModel.h"
 #include "Ui/Debugger/UndoText.h"
 
@@ -500,7 +499,7 @@ void MemoryEditModel::ReadRegions (uint64_t offset, std::span<uint16_t> out) con
 
         if (out[i] == kRegionRom)
         {
-            out[i] = MemoryRegionKeys::GetRomPartKey (m_romFiles.machineId, address);
+            out[i] = MemoryRegionKeys::GetRomPartKey (m_machineId, address);
         }
     }
 }
@@ -514,24 +513,15 @@ void MemoryEditModel::ReadRegions (uint64_t offset, std::span<uint16_t> out) con
 //  MemoryEditModel::TryGetRegionStyle
 //
 //  A slot's ROM and expansion ROM are outlined in ROM's color and a slot's
-//  I/O in I/O's, as their bytes are drawn. A slot's ranges are labeled with
-//  its card, and a ROM's with its file.
+//  I/O in I/O's, as their bytes are drawn, and a slot's ranges are labeled
+//  with its card.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MemoryEditModel::TryGetRegionStyle (uint16_t region, uint32_t & outArgb, std::wstring & outLabel) const
 {
-    std::string  file = MemoryRegionKeys::GetRomFile (region, m_romFiles);
-
-
-
     outLabel = MemoryRegionKeys::GetLabel (region, m_slotCards);
     outArgb  = MemoryRegionKeys::GetColor (region, m_regionColors);
-
-    if (!outLabel.empty() && !file.empty())
-    {
-        outLabel += L" (" + TextEncoding::NarrowToWide (file) + L")";
-    }
 
     return !outLabel.empty() && outArgb != 0;
 }

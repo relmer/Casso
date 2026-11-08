@@ -1231,7 +1231,7 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
     m_view->SetBreakpoints  (std::move (breakpoints));
     m_view->SetRebuilding   (state.isRebuilding);
     m_view->SetSlotCards    (snapshot.slotCards);
-    m_view->SetRomFiles     (snapshot.romFiles);
+    m_view->SetMachineId    (snapshot.machineId);
     m_view->SetRegionColors (MemoryRegionKeys::GetColors (m_host.GetTextColors()));
 
     //  The machine reads its map only now and then while it runs, and the

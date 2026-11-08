@@ -286,7 +286,7 @@ public:
 
     void      SetRegions      (const std::vector<uint16_t> & regions);
     void      SetSlotCards    (const MemoryRegionKeys::SlotCards & cards)   { m_slotCards = cards; }
-    void      SetRomFiles     (const MemoryRegionKeys::RomFiles & roms)     { m_romFiles = roms; }
+    void      SetMachineId    (const std::string & machineId);
     void      SetRegionColors (const MemoryRegionKeys::Colors & colors)     { m_regionColors = colors; }
     uint16_t  GetRegionAt     (Word address) const { return (m_regions.size() == (size_t) kAddressCount) ? m_regions[address] : (uint16_t) 0; }
 
@@ -339,10 +339,12 @@ public:
         0xC100, 0xC200, 0xC300, 0xC400, 0xC500, 0xC600, 0xC700, 0xC800, 0xD000,
     };
 
-    //  Every section start, in order: kSectionStarts, and below them where
-    //  each built-in range in RAM begins and ends, so zero page, the stack and
-    //  the text and hi-res pages are sections, and so is the RAM between them.
-    static const std::vector<Word> &  GetSectionStarts ();
+    //  Every section start for a machine, in order: kSectionStarts; below
+    //  them, where each built-in range in RAM begins and ends, so zero page,
+    //  the stack and the text and hi-res pages are sections, and so is the
+    //  RAM between them; and above them, each page where the machine's
+    //  system ROM changes part, as $F800 starts the Monitor.
+    static std::vector<Word>  GetSectionStarts (const std::string & machineId = {});
 
     //  A section of RAM's label: the built-in range at an address, "Zero
     //  page", "Hi-res page 1", or "RAM" for none.
@@ -350,7 +352,7 @@ public:
 
     //  The ranges cut at GetSectionStarts, each piece a section. A range no
     //  start cuts is left whole, and a section only where `isAllMemory`.
-    static std::vector<Band>  SplitAtSections (const std::vector<Band> & ranges, bool isAllMemory);
+    static std::vector<Band>  SplitAtSections (const std::vector<Band> & ranges, bool isAllMemory, const std::string & machineId = {});
 
     //  Whether the map is cut into sections now, and the ranges on the map.
     bool                       IsSplit  () const { return m_isSplit; }
@@ -672,7 +674,7 @@ private:
     std::vector<Byte>                                m_symbolMarks;
     std::vector<uint16_t>                            m_regions;
     MemoryRegionKeys::SlotCards                      m_slotCards;
-    MemoryRegionKeys::RomFiles                       m_romFiles;
+    std::string                                      m_machineId;
     MemoryRegionKeys::Colors                         m_regionColors;
     HeatMapZoomWidget                                m_zoomWidget;
     RECT                                             m_zoomPlacedFor = {};   // the bounds the zoom widget was placed in

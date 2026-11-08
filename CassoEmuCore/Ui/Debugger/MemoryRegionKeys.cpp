@@ -195,52 +195,13 @@ uint16_t MemoryRegionKeys::GetRomPartKey (const std::string & machineId, Word ad
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryRegionKeys::GetRomFile
-//
-//  The system ROM's file for ROM and its parts, and a slot's ROM's for the
-//  slot's page.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string MemoryRegionKeys::GetRomFile (uint16_t key, const RomFiles & roms)
-{
-    if (key == kRegionRom || IsRomPart (key))
-    {
-        return roms.system;
-    }
-
-    if (key > kRegionSlotRom && key < kRegionSlotRom + kSlotCount)
-    {
-        return roms.slots[(size_t) (key - kRegionSlotRom)];
-    }
-
-    return {};
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  MemoryRegionKeys::GetRomLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring MemoryRegionKeys::GetRomLabel (uint16_t key, Word address, const SlotCards & cards, const RomFiles & roms)
+std::wstring MemoryRegionKeys::GetRomLabel (uint16_t key, Word address, const SlotCards & cards, const std::string & machineId)
 {
-    uint16_t      part  = (key == kRegionRom) ? GetRomPartKey (roms.machineId, address) : key;
-    std::wstring  label = GetLabel (part, cards);
-    std::string   file  = GetRomFile (key, roms);
-
-
-
-    if (!file.empty())
-    {
-        label += L" (" + TextEncoding::NarrowToWide (file) + L")";
-    }
-
-    return label;
+    return GetLabel ((key == kRegionRom) ? GetRomPartKey (machineId, address) : key, cards);
 }
 
 
@@ -256,7 +217,7 @@ std::wstring MemoryRegionKeys::GetRomLabel (uint16_t key, Word address, const Sl
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring MemoryRegionKeys::GetRangeLabel (uint16_t key, Word first, int count, const SlotCards & cards, const RomFiles & roms)
+std::wstring MemoryRegionKeys::GetRangeLabel (uint16_t key, Word first, int count, const SlotCards & cards, const std::string & machineId)
 {
     constexpr uint32_t         kPage = 0x100;
     std::vector<std::wstring>  areas;
@@ -267,12 +228,12 @@ std::wstring MemoryRegionKeys::GetRangeLabel (uint16_t key, Word first, int coun
 
     if (key != kRegionRom)
     {
-        return GetRomLabel (key, first, cards, roms);
+        return GetRomLabel (key, first, cards, machineId);
     }
 
     for (uint32_t address = first; address < end; address += kPage)
     {
-        std::wstring  area = GetRomArea (roms.machineId, (Word) address);
+        std::wstring  area = GetRomArea (machineId, (Word) address);
 
 
 
@@ -285,11 +246,6 @@ std::wstring MemoryRegionKeys::GetRangeLabel (uint16_t key, Word first, int coun
     for (size_t i = 0; i < areas.size(); i++)
     {
         label += ((i == 0) ? L": " : L", ") + areas[i];
-    }
-
-    if (!roms.system.empty())
-    {
-        label += L" (" + TextEncoding::NarrowToWide (roms.system) + L")";
     }
 
     return label;

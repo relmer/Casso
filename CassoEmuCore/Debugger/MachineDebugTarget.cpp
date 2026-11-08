@@ -1146,8 +1146,7 @@ DebugMachineInfo MachineDebugTarget::GetMachineInfo() const
         provider->AddIoRegisters (info.ioRegisters);
     }
 
-    info.machineId     = m_host.GetConfig().machineId;
-    info.systemRomFile = m_host.GetConfig().systemRom.file;
+    info.machineId = m_host.GetConfig().machineId;
 
     for (const SlotConfig & slot : m_host.GetConfig().slots)
     {
@@ -1160,8 +1159,6 @@ DebugMachineInfo MachineDebugTarget::GetMachineInfo() const
         {
             info.slotCards[(size_t) slot.slot] = DeviceDisplayNames::Get (slot.device);
         }
-
-        info.slotRomFiles[(size_t) slot.slot] = !slot.firmware.empty() ? slot.firmware : slot.rom;
     }
 
     if (m_host.GetRefs().diskController == nullptr)

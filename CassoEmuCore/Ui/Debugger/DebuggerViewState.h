@@ -287,10 +287,10 @@ struct DebuggerViewSnapshot
     //  The cards' and ports' bus registers, for the operand tips.
     std::vector<DiagnosticsIoRegister>  ioRegisters;
 
-    //  The card in each slot, which labels the slot's ranges, and the ROM
-    //  files, for the name of the ROM in a ROM byte's tip.
+    //  The card in each slot, which labels the slot's ranges, and the
+    //  model's directory name, which labels the parts of its system ROM.
     std::array<std::string, 8>          slotCards;
-    MemoryRegionKeys::RomFiles          romFiles;
+    std::string                         machineId;
 
     //  The CPU's instruction set, which the code pane assembles an edited
     //  instruction with, and the copy that owns it when the snapshot was

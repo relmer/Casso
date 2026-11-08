@@ -174,36 +174,39 @@ void HeatMapView::ClearRanges()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::vector<Word> & HeatMapView::GetSectionStarts()
+std::vector<Word> HeatMapView::GetSectionStarts (const std::string & machineId)
 {
-    static const std::vector<Word>  s_starts = []
+    constexpr uint32_t  kPage = 0x100;
+    std::vector<Word>   starts (kSectionStarts.begin(), kSectionStarts.end());
+    Word                rom   = kSectionStarts.back();
+
+
+
+    for (const HeatMapRangeSets::Preset & preset : HeatMapRangeSets::GetPresets())
     {
-        std::vector<Word>  starts (kSectionStarts.begin(), kSectionStarts.end());
-
-
-
-        for (const HeatMapRangeSets::Preset & preset : HeatMapRangeSets::GetPresets())
+        //  "My program" has no fixed span, and I/O and the language card are
+        //  cut at kSectionStarts.
+        if (preset.last <= preset.first || preset.last >= kSectionStarts.front())
         {
-            //  "My program" has no fixed span, and I/O and the language card are
-            //  cut at kSectionStarts.
-            if (preset.last <= preset.first || preset.last >= kSectionStarts.front())
-            {
-                continue;
-            }
-
-            starts.push_back (preset.first);
-            starts.push_back ((Word) (preset.last + 1));
+            continue;
         }
 
-        std::ranges::sort (starts);
-        starts.erase (std::unique (starts.begin(), starts.end()), starts.end());
-        std::erase (starts, (Word) 0);
-        return starts;
-    }();
+        starts.push_back (preset.first);
+        starts.push_back ((Word) (preset.last + 1));
+    }
 
+    for (uint32_t page = (uint32_t) rom + kPage; page < (uint32_t) kAddressCount; page += kPage)
+    {
+        if (MemoryRegionKeys::GetRomPartKey (machineId, (Word) page) != MemoryRegionKeys::GetRomPartKey (machineId, (Word) (page - kPage)))
+        {
+            starts.push_back ((Word) page);
+        }
+    }
 
-
-    return s_starts;
+    std::ranges::sort (starts);
+    starts.erase (std::unique (starts.begin(), starts.end()), starts.end());
+    std::erase (starts, (Word) 0);
+    return starts;
 }
 
 
@@ -239,9 +242,10 @@ std::wstring HeatMapView::GetRamLabel (Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<HeatMapView::Band> HeatMapView::SplitAtSections (const std::vector<Band> & ranges, bool isAllMemory)
+std::vector<HeatMapView::Band> HeatMapView::SplitAtSections (const std::vector<Band> & ranges, bool isAllMemory, const std::string & machineId)
 {
     std::vector<Band>  bands;
+    std::vector<Word>  starts = GetSectionStarts (machineId);
 
 
 
@@ -254,7 +258,7 @@ std::vector<HeatMapView::Band> HeatMapView::SplitAtSections (const std::vector<B
 
 
 
-        for (Word start : GetSectionStarts())
+        for (Word start : starts)
         {
             if (start > first && start < end)
             {
@@ -325,7 +329,7 @@ void HeatMapView::SyncBands()
     }
 
     m_isSplit = isSplit;
-    m_bands   = isSplit ? SplitAtSections (m_ranges, !m_hasRanges) : m_ranges;
+    m_bands   = isSplit ? SplitAtSections (m_ranges, !m_hasRanges, m_machineId) : m_ranges;
     m_hover   = hover.has_value() ? GetPlaceOf (*hover) : std::nullopt;
 }
 
@@ -351,6 +355,38 @@ void HeatMapView::SetRegions (const std::vector<uint16_t> & regions)
     m_regions = regions;
 
     if (wasEmpty != m_regions.empty() && m_boundsDip.right > m_boundsDip.left)
+    {
+        PlaceMap();
+        m_isFrameStale = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::SetMachineId
+//
+//  The sections of the system ROM's parts start where the machine's ROM
+//  changes part, so a new machine cuts the map again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::SetMachineId (const std::string & machineId)
+{
+    if (machineId == m_machineId)
+    {
+        return;
+    }
+
+    m_machineId = machineId;
+    m_isSplit   = false;
+    m_bands     = m_ranges;
+    m_hover.reset();
+
+    if (m_boundsDip.right > m_boundsDip.left)
     {
         PlaceMap();
         m_isFrameStale = true;
@@ -2208,7 +2244,7 @@ void HeatMapView::GetTipFrame (Word address, std::wstring & label, uint32_t & ar
         return;
     }
 
-    label = MemoryRegionKeys::GetRomLabel (key, address, m_slotCards, m_romFiles);
+    label = MemoryRegionKeys::GetRomLabel (key, address, m_slotCards, m_machineId);
     argb  = MemoryRegionKeys::GetColor (key, m_regionColors);
 }
 
@@ -3591,7 +3627,7 @@ void HeatMapView::PaintSections (IDxuiTextRenderer & text, const IDxuiTheme & th
         const Placed            & placed    = m_placed[i];
         bool                      isRam     = band.first < kSectionStarts.front();
         uint16_t                  key       = isRam ? (uint16_t) 0 : GetRegionAt (band.first);
-        std::wstring              label     = isRam ? GetRamLabel (band.first) : MemoryRegionKeys::GetRangeLabel (key, band.first, band.count, m_slotCards, m_romFiles);
+        std::wstring              label     = isRam ? GetRamLabel (band.first) : MemoryRegionKeys::GetRangeLabel (key, band.first, band.count, m_slotCards, m_machineId);
         uint32_t                  color     = isRam ? theme.ForegroundMuted() : MemoryRegionKeys::GetColor (key, m_regionColors);
         float                     top       = (float) (m_map.top + placed.rowsTop - m_scrollTop);
         float                     left      = (float) m_map.left - street - inside;

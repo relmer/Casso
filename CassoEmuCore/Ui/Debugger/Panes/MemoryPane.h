@@ -75,9 +75,9 @@ public:
     void  SetPaused (bool isPaused) { m_model.SetPaused (isPaused); }
 
     //  The card in each slot, which labels the slot's outlined ranges, and
-    //  the ROM files, which label ROM's.
+    //  the model's directory name, which labels the parts of its ROM.
     void  SetSlotCards (const MemoryRegionKeys::SlotCards & cards) { m_model.SetSlotCards (cards); }
-    void  SetRomFiles  (const MemoryRegionKeys::RomFiles & roms)   { m_model.SetRomFiles (roms); }
+    void  SetMachineId (const std::string & machineId)             { m_model.SetMachineId (machineId); }
 
     //  The bytes the snapshot read for this window. The first one places the
     //  view there; later ones leave the view where the user has it.
