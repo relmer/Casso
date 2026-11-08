@@ -201,7 +201,13 @@ private:
 
     // The red bar in the bottom-right corner of the strip's area that lights
     // while a hidden drive is busy.
-    RECT  GetStripGlimmerRect () const;
+    RECT     GetStripGlimmerRect () const;
+
+    // Draws the 3D drive strip cropped to the picture area.
+    HRESULT  RenderClippedStrip  (ID3D11RenderTargetView * rtv);
+
+    // Crops the flat drive and recorder widgets' text; null clears it.
+    void     SetFlatStripTextClip (const RECT * clipPx);
 
     // Atomic flags (UI writes, CPU reads)
     atomic<ColorMode>             m_colorMode{ColorMode::Color};

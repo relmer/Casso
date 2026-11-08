@@ -1026,6 +1026,67 @@ int ShellDeskScene::DeskSceneDriveCount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDeskScene::GetDeskCompositionDriveCount
+//
+//  The windowed layout and the Ctrl+0 inverse both call this, so the size
+//  Ctrl+0 picks matches the desk the layout then composes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDeskScene::GetDeskCompositionDriveCount() const
+{
+    return m_shell.AreDrivesOnStrip() ? 0 : DeskSceneDriveCount();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetDeskCompositionMetrics
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DeskSceneMetrics ShellDeskScene::GetDeskCompositionMetrics() const
+{
+    DeskSceneMetrics  metrics = m_deskScene.Metrics();
+
+
+
+    if (m_shell.AreDrivesOnStrip())
+    {
+        metrics.hasRecorder = false;
+    }
+
+    return metrics;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::IsBelowStripArea
+//
+//  The labels are chrome text, drawn in a pass after every fill, so the
+//  switch strip can't cover them the way it covers the drives. A label is
+//  hidden until the slide has brought it fully into the area.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsBelowStripArea (const RECT & labelPx, bool onStrip) const
+{
+    return onStrip && labelPx.bottom > m_shell.m_chrome->GetDriveStripAreaPx().bottom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDeskScene::SyncSceneViewReadout
 //
 //  The scene pose -- orbit, zoom and pan -- written across the middle of the
@@ -1446,7 +1507,7 @@ void ShellDeskScene::SyncSceneDriveLabels()
         m_sceneDriveLabel[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
         m_sceneDriveLabel[i].SetDpi         (m_shell.m_scaler.GetDpi());
         m_sceneDriveLabel[i].Layout         (nameRc, m_shell.m_scaler);
-        m_sceneDriveLabel[i].SetVisible     (!name.empty() && !inScene);
+        m_sceneDriveLabel[i].SetVisible     (!name.empty() && !inScene && !IsBelowStripArea (rc, onStrip));
 
         m_sceneDriveInfoIcon[i].SetText        (s_kpszMdl2Info);
         m_sceneDriveInfoIcon[i].SetFontFace    (DriveWidget::kInfoIconFamily);
@@ -1454,7 +1515,7 @@ void ShellDeskScene::SyncSceneDriveLabels()
         m_sceneDriveInfoIcon[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
         m_sceneDriveInfoIcon[i].SetDpi         (m_shell.m_scaler.GetDpi());
         m_sceneDriveInfoIcon[i].Layout         (iconRc, m_shell.m_scaler);
-        m_sceneDriveInfoIcon[i].SetVisible     (showIcon && !inScene);
+        m_sceneDriveInfoIcon[i].SetVisible     (showIcon && !inScene && !IsBelowStripArea (rc, onStrip));
 
         // The icon's own tooltip target, ahead of the name's.
         m_sceneInfoIconRect[i] = showIcon ? iconHit : RECT{};
@@ -1564,7 +1625,7 @@ void ShellDeskScene::SyncStripTapeLabels (const DeskSceneComposition            
         m_stripTapeLabel[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
         m_stripTapeLabel[i].SetDpi         (m_shell.m_scaler.GetDpi());
         m_stripTapeLabel[i].Layout         (rc, m_shell.m_scaler);
-        m_stripTapeLabel[i].SetVisible     (!name.empty());
+        m_stripTapeLabel[i].SetVisible     (!name.empty() && !IsBelowStripArea (rc, onStrip));
     }
 }
 

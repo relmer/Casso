@@ -51,6 +51,14 @@ public:
     void            Layout         (const RECT          & boundsDip,
                                     const DxuiDpiScaler & scaler) override;
 
+    // Crops the widget's text to a rect; null clears it. See
+    // DriveWidget::SetTextClip.
+    void            SetTextClip    (const RECT * clipPx)
+    {
+        m_textClip    = (clipPx != nullptr) ? *clipPx : RECT {};
+        m_hasTextClip = (clipPx != nullptr);
+    }
+
     TapeDeckRegion  HitTest        (int x, int y) const;
     RECT            GetOuterRect   () const;
     RECT            GetNameRect    () const { return m_nameRect; }
@@ -161,6 +169,8 @@ private:
     void      PaintName    (IDxuiTextRenderer & text, const std::wstring & name, uint32_t argb);
 
     TapeDeckView    m_view;
+    RECT            m_textClip              = {};
+    bool            m_hasTextClip           = false;
     RECT            m_captionRect           = {};
     RECT            m_nameRect              = {};
     RECT            m_bandRect              = {};

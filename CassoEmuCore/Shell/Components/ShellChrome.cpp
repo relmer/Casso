@@ -871,13 +871,8 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
         // composition doesn't include them or a label strip.
         bool              onStrip      = m_shell.AreDrivesOnStrip();
         int               labelStripPx = onStrip ? 0 : m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
-        int               driveCount   = onStrip ? 0 : m_shell.m_scene->DeskSceneDriveCount();
-        DeskSceneMetrics  metrics      = m_shell.m_scene->GetScene().Metrics();
-
-        if (onStrip)
-        {
-            metrics.hasRecorder = false;
-        }
+        int               driveCount   = m_shell.m_scene->GetDeskCompositionDriveCount();
+        DeskSceneMetrics  metrics      = m_shell.m_scene->GetDeskCompositionMetrics();
 
         for (int pass = 0; pass < s_kSceneScaleSettlePasses; pass++)
         {
@@ -988,11 +983,83 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
     // covers the picture, and the //c switch strip under it stays in view.
     m_driveStripAreaPx = m_shell.m_renderer->GetD3D().IsFullscreen() ? RECT { 0, 0, widthPx, heightPx }
                                                                      : m_centerBand.GetBounds();
+    m_sceneStripBandPx = ComputeSceneStripBandPx (widthPx);
 
     m_shell.m_viewport->Layout (viewportRect, m_shell.m_scaler);
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::ComputeSceneStripBandPx
+//
+//  Windowed with the monitor on and auto-hide on, the strip's drives are
+//  drawn at the monitor's scale, as they would be on the desk. The pixels per
+//  millimeter are the glass's projected width over its width in millimeters,
+//  and the drive row is resized until a drive projects that many pixels tall. A strip limited by the window's width stops short of that,
+//  and the result is capped at half the picture area's height.
+//
+//  Everywhere else (fullscreen, where the glass fills the screen, and the
+//  desk without a monitor) the strip uses the fixed s_kStripBandDp.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellChrome::ComputeSceneStripBandPx (int widthPx) const
+{
+    constexpr int                 kPasses    = 2;
+    HRESULT                       hr         = S_OK;
+    int                           bandPx     = m_shell.m_scaler.ToPx (s_kStripBandDp);
+    int                           labelsPx   = m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+    int                           rowPx      = 0;
+    int                           maxRowPx   = 0;
+    int                           driveCount = m_shell.m_scene->DeskSceneDriveCount();
+    DeskSceneMetrics              metrics    = m_shell.m_scene->GetScene().Metrics();
+    const DeskSceneComposition  & desk       = m_shell.m_scene->GetScene().Composition();
+    float                         glassMm    = metrics.glass.x1 - metrics.glass.x0;
+    float                         glassPx    = (float) (desk.glassRectPx.right - desk.glassRectPx.left);
+    float                         driveMm    = metrics.driveMax[2] - metrics.driveMin[2];
+    float                         targetPx   = 0.0f;
+
+
+
+    BAIL_OUT_IF (!m_shell.CrtMonitorActive() || !m_shell.AreDrivesOnStrip() || m_shell.m_renderer->GetD3D().IsFullscreen(), S_OK);
+    BAIL_OUT_IF (driveCount <= 0 || glassMm <= 0.0f || glassPx <= 0.0f || driveMm <= 0.0f, S_OK);
+
+    // The recorder has a second label row, its counter, under its tape name.
+    if (m_shell.m_scene->GetScene().HasRecorder() && m_shell.m_tapeDeck->IsTapeRecorderShown())
+    {
+        labelsPx += m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+    }
+
+    targetPx = driveMm * glassPx / glassMm;
+    rowPx    = bandPx - labelsPx;
+    maxRowPx = std::max (rowPx, (int) (m_driveStripAreaPx.bottom - m_driveStripAreaPx.top) / 2 - labelsPx);
+
+    for (int pass = 0; pass < kPasses; pass++)
+    {
+        DeskSceneComposition  probe;
+        int                   probePx = 0;
+
+        hr = DeskSceneLayout::ComputeStrip (RECT { 0, 0, widthPx, rowPx }, m_shell.m_scaler.GetDpi(), driveCount,
+                                            metrics, probe, DeskSceneLayout::kDriveBandGazeDownRad);
+        BAIL_OUT_IF (hr != S_OK, S_OK);
+
+        probePx = probe.driveRectPx[0].bottom - probe.driveRectPx[0].top;
+        BAIL_OUT_IF (probePx <= 0, S_OK);
+
+        rowPx = std::clamp ((int) lroundf ((float) rowPx * targetPx / (float) probePx), 1, maxRowPx);
+    }
+
+    bandPx = rowPx + labelsPx;
+
+Error:
+    return bandPx;
 }
 
 

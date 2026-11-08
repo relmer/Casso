@@ -550,6 +550,7 @@ void DriveWidget::Paint (
     float               capFontDip = 0.0f;
     const CassoTheme  & theme      = static_cast<const CassoTheme &> (dxuiTheme);
     wchar_t             label[32]  = {};
+    bool                clipPushed = false;
 
 
 
@@ -557,6 +558,15 @@ void DriveWidget::Paint (
 
     // No Disk ][ controller -> Hide() latched: draw nothing at all.
     BAIL_OUT_IF (m_hidden, S_OK);
+
+    if (m_hasTextClip)
+    {
+        hr = text.PushClipRect ((float) m_textClip.left, (float) m_textClip.top,
+                                (float) (m_textClip.right  - m_textClip.left),
+                                (float) (m_textClip.bottom - m_textClip.top));
+        clipPushed = SUCCEEDED (hr);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 
     dpi        = (m_dpi == 0) ? (UINT) kBaseDpi : m_dpi;
     capFontDip = kCompactCaptionFontDip * (float) dpi / (float) kBaseDpi;
@@ -656,6 +666,12 @@ void DriveWidget::Paint (
     }
 
 Error:
+    if (clipPushed)
+    {
+        hr = text.PopClipRect();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
     return;
 }
 

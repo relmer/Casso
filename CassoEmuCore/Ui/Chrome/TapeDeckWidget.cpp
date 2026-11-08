@@ -779,12 +779,22 @@ void TapeDeckWidget::Paint (
     ControlBox          rects[kButtonCount + 1]  = {};
     float               scales[kButtonCount + 1] = {};
     const ControlBox  & counterBox = rects[kButtonCount];
+    bool                clipPushed = false;
 
 
 
     _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
 
     BAIL_OUT_IF (m_hidden, S_OK);
+
+    if (m_hasTextClip)
+    {
+        hr = text.PushClipRect ((float) m_textClip.left, (float) m_textClip.top,
+                                (float) (m_textClip.right  - m_textClip.left),
+                                (float) (m_textClip.bottom - m_textClip.top));
+        clipPushed = SUCCEEDED (hr);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 
     ComputeControlRects (GetNowMs(), rects, scales);
 
@@ -871,6 +881,12 @@ void TapeDeckWidget::Paint (
     }
 
 Error:
+    if (clipPushed)
+    {
+        hr = text.PopClipRect();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
     return;
 }
 

@@ -342,8 +342,8 @@ SIZE ShellWindow::GetClientSizeForFramebufferPx (int framebufferWidthDp, int fra
     if (m_shell.CrtMonitorActive())
     {
         SIZE   center     = DeskSceneLayout::CenterSizeForDisplayPx (framebufferWpx, framebufferHpx,
-                                                                     m_shell.m_scaler.GetDpi(), m_shell.m_scene->DeskSceneDriveCount(),
-                                                                     m_shell.m_scene->GetScene().Metrics(),
+                                                                     m_shell.m_scaler.GetDpi(), m_shell.m_scene->GetDeskCompositionDriveCount(),
+                                                                     m_shell.m_scene->GetDeskCompositionMetrics(),
                                                                      m_shell.m_scaler.ToPx (s_kSceneDriveGapDp + s_kStripEdgeZoneDp));
         float  savedScale = m_shell.m_chrome->GetSceneScale();
 

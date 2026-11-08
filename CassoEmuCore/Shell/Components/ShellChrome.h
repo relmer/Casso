@@ -124,6 +124,9 @@ public:
     // drive context menu. Applies live and persists to GlobalUserPrefs.
     void    SetAutoHideDrives    (bool enabled);
 
+    // The rect the drive strip slides up into. See m_driveStripAreaPx.
+    RECT    GetDriveStripAreaPx  () const { return m_driveStripAreaPx; }
+
     // Fullscreen presentation (FR-014): every chrome element collapses to
     // nothing -- host caption, menu bar, toolbar, joystick row, drive band,
     // //c switch strip -- so the glass-fill scene owns the whole client.
@@ -335,6 +338,13 @@ private:
     // the whole client in fullscreen, the center band windowed. Written by
     // UpdateViewportLayout.
     RECT                     m_driveStripAreaPx    = {};
+
+    // How tall the desk scene's drive strip is. Windowed with the monitor on,
+    // it is sized so the strip's drives match the monitor's scale; otherwise
+    // it is s_kStripBandDp. Written by UpdateViewportLayout.
+    int                      m_sceneStripBandPx    = 0;
+
+    int     ComputeSceneStripBandPx (int widthPx) const;
 
     // Whether the current WINDOW height was sized for a Disk ][ controller
     // being present. Written by OnSize (the authoritative layout, WM_SIZE-only)
