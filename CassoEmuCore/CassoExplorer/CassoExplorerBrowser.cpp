@@ -1764,12 +1764,16 @@ bool CassoExplorerBrowser::AreSelectedRowsImages() const
 //
 //  CassoExplorerBrowser::Reload
 //
+//  When every selected row is gone, as after a delete, the row now in the
+//  first one's place is selected, as File Explorer selects it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoExplorerBrowser::Reload (bool keepSelection)
 {
-    HRESULT                    hr = S_OK;
+    HRESULT                    hr    = S_OK;
     std::vector<std::wstring>  names;
+    int                        first = m_selectedRows.empty() ? -1 : *std::min_element (m_selectedRows.begin(), m_selectedRows.end());
 
 
 
@@ -1788,7 +1792,30 @@ HRESULT CassoExplorerBrowser::Reload (bool keepSelection)
 
     SelectRowsByKeys (names);
 
+    if (m_selectedRows.empty())
+    {
+        SelectRowAt (first);
+    }
+
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::SelectRowAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::SelectRowAt (int row)
+{
+    if (row >= 0 && !m_rows.empty())
+    {
+        SetSelectedRows ({ (std::min) (row, (int) m_rows.size() - 1) });
+    }
 }
 
 

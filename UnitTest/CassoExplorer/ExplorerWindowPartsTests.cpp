@@ -586,6 +586,38 @@ public:
     }
 
 
+    //  After a delete the row now in the deleted row's place is selected, and
+    //  the last row when the deleted one was last.
+    TEST_METHOD (Delete_SelectsTheRowThatTakesTheDeletedRowsPlace)
+    {
+        Rig  rig;
+
+
+
+        for (const wchar_t * name : { L"C:\\Disks\\a.dsk", L"C:\\Disks\\b.dsk", L"C:\\Disks\\c.dsk" })
+        {
+            rig.Seed ("CassoExplorer/dos33.dsk", name);
+        }
+
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"b.dsk"));
+
+        AssertSucceeded (rig.fs.Delete (L"C:\\Disks\\b.dsk"));
+        AssertSucceeded (rig.browser.Reload (true));
+
+        Assert::AreEqual ((size_t) 1, rig.browser.GetSelectedRows().size());
+        Assert::AreEqual (std::wstring (L"c.dsk"), rig.browser.GetRows()[(size_t) rig.browser.GetSelectedRows()[0]].name, L"the next row moves up into its place");
+
+        AssertSucceeded (rig.fs.Delete (L"C:\\Disks\\c.dsk"));
+        AssertSucceeded (rig.browser.Reload (true));
+
+        Assert::AreEqual ((size_t) 1, rig.browser.GetSelectedRows().size());
+        Assert::AreEqual (std::wstring (L"a.dsk"), rig.browser.GetRows()[(size_t) rig.browser.GetSelectedRows()[0]].name, L"the last row, when the deleted one was last");
+    }
+
+
     TEST_METHOD (CreateImage_FromADrivesMenu_LeavesTheListWhereItIs)
     {
         Rig                 rig;

@@ -1669,3 +1669,4 @@ Session 2026-11-04. T079 and T082 follow.
 - [X] T469 Connect to each Apple an announcement lists as soon as it is listed, unless the user disconnected it in that session (FR-154). Found 2026-11-08: sp8's Apple was listed after Casso Explorer restarted, but not connected to until it was opened
 - [X] T470 Rename an image in its folder's Full Send manifest when it is renamed in Casso Explorer, and put the old name back when the rename is undone (FR-155). The owner's request, 2026-11-08
 - [X] T471 Remove a deleted image and its duplicates from its folder's Full Send manifest, and put the rows back when the image is restored by Undo or from the Recycle Bin (FR-155). The owner's request, 2026-11-08
+- [X] T472 Select the row that takes a deleted row's place, or the last row when the deleted one was last, after a delete in a folder or a disk image, as File Explorer selects it. The owner's request, 2026-11-08

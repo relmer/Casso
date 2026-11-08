@@ -1169,6 +1169,8 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
             {
                 ExplorerFileOps::UndoStep  step           { ExplorerFileOps::UndoStep::Kind::ImageDelete, m_context.browser.GetLocation() };
                 wchar_t                    temp[MAX_PATH] = {};
+                std::vector<int>           selected       = m_context.browser.GetSelectedRows();
+                int                        first          = -1;
 
                 //  An AppleSingle copy keeps each file's bytes, type and
                 //  address, so a put brings it back as it was. The copy holds
@@ -1190,11 +1192,19 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
                     step.savedDir.clear();
                 }
 
+                first   = selected.empty() ? -1 : *std::min_element (selected.begin(), selected.end());
                 outcome = m_context.actions.DeleteSelected();
 
                 if (outcome.Succeeded() && !step.savedDir.empty())
                 {
                     m_context.fileOps.PushUndo (std::move (step));
+                }
+
+                //  The row now in the deleted rows' place is selected, as after
+                //  a delete in a folder.
+                if (outcome.Succeeded() && m_context.browser.GetSelectedRows().empty())
+                {
+                    m_context.browser.SelectRowAt (first);
                 }
 
                 ReportOutcome (outcome, L"Delete");

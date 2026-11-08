@@ -199,6 +199,10 @@ public:
     int                               GetTabTreeRow   () { return m_model.HasTabs() ? m_model.GetActiveTab().treeTopRow : -1; }
     void                              SetSelectedRows (const std::vector<int> & rows);
 
+    //  The row at a place in the list, or the last row when the list ends
+    //  before it; nothing for a negative place or an empty list.
+    void                              SelectRowAt     (int row);
+
     //  The preview made again for the selection, as when a slow read arrives.
     void  RefreshPreview   () { m_previewer.UpdatePreview(); }
 
