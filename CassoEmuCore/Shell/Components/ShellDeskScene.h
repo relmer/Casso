@@ -129,9 +129,9 @@ public:
     // the //c external-drive connection, the same gates the 2D widgets use.
     int     DeskSceneDriveCount  () const;
 
-    // The drive count and metrics the desk composition is solved with. With
-    // the drives on the strip, the desk has the monitor alone: no drives and
-    // no recorder.
+    // The drive count and metrics the desk is framed with. With the drives
+    // auto-hidden, the framing is the monitor alone: no drives and no
+    // recorder.
     int               GetDeskCompositionDriveCount () const;
     DeskSceneMetrics  GetDeskCompositionMetrics    () const;
 

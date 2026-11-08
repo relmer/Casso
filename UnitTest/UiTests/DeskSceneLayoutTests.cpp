@@ -193,6 +193,75 @@ public:
         Assert::AreEqual (0, memcmp (&a, &b, sizeof (a)));
     }
 
+    TEST_METHOD (Sliding_Frames_The_Monitor_Alone_At_Every_Progress)
+    {
+        DeskSceneMetrics      metrics   = MakeMetrics();
+        RECT                  vp        = { 0, 0, 1120, 768 };
+        DeskSceneComposition  alone;
+        float                 steps[]   = { 0.0f, 0.5f, 1.0f };
+
+
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 0, metrics, alone));
+
+        for (float progress : steps)
+        {
+            DeskSceneComposition  sliding;
+
+
+
+            AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, progress, sliding));
+
+            Assert::AreEqual (0, memcmp (alone.viewProj, sliding.viewProj, sizeof (alone.viewProj)), L"the camera is the monitor-only camera");
+            Assert::AreEqual (0, memcmp (alone.monitorWorld, sliding.monitorWorld, sizeof (alone.monitorWorld)), L"the monitor stays on the desk");
+            Assert::AreEqual (0, memcmp (&alone.glassRectPx, &sliding.glassRectPx, sizeof (RECT)));
+        }
+    }
+
+    TEST_METHOD (Sliding_At_Zero_Omits_The_Devices)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1120, 768 };
+        DeskSceneComposition  comp;
+
+
+
+        metrics.hasRecorder = true;
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.0f, comp));
+
+        Assert::AreEqual (0, comp.driveCount);
+        Assert::AreEqual (0, comp.hasRecorder);
+    }
+
+    TEST_METHOD (Sliding_Raises_The_Drives_In_Front_Of_The_Monitor)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        RECT                  vp            = { 0, 0, 1120, 768 };
+        DeskSceneComposition  quarter;
+        DeskSceneComposition  half;
+        DeskSceneComposition  full;
+        float                 driveBackZ    = 0.0f;
+        float                 monitorFrontZ = -metrics.monitorMin[1];
+
+
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.25f, quarter));
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.5f,  half));
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f,  full));
+
+        Assert::AreEqual (2, full.driveCount);
+        Assert::IsTrue (quarter.driveRectPx[0].top > half.driveRectPx[0].top, L"the drives rise as the slide progresses");
+        Assert::IsTrue (half.driveRectPx[0].top > full.driveRectPx[0].top);
+        Assert::IsTrue (full.driveRectPx[0].top < vp.bottom, L"fully up, the drives are in the frame");
+        Assert::AreEqual (0.0f, full.driveWorld[0][13], L"fully up, the drives are on the desk");
+
+        // Model Y points back and maps to world -Z, so a drive's back is its
+        // world Z less its depth.
+        driveBackZ = full.driveWorld[0][14] - metrics.driveMax[1];
+        Assert::IsTrue (driveBackZ > monitorFrontZ, L"the drives are in front of the monitor, not inside it");
+    }
+
     TEST_METHOD (Empty_Viewport_Reports_S_FALSE)
     {
         DeskSceneMetrics      metrics = MakeMetrics();

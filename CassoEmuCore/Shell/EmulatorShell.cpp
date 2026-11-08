@@ -522,16 +522,50 @@ bool EmulatorShell::CrtMonitorActive() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::AreDrivesAutoHidden
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::AreDrivesAutoHidden() const
+{
+    return m_renderer->GetD3D().IsFullscreen() || m_settings->GetPrefs().autoHideDrives;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::IsDeskSlideActive
+//
+//  Fullscreen uses the strip: the glass fills the screen there, and drives
+//  at the monitor's scale would be larger than the screen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsDeskSlideActive() const
+{
+    return m_settings->GetPrefs().autoHideDrives && CrtMonitorActive() && !m_renderer->GetD3D().IsFullscreen();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::AreDrivesOnStrip
 //
-//  Every path that places, draws or hit-tests the drives calls this instead
-//  of testing for fullscreen, so auto-hide and fullscreen use the same strip.
+//  Every path that places, draws or hit-tests the strip's drives calls this
+//  instead of testing for fullscreen, so auto-hide and fullscreen use the
+//  same strip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool EmulatorShell::AreDrivesOnStrip() const
 {
-    return m_renderer->GetD3D().IsFullscreen() || m_settings->GetPrefs().autoHideDrives;
+    return AreDrivesAutoHidden() && !IsDeskSlideActive();
 }
 
 

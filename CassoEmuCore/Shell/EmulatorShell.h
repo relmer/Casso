@@ -586,8 +586,16 @@ private:
     // pointer mapping, the Ctrl+0 solve -- follows this, not DeskSceneActive.
     bool    CrtMonitorActive     () const;
 
-    // The drives are on the slide-up strip at the bottom edge instead of in
-    // the drive band: always in fullscreen, and windowed when auto-hide is on.
+    // The drives collapse out of view until summoned: always in fullscreen,
+    // and windowed when auto-hide is on.
+    bool    AreDrivesAutoHidden  () const;
+
+    // Auto-hide on the windowed desk with the monitor: the drives are real
+    // scene objects that rise onto the desk in front of the monitor.
+    bool    IsDeskSlideActive    () const;
+
+    // The drives are on the slide-up strip at the bottom edge: auto-hidden
+    // anywhere but the windowed desk with the monitor.
     bool    AreDrivesOnStrip     () const;
 
     // A file dropped on a drive or the recorder.

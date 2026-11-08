@@ -12,6 +12,7 @@
 
 class DriveWidget;
 class EmulatorShell;
+struct DeskSceneComposition;
 
 
 
@@ -126,6 +127,9 @@ public:
 
     // The rect the drive strip slides up into. See m_driveStripAreaPx.
     RECT    GetDriveStripAreaPx  () const { return m_driveStripAreaPx; }
+
+    // Re-solves the desk with the drives risen by `progress` (0 to 1).
+    void    ComposeDeskSlide     (float progress);
 
     // Fullscreen presentation (FR-014): every chrome element collapses to
     // nothing -- host caption, menu bar, toolbar, joystick row, drive band,
@@ -339,12 +343,14 @@ private:
     // UpdateViewportLayout.
     RECT                     m_driveStripAreaPx    = {};
 
-    // How tall the desk scene's drive strip is. Windowed with the monitor on,
-    // it is sized so the strip's drives match the monitor's scale; otherwise
-    // it is s_kStripBandDp. Written by UpdateViewportLayout.
-    int                      m_sceneStripBandPx    = 0;
+    // The desk's slide (auto-hide with the monitor, windowed): the scene box
+    // the last layout solved in, how far the devices have risen (0 to 1), and
+    // the screen rect of the devices and their labels.
+    RECT                     m_deskSlideBox        = {};
+    float                    m_deskSlideProgress   = 0.0f;
+    RECT                     m_deskSlideCoverPx    = {};
 
-    int     ComputeSceneStripBandPx (int widthPx) const;
+    void    UpdateDeskSlideCover (const DeskSceneComposition & comp);
 
     // Whether the current WINDOW height was sized for a Disk ][ controller
     // being present. Written by OnSize (the authoritative layout, WM_SIZE-only)

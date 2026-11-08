@@ -829,13 +829,17 @@ bool ShellRenderer::TryPresentUiFrame()
                          ? m_shell.m_scene->DeskSceneDriveCount() > 0
                          : (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
 
-    if (m_shell.AreDrivesOnStrip() && stripHasDrives)
+    // On the windowed desk with the monitor, the same FSM moves the desk's
+    // drives instead: its progress raises them onto the desk.
+    if ((m_shell.AreDrivesOnStrip() || m_shell.IsDeskSlideActive()) && stripHasDrives)
     {
         StripInputs   inputs;
         StripEffects  effects;
-        POINT         cursor  = {};
-        RECT          client  = {};
-        RECT          area    = m_shell.m_chrome->m_driveStripAreaPx;
+        POINT         cursor     = {};
+        RECT          client     = {};
+        RECT          area       = m_shell.m_chrome->m_driveStripAreaPx;
+        bool          deskSlide  = m_shell.IsDeskSlideActive();
+        RECT          engageRect = deskSlide ? m_shell.m_chrome->m_deskSlideCoverPx : m_shell.m_scene->m_stripRectPx;
         int64_t       stripNowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                        std::chrono::steady_clock::now().time_since_epoch()).count();
 
@@ -851,7 +855,7 @@ bool ShellRenderer::TryPresentUiFrame()
             inputs.pointerAtBottomEdge = PtInRect (&area, cursor) &&
                                          cursor.y >= area.bottom - m_shell.m_scaler.ToPx (s_kStripEdgeZoneDp);
             inputs.pointerOverStrip    = m_shell.m_scene->m_stripState.Mode() != StripMode::Hidden &&
-                                         PtInRect (&m_shell.m_scene->m_stripRectPx, cursor);
+                                         PtInRect (&engageRect, cursor);
         }
 
         inputs.hotkey        = m_shell.m_scene->m_stripHotkeyPending;
@@ -895,13 +899,28 @@ bool ShellRenderer::TryPresentUiFrame()
             m_shell.m_scene->m_stripSuppressGuestMouse = false;
         }
 
+        // The desk's slide re-solves the scene only when the progress moves,
+        // and the frame at progress 0 is presented too, so nothing is left
+        // part-way up.
+        if (deskSlide)
+        {
+            float  progress = m_shell.m_scene->m_stripState.SlideProgress (stripNowMs);
+
+            if (progress != m_shell.m_chrome->m_deskSlideProgress)
+            {
+                m_shell.m_chrome->ComposeDeskSlide (progress);
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
+        }
+
         // The band slides up from the bottom edge: only the top
         // `progress * height` sliver is on-screen mid-animation. The flat
         // widgets' band is the windowed drive bar's height; the scene's is
         // the row its drives compose into.
+        else
         {
             float  progress   = m_shell.m_scene->m_stripState.SlideProgress (stripNowMs);
-            int    bandH      = m_shell.DeskSceneActive() ? m_shell.m_chrome->m_sceneStripBandPx
+            int    bandH      = m_shell.DeskSceneActive() ? m_shell.m_scaler.ToPx (s_kStripBandDp)
                                                           : m_shell.m_scaler.ToPx (m_shell.m_chrome->m_driveBarThicknessDp);
             bool   wasShowing = m_shell.m_scene->m_stripRectPx.bottom > m_shell.m_scene->m_stripRectPx.top;
 
@@ -984,12 +1003,16 @@ bool ShellRenderer::TryPresentUiFrame()
         // The strip's names ride its slide: re-hung every pass so they track
         // the band on its way in and out, and retire with it. The flat
         // widgets carry their own names.
-        if (m_shell.DeskSceneActive())
+        // The desk's slide re-hangs them in ComposeDeskSlide.
+        if (m_shell.DeskSceneActive() && !deskSlide)
         {
             m_shell.m_scene->SyncSceneDriveLabels();
         }
 
-        if (m_shell.m_scene->m_stripState.Mode() != StripMode::Hidden || m_shell.m_scene->m_stripState.ActivityIndicator())
+        // The hidden-state glimmer is fullscreen only, so frames are requested
+        // for it only there.
+        if (m_shell.m_scene->m_stripState.Mode() != StripMode::Hidden ||
+            (m_shell.m_scene->m_stripState.ActivityIndicator() && m_d3dRenderer.IsFullscreen()))
         {
             m_d3dRenderer.MarkRedrawNeeded();
         }

@@ -1038,11 +1038,11 @@ void WindowCommandManager::OnViewCommand (int id)
 
         case IDM_VIEW_DRIVE_STRIP:
         {
-            // Only meaningful while the drives are on the strip, in fullscreen
+            // Only meaningful while the drives are auto-hidden, in fullscreen
             // or with auto-hide on; the FSM consumes the edge on its next tick
             // (releasing the guest's pointer capture if it has one). Otherwise
             // the drives are already on screen.
-            if (m_shell.AreDrivesOnStrip())
+            if (m_shell.AreDrivesAutoHidden())
             {
                 m_shell.m_scene->RequestStripHotkey();
                 m_shell.m_renderer->GetD3D().MarkRedrawNeeded();

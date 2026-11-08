@@ -660,7 +660,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_TAPE_REWIND:      return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Rewind,      m_tapeDeck->GetTapeView());
             case IDM_TAPE_FASTFORWARD: return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::FastForward, m_tapeDeck->GetTapeView());
             case IDM_TAPE_EJECT:       return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Eject,       m_tapeDeck->GetTapeView());
-            case IDM_VIEW_DRIVE_STRIP: return AreDrivesOnStrip();
+            case IDM_VIEW_DRIVE_STRIP: return AreDrivesAutoHidden();
             default:           return true;
         }
     });

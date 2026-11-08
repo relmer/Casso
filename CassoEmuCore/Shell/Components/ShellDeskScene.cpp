@@ -1035,7 +1035,7 @@ int ShellDeskScene::DeskSceneDriveCount() const
 
 int ShellDeskScene::GetDeskCompositionDriveCount() const
 {
-    return m_shell.AreDrivesOnStrip() ? 0 : DeskSceneDriveCount();
+    return m_shell.AreDrivesAutoHidden() ? 0 : DeskSceneDriveCount();
 }
 
 
@@ -1054,7 +1054,7 @@ DeskSceneMetrics ShellDeskScene::GetDeskCompositionMetrics() const
 
 
 
-    if (m_shell.AreDrivesOnStrip())
+    if (m_shell.AreDrivesAutoHidden())
     {
         metrics.hasRecorder = false;
     }

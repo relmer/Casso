@@ -549,13 +549,11 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // hover (mutually exclusive bands, but be explicit). Windowed, the 3D
     // scene's name strips already show every basename and padlock, so the
     // only tooltip left is the padlock's WHY -- the write-protect
-    // composition, anchored to the label it explains. Dwelling on the case
-    // itself volunteers nothing the strip is not already saying. Fullscreen
-    // shows no labels, so the overlay strip's drives keep the name tooltip,
-    // joined by the write-protect composition when the disk is protected --
-    // there is no padlock anywhere else to ask. The 2D path keeps its dwell
-    // tooltip for protected drives only (the basename lives on the widget's
-    // marquee label there).
+    // composition, anchored to the label. A tooltip on the case
+    // itself would repeat the label. The overlay strip's drives have the same
+    // labels, so no tooltip appears on their cases either. The 2D path has a
+    // dwell tooltip for protected drives only (the basename is on the
+    // widget's marquee label there).
     {
         std::wstring  tip;
         RECT          anchor = {};
@@ -602,33 +600,6 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
                                      .filename().wstring(),
                                  m_disks->GetDriveWidgetState()[i].writeProtect);
                     break;
-                }
-            }
-        }
-
-        if (tip.empty() && DeskSceneActive() && AreDrivesOnStrip())
-        {
-            POINT  pt = { x, y };
-
-            if (m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
-                PtInRect (&m_scene->m_stripRectPx, pt))
-            {
-                SceneHitResult  sceneHit = m_scene->StripHit (x, y);
-
-                if (sceneHit.target == SceneHitResult::Target::Drive)
-                {
-                    std::wstring  imageName = std::filesystem::path (
-                        m_machine.GetDiskStore().GetSourcePath (6, sceneHit.driveIndex)).filename().wstring();
-
-                    anchor = m_scene->m_stripComp.driveRectPx[sceneHit.driveIndex];
-                    tip    = ComposeWriteProtectTooltip (
-                                 sceneHit.driveIndex + 1, imageName,
-                                 m_disks->GetDriveWidgetState()[sceneHit.driveIndex].writeProtect);
-
-                    if (tip.empty())
-                    {
-                        tip = imageName;
-                    }
                 }
             }
         }

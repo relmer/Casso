@@ -866,13 +866,14 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
         // composition is solved into a center rect short by its height and
         // the labels hang in what is left.
         //
-        // With auto-hide on, the desk has the monitor alone: the drives and
-        // the recorder slide up from the bottom edge on the strip, so the
-        // composition doesn't include them or a label strip.
-        bool              onStrip      = m_shell.AreDrivesOnStrip();
-        int               labelStripPx = onStrip ? 0 : m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
-        int               driveCount   = m_shell.m_scene->GetDeskCompositionDriveCount();
-        DeskSceneMetrics  metrics      = m_shell.m_scene->GetDeskCompositionMetrics();
+        // With auto-hide on, the camera frames the monitor alone and the
+        // drives and the recorder rise onto the desk in front of it, as far
+        // as the slide has brought them. No label strip is reserved: the disk
+        // labels are drawn in the scene.
+        bool              sliding      = m_shell.IsDeskSlideActive();
+        int               labelStripPx = sliding ? 0 : m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+        int               driveCount   = m_shell.m_scene->DeskSceneDriveCount();
+        DeskSceneMetrics  metrics      = m_shell.m_scene->GetScene().Metrics();
 
         for (int pass = 0; pass < s_kSceneScaleSettlePasses; pass++)
         {
@@ -884,11 +885,22 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
             sceneBox          = center;
             sceneBox.bottom   = std::max (center.top, center.bottom - labelStripPx);
 
-            hrLayout = DeskSceneLayout::Compute (sceneBox, m_shell.m_scaler.GetDpi(), driveCount,
-                                                 metrics, comp,
-                                                 m_shell.m_scaler.ToPx (s_kSceneDriveGapDp + s_kStripEdgeZoneDp),
-                                                 m_shell.m_scene->GetView());
+            if (sliding)
+            {
+                hrLayout = DeskSceneLayout::ComputeSliding (sceneBox, m_shell.m_scaler.GetDpi(), driveCount, metrics,
+                                                            m_deskSlideProgress, comp, m_shell.m_scene->GetView());
+            }
+            else
+            {
+                hrLayout = DeskSceneLayout::Compute (sceneBox, m_shell.m_scaler.GetDpi(), driveCount,
+                                                     metrics, comp,
+                                                     m_shell.m_scaler.ToPx (s_kSceneDriveGapDp + s_kStripEdgeZoneDp),
+                                                     m_shell.m_scene->GetView());
+            }
+
             BAIL_OUT_IF (hrLayout != S_OK, S_OK);
+
+            m_deskSlideBox = sceneBox;
 
             m_shell.m_scene->GetScene().SetComposition (comp);
             m_chromeSceneScale = comp.sceneScale * s_kDeskDriveScale;
@@ -983,7 +995,8 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
     // covers the picture, and the //c switch strip under it stays in view.
     m_driveStripAreaPx = m_shell.m_renderer->GetD3D().IsFullscreen() ? RECT { 0, 0, widthPx, heightPx }
                                                                      : m_centerBand.GetBounds();
-    m_sceneStripBandPx = ComputeSceneStripBandPx (widthPx);
+
+    UpdateDeskSlideCover (m_shell.IsDeskSlideActive() ? m_shell.m_scene->GetScene().Composition() : DeskSceneComposition {});
 
     m_shell.m_viewport->Layout (viewportRect, m_shell.m_scaler);
 
@@ -997,69 +1010,78 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellChrome::ComputeSceneStripBandPx
+//  ShellChrome::ComposeDeskSlide
 //
-//  Windowed with the monitor on and auto-hide on, the strip's drives are
-//  drawn at the monitor's scale, as they would be on the desk. The pixels per
-//  millimeter are the glass's projected width over its width in millimeters,
-//  and the drive row is resized until a drive projects that many pixels tall. A strip limited by the window's width stops short of that,
-//  and the result is capped at half the picture area's height.
+//  One frame of the desk's slide: re-solves the composition at `progress`
+//  inside the scene box the last layout used and pushes it to the scene. The
+//  camera ignores the devices, so only the drives and the recorder move.
 //
-//  Everywhere else (fullscreen, where the glass fills the screen, and the
-//  desk without a monitor) the strip uses the fixed s_kStripBandDp.
+//  It also updates m_deskSlideCoverPx, the screen rect of the devices and
+//  their labels. While the pointer is in that rect, the slide stays up.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int ShellChrome::ComputeSceneStripBandPx (int widthPx) const
+void ShellChrome::ComposeDeskSlide (float progress)
 {
-    constexpr int                 kPasses    = 2;
-    HRESULT                       hr         = S_OK;
-    int                           bandPx     = m_shell.m_scaler.ToPx (s_kStripBandDp);
-    int                           labelsPx   = m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
-    int                           rowPx      = 0;
-    int                           maxRowPx   = 0;
-    int                           driveCount = m_shell.m_scene->DeskSceneDriveCount();
-    DeskSceneMetrics              metrics    = m_shell.m_scene->GetScene().Metrics();
-    const DeskSceneComposition  & desk       = m_shell.m_scene->GetScene().Composition();
-    float                         glassMm    = metrics.glass.x1 - metrics.glass.x0;
-    float                         glassPx    = (float) (desk.glassRectPx.right - desk.glassRectPx.left);
-    float                         driveMm    = metrics.driveMax[2] - metrics.driveMin[2];
-    float                         targetPx   = 0.0f;
+    HRESULT                hr     = S_OK;
+    DeskSceneComposition   comp;
 
 
 
-    BAIL_OUT_IF (!m_shell.CrtMonitorActive() || !m_shell.AreDrivesOnStrip() || m_shell.m_renderer->GetD3D().IsFullscreen(), S_OK);
-    BAIL_OUT_IF (driveCount <= 0 || glassMm <= 0.0f || glassPx <= 0.0f || driveMm <= 0.0f, S_OK);
+    BAIL_OUT_IF (!m_shell.IsDeskSlideActive() || progress == m_deskSlideProgress, S_OK);
+    BAIL_OUT_IF (m_deskSlideBox.right <= m_deskSlideBox.left, S_OK);
 
-    // The recorder has a second label row, its counter, under its tape name.
-    if (m_shell.m_scene->GetScene().HasRecorder() && m_shell.m_tapeDeck->IsTapeRecorderShown())
-    {
-        labelsPx += m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp);
-    }
+    m_deskSlideProgress = progress;
 
-    targetPx = driveMm * glassPx / glassMm;
-    rowPx    = bandPx - labelsPx;
-    maxRowPx = std::max (rowPx, (int) (m_driveStripAreaPx.bottom - m_driveStripAreaPx.top) / 2 - labelsPx);
+    hr = DeskSceneLayout::ComputeSliding (m_deskSlideBox, m_shell.m_scaler.GetDpi(), m_shell.m_scene->DeskSceneDriveCount(),
+                                          m_shell.m_scene->GetScene().Metrics(), progress, comp, m_shell.m_scene->GetView());
+    BAIL_OUT_IF (hr != S_OK, S_OK);
 
-    for (int pass = 0; pass < kPasses; pass++)
-    {
-        DeskSceneComposition  probe;
-        int                   probePx = 0;
+    m_shell.m_scene->GetScene().SetComposition (comp);
+    m_shell.m_scene->SyncSceneDriveChrome();
 
-        hr = DeskSceneLayout::ComputeStrip (RECT { 0, 0, widthPx, rowPx }, m_shell.m_scaler.GetDpi(), driveCount,
-                                            metrics, probe, DeskSceneLayout::kDriveBandGazeDownRad);
-        BAIL_OUT_IF (hr != S_OK, S_OK);
-
-        probePx = probe.driveRectPx[0].bottom - probe.driveRectPx[0].top;
-        BAIL_OUT_IF (probePx <= 0, S_OK);
-
-        rowPx = std::clamp ((int) lroundf ((float) rowPx * targetPx / (float) probePx), 1, maxRowPx);
-    }
-
-    bandPx = rowPx + labelsPx;
+    UpdateDeskSlideCover (comp);
 
 Error:
-    return bandPx;
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::UpdateDeskSlideCover
+//
+//  The disk labels are under the devices, so the cover extends down to the
+//  bottom of the picture area. Empty while the devices are out of the
+//  composition.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::UpdateDeskSlideCover (const DeskSceneComposition & comp)
+{
+    RECT  cover = {};
+
+
+
+    for (int i = 0; i < comp.driveCount; i++)
+    {
+        UnionRect (&cover, &cover, &comp.driveRectPx[i]);
+    }
+
+    if (comp.hasRecorder != 0)
+    {
+        UnionRect (&cover, &cover, &comp.recorderRectPx);
+    }
+
+    if (!IsRectEmpty (&cover))
+    {
+        cover.bottom = std::max (cover.bottom, m_driveStripAreaPx.bottom);
+    }
+
+    m_deskSlideCoverPx = cover;
 }
 
 
@@ -1089,7 +1111,7 @@ void ShellChrome::SyncChromeBands()
     // the shell and stamps the answers onto the bands' docked heights.
     inputs.hasDiskController   = (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
     inputs.crtMonitorActive    = m_shell.CrtMonitorActive();
-    inputs.drivesOnStrip       = m_shell.AreDrivesOnStrip();
+    inputs.drivesOnStrip       = m_shell.AreDrivesAutoHidden();
     inputs.hasCaseSwitches     = m_shell.MachineHasCaseSwitches();
     inputs.driveBarThicknessDp = m_driveBarThicknessDp;
     inputs.chromeSceneScale    = m_chromeSceneScale;
@@ -1300,7 +1322,7 @@ void ShellChrome::ReflowChromeForMachineChange()
     if (haveWindow && layoutChanged &&
         !IsIconic (m_shell.m_hwnd) && !IsZoomed (m_shell.m_hwnd) && !m_shell.m_renderer->GetD3D().IsFullscreen())
     {
-        int  bandDp      = m_shell.AreDrivesOnStrip() ? 0 : m_driveBarThicknessDp;
+        int  bandDp      = m_shell.AreDrivesAutoHidden() ? 0 : m_driveBarThicknessDp;
         int  oldDriveDp  = m_chromeSizedForHasDisk ? bandDp : 0;
         int  newDriveDp  = newHasDisk              ? bandDp : 0;
         int  oldSwitchDp = m_chromeSizedForApple2c ? ChromeBandLayout::kSwitchBandDp : 0;

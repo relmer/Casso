@@ -171,6 +171,84 @@ HRESULT DeskSceneLayout::Compute (const RECT             & viewportPx,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneLayout::ComputeSliding
+//
+//  The devices take no part in the framing, so the monitor is exactly where
+//  the monitor-only solve puts it at every point of the slide, and only the
+//  drives and the recorder move.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskSceneLayout::ComputeSliding (const RECT             & viewportPx,
+                                         UINT                     dpi,
+                                         int                      driveCount,
+                                         const DeskSceneMetrics & metrics,
+                                         float                    slideProgress,
+                                         DeskSceneComposition   & out,
+                                         const DeskSceneView    & view)
+{
+    return SolveComposition (viewportPx, dpi, driveCount, metrics, kDriveDeskGapMm, out, view,
+                             std::clamp (slideProgress, 0.0f, 1.0f));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::IsBoxBelowFrame
+//
+//  A corner at or behind the near plane counts as visible, so a drop is only
+//  accepted once every corner is in front of the eye and under the frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskSceneLayout::IsBoxBelowFrame (const float  view[16],
+                                       float        tanHalfY,
+                                       const float  world[16],
+                                       const float  boxMin[3],
+                                       const float  boxMax[3],
+                                       float        dropMm)
+{
+    for (int corner = 0; corner < 8; corner++)
+    {
+        float   pt[3]      = { (corner & 1) ? boxMax[0] : boxMin[0],
+                               (corner & 2) ? boxMax[1] : boxMin[1],
+                               (corner & 4) ? boxMax[2] : boxMin[2] };
+        float   worldPt[3] = {};
+        float   viewPt[3]  = {};
+        float   depth      = 0.0f;
+
+        if (!SceneCamera::TransformPoint (world, pt, worldPt))
+        {
+            return false;
+        }
+
+        worldPt[1] -= dropMm;
+
+        if (!SceneCamera::TransformPoint (view, worldPt, viewPt))
+        {
+            return false;
+        }
+
+        depth = -viewPt[2];
+
+        if (depth <= kNearMm || viewPt[1] / depth > -tanHalfY)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneLayout::ApplyViewTransform
 //
 //  Post-multiplies the projection by a clip-space zoom and shift:
@@ -226,9 +304,16 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
                                            const DeskSceneMetrics & metrics,
                                            float                    dropMm,
                                            DeskSceneComposition   & out,
-                                           const DeskSceneView    & view)
+                                           const DeskSceneView    & view,
+                                           float                    slideProgress)
 {
     HRESULT  hr            = S_OK;
+    bool     sliding       = slideProgress >= 0.0f;
+    float    slideDropMm   = 0.0f;
+    float    stackMin[3]   = {};
+    float    stackMax[3]   = {};
+    float    spareMin[3]   = {};
+    float    spareMax[3]   = {};
     int      viewportW     = viewportPx.right - viewportPx.left;
     int      viewportH     = viewportPx.bottom - viewportPx.top;
     float    aspect        = 0.0f;
@@ -273,9 +358,12 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // a near miss you have to trust rather than a gap you can see. Lifting by
     // the rise plus a margin buys back the gap in the axis the motion is
     // actually in.
-    monitorLiftMm = (driveCount > 0) ? (metrics.driveMax[2] - metrics.driveMin[2]) : 0.0f;
+    //
+    // Sliding, the monitor stays on the desk and the drives are in front of
+    // it, so there is no stack to lift it onto.
+    monitorLiftMm = (driveCount > 0 && !sliding) ? (metrics.driveMax[2] - metrics.driveMin[2]) : 0.0f;
 
-    if (driveCount > 0 && metrics.driveDoorRiseMm > 0.0f)
+    if (driveCount > 0 && !sliding && metrics.driveDoorRiseMm > 0.0f)
     {
         monitorLiftMm += metrics.driveDoorRiseMm + kDoorRiseMarginMm;
     }
@@ -317,7 +405,12 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // coplanarity is worth a door that opens through the thing above it.
     forwardMm += metrics.driveDoorClearMm;
 
-    (void) dropMm;
+    // Sliding, the drives' backs are dropMm in front of the monitor's
+    // frontmost point, on the desk.
+    if (sliding)
+    {
+        forwardMm = -metrics.monitorMin[1] + dropMm + metrics.driveMax[1];
+    }
 
     for (int i = 0; i < driveCount; i++)
     {
@@ -362,6 +455,11 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
         sceneMax[2] = deviceMax[2] + monPadDepth;
     }
 
+    // Sliding, the drives and the recorder are excluded from the framing: their
+    // bounds go to a separate stack, which only places the recorder.
+    memcpy (stackMin, deviceMin, sizeof (stackMin));
+    memcpy (stackMax, deviceMax, sizeof (stackMax));
+
     for (int i = 0; i < driveCount; i++)
     {
         float   dlo[3] = { metrics.driveMin[0] - driveCx + driveTx[i],
@@ -376,16 +474,30 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
 
         for (int axis = 0; axis < 3; axis++)
         {
-            deviceMin[axis] = std::min (deviceMin[axis], dlo[axis]);
-            deviceMax[axis] = std::max (deviceMax[axis], dhi[axis]);
-            sceneMin[axis]  = std::min (sceneMin[axis],  lo[axis]);
-            sceneMax[axis]  = std::max (sceneMax[axis],  hi[axis]);
+            stackMin[axis] = std::min (stackMin[axis], dlo[axis]);
+            stackMax[axis] = std::max (stackMax[axis], dhi[axis]);
+
+            if (!sliding)
+            {
+                deviceMin[axis] = std::min (deviceMin[axis], dlo[axis]);
+                deviceMax[axis] = std::max (deviceMax[axis], dhi[axis]);
+                sceneMin[axis]  = std::min (sceneMin[axis],  lo[axis]);
+                sceneMax[axis]  = std::max (sceneMax[axis],  hi[axis]);
+            }
         }
     }
 
     // The cassette recorder joins both bounds, so the camera fit contains it
     // and its shadow exactly as it does the stack.
-    if (metrics.hasRecorder)
+    if (metrics.hasRecorder && sliding)
+    {
+        memcpy (spareMin, sceneMin, sizeof (spareMin));
+        memcpy (spareMax, sceneMax, sizeof (spareMax));
+
+        PlaceRecorder (metrics, forwardMm - metrics.driveFrontY, stackMin, stackMax,
+                       spareMin, spareMax, out);
+    }
+    else if (metrics.hasRecorder)
     {
         PlaceRecorder (metrics, forwardMm - metrics.driveFrontY, deviceMin, deviceMax,
                        sceneMin, sceneMax, out);
@@ -508,6 +620,63 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
             else
             {
                 break;
+            }
+        }
+
+        // Sliding: find how far the devices have to be lowered to sit wholly
+        // under the frame, then raise them by `slideProgress` of that. At 0
+        // they are left out, so nothing is drawn or hit-tested below the
+        // frame. Done here, against the unrotated view, so the orbit below
+        // turns them with the monitor.
+        if (sliding)
+        {
+            constexpr int    kSearchSteps = 24;
+            float            lo           = 0.0f;
+            float            hi           = kMaxSlideDropMm;
+
+
+
+            for (int step = 0; step < kSearchSteps; step++)
+            {
+                float  mid   = (lo + hi) * 0.5f;
+                bool   below = true;
+
+
+
+                for (int i = 0; i < driveCount && below; i++)
+                {
+                    below = IsBoxBelowFrame (out.view, tanHalfY, out.driveWorld[i], metrics.driveMin, metrics.driveMax, mid);
+                }
+
+                if (below && out.hasRecorder != 0)
+                {
+                    below = IsBoxBelowFrame (out.view, tanHalfY, out.recorderWorld, metrics.recorderMin, metrics.recorderMax, mid);
+                }
+
+                if (below)
+                {
+                    hi = mid;
+                }
+                else
+                {
+                    lo = mid;
+                }
+            }
+
+            slideDropMm = hi * (1.0f - slideProgress);
+
+            for (int i = 0; i < driveCount; i++)
+            {
+                out.driveWorld[i][13] -= slideDropMm;
+            }
+
+            out.recorderWorld[13] -= slideDropMm;
+
+            if (slideProgress <= 0.0f)
+            {
+                driveCount      = 0;
+                out.driveCount  = 0;
+                out.hasRecorder = 0;
             }
         }
 

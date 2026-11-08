@@ -193,6 +193,18 @@ public:
                              int                      reservedGapPx = 0,
                              const DeskSceneView    & view = DeskSceneView {});
 
+    // Auto-hide on the desk: the camera and framing of the monitor alone,
+    // with the drives and the recorder on the desk in front of it at true
+    // scale. At a `slideProgress` of 0 they are omitted, at 1 they are on the
+    // desk, and in between they rise from just below the frame.
+    static HRESULT  ComputeSliding (const RECT             & viewportPx,
+                                    UINT                     dpi,
+                                    int                      driveCount,
+                                    const DeskSceneMetrics & metrics,
+                                    float                    slideProgress,
+                                    DeskSceneComposition   & out,
+                                    const DeskSceneView    & view = DeskSceneView {});
+
     // Magnify and shift a projection in CLIP SPACE, which is what lets the
     // user's framing ride on top of the fitted composition without disturbing
     // it. Applied before the bounds are projected, so glassRectPx and the
@@ -297,6 +309,11 @@ public:
     // Air over a risen door, on top of the rise itself. Enough that the gap
     // reads as a gap rather than as two parts just failing to touch.
     static constexpr float  kDoorRiseMarginMm      =  6.0f;
+
+    // The furthest the sliding devices are lowered to put them below the
+    // frame, and the slide progress that marks an ordinary, unsliding solve.
+    static constexpr float  kMaxSlideDropMm        = 4000.0f;
+    static constexpr float  kNoSlide               = -1.0f;
     static constexpr float  kContainMargin         = 1.005f;
 
     // Field of view is SOLVED rather than fixed, because the eye position is
@@ -421,12 +438,23 @@ private:
                                      RECT         & outPx);
 
     // One full composition solve at a specific drive drop; Compute wraps it
-    // with the gap-reserving correction.
+    // with the gap-reserving correction. A `slideProgress` of 0 or more
+    // selects the auto-hide arrangement documented at ComputeSliding.
     static HRESULT  SolveComposition (const RECT             & viewportPx,
                                       UINT                     dpi,
                                       int                      driveCount,
                                       const DeskSceneMetrics & metrics,
                                       float                    dropMm,
                                       DeskSceneComposition   & out,
-                                      const DeskSceneView    & view = DeskSceneView {});
+                                      const DeskSceneView    & view          = DeskSceneView {},
+                                      float                    slideProgress = kNoSlide);
+
+    // Whether a model box, lowered by `dropMm`, is entirely below the bottom
+    // of a view whose vertical half-tangent is `tanHalfY`.
+    static bool     IsBoxBelowFrame  (const float              view[16],
+                                      float                    tanHalfY,
+                                      const float              world[16],
+                                      const float              boxMin[3],
+                                      const float              boxMax[3],
+                                      float                    dropMm);
 };
