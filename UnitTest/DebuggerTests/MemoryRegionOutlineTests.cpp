@@ -105,13 +105,15 @@ namespace DebuggerTests
 
 
 
+            cards[1] = "Parallel printer";
             cards[2] = "Super Serial Card";
 
-            Assert::AreEqual (std::wstring (L"Super Serial Card in slot 2"), MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC200), cards));
-            Assert::AreEqual (std::wstring (L"Super Serial Card in slot 2"), MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0AF), cards));
+            Assert::AreEqual (std::wstring (L"Slot 2: Super Serial Card"),   MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC200), cards));
+            Assert::AreEqual (std::wstring (L"Slot 2: Super Serial Card"),   MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0AF), cards));
+            Assert::AreEqual (std::wstring (L"Slot 1: parallel printer"),    MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC100), cards), L"a common noun in sentence case");
             Assert::AreEqual (std::wstring (L"Slot 4 ROM"),                  MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC400), cards));
             Assert::AreEqual (std::wstring (L"Slot 4 I/O"),                  MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0C0), cards));
-            Assert::AreEqual (std::wstring (L"Language card"),               MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC080), cards));
+            Assert::AreEqual (std::wstring (L"Slot 0: language card"),       MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC080), cards));
             Assert::AreEqual (std::wstring (L"I/O"),                         MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC07F), cards));
             Assert::IsTrue   (MemoryRegionKeys::IsIo  (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0AF)), L"a slot's I/O is drawn as I/O");
             Assert::IsTrue   (MemoryRegionKeys::IsRom (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC200)), L"a slot's page as ROM");

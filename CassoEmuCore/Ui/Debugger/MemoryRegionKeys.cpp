@@ -53,8 +53,9 @@ uint16_t MemoryRegionKeys::GetKey (MemoryRegion region, Word address)
 //
 //  MemoryRegionKeys::GetLabel
 //
-//  A slot's ranges by the card in it, "Super Serial Card in slot 2"; an
-//  empty slot's by its number. Slot 0's I/O is the language card's.
+//  A slot's ranges by the card in it, "Slot 2: Super Serial Card", and an
+//  empty slot's ROM page or I/O by the slot alone. Slot 0's I/O is the
+//  language card's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +70,7 @@ std::wstring MemoryRegionKeys::GetLabel (uint16_t key, const SlotCards & cards)
         slot = key - kRegionSlotRom;
 
         return cards[(size_t) slot].empty() ? std::format (L"Slot {} ROM", slot)
-                                            : std::format (L"{} in slot {}", TextEncoding::NarrowToWide (cards[(size_t) slot]), slot);
+                                            : std::format (L"Slot {}: {}", slot, GetCardText (cards[(size_t) slot]));
     }
 
     if (key >= kRegionSlotIo && key < kRegionSlotIo + kSlotCount)
@@ -78,11 +79,11 @@ std::wstring MemoryRegionKeys::GetLabel (uint16_t key, const SlotCards & cards)
 
         if (slot == 0)
         {
-            return L"Language card";
+            return L"Slot 0: language card";
         }
 
         return cards[(size_t) slot].empty() ? std::format (L"Slot {} I/O", slot)
-                                            : std::format (L"{} in slot {}", TextEncoding::NarrowToWide (cards[(size_t) slot]), slot);
+                                            : std::format (L"Slot {}: {}", slot, GetCardText (cards[(size_t) slot]));
     }
 
     switch (key)
@@ -97,6 +98,36 @@ std::wstring MemoryRegionKeys::GetLabel (uint16_t key, const SlotCards & cards)
     }
 
     return {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryRegionKeys::GetCardText
+//
+//  A card's display name after a label's colon, in sentence case: a common
+//  noun is lowercased ("Parallel printer" is "parallel printer"), and a
+//  name whose second word is capitalized ("Super Serial Card", "Mockingboard
+//  C") is left as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring MemoryRegionKeys::GetCardText (const std::string & card)
+{
+    std::wstring  text  = TextEncoding::NarrowToWide (card);
+    size_t        space = text.find (L' ');
+
+
+
+    if (space != std::wstring::npos && space + 1 < text.size() && iswlower (text[space + 1]) && iswupper (text[0]))
+    {
+        text[0] = (wchar_t) towlower (text[0]);
+    }
+
+    return text;
 }
 
 

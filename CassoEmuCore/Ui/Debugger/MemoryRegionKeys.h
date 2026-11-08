@@ -51,6 +51,7 @@ public:
 
     static uint16_t      GetKey       (MemoryRegion region, Word address);
     static std::wstring  GetLabel     (uint16_t key, const SlotCards & cards);
+    static std::wstring  GetCardText  (const std::string & card);
     static uint32_t      GetColor     (uint16_t key, const Colors & colors);
 
     //  ROM's and I/O's from the bytes' colors, the rest from the memory map's.

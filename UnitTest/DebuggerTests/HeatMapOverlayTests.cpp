@@ -564,7 +564,7 @@ namespace DebuggerTests
 
             Assert::IsTrue   (HasText (text, L"KBD"),                          L"the symbol's name in its cell");
             Assert::IsTrue   (HasText (text, L"I/O"),                          L"the I/O range's label");
-            Assert::IsTrue   (HasText (text, L"Super Serial Card in slot 2"),  L"slot 2's range by its card");
+            Assert::IsTrue   (HasText (text, L"Slot 2: Super Serial Card"),    L"slot 2's range by its card");
             Assert::AreEqual (DebuggerTextColors::GetReadable (colors.io, view.GetCellColor (0x0000) | 0xFF000000u), findInk (L"C1"), L"an I/O value in I/O's color");
             Assert::IsTrue   (std::ranges::any_of (text.Calls(), [stroke] (const RecordedTextCall & call) { return call.kind == RecordedTextKind::FillRect && call.argb == stroke; }),
                               L"the range outlined in its color");
