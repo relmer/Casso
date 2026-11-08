@@ -336,6 +336,20 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
         }
     });
 
+    group->SetOnTitlePress ([this, group] (int index)
+    {
+        std::wstring  pane = GetPaneOf (group->GetContent (index));
+
+
+
+        SetFocusedPane (pane);
+
+        if (m_onFocusRequested)
+        {
+            m_onFocusRequested (pane);
+        }
+    });
+
     group->SetOnDragStart ([this, group] (int index, POINT pointDip)
     {
         std::wstring  pane = GetPaneOf (group->GetContent (index));

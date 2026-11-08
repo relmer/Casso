@@ -132,6 +132,10 @@ public:
     void  SetActive    (int index);
 
     void  SetOnActivated   (ActivatedFn fn)   { m_onActivated   = std::move (fn); }
+
+    //  A press on the title bar, away from its buttons, with the active tab:
+    //  the pane is focused, as a press in it would focus it.
+    void  SetOnTitlePress  (ActivatedFn fn)   { m_onTitlePress  = std::move (fn); }
     void  SetOnDragStart   (DragFn fn)        { m_onDragStart   = std::move (fn); }
 
     //  A tab dragged along the strip to another place in the group; set, the
@@ -258,6 +262,7 @@ private:
     DxuiDpiScaler        m_scaler;
     DxuiTabStrip         m_strip;
     ActivatedFn          m_onActivated;
+    ActivatedFn          m_onTitlePress;
     DragFn               m_onDragStart;
     MoveFn               m_onMove;
     DragFn               m_onTitleDrag;

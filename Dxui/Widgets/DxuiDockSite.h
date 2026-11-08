@@ -136,9 +136,10 @@ public:
     //  slid-out pane slides back once another pane takes the focus.
     void  SetFocusedPane  (const std::wstring & pane);
 
-    //  A pane docked back from an edge is focused as a press on its tab
-    //  focuses it: its group is drawn with the focus outline at once, and
-    //  `fn` is called to move the keyboard focus to the pane.
+    //  A pane docked back from an edge, or one whose title bar is pressed,
+    //  is focused as a press on its tab focuses it: its group is drawn with
+    //  the focus outline at once, and `fn` is called to move the keyboard
+    //  focus to the pane.
     void  SetOnFocusRequested (PaneFn fn) { m_onFocusRequested = std::move (fn); }
 
     //  The room between docked panes and around them, as Visual Studio leaves
