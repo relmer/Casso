@@ -6,19 +6,19 @@
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
-#include "EmuTests/FakeDiskFileIo.h"
-#include "CassoLink/CassoLinkSession.h"
+#include "CassoLink/SteppedByteStream.h"
+#include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/LinkAudioBootstrap.h"
+#include "CassoLink/LinkBootstrap.h"
+#include "CassoLink/LinkFault.h"
 #include "CassoLink/LinkProgram.h"
+#include "CassoLink/Session/CassoLinkConnector.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Tape/ITapeAudioDecoder.h"
 #include "Devices/Tape/TapeImageLoader.h"
-#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/SectorDecodeReport.h"
-#include "Machines/Apple2/Common/VolumeImage.h"
-#include "Seams/IByteStreamFactory.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Seams/InProcessByteStream.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -31,19 +31,19 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  CassoLinkSuperSerialScenarioTests
 //
-//  The link on a //e with a Super Serial Card, over the in-process bridge to
-//  the card's 6551. One case boots the link disk with the
-//  card in slot 5, and copies files both ways and reads the whole disk. The
-//  other starts from the BASIC prompt with IN#2 and Ctrl-A 14B typed for
-//  the card's firmware, and is bootstrapped over the card.
+//  The link on a //e with a Super Serial Card in slot 5, over the in-process
+//  bridge to the card's 6551: the link disk, the universal disk, the typed
+//  bootstrap through the card's firmware, the screen holes after Escape, and
+//  the cassette bootstrap with and without a flipped byte. The host runs on
+//  the test's thread through a SteppedByteStream, and the bootstrap is typed
+//  at the session's pace in the machine's cycles, so nothing waits on the
+//  PC's clock.
 //
-//  A third case starts with no firmware involved: the monitor reads the shim
-//  from the cassette input as audio, and the shim then
-//  talks to the card's 6551 directly.
-//
-//  The typed bootstrap case requires Apple's firmware for the card, at
+//  These are scenario tests because all but the link disk run Apple's
+//  firmware for the card, from
 //  %LOCALAPPDATA%\Casso\Devices\SuperSerialCard\SSC.rom, which is not
-//  committed; it fails without it, as the card's other guest-visible cases do.
+//  committed; they fail without it, as the card's other guest-visible cases
+//  do.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,74 +51,31 @@ TEST_CLASS (CassoLinkSuperSerialScenarioTests)
 {
 public:
 
-    static constexpr uint64_t  kFrame  = 17030;
-    static constexpr uint64_t  kBudget = 6'000'000'000;
+    static constexpr uint64_t  kClockHz       = 1'020'484;
+    static constexpr uint64_t  kStepCycles    = 17'030;
+    static constexpr uint64_t  kBootCycles    = 20'000'000;
+    static constexpr uint64_t  kCharCycles    = (uint64_t) LinkBootstrap::kCharPauseUs * kClockHz / 1'000'000;
+    static constexpr uint64_t  kLineCycles    = (uint64_t) LinkBootstrap::kLinePauseMs * kClockHz / 1'000;
+    static constexpr uint64_t  kLoaderWait    = (uint64_t) LinkBootstrap::kLoaderReadyWaitMs * kClockHz / 1'000;
+    static constexpr DWORD     kBootstrapBaud = 9600;
+    static constexpr int       kSlot          = 5;
+    static constexpr Byte      kTrack         = 17;
+    static constexpr int       kTracks        = 35;
 
     //  Communications mode at 9,600 baud, and the second bank as it ships.
     static constexpr const char *  kCommunicationsSw1 = "off off off on on on on";
     static constexpr const char *  kShippedSw2        = "on on off on off off off";
 
-    struct Factory : IByteStreamFactory
-    {
-        std::shared_ptr<InProcessByteStream>  pcEnd;
-
-        struct Handle : IByteStream
-        {
-            std::shared_ptr<InProcessByteStream>  end;
-
-            explicit Handle (std::shared_ptr<InProcessByteStream> e) : end (std::move (e)) {}
-
-            HRESULT  Write            (const Byte * data, size_t count) override                                   { return end->Write (data, count); }
-            HRESULT  Read             (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override { return end->Read (buffer, capacity, timeoutMs, outRead); }
-            size_t   GetReadableCount() override                                                                  { return end->GetReadableCount(); }
-            bool     IsClosed() const override                                                                    { return end->IsClosed(); }
-            void     Close() override                                                                             { }
-        };
-
-        HRESULT  ListComPorts (std::vector<std::wstring> & outPorts) override                                      { outPorts.clear(); return S_OK; }
-        HRESULT  OpenComPort  (const std::wstring &, const ComSettings &, std::unique_ptr<IByteStream> &) override { return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND); }
-        HRESULT  ListenTcp    (uint16_t, LinkTransport, std::unique_ptr<IByteStream> &) override                  { return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED); }
-
-        HRESULT  ConnectTcp (const std::string &, uint16_t, std::unique_ptr<IByteStream> & outStream) override
-        {
-            outStream = std::make_unique<Handle> (pcEnd);
-            return S_OK;
-        }
-    };
-
-    struct Sink : ICassoLinkSessionSink
-    {
-        std::mutex                                    lock;
-        std::vector<std::shared_ptr<LinkOperation>>   done;
-
-        void  OnStateChanged (LinkState) override {}
-        void  OnProgress     (const std::shared_ptr<LinkOperation> &) override {}
-
-        void  OnDone (const std::shared_ptr<LinkOperation> & operation) override
-        {
-            std::lock_guard<std::mutex>  guard (lock);
-
-            done.push_back (operation);
-        }
-
-        bool  IsDone (const std::shared_ptr<LinkOperation> & operation)
-        {
-            std::lock_guard<std::mutex>  guard (lock);
-
-            return std::find (done.begin(), done.end(), operation) != done.end();
-        }
-    };
-
-    //  The card turned on in the given slot, with nothing on its connector:
-    //  the test's bridge is attached once the machine is built. With
-    //  firmware, Apple's, and the switches for IN# and Ctrl-A commands.
-    static void  ConfigureCard (MachineConfig & config, int slotNumber, bool firmware)
+    //  The card turned on in slot 5, with nothing on its connector: the
+    //  test's bridge is attached once the machine is built. With firmware,
+    //  Apple's, and the switches for IN# and Ctrl-A commands.
+    static void  ConfigureCard (MachineConfig & config, bool firmware)
     {
         for (SlotConfig & slot : config.slots)
         {
             if (slot.device == kpszSuperSerialCardDevice)
             {
-                slot.slot    = slotNumber;
+                slot.slot    = kSlot;
                 slot.enabled = true;
                 slot.ports.clear();
 
@@ -140,6 +97,8 @@ public:
         std::filesystem::path  path;
         std::error_code        ec;
 
+
+
         if (_dupenv_s (&root, &len, "LOCALAPPDATA") == 0 && root != nullptr)
         {
             path = std::filesystem::path (root) / "Casso" / "Devices" / "SuperSerialCard" / "SSC.rom";
@@ -154,59 +113,168 @@ public:
         return path;
     }
 
-    static void  Type (TestMachine & machine, const char * text)
+    //  A //e with the card, drive 2's DOS 3.3 fixture, the PC on the card,
+    //  and the host on the test's thread.
+    struct Rig
     {
-        for (size_t i = 0; text[i] != '\0'; i++)
+        TestMachine                           machine;
+        std::shared_ptr<InProcessByteStream>  machineEnd;
+        std::shared_ptr<InProcessByteStream>  pcEnd;
+        std::shared_ptr<SteppedByteStream>    stream;
+        InMemoryCassoLinkFolder               folder;
+        std::unique_ptr<CassoLinkHost>        host;
+        std::vector<Byte>                     disk;
+
+        explicit Rig (bool firmware)
+            : machine ("Apple2e", [firmware] (MachineConfig & config) { ConfigureCard (config, firmware); })
         {
-            machine.GetRefs().iieKeyboard->PressKey ((Byte) text[i]);
-            machine.RunCycles (100'000ULL);
+            FixtureProvider       fixtures;
+            std::vector<uint8_t>  bytes;
+
+
+
+            AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
+            disk.assign (bytes.begin(), bytes.end());
+
+            machine.SetVideoTiming (std::make_unique<VideoTiming>());
+            machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
+
+            InProcessByteStream::CreatePair (machineEnd, pcEnd);
+            AssertSucceeded (machine.AttachSerialStream (kSlot, machineEnd));
+
+            stream = std::make_shared<SteppedByteStream> (machine, pcEnd);
+            host   = std::make_unique<CassoLinkHost> (stream, folder, [] () { return std::array<Byte, 4> {}; });
         }
-    }
 
-    static std::shared_ptr<LinkOperation>  Finish (TestMachine & machine, Sink & sink, std::shared_ptr<LinkOperation> operation)
-    {
-        uint64_t  spent = 0;
-
-        while (!sink.IsDone (operation) && spent < kBudget)
+        void  MountDisk()
         {
-            machine.RunCycles (kFrame);
-            spent += kFrame;
+            AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
         }
 
-        Assert::IsTrue (sink.IsDone (operation), L"the operation finishes");
-        return operation;
-    }
+        //  At the BASIC prompt, as the user finds it.
+        void  StartAtThePrompt()
+        {
+            machine.PowerCycle();
+            machine.RunCycles (2 * kClockHz);
+            machine.GetCpu()->SetPC (0xE000);
+            machine.RunCycles (2 * kClockHz);
+        }
 
-    //  Drive 2's disk, as DOS-logical sectors.
-    static std::vector<Byte>  Sectors (TestMachine & machine)
-    {
-        std::vector<Byte>   file;
-        std::vector<Byte>   sectors;
-        SectorDecodeReport  report;
+        void  Type (const char * text)
+        {
+            for (size_t i = 0; text[i] != '\0'; i++)
+            {
+                machine.GetRefs().iieKeyboard->PressKey ((Byte) text[i]);
+                machine.RunCycles (100'000ULL);
+            }
+        }
 
-        AssertSucceeded (machine.GetDiskStore().GetImage (6, 1)->Serialize (file));
-        AssertSucceeded (VolumeImage::Load (file, "d.dsk", sectors, report));
-        return sectors;
-    }
+        //  The loader typed through the card at the session's pace, its $A5,
+        //  and the shim sent to it.
+        void  Bootstrap()
+        {
+            std::vector<std::string>  lines;
+            std::vector<Byte>         transfer;
+            Byte                      got[64] = {};
+            size_t                    read    = 0;
+            uint64_t                  spent   = 0;
+            bool                      ready   = false;
+
+
+
+            AssertSucceeded (LinkBootstrap::BuildLines (lines));
+
+            for (const std::string & line : lines)
+            {
+                for (char c : line)
+                {
+                    AssertSucceeded (pcEnd->Write (reinterpret_cast<const Byte *> (&c), 1));
+                    machine.RunCycles (kCharCycles);
+                }
+
+                machine.RunCycles (kLineCycles);
+            }
+
+            while (!ready && spent <= kLoaderWait)
+            {
+                AssertSucceeded (pcEnd->Read (got, sizeof (got), 0, read));
+                ready = std::find (got, got + read, LinkBootstrap::kLoaderReady) != got + read;
+
+                machine.RunCycles (kStepCycles);
+                spent += kStepCycles;
+            }
+
+            Assert::IsTrue (ready, L"the loader's $A5, within the session's wait");
+
+            AssertSucceeded (LinkBootstrap::BuildShimTransfer (kBootstrapBaud, transfer));
+            AssertSucceeded (pcEnd->Write (transfer.data(), transfer.size()));
+        }
+
+        std::vector<Byte>  ReadTrack (Byte track)
+        {
+            std::vector<Byte>  sectors (16);
+            std::vector<Byte>  data;
+            CassoLinkStatus    status;
+
+
+
+            for (size_t i = 0; i < sectors.size(); i++)
+            {
+                sectors[i] = (Byte) i;
+            }
+
+            AssertSucceeded (host->ReadSectors (2, track, sectors, data, status));
+            Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, std::format (L"track {}", track).c_str());
+            return data;
+        }
+
+        //  A track's 16 physical sectors from drive 2's image, in order.
+        std::vector<Byte>  ImageTrack (Byte track)
+        {
+            std::vector<Byte>  data;
+
+
+
+            for (int p = 0; p < 16; p++)
+            {
+                size_t  offset = (size_t) (track * 16 + NibblizationLayer::GetDosFileIndexForPhysicalSector (p)) * 256;
+
+                data.insert (data.end(), disk.begin() + (ptrdiff_t) offset, disk.begin() + (ptrdiff_t) offset + 256);
+            }
+
+            return data;
+        }
+
+        std::vector<std::string>  Screen()
+        {
+            return TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
+        }
+    };
 
     //  Every slot's screen holes in main memory, slot by slot: slot n's are
     //  $478 + n, $4F8 + n, and so on to $7F8 + n.
-    static void  ReadScreenHoles (TestMachine & machine, std::vector<Byte> & outHoles)
+    static std::vector<Byte>  ReadScreenHoles (TestMachine & machine)
     {
-        outHoles.clear();
+        std::vector<Byte>  holes;
+
+
 
         for (Word slot = 0; slot < 8; slot++)
         {
             for (Word at = 0x0478 + slot; at < 0x0800; at += 0x80)
             {
-                outHoles.push_back (machine.GetMemoryBus().ReadByte (at));
+                holes.push_back (machine.GetMemoryBus().ReadByte (at));
             }
         }
+
+        return holes;
     }
 
     static std::string  JoinRows (const std::vector<std::string> & rows)
     {
         std::string  text;
+
+
 
         for (const std::string & row : rows)
         {
@@ -216,223 +284,132 @@ public:
         return text;
     }
 
-    static std::vector<Byte>  LoadDos33()
+    //  The bootstrap's audio fed to the cassette input, with the
+    //  monitor's read command typed first when `typeCommand` is true.
+    static void  PlayCassette (Rig & rig, bool typeCommand)
     {
-        FixtureProvider       fixtures;
-        std::vector<uint8_t>  bytes;
+        std::vector<Byte>     wav;
+        std::string           command;
+        LinkShimOptions       options;
+        NullTapeAudioDecoder  mp3;
+        TapeImage             image;
+        std::string           error;
+        double                seconds = 0.0;
 
-        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
-        return std::vector<Byte> (bytes.begin(), bytes.end());
-    }
 
 
+        AssertSucceeded (LinkAudioBootstrap::BuildWav (options, wav, command));
+        Assert::AreEqual (std::string ("3AA0.3E7AR 3AA0G\r"), command, L"the slot finder ahead of the shim");
+        Assert::AreEqual (S_OK, TapeImageLoader::Load (wav, "bootstrap.wav", false, mp3, image, error), TextEncoding::NarrowToWide (error).c_str());
 
+        seconds = (double) image.signal.lengthSamples / image.signal.sampleRate;
 
-    TEST_METHOD (TheLinkBootDisk_OverACardInSlot5_CopiesFilesBothWays_AndReadsTheDisk)
-    {
-        TestMachine                           machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 5, false); });
-        std::shared_ptr<InProcessByteStream>  machineEnd;
-        Factory                               factory;
-        InMemoryCassoLinkFolder               folder;
-        FakeDiskFileIo                        fileIo;
-        Sink                                  sink;
-        std::vector<Byte>                     boot;
-        std::vector<Byte>                     disk    = LoadDos33();
-        LinkShimOptions                       options;
-        CassoLinkSettings                     settings;
-        std::vector<std::string>              screen;
-        VolumeListing                         expected;
-        FilePayload                           file;
-        FilePayload                           payload;
-        std::vector<Byte>                     written;
-        std::vector<Byte>                     sectors;
-        SectorDecodeReport                    report;
-
-        options.slot = 5;
-        AssertSucceeded (LinkProgram::BuildBootDisk (options, boot));
-
-        machine.SetVideoTiming (std::make_unique<VideoTiming>());
-        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
-
-        GuestSession::Mount (machine, boot);
-        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
-
-        InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
-        Assert::AreEqual (S_OK, machine.AttachSerialStream (5, machineEnd));
-
-        machine.RunCycles (20'000'000ULL);
-
-        screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
-        Assert::IsTrue (screen[2].starts_with ("WAITING FOR THE PC ON:"), TextEncoding::NarrowToWide (screen[0] + " | " + screen[2]).c_str());
-        Assert::IsTrue (screen[4].starts_with ("SSC, SLOT 5, 115200"), TextEncoding::NarrowToWide (screen[4]).c_str());
-
-        settings.name      = "//e";
-        settings.transport = LinkTransport::Emulated;
-        settings.address   = "127.0.0.1:6505";
-
-        AssertSucceeded (Dos33Volume (disk).Enumerate (expected));
-        Assert::IsFalse (expected.entries.empty());
-        AssertSucceeded (Dos33Volume (disk).Read (FilePath::Parse (expected.entries[0].name), file));
-
-        payload.type           = Dos33Volume::kTypeBinary;
-        payload.loadAddress    = 0x6000;
-        payload.hasLoadAddress = true;
-        payload.bytes.assign (1500, 0x5A);
-        AssertSucceeded (Dos33Volume (disk).Write (FilePath::Parse ("FROMPC"), payload, written));
-
+        if (typeCommand)
         {
-            CassoLinkSession  session (factory, folder, fileIo, sink);
-
-            settings.use40 = true;
-
-            AssertSucceeded (session.Start (settings));
-
-            auto  list = Finish (machine, sink, session.Enumerate (2, FilePath()));
-
-            AssertSucceeded (list->result);
-            Assert::AreEqual (expected.entries.size(), list->listing.entries.size(), L"drive 2's catalog over the card");
-
-            auto  read = Finish (machine, sink, session.ReadFile (2, FilePath::Parse (expected.entries[0].name)));
-
-            AssertSucceeded (read->result);
-            Assert::IsTrue (read->file.bytes == file.bytes, L"a file out over the card");
-
-            auto  write = Finish (machine, sink, session.WriteFile (2, FilePath::Parse ("FROMPC"), payload));
-
-            AssertSucceeded (write->result);
-            Assert::IsTrue (Sectors (machine) == written, L"a file in over the card");
-
-            auto  image = Finish (machine, sink, session.ReadDisk (2, "drive2.dsk", false));
-
-            AssertSucceeded (image->result);
-            AssertSucceeded (VolumeImage::Load (fileIo.files["drive2.dsk"], "drive2.dsk", sectors, report));
-            Assert::IsTrue (sectors == written, L"the whole disk over the card");
-
-            screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
-            Assert::IsTrue (screen[1].find ("SSC, SLOT 5, 115200") != std::string::npos, TextEncoding::NarrowToWide (screen[1]).c_str());
+            rig.Type (command.c_str());
         }
 
-        Assert::AreEqual<Byte> (0x50, machine.GetCpu()->ReadByte (0x0006), L"the program's 6551 is slot 5's");
+        rig.machine.GetTapeDeck().Insert (std::move (image));
+        rig.machine.GetTapeDeck().Play (*rig.machine.GetCpu()->GetBusCyclePtr());
+        rig.machine.RunCycles ((uint64_t) ((seconds + 1.0) * rig.machine.GetConfig().clockSpeed));
+        rig.machine.GetTapeDeck().Update (*rig.machine.GetCpu()->GetBusCyclePtr());
+    }
+
+    //  Faults on for the test, and off with none left armed after it.
+    struct FaultsEnabled
+    {
+        FaultsEnabled()  { LinkFaults::Enable(); }
+        ~FaultsEnabled() { LinkFaults::Disable(); }
+    };
+
+
+
+    //  The link disk for the card in slot 5, with no firmware: the shim
+    //  waits on the card, and the program reads and writes drive 2 over it.
+    TEST_METHOD (TheLinkDisk_OverACardInSlot5_ReadsAndWritesTheDisk)
+    {
+        Rig                rig (false);
+        std::vector<Byte>  boot;
+        LinkShimOptions    options;
+        const Byte         sector[] = { 0 };
+        std::vector<Byte>  pattern (256, 0x5A);
+        std::vector<Byte>  data;
+        CassoLinkStatus    status;
+
+
+
+        options.slot = kSlot;
+        AssertSucceeded (LinkProgram::BuildBootDisk (options, boot));
+
+        GuestSession::Mount (rig.machine, boot);
+        rig.MountDisk();
+        rig.machine.RunCycles (kBootCycles);
+
+        Assert::IsTrue (rig.Screen()[2].starts_with ("WAITING FOR THE PC ON:"), TextEncoding::NarrowToWide (JoinRows (rig.Screen())).c_str());
+        Assert::IsTrue (rig.Screen()[4].starts_with ("SSC, SLOT 5, 115200"), TextEncoding::NarrowToWide (rig.Screen()[4]).c_str());
+
+        for (Byte track = 0; track < kTracks; track++)
+        {
+            Assert::IsTrue (rig.ReadTrack (track) == rig.ImageTrack (track), std::format (L"track {} over the card", track).c_str());
+        }
+
+        AssertSucceeded (rig.host->WriteSectors (2, 20, sector, pattern, status));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error);
+        AssertSucceeded (rig.host->ReadSectors (2, 20, sector, data, status));
+        Assert::IsTrue (data == pattern, L"a sector written over the card reads back");
+
+        rig.machine.RunCycles (kBootCycles / 40);
+        Assert::IsTrue (rig.Screen()[1].find ("SSC, SLOT 5, 115200") != std::string::npos, TextEncoding::NarrowToWide (rig.Screen()[1]).c_str());
+        Assert::AreEqual<Byte> (0x50, rig.machine.GetCpu()->ReadByte (0x0006), L"the program's 6551 is slot 5's");
     }
 
 
 
     //  The universal disk finds the card in slot 5 by its firmware's
     //  identification bytes and links over it.
-    TEST_METHOD (TheUniversalDisk_FindsACardInSlot5_AndListsADisk)
+    TEST_METHOD (TheUniversalDisk_FindsACardInSlot5_AndReadsADisk)
     {
-        TestMachine                           machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 5, true); });
-        std::shared_ptr<InProcessByteStream>  machineEnd;
-        Factory                               factory;
-        InMemoryCassoLinkFolder               folder;
-        FakeDiskFileIo                        fileIo;
-        Sink                                  sink;
-        std::vector<Byte>                     boot;
-        std::vector<Byte>                     disk = LoadDos33();
-        LinkShimOptions                       options;
-        CassoLinkSettings                     settings;
-        std::vector<std::string>              screen;
-        VolumeListing                         expected;
+        Rig                rig (true);
+        std::vector<Byte>  boot;
+        LinkShimOptions    options;
+
+
 
         AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, boot));
 
-        machine.SetVideoTiming (std::make_unique<VideoTiming>());
-        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
+        GuestSession::Mount (rig.machine, boot);
+        rig.MountDisk();
+        rig.machine.RunCycles (kBootCycles);
 
-        GuestSession::Mount (machine, boot);
-        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
+        Assert::IsTrue (rig.Screen()[2].starts_with ("WAITING FOR THE PC ON:"), TextEncoding::NarrowToWide (JoinRows (rig.Screen())).c_str());
+        Assert::IsTrue (rig.Screen()[4].starts_with ("SSC, SLOT 5, 115200"), TextEncoding::NarrowToWide (rig.Screen()[4]).c_str());
 
-        InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
-        Assert::AreEqual (S_OK, machine.AttachSerialStream (5, machineEnd));
-
-        machine.RunCycles (20'000'000ULL);
-
-        screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
-        Assert::IsTrue (screen[2].starts_with ("WAITING FOR THE PC ON:"), TextEncoding::NarrowToWide (screen[0] + " | " + screen[2]).c_str());
-        Assert::IsTrue (screen[4].starts_with ("SSC, SLOT 5, 115200"), TextEncoding::NarrowToWide (screen[4]).c_str());
-
-        settings.name      = "//e";
-        settings.transport = LinkTransport::Emulated;
-        settings.address   = "127.0.0.1:6505";
-
-        AssertSucceeded (Dos33Volume (disk).Enumerate (expected));
-
-        {
-            CassoLinkSession  session (factory, folder, fileIo, sink);
-
-            settings.use40 = true;
-
-            AssertSucceeded (session.Start (settings));
-
-            auto  list = Finish (machine, sink, session.Enumerate (2, FilePath()));
-
-            AssertSucceeded (list->result);
-            Assert::AreEqual (expected.entries.size(), list->listing.entries.size(), L"drive 2's catalog over the card");
-        }
-
-        Assert::AreEqual<Byte> (0x50, machine.GetCpu()->ReadByte (0x0006), L"the program's 6551 is slot 5's");
+        AssertSucceeded (rig.host->PromptReady());
+        Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog over the card");
+        Assert::AreEqual<Byte> (0x50, rig.machine.GetCpu()->ReadByte (0x0006), L"the program's 6551 is slot 5's");
     }
 
 
 
     //  The card's firmware in slot 5 has the //c's IN# and Ctrl-A 14B, except
-    //  that it executes the command at the Return after it; the session then
-    //  types the loader in through the card, and the slot finder takes slot 5
-    //  from the input hook IN#5 set.
-    TEST_METHOD (ABareIIe_IsBootstrappedThroughTheCardsFirmware_AndListsADisk)
+    //  that it executes the command at the Return after it. The loader is
+    //  typed in through the card, and the slot finder takes slot 5 from the
+    //  input hook IN#5 set.
+    TEST_METHOD (ABareIIe_IsBootstrappedThroughTheCardsFirmware_AndReadsADisk)
     {
-        TestMachine                           machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 5, true); });
-        std::shared_ptr<InProcessByteStream>  machineEnd;
-        Factory                               factory;
-        InMemoryCassoLinkFolder               folder;
-        FakeDiskFileIo                        fileIo;
-        Sink                                  sink;
-        std::vector<Byte>                     disk = LoadDos33();
-        CassoLinkSettings                     settings;
-        std::shared_ptr<LinkOperation>        bootstrap;
-        std::vector<std::string>              screen;
+        Rig  rig (true);
 
-        machine.SetVideoTiming (std::make_unique<VideoTiming>());
-        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
-        machine.PowerCycle();
-        machine.RunCycles (2'000'000ULL);
 
-        //  At the BASIC prompt, as the user finds it.
-        machine.GetCpu()->SetPC (0xE000);
-        machine.RunCycles (2'000'000ULL);
 
-        InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
-        Assert::AreEqual (S_OK, machine.AttachSerialStream (5, machineEnd));
+        rig.StartAtThePrompt();
+        rig.Type ("IN#5\r");
+        rig.Type ("\x01" "14B\r");
+        rig.MountDisk();
 
-        Type (machine, "IN#5\r");
-        Type (machine, "\x01" "14B\r");
+        rig.Bootstrap();
 
-        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
-
-        settings.name      = "//e";
-        settings.transport = LinkTransport::Emulated;
-        settings.address   = "127.0.0.1:6502";
-
-        {
-            CassoLinkSession  session (factory, folder, fileIo, sink);
-
-            session.SetBootstrapPause (40);
-            settings.use40 = true;
-            AssertSucceeded (session.StartWithBootstrap (settings, bootstrap));
-
-            Finish (machine, sink, bootstrap);
-
-            screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
-            Assert::IsTrue (SUCCEEDED (bootstrap->result), TextEncoding::NarrowToWide (JoinRows (screen)).c_str());
-
-            auto  list = Finish (machine, sink, session.Enumerate (2, FilePath()));
-
-            AssertSucceeded (list->result);
-            Assert::IsFalse (list->listing.entries.empty(), L"drive 2's catalog over the bootstrapped link");
-        }
-
-        screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
-        Assert::IsTrue (screen[0].starts_with ("CASSOLINK"), L"the program's status screen");
+        Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog over the bootstrapped link");
+        Assert::IsTrue (rig.Screen()[0].starts_with ("CASSOLINK"), TextEncoding::NarrowToWide (JoinRows (rig.Screen())).c_str());
     }
 
 
@@ -444,69 +421,36 @@ public:
     //  their values before the bootstrap.
     TEST_METHOD (AfterEscape_EverySlotsScreenHoles_MatchTheirValuesBeforeTheBootstrap)
     {
-        TestMachine                           machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 5, true); });
-        std::shared_ptr<InProcessByteStream>  machineEnd;
-        Factory                               factory;
-        InMemoryCassoLinkFolder               folder;
-        FakeDiskFileIo                        fileIo;
-        Sink                                  sink;
-        std::vector<Byte>                     disk = LoadDos33();
-        CassoLinkSettings                     settings;
-        std::shared_ptr<LinkOperation>        bootstrap;
-        std::vector<Byte>                     before;
-        std::vector<Byte>                     after;
-        std::vector<std::string>              screen;
+        Rig                rig (true);
+        std::vector<Byte>  before;
+        std::vector<Byte>  after;
 
 
 
-        machine.SetVideoTiming (std::make_unique<VideoTiming>());
-        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
-        machine.PowerCycle();
-        machine.RunCycles (2'000'000ULL);
-
-        machine.GetCpu()->SetPC (0xE000);
-        machine.RunCycles (2'000'000ULL);
-
-        InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
-        Assert::AreEqual (S_OK, machine.AttachSerialStream (5, machineEnd));
-
-        Type (machine, "IN#5\r");
-        Type (machine, "\x01" "14B\r");
+        rig.StartAtThePrompt();
+        rig.Type ("IN#5\r");
+        rig.Type ("\x01" "14B\r");
 
         //  Slot 6's holes, each a different value.
         for (Word at = 0x047E; at < 0x0800; at += 0x80)
         {
-            machine.GetMemoryBus().WriteByte (at, (Byte) (0x11 + (at >> 7)));
+            rig.machine.GetMemoryBus().WriteByte (at, (Byte) (0x11 + (at >> 7)));
         }
 
-        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
+        rig.MountDisk();
 
-        ReadScreenHoles (machine, before);
+        before = ReadScreenHoles (rig.machine);
         Assert::IsTrue (std::any_of (before.begin() + 5 * 8, before.begin() + 6 * 8, [] (Byte b) { return b != 0xA0; }), L"IN#5 set the card's holes");
 
-        settings.name      = "//e";
-        settings.transport = LinkTransport::Emulated;
-        settings.address   = "127.0.0.1:6502";
-        settings.use40     = false;
+        rig.Bootstrap();
+        AssertSucceeded (rig.host->SetColumns (true));
+        rig.ReadTrack (kTrack);
 
-        {
-            CassoLinkSession  session (factory, folder, fileIo, sink);
+        rig.machine.GetRefs().iieKeyboard->PressKey (0x1B);
+        rig.machine.RunCycles (2 * kClockHz);
+        Assert::IsFalse (rig.Screen()[0].starts_with ("CASSOLINK"), L"Escape ended CassoLink");
 
-            session.SetBootstrapPause (40);
-            AssertSucceeded (session.StartWithBootstrap (settings, bootstrap));
-
-            Finish (machine, sink, bootstrap);
-            AssertSucceeded (bootstrap->result);
-            AssertSucceeded (Finish (machine, sink, session.Enumerate (2, FilePath()))->result);
-
-            machine.GetRefs().iieKeyboard->PressKey (0x1B);
-            machine.RunCycles (2'000'000ULL);
-        }
-
-        screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
-        Assert::IsFalse (screen[0].starts_with ("CASSOLINK"), L"Escape ended CassoLink");
-
-        ReadScreenHoles (machine, after);
+        after = ReadScreenHoles (rig.machine);
 
         for (size_t i = 0; i < before.size(); i++)
         {
@@ -516,70 +460,55 @@ public:
 
 
 
-    TEST_METHOD (ABareIIe_IsBootstrappedThroughTheCassetteInput_AndListsADisk)
+    //  The monitor reads the slot finder and the shim from the cassette input
+    //  as audio, and the shim then talks to the card's 6551 directly.
+    TEST_METHOD (ABareIIe_IsBootstrappedThroughTheCassetteInput_AndReadsADisk)
     {
-        TestMachine                           machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 5, true); });
-        std::shared_ptr<InProcessByteStream>  machineEnd;
-        Factory                               factory;
-        InMemoryCassoLinkFolder               folder;
-        FakeDiskFileIo                        fileIo;
-        Sink                                  sink;
-        std::vector<Byte>                     disk    = LoadDos33();
-        std::vector<Byte>                     wav;
-        std::string                           command;
-        LinkShimOptions                       options;
-        NullTapeAudioDecoder                  mp3;
-        TapeImage                             image;
-        std::string                           error;
-        CassoLinkSettings                     settings;
-        std::vector<std::string>              screen;
-        double                                seconds = 0.0;
+        Rig  rig (true);
 
-        AssertSucceeded (LinkAudioBootstrap::BuildWav (options, wav, command));
-        Assert::AreEqual (std::string ("3AA0.3E7AR 3AA0G\r"), command, L"the slot finder ahead of the shim");
-        Assert::AreEqual (S_OK, TapeImageLoader::Load (wav, "bootstrap.wav", false, mp3, image, error), TextEncoding::NarrowToWide (error).c_str());
 
-        seconds = (double) image.signal.lengthSamples / image.signal.sampleRate;
 
-        machine.SetVideoTiming (std::make_unique<VideoTiming>());
-        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
-        machine.PowerCycle();
-        machine.RunCycles (2'000'000ULL);
+        rig.StartAtThePrompt();
+        rig.MountDisk();
+        rig.Type ("CALL -151\r");
+        PlayCassette (rig, true);
 
-        //  At the BASIC prompt, as the user finds it.
-        machine.GetCpu()->SetPC (0xE000);
-        machine.RunCycles (2'000'000ULL);
+        Assert::IsTrue (rig.Screen()[4].starts_with ("SSC, SLOT 5, 115200"), TextEncoding::NarrowToWide (JoinRows (rig.Screen())).c_str());
+        Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog over the link the cassette started");
+    }
 
-        InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
-        Assert::AreEqual (S_OK, machine.AttachSerialStream (5, machineEnd));
-        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
 
-        Type (machine, "CALL -151\r");
-        Type (machine, command.c_str());
 
-        machine.GetTapeDeck().Insert (std::move (image));
-        machine.GetTapeDeck().Play (*machine.GetCpu()->GetBusCyclePtr());
-        machine.RunCycles ((uint64_t) ((seconds + 1.0) * machine.GetConfig().clockSpeed));
-        machine.GetTapeDeck().Update (*machine.GetCpu()->GetBusCyclePtr());
+    //  A byte of the cassette audio's data flipped: the monitor's checksum
+    //  fails and it reports ERR, the shim doesn't start, and the slot finder
+    //  has the monitor read the tape again. The audio sent again, with
+    //  nothing typed, starts it.
+    TEST_METHOD (ACassetteFlip_FailsTheMonitorsCheck_AndTheAudioSentAgainLoads)
+    {
+        FaultsEnabled             enabled;
+        Rig                       rig (true);
+        std::vector<std::string>  reports;
+        std::vector<LinkFault>    faults;
+        std::string               screen;
 
-        screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
-        Assert::IsTrue (screen[4].starts_with ("SSC, SLOT 5, 115200"), TextEncoding::NarrowToWide (JoinRows (screen)).c_str());
 
-        settings.name      = "//e";
-        settings.transport = LinkTransport::Emulated;
-        settings.address   = "127.0.0.1:6502";
 
-        {
-            CassoLinkSession  session (factory, folder, fileIo, sink);
+        LinkFaults::SetReporter ([&reports] (const std::string & text) { reports.push_back (text); });
+        AssertSucceeded (LinkFault::Parse ("cassette:flip@100", faults));
+        LinkFaults::Arm (faults);
 
-            settings.use40 = true;
+        rig.StartAtThePrompt();
+        rig.Type ("CALL -151\r");
+        PlayCassette (rig, true);
 
-            AssertSucceeded (session.Start (settings));
+        screen = JoinRows (rig.Screen());
+        LinkFaults::SetReporter (nullptr);
 
-            auto  list = Finish (machine, sink, session.Enumerate (2, FilePath()));
+        Assert::AreEqual ((size_t) 1, reports.size(), L"the fault was injected");
+        Assert::IsTrue (screen.find ("ERR") != std::string::npos, TextEncoding::NarrowToWide (screen).c_str());
+        Assert::IsTrue (screen.find ("SSC, SLOT 5") == std::string::npos, L"the shim didn't start");
 
-            AssertSucceeded (list->result);
-            Assert::IsFalse (list->listing.entries.empty(), L"drive 2's catalog over the link the cassette started");
-        }
+        PlayCassette (rig, false);
+        Assert::IsTrue (rig.Screen()[4].starts_with ("SSC, SLOT 5, 115200"), TextEncoding::NarrowToWide (rig.Screen()[4]).c_str());
     }
 };

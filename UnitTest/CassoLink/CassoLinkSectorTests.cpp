@@ -1,18 +1,19 @@
 #include "Pch.h"
 
-#include "EhmTestHelper.h"
+#include "../EhmTestHelper.h"
 #include "Devices/Acia6551.h"
-#include "FixtureProvider.h"
-#include "TestMachine.h"
-#include "TextScreenScraper.h"
+#include "../EmuTests/FixtureProvider.h"
+#include "../EmuTests/TestMachine.h"
+#include "../EmuTests/TextScreenScraper.h"
 #include "Core/TextEncoding.h"
-#include "CassoLink/InMemoryCassoLinkFolder.h"
+#include "InMemoryCassoLinkFolder.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/LinkProgram.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Seams/InProcessByteStream.h"
+#include "SteppedByteStream.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -42,7 +43,6 @@ TEST_CLASS (CassoLinkSectorTests)
 public:
 
     static constexpr uint64_t  kFrame       = 17030;
-    static constexpr uint64_t  kBudget      = 400'000'000;
     static constexpr Byte      kFastControl = 0x10;     // 115,200 baud
 
     struct Rig
@@ -51,6 +51,7 @@ public:
         InMemoryCassoLinkFolder               folder;
         std::shared_ptr<InProcessByteStream>  machineEnd;
         std::shared_ptr<InProcessByteStream>  hostEnd;
+        std::shared_ptr<SteppedByteStream>    stream;
         std::unique_ptr<CassoLinkHost>        host;
         std::vector<Byte>                     dos;
         std::vector<Byte>                     prodos;
@@ -80,8 +81,8 @@ public:
             InProcessByteStream::CreatePair (machineEnd, hostEnd);
             Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
 
-            host = std::make_unique<CassoLinkHost> (hostEnd, folder, [] () { return std::array<Byte, 4> {}; });
-            host->SetOperationTimeout (60000);
+            stream = std::make_shared<SteppedByteStream> (machine, hostEnd);
+            host   = std::make_unique<CassoLinkHost> (stream, folder, [] () { return std::array<Byte, 4> {}; });
 
             Assert::AreEqual (S_OK, LinkProgram::AssembleShim (shim, errors));
 
@@ -101,28 +102,30 @@ public:
             return text;
         }
 
-        //  Steps the machine while the host runs `operation`, and adds the
-        //  screen at each frame to `screens`.
+        //  The host runs `operation` on this thread; its reads run the
+        //  machine, and the screen at each step is added to `screens`.
         HRESULT  Run (std::function<HRESULT()> operation, std::function<void()> eachFrame = nullptr)
         {
-            auto  result = std::async (std::launch::async, operation);
+            uint64_t  start  = stream->GetCycles();
+            HRESULT   result = S_OK;
 
-            spent = 0;
 
-            while (result.wait_for (std::chrono::seconds (0)) != std::future_status::ready && spent < kBudget)
+
+            stream->SetStepHook ([this, eachFrame] ()
             {
-                machine.RunCycles (kFrame);
-                spent += kFrame;
                 screens.push_back (Screen());
 
                 if (eachFrame)
                 {
                     eachFrame();
                 }
-            }
+            });
 
-            Assert::IsTrue (spent < kBudget, L"the operation finishes");
-            return result.get();
+            result = operation();
+            spent  = stream->GetCycles() - start;
+
+            stream->SetStepHook (nullptr);
+            return result;
         }
 
         //  The program loaded, and the line at 115,200 baud. The program's
@@ -702,37 +705,6 @@ public:
         {
             Assert::IsTrue (read[i], std::format (L"sector {} was read", i).c_str());
             Assert::AreEqual<int> (CassoLinkCodec::ComputeCrc (std::span<const Byte> (data.data() + i * 256, 256)), crcs[i], std::format (L"sector {}", i).c_str());
-        }
-    }
-
-
-
-    TEST_METHOD (ReadSectors_CompleteAfterTheMachinePausesTenSeconds)
-    {
-        Rig                rig;
-        std::vector<Byte>  data;
-        CassoLinkStatus    status;
-        bool               paused = false;
-
-        rig.Connect();
-        rig.host->SetProgress (0, 100);
-
-        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->ReadSectors (1, 0, AllSectors(), data, status); },
-                                         [&] ()
-                                         {
-                                             if (!paused && rig.screens.back().find (" 25%") != std::string::npos)
-                                             {
-                                                 paused = true;
-                                                 std::this_thread::sleep_for (std::chrono::seconds (10));
-                                             }
-                                         }));
-
-        Assert::IsTrue (paused, L"the machine paused mid-read");
-        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error);
-
-        for (int p = 0; p < 16; p++)
-        {
-            Assert::IsTrue (SameSector (data, (size_t) p, rig.dos, DosOffset (0, p)), std::format (L"sector {}", p).c_str());
         }
     }
 };

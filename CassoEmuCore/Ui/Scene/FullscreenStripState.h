@@ -82,6 +82,11 @@ public:
     // Revealing / Hiding animations.
     float      SlideProgress (int64_t nowMs) const;
 
+    // Top of the edge-reveal zone, in pixels. The zone is one inch tall; when
+    // the free space between the content's bottom and the area's bottom is
+    // more than two inches, it is the bottom half of that space instead.
+    static LONG  GetRevealTopPx (LONG areaTopPx, LONG areaBottomPx, LONG contentBottomPx, int dpi);
+
     // Slide animation length and the pointer-leave grace before auto-hide.
     static constexpr int64_t  kSlideMs         = 180;
     static constexpr int64_t  kAutoHideGraceMs = 700;
