@@ -3595,8 +3595,8 @@ void HeatMapView::PaintRegions (IDxuiTextRenderer & text) const
 //  width of the map around its rows, at least a row label's line tall,
 //  kSectionPadDip from the cells on every side, with its label on the top edge from
 //  the left, past the corner's curve, in the header's room above the cells,
-//  over a patch of the page that breaks the line there. A section of RAM
-//  has its label alone, since a memory window doesn't outline main RAM.
+//  over a patch of the page that breaks the line there. A section of main
+//  RAM, which has no range color, is in the muted text color.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3645,7 +3645,7 @@ void HeatMapView::PaintSections (IDxuiTextRenderer & text, const IDxuiTheme & th
             continue;
         }
 
-        if (!isRam && key != 0 && color != 0)
+        if (color != 0)
         {
             for (const DxuiRoundedOutline::Segment & segment : DxuiRoundedOutline::GetSegments (points, radius))
             {

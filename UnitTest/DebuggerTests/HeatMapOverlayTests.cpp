@@ -608,6 +608,11 @@ namespace DebuggerTests
             view.ScrollBy ((int) (view.GetCellRect (0x0000).top - view.GetMapRect().top - 60));
             Paint (view, text);
             Assert::IsTrue   (HasText (text, L"Zero page"),                   L"a built-in range's section by its name");
+            first = view.GetCellRect (0x0000);
+            Assert::IsTrue   (std::ranges::any_of (text.Calls(), [first] (const RecordedTextCall & call)
+                              {
+                                  return call.kind == RecordedTextKind::DrawLine && call.y < (float) first.top && call.height < (float) first.top && call.x < (float) first.left;
+                              }), L"a section of RAM is boxed too");
             Assert::AreEqual (std::wstring (L"Text page 1"), HeatMapView::GetRamLabel (0x0400));
             Assert::AreEqual (std::wstring (L"RAM"),         HeatMapView::GetRamLabel (0x0300), L"between the built-in ranges");
 
