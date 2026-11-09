@@ -1769,7 +1769,7 @@ Session 2026-11-09. Plan's Phase 33, research R36 to R57, contracts `contracts/v
 - [X] T534 [US19] Add 800K, 5 MB, 10 MB, 20 MB and 32 MB ProDOS sizes in each FR-175 container to the New disk dialog and `casso disk create` (FR-178). Tests in `UnitTest/EmuTests/DiskCommandRunnerTests.cpp`
 - [ ] T535 [US19] Open the raw block dialogs, Properties and the 040 sector editor on `Blocks` volumes at any size, the block range taken from the layout. Done: the raw block dialogs and `blockread` and `blockwrite` take their range from the image. Open: the disk inspector reads Disk II tracks, so a block image opens in it only once it has a block view
 - [X] T536 [P] [US19] Add `IBlockStore`, `FileBlockStore` (64 KB pages read on demand, dirty pages written on `Commit`) and `MemoryBlockStore` in `CassoEmuCore/Devices/Disk/`. "A write past the end fails with `E_INVALIDARG`." Tests on `FakeDiskFileIo`
-- [ ] T537 [US19] List 2IMG and Disk Copy 4.2 headers in Properties, and register the new extensions for Casso Explorer's file associations
+- [X] T537 [US19] List 2IMG and Disk Copy 4.2 headers in the image details above the catalog, as WOZ chunks are. The file associations stay the six formats Casso opens, as the Assumptions set, until Casso mounts block images (#101, #163)
 - [ ] T538 [US19] Scenario tests in `ScenarioTests/LargeVolumeTests.cpp` on CiderPress II's 800K, 32 MB, 2IMG and Disk Copy 4.2 images: copy in and out, a new folder, and a byte-for-byte comparison with CiderPress II's output (SC-050). Add `scripts/EmuTargets/Mame.ps1` with the //c Plus target and record the ProDOS catalog in `validation.md`
 
 ## Phase 37: Files with resource forks (User Story 20)

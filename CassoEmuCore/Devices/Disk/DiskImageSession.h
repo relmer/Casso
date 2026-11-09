@@ -146,6 +146,9 @@ public:
     //  how much of the surface the track map claims.
     static std::string  DescribeWozChunks (const std::vector<Byte> & fileBytes);
 
+    //  A 2IMG or Disk Copy 4.2 image's header, listed as the WOZ chunks are.
+    static std::string  DescribeContainerHeader (const std::vector<Byte> & fileBytes);
+
     //  The heading of the keys the WOZ reference doesn't define, whose keys and
     //  values are listed exactly as the image has them.
     static constexpr const char *  kCustomHeading = "Custom";

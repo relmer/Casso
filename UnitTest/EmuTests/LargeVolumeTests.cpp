@@ -8,6 +8,7 @@
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
 #include "Devices/Disk/Containers/ImageContainer.h"
+#include "Devices/Disk/DiskImageSession.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -326,5 +327,23 @@ public:
 
         AssertSucceeded (VolumeImage::Load (file, "disk.2mg", sectors, report));
         Assert::IsTrue (sectors == volume);
+    }
+
+    TEST_METHOD (Details_ListTheTwoImgHeader)
+    {
+        TwoImgHeader  header;
+        vector<Byte>  file;
+        std::string   text;
+
+
+
+        header.comment = "From the archive";
+        TwoImgContainer::Build (header, vector<Byte> (k800KBlocks * kBlockBytes, 0), file);
+
+        text = DiskImageSession::DescribeContainerHeader (file);
+
+        Assert::IsTrue (text.find ("2IMG header") != std::string::npos);
+        Assert::IsTrue (text.find ("From the archive") != std::string::npos);
+        Assert::IsTrue (DiskImageSession::DescribeContainerHeader (vector<Byte> (kBlockBytes, 0)).empty());
     }
 };

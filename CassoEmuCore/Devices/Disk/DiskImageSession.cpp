@@ -6,6 +6,8 @@
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DurableCommit.h"
+#include "Devices/Disk/Containers/TwoImgContainer.h"
+#include "Devices/Disk/Containers/DiskCopy42Container.h"
 
 
 
@@ -476,6 +478,73 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskImageSession::DescribeContainerHeader
+//
+//  A 2IMG or Disk Copy 4.2 image's header, as label and value lines under a
+//  heading, as the WOZ chunks are listed. Empty for any other file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::DescribeContainerHeader (const std::vector<Byte> & fileBytes)
+{
+    HRESULT           hr      = S_OK;   // vestigial, for the bail
+    TwoImgHeader      twoImg;
+    DiskCopy42Header  diskCopy;
+    vector<Byte>      payload;
+    std::string       error;
+    std::string       text;
+
+
+
+    if (TwoImgContainer::IsTwoImg (fileBytes))
+    {
+        hr = TwoImgContainer::Parse (fileBytes, twoImg, payload, error);
+        CHR (hr);
+
+        text += FormatDetailHeading ("2IMG header");
+        text += FormatDetailLine ("creator", std::string (twoImg.creator.begin(), twoImg.creator.end()));
+        text += FormatDetailLine ("order",   twoImg.format == TwoImgHeader::kFormatDosOrder    ? "DOS 3.3 sectors"
+                                           : twoImg.format == TwoImgHeader::kFormatProDosOrder ? "ProDOS blocks"
+                                                                                               : "nibbles");
+        text += FormatDetailLine ("locked",  (twoImg.flags & TwoImgHeader::kFlagLocked) != 0 ? "yes" : "no");
+
+        if ((twoImg.flags & TwoImgHeader::kFlagVolumeValid) != 0)
+        {
+            text += FormatDetailLine ("volume", std::to_string (twoImg.flags & 0xFF));
+        }
+
+        if (!twoImg.comment.empty())
+        {
+            text += FormatDetailLine ("comment", twoImg.comment);
+        }
+
+        if (!twoImg.creatorData.empty())
+        {
+            text += FormatDetailLine ("creator data", std::format ("{} bytes", twoImg.creatorData.size()));
+        }
+    }
+    else if (DiskCopy42Container::IsDiskCopy42 (fileBytes))
+    {
+        hr = DiskCopy42Container::Parse (fileBytes, diskCopy, payload, error);
+        CHR (hr);
+
+        text += FormatDetailHeading ("Disk Copy 4.2 header");
+        text += FormatDetailLine ("name",     diskCopy.name);
+        text += FormatDetailLine ("size",     std::format ("{}K", diskCopy.dataSize / 1024));
+        text += FormatDetailLine ("checksum", diskCopy.isDataChecksumBad ? "doesn't match the data; the image opens read-only" : "matches");
+        text += FormatDetailLine ("tags",     std::format ("{} bytes", diskCopy.tagSize));
+    }
+
+Error:
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskImageSession::DescribeSurface
 //
 //  What the decoded sectors show, which is a different question from what the
@@ -650,7 +719,7 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
 
 std::string DiskImageSession::DescribeUnrecognizedImage (const OpenedImage & opened)
 {
-    return DescribeWozChunks (opened.fileBytes) + DescribeSurface (opened);
+    return DescribeWozChunks (opened.fileBytes) + DescribeContainerHeader (opened.fileBytes) + DescribeSurface (opened);
 }
 
 

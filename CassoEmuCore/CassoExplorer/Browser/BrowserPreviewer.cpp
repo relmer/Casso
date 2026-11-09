@@ -455,7 +455,7 @@ void BrowserPreviewer::AddWozDetails (const std::wstring & imagePath)
     //  so a catalog has only the WOZ sections.
     if (m_preview.kind == PreviewContent::Kind::Catalog)
     {
-        parsed   = PreviewDecoder::ParseDetails (DiskImageSession::DescribeWozChunks (bytes), m_preview.details);
+        parsed   = PreviewDecoder::ParseDetails (DiskImageSession::DescribeWozChunks (bytes) + DiskImageSession::DescribeContainerHeader (bytes), m_preview.details);
         analysis = std::find_if (m_preview.details.begin(), m_preview.details.end(), [] (const std::pair<std::wstring, std::wstring> & d) { return d.first == kAnalysisHeading && d.second.empty(); });
 
         m_preview.details.erase (analysis, m_preview.details.end());
