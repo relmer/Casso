@@ -904,8 +904,8 @@ void ExplorerListColumns::LoadPropertyColumns()
 
 
 
-    //  A hand-edited file may list more than the ids below the added columns
-    //  allow.
+    //  A file edited outside Casso Explorer may list more properties than the
+    //  ids below the added columns allow.
     if (names.size() > CatalogModel::kMaxPropertyColumns)
     {
         names.resize (CatalogModel::kMaxPropertyColumns);
