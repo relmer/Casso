@@ -1715,7 +1715,7 @@ Session 2026-11-08. Plan's Phase 32, research R35, contract `contracts/file-type
 - [X] T499 [P] [US18] `AppleWorksGsWp`: decode paragraphs, tabs, styles and alignment from the AppleWorks GS word processor's format, $50/$8010 (FR-158)
 - [X] T500 [P] [US18] `TeachDocument`: decode the text and its style runs, $50/$5445, with the styles FR-158 lists (FR-158)
 - [X] T501 [P] [US18] `VisiCalcSheet`: decode the saved entries by the storage chapter of the 1982 VisiCalc User's Guide, each coordinate and its contents, with formulas as entered (FR-159)
-- [ ] T502 [P] [US18] `MagicWindowDocument`: decode the text with Magic Window's formatting commands removed (FR-158)
+- [X] T502 [P] [US18] `MagicWindowDocument`: decode the text with Magic Window's formatting commands removed (FR-158)
 - [ ] T503 [US18] Add a read-only `GutenbergVolume` behind `IVolume` in `CassoEmuCore/Machines/Apple2/Common/GutenbergVolume.h/.cpp` and `VolumeKind::Gutenberg`, from CiderPress II's Gutenberg notes: the `DIR` chain from track 17, sector 7, each file's chain followed by its forward links alone, track and sector 0 read as $40, and a write failing with the read-only error a locked disk returns. Tests in `UnitTest/EmuTests/GutenbergVolumeTests.cpp`, including a damaged chain and a link into the boot tracks
 - [ ] T504 [US18] List a Gutenberg disk in the tree, catalog and Properties as the other volume kinds are, and add `GutenbergDocument`, a document ending at its first $00 with its formatting commands removed (FR-158)
 

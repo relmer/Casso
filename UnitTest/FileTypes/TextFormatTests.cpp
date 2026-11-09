@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "Core/TextEncoding.h"
 #include "FileTypes/FileFormatTable.h"
+#include "FileTypes/MagicWindowDocument.h"
 #include "FileTypes/MerlinSource.h"
 #include "FileTypes/PascalText.h"
 #include "FileTypes/RandomText.h"
@@ -17,7 +18,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PascalTextTests, RandomTextTests, MerlinSourceTests,
-//  ScAssemblerSourceTests and FileFormatTableTests
+//  ScAssemblerSourceTests, FileFormatTableTests and MagicWindowDocumentTests
 //
 //  Files built in each test, identified by the table, decoded, and for the
 //  import rows encoded back.
@@ -206,5 +207,37 @@ public:
         Assert::IsTrue (FileFormatTable::GetImportBySuffix (L"HELLO.Merlin.txt") == FileFormat::Merlin);
         Assert::IsTrue (FileFormatTable::GetImportBySuffix (L"HELLO.Random text.csv") == FileFormat::None, L"Not an import row");
         Assert::AreEqual (L".Pascal text.txt", FileFormatTable::GetSuffix (FileFormat::PascalText));
+    }
+};
+
+
+TEST_CLASS (MagicWindowDocumentTests)
+{
+public:
+
+    TEST_METHOD (Decode_SkipsTheHeaderAndDropsCommands)
+    {
+        std::vector<Byte>  bytes (256, 0);
+        FileFacts          facts;
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        bytes[0] = 0x8D;
+        bytes[2] = 0xA0;
+        bytes.insert (bytes.end(), { 0xC8, 0x89, 0xC9, 0x8D, 'l', 'o', 0x0D });
+
+        facts.volume = VolumeKind::Dos33;
+        facts.type   = 0x04;
+        facts.name   = "LETTER.MW";
+
+        Assert::IsTrue (MagicWindowDocument::Matches (facts, bytes));
+        AssertSucceeded (MagicWindowDocument::Decode (bytes, facts, DecodeOptions(), file, error));
+
+        Assert::IsTrue (file.lines == std::vector<std::wstring> { L"HI", L"lo" });
+
+        facts.name = "LETTER";
+        Assert::IsFalse (MagicWindowDocument::Matches (facts, bytes));
     }
 };

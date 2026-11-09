@@ -463,6 +463,7 @@
     <ClCompile Include="FileTypes\IigsFormats.cpp" />
     <ClCompile Include="FileTypes\OmfFile.cpp" />
     <ClCompile Include="FileTypes\VisiCalcSheet.cpp" />
+    <ClCompile Include="FileTypes\MagicWindowDocument.cpp" />
     <ClCompile Include="FileTypes\TeachDocument.cpp" />
     <ClCompile Include="FileTypes\SuperHiRes.cpp" />
     <ClCompile Include="FileTypes\HiResFormats.cpp" />
@@ -1200,6 +1201,7 @@
     <ClInclude Include="FileTypes\IigsFormats.h" />
     <ClInclude Include="FileTypes\OmfFile.h" />
     <ClInclude Include="FileTypes\VisiCalcSheet.h" />
+    <ClInclude Include="FileTypes\MagicWindowDocument.h" />
     <ClInclude Include="FileTypes\TeachDocument.h" />
     <ClInclude Include="FileTypes\SuperHiRes.h" />
     <ClInclude Include="FileTypes\HiResFormats.h" />
