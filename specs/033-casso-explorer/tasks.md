@@ -1681,7 +1681,7 @@ Session 2026-11-08. Plan's Phase 32, research R35, contract `contracts/file-type
 
 **Foundation**
 
-- [ ] T477 [US18] Fill each *notes* cell of `specs/033-casso-explorer/contracts/file-types.md` from CiderPress II's format notes and the File Type Notes they cite: S-C Assembler's and LISA's types on both file systems, Magic Window's, the Print Shop graphic's and font's, and the Apple II hi-res font's note
+- [X] T477 [US18] Fill each *notes* cell of `specs/033-casso-explorer/contracts/file-types.md` from CiderPress II's format notes and the File Type Notes they cite: S-C Assembler's and LISA's types on both file systems, Magic Window's, the Print Shop graphic's and font's, and the Apple II hi-res font's note
 - [ ] T478 [US18] Collect a fixture of each contract row in `ScenarioTests/Fixtures/FileTypes/`, saved by its program run in Casso where the owner has the program, or taken from a disk image the owner has, and list the rows with no fixture for the owner
 - [ ] T479 [US18] Add `FileFormat` and `FileFormatTable::Identify` in `CassoEmuCore/FileTypes/FileFormatTable.h/.cpp`, matching the contract's rows by volume kind, ProDOS type and aux type, DOS 3.3 type, name prefix or suffix, and size, then the row's `Check` (FR-157). Tests in `UnitTest/FileTypes/FileFormatTableTests.cpp`, one per row and one per near miss
 - [ ] T480 [P] [US18] Add `DecodedFile`, `Paragraph`, `Run` and `Grid` in `CassoEmuCore/FileTypes/DecodedFile.h` and `DecodeOptions` in `CassoEmuCore/FileTypes/DecodeOptions.h`, as `data-model.md` defines them: "a `DecodedFile` is never partial, except for the lines its `notes` list", and `charset` defaults to "MacOsRoman for a IIgs format and AppleText otherwise"
