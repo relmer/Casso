@@ -87,6 +87,10 @@ public:
     //  (FR-073).
     virtual void  InspectDiskImages (HWND hwnd, const std::vector<std::wstring> & paths, const DxuiTheme & theme) { (void) hwnd; (void) paths; (void) theme; }
 
+    //  One disk inspector window comparing image A with image B: A's window
+    //  when it is open, a new one otherwise (FR-117).
+    virtual void  CompareDiskImages (HWND hwnd, const std::wstring & pathA, const std::wstring & pathB, const DxuiTheme & theme) { (void) hwnd; (void) pathA; (void) pathB; (void) theme; }
+
     //  The theme the windows changed to, which the inspector windows follow
     //  (FR-078).
     virtual void  SetInspectorTheme (const DxuiTheme & theme) { (void) theme; }

@@ -371,6 +371,11 @@ void ExplorerInspectorHost::Load()
     m_opened.stampRecorded = SUCCEEDED (statHr);
     m_opened.fileBytes     = bytes;
 
+    if (m_firstBytes == nullptr)
+    {
+        m_firstBytes = std::make_shared<const vector<Byte>> (bytes);
+    }
+
     DiskManager::ProbeFileWritability (m_utf8Path, readOnly, noPermission);
     m_identity.fileSize   = bytes.size();
     m_identity.isReadOnly = readOnly;

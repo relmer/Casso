@@ -75,6 +75,10 @@ struct ActionsTypes
         //  The disk inspector, one window for each selected image, or for the
         //  image whose contents are listed.
         InspectDiskImage,
+
+        //  Two selected images compared in one inspector window, the focused
+        //  image as A.
+        CompareDiskImages,
     };
 
     //  What a put does with the bytes. ByContent is the rule a left-drag

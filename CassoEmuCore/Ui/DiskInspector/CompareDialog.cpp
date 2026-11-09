@@ -19,14 +19,15 @@
 class CompareBody : public DxuiPanel
 {
 public:
-    void  Init (DxuiRadioGroup & a, DxuiRadioGroup & b, DxuiLabel & titleA, DxuiLabel & titleB, DxuiLabel & error, const vector<ComparisonSource> & choices)
+    void  Init (DxuiRadioGroup & a, DxuiRadioGroup & b, DxuiLabel & titleA, DxuiLabel & titleB, DxuiLabel & error, const vector<ComparisonSource> & choices, bool isFileHost)
     {
-        m_a       = &a;
-        m_b       = &b;
-        m_titleA  = &titleA;
-        m_titleB  = &titleB;
-        m_error   = &error;
-        m_choices = &choices;
+        m_a          = &a;
+        m_b          = &b;
+        m_titleA     = &titleA;
+        m_titleB     = &titleB;
+        m_error      = &error;
+        m_choices    = &choices;
+        m_isFileHost = isFileHost;
 
         Adopt (a);
         Adopt (b);
@@ -79,7 +80,7 @@ private:
         for (const ComparisonSource & source : *m_choices)
         {
             options.push_back ({ RECT { x, y + i * rowH, x + w, y + (i + 1) * rowH - 2 },
-                                 source.kind == ComparisonSourceKind::ImageFile ? std::wstring (L"Image file...") : ComparisonText::FormatSource (source) });
+                                 source.kind == ComparisonSourceKind::ImageFile ? std::wstring (L"Image file...") : ComparisonText::FormatSource (source, m_isFileHost) });
             i++;
         }
 
@@ -88,12 +89,13 @@ private:
         group.Layout (RECT { x, y, x + w, y + i * rowH }, scaler);
     }
 
-    DxuiRadioGroup *                  m_a       = nullptr;
-    DxuiRadioGroup *                  m_b       = nullptr;
-    DxuiLabel *                       m_titleA  = nullptr;
-    DxuiLabel *                       m_titleB  = nullptr;
-    DxuiLabel *                       m_error   = nullptr;
-    const vector<ComparisonSource> *  m_choices = nullptr;
+    DxuiRadioGroup *                  m_a          = nullptr;
+    DxuiRadioGroup *                  m_b          = nullptr;
+    DxuiLabel *                       m_titleA     = nullptr;
+    DxuiLabel *                       m_titleB     = nullptr;
+    DxuiLabel *                       m_error      = nullptr;
+    const vector<ComparisonSource> *  m_choices    = nullptr;
+    bool                              m_isFileHost = false;
 };
 
 
@@ -104,7 +106,8 @@ private:
 //
 //  CompareDialog::BuildSources
 //
-//  Each drive's three sources in drive order, then an image file.
+//  Each drive's three sources in drive order, then an image file. With no
+//  drives, the window's image now and as first opened, then an image file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,6 +117,12 @@ vector<ComparisonSource> CompareDialog::BuildSources (int driveCount)
     int                       drive   = 0;
 
 
+
+    if (driveCount == 0)
+    {
+        sources.push_back ({ ComparisonSourceKind::DriveNow,   0 });
+        sources.push_back ({ ComparisonSourceKind::AsInserted, 0 });
+    }
 
     for (drive = 0; drive < driveCount; drive++)
     {
@@ -140,9 +149,10 @@ vector<ComparisonSource> CompareDialog::BuildSources (int driveCount)
 
 void CompareDialog::Configure (const IDxuiTheme * theme, int driveCount, const ComparisonSource & a, const ComparisonSource & b)
 {
-    m_theme   = theme;
-    m_choices = BuildSources (driveCount);
-    m_sources = { a, b };
+    m_theme      = theme;
+    m_choices    = BuildSources (driveCount);
+    m_sources    = { a, b };
+    m_isFileHost = driveCount == 0;
 }
 
 
@@ -184,7 +194,7 @@ void CompareDialog::OnCreate()
     m_error.SetTextAlign  (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     body = CreateDialogContent<CompareBody>();
-    body->Init (m_sideA, m_sideB, m_titleA, m_titleB, m_error, m_choices);
+    body->Init (m_sideA, m_sideB, m_titleA, m_titleB, m_error, m_choices, m_isFileHost);
 
     ok = AddDialogButton (L"Compare", IDOK);
     AddDialogButton (L"Cancel", IDCANCEL);

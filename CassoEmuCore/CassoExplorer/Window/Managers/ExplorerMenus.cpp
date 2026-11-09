@@ -125,6 +125,7 @@ const wchar_t * ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::Unlock:         return L"&Unlock";
         case CassoExplorerActions::Verb::ConvertTo:      return L"Con&vert to";
         case CassoExplorerActions::Verb::InspectDiskImage: return L"&Inspect disk image";
+        case CassoExplorerActions::Verb::CompareDiskImages: return L"Co&mpare disk images";
         default:                                   return L"";
     }
 }

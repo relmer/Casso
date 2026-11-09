@@ -191,6 +191,7 @@ public:
     void                   CheckForUpdates     (HWND hwnd) override;
     bool                   OfferMouseToUpdater (HWND hwnd, const DxuiMouseEvent & ev) override;
     void                   InspectDiskImages   (HWND hwnd, const std::vector<std::wstring> & paths, const DxuiTheme & theme) override;
+    void                   CompareDiskImages   (HWND hwnd, const std::wstring & pathA, const std::wstring & pathB, const DxuiTheme & theme) override;
     void                   SetInspectorTheme   (const DxuiTheme & theme) override;
 
     static constexpr const wchar_t *  kWindowClass   = L"CassoExplorerWindow";

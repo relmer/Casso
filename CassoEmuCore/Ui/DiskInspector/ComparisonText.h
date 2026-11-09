@@ -15,7 +15,9 @@
 //
 //  Where one side of a comparison comes from (FR-117): a drive's disk as it
 //  is now, that disk as it was inserted or last reloaded, that disk's file
-//  as saved now, or an image file.
+//  as saved now, or an image file. In a window on an image file (a host
+//  with no drives), the first two are the window's image as it is now and as
+//  the window first read it, and drive 0 is that image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,7 +73,7 @@ public:
     static std::wstring  FormatResult  (const DiskComparison & comparison);
     static std::wstring  FormatKind    (DifferenceKind kind);
     static std::wstring  FormatDetail  (const Difference & difference);
-    static std::wstring  FormatSource  (const ComparisonSource & source);
+    static std::wstring  FormatSource  (const ComparisonSource & source, bool isFileHost = false);
     static std::wstring  FormatGroup   (int group);
     static int           GetGroup      (DifferenceKind kind);
     static uint32_t      GetAllGroups  ();

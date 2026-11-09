@@ -20,7 +20,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  for each of several images, a changed file read again once its changes
 //  settle, a file the window saved itself not read again, the note for a
 //  file that is gone, a window's state saved as it closes, every window
-//  closed with the app, and the theme the windows get.
+//  closed with the app, and the theme the windows get. "Compare disk images"
+//  (FR-117): one window for the two images, and an open window of the first
+//  image used for the comparison.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,6 +40,7 @@ struct FakeInspectorWindowLog
     int                   frames       = 0;
     int                   reloads      = 0;
     int                   goneNotes    = 0;
+    vector<std::wstring>  compared;
     const DxuiTheme     * theme        = nullptr;
     IDiskInspectorHost  * host         = nullptr;
 };
@@ -57,6 +60,7 @@ public:
     HRESULT  RenderFrame() override { m_log.frames++; return S_OK; }
     void     ReloadDisk() override { m_log.reloads++; }
     void     NoteFileGone() override { m_log.goneNotes++; }
+    void     CompareWith (const std::wstring & pathB) override { m_log.compared.push_back (pathB); }
     void     ChangeTheme (const DxuiTheme * theme) override { m_log.theme = theme; }
     HWND     GetHwnd() const override { return nullptr; }
 
@@ -138,6 +142,41 @@ public:
         Assert::AreEqual ((size_t) 1, rig.logs.size());
         Assert::AreEqual (1, rig.logs[0]->shown);
         Assert::AreEqual (1, rig.logs[0]->fronted, L"the second open fronts the window, matched without regard to case");
+    }
+
+
+
+    TEST_METHOD (ComparingTwoImagesOpensOneWindowOnTheFirst)
+    {
+        Rig  rig;
+
+
+
+        Assert::AreEqual (S_OK, rig.set->Compare (nullptr, nullptr, kBandits, kMist, rig.dark));
+
+        Assert::AreEqual ((size_t) 1, rig.set->GetCount(), L"B has no window");
+        Assert::AreEqual (1, rig.logs[0]->shown);
+        Assert::AreEqual ((size_t) 1, rig.logs[0]->compared.size());
+        Assert::AreEqual (std::wstring (kMist), rig.logs[0]->compared[0]);
+    }
+
+
+
+    TEST_METHOD (ComparingFromAnOpenImageUsesItsWindow)
+    {
+        Rig  rig;
+
+
+
+        Assert::AreEqual (S_OK, rig.Open (kMist));
+        Assert::AreEqual (S_OK, rig.Open (kGame));
+        Assert::AreEqual (S_OK, rig.set->Compare (nullptr, nullptr, kMist, kGame, rig.dark));
+
+        Assert::AreEqual ((size_t) 2, rig.set->GetCount(), L"no window is added");
+        Assert::AreEqual (1, rig.logs[0]->fronted);
+        Assert::AreEqual ((size_t) 1, rig.logs[0]->compared.size());
+        Assert::AreEqual (std::wstring (kGame), rig.logs[0]->compared[0]);
+        Assert::IsTrue   (rig.logs[1]->compared.empty(), L"B's window is not changed");
     }
 
 

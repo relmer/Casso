@@ -249,9 +249,12 @@ std::wstring ComparisonText::FormatDetail (const Difference & difference)
 //
 //  ComparisonText::FormatSource
 //
+//  A window on an image file has "This image" and "As first opened" in place
+//  of a drive's sources (FR-117).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ComparisonText::FormatSource (const ComparisonSource & source)
+std::wstring ComparisonText::FormatSource (const ComparisonSource & source, bool isFileHost)
 {
     std::wstring  text;
 
@@ -259,10 +262,10 @@ std::wstring ComparisonText::FormatSource (const ComparisonSource & source)
 
     switch (source.kind)
     {
-        case ComparisonSourceKind::DriveNow:   text = std::format (L"Drive {} now", source.drive + 1);         break;
-        case ComparisonSourceKind::AsInserted: text = std::format (L"Drive {} as inserted", source.drive + 1); break;
-        case ComparisonSourceKind::ItsFile:    text = std::format (L"Drive {}'s file", source.drive + 1);      break;
-        case ComparisonSourceKind::ImageFile:  text = L"Image file";                                          break;
+        case ComparisonSourceKind::DriveNow:   text = isFileHost ? std::wstring (L"This image")      : std::format (L"Drive {} now", source.drive + 1);         break;
+        case ComparisonSourceKind::AsInserted: text = isFileHost ? std::wstring (L"As first opened") : std::format (L"Drive {} as inserted", source.drive + 1); break;
+        case ComparisonSourceKind::ItsFile:    text = std::format (L"Drive {}'s file", source.drive + 1);                                                      break;
+        case ComparisonSourceKind::ImageFile:  text = L"Image file";                                                                                           break;
     }
 
     return text;

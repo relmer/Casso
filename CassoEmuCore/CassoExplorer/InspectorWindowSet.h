@@ -21,7 +21,8 @@ class IIntentChannel;
 //
 //  Casso Explorer's disk inspector windows, one per image file (FR-073 to
 //  FR-075). Opening a file that has a window brings that window to the
-//  front. Each window's folder is watched, and a changed file is read again
+//  front. Comparing two files is done in the first file's window (FR-117).
+//  Each window's folder is watched, and a changed file is read again
 //  once no change has arrived for kSettleMs; for a file that is gone, the
 //  last analysis stays, with a note. The windows outlast the Explorer window
 //  they were opened from and close with the app, so the set has a copy of
@@ -55,6 +56,7 @@ public:
         virtual HRESULT  RenderFrame     ()                                    = 0;
         virtual void     ReloadDisk      ()                                    = 0;
         virtual void     NoteFileGone    ()                                    = 0;
+        virtual void     CompareWith     (const std::wstring & pathB)          = 0;
         virtual void     ChangeTheme     (const DxuiTheme * theme)             = 0;
         virtual HWND     GetHwnd         () const                              = 0;
     };
@@ -78,6 +80,7 @@ public:
     InspectorWindowSet & operator= (const InspectorWindowSet &) = delete;
 
     HRESULT  Open     (HINSTANCE hInstance, HWND anchor, const std::wstring & path, const DxuiTheme & theme);
+    HRESULT  Compare  (HINSTANCE hInstance, HWND anchor, const std::wstring & pathA, const std::wstring & pathB, const DxuiTheme & theme);
     void     SetTheme (const DxuiTheme & theme);
     void     CloseAll ();
     size_t   GetCount () const;

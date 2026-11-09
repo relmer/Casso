@@ -199,6 +199,38 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorWindowSet::Compare
+//
+//  A is compared with B in A's window, which is opened or brought to the
+//  front (FR-117).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT InspectorWindowSet::Compare (HINSTANCE hInstance, HWND anchor, const std::wstring & pathA, const std::wstring & pathB, const DxuiTheme & theme)
+{
+    HRESULT  hr    = S_OK;
+    Entry  * found = nullptr;
+
+
+
+    hr = Open (hInstance, anchor, pathA, theme);
+    CHR (hr);
+
+    found = Find (MakeKey (pathA));
+    CBRA (found != nullptr);
+
+    found->window->CompareWith (pathB);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorWindowSet::SetTheme
 //
 //  The theme is copied as its most derived type, so a Casso theme's body

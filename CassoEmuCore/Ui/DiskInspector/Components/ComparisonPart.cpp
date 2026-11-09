@@ -147,7 +147,8 @@ void ComparisonPart::OnDiskStarting (const DiskChange & change)
 {
     if (m_session.comparison.IsComparing() && m_session.IsWindowDiskA() && change.lastMediaId != 0 && change.isNewDisk)
     {
-        EndComparison (std::format (L"The comparison ended. The disk in drive {} was ejected or replaced.", m_session.drive + 1));
+        EndComparison (m_session.host->GetDriveCount() == 0 ? std::wstring (L"The comparison ended. The image file changed.")
+                                                            : std::format (L"The comparison ended. The disk in drive {} was ejected or replaced.", m_session.drive + 1));
     }
 }
 
@@ -451,12 +452,10 @@ void ComparisonPart::OpenCompare()
     CompareDialog             dialog;
     DxuiWindow::CreateParams  params;
     ComparisonSource          b       = m_session.comparison.IsComparing() ? m_session.comparison.GetSourceB() : ComparisonSource { ComparisonSourceKind::ImageFile, 0 };
-    ComparisonSource          own     = { ComparisonSourceKind::DriveNow, m_session.drive };
-    bool                      isSame  = false;
 
 
 
-    dialog.Configure (m_session.theme, std::max (1, m_session.host->GetDriveCount()), m_session.sourceA, b);
+    dialog.Configure (m_session.theme, m_session.host->GetDriveCount(), m_session.sourceA, b);
 
     params.title                    = L"Compare with";
     params.hInstance                = GetModuleHandle (nullptr);
@@ -475,22 +474,63 @@ void ComparisonPart::OpenCompare()
     dialog.ShowModalDialog (IDOK);
     BAIL_OUT_IF (!dialog.IsChosen(), S_OK);
 
-    isSame    = dialog.GetSource (ComparisonSession::kSideA) == m_session.sourceA && m_session.context.hasDisk;
-    m_session.sourceA = dialog.GetSource (ComparisonSession::kSideA);
-    m_diffIndex = -1;
+    StartComparison (dialog.GetSource (ComparisonSession::kSideA), dialog.GetSource (ComparisonSession::kSideB));
 
-    m_session.comparison.Begin (m_session.sourceA, dialog.GetSource (ComparisonSession::kSideB), !isSame && !(m_session.sourceA == own), m_session.analysis.settings, *m_session.host);
+Error:
+    return;
+}
 
-    if (!isSame && m_session.sourceA == own)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::CompareWithFile
+//
+//  Casso Explorer's "Compare disk images" (FR-117): the window's image as A
+//  and another image file as B, without the dialog.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonPart::CompareWithFile (const std::wstring & path)
+{
+    StartComparison ({ ComparisonSourceKind::DriveNow, m_session.drive }, { ComparisonSourceKind::ImageFile, 0, path });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::StartComparison
+//
+//  When A is the window's disk, its analysis is reused, or the disk is read
+//  again when A was another source. Any other A is read by the comparison.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonPart::StartComparison (const ComparisonSource & a, const ComparisonSource & b)
+{
+    ComparisonSource  windowDisk = { ComparisonSourceKind::DriveNow, m_session.drive };
+    bool              isSame     = a == m_session.sourceA && m_session.context.hasDisk;
+    bool              isWindowA  = a == windowDisk;
+
+
+
+    m_session.sourceA = a;
+    m_diffIndex       = -1;
+
+    m_session.comparison.Begin (a, b, !isSame && !isWindowA, m_session.analysis.settings, *m_session.host);
+
+    if (!isSame && isWindowA)
     {
         m_host.RequestCopy();
     }
 
     m_session.isTablesDirty = true;
     m_host.ShowDiskTab (kTabDifferences);
-
-Error:
-    return;
 }
 
 
@@ -727,10 +767,11 @@ void ComparisonPart::PaintComparisonBar (IDxuiPainter & painter, IDxuiTextRender
     float             half   = std::max (0.0f, (right - left) / 2.0f);
     float             height = static_cast<float> (m_barPx.bottom - m_barPx.top);
     const DiskCopy  * copyB  = m_session.comparison.GetB().copy.get();
+    bool              isFile = m_session.host->GetDriveCount() == 0;
     std::wstring      nameB  = (copyB != nullptr) ? std::filesystem::path (TextEncoding::Utf8ToWide (copyB->fileName)).filename().wstring() : std::wstring();
-    std::wstring   sideA  = std::format (L"A  {}  {}  {}", ComparisonText::FormatSource (m_session.comparison.GetSourceA()), s_kpszMiddleDot,
+    std::wstring   sideA  = std::format (L"A  {}  {}  {}", ComparisonText::FormatSource (m_session.comparison.GetSourceA(), isFile), s_kpszMiddleDot,
                                          m_session.context.hasDisk ? m_session.GetFileName() : m_session.comparison.GetAError());
-    std::wstring   sideB  = std::format (L"B  {}  {}  {}", ComparisonText::FormatSource (m_session.comparison.GetSourceB()), s_kpszMiddleDot,
+    std::wstring   sideB  = std::format (L"B  {}  {}  {}", ComparisonText::FormatSource (m_session.comparison.GetSourceB(), isFile), s_kpszMiddleDot,
                                          m_session.comparison.GetBError().empty() ? (nameB.empty() ? std::wstring (s_kpszAnalyzing) : nameB) : m_session.comparison.GetBError());
 
 

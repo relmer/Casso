@@ -83,6 +83,37 @@ void ExplorerCommandManager::InspectDiskImages (const std::vector<std::wstring> 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerCommandManager::CompareSelectedDiskImages
+//
+//  A is the focused image, which is the one the menu was opened on, and B is
+//  the other selected image (FR-117).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::CompareSelectedDiskImages()
+{
+    const std::vector<int>     & rows  = m_context.browser.GetSelectedRows();
+    std::vector<std::wstring>    paths;
+    size_t                       a     = 0;
+
+
+
+    m_context.browser.GetSelectedHostPaths (paths);
+
+    if (m_context.app.host != nullptr && m_context.theme != nullptr && paths.size() == 2 && rows.size() == 2)
+    {
+        a = (rows[1] == m_context.listPane.GetFocusedRow()) ? 1 : 0;
+
+        m_context.app.host->CompareDiskImages (m_context.window.GetHwnd(), paths[a], paths[1 - a], *m_context.theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerCommandManager::ExtractImageFiles
 //
 //  The image's files go into a folder beside it, which is then selected in
@@ -1131,6 +1162,10 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
             InspectDiskImages (paths);
             break;
         }
+
+        case CassoExplorerActions::Verb::CompareDiskImages:
+            CompareSelectedDiskImages();
+            break;
 
         case CassoExplorerActions::Verb::Paste:
             if (m_context.browser.IsVolumeLocation())

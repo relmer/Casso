@@ -388,6 +388,36 @@ public:
     }
 
 
+    TEST_METHOD (CompareDiskImages_IsOfferedForExactlyTwoImages)
+    {
+        Host                                     host;
+        std::vector<CassoExplorerActions::Verb>  verbs;
+        auto                                     has   = [&verbs] (CassoExplorerActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) != verbs.end(); };
+
+
+
+        host.SeedFixture ("CassoExplorer/dos33.dsk", L"C:\\Disks\\second.dsk");
+        host.SeedFixture ("CassoExplorer/dos33.dsk", L"C:\\Disks\\third.dsk");
+        host.OpenImage();
+        host.browser.GoUp();
+
+        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::InspectDiskImage));
+        Assert::IsFalse (has (CassoExplorerActions::Verb::CompareDiskImages), L"one image");
+
+        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"second.dsk") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::InspectDiskImage));
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::CompareDiskImages), L"two images");
+
+        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"second.dsk"), host.Find (L"third.dsk") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::InspectDiskImage));
+        Assert::IsFalse (has (CassoExplorerActions::Verb::CompareDiskImages), L"three images");
+    }
+
+
     TEST_METHOD (AHostFile_OpensInItsOwnProgram_AndEveryHostItemHasTheShellsMenu)
     {
         Host                                     host;

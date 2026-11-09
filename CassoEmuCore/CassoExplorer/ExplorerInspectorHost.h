@@ -33,6 +33,9 @@ class IIntentChannel;
 //  Casso's reply arrives at the window, and any reply other than a reload
 //  becomes a note.
 //
+//  The bytes of the first successful read are the comparison source "As
+//  first opened" (FR-117), whatever the window saves or reads afterward.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ExplorerInspectorHost : public IDiskInspectorHost,
@@ -73,6 +76,8 @@ private:
     vector<std::string>   GetMountedPaths ()          override { return { m_utf8Path }; }
     std::wstring          GetOpenError    (int drive) override;
 
+    std::shared_ptr<const vector<Byte>>  GetAsInsertedBytes (int drive) override { (void) drive; return m_firstBytes; }
+
     void  Load ();
 
     std::wstring                   m_path;
@@ -84,8 +89,11 @@ private:
     std::unique_ptr<DiskImage>     m_image;
     InspectorDiskIdentity          m_identity;
     DiskImageSession::OpenedImage  m_opened;
-    std::wstring                   m_openError;
-    std::wstring                   m_hostNote;
-    bool                           m_isRead    = false;
+
+    //  The file as the window first read it, for "As first opened" (FR-117).
+    std::shared_ptr<const vector<Byte>>  m_firstBytes;
+    std::wstring                         m_openError;
+    std::wstring                         m_hostNote;
+    bool                                 m_isRead     = false;
     std::function<void ()>         m_onClosed;
 };

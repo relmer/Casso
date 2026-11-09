@@ -34,6 +34,7 @@ public:
     HRESULT  RenderFrame     () override;
     void     ReloadDisk      () override;
     void     NoteFileGone    () override;
+    void     CompareWith     (const std::wstring & pathB) override;
     void     ChangeTheme     (const DxuiTheme * theme) override;
     HWND     GetHwnd         () const override;
 

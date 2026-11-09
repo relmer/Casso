@@ -486,4 +486,17 @@ public:
         Assert::AreEqual (std::wstring (L"Drive 2 now"),          ComparisonText::FormatSource (sources[3]));
         Assert::AreEqual (static_cast<int> (ComparisonSourceKind::ImageFile), static_cast<int> (sources[6].kind));
     }
+
+
+    TEST_METHOD (CompareDialogListsAnImageWindowsSourcesWithNoDrives)
+    {
+        vector<ComparisonSource>  sources = CompareDialog::BuildSources (0);
+
+
+
+        Assert::AreEqual (size_t (3), sources.size());
+        Assert::AreEqual (std::wstring (L"This image"),      ComparisonText::FormatSource (sources[0], true));
+        Assert::AreEqual (std::wstring (L"As first opened"), ComparisonText::FormatSource (sources[1], true));
+        Assert::AreEqual (static_cast<int> (ComparisonSourceKind::ImageFile), static_cast<int> (sources[2].kind));
+    }
 };

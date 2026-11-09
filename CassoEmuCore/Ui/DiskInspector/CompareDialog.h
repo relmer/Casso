@@ -14,7 +14,9 @@
 //
 //  "Compare with...": a column of sources for A and one for B (FR-117), each
 //  drive's disk now, as inserted and its file, then an image file, which OK
-//  asks for. A starts on the window's disk and B on an image file.
+//  asks for. A starts on the window's disk and B on an image file. With no
+//  drives, the window is on an image file, and the sources are that image
+//  now, the image as the window first read it, and an image file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +43,7 @@ private:
     vector<ComparisonSource>          m_choices;
     std::array<ComparisonSource, 2>   m_sources;
     bool                              m_isChosen   = false;
+    bool                              m_isFileHost = false;
 
     DxuiRadioGroup                    m_sideA;
     DxuiRadioGroup                    m_sideB;

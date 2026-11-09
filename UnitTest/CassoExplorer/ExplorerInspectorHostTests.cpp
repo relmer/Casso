@@ -22,7 +22,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  saved over the file and the reload intent sent to Casso, an undo saved the same
 //  way, nothing saved over a file that changed since it was read or when
 //  the save fails, the record put back after a failed save, a WOZ whose
-//  flag is set not changed, and the note for Casso's reply.
+//  flag is set not changed, and the note for Casso's reply. "As first
+//  opened" (FR-117) is the file as the window first read it, after the file
+//  is read again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -275,6 +277,32 @@ public:
         Assert::AreEqual (std::wstring (L"The disk is write-protected"), replies[0].reason);
         Assert::IsTrue   (fileIo.files.at (path) == image);
         Assert::AreEqual (0, fileIo.writeCount);
+    }
+
+
+
+    TEST_METHOD (AsFirstOpenedIsTheFileAsFirstRead)
+    {
+        Rig             rig;
+        vector<Byte>    changed = vector<Byte> (NibblizationLayer::kImageByteSize, 0x22);
+        InspectorReply  reply;
+
+
+
+        rig.fileIo.files[kUtf8Path]  = changed;
+        rig.fileIo.stamps[kUtf8Path] = FileStamp { changed.size(), 2 };
+        rig.host.Reload();
+
+        (void) rig.host.PostInspectorRequest ({ InspectorRequestKind::CopyAsInserted, 0, 0, {}, -1 });
+        reply = rig.TakeOne();
+
+        Assert::IsNotNull (reply.sourceBytes.get());
+        Assert::IsTrue    (*reply.sourceBytes == rig.original, L"the bytes of the first read");
+
+        (void) rig.host.PostInspectorRequest ({ InspectorRequestKind::CopyDisk, 0, 0, {}, -1 });
+        reply = rig.TakeOne();
+        Assert::IsNotNull (reply.disk.get());
+        Assert::IsTrue    (rig.host.GetDriveCount() == 0, L"a file host has no drives");
     }
 
 

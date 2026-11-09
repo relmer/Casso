@@ -70,6 +70,10 @@ public:
     //  The reason a drive's file could not be opened, for a drive with no
     //  image; empty for an empty drive (FR-054).
     virtual std::wstring          GetOpenError     (int drive)        { (void) drive; return {}; }
+
+    //  The bytes for "as inserted" when they are not the image's source
+    //  bytes; nullptr for the image's source bytes.
+    virtual std::shared_ptr<const vector<Byte>>  GetAsInsertedBytes (int drive)  { (void) drive; return nullptr; }
 };
 
 

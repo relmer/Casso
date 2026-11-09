@@ -104,6 +104,11 @@ public:
     void     ReloadDisk   ();
     void     NoteFileGone ();
 
+    //  Casso Explorer's "Compare disk images": the window's image as A and
+    //  the file as B, after the confirmation when edits are pending (FR-108,
+    //  FR-117).
+    void     CompareWithFile (const std::wstring & path);
+
     //  Another theme object, for a host whose theme is replaced rather than
     //  changed in place.
     void     ChangeTheme  (const DxuiTheme * theme);

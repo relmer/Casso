@@ -1486,6 +1486,28 @@ void CassoExplorerShell::InspectDiskImages (HWND hwnd, const std::vector<std::ws
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerShell::CompareDiskImages
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::CompareDiskImages (HWND hwnd, const std::wstring & pathA, const std::wstring & pathB, const DxuiTheme & theme)
+{
+    HRESULT  hr = (m_inspectors != nullptr) ? m_inspectors->Compare (m_instance, hwnd, pathA, pathB, theme) : E_UNEXPECTED;
+
+
+
+    if (FAILED (hr))
+    {
+        MessageBoxW (hwnd, std::format (L"The disk inspector could not open {} (0x{:08X}).", fs::path (pathA).filename().wstring(), (uint32_t) hr).c_str(), kAppName, MB_ICONWARNING);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerShell::SetInspectorTheme
 //
 ////////////////////////////////////////////////////////////////////////////////

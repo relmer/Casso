@@ -166,6 +166,11 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     else if (m_browser.AreSelectedRowsImages() && CanInspectSelected())
     {
         verbs.push_back (Verb::InspectDiskImage);
+
+        if (selected == 2)
+        {
+            verbs.push_back (Verb::CompareDiskImages);
+        }
     }
 
     AddFilesystemVerbs (verbs);
