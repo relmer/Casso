@@ -136,6 +136,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PreviewText::BuildTextRows

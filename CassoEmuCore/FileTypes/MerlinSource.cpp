@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "FileTypes/MerlinSource.h"
+#include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 
@@ -111,7 +112,7 @@ HRESULT MerlinSource::Decode (std::span<const Byte> bytes, const FileFacts & fac
                 column++;
             }
 
-            outFile.lines.push_back (std::wstring (text.begin(), text.end()));
+            outFile.lines.push_back (TextEncoding::Utf8ToWide (text));
             line.clear();
             continue;
         }

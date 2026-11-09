@@ -207,7 +207,7 @@ private:
                                      int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo,
                                      const std::vector<uint32_t> & colors) const;
     std::vector<uint32_t>  GetRowColors (const Row & row) const;
-    std::vector<uint8_t>      GetRowStyles (const Row & row) const;
+    std::vector<uint8_t>   GetRowStyles (const Row & row) const;
     float                  GetLineShift (int lineIndex) const;
 
     //  The line being painted: its shift for its row's alignment, each
@@ -215,8 +215,9 @@ private:
     static constexpr uint8_t  kStyleBold      = 0x01;
     static constexpr uint8_t  kStyleItalic    = 0x02;
     static constexpr uint8_t  kStyleUnderline = 0x04;
+
     float                  m_paintShift    = 0.0f;
-    std::vector<uint8_t>      m_paintStyles;
+    std::vector<uint8_t>   m_paintStyles;
     IDxuiPainter         * m_paintPainter  = nullptr;
 
     std::vector<Row>   m_rows;

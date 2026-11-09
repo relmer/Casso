@@ -1417,8 +1417,8 @@ std::vector<uint8_t> DxuiTextView::GetRowStyles (const Row & row) const
     for (const Span & span : row.spans)
     {
         uint8_t  bits   = (uint8_t) ((span.bold ? kStyleBold : 0) | (span.italic ? kStyleItalic : 0) | (span.underline ? kStyleUnderline : 0));
-        int   base   = GetCellBase (row, span.cell);
-        int   length = (span.cell < (int) row.cells.size()) ? (int) row.cells[(size_t) span.cell].size() : 0;
+        int      base   = GetCellBase (row, span.cell);
+        int      length = (span.cell < (int) row.cells.size()) ? (int) row.cells[(size_t) span.cell].size() : 0;
 
         if (bits == 0)
         {

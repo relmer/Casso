@@ -68,10 +68,11 @@ public:
     {
         DecodedFile   file;
         std::wstring  error;
+        HRESULT       hr = PascalText::Decode (std::vector<Byte> (1500, 0), FileFacts(), DecodeOptions(), file, error);
 
 
 
-        Assert::IsTrue (FAILED (PascalText::Decode (std::vector<Byte> (1500, 0), FileFacts(), DecodeOptions(), file, error)));
+        Assert::IsTrue (FAILED (hr));
         Assert::IsFalse (error.empty());
     }
 };
@@ -149,10 +150,11 @@ public:
     {
         std::vector<Byte>  bytes;
         std::wstring       error;
+        HRESULT            hr = MerlinSource::Encode ({ "OK", std::string (300, 'X') }, bytes, error);
 
 
 
-        Assert::IsTrue (FAILED (MerlinSource::Encode ({ "OK", std::string (300, 'X') }, bytes, error)));
+        Assert::IsTrue (FAILED (hr));
         Assert::IsTrue (error.find (L"Line 2") != std::wstring::npos);
     }
 };

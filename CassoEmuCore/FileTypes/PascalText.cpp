@@ -52,8 +52,8 @@ bool PascalText::Check (std::span<const Byte> bytes)
 
 HRESULT PascalText::Decode (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError)
 {
-    HRESULT            hr   = S_OK;
-    bool               fits = Check (bytes);
+    HRESULT            hr        = S_OK;
+    bool               fits      = Check (bytes);
     std::vector<Byte>  line;
     bool               lineStart = true;
 
