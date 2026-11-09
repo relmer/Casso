@@ -359,6 +359,7 @@
     <ClCompile Include="CassoLink\DiskDriverTimingTests.cpp" />
     <ClCompile Include="CassoLink\KrunchProgramTests.cpp" />
     <ClCompile Include="CassoLink\ProgramKeyTests.cpp" />
+    <ClCompile Include="CassoLink\ProgramKrunchMapTests.cpp" />
     <ClCompile Include="CassoLink\ProgramScreenTests.cpp" />
     <ClCompile Include="CassoLink\PromptProbeTests.cpp" />
     <ClCompile Include="CassoLink\SerialLoaderTests.cpp" />

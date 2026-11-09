@@ -1,23 +1,14 @@
 #include "Pch.h"
 
-#include "EhmTestHelper.h"
-#include "TestMachine.h"
-#include "TextScreenScraper.h"
-#include "CassoLink/InMemoryCassoLinkFolder.h"
-#include "EmuTests/FakeDiskFileIo.h"
-#include "CassoLink/CassoLinkSession.h"
-#include "CassoLink/LinkProgram.h"
+#include "../EhmTestHelper.h"
+#include "../EmuTests/TextScreenScraper.h"
+#include "CassoLink/CassoLinkCodec.h"
 #include "Devices/RamDevice.h"
-#include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
-#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
-#include "Machines/Apple2/Common/SectorDecodeReport.h"
-#include "Machines/Apple2/Common/VolumeImage.h"
-#include "Seams/IByteStreamFactory.h"
-#include "Seams/InProcessByteStream.h"
+#include "ProgramRig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -27,20 +18,21 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkKrunchTests
+//  ProgramKrunchMapTests
 //
 //  The block map a krunch draws over the program's history, on an emulated
-//  //c with an Apple Pascal disk in drive 1. The krunch itself is covered by
-//  the unit tests in KrunchProgramTests.
+//  //c with an Apple Pascal disk in drive 1 and the host on the test's
+//  thread. The krunch itself is covered by KrunchProgramTests.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (CassoLinkKrunchTests)
+TEST_CLASS (ProgramKrunchMapTests)
 {
 public:
 
-    static constexpr uint64_t  kFrame       = 17030;
-    static constexpr uint64_t  kBudget      = 4'000'000'000;
+    static constexpr uint64_t  kFrame        = 17'030;
+    static constexpr uint64_t  kBudget       = 400'000'000;
+    static constexpr Byte      kFastControl  = 0x10;     // 115,200 baud
 
     //  The block map, by its rows' numbers on the text page.
     static constexpr int       kRowHeading     = 14;
@@ -62,176 +54,6 @@ public:
     static constexpr size_t    kVolumeBlocks   = 14;
     static constexpr size_t    kFileCount      = 16;
     static constexpr size_t    kNameLength     = 6;
-
-    //  The one line to the machine, as the session's TCP connection.
-    struct Factory : IByteStreamFactory
-    {
-        std::shared_ptr<InProcessByteStream>  pcEnd;
-
-        struct Handle : IByteStream
-        {
-            std::shared_ptr<InProcessByteStream>  end;
-
-            explicit Handle (std::shared_ptr<InProcessByteStream> e) : end (std::move (e)) {}
-
-            HRESULT  Write            (const Byte * data, size_t count) override                                   { return end->Write (data, count); }
-            HRESULT  Read             (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override { return end->Read (buffer, capacity, timeoutMs, outRead); }
-            size_t   GetReadableCount() override                                                                  { return end->GetReadableCount(); }
-            bool     IsClosed() const override                                                                    { return end->IsClosed(); }
-            void     Close() override                                                                             { end->Close(); }
-        };
-
-        HRESULT  ListComPorts (std::vector<std::wstring> & outPorts) override                                      { outPorts.clear(); return S_OK; }
-        HRESULT  OpenComPort  (const std::wstring &, const ComSettings &, std::unique_ptr<IByteStream> &) override { return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND); }
-        HRESULT  ListenTcp    (uint16_t, LinkTransport, std::unique_ptr<IByteStream> &) override                  { return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED); }
-
-        HRESULT  ConnectTcp (const std::string &, uint16_t, std::unique_ptr<IByteStream> & outStream) override
-        {
-            outStream = std::make_unique<Handle> (pcEnd);
-            return S_OK;
-        }
-    };
-
-    //  The operations done, and the highest progress a krunch reported.
-    struct Sink : ICassoLinkSessionSink
-    {
-        std::mutex                                    lock;
-        std::vector<std::shared_ptr<LinkOperation>>   done;
-        std::atomic<int>                              progress { 0 };
-
-        void  OnStateChanged (LinkState) override {}
-
-        void  OnProgress (const std::shared_ptr<LinkOperation> & operation) override
-        {
-            if (operation->kind == LinkOperationKind::Krunch)
-            {
-                progress = (std::max) (progress.load(), operation->progress.load());
-            }
-        }
-
-        void  OnDone (const std::shared_ptr<LinkOperation> & operation) override
-        {
-            std::lock_guard<std::mutex>  guard (lock);
-
-            done.push_back (operation);
-        }
-
-        bool  IsDone (const std::shared_ptr<LinkOperation> & operation)
-        {
-            std::lock_guard<std::mutex>  guard (lock);
-
-            return std::find (done.begin(), done.end(), operation) != done.end();
-        }
-    };
-
-    //  An emulated //c running the shim at 115,200 baud, with `disk` in drive 1.
-    static void  StartMachine (TestMachine & machine, const std::vector<Byte> & disk, std::shared_ptr<InProcessByteStream> & machineEnd)
-    {
-        std::vector<Byte>  shim;
-        Word               at = LinkProgram::kShimAddress;
-
-        machine.SetVideoTiming (std::make_unique<VideoTiming>());
-        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
-        machine.PowerCycle();
-
-        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "", DiskFormat::Dsk, disk));
-        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
-        Assert::AreEqual (S_OK, LinkProgram::BuildShim (115200, shim));
-
-        for (Byte b : shim)
-        {
-            machine.GetCpu()->WriteByte (at++, b);
-        }
-
-        machine.GetCpu()->SetPC (LinkProgram::kShimAddress);
-    }
-
-    //  Drive 1's disk, as DOS-logical sectors.
-    static std::vector<Byte>  ReadDrive1 (TestMachine & machine)
-    {
-        std::vector<Byte>   file;
-        std::vector<Byte>   sectors;
-        SectorDecodeReport  report;
-
-        AssertSucceeded (machine.GetDiskStore().GetImage (6, 0)->Serialize (file));
-        AssertSucceeded (VolumeImage::Load (file, "d.dsk", sectors, report));
-        return sectors;
-    }
-
-    //  A session on the machine, as Casso Explorer runs one.
-    struct Rig
-    {
-        TestMachine                           machine { "Apple2c" };
-        std::shared_ptr<InProcessByteStream>  machineEnd;
-        Factory                               factory;
-        InMemoryCassoLinkFolder               folder;
-        FakeDiskFileIo                        fileIo;
-        Sink                                  sink;
-        std::unique_ptr<CassoLinkSession>     session;
-
-        explicit Rig (const std::vector<Byte> & disk, bool use40 = true)
-        {
-            CassoLinkSettings  settings;
-
-            InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
-            StartMachine (machine, disk, machineEnd);
-
-            session = std::make_unique<CassoLinkSession> (factory, folder, fileIo, sink);
-
-            settings.name      = "//c";
-            settings.transport = LinkTransport::Emulated;
-            settings.address   = "127.0.0.1:6502";
-            settings.use40     = use40;
-
-            AssertSucceeded (session->Start (settings));
-        }
-
-        ~Rig()
-        {
-            session.reset();
-        }
-
-        //  A row of the text page as text, with its trailing spaces cut.
-        std::string  Row (Word address)
-        {
-            std::string  text;
-
-            for (int i = 0; i < 40; i++)
-            {
-                text += (char) (machine.GetCpu()->ReadByte ((Word) (address + i)) & 0x7F);
-            }
-
-            return text.substr (0, text.find_last_not_of (' ') + 1);
-        }
-
-        //  Steps the machine until `until` is true, and calls `eachFrame`
-        //  after each frame. The budget runs out only on a failure.
-        void  Step (const std::function<bool()> & until, const std::function<void()> & eachFrame = nullptr)
-        {
-            uint64_t  spent = 0;
-
-            while (!until() && spent < kBudget)
-            {
-                machine.RunCycles (kFrame);
-                spent += kFrame;
-
-                if (eachFrame)
-                {
-                    eachFrame();
-                }
-            }
-
-            Assert::IsTrue (until(), L"the condition waited for is met");
-        }
-
-        std::shared_ptr<LinkOperation>  Finish (std::shared_ptr<LinkOperation> operation, const std::function<void()> & eachFrame = nullptr)
-        {
-            Step ([&] () { return sink.IsDone (operation); }, eachFrame);
-            return operation;
-        }
-
-        std::vector<Byte>  Sectors() { return ReadDrive1 (machine); }
-    };
 
     //  A file's bytes: `blocks` blocks less 100 bytes, each a function of
     //  the file and its offset, so no two files and no two blocks match.
@@ -511,21 +333,35 @@ public:
         bool                            wide = false;
     };
 
+    //  A krunch of `disk` in 40 or 80 columns, with the history and each whole
+    //  map drawn during it in `record`. The host logs the lines a session
+    //  logs: two before the krunch, and the krunch's line after it.
     static void  KrunchWithMap (const std::vector<Byte> & disk, bool wide, MapRecord & record)
     {
-        constexpr int                   kSteadyFrames = 30;
-        Rig                             rig (disk, !wide);
-        std::vector<Byte>               legend        = MakeLegend (wide);
-        std::shared_ptr<LinkOperation>  krunch;
-        int                             steady        = 0;
+        constexpr int                  kSteadyFrames = 30;
+        ProgramRig                     rig (disk);
+        std::vector<Byte>              legend        = MakeLegend (wide);
+        std::vector<PascalKrunchMove>  moves;
+        std::vector<Byte>              directory;
+        CassoLinkStatus                status;
+        int                            steady        = 0;
+        uint64_t                       spent         = 0;
+        bool                           settled       = false;
+
+
 
         record.disk = disk;
         record.wide = wide;
 
-        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
-        Assert::AreEqual (wide, rig.machine.GetRefs().iieSoftSwitches->Is80ColMode(), L"the Apple is in the settings' columns");
+        AssertSucceeded (PascalVolume (disk).PlanKrunch (moves, directory));
 
-        krunch = rig.Finish (rig.session->Krunch (1), [&]
+        AssertSucceeded (rig.host->SetSpeed (kFastControl));
+        AssertSucceeded (rig.host->SetColumns (wide));
+        AssertSucceeded (rig.host->SendLog (12, 0, "PC CONNECTED"));
+        AssertSucceeded (rig.host->SendLog (12, 1, "OK  LISTED D1 (/KRUNCH)"));
+        Assert::AreEqual (wide, rig.machine.GetRefs().iieSoftSwitches->Is80ColMode(), L"the Apple is in the request's columns");
+
+        rig.stream->SetStepHook ([&] ()
         {
             std::string  heading = ReadTextRow (rig.machine, kRowHeading, wide);
 
@@ -542,21 +378,29 @@ public:
             }
         });
 
-        AssertSucceeded (krunch->result);
+        AssertSucceeded (rig.host->Krunch (1, CassoLinkCodec::ComputeCrc (directory), nullptr, status));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error);
         Assert::IsTrue (IsKrunched (rig.Sectors()));
+
+        rig.stream->SetStepHook (nullptr);
+        AssertSucceeded (rig.host->SendLog (12, 2, "OK  KRUNCHED D1 (/KRUNCH)"));
 
         //  The history once its krunch line is in it and it is the same for
         //  a while, so no line is read partway through its scroll.
-        rig.Step ([&] ()
+        while (!settled && spent < kBudget)
         {
-            std::vector<std::string>  rows    = ReadHistory (rig.machine, wide);
-            bool                      logged  = std::any_of (rows.begin(), rows.end(), [] (const std::string & row) { return row.find ("KRUNCHED") != std::string::npos; });
+            std::vector<std::string>  rows   = ReadHistory (rig.machine, wide);
+            bool                      logged = std::any_of (rows.begin(), rows.end(), [] (const std::string & row) { return row.find ("KRUNCHED") != std::string::npos; });
 
-            steady        = logged && rows == record.after ? steady + 1 : 0;
-            record.after  = rows;
-            return steady >= kSteadyFrames;
-        });
+            steady       = logged && rows == record.after ? steady + 1 : 0;
+            record.after = rows;
+            settled      = steady >= kSteadyFrames;
 
+            rig.machine.RunCycles (kFrame);
+            spent += kFrame;
+        }
+
+        Assert::IsTrue (settled, L"the history is drawn again with the krunch's line");
         Assert::AreEqual (std::string ("HISTORY:"), ReadTextRow (rig.machine, kRowHeading, wide), L"the history's heading is back");
     }
 
