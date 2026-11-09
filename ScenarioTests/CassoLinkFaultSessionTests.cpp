@@ -35,12 +35,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  CassoLinkFaultSessionTests
 //
 //  Faults injected into whole sessions, as a Debug build of Casso Explorer
-//  arms them: over a //e's Super Serial Card, a //e's Uthernet II and the
-//  cassette input. Each fault is taken from the process's list as the
-//  operation or the cassette audio starts, and the link recovers or fails
-//  with its error. A fault in a serial bootstrap is covered by unit tests:
-//  SerialLoaderTests runs the loader's check on a //c, and
-//  CassoLinkSessionTests the session's recovery through the prompt probe.
+//  arms them: over a //e's Uthernet II and the cassette input. Each fault is
+//  taken from the process's list as the operation or the cassette audio
+//  starts, and the link recovers or fails with its error. A fault in a serial
+//  bootstrap is covered by unit tests: SerialLoaderTests runs the loader's
+//  check on a //c, and CassoLinkSessionTests the session's recovery through
+//  the prompt probe. Faults over a 6551, the //c's port or a Super Serial
+//  Card, are covered by CassoLinkFaultTests.
 //
 //  The cassette case requires Apple's firmware for the card, at
 //  %LOCALAPPDATA%\Casso\Devices\SuperSerialCard\SSC.rom, as the card's other
@@ -52,8 +53,6 @@ TEST_CLASS (CassoLinkFaultSessionTests)
 {
 public:
 
-    static constexpr uint64_t  kFrame        = 17030;
-    static constexpr uint64_t  kBudget       = 6'000'000'000;
     static constexpr uint64_t  kBootCycles   = 20'000'000;
     static constexpr uint16_t  kNetworkPort  = 26503;
     static constexpr DWORD     kNetworkWait  = 120'000;
@@ -157,22 +156,6 @@ public:
         }
     }
 
-    static std::shared_ptr<LinkOperation>  Finish (TestMachine & machine, Sink & sink, std::shared_ptr<LinkOperation> operation)
-    {
-        uint64_t  spent = 0;
-
-
-
-        while (!sink.IsDone (operation) && spent < kBudget)
-        {
-            machine.RunCycles (kFrame);
-            spent += kFrame;
-        }
-
-        Assert::IsTrue (sink.IsDone (operation), L"the operation finishes");
-        return operation;
-    }
-
     //  Drive 2's disk, as DOS-logical sectors.
     static std::vector<Byte>  Sectors (TestMachine & machine)
     {
@@ -261,117 +244,6 @@ public:
             L"under Settings > Machine and accept the download");
 
         return path;
-    }
-
-    //  A //e with the card in slot 5 booted from the link disk, and drive 2's
-    //  DOS 3.3 disk.
-    static void  BootOverACard (TestMachine & machine, Factory & factory, const std::vector<Byte> & disk)
-    {
-        std::shared_ptr<InProcessByteStream>  machineEnd;
-        std::vector<Byte>                     boot;
-        LinkShimOptions                       options;
-
-
-
-        options.slot = 5;
-        AssertSucceeded (LinkProgram::BuildBootDisk (options, boot));
-
-        machine.SetVideoTiming (std::make_unique<VideoTiming>());
-        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
-
-        GuestSession::Mount (machine, boot);
-        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
-
-        InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
-        Assert::AreEqual (S_OK, machine.AttachSerialStream (5, machineEnd));
-
-        machine.RunCycles (kBootCycles);
-    }
-
-    static CassoLinkSettings  EmulatedSettings (const char * name)
-    {
-        CassoLinkSettings  settings;
-
-
-
-        settings.name      = name;
-        settings.transport = LinkTransport::Emulated;
-        settings.address   = "127.0.0.1:6505";
-        settings.use40     = true;
-        return settings;
-    }
-
-
-
-    //  Over the card's 6551: a byte of the disk the Apple sends, flipped,
-    //  and the track read again.
-    TEST_METHOD (OverACard_AnAppleFlipInADiskRead_IsReadAgain)
-    {
-        Enabled                  enabled;
-        TestMachine              machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 5, false); });
-        Factory                  factory;
-        InMemoryCassoLinkFolder  folder;
-        FakeDiskFileIo           fileIo;
-        Sink                     sink;
-        std::vector<Byte>        disk    = LoadDos33();
-        std::vector<Byte>        sectors;
-        SectorDecodeReport       report;
-
-
-
-        BootOverACard (machine, factory, disk);
-
-        {
-            CassoLinkSession  session (factory, folder, fileIo, sink);
-
-            AssertSucceeded (session.Start (EmulatedSettings ("//e")));
-            AssertSucceeded (Finish (machine, sink, session.Enumerate (2, FilePath()))->result);
-
-            Arm (kAppleFlip);
-
-            AssertSucceeded (Finish (machine, sink, session.ReadDisk (2, "drive2.dsk", false))->result);
-            AssertSucceeded (VolumeImage::Load (fileIo.files["drive2.dsk"], "drive2.dsk", sectors, report));
-            Assert::IsTrue (sectors == Sectors (machine), L"the whole disk");
-        }
-
-        Assert::IsTrue (sink.HasActivity ("Sent a fault to the Apple"));
-        Assert::IsTrue (sink.HasActivity ("damaged"), L"read again");
-    }
-
-
-
-    //  Over the card's 6551: a byte the PC sends while writing a file,
-    //  flipped, and sent again.
-    TEST_METHOD (OverACard_APcFlipInAWrite_IsSentAgain)
-    {
-        Enabled                  enabled;
-        TestMachine              machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 5, false); });
-        Factory                  factory;
-        InMemoryCassoLinkFolder  folder;
-        FakeDiskFileIo           fileIo;
-        Sink                     sink;
-        std::vector<Byte>        disk    = LoadDos33();
-        std::vector<Byte>        written;
-        FilePayload              payload = Binary (1500, 9);
-
-
-
-        BootOverACard (machine, factory, disk);
-        AssertSucceeded (Dos33Volume (disk).Write (FilePath::Parse ("FROMPC"), payload, written));
-
-        {
-            CassoLinkSession  session (factory, folder, fileIo, sink);
-
-            AssertSucceeded (session.Start (EmulatedSettings ("//e")));
-            AssertSucceeded (Finish (machine, sink, session.Enumerate (2, FilePath()))->result);
-
-            Arm (kPcFlip);
-
-            AssertSucceeded (Finish (machine, sink, session.WriteFile (2, FilePath::Parse ("FROMPC"), payload))->result);
-            Assert::IsTrue (Sectors (machine) == written, L"drive 2 has the file");
-        }
-
-        Assert::IsTrue (sink.HasActivity ("Injected a fault"));
     }
 
 

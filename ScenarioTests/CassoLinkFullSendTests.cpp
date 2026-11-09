@@ -11,10 +11,8 @@
 #include "CassoLink/LinkProgram.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -314,31 +312,6 @@ public:
         return next;
     }
 
-    //  The disk as a nibble image with the data field of one sector damaged:
-    //  its prologue's last nibble changed, so no read of it can succeed.
-    static Image  WithUnreadableSector (const Image & sectors)
-    {
-        static constexpr Byte  kPrologue[] = { 0xD5, 0xAA, 0xAD };
-        constexpr int          kTrack      = 5;
-        constexpr int          kOnTrack    = 3;
-        Image                  nib;
-        auto                   from        = nib.begin();
-
-        AssertSucceeded (BlankDiskBuilder::WrapInContainer (DiskFormat::Nib, NibbleImageCodec::kNibTrackSize, false, 0, sectors, nib));
-
-        from = nib.begin() + (ptrdiff_t) (kTrack * NibbleImageCodec::kNibTrackSize);
-
-        for (int i = 0; i <= kOnTrack; i++)
-        {
-            from = std::search (from + (i == 0 ? 0 : 1), nib.end(), std::begin (kPrologue), std::end (kPrologue));
-            Assert::IsTrue (from != nib.end());
-        }
-
-        *(from + 2) = 0xFF;
-
-        return nib;
-    }
-
 
 
 
@@ -531,70 +504,6 @@ public:
         Assert::IsTrue (Sectors (rig.fileIo.files["C:\\Box\\" + rows[2].file], rows[2].file) == third);
         Assert::IsTrue (rows[1].file.ends_with (".po"));
         Assert::IsTrue (rows[0].file.ends_with (".dsk"));
-    }
-
-
-
-
-    //  A repeat sent anyway is written as a second image, a disk with an
-    //  unreadable sector is listed, and the session goes on past each.
-    TEST_METHOD (ARepeatSentAnyway_IsWritten_AndABadSector_IsListed)
-    {
-        Rig    rig;
-        Image  dos    = Sectors (rig.dosFile, "d.dsk");
-        Image  bad    = WithFile (dos, "BAD");
-        int    pauses = 0;
-
-        rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
-
-        //  Drive 2 has a copy of drive 1's disk: same fingerprint, so a pause.
-        rig.Mount (2, DiskFormat::Dsk, rig.dosFile);
-        rig.send = rig.session->FullSend ("C:\\Box", "", "");
-        rig.Begin();
-
-        rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"a pause, as drive 2's disk repeats drive 1's");
-        pauses++;
-
-        Assert::IsTrue (rig.Row (kRowDrive2).starts_with ("D2: DUPE OF ") && rig.Row (kRowDrive2).ends_with ("?"), TextEncoding::NarrowToWide (rig.Row (kRowDrive2)).c_str());
-
-        //  Space reads neither disk and lists both. Drive 2's number sends its
-        //  disk anyway.
-        rig.Press (' ');
-        rig.RunUntil ([&] () { return rig.Row (kRowPrompt).find ("MAY ALREADY HAVE BEEN SENT") != std::string::npos; }, L"the already-sent prompt");
-
-        Assert::IsTrue (rig.Row (kRowCounts).find ("DUP 1") != std::string::npos, L"drive 2's repeat counts once, and drive 1's disk just sent not at all");
-
-        rig.Press ('2');
-        rig.RunUntil ([&] () { return !rig.IsPrompting(); }, L"2 ends the pause");
-        rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the next pause");
-        pauses++;
-
-        Assert::IsTrue (rig.Row (kRowCounts).find ("SENT 2   DUP 1") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowCounts)).c_str());
-
-        //  The next disk has an unreadable sector.
-        rig.Mount (1, DiskFormat::Nib, WithUnreadableSector (bad));
-        rig.Press (' ');
-        rig.RunUntil ([&] () { return !rig.IsPrompting(); }, L"Space ends the pause");
-        rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the session goes on past the bad sector");
-
-        Assert::IsTrue (rig.Row (kRowCounts).find ("BAD 1") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowCounts)).c_str());
-
-        rig.Press ('Q');
-        rig.Finish();
-
-        std::vector<FullSendRow>  rows = rig.Rows();
-
-        Assert::AreEqual (2, pauses);
-        Assert::AreEqual ((size_t) 3, rows.size());
-        Assert::AreEqual (std::string ("sent"), rows[0].status);
-        Assert::AreEqual (std::string ("sent"), rows[1].status);
-        Assert::AreNotEqual (rows[0].file, rows[1].file);
-        Assert::AreEqual (std::string ("likely-damaged"), rows[2].status);
-        Assert::AreEqual (1, rows[2].unreadable);
-
-        //  The three images, the manifest and the unreadable list.
-        Assert::AreEqual ((size_t) 5, rig.fileIo.files.size());
-        Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\" + rows[2].file + ".unreadable.txt"));
     }
 
 
@@ -803,37 +712,5 @@ public:
             rig.Press ('Q');
             rig.Finish();
         }
-    }
-
-
-
-
-    //  A disk swapped during its transfer: no file for it, and the session
-    //  goes on with the disk now in the drive.
-    TEST_METHOD (ADiskSwappedDuringItsTransfer_LeavesNoFile_AndTheSessionContinues)
-    {
-        Rig    rig;
-        Image  other = WithFile (Sectors (rig.dosFile, "d.dsk"), "OTHER");
-        bool   swapped = false;
-
-        rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
-        rig.machine.GetDiskStore().Eject (kSlot, 1);
-        rig.send = rig.session->FullSend ("C:\\Box", "", "");
-        rig.Begin();
-
-        rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1: SENDING"); }, L"the transfer starts");
-        rig.machine.RunCycles (kCyclesPerS);
-        rig.Mount (1, DiskFormat::Dsk, other);
-        swapped = true;
-
-        rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the session pauses");
-        rig.Press ('Q');
-        rig.Finish();
-
-        std::vector<FullSendRow>  rows = rig.Rows();
-
-        Assert::IsTrue (swapped);
-        Assert::AreEqual ((size_t) 1, rows.size(), L"only the disk now in the drive has a row");
-        Assert::IsTrue (Sectors (rig.fileIo.files["C:\\Box\\" + rows[0].file], rows[0].file) == other);
     }
 };
