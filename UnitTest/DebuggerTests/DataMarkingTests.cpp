@@ -364,6 +364,26 @@ namespace DebuggerTests
         }
 
 
+        //  A symbol's tip has the bytes at its address, then the comment on
+        //  its line; a constant has no bytes, since it is no address.
+        TEST_METHOD (ASymbolsTipHasTheBytesAtItsAddress)
+        {
+            DebuggerViewSnapshot  snapshot;
+            std::wstring          text = L"count = $60C1";
+
+
+
+            snapshot.symbolBytes.push_back ({ 0x60C1, 2, { 0x05, 0x10 } });
+
+            SourcePane::AppendSymbolDetails (text, "count", 0x60C1, false, snapshot, "; how many stars");
+            Assert::AreEqual (std::wstring (L"count = $60C1\n$60C1: 05 10\n; how many stars"), text);
+
+            text = L"LIMIT = $60C1, a constant";
+            SourcePane::AppendSymbolDetails (text, "LIMIT", 0x60C1, true, snapshot, "");
+            Assert::AreEqual (std::wstring (L"LIMIT = $60C1, a constant"), text);
+        }
+
+
 
 
 

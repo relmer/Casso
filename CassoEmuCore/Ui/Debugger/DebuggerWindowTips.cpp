@@ -764,19 +764,22 @@ bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, D
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebuggerWindow::TryGetSourceSymbolTip (const SourceDocumentPane & document, POINT clientPx, DxuiTip & tip) const
+bool DebuggerWindow::TryGetSourceSymbolTip (const SourceDocumentPane & document, POINT clientPx, DxuiTip & tip)
 {
-    std::wstring  text;
-    RECT          anchor = {};
+    std::wstring        text;
+    RECT                anchor = {};
+    const SymbolInfo  * found  = nullptr;
 
 
 
     if (m_snapshot == nullptr || m_snapshot->symbols == nullptr || !document.IsShown() ||
         (m_operandTips->IsSymbolShownAt (clientPx) && document.GetModel().IsOperandSymbolAt (clientPx, m_snapshot->symbols->symbols)) ||
-        !document.GetModel().TryGetSymbolTip (clientPx, m_snapshot->symbols->symbols, text, anchor))
+        !document.GetModel().TryGetSymbolTip (clientPx, m_snapshot->symbols->symbols, text, anchor, &found))
     {
         return false;
     }
+
+    SourcePane::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *m_snapshot, GetSymbolComment (found->address, found->name));
 
     tip             = DxuiTip();
     tip.anchor      = anchor;

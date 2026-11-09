@@ -1379,7 +1379,7 @@ namespace OperandResultTipTests
             Send (window, DxuiMouseEventKind::Move, at);
             Assert::IsFalse (window.GetOperandTips().HasTip(), L"the row fits");
             Assert::IsTrue  (list->TryGetTip (local, tip), L"the symbol has no tip");
-            Assert::IsTrue  (tip.text.starts_with (L"w_inner=$60BA"), tip.text.c_str());
+            Assert::IsTrue  (tip.text.starts_with (L"w_inner = $60BA"), tip.text.c_str());
 
             list->SetColumnOverrideWidthPx (DisassemblyCells::kInstructionColumn, kWindowWidth * 2);
             list->Paint (painter, text, theme);
@@ -1451,7 +1451,7 @@ namespace OperandResultTipTests
             Assert::IsTrue (window.GetOperandTips().HasTip(), L"the operand out of view has no tip");
             Assert::IsTrue (window.GetOperandTips().GetLayout().hasSymbol);
 
-            Assert::IsTrue (list->TryGetTip (POINT { label.left + 1, (label.top + label.bottom) / 2 }, tip) && tip.text.starts_with (L"w_outer=$6100"),
+            Assert::IsTrue (list->TryGetTip (POINT { label.left + 1, (label.top + label.bottom) / 2 }, tip) && tip.text.starts_with (L"w_outer = $6100"),
                             L"the label's symbol tip doesn't come up");
 
             tip = DxuiTip();

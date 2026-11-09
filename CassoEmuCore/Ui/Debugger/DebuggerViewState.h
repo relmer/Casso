@@ -366,6 +366,21 @@ struct DebuggerViewSnapshot
 
     std::shared_ptr<const SymbolsState>   symbols;
 
+    //  The bytes at each symbol's address, for a symbol that is not a
+    //  constant or an I/O switch: as many as its size, from one to
+    //  kMaxSymbolBytes. Read for every snapshot, since they change as the
+    //  machine runs, and sorted by address.
+    static constexpr size_t  kMaxSymbolBytes = 8;
+
+    struct SymbolBytes
+    {
+        Word                               address = 0;
+        size_t                             count   = 0;
+        std::array<Byte, kMaxSymbolBytes>  bytes   = {};
+    };
+
+    std::vector<SymbolBytes>              symbolBytes;
+
     //  The profile, read while the machine is paused; none while it runs.
     //  Whether profiling is on, read either way. The data blocks and the
     //  step filter's entries.
@@ -1008,6 +1023,7 @@ private:
 
     static void  AddSessionStops  (DebugSession & session, DebuggerViewSnapshot & snapshot);
     void         BuildAutoWatches (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+    static void  BuildSymbolBytes (DebugSession & session, DebuggerViewSnapshot & snapshot);
     static bool  IsSameRegisters  (const Cpu6502Registers & left, const Cpu6502Registers & right);
     static Byte  GetRegisterByte  (const std::string & name, const Cpu6502Registers & registers);
     static void  AddAutoWatches   (DebugSession & session, const InstructionTouches::Result & touches,

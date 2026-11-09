@@ -1063,7 +1063,9 @@ void DisassemblyGroup::ApplyView (int view)
         }
     }
 
-    built = DisassemblyOptions::BuildRows (lines, source, [this, &text] (int fileId, int line) { return TryGetSourceText (fileId, line, text); });
+    built = DisassemblyOptions::BuildRows (lines, source,
+                                           [this, &text] (int fileId, int line) { return TryGetSourceText (fileId, line, text); },
+                                           [this, &text] (int fileId, int line) { return TryGetSourceText (fileId, line, text) && SourcePane::IsLabelLine (text); });
     m_views[(size_t) view]->SetRows (built);
     SendShownLines (view, built);
     SetAddressScroll (view, lines, built);
@@ -2310,8 +2312,6 @@ bool DisassemblyGroup::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstr
     int            index   = -1;
     std::string    name;
     Word           address = 0;
-    const char   * about   = nullptr;
-    std::string    comment;
 
 
 
@@ -2347,20 +2347,8 @@ bool DisassemblyGroup::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstr
         return column == (int) DisassemblyCells::kInstructionColumn && TryGetIoRegisterTip (m_host.GetLatestSnapshot()->ioRegisters, address, text);
     }
 
-    about = SymbolDescriptions::Find (name);
-    text  = std::format (L"{}=${:04X}", TextEncoding::NarrowToWide (name), address);
-
-    if (about != nullptr)
-    {
-        text += L"\n" + TextEncoding::NarrowToWide (about);
-    }
-
-    comment = m_host.GetSymbolComment (address, name);
-
-    if (!comment.empty())
-    {
-        text += L"\n" + TextEncoding::NarrowToWide (comment);
-    }
+    text = std::format (L"{} = ${:04X}", TextEncoding::NarrowToWide (name), address);
+    SourcePane::AppendSymbolDetails (text, name, address, false, *m_host.GetLatestSnapshot(), m_host.GetSymbolComment (address, name));
 
     OffsetRect (&anchor, bounds.left, bounds.top);
     return true;
@@ -2529,16 +2517,18 @@ bool DisassemblyGroup::TryGetSourceSymbolTip (const DxuiListView & list, POINT c
     int                           row      = -1;
     size_t                        column   = 0;
     int                           ch       = 0;
+    const SymbolInfo            * found    = nullptr;
 
 
 
     if (snapshot == nullptr || snapshot->symbols == nullptr ||
         !list.TryHitTestCellChar (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, row, column, ch) ||
-        !SourcePane::TryGetSymbolText (list.GetCellsOfRow (row)[column].text, ch, snapshot->symbols->symbols, text))
+        !SourcePane::TryGetSymbolText (list.GetCellsOfRow (row)[column].text, ch, snapshot->symbols->symbols, text, &found))
     {
         return false;
     }
 
+    SourcePane::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *snapshot, m_host.GetSymbolComment (found->address, found->name));
     anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
     return true;
 }

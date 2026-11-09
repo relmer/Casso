@@ -679,7 +679,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool         TryGetCodeTip         (const DxuiListView & list, POINT clientPx, DxuiTip & tip) const;
     static bool  MarkImmediate         (bool isFound, DxuiTip & tip);
     bool         TryGetBranchTip       (POINT clientPx, DxuiTip & tip) const;
-    bool         TryGetSourceSymbolTip (const SourceDocumentPane & document, POINT clientPx, DxuiTip & tip) const;
+    bool         TryGetSourceSymbolTip (const SourceDocumentPane & document, POINT clientPx, DxuiTip & tip);
     bool         TryGetGraphicTip      (POINT clientPx, DxuiTip & tip) const;
 
     //  The anchor of a tip that follows the pointer: the pointer's own pixel.

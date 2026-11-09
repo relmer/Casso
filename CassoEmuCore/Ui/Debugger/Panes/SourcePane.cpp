@@ -8,6 +8,7 @@
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 #include "Debugger/Source/SourcePathList.h"
+#include "Debugger/SymbolDescriptions.h"
 #include "CLexer.h"
 
 
@@ -1430,7 +1431,8 @@ const SymbolInfo * SourcePane::FindSymbolAt (POINT atDip, const std::vector<Symb
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SourcePane::TryGetSymbolTip (POINT atDip, const std::vector<SymbolInfo> & symbols, std::wstring & text, RECT & anchor) const
+bool SourcePane::TryGetSymbolTip (POINT atDip, const std::vector<SymbolInfo> & symbols, std::wstring & text, RECT & anchor,
+                                  const SymbolInfo ** found) const
 {
     DxuiTextView::Position     at    = m_view->HitTest (atDip);
     const DxuiTextView::Row  * row   = nullptr;
@@ -1453,7 +1455,7 @@ bool SourcePane::TryGetSymbolTip (POINT atDip, const std::vector<SymbolInfo> & s
     start = (int) (row->cells[0].size() + 1 + row->cells[1].size() + 1);
 
     if (at.offset < start || at.offset > start + (int) row->cells[(size_t) kTextCell].size() ||
-        !TryGetSymbolText (row->cells[(size_t) kTextCell], at.offset - start, symbols, text))
+        !TryGetSymbolText (row->cells[(size_t) kTextCell], at.offset - start, symbols, text, found))
     {
         return false;
     }
@@ -1701,7 +1703,8 @@ bool SourcePane::IsOperandSymbolAt (const std::wstring & line, int codeAt, int c
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SourcePane::TryGetSymbolText (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, std::wstring & text)
+bool SourcePane::TryGetSymbolText (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, std::wstring & text,
+                                   const SymbolInfo ** symbol)
 {
     int                 start       = 0;
     const SymbolInfo  * found       = FindSymbolAt (line, ch, symbols, start);
@@ -1713,6 +1716,11 @@ bool SourcePane::TryGetSymbolText (const std::wstring & line, int ch, const std:
     if (found == nullptr)
     {
         return false;
+    }
+
+    if (symbol != nullptr)
+    {
+        *symbol = found;
     }
 
     text = std::format (L"{} = ${:04X}{}", TextEncoding::NarrowToWide (found->name), found->address, found->isConstant ? L", a constant" : L"");
@@ -1729,6 +1737,44 @@ bool SourcePane::TryGetSymbolText (const std::wstring & line, int ch, const std:
     return true;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::AppendSymbolDetails
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourcePane::AppendSymbolDetails (std::wstring & text, const std::string & name, Word address, bool isConstant,
+                                      const DebuggerViewSnapshot & snapshot, const std::string & comment)
+{
+    const char  * about = SymbolDescriptions::Find (name);
+    auto          read  = std::ranges::lower_bound (snapshot.symbolBytes, address, {}, &DebuggerViewSnapshot::SymbolBytes::address);
+
+
+
+    if (!isConstant && read != snapshot.symbolBytes.end() && read->address == address)
+    {
+        text += std::format (L"\n${:04X}:", address);
+
+        for (size_t i = 0; i < read->count; i++)
+        {
+            text += std::format (L" {:02X}", read->bytes[i]);
+        }
+    }
+
+    if (about != nullptr)
+    {
+        text += L"\n" + TextEncoding::NarrowToWide (about);
+    }
+
+    if (!comment.empty())
+    {
+        text += L"\n" + TextEncoding::NarrowToWide (comment);
+    }
+}
 
 
 
@@ -1752,6 +1798,40 @@ bool SourcePane::IsInstructionLine (const std::wstring & line, SourceSyntax::Ass
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::IsLabelLine
+//
+//  A symbol in the first column, then nothing but a comment.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::IsLabelLine (const std::wstring & line, SourceSyntax::Assembler assembler)
+{
+    std::vector<SourceSyntax::Run>  runs = SourceSyntax::GetSourceRuns (line, assembler);
+
+
+
+    if (runs.empty() || runs[0].start != 0 || runs[0].token != SourceSyntax::Token::Symbol)
+    {
+        return false;
+    }
+
+    for (size_t i = 1; i < runs.size(); i++)
+    {
+        if (runs[i].token != SourceSyntax::Token::Comment)
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 

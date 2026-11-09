@@ -93,9 +93,15 @@ public:
     //  The symbol a source line has at a caret position, by its name, as
     //  "count_text = $60F2", and after a < or > before it, the byte that
     //  operator takes. False off a word, in a comment, or for a word that
-    //  isn't a symbol.
-    static bool  TryGetSymbolText (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, std::wstring & text);
+    //  isn't a symbol. The symbol found is in `found`, when one is passed.
+    static bool  TryGetSymbolText (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, std::wstring & text,
+                                   const SymbolInfo ** found = nullptr);
 
+    //  The lines of a symbol's tip after its address: the bytes there, as
+    //  "$60C1: 05", for a symbol that is not a constant, then its description
+    //  and the comment on its line in the source.
+    static void  AppendSymbolDetails (std::wstring & text, const std::string & name, Word address, bool isConstant,
+                                      const DebuggerViewSnapshot & snapshot, const std::string & comment);
     //  The symbol whose name is the word at a character of a line, before a
     //  comment, and where the word starts; null for none.
     static const SymbolInfo *  FindSymbolAt (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, int & start);
@@ -238,7 +244,8 @@ public:
 
     //  Over a word of the source text, the symbol it is, and whether it is
     //  the symbol its line's operand is written with.
-    bool                TryGetSymbolTip   (POINT atDip, const std::vector<SymbolInfo> & symbols, std::wstring & text, RECT & anchor) const;
+    bool                TryGetSymbolTip   (POINT atDip, const std::vector<SymbolInfo> & symbols, std::wstring & text, RECT & anchor,
+                                           const SymbolInfo ** found = nullptr) const;
     const SymbolInfo  * FindSymbolAt      (POINT atDip, const std::vector<SymbolInfo> & symbols) const;
     bool                IsOperandSymbolAt (POINT atDip, const std::vector<SymbolInfo> & symbols) const;
 
@@ -264,6 +271,9 @@ public:
 
     //  Whether a line's opcode is a 65C02 mnemonic, so that it is one instruction.
     static bool  IsInstructionLine (const std::wstring & line, SourceSyntax::Assembler assembler = SourceSyntax::Assembler::Any);
+
+    //  Whether a line is a label alone, with at most a comment after it.
+    static bool  IsLabelLine       (const std::wstring & line, SourceSyntax::Assembler assembler = SourceSyntax::Assembler::Any);
 
     //  The command a double click on a line sends: clearing the breakpoint
     //  already on it, or setting one.

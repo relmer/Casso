@@ -294,6 +294,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     }
 
     snapshot.symbols = m_symbols;
+    BuildSymbolBytes (session, snapshot);
 
     if (isPaused)
     {
@@ -1119,6 +1120,63 @@ void DebuggerViewState::UpdateLastStop (DebugSession & session, DebuggerViewSnap
     }
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::BuildSymbolBytes
+//
+//  The bytes at each symbol's address, read without side effects; an I/O
+//  switch is skipped, since reading one would change the machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::BuildSymbolBytes (DebugSession & session, DebuggerViewSnapshot & snapshot)
+{
+    if (snapshot.symbols == nullptr)
+    {
+        return;
+    }
+
+    snapshot.symbolBytes.reserve (snapshot.symbols->symbols.size());
+
+    for (const SymbolInfo & symbol : snapshot.symbols->symbols)
+    {
+        DebuggerViewSnapshot::SymbolBytes  read;
+        size_t                             wanted = std::clamp<size_t> (symbol.size, 1, DebuggerViewSnapshot::kMaxSymbolBytes);
+
+
+
+        if (symbol.isConstant || session.GetTarget().GetRegion (symbol.address) == MemoryRegion::Io)
+        {
+            continue;
+        }
+
+        read.address = symbol.address;
+
+        while (read.count < wanted && session.TryPeek ((Word) (symbol.address + read.count), read.bytes[read.count]))
+        {
+            read.count++;
+        }
+
+        if (read.count > 0)
+        {
+            snapshot.symbolBytes.push_back (read);
+        }
+    }
+
+    //  One entry for an address, the one with the most bytes.
+    std::ranges::sort (snapshot.symbolBytes, [] (const auto & left, const auto & right)
+    {
+        return (left.address != right.address) ? left.address < right.address : left.count > right.count;
+    });
+
+    snapshot.symbolBytes.erase (std::unique (snapshot.symbolBytes.begin(), snapshot.symbolBytes.end(),
+                                             [] (const auto & left, const auto & right) { return left.address == right.address; }),
+                                snapshot.symbolBytes.end());
+}
 
 
 
