@@ -12,12 +12,16 @@
 
 
 
-static constexpr int  s_kMapCheckDip     = 190;
-static constexpr int  s_kMapButtonDip    = 30;
-static constexpr int  s_kMapStepLabelDip = 150;
-static constexpr int  s_kMapVolumeDip    = 150;
-static constexpr int  s_kPickerPadDip    = 8;
-static constexpr int  s_kChevronDip      = 5;
+static constexpr int      s_kMapCheckDip     = 190;
+static constexpr int      s_kMapCheckBoxDip  = 34;
+static constexpr int      s_kMapButtonDip    = 30;
+static constexpr int      s_kMapStepLabelDip = 150;
+static constexpr int      s_kMapVolumeDip    = 150;
+static constexpr int      s_kPickerPadDip    = 8;
+static constexpr int      s_kChevronDip      = 5;
+static constexpr wchar_t  s_kpszStepLabel[]  = L"Previous/next sector in";
+static constexpr wchar_t  s_kpszDeleted[]    = L"Show deleted files";
+static constexpr wchar_t  s_kpszBadOnly[]    = L"Files touching bad sectors";
 
 
 
@@ -55,11 +59,11 @@ void FilesView::Create()
     m_mapGrid      = m_mapScroll->CreateChild<FileMapGridView>    (m_session.context);
     m_fileList     = m_mapScroll->CreateChild<InspectorTableView> (m_session.context);
     m_mapVolumes   = parent.CreateChild<DxuiTabStrip>();
-    m_mapDeleted   = parent.CreateChild<DxuiCheckbox> (L"Show deleted files");
-    m_mapBadOnly   = parent.CreateChild<DxuiCheckbox> (L"Files touching bad sectors");
+    m_mapDeleted   = parent.CreateChild<DxuiCheckbox> (s_kpszDeleted);
+    m_mapBadOnly   = parent.CreateChild<DxuiCheckbox> (s_kpszBadOnly);
     m_mapPrev      = parent.CreateChild<DxuiButton> (L"<");
     m_mapNext      = parent.CreateChild<DxuiButton> (L">");
-    m_mapStepLabel = parent.CreateChild<DxuiLabel> (L"Previous/next sector in", DxuiTextRole::Body, DxuiTextHAlign::Left);
+    m_mapStepLabel = parent.CreateChild<DxuiLabel> (s_kpszStepLabel, DxuiTextRole::Body, DxuiTextHAlign::Left);
     m_filePicker   = parent.CreateChild<DxuiButton> (L"");
     m_mapCopy      = parent.CreateChild<DxuiButton> (L"Copy map");
 
@@ -227,6 +231,8 @@ void FilesView::ResetZoom()
 
 void FilesView::PaintOver (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
+    MeasureLabels (text);
+
     if (m_filePicker->IsVisible())
     {
         PaintPicker (painter, text, theme);
@@ -281,10 +287,10 @@ void FilesView::Layout (const RECT & area, const DxuiDpiScaler & scaler)
     const FileMap *            map     = m_session.GetFileMap();
     int                        row     = scaler.ToPx (InspectorMetrics::kRowDip);
     int                        margin  = scaler.ToPx (InspectorMetrics::kMarginDip);
-    int                        check   = scaler.ToPx (s_kMapCheckDip);
+    int                        check   = std::max (scaler.ToPx (s_kMapCheckDip),     static_cast<int> (std::ceil (m_checkTextPx)) + scaler.ToPx (s_kMapCheckBoxDip));
     int                        button  = scaler.ToPx (s_kMapButtonDip);
     int                        volume  = scaler.ToPx (s_kMapVolumeDip);
-    int                        label   = scaler.ToPx (s_kMapStepLabelDip);
+    int                        label   = std::max (scaler.ToPx (s_kMapStepLabelDip), static_cast<int> (std::ceil (m_stepTextPx)) + margin);
     int                        picker  = GetPickerWidthPx (scaler);
     int                        y       = area.top;
     int                        width   = 0;
@@ -409,6 +415,42 @@ void FilesView::OpenFilePicker (bool isOpen)
     m_isPickerOpen = isOpen;
     Show (m_session.isDiskGroup && m_session.diskTab == kTabFileMap);
     m_host.Relayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FilesView::MeasureLabels
+//
+//  The step label's and the checkboxes' text in the theme's face. A width
+//  that differs from the last one causes a relayout, so a theme with a wider
+//  face gets wider controls instead of labels wrapped onto two lines.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FilesView::MeasureLabels (IDxuiTextRenderer & text)
+{
+    float  textPx  = m_session.scaler.ToPxf (DxuiTheme::kBodySizeDip);
+    float  step    = 0;
+    float  deleted = 0;
+    float  badOnly = 0;
+    float  h       = 0;
+
+
+
+    text.MeasureString (s_kpszStepLabel, textPx, DxuiTheme::kBodyFace, step,    h);
+    text.MeasureString (s_kpszDeleted,   textPx, DxuiTheme::kBodyFace, deleted, h);
+    text.MeasureString (s_kpszBadOnly,   textPx, DxuiTheme::kBodyFace, badOnly, h);
+
+    if (std::abs (step - m_stepTextPx) > 0.5f || std::abs (std::max (deleted, badOnly) - m_checkTextPx) > 0.5f)
+    {
+        m_stepTextPx            = step;
+        m_checkTextPx           = std::max (deleted, badOnly);
+        m_session.isLayoutStale = true;
+    }
 }
 
 

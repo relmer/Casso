@@ -52,6 +52,7 @@ public:
 
 private:
     void  OpenFilePicker     (bool isOpen);
+    void  MeasureLabels      (IDxuiTextRenderer & text);
     void  PaintPicker        (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  SetPickerLabel     (const std::wstring & label);
     int   GetPickerWidthPx   (const DxuiDpiScaler & scaler) const;
@@ -75,6 +76,8 @@ private:
     bool                       m_isPickerOpen       = true;
     std::wstring               m_pickerLabel        = L"Choose a file";
     float                      m_pickerTextPx       = 0.0f;
+    float                      m_stepTextPx         = 0.0f;
+    float                      m_checkTextPx        = 0.0f;
     int                        m_revealedCell       = -1;
     int                        m_fileSortColumn     = -1;
     bool                       m_fileSortDescending = false;
