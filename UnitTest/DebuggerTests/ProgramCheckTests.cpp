@@ -169,6 +169,32 @@ namespace DebuggerTests
         }
 
 
+        //  A source line is unmatched while memory at its address isn't its
+        //  instruction, as when other code is loaded there.
+        TEST_METHOD (ALineWhoseBytesAreOtherCodesIsUnmatched)
+        {
+            std::vector<Byte>                 memory (0x10000, 0);
+            std::vector<ProgramCheck::Entry>  entries;
+            TestCpu                           cpu;
+
+
+
+            cpu.InitForTest();
+
+            memory[0x6000] = 0xA9;
+            memory[0x6001] = 0x01;
+            memory[0x6002] = 0xA2;
+            memory[0x6003] = 0x02;
+
+            entries.push_back ({ 0x6000, "LDA", 2, {}, 0, 4 });
+            entries.push_back ({ 0x6002, "LDA", 2, {}, 0, 5 });
+            entries.push_back ({ 0x6004, "",    0, { 0x11 } });
+
+            Assert::IsTrue (ProgramCheck::GetUnmatchedLines (entries, MakePeek (memory), cpu.GetInstructionSet()) == std::set<std::pair<int, int>> { { 0, 5 } },
+                            L"line 5 is LDX in memory; an entry with no line is no line's");
+        }
+
+
         TEST_METHOD (TheBannersHaveTheFilesNames)
         {
             Assert::AreEqual (std::wstring(), DisassemblyViewPane::GetStaleText ({}, false));

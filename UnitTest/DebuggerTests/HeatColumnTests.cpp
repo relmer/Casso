@@ -137,6 +137,24 @@ namespace DebuggerTests
         }
 
 
+        //  A line whose bytes in memory are other code's now takes no heat.
+        TEST_METHOD (AnUnmatchedLineTakesNoHeat)
+        {
+            DebuggerViewSnapshot::HeatColumnLevels                levels    = MakeLevels();
+            std::vector<DxuiTextView::Row>                        rows      = SourcePane::BuildRows ({ L"  lda #1" }, -1, {});
+            std::map<std::pair<int, int>, std::pair<Word, Word>>  ranges    = { { { 0, 1 }, { 0x0300, 0x0301 } } };
+            std::set<std::pair<int, int>>                         unmatched = { { 0, 1 } };
+
+
+
+            levels.execute[0x0300] = 255;
+
+            SourcePane::AddHeatStrips (rows, 0, ranges, levels, MakePalette(), &unmatched);
+
+            Assert::AreEqual (0u, rows[0].gutterFill);
+        }
+
+
 
         //  While heat is on, a memory byte's tip has its counts and the scale
         //  of its tint, as a heat cell's does; with heat off, none.

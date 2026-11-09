@@ -211,6 +211,11 @@ public:
     void                  CheckProgram      ();
     bool                  IsDebugFileStale  () const { return m_programChecks != nullptr && m_programChecks->isDebugFileStale; }
 
+    // Every instruction line of the debug file, as a check entry, and the
+    // lines among them whose bytes in memory are not the line's now.
+    void                           SetDebugFileLines       (std::vector<ProgramCheck::Entry> entries) { m_debugFileLines = std::move (entries); }
+    std::set<std::pair<int, int>>  GetUnmatchedSourceLines () const;
+
     // The files whose program isn't in memory, by name, for the banners.
     std::vector<std::string>  GetStaleFileNames () const;
 
@@ -595,6 +600,7 @@ private:
     uint64_t                              m_filesRevision = 0;
     LineTable                             m_lineTable;
     std::shared_ptr<const ProgramChecks>  m_programChecks;
+    std::vector<ProgramCheck::Entry>      m_debugFileLines;
     bool                                  m_stepBySource  = false;
     uint64_t                              m_cycleMarker   = 0;
     StepFilter                            m_stepFilter;

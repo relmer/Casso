@@ -1556,6 +1556,11 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
     state.lineRanges    = m_lineRanges;
     state.isStale       = session.IsDebugFileStale();
 
+    if (m_isHeatColumnsShown)
+    {
+        state.unmatchedLines = std::make_shared<const std::set<std::pair<int, int>>> (session.GetUnmatchedSourceLines());
+    }
+
     //  Over a program that isn't the file's, the documents are open but
     //  none of their lines maps to an address.
     if (state.isStale)

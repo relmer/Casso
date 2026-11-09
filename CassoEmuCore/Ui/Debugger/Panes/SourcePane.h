@@ -148,7 +148,8 @@ public:
     //  band's fills.
     static void  AddHeatStrips (std::vector<DxuiTextView::Row> & rows, int fileId,
                                 const std::map<std::pair<int, int>, std::pair<Word, Word>> & lineRanges,
-                                const DebuggerViewSnapshot::HeatColumnLevels & levels, const HeatMapView::Palette & palette);
+                                const DebuggerViewSnapshot::HeatColumnLevels & levels, const HeatMapView::Palette & palette,
+                                const std::set<std::pair<int, int>> * unmatched = nullptr);
 
     //  Whose grammar colors the text: Any goes by what the file shows. Rows
     //  are rebuilt with the next Apply when it changes.
@@ -328,36 +329,37 @@ private:
     std::function<void ()>                            m_onToggleBody;
     std::function<void ()>                            m_onLoadSymbols;
 
-    std::optional<DebuggerViewSnapshot::SourceState>                   m_state;
-    std::wstring                                                       m_loadedFor;
-    int                                                                m_docFileId       = -1;
-    int                                                                m_pendingTopLine  = 0;
-    int                                                                m_fileId          = -1;
-    SourceMatch                                                        m_match           = SourceMatch::NotFound;
-    bool                                                               m_isDropped       = false;
-    int                                                                m_droppedAt       = -1;
-    std::wstring                                                       m_foundPath;
-    std::vector<std::wstring>                                          m_lines;
-    int                                                                m_macroLevel      = 0;
-    int                                                                m_rowsLine        = -1;
-    bool                                                               m_followPending   = false;
-    std::set<int>                                                      m_rowsBreakpoints;
-    std::set<int>                                                      m_rowsDisabled;
-    std::shared_ptr<const DebuggerViewSnapshot::LineOperands>          m_rowsLineOperands;
-    std::vector<int>                                                   m_rowLines;
-    std::set<int>                                                      m_disabledIds;
-    Style                                                              m_style;
-    std::optional<HeatMapView::Palette>                                m_heatPalette;
-    std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>      m_heatLevels;
-    std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>      m_rowsHeatLevels;
-    bool                                                               m_isStyleStale    = false;
-    bool                                                               m_isLoose         = false;
-    bool                                                               m_isLooseSource   = false;
-    SourceSyntax::Assembler                                            m_assemblerChoice = SourceSyntax::Assembler::Any;
-    SourceSyntax::Assembler                                            m_detected        = SourceSyntax::Assembler::As65;
-    SourceSyntax::Listing                                              m_listing         = SourceSyntax::Listing::None;
-    bool                                                               m_isC             = false;
-    int                                                                m_rowsFileId      = -2;
-    int                                                                m_hoverLine       = -1;
-    int                                                                m_rowsHover       = -1;
+    std::optional<DebuggerViewSnapshot::SourceState>               m_state;
+    std::wstring                                                   m_loadedFor;
+    int                                                            m_docFileId        = -1;
+    int                                                            m_pendingTopLine   = 0;
+    int                                                            m_fileId           = -1;
+    SourceMatch                                                    m_match            = SourceMatch::NotFound;
+    bool                                                           m_isDropped        = false;
+    int                                                            m_droppedAt        = -1;
+    std::wstring                                                   m_foundPath;
+    std::vector<std::wstring>                                      m_lines;
+    int                                                            m_macroLevel       = 0;
+    int                                                            m_rowsLine         = -1;
+    bool                                                           m_followPending    = false;
+    std::set<int>                                                  m_rowsBreakpoints;
+    std::set<int>                                                  m_rowsDisabled;
+    std::shared_ptr<const DebuggerViewSnapshot::LineOperands>      m_rowsLineOperands;
+    std::vector<int>                                               m_rowLines;
+    std::set<int>                                                  m_disabledIds;
+    Style                                                          m_style;
+    std::optional<HeatMapView::Palette>                            m_heatPalette;
+    std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>  m_heatLevels;
+    std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>  m_rowsHeatLevels;
+    std::set<std::pair<int, int>>                                  m_rowsUnmatched;   // the unmatched lines the rows were built with
+    bool                                                           m_isStyleStale     = false;
+    bool                                                           m_isLoose          = false;
+    bool                                                           m_isLooseSource    = false;
+    SourceSyntax::Assembler                                        m_assemblerChoice  = SourceSyntax::Assembler::Any;
+    SourceSyntax::Assembler                                        m_detected         = SourceSyntax::Assembler::As65;
+    SourceSyntax::Listing                                          m_listing          = SourceSyntax::Listing::None;
+    bool                                                           m_isC              = false;
+    int                                                            m_rowsFileId       = -2;
+    int                                                            m_hoverLine        = -1;
+    int                                                            m_rowsHover        = -1;
 };

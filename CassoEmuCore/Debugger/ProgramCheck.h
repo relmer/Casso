@@ -38,6 +38,8 @@ public:
         std::string        mnemonic;          // upper case; empty for bytes
         size_t             size    = 0;       // the instruction's bytes, with a mnemonic
         std::vector<Byte>  bytes;
+        int                file    = -1;      // the source line it is from, for a debug file's
+        int                line    = 0;
 
         bool operator== (const Entry & other) const = default;
     };
@@ -49,6 +51,12 @@ public:
     //  has for it. The sources are each file's lines by the file's id; a
     //  file that wasn't read doesn't have entries.
     static std::vector<Entry>  GetDebugFileEntries (const DebugFile & file, const std::map<int, std::vector<std::string>> & sources);
+
+    //  The same entries, every one, unsampled.
+    static std::vector<Entry>  GetDebugFileLineEntries (const DebugFile & file, const std::map<int, std::vector<std::string>> & sources);
+
+    //  The source lines, by file and line, whose entries memory doesn't match.
+    static std::set<std::pair<int, int>>  GetUnmatchedLines (const std::vector<Entry> & entries, const PeekFn & peek, const Microcode * instructionSet);
 
     //  The bytes at each label in RAM, past the stack and short of I/O.
     static std::vector<Entry>  GetLabelEntries     (const std::vector<Word> & labels, const PeekFn & peek);

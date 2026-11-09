@@ -440,6 +440,7 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
     //  has the mnemonic of each instruction line, and its data directives.
     sources = isListing ? std::map<int, std::vector<std::string>>() : ReadSources (session, session.GetDebugFile(), session.ResolvePath (name));
     session.SetDebugFileCheck (ProgramCheck::GetDebugFileEntries (session.GetDebugFile(), sources));
+    session.SetDebugFileLines (ProgramCheck::GetDebugFileLineEntries (session.GetDebugFile(), sources));
     session.SetDebugFileData  (DebugFileData::GetBlocks (session.GetDebugFile(), sources));
 
     message.push_back (std::format ("Loaded {} symbols into {} and {} source lines{}.",

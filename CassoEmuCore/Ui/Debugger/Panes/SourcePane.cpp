@@ -120,20 +120,21 @@ void SourcePane::SetHeat (const std::optional<HeatMapView::Palette> & palette)
 //  SourcePane::AddHeatStrips
 //
 //  One fill of the hottest byte's color in the gutter's heat band, as the
-//  disassembly fills its heat cell. A line without code, or whose bytes
-//  nothing touched, has no fill.
+//  disassembly fills its heat cell. A line without code, whose bytes nothing
+//  touched, or whose bytes in memory are other code's now, has no fill.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SourcePane::AddHeatStrips (std::vector<DxuiTextView::Row> & rows, int fileId,
                                 const std::map<std::pair<int, int>, std::pair<Word, Word>> & lineRanges,
-                                const DebuggerViewSnapshot::HeatColumnLevels & levels, const HeatMapView::Palette & palette)
+                                const DebuggerViewSnapshot::HeatColumnLevels & levels, const HeatMapView::Palette & palette,
+                                const std::set<std::pair<int, int>> * unmatched)
 {
     for (size_t i = 0; i < rows.size(); i++)
     {
         auto  found = lineRanges.find ({ fileId, (int) i + 1 });
 
-        if (found != lineRanges.end())
+        if (found != lineRanges.end() && (unmatched == nullptr || !unmatched->contains ({ fileId, (int) i + 1 })))
         {
             rows[i].gutterFill = HeatStrip::Get (levels, found->second.first, (size_t) (found->second.second - found->second.first) + 1, palette, false).hottest;
         }
@@ -427,6 +428,7 @@ void SourcePane::Rebuild()
     std::wstring                          elsewhere;
     std::vector<DxuiTextView::Row>        rows;
     auto                                  heat         = (m_heatPalette.has_value() && !m_isLoose && m_state->lineRanges != nullptr) ? m_heatLevels : nullptr;
+    std::set<std::pair<int, int>>         unmatched    = (m_state->unmatchedLines != nullptr) ? *m_state->unmatchedLines : std::set<std::pair<int, int>>();
 
 
 
@@ -454,7 +456,7 @@ void SourcePane::Rebuild()
 
     isRowsStale = m_rowsFileId != m_fileId || m_rowsLine != marked || m_rowsBreakpoints != breakpoints ||
                   m_rowsDisabled != disabled || m_isStyleStale || m_rowsLineOperands != m_state->lineOperands || m_rowsHeatLevels != heat ||
-                  m_rowsHover != m_hoverLine;
+                  m_rowsHover != m_hoverLine || (heat != nullptr && m_rowsUnmatched != unmatched);
 
     if (isRowsStale)
     {
@@ -477,7 +479,7 @@ void SourcePane::Rebuild()
 
         if (heat != nullptr)
         {
-            AddHeatStrips (rows, m_fileId, *m_state->lineRanges, *heat, *m_heatPalette);
+            AddHeatStrips (rows, m_fileId, *m_state->lineRanges, *heat, *m_heatPalette, m_state->unmatchedLines.get());
         }
 
         //  For the same file the selection is left in place, so a drag across
@@ -492,6 +494,7 @@ void SourcePane::Rebuild()
         }
 
         m_rowsHeatLevels   = heat;
+        m_rowsUnmatched    = std::move (unmatched);
         m_rowLines         = GetRowLines (m_view->GetRows());
         m_rowsDisabled     = disabled;
         m_rowsLineOperands = m_state->lineOperands;
@@ -746,7 +749,8 @@ bool SourcePane::TryGetHeatTip (POINT atDip, HeatStrip::Tip & tip, RECT & anchor
 
     if (m_rowsHeatLevels == nullptr || !m_state.has_value() || m_state->lineRanges == nullptr || !m_view->IsInGutterBand (atDip) ||
         at.row < 0 || at.row >= (int) m_view->GetRows().size() || !m_view->GetRowSide (at.row, side) || side != 0 ||
-        !m_state->lineRanges->contains ({ m_fileId, at.row + 1 }))
+        !m_state->lineRanges->contains ({ m_fileId, at.row + 1 }) ||
+        (m_state->unmatchedLines != nullptr && m_state->unmatchedLines->contains ({ m_fileId, at.row + 1 })))
     {
         return false;
     }

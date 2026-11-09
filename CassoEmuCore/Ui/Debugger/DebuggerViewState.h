@@ -227,6 +227,10 @@ struct DebuggerViewSnapshot
         //  addresses' map is.
         std::shared_ptr<const std::map<std::pair<int, int>, std::pair<Word, Word>>>  lineRanges;
 
+        //  While heat is shown: the lines whose bytes in memory are not the
+        //  line's now, as other code at the same addresses, which take no heat.
+        std::shared_ptr<const std::set<std::pair<int, int>>>                          unmatchedLines;
+
         //  What each line in the PC's files reads, as the disassembly pane's
         //  operand column has it, and for the line at PC what it leaves too:
         //  the operand first, the result second. Built while the machine is

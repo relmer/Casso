@@ -318,6 +318,25 @@ void DebugSession::SetLabelCheck (SymbolTableId table)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::GetUnmatchedSourceLines
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::set<std::pair<int, int>> DebugSession::GetUnmatchedSourceLines() const
+{
+    ProgramCheck::PeekFn  peek = [this] (Word address, Byte & value) { return m_target.TryPeek (address, value); };
+
+
+
+    return ProgramCheck::GetUnmatchedLines (m_debugFileLines, peek, m_target.GetInstructionSet());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::CheckProgram
 //
 //  A table whose labels have no bytes yet takes them at a stop in the
