@@ -373,10 +373,35 @@ void ThemePage::PaintPreviewWindow (IDxuiPainter                         & paint
     // Outer 1px frame so the preview reads as a discrete window on the panel
     // background. It takes the page's button border, which contrasts with the
     // page in light and dark themes alike, where near-black was invisible on
-    // a dark page. Drawn LAST because every band fill above spans the full
-    // width and would otherwise erase it.
-    painter.OutlineRect ((float) prevRect.left, (float) prevRect.top,
-                         (float) prevW, (float) prevH, 1.0f, frameArgb);
+    // a dark page.
+    //
+    // Drawn LAST, and in the text pass rather than by the painter. Every band
+    // fill above spans the full width, and the screen picture is a Direct2D
+    // bitmap, which the page draws after all of the painter's fills. A painter
+    // outline was covered wherever the picture extends to the edge of the
+    // preview, which with auto-hidden drives is both sides of the screen.
+    {
+        float    frameL = (float) prevRect.left;
+        float    frameT = (float) prevRect.top;
+        float    frameW = (float) prevW;
+        float    frameH = (float) prevH;
+        float    edge   = 1.0f;
+        HRESULT  hrEdge = S_OK;
+
+
+
+        hrEdge = text.FillRect (frameL, frameT, frameW, edge, frameArgb);
+        IGNORE_RETURN_VALUE (hrEdge, S_OK);
+
+        hrEdge = text.FillRect (frameL, frameT + frameH - edge, frameW, edge, frameArgb);
+        IGNORE_RETURN_VALUE (hrEdge, S_OK);
+
+        hrEdge = text.FillRect (frameL, frameT, edge, frameH, frameArgb);
+        IGNORE_RETURN_VALUE (hrEdge, S_OK);
+
+        hrEdge = text.FillRect (frameL + frameW - edge, frameT, edge, frameH, frameArgb);
+        IGNORE_RETURN_VALUE (hrEdge, S_OK);
+    }
 
     // Hand the sheet the region to compose into. Full takes the picture and
     // the drives together, exactly as the live scene lays them out; with the
