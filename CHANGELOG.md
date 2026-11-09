@@ -48,6 +48,11 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- A submenu opens beside its parent menu, not on top of it, when the parent
+  menu extends past the edge of the window.
+- The //c reset button and switch caps draw without thin horizontal lines.
+- The window title stays on one line, ending in an ellipsis when it is too long
+  for the window.
 - Settings > Theme's 3D CRT monitor checkbox now correctly respects the OK and
   Cancel buttons.
 - Menus are drawn without the pale outline around them. The shadow under a
