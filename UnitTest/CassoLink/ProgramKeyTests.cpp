@@ -107,6 +107,87 @@ public:
 
 
 
+    //  A line typed on the Apple, such as a Full Send's prefix, is edited on
+    //  the PC: each key is sent as its code, Left arrow and Return too.
+    TEST_METHOD (EveryKey_AtALinesPrompt_IsSentAsItsCode)
+    {
+        static const std::vector<std::string>  kLines = { "PREFIX: _" };
+
+        struct Key { Byte pressed; Byte code; };
+
+        static constexpr Key  kKeys[] = { { 'B', 'B' | 0x80 }, { 'x', 'x' | 0x80 }, { '-', '-' | 0x80 },
+                                          { 0x08, CassoLinkCodec::kKeyLeft }, { '\r', CassoLinkCodec::kKeyReturn } };
+
+        ProgramRig  rig (Dos33());
+        Byte        key       = 0;
+        uint64_t    pressedAt = 0;
+
+
+
+        AssertSucceeded (rig.host->SetSpeed (kFastControl));
+
+        for (const Key & k : kKeys)
+        {
+            PressDuring (rig, k.pressed, kPressAfter, pressedAt);
+            AssertSucceeded (rig.host->WaitForAnyKey (kLines, key));
+
+            Assert::AreEqual<int> (k.code, key, std::format (L"the key ${:02X}", k.pressed).c_str());
+        }
+    }
+
+
+
+    //  No drive spins during a pause, which can last as long as the user
+    //  takes to change disks.
+    TEST_METHOD (APause_TurnsTheMotorOff)
+    {
+        static const std::vector<std::string>  kLines = { "PRESS SPACE" };
+
+        static constexpr uint64_t  kCheckFrom = 3 * kClockHz / 2;   // past the drive's spindown
+        static constexpr uint64_t  kPressAt   = 3 * kClockHz;
+
+        ProgramRig         rig (Dos33());
+        const Byte         sector[] = { 0 };
+        std::vector<Byte>  data;
+        CassoLinkStatus    status;
+        Byte               key     = 0;
+        uint64_t           start   = 0;
+        uint64_t           checked = 0;
+        bool               pressed = false;
+        bool               spun    = false;
+
+
+
+        AssertSucceeded (rig.host->SetSpeed (kFastControl));
+        AssertSucceeded (rig.host->ReadSectors (1, 0, sector, data, status));
+
+        start = rig.stream->GetCycles();
+
+        rig.stream->SetStepHook ([&] ()
+        {
+            uint64_t  now = rig.stream->GetCycles() - start;
+
+            if (!pressed && now >= kCheckFrom)
+            {
+                spun = spun || rig.machine.GetRefs().diskController->IsMotorOn();
+                checked++;
+            }
+
+            if (!pressed && now >= kPressAt)
+            {
+                pressed = true;
+                rig.Press (' ');
+            }
+        });
+
+        AssertSucceeded (rig.host->WaitForKey (kLines, key));
+
+        Assert::IsTrue  (pressed && checked > 0, L"the pause lasted past the check");
+        Assert::IsFalse (spun, L"no drive spins during the pause");
+    }
+
+
+
     //  During a Full Send, set by its Session screen, the program reads the
     //  keyboard during a read, so Q ends a transfer within two seconds.
     TEST_METHOD (Q_DuringAFullSendsRead_IsReportedWithinTwoSeconds)

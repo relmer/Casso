@@ -4,6 +4,7 @@
 #include "../EmuTests/FixtureProvider.h"
 #include "../EmuTests/TextScreenScraper.h"
 #include "Core/TextEncoding.h"
+#include "Devices/RamDevice.h"
 #include "ProgramRig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -156,6 +157,34 @@ public:
         AssertRow (rig, kRowHistoryTitle, "HISTORY:",                      L"the heading");
         AssertRow (rig, kRowHistory1,     "12:34 OK  COPIED FROMPC TO D1", L"the newest line");
         AssertRow (rig, kRowHistory2,     "12:30 PC CONNECTED",            L"the line before it");
+    }
+
+
+
+    //  Set columns to 80 on a //c: the odd columns of the status row are in
+    //  main memory, with the connection at the row's right edge.
+    TEST_METHOD (EightyColumns_PutTheOddColumnsInMainMemory)
+    {
+        struct Cell { Word at; char c; const wchar_t * what; };
+
+        static constexpr Cell  kCells[] = { { 0x0400, 'A', L"column 1 of CASSOLINK" },
+                                            { 0x0401, 'S', L"column 3" },
+                                            { 0x0406, 'N', L"column 13, in CONNECTED" },
+                                            { 0x0426, '2', L"column 77, in the connection at the right edge" },
+                                            { 0x0427, '0', L"column 79, the speed's last digit" } };
+
+        ProgramRig  rig ({});
+
+
+
+        AssertSucceeded (rig.host->SetSpeed (kFastControl));
+        AssertSucceeded (rig.host->SetColumns (true));
+        rig.machine.RunCycles (kSettleCycles);
+
+        for (const Cell & cell : kCells)
+        {
+            Assert::AreEqual<int> (cell.c | 0x80, (int) rig.machine.GetRefs().mainRamDev->GetData()[cell.at], cell.what);
+        }
     }
 
 

@@ -47,11 +47,9 @@ public:
     static constexpr Word      kRowTitle    = 0x0600;
     static constexpr Word      kRowCounts   = 0x0680;
     static constexpr Word      kRowDivider  = 0x0700;
-    static constexpr Word      kRowDrive1   = 0x0780;
     static constexpr Word      kRowBar1     = 0x0428;
     static constexpr Word      kRowDrive2   = 0x0528;
     static constexpr Word      kRowPrompt   = 0x07A8;
-    static constexpr Word      kRowPrompt2  = 0x0450;
     static constexpr int       kSlot        = 6;
 
     //  The target is 30; a read to image alone takes 27 here.
@@ -146,7 +144,7 @@ public:
         std::shared_ptr<LinkOperation>        send;
         uint64_t                              spent = 0;
 
-        explicit Rig (DWORD shimBaud = 9600, bool use40 = true)
+        explicit Rig (DWORD shimBaud = 9600)
         {
             FixtureProvider       fixtures;
             std::vector<uint8_t>  bytes;
@@ -182,8 +180,7 @@ public:
             settings.name      = "//c";
             settings.transport = LinkTransport::Emulated;
             settings.address   = "127.0.0.1:6502";
-
-            settings.use40 = use40;
+            settings.use40     = true;
 
             AssertSucceeded (session->Start (settings));
         }
@@ -373,72 +370,6 @@ public:
 
 
 
-    //  P on the entry screen: a prefix typed on the Apple, with a letter erased,
-    //  begins the image's name.
-    TEST_METHOD (Prefix_TypedOnTheEntryScreen_BeginsTheImagesName)
-    {
-        static constexpr Word  s_kRowPrefix = 0x04D0;
-
-        Rig  rig;
-
-        rig.machine.GetDiskStore().Eject (kSlot, 1);
-        rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
-        rig.send = rig.session->FullSend ("C:\\Box", "", "");
-
-        rig.RunUntil ([&] () { return rig.Row (s_kRowPrefix) == "P: FILE NAME PREFIX: NONE"; }, L"the entry screen");
-        rig.Press ('p');
-        rig.RunUntil ([&] () { return rig.Row (kRowPrompt2) == "PREFIX: _"; }, L"the prefix line");
-
-        for (char key : std::string ("BOXX"))
-        {
-            rig.Press (key);
-            rig.RunUntil ([&] () { return rig.Row (kRowPrompt2).ends_with (std::string (1, key) + "_"); }, L"the letter on the line");
-        }
-
-        rig.Press ('\x08');
-        rig.RunUntil ([&] () { return rig.Row (kRowPrompt2) == "PREFIX: BOX_"; }, L"Left arrow erases a letter");
-        rig.Press ('-');
-        rig.RunUntil ([&] () { return rig.Row (kRowPrompt2) == "PREFIX: BOX-_"; }, L"the hyphen");
-        rig.Press ('\r');
-        rig.RunUntil ([&] () { return rig.Row (s_kRowPrefix) == "P: FILE NAME PREFIX: BOX-"; }, L"Return takes the prefix");
-        rig.Press (' ');
-        rig.RunUntil ([&] () { return rig.Row (kRowCounts).starts_with ("SENT 1"); }, L"the disk is sent");
-        rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the session pauses");
-        rig.Press ('Q');
-        rig.Finish();
-
-        Assert::IsTrue (rig.Rows()[0].file.starts_with ("BOX-0001"), TextEncoding::NarrowToWide (rig.Rows()[0].file).c_str());
-        Assert::AreEqual (std::string ("BOX-"), rig.send->imagePrefix);
-    }
-
-
-
-    //  A connection that doesn't ask for 40 columns gets 80 on a machine with them:
-    //  odd columns are in main memory, and a bar has two cells a track.
-    TEST_METHOD (ThePc_SelectsEightyColumns_OnAMachineWithThem)
-    {
-        Rig  rig (115200, false);
-
-        rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
-        rig.machine.RunCycles (kCyclesPerS);
-
-        Assert::AreEqual<int> ('A' | 0x80, rig.machine.GetCpu()->ReadByte (0x0400), L"column 1 of CASSOLINK");
-        Assert::AreEqual<int> ('S' | 0x80, rig.machine.GetCpu()->ReadByte (0x0401), L"column 3");
-        Assert::AreEqual<int> ('N' | 0x80, rig.machine.GetCpu()->ReadByte (0x0406), L"column 13, in CONNECTED");
-        Assert::AreEqual<int> ('2' | 0x80, rig.machine.GetCpu()->ReadByte (0x0426), L"column 77, in the connection at the right edge");
-        Assert::AreEqual<int> ('0' | 0x80, rig.machine.GetCpu()->ReadByte (0x0427), L"column 79, the speed's last digit");
-
-        rig.send = rig.session->FullSend ("C:\\Box", "", "");
-        rig.machine.RunCycles (kCyclesPerS);
-
-        Assert::IsFalse (rig.sink.IsDone (rig.send), L"the session waits on its entry screen");
-
-        rig.session->Cancel();
-        rig.Finish();
-    }
-
-
-
     //  Three disks with a swap during a transfer, at the //c's speed: no key and
     //  no PC interaction between them, each in about 30 seconds, and each image
     //  the same as its source.
@@ -489,33 +420,6 @@ public:
         Assert::IsTrue (Sectors (rig.fileIo.files["C:\\Box\\" + rows[2].file], rows[2].file) == third);
         Assert::IsTrue (rows[1].file.ends_with (".po"));
         Assert::IsTrue (rows[0].file.ends_with (".dsk"));
-    }
-
-
-
-
-    //  No drive spins during the pause, and an
-    //  empty drive is reported as empty.
-    TEST_METHOD (ThePause_StopsTheMotor_AndAnEmptyDriveIsReported)
-    {
-        Rig  rig;
-
-        rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
-        rig.machine.GetDiskStore().Eject (kSlot, 1);
-        rig.send = rig.session->FullSend ("C:\\Box", "", "");
-        rig.Begin();
-
-        rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"a pause");
-        Assert::IsTrue (rig.Row (kRowDrive2).starts_with ("D2: EMPTY OR NO RECOGNIZED SECTORS"), TextEncoding::NarrowToWide (rig.Row (kRowDrive2)).c_str());
-
-        rig.machine.RunCycles (2ULL * kCyclesPerS);
-        Assert::IsFalse (rig.machine.GetRefs().diskController->IsMotorOn(), L"no drive spins during the pause");
-
-        rig.session->Cancel();
-        rig.Finish();
-
-        Assert::IsTrue (rig.send->state == LinkOperationState::Canceled);
-        rig.RunUntil ([&] () { return rig.Row (kRowCounts).empty() && rig.Row (kRowDrive1) == "D1: IDLE"; }, L"the screen is cleared");
     }
 
 
