@@ -12,6 +12,7 @@
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoExplorer/Model/CassoExplorerSession.h"
 #include "Config/Win32FileSystem.h"
+#include "Devices/Disk/Win32ImageWatcher.h"
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32LinkAnnouncements.h"
@@ -85,6 +86,7 @@ struct CassoExplorerLaunchOptions
 ////////////////////////////////////////////////////////////////////////////////
 
 class ExplorerUpdaterHost;
+class InspectorWindowSet;
 
 class CassoExplorerShell : public ICassoExplorerHost
 {
@@ -188,6 +190,8 @@ public:
     void                   RunLaunch           (const std::wstring & arguments) override;
     void                   CheckForUpdates     (HWND hwnd) override;
     bool                   OfferMouseToUpdater (HWND hwnd, const DxuiMouseEvent & ev) override;
+    void                   InspectDiskImages   (HWND hwnd, const std::vector<std::wstring> & paths, const DxuiTheme & theme) override;
+    void                   SetInspectorTheme   (const DxuiTheme & theme) override;
 
     static constexpr const wchar_t *  kWindowClass   = L"CassoExplorerWindow";
     static constexpr const wchar_t *  kOwnerProperty = L"CassoExplorerOwner";
@@ -236,4 +240,6 @@ private:
     CassoExplorerLaunchOptions                m_options;
     CassoExplorerPrefs                        m_prefs;
     std::wstring                              m_baseDir;
+    Win32ImageWatcher                         m_imageWatcher;
+    std::unique_ptr<InspectorWindowSet>       m_inspectors;
 };

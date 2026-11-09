@@ -75,6 +75,7 @@ DxuiDarkTheme::DxuiDarkTheme()
     tooltipBorder            = 0xFF4A4A4A;
     tooltipText              = 0xFFFFFFFF;
     errorText                = 0xFFFF99A4;
+    diskInspector            = DiskInspectorColors::MakeDark();
 }
 
 

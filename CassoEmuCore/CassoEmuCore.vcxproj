@@ -548,6 +548,7 @@
     <ClCompile Include="Config\GlobalUserPrefs.cpp" />
     <ClCompile Include="Config\MachineInputPrefs.cpp" />
     <ClCompile Include="Config\CrtResolver.cpp" />
+    <ClCompile Include="Config\DiskInspectorPrefs.cpp" />
     <ClCompile Include="Ui\ThemeLoader.cpp" />
     <ClCompile Include="Ui\ColorUtil.cpp" />
     <ClCompile Include="Machines\MachineDefinitions.cpp" />
@@ -728,6 +729,9 @@
     <ClCompile Include="Shell\Components\EmulatorUpdaterHost.cpp" />
     <ClCompile Include="Shell\Components\ShellUpdater.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerUpdaterHost.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerInspectorHost.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerInspectorWindow.cpp" />
+    <ClCompile Include="CassoExplorer\InspectorWindowSet.cpp" />
     <ClCompile Include="Shell\Components\ShellPrinter.cpp" />
     <ClCompile Include="Shell\Components\ShellNetworkCard.cpp" />
     <ClCompile Include="Shell\Components\ShellSerialCard.cpp" />
@@ -1475,6 +1479,9 @@
     <ClInclude Include="Shell\Components\EmulatorUpdaterHost.h" />
     <ClInclude Include="Shell\Components\ShellUpdater.h" />
     <ClInclude Include="CassoExplorer\ExplorerUpdaterHost.h" />
+    <ClInclude Include="CassoExplorer\ExplorerInspectorHost.h" />
+    <ClInclude Include="CassoExplorer\ExplorerInspectorWindow.h" />
+    <ClInclude Include="CassoExplorer\InspectorWindowSet.h" />
     <ClInclude Include="Update\IUpdaterHost.h" />
     <ClInclude Include="WasapiAudio.h" />
     <ClInclude Include="EmbeddedMachineConfigs.h" />

@@ -203,6 +203,28 @@ public:
 
 
 
+    TEST_METHOD (AHostWithNoDrivesHasNoDriveSelector)
+    {
+        InspectorSession    session;
+        FakeInspectorHost   host;
+        FakeDrivelessHost   drives;
+        InspectorCommands   commands;
+
+
+
+        commands.goTo = MakeCommand (L"&Go to...");
+        commands.find = MakeCommand (L"&Find...");
+        session.host  = &drives;
+
+        InspectorToolbar  toolbar (session, host, commands);
+
+        toolbar.Create();
+
+        Assert::IsFalse (toolbar.IsDriveShown(), L"Casso Explorer's window has an image file, not a drive (FR-001)");
+    }
+
+
+
     TEST_METHOD (TimingIsDisabledOnADiskWithNoFluxTracks)
     {
         InspectorSession    session;

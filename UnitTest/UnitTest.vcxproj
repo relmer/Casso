@@ -444,6 +444,7 @@
     <ClCompile Include="CassoExplorer\RowGroupingTests.cpp" />
     <ClCompile Include="CassoExplorer\TypedPathHistoryTests.cpp" />
     <ClCompile Include="CassoExplorer\FolderWatchTests.cpp" />
+    <ClCompile Include="CassoExplorer\InspectorWindowSetTests.cpp" />
     <ClCompile Include="CassoExplorer\RefreshAnchorTests.cpp" />
     <ClInclude Include="CassoExplorer\FakeExplorerWindow.h" />
     <ClInclude Include="CassoExplorer\FakeRecycleBin.h" />

@@ -71,6 +71,10 @@ struct ActionsTypes
         Lock,
         Unlock,
         ConvertTo,
+
+        //  The disk inspector, one window for each selected image, or for the
+        //  image whose contents are listed.
+        InspectDiskImage,
     };
 
     //  What a put does with the bytes. ByContent is the rule a left-drag

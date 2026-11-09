@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Core/JsonValue.h"
+
 
 
 
@@ -40,4 +42,14 @@ struct DiskInspectorPrefs
     bool    isOpen            = false;
     bool    isWalkthroughSeen = false;
     int     goToKind          = 0;
+
+    //  Whether the window was ever opened, so there is state to write.
+    bool       IsSaved  () const { return w > 0 || isWalkthroughSeen; }
+    JsonValue  ToJson   (bool hasDriveState) const;
+    void       FromJson (const JsonValue & obj);
+
+private:
+    static void  ReadBool   (const JsonValue & obj, const char * key, bool   & inOut);
+    static void  ReadInt    (const JsonValue & obj, const char * key, int    & inOut);
+    static void  ReadNumber (const JsonValue & obj, const char * key, double & inOut);
 };

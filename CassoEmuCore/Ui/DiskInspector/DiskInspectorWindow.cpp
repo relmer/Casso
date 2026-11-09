@@ -144,7 +144,7 @@ DiskInspectorWindow::~DiskInspectorWindow()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskInspectorWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDiskInspectorHost * host, bool activate)
+HRESULT DiskInspectorWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const DxuiTheme * theme, IDiskInspectorHost * host, bool activate)
 {
     HRESULT                   hr      = S_OK;
     DxuiWindow::CreateParams  params;
@@ -300,6 +300,62 @@ void DiskInspectorWindow::SetStatusNote (const std::wstring & note)
 {
     m_session.statusNote = note;
     m_statusBand->SetHint (note);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ReloadDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ReloadDisk()
+{
+    if (m_isFileGone)
+    {
+        m_isFileGone = false;
+        SetStatusNote (std::wstring());
+    }
+
+    m_hostLink->RequestCopy();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ChangeTheme
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ChangeTheme (const DxuiTheme * theme)
+{
+    m_session.theme = theme;
+    SetTheme (theme);
+    m_tooltip.SetTheme (*theme);
+    m_zoomNote.SetTheme (*theme);
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::NoteFileGone
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::NoteFileGone()
+{
+    m_isFileGone = true;
+    SetStatusNote (L"The file is no longer there.");
 }
 
 

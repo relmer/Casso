@@ -8,6 +8,7 @@
 #include "CassoExplorer/Model/Location.h"
 #include "CassoExplorer/Model/PicturePreview.h"
 #include "Config/CrtTypes.h"
+#include "Config/DiskInspectorPrefs.h"
 #include "Config/IFileSystem.h"
 #include "Core/JsonValue.h"
 
@@ -153,6 +154,10 @@ struct CassoExplorerPrefs
     //  added. Their names are unique; a later entry with a name already
     //  read is not read.
     std::vector<CassoLinkSettings>  links;
+
+    //  The disk inspector windows' state, without the parts specific to
+    //  Casso (FR-080).
+    DiskInspectorPrefs              diskInspector;
 
     //  Absent file: defaults, with the theme seeded from the emulator's
     //  preferences when they can be read. Reports the read's own result for

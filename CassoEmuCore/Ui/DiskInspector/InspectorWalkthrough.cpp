@@ -29,7 +29,11 @@ static const InspectorWalkthrough::Step  s_kSteps[] =
       L"to color the platter by what is written on it, or Timing to color it by how fast or slow each stretch spins, on disk images that "
       L"have that timing.\n\n"
       L"At the right, Follow head selects the track the drive's head is on, Go to jumps to a track, sector or nibble, and Find searches "
-      L"the disk for bytes, nibbles or text. Compare, Export and Decode settings are in the menus." },
+      L"the disk for bytes, nibbles or text. Compare, Export and Decode settings are in the menus.",
+      L"The menus have every command with its shortcut. Under them, choose Structure to color the platter by what is written on it, or "
+      L"Timing to color it by how fast or slow each stretch spins, on disk images that have that timing.\n\n"
+      L"At the right, Go to jumps to a track, sector or nibble, and Find searches the disk for bytes, nibbles or text. Compare, Export "
+      L"and Decode settings are in the menus." },
 
     { WalkthroughArea::Track, L"The track and its sectors",
       L"The header has the selected track's number, what kind of track it is, and its size. Below it is one button per sector, in the "
@@ -174,6 +178,7 @@ WalkthroughArea InspectorWalkthrough::GetArea() const
 void InspectorWalkthrough::Paint (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiDpiScaler & scaler, const RECT & windowPx, const RECT & areaPx)
 {
     const Step &  step    = s_kSteps[std::clamp (m_step, 0, static_cast<int> (std::size (s_kSteps)) - 1)];
+    LPCWSTR       body    = (!m_hasDrives && step.fileBody != nullptr) ? step.fileBody : step.body;
     bool          hasArea = !IsRectEmpty (&areaPx);
     RECT          hole    = hasArea ? areaPx : RECT { windowPx.left, windowPx.top, windowPx.left, windowPx.top };
     float         pad     = scaler.ToPxf (s_kPadDip);
@@ -192,7 +197,7 @@ void InspectorWalkthrough::Paint (IDxuiTextRenderer & text, const IDxuiTheme & t
 
 
 
-    text.MeasureStringWrapped (step.body, scaler.ToPxf (s_kBodyDip), DxuiTheme::kBodyFace, width - 2 * pad, bodyW, bodyH);
+    text.MeasureStringWrapped (body, scaler.ToPxf (s_kBodyDip), DxuiTheme::kBodyFace, width - 2 * pad, bodyW, bodyH);
 
     if (hasArea)
     {
@@ -243,7 +248,7 @@ void InspectorWalkthrough::Paint (IDxuiTextRenderer & text, const IDxuiTheme & t
                      DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::SemiBold, false);
     text.DrawString (count.c_str(), x, y, width - 2 * pad, titleH, theme.ForegroundMuted(), scaler.ToPxf (s_kBodyDip), DxuiTheme::kBodyFace,
                      DxuiTextHAlign::Right, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
-    text.DrawString (step.body, x, y + titleH, width - 2 * pad, bodyH + pad, theme.Foreground(), scaler.ToPxf (s_kBodyDip), DxuiTheme::kBodyFace,
+    text.DrawString (body, x, y + titleH, width - 2 * pad, bodyH + pad, theme.Foreground(), scaler.ToPxf (s_kBodyDip), DxuiTheme::kBodyFace,
                      DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, true);
 
     y         = card.bottom - pad - buttonH;

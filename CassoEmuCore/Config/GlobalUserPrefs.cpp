@@ -1174,32 +1174,9 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("pendingUpdateFailure", JsonValue ((double) pendingUpdateFailure));
 
     // The disk inspector's state, once the window has been opened.
-    if (diskInspector.w > 0 || diskInspector.isWalkthroughSeen)
+    if (diskInspector.IsSaved())
     {
-        JsonObject  inspector;
-
-        inspector.emplace_back ("x",           JsonValue ((double) diskInspector.x));
-        inspector.emplace_back ("y",           JsonValue ((double) diskInspector.y));
-        inspector.emplace_back ("w",           JsonValue ((double) diskInspector.w));
-        inspector.emplace_back ("h",           JsonValue ((double) diskInspector.h));
-        inspector.emplace_back ("maximized",   JsonValue (diskInspector.isMaximized));
-        inspector.emplace_back ("timingMode",  JsonValue (diskInspector.isTimingMode));
-        inspector.emplace_back ("timingRange", JsonValue (diskInspector.timingRange));
-        inspector.emplace_back ("alignment",   JsonValue (diskInspector.isAlignment));
-        inspector.emplace_back ("files",       JsonValue (diskInspector.isFiles));
-        inspector.emplace_back ("reads",       JsonValue (diskInspector.isReads));
-        inspector.emplace_back ("writes",      JsonValue (diskInspector.isWrites));
-        inspector.emplace_back ("scans",       JsonValue (diskInspector.isScans));
-        inspector.emplace_back ("showDeleted", JsonValue (diskInspector.isShowDeleted));
-        inspector.emplace_back ("followHead",  JsonValue (diskInspector.isFollowHead));
-        inspector.emplace_back ("zoom",        JsonValue (diskInspector.zoom));
-        inspector.emplace_back ("tilt",        JsonValue (diskInspector.tilt));
-        inspector.emplace_back ("lastDrive",   JsonValue ((double) diskInspector.lastDrive));
-        inspector.emplace_back ("open",        JsonValue (diskInspector.isOpen));
-        inspector.emplace_back ("walkthroughSeen", JsonValue (diskInspector.isWalkthroughSeen));
-        inspector.emplace_back ("goToKind",        JsonValue ((double) diskInspector.goToKind));
-
-        root.emplace_back ("diskInspector", JsonValue (std::move (inspector)));
+        root.emplace_back ("diskInspector", diskInspector.ToJson (true));
     }
 
     // Round-trip unknown keys verbatim.
@@ -1437,26 +1414,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     // The disk inspector's state; a field whose key is absent is its default.
     if (v.HasObject ("diskInspector", inspectorObj))
     {
-        diskInspector.x             = GetIntOpt     (*inspectorObj, "x",           diskInspector.x);
-        diskInspector.y             = GetIntOpt     (*inspectorObj, "y",           diskInspector.y);
-        diskInspector.w             = std::max (GetIntOpt (*inspectorObj, "w", diskInspector.w), 0);
-        diskInspector.h             = std::max (GetIntOpt (*inspectorObj, "h", diskInspector.h), 0);
-        diskInspector.isMaximized   = TryGetBoolOpt (*inspectorObj, "maximized",   diskInspector.isMaximized);
-        diskInspector.isTimingMode  = TryGetBoolOpt (*inspectorObj, "timingMode",  diskInspector.isTimingMode);
-        diskInspector.timingRange   = GetNumberOpt  (*inspectorObj, "timingRange", diskInspector.timingRange);
-        diskInspector.isAlignment   = TryGetBoolOpt (*inspectorObj, "alignment",   diskInspector.isAlignment);
-        diskInspector.isFiles       = TryGetBoolOpt (*inspectorObj, "files",       diskInspector.isFiles);
-        diskInspector.isReads       = TryGetBoolOpt (*inspectorObj, "reads",       diskInspector.isReads);
-        diskInspector.isWrites      = TryGetBoolOpt (*inspectorObj, "writes",      diskInspector.isWrites);
-        diskInspector.isScans       = TryGetBoolOpt (*inspectorObj, "scans",       diskInspector.isScans);
-        diskInspector.isShowDeleted = TryGetBoolOpt (*inspectorObj, "showDeleted", diskInspector.isShowDeleted);
-        diskInspector.isFollowHead  = TryGetBoolOpt (*inspectorObj, "followHead",  diskInspector.isFollowHead);
-        diskInspector.zoom          = GetNumberOpt  (*inspectorObj, "zoom",        diskInspector.zoom);
-        diskInspector.tilt          = GetNumberOpt  (*inspectorObj, "tilt",        diskInspector.tilt);
-        diskInspector.lastDrive     = GetIntOpt     (*inspectorObj, "lastDrive",   diskInspector.lastDrive);
-        diskInspector.isOpen        = TryGetBoolOpt (*inspectorObj, "open",        diskInspector.isOpen);
-        diskInspector.isWalkthroughSeen = TryGetBoolOpt (*inspectorObj, "walkthroughSeen", diskInspector.isWalkthroughSeen);
-        diskInspector.goToKind          = GetIntOpt     (*inspectorObj, "goToKind",        diskInspector.goToKind);
+        diskInspector.FromJson (*inspectorObj);
     }
 
     // Capture unknown top-level keys for round-tripping.

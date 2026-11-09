@@ -63,6 +63,7 @@ public:
     void                       ReportOutcome              (const CassoExplorerActions::Outcome & outcome, const wchar_t * verbName);
     bool                       TryPrepareBootDisk         (const DiskOperations::NewDiskRequest & request);
     void                       ExtractImageFiles          (const std::wstring & imagePath);
+    void                       InspectDiskImages          (const std::vector<std::wstring> & paths);
 
 private:
     ExplorerContext  & m_context;

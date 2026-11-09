@@ -66,6 +66,10 @@ public:
     virtual InspectorSaveResult   SaveDrive        (int drive)        { (void) drive; return { E_NOTIMPL, {}, false, L"This program cannot save the disk" }; }
     virtual void                  SetMachinePaused (bool isPaused)    { (void) isPaused; }
     virtual vector<std::string>   GetMountedPaths  ()                 { return {}; }
+
+    //  The reason a drive's file could not be opened, for a drive with no
+    //  image; empty for an empty drive (FR-054).
+    virtual std::wstring          GetOpenError     (int drive)        { (void) drive; return {}; }
 };
 
 

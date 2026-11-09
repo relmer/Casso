@@ -462,7 +462,8 @@ InspectorReply InspectorRequestQueue::Answer (uint64_t id, const InspectorReques
 
     if (image == nullptr)
     {
-        reply.status = InspectorReplyStatus::NoDisk;
+        reply.reason = source.GetOpenError (request.drive);
+        reply.status = reply.reason.empty() ? InspectorReplyStatus::NoDisk : InspectorReplyStatus::Unopenable;
     }
     else if (request.mediaId != 0 && request.mediaId != identity.mediaId)
     {

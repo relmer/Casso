@@ -578,6 +578,11 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("folderViews",      JsonValue (std::move (viewValues)));
     root.emplace_back ("links",            JsonValue (std::move (linkValues)));
 
+    if (diskInspector.IsSaved())
+    {
+        root.emplace_back ("diskInspector", diskInspector.ToJson (false));
+    }
+
     std::vector<JsonValue>  seenValues;
 
     for (const auto & [folder, ticks] : linkFolderSeen)
@@ -691,6 +696,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     const JsonValue  * orderArray   = nullptr;
     const JsonValue  * viewArray    = nullptr;
     const JsonValue  * overridesObj = nullptr;
+    const JsonValue  * inspectorObj = nullptr;
     std::string        text;
     size_t             i            = 0;
     int                grouping     = kDefaultHexGrouping;
@@ -841,6 +847,11 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
                 links.push_back (link);
             }
         }
+    }
+
+    if (root.HasObject ("diskInspector", inspectorObj))
+    {
+        diskInspector.FromJson (*inspectorObj);
     }
 
     if (root.HasArray ("linkFolderSeen", seenArray))

@@ -81,7 +81,7 @@ public:
     DiskInspectorWindow  ();
     ~DiskInspectorWindow () override;
 
-    HRESULT  Create      (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDiskInspectorHost * host, bool activate);
+    HRESULT  Create      (HINSTANCE hInstance, HWND hwndOwner, const DxuiTheme * theme, IDiskInspectorHost * host, bool activate);
     HRESULT  ShowDrive   (int drive) override;
     HRESULT  RenderFrame ();
     int      GetDrive    () const { return m_session.drive; }
@@ -97,6 +97,16 @@ public:
 
     //  The walkthrough from its first step (FR-153).
     void     OpenWalkthrough () override;
+
+    //  After an Explorer window's file changes on disk, ReloadDisk requests a
+    //  new copy. For a file that is gone, NoteFileGone adds a note and the
+    //  last analysis stays (FR-074).
+    void     ReloadDisk   ();
+    void     NoteFileGone ();
+
+    //  Another theme object, for a host whose theme is replaced rather than
+    //  changed in place.
+    void     ChangeTheme  (const DxuiTheme * theme);
 
     void     Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -184,6 +194,7 @@ private:
     int                     m_flownQuarterTrack = -1;
     int                     m_flownSector       = -1;
     bool                    m_isFocusShown      = false;
+    bool                    m_isFileGone        = false;
 
 
     double                                  m_zoom               = 1.0;
