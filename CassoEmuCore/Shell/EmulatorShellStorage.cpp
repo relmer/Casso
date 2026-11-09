@@ -238,6 +238,11 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
         ids = { IDM_STORAGE_DRIVE2, 0, IDM_DISK_INSERT2, IDM_DISK_EJECT2, IDM_DISK_WP2, IDM_DISK_SALVAGE2 };
     }
 
+    // Every device's menu ends with the auto-hide switch, since the drives and
+    // the recorder appear and disappear together.
+    ids.push_back (0);
+    ids.push_back (IDM_VIEW_AUTOHIDE_DRIVES);
+
     for (int id : ids)
     {
         items.push_back (id == 0 ? DxuiPopupMenuItem::ForSeparator() : DxuiPopupMenuItem::ForCommand (commands.Find (id)));

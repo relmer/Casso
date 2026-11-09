@@ -23,6 +23,9 @@ Entries before versioning was introduced use dates only.
   what the image declares and marks whether the running machine meets each
   requirement. In the flat themes, on the desk and on the fullscreen drive
   strip.
+- An optional setting to auto-hide drives. The drives stay hidden until the
+  pointer is near the bottom of the window, like they did in full screen. Turn
+  it on in Settings > Theme, the View menu, or right-click on a drive.
 
 ### Changed
 
@@ -31,6 +34,7 @@ Entries before versioning was introduced use dates only.
 - The //c's serial ports send and receive bytes at the selected baud rate, not
   instantly.
 - Changed the drive strip's hotkey from Ctrl+D to F8.
+- Remove unneeded height from the drive bar in flat themes.
 - EmulatorShell is split into components: audio, Disk II drives, tape deck,
   printer, update notification, settings, desk scene, chrome, renderer and
   window. The shell owns them, routes window messages and runs the CPU
@@ -42,6 +46,8 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- Settings > Theme's 3D CRT monitor checkbox now correctly respects the OK and
+  Cancel buttons.
 - Menus are drawn without the pale outline around them. The shadow under a
   menu is what separates it from the window, as it is in Windows and in
   Visual Studio.

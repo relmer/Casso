@@ -550,13 +550,11 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // hover (mutually exclusive bands, but be explicit). Windowed, the 3D
     // scene's name strips already show every basename and padlock, so the
     // only tooltip left is the padlock's WHY -- the write-protect
-    // composition, anchored to the label it explains. Dwelling on the case
-    // itself volunteers nothing the strip is not already saying. Fullscreen
-    // shows no labels, so the overlay strip's drives keep the name tooltip,
-    // joined by the write-protect composition when the disk is protected --
-    // there is no padlock anywhere else to ask. The 2D path keeps its dwell
-    // tooltip for protected drives only (the basename lives on the widget's
-    // marquee label there).
+    // composition, anchored to the label. A tooltip on the case
+    // itself would repeat the label. The overlay strip's drives have the same
+    // labels, so no tooltip appears on their cases either. The 2D path has a
+    // dwell tooltip for protected drives only (the basename is on the
+    // widget's marquee label there).
     {
         std::wstring  tip;
         RECT          anchor = {};
@@ -603,33 +601,6 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
                                      .filename().wstring(),
                                  m_disks->GetDriveWidgetState()[i].writeProtect);
                     break;
-                }
-            }
-        }
-
-        if (tip.empty() && DeskSceneActive() && m_renderer->m_d3dRenderer.IsFullscreen())
-        {
-            POINT  pt = { x, y };
-
-            if (m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
-                PtInRect (&m_scene->m_stripRectPx, pt))
-            {
-                SceneHitResult  sceneHit = m_scene->StripHit (x, y);
-
-                if (sceneHit.target == SceneHitResult::Target::Drive)
-                {
-                    std::wstring  imageName = std::filesystem::path (
-                        m_machine.GetDiskStore().GetSourcePath (6, sceneHit.driveIndex)).filename().wstring();
-
-                    anchor = m_scene->m_stripComp.driveRectPx[sceneHit.driveIndex];
-                    tip    = ComposeWriteProtectTooltip (
-                                 sceneHit.driveIndex + 1, imageName,
-                                 m_disks->GetDriveWidgetState()[sceneHit.driveIndex].writeProtect);
-
-                    if (tip.empty())
-                    {
-                        tip = imageName;
-                    }
                 }
             }
         }
@@ -1764,7 +1735,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (DeskSceneActive())
     {
         POINT           pt      = { x, y };
-        bool            inStrip = m_renderer->m_d3dRenderer.IsFullscreen() &&
+        bool            inStrip = AreDrivesOnStrip() &&
                                   m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
                                   PtInRect (&m_scene->m_stripRectPx, pt);
         SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
@@ -1780,7 +1751,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
             // A browse opened from the strip pins it (the FSM must not
             // auto-hide under the dialog).
-            m_scene->m_stripBrowseOpen = inStrip;
+            m_scene->m_stripBrowseOpen = inStrip || IsDeskSlideActive();
             m_disks->BrowseForDisk (sceneHit.driveIndex,
                                     inStrip ? &m_scene->m_stripComp.driveRectPx[sceneHit.driveIndex]
                                             : &m_scene->m_deskScene.Composition().driveRectPx[sceneHit.driveIndex]);
@@ -1792,7 +1763,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         // The labels under the recorder: its counter sets the position and
         // its name picks a tape, as on the flat deck -- on the strip too,
         // which a dialog opened from it pins, as a drive's browse does.
-        m_scene->m_stripBrowseOpen = inStrip;
+        m_scene->m_stripBrowseOpen = inStrip || IsDeskSlideActive();
 
         if (PtInRect (&m_scene->m_sceneTapeCounterRect, pt))
         {
@@ -1844,12 +1815,12 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                     m_disks->Eject (6, drive.GetDrive());
                 }
 
-                // In fullscreen the widget is riding the overlay strip, and a
-                // browse opened from the strip pins it (the FSM must not
-                // auto-hide under the dialog).
+                // When the widget is on the overlay strip (fullscreen or
+                // auto-hide), a browse opened from it pins the strip, so the
+                // FSM doesn't hide it under the dialog.
                 RECT  driveRect = drive.GetOuterRect();
 
-                m_scene->m_stripBrowseOpen = m_renderer->m_d3dRenderer.IsFullscreen();
+                m_scene->m_stripBrowseOpen = AreDrivesOnStrip();
                 m_disks->BrowseForDisk (drive.GetDrive(), &driveRect);
                 m_scene->m_stripBrowseOpen = false;
 
@@ -2045,7 +2016,7 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
 
     if (DeskSceneActive())
     {
-        bool            inStrip  = m_renderer->m_d3dRenderer.IsFullscreen() &&
+        bool            inStrip  = AreDrivesOnStrip() &&
                                    m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
                                    PtInRect (&m_scene->m_stripRectPx, pt);
         SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);

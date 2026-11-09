@@ -102,9 +102,14 @@ void ThemePage::PaintPreviewWindow (IDxuiPainter                         & paint
                                    MainMenu                             & previewMenu,
                                    bool                                 & chromeConfigured,
                                    bool                                   crtMonitor,
+                                   bool                                   autoHideDrives,
+                                   float                                  pageScale,
+                                   uint32_t                               frameArgb,
                                    PreviewSceneRequest                  & outScene)
 {
+    RECT     fitRect      = availRect;
     RECT     prevRect     = {};
+    float    shadowPx     = DxuiShadow::kMarginDip * pageScale;
     float    scale        = 0.0f;
     HRESULT  hr           = S_OK;
     int      prevW        = 0;
@@ -119,9 +124,10 @@ void ThemePage::PaintPreviewWindow (IDxuiPainter                         & paint
 
 
     // Bottom inset: a full/compact drive bar when the machine has a Disk ][
-    // controller, else nothing (mirrors the live chrome's Phase D reclaim).
-    // Drives both the aspect ratio and the painted band.
-    int  driveBandDp = hasDisk
+    // controller and the drives are not auto-hidden, else nothing (mirrors
+    // the live chrome's Phase D reclaim). Drives both the aspect ratio and
+    // the painted band.
+    int  driveBandDp = (hasDisk && !autoHideDrives)
         ? (theme.compactDrives ? kPrevDriveBarCmptDp : kPrevDriveBarFullDp)
         : 0;
 
@@ -135,11 +141,21 @@ void ThemePage::PaintPreviewWindow (IDxuiPainter                         & paint
 
     outScene = {};
 
-    ComputePreviewGeometry (availRect, driveBandDp, prevRect, scale);
+    // Room on every side for the drop shadow, so it stays inside the page.
+    InflateRect (&fitRect, -(int) shadowPx, -(int) shadowPx);
+
+    ComputePreviewGeometry (fitRect, driveBandDp, prevRect, scale);
     if (scale <= 0.0f)
     {
         return;
     }
+
+    // A soft shadow, like the one under a menu, lifts the mock window off
+    // the page background.
+    DxuiShadow::Paint (painter,
+                       (float) prevRect.left, (float) prevRect.top,
+                       (float) (prevRect.right - prevRect.left), (float) (prevRect.bottom - prevRect.top),
+                       0.0f, pageScale);
 
     prevW = prevRect.right  - prevRect.left;
     prevH = prevRect.bottom - prevRect.top;
@@ -347,7 +363,7 @@ void ThemePage::PaintPreviewWindow (IDxuiPainter                         & paint
         // controller. With none, driveBandDp has already collapsed the
         // bar to nothing -- matching the live chrome's Phase D reclaim.
         // (The widgets were laid out above but go undrawn.)
-        if (hasDisk && !scene3d)
+        if (hasDisk && !scene3d && !autoHideDrives)
         {
             previewDrives[0].Paint (painter, text, theme);
             previewDrives[1].Paint (painter, text, theme);
@@ -355,16 +371,25 @@ void ThemePage::PaintPreviewWindow (IDxuiPainter                         & paint
     }
 
     // Outer 1px frame so the preview reads as a discrete window on the panel
-    // background. Drawn LAST because every band fill above spans the full
-    // width and would otherwise erase it -- which went unnoticed while the
-    // screen was black and the contrast carried the boundary by itself.
+    // background. It takes the page's button border, which contrasts with the
+    // page in light and dark themes alike, where near-black was invisible on
+    // a dark page. Drawn LAST because every band fill above spans the full
+    // width and would otherwise erase it.
     painter.OutlineRect ((float) prevRect.left, (float) prevRect.top,
-                         (float) prevW, (float) prevH, 1.0f, 0xFF101010);
+                         (float) prevW, (float) prevH, 1.0f, frameArgb);
 
     // Hand the sheet the region to compose into. Full takes the picture and
     // the drives together, exactly as the live scene lays them out; with the
-    // CRT opted out only the drive band is the scene's.
-    if (scene3d && hasDisk)
+    // CRT opted out only the drive band is the scene's. With auto-hidden
+    // drives the scene is the monitor alone, or nothing when the CRT is off.
+    if (scene3d && autoHideDrives && sceneCrt)
+    {
+        outScene.mode   = PreviewSceneMode::MonitorOnly;
+        outScene.dpi    = effectiveDpi;
+        outScene.rectPx = RECT { prevRect.left, prevRect.top + titleH + navH, prevRect.right, prevRect.bottom };
+        outScene.clipPx = outScene.rectPx;
+    }
+    else if (scene3d && hasDisk && !autoHideDrives)
     {
         outScene.mode   = sceneCrt ? PreviewSceneMode::Full : PreviewSceneMode::DrivesOnly;
         outScene.dpi    = effectiveDpi;
@@ -402,19 +427,28 @@ ThemePage::ThemePage(std::wstring title)
     Adopt (m_themeDropdown);
     Adopt (m_applyNowButton);
     Adopt (m_crtMonitorCheckbox);
+    Adopt (m_autoHideDrivesCheckbox);
 
     m_applyNowButton.SetLabel   (L"Apply now");
     m_applyNowButton.SetOnClick ([this] { if (m_onApplyThemeNow) { m_onApplyThemeNow(); } });
 
     // The CRT monitor opt in/out -- the monitor only; the 3D drives are not
-    // optional. Applies live (the change is visible on the real chrome behind
-    // the sheet immediately); enabled only while a skeuomorphic theme is
-    // selected.
+    // optional. The mock window previews it at once, and OK applies it to the
+    // real chrome. Enabled only while a skeuomorphic theme is selected.
     m_crtMonitorCheckbox.SetLabel (L"3D CRT monitor (uses more screen space)");
     m_crtMonitorCheckbox.SetSingleLineLabel (true);
     m_crtMonitorCheckbox.SetOnChange ([this] (bool checked)
     {
         if (m_onCrtMonitorToggled) { m_onCrtMonitorToggled (checked); }
+    });
+
+    // Auto-hide applies to every theme, flat or desk scene, so this row is
+    // never removed.
+    m_autoHideDrivesCheckbox.SetLabel (L"Auto-hide drives");
+    m_autoHideDrivesCheckbox.SetSingleLineLabel (true);
+    m_autoHideDrivesCheckbox.SetOnChange ([this] (bool checked)
+    {
+        if (m_onAutoHideDrivesToggled) { m_onAutoHideDrivesToggled (checked); }
     });
 
     // Antialiasing, as SAMPLES rather than a quality word, because that is
@@ -633,11 +667,12 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int   y          = rect.top  + pad;
     int   rowGap     = scaler.ToPx (8);
     int   previewGap = scaler.ToPx (24);
-    // Theme, then edge smoothing, with the CRT opt-in between them only on a
-    // skeuomorphic theme -- so the stack above the preview is two rows or
-    // three depending on whether the CRT row is shown.
-    int   rowsAbove  = m_crtRowShown ? 3 : 2;
-    int   aaRowIndex = m_crtRowShown ? 2 : 1;
+    // Theme, auto-hide, then edge smoothing, with the CRT opt-in under the
+    // theme row only on a skeuomorphic theme -- so the stack above the preview
+    // is three rows or four depending on whether the theme has a CRT row.
+    int   rowsAbove  = m_crtRowShown ? 4 : 3;
+    int   hideRowIdx = m_crtRowShown ? 2 : 1;
+    int   aaRowIndex = m_crtRowShown ? 3 : 2;
     int   previewTop = y + rowsAbove * rowHeight + (rowsAbove - 1) * rowGap + previewGap;
     RECT  rowBounds  = { x, y, x + labelWidth + dropWidth, y + rowHeight };
     int   applyGap   = 0;
@@ -701,6 +736,17 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         // Layout writes bounds unconditionally, so re-assert the hidden state
         // the selection put the row in -- a compact theme keeps it away.
         m_crtMonitorCheckbox.SetVisible (m_crtRowShown);
+    }
+
+    // Auto-hide row under it, or directly under the theme row on a compact
+    // theme, at the same width as the CRT row.
+    {
+        RECT  cbRect = MakeRect (x, y + (rowHeight + rowGap) * hideRowIdx,
+                                 labelWidth + dropWidth + applyGap + applyWidth,
+                                 rowHeight);
+
+        m_autoHideDrivesCheckbox.Layout (cbRect, scaler);
+        m_autoHideDrivesCheckbox.SetDpi (dpi);
     }
 
     // Edge-smoothing row under it, laid out on the same grid as the theme row
@@ -786,6 +832,8 @@ void ThemePage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
         m_crtMonitorCheckbox.Paint (painter, text, theme);
     }
 
+    m_autoHideDrivesCheckbox.Paint (painter, text, theme);
+
     m_aaLabel.Paint             (painter, text, theme);
     m_aaSlider.Paint            (painter, text, theme);
 
@@ -821,7 +869,7 @@ void ThemePage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
 
         hasDisk = m_hasDiskSource ? m_hasDiskSource() : true;
 
-        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_driveActivitySource, m_previewDrives, m_previewCaption, m_previewMenu, m_previewChromeConfigured, m_crtMonitorCheckbox.IsChecked(), m_sceneRequest);
+        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_driveActivitySource, m_previewDrives, m_previewCaption, m_previewMenu, m_previewChromeConfigured, m_crtMonitorCheckbox.IsChecked(), m_autoHideDrivesCheckbox.IsChecked(), (float) m_scaler.GetDpi() / 96.0f, theme.ButtonBorder(), m_sceneRequest);
 
         // The 3D pass runs after the whole panel tree, so it would otherwise
         // land on top of the menu about to be painted below. An in-window

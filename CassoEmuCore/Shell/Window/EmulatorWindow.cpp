@@ -615,6 +615,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_MACHINE_ARROWS_PADDLE:   return m_pointerMode == InputMappingMode::Paddle;
             case IDM_VIEW_FRAME_RATE:         return m_settings->GetPrefs().showFrameRate;
             case IDM_VIEW_SCENE_VIEW:         return m_settings->GetPrefs().showSceneView;
+            case IDM_VIEW_AUTOHIDE_DRIVES:    return m_settings->GetPrefs().autoHideDrives;
 
             default:                          return false;
         }
@@ -662,6 +663,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_TAPE_REWIND:      return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Rewind,      m_tapeDeck->GetTapeView());
             case IDM_TAPE_FASTFORWARD: return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::FastForward, m_tapeDeck->GetTapeView());
             case IDM_TAPE_EJECT:       return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Eject,       m_tapeDeck->GetTapeView());
+            case IDM_VIEW_DRIVE_STRIP: return AreDrivesAutoHidden();
             default:           return true;
         }
     });
@@ -759,13 +761,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         {
             m_scene->SyncSceneDriveChrome();
         }
-        else
+        else if (!AreDrivesOnStrip())
         {
             m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, clientW, clientH, dpi, m_chrome->m_chromeSceneScale,
                                                       m_disks->ShouldShowExternalDrive() ? 2 : 1);
         }
 
-        m_chrome->m_driveBandSurface.SetVisible (!DeskSceneActive());
+        m_chrome->m_driveBandSurface.SetVisible (!DeskSceneActive() && !AreDrivesOnStrip());
         m_chrome->m_driveBandSurface.SetBounds (RECT{ 0, driveRect.top, clientW, clientH });
 
         m_chrome->LayoutSwitchBar (dpi);
@@ -1558,6 +1560,11 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 // The 3D scene owns the drives; nothing to lay out. The hit
                 // registry is refreshed below with the rest of the chrome.
             }
+            else if (AreDrivesOnStrip())
+            {
+                // Auto-hide: the strip lays the widgets out each frame while it
+                // is up, and hides them while it is down.
+            }
             else if (fHasDisk)
             {
                 m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, static_cast<int> (width), renderH, dpi,
@@ -1591,7 +1598,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             m_chrome->m_chromeSizedForHasDisk = fHasDisk;
             m_chrome->m_chromeSizedForApple2c = MachineHasCaseSwitches();
 
-            m_chrome->m_driveBandSurface.SetVisible (!DeskSceneActive());
+            m_chrome->m_driveBandSurface.SetVisible (!DeskSceneActive() && !AreDrivesOnStrip());
             m_chrome->m_driveBandSurface.SetBounds (RECT{ 0, driveRect.top, static_cast<int> (width), renderH });
 
             m_chrome->LayoutSwitchBar (dpi);
@@ -1603,7 +1610,10 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             else
             {
                 m_uiShell.GetHitTester().Clear();
-                if (fHasDisk)
+
+                // With auto-hide on, no drive rects are registered, as in
+                // fullscreen: the widgets are off screen most of the time.
+                if (fHasDisk && !AreDrivesOnStrip())
                 {
                     m_uiShell.GetHitTester().Register (DxuiHitRect { m_disks->GetDriveChrome()[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
                     if (m_disks->ShouldShowExternalDrive())

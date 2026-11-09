@@ -123,6 +123,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Render/DxuiPainter.h"
 #include "Render/DxuiTextRenderer.h"
 #include "Render/Dxui3DRenderer.h"
+#include "Render/DxuiShadow.h"
 #include "Render/DxuiSvgPath.h"
 #include "Render/DxuiVectorIcon.h"
 #include "Theme/DxuiDwm.h"

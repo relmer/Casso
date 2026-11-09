@@ -150,6 +150,7 @@ public:
         { L"IDM_VIEW_DRIVE_STRIP",          IDM_VIEW_DRIVE_STRIP          },
         { L"IDM_VIEW_FRAME_RATE",           IDM_VIEW_FRAME_RATE           },
         { L"IDM_VIEW_SCENE_VIEW",           IDM_VIEW_SCENE_VIEW           },
+        { L"IDM_VIEW_AUTOHIDE_DRIVES",      IDM_VIEW_AUTOHIDE_DRIVES      },
         { L"IDM_VIEW_CONTROLLER_SETTINGS",  IDM_VIEW_CONTROLLER_SETTINGS  },
         { L"IDM_DEBUG_SAVE_TRACE",          IDM_DEBUG_SAVE_TRACE          },
         { L"IDM_HELP_KEYMAP",              IDM_HELP_KEYMAP               },

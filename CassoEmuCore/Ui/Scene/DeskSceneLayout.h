@@ -193,6 +193,27 @@ public:
                              int                      reservedGapPx = 0,
                              const DeskSceneView    & view = DeskSceneView {});
 
+    // Auto-hide on the desk: the camera and framing of the monitor alone,
+    // with the drives and the recorder in front of it at true scale. At a
+    // `slideProgress` of 0 they are omitted, and in between they rise from
+    // just below the frame. At 1 they are on the desk, or raised off it just
+    // far enough for their fronts and `slideClearPx` of labels under them to
+    // be inside the frame.
+    static HRESULT  ComputeSliding (const RECT             & viewportPx,
+                                    UINT                     dpi,
+                                    int                      driveCount,
+                                    const DeskSceneMetrics & metrics,
+                                    float                    slideProgress,
+                                    int                      slideClearPx,
+                                    DeskSceneComposition   & out,
+                                    const DeskSceneView    & view = DeskSceneView {});
+
+    // The screen y of the highest point of the sliding devices' front faces,
+    // ignoring the bodies behind them. False when there are no devices.
+    static bool     GetSlideFrontTopPx (const DeskSceneComposition & comp,
+                                        const DeskSceneMetrics     & metrics,
+                                        LONG                       & outTopPx);
+
     // Magnify and shift a projection in CLIP SPACE, which is what lets the
     // user's framing ride on top of the fitted composition without disturbing
     // it. Applied before the bounds are projected, so glassRectPx and the
@@ -206,19 +227,23 @@ public:
 
     // The fullscreen presentation: a straight-on camera at the closest
     // distance that does not crop the picture, showing the tube alone on
-    // black (the composition sets `glassOnly`, and the drives come from the
-    // overlay strip). Closest means the glass covers the viewport; on a
-    // viewport wide enough that covering would crop the raster, the picture's
-    // own containment distance applies instead and black fills what that
-    // leaves beside the tube. `displayW` x `displayH` is the emulated grid,
-    // which determines the picture's band on the glass. Same S_FALSE contract
-    // for an empty viewport.
+    // black (the composition sets `glassOnly`). Closest means the glass
+    // covers the viewport; on a viewport wide enough that covering would crop
+    // the raster, the picture's containment distance applies instead and the
+    // rest of the screen beside the tube is black. `displayW` x `displayH` is
+    // the emulated grid, which determines the picture's band on the glass.
+    // Same S_FALSE contract for an empty viewport. With a `slideProgress` of 0
+    // or more, `driveCount` drives and the recorder slide up in front of the
+    // glass, as documented at ComputeSliding.
     static HRESULT  ComputeGlassFill (const RECT             & viewportPx,
                                       UINT                     dpi,
                                       int                      displayW,
                                       int                      displayH,
                                       const DeskSceneMetrics & metrics,
-                                      DeskSceneComposition   & out);
+                                      DeskSceneComposition   & out,
+                                      int                      driveCount    = 0,
+                                      float                    slideProgress = kNoSlide,
+                                      int                      slideClearPx  = 0);
 
     // The fullscreen drive overlay strip: the drive row alone, full model
     // scale, its own contained camera over the strip's viewport band --
@@ -297,6 +322,27 @@ public:
     // Air over a risen door, on top of the rise itself. Enough that the gap
     // reads as a gap rather than as two parts just failing to touch.
     static constexpr float  kDoorRiseMarginMm      =  6.0f;
+
+    // The furthest the sliding devices are lowered to put them below the
+    // frame, and the slide progress that marks an ordinary, unsliding solve.
+    static constexpr float  kMaxSlideDropMm        = 4000.0f;
+
+    // How far the sliding drives' backs are ahead of the monitor's frontmost
+    // point: enough that the two never share a depth.
+    static constexpr float  kSlideMonitorGapMm       = 3.0f;
+
+    // The share of the frame's half-width the sliding row may fill before it
+    // is scaled down to fit, so it never touches the window's sides.
+    static constexpr float  kSlideFitMargin        = 0.96f;
+
+    // In fullscreen the fitted row is shrunk to this share of its size: at
+    // the full screen width it covered too much of the picture.
+    static constexpr float  kFullscreenSlideScale  = 0.6f;
+
+    // In a window the fitted row is shrunk to half its size, so the drives
+    // cover less of the monitor when they rise.
+    static constexpr float  kWindowedSlideScale    = 0.5f;
+    static constexpr float  kNoSlide               = -1.0f;
     static constexpr float  kContainMargin         = 1.005f;
 
     // Field of view is SOLVED rather than fixed, because the eye position is
@@ -421,12 +467,84 @@ private:
                                      RECT         & outPx);
 
     // One full composition solve at a specific drive drop; Compute wraps it
-    // with the gap-reserving correction.
+    // with the gap-reserving correction. A `slideProgress` of 0 or more
+    // selects the auto-hide arrangement documented at ComputeSliding.
     static HRESULT  SolveComposition (const RECT             & viewportPx,
                                       UINT                     dpi,
                                       int                      driveCount,
                                       const DeskSceneMetrics & metrics,
                                       float                    dropMm,
                                       DeskSceneComposition   & out,
-                                      const DeskSceneView    & view = DeskSceneView {});
+                                      const DeskSceneView    & view          = DeskSceneView {},
+                                      float                    slideProgress = kNoSlide,
+                                      int                      slideClearPx  = 0);
+
+    // The tangent range along `axis` (0 is x, 1 is y) a model box, raised by
+    // `offsetMm`, covers in a view, widened into [ioLo, ioHi].
+    static bool     GetBoxTanRange   (const float              view[16],
+                                      const float              world[16],
+                                      const float              boxMin[3],
+                                      const float              boxMax[3],
+                                      float                    offsetMm,
+                                      int                      axis,
+                                      float                  & ioLo,
+                                      float                  & ioHi);
+
+    // The same over every sliding device in a composition.
+    static bool     GetSlideTanRange (const DeskSceneComposition & comp,
+                                      const DeskSceneMetrics     & metrics,
+                                      int                          driveCount,
+                                      float                        offsetMm,
+                                      int                          axis,
+                                      float                      & outLo,
+                                      float                      & outHi);
+
+    // Places the drives and the recorder for a sliding composition.
+    static void     PlaceSlidingDevices (const DeskSceneMetrics & metrics,
+                                         int                      driveCount,
+                                         DeskSceneComposition   & out);
+
+    // Scales, fits and raises the placed devices for a slide position, and
+    // returns the drive count left in the composition.
+    static int      SlideDevices     (DeskSceneComposition       & out,
+                                      const DeskSceneMetrics     & metrics,
+                                      int                          driveCount,
+                                      float                        eyeDistMm,
+                                      float                        tanHalfX,
+                                      float                        tanHalfY,
+                                      int                          viewportH,
+                                      float                        slideProgress,
+                                      int                          slideClearPx,
+                                      float                        centerXMm,
+                                      float                        extraScale);
+
+    // The drives' and recorder's screen rects and the drives' label anchors.
+    static void     ProjectDeviceRects (DeskSceneComposition     & out,
+                                        const DeskSceneMetrics   & metrics,
+                                        int                        driveCount,
+                                        const RECT               & viewportPx);
+
+    // Scales the sliding devices down, about the row's back-bottom center,
+    // until the row fits within a horizontal tangent.
+    static void     FitSlideDevices  (DeskSceneComposition       & comp,
+                                      const DeskSceneMetrics     & metrics,
+                                      int                          driveCount,
+                                      float                        limitTanX,
+                                      float                        pivotX,
+                                      float                        pivotZ);
+
+    // Scales every sliding device uniformly about (pivotX, the desk, pivotZ).
+    static void     ScaleSlideDevices (DeskSceneComposition      & comp,
+                                       int                         driveCount,
+                                       float                       factor,
+                                       float                       pivotX,
+                                       float                       pivotZ);
+
+    // How far the sliding devices are moved up or down to put them past a
+    // vertical tangent.
+    static float    SolveSlideOffset (const DeskSceneComposition & comp,
+                                      const DeskSceneMetrics     & metrics,
+                                      int                          driveCount,
+                                      float                        direction,
+                                      float                        limitTan);
 };

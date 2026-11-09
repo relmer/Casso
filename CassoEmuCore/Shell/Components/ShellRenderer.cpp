@@ -235,27 +235,23 @@ HRESULT ShellRenderer::InitializeRenderer()
                                                                    displaySrv, uv,
                                                                    kFramebufferWidth, kFramebufferHeight);
 
-                // Fullscreen drive overlay strip: the slid band composed by
-                // TryPresentUiFrame's FSM tick, plus the hidden-state
-                // activity glimmer in the corner (FR-015).
-                if (m_d3dRenderer.IsFullscreen())
+                // Drive overlay strip, in fullscreen or with auto-hide on: the
+                // slid band composed by TryPresentUiFrame's FSM tick, plus the
+                // hidden-state activity glimmer in the corner (FR-015).
+                if (m_shell.AreDrivesOnStrip() &&
+                    m_shell.m_scene->m_stripRectPx.bottom > m_shell.m_scene->m_stripRectPx.top)
                 {
-                    int   bbW = m_d3dRenderer.GetBackBufferWidth();
-                    int   bbH = m_d3dRenderer.GetBackBufferHeight();
+                    HRESULT  hrStrip = RenderClippedStrip (m_shell.m_host->GetBackBufferRtv());
 
-                    if (m_shell.m_scene->m_stripRectPx.bottom > m_shell.m_scene->m_stripRectPx.top)
-                    {
-                        HRESULT  hrStrip = m_shell.m_scene->m_deskScene.RenderStrip (m_shell.m_host->GetBackBufferRtv(), m_shell.m_scene->m_stripComp);
+                    IGNORE_RETURN_VALUE (hrStrip, S_OK);
+                }
 
-                        IGNORE_RETURN_VALUE (hrStrip, S_OK);
-                    }
-
-                    if (m_shell.m_scene->m_stripState.ActivityIndicator())
-                    {
-                        RECT  glimmer = { bbW - 34, bbH - 14, bbW - 12, bbH - 8 };
-
-                        m_shell.m_scene->m_deskScene.DrawDebugRect (glimmer, bbW, bbH, 0xFFB01818);
-                    }
+                // Fullscreen only, whether the drives are on the strip or
+                // slide up on the desk.
+                if (m_shell.m_scene->m_stripState.ActivityIndicator() && m_d3dRenderer.IsFullscreen())
+                {
+                    m_shell.m_scene->m_deskScene.DrawDebugRect (GetStripGlimmerRect(), m_d3dRenderer.GetBackBufferWidth(),
+                                                                m_d3dRenderer.GetBackBufferHeight(), 0xFFB01818);
                 }
 
                 // Layout diagnosis overlay: scene viewport red, projected
@@ -328,21 +324,19 @@ HRESULT ShellRenderer::InitializeRenderer()
             return;
         }
 
-        if (m_d3dRenderer.IsFullscreen())
+        if (m_shell.AreDrivesOnStrip())
         {
-            // Fullscreen without the monitor: the picture owns the client and
-            // the drives live in the slide-up overlay strip, same as they do
-            // with the monitor on.
+            // Fullscreen without the monitor, or auto-hide on: the drives
+            // live in the slide-up overlay strip, same as they do with the
+            // monitor on.
             if (m_shell.m_scene->m_stripRectPx.bottom > m_shell.m_scene->m_stripRectPx.top)
             {
-                hrDrives = m_shell.m_scene->m_deskScene.RenderStrip (rtv, m_shell.m_scene->m_stripComp);
+                hrDrives = RenderClippedStrip (rtv);
             }
 
-            if (m_shell.m_scene->m_stripState.ActivityIndicator())
+            if (m_shell.m_scene->m_stripState.ActivityIndicator() && m_d3dRenderer.IsFullscreen())
             {
-                RECT  glimmer = { bbW - 34, bbH - 14, bbW - 12, bbH - 8 };
-
-                m_shell.m_scene->m_deskScene.DrawDebugRect (glimmer, bbW, bbH, 0xFFB01818);
+                m_shell.m_scene->m_deskScene.DrawDebugRect (GetStripGlimmerRect(), bbW, bbH, 0xFFB01818);
             }
         }
         else
@@ -835,30 +829,48 @@ bool ShellRenderer::TryPresentUiFrame()
                          ? m_shell.m_scene->DeskSceneDriveCount() > 0
                          : (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
 
-    if (m_d3dRenderer.IsFullscreen() && stripHasDrives)
+    // On the windowed desk with the monitor, the same FSM moves the desk's
+    // drives instead: its progress raises them onto the desk.
+    if ((m_shell.AreDrivesOnStrip() || m_shell.IsDeskSlideActive()) && stripHasDrives)
     {
         StripInputs   inputs;
         StripEffects  effects;
-        POINT         cursor  = {};
-        RECT          client  = {};
+        POINT         cursor     = {};
+        RECT          client     = {};
+        RECT          area       = m_shell.m_chrome->m_driveStripAreaPx;
+        bool          deskSlide  = m_shell.IsDeskSlideActive();
+        RECT          engageRect = deskSlide ? m_shell.m_chrome->m_deskSlideCoverPx : m_shell.m_scene->m_stripRectPx;
         int64_t       stripNowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                        std::chrono::steady_clock::now().time_since_epoch()).count();
 
         GetClientRect (m_shell.m_hwnd, &client);
+        SetFlatStripTextClip (&area);
 
         inputs.nowMs = stripNowMs;
 
+        // The edge is the bottom of the strip's area: the screen's bottom in
+        // fullscreen, the picture's bottom in a window with auto-hide on. On
+        // the windowed desk it is taller: the lower half of the desk under
+        // the monitor.
         if (GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor) && PtInRect (&client, cursor))
         {
-            inputs.pointerAtBottomEdge = cursor.y >= client.bottom - m_shell.m_scaler.ToPx (s_kStripEdgeZoneDp);
+            LONG  edgeTop = (deskSlide && !m_d3dRenderer.IsFullscreen()) ? m_shell.m_chrome->m_deskSlideRevealTopPx
+                                                                         : area.bottom - m_shell.m_scaler.ToPx (s_kStripEdgeZoneDp);
+
+
+
+            inputs.pointerAtBottomEdge = PtInRect (&area, cursor) && cursor.y >= edgeTop;
             inputs.pointerOverStrip    = m_shell.m_scene->m_stripState.Mode() != StripMode::Hidden &&
-                                         PtInRect (&m_shell.m_scene->m_stripRectPx, cursor);
+                                         PtInRect (&engageRect, cursor);
         }
 
         inputs.hotkey        = m_shell.m_scene->m_stripHotkeyPending;
         m_shell.m_scene->m_stripHotkeyPending = false;
 
-        inputs.pinned        = m_shell.m_scene->m_stripBrowseOpen || m_shell.m_chrome->m_driveTooltip.IsVisible();
+        // A drive's menu pins the strip too, or the drive it was opened on
+        // would slide away while the pointer is on the menu.
+        inputs.pinned        = m_shell.m_scene->m_stripBrowseOpen || m_shell.m_chrome->m_driveTooltip.IsVisible() ||
+                               (m_shell.m_host != nullptr && m_shell.m_host->GetContextMenu().IsVisible());
 
         // LIVE, not Active: Mouse mode being CONFIGURED is not the guest
         // owning the pointer. At a BASIC prompt in Mouse mode the host
@@ -893,19 +905,43 @@ bool ShellRenderer::TryPresentUiFrame()
             m_shell.m_scene->m_stripSuppressGuestMouse = false;
         }
 
+        // The desk's slide re-solves the scene only when the progress moves,
+        // and the frame at progress 0 is presented too, so nothing is left
+        // part-way up.
+        if (deskSlide)
+        {
+            float  progress = m_shell.m_scene->m_stripState.SlideProgress (stripNowMs);
+
+            if (progress != m_shell.m_chrome->m_deskSlideProgress)
+            {
+                m_shell.m_chrome->ComposeDeskSlide (progress);
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
+        }
+
         // The band slides up from the bottom edge: only the top
         // `progress * height` sliver is on-screen mid-animation. The flat
         // widgets' band is the windowed drive bar's height; the scene's is
         // the row its drives compose into.
+        else
         {
-            float  progress = m_shell.m_scene->m_stripState.SlideProgress (stripNowMs);
-            int    bandH    = m_shell.DeskSceneActive() ? m_shell.m_scaler.ToPx (s_kStripBandDp)
-                                                        : m_shell.m_scaler.ToPx (m_shell.m_chrome->m_driveBarThicknessDp);
+            float  progress   = m_shell.m_scene->m_stripState.SlideProgress (stripNowMs);
+            int    bandH      = m_shell.DeskSceneActive() ? m_shell.m_scaler.ToPx (s_kStripBandDp)
+                                                          : m_shell.m_scaler.ToPx (m_shell.m_chrome->m_driveBarThicknessDp);
+            bool   wasShowing = m_shell.m_scene->m_stripRectPx.bottom > m_shell.m_scene->m_stripRectPx.top;
+
+            // On the frame where the strip finishes hiding, the mode is
+            // already Hidden, so nothing else requests a present. Without
+            // this, the last partly-slid frame stays on screen.
+            if (progress <= 0.0f && wasShowing)
+            {
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
 
             if (progress > 0.0f)
             {
-                m_shell.m_scene->m_stripRectPx = { 0, client.bottom - (int) (progress * (float) bandH),
-                                                   client.right, client.bottom - (int) (progress * (float) bandH) + bandH };
+                m_shell.m_scene->m_stripRectPx = { area.left, area.bottom - (int) (progress * (float) bandH),
+                                                   area.right, area.bottom - (int) (progress * (float) bandH) + bandH };
 
                 if (m_shell.DeskSceneActive())
                 {
@@ -944,7 +980,7 @@ bool ShellRenderer::TryPresentUiFrame()
                     // after the picture, so they ride over it.
                     m_shell.m_chrome->m_driveBandSurface.SetBounds (m_shell.m_scene->m_stripRectPx);
                     m_shell.m_chrome->m_driveBandSurface.SetVisible (true);
-                    m_shell.m_chrome->LayoutDriveWidgetsInCommandBar (m_shell.m_disks->GetDriveChrome(), bandH, client.right,
+                    m_shell.m_chrome->LayoutDriveWidgetsInCommandBar (m_shell.m_disks->GetDriveChrome(), bandH, area.right,
                                                                       m_shell.m_scene->m_stripRectPx.bottom, m_shell.m_scaler.GetDpi(), 1.0f,
                                                                       m_shell.m_disks->ShouldShowExternalDrive() ? 2 : 1);
 
@@ -973,22 +1009,28 @@ bool ShellRenderer::TryPresentUiFrame()
         // The strip's names ride its slide: re-hung every pass so they track
         // the band on its way in and out, and retire with it. The flat
         // widgets carry their own names.
-        if (m_shell.DeskSceneActive())
+        // The desk's slide re-hangs them in ComposeDeskSlide.
+        if (m_shell.DeskSceneActive() && !deskSlide)
         {
             m_shell.m_scene->SyncSceneDriveLabels();
         }
 
-        if (m_shell.m_scene->m_stripState.Mode() != StripMode::Hidden || m_shell.m_scene->m_stripState.ActivityIndicator())
+        // The hidden-state glimmer is fullscreen only, so frames are requested
+        // for it only there.
+        if (m_shell.m_scene->m_stripState.Mode() != StripMode::Hidden ||
+            (m_shell.m_scene->m_stripState.ActivityIndicator() && m_d3dRenderer.IsFullscreen()))
         {
             m_d3dRenderer.MarkRedrawNeeded();
         }
     }
     else
     {
-        // Not presenting the strip (windowed, or fullscreen left): never
-        // strand a suppressed guest mouse.
+        // Not presenting the strip (windowed without auto-hide, or fullscreen
+        // left): never strand a suppressed guest mouse.
         m_shell.m_scene->m_stripSuppressGuestMouse = false;
         m_shell.m_scene->m_stripRectPx             = {};
+
+        SetFlatStripTextClip (nullptr);
     }
 
     // Keep presenting while the drives' visible state is CHANGING, plus the
@@ -1360,6 +1402,86 @@ void ShellRenderer::ServiceCaptureRequest (CapturePoint atPoint)
     m_pendingCapture.captured = SUCCEEDED (hr);
 
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetStripGlimmerRect
+//
+//  Fullscreen only: in a window the bar looks like a stray red box on the
+//  desk, and the drives are close by at the bottom edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT ShellRenderer::GetStripGlimmerRect() const
+{
+    constexpr int  kRightInsetPx  = 12;
+    constexpr int  kBottomInsetPx = 8;
+    constexpr int  kWidthPx       = 22;
+    constexpr int  kHeightPx      = 6;
+    RECT           area           = m_shell.m_chrome->m_driveStripAreaPx;
+
+
+
+    return RECT { area.right  - kRightInsetPx  - kWidthPx,
+                  area.bottom - kBottomInsetPx - kHeightPx,
+                  area.right  - kRightInsetPx,
+                  area.bottom - kBottomInsetPx };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetFlatStripTextClip
+//
+//  The flat counterpart of RenderClippedStrip. The widgets' fills are drawn
+//  before the //c switch strip and stay under it; their text is drawn in a
+//  later pass, so only the text is cropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellRenderer::SetFlatStripTextClip (const RECT * clipPx)
+{
+    m_shell.m_disks->GetDriveChrome()[0].SetTextClip (clipPx);
+    m_shell.m_disks->GetDriveChrome()[1].SetTextClip (clipPx);
+    m_shell.m_tapeDeck->GetWidget().SetTextClip (clipPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RenderClippedStrip
+//
+//  Crops the 3D strip to the picture area. Mid-slide the strip extends below
+//  that area, and in a window the //c switch strip is down there: cropped,
+//  the drives slide in and out from behind it instead of over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellRenderer::RenderClippedStrip (ID3D11RenderTargetView * rtv)
+{
+    HRESULT  hr   = S_OK;
+    RECT     area = m_shell.m_chrome->m_driveStripAreaPx;
+
+
+
+    m_shell.m_scene->m_deskScene.SetClipRect (&area);
+
+    hr = m_shell.m_scene->m_deskScene.RenderStrip (rtv, m_shell.m_scene->m_stripComp);
+
+    m_shell.m_scene->m_deskScene.SetClipRect (nullptr);
+
+    return hr;
 }
 
 

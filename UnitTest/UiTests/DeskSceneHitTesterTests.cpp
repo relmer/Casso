@@ -213,6 +213,39 @@ public:
         }
     }
 
+    TEST_METHOD (Recorder_In_Front_Of_The_Glass_Takes_The_Click)
+    {
+        // Fullscreen, the glass covers the screen and the sliding recorder is
+        // in front of it. A click on the recorder is the recorder's,
+        // not the picture's.
+        DeskSceneMetrics      metrics   = MakeMetrics();
+        float                 glassW    = metrics.glass.x1 - metrics.glass.x0;
+        float                 glassH    = metrics.glass.z1 - metrics.glass.z0;
+        RECT                  vp        = { 0, 0, (LONG) lroundf (900.0f * glassW / glassH), 900 };
+        DeskSceneComposition  comp;
+        float                 screen[2] = {};
+        SceneHitResult        hit;
+
+
+
+        metrics.hasRecorder    = true;
+        metrics.recorderMin[0] = 0.0f;   metrics.recorderMax[0] = 230.0f;
+        metrics.recorderMin[1] = 0.0f;   metrics.recorderMax[1] = 150.0f;
+        metrics.recorderMin[2] = 0.0f;   metrics.recorderMax[2] = 50.0f;
+
+        AssertSucceeded (DeskSceneLayout::ComputeGlassFill (vp, 96, 560, 384, metrics, comp, 2, 1.0f, 30));
+        Assert::AreEqual (1, comp.hasRecorder);
+
+        ScreenAt (comp, comp.recorderWorld, 115.0f, 20.0f, 50.0f, screen);
+
+        hit = DeskSceneHitTester::Classify (comp, metrics.glass, MakeDriveRegions(), screen[0], screen[1], 560, 384,
+                                            true, nullptr, nullptr, metrics.monitorMin, metrics.monitorMax,
+                                            metrics.driveMin, metrics.driveMax, nullptr,
+                                            metrics.recorderMin, metrics.recorderMax, nullptr, 0);
+
+        Assert::IsTrue (hit.target == SceneHitResult::Target::Recorder, L"the recorder is in front of the glass");
+    }
+
     TEST_METHOD (Slot_Region_Resolves_To_Eject_Before_Body)
     {
         DeskSceneMetrics      metrics   = MakeMetrics();

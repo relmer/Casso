@@ -66,11 +66,17 @@ public:
     void  SetOnApplyThemeNow    (ApplyThemeNowFn     fn) { m_onApplyThemeNow   = std::move (fn); }
 
     // The CRT monitor opt in/out (the monitor alone -- the 3D drives always
-    // render). The checkbox applies live through the callback and shows only
-    // while a skeuomorphic (non-compact) theme is selected.
+    // render). The callback stages the value for OK. The checkbox is visible
+    // only while a skeuomorphic (non-compact) theme is selected.
     using CrtMonitorFn = std::function<void (bool enabled)>;
     void  SetOnCrtMonitorToggled (CrtMonitorFn fn) { m_onCrtMonitorToggled = std::move (fn); }
     void  SetCrtMonitorChecked   (bool checked)   { m_crtMonitorCheckbox.SetChecked (checked); }
+
+    // The drive bar's auto-hide, for every theme. The callback stages the
+    // value for OK, like the CRT checkbox.
+    using AutoHideDrivesFn = std::function<void (bool enabled)>;
+    void  SetOnAutoHideDrivesToggled (AutoHideDrivesFn fn) { m_onAutoHideDrivesToggled = std::move (fn); }
+    void  SetAutoHideDrivesChecked   (bool checked)       { m_autoHideDrivesCheckbox.SetChecked (checked); }
 
     // Scene antialiasing, in SAMPLES (1 / 2 / 4) at this boundary -- the
     // slider's three stops are an interior detail.
@@ -120,7 +126,7 @@ private:
     static constexpr int  kPrevTitleBarDp      = 32;
     static constexpr int  kPrevNavStripDp      = 32;
     static constexpr int  kPrevDriveBarFullDp  = 190;
-    static constexpr int  kPrevDriveBarCmptDp  = 70;
+    static constexpr int  kPrevDriveBarCmptDp  = 46;
     // No system-button or caption/menu font metrics here any more: the real
     // DxuiCaptionBar and MainMenu carry their own, and a second set of
     // numbers describing the same chrome is precisely how the mock drifted
@@ -153,6 +159,7 @@ public:
     {
         None,        // compact theme: the flat mock is the whole preview
         Full,        // monitor and drives, the CRT checkbox on
+        MonitorOnly, // CRT on with auto-hide: the drives are out of sight
         DrivesOnly,  // CRT opted out: flat picture, 3D drives beneath it
     };
 
@@ -201,6 +208,9 @@ private:
                                      MainMenu                             & previewMenu,
                                      bool                                 & chromeConfigured,
                                      bool                                   crtMonitor,
+                                     bool                                   autoHideDrives,
+                                     float                                  pageScale,
+                                     uint32_t                               frameArgb,
                                      PreviewSceneRequest                  & outScene);
 
     std::vector<std::string>      m_themeIds;
@@ -228,11 +238,13 @@ private:
     HasDiskSourceFn      m_hasDiskSource;
     ApplyThemeNowFn      m_onApplyThemeNow;
     CrtMonitorFn         m_onCrtMonitorToggled;
+    AutoHideDrivesFn     m_onAutoHideDrivesToggled;
 
     DxuiLabel      m_themeLabel;
     DxuiComboBox   m_themeDropdown;
     DxuiButton     m_applyNowButton;
     DxuiCheckbox   m_crtMonitorCheckbox;
+    DxuiCheckbox   m_autoHideDrivesCheckbox;
     DxuiLabel      m_aaLabel;
     DxuiSlider     m_aaSlider;
     AntiAliasingFn m_onAntiAliasingChanged;
