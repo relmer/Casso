@@ -15,7 +15,6 @@
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "Seams/Win32ShellIcons.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
-#include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerRename.h"
 

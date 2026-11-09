@@ -8,7 +8,7 @@
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
-#include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerClipboard.h"
 #include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
 #include "CassoExplorer/Window/Managers/ExplorerDeletion.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
@@ -106,7 +106,7 @@ struct ExplorerWindowParts
     ExplorerAddressBar                      addressBar       { context };
     ExplorerMenus                           menus            { context };
     ExplorerCommandManager                  commandManager   { context };
-    ExplorerFileOps                         fileOps          { context };
+    ExplorerClipboard                       clipboard        { context };
     ExplorerTransferPrompts                 prompts          { context };
     ExplorerDeletion                        deletion         { context };
     ExplorerUndo                            undo             { context };

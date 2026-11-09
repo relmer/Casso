@@ -88,7 +88,7 @@ ExplorerWindowParts::ExplorerWindowParts (IExplorerWindow             & window,
                  .addressBar       = addressBar,
                  .menus            = menus,
                  .commandManager   = commandManager,
-                 .fileOps          = fileOps,
+                 .clipboard          = clipboard,
                  .prompts          = prompts,
                  .deletion         = deletion,
                  .undo             = undo,
@@ -312,7 +312,7 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
 
     if (msg == (UINT) AppMessage::ExplorerCutPasted)
     {
-        fileOps.FinishCut();
+        clipboard.FinishCut();
         return true;
     }
 

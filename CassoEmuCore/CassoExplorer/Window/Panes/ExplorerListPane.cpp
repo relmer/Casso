@@ -20,7 +20,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
-#include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerClipboard.h"
 #include "CassoExplorer/Window/Managers/ExplorerDeletion.h"
 #include "CassoExplorer/Window/Managers/ExplorerRename.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
@@ -663,7 +663,7 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
     {
         if (ev.vk == 'C')
         {
-            m_context.fileOps.CopySelectedPaths();
+            m_context.clipboard.CopySelectedPaths();
         }
         else
         {
@@ -689,7 +689,7 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
     if (m_context.input.GetFocusPane() == ExplorerPane::List && ev.ctrl && !ev.alt && ev.vk == 'C'
         && m_context.browser.IsVolumeLocation() && !m_context.browser.GetSelectedRows().empty())
     {
-        m_context.fileOps.CopyEntriesToClipboard (m_context.commandManager.GetNamingStyle());
+        m_context.clipboard.CopyEntriesToClipboard (m_context.commandManager.GetNamingStyle());
         return true;
     }
 

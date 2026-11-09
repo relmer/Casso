@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "Seams/ShellVerbs/Win32ShellNamespace.h"

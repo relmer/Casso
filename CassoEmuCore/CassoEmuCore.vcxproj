@@ -317,7 +317,7 @@
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerAddressBar.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerCommandManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerDragDrop.cpp" />
-    <ClCompile Include="CassoExplorer\Window\Managers\ExplorerFileOps.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\ExplorerClipboard.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerTransferPrompts.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerDeletion.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerUndo.cpp" />
@@ -835,7 +835,7 @@
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerAddressBar.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerCommandManager.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerDragDrop.h" />
-    <ClInclude Include="CassoExplorer\Window\Managers\ExplorerFileOps.h" />
+    <ClInclude Include="CassoExplorer\Window\Managers\ExplorerClipboard.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerTransferPrompts.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerDeletion.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerUndo.h" />

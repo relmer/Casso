@@ -9,7 +9,7 @@
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
-#include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerClipboard.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
@@ -775,7 +775,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         //  File Explorer's drive has no Copy as path.
         if (!selectedDrives)
         {
-            m_context.menus.AddMenuCommand (items, L"Copy as &path", [this]() { m_context.fileOps.CopySelectedPaths(); }, L"Ctrl+Shift+C", s_kpszMdl2CopyPath);
+            m_context.menus.AddMenuCommand (items, L"Copy as &path", [this]() { m_context.clipboard.CopySelectedPaths(); }, L"Ctrl+Shift+C", s_kpszMdl2CopyPath);
             m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.copyaspath");
         }
 
@@ -1319,7 +1319,7 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSeeMoreRows()
             }
         }
 
-        row (L"Copy path", L"windows.copyaspath", nullptr, [this]() { m_context.fileOps.CopySelectedPaths(); });
+        row (L"Copy path", L"windows.copyaspath", nullptr, [this]() { m_context.clipboard.CopySelectedPaths(); });
         items.push_back (DxuiPopupMenuItem::ForSeparator());
     }
     else if (onHost)
@@ -1912,7 +1912,7 @@ void ExplorerListMenus::AddCopyAsMenu (std::vector<DxuiPopupMenuItem> & items)
         HostFileNaming::Style         style = row.style;
 
         child->label    = row.label;
-        child->dispatch = [this, style]() { m_context.fileOps.CopyEntriesToClipboard (style); };
+        child->dispatch = [this, style]() { m_context.clipboard.CopyEntriesToClipboard (style); };
 
         choices.push_back (DxuiPopupMenuItem::ForCommand (child));
         m_context.menus.GetMenuCommands().push_back (std::move (child));

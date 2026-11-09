@@ -7,7 +7,6 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
-#include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"

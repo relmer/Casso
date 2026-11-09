@@ -6,7 +6,6 @@
 #include "CassoExplorer/Model/CassoTargeting.h"
 #include "Config/UserConfigStore.h"
 #include "Core/JsonParser.h"
-#include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
 #include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

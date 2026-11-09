@@ -1,41 +1,20 @@
 #include "Pch.h"
 
-#include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerClipboard.h"
+#include "CassoExplorer/Window/ExplorerContext.h"
+#include "CassoExplorer/Window/IExplorerWindow.h"
+#include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/CassoExplorerDragOut.h"
+#include "CassoExplorer/Model/HostFileNaming.h"
+#include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
+#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
-#include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
-#include "CassoExplorer/CassoExplorerIcons.h"
-#include "CassoExplorer/CassoExplorerDragOut.h"
-#include "CassoExplorer/AppleFilePropertiesDialog.h"
-#include "CassoExplorer/WozPropertiesDialog.h"
-#include "CassoExplorer/Model/WozProperties.h"
-#include "CassoExplorer/CassoExplorerProperties.h"
-#include "CassoExplorer/Model/HostAppleFile.h"
-#include "CassoExplorer/Model/HostFileNaming.h"
-#include "CassoLink/FullSend/FullSendManifestFile.h"
-#include "Devices/Disk/IDiskFileIo.h"
-#include "CassoExplorer/Model/CassoTargeting.h"
-#include "CassoExplorer/CassoExplorerPromptDialog.h"
-#include "CassoExplorer/CassoExplorerShell.h"
-#include "CassoExplorer/Model/KnownFolderStore.h"
-#include "CassoExplorer/Model/LaunchCommand.h"
-#include "CassoExplorer/Model/SearchQuery.h"
-#include "AssetBootstrap.h"
-#include "Config/UserConfigStore.h"
-#include "Core/JsonWriter.h"
-#include "Core/MachineScanner.h"
-#include "Core/TextEncoding.h"
-#include "Core/AppMessages.h"
-#include "Core/AppTimerIds.h"
-#include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
-#include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
-#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
-#include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
-#include "Seams/Win32IntentChannel.h"
-#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
-#include "CassoExplorer/Window/Managers/ExplorerLayout.h"
-#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "Core/AppMessages.h"
+#include "Core/TextEncoding.h"
+#include "Seams/IShellItemVerbs.h"
 
 
 
@@ -43,11 +22,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerFileOps::ExplorerFileOps
+//  ExplorerClipboard::ExplorerClipboard
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerFileOps::ExplorerFileOps (ExplorerContext & context)
+ExplorerClipboard::ExplorerClipboard (ExplorerContext & context)
     : m_context (context)
 {
 }
@@ -58,13 +37,13 @@ ExplorerFileOps::ExplorerFileOps (ExplorerContext & context)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerFileOps::GetPasteFolder
+//  ExplorerClipboard::GetPasteFolder
 //
 //  A single folder row takes the paste; otherwise the folder being shown.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ExplorerFileOps::GetPasteFolder() const
+std::wstring ExplorerClipboard::GetPasteFolder() const
 {
     Location  location;
 
@@ -86,11 +65,11 @@ std::wstring ExplorerFileOps::GetPasteFolder() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerFileOps::CopyEntriesToClipboard
+//  ExplorerClipboard::CopyEntriesToClipboard
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerFileOps::CopyEntriesToClipboard (HostFileNaming::Style style)
+void ExplorerClipboard::CopyEntriesToClipboard (HostFileNaming::Style style)
 {
     std::wstring  failure;
     HRESULT       hr      = CassoExplorerDragOut::CopyToClipboard (m_context.browser, style, failure);
@@ -112,14 +91,14 @@ void ExplorerFileOps::CopyEntriesToClipboard (HostFileNaming::Style style)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerFileOps::CutEntriesToClipboard
+//  ExplorerClipboard::CutEntriesToClipboard
 //
 //  What is deleted is read now, while the entries are on display: the
 //  paste may come after the window has moved elsewhere.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerFileOps::CutEntriesToClipboard (HostFileNaming::Style style)
+void ExplorerClipboard::CutEntriesToClipboard (HostFileNaming::Style style)
 {
     std::wstring            failure;
     HRESULT                 hr      = S_OK;
@@ -172,14 +151,14 @@ void ExplorerFileOps::CutEntriesToClipboard (HostFileNaming::Style style)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerFileOps::FinishCut
+//  ExplorerClipboard::FinishCut
 //
 //  The cut entries deleted, now that a target has pasted them. A drive's
 //  deletions go over the link and are reported as they finish.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerFileOps::FinishCut()
+void ExplorerClipboard::FinishCut()
 {
     CassoExplorerActions::Outcome  outcome;
     CutSource                      cut     = std::move (m_cut);
@@ -206,13 +185,13 @@ void ExplorerFileOps::FinishCut()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerFileOps::CopySelectedPaths
+//  ExplorerClipboard::CopySelectedPaths
 //
 //  Each path in quotes on its own line, as Explorer's Copy as path gives them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerFileOps::CopySelectedPaths()
+void ExplorerClipboard::CopySelectedPaths()
 {
     std::wstring  text;
     std::wstring  path;
@@ -246,14 +225,14 @@ void ExplorerFileOps::CopySelectedPaths()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerFileOps::PasteHere
+//  ExplorerClipboard::PasteHere
 //
 //  The clipboard's files into the folder, with an undo that takes back what
 //  the paste made: a copy goes to the Recycle Bin, a move goes back.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerFileOps::PasteHere (const std::wstring & folder)
+void ExplorerClipboard::PasteHere (const std::wstring & folder)
 {
     IShellItemVerbs::PasteResult  pasted;
     ComPtr<IDataObject>           data;
@@ -319,7 +298,7 @@ void ExplorerFileOps::PasteHere (const std::wstring & folder)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerFileOps::PasteIntoVolume
+//  ExplorerClipboard::PasteIntoVolume
 //
 //  The clipboard's files into the disk image or the linked Apple's drive
 //  open in the list, by the rules a drop there follows: another image's
@@ -327,7 +306,7 @@ void ExplorerFileOps::PasteHere (const std::wstring & folder)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerFileOps::PasteIntoVolume()
+void ExplorerClipboard::PasteIntoVolume()
 {
     HRESULT                        hr         = S_OK;
     ComPtr<IDataObject>            data;
@@ -386,14 +365,14 @@ void ExplorerFileOps::PasteIntoVolume()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerFileOps::ReportPasted
+//  ExplorerClipboard::ReportPasted
 //
 //  As File Explorer reports a paste of a cut, so the source deletes what it
 //  cut: only when every file landed whole.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerFileOps::ReportPasted (IDataObject * data, const CassoExplorerActions::Outcome & outcome)
+void ExplorerClipboard::ReportPasted (IDataObject * data, const CassoExplorerActions::Outcome & outcome)
 {
     HRESULT    hr        = S_OK;
     FORMATETC  preferred = { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_PREFERREDDROPEFFECT), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
@@ -460,13 +439,13 @@ void ExplorerFileOps::ReportPasted (IDataObject * data, const CassoExplorerActio
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerFileOps::IsCutFrom
+//  ExplorerClipboard::IsCutFrom
 //
 //  Whether the last cut's entries came from the image directory `inner`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerFileOps::IsCutFrom (const std::string & inner) const
+bool ExplorerClipboard::IsCutFrom (const std::string & inner) const
 {
     if (!m_cut.valid || m_cut.onDrive || m_cut.catalogPaths.empty())
     {

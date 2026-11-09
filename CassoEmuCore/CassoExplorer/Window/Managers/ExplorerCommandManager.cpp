@@ -19,7 +19,7 @@
 #include "CassoExplorer/CassoExplorerCommands.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
-#include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerClipboard.h"
 #include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
 #include "CassoExplorer/Window/Managers/ExplorerDeletion.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
@@ -432,11 +432,11 @@ void ExplorerCommandManager::Dispatch (int id)
         {
             if (m_context.browser.IsVolumeLocation())
             {
-                m_context.fileOps.PasteIntoVolume();
+                m_context.clipboard.PasteIntoVolume();
                 break;
             }
 
-            m_context.fileOps.PasteHere (m_context.browser.GetLocation().path);
+            m_context.clipboard.PasteHere (m_context.browser.GetLocation().path);
             break;
         }
 
@@ -459,7 +459,7 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kCopyItems:
             if (m_context.browser.IsVolumeLocation() || m_context.browser.AreSelectedRowsSearchMatches())
             {
-                m_context.fileOps.CopyEntriesToClipboard (GetNamingStyle());
+                m_context.clipboard.CopyEntriesToClipboard (GetNamingStyle());
             }
             else
             {
@@ -1057,13 +1057,13 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::Copy:
             if (m_context.browser.IsVolumeLocation() && verb == CassoExplorerActions::Verb::Cut)
             {
-                m_context.fileOps.CutEntriesToClipboard (GetNamingStyle());
+                m_context.clipboard.CutEntriesToClipboard (GetNamingStyle());
                 break;
             }
 
             if (m_context.browser.IsVolumeLocation())
             {
-                m_context.fileOps.CopyEntriesToClipboard (GetNamingStyle());
+                m_context.clipboard.CopyEntriesToClipboard (GetNamingStyle());
                 break;
             }
 
@@ -1098,11 +1098,11 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::Paste:
             if (m_context.browser.IsVolumeLocation())
             {
-                m_context.fileOps.PasteIntoVolume();
+                m_context.clipboard.PasteIntoVolume();
                 break;
             }
 
-            m_context.fileOps.PasteHere (m_context.fileOps.GetPasteFolder());
+            m_context.clipboard.PasteHere (m_context.clipboard.GetPasteFolder());
             break;
 
         case CassoExplorerActions::Verb::Delete:

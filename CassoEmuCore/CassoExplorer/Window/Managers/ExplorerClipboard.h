@@ -12,16 +12,17 @@ struct ExplorerContext;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerFileOps
+//  ExplorerClipboard
 //
-//  File operations on the selection: paste, cut and copy, and copying paths.
+//  The clipboard: cut, copy and paste, on the PC and in disk images and on
+//  Apple drives, and copying the selection's paths.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ExplorerFileOps
+class ExplorerClipboard
 {
 public:
-    explicit ExplorerFileOps (ExplorerContext & context);
+    explicit ExplorerClipboard (ExplorerContext & context);
 
     void                               PasteHere                  (const std::wstring & folder);
     void                               PasteIntoVolume            ();

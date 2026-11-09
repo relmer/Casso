@@ -12,7 +12,7 @@ class CassoLinkManager;
 class ExplorerAddressBar;
 class ExplorerCommandManager;
 class ExplorerDragDrop;
-class ExplorerFileOps;
+class ExplorerClipboard;
 class ExplorerTransferPrompts;
 class ExplorerDeletion;
 class ExplorerUndo;
@@ -112,7 +112,7 @@ public:
     ExplorerAddressBar          & addressBar;
     ExplorerMenus               & menus;
     ExplorerCommandManager      & commandManager;
-    ExplorerFileOps             & fileOps;
+    ExplorerClipboard           & clipboard;
     ExplorerTransferPrompts     & prompts;
     ExplorerDeletion            & deletion;
     ExplorerUndo                & undo;
