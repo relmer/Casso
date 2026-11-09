@@ -310,6 +310,7 @@ private:
     static constexpr float  kFrameGapDip      = 6.0f;
     static constexpr float  kFrameCornerDip   = 4.0f;
     static constexpr float  kFrameMix         = 0.6f;
+    static constexpr float  kFramedEdgeMix    = 0.15f;   // the tip's edge around a frame, close to its fill
     static constexpr float  kFrameLineEm      = 1.4f;
     static constexpr float  kMinTextContrast  = 4.5f;
     static constexpr float  kMinLineContrast  = 3.0f;

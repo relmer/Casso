@@ -1595,7 +1595,8 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 //  m_bgArgb, passed as showParams.backgroundArgb, so this only draws the
 //  border (painter / D3D, under the text) and the text (D2D, composited on
 //  top). Coordinates are popup-local pixels with the origin at the balloon's
-//  top-left.
+//  top-left. Around a frame the tip's edge is drawn close to its fill, so
+//  the frame is the border that reads.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1620,7 +1621,8 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
     width  = (float) (placed.right  - placed.left);
     height = (float) (placed.bottom - placed.top);
 
-    painter.OutlineRoundedRect (0.0f, 0.0f, width, height, GetCornerRadiusPx(), borderPx, m_borderArgb);
+    painter.OutlineRoundedRect (0.0f, 0.0f, width, height, GetCornerRadiusPx(), borderPx,
+                                m_shownFrameLabel.empty() ? m_borderArgb : (DxuiColor::Mix (m_bgArgb, m_borderArgb, kFramedEdgeMix) | 0xFF000000u));
 
     if (!m_shownFrameLabel.empty())
     {
