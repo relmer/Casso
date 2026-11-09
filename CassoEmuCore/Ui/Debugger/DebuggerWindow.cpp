@@ -1183,9 +1183,10 @@ void DebuggerWindow::LayoutWidgets()
 //  DebuggerWindow::RenderFrame
 //
 //  Once per UI frame: take whatever the CPU thread published, then repaint
-//  when that brought something, when something is moving, or after
-//  kIdlePaintMs, which keeps a caret blinking. Painting every frame, and
-//  twice when a snapshot came in, cost a fifth of a core in a release build.
+//  when that brought something, when something is moving, or when the caret
+//  of a box being typed in blinks. With none of those, nothing on screen
+//  changes, so the window doesn't paint. Painting every frame, and twice when
+//  a snapshot came in, cost a fifth of a core in a release build.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1196,6 +1197,8 @@ void DebuggerWindow::RenderFrame()
     int64_t                                      now         = (int64_t) GetTickCount64();
     bool                                         hasUpdate   = false;
     bool                                         isAnimating = GetCapture() != nullptr;
+    const DxuiTextInput                        * caret       = nullptr;
+    bool                                         isCaretOn   = false;
 
 
 
@@ -1323,12 +1326,18 @@ void DebuggerWindow::RenderFrame()
 
     m_floating->PollCaptionDrags();
 
-    if (!IsFramePaintDue (hasUpdate, isAnimating, now, m_framePaintedAt))
+    //  A caret on screen blinks: the window paints when its phase turns.
+    caret       = GetBlinkingBox();
+    isCaretOn   = caret != nullptr && caret->IsCaretOn();
+    isAnimating = isAnimating || caret != m_paintedCaret || isCaretOn != m_isPaintedCaretOn;
+
+    if (!IsFramePaintDue (hasUpdate, isAnimating))
     {
         return;
     }
 
-    m_framePaintedAt = now;
+    m_paintedCaret     = caret;
+    m_isPaintedCaretOn = isCaretOn;
 
     m_floating->InvalidateAll();
 
@@ -1345,13 +1354,58 @@ void DebuggerWindow::RenderFrame()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebuggerWindow::IsFramePaintDue (
-    bool     hasUpdate,
-    bool     isAnimating,
-    int64_t  nowMs,
-    int64_t  paintedAtMs)
+bool DebuggerWindow::IsFramePaintDue (bool hasUpdate, bool isAnimating)
 {
-    return hasUpdate || isAnimating || nowMs - paintedAtMs >= kIdlePaintMs;
+    return hasUpdate || isAnimating;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetBlinkingBox
+//
+//  The box whose caret is on screen: the command line, a pane's box, a find
+//  box, or the box of a list cell being edited; null for none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DxuiTextInput * DebuggerWindow::GetBlinkingBox() const
+{
+    std::vector<const DxuiTextInput *>  boxes = { m_consolePane->GetCommandLine().GetBox() };
+
+
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        std::ranges::copy (pane->GetTextBoxes(), std::back_inserter (boxes));
+    }
+
+    for (IDxuiControl * control : m_finds->GetPressTargets())
+    {
+        boxes.push_back (dynamic_cast<const DxuiTextInput *> (control));
+    }
+
+    for (DxuiListView * list : GetLists())
+    {
+        DxuiEditableGrid  * grid = dynamic_cast<DxuiEditableGrid *> (list);
+
+
+
+        boxes.push_back ((grid != nullptr && grid->IsEditing()) ? &grid->GetEditor() : nullptr);
+    }
+
+    for (const DxuiTextInput * box : boxes)
+    {
+        if (box != nullptr && box->IsFocused() && box->IsVisible())
+        {
+            return box;
+        }
+    }
+
+    return nullptr;
 }
 
 

@@ -301,10 +301,9 @@ protected:
                                                                             std::function<bool (const std::wstring &, std::wstring &)> check);
     void                       EditStepFilters        ();
 
-    //  Whether a frame repaints the window: when it took an update, while
-    //  something moves, and otherwise every kIdlePaintMs, for a caret's blink.
-    static constexpr int64_t   kIdlePaintMs           = 100;
-    static bool                IsFramePaintDue        (bool hasUpdate, bool isAnimating, int64_t nowMs, int64_t paintedAtMs);
+    //  Whether a frame repaints the window: when it took an update, or while
+    //  something moves, a caret's blink among them.
+    static bool                IsFramePaintDue        (bool hasUpdate, bool isAnimating);
     void                       RequestPaint           ();
 
     //  Protected so a test can apply the breakpoints and the open views as a
@@ -718,6 +717,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     static bool                    HasListWithin         (const IDxuiControl & node, const std::vector<DxuiListView *> & lists);
     std::vector<IDxuiControl *>    GetPressTargets       () const;
     DxuiTextInput                * GetFocusedBox         () const;
+    const DxuiTextInput          * GetBlinkingBox        () const;
     DxuiTextInput                * GetTextBoxAt          (POINT clientPx) const;
     void                           ShowTextBoxMenu       (DxuiTextInput & box, POINT clientPx);
 
@@ -864,7 +864,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                                         m_isHeatMapRecording     = false;
     bool                                         m_isHeatColumnsRecording = false;
     std::optional<bool>                          m_isTraceShownSent;
-    int64_t                                      m_framePaintedAt         = 0;
+    const DxuiTextInput                        * m_paintedCaret           = nullptr;   // the box whose caret the last paint drew
+    bool                                         m_isPaintedCaretOn       = false;
 
     //  The BASIC program pane and the tool panes, each closed until the user
     //  first opens it, that were opened.

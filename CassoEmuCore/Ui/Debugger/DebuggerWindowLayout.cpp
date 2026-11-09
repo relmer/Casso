@@ -1440,8 +1440,7 @@ void DebuggerWindow::OnWindowFocusChanged (bool focused)
 //
 //  Of this window and the floating ones, the one that took the focus last
 //  shows the accent. The focus messages run this as well as each frame, so
-//  the window losing the accent repaints without it in the same message
-//  rather than at its next frame paint, up to kIdlePaintMs later.
+//  the window losing the accent repaints without it in the same message.
 //
 //  The pane with the focus is saved as the focus moves to it, once the focus
 //  saved last time has been placed, so the focus comes back to it however
