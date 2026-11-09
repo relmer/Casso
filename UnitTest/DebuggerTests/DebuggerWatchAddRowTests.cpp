@@ -130,6 +130,24 @@ namespace DebuggerWatchAddRowTests
     {
     public:
 
+        //  A symbol is a symbol in the Type column whether the instruction
+        //  touched it or it was typed: memory shown by a symbol's name, or a
+        //  watch typed by one.
+        TEST_METHOD (AnAutomaticAndATypedSymbolWatchHaveOneType)
+        {
+            DebuggerViewSnapshot::WatchLine  watch;
+
+
+
+            watch.expression = "count.b";
+            watch.address    = 0x60C1;
+
+            Assert::AreEqual (std::wstring (L"Symbol"),   WatchesPane::GetAutoType ("M:60C1", "count $60C1"));
+            Assert::AreEqual (std::wstring (L"Memory"),   WatchesPane::GetAutoType ("M:0300", "$0300"));
+            Assert::AreEqual (std::wstring (L"Register"), WatchesPane::GetAutoType ("R:A", "A"));
+            Assert::AreEqual (std::wstring (L"Symbol"),   WatchesPane::GetWatchType (watch));
+        }
+
         TEST_METHOD (TheLastRowAddsAWatchTypedInPlace)
         {
             CassoTheme                          theme    = CassoTheme::MakeSkeuomorphic();

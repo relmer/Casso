@@ -53,6 +53,10 @@ public:
     std::wstring                 GetUndoText       (bool redo) const override;
     void                         Undo              (bool redo) override;
 
+    //  The Type column's text for an automatic watch and for a typed one.
+    static std::wstring          GetAutoType       (const std::string & key, const std::string & label = {});
+    static std::wstring          GetWatchType      (const DebuggerViewSnapshot::WatchLine & watch);
+
 protected:
     DxuiListView *                 CreateList     () override;
 
@@ -87,8 +91,6 @@ private:
     std::vector<DxuiListView::Cell>  MakeHeading    (const std::wstring & title) const;
     DxuiListView::Cell               MakeIdCell     (const std::wstring & text) const;
     DxuiListView::Cell               MakeTypeCell   (const std::wstring & text) const;
-    static std::wstring              GetAutoType    (const std::string & key);
-    static std::wstring              GetWatchType   (const DebuggerViewSnapshot::WatchLine & watch);
     static bool                      IsInRom        (Word pc);
     void                             ApplyRows      (const DebuggerViewSnapshot & snapshot);
     void                             RemoveSelected ();

@@ -358,7 +358,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
             //  What the instruction touches is not the user's to change, so
             //  only the value edits.
-            rows.push_back ({ { MakeIdCell (L"Auto"), name, value, MakeTypeCell (GetAutoType (line.key)) }, {}, false, { true, true, false, true } });
+            rows.push_back ({ { MakeIdCell (L"Auto"), name, value, MakeTypeCell (GetAutoType (line.key, line.label)) }, {}, false, { true, true, false, true } });
             m_rows.push_back ({ RowKind::Automatic, (int) i });
         }
     }
@@ -370,6 +370,12 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
                                   : !watch.expression.empty() ? DxuiListView::Cell { TextEncoding::NarrowToWide (watch.expression) }
                                   :                             DxuiListView::Cell { std::format (L"${:04X}", watch.address) };
         DxuiListView::Cell  value = { TextEncoding::NarrowToWide (watch.value) };
+
+        //  A symbol's address follows its name, as an automatic watch's does.
+        if (watch.basicName.empty() && watch.error.empty() && GetWatchType (watch) == L"Symbol")
+        {
+            name.text += std::format (L" ${:04X}", watch.address);
+        }
 
         //  A watch the console disabled is dimmed, as a disabled breakpoint
         //  is; an enabled one's address is in the color the code pane draws
@@ -553,15 +559,17 @@ DxuiListView::Cell WatchesPane::MakeTypeCell (const std::wstring & text) const
 //
 //  WatchesPane::GetAutoType
 //
-//  An automatic watch's kind, from its key in the snapshot.
+//  An automatic watch's kind, from its key in the snapshot: memory shown
+//  by a symbol is a symbol, as a watch typed by the symbol's name is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring WatchesPane::GetAutoType (const std::string & key)
+std::wstring WatchesPane::GetAutoType (const std::string & key, const std::string & label)
 {
-    return key.starts_with ("R:") ? L"Register"
-         : key.starts_with ("F:") ? L"Flag"
-         :                          L"Memory";
+    return key.starts_with ("R:")                    ? L"Register"
+         : key.starts_with ("F:")                    ? L"Flag"
+         : !label.empty() && !label.starts_with ('$') ? L"Symbol"
+         :                                             L"Memory";
 }
 
 
@@ -572,8 +580,8 @@ std::wstring WatchesPane::GetAutoType (const std::string & key)
 //
 //  WatchesPane::GetWatchType
 //
-//  A watch's kind: a BASIC variable, a register, a symbol by name with its
-//  address, an address, or an expression evaluated at each read.
+//  A watch's kind: a BASIC variable, a register, a symbol by name, an
+//  address, or an expression evaluated at each read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -602,7 +610,6 @@ std::wstring WatchesPane::GetWatchType (const DebuggerViewSnapshot::WatchLine & 
              base.find_first_not_of ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.") == std::string::npos;
 
     return (base.empty() || isHex)      ? std::wstring (L"Memory")
-         : isName && watch.error.empty() ? std::format (L"Symbol at ${:04X}", watch.address)
          : isName                        ? std::wstring (L"Symbol")
          :                                 std::wstring (L"Expression");
 }
