@@ -1255,43 +1255,55 @@ namespace DebuggerToolPanesTests
 
 
 
-        //  The input log's guest and host input are chosen on the Source
-        //  column's Filter cascade, and the heading has a funnel while any of
-        //  it is left out; another column has no filter.
-        TEST_METHOD (TheInputLogsSourceColumnHasTheFilterCascade)
+        //  The input log's columns of a few values filter by the values
+        //  checked, the Source column among them, and its address by a
+        //  comparison; the meaning, free text, has no filter. Checking a
+        //  value filters the column until the filter is cleared.
+        TEST_METHOD (TheInputLogsColumnsFilterByValueOrComparison)
         {
-            CassoTheme                                 theme  = CassoTheme::MakeSkeuomorphic();
-            QuietDebuggerHost                          host;
-            ToolWindow                                 window (theme, host);
-            InputLogController                         log    (window.GetPaneHostForTest());
-            std::vector<std::shared_ptr<DxuiCommand>>  commands;
-            std::vector<DxuiPopupMenuItem>             items;
-            DxuiListView                             * list   = nullptr;
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            ToolWindow          window (theme, host);
+            InputLogController  log    (window.GetPaneHostForTest());
+            IEventLogFilter   * model  = nullptr;
 
 
 
             window.OnCreate();
             log.CreateControls();
             log.Configure();
-            list = log.GetLists().front();
+            model = &log.GetModel();
 
-            items = log.GetColumnFilterItems (list, InputLogPane::kSource, commands);
-            Assert::AreEqual ((size_t) 6, items.size(), L"three guest inputs, a separator and two host inputs");
-            Assert::AreEqual ((size_t) 5, commands.size());
-            Assert::AreEqual (std::wstring (L"Guest keyboard"), commands[0]->label);
-            Assert::IsTrue   (log.GetColumnFilterItems (list, InputLogPane::kMeaning, commands).empty(), L"the meaning has a filter");
+            Assert::IsTrue (model->GetFilterKind (InputLogPane::kSource)  == IEventLogFilter::Kind::Values);
+            Assert::IsTrue (model->GetFilterKind (InputLogPane::kAddress) == IEventLogFilter::Kind::Compare);
+            Assert::IsTrue (model->GetFilterKind (InputLogPane::kCycle)   == IEventLogFilter::Kind::Compare);
+            Assert::IsTrue (model->GetFilterKind (InputLogPane::kMeaning) == IEventLogFilter::Kind::None, L"free text has no filter");
 
-            log.ApplyLogDeltas ({}, false);
-            Assert::IsFalse  (list->IsColumnFiltered (InputLogPane::kSource), L"a funnel with every input shown");
+            model->ToggleValue (InputLogPane::kSource, L"Guest keyboard");
+            Assert::IsTrue  (model->IsFiltered (InputLogPane::kSource));
+            Assert::IsTrue  (model->IsValueChecked (InputLogPane::kSource, L"Guest keyboard"));
 
-            commands[0]->dispatch();
-            Assert::IsTrue   (list->IsColumnFiltered (InputLogPane::kSource), L"no funnel with the guest's keyboard left out");
+            model->ClearFilter (InputLogPane::kSource);
+            Assert::IsFalse (model->IsFiltered (InputLogPane::kSource));
         }
 
 
+        //  A number in a comparison is typed as the column shows it: a count
+        //  with its commas, an address in hex, and the time of day.
+        TEST_METHOD (AComparisonsNumberIsTypedAsTheColumnShowsIt)
+        {
+            Assert::AreEqual ((uint64_t) 1234567,  InputLogPane::ParseCount (L"1,234,567").value_or (0));
+            Assert::AreEqual ((uint64_t) 0xC000,   InputLogPane::ParseCount (L"$C000").value_or (0));
+            Assert::IsFalse  (InputLogPane::ParseCount (L"abc").has_value());
+
+            Assert::AreEqual ((uint64_t) (22 * 3600000 + 42 * 60000 + 7 * 1000 + 123), InputLogPane::ParseTimeOfDay (L"10:42:07.123 PM").value_or (0));
+            Assert::AreEqual ((uint64_t) (22 * 3600000 + 42 * 60000),                  InputLogPane::ParseTimeOfDay (L"22:42").value_or (0));
+            Assert::AreEqual ((uint64_t) 7000,                                         InputLogPane::ParseTimeOfDay (L"12:00:07 AM").value_or (1));
+        }
+
         //  FR-198: the sound log's Clear and Save run SOUNDLOG, so the pane
-        //  and the console agree on what the log holds; its Source column has
-        //  the sources' filter. The video log has no filter.
+        //  and the console agree on what the log holds; its Source column
+        //  filters by the sources.
         TEST_METHOD (TheIoLogsClearAndSaveRunTheLogCommand)
         {
             CassoTheme                                 theme  = CassoTheme::MakeSkeuomorphic();
@@ -1323,8 +1335,7 @@ namespace DebuggerToolPanesTests
             video.Clear();
             Assert::AreEqual (std::string ("VIDEOLOG CLEAR"), host.commands.back());
 
-            Assert::AreEqual ((size_t) 4, sound.GetColumnFilterItems (sound.GetLists().front(), IoLogPane::kSource, commands).size(), L"speaker, 6522, AY and SSI-263");
-            Assert::IsTrue   (video.GetColumnFilterItems (video.GetLists().front(), IoLogPane::kSource, commands).empty());
+            Assert::IsTrue   (static_cast<IEventLogFilter &> (sound.GetModel()).GetFilterKind (IoLogPane::kSource) == IEventLogFilter::Kind::Values, L"the sources are the Source column's values");
         }
 
 

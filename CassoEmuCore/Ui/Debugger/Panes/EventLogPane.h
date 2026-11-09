@@ -2,8 +2,53 @@
 
 #include "Pch.h"
 
+#include "Core/TextEncoding.h"
 #include "Ui/Debugger/Panes/EventLogRows.h"
 #include "Ui/Debugger/Panes/EventLogText.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IEventLogFilter
+//
+//  A log's column filters, as File Explorer's: a column of a few values is
+//  filtered by the values checked, and a column of numbers by a comparison.
+//  A number is typed as the column shows it, the time of day included.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IEventLogFilter
+{
+public:
+    enum class Kind { None, Values, Compare };
+    enum class Op   { Less, Greater, Equal, Between };
+
+    struct Comparison
+    {
+        Op        op    = Op::Equal;
+        uint64_t  first = 0;
+        uint64_t  last  = 0;    // Between's upper bound
+    };
+
+    virtual ~IEventLogFilter() = default;
+
+    virtual Kind                       GetFilterKind     (size_t column) const = 0;
+    virtual std::vector<std::wstring>  GetFilterValues   (size_t column) const = 0;
+    virtual bool                       IsValueChecked    (size_t column, const std::wstring & value) const = 0;
+    virtual void                       ToggleValue       (size_t column, const std::wstring & value) = 0;
+    virtual void                       SetComparison     (size_t column, const Comparison & comparison) = 0;
+    virtual void                       ClearFilter       (size_t column) = 0;
+    virtual bool                       IsFiltered        (size_t column) const = 0;
+    virtual std::optional<uint64_t>    ParseFilterNumber (size_t column, const std::wstring & text) const = 0;
+
+    //  The filters as an options field, `filters=...`, and read back from an
+    //  options text; a text without the field leaves no filter.
+    virtual std::string                GetFilterText     () const = 0;
+    virtual void                       SetFilterText     (const std::string & options) = 0;
+};
 
 
 
@@ -45,7 +90,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-class EventLogPane
+class EventLogPane : public IEventLogFilter
 {
 public:
     using Row       = DebugLogRow<T>;
@@ -216,6 +261,294 @@ public:
 
     //  A filter or the sort changed.
     void  MarkDirty () { m_isDirty = true; m_isFullBuildDue = true; }
+
+    //  The time and the cycle compare; a pane's other columns as it says.
+    Kind  GetFilterKind (size_t column) const override
+    {
+        return (column == kTimeColumn || column == kCycleColumn) ? Kind::Compare : Kind::None;
+    }
+
+    //  The values the column's events show, sorted, with any checked that no
+    //  event shows now.
+    std::vector<std::wstring>  GetFilterValues (size_t column) const override
+    {
+        std::set<std::wstring>   values;
+        Cells                    cells;
+        const std::vector<Row> & rows   = m_rows.GetRows();
+        auto                     filter = m_valueFilters.find (column);
+
+
+
+        for (size_t i = 0; i < rows.size(); i++)
+        {
+            if (rows[i].kind == DebugLogRowKind::Event)
+            {
+                MakeRowCells ((int) i, cells);
+
+                if (column < cells.size() && !cells[column].text.empty())
+                {
+                    values.insert (cells[column].text);
+                }
+            }
+        }
+
+        if (filter != m_valueFilters.end())
+        {
+            values.insert (filter->second.begin(), filter->second.end());
+        }
+
+        return { values.begin(), values.end() };
+    }
+
+    bool  IsValueChecked (size_t column, const std::wstring & value) const override
+    {
+        auto  filter = m_valueFilters.find (column);
+
+
+
+        return filter != m_valueFilters.end() && filter->second.contains (value);
+    }
+
+    //  Checking a value shows only the checked values' rows; unchecking the
+    //  last ends the column's filter.
+    void  ToggleValue (size_t column, const std::wstring & value) override
+    {
+        std::set<std::wstring>  & checked = m_valueFilters[column];
+
+
+
+        if (!checked.erase (value))
+        {
+            checked.insert (value);
+        }
+
+        if (checked.empty())
+        {
+            m_valueFilters.erase (column);
+        }
+
+        MarkDirty();
+    }
+
+    void  SetComparison (size_t column, const Comparison & comparison) override
+    {
+        m_compareFilters[column] = comparison;
+        MarkDirty();
+    }
+
+    void  ClearFilter (size_t column) override
+    {
+        m_valueFilters.erase (column);
+        m_compareFilters.erase (column);
+        MarkDirty();
+    }
+
+    bool  IsFiltered (size_t column) const override
+    {
+        return m_valueFilters.contains (column) || m_compareFilters.contains (column);
+    }
+
+    //  The time of day in milliseconds, from the hours, minutes, seconds and
+    //  milliseconds as the column shows them and an AM or PM; any other
+    //  column's number, with its commas, or in hex after a $.
+    std::optional<uint64_t>  ParseFilterNumber (size_t column, const std::wstring & text) const override
+    {
+        return (column == kTimeColumn) ? ParseTimeOfDay (text) : ParseCount (text);
+    }
+
+    //  Each column's filter, comma separated: `column:v:value|value` for its
+    //  values, `column:c:op:first:last` for its comparison. The characters
+    //  the text separates on are escaped in a value as `%` and two hex digits.
+    std::string  GetFilterText () const override
+    {
+        std::string  text;
+
+
+
+        for (const auto & [column, checked] : m_valueFilters)
+        {
+            text += std::format ("{}{}:v:", text.empty() ? "" : ",", column);
+
+            for (const std::wstring & value : checked)
+            {
+                text += (value == *checked.begin() ? std::string() : std::string ("|")) + EscapeFilterValue (TextEncoding::WideToUtf8 (value));
+            }
+        }
+
+        for (const auto & [column, comparison] : m_compareFilters)
+        {
+            text += std::format ("{}{}:c:{}:{}:{}", text.empty() ? "" : ",", column, (int) comparison.op, comparison.first, comparison.last);
+        }
+
+        return "filters=" + text;
+    }
+
+    void  SetFilterText (const std::string & options) override
+    {
+        size_t       at     = options.find ("filters=");
+        std::string  text   = (at == std::string::npos) ? std::string() : options.substr (at + 8, options.find (';', at) - (at + 8));
+        size_t       start  = 0;
+
+
+
+        m_valueFilters.clear();
+        m_compareFilters.clear();
+
+        while (start < text.size())
+        {
+            size_t                    end    = std::min (text.find (',', start), text.size());
+            std::vector<std::string>  fields = SplitFilterText (text.substr (start, end - start), ':');
+
+            if (fields.size() >= 3 && fields[1] == "v")
+            {
+                for (const std::string & value : SplitFilterText (fields[2], '|'))
+                {
+                    m_valueFilters[(size_t) std::strtoull (fields[0].c_str(), nullptr, 10)].insert (TextEncoding::Utf8ToWide (UnescapeFilterValue (value)));
+                }
+            }
+            else if (fields.size() >= 5 && fields[1] == "c")
+            {
+                m_compareFilters[(size_t) std::strtoull (fields[0].c_str(), nullptr, 10)] =
+                    { (Op) std::atoi (fields[2].c_str()), std::strtoull (fields[3].c_str(), nullptr, 10), std::strtoull (fields[4].c_str(), nullptr, 10) };
+            }
+
+            start = end + 1;
+        }
+
+        MarkDirty();
+    }
+
+    static std::string  EscapeFilterValue (const std::string & value)
+    {
+        std::string  escaped;
+
+
+
+        for (char ch : value)
+        {
+            escaped += (ch != '\0' && std::strchr (",|:;=%", ch) != nullptr) ? std::format ("%{:02X}", (unsigned char) ch) : std::string (1, ch);
+        }
+
+        return escaped;
+    }
+
+    static std::string  UnescapeFilterValue (const std::string & value)
+    {
+        std::string  text;
+
+
+
+        for (size_t i = 0; i < value.size(); i++)
+        {
+            if (value[i] == '%' && i + 2 < value.size())
+            {
+                text += (char) std::strtoul (value.substr (i + 1, 2).c_str(), nullptr, 16);
+                i    += 2;
+            }
+            else
+            {
+                text += value[i];
+            }
+        }
+
+        return text;
+    }
+
+    static std::vector<std::string>  SplitFilterText (const std::string & text, char separator)
+    {
+        std::vector<std::string>  parts;
+        size_t                    start = 0;
+
+
+
+        while (start <= text.size())
+        {
+            size_t  end = std::min (text.find (separator, start), text.size());
+
+            parts.push_back (text.substr (start, end - start));
+            start = end + 1;
+        }
+
+        return parts;
+    }
+
+    static std::optional<uint64_t>  ParseCount (const std::wstring & text)
+    {
+        std::wstring  digits;
+        bool          isHex  = false;
+        uint64_t      value  = 0;
+
+
+
+        for (wchar_t ch : text)
+        {
+            if (ch == L'$' && digits.empty())
+            {
+                isHex = true;
+            }
+            else if (ch != L',' && ch != L' ')
+            {
+                digits += ch;
+            }
+        }
+
+        if (digits.empty() || digits.find_first_not_of (isHex ? L"0123456789ABCDEFabcdef" : L"0123456789") != std::wstring::npos)
+        {
+            return std::nullopt;
+        }
+
+        for (wchar_t ch : digits)
+        {
+            value = value * (isHex ? 16 : 10) + (uint64_t) (iswdigit (ch) ? ch - L'0' : (towupper (ch) - L'A' + 10));
+        }
+
+        return value;
+    }
+
+    static std::optional<uint64_t>  ParseTimeOfDay (const std::wstring & text)
+    {
+        static constexpr uint64_t  kScales[] = { 3600000, 60000, 1000, 1 };
+        std::vector<uint64_t>      parts     = { 0 };
+        bool                       isDigit   = false;
+        bool                       isPm      = text.find (L"PM") != std::wstring::npos || text.find (L"pm") != std::wstring::npos;
+        bool                       isAm      = text.find (L"AM") != std::wstring::npos || text.find (L"am") != std::wstring::npos;
+        uint64_t                   ms        = 0;
+
+
+
+        for (wchar_t ch : text)
+        {
+            if (iswdigit (ch))
+            {
+                parts.back() = parts.back() * 10 + (uint64_t) (ch - L'0');
+                isDigit      = true;
+            }
+            else if (isDigit && parts.size() < std::size (kScales))
+            {
+                parts.push_back (0);
+                isDigit = false;
+            }
+        }
+
+        if (!isDigit && parts.size() > 1)
+        {
+            parts.pop_back();
+        }
+
+        if (parts.size() < 2 || parts[0] > 23)
+        {
+            return std::nullopt;
+        }
+
+        parts[0] = (isPm && parts[0] < 12) ? parts[0] + 12 : (isAm && parts[0] == 12) ? 0 : parts[0];
+
+        for (size_t i = 0; i < parts.size(); i++)
+        {
+            ms += parts[i] * kScales[i];
+        }
+
+        return ms;
+    }
 
     //  The list's rows again, when anything changed since the last call,
     //  with the selection on the same rows.
@@ -553,6 +886,58 @@ private:
         return m_specs;
     }
 
+    //  An event the pane's filter and the column filters let through. A
+    //  column's text and number come from the cells the list shows.
+    bool  IsShownEvent (const Row & row, size_t index) const
+    {
+        Cells  cells;
+
+
+
+        if (!Matches (row, index))
+        {
+            return false;
+        }
+
+        if (m_valueFilters.empty() && m_compareFilters.empty())
+        {
+            return true;
+        }
+
+        MakeRowCells ((int) index, cells);
+
+        for (const auto & [column, checked] : m_valueFilters)
+        {
+            if (column >= cells.size() || !checked.contains (cells[column].text))
+            {
+                return false;
+            }
+        }
+
+        for (const auto & [column, comparison] : m_compareFilters)
+        {
+            std::optional<uint64_t>  number = (column < cells.size()) ? ParseFilterNumber (column, cells[column].text) : std::nullopt;
+
+            if (!number.has_value() || !IsInside (comparison, *number))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    static bool  IsInside (const Comparison & comparison, uint64_t number)
+    {
+        switch (comparison.op)
+        {
+        case Op::Less:    return number <  comparison.first;
+        case Op::Greater: return number >  comparison.first;
+        case Op::Between: return number >= comparison.first && number <= comparison.last;
+        default:          return number == comparison.first;
+        }
+    }
+
     void  SetMarkCells (Cells & out, const wchar_t * label, const wchar_t * text) const
     {
         out[GetLabelColumn()].text = label;
@@ -582,7 +967,7 @@ private:
 
         for (i = 0; i < rows.size() && rows[i].position < m_shownBefore; i++)
         {
-            if (rows[i].kind != DebugLogRowKind::Event || Matches (rows[i], i))
+            if (rows[i].kind != DebugLogRowKind::Event || IsShownEvent (rows[i], i))
             {
                 m_view.push_back ((int) i);
             }
@@ -622,7 +1007,7 @@ private:
 
         for (i = from; i < rows.size(); i++)
         {
-            if (rows[i].kind != DebugLogRowKind::Event || Matches (rows[i], i))
+            if (rows[i].kind != DebugLogRowKind::Event || IsShownEvent (rows[i], i))
             {
                 m_view.push_back ((int) i);
             }
@@ -657,7 +1042,7 @@ private:
 
         for (i = from; i < rows.size(); i++)
         {
-            if (rows[i].kind == DebugLogRowKind::Event && !Matches (rows[i], i))
+            if (rows[i].kind == DebugLogRowKind::Event && !IsShownEvent (rows[i], i))
             {
                 continue;
             }
@@ -848,4 +1233,8 @@ private:
     bool                     m_isDirty          = true;
     bool                     m_isSelectionTaken = false;
     bool                     m_isFullBuildDue   = true;
+
+    //  The column filters: each column's checked values, and its comparison.
+    std::map<size_t, std::set<std::wstring>>  m_valueFilters;
+    std::map<size_t, Comparison>              m_compareFilters;
 };

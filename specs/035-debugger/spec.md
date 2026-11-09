@@ -3231,11 +3231,11 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   ahead in the background, so that a view reaches as far back as history does.
 - **FR-213**: The debugger MUST have a Disk II event log pane showing every
   kind of event the emulator's Disk II debug window shows today (among them
-  address marks, sector reads and writes, and head steps), with its filters,
-  the track and sector filter among them, and its columns; live while the
-  machine runs and rebuilt from history per FR-210 to FR-212. A quarter-track
-  in the track filter MUST be typed as a decimal track (17.25) and read as
-  text, never as floating point; there is no Quarter-tracks option. A head
+  address marks, sector reads and writes, and head steps), with its columns,
+  filtered from their headings per FR-266; live while the machine runs and
+  rebuilt from history per FR-210 to FR-212. A quarter-track is shown and
+  filtered as text, never as floating point; there is no Quarter-tracks
+  option (amended 2026-11-09: the track and sector boxes are retired). A head
   position MUST be written as a track with its quarter-track fraction
   (17.25), never in quarter-track units (amended 2026-10-14).
 - **FR-214**: The debugger MUST have an input log pane showing the host's
@@ -3527,10 +3527,18 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   neighbor's, and a tip MUST have any area's name and bounds. Amended by
   FR-284.
 - **FR-266**: The input log's paddle drop-downs MUST have only their chosen
-  value; its emulator input and host input drop-downs MUST be removed in
-  favor of a Filter cascade on each column's context menu, and a column
-  with a filter in force MUST have a filter glyph right of its heading,
-  before any sort glyph.
+  value. Every event log MUST filter its rows from its columns' headings, as
+  File Explorer does: a chevron at the right of a filterable heading opens a
+  popup that stays open while choices are checked. A column of a few values
+  (Source, Severity, Event, Drive, Volume, Track, Sector, Input, Value, Port,
+  Direction) MUST have a check box for each value its events show; a column
+  of numbers (Time, Cycle, Address, Since, Frame, Line, the line cycle and
+  Length) MUST filter by less than, greater than, equal to or between,
+  typed as the column shows them. A column with a filter in force MUST have a
+  filter glyph right of its heading, before any sort glyph, and the filters
+  MUST be saved with the pane's options. The bars' filters (the Disk II log's
+  kinds, drive and severities, its track and sector boxes, and the Source
+  cascades) MUST be removed (amended 2026-11-09, T1240 to T1244).
 - **FR-267**: The cost of profiling at 1x and at full speed MUST be measured
   and recorded (R-048). Superseded 2026-10-18 by FR-268: the profiler is
   built from history, not left on.

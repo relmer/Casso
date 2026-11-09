@@ -85,6 +85,7 @@ void CommLogController::CreateControls()
 void CommLogController::Configure()
 {
     m_model->Configure();
+    ConfigureColumnFilters();
     (void) LoadOptions();
 
     ConfigureBar();
@@ -418,3 +419,4 @@ std::string  CommLogController::GetOptionsText() const                    { retu
 void         CommLogController::SetOptionsText (const std::string & text) { m_model->SetOptionsText (text); }
 void         CommLogController::SetModelShown (bool isShown)              { m_model->SetShown (isShown); }
 size_t       CommLogController::GetTextColumn() const                     { return CommLogPane::kHex; }
+IEventLogFilter * CommLogController::GetColumnFilters() const { return m_model.get(); }

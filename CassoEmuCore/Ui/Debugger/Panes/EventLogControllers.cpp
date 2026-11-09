@@ -19,9 +19,6 @@
 
 
 //  The event log bars' entries.
-static constexpr int  s_kDiskEvents        = 1;
-static constexpr int  s_kDiskDrive         = 2;
-static constexpr int  s_kDiskSeverity      = 3;
 static constexpr int  s_kInputPair0        = 8;
 static constexpr int  s_kInputPair1        = 9;
 static constexpr int  s_kIoLogClear        = 10;
@@ -84,6 +81,214 @@ void EventLogController::CreateListAndBar()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EventLogController::ConfigureColumnFilters
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EventLogController::ConfigureColumnFilters()
+{
+    m_list->SetOnHeaderFilter ([this] (int column, RECT chevron)
+    {
+        RECT  bounds = m_list->GetBounds();
+
+
+
+        ShowColumnFilter ((size_t) column, RECT { bounds.left + chevron.left, bounds.top + chevron.top, bounds.left + chevron.right, bounds.top + chevron.bottom });
+    });
+
+    ShowFilterState();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EventLogController::ShowFilterState
+//
+//  A chevron on each heading that filters, and the funnel on each that does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EventLogController::ShowFilterState()
+{
+    IEventLogFilter  * filters = GetColumnFilters();
+
+
+
+    for (size_t column = 0; filters != nullptr && column < m_list->GetColumnCount(); column++)
+    {
+        m_list->SetColumnFilter (column, filters->GetFilterKind (column) != IEventLogFilter::Kind::None, filters->IsFiltered (column));
+    }
+
+    m_host.Repaint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EventLogController::ShowColumnFilter
+//
+//  A column of values lists each value its events show, checked while the
+//  list shows it; a check filters at once and leaves the menu open, as File
+//  Explorer's does. A column of numbers offers the comparisons. Clear filter
+//  ends the column's filter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EventLogController::ShowColumnFilter (size_t column, RECT chevronPx)
+{
+    static constexpr std::pair<IEventLogFilter::Op, const wchar_t *>  s_kComparisons[] =
+    {
+        { IEventLogFilter::Op::Less,    L"Less than..."    },
+        { IEventLogFilter::Op::Greater, L"Greater than..." },
+        { IEventLogFilter::Op::Equal,   L"Equal to..."     },
+        { IEventLogFilter::Op::Between, L"Between..."      },
+    };
+    IEventLogFilter                 * filters = GetColumnFilters();
+    std::vector<DxuiPopupMenuItem>    items;
+
+
+
+    if (filters == nullptr || m_host.GetPanePopupHost() == nullptr)
+    {
+        return;
+    }
+
+    m_filterCommands.clear();
+
+    if (filters->GetFilterKind (column) == IEventLogFilter::Kind::Values)
+    {
+        for (const std::wstring & value : filters->GetFilterValues (column))
+        {
+            std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+            command->label         = value;
+            command->keepsMenuOpen = true;
+            command->checkBox      = true;
+            command->isChecked     = [filters, column, value]() { return filters->IsValueChecked (column, value); };
+            command->dispatch      = [this, filters, column, value]()
+            {
+                filters->ToggleValue (column, value);
+                ShowFilterState();
+                SaveOptions();
+            };
+
+            items.push_back (DxuiPopupMenuItem::ForCommand (command));
+            m_filterCommands.push_back (std::move (command));
+        }
+    }
+    else if (filters->GetFilterKind (column) == IEventLogFilter::Kind::Compare)
+    {
+        for (const auto & [op, label] : s_kComparisons)
+        {
+            m_filterCommands.push_back (DebuggerMenuCommand::Make (label, [this, column, op] { AskComparison (column, op); }));
+            items.push_back (DxuiPopupMenuItem::ForCommand (m_filterCommands.back()));
+        }
+    }
+
+    if (filters->IsFiltered (column))
+    {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        m_filterCommands.push_back (DebuggerMenuCommand::Make (L"Clear filter", [this, filters, column]
+        {
+            filters->ClearFilter (column);
+            ShowFilterState();
+            SaveOptions();
+        }));
+        items.push_back (DxuiPopupMenuItem::ForCommand (m_filterCommands.back()));
+    }
+
+    if (!items.empty())
+    {
+        DxuiContextMenu::ShowUnder (*m_host.GetPanePopupHost(), chevronPx, std::move (items));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EventLogController::AskComparison
+//
+//  The number, or for Between the two, typed as the column shows them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EventLogController::AskComparison (size_t column, IEventLogFilter::Op op)
+{
+    IEventLogFilter               * filters    = GetColumnFilters();
+    std::wstring                    heading    = (column < m_list->GetColumnCount()) ? m_list->GetColumnAt (column).title : std::wstring();
+    bool                            isBetween  = op == IEventLogFilter::Op::Between;
+    IEventLogFilter::Comparison     comparison;
+    std::optional<std::wstring>     typed;
+    std::vector<std::wstring>       parts;
+    auto                            split      = [] (const std::wstring & text)
+    {
+        size_t  at = text.find (L" to ");
+
+
+
+        return (at == std::wstring::npos) ? std::vector<std::wstring> { text } : std::vector<std::wstring> { text.substr (0, at), text.substr (at + 4) };
+    };
+
+
+
+    if (filters == nullptr)
+    {
+        return;
+    }
+
+    typed = m_host.RunTextDialog (std::format (L"Filter {}", heading), isBetween ? L"From and to" : L"Value",
+                                  isBetween ? L"100 to 200" : L"as the column shows it",
+                                  [filters, column, isBetween, split] (const std::wstring & text, std::wstring & error)
+    {
+        std::vector<std::wstring>  each = split (text);
+        bool                       isOk = each.size() == (isBetween ? 2u : 1u);
+
+
+
+        for (const std::wstring & part : each)
+        {
+            isOk = isOk && filters->ParseFilterNumber (column, part).has_value();
+        }
+
+        error = isOk ? std::wstring() : (isBetween ? L"Type two values as the column shows them, as 100 to 200." : L"Type a value as the column shows it.");
+        return isOk;
+    });
+
+    if (!typed.has_value())
+    {
+        return;
+    }
+
+    parts            = split (*typed);
+    comparison.op    = op;
+    comparison.first = filters->ParseFilterNumber (column, parts[0]).value_or (0);
+    comparison.last  = isBetween ? filters->ParseFilterNumber (column, parts[1]).value_or (0) : comparison.first;
+
+    if (comparison.last < comparison.first)
+    {
+        std::swap (comparison.first, comparison.last);
+    }
+
+    filters->SetComparison (column, comparison);
+    ShowFilterState();
+    SaveOptions();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EventLogController::ConfigureBar
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,6 +322,12 @@ std::string EventLogController::LoadOptions()
     SetOptionsText (text);
     m_isOpened = text.find ("open=1") != std::string::npos;
 
+    if (GetColumnFilters() != nullptr)
+    {
+        GetColumnFilters()->SetFilterText (text);
+        ShowFilterState();
+    }
+
     return text;
 }
 
@@ -138,7 +349,7 @@ void EventLogController::SaveOptions()
 
     if (windowHost != nullptr)
     {
-        windowHost->SetDebuggerEventLogOptions (m_kind, GetOptionsText() + (m_isOpened ? ";open=1" : ""));
+        windowHost->SetDebuggerEventLogOptions (m_kind, GetOptionsText() + (GetColumnFilters() != nullptr ? ";" + GetColumnFilters()->GetFilterText() : std::string()) + (m_isOpened ? ";open=1" : ""));
     }
 }
 
@@ -424,9 +635,8 @@ void DiskLogController::CreateControls()
     //  A sector's hex dump in a row's tip lines up in columns.
     m_list->SetMonospaceTips (true);
 
-    m_trackBox  = parent.CreateChild<DxuiTextInput>();
-    m_sectorBox = parent.CreateChild<DxuiTextInput>();
-    m_error     = parent.CreateChild<DxuiLabel>();
+    m_error = parent.CreateChild<DxuiLabel>();
+
 
     m_model = std::make_unique<DiskLogPane> (m_list, [this] (const std::string & request)
     {
@@ -435,9 +645,6 @@ void DiskLogController::CreateControls()
             GetWindowHost()->SendDebuggerEventLogRequest (DebugLogKind::Disk, request);
         }
     });
-
-    m_trackEntry  = std::make_unique<ToolbarBoxEntry> (m_trackBox,  L"Track:",  L"Tracks to list, as 17, 3-5 or 17.25 for a quarter-track; empty is every track", kTrackLabelDip,  kBoxDip);
-    m_sectorEntry = std::make_unique<ToolbarBoxEntry> (m_sectorBox, L"Sector:", L"Sectors to list, as 0 or 3-5; empty is every sector",                               kSectorLabelDip, kBoxDip);
 }
 
 
@@ -453,21 +660,27 @@ void DiskLogController::CreateControls()
 void DiskLogController::Configure()
 {
     m_model->Configure();
+    ConfigureColumnFilters();
     (void) LoadOptions();
 
-    for (DxuiTextInput * box : { m_trackBox, m_sectorBox })
+    //  The columns' chevrons filter now, so filters an older Casso saved
+    //  from the bar show everything.
+    for (size_t kind = 0; kind < DiskLogPane::kKindCount; kind++)
     {
-        box->SetHwnd        (m_host.GetOwnerHwnd());
-        box->SetMaxLength   (64);
-        box->SetPlaceholder (L"all");
+        m_model->SetKindShown ((DiskLogPane::Kind) kind, true);
     }
 
-    m_trackBox->SetText  (m_model->GetTrackText());
-    m_sectorBox->SetText (m_model->GetSectorText());
+    for (size_t severity = 0; severity < DiskLogPane::kSeverityCount; severity++)
+    {
+        m_model->SetSeverityShown ((DiskLogPane::Severity) severity, true);
+    }
 
-    m_error->SetTextRole  (DxuiTextRole::Error);
+    m_model->SetDrive      (0);
+    m_model->SetTrackText  (std::wstring());
+    m_model->SetSectorText (std::wstring());
+
+    m_error->SetTextRole  (DxuiTextRole::Muted);
     m_error->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
-    m_error->SetText      (m_model->GetInvalidText());
 
     ConfigureBar();
     SetBarEntries();
@@ -482,8 +695,8 @@ void DiskLogController::Configure()
 //
 //  DiskLogController::AddToDock
 //
-//  The bar over the rows, and between them a line listing the filter tokens
-//  not taken, only when there are any.
+//  The bar over the rows, and between them a line saying the machine has no
+//  Disk II controller, only when it hasn't.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -511,7 +724,7 @@ void DiskLogController::AddToDock (DxuiDockSite & dock)
 
 std::vector<IDxuiControl *> DiskLogController::GetControls() const
 {
-    return { m_bar.GetSlot(), m_error, m_list, m_bar.GetBar(), m_trackBox, m_sectorBox };
+    return { m_bar.GetSlot(), m_error, m_list, m_bar.GetBar() };
 }
 
 
@@ -522,8 +735,8 @@ std::vector<IDxuiControl *> DiskLogController::GetControls() const
 //
 //  DiskLogController::SetBarEntries
 //
-//  Its kinds, its drive, its severities, and its track and sector boxes. The
-//  columns are chosen from the heading's menu.
+//  Find. The columns' chevrons filter the rows, and the columns are chosen
+//  from the heading's menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -534,195 +747,8 @@ void DiskLogController::SetBarEntries()
 
 
     m_commands.clear();
-
-    AddEntry (entries, s_kDiskEvents,   L"Events",   L"Choose the kinds of event in this log",         DxuiToolbar::Kind::DropDown, 0);
-    AddEntry (entries, s_kDiskDrive,    L"Drive",    L"Choose the drive whose events are in this log", DxuiToolbar::Kind::DropDown, 0);
-    AddEntry (entries, s_kDiskSeverity, L"Severity", L"Choose the severities of event in this log",    DxuiToolbar::Kind::DropDown, 0);
-
-    for (ToolbarBoxEntry * entry : { m_trackEntry.get(), m_sectorEntry.get() })
-    {
-        DxuiToolbar::Entry  box;
-
-        box.custom        = entry;
-        box.group         = 1;
-        box.pinned        = true;
-
-        entries.push_back (std::move (box));
-    }
-
     entries.push_back (m_host.GetFindEntry (m_id));
-
     m_bar.GetBar()->SetEntries (std::move (entries));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskLogController::SetMenus
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskLogController::SetMenus()
-{
-    std::vector<DxuiPopupMenuItem>  kinds;
-    std::vector<DxuiPopupMenuItem>  drives;
-    std::vector<DxuiPopupMenuItem>  severities;
-    size_t                          i     = 0;
-    bool                            isAll = true;
-    std::shared_ptr<DxuiCommand>    item;
-
-
-
-    for (i = 0; i < DiskLogPane::kKindCount; i++)
-    {
-        isAll = isAll && m_model->IsKindShown ((DiskLogPane::Kind) i);
-    }
-
-    kinds.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (L"All", isAll, [this, isAll]
-    {
-        for (size_t kind = 0; kind < DiskLogPane::kKindCount; kind++)
-        {
-            m_model->SetKindShown ((DiskLogPane::Kind) kind, !isAll);
-        }
-
-        SaveOptions();
-    })));
-
-    for (i = 0; i < DiskLogPane::kKindCount; i++)
-    {
-        DiskLogPane::Kind  kind = (DiskLogPane::Kind) i;
-
-        item      = DebuggerMenuCommand::Make (DiskLogPane::GetKindLabel (kind), m_model->IsKindShown (kind), [this, kind]
-        {
-            m_model->SetKindShown (kind, !m_model->IsKindShown (kind));
-            SaveOptions();
-        });
-        item->tip = DiskLogPane::GetKindTip (kind);
-
-        kinds.push_back (DxuiPopupMenuItem::ForCommand (item));
-    }
-
-    for (int drive = 0; drive <= 2; drive++)
-    {
-        drives.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make ((drive == 0) ? L"All drives" : std::format (L"Drive {}", drive), m_model->GetDrive() == drive, [this, drive]
-        {
-            m_model->SetDrive (drive);
-            SaveOptions();
-        })));
-    }
-
-    for (i = 0; i < DiskLogPane::kSeverityCount; i++)
-    {
-        DiskLogPane::Severity  severity = (DiskLogPane::Severity) i;
-
-        severities.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (DiskLogPane::GetSeverityLabel (severity), m_model->IsSeverityShown (severity), [this, severity]
-        {
-            m_model->SetSeverityShown (severity, !m_model->IsSeverityShown (severity));
-            SaveOptions();
-        })));
-    }
-
-    m_bar.GetBar()->SetDropDownItems (s_kDiskEvents,   std::move (kinds));
-    m_bar.GetBar()->SetDropDownItems (s_kDiskDrive,    std::move (drives));
-    m_bar.GetBar()->SetDropDownItems (s_kDiskSeverity, std::move (severities));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskLogController::PlaceBar
-//
-//  The bar is laid out in the place at the top of its pane and moves with
-//  the pane into a floating window; its boxes move with it. When a box is
-//  hidden with its pane, the keys go to the command line.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskLogController::PlaceBar()
-{
-    bool          shown = m_bar.GetSlot()->IsVisible();
-    DxuiWindow  * host  = nullptr;
-    RECT          slot  = {};
-
-
-
-    for (DxuiTextInput * box : { m_trackBox, m_sectorBox })
-    {
-        box->SetVisible (shown);
-
-        if (!shown && m_host.GetFocusedControl() == box)
-        {
-            m_host.FocusDefault();
-        }
-    }
-
-    m_bar.Place();
-
-    if (!shown)
-    {
-        return;
-    }
-
-    host = m_host.GetPaneWindow (m_id);
-    slot = m_bar.GetSlot()->GetBounds();
-
-    host->SetChildClip (m_trackBox,  slot);
-    host->SetChildClip (m_sectorBox, slot);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskLogController::IsInBox
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DiskLogController::IsInBox (POINT pointDip) const
-{
-    return (m_trackBox->IsVisible()  && DxuiDockSite::Contains (m_trackBox->GetBounds(),  pointDip)) ||
-           (m_sectorBox->IsVisible() && DxuiDockSite::Contains (m_sectorBox->GetBounds(), pointDip));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskLogController::RouteBarMouse
-//
-//  The boxes are controls of their own and take their presses as every box
-//  does, so the strip under them is not the bar's.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DiskLogController::RouteBarMouse (const DxuiMouseEvent & ev)
-{
-    DxuiToolbar  * bar = m_bar.GetBar();
-
-
-
-    if (!m_host.IsBarRouted (m_id))
-    {
-        return false;
-    }
-
-    if (IsInBox (ev.positionDip) && !bar->IsMenuOpen())
-    {
-        bar->OnToolbarMouseLeave();
-        return false;
-    }
-
-    return m_bar.RouteMouse (ev);
 }
 
 
@@ -767,10 +793,9 @@ bool DiskLogController::AddMenuItems (DxuiListView * list, int row, PaneMenuItem
 //  DiskLogController::ApplyLogDeltas
 //
 //  Each frame: the deltas the machine's thread sent, whether the pane is
-//  open, the machine's position while it is behind live, the boxes' text,
-//  then the rows, and the request for older rows when the oldest row is in
-//  view. The line under the bar lists the filter tokens not taken, or that
-//  the machine has no Disk II controller.
+//  open, the machine's position while it is behind live, then the rows,
+//  and the request for older rows when the oldest row is in view. The line
+//  under the bar says when the machine has no Disk II controller.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -798,58 +823,19 @@ void DiskLogController::ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWi
 
     m_model->SetShownBefore (m_shownBefore);
 
-    ReadBoxes();
-
     m_model->Refresh();
     m_model->FollowScroll();
 
-    invalid = m_hasDisk ? m_model->GetInvalidText() : std::wstring (L"This machine has no Disk II controller");
+    invalid = m_hasDisk ? std::wstring() : std::wstring (L"This machine has no Disk II controller");
 
     if (invalid != m_error->GetText())
     {
-        m_error->SetTextRole (m_hasDisk ? DxuiTextRole::Error : DxuiTextRole::Muted);
-        m_error->SetText     (invalid);
+        m_error->SetText (invalid);
 
         if (m_frame != nullptr)
         {
             m_frame->Relayout();
         }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskLogController::ReadBoxes
-//
-//  Every keystroke in a box filters again.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskLogController::ReadBoxes()
-{
-    bool  isChanged = false;
-
-
-
-    if (m_trackBox->GetText() != m_model->GetTrackText())
-    {
-        m_model->SetTrackText (m_trackBox->GetText());
-        isChanged = true;
-    }
-
-    if (m_sectorBox->GetText() != m_model->GetSectorText())
-    {
-        m_model->SetSectorText (m_sectorBox->GetText());
-        isChanged = true;
-    }
-
-    if (isChanged)
-    {
-        SaveOptions();
     }
 }
 
@@ -868,6 +854,7 @@ std::string  DiskLogController::GetOptionsText() const                    { retu
 void         DiskLogController::SetOptionsText (const std::string & text) { m_model->SetOptionsText (text); }
 void         DiskLogController::SetModelShown (bool isShown)              { m_model->SetShown (isShown); }
 size_t       DiskLogController::GetTextColumn() const                     { return DiskLogPane::kDetail; }
+IEventLogFilter * DiskLogController::GetColumnFilters() const { return m_model.get(); }
 
 
 
@@ -932,7 +919,15 @@ void InputLogController::CreateControls()
 void InputLogController::Configure()
 {
     m_model->Configure();
+    ConfigureColumnFilters();
     (void) LoadOptions();
+
+    //  The Source chevron filters now, so sources an older Casso saved as
+    //  hidden show.
+    for (size_t lane = 0; lane < InputLogPane::kLaneCount; lane++)
+    {
+        m_model->SetLaneShown ((InputLogPane::Lane) lane, true);
+    }
 
     ConfigureBar();
     SetBarEntries();
@@ -1061,100 +1056,11 @@ void InputLogController::ApplyLogDeltas (const DebugLogDeltas & deltas, bool isW
         m_model->Apply (delta);
     }
 
-    ShowSourceFilter();
-
     m_model->SetShown             (isWindowVisible && m_host.IsPaneOpen (m_id));
     m_model->SetShownBefore       (m_shownBefore);
     m_model->SetMouseButtonAtC063 (m_isTwoC);
     m_model->Refresh();
     m_model->FollowScroll();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  InputLogController::GetColumnFilterItems
-//
-//  Joystick applies while a pair is viewed as one, Paddle while a pair is
-//  viewed as paddles.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<DxuiPopupMenuItem> InputLogController::GetColumnFilterItems (DxuiListView * list, size_t column, std::vector<std::shared_ptr<DxuiCommand>> & commands)
-{
-    std::vector<DxuiPopupMenuItem>  items;
-    std::shared_ptr<DxuiCommand>    item;
-
-
-
-    if (list != m_list || column != InputLogPane::kSource)
-    {
-        return items;
-    }
-
-    for (InputLogPane::Lane lane : { InputLogPane::kGuestKeyboard, InputLogPane::kJoystick, InputLogPane::kPaddle, InputLogPane::kHostKeyboard, InputLogPane::kHostMouse })
-    {
-        bool          isHost = lane == InputLogPane::kHostKeyboard || lane == InputLogPane::kHostMouse;
-        std::wstring  name   = InputLogPane::GetLaneLabel (lane);
-
-        name[0] = towlower (name[0]);
-        item    = DebuggerMenuCommand::Make (std::format (L"{} {}", isHost ? L"Host" : L"Guest", name), m_model->IsLaneShown (lane), [this, lane]
-        {
-            m_model->SetLaneShown (lane, !m_model->IsLaneShown (lane));
-            SaveOptions();
-            ShowSourceFilter();
-        });
-        item->tip = InputLogPane::GetLaneTip (lane);
-
-        if (lane == InputLogPane::kJoystick)
-        {
-            item->isEnabled = [this] { return m_model->IsPairJoystick (0) || m_model->IsPairJoystick (1); };
-        }
-        else if (lane == InputLogPane::kPaddle)
-        {
-            item->isEnabled = [this] { return !m_model->IsPairJoystick (0) || !m_model->IsPairJoystick (1); };
-        }
-
-        if (lane == InputLogPane::kHostKeyboard)
-        {
-            items.push_back (DxuiPopupMenuItem::ForSeparator());
-        }
-
-        commands.push_back (item);
-        items.push_back (DxuiPopupMenuItem::ForCommand (item));
-    }
-
-    return items;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  InputLogController::ShowSourceFilter
-//
-//  The Source column's heading has the filter funnel while any input is left
-//  out of the log.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputLogController::ShowSourceFilter()
-{
-    bool  isFiltered = false;
-
-
-
-    for (size_t lane = 0; lane < InputLogPane::kLaneCount; lane++)
-    {
-        isFiltered = isFiltered || !m_model->IsLaneShown ((InputLogPane::Lane) lane);
-    }
-
-    m_list->SetColumnFiltered (InputLogPane::kSource, isFiltered);
 }
 
 
@@ -1187,6 +1093,7 @@ std::string  InputLogController::GetOptionsText() const                    { ret
 void         InputLogController::SetOptionsText (const std::string & text) { m_model->SetOptionsText (text); }
 void         InputLogController::SetModelShown (bool isShown)              { m_model->SetShown (isShown); }
 size_t       InputLogController::GetTextColumn() const                     { return InputLogPane::kMeaning; }
+IEventLogFilter * InputLogController::GetColumnFilters() const { return m_model.get(); }
 
 
 
@@ -1254,7 +1161,15 @@ void IoLogController::CreateControls()
 void IoLogController::Configure()
 {
     m_model->Configure();
+    ConfigureColumnFilters();
     (void) LoadOptions();
+
+    //  The Source chevron filters now, so sources an older Casso saved as
+    //  hidden show.
+    for (size_t lane = 0; lane < IoLogPane::kLaneCount; lane++)
+    {
+        m_model->SetLaneShown ((IoLogPane::Lane) lane, true);
+    }
 
     ConfigureBar();
     SetBarEntries();
@@ -1302,8 +1217,7 @@ std::vector<IDxuiControl *> IoLogController::GetControls() const
 //
 //  IoLogController::SetBarEntries
 //
-//  Clear and Save, as glyphs, as the profiler's Reset and Save are. The
-//  sound log's sources are on the Source column's Filter cascade.
+//  Clear and Save, as glyphs, as the profiler's Reset and Save are.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1407,76 +1321,10 @@ void IoLogController::ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWind
         m_model->Apply (delta);
     }
 
-    ShowSourceFilter();
-
     m_model->SetShown       (isWindowVisible && m_host.IsPaneOpen (m_id));
     m_model->SetShownBefore (m_shownBefore);
     m_model->Refresh();
     m_model->FollowScroll();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IoLogController::GetColumnFilterItems
-//
-//  The sound log's sources, on its Source column; the video log has none.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<DxuiPopupMenuItem> IoLogController::GetColumnFilterItems (DxuiListView * list, size_t column, std::vector<std::shared_ptr<DxuiCommand>> & commands)
-{
-    std::vector<DxuiPopupMenuItem>  items;
-    std::shared_ptr<DxuiCommand>    item;
-
-
-
-    if (list != m_list || column != IoLogPane::kSource || IsVideo())
-    {
-        return items;
-    }
-
-    for (IoLogPane::Lane lane : { IoLogPane::kSpeaker, IoLogPane::kVia, IoLogPane::kAy, IoLogPane::kSpeech })
-    {
-        item = DebuggerMenuCommand::Make (IoLogPane::GetLaneLabel (lane), m_model->IsLaneShown (lane), [this, lane]
-        {
-            m_model->SetLaneShown (lane, !m_model->IsLaneShown (lane));
-            SaveOptions();
-            ShowSourceFilter();
-        });
-
-        commands.push_back (item);
-        items.push_back (DxuiPopupMenuItem::ForCommand (item));
-    }
-
-    return items;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IoLogController::ShowSourceFilter
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void IoLogController::ShowSourceFilter()
-{
-    bool  isFiltered = false;
-
-
-
-    for (size_t lane = 0; lane < IoLogPane::kLaneCount; lane++)
-    {
-        isFiltered = isFiltered || !m_model->IsLaneShown ((IoLogPane::Lane) lane);
-    }
-
-    m_list->SetColumnFiltered (IoLogPane::kSource, isFiltered && !IsVideo());
 }
 
 
@@ -1494,3 +1342,4 @@ std::string  IoLogController::GetOptionsText() const                    { return
 void         IoLogController::SetOptionsText (const std::string & text) { m_model->SetOptionsText (text); }
 void         IoLogController::SetModelShown (bool isShown)              { m_model->SetShown (isShown); }
 size_t       IoLogController::GetTextColumn() const                     { return IoLogPane::kEvent; }
+IEventLogFilter * IoLogController::GetColumnFilters() const { return m_model.get(); }

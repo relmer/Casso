@@ -52,12 +52,13 @@ public:
     void                          ShowLane       (size_t lane, bool isShown);
 
 protected:
-    std::wstring                  GetModelText   (bool isSelectedOnly) const override;
-    std::string                   GetOptionsText () const override;
-    void                          SetOptionsText (const std::string & text) override;
-    void                          SetModelShown  (bool isShown) override;
-    size_t                        GetTextColumn  () const override;
-    void                          SetMenus       () override {}
+    std::wstring       GetModelText     (bool isSelectedOnly) const override;
+    std::string        GetOptionsText   () const override;
+    void               SetOptionsText   (const std::string & text) override;
+    void               SetModelShown    (bool isShown) override;
+    size_t             GetTextColumn    () const override;
+    void               SetMenus         () override {}
+    IEventLogFilter  * GetColumnFilters () const override;
 
 private:
     bool          IsNetwork      () const { return m_kind == DebugLogKind::Network; }

@@ -1580,6 +1580,16 @@ it.
 The logs are in the **View > Logs** submenu: Disk II log, Input log, Video
 log, Sound log, Serial log and Network log.
 
+Each log filters its rows from its columns' headings, as File Explorer does.
+A chevron at the right of a heading opens the column's filter. A column of a
+few values, such as Source, Severity, Event or Track, lists each value its
+events show with a check box, and checking values lists only their rows. A
+column of numbers, such as Time, Cycle, Address or Since, filters by Less
+than, Greater than, Equal to or Between, typed as the column shows the value:
+a count with its commas, an address after a $, a time of day. A filtered
+column's heading has a funnel, Clear filter on its chevron ends the filter,
+and the filters are saved with the log's settings.
+
 ### Disk II
 
 The Disk II panel's bar chooses the drives it draws: **D1**, **D2** or
@@ -1651,7 +1661,7 @@ panels' menus. A row is an entry, with the same text the command lists, in
 columns that can be sorted, displayed or hidden: the video log has the frame,
 the scanline and the line cycle (the CPU cycle within the scanline); the sound
 log has the cycles since the last entry of its kind and its source, which the
-Source column's Filter narrows to the speaker, the 6522s, the AY-3-8910s or the
+Source heading's chevron narrows to the speaker, the 6522s, the AY-3-8910s or the
 SSI-263. Scrolling to the top rebuilds older entries from history. Clear and
 Save on the pane's bar do what `CLEAR` and `SAVE` do, so the pane and the
 command always list the same log.

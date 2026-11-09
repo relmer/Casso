@@ -202,6 +202,74 @@ namespace EventLogPaneTests
         }
 
 
+        //  The column filters: a column of values shows only the rows whose
+        //  value is checked, with the values its events show listed, and a
+        //  column of numbers only the rows its comparison lets through.
+        TEST_METHOD (TheColumnFiltersShowOnlyTheRowsTheyLetThrough)
+        {
+            DxuiListView       list;
+            DiskLogPane        pane (&list, [] (const std::string &) {});
+            IEventLogFilter  & filter = pane;
+            DiskLogDelta       delta;
+
+
+
+            pane.Configure();
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { MakeDiskRow (10, Disk2EventType::DataRead,          17, 5),
+                                MakeDiskRow (20, Disk2EventType::DataChecksumError, 17, 6),
+                                MakeDiskRow (30, Disk2EventType::DataRead,          18, 0) };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+            Assert::AreEqual ((size_t) 4, pane.GetView().size(), L"the start row and three events");
+
+            Assert::IsTrue (filter.GetFilterValues (DiskLogPane::kSeverity) == std::vector<std::wstring> { L"Error", L"Info" }, L"the values the events show");
+
+            filter.ToggleValue (DiskLogPane::kSeverity, L"Error");
+            pane.Refresh();
+            Assert::AreEqual ((size_t) 2, pane.GetView().size(), L"the start row and the error");
+
+            filter.ClearFilter (DiskLogPane::kSeverity);
+            filter.SetComparison (DiskLogPane::kCycle, { IEventLogFilter::Op::Greater, 150, 0 });
+            pane.Refresh();
+            Assert::AreEqual ((size_t) 3, pane.GetView().size(), L"the events after cycle 150");
+
+            filter.SetComparison (DiskLogPane::kCycle, { IEventLogFilter::Op::Between, 150, 250 });
+            pane.Refresh();
+            Assert::AreEqual ((size_t) 2, pane.GetView().size(), L"the event between cycles 150 and 250");
+        }
+
+        //  The filters are saved with the options and read back the same, a
+        //  value with the separators in it among them; options without them
+        //  leave no filter.
+        TEST_METHOD (TheColumnFiltersRoundTripThroughTheOptions)
+        {
+            DxuiListView       list;
+            DiskLogPane        pane  (&list, [] (const std::string &) {});
+            DiskLogPane        other (&list, [] (const std::string &) {});
+            IEventLogFilter  & from  = pane;
+            IEventLogFilter  & to    = other;
+
+
+
+            from.ToggleValue   (DiskLogPane::kEvent, L"Odd, value|with:separators;=%");
+            from.ToggleValue   (DiskLogPane::kEvent, L"Sector read");
+            from.SetComparison (DiskLogPane::kCycle, { IEventLogFilter::Op::Between, 100, 2000 });
+
+            to.SetFilterText ("kinds=111;" + from.GetFilterText() + ";open=1");
+
+            Assert::IsTrue  (to.IsValueChecked (DiskLogPane::kEvent, L"Odd, value|with:separators;=%"));
+            Assert::IsTrue  (to.IsValueChecked (DiskLogPane::kEvent, L"Sector read"));
+            Assert::IsTrue  (to.IsFiltered     (DiskLogPane::kCycle));
+            Assert::AreEqual (from.GetFilterText(), to.GetFilterText(), L"the same text again");
+
+            to.SetFilterText ("kinds=111");
+            Assert::IsFalse (to.IsFiltered (DiskLogPane::kEvent), L"no field, no filter");
+        }
+
         //  A sector's row has its first bytes in the detail, the whole sector
         //  as a hex dump in the detail's tip, and the bytes for Copy.
         TEST_METHOD (ASectorRowHasItsBytes)

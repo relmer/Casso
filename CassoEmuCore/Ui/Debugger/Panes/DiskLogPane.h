@@ -117,12 +117,13 @@ public:
     static std::wstring     GetHexDump        (const std::vector<Byte> & bytes);
 
 protected:
-    ColumnSpecs  GetColumnSpecs () const override;
-    void         NoteFitTexts   () override;
-    bool         Matches        (const Row & row, size_t index) const override;
-    void         MakeCells      (const Row & row, Cells & out) const override;
-    size_t       GetLabelColumn () const override { return kEvent; }
-    size_t       GetTextColumn  () const override { return kDetail; }
+    ColumnSpecs            GetColumnSpecs () const override;
+    void                   NoteFitTexts   () override;
+    bool                   Matches        (const Row & row, size_t index) const override;
+    IEventLogFilter::Kind  GetFilterKind  (size_t column) const override { return (column >= kSeverity && column <= kSector) ? IEventLogFilter::Kind::Values : EventLogPane::GetFilterKind (column); }
+    void                   MakeCells      (const Row & row, Cells & out) const override;
+    size_t                 GetLabelColumn () const override { return kEvent; }
+    size_t                 GetTextColumn  () const override { return kDetail; }
 
 private:
     static std::wstring  ListRejected    (const std::wstring & text, const TrackSectorPredicate & predicate);

@@ -2,12 +2,12 @@
 
 #include "Debugger/Events/DebugLogDelta.h"
 #include "Ui/Debugger/PaneBarSlot.h"
+#include "Ui/Debugger/Panes/EventLogPane.h"
 #include "Ui/Debugger/Panes/IDebuggerPane.h"
 
 class DiskLogPane;
 class InputLogPane;
 class IoLogPane;
-class ToolbarBoxEntry;
 
 
 
@@ -63,6 +63,16 @@ protected:
     //  Builds the drop-downs' rows again, before each opens.
     virtual void                 SetMenus           () = 0;
 
+    //  The model's column filters, which the headings' chevrons open.
+    virtual IEventLogFilter    * GetColumnFilters   () const = 0;
+
+    //  Each filterable heading's chevron and funnel, and a chevron's menu: the
+    //  column's values as check boxes, or its comparisons.
+    void                         ConfigureColumnFilters ();
+    void                         ShowColumnFilter       (size_t column, RECT chevronPx);
+    void                         AskComparison          (size_t column, IEventLogFilter::Op op);
+    void                         ShowFilterState        ();
+
     //  Creates the list and then the bar, which paints over it; sets up the
     //  bar as the other panes' bars, its menus built before each press; and
     //  reads the options and whether the pane was ever opened.
@@ -87,6 +97,7 @@ protected:
     DxuiListView                               * m_list     = nullptr;
     std::unique_ptr<DebuggerPaneFrame>           m_frame;
     std::vector<std::shared_ptr<DxuiCommand>>    m_commands;
+    std::vector<std::shared_ptr<DxuiCommand>>    m_filterCommands;   // the open chevron menu's rows
     bool                                         m_isOpened = false;
 
     //  From the last snapshot: the position the machine has been taken back
@@ -105,9 +116,8 @@ protected:
 //
 //  DiskLogController
 //
-//  The Disk II event log: its bar has its kinds, its drive, its severities,
-//  and track and sector boxes, and a line under it lists the filter tokens
-//  not taken, or that the machine has no Disk II controller.
+//  The Disk II event log: its columns' chevrons filter its rows, and a line
+//  under its bar says when the machine has no Disk II controller.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -123,11 +133,7 @@ public:
     void                              Configure        () override;
     void                              AddToDock        (DxuiDockSite & dock) override;
     std::vector<IDxuiControl *>       GetControls      () const override;
-    std::vector<IDxuiControl *>       GetPressTargets  () const override { return { m_trackBox, m_sectorBox }; }
-    std::vector<DxuiTextInput *>      GetTextBoxes     () const override { return { m_trackBox, m_sectorBox }; }
     void                              ApplyLogDeltas   (const DebugLogDeltas & deltas, bool isWindowVisible) override;
-    void                              PlaceBar         () override;
-    bool                              RouteBarMouse    (const DxuiMouseEvent & ev) override;
     bool                              AddMenuItems     (DxuiListView * list, int row, PaneMenuItems & items) override;
 
 protected:
@@ -136,24 +142,16 @@ protected:
     void                              SetOptionsText   (const std::string & text) override;
     void                              SetModelShown    (bool isShown) override;
     size_t                            GetTextColumn    () const override;
-    void                              SetMenus         () override;
+    void                              SetMenus         () override {}
+    IEventLogFilter                 * GetColumnFilters () const override;
 
 private:
-    static constexpr int  kBoxDip         = 90;
-    static constexpr int  kTrackLabelDip  = 48;
-    static constexpr int  kSectorLabelDip = 56;
-    static constexpr int  kErrorDip       = 20;
+    static constexpr int  kErrorDip = 20;
 
     void  SetBarEntries ();
-    void  ReadBoxes     ();
-    bool  IsInBox       (POINT pointDip) const;
 
-    std::unique_ptr<DiskLogPane>        m_model;
-    DxuiTextInput                     * m_trackBox  = nullptr;
-    DxuiTextInput                     * m_sectorBox = nullptr;
-    DxuiLabel                         * m_error     = nullptr;
-    std::unique_ptr<ToolbarBoxEntry>    m_trackEntry;
-    std::unique_ptr<ToolbarBoxEntry>    m_sectorEntry;
+    std::unique_ptr<DiskLogPane>    m_model;
+    DxuiLabel                     * m_error = nullptr;
 };
 
 
@@ -183,21 +181,18 @@ public:
     std::vector<IDxuiControl *>   GetControls    () const override;
     void                          ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWindowVisible) override;
 
-    //  The guest's and the host's input, chosen on the Source column's Filter
-    //  cascade.
-    std::vector<DxuiPopupMenuItem>  GetColumnFilterItems (DxuiListView * list, size_t column, std::vector<std::shared_ptr<DxuiCommand>> & commands) override;
 
 protected:
-    std::wstring                  GetModelText   (bool isSelectedOnly) const override;
-    std::string                   GetOptionsText () const override;
-    void                          SetOptionsText (const std::string & text) override;
-    void                          SetModelShown  (bool isShown) override;
-    size_t                        GetTextColumn  () const override;
-    void                          SetMenus       () override;
+    std::wstring       GetModelText     (bool isSelectedOnly) const override;
+    std::string        GetOptionsText   () const override;
+    void               SetOptionsText   (const std::string & text) override;
+    void               SetModelShown    (bool isShown) override;
+    size_t             GetTextColumn    () const override;
+    void               SetMenus         () override;
+    IEventLogFilter  * GetColumnFilters () const override;
 
 private:
     void          SetBarEntries    ();
-    void          ShowSourceFilter ();
     std::wstring  GetPairLabel     (int pair) const;
 
     std::unique_ptr<InputLogPane>   m_model;
@@ -213,8 +208,7 @@ private:
 //
 //  The video log or the sound log (FR-198): its bar has Clear and Save,
 //  which run VIDEOLOG or SOUNDLOG CLEAR and SAVE, so the pane and the
-//  console agree on what the log holds. The sound log's sources are chosen
-//  on the Source column's Filter cascade.
+//  console agree on what the log holds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -232,24 +226,23 @@ public:
     std::vector<IDxuiControl *>   GetControls    () const override;
     void                          ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWindowVisible) override;
 
-    std::vector<DxuiPopupMenuItem>  GetColumnFilterItems (DxuiListView * list, size_t column, std::vector<std::shared_ptr<DxuiCommand>> & commands) override;
 
     //  What Clear and Save run, for the log this pane shows.
     void                          Clear          ();
     void                          Save           ();
 
 protected:
-    std::wstring                  GetModelText   (bool isSelectedOnly) const override;
-    std::string                   GetOptionsText () const override;
-    void                          SetOptionsText (const std::string & text) override;
-    void                          SetModelShown  (bool isShown) override;
-    size_t                        GetTextColumn  () const override;
-    void                          SetMenus       () override {}
+    std::wstring       GetModelText     (bool isSelectedOnly) const override;
+    std::string        GetOptionsText   () const override;
+    void               SetOptionsText   (const std::string & text) override;
+    void               SetModelShown    (bool isShown) override;
+    size_t             GetTextColumn    () const override;
+    void               SetMenus         () override {}
+    IEventLogFilter  * GetColumnFilters () const override;
 
 private:
     bool          IsVideo          () const { return m_kind == DebugLogKind::Video; }
     void          SetBarEntries    ();
-    void          ShowSourceFilter ();
 
     std::unique_ptr<IoLogPane>    m_model;
 };

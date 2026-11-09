@@ -77,6 +77,7 @@ protected:
     ColumnSpecs              GetColumnSpecs () const override;
     void                     PrepareView    (const std::vector<Row> & rows, size_t from) override;
     bool                     Matches        (const Row & row, size_t index) const override;
+    IEventLogFilter::Kind    GetFilterKind  (size_t column) const override { return (column == kSource) ? IEventLogFilter::Kind::Values : (column >= kFrame && column <= kAddress) ? IEventLogFilter::Kind::Compare : EventLogPane::GetFilterKind (column); }
     void                     MakeCells      (const Row & row, Cells & out) const override;
     size_t                   GetLabelColumn () const override { return kSource; }
     size_t                   GetTextColumn  () const override { return kEvent; }
