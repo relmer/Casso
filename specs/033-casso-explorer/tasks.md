@@ -1791,7 +1791,7 @@ Session 2026-11-09. Plan's Phase 33, research R36 to R57, contracts `contracts/v
 
 - [ ] T547 [US21] Record what Casso Explorer does today with a disk image inside a ZIP: open it, copy a file out, put one in. Note the result in `specs/033-casso-explorer/research.md` R39
 - [ ] T548 [P] [US21] Add `NuLzw` in `CassoEmuCore/Devices/Disk/Archives/NuLzw.h/.cpp`, LZW/1 and LZW/2 both ways, from CiderPress II's LZW notes. Tests include a 4 KB chunk stored uncompressed and a table reset. Done in code and round-tripped: LZW/2 both ways, LZW/1 expansion. Open: checked only against its own output until T560 brings ShrinkIt archives
-- [ ] T549 [P] [US21] Add `SqueezeDecoder` and `LzcDecoder` (12 and 16 bits) in `CassoEmuCore/Devices/Disk/Archives/`
+- [X] T549 [P] [US21] Add `SqueezeDecoder` and `LzcDecoder` (12 and 16 bits) in `CassoEmuCore/Devices/Disk/Archives/`
 - [ ] T550 [P] [US21] Vendor bzip2 under `External/bzip2/` with its license file, built as a static library into CassoEmuCore, decode only
 - [X] T551 [P] [US21] Add `GzipFile` over `Update/Inflate.cpp` in `CassoEmuCore/Devices/Disk/Archives/GzipFile.h/.cpp`, reading RFC 1952's header, CRC-32 and size, and writing with a stored block
 - [X] T552 [US21] Add `NuFxArchive` read in `CassoEmuCore/Devices/Disk/Archives/NuFxArchive.h/.cpp`: the master header, records, threads in every format of the contract, each thread's CRC checked, and a record that fails reported while the rest read (FR-184). "`crcOk`" set per `ArchiveRecord`

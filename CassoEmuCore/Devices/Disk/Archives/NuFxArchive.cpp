@@ -2,6 +2,8 @@
 
 #include "Devices/Disk/Archives/NuFxArchive.h"
 #include "Devices/Disk/Archives/NuLzw.h"
+#include "Devices/Disk/Archives/SqueezeDecoder.h"
+#include "Devices/Disk/Archives/LzcDecoder.h"
 #include "Update/Inflate.h"
 
 
@@ -284,6 +286,8 @@ Error:
 HRESULT NuFxArchive::ExpandThread (const NuFxRecord & record, const NuFxThread & thread, std::vector<Byte> & outBytes, std::string & outError)
 {
     constexpr Word  kVersionWithDataCrc = 3;
+    constexpr int   kLzc12Bits          = 12;
+    constexpr int   kLzc16Bits          = 16;
 
 
 
@@ -301,6 +305,21 @@ HRESULT NuFxArchive::ExpandThread (const NuFxRecord & record, const NuFxThread &
     {
         case NuFxThread::kFormatStored:
             outBytes.assign (thread.stored.begin(), thread.stored.begin() + (ptrdiff_t) std::min (length, thread.stored.size()));
+            break;
+
+        case NuFxThread::kFormatSqueeze:
+            hr = SqueezeDecoder::Expand (thread.stored, length, outBytes, outError);
+            CHR (hr);
+            break;
+
+        case NuFxThread::kFormatLzc12:
+            hr = LzcDecoder::Expand (thread.stored, kLzc12Bits, length, outBytes, outError);
+            CHR (hr);
+            break;
+
+        case NuFxThread::kFormatLzc16:
+            hr = LzcDecoder::Expand (thread.stored, kLzc16Bits, length, outBytes, outError);
+            CHR (hr);
             break;
 
         case NuFxThread::kFormatLzw1:
