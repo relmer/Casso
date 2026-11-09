@@ -356,6 +356,7 @@
     <ClCompile Include="CassoLink\CassoLinkSearchTests.cpp" />
     <ClCompile Include="CassoLink\RunningCassoRegistryTests.cpp" />
     <ClCompile Include="CassoLink\LinkBootstrapTests.cpp" />
+    <ClCompile Include="CassoLink\PromptProbeTests.cpp" />
     <ClCompile Include="CassoLink\SerialLoaderTests.cpp" />
     <ClCompile Include="EmuTests\AciaBridgeEndpointTests.cpp" />
     <ClCompile Include="EmuTests\SerialPortDeviceTests.cpp" />
@@ -750,6 +751,7 @@
     <ClInclude Include="CassoLink\CassoLinkCaptures.h" />
     <ClInclude Include="CassoLink\InMemoryCassoLinkFolder.h" />
     <ClInclude Include="CassoLink\FakeApple.h" />
+    <ClInclude Include="CassoLink\SteppedByteStream.h" />
     <ClInclude Include="EmuTests\GoldenImage.h" />
     <ClInclude Include="CaptureTests\FakeHostDialogs.h" />
     <ClInclude Include="UpdateTests\FakeInstallEnvironment.h" />
