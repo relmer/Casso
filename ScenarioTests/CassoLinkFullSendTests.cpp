@@ -52,8 +52,6 @@ public:
     static constexpr Word      kRowDrive2   = 0x0528;
     static constexpr Word      kRowPrompt   = 0x07A8;
     static constexpr Word      kRowPrompt2  = 0x0450;
-    static constexpr Word      kRowHeading  = 0x0728;
-    static constexpr Word      kRowKeys     = 0x07D0;
     static constexpr int       kSlot        = 6;
 
     //  The target is 30; a read to image alone takes 27 here.
@@ -260,19 +258,6 @@ public:
         void  Finish()
         {
             RunUntil ([&] () { return sink.IsDone (send); }, L"the session ends");
-        }
-
-        //  The newest history line, from a session ended by Q, as success. It is
-        //  the first row under the heading, once the session's rows are cleared.
-        void  AssertSessionLoggedOk()
-        {
-            RunUntil ([&] () { return Row (kRowPrompt).find ("FULL SEND") != std::string::npos; }, L"the session has a history line");
-
-            std::string  line = Row (kRowPrompt);
-
-            Logger::WriteMessage (line.c_str());
-            //  A session's summary fills the line, so it has no OK.
-            Assert::IsTrue ((line.find ("OK") != std::string::npos || line.find ("FULL SEND: ") != std::string::npos) && line.find ("ERR") == std::string::npos, TextEncoding::NarrowToWide (line).c_str());
         }
 
         std::vector<FullSendRow>  Rows()
@@ -531,111 +516,6 @@ public:
 
         Assert::IsTrue (rig.send->state == LinkOperationState::Canceled);
         rig.RunUntil ([&] () { return rig.Row (kRowCounts).empty() && rig.Row (kRowDrive1) == "D1: IDLE"; }, L"the screen is cleared");
-    }
-
-
-
-
-    //  Q during a transfer: no partial image, and CassoLink goes on.
-    TEST_METHOD (QDuringATransfer_LeavesNoImage_AndTheLinkRunning)
-    {
-        Rig       rig;
-        uint64_t  quitAt = 0;
-
-
-
-        rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
-        rig.send = rig.session->FullSend ("C:\\Box", "", "");
-        rig.Begin();
-
-        rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1: SENDING"); }, L"the transfer starts");
-        rig.machine.RunCycles (kCyclesPerS / 2);
-        rig.Press ('Q');
-        quitAt = rig.spent;
-        rig.Finish();
-        Assert::IsTrue (rig.spent - quitAt < kCyclesPerS * 2, L"Q ends the transfer within two seconds");
-
-        rig.AssertSessionLoggedOk();
-
-        Assert::IsTrue (rig.send->state == LinkOperationState::Canceled);
-        Assert::IsTrue (rig.fileIo.files.empty(), L"no image, no manifest");
-
-        auto  list = rig.session->Enumerate (1, FilePath());
-
-        rig.RunUntil ([&] () { return rig.sink.IsDone (list); }, L"the link goes on");
-        AssertSucceeded (list->result);
-    }
-
-
-
-
-    //  The owner's flow: F on the standard screen starts a session, a sending
-    //  disk shows its image name and progress, the pause shows the wait for a
-    //  disk, and Q returns to the standard screen with the link working.
-    TEST_METHOD (FOnTheApple_RunsASession_AndQReturnsToCassoLink)
-    {
-        Rig          rig;
-        std::string  history;
-        uint64_t     quitAt  = 0;
-
-
-
-        rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
-        rig.machine.RunCycles (kCyclesPerS / 2);
-
-        history = rig.Row (kRowPrompt);
-        Assert::IsFalse (history.empty(), L"the history has a line before the session");
-
-        Assert::AreEqual (std::string ("    F: FULL SEND   PRESS ESC TO EXIT"), rig.Row (kRowKeys));
-        Assert::AreEqual (std::string ("HISTORY:"), rig.Row (kRowHeading));
-        Assert::AreEqual (std::string ("D1: IDLE"), rig.Row (kRowDrive1));
-
-        rig.Press ('f');
-        rig.Begin();
-
-        rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1: SENDING") && rig.Row (kRowBar1).ends_with (" 10%"); }, L"drive 1 is sending, with progress");
-
-        Assert::AreEqual (std::string ("D2: ON DECK--INSERT A DISK TO SEND NEXT"), rig.Row (kRowDrive2));
-        Assert::IsTrue (rig.Row (kRowDrive1).starts_with ("D1: SENDING 1"), TextEncoding::NarrowToWide (rig.Row (kRowDrive1)).c_str());
-        Assert::AreEqual (std::string ("FULL SEND    VERIFY: OFF  PREFIX: NONE"), rig.Row (kRowTitle));
-        Assert::AreEqual (std::string (40, '-'), rig.Row (kRowDivider));
-        Assert::AreEqual (std::string(), rig.Row (kRowHeading));
-        Assert::AreNotEqual (history, rig.Row (kRowPrompt), L"the history is hidden during the session");
-        Assert::AreNotEqual (history, rig.Row (kRowPrompt2));
-
-        //  The track over the bar: the cells passed are inverse, and the rest periods.
-        Assert::AreEqual<int> ('T' & 0x3F, rig.machine.GetCpu()->ReadByte ((Word) (kRowBar1 + 14)) & 0x3F);
-        Assert::AreEqual<int> (0x20, rig.machine.GetCpu()->ReadByte (kRowBar1), L"the first cell is filled");
-        Assert::AreEqual<int> (0xAE, rig.machine.GetCpu()->ReadByte ((Word) (kRowBar1 + 34)), L"the last cell is not");
-        Assert::AreEqual (std::string ("   V: VERIFY  P: PREFIX  Q: CASSOLINK"), rig.Row (kRowKeys));
-
-        rig.Press (0x1B);
-        rig.machine.RunCycles (kCyclesPerS);
-
-        Assert::IsTrue (rig.Row (kRowTitle).starts_with ("FULL SEND"), L"Esc is ignored during a transfer");
-
-        rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the session pauses");
-
-        rig.Press (0x1B);
-        rig.machine.RunCycles (kCyclesPerS);
-
-        Assert::IsTrue (rig.IsPrompting(), L"Esc is ignored during the pause");
-
-        rig.Press ('Q');
-        quitAt = rig.spent;
-
-        rig.RunUntil ([&] () { return rig.Row (kRowHeading) == "HISTORY:" && rig.Row (kRowKeys).find ("F: FULL SEND") != std::string::npos; }, L"the standard screen returns");
-        Assert::IsTrue (rig.spent - quitAt < kCyclesPerS * 2, L"Q returns to CassoLink within two seconds");
-
-        rig.AssertSessionLoggedOk();
-        Assert::AreEqual (history, rig.Row (kRowPrompt2), L"the history is back, under the session's line");
-        Assert::AreEqual ((size_t) 2, rig.Rows().size());
-
-        std::shared_ptr<LinkOperation>  list = rig.session->Enumerate (1, FilePath());
-
-        rig.RunUntil ([&] () { return rig.sink.IsDone (list); }, L"the link goes on");
-        AssertSucceeded (list->result);
-        Assert::IsFalse (list->listing.entries.empty());
     }
 
 

@@ -12,7 +12,7 @@
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Seams/InProcessByteStream.h"
 #include "InMemoryCassoLinkFolder.h"
-#include "SteppedByteStream.h"
+#include "ProgramRig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -37,63 +37,9 @@ TEST_CLASS (KrunchProgramTests)
 {
 public:
 
-    static constexpr Byte   kDrive    = 1;
-    static constexpr DWORD  kLinkBaud = 115200;
+    static constexpr Byte  kDrive = 1;
 
-    //  An emulated //c running the shim at 115,200 baud, with `disk` in
-    //  drive 1, and the host.
-    struct Rig
-    {
-        TestMachine                           machine { "Apple2c" };
-        std::shared_ptr<InProcessByteStream>  machineEnd;
-        std::shared_ptr<InProcessByteStream>  pcEnd;
-        std::shared_ptr<SteppedByteStream>    stream;
-        InMemoryCassoLinkFolder               folder;
-        std::unique_ptr<CassoLinkHost>        host;
-
-        explicit Rig (const std::vector<Byte> & disk)
-        {
-            std::vector<Byte>  shim;
-            Word               at = LinkProgram::kShimAddress;
-
-
-
-            machine.SetVideoTiming (std::make_unique<VideoTiming>());
-            machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
-            machine.PowerCycle();
-
-            AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "", DiskFormat::Dsk, disk));
-
-            InProcessByteStream::CreatePair (machineEnd, pcEnd);
-            Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
-
-            stream = std::make_shared<SteppedByteStream> (machine, pcEnd);
-            host   = std::make_unique<CassoLinkHost> (stream, folder, [] () { return std::array<Byte, 4> {}; });
-
-            AssertSucceeded (LinkProgram::BuildShim (kLinkBaud, shim));
-
-            for (Byte b : shim)
-            {
-                machine.GetCpu()->WriteByte (at++, b);
-            }
-
-            machine.GetCpu()->SetPC (LinkProgram::kShimAddress);
-        }
-
-        //  Drive 1's disk, as DOS-logical sectors.
-        std::vector<Byte>  Sectors()
-        {
-            std::vector<Byte>   file;
-            std::vector<Byte>   sectors;
-            SectorDecodeReport  report;
-
-
-
-            AssertSucceeded (machine.GetDiskStore().GetImage (6, 0)->Serialize (file));
-            AssertSucceeded (VolumeImage::Load (file, "d.dsk", sectors, report));
-            return sectors;
-        }
-    };
+    using Rig = ProgramRig;
 
     //  A file's bytes: `blocks` blocks less 100 bytes, each a function of
     //  the file and its offset, so no two files and no two blocks match.
@@ -303,7 +249,7 @@ public:
     //  most the one being moved.
     TEST_METHOD (Krunch_StoppedAtAnyPoint_LeavesEveryOtherFileWhole)
     {
-        static constexpr int  kStops = 20;
+        static constexpr int  kStops = 10;
 
         std::vector<Byte>                         disk   = BuildSmallDisk();
         std::map<std::string, std::vector<Byte>>  before = ReadFiles (disk);

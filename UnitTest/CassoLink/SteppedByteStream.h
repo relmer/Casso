@@ -42,6 +42,10 @@ public:
     //  The cycles the machine has run through this stream.
     uint64_t  GetCycles  () const          { return m_total; }
 
+    //  Called after each step, as a test's way to act partway through a
+    //  request, such as a key pressed during a read.
+    void      SetStepHook (std::function<void()> hook) { m_hook = std::move (hook); }
+
     //  A Read of zero runs one step, so the machine advances while a caller
     //  polls.
     HRESULT  Read (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override
@@ -66,6 +70,11 @@ public:
             {
                 m_end->Close();
             }
+
+            if (m_hook)
+            {
+                m_hook();
+            }
         }
         while (spent < budget);
 
@@ -77,4 +86,5 @@ private:
     std::shared_ptr<InProcessByteStream>    m_end;
     uint64_t                                m_total      = 0;
     uint64_t                                m_closeAfter = UINT64_MAX;
+    std::function<void()>                   m_hook;
 };
