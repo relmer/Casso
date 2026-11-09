@@ -72,16 +72,16 @@ private:
     static constexpr int     kRelocationTables = 4;
     static constexpr size_t  kHexRowBytes      = 16;
 
-    static size_t             ReadWord        (std::span<const Byte> bytes, size_t at);
-    static Segment            ReadSegment     (std::span<const Byte> bytes, int slot);
-    static const char *       GetKindName     (Word kind);
-    static std::string        GetMachineName  (Byte machine);
-    static const Microcode *  GetNmosTable    ();
-    static void               AddLine         (DecodedFile & ioFile, const std::string & line);
-    static void               ListHeader      (std::span<const Byte> bytes, int segments, DecodedFile & ioFile);
-    static void               ListSegment     (std::span<const Byte> bytes, const Segment & segment, DecodedFile & ioFile);
-    static bool               ListProcedures  (std::span<const Byte> code, DecodedFile & ioFile);
-    static void               ListPCode       (std::span<const Byte> code, int number, size_t attributes, DecodedFile & ioFile);
-    static void               ListNative      (std::span<const Byte> code, int number, size_t attributes, DecodedFile & ioFile);
-    static void               ListHex         (std::span<const Byte> code, DecodedFile & ioFile);
+    static size_t             ReadWord       (std::span<const Byte> bytes, size_t at);
+    static Segment            ReadSegment    (std::span<const Byte> bytes, int slot);
+    static const char       * GetKindName    (Word kind);
+    static std::string        GetMachineName (Byte machine);
+    static const Microcode  * GetNmosTable   ();
+    static void               AddLine        (DecodedFile & ioFile, const std::string & line);
+    static void               ListHeader     (std::span<const Byte> bytes, int segments, DecodedFile & ioFile);
+    static void               ListSegment    (std::span<const Byte> bytes, const Segment & segment, DecodedFile & ioFile);
+    static bool               ListProcedures (std::span<const Byte> code, DecodedFile & ioFile);
+    static void               ListPCode      (std::span<const Byte> code, int number, size_t attributes, DecodedFile & ioFile);
+    static void               ListNative     (std::span<const Byte> code, int number, size_t attributes, DecodedFile & ioFile);
+    static void               ListHex        (std::span<const Byte> code, DecodedFile & ioFile);
 };
