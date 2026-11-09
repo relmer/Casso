@@ -338,6 +338,10 @@ public:
                                  float          & outWidthDip,
                                  float          & outHeightDip);
 
+    //  The window whose typography the text is measured and drawn in, from
+    //  the acquire on, so a size measured before Show is in the face drawn.
+    void     SetTypographyWindow (HWND hwnd) { m_textRenderer.SetTypographyWindow (hwnd); }
+
     //
     //  std::future that resolves when Close() is invoked (or the
     //  popup auto-dismisses). Each Show() resets the promise; only

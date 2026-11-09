@@ -5557,6 +5557,9 @@ DxuiPopupHost * DxuiHwndSource::AcquirePopup()
 #endif
     }
 
+    // A size measured before Show is measured in this window's typography.
+    popup->SetTypographyWindow (m_hwnd);
+
     return popup;
 }
 
