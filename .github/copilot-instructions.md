@@ -743,7 +743,7 @@ branch to `master`** (and re-run after resolving merge conflicts).
 - Build MUST succeed with no errors before merging to master
 - Every commit that lands on `master` must leave the codebase compilable and tests-passing
 - **Code analysis MUST pass** before merging to master: run `scripts\Build.ps1 -Target Rebuild -RunCodeAnalysis` to verify.
-  It compiles on the x86-hosted compiler, as CI does; the x64-hosted one misses C6011s CI reports
+  It compiles on the 64-bit compiler, as CI does
 - **The AddressSanitizer scenario run MUST pass** before pushing to master:
   `scripts\RunTests.ps1 -Build -Sanitize -Configuration Release -Scenario`,
   under a minute once built. CI does not run it. A use-after-free that reads
