@@ -1181,6 +1181,7 @@ void DebuggerViewState::BuildSymbolBytes (DebugSession & session, DebuggerViewSn
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DebuggerViewState::BuildAutoWatches

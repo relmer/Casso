@@ -1779,6 +1779,7 @@ void SourcePane::AppendSymbolDetails (std::wstring & text, const std::string & n
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SourcePane::IsInstructionLine
