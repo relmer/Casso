@@ -21,6 +21,7 @@
 #include "Debugger/RomSymbols.h"
 #include "Ui/Debugger/SourceSyntax.h"
 #include "FileTypes/FileFormatTable.h"
+#include "FileTypes/HiResFormats.h"
 
 
 
@@ -820,12 +821,38 @@ HRESULT PreviewDecoder::Render (
     uint32_t                 customArgb,
     const DecodeOptions    & options)
 {
-    HRESULT       hr     = S_OK;
-    FileFormat    format = FileFormatTable::Identify (entry, kind, payload.bytes);
-    DecodedFile   decoded;
-    std::wstring  error;
+    HRESULT            hr     = S_OK;
+    FileFormat         format = FileFormatTable::Identify (entry, kind, payload.bytes);
+    DecodedFile        decoded;
+    std::wstring       error;
+    std::vector<Byte>  page;
 
 
+
+    //  An LZ4FH picture unpacks to a hi-res page, drawn by the Display
+    //  page's monitor as any other hi-res picture.
+    if (format == FileFormat::Lz4fh)
+    {
+        outContent = PreviewContent();
+
+        hr = Lz4fh::Unpack (payload.bytes, page);
+
+        if (SUCCEEDED (hr))
+        {
+            hr = PicturePreview::Render (PicturePreview::Mode::HiRes, page, s_kHiResPage, bus,
+                                         outContent.bgra, outContent.width, outContent.height, monitor, customArgb);
+        }
+
+        if (SUCCEEDED (hr))
+        {
+            outContent.kind          = PreviewContent::Kind::Picture;
+            outContent.bytes         = page;
+            outContent.origin        = s_kHiResPage;
+            outContent.pictureMode   = PicturePreview::Mode::HiRes;
+            outContent.pictureChosen = PicturePreview::Mode::HiRes;
+            return S_OK;
+        }
+    }
 
     if (format != FileFormat::None)
     {

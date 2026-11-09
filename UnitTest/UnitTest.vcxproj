@@ -317,6 +317,7 @@
     <ClCompile Include="EmuTests\ContainerDiskFileIoTests.cpp" />
     <ClCompile Include="FileTypes\WriterTests.cpp" />
     <ClCompile Include="FileTypes\TextFormatTests.cpp" />
+    <ClCompile Include="FileTypes\PictureFormatTests.cpp" />
     <ClCompile Include="EmuTests\NuFxArchiveTests.cpp" />
     <ClCompile Include="EmuTests\ArchiveWrapperTests.cpp" />
     <ClCompile Include="EmuTests\ArchiveVolumeTests.cpp" />

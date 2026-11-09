@@ -304,6 +304,9 @@ private:
     //  Where BASIC.SYSTEM loads and runs a CMD file.
     static constexpr Word    s_kCommandLoadAddress = 0x4000;
 
+    //  Hi-res page 1, where an unpacked LZ4FH picture is drawn from.
+    static constexpr Word    s_kHiResPage = 0x2000;
+
     //  The first address past the stack, and the I/O space's range.
     static constexpr Word    s_kFirstCodeAddress = 0x0200;
     static constexpr Word    s_kIoSpaceStart     = 0xC000;
