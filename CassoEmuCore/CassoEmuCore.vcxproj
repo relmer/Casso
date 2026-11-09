@@ -318,6 +318,7 @@
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerCommandManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerDragDrop.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerFileOps.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\ExplorerProperties.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerFolderSync.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerInput.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerLayout.cpp" />
@@ -828,6 +829,7 @@
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerCommandManager.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerDragDrop.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerFileOps.h" />
+    <ClInclude Include="CassoExplorer\Window\Managers\ExplorerProperties.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerFolderSync.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerInput.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerLayout.h" />

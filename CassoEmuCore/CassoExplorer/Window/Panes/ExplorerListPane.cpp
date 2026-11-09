@@ -21,6 +21,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
@@ -663,7 +664,7 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
         }
         else
         {
-            m_context.fileOps.ShowRowProperties (m_context.browser.GetSelectedRows()[0]);
+            m_context.properties.ShowRowProperties (m_context.browser.GetSelectedRows()[0]);
         }
 
         return true;
@@ -676,7 +677,7 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
         && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsImageLocation())
         && !SearchQuery::IsId (m_context.browser.GetLocation().path))
     {
-        m_context.fileOps.ShowLocationProperties (m_context.browser.GetLocation());
+        m_context.properties.ShowLocationProperties (m_context.browser.GetLocation());
         return true;
     }
 

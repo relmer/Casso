@@ -10,6 +10,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
 #include "Seams/Win32ShellItemVerbs.h"
@@ -669,7 +670,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     //  own background menu.
     if (background && (shown.kind == Location::Kind::HostFolder || m_context.browser.IsImageLocation()) && !SearchQuery::IsId (shown.path))
     {
-        m_context.menus.AddMenuCommand (items, L"P&roperties", [this, shown]() { m_context.fileOps.ShowLocationProperties (shown); }, L"Alt+Enter");
+        m_context.menus.AddMenuCommand (items, L"P&roperties", [this, shown]() { m_context.properties.ShowLocationProperties (shown); }, L"Alt+Enter");
         m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
         m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"windows.properties");
     }
@@ -793,7 +794,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
                         return;
                     }
 
-                    m_context.fileOps.ShowRowProperties (m_context.browser.GetSelectedRows()[0]);
+                    m_context.properties.ShowRowProperties (m_context.browser.GetSelectedRows()[0]);
                 }
             }, L"Alt+Enter");
             m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
@@ -801,32 +802,32 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         }
 
         //  An Apple file on the PC has its Apple properties beside Windows'.
-        if (selectedPaths.size() == 1 && ExplorerFileOps::IsHostAppleFile (selectedPaths[0]))
+        if (selectedPaths.size() == 1 && ExplorerProperties::IsHostAppleFile (selectedPaths[0]))
         {
             std::wstring  path = selectedPaths[0];
 
-            m_context.menus.AddMenuCommand (items, L"&Apple properties", [this, path]() { m_context.fileOps.ShowHostAppleProperties (path); });
+            m_context.menus.AddMenuCommand (items, L"&Apple properties", [this, path]() { m_context.properties.ShowHostAppleProperties (path); });
             m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::AppleMachine);
         }
 
         //  A WOZ image on the PC has its INFO and META beside Windows' properties.
-        if (selectedPaths.size() == 1 && ExplorerFileOps::IsWozImage (selectedPaths[0]))
+        if (selectedPaths.size() == 1 && ExplorerProperties::IsWozImage (selectedPaths[0]))
         {
             std::wstring  path = selectedPaths[0];
 
-            m_context.menus.AddMenuCommand (items, L"&Disk properties", [this, path]() { m_context.fileOps.ShowWozProperties (path, WozPropertiesDialog::kInfoTab); });
+            m_context.menus.AddMenuCommand (items, L"&Disk properties", [this, path]() { m_context.properties.ShowWozProperties (path, WozPropertiesDialog::kInfoTab); });
             m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage);
         }
 
         if (m_context.browser.GetSelectedRows().size() > 1 && m_context.browser.IsVolumeLocation())
         {
-            m_context.menus.AddMenuCommand (items, L"P&roperties", [this]() { m_context.fileOps.ShowAppleProperties(); }, L"Alt+Enter");
+            m_context.menus.AddMenuCommand (items, L"P&roperties", [this]() { m_context.properties.ShowAppleProperties(); }, L"Alt+Enter");
             m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
             m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"windows.properties");
         }
         else if (m_context.browser.GetSelectedRows().size() > 1 && !selectedPaths.empty())
         {
-            m_context.menus.AddMenuCommand (items, L"P&roperties", [this, selectedPaths]() { m_context.fileOps.ShowHostProperties (selectedPaths); }, L"Alt+Enter");
+            m_context.menus.AddMenuCommand (items, L"P&roperties", [this, selectedPaths]() { m_context.properties.ShowHostProperties (selectedPaths); }, L"Alt+Enter");
             m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
             m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"windows.properties");
         }
@@ -1356,11 +1357,11 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSeeMoreRows()
     {
         if (selected)
         {
-            m_context.fileOps.ShowRowProperties (m_context.browser.GetSelectedRows()[0]);
+            m_context.properties.ShowRowProperties (m_context.browser.GetSelectedRows()[0]);
         }
         else
         {
-            m_context.fileOps.ShowLocationProperties (location);
+            m_context.properties.ShowLocationProperties (location);
         }
     });
 

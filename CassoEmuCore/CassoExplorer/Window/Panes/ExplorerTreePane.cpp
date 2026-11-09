@@ -13,6 +13,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
@@ -374,7 +375,7 @@ bool ExplorerTreePane::TryShortcutKey (const DxuiKeyEvent & ev, bool & outHandle
     }
     else if (copyable)
     {
-        m_context.fileOps.ShowLocationProperties (location);
+        m_context.properties.ShowLocationProperties (location);
     }
 
     outHandled = copyable;
@@ -941,9 +942,9 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
             });
         }
 
-        if (ExplorerFileOps::IsWozImage (image))
+        if (ExplorerProperties::IsWozImage (image))
         {
-            m_context.menus.AddMenuCommand (items, L"&Disk properties", [this, image]() { m_context.fileOps.ShowWozProperties (image, WozPropertiesDialog::kInfoTab); });
+            m_context.menus.AddMenuCommand (items, L"&Disk properties", [this, image]() { m_context.properties.ShowWozProperties (image, WozPropertiesDialog::kInfoTab); });
             m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage);
         }
     }
@@ -1028,7 +1029,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
             m_context.menus.GetMenuCommands().push_back (std::move (newDisk));
         }
 
-        m_context.menus.AddMenuCommand (items, L"P&roperties", [this, location]() { m_context.fileOps.ShowLocationProperties (location); }, L"Alt+Enter");
+        m_context.menus.AddMenuCommand (items, L"P&roperties", [this, location]() { m_context.properties.ShowLocationProperties (location); }, L"Alt+Enter");
         m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
         m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"windows.properties");
     }

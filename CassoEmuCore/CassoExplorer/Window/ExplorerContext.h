@@ -13,6 +13,7 @@ class ExplorerAddressBar;
 class ExplorerCommandManager;
 class ExplorerDragDrop;
 class ExplorerFileOps;
+class ExplorerProperties;
 class ExplorerFolderSync;
 class ExplorerInput;
 class ExplorerLayout;
@@ -105,6 +106,7 @@ public:
     ExplorerMenus               & menus;
     ExplorerCommandManager      & commandManager;
     ExplorerFileOps             & fileOps;
+    ExplorerProperties          & properties;
     ExplorerInput               & input;
     ExplorerTips                & tips;
     ExplorerThemes              & themes;
