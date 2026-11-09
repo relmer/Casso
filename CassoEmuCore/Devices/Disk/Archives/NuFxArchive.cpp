@@ -622,3 +622,33 @@ void NuFxArchive::Build (std::vector<Byte> & outBytes) const
     outBytes[kOffCrc]     = (Byte) (crc & 0xFF);
     outBytes[kOffCrc + 1] = (Byte) (crc >> 8);
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NuFxArchive::MakeDiskRecord
+//
+//  A disk record's storage type is its block size and its extra type the
+//  block count, as ShrinkIt writes them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+NuFxRecord NuFxArchive::MakeDiskRecord (std::span<const Byte> blocks, const std::string & name, Word fileSystem)
+{
+    constexpr Word  kBlockBytes = 512;
+
+    NuFxRecord  record;
+
+
+
+    record.version     = 3;
+    record.fileSystem  = fileSystem;
+    record.storageType = kBlockBytes;
+    record.extraType   = (uint32_t) (blocks.size() / kBlockBytes);
+    record.threads.push_back (MakeFilenameThread (name));
+    record.threads.push_back (MakeDataThread (NuFxThread::kKindDiskImage, blocks));
+
+    return record;
+}

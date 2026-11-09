@@ -60,6 +60,7 @@ struct NuFxThread
 struct NuFxRecord
 {
     static constexpr Word  kFsProDos = 0x0001;
+    static constexpr Word  kFsDos33  = 0x0002;
 
     Word                     version     = 3;
     Word                     fileSystem  = kFsProDos;
@@ -118,6 +119,10 @@ public:
     //  stored filename thread with room to rename.
     static NuFxThread  MakeDataThread     (Word kind, std::span<const Byte> bytes);
     static NuFxThread  MakeFilenameThread (const std::string & name);
+
+    //  A ShrinkIt disk's record: the disk's blocks in ProDOS order, its name,
+    //  and the file system on it.
+    static NuFxRecord  MakeDiskRecord     (std::span<const Byte> blocks, const std::string & name, Word fileSystem);
 
     //  The record's name, from its filename thread or, in an old record, its
     //  header; and the thread of a class and kind, if it has one.

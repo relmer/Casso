@@ -10,6 +10,8 @@
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "Devices/Disk/Archives/NuFxArchive.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -772,6 +774,60 @@ public:
         Assert::IsTrue   (outcome.Succeeded());
         Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33 (2)"), second);
         Assert::IsTrue   (host.io.files.count ("C:\\Disks\\dos33 (2)\\HELLO.Applesoft BASIC.txt") == 1);
+    }
+
+
+    //  A ShrinkIt disk of an image opens as the same volume, and a second
+    //  takes the next free name.
+    TEST_METHOD (MakeShrinkItDisk_PacksTheImageAsADiskRecord)
+    {
+        Host                           host;
+        std::wstring                   made;
+        std::wstring                   second;
+        std::vector<Byte>              original;
+        std::vector<Byte>              packed;
+        SectorDecodeReport             report;
+        CassoExplorerActions::Outcome  outcome = host.actions.MakeShrinkItDisk (L"C:\\Disks\\dos33.dsk", made);
+
+
+
+        Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.sdk"), made);
+
+        AssertSucceeded (VolumeImage::Load (host.io.files["C:\\Disks\\dos33.dsk"], "dos33.dsk", original, report));
+        AssertSucceeded (VolumeImage::Load (host.io.files["C:\\Disks\\dos33.sdk"], "dos33.sdk", packed, report));
+        Assert::IsTrue   (packed == original, L"The disk inside is the image's volume");
+        Assert::IsFalse  (ActionsArchive::CanMakeShrinkItDisk (made));
+        Assert::IsTrue   (ActionsArchive::CanMakeShrinkItDisk (L"C:\\Disks\\dos33.dsk"));
+
+        AssertSucceeded (host.fs.WriteAllText (made, "taken"));
+        outcome = host.actions.MakeShrinkItDisk (L"C:\\Disks\\dos33.dsk", second);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33 (2).sdk"), second);
+    }
+
+
+    //  The files selected go into a new archive with the first one's name,
+    //  each with the type a put sets.
+    TEST_METHOD (MakeArchive_PutsTheFilesIntoANewShrinkItArchive)
+    {
+        Host                           host;
+        std::wstring                   made;
+        CassoExplorerActions::Outcome  outcome;
+        NuFxArchive                    archive;
+        std::string                    error;
+
+
+
+        host.SeedBytes (std::vector<Byte> (300, 0x41), L"C:\\Drop\\NOTES.Text.txt");
+        host.SeedBytes (std::vector<Byte> (500, 0x07), L"C:\\Drop\\DATA.Binary.$2000.bin");
+
+        outcome = host.actions.MakeArchive ({ L"C:\\Drop\\NOTES.Text.txt", L"C:\\Drop\\DATA.Binary.$2000.bin" }, made);
+
+        Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
+        Assert::AreEqual (std::wstring (L"C:\\Drop\\NOTES.Text.shk"), made);
+        AssertSucceeded  (NuFxArchive::Parse (host.io.files["C:\\Drop\\NOTES.Text.shk"], archive, error));
+        Assert::AreEqual ((size_t) 2, archive.records.size());
+        Assert::AreEqual ((uint32_t) 0x2000, archive.records[1].extraType);
     }
 
 

@@ -124,6 +124,9 @@ const wchar_t * ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::Lock:           return L"&Lock";
         case CassoExplorerActions::Verb::Unlock:         return L"&Unlock";
         case CassoExplorerActions::Verb::ConvertTo:      return L"Con&vert to";
+        case CassoExplorerActions::Verb::MakeArchive:    return L"Add to &ShrinkIt archive";
+        case CassoExplorerActions::Verb::MakeShrinkItDisk: return L"Make a ShrinkIt &disk";
+        case CassoExplorerActions::Verb::Test:           return L"&Test";
         default:                                   return L"";
     }
 }
@@ -156,6 +159,7 @@ const wchar_t * ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb verb
         case CassoExplorerActions::Verb::MoreOptions:    return s_kpszMdl2OpenInNewWindow;
         case CassoExplorerActions::Verb::Lock:           return s_kpszMdl2Lock;
         case CassoExplorerActions::Verb::Unlock:         return s_kpszMdl2Unlock;
+        case CassoExplorerActions::Verb::Test:           return s_kpszMdl2Accept;
         default:                                         return nullptr;
     }
 }
@@ -245,6 +249,8 @@ const wchar_t * ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb ve
         case CassoExplorerActions::Verb::EmptyRecycleBin: return L"windows.recyclebin.empty";
         case CassoExplorerActions::Verb::ExtractAll:   return L"windows.compressedfile.extract";
         case CassoExplorerActions::Verb::ExtractFiles: return L"windows.compressedfile.extract";
+        case CassoExplorerActions::Verb::MakeArchive:  return L"Windows.Zip.Action";
+        case CassoExplorerActions::Verb::MakeShrinkItDisk: return L"Windows.Zip.Action";
         default:                                       return nullptr;
     }
 }

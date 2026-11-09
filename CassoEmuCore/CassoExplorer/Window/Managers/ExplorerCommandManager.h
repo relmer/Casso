@@ -42,6 +42,8 @@ public:
     int                    ChooseFormatDefault        (const std::wstring & image);
     void                   ChooseFilesystem           (VolumeKind kind);
     void                   ExtractAll                 ();
+    void                   MakeArchive                (bool shrinkItDisk);
+    void                   TestImage                  ();
     void                   Dispatch                   (int id);
     bool                   IsEnabled                  (int id) const;
     bool                   IsChecked                  (int id) const;

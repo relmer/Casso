@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Actions/ActionsAppleDrive.h"
+#include "CassoExplorer/Actions/ActionsArchive.h"
 #include "CassoExplorer/Actions/ActionsCopy.h"
 #include "CassoExplorer/Actions/ActionsGoTo.h"
 #include "Devices/Disk/IDiskFileIo.h"
@@ -58,6 +59,12 @@ public:
     //  image without its extension, and its directories as folders inside.
     //  `outFolder` is the folder made.
     Outcome  ExtractImage   (const std::wstring & imagePath, HostFileNaming::Style style, std::wstring & outFolder) { return m_copier.ExtractImage (imagePath, style, outFolder); }
+
+    //  A ShrinkIt archive of files on the PC, a ShrinkIt disk of an image, and
+    //  the test of an image or an archive.
+    Outcome  MakeArchive      (const std::vector<std::wstring> & hostPaths, std::wstring & outPath) { return m_archiver.MakeArchive (hostPaths, outPath); }
+    Outcome  MakeShrinkItDisk (const std::wstring & imagePath, std::wstring & outPath)              { return m_archiver.MakeShrinkItDisk (imagePath, outPath); }
+    Outcome  TestImage        (const std::wstring & imagePath, std::wstring & outReport)            { return m_archiver.Test (imagePath, outReport); }
 
     //  The list's Apple drive: its link, drive and directory. False when the
     //  list is not on one.
@@ -310,10 +317,12 @@ private:
 
     //  The actions' parts, each with the state it uses.
     friend class       ActionsAppleDrive;
+    friend class       ActionsArchive;
     friend class       ActionsCopy;
     friend class       ActionsGoTo;
     ActionsAppleDrive  m_appleDrive      { *this };
     ActionsCopy        m_copier          { *this };
+    ActionsArchive     m_archiver        { *this };
     ActionsGoTo        m_goTo            { *this };
 };
 

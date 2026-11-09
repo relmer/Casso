@@ -124,6 +124,10 @@ public:
     //  kind has a NullVolume, whose operations all fail.
     static std::unique_ptr<IVolume>  CreateVolume (VolumeKind kind, const vector<Byte> & sectors, ISectorReadObserver * observer = nullptr);
 
+    //  The volume layer's buffer as blocks in ProDOS order: a 140K one
+    //  reordered from DOS logical order, a larger one as it is.
+    static void  SaveBlockPayload (const vector<Byte> & sectors, vector<Byte> & outPayload);
+
 private:
     //  The bit-stream half of Save: decode, judge, re-encode only what changed.
     //  Shared by every container that stores tracks rather than sectors; the
@@ -163,7 +167,6 @@ private:
     static HRESULT  LoadBlockPayload    (const vector<Byte> & payload, vector<Byte> & outSectors);
     static HRESULT  ExtractShrinkItDisk (const vector<Byte> & fileBytes, vector<Byte> & outDisk, std::string & outError);
     static HRESULT  ReplaceShrinkItDisk (const vector<Byte> & originalFileBytes, const vector<Byte> & disk, vector<Byte> & outFileBytes, std::string & outRefusalReason);
-    static void     SaveBlockPayload    (const vector<Byte> & sectors, vector<Byte> & outPayload);
 
     static std::string  DescribeUnwritableTrack (int track);
     static void         CollectSectorWrites     (const vector<Byte> & priorSectors, const vector<Byte> & editedSectors, vector<SectorWrite> & outWrites);

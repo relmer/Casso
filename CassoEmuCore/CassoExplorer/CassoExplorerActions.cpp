@@ -46,12 +46,13 @@ CassoExplorerActions::CassoExplorerActions (CassoExplorerBrowser & browser, IFil
 
 std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
 {
-    std::vector<Verb>       verbs;
-    std::vector<FileEntry>  entries;
-    size_t                  selected = m_browser.GetSelectedRows().size();
-    Location                location = m_browser.GetLocation();
-    bool                    nested   = location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty();
-    bool                    onDisk   = location.kind == Location::Kind::HostFolder || m_browser.AreSelectedRowsSearchFiles();
+    std::vector<Verb>          verbs;
+    std::vector<FileEntry>     entries;
+    std::vector<std::wstring>  imagePaths;
+    size_t                     selected = m_browser.GetSelectedRows().size();
+    Location                   location = m_browser.GetLocation();
+    bool                       nested   = location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty();
+    bool                       onDisk   = location.kind == Location::Kind::HostFolder || m_browser.AreSelectedRowsSearchFiles();
 
 
 
@@ -150,6 +151,15 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         {
             verbs.push_back (Verb::Krunch);
         }
+
+        m_browser.GetSelectedHostPaths (imagePaths);
+
+        if (imagePaths.size() == 1 && ActionsArchive::CanMakeShrinkItDisk (imagePaths[0]))
+        {
+            verbs.push_back (Verb::MakeShrinkItDisk);
+        }
+
+        verbs.push_back (Verb::Test);
     }
 
     AddFilesystemVerbs (verbs);
@@ -196,6 +206,11 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
 
         //  Rename takes the focused item, so any selection offers it.
         verbs.push_back (Verb::Rename);
+
+        if (location.kind == Location::Kind::HostFolder)
+        {
+            verbs.push_back (Verb::MakeArchive);
+        }
 
         //  The share sheet takes files, not folders.
         if (!row.isDirectory)

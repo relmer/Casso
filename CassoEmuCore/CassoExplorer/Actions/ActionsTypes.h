@@ -71,6 +71,12 @@ struct ActionsTypes
         Lock,
         Unlock,
         ConvertTo,
+
+        //  A ShrinkIt archive of the files selected, a ShrinkIt disk of the
+        //  image selected, and an image's or an archive's test.
+        MakeArchive,
+        MakeShrinkItDisk,
+        Test,
     };
 
     //  What a put does with the bytes. ByContent is the rule a left-drag

@@ -100,6 +100,75 @@ void ExplorerCommandManager::ExtractImageFiles (const std::wstring & imagePath)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerCommandManager::MakeArchive
+//
+//  The new archive is selected once the folder is listed again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::MakeArchive (bool shrinkItDisk)
+{
+    std::vector<std::wstring>      hostPaths;
+    std::wstring                   created;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    m_context.browser.GetSelectedHostPaths (hostPaths);
+
+    if (hostPaths.empty() || (shrinkItDisk && hostPaths.size() != 1))
+    {
+        return;
+    }
+
+    outcome = shrinkItDisk ? m_context.actions.MakeShrinkItDisk (hostPaths[0], created) : m_context.actions.MakeArchive (hostPaths, created);
+
+    ReportOutcome (outcome, shrinkItDisk ? L"Make a ShrinkIt disk" : L"Add to ShrinkIt archive");
+    m_context.folderSync.RefreshAfterHostChange();
+
+    if (!created.empty())
+    {
+        m_context.listPane.SelectRowNamed (std::filesystem::path (created).filename().wstring());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerCommandManager::TestImage
+//
+//  What the test found, or that it found nothing, in a message.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::TestImage()
+{
+    std::wstring                   image  = m_context.cassoTarget.GetSelectedImagePath();
+    std::wstring                   report;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    if (image.empty())
+    {
+        return;
+    }
+
+    outcome = m_context.actions.TestImage (image, report);
+
+    m_context.window.ShowMessage (report.empty() ? std::filesystem::path (image).filename().wstring() + L" has no problems." : report,
+                                  SUCCEEDED (outcome.hr) ? MB_ICONINFORMATION : MB_ICONWARNING);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerCommandManager::ExtractAll
 //
 //  The archive's own Extract All: its wizard, for where the files go, then
@@ -1222,6 +1291,15 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::Krunch:
             ReportOutcome (m_context.actions.KrunchImage(), L"Krunch");
             m_context.listPane.FillList();
+            break;
+
+        case CassoExplorerActions::Verb::MakeArchive:
+        case CassoExplorerActions::Verb::MakeShrinkItDisk:
+            MakeArchive (verb == CassoExplorerActions::Verb::MakeShrinkItDisk);
+            break;
+
+        case CassoExplorerActions::Verb::Test:
+            TestImage();
             break;
 
         case CassoExplorerActions::Verb::Refresh:
