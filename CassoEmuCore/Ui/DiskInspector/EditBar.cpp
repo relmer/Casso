@@ -19,6 +19,7 @@ static constexpr int  s_kSaveCopyDip  = 140;
 static constexpr int  s_kUndoDip      = 144;
 static constexpr int  s_kRedoDip      = 140;
 static constexpr int  s_kMinNoteDip   = 120;
+static constexpr int  s_kNoteCharDip  = 7;
 static constexpr int  s_kPauseDip     = 230;
 static constexpr int  s_kCancelDip    = 76;
 static constexpr int  s_kUseBDip      = 120;
@@ -197,22 +198,26 @@ std::wstring EditBar::FormatCount (int bytes, int sectors)
 //
 //  The selected sector's controls from the left, then the count and the
 //  note, and the disk's controls from the right, on a second row when the
-//  first is too full.
+//  first is too full. A note that does not fit beside the controls is
+//  placed below them, across the whole width.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EditBar::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
-    int   inset  = scaler.ToPx (s_kInsetDip);
-    int   gap    = scaler.ToPx (s_kGapDip);
-    int   rowH   = scaler.ToPx (kRowDip);
-    bool  isTwo  = GetRowCount (boundsPx.right - boundsPx.left, scaler) > 1;
-    int   top    = boundsPx.top + inset;
-    int   bottom = boundsPx.top + rowH - inset;
-    int   x      = boundsPx.left;
-    int   r      = boundsPx.right;
-    int   rTop   = isTwo ? top + rowH : top;
-    int   rBot   = isTwo ? bottom + rowH : bottom;
+    int   inset    = scaler.ToPx (s_kInsetDip);
+    int   gap      = scaler.ToPx (s_kGapDip);
+    int   rowH     = scaler.ToPx (kRowDip);
+    int   width    = boundsPx.right - boundsPx.left;
+    int   controls = HasControls (scaler) ? GetControlRowCount (width, scaler) : 0;
+    int   noteRows = GetNoteRowCount (width, scaler);
+    bool  isTwo    = controls > 1;
+    int   top      = boundsPx.top + inset;
+    int   bottom   = boundsPx.top + rowH - inset;
+    int   x        = boundsPx.left;
+    int   r        = boundsPx.right;
+    int   rTop     = isTwo ? top + rowH : top;
+    int   rBot     = isTwo ? bottom + rowH : bottom;
 
 
 
@@ -240,7 +245,15 @@ void EditBar::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 
     m_count->Layout ({ x, top, std::max (x, std::min (r, x + scaler.ToPx (s_kCountDip))), bottom }, scaler);
     x = std::min (r, x + (m_count->GetText().empty() ? 0 : scaler.ToPx (s_kCountDip) + gap));
-    m_note->Layout  ({ x, top, std::max (x, r), bottom }, scaler);
+
+    if (noteRows > 0)
+    {
+        m_note->Layout ({ boundsPx.left, boundsPx.top + controls * rowH + inset, boundsPx.right, boundsPx.top + (controls + noteRows) * rowH - inset }, scaler);
+    }
+    else
+    {
+        m_note->Layout ({ x, top, std::max (x, r), bottom }, scaler);
+    }
 }
 
 
@@ -277,12 +290,83 @@ int EditBar::GetHeightPx (int widthPx, const DxuiDpiScaler & scaler) const
 
 int EditBar::GetRowCount (int widthPx, const DxuiDpiScaler & scaler) const
 {
+    int  controls = HasControls (scaler) ? GetControlRowCount (widthPx, scaler) : 0;
+
+
+
+    return std::max (1, controls + GetNoteRowCount (widthPx, scaler));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditBar::GetControlRowCount
+//
+//  One row when every visible control fits the width, else two, with the
+//  disk's controls on the second.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EditBar::GetControlRowCount (int widthPx, const DxuiDpiScaler & scaler) const
+{
     int  right  = GetGroupWidthPx (false, scaler);
     int  total  = GetGroupWidthPx (true, scaler) + right + scaler.ToPx (m_count->GetText().empty() ? s_kMinNoteDip : s_kCountDip);
 
 
 
     return (right > 0 && total > widthPx) ? 2 : 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditBar::GetNoteRowCount
+//
+//  None when the note fits on the first row beside the controls; otherwise
+//  the rows its text takes across the whole width, from an average
+//  character width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EditBar::GetNoteRowCount (int widthPx, const DxuiDpiScaler & scaler) const
+{
+    int  controls = GetControlRowCount (widthPx, scaler);
+    int  left     = GetGroupWidthPx (true, scaler) + (m_count->GetText().empty() ? 0 : scaler.ToPx (s_kCountDip + s_kGapDip));
+    int  right    = (controls == 1) ? GetGroupWidthPx (false, scaler) : 0;
+    int  noteW    = scaler.ToPx (static_cast<int> (m_note->GetText().size()) * s_kNoteCharDip);
+    int  usable   = std::max (1, widthPx);
+
+
+
+    if (m_note->GetText().empty() || noteW <= widthPx - left - right)
+    {
+        return 0;
+    }
+
+    return (noteW + usable - 1) / usable;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditBar::HasControls
+//
+//  Whether any control or the count is visible, so the controls take a row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EditBar::HasControls (const DxuiDpiScaler & scaler) const
+{
+    return GetGroupWidthPx (true, scaler) + GetGroupWidthPx (false, scaler) > 0 || !m_count->GetText().empty();
 }
 
 
