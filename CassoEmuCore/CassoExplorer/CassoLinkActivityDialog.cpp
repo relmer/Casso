@@ -255,7 +255,7 @@ void CassoLinkActivityPicker::OnDialogTick()
 
     log = (m_list != nullptr && m_getLog) ? m_getLog() : std::vector<CassoLinkConnections::Activity>();
 
-    if (!log.empty() && GetKey (log.back()) != m_newest)
+    if (m_list != nullptr && !log.empty() && GetKey (log.back()) != m_newest)
     {
         while (added < (int) log.size() && GetKey (log[log.size() - 1 - (size_t) added]) != m_newest)
         {
