@@ -716,11 +716,16 @@ bool DebuggerWindow::IsTimelineShimmering() const
 //
 //  DebuggerWindow::PaintTimelineShimmer
 //
+//  Timed by the steady clock, to a fraction of a millisecond: the band moves
+//  about 20 pixels a frame, and with GetTickCount64's 15.6 ms steps some
+//  frames moved it twice as far as others, and some not at all.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::PaintTimelineShimmer (IDxuiPainter & painter)
 {
-    RECT  bar = {};
+    RECT    bar   = {};
+    double  nowMs = std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now().time_since_epoch()).count();
 
 
 
@@ -732,7 +737,7 @@ void DebuggerWindow::PaintTimelineShimmer (IDxuiPainter & painter)
     bar = m_timelineBar->GetBounds();
 
     DxuiAreaShimmer::Paint (painter, (float) bar.left, (float) bar.top, (float) (bar.right - bar.left), (float) (bar.bottom - bar.top),
-                            (double) GetTickCount64(), bar);
+                            nowMs, bar);
 }
 
 
