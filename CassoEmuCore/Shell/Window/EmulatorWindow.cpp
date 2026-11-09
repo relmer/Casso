@@ -10,6 +10,7 @@
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellSerialCard.h"
+#include "Shell/Components/ShellNetworkCard.h"
 #include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
@@ -70,6 +71,7 @@
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 #include "Devices/Disk/WriteProtectChange.h"
+#include "Core/AppTimerIds.h"
 
 
 
@@ -456,6 +458,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_chrome->m_switchBar);
     m_host->GetRoot().Adopt (m_disks->GetChangeBanner());
     m_host->GetRoot().Adopt (m_serialCard->GetBanner());
+    m_host->GetRoot().Adopt (m_networkCard->GetBanner());
     //  The backing goes in FIRST: the root paints its children in the order
     //  they were adopted, so the panel lands under the words rather than over
     //  them.
@@ -676,12 +679,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             {
                 bool  isC = m_machine.GetConfig().systemRom.romBankSize != 0;
 
-                if (m_disks->ShouldShowExternalDrive())
-                {
-                    return isC ? std::wstring (L"Detach &external drive") : std::wstring (L"Detach &drive 2");
-                }
-
-                return isC ? std::wstring (L"Attach &external drive") : std::wstring (L"Attach &drive 2");
+                return EmulatorCommands::GetDrive2Label (isC, m_disks->ShouldShowExternalDrive());
             }
 
             case IDM_STORAGE_RECORDER:
@@ -1717,20 +1715,20 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 
 
 
-    if (timerId == ShellUpdater::kSharedCheckTimerId)
+    if (timerId == (UINT_PTR) AppTimerId::ShellSharedCheck)
     {
         m_updater->PollSharedCheckRecord();
         return DxuiMessageResult::Handled;
     }
 
-    if (timerId != ShellSettings::kPrefsSaveTimerId)
+    if (timerId != (UINT_PTR) AppTimerId::ShellPrefsSave)
     {
         return DxuiMessageResult::NotHandled;
     }
 
     if (m_hwnd != nullptr && m_host != nullptr)
     {
-        hr = m_host->KillTimer (ShellSettings::kPrefsSaveTimerId);
+        hr = m_host->KillTimer ((UINT_PTR) AppTimerId::ShellPrefsSave);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
@@ -2049,6 +2047,21 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
+    // An answer for a tool that asked, known on another thread or inside the
+    // tool's own send.
+    if (msg == (UINT) AppMessage::ShellIntentReply)
+    {
+        ShellDisks::IntentReplyPost *  carried = reinterpret_cast<ShellDisks::IntentReplyPost *> (lParam);
+
+        if (carried != nullptr)
+        {
+            m_disks->SendIntentReply (carried->target, carried->reply);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
     // A piece of update work finished on the update service's thread.
     if (msg == (UINT) AppMessage::ShellUpdateResult)
     {
@@ -2114,12 +2127,14 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
 {
     const COPYDATASTRUCT *       carried    = reinterpret_cast<const COPYDATASTRUCT *> (data);
+    HWND                         replyTo    = reinterpret_cast<HWND> (sender);
     bool                         wellFormed = false;
     Win32IntentChannel::Payload  payload;
+    Win32IntentChannel::Reply    reply;
+    std::wstring                 widePath;
+    HRESULT                      hr         = S_OK;
 
 
-
-    UNREFERENCED_PARAMETER (sender);
 
     if (carried == nullptr || carried->dwData != Win32IntentChannel::GetMessageId())
     {
@@ -2131,9 +2146,44 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
 
     //  A malformed payload is claimed rather than passed on: it carried our own
     //  id, so it was meant for us and simply was not readable.
-    if (wellFormed)
+    if (!wellFormed)
     {
-        m_machine.GetDiskStore().NoteExternalChange (payload.imagePath, payload.intent);
+        return DxuiMessageResult::Handled;
+    }
+
+    switch (payload.intent)
+    {
+        case ExternalChangeIntent::InsertDisk:
+            //  Through the drive widget's own mount, so an occupied drive is
+            //  flushed and ejected before the new disk goes in. The answer
+            //  waits for the mount to finish on the CPU thread.
+            widePath = fs::path (std::u8string (payload.imagePath.begin(), payload.imagePath.end())).wstring();
+
+            m_disks->GetIntentReplies().NoteInsert (payload.drive - 1, fs::path (widePath).string(), replyTo);
+            hr = m_disks->Mount (6, payload.drive - 1, widePath);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            break;
+
+        case ExternalChangeIntent::DescribeMachine:
+            reply.kind       = Win32IntentChannel::ReplyKind::MachineDescription;
+            reply.driveCount = m_machine.GetConfig().AttachedDiskIiDriveCount();
+            reply.text       = m_machine.GetConfig().name;
+
+            //  Answered after this handler returns: the sender is still inside
+            //  its own send, and a send back to it now would wait on itself.
+            m_disks->PostIntentReply (replyTo, reply);
+            break;
+
+        default:
+            //  A tool that passed its window wants to hear what came of the
+            //  change; one that did not is the command line, and hears nothing.
+            if (replyTo != nullptr)
+            {
+                m_disks->GetIntentReplies().NoteReload (payload.imagePath, replyTo);
+            }
+
+            m_machine.GetDiskStore().NoteExternalChange (payload.imagePath, payload.intent, replyTo != nullptr);
+            break;
     }
 
     return DxuiMessageResult::Handled;

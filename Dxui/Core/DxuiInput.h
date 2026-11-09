@@ -36,6 +36,8 @@ enum class DxuiMouseButton
     Left    = 1,
     Middle  = 2,
     Right   = 3,
+    X1      = 4,   // a five-button mouse's back button
+    X2      = 5,   // and its forward button
 };
 
 
@@ -66,13 +68,13 @@ public:
     DxuiInput  () = default;
     ~DxuiInput() = default;
 
-    bool                   Translate          (UINT msg, WPARAM wParam, LPARAM lParam, DxuiEvent & outEvent);
-    void                   PushEvent          (const DxuiEvent & ev);
-    bool                   PopEvent           (DxuiEvent & outEvent);
-    const DxuiModifierState & GetModifiers         () const { return m_mods; }
-    int                    GetMouseX () const { return m_mouseX; }
-    int                    GetMouseY () const { return m_mouseY; }
-    void                   Clear     ();
+    bool                       Translate    (UINT msg, WPARAM wParam, LPARAM lParam, DxuiEvent & outEvent);
+    void                       PushEvent    (const DxuiEvent & ev);
+    bool                       PopEvent     (DxuiEvent & outEvent);
+    const DxuiModifierState  & GetModifiers () const { return m_mods; }
+    int                        GetMouseX    () const { return m_mouseX; }
+    int                        GetMouseY    () const { return m_mouseY; }
+    void                       Clear        ();
 
 private:
     void                   RefreshModifiers   ();

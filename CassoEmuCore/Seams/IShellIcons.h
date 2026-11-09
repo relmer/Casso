@@ -1,0 +1,74 @@
+#pragma once
+
+#include "Pch.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IShellIcons
+//
+//  The icons Windows displays for files, folders and drives, as pixels.
+//
+//  A SEAM BECAUSE A TEST MAY NOT CALL THE SHELL. Which icon a tree node or a
+//  list row gets, the icon for its path or a generic one when there is no host
+//  path, is decided by the caller and tested against a fake that records the
+//  requests.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IShellIcons
+{
+public:
+    //  Icons for things with no path of their own: an entry inside a disk
+    //  image, the This PC root, the emulator the browser belongs to, and a
+    //  disk image, which has Casso's floppy wherever it shows. An
+    //  entry of a known Apple file type has its type's icon: text, Applesoft,
+    //  Integer BASIC, binary, system or relocatable.
+    enum class Kind
+    {
+        ThisPc, Folder, File, Casso, RecycleBin, DiskImage, AppleMachine, AppleMachineOffline,
+        AppleText, AppleApplesoft, AppleInteger, AppleBinary, AppleSystem, AppleRelocatable,
+        Search,
+    };
+
+    virtual ~IShellIcons () = default;
+
+    //  The icon Explorer displays for a real file, folder or drive.
+    //
+    //  `isDirectory` is told rather than looked up: an implementation caching
+    //  ordinary files by extension needs to know only whether this one is a
+    //  directory, and every caller already holds that. Asking the file system
+    //  instead costs a call for each row of a listing.
+    virtual std::shared_ptr<const DxuiIconImage>  GetForPath         (const std::wstring & path, bool isDirectory) = 0;
+    virtual std::shared_ptr<const DxuiIconImage>  GetForKind         (Kind kind) = 0;
+    virtual std::shared_ptr<const DxuiIconImage>  GetForExtension    (const std::wstring & extension) { (void) extension; return nullptr; }
+    virtual std::shared_ptr<const DxuiIconImage>  GetForIconResource (const std::wstring & resource)  { (void) resource; return nullptr; }
+    virtual void                                  SetSizePx          (int sizePx)                     { (void) sizePx; }
+    virtual std::shared_ptr<const DxuiIconImage>  GetLinkBadge       () { return nullptr; }
+
+    //  The icon as Explorer's navigation pane draws it: without the overlays
+    //  its file list draws, such as a cloud folder's sync state. The path's
+    //  own icon, the default, for an implementation with no overlays.
+    virtual std::shared_ptr<const DxuiIconImage>  GetForTreePath (const std::wstring & path, bool isDirectory) { return GetForPath (path, isDirectory); }
+
+    //  The type Explorer's Type column shows for a real file or folder, such
+    //  as "Text Document" or "File folder". Empty, the default, when the
+    //  implementation has no type name for it, and the caller keeps its own.
+    virtual std::wstring  GetTypeName (const std::wstring & path, bool isDirectory) { (void) path; (void) isDirectory; return std::wstring(); }
+
+    //  What Explorer shows for a drive: its name, as "Local Disk (C:)", its
+    //  type, and its free and total bytes.
+    struct DriveInfo
+    {
+        std::wstring  name;
+        std::wstring  typeName;
+        uint64_t      freeBytes  = 0;
+        uint64_t      totalBytes = 0;
+    };
+
+    //  False, the default, when the implementation has no drive information.
+    virtual bool  GetDriveInfo (const std::wstring & root, DriveInfo & outInfo) { (void) root; (void) outInfo; return false; }
+};

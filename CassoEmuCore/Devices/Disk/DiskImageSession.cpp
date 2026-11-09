@@ -41,6 +41,220 @@ static constexpr const char *  s_kppszMetaHighlights[][2] =
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskImageSession::SplitMetaValues
+//
+//  The WOZ spec separates a field's values with |; each goes on a line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::SplitMetaValues (std::string value)
+{
+    std::replace (value.begin(), value.end(), '|', '\n');
+
+    return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageSession::DescribeImageDate
+//
+//  The WOZ spec's UTC date, as 2022-05-26T20:50:59.621Z, in the local time
+//  zone and the user's date and time formats with the zone's name, then the
+//  file's text, in parentheses. A date in any other form is returned unchanged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::DescribeImageDate (const std::string & value)
+{
+    SYSTEMTIME             utc     = {};
+    SYSTEMTIME             local   = {};
+    TIME_ZONE_INFORMATION  zone    = {};
+    int                    year    = 0;
+    int                    month   = 0;
+    int                    day     = 0;
+    int                    hour    = 0;
+    int                    minute  = 0;
+    int                    second  = 0;
+    int                    fields  = sscanf_s (value.c_str(), "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute, &second);
+    BOOL          hasZone  = FALSE;
+    BOOL          hasTime  = FALSE;
+    FILETIME      utcFile  = {};
+    FILETIME      locFile  = {};
+    int64_t       offset   = 0;
+    wchar_t       date[80] = {};
+    wchar_t       time[80] = {};
+    bool          daylight = false;
+    std::wstring  when;
+
+
+
+    if (fields != 6 || value.empty() || value.back() != 'Z')
+    {
+        return value;
+    }
+
+    utc.wYear   = (WORD) year;
+    utc.wMonth  = (WORD) month;
+    utc.wDay    = (WORD) day;
+    utc.wHour   = (WORD) hour;
+    utc.wMinute = (WORD) minute;
+    utc.wSecond = (WORD) second;
+
+    hasZone = GetTimeZoneInformationForYear ((USHORT) year, nullptr, &zone);
+    hasTime = SystemTimeToTzSpecificLocalTime (&zone, &utc, &local);
+
+    if (!hasZone || !hasTime || !SystemTimeToFileTime (&utc, &utcFile) || !SystemTimeToFileTime (&local, &locFile))
+    {
+        return value;
+    }
+
+    //  Whichever of the zone's two names has the offset this date is at.
+    offset   = ((int64_t) ULARGE_INTEGER { utcFile.dwLowDateTime, utcFile.dwHighDateTime }.QuadPart - (int64_t) ULARGE_INTEGER { locFile.dwLowDateTime, locFile.dwHighDateTime }.QuadPart) / 600000000;
+    daylight = zone.DaylightDate.wMonth != 0 && offset == (int64_t) zone.Bias + zone.DaylightBias;
+
+    if (GetDateFormatEx (LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &local, nullptr, date, (int) std::size (date), nullptr) == 0
+        || GetTimeFormatEx (LOCALE_NAME_USER_DEFAULT, 0, &local, nullptr, time, (int) std::size (time)) == 0)
+    {
+        return value;
+    }
+
+    //  The user's format may have a narrow no-break space before AM or PM,
+    //  which this text's code page lacks.
+    when = std::wstring (date) + L" " + time;
+    std::replace (when.begin(), when.end(), L'\x202F', L' ');
+
+    return TextEncoding::WideToNarrow (when) + " " + GetZoneName (zone, daylight) + "\n(" + value + ")";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageSession::GetZoneName
+//
+//  Windows has only a zone's full name; ICU, part of Windows since 1903, has
+//  the short one for the user's locale. Where the locale has no short name,
+//  ICU returns an offset, as GMT+2.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::GetZoneName (const TIME_ZONE_INFORMATION & zone, bool daylight)
+{
+    using OpenFn    = void * (__cdecl *) (const wchar_t *, int32_t, const char *, int, int *);
+    using CloseFn   = void   (__cdecl *) (void *);
+    using DisplayFn = int32_t (__cdecl *) (const void *, int, const char *, wchar_t *, int32_t, int *);
+
+    static constexpr int  s_kShortStandard = 1;
+    static constexpr int  s_kShortDaylight = 3;
+
+    HMODULE    icu        = LoadLibraryExW (L"icu.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    OpenFn     open       = (icu != nullptr) ? (OpenFn)    GetProcAddress (icu, "ucal_open")                    : nullptr;
+    CloseFn    close      = (icu != nullptr) ? (CloseFn)   GetProcAddress (icu, "ucal_close")                   : nullptr;
+    DisplayFn  display    = (icu != nullptr) ? (DisplayFn) GetProcAddress (icu, "ucal_getTimeZoneDisplayName")  : nullptr;
+    void     * calendar   = nullptr;
+    int        status     = 0;
+    int32_t    length     = 0;
+    wchar_t    name[64]   = {};
+
+
+
+    if (open != nullptr && close != nullptr && display != nullptr)
+    {
+        calendar = open (nullptr, 0, nullptr, 0, &status);
+
+        if (status <= 0 && calendar != nullptr)
+        {
+            length = display (calendar, daylight ? s_kShortDaylight : s_kShortStandard, nullptr, name, (int32_t) std::size (name), &status);
+        }
+
+        if (calendar != nullptr)
+        {
+            close (calendar);
+        }
+    }
+
+    if (icu != nullptr)
+    {
+        FreeLibrary (icu);
+    }
+
+    return TextEncoding::WideToNarrow ((status <= 0 && length > 0) ? std::wstring (name, (size_t) length)
+                                                                  : std::wstring (daylight ? zone.DaylightName : zone.StandardName));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageSession::DescribeMachines
+//
+//  The WOZ spec's requires_machine codes, separated by |, as the machines'
+//  names, one a line. A code the spec doesn't define is kept as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::DescribeMachines (const std::string & codes)
+{
+    static constexpr const char *  s_kppszMachines[][2] =
+    {
+        { "2",   "Apple ]["            },
+        { "2+",  "Apple ][+"           },
+        { "2e",  "Apple //e"           },
+        { "2c",  "Apple //c"           },
+        { "2e+", "Enhanced Apple //e"  },
+        { "2gs", "Apple IIgs"          },
+        { "2c+", "Apple //c Plus"      },
+        { "3",   "Apple ///"           },
+        { "3+",  "Apple /// Plus"      },
+    };
+    std::string  text;
+    std::string  code;
+    size_t       start = 0;
+    size_t       bar   = 0;
+
+
+
+    while (start <= codes.size())
+    {
+        bar   = codes.find ('|', start);
+        bar   = (bar == std::string::npos) ? codes.size() : bar;
+        code  = codes.substr (start, bar - start);
+        start = bar + 1;
+
+        if (code.empty())
+        {
+            continue;
+        }
+
+        for (const auto & machine : s_kppszMachines)
+        {
+            if (code == machine[0])
+            {
+                code = machine[1];
+                break;
+            }
+        }
+
+        text += (text.empty() ? "" : "\n") + code;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskImageSession::FormatDetailLine
 //
 //  A value nobody recorded produces NOTHING, rather than a label followed by
@@ -69,10 +283,39 @@ std::string DiskImageSession::FormatDetailLine (const char * label, const std::s
         text += " ";
     }
 
-    text += value + "\n";
+    //  A label that fills the column still gets a gap before its value.
+    if (text.size() > kLabelColumn || text.back() != ' ')
+    {
+        text += "  ";
+    }
+
+    //  A value of several lines has each line after the first under the
+    //  first, in the value column.
+    for (size_t at = 0, next = 0; at <= value.size(); at = next + 1)
+    {
+        next = value.find ('\n', at);
+        next = (next == std::string::npos) ? value.size() : next;
+
+        text += (at > 0 ? std::string (kLabelColumn, ' ') : std::string()) + value.substr (at, next - at) + "\n";
+    }
 
 Error:
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageSession::FormatDetailHeading
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::FormatDetailHeading (const char * heading)
+{
+    return std::string (heading) + ":\n";
 }
 
 
@@ -107,6 +350,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
     std::string             text;
     std::string             media;
     char                    note[160] = {};
+    bool                    customs   = false;
 
 
 
@@ -114,19 +358,21 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
 
     BAIL_OUT_IF (!woz.isWoz, S_OK);
 
-    snprintf (note, sizeof (note), "WOZ %d bit-stream image, INFO version %d",
+    snprintf (note, sizeof (note), "WOZ %d, INFO chunk version %d",
               woz.wozVersion, woz.infoVersion);
 
+    text += FormatDetailHeading ("WOZ info");
     text += FormatDetailLine ("format",  note);
     text += FormatDetailLine ("creator", woz.creator);
 
-    media = (woz.diskType == WozLoader::kDiskType525) ? "5.25-inch disk"
-          : (woz.diskType == WozLoader::kDiskType35)  ? "3.5-inch disk"
-                                                      : "disk of an unrecorded size";
+    media = (woz.diskType == WozLoader::kDiskType525) ? "5.25-inch"
+          : (woz.diskType == WozLoader::kDiskType35)  ? "3.5-inch"
+                                                      : "size not recorded";
 
-    if (woz.writeProtected) { media += ", write-protected"; }
-    if (woz.synchronized)   { media += ", tracks synchronized to each other"; }
-    if (woz.cleaned)        { media += ", cleaned of drive noise"; }
+    //  One fact a line, each under the one before.
+    if (woz.writeProtected) { media += "\nwrite-protected"; }
+    if (woz.synchronized)   { media += "\ntracks synchronized"; }
+    if (woz.cleaned)        { media += "\ndrive noise cleaned"; }
 
     text += FormatDetailLine ("media", media);
 
@@ -135,18 +381,16 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
         const char *  boot =
             (woz.bootSectorFormat == WozLoader::kBootSector16)   ? "16-sector"
           : (woz.bootSectorFormat == WozLoader::kBootSector13)   ? "13-sector"
-          : (woz.bootSectorFormat == WozLoader::kBootSectorBoth) ? "both 13- and 16-sector"
+          : (woz.bootSectorFormat == WozLoader::kBootSectorBoth) ? "13- and 16-sector"
                                                                  : "not recorded";
 
         text += FormatDetailLine ("boots as", boot);
     }
 
-    snprintf (note, sizeof (note),
-              "%d track positions carry data, reached at %d of the 160 quarter-track "
-              "stops the head can make",
-              woz.trackSlotsWithData, woz.quarterTracksWithData);
-
-    text += FormatDetailLine ("surface", note);
+    if (!woz.meta.empty())
+    {
+        text += FormatDetailHeading (kMetaHeading);
+    }
 
     // The named fields first, then whatever else the image chose to record.
     for (const auto & highlight : s_kppszMetaHighlights)
@@ -155,7 +399,9 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
         {
             if (field.key == highlight[0])
             {
-                text += FormatDetailLine (highlight[1], TextEncoding::Utf8ToNarrow (field.value));
+                std::string  value = TextEncoding::Utf8ToNarrow (field.value);
+
+                text += FormatDetailLine (highlight[1], (field.key == "requires_machine") ? DescribeMachines (value) : SplitMetaValues (value));
                 break;
             }
         }
@@ -174,7 +420,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
             }
         }
 
-        if (!highlighted)
+        if (!highlighted && WozLoader::IsStandardMetaKey (field.key))
         {
             std::string  label = field.key;
 
@@ -183,9 +429,42 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
                 c = (c == '_') ? ' ' : c;
             }
 
-            text += FormatDetailLine (label.c_str(), TextEncoding::Utf8ToNarrow (field.value));
+            std::string  value = TextEncoding::Utf8ToNarrow (field.value);
+
+            text += FormatDetailLine (label.c_str(), (field.key == "image_date") ? DescribeImageDate (value) : SplitMetaValues (value));
         }
     }
+
+    //  The keys the WOZ reference doesn't define, as the image has them.
+    for (const WozLoader::MetaField & field : woz.meta)
+    {
+        if (!WozLoader::IsStandardMetaKey (field.key))
+        {
+            text += customs ? std::string() : FormatDetailHeading (kCustomHeading);
+            text += FormatDetailLine (field.key.c_str(), TextEncoding::Utf8ToNarrow (field.value));
+            customs = true;
+        }
+    }
+
+    text += FormatDetailHeading ("Casso analysis");
+
+    snprintf (note, sizeof (note),
+              "%d tracks of bits, on %d of the 160 quarter-track positions",
+              woz.trackSlotsWithData, woz.quarterTracksWithData);
+
+    text += FormatDetailLine ("surface", note);
+
+    //  Flux timing came with WOZ 2.1; an earlier image stores bits alone.
+    if (woz.fluxSlotsWithData > 0)
+    {
+        snprintf (note, sizeof (note), "%d %s stored as flux timing", woz.fluxSlotsWithData, (woz.fluxSlotsWithData == 1) ? "track" : "tracks");
+    }
+    else
+    {
+        snprintf (note, sizeof (note), "%s", (woz.wozVersion < 2) ? "none, as WOZ 1 has no flux tracks" : "none");
+    }
+
+    text += FormatDetailLine ("flux", note);
 
 Error:
     return text;
@@ -217,19 +496,24 @@ Error:
 
 std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
 {
-    int          complete    = 0;
-    int          partial     = 0;
-    int          unformatted = 0;
-    int          trackCount  = opened.report.GetTrackCount();
-    int          track       = 0;
-    size_t       i           = 0;
-    bool         bitStream   = trackCount > 0;
-    bool         trackZeroOk = true;
-    bool         bootCode    = false;
-    std::string  text;
-    char         note[512]   = {};
+    int                     complete     = 0;
+    int                     partial      = 0;
+    int                     unformatted  = 0;
+    int                     empty        = 0;
+    int                     partialTrack = 0;
+    int                     trackCount   = opened.report.GetTrackCount();
+    int                     track        = 0;
+    size_t                  i            = 0;
+    bool                    bitStream    = trackCount > 0;
+    bool                    trackZeroOk  = true;
+    bool                    bootCode     = false;
+    std::string             text;
+    char                    note[512]    = {};
+    WozLoader::Description  woz;
 
 
+
+    WozLoader::Describe (opened.fileBytes, woz);
 
     // Geometry belongs to a SECTOR-ORDER file and to nothing else. Printing it
     // for a bit-stream image would describe the buffer this tool decoded into
@@ -237,11 +521,10 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
     // that is an actively misleading thing to say.
     if (!bitStream)
     {
-        snprintf (note, sizeof (note), "%d tracks x %d sectors x %d bytes = %d bytes",
+        snprintf (note, sizeof (note), "%d tracks, %d sectors, %d bytes per sector",
                   NibblizationLayer::kTrackCount,
                   NibblizationLayer::kSectorsPerTrack,
-                  NibblizationLayer::kSectorByteSize,
-                  NibblizationLayer::kImageByteSize);
+                  NibblizationLayer::kSectorByteSize);
 
         text += FormatDetailLine ("geometry", note);
     }
@@ -251,9 +534,17 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
         switch (opened.report.GetOutcome (track))
         {
             case TrackDecodeOutcome::Complete:    complete++;    break;
-            case TrackDecodeOutcome::Partial:     partial++;     break;
+            case TrackDecodeOutcome::Partial:     partial++;     partialTrack = track; break;
             case TrackDecodeOutcome::Unformatted: unformatted++; break;
             default:                                             break;
+        }
+
+        //  A whole track with no track on it has nothing to decode.
+        if (opened.report.GetOutcome (track) == TrackDecodeOutcome::Unformatted
+            && (size_t) track < woz.wholeTrackHasData.size() && !woz.wholeTrackHasData[(size_t) track])
+        {
+            unformatted--;
+            empty++;
         }
     }
 
@@ -266,27 +557,64 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
         // not read, or may be damaged, and nothing available here separates the
         // three. What IS worth saying is that the first of those is ordinary,
         // so a reader does not conclude their disk is broken.
-        snprintf (note, sizeof (note),
-                  "of %d tracks, %d read as standard 16-sector data, %d only partly,\n"
-                  "                and %d had no standard address fields at all%s",
-                  trackCount, complete, partial, unformatted,
-                  complete == 0 ? ".\n                A disk that boots and runs can still"
-                                  " read this way: most\n                protected software"
-                                  " wrote a track format of its own"
-                                : "");
+        //  A count of zero goes unsaid. A partial track has sectors, but some
+        //  are missing or appear twice; an unformatted one has none at all.
+        std::string  decoded;
 
-        text += FormatDetailLine ("decoded", note);
+        snprintf (note, sizeof (note), "%d of %d whole tracks have all 16 standard sectors", complete, trackCount);
+        decoded = note;
+
+        //  One count a line, each under the one before.
+        if (partial > 0)
+        {
+            if (partial == 1)
+            {
+                snprintf (note, sizeof (note), "\nTrack %d has only %d of its 16 sectors", partialTrack, std::popcount (opened.report.GetCoverage (partialTrack)));
+            }
+            else
+            {
+                snprintf (note, sizeof (note), "\n%d tracks have only some of their 16 sectors", partial);
+            }
+
+            decoded += note;
+        }
+
+        if (unformatted > 0)
+        {
+            snprintf (note, sizeof (note), "\n%d %s no sectors at all",
+                      unformatted, (unformatted == 1) ? "track has" : "tracks have");
+            decoded += note;
+        }
+
+        if (empty > 0)
+        {
+            snprintf (note, sizeof (note), "\n%d whole-track %s empty", empty, (empty == 1) ? "position is" : "positions are");
+            decoded += note;
+        }
+
+        text += FormatDetailLine ("decoded", decoded);
+
+        //  Tracks between the whole ones are evidence of copy protection;
+        //  with none, an undecoded disk is only a possibility of it.
+        if (woz.slotsOffWholeTracks > 0)
+        {
+            snprintf (note, sizeof (note), "%d quarter-track %s data, a common copy protection",
+                      woz.positionsOffWholeTracks, (woz.positionsOffWholeTracks == 1) ? "position contains" : "positions contain");
+            text += FormatDetailLine ("note", note);
+        }
+        else if (complete == 0)
+        {
+            text += FormatDetailLine ("note", "copy-protected disks often use their own track format");
+        }
     }
 
     // ZEROS IN THE BUFFER MEAN TWO DIFFERENT THINGS and only one of them is
     // "blank". A track that decoded cleanly and holds zeros really is empty; a
     // track that never decoded reads back as zeros too, and calling that one
     // blank would tell somebody their bootable disk does not boot.
-    if (!trackZeroOk)
+    if (!trackZeroOk && !opened.report.IsSectorRecovered (0, 0))
     {
-        text += FormatDetailLine ("boot sector",
-            "track 0 did not decode as standard sectors, so what it holds\n"
-            "                cannot be judged from here");
+        text += FormatDetailLine ("boot sector", "track 0 doesn't have a standard sector 0, so its contents are unknown");
     }
     else
     {
@@ -300,12 +628,8 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
         }
 
         text += FormatDetailLine ("boot sector",
-                            bootCode
-                                ? "track 0 sector 0 holds a boot program. The drive's ROM\n"
-                                  "                loads that sector and runs it, so this image"
-                                  " boots.\n                Its files are in a layout this tool"
-                                  " does not read"
-                                : "track 0 sector 0 is blank, so nothing here would boot");
+                                  bootCode ? "this disk is bootable (sector 0 contains boot code)"
+                                           : "this disk is not bootable (sector 0 is blank)");
     }
 
     return text;
@@ -393,6 +717,11 @@ HRESULT DiskImageSession::OpenImage (
     CHRF (hr, result.Fail (imagePath, "", diagnosis.Describe()));
 
     outOpened.kind = VolumeImage::DetectFilesystem (outOpened.sectors);
+
+    if (outOpened.kind == VolumeKind::Unknown)
+    {
+        outOpened.kind = m_chosenKind;
+    }
 
     // THE STATUS AND THE STREAM BOTH STAY WHAT THEY WERE. A caller still
     // got no catalog, so this is still status 2 and still goes to the error
@@ -582,9 +911,10 @@ HRESULT DiskImageSession::CommitImage (
     const vector<Byte>  & newImageBytes,
     DiskCommandResult   & result)
 {
-    HRESULT               hr       = S_OK;
-    bool                  held     = false;
-    bool                  stale    = false;
+    HRESULT               hr           = S_OK;
+    bool                  held         = false;
+    bool                  stale        = false;
+    bool                  protectedWoz = false;
     CommitPlan::Progress  progress;
     FileStamp             observed;
 
@@ -599,6 +929,13 @@ HRESULT DiskImageSession::CommitImage (
     held = m_fileIo.IsHeldByAnotherProcess (opened.imagePath);
     CBRFEx (!held, HRESULT_FROM_WIN32 (ERROR_SHARING_VIOLATION),
             RefuseCommit (opened.imagePath, kInUseRefusalText, result));
+
+    //  A WOZ marked write-protected is one the emulated drive won't write
+    //  either.
+    protectedWoz = !opened.isNew && WozLoader::IsWriteProtectFlagSet (opened.fileBytes);
+
+    CBRFEx (!protectedWoz, HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT),
+            RefuseCommit (opened.imagePath, "is write-protected by the flag in its WOZ file, so nothing was written", result));
 
     progress.furthestAttempted = CommitPlan::Step::Reverify;
 

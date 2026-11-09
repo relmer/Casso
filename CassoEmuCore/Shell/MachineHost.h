@@ -9,6 +9,7 @@
 #include "Core/MemoryBus.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/IAciaEndpoint.h"
+#include "Devices/Printer/PrinterByteRing.h"
 #include "Devices/Tape/TapeDeck.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
@@ -16,7 +17,11 @@
 #include "Video/VideoOutput.h"
 
 
+class Acia6551;
+class AciaBridgeEndpoint;
+class AciaPrinterEndpoint;
 class Apple2cRomBank;
+class IByteStream;
 class Apple2eMmu;
 class AppleMouse;
 class SiriusJoyport;
@@ -161,10 +166,53 @@ public:
     const std::vector<std::unique_ptr<IAciaEndpoint>>  &  GetOwnedAciaEndpoints () const noexcept { return m_ownedAciaEndpoints; }
     const std::vector<std::unique_ptr<VideoOutput>>    &  GetVideoModes         () const noexcept { return m_videoModes; }
 
+    //  The serial ports, by number: a //c's built-in ports 1 and 2, or a
+    //  Super Serial Card's slot. A stream attached to one replaces the port's
+    //  endpoint with a bridge that runs at the line's speed, ticked after
+    //  every instruction.
+    //
+    //  ConnectSerialPort plugs a port's device in while the machine runs, as
+    //  a cable is: the old device's stream is closed first, so a TCP port can
+    //  be opened again at once. A //c's port loops back when the new device
+    //  is empty or cannot be opened; a card's connector is then empty. A
+    //  card's connector also takes a loopback plug and the two file
+    //  attachments, whose file is `path`.
+    //  The ImageWriter II is attached to one connector at a time, so it
+    //  fails with ERROR_BUSY on a port while another connector has it.
+    //  Called on the CPU thread.
+    void     SetSerialPort      (int port, Acia6551 * acia, bool onCard = false);
+    HRESULT  ConnectSerialPort  (int port, const std::string & device, class IByteStreamFactory * factory, class SerialTrafficLog * log,
+                                 const std::string & path = std::string());
+
+    //  The text a card reports for a connector ConnectSerialPort could not
+    //  attach `device` to.
+    static std::string  DescribeAttachmentFailure (const std::string & device, const std::string & path);
+
+    //  The serial port whose connector listens on `tcpPort`, 0 for none, and
+    //  whether a port is a Super Serial Card's. Called on the CPU thread.
+    int   GetSerialPortOnTcp (uint16_t tcpPort) const;
+    bool  IsSerialPortOnCard (int port) const;
+
+    //  The parallel card in each slot, and the ImageWriter II attached to the
+    //  card in `slot` or taken off it while the machine runs. Attaching fails
+    //  with ERROR_BUSY while another connector has the printer. Called on the
+    //  CPU thread.
+    void     SetParallelCard        (int slot, class PrinterCard * card);
+    HRESULT  ConnectParallelPrinter (int slot, bool attached);
+    HRESULT  AttachSerialStream     (int port, std::shared_ptr<IByteStream> stream, AciaBridgeEndpoint ** outBridge = nullptr);
+    void     DetachSerialPorts      ();
+
+    //  Where a file for each port connected to TCP is written for Casso Explorer:
+    //  written when the port connects, deleted when it is connected
+    //  elsewhere or detached. With null, no file is written.
+    void  SetRunningRegistry  (class RunningCassoRegistry * registry) { m_runningRegistry = registry; }
+    void  WithdrawSerialPorts ();
+
     CharacterRomData  &  GetCharacterRom () noexcept { return *m_charRom; }
     DiskImageStore    &  GetDiskStore    () noexcept { return *m_diskStore; }
     MachineConfig     &  GetConfig       () noexcept { return *m_config; }
     TapeDeck          &  GetTapeDeck     () noexcept { return *m_tapeDeck; }
+    PrinterByteRing   &  GetPrinterRing  () noexcept { return *m_printerRing; }
 
     const CharacterRomData  &  GetCharacterRom () const noexcept { return *m_charRom; }
     const DiskImageStore    &  GetDiskStore    () const noexcept { return *m_diskStore; }
@@ -256,6 +304,16 @@ private:
     //  monitor's random seed.
     void  ApplyPowerOnOverrides();
 
+    //  Puts `endpoint` on the port in place of whatever was there, closing
+    //  the old bridge's stream. `bridge` is the endpoint when it is one.
+    void  InstallSerialEndpoint (int port, std::unique_ptr<IAciaEndpoint> endpoint, AciaBridgeEndpoint * bridge);
+
+    //  The two kinds of device ConnectSerialPort opens: the ImageWriter II,
+    //  and a stream to a TCP or COM port.
+    HRESULT  AttachSerialPrinter (int port);
+    HRESULT  AttachCardEndpoint  (int port, const std::string & device, const std::string & path);
+    HRESULT  OpenSerialStream    (int port, const struct SerialPortDevice & device, class IByteStreamFactory * factory, class SerialTrafficLog * log);
+
     // 4K of page tables; on the heap, see m_diskStore.
     std::unique_ptr<MemoryBus>  m_memoryBus;
 
@@ -268,6 +326,23 @@ private:
     std::vector<std::unique_ptr<MemoryDevice>>   m_ownedDevices;
     std::vector<std::unique_ptr<IAciaEndpoint>>  m_ownedAciaEndpoints;
     std::vector<std::unique_ptr<VideoOutput>>    m_videoModes;
+
+    static constexpr int                 s_kSerialPortCount = 7;
+    std::array<Acia6551 *, s_kSerialPortCount + 1>                        m_serialPorts     = {};
+    std::array<std::unique_ptr<IAciaEndpoint>, s_kSerialPortCount + 1>   m_serialEndpoints;
+    std::array<AciaBridgeEndpoint *, s_kSerialPortCount + 1>              m_serialBridges   = {};
+    std::array<bool, s_kSerialPortCount + 1>                              m_serialOnCard    = {};
+    std::array<uint16_t, s_kSerialPortCount + 1>                          m_serialTcpPorts  = {};   // each connector's TCP port, 0 for none
+
+    //  The serial port the ImageWriter II is attached to, or 0, and its
+    //  endpoint, ticked with the bridges.
+    int                                  m_printerPort     = 0;
+    AciaPrinterEndpoint                * m_printerEndpoint = nullptr;
+
+    //  The parallel cards by slot, and the slot whose card has the printer,
+    //  or 0.
+    std::array<class PrinterCard *, s_kSerialPortCount + 1>               m_parallelCards   = {};
+    int                                  m_printerSlot     = 0;
 
     // 4K of glyphs; on the heap, see m_diskStore.
     std::unique_ptr<CharacterRomData>  m_charRom;
@@ -296,6 +371,14 @@ private:
     std::unique_ptr<TapeDeck>        m_tapeDeck;
     std::atomic<uint32_t>            m_tapeResetCount { 0 };
 
+    // The ImageWriter II's input, fed by whichever connector it is attached
+    // to. The host's, not a device's: the printer's drain thread reads it,
+    // so it outlives every rebuild and every change of connector. 64 KB, so
+    // on the heap.
+    std::unique_ptr<PrinterByteRing>  m_printerRing;
+
     std::wstring  m_currentMachineName;
     std::wstring  m_assetBaseDir;
+
+    class RunningCassoRegistry  * m_runningRegistry = nullptr;
 };

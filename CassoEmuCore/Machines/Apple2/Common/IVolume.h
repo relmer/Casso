@@ -42,8 +42,51 @@ public:
     //  catalog is still worth having.
     virtual HRESULT  Enumerate (VolumeListing & outListing) const = 0;
 
+    //  The entries of one directory, addressed by path from the volume
+    //  directory. An empty path is the volume directory, the same as
+    //  Enumerate; a filesystem with no subdirectories has nothing deeper.
+    virtual HRESULT  EnumerateDirectory (const FilePath & directory, VolumeListing & outListing) const
+    {
+        return directory.IsEmpty() ? Enumerate (outListing) : HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND);
+    }
+
     //  One file's contents, addressed by path.
     virtual HRESULT  Read (const FilePath & path, FilePayload & outPayload) const = 0;
+
+    //  Creates the directory the path names, in the directory above it. DOS 3.3
+    //  has no directories, so the default reports the capability as absent.
+    virtual HRESULT  CreateDirectory (const FilePath & path, vector<Byte> & outBuffer) const
+    {
+        UNREFERENCED_PARAMETER (path);
+        UNREFERENCED_PARAMETER (outBuffer);
+
+        return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
+    }
+
+    //  What removing this directory would remove, in removal order, with the
+    //  locked entries marked and the blocks totaled. Nothing is written.
+    virtual HRESULT  BuildRemovalPlan (const FilePath & path, DirectoryRemovalPlan & outPlan) const
+    {
+        UNREFERENCED_PARAMETER (path);
+        UNREFERENCED_PARAMETER (outPlan);
+
+        return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
+    }
+
+    //  Removes the directory and everything below it, all of it or none.
+    //  A locked entry is removed only with `force`, and refused without it.
+    virtual HRESULT  RemoveDirectory (const FilePath  & path,
+                                      bool              force,
+                                      vector<Byte>    & outBuffer,
+                                      DeleteOutcome   & outOutcome) const
+    {
+        UNREFERENCED_PARAMETER (path);
+        UNREFERENCED_PARAMETER (force);
+        UNREFERENCED_PARAMETER (outBuffer);
+        UNREFERENCED_PARAMETER (outOutcome);
+
+        return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
+    }
 
     //  Adds or replaces. Produces the complete post-write buffer.
     virtual HRESULT  Write (const FilePath     & path,
@@ -77,4 +120,49 @@ public:
     //  The two filesystems do this by entirely different means and are
     //  deliberately NOT unified behind a shared helper.
     virtual HRESULT  SetStartupProgram (const FilePath & path, std::vector<Byte> & outBuffer) const = 0;
+
+    //  Gives a file a new name, in place: the catalog record is rewritten and
+    //  nothing else moves. Applies the filesystem's own name rules and refuses
+    //  a name another entry already holds.
+    virtual HRESULT  Rename (const FilePath     & from,
+                             const std::string  & to,
+                             std::vector<Byte>  & outBuffer) const = 0;
+
+    //  Changes a file's type, aux type, access and dates in place, each only
+    //  when its has flag is set. A locked file can be changed, since unlocking
+    //  is one of the changes. A field the filesystem doesn't store fails with
+    //  ERROR_NOT_SUPPORTED.
+    virtual HRESULT  SetAttributes (const FilePath        & path,
+                                    const FileAttributes  & attributes,
+                                    std::vector<Byte>     & outBuffer) const = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NullVolume
+//
+//  The volume of a buffer with no recognized file system: every operation
+//  returns ERROR_UNRECOGNIZED_VOLUME.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class NullVolume : public IVolume
+{
+public:
+    HRESULT  Enumerate            (VolumeListing &) const override                                                  { return kResult; }
+    HRESULT  Read                 (const FilePath &, FilePayload &) const override                                  { return kResult; }
+    HRESULT  Write                (const FilePath &, const FilePayload &, std::vector<Byte> &) const override       { return kResult; }
+    HRESULT  Delete               (const FilePath &, std::vector<Byte> &) const override                            { return kResult; }
+    HRESULT  Delete               (const FilePath &, std::vector<Byte> &, DeleteOutcome &) const override           { return kResult; }
+    HRESULT  BuildIntegrityReport (VolumeIntegrityReport &) const override                                          { return kResult; }
+    HRESULT  SetStartupProgram    (const FilePath &, std::vector<Byte> &) const override                            { return kResult; }
+    HRESULT  Rename               (const FilePath &, const std::string &, std::vector<Byte> &) const override       { return kResult; }
+    HRESULT  SetAttributes        (const FilePath &, const FileAttributes &, std::vector<Byte> &) const override    { return kResult; }
+
+private:
+    static constexpr HRESULT  kResult = HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME);
 };

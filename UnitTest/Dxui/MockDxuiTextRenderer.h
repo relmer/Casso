@@ -30,6 +30,7 @@ enum class RecordedTextKind
     FillRect,
     PushClipRect,
     PopClipRect,
+    DrawFramebuffer,      // text is unused; width and height are the destination
 };
 
 
@@ -43,8 +44,11 @@ struct RecordedTextCall
     float             height       = 0.0f;
     uint32_t          argb         = 0;
     float             fontSizeDip  = 0.0f;
+    std::wstring      fontFamily;
     DxuiTextHAlign    hAlign       = DxuiTextHAlign::Left;
     DxuiTextVAlign    vAlign       = DxuiTextVAlign::Top;
+    DxuiFontWeight    weight       = DxuiFontWeight::Normal;
+    bool              wrap         = true;
 };
 
 
@@ -55,8 +59,8 @@ public:
     MockDxuiTextRenderer  () = default;
     ~MockDxuiTextRenderer() override = default;
 
-    const std::vector<RecordedTextCall> &  Calls() const { return m_calls; }
-    void  Reset() { m_calls.clear(); }
+    const std::vector<RecordedTextCall>  & Calls () const { return m_calls; }
+    void                                   Reset () { m_calls.clear(); }
 
     void  SetCannedMetrics  (const std::wstring & text, SIZE sizeDip);
 
@@ -106,14 +110,6 @@ public:
                                    float                glyphWidthDip,
                                    float                maxWidthDip);
 
-    HRESULT  DrawFramebuffer (const uint32_t * srcBgraPixels,
-                              int              srcWidthPx,
-                              int              srcHeightPx,
-                              float            destXDip,
-                              float            destYDip,
-                              float            destWidthDip,
-                              float            destHeightDip) override;
-
     HRESULT  DrawIconBitmap (const uint32_t * srcBgraPremul,
                              int              srcWidthPx,
                              int              srcHeightPx,
@@ -122,8 +118,27 @@ public:
                              float            destWidthDip,
                              float            destHeightDip) override;
 
+    //  Recorded, with the source size kept so a test can tell which buffer
+    //  was drawn.
+    HRESULT  DrawFramebuffer (const uint32_t * srcBgraPixels,
+                              int              srcWidthPx,
+                              int              srcHeightPx,
+                              float            destXDip,
+                              float            destYDip,
+                              float            destWidthDip,
+                              float            destHeightDip) override;
+
+    int  GetLastFramebufferWidth  () const { return m_lastFramebufferW; }
+    int  GetLastFramebufferHeight () const { return m_lastFramebufferH; }
+
+    //  The face the last MeasureString call measured in.
+    const std::wstring &  GetLastMeasureFamily() const { return m_lastMeasureFamily; }
+
 private:
     std::vector<RecordedTextCall>          m_calls;
     std::map<std::wstring, SIZE>           m_cannedMetrics;
+    std::wstring                           m_lastMeasureFamily;
     bool                                   m_measureReturnsZero = false;
+    int                                    m_lastFramebufferW   = 0;
+    int                                    m_lastFramebufferH   = 0;
 };

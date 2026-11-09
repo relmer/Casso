@@ -212,6 +212,36 @@ public:
 
 
     //
+    //  Focus leaving the window closes a pinned info tip, whatever the
+    //  client does with WM_KILLFOCUS; the window's message, not the
+    //  widget's OnFocusChanged, is what a change of window delivers.
+    //
+    TEST_METHOD (KillFocus_ClosesAPinnedInfoTip)
+    {
+        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
+        RecordingClient                  client;
+        DxuiInfoTip                      tip;
+        DxuiMouseEvent                   press;
+
+        tip.SetText    (L"Some tools read only 8-bit WAV files.");
+        tip.SetRect    (RECT { 100, 10, 120, 30 });
+        tip.SetVisible (true);
+
+        press.kind        = DxuiMouseEventKind::Down;
+        press.positionDip = { 110, 20 };
+        tip.OnMouse (press);
+        Assert::IsTrue (tip.GetTooltip().IsVisible(), L"the click pins it");
+
+        host->SetClient (&client);
+        (void) host->WndProc (WM_KILLFOCUS, 0, 0);
+
+        Assert::IsFalse  (tip.GetTooltip().IsVisible());
+        Assert::AreEqual (1, client.onKillFocusCount, L"the client has the message as well");
+    }
+
+
+
+    //
     //  WM_KEYDOWN dispatches through OnKeyDown. WM_SYSKEYDOWN is
     //  bundled into the same branch so menu-mnemonic Alt+letter
     //  presses reach the client identically.

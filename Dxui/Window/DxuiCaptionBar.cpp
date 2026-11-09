@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DxuiCaptionBar.h"
+#include "Core/DxuiTextElide.h"
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
@@ -316,6 +317,28 @@ void DxuiCaptionBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetTooltipAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DxuiCaptionBar::GetTooltipAt (POINT clientPx, RECT & anchorPx) const
+{
+    if (!m_titleCut || !PtInRect (&m_titleRectPx, clientPx))
+    {
+        return nullptr;
+    }
+
+    anchorPx = m_titleRectPx;
+
+    return m_title.c_str();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Paint
 //
 //  Host-owned mode: gradient fill + app icon + title text, then the
@@ -333,19 +356,20 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 
 
-    RECT   b             = {};
-    float  xPx           = 0.0f;
-    float  yPx           = 0.0f;
-    float  wPx           = 0.0f;
-    float  hPx           = 0.0f;
-    float  iconPadPx     = 0.0f;
-    float  iconSizePx    = 0.0f;
-    float  textLeftPx    = 0.0f;
-    float  textOffsetPx  = 0.0f;
-    float  titleWidthPx  = 0.0f;
-    float  fontPx        = 0.0f;
-    float  buttonStripPx = 0.0f;
-    int    buttonCount   = 0;
+    RECT          b             = {};
+    float         xPx           = 0.0f;
+    float         yPx           = 0.0f;
+    float         wPx           = 0.0f;
+    float         hPx           = 0.0f;
+    float         iconPadPx     = 0.0f;
+    float         iconSizePx    = 0.0f;
+    float         textLeftPx    = 0.0f;
+    float         textOffsetPx  = 0.0f;
+    float         titleWidthPx  = 0.0f;
+    float         fontPx        = 0.0f;
+    std::wstring  shown;
+    float         buttonStripPx = 0.0f;
+    int           buttonCount   = 0;
 
 
 
@@ -353,6 +377,7 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     if (!m_renderCaption)
     {
+        m_titleCut = false;
         DxuiPanel::Paint (painter, text, theme);
         return;
     }
@@ -393,8 +418,16 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     fontPx = m_scaler.ToPxf (kTitleFontDip);
 
+    //  One line, as Windows draws a caption: a title too long for the room
+    //  is cut short with an ellipsis rather than wrapped.
+    shown = DxuiTextElide::ToWidth (text, m_title, fontPx, kTitleFamily, titleWidthPx, DxuiElide::Tail);
+
+    m_titleCut    = shown != m_title;
+    m_titleRectPx = RECT { std::lround (textLeftPx), std::lround (yPx),
+                           std::lround (textLeftPx + titleWidthPx), std::lround (yPx + hPx) };
+
     {
-        HRESULT  hrText = text.DrawString (m_title.c_str(),
+        HRESULT  hrText = text.DrawString (shown.c_str(),
                                            textLeftPx,
                                            yPx,
                                            titleWidthPx,

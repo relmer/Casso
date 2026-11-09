@@ -199,7 +199,30 @@ Error:
 //
 //  ProDosReader::ExtractFile
 //
-//  Minimal ProDOS volume reader: walks the volume directory chain for a
+//  A file in the volume directory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosReader::ExtractFile (
+    const vector<Byte> & volume,
+    const std::string  & fileName,
+    vector<Byte>       & outBytes,
+    Byte               & outFileType,
+    Word               & outAuxType)
+{
+    return ExtractFileFromDirectory (volume, ProDosSkeleton::kDirKeyBlock, fileName, outBytes, outFileType, outAuxType);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosReader::ExtractFileFromDirectory
+//
+//  Minimal ProDOS volume reader: walks one directory's chain, from its key
+//  block, for a
 //  case-insensitive name match, then gathers the file's data blocks per its
 //  storage type -- seedling (the key block IS the data), sapling (key is an
 //  index block of up to 256 data pointers), or tree (key is a master index
@@ -213,12 +236,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ProDosReader::ExtractFile (
-    const vector<Byte> & volume,
-    const std::string  & fileName,
-    vector<Byte>       & outBytes,
-    Byte               & outFileType,
-    Word               & outAuxType)
+HRESULT ProDosReader::ExtractFileFromDirectory (
+    const vector<Byte>   & volume,
+    int                    dirKeyBlock,
+    const std::string    & fileName,
+    vector<Byte>         & outBytes,
+    Byte                 & outFileType,
+    Word                 & outAuxType,
+    ISectorReadObserver  * observer)
 {
     HRESULT         hr          = S_OK;
     size_t          volumeBytes = volume.size();
@@ -241,12 +266,17 @@ HRESULT ProDosReader::ExtractFile (
     CBRAEx (volumeBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
     CBRAEx (nameBytes >= 1 && nameBytes <= ProDosSkeleton::kVolumeNameBytes, E_INVALIDARG);
 
-    // Walk the volume directory chain from the key block.
-    dirBlock = ProDosSkeleton::kDirKeyBlock;
+    keyOk = dirKeyBlock > 0 && IsBlockInRange ((Word) dirKeyBlock);
+    CBRAEx (keyOk, E_INVALIDARG);
+
+    // Walk the directory's chain from its key block. The key block's first
+    // record is the directory's own header, not a file, in a subdirectory as
+    // in the volume directory.
+    dirBlock = dirKeyBlock;
 
     while (!found && dirBlock != 0)
     {
-        int   first   = (dirBlock == ProDosSkeleton::kDirKeyBlock) ? 1 : 0;
+        int   first   = (dirBlock == dirKeyBlock) ? 1 : 0;
         int   n       = 0;
         bool  stepOk  = ProDosReader::IsBlockInRange ((Word) dirBlock)
                      && guard.TryVisit ((uint32_t) dirBlock);
@@ -258,6 +288,8 @@ HRESULT ProDosReader::ExtractFile (
         {
             break;
         }
+
+        NoteBlockRead (observer, dirBlock);
 
         for (n = first; !found && n < (int) ProDosSkeleton::kEntriesPerBlock; n++)
         {
@@ -326,12 +358,14 @@ HRESULT ProDosReader::ExtractFile (
             break;
 
         case ProDosSkeleton::kStorageSapling:
-            gathered = AppendIndexedBlocks (volume, keyPointer, dataBlocks);
+            gathered = AppendIndexedBlocks (volume, keyPointer, dataBlocks, observer);
             break;
 
         case ProDosSkeleton::kStorageTree:
         {
             int  i = 0;
+
+            NoteBlockRead (observer, keyPointer);
 
             for (i = 0; gathered && i < (int) ProDosSkeleton::kPointersPerIndex; i++)
             {
@@ -342,7 +376,7 @@ HRESULT ProDosReader::ExtractFile (
 
                 if (indexBlock != 0)
                 {
-                    gathered = AppendIndexedBlocks (volume, indexBlock, dataBlocks);
+                    gathered = AppendIndexedBlocks (volume, indexBlock, dataBlocks, observer);
                 }
                 else
                 {
@@ -372,6 +406,11 @@ HRESULT ProDosReader::ExtractFile (
     {
         size_t  i        = 0;
         bool    readable = block != 0 && IsBlockInRange (block);
+
+        if (readable && data.size() < (size_t) eof)
+        {
+            NoteBlockRead (observer, block);
+        }
 
         for (i = 0; i < 512 && data.size() < (size_t) eof; i++)
         {
@@ -405,9 +444,10 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ProDosReader::AppendIndexedBlocks (
-    const vector<Byte> & volume,
-    Word                 indexBlock,
-    vector<Word>       & dataBlocks)
+    const vector<Byte>   & volume,
+    Word                   indexBlock,
+    vector<Word>         & dataBlocks,
+    ISectorReadObserver  * observer)
 {
     int   i     = 0;
     bool  valid = ProDosReader::IsBlockInRange (indexBlock);
@@ -418,6 +458,8 @@ bool ProDosReader::AppendIndexedBlocks (
     {
         return false;
     }
+
+    NoteBlockRead (observer, indexBlock);
 
     for (i = 0; i < (int) ProDosSkeleton::kPointersPerIndex; i++)
     {
@@ -437,6 +479,25 @@ bool ProDosReader::AppendIndexedBlocks (
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosReader::NoteBlockRead
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosReader::NoteBlockRead (ISectorReadObserver * observer, int block)
+{
+    if (observer != nullptr)
+    {
+        observer->OnSectorRead (ProDosSkeleton::GetBlockByteOffset (block, 0) / NibblizationLayer::kSectorByteSize);
+        observer->OnSectorRead (ProDosSkeleton::GetBlockByteOffset (block, NibblizationLayer::kSectorByteSize) / NibblizationLayer::kSectorByteSize);
+    }
 }
 
 

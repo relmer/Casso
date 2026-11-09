@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
 #include "FakeDiskFileIo.h"
+#include "CassoExplorer/Model/DiskOperations.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -382,6 +383,125 @@ public:
         Assert::IsTrue (result.output.find ("DISK VOLUME 254") != std::string::npos,
             L"and the listing is delivered normally");
     }
+
+    //  The sectors a volume read touches, in order.
+    struct SectorLog : public ISectorReadObserver
+    {
+        vector<size_t>  sectors;
+
+        void  OnSectorRead (size_t sector) override { sectors.push_back (sector); }
+    };
+
+
+    //  A bit-stream copy of the disk with every address field the search finds
+    //  on one track given a wrong checksum, so the track decodes as Partial.
+    vector<Byte> MakeWozWithDamagedTrack (const vector<Byte> & sectors, int track)
+    {
+        DiskImage     img;
+        vector<Byte>  woz;
+        size_t        addrAt = 0;
+        int           field  = 0;
+
+
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, img));
+
+        {
+            vector<Byte> &  bits = img.GetTrackBitsForWrite (track);
+
+            addrAt = FindAddressField (bits, 0);
+
+            while (addrAt != SIZE_MAX)
+            {
+                PatchFieldChecksum (bits, addrAt, NibblizationLayer::kDefaultVolume, static_cast<Byte> (track));
+
+                field++;
+                addrAt = FindAddressField (bits, field);
+            }
+        }
+
+        AssertSucceeded (WozLoader::Serialize (img, woz));
+
+        return woz;
+    }
+
+
+    //  A file whose data is on a track that cannot be decoded is read for a
+    //  copy, with the lost sectors counted, so the copy is reported as damaged.
+    //  The same file from a sector image has none. The byte-aligned search
+    //  finds only some of a track's address fields, so files and tracks are
+    //  tried until one loses a sector the file reads.
+    TEST_METHOD (Read_OfAFileOnADamagedTrack_CountsItsLostSectors)
+    {
+        FakeDiskFileIo          io;
+        DiskOperations          operations (io);
+        vector<Byte>            sectors = LoadFixture (kDos33Disk);
+        Dos33Volume             volume (sectors);
+        SectorLog               log;
+        FilePayload             payload;
+        VolumeListing           listing;
+        DiskOperations::Result  result;
+        std::string             name;
+        bool                    found   = false;
+        size_t                  i       = 0;
+
+        io.files["C:\\disks\\clean.dsk"]  = sectors;
+        io.stamps["C:\\disks\\clean.dsk"] = FileStamp { sectors.size(), 100 };
+
+        volume.SetReadObserver (&log);
+        AssertSucceeded (volume.EnumerateDirectory (FilePath(), listing));
+
+        for (i = 0; i < listing.entries.size() && !found; i++)
+        {
+            std::set<int>  tracks;
+            HRESULT        hrRead = S_OK;
+
+            //  A name several entries share does not read by name alone.
+            log.sectors.clear();
+            hrRead = volume.Read (FilePath::Parse (listing.entries[i].name), payload);
+
+            if (FAILED (hrRead))
+            {
+                continue;
+            }
+
+            //  Off the catalog track, and past the first sector, which is the
+            //  track and sector list, so the list reads.
+            for (size_t at = 1; at < log.sectors.size(); at++)
+            {
+                int  track = (int) (log.sectors[at] / NibblizationLayer::kSectorsPerTrack);
+
+                if (track != 17 && track != (int) (log.sectors[0] / NibblizationLayer::kSectorsPerTrack))
+                {
+                    tracks.insert (track);
+                }
+            }
+
+            for (int track : tracks)
+            {
+                vector<Byte>  woz = MakeWozWithDamagedTrack (sectors, track);
+
+                io.files[kWozPath]  = woz;
+                io.stamps[kWozPath] = FileStamp { woz.size(), 100 };
+
+                result = operations.Read (kWozPath, listing.entries[i].name, payload);
+
+                if (result.Succeeded() && result.unreadSectors > 0)
+                {
+                    found = true;
+                    name  = listing.entries[i].name;
+                    break;
+                }
+            }
+        }
+
+        Assert::IsTrue (found, L"a file read from a damaged track has its lost sectors counted");
+
+        result = operations.Read ("C:\\disks\\clean.dsk", name, payload);
+        Assert::IsTrue   (result.Succeeded());
+        Assert::AreEqual (0, result.unreadSectors, L"a sector image loses nothing");
+    }
+
 
     TEST_METHOD (Get_FromADamagedWoz_DeliversTheFileAndStillComplains)
     {

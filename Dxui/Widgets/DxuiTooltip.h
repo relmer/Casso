@@ -79,9 +79,15 @@ public:
 
     //  A fixed-width face, for a tip whose lines are columns.
     void  SetMonospace    (bool mono) { m_monospace = mono; }
-    void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
-    void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
-    void  SetTheme        (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
+
+    //  Text wider than this wraps onto more lines instead of growing the
+    //  balloon past the window's edge. A tip of long lines, such as a log's,
+    //  is given more.
+    static constexpr float  kDefaultMaxTextWidthDip = 340.0f;
+    void  SetMaxTextWidthDip (float dip) { m_maxTextWidthDip = dip; }
+    void  SetDpi             (UINT dpi) { m_scaler.SetDpi (dpi); }
+    void  SetViewportSize    (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
+    void  SetTheme           (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
 
     //
     //  Opt-in popup hosting (FR-054 / FR-061). When a host is wired
@@ -90,8 +96,17 @@ public:
     //  through to whatever is underneath; dismiss is OnPointerLeave.
     //
     void  SetPopupHost    (DxuiHwndSource * host) { m_popupHost = host; }
-    DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
-    DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
+
+    //  Explorer's tips: centered on the pointer and just above it, or just
+    //  below where there is no room above on its monitor, rather than on the
+    //  anchor; and a card with a shadow and no border.
+    void  SetFollowPointer (bool follow) { m_followPointer = follow; }
+
+    //  False for a tip with no lifetime, such as an info tip's: it is up
+    //  until RequestHide or HideImmediate takes it down.
+    void              SetExpires     (bool expires) { m_expires = expires; }
+    DxuiHwndSource  * GetPopupHost   () const { return m_popupHost;   }
+    DxuiPopupHost   * GetActivePopup () const { return m_activePopup; }
 
     void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs);
     void  RequestHide     (int64_t nowMs);
@@ -127,8 +142,8 @@ public:
     const std::wstring & GetText   () const { return m_text;    }
     const RECT         & GetAnchor () const { return m_anchor;  }
 
-    void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    const wchar_t *  GetFace () const { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace; }
+    void             Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    const wchar_t  * GetFace () const { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::GetUiFace(); }
 
     //
     //  IDxuiControl overrides — additive shims so DxuiTooltip can
@@ -144,9 +159,13 @@ private:
     //  The room between a tip that follows the pointer and the pointer.
     static constexpr int  kPointerGapDip = 4;
 
+
     //  The system's tip lifetime: ten double-click times, as Windows sets
     //  a tooltip control's auto-pop delay.
     static int  GetSystemVisibleMs ();
+
+    //  The time a tip opened at nowMs closes by itself, or 0 for never.
+    int64_t     GetLifetimeEnd (int64_t nowMs) const;
 
     //
     //  Acquire + size + show the popup balloon for the current
@@ -184,6 +203,7 @@ private:
     int                m_dwellCloseMs      = 100;
     float              m_fontDip           = 12.0f;
     bool               m_monospace         = false;
+    float              m_maxTextWidthDip   = kDefaultMaxTextWidthDip;
     uint32_t           m_bgArgb            = 0xFF2D2D2D;
     uint32_t           m_borderArgb        = 0xFF606060;
     uint32_t           m_textArgb          = 0xFFE8EEF4;
@@ -193,6 +213,8 @@ private:
     bool               m_pending           = false;
     bool               m_fadingOut         = false;
     bool               m_isInstant         = false;
+    bool               m_followPointer     = false;
+    bool               m_expires           = true;
     DxuiHwndSource   * m_popupHost         = nullptr;
     DxuiPopupHost    * m_activePopup       = nullptr;
     PointerMeasurer    m_pfnMeasurePointer = MeasurePointerExtent;

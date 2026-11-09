@@ -2308,7 +2308,7 @@ void DiskImageStore::EmitBayChange (int slot, int drive, BayChange change)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::NoteExternalChange (const string & path, ExternalChangeIntent intent)
+void DiskImageStore::NoteExternalChange (const string & path, ExternalChangeIntent intent, bool fromCassoExplorer)
 {
     std::lock_guard<std::mutex>  held (m_pendingMutex);
     int64_t  now   = GetNowMs();
@@ -2325,7 +2325,7 @@ void DiskImageStore::NoteExternalChange (const string & path, ExternalChangeInte
 
             if (entry.mounted && MountedImageState::IsSamePath (entry.path, path))
             {
-                entry.sharedState.NoteChange (now, intent);
+                entry.sharedState.NoteChange (now, intent, fromCassoExplorer);
             }
         }
     }
@@ -2428,7 +2428,9 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     bool                               held      = false;
     bool                               usable    = false;
     bool                               unchanged = false;
+    bool                               preserved = false;
     ExternalChangeIntent               intent    = ExternalChangeIntent::Unstated;
+    bool                               explorer  = false;
     ChangeAuthor                       author    = ChangeAuthor::AnotherProgram;
     ChangeAction                       action    = ChangeAction::Ignore;
     ImageIdentity                      current;
@@ -2445,7 +2447,8 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
         settled = entry.mounted
                && entry.image != nullptr
                && entry.sharedState.IsSettled (GetNowMs());
-        intent  = entry.sharedState.GetPending().intent;
+        intent   = entry.sharedState.GetPending().intent;
+        explorer = entry.sharedState.GetPending().fromCassoExplorer;
     }
 
     if (!settled)
@@ -2558,6 +2561,11 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
                 entry.sharedState.ClearPending();
             }
 
+            if (m_decisionSink)
+            {
+                m_decisionSink (entry.path, ChangeAction::Conflict, false, savePath);
+            }
+
             //  ASKED RATHER THAN REPORTED, because "Save as..." is an answer
             //  and a notice has nowhere to put one. The bay is left with the
             //  question outstanding so a second failure does not stack a
@@ -2584,6 +2592,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
 
         situation.guestDirty = false;
         action               = ExternalChangePolicy::Decide (situation);
+        preserved            = true;
     }
 
     //  A file that is simply gone gets its own sentence rather than sharing
@@ -2637,11 +2646,17 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
         return;
     }
 
+    if (m_decisionSink)
+    {
+        m_decisionSink (entry.path, action, preserved, savePath);
+    }
+
     //  THE INTENT THAT DECIDED IS THE INTENT THAT ATTRIBUTES. `intent` was read
     //  at the top of this function, and the record it came from is refreshed by
     //  every later write -- a read taken now would credit this reload to
     //  whoever wrote most recently rather than to whoever asked for it.
     author = (intent == ExternalChangeIntent::Unstated) ? ChangeAuthor::AnotherProgram
+           : explorer                                   ? ChangeAuthor::CassoExplorer
                                                         : ChangeAuthor::CassoCli;
 
     CarryOutChangeAction (slot, drive, action, bytes, author);

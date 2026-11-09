@@ -263,6 +263,9 @@ struct GlobalUserPrefs
     std::string   pendingUpdateKind;
     int           pendingUpdateFailure     = 0;
 
+    // Sets the update check and pending update fields above to those of `other`.
+    void  CopyUpdateFieldsFrom (const GlobalUserPrefs & other);
+
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;
 
@@ -284,6 +287,11 @@ struct GlobalUserPrefs
 
     static std::wstring  GetFilePath (const std::wstring & baseDir);
 
+    //  One monitor and mode's overrides, as the prefs file has them; Casso
+    //  Explorer saves its own in the same form.
+    static JsonValue    CrtOverridesToJson   (const CrtOverrides & o);
+    static void         CrtOverridesFromJson (const JsonValue & obj, CrtOverrides & o);
+
 
 private:
     static bool         TryGetBoolOpt   (const JsonValue   & obj,
@@ -299,15 +307,13 @@ private:
                                       const std::string & key,
                                       const std::string & fallback);
 
-    static JsonValue    CrtOverridesToJson (const CrtOverrides & o);
-    static JsonValue    PlacementsToJson  (const std::map<std::string, WindowBounds> & placements);
-    static JsonValue    RecentDisksToJson (const std::vector<std::string> & recentDisks);
-    static JsonValue    RecentDiskTimesToJson (const std::vector<std::int64_t> & loadedAtUnix);
+    static JsonValue  PlacementsToJson      (const std::map<std::string, WindowBounds> & placements);
+    static JsonValue  RecentDisksToJson     (const std::vector<std::string> & recentDisks);
+    static JsonValue  RecentDiskTimesToJson (const std::vector<std::int64_t> & loadedAtUnix);
 
     static const char *           ColorTextModeToString   (ColorMonitorTextMode mode);
     static ColorMonitorTextMode   ColorTextModeFromString (const std::string & s, ColorMonitorTextMode fallback);
 
-    static void         CrtOverridesFromJson (const JsonValue & obj, CrtOverrides & o);
     static void         ReadCrtOverrides     (const JsonValue & v,
                                               std::map<std::string, CrtOverrides> & out);
     static void         PlacementsFromJson  (const JsonValue                     & placementsObj,

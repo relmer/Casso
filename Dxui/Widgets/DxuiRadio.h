@@ -39,6 +39,10 @@ struct DxuiRadioOption
     // caller supplies; the widget splits what it is given rather than
     // growing to fit, because the caller owns the layout.
     std::wstring  description;
+
+    // Optional text after the label on its line, muted and in the monospace
+    // face, such as an example of what the option produces.
+    std::wstring  sample;
 };
 
 
@@ -46,6 +50,21 @@ class DxuiRadioGroup : public IDxuiControl
 {
 public:
     using ChangeFn = std::function<void (int newIndex)>;
+
+    static constexpr float  s_kBoxSizeDip   = 16.0f;
+    static constexpr float  s_kDotInsetDip  = 4.0f;
+    static constexpr float  s_kLabelGapDip  = 6.0f;
+    static constexpr float  s_kFontDip      = 13.0f;
+
+    // The first line of an option with a description. The label sits in this band, the
+    // BUTTON CENTERS ON IT, and the description gets whatever the caller's
+    // rect has left over. Centering the button on the whole box instead would
+    // float it down beside the description, pointing at neither line.
+    static constexpr float  s_kLabelLineDip = 20.0f;
+
+    // An option's height at `widthPx`: its label's line, and any
+    // description wrapped beside the button.
+    static int  MeasureOptionHeightPx (const DxuiRadioOption & option, int widthPx, const DxuiDpiScaler & scaler);
 
     DxuiRadioGroup() { m_focusable = true; }
     ~DxuiRadioGroup() override = default;

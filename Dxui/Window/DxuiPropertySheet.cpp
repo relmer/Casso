@@ -59,6 +59,7 @@ void DxuiPropertySheet::OnCreate()
     m_apply  = CreateChild<DxuiButton> (L"Apply");
 
     m_ok->SetCommandId     (IDOK);
+    m_ok->SetEnabled       (m_confirmable);
     m_cancel->SetCommandId (IDCANCEL);
     m_apply->SetCommandId  (DxuiButtonRow::kApplyCommandId);
 
@@ -69,7 +70,7 @@ void DxuiPropertySheet::OnCreate()
     // Apply commits without closing; Cancel runs OnCancel then closes. Cancel
     // is wired explicitly (not left to the dialog auto-wire) so OnCancel fires
     // on both the button and Escape (which triggers the IDCANCEL button).
-    m_ok->SetOnClick     ([this] () { if (OnOk() == S_OK) { EndDialog (IDOK); } });
+    m_ok->SetOnClick     ([this] () { if (m_confirmable && OnOk() == S_OK) { EndDialog (IDOK); } });
     m_apply->SetOnClick  ([this] () { (void) OnApply(); RefreshApplyEnabled(); });
     m_cancel->SetOnClick ([this] () { OnCancel(); EndDialog (IDCANCEL); });
 
@@ -542,6 +543,28 @@ bool DxuiPropertySheet::OnDialogTabSwitch (bool backward)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetConfirmable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertySheet::SetConfirmable (bool confirmable)
+{
+    m_confirmable = confirmable;
+
+    if (m_ok != nullptr)
+    {
+        m_ok->SetEnabled (confirmable);
+    }
+
+    RefreshApplyEnabled();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RefreshApplyEnabled
 //
 //  Apply is enabled iff at least one page is dirty.
@@ -565,7 +588,7 @@ void DxuiPropertySheet::RefreshApplyEnabled()
 
     if (m_apply != nullptr)
     {
-        m_apply->SetEnabled (anyDirty);
+        m_apply->SetEnabled (anyDirty && m_confirmable);
     }
 }
 
@@ -676,7 +699,8 @@ void DxuiPropertySheet::LayoutTabRects (
 //
 //  MeasureTabLabelDip
 //
-//  Measures a tab label in the font DxuiTabStrip draws it in.
+//  Measures a tab label in the font DxuiTabStrip draws it in: its label size
+//  and face, at normal weight.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -692,7 +716,7 @@ HRESULT DxuiPropertySheet::MeasureTabLabelDip (
 
     outWidthDip = 0.0f;
 
-    hr = text.MeasureString (label.c_str(), DxuiTabStrip::kLabelFontDip, DxuiTheme::kBodyFace, outWidthDip, heightDip);
+    hr = text.MeasureString (label.c_str(), DxuiTabStrip::kLabelFontDip, DxuiTabStrip::GetLabelFace(), outWidthDip, heightDip);
     CHRA (hr);
 
 Error:
@@ -1257,6 +1281,40 @@ SIZE DxuiPropertySheet::GetMaxClientSizePx() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetTabsWidthPx
+//
+//  The strip width every tab fits in: the tabs edge to edge with the
+//  content pad on both sides.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiPropertySheet::GetTabsWidthPx() const
+{
+    std::vector<DxuiSheetTab>  measure;
+    std::vector<RECT>          rects;
+    int                        right = 0;
+    size_t                     i     = 0;
+
+
+
+    MeasureTabs (measure);
+    rects.resize (measure.size());
+    LayoutTabRects ({ 0, 0, 0, 0 }, m_lastScaler, measure, rects);
+
+    for (i = 0; i < rects.size(); ++i)
+    {
+        right = std::max (right, (int) rects[i].right);
+    }
+
+    return right + m_lastScaler.ToPx (s_kContentPadDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TryGetMaxClientSizePx
 //
 //  None until the pages have been laid out and reported their extents.
@@ -1271,6 +1329,31 @@ bool DxuiPropertySheet::TryGetMaxClientSizePx (SIZE & outSizePx) const
     }
 
     outSizePx = GetMaxClientSizePx();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetMaxTrackSizePx
+//
+//  The largest client size, widened to fit every tab: a sheet whose tabs
+//  scroll at its opening width can be dragged wider until every tab fits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPropertySheet::TryGetMaxTrackSizePx (SIZE & outSizePx) const
+{
+    if (!m_haveLayout)
+    {
+        return false;
+    }
+
+    outSizePx    = GetMaxClientSizePx();
+    outSizePx.cx = std::max (outSizePx.cx, (LONG) GetTabsWidthPx());
     return true;
 }
 

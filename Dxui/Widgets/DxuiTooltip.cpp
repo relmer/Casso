@@ -9,15 +9,11 @@
 
 
 
-static constexpr float     s_kPadXDip         = 8.0f;
-static constexpr float     s_kPadYDip         = 4.0f;
-static constexpr float     s_kBorderDip       = 1.0f;
-
-//
-//  Text wider than this wraps onto additional lines instead of growing the
-//  balloon past the window edge.
-//
-static constexpr float     s_kMaxTextWidthDip = 340.0f;
+static constexpr float     s_kPadXDip            = 8.0f;
+static constexpr float     s_kPadYDip            = 4.0f;
+static constexpr float     s_kBorderDip          = 1.0f;
+static constexpr int       s_kPointerGapDip      = 26;   // above the pointer, as Explorer places its tips
+static constexpr int       s_kPointerBelowGapDip = 4;    // below the pointer's arrow, when there is no room above
 
 //
 //  Fallback glyph metrics used to size the balloon when precise text
@@ -268,14 +264,38 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
         // sixty times a second and the tip never dismissed itself -- the
         // lifetime existed and could not once be reached. A move to a
         // DIFFERENT control is a new tip and starts its own clock.
+        //  A tip that follows the pointer is placed where the pointer is when
+        //  it shows, so a move to another control takes the old one down and
+        //  shows the new one after the full delay again, as File Explorer's do.
+        if (changed && m_followPointer)
+        {
+            ReleaseActivePopup();
+
+            m_visible       = false;
+            m_pendingAnchor = anchor;
+            m_pendingText   = text;
+            m_pending       = true;
+            m_showAtMs      = nowMs + (int64_t) m_dwellOpenMs;
+            return;
+        }
+
         if (changed && m_popupHost != nullptr)
         {
-            m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+            m_hideAtMs = GetLifetimeEnd (nowMs);
 
             ReleaseActivePopup();
             ShowPopup();
         }
 
+        return;
+    }
+
+    //  A move over the same control keeps the clock it started, as Windows'
+    //  tips do: restarting it on every move held the tip back until the
+    //  pointer had stopped for the whole dwell.
+    if (m_pending && text == m_pendingText)
+    {
+        m_pendingAnchor = anchor;
         return;
     }
 
@@ -316,7 +336,7 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
     m_visible   = true;
     m_fadingOut = false;
     m_isInstant = true;
-    m_hideAtMs  = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+    m_hideAtMs  = GetLifetimeEnd (nowMs);
 
     ReleaseActivePopup();
     ShowPopup();
@@ -403,7 +423,7 @@ void DxuiTooltip::Tick (int64_t nowMs)
         // The OS dismisses its own after a few seconds for the same reason:
         // the tip has been read by then, and what is left is an obstruction
         // sitting over the thing it was explaining.
-        m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+        m_hideAtMs = GetLifetimeEnd (nowMs);
 
         ShowPopup();
 
@@ -561,7 +581,7 @@ void DxuiTooltip::ShowPopup()
         dpi    = m_scaler.GetDpi();
         dpi    = (dpi == 0) ? (UINT) DxuiDpiScaler::kBaseDpi : dpi;
         fontPx = m_scaler.ToPxf (m_fontDip);
-        maxWPx = m_scaler.ToPxf (s_kMaxTextWidthDip);
+        maxWPx = m_scaler.ToPxf (m_maxTextWidthDip);
         padXPx = m_scaler.ToPxf (s_kPadXDip);
         padYPx = m_scaler.ToPxf (s_kPadYDip);
 
@@ -600,6 +620,24 @@ void DxuiTooltip::ShowPopup()
         showParams.ownerHwnd        = owner;
         showParams.anchorRectScreen = { topLeft.x, topLeft.y, botRight.x, botRight.y };
         showParams.placement        = DxuiPopupPlacement::Below;
+
+        //  An anchor as wide as the tip, centered on the pointer and spanning
+        //  the pointer's own height, so above it the tip clears the pointer's
+        //  tip and below it clears the arrow. The host keeps it on the monitor.
+        if (m_followPointer)
+        {
+            POINT  pointer = {};
+            int    gap     = m_scaler.ToPx (s_kPointerGapDip);
+            int    below   = GetSystemMetrics (SM_CYCURSOR) / 2;
+            int    halfW   = (int) std::ceil (boxWPx) / 2;
+            BOOL   got     = GetCursorPos (&pointer);
+
+            IGNORE_RETURN_VALUE (got, TRUE);
+
+            showParams.anchorRectScreen = { pointer.x - halfW, pointer.y - gap, pointer.x - halfW + (int) std::ceil (boxWPx), pointer.y + below + m_scaler.ToPx (s_kPointerBelowGapDip) };
+            showParams.placement        = DxuiPopupPlacement::Above;
+        }
+
         showParams.flipIfOffscreen  = true;
         showParams.dismiss          = DxuiPopupDismiss::Manual;
         showParams.input            = DxuiPopupInput::PassThrough;
@@ -712,7 +750,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
     hr = const_cast<IDxuiTextRenderer &> (text).MeasureStringWrapped (
              m_text.c_str(), fontPx, GetFace(),
-             m_scaler.ToPxf (s_kMaxTextWidthDip), textW, textH);
+             m_scaler.ToPxf (m_maxTextWidthDip), textW, textH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     anchor  = GetPlacementAnchor();
@@ -832,7 +870,10 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
     width  = (float) (placed.right  - placed.left);
     height = (float) (placed.bottom - placed.top);
 
-    painter.OutlineRoundedRect (0.0f, 0.0f, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), borderPx, m_borderArgb);
+    if (!m_followPointer)
+    {
+        painter.OutlineRoundedRect (0.0f, 0.0f, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), borderPx, m_borderArgb);
+    }
 
     hr = text.DrawString (m_text.c_str(),
                           padX,
@@ -843,4 +884,19 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
                           fontPx,
                           GetFace());
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLifetimeEnd
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t DxuiTooltip::GetLifetimeEnd (int64_t nowMs) const
+{
+    return m_expires ? nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs()) : 0;
 }

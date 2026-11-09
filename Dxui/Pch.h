@@ -25,11 +25,27 @@
 #include <dcomp.h>
 #include <wincodec.h>
 #include <dwmapi.h>
+#include <uxtheme.h>
+#include <vssym32.h>
 #include <ole2.h>
 #include <oleidl.h>
 #include <shellapi.h>
+#include <shlobj.h>
 
 #include <wrl/client.h>
+
+// C++/WinRT, for the popups' Windows.UI.Composition tree. winbase.h's
+// GetCurrentTime macro collides with a WinRT method of that name.
+#undef GetCurrentTime
+#include <DispatcherQueue.h>
+#include <windows.ui.composition.interop.h>
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.Foundation.Numerics.h>
+#include <winrt/Windows.System.h>
+#include <winrt/Windows.UI.h>
+#include <winrt/Windows.UI.Composition.h>
+#include <winrt/Windows.UI.Composition.Desktop.h>
+#include <winrt/Windows.UI.ViewManagement.h>
 
 #include <algorithm>
 #include <array>

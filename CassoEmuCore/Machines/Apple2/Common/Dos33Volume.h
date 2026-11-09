@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/IVolume.h"
+#include "Machines/Apple2/Common/SectorReadObserver.h"
 #include "Devices/Disk/ChainWalkGuard.h"
 
 
@@ -37,6 +38,9 @@ public:
     //  operation produces a complete new buffer instead.
     explicit Dos33Volume (const vector<Byte> & sectors);
 
+    //  Called with each sector the volume reads from here on; null for none.
+    void     SetReadObserver (ISectorReadObserver * observer) { m_readObserver = observer; }
+
     HRESULT  Enumerate (VolumeListing & outListing) const override;
     HRESULT  Read      (const FilePath & path, FilePayload & outPayload) const override;
 
@@ -55,6 +59,17 @@ public:
 
     HRESULT  BuildIntegrityReport (VolumeIntegrityReport & outReport) const override;
     HRESULT  SetStartupProgram    (const FilePath & path, vector<Byte> & outBuffer) const override;
+
+    HRESULT  Rename    (const FilePath     & from,
+                        const std::string  & to,
+                        vector<Byte>       & outBuffer) const override;
+
+    HRESULT  SetAttributes (const FilePath        & path,
+                            const FileAttributes  & attributes,
+                            vector<Byte>          & outBuffer) const override;
+
+    //  Whether DOS 3.3 could open a file of this name again, the rule Rename applies.
+    static bool  IsValidName (const std::string & name) { vector<Byte> bytes; return TryEncodeCatalogName (name, bytes); }
 
     //  The self-check every computed write and delete runs over its own output,
     //  and the ONLY way a computed buffer reaches a caller. Refuses a buffer
@@ -83,6 +98,7 @@ public:
     static constexpr Byte  kTypeInteger     = 0x01;
     static constexpr Byte  kTypeApplesoft   = 0x02;
     static constexpr Byte  kTypeBinary      = 0x04;
+    static constexpr Byte  kTypeSpecial     = 0x08;
     static constexpr Byte  kTypeRelocatable = 0x10;
 
     //
@@ -234,10 +250,21 @@ private:
 
     Byte  ReadByte (int track, int sector, size_t offset) const;
 
+    //  The buffer, for a read of one sector of it. Every read of the volume's
+    //  own buffer goes through here, so the read observer has each sector.
+    const vector<Byte> &  AccessSector (int track, int sector) const;
+
     //  Case-insensitive, because the catalog is upper case and the caller's
     //  shell is not.
     static bool  TryFindEntry (const vector<RawEntry>  & entries,
                                const std::string       & leaf,
+                               uint16_t                & outOwner);
+
+    //  One entry by path: at its catalog index when the path includes one, whose
+    //  name must still match, and otherwise by a name only one entry has.
+    //  Returns ERROR_DUP_NAME for a name that several entries share.
+    static HRESULT  FindEntry (const vector<RawEntry>  & entries,
+                               const FilePath          & path,
                                uint16_t                & outOwner);
 
     //  A catalog slot is reusable only when its track byte says never-used or
@@ -283,5 +310,6 @@ private:
     //  address when the type records one.
     static void  ApplyTypeHeader (Byte typeByte, vector<Byte> & inOutBytes, FilePayload & outPayload);
 
-    const vector<Byte> &  m_sectors;
+    const vector<Byte> &   m_sectors;
+    ISectorReadObserver  * m_readObserver = nullptr;
 };

@@ -280,6 +280,20 @@ public:
 
     void          SetBayChangeSink (BayChangeSink sink) { m_bayChangeSink = std::move (sink); }
 
+    //  What a settled change to a mounted image was decided to be, reported
+    //  once per decision so a tool that stated the intent can be told.
+    //
+    //  `guestCopyPreserved` says the guest's unsaved writes were moved to
+    //  `preservedPath` before the decision was taken again as an ordinary
+    //  change. A decision that puts a question to the user is not reported;
+    //  nothing has been decided yet.
+    //
+    //  FIRES ON THE THREAD THAT OWNS DISK WRITES, where the decision is taken.
+    using DecisionSink = std::function<void (const string & path, ChangeAction action,
+                                             bool guestCopyPreserved, const string & preservedPath)>;
+
+    void          SetDecisionSink (DecisionSink sink) { m_decisionSink = std::move (sink); }
+
     //  The user answered a question this store asked.
     //
     //  ON THE THREAD THAT OWNS DISK WRITES, like every other entry point that
@@ -310,7 +324,7 @@ public:
     //  CALLED FROM ANY THREAD and does no work beyond recording: the watcher
     //  runs on its own thread and the message channel on the UI thread, while
     //  acting on a change belongs to the thread that owns disk writes.
-    void          NoteExternalChange (const string & path, ExternalChangeIntent intent);
+    void          NoteExternalChange (const string & path, ExternalChangeIntent intent, bool fromCassoExplorer = false);
 
     //  Act on whatever has settled. Called on the CPU thread at a moment with
     //  no disk operation in flight.
@@ -324,8 +338,8 @@ public:
     //  the watch wiring, the banner, the prompt -- asks these questions of a
     //  bay, and a dozen forwarding accessors would put one piece of state
     //  behind two names.
-    MountedImageState *        GetSharedState (int slot, int drive);
-    const MountedImageState *  GetSharedState (int slot, int drive) const;
+    MountedImageState        * GetSharedState (int slot, int drive);
+    const MountedImageState  * GetSharedState (int slot, int drive) const;
 
     static HRESULT  GetSourceFormatByExtension (const string & path, DiskFormat & outFmt);
 
@@ -407,7 +421,7 @@ private:
 
         //  Which bay this is.
         //
-        //  CARRIED ON THE ENTRY BECAUSE FlushEntry NEEDS IT AND HAS ONLY THIS.
+        //  KEPT ON THE ENTRY BECAUSE FlushEntry NEEDS IT AND HAS ONLY THIS.
         //  Every message about a disk names the drive it is in, and threading
         //  a pair of ints through five call sites to reach one function is a
         //  worse answer than the entry knowing where it lives.
@@ -456,10 +470,10 @@ private:
         ShuttingDown,
     };
 
-    Entry &       GetEntry          (int slot, int drive);
-    const Entry & GetEntry          (int slot, int drive) const;
-    HRESULT       FlushEntry        (Entry & entry, FlushMoment moment);
-    HRESULT       FlushEveryBay     (FlushMoment moment);
+    Entry        & GetEntry      (int slot, int drive);
+    const Entry  & GetEntry      (int slot, int drive) const;
+    HRESULT        FlushEntry    (Entry & entry, FlushMoment moment);
+    HRESULT        FlushEveryBay (FlushMoment moment);
 
     //  Tells the user the guest's version could not be written beside the
     //  file that displaced it -- as a question where one can still be
@@ -624,6 +638,7 @@ private:
     AskSink                  m_askSink;
     RescueSink               m_rescueSink;
     BayChangeSink            m_bayChangeSink;
+    DecisionSink             m_decisionSink;
     std::function<int64_t ()>  m_clock;
     std::function<time_t ()>   m_timestamp;
 

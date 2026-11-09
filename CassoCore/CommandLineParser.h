@@ -349,8 +349,8 @@ public:
     //  canonicalizes a `/` form against. Two tables because they answer
     //  different questions -- one is what a reader is shown, the other is what
     //  `/machine` is rewritten through -- and a sweep holds them together.
-    static std::span<const EmulatorFlag>     GetEmulatorFlags();
-    static std::span<const char * const>     GetEmulatorLongOptions();
+    static std::span<const EmulatorFlag>  GetEmulatorFlags       ();
+    static std::span<const char * const>  GetEmulatorLongOptions ();
 
     //  Whether a relaunch after a self-update repeats an emulator option from
     //  the original command line. Repeat is for options that describe how this
@@ -370,6 +370,7 @@ public:
         None,
         Required,
         OptionalSize,
+        OptionalPath,
     };
 
     //  One entry per name in GetEmulatorLongOptions, each with its decision
@@ -468,9 +469,9 @@ public:
     // Refuses the options that describe a placement on a volume when no volume
     // was named. Both assembler grammars ask, the options being the
     // assembler's rather than a dialect's.
-    static void         RefuseImageOptionsWithoutAnImage (CommandLineOptions & options);
-    static std::span<const char * const>    GetRunLongOptions();
-    static std::span<const char * const>    GetDiskOptionNames();
+    static void                           RefuseImageOptionsWithoutAnImage (CommandLineOptions & options);
+    static std::span<const char * const>  GetRunLongOptions                ();
+    static std::span<const char * const>  GetDiskOptionNames               ();
 
     //  Every option the `disk` grammar takes, comma-separated and in their `--` form,
     //  for the refusal an argument that is none of them earns.
@@ -580,6 +581,14 @@ public:
                                                std::string & value, CommandLineOptions & options);
 
 private:
+    //  Whether an argument is a disk image Casso mounts, by its extension.
+    static bool  IsDiskImagePath (const std::string & path);
+
+    //  Whether the argument after --serial-log is its file: not an option and
+    //  not a disk image, so `--serial-log game.dsk` mounts the disk.
+    static bool  IsSerialLogPath (const std::string & arg);
+    static constexpr const char *  s_kpszDiskImageExtensions[] = { ".dsk", ".do", ".po", ".woz", ".nib", ".nb2" };
+
     //  Words the refusal for one emulator argument, and records the verdict.
     //  `canonical` is the argument after `/name` was rewritten, so a value left
     //  off `/disk1` is told apart from a flag nothing has.
@@ -630,7 +639,7 @@ private:
     //  the help writes it with. An operand past the count is one the command would
     //  otherwise read and discard.
     static int           GetDiskOperandCount (CommandLineOptions::DiskOptions::Command command);
-    static const char *  GetDiskCommandWord     (CommandLineOptions::DiskOptions::Command command);
+    static const char  * GetDiskCommandWord  (CommandLineOptions::DiskOptions::Command command);
 
     //  An argument reduced to the `--` form the grammars test for, so
     //  `/out` and `--out` reach the same arm. Only an exact option name from
@@ -640,15 +649,15 @@ private:
                                               std::span<const char * const>   names);
 
     static std::string  GetCanonicalDiskFlag (const std::string & arg);
-    static void  ParseAs65Flags      (int argc, char * argv[], int startIndex, CommandLineOptions & options);
-    static void  ApplyAs65Defaults   (CommandLineOptions & options, const FileExistsFn & fileExists);
-    static void  ParseMerlinFlags    (int argc, char * argv[], int startIndex, CommandLineOptions & options);
-    static void  ApplyMerlinDefaults (CommandLineOptions & options, const FileExistsFn & fileExists);
-    static void  ParseRunOptions     (int argc, char * argv[], int argIndex, CommandLineOptions & options);
+    static void         ParseAs65Flags       (int argc, char * argv[], int startIndex, CommandLineOptions & options);
+    static void         ApplyAs65Defaults    (CommandLineOptions & options, const FileExistsFn & fileExists);
+    static void         ParseMerlinFlags     (int argc, char * argv[], int startIndex, CommandLineOptions & options);
+    static void         ApplyMerlinDefaults  (CommandLineOptions & options, const FileExistsFn & fileExists);
+    static void         ParseRunOptions      (int argc, char * argv[], int argIndex, CommandLineOptions & options);
 
     static bool  RefuseCpuFlagWhereSelectedInSource (CommandLineOptions & options);
     static bool  RefuseSourceWithoutDialect         (CommandLineOptions & options);
-    static void  RecordUnrecognizedFlag (const std::string & flag, CommandLineOptions & options);
+    static void  RecordUnrecognizedFlag             (const std::string & flag, CommandLineOptions & options);
 
     static bool  ApplyOutputFormat (const std::string & arg, DialectId dialect, CommandLineOptions & options);
 

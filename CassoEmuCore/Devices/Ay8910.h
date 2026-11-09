@@ -73,7 +73,7 @@ public:
     // that header would tie this chip model to one machine, and the part ran
     // at other rates in other machines. MockingboardCard states the real rate
     // through SetClock, so the value below decides nothing in this tree.
-    static constexpr double  kDefaultClockHz = 1022727.0;
+    static constexpr double  kDefaultClockHz = 1020484.0;
 
     // Internal prescaler: the synthesis engine steps at clock / this.
     static constexpr int     kBaseTickDivisor = 8;
@@ -102,11 +102,11 @@ public:
     float   GenerateSample ();
 
     // Inspectors for tests.
-    Byte     GetLatchedAddress () const { return m_latched; }
-    bool     TryGetToneState  (int channel) const { return m_toneState[channel] != 0; }
-    uint32_t GetNoiseLfsr  () const { return m_lfsr; }
-    int      GetEnvLevel   () const { return m_envLevel; }
-    bool     IsEnvHolding  () const { return m_envHolding; }
+    Byte      GetLatchedAddress () const { return m_latched; }
+    bool      TryGetToneState   (int channel) const { return m_toneState[channel] != 0; }
+    uint32_t  GetNoiseLfsr      () const { return m_lfsr; }
+    int       GetEnvLevel       () const { return m_envLevel; }
+    bool      IsEnvHolding      () const { return m_envHolding; }
 
     static float GetVolumeForLevel (int level);
 

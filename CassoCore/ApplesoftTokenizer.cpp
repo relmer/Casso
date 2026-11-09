@@ -954,7 +954,8 @@ Error:
 //
 //  ApplesoftTokenizer::Detokenize
 //
-//  Walks by the line terminator and CHECKS the link rather than trusting it.
+//  Walks by the line terminator and CHECKS the link rather than trusting it,
+//  against the address the first line's link implies the file was saved from.
 //  The link is redundant with the layout, and a redundancy nobody compares is a
 //  place for two answers to disagree quietly -- which on this filesystem means a
 //  program that lists correctly here and runs off the end of itself on the
@@ -967,14 +968,18 @@ HRESULT ApplesoftTokenizer::Detokenize (
     std::string              &  outHostListing,
     ApplesoftListingError    &  outError)
 {
-    HRESULT            hr      = S_OK;
-    size_t             at      = 0;
-    size_t             count   = programBytes.size();
-    size_t             lines   = 0;
-    bool               ok      = true;
-    bool               ended   = false;
-    uint32_t           number  = 0;
-    uint32_t           link    = 0;
+    HRESULT            hr       = S_OK;
+    size_t             at       = 0;
+    size_t             count    = programBytes.size();
+    size_t             lines    = 0;
+    bool               ok       = true;
+    bool               ended    = false;
+    uint32_t           number   = 0;
+    uint32_t           link     = 0;
+    uint32_t           base     = (uint32_t) kProgramBase;
+    bool               based    = false;
+    uint32_t           first    = 0;
+    uint32_t           lastRead = 0;
     std::string        text;
     std::string        reason;
     std::vector<Byte>  body;
@@ -1039,10 +1044,23 @@ HRESULT ApplesoftTokenizer::Detokenize (
 
         endAt++;
 
-        if (link != (kProgramBase + endAt))
+        //  Applesoft relinks a program to wherever it is loaded, so the first
+        //  line's link says where this file was saved from; every later link is
+        //  checked against that address.
+        if (!based)
+        {
+            base  = (link >= (uint32_t) endAt) ? link - (uint32_t) endAt : (uint32_t) kProgramBase;
+            first = number;
+            based = true;
+        }
+
+        //  When the second line disagrees with an address the first line's own
+        //  link implied, the two are only consistent at the usual address, so
+        //  the first line's link is the damaged one.
+        if (link != (base + (uint32_t) endAt))
         {
             reason                 = "points somewhere other than the line that follows it";
-            outError.lineNumber    = number;
+            outError.lineNumber    = (lines == 1 && base != (uint32_t) kProgramBase) ? first : number;
             outError.hasLineNumber = true;
             ok                     = false;
             continue;
@@ -1065,7 +1083,8 @@ HRESULT ApplesoftTokenizer::Detokenize (
         outHostListing += '\n';
 
         lines++;
-        at = endAt;
+        lastRead = number;
+        at       = endAt;
     }
 
     if (ok && lines == 0)
@@ -1084,6 +1103,9 @@ HRESULT ApplesoftTokenizer::Detokenize (
 Error:
     if (FAILED (hr))
     {
+        outError.partialListing    = outHostListing;
+        outError.lastLineNumber    = lastRead;
+        outError.hasLastLineNumber = lines > 0;
         outHostListing.clear();
     }
 

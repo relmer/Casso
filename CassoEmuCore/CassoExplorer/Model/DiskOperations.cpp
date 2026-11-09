@@ -1,0 +1,944 @@
+#include "Pch.h"
+
+#include "CassoExplorer/Model/DiskOperations.h"
+#include "CassoExplorer/Model/FilesystemChoices.h"
+#include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskCommandRunner.h"
+#include "Devices/Disk/FilePath.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "Seams/IIntentChannel.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::DiskOperations
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::DiskOperations (IDiskFileIo & fileIo)
+    : m_fileIo (fileIo)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::MakeOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CommandLineOptions DiskOperations::MakeOptions (Command command, const std::string & imagePath)
+{
+    CommandLineOptions  options;
+
+
+
+    options.subcommand        = CommandLineOptions::Subcommand::Disk;
+    options.disk.command      = command;
+    options.disk.imagePath    = imagePath;
+
+    //  A running emulator with this image mounted reloads it after a write;
+    //  the runner states the intent only for the verbs that write.
+    options.disk.changeIntent = ExternalChangeIntent::ReloadInPlace;
+
+    return options;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::DescribeVolumeRefusal
+//
+//  The volume layer answers in Win32 codes; a dialog wants a sentence.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskOperations::DescribeVolumeRefusal (HRESULT hr, VolumeKind kind)
+{
+    std::string  damage = DiskCommandRunner::DescribeDamage (hr, kind);
+
+
+
+    if (!damage.empty())                                          { return damage; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND))          { return "it is not on this volume"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS))             { return "another file on this volume has that name"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_NAME))            { return "the name is not valid on this file system"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED))           { return "it is locked"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_DISK_FULL))               { return "the volume has no room for it"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_DISK_TOO_FRAGMENTED))     { return "the volume has enough free blocks, but in pieces, and an Apple Pascal file has to be contiguous. Use Krunch on the disk's menu to combine the free space"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE))             { return "the volume directory is full, with room for 51 entries"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE))          { return "it is larger than this file system can record"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED)) { return "it is a directory, and this operation is for files only"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER))       { return "it requires a load address"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED))           { return "this file system does not store that"; }
+
+    return std::format ("the volume returned error 0x{:08X}", (unsigned) hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::RunCommand
+//
+//  One runner per call, so the staleness stamp is taken fresh each time and
+//  a window that keeps an image open for hours never commits over a change
+//  it did not see. A failure has the volume's HRESULT when the command
+//  result has one, and E_FAIL otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::RunCommand (const CommandLineOptions & options)
+{
+    DiskCommandRunner   runner (m_fileIo);
+    DiskCommandResult   command;
+    Result              result;
+    CommandLineOptions  effective = options;
+
+
+
+    runner.SetIntentChannel (m_intentChannel);
+
+    effective.disk.filesystem = FilesystemChoices::GetWord (GetChoice (options.disk.imagePath));
+
+    command = runner.Run (effective);
+
+    result.exitStatus = command.exitStatus;
+    result.message    = command.diagnostics;
+    result.output     = command.output;
+    result.hr         = (command.exitStatus != DiskCommandResult::kNoOutput) ? S_OK
+                      : FAILED (command.failure)                         ? command.failure
+                                                                         : E_FAIL;
+
+    if (command.hasPayload)
+    {
+        result.payload = std::move (command.payload);
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::LostSectorCounter::OnSectorRead
+//
+//  The sector is the volume buffer's, which is the decode report's slot.
+//  Only a Partial track lost anything: a sector image has no tracks in the
+//  report, and an unformatted track is blank, not damaged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskOperations::LostSectorCounter::OnSectorRead (size_t sector)
+{
+    constexpr size_t  kSectorsPerTrack = 16;
+
+
+
+    int   track   = (int) (sector / kSectorsPerTrack);
+    bool  partial = track < m_report.GetTrackCount() && m_report.GetOutcome (track) == TrackDecodeOutcome::Partial;
+    bool  lost    = partial && !m_report.IsSectorRecovered (track, (int) (sector % kSectorsPerTrack));
+
+
+
+    if (lost)
+    {
+        m_lost.insert (sector);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::OpenVolume
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::OpenVolume (const std::string & imagePath, DiskImageSession::OpenedImage & outOpened)
+{
+    DiskImageSession   session (m_fileIo);
+    DiskCommandResult  command;
+    Result             result;
+
+
+
+    session.SetChosenKind (GetChoice (imagePath));
+
+    result.hr         = session.OpenImage (imagePath, outOpened, command);
+    result.exitStatus = command.exitStatus;
+    result.message    = command.diagnostics;
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::GetChoice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+VolumeKind DiskOperations::GetChoice (const std::string & imagePath) const
+{
+    return (m_choices != nullptr) ? m_choices->GetChoice (TextEncoding::NarrowToWide (imagePath)) : VolumeKind::Unknown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::IsUnrecognized
+//
+//  Whether the image loads, with no file system detection recognizes. A choice
+//  doesn't change the answer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskOperations::IsUnrecognized (const std::string & imagePath)
+{
+    DiskImageSession               session (m_fileIo);
+    DiskCommandResult              command;
+    DiskImageSession::OpenedImage  opened;
+    HRESULT                        hr = session.OpenImage (imagePath, opened, command, false);
+
+
+
+    return SUCCEEDED (hr) && opened.kind == VolumeKind::Unknown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::CommitEdit
+//
+//  Renders the edited sectors back into the container and replaces the file,
+//  through the same session call every runner verb commits with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::CommitEdit (
+    const std::string                    & imagePath,
+    const DiskImageSession::OpenedImage  & opened,
+    const std::vector<Byte>              & edited)
+{
+    DiskImageSession   session (m_fileIo);
+    DiskCommandResult  command;
+    Result             result;
+
+
+
+    result.hr         = session.SaveAndCommit (opened, edited, command);
+    result.exitStatus = command.exitStatus;
+    result.message    = command.diagnostics;
+
+    //  A write through the volume layer tells a running emulator the same
+    //  thing the runner's writes do.
+    if (SUCCEEDED (result.hr) && m_intentChannel != nullptr)
+    {
+        m_intentChannel->StateIntent (imagePath, ExternalChangeIntent::ReloadInPlace);
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::List
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::List (const std::string & imagePath, const std::string & directory, VolumeListing & outListing, VolumeKind & outKind)
+{
+    DiskImageSession::OpenedImage  opened;
+    Result                         result = OpenVolume (imagePath, opened);
+    HRESULT                        hr     = S_OK;
+
+
+
+    outListing = VolumeListing();
+    outKind    = VolumeKind::Unknown;
+
+    if (result.Succeeded())
+    {
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
+
+        outKind = opened.kind;
+        hr      = volume->EnumerateDirectory (FilePath::Parse (directory), outListing);
+
+        result.listingDamaged = !outListing.damage.empty();
+
+        if (FAILED (hr))
+        {
+            result.hr      = hr;
+            result.message = DiskCommandResult::FormatFailure (imagePath, "", "catalog could not be read");
+        }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::Read
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::Read (const std::string & imagePath, const std::string & name, FilePayload & outPayload, size_t catalogIndex)
+{
+    DiskImageSession::OpenedImage  opened;
+    Result                         result = OpenVolume (imagePath, opened);
+    HRESULT                        hr     = S_OK;
+
+
+
+    outPayload = FilePayload();
+
+    if (result.Succeeded())
+    {
+        //  A bit-stream image's undecodable sectors read as zeros; the ones the
+        //  file touches are counted, so a copy of it is reported as damaged.
+        LostSectorCounter         lost (opened.report);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors, &lost);
+
+        hr = volume->Read (MakeEntryPath (opened.kind, name, catalogIndex), outPayload);
+
+        if (FAILED (hr))
+        {
+            result.hr      = hr;
+            result.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("Unable to read {}: {}", name, DescribeVolumeRefusal (hr, opened.kind)));
+        }
+
+        result.unreadSectors = lost.GetCount();
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::Mkdir
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::Mkdir (const std::string & imagePath, const std::string & path)
+{
+    CommandLineOptions  options = MakeOptions (Command::Mkdir, imagePath);
+
+
+
+    options.disk.path = path;
+
+    return RunCommand (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::Rmdir
+//
+//  The window has already shown the plan and been answered, so the question the
+//  command line asks is answered here in advance.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::Rmdir (const std::string & imagePath, const std::string & path, bool force)
+{
+    CommandLineOptions  options = MakeOptions (Command::Rmdir, imagePath);
+
+
+
+    options.disk.path    = path;
+    options.disk.recurse = true;
+    options.disk.force   = force;
+    options.disk.yes     = true;
+
+    return RunCommand (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::BuildRemovalPlan
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::BuildRemovalPlan (
+    const std::string     & imagePath,
+    const std::string     & path,
+    DirectoryRemovalPlan  & outPlan)
+{
+    DiskImageSession::OpenedImage  opened;
+    Result                         result = OpenVolume (imagePath, opened);
+    HRESULT                        hr     = S_OK;
+
+
+
+    outPlan = DirectoryRemovalPlan();
+
+    if (result.Succeeded())
+    {
+        ProDosVolume  volume (opened.sectors);
+
+        hr = volume.BuildRemovalPlan (FilePath::Parse (path), outPlan);
+
+        if (FAILED (hr))
+        {
+            result.hr      = hr;
+            result.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("Unable to remove {}: {}", path, DescribeVolumeRefusal (hr, opened.kind)));
+        }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::MakeEntryPath
+//
+//  A DOS 3.3 name is one component even when it contains a slash, and the path
+//  includes the entry's catalog index when one is given, since the name may be
+//  shared. ProDOS names are unique within a directory, so the name is enough.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FilePath DiskOperations::MakeEntryPath (VolumeKind kind, const std::string & name, size_t catalogIndex)
+{
+    FilePath  path = (kind == VolumeKind::Dos33) ? FilePath::FromName (name) : FilePath::Parse (name);
+
+
+
+    if (kind == VolumeKind::Dos33 && catalogIndex != kNoIndex)
+    {
+        path = path.WithLeafIndex (catalogIndex);
+    }
+
+    return path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::ApplyIndex
+//
+//  The runner accepts --index only for a DOS 3.3 name that several entries
+//  share, so the index is passed only in that case. Any other entry is
+//  identified by its name alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskOperations::ApplyIndex (size_t catalogIndex, CommandLineOptions & inOutOptions)
+{
+    VolumeListing  listing;
+    VolumeKind     kind    = VolumeKind::Unknown;
+    size_t         sharing = 0;
+    Result         listed;
+
+
+
+    if (catalogIndex == kNoIndex)
+    {
+        return;
+    }
+
+    listed = List (inOutOptions.disk.imagePath, listing, kind);
+
+    if (!listed.Succeeded() || kind != VolumeKind::Dos33)
+    {
+        return;
+    }
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        sharing += (_stricmp (entry.name.c_str(), inOutOptions.disk.path.c_str()) == 0) ? 1 : 0;
+    }
+
+    inOutOptions.disk.hasIndex = sharing > 1;
+    inOutOptions.disk.index    = catalogIndex + 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::Get
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::Get (
+    const std::string  & imagePath,
+    const std::string  & name,
+    Encoding             encoding,
+    const std::string  & hostPath,
+    size_t               catalogIndex)
+{
+    CommandLineOptions  options = MakeOptions (Command::Get, imagePath);
+
+
+
+    options.disk.path     = name;
+    options.disk.encoding = encoding;
+    options.disk.hostFile = hostPath;
+
+    ApplyIndex (catalogIndex, options);
+
+    return RunCommand (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::Put
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::Put (
+    const std::string  & imagePath,
+    const std::string  & hostPath,
+    const std::string  & name,
+    const std::string  & typeName,
+    bool                 hasLoadAddress,
+    Word                 loadAddress,
+    Encoding             encoding)
+{
+    CommandLineOptions  options = MakeOptions (Command::Put, imagePath);
+
+
+
+    options.disk.hostFile       = hostPath;
+    options.disk.path           = name;
+    options.disk.typeName       = typeName;
+    options.disk.hasLoadAddress = hasLoadAddress;
+    options.disk.loadAddress    = loadAddress;
+    options.disk.encoding       = encoding;
+
+    return RunCommand (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::Delete
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::Delete (const std::string & imagePath, const std::string & name, size_t catalogIndex)
+{
+    CommandLineOptions  options = MakeOptions (Command::Delete, imagePath);
+
+
+
+    options.disk.path = name;
+
+    ApplyIndex (catalogIndex, options);
+
+    return RunCommand (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::Boot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::Boot (const std::string & imagePath, const std::string & name, size_t catalogIndex)
+{
+    CommandLineOptions  options = MakeOptions (Command::Boot, imagePath);
+
+
+
+    options.disk.path = name;
+
+    ApplyIndex (catalogIndex, options);
+
+    return RunCommand (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::Krunch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::Krunch (const std::string & imagePath)
+{
+    return RunCommand (MakeOptions (Command::Krunch, imagePath));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::FillNewDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskOperations::FillNewDisk (const NewDiskRequest & request, CommandLineOptions & inOutOptions)
+{
+    inOutOptions.disk.containerType = request.containerType;
+    inOutOptions.disk.formatName    = request.formatName;
+    inOutOptions.disk.volumeName    = request.volumeName;
+    inOutOptions.disk.bootable      = request.bootable;
+    inOutOptions.disk.bootableFrom  = request.bootableFrom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::Create
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::Create (const std::string & imagePath, const NewDiskRequest & request)
+{
+    CommandLineOptions  options = MakeOptions (Command::Create, imagePath);
+
+
+
+    FillNewDisk (request, options);
+
+    return RunCommand (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::Init
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::Init (const std::string & imagePath, const NewDiskRequest & request)
+{
+    CommandLineOptions  options = MakeOptions (Command::Init, imagePath);
+
+
+
+    FillNewDisk (request, options);
+
+    //  init takes the container as it finds it.
+    options.disk.containerType.clear();
+
+    return RunCommand (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::SectorRead
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::SectorRead (
+    const std::string  & imagePath,
+    Numbering            numbering,
+    int                  track,
+    int                  sector,
+    int                  count,
+    const std::string  & hostPath)
+{
+    CommandLineOptions  options = MakeOptions (Command::SectorRead, imagePath);
+
+
+
+    options.disk.numbering = numbering;
+    options.disk.track     = track;
+    options.disk.sector    = sector;
+    options.disk.count     = count;
+    options.disk.hostFile  = hostPath;
+
+    return RunCommand (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::SectorWrite
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::SectorWrite (
+    const std::string  & imagePath,
+    const std::string  & hostPath,
+    Numbering            numbering,
+    int                  track,
+    int                  sector)
+{
+    CommandLineOptions  options = MakeOptions (Command::SectorWrite, imagePath);
+
+
+
+    options.disk.hostFile  = hostPath;
+    options.disk.numbering = numbering;
+    options.disk.track     = track;
+    options.disk.sector    = sector;
+
+    return RunCommand (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::BlockRead
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::BlockRead (
+    const std::string  & imagePath,
+    int                  block,
+    int                  count,
+    const std::string  & hostPath)
+{
+    CommandLineOptions  options = MakeOptions (Command::BlockRead, imagePath);
+
+
+
+    options.disk.block    = block;
+    options.disk.count    = count;
+    options.disk.hostFile = hostPath;
+
+    return RunCommand (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::BlockWrite
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::BlockWrite (
+    const std::string  & imagePath,
+    const std::string  & hostPath,
+    int                  block)
+{
+    CommandLineOptions  options = MakeOptions (Command::BlockWrite, imagePath);
+
+
+
+    options.disk.hostFile = hostPath;
+    options.disk.block    = block;
+
+    return RunCommand (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::WritePayload
+//
+//  A file's bytes, type and address laid down as they came from another
+//  volume, with no conversion. The payload's own encoding is left as the
+//  reader set it, which is verbatim, so a copy between two disks is exact.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::WritePayload (
+    const std::string  & imagePath,
+    const std::string  & name,
+    const FilePayload  & payload)
+{
+    DiskImageSession::OpenedImage  opened;
+    Result                         result = OpenVolume (imagePath, opened);
+    HRESULT                        hr     = S_OK;
+    std::vector<Byte>              edited;
+
+
+
+    if (result.Succeeded())
+    {
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
+
+        hr = volume->Write ((opened.kind == VolumeKind::Dos33) ? FilePath::FromName (name) : FilePath::Parse (name), payload, edited);
+
+        if (FAILED (hr))
+        {
+            result.hr      = hr;
+            result.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("Unable to write {}: {}", name, DescribeVolumeRefusal (hr, opened.kind)));
+        }
+    }
+
+    if (result.Succeeded())
+    {
+        result = CommitEdit (imagePath, opened, edited);
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::Rename
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::Rename (
+    const std::string  & imagePath,
+    const std::string  & from,
+    const std::string  & to,
+    size_t               catalogIndex)
+{
+    DiskImageSession::OpenedImage  opened;
+    Result                         result = OpenVolume (imagePath, opened);
+    HRESULT                        hr     = S_OK;
+    std::vector<Byte>              edited;
+
+
+
+    if (result.Succeeded())
+    {
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
+
+        hr = volume->Rename (MakeEntryPath (opened.kind, from, catalogIndex), to, edited);
+
+        if (FAILED (hr))
+        {
+            result.hr      = hr;
+            result.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("Unable to rename {} to {}: {}", from, to, DescribeVolumeRefusal (hr, opened.kind)));
+        }
+    }
+
+    if (result.Succeeded())
+    {
+        result = CommitEdit (imagePath, opened, edited);
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::SetAttributes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::SetAttributes (
+    const std::string     & imagePath,
+    const std::string     & name,
+    const FileAttributes  & attributes,
+    size_t                  catalogIndex)
+{
+    DiskImageSession::OpenedImage  opened;
+    Result                         result = OpenVolume (imagePath, opened);
+    HRESULT                        hr     = S_OK;
+    std::vector<Byte>              edited;
+
+
+
+    if (result.Succeeded())
+    {
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
+
+        hr = volume->SetAttributes (MakeEntryPath (opened.kind, name, catalogIndex), attributes, edited);
+
+        if (FAILED (hr))
+        {
+            result.hr      = hr;
+            result.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("Unable to change {}: {}", name, DescribeVolumeRefusal (hr, opened.kind)));
+        }
+    }
+
+    if (result.Succeeded())
+    {
+        result = CommitEdit (imagePath, opened, edited);
+    }
+
+    return result;
+}

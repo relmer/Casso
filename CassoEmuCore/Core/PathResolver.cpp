@@ -319,3 +319,39 @@ std::wstring PathResolver::ResolveExeRelativePath (const std::wstring & storedPa
                ? (GetExecutableDirectory() / stored).lexically_normal().wstring()
                : storedPath;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsNetworkPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PathResolver::IsNetworkPath (const std::wstring & path)
+{
+    std::wstring  root;
+
+
+
+    if (path.starts_with (L"\\\\?\\UNC\\"))
+    {
+        return true;
+    }
+
+    if (path.starts_with (L"\\\\"))
+    {
+        return !path.starts_with (L"\\\\?\\") && !path.starts_with (L"\\\\.\\");
+    }
+
+    if (path.size() < 2 || path[1] != L':')
+    {
+        return false;
+    }
+
+    root = path.substr (0, 2) + L"\\";
+
+    return GetDriveTypeW (root.c_str()) == DRIVE_REMOTE;
+}

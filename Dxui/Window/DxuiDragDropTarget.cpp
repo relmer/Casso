@@ -327,24 +327,130 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExtractHDropPaths
+//
+//  Every file path in a CF_HDROP data object.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiDragDropTarget::ExtractHDropPaths (IDataObject * pData, std::vector<std::wstring> & outPaths)
+{
+    HRESULT    hr         = S_OK;
+    FORMATETC  fmt        = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM  medium     = { };
+    HDROP      hDrop      = nullptr;
+    UINT       cFiles     = 0;
+    bool       fLocked    = false;
+    bool       fGotMedium = false;
+
+
+
+    outPaths.clear();
+
+    CBRAEx (pData != nullptr, E_INVALIDARG);
+
+    hr = pData->GetData (&fmt, &medium);
+    CHR (hr);
+
+    fGotMedium = true;
+
+    hDrop = static_cast<HDROP> (GlobalLock (medium.hGlobal));
+    CWRA (hDrop);
+
+    fLocked = true;
+
+    cFiles = DragQueryFileW (hDrop, 0xFFFFFFFF, nullptr, 0);
+
+    for (UINT i = 0; i < cFiles; i++)
+    {
+        UINT          cch  = DragQueryFileW (hDrop, i, nullptr, 0);
+        std::wstring  path (cch, L'\0');
+
+        if (cch == 0)
+        {
+            continue;
+        }
+
+        DragQueryFileW (hDrop, i, path.data(), cch + 1);
+        outPaths.push_back (std::move (path));
+    }
+
+Error:
+    if (fLocked)
+    {
+        GlobalUnlock (medium.hGlobal);
+    }
+
+    if (fGotMedium)
+    {
+        ReleaseStgMedium (&medium);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DragEnter
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 STDMETHODIMP DxuiDragDropTarget::DragEnter (
     IDataObject * pData,
-    DWORD         /*grfKeyState*/,
+    DWORD         grfKeyState,
     POINTL        pt,
     DWORD       * pdwEffect)
 {
     std::wstring  path;
     HRESULT       hrExtract = S_OK;
+    HRESULT       hr        = S_OK;
+    POINT         screen    = { pt.x, pt.y };
 
 
 
+    m_dragKeys              = grfKeyState;
     m_fDragActive           = true;
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
+
+    //  A host that judges the drag itself keeps the data object for DragOver,
+    //  which OLE does not pass again.
+    if (m_over)
+    {
+        if (m_data != nullptr)
+        {
+            m_data->Release();
+        }
+
+        m_data = pData;
+
+        if (m_data != nullptr)
+        {
+            m_data->AddRef();
+        }
+
+        m_fDragHasSupportedFile = m_data != nullptr;
+
+        hr = DragOver (grfKeyState, pt, pdwEffect);
+
+        if (m_helper == nullptr && m_hwnd != nullptr)
+        {
+            HRESULT  hrHelper = CoCreateInstance (CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&m_helper));
+
+            IGNORE_RETURN_VALUE (hrHelper, S_OK);
+        }
+
+        if (m_helper != nullptr && m_hwnd != nullptr && pData != nullptr && pdwEffect != nullptr)
+        {
+            m_helper->DragEnter (m_hwnd, pData, &screen, *pdwEffect);
+        }
+
+        return hr;
+    }
 
     // A drag carrying something other than files is routine, so a failed
     // extract is not propagated -- it just means there is nothing to accept.
@@ -355,7 +461,9 @@ STDMETHODIMP DxuiDragDropTarget::DragEnter (
         m_dragPath              = path;
     }
 
-    return DragOver (0, pt, pdwEffect);
+    hr = DragOver (grfKeyState, pt, pdwEffect);
+
+    return hr;
 }
 
 
@@ -369,7 +477,7 @@ STDMETHODIMP DxuiDragDropTarget::DragEnter (
 ////////////////////////////////////////////////////////////////////////////////
 
 STDMETHODIMP DxuiDragDropTarget::DragOver (
-    DWORD     /*grfKeyState*/,
+    DWORD     grfKeyState,
     POINTL    pt,
     DWORD   * pdwEffect)
 {
@@ -378,13 +486,85 @@ STDMETHODIMP DxuiDragDropTarget::DragOver (
 
 
 
+    m_dragKeys = grfKeyState;
+
     CBREx (pdwEffect != nullptr, E_POINTER);
 
+    //  On the way in, the effect is what the source allows.
+    m_allowed    = *pdwEffect;
     tag          = PickAtScreen (pt);
     m_lastHitTag = tag;
     *pdwEffect   = (m_fDragHasSupportedFile && tag >= 0) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
 
+    if (m_over && m_data != nullptr)
+    {
+        *pdwEffect = (tag >= 0) ? m_over (m_data, tag, POINT { pt.x, pt.y }) : DROPEFFECT_NONE;
+
+        if (tag < 0 && m_leave)
+        {
+            m_leave();
+        }
+
+        if (m_helper != nullptr)
+        {
+            POINT  screen = { pt.x, pt.y };
+
+            m_helper->DragOver (&screen, *pdwEffect);
+        }
+    }
+
 Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDropDescription
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiDragDropTarget::SetDropDescription (IDataObject * data, DROPIMAGETYPE type, const wchar_t * message, const wchar_t * insert)
+{
+    HRESULT              hr          = S_OK;
+    FORMATETC            format      = { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_DROPDESCRIPTION), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM            medium      = {};
+    DROPDESCRIPTION    * description = nullptr;
+    HGLOBAL              global      = nullptr;
+
+
+
+    CBRAEx (data != nullptr, E_INVALIDARG);
+
+    global = GlobalAlloc (GMEM_MOVEABLE | GMEM_ZEROINIT, sizeof (DROPDESCRIPTION));
+    CWR (global);
+
+    description = (DROPDESCRIPTION *) GlobalLock (global);
+    CWR (description);
+
+    description->type = type;
+    wcsncpy_s (description->szMessage, (message != nullptr) ? message : L"", _TRUNCATE);
+    wcsncpy_s (description->szInsert,  (insert  != nullptr) ? insert  : L"", _TRUNCATE);
+    GlobalUnlock (global);
+
+    medium.tymed   = TYMED_HGLOBAL;
+    medium.hGlobal = global;
+
+    //  The object owns the memory once it takes it.
+    hr = data->SetData (&format, &medium, TRUE);
+    CHR (hr);
+
+    global = nullptr;
+
+Error:
+    if (global != nullptr)
+    {
+        GlobalFree (global);
+    }
+
     return hr;
 }
 
@@ -400,10 +580,29 @@ Error:
 
 STDMETHODIMP DxuiDragDropTarget::DragLeave()
 {
+    if (m_helper != nullptr)
+    {
+        m_helper->DragLeave();
+        m_helper.Reset();
+    }
+
+    if (m_data != nullptr)
+    {
+        m_data->Release();
+        m_data = nullptr;
+    }
+
     m_fDragActive           = false;
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
     m_lastHitTag            = -1;
+    m_dragKeys              = 0;
+
+    if (m_leave)
+    {
+        m_leave();
+    }
+
     return S_OK;
 }
 
@@ -418,14 +617,56 @@ STDMETHODIMP DxuiDragDropTarget::DragLeave()
 ////////////////////////////////////////////////////////////////////////////////
 
 STDMETHODIMP DxuiDragDropTarget::Drop (
-    IDataObject * /*pData*/,
-    DWORD         /*grfKeyState*/,
+    IDataObject * pData,
+    DWORD         grfKeyState,
     POINTL        pt,
     DWORD       * pdwEffect)
 {
-    int  tag = PickAtScreen (pt);
+    int    tag    = PickAtScreen (pt);
+    DWORD  effect = DROPEFFECT_NONE;
 
 
+
+    //  The drop's key state has the button already up. The last drag-over's
+    //  stands, as a forwarded shell target reads a drop with no button down
+    //  as a right-button drag and asks what to do with a menu.
+    UNREFERENCED_PARAMETER (grfKeyState);
+
+
+
+    if (m_over && pData != nullptr)
+    {
+        effect = (tag >= 0) ? m_over (pData, tag, POINT { pt.x, pt.y }) : DROPEFFECT_NONE;
+
+        if (pdwEffect != nullptr)
+        {
+            *pdwEffect = effect;
+        }
+
+        //  The drag image comes down before the drop runs, which may ask
+        //  something in a window of its own.
+        if (m_helper != nullptr)
+        {
+            POINT  screen = { pt.x, pt.y };
+
+            m_helper->Drop (pData, &screen, effect);
+            m_helper.Reset();
+        }
+
+        if (effect != DROPEFFECT_NONE && m_dataDrop)
+        {
+            m_hasDropResult = false;
+            m_dataDrop (pData, tag, POINT { pt.x, pt.y });
+            m_fSuppressNextClick = true;
+
+            if (m_hasDropResult && pdwEffect != nullptr)
+            {
+                *pdwEffect = m_dropResult;
+            }
+        }
+
+        return DragLeave();
+    }
 
     if (pdwEffect != nullptr)
     {

@@ -1,9 +1,11 @@
 #include "Pch.h"
 
 #include "Ui/Settings/SerialCardPage.h"
+#include "Ui/Settings/HardwarePage.h"
 #include "Ui/Settings/SettingsInfoTip.h"
 #include "Ui/Settings/SettingsPanelState.h"
 #include "Core/TextEncoding.h"
+#include "Devices/SerialPortDevice.h"
 
 
 
@@ -64,6 +66,9 @@ SerialCardPage::SerialCardPage (std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
     Adopt (m_firmwareBanner);
+    Adopt (m_listenBanner);
+    m_listenBanner.SetSeverity (DxuiInfoBanner::Severity::Warning);
+    m_listenBanner.SetVisible  (false);
     Adopt (m_download);
     Adopt (m_switchesHeading);
 
@@ -98,7 +103,6 @@ SerialCardPage::SerialCardPage (std::wstring title)
     Adopt (m_browse);
     Adopt (m_restore);
 
-    m_attach.SetItems   ({ std::begin (s_kAttachmentLabels), std::end (s_kAttachmentLabels) });
     m_attach.SetSelect  ([this] (int picked) { OnAttachPicked (picked); });
     m_browse.SetOnClick  ([this] () { OnBrowse(); });
     m_restore.SetOnClick ([this] () { OnRestoreDefaults(); });
@@ -203,6 +207,7 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int   noteWidth    = std::max (dropWidth, scaler.ToPx (s_kDropdownWidthDp) + rowGap + buttonWidth);
     int   bannerWidth  = (rect.right - rect.left) - pad * 2;
     int   bannerHeight = static_cast<int> (std::ceil (m_firmwareBanner.GetPreferredHeightPx (static_cast<float> (bannerWidth), scaler)));
+    int   listenHeight = 0;
     int   fileChoice   = m_attach.GetSelectedIndex();
     bool  showPath     = fileChoice == kFileOutChoice || fileChoice == kFileInChoice;
 
@@ -215,6 +220,13 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_firmwareBanner.SetRect (MakeRect (x, y, bannerWidth, bannerHeight));
     m_firmwareBanner.SetDpi  (dpi);
     y += bannerHeight + rowGap;
+
+    if (m_listenBanner.IsVisible())
+    {
+        listenHeight = static_cast<int> (std::ceil (m_listenBanner.GetPreferredHeightPx (static_cast<float> (bannerWidth), scaler)));
+        m_listenBanner.Layout (MakeRect (x, y, bannerWidth, listenHeight), scaler);
+        y += listenHeight + rowGap;
+    }
 
     m_download.SetLabel   (L"Download firmware");
     m_download.SetVisible (m_offerDownload);
@@ -277,7 +289,7 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_attach.SetDpi       (dpi);
     y += rowHeight + rowGap;
 
-    m_attachNoteText = GetAttachmentNote (fileChoice);
+    m_attachNoteText = GetAttachmentNote (GetAttachedDevice (fileChoice));
     m_attachNote.SetVisible (!m_attachNoteText.empty());
     m_attachNote.SetText    (m_attachNoteText);
     m_attachNote.SetRect    (MakeRect (controlsX, y, noteWidth, noteHeight));
@@ -336,28 +348,108 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring SerialCardPage::GetAttachmentNote (int choice)
+std::wstring SerialCardPage::GetAttachmentNote (const std::string & device)
 {
     std::wstring  note;
 
 
 
-    if (choice == kLoopbackChoice)
+    if (device == kAttachmentDevices[kLoopbackChoice])
     {
         note = L"TX is wired back to RX, RTS to CTS, and DTR to DSR and DCD, so what the "
                L"card sends comes back into it.";
     }
-    else if (choice == kFileOutChoice)
+    else if (device == kAttachmentDevices[kFileOutChoice])
     {
         note = L"All data the card sends is appended to the file below.";
     }
-    else if (choice == kFileInChoice)
+    else if (device == kAttachmentDevices[kFileInChoice])
     {
         note = L"The file below is sent to the card at its baud rate, once a program turns "
                L"the card's receiver on.";
     }
+    else if (device == kpszImageWriterDevice)
+    {
+        note = L"The emulated ImageWriter II, connected on the Printing tab. Type PR# and the "
+               L"card's slot to print.";
+    }
+    else if (device.starts_with ("tcp:"))
+    {
+        note = L"A program on this PC, such as Casso Explorer's CassoLink, connects to this port. "
+               L"Bytes arrive at the card at its baud rate.";
+    }
+    else if (device.starts_with ("com:"))
+    {
+        note = L"The card's lines are this PC's COM port, at the card's baud rate.";
+    }
 
     return note;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SerialCardPage::GetAttachedDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string SerialCardPage::GetAttachedDevice (int choice) const
+{
+    bool  valid = choice >= 0 && choice < static_cast<int> (m_devices.size());
+
+
+
+    return valid ? m_devices[static_cast<size_t> (choice)] : std::string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SerialCardPage::BuildAttachments
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SerialCardPage::BuildAttachments (int slot, const std::vector<std::wstring> & comPorts, const std::string & current,
+                                       std::vector<std::wstring> & outLabels, std::vector<std::string> & outDevices)
+{
+    SerialPortDevice  tcp;
+
+
+
+    outLabels.assign  (std::begin (s_kAttachmentLabels), std::end (s_kAttachmentLabels));
+    outDevices.assign (std::begin (kAttachmentDevices),  std::end (kAttachmentDevices));
+
+    tcp.kind    = SerialPortDevice::Kind::Tcp;
+    tcp.tcpPort = static_cast<uint16_t> (kTcpBasePort + slot);
+
+    outDevices.push_back (SerialPortDevice::Format (tcp));
+    outLabels.push_back  (std::format (L"TCP port {} on this PC", tcp.tcpPort));
+
+    for (const std::wstring & comPort : comPorts)
+    {
+        SerialPortDevice  com;
+
+        com.kind    = SerialPortDevice::Kind::Com;
+        com.comPort = comPort;
+
+        outDevices.push_back (SerialPortDevice::Format (com));
+        outLabels.push_back  (comPort);
+    }
+
+    //  The ImageWriter II is connected on the Printing tab, so it is listed
+    //  only while it is the card's, as is a connector set outside this list,
+    //  such as another TCP port, in words rather than its device name.
+    if (std::find (outDevices.begin(), outDevices.end(), current) == outDevices.end())
+    {
+        outDevices.push_back (current);
+        outLabels.push_back  (HardwarePage::DescribeSerialDevice (current));
+    }
 }
 
 
@@ -471,9 +563,10 @@ int SerialCardPage::GetDropdownWidthPx (const DxuiDpiScaler & scaler, int maxPx)
 
 void SerialCardPage::Rebuild()
 {
-    SscSwitches  switches = ReadStagedSwitches();
-    int          index    = (m_state != nullptr) ? m_state->FindSerialCard() : -1;
-    int          attach   = 0;
+    SscSwitches           switches = ReadStagedSwitches();
+    int                   index    = (m_state != nullptr) ? m_state->FindSerialCard() : -1;
+    int                   attach   = 0;
+    std::vector<wstring>  labels;
 
 
 
@@ -508,9 +601,11 @@ void SerialCardPage::Rebuild()
         const HardwareEntry &  entry  = m_state->GetHardware()[static_cast<size_t> (index)];
         std::string            device = entry.ports.empty() ? std::string() : entry.ports.front();
 
-        for (int i = 0; i < static_cast<int> (std::size (kAttachmentDevices)); ++i)
+        BuildAttachments (entry.slot, m_comPorts, device, labels, m_devices);
+
+        for (int i = 0; i < static_cast<int> (m_devices.size()); ++i)
         {
-            if (device == kAttachmentDevices[i])
+            if (device == m_devices[static_cast<size_t> (i)])
             {
                 attach = i;
             }
@@ -518,7 +613,12 @@ void SerialCardPage::Rebuild()
 
         m_path = entry.portPath;
     }
+    else
+    {
+        BuildAttachments (0, m_comPorts, std::string(), labels, m_devices);
+    }
 
+    m_attach.SetItems    (labels);
     m_attach.SetSelected (attach);
 }
 
@@ -696,7 +796,8 @@ SscSwitches SerialCardPage::ReadStagedSwitches() const
 
 void SerialCardPage::StageSwitches (const SscSwitches & switches)
 {
-    HRESULT  hr = S_OK;
+    HRESULT       hr = S_OK;
+    std::wstring  notice;
 
 
 
@@ -705,9 +806,16 @@ void SerialCardPage::StageSwitches (const SscSwitches & switches)
         hr = m_state->SetSerialCardSwitches (switches.GetBankText (SscBank::Sw1),
                                              switches.GetBankText (SscBank::Sw2));
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        notice = m_state->TakeNotice();
     }
 
     SyncSwitches (switches);
+
+    if (!notice.empty() && m_onNotice)
+    {
+        m_onNotice (notice);
+    }
 }
 
 
@@ -726,7 +834,7 @@ void SerialCardPage::StageAttachment (int choice, const std::string & path)
 {
     HRESULT  hr     = S_OK;
     bool     isFile = choice == kFileOutChoice || choice == kFileInChoice;
-    bool     valid  = choice >= 0 && choice < static_cast<int> (std::size (kAttachmentDevices));
+    bool     valid  = choice >= 0 && choice < static_cast<int> (m_devices.size());
 
 
 
@@ -734,7 +842,7 @@ void SerialCardPage::StageAttachment (int choice, const std::string & path)
 
     if (m_state != nullptr && valid)
     {
-        hr = m_state->SetSerialCardAttachment (kAttachmentDevices[choice], m_path);
+        hr = m_state->SetSerialCardAttachment (m_devices[static_cast<size_t> (choice)], m_path);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
@@ -752,6 +860,35 @@ void SerialCardPage::StageAttachment (int choice, const std::string & path)
 void SerialCardPage::SyncSwitches (const SscSwitches & switches)
 {
     m_switchesView.SetSwitches (switches);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SerialCardPage::SyncListenProblem
+//
+//  Called each dialog tick; the page is laid out again only when the
+//  sentence changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SerialCardPage::SyncListenProblem()
+{
+    std::wstring  text    = m_listenProblem ? m_listenProblem() : std::wstring();
+    bool          changed = text != m_listenBanner.GetText() || text.empty() == m_listenBanner.IsVisible();
+
+
+
+    if (changed)
+    {
+        m_listenBanner.SetText    (text);
+        m_listenBanner.SetVisible (!text.empty());
+
+        Relayout();
+    }
 }
 
 

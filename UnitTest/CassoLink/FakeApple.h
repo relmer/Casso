@@ -1,0 +1,819 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "CassoLink/CassoLinkCodec.h"
+#include "CassoLink/CassoLinkHost.h"
+#include "CassoLink/CassoLinkSession.h"
+#include "CassoLink/LinkBootstrap.h"
+#include "CassoLink/LinkProgram.h"
+#include "Seams/IByteStreamFactory.h"
+#include "Seams/InProcessByteStream.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FakeApple
+//
+//  The Apple end of a link, in C++: Casso's client as the program speaks
+//  it -- Ready, Idle, Load program, Set speed, Read and Write sectors,
+//  Format and Write track, Status and Cancel -- over two drive images in
+//  DOS-logical buffers. Each connection is served on its own thread until
+//  the line closes, and the drives outlast the connection.
+//
+//  As a shim, it reports program version 0 and loads the program it is
+//  sent before answering as the program.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class FakeApple
+{
+public:
+    std::array<std::vector<Byte>, 2>  drives;
+    std::array<bool, 2>               writeProtected = {};
+    std::atomic<bool>                 startAsShim    { false };
+    std::atomic<bool>                 nakFirstPage   { false };
+
+    //  As an Apple whose Ready went out before the line was open: silent
+    //  until the host sends it something.
+    std::atomic<bool>                 readySentEarly { false };
+
+    //  As a boot disk still starting when the host prompts: that many of the
+    //  first prompts are lost, and it stays silent through them.
+    std::atomic<int>                  promptsMissed  { 0 };
+    std::atomic<int>                  sectorDelayMs  { 0 };
+    std::atomic<int>                  sectorsRead    { 0 };
+    std::atomic<int>                  catalogReads   { 0 };   // read requests on drive 1's track 17, a DOS 3.3 catalog's
+    std::atomic<int>                  quietReads     { 0 };   // read requests marked as checks the PC reports itself
+    std::atomic<int>                  plainReads     { 0 };   // and the other read requests
+    std::atomic<bool>                 speedSet       { false };   // a Set speed has arrived
+    std::atomic<int>                  blanksReceived { 0 };       // Write track's sectors of zeros, sent as their numbers
+    std::atomic<int>                  sectorsWritten { 0 };
+    std::atomic<int>                  cancels        { 0 };
+    //  Idles received as a shim, before the program is loaded.
+    std::atomic<int>                  shimIdles      { 0 };
+    //  Time drive: the time between markers, and the requests received.
+    std::atomic<int>                  revolutionMs   { 2 };
+    std::atomic<int>                  timedDrives    { 0 };
+    //  Requests to drop as if lost on the line, and those dropped.
+    std::atomic<int>                  dropRequests   { 0 };
+    std::atomic<int>                  readyEveryMs   { 3000 };
+    std::atomic<int>                  dropped        { 0 };
+
+    //  Sectors the drive cannot read, as track and physical sector, and
+    //  sectors that read on a full read but fail every re-read.
+    std::set<std::pair<int, int>>     badSectors;
+    std::set<std::pair<int, int>>     onceSectors;
+
+    //  Sectors that fail that many reads of Read sectors and then read, and
+    //  each Read sectors request's track and sectors, in the order received.
+    std::map<std::pair<int, int>, int>              flakySectors;
+    std::vector<std::pair<int, std::vector<Byte>>>  readRequests;
+
+    //  Written tracks to fail as not reading back, and the writes received.
+    std::atomic<int>                  writeFailures  { 0 };
+    std::atomic<int>                  trackWrites    { 0 };
+    std::vector<Byte>                 loadedProgram;
+
+    //  As the serial loader typed in by a bootstrap: once the command that
+    //  runs it arrives, it sends the ready byte and reads the shim into
+    //  loadedShim, then serves as the shim. A line opened after that finds
+    //  the shim running.
+    std::atomic<bool>                 typedLoader    { false };
+    std::vector<Byte>                 loadedShim;
+    //  A Full Send: each Session screen's payload, the keys to answer Wait for
+    //  key with, the Waits for key received, and Q to press before the next
+    //  Ready. With no key left, a wait goes on until the host sends a byte.
+    std::vector<std::vector<Byte>>  screens;
+    std::deque<Byte>                keys;
+    std::atomic<int>                keyWaits        { 0 };
+    std::atomic<bool>               quitPending     { false };
+    std::atomic<bool>               fullSendPending { false };
+    //  Each Label's text, in the order received.
+    std::vector<std::string>          labels;
+    std::mutex                        lock;
+
+    ~FakeApple()
+    {
+        Detach();
+    }
+
+    //  Serves a new connection's Apple end.
+    void  Attach (std::shared_ptr<InProcessByteStream> end)
+    {
+        Detach();
+
+        m_end    = end;
+        m_thread = std::jthread ([this, end] (std::stop_token stop) { Serve (stop, *end); });
+    }
+
+    //  Drops the line, as a cable pulled.
+    void  Detach()
+    {
+        if (m_end)
+        {
+            m_end->Close();
+        }
+
+        if (m_thread.joinable())
+        {
+            m_thread.request_stop();
+            m_thread.join();
+        }
+
+        m_end.reset();
+    }
+
+private:
+    struct Line
+    {
+        InProcessByteStream  & stream;
+        std::vector<Byte>      buffer;
+    };
+
+    static void  Send (Line & line, std::span<const Byte> bytes)
+    {
+        line.stream.Write (bytes.data(), bytes.size());
+    }
+
+    static void  SendPacket (Line & line, Byte command, std::vector<Byte> payload)
+    {
+        std::vector<Byte>  wire;
+
+        CassoLinkCodec::Encode (command, payload, wire);
+        Send (line, wire);
+    }
+
+    //  False on a timeout or a closed line.
+    static bool  Receive (std::stop_token stop, Line & line, CassoLinkPacket & outPacket, DWORD timeoutMs)
+    {
+        Byte    chunk[4096];
+        size_t  got      = 0;
+        size_t  consumed = 0;
+        bool    complete = false;
+        auto    until    = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+
+        while (!stop.stop_requested() && std::chrono::steady_clock::now() < until)
+        {
+            if (!line.buffer.empty())
+            {
+                HRESULT  hr = CassoLinkCodec::Decode (line.buffer, consumed, outPacket, complete);
+
+                line.buffer.erase (line.buffer.begin(), line.buffer.begin() + (ptrdiff_t) consumed);
+
+                if (SUCCEEDED (hr) && complete)
+                {
+                    return true;
+                }
+
+                if (FAILED (hr))
+                {
+                    continue;
+                }
+            }
+
+            HRESULT  read = line.stream.Read (chunk, sizeof (chunk), 20, got);
+
+            if (FAILED (read) || (got == 0 && line.stream.IsClosed()))
+            {
+                return false;
+            }
+
+            line.buffer.insert (line.buffer.end(), chunk, chunk + got);
+        }
+
+        return false;
+    }
+
+    //  Skips the typed lines through the command that runs the loader, then
+    //  reads the page count, the pages and their XOR.
+    bool  RunLoader (std::stop_token stop, Line & line)
+    {
+        static constexpr std::string_view  kRun = "3A50G\r";
+        Byte                               chunk[4096];
+        size_t                             got  = 0;
+        size_t                             need = 0;
+        auto                               run  = line.buffer.end();
+
+        while (!stop.stop_requested() && !line.stream.IsClosed())
+        {
+            run = std::search (line.buffer.begin(), line.buffer.end(), kRun.begin(), kRun.end());
+
+            if (run != line.buffer.end())
+            {
+                break;
+            }
+
+            line.stream.Read (chunk, sizeof (chunk), 20, got);
+            line.buffer.insert (line.buffer.end(), chunk, chunk + got);
+        }
+
+        if (run == line.buffer.end())
+        {
+            return false;
+        }
+
+        line.buffer.erase (line.buffer.begin(), run + (ptrdiff_t) kRun.size());
+        Send (line, std::array<Byte, 1> { LinkBootstrap::kLoaderReady });
+
+        while (!stop.stop_requested() && !line.stream.IsClosed())
+        {
+            need = line.buffer.empty() ? 1 : (size_t) line.buffer[0] * 256 + 2;
+
+            if (line.buffer.size() >= need && need > 1)
+            {
+                break;
+            }
+
+            line.stream.Read (chunk, sizeof (chunk), 20, got);
+            line.buffer.insert (line.buffer.end(), chunk, chunk + got);
+        }
+
+        if (need <= 1 || line.buffer.size() < need)
+        {
+            return false;
+        }
+
+        {
+            std::lock_guard<std::mutex>  guard (lock);
+
+            loadedShim.assign (line.buffer.begin() + 1, line.buffer.begin() + (ptrdiff_t) need - 1);
+        }
+
+        line.buffer.erase (line.buffer.begin(), line.buffer.begin() + (ptrdiff_t) need);
+        typedLoader = false;
+        return true;
+    }
+
+    static size_t  Index (int track, int physical)    {
+        return (size_t) (track * 16 + CassoLinkSession::GetLogicalSector (physical)) * 256;
+    }
+
+    void  Serve (std::stop_token stop, InProcessByteStream & stream)
+    {
+        Line             line    { stream, {} };
+        Word             version = startAsShim ? 0 : LinkProgram::kProgramVersion;
+        CassoLinkPacket  packet;
+        bool             silent  = readySentEarly;
+
+        if (typedLoader && !RunLoader (stop, line))
+        {
+            return;
+        }
+        while (!stop.stop_requested() && !stream.IsClosed())
+        {
+            if (quitPending.exchange (false))
+            {
+                SendPacket (line, CassoLinkCodec::kWaitForKey, { CassoLinkCodec::kKeyQuit });
+            }
+
+            if (fullSendPending.exchange (false))
+            {
+                SendPacket (line, CassoLinkCodec::kWaitForKey, { CassoLinkCodec::kKeyFullSend });
+            }
+
+            if (!silent)
+            {
+                SendPacket (line, CassoLinkCodec::kReady, { (Byte) (version & 0xFF), (Byte) (version >> 8), LinkProgram::kShimVersion, 0x03 });
+            }
+
+            silent = false;
+
+            if (!Receive (stop, line, packet, readyEveryMs))
+            {
+                continue;
+            }
+
+            if (promptsMissed > 0)
+            {
+                promptsMissed--;
+                silent = true;
+                continue;
+            }
+
+            if (packet.command != CassoLinkCodec::kIdle && dropRequests > 0)
+            {
+                dropRequests--;
+                dropped++;
+                continue;
+            }
+
+            switch (packet.command)
+            {
+                case CassoLinkCodec::kIdle:
+                    shimIdles += (version == 0) ? 1 : 0;
+                    std::this_thread::sleep_for (std::chrono::milliseconds (2));
+                    break;
+
+                case CassoLinkCodec::kLoadProgram:
+                    version = (version == 0 && Load (stop, line, packet.payload.at (0))) ? LinkProgram::kProgramVersion : 0;
+                    break;
+
+                case CassoLinkCodec::kSetSpeed:
+                    SendPacket (line, CassoLinkCodec::kAcknowledge, { CassoLinkCodec::kAck, 0, 0 });
+                    speedSet = true;
+                    break;
+
+                case CassoLinkCodec::kReadSectors:
+                    ReadSectors (stop, line, packet.payload);
+                    break;
+
+                case CassoLinkCodec::kWriteSectors:
+                    WriteSectors (stop, line, packet.payload);
+                    break;
+
+                case CassoLinkCodec::kFormatTrack:
+                    FormatTrack (line, packet.payload);
+                    break;
+
+                case CassoLinkCodec::kWriteTrack:
+                    WriteSectors (stop, line, { packet.payload.at (0), packet.payload.at (1), 16, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 });
+                    break;
+
+                //  A revolution of revolutionMs: markers that far apart, then
+                //  the Status.
+                case CassoLinkCodec::kTimeDrive:
+                    for (Byte pass = 0; pass < packet.payload.at (2) && !stop.stop_requested(); pass++)
+                    {
+                        std::this_thread::sleep_for (std::chrono::milliseconds (revolutionMs));
+                        Send (line, std::vector<Byte> { CassoLinkCodec::kTimeMark });
+                    }
+
+                    timedDrives++;
+                    SendPacket (line, CassoLinkCodec::kStatus, { 1, packet.payload.at (0), packet.payload.at (1), 100, 0 });
+                    break;
+
+                case CassoLinkCodec::kLabel:
+                {
+                    std::lock_guard<std::mutex>  guard (lock);
+
+                    labels.emplace_back (packet.payload.begin(), packet.payload.end());
+                    break;
+                }
+
+                case CassoLinkCodec::kSetColumns:
+                    break;
+
+                case CassoLinkCodec::kReadCrcs:
+                    ReadCrcs (line, packet.payload);
+                    break;
+
+                case CassoLinkCodec::kSessionScreen:
+                {
+                    std::lock_guard<std::mutex>  guard (lock);
+
+                    screens.push_back (packet.payload);
+                    break;
+                }
+
+                case CassoLinkCodec::kWaitForKey:
+                    WaitForKey (stop, line);
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    }
+
+    void  WaitForKey (std::stop_token stop, Line & line)
+    {
+        CassoLinkPacket  ignored;
+
+        keyWaits++;
+
+        while (!stop.stop_requested() && !line.stream.IsClosed())
+        {
+            {
+                std::lock_guard<std::mutex>  guard (lock);
+
+                if (!keys.empty())
+                {
+                    SendPacket (line, CassoLinkCodec::kWaitForKey, { keys.front() });
+                    keys.pop_front();
+                    return;
+                }
+            }
+
+            if (line.stream.GetReadableCount() > 0 || !line.buffer.empty())
+            {
+                Receive (stop, line, ignored, 100);
+                cancels++;
+                return;
+            }
+
+            SendPacket (line, CassoLinkCodec::kWaitForKey, { CassoLinkCodec::kKeyNone });
+            std::this_thread::sleep_for (std::chrono::milliseconds (5));
+        }
+    }
+
+    bool  Load (std::stop_token stop, Line & line, size_t pages)
+    {
+        CassoLinkPacket    packet;
+        std::vector<Byte>  page (256);
+        std::vector<Byte>  program;
+        Byte               track  = 0;
+        Byte               sector = 0;
+        bool               naked  = false;
+
+        for (size_t i = 0; i < pages; )
+        {
+            if (!Receive (stop, line, packet, 3000))
+            {
+                return false;
+            }
+
+            HRESULT  parsed = CassoLinkCodec::ParseSectorData (packet, track, sector, page);
+
+            if (FAILED (parsed))
+            {
+                return false;
+            }
+
+            if (nakFirstPage && !naked)
+            {
+                naked = true;
+                Send (line, std::vector<Byte> { CassoLinkCodec::kNak });
+                continue;
+            }
+
+            program.insert (program.end(), page.begin(), page.end());
+            Send (line, std::vector<Byte> { CassoLinkCodec::kAck });
+            i++;
+        }
+
+        std::lock_guard<std::mutex>  guard (lock);
+
+        loadedProgram = program;
+        return true;
+    }
+
+    void  ReadCrcs (Line & line, const std::vector<Byte> & request)
+    {
+        int                drive = request.at (0) & ~CassoLinkHost::kQuietDrive;
+        int                track = request.at (1);
+        size_t             count = request.at (2);
+        std::vector<Byte>  reply;
+
+        for (size_t i = 0; i < count; i++)
+        {
+            Byte  physical = request.at (3 + i);
+
+            if (drive < 1 || drive > 2 || drives[(size_t) drive - 1].empty() || badSectors.contains ({ track, physical }) || onceSectors.contains ({ track, physical }))
+            {
+                reply.insert (reply.end(), { 0, 0, 0 });
+                continue;
+            }
+
+            std::lock_guard<std::mutex>  guard (lock);
+            auto                         at  = drives[(size_t) drive - 1].begin() + (ptrdiff_t) Index (track, physical);
+            Word                         crc = CassoLinkCodec::ComputeCrc (std::span<const Byte> (at, at + 256));
+
+            reply.insert (reply.end(), { (Byte) (crc & 0xFF), (Byte) (crc >> 8), 1 });
+        }
+
+        SendPacket (line, CassoLinkCodec::kSectorCrcs, reply);
+        SendPacket (line, CassoLinkCodec::kStatus, { 1, (Byte) drive, (Byte) track, (Byte) count, CassoLinkHost::kErrorNone });
+    }
+
+    void  ReadSectors (std::stop_token stop, Line & line, const std::vector<Byte> & request)
+    {
+        int                drive = request.at (0) & ~CassoLinkHost::kQuietDrive;
+        int                track = request.at (1);
+        size_t             count = request.at (2);
+        std::vector<Byte>  wire;
+        size_t             done  = 0;
+        Byte               error = CassoLinkHost::kErrorNone;
+
+        if (drive < 1 || drive > 2 || drives[(size_t) drive - 1].empty())
+        {
+            SendPacket (line, CassoLinkCodec::kStatus, { 1, (Byte) drive, (Byte) track, 0, CassoLinkHost::kErrorDrive });
+            return;
+        }
+
+        if (drive == 1 && track == 17)
+        {
+            catalogReads++;
+        }
+
+        if ((request.at (0) & CassoLinkHost::kQuietDrive) != 0)
+        {
+            quietReads++;
+        }
+        else
+        {
+            plainReads++;
+        }
+
+        {
+            std::lock_guard<std::mutex>  guard (lock);
+
+            readRequests.push_back ({ track, std::vector<Byte> (request.begin() + 3, request.begin() + 3 + (ptrdiff_t) count) });
+        }
+
+        //  A sector not found is skipped, and the Status has NOT FOUND.
+        for (done = 0; done < count && !stop.stop_requested(); done++)
+        {
+            Byte  physical = request.at (3 + done);
+            auto  flaky    = flakySectors.find ({ track, physical });
+
+            if (flaky != flakySectors.end() && flaky->second > 0)
+            {
+                flaky->second--;
+                error = CassoLinkHost::kErrorNotFound;
+                continue;
+            }
+
+            if (badSectors.contains ({ track, physical }))
+            {
+                error = CassoLinkHost::kErrorNotFound;
+                continue;
+            }
+
+            std::this_thread::sleep_for (std::chrono::milliseconds (sectorDelayMs.load()));
+
+            {
+                std::lock_guard<std::mutex>  guard (lock);
+                auto                         at = drives[(size_t) drive - 1].begin() + (ptrdiff_t) Index (track, physical);
+
+                wire.clear();
+                CassoLinkCodec::EncodeSectorData ((Byte) track, physical, std::span<const Byte> (at, at + 256), wire);
+            }
+
+            Send (line, wire);
+            sectorsRead++;
+
+            //  Any byte from the host during a read is Cancel.
+            if (line.stream.GetReadableCount() > 0 || !line.buffer.empty())
+            {
+                CassoLinkPacket  ignored;
+
+                Receive (stop, line, ignored, 100);
+                cancels++;
+                return;
+            }
+        }
+
+        SendPacket (line, CassoLinkCodec::kStatus, { 1, (Byte) drive, (Byte) track, (Byte) done, error });
+    }
+
+    void  WriteSectors (std::stop_token stop, Line & line, const std::vector<Byte> & request)
+    {
+        int                drive = request.at (0) & ~CassoLinkHost::kQuietDrive;
+        int                track = request.at (1);
+        size_t             count = request.at (2);
+        CassoLinkPacket    packet;
+        std::vector<Byte>  data (256);
+        Byte               gotTrack  = 0;
+        Byte               gotSector = 0;
+        size_t             done      = 0;
+
+        if (writeProtected[(size_t) drive - 1])
+        {
+            SendPacket (line, CassoLinkCodec::kStatus, { 2, (Byte) drive, (Byte) track, 0, CassoLinkHost::kErrorWriteProtected });
+            return;
+        }
+
+        for (done = 0; done < count; done++)
+        {
+            Byte  physical = request.at (3 + done);
+
+            SendPacket (line, CassoLinkCodec::kAcknowledge, { CassoLinkCodec::kAck, physical, (Byte) track });
+
+            if (!Receive (stop, line, packet, 3000))
+            {
+                return;
+            }
+
+            if (packet.command == CassoLinkCodec::kCancel)
+            {
+                cancels++;
+                return;
+            }
+
+            if (packet.command == CassoLinkCodec::kSectorNibbles)
+            {
+                CassoLinkCodec::ParseSectorNibbles (packet, gotTrack, gotSector, data);
+            }
+            else if (packet.command == CassoLinkCodec::kSectorBlank)
+            {
+                std::fill (data.begin(), data.end(), (Byte) 0);
+                blanksReceived++;
+            }
+            else
+            {
+                CassoLinkCodec::ParseSectorData (packet, gotTrack, gotSector, data);
+            }
+
+            {
+                std::lock_guard<std::mutex>  guard (lock);
+
+                std::copy (data.begin(), data.end(), drives[(size_t) drive - 1].begin() + (ptrdiff_t) Index (track, physical));
+            }
+
+            sectorsWritten++;
+        }
+
+        trackWrites++;
+
+        if (count == 16 && writeFailures > 0)
+        {
+            writeFailures--;
+            SendPacket (line, CassoLinkCodec::kStatus, { 2, (Byte) drive, (Byte) track, 0, CassoLinkHost::kErrorVerify });
+            return;
+        }
+
+        SendPacket (line, CassoLinkCodec::kStatus, { 2, (Byte) drive, (Byte) track, (Byte) done, CassoLinkHost::kErrorNone });
+    }
+
+    void  FormatTrack (Line & line, const std::vector<Byte> & request)
+    {
+        int  drive = request.at (0);
+        int  track = request.at (1);
+
+        {
+            std::lock_guard<std::mutex>  guard (lock);
+            auto                         at = drives[(size_t) drive - 1].begin() + (ptrdiff_t) (track * 16 * 256);
+
+            std::fill (at, at + 16 * 256, (Byte) 0);
+        }
+
+        SendPacket (line, CassoLinkCodec::kStatus, { 3, (Byte) drive, (Byte) track, 1, CassoLinkHost::kErrorNone });
+    }
+
+    std::shared_ptr<InProcessByteStream>  m_end;
+    std::jthread                          m_thread;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FakeAppleFactory
+//
+//  Every TCP connection the session makes is a new in-process line whose
+//  Apple end FakeApple serves. COM ports are listed from comPorts: a busy
+//  one fails to open, a silent one is a line with no Apple on it, an Apple one is a line
+//  FakeApple serves. A listener is a line no Apple connects to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class FakeAppleFactory : public IByteStreamFactory
+{
+public:
+    explicit FakeAppleFactory (FakeApple & apple) : m_apple (apple) {}
+
+    std::atomic<int>  connections { 0 };
+
+    //  The Apple end of the last line, when answer was clear.
+    std::shared_ptr<InProcessByteStream>  GetUnansweredEnd () const { return m_unanswered; }
+    std::atomic<bool> answer      { true };
+
+    enum class Port { Busy, Silent, Apple };
+
+    std::map<std::wstring, Port>  comPorts;
+    std::vector<std::wstring>     comOpened;
+    std::vector<DWORD>            comBauds;
+
+    //  The one speed an Apple port replies at; at any other it is silent.
+    //  With zero, it replies at every speed. appleBaudAfterSpeed, when set,
+    //  replaces it once a Set speed arrives, as a shim typed in at the
+    //  bootstrap speed moves to the link's.
+    DWORD                         appleBaud           = 0;
+    DWORD                         appleBaudAfterSpeed = 0;
+
+    //  Set when a COM port was opened while another was open.
+    std::atomic<bool>             comOverlapped { false };
+
+    //  The Apple's DTR as every line's DSR: 1 on, 0 off, -1 a cable without
+    //  the line.
+    std::atomic<int>              peerReady     { -1 };
+
+    //  How many reads of DSR on a line just opened report it off, as a USB
+    //  serial adapter does until its driver polls the line.
+    int                           peerLagReads  = 0;
+
+    bool  ArePortsClosed() const
+    {
+        return std::all_of (m_ends.begin(), m_ends.end(), [] (const std::shared_ptr<InProcessByteStream> & end) { return end->IsClosed(); });
+    }
+
+    HRESULT  ListComPorts (std::vector<std::wstring> & outPorts) override
+    {
+        outPorts.clear();
+
+        for (const auto & [name, kind] : comPorts)
+        {
+            outPorts.push_back (name);
+        }
+
+        return S_OK;
+    }
+
+    HRESULT  OpenComPort (const std::wstring & port, const ComSettings & settings, std::unique_ptr<IByteStream> & outStream) override
+    {
+        std::shared_ptr<InProcessByteStream>  pcEnd;
+        std::shared_ptr<InProcessByteStream>  appleEnd;
+        auto                                  found = comPorts.find (port);
+
+        if (found == comPorts.end())
+        {
+            return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+        }
+
+        if (found->second == Port::Busy)
+        {
+            return HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED);
+        }
+
+        for (const std::shared_ptr<InProcessByteStream> & end : m_ends)
+        {
+            comOverlapped = comOverlapped || !end->IsClosed();
+        }
+
+        InProcessByteStream::CreatePair (pcEnd, appleEnd);
+        comOpened.push_back (port);
+        comBauds.push_back (settings.baud);
+        m_ends.push_back (pcEnd);
+
+        DWORD  replies = (m_apple.speedSet && appleBaudAfterSpeed != 0) ? appleBaudAfterSpeed : appleBaud;
+
+        if (found->second == Port::Apple && (replies == 0 || replies == settings.baud))
+        {
+            m_apple.Attach (appleEnd);
+        }
+        else
+        {
+            m_silent.push_back (appleEnd);
+        }
+
+        outStream = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads);
+        return S_OK;
+    }
+
+    //  The transports of the listeners opened, each one a line nobody
+    //  connects to.
+    std::vector<LinkTransport>  listened;
+
+    HRESULT  ListenTcp (uint16_t, LinkTransport transport, std::unique_ptr<IByteStream> & outStream) override
+    {
+        std::shared_ptr<InProcessByteStream>  pcEnd;
+        std::shared_ptr<InProcessByteStream>  appleEnd;
+
+        InProcessByteStream::CreatePair (pcEnd, appleEnd);
+        listened.push_back (transport);
+        m_ends.push_back (pcEnd);
+        m_silent.push_back (appleEnd);
+
+        outStream = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads);
+        return S_OK;
+    }
+
+    HRESULT  ConnectTcp (const std::string &, uint16_t, std::unique_ptr<IByteStream> & outStream) override
+    {
+        std::shared_ptr<InProcessByteStream>  pcEnd;
+        std::shared_ptr<InProcessByteStream>  appleEnd;
+
+        InProcessByteStream::CreatePair (pcEnd, appleEnd);
+        connections++;
+
+        if (answer)
+        {
+            m_apple.Attach (appleEnd);
+        }
+
+        m_unanswered = appleEnd;
+        outStream    = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads);
+        return S_OK;
+    }
+
+private:
+    //  An owned handle on a shared in-process end.
+    class SharedStream : public IByteStream
+    {
+    public:
+        SharedStream (std::shared_ptr<InProcessByteStream> end, const std::atomic<int> & peerReady, int lagReads) : m_end (std::move (end)), m_peerReady (peerReady), m_lagReads (lagReads) {}
+
+        HRESULT  Write            (const Byte * data, size_t count) override                          { return m_end->Write (data, count); }
+        HRESULT  Read             (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override { return m_end->Read (buffer, capacity, timeoutMs, outRead); }
+        size_t   GetReadableCount () override                                                           { return m_end->GetReadableCount(); }
+        bool     IsClosed         () const override                                                     { return m_end->IsClosed(); }
+        void     Close            () override                                                           { m_end->Close(); }
+        bool     TryGetPeerReady  (bool & outReady) override                                            { outReady = m_peerReady == 1 && m_lagReads <= 0; m_lagReads--; return m_peerReady >= 0; }
+
+    private:
+        std::shared_ptr<InProcessByteStream>  m_end;
+        const std::atomic<int>              & m_peerReady;
+        int                                   m_lagReads = 0;
+    };
+
+    FakeApple                                          & m_apple;
+    std::shared_ptr<InProcessByteStream>                 m_unanswered;
+    std::vector<std::shared_ptr<InProcessByteStream>>    m_ends;
+    std::vector<std::shared_ptr<InProcessByteStream>>    m_silent;
+};

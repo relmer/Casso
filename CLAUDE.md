@@ -65,6 +65,18 @@ changing an as65 default. There is no flag for the span: `--raw` existed for one
 revision and was retired, because a flag whose only effect is to select the
 default buys no capability.
 
+**The embedded character generator table is Apple's ROM, not a clean-room
+set.** `CassoEmuCore/Machines/Apple2/Common/CharacterRom.h` describes itself as
+"a standard Apple II character set" and backs every machine whose video ROM is
+missing. Measured 2026-09-11 against a real `Apple2eEnhanced_Video.rom`: 47 of
+its 64 glyphs are bit-identical, and the other seventeen -- `&`, `'`, `(`, `)`,
+`*`, `,`, `:`, `;`, `?`, `D`, `G`, `J`, `N`, `[`, `]`, `^`, `_` -- differ. That
+is a partial transcription, not independent artwork. Two consequences: those
+shapes cannot be redistributed in something like a font, and the fallback does
+NOT draw what the emulator draws once a real ROM is installed. Spec 033 built
+an Apple II text face from this table and dropped it for both reasons; a face
+read from the user's own ROM at runtime redistributes nothing and remains open.
+
 **1.20's disk file access did not unblock Merlin's `TYP`.** It shipped as a
 separate `disk` command, not as an assembler output target, so no assembler path
 touched a disk image. 026 closed that gap (merge `0afa7359`).

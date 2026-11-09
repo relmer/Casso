@@ -76,7 +76,50 @@ public:
         Assert::IsTrue (tip.GetTooltip().IsVisible());
 
         tip.OnFocusChanged (false);
-        Assert::IsTrue (tip.GetTooltip().WantsTick(), L"losing focus starts it closing");
+        Assert::IsFalse (tip.GetTooltip().IsVisible(), L"losing focus closes it");
+    }
+
+
+    //  A click pins the tip with no time limit; it is up until a second click
+    //  on the "i", a press elsewhere, or Escape.
+    TEST_METHOD (AClickPinsIt_UntilAClickAnywhereElseOrEscape)
+    {
+        DxuiInfoTip   tip;
+        DxuiKeyEvent  escape;
+
+
+
+        tip.SetText (L"Some tools read only 8-bit WAV files.");
+        tip.SetRect (RECT { 100, 10, 120, 30 });
+        tip.SetVisible (true);
+        escape.vk = VK_ESCAPE;
+
+        tip.OnMouse (Move (110, 20, DxuiMouseEventKind::Down));
+        Assert::IsTrue  (tip.GetTooltip().IsVisible());
+        Assert::IsFalse (tip.GetTooltip().WantsTick(), L"no lifetime to run out");
+
+        tip.OnMouse (Move (300, 300));
+        Assert::IsTrue (tip.GetTooltip().IsVisible(), L"a pinned tip is up after the pointer moves off");
+
+        DxuiInfoTip::CloseOpenOutside (POINT { 110, 20 });
+        Assert::IsTrue (tip.GetTooltip().IsVisible(), L"a press on its own \"i\" is the tip's to handle");
+
+        tip.OnMouse (Move (110, 20, DxuiMouseEventKind::Down));
+        Assert::IsFalse (tip.GetTooltip().IsVisible(), L"a second click closes it");
+
+        tip.OnMouse (Move (110, 20, DxuiMouseEventKind::Down));
+        DxuiInfoTip::CloseOpenOutside (POINT { 300, 300 });
+        Assert::IsFalse (tip.GetTooltip().IsVisible(), L"a press elsewhere closes it");
+
+        tip.OnMouse (Move (110, 20, DxuiMouseEventKind::Down));
+        Assert::IsTrue  (DxuiInfoTip::CloseOpen(), L"Escape at the window closes it");
+        Assert::IsFalse (tip.GetTooltip().IsVisible());
+        Assert::IsFalse (DxuiInfoTip::CloseOpen(), L"and then nothing is open, so Escape cancels");
+
+        tip.OnMouse (Move (110, 20, DxuiMouseEventKind::Down));
+        Assert::IsTrue  (tip.OnKey (escape), L"Escape on the focused tip is consumed");
+        Assert::IsFalse (tip.GetTooltip().IsVisible());
+        Assert::IsFalse (tip.OnKey (escape), L"and passes on when it is closed");
     }
 
 

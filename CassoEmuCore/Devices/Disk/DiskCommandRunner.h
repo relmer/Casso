@@ -26,6 +26,7 @@ enum class DiskFormat;
 enum class BlankDiskContents;
 struct BlankDiskSpec;
 struct BootPayload;
+struct ParsedHostName;
 
 
 
@@ -77,6 +78,24 @@ public:
     //  command depends on anybody hearing it, so a runner with no channel does
     //  everything a runner with one does, minus the announcement.
     void  SetIntentChannel (IIntentChannel * channel) { m_intentChannel = channel; }
+
+    //  How a command asks the person running it to confirm something, and the
+    //  answer it gets.
+    //
+    //  INJECTED, BECAUSE THE RUNNER REACHES THE HOST THROUGH NOTHING ELSE. A
+    //  console read placed here would be unreachable from the tests, which do
+    //  not link the executable. NONE SET MEANS NOBODY IS THERE TO ASK, which is
+    //  every test and every script, and a removal that needs an answer is
+    //  turned down rather than assumed.
+    using ConfirmFn = std::function<bool (const std::string & question)>;
+
+    void  SetConfirmAsker (ConfirmFn asker) { m_confirm = std::move (asker); }
+
+    //  Where a new Apple Pascal disk's date comes from: today, unless a test
+    //  sets another clock.
+    using ClockFn = std::function<SYSTEMTIME()>;
+
+    void  SetClock (ClockFn clock) { m_clock = std::move (clock); }
 
     DiskCommandResult  Run (const CommandLineOptions & options);
 
@@ -195,6 +214,12 @@ public:
                           BootPayload              & outPayload,
                           DiskCommandResult        & result);
 
+    //  The disk a bootable Apple Pascal or CP/M disk is copied from.
+    HRESULT  LoadSystemSource (const std::string   & path,
+                               BlankDiskContents     contents,
+                               BootPayload         & outPayload,
+                               DiskCommandResult   & result);
+
     //  Everything create and init share: build the bytes, then put them there.
     void  BuildAndWrite (const CommandLineOptions & options,
                          DiskFormat                 format,
@@ -269,12 +294,65 @@ public:
     void  SetBanner (const std::string & banner);
 
 
+    //  What is damaged in a file that could not be read, in the file
+    //  system's terms: "the track/sector list is damaged" on DOS 3.3 and
+    //  "the index block is damaged" on ProDOS, for a chain that leads off the
+    //  disk, loops or ends early. Empty for any other failure. A message
+    //  has it after the file, as "Unable to read HELLO: ...".
+    static std::string  DescribeDamage (HRESULT hr, VolumeKind kind);
+
+
 private:
     void  RunList   (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunGet    (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunPut    (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunDelete (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunBoot   (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunKrunch (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunMkdir  (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunRmdir  (const CommandLineOptions & options, DiskCommandResult & result);
+
+    //  A Pascal or CP/M catalog as the Filer or STAT prints it.
+    HRESULT  AppendNativeListing (const CommandLineOptions             & options,
+                                  const DiskImageSession::OpenedImage  & opened,
+                                  const IVolume                        & volume,
+                                  const VolumeListing                  & listing,
+                                  DiskCommandResult                    & result);
+
+    //  What a listing could not read, on the error stream, with the status.
+    void     ReportListingDamage (const CommandLineOptions             & options,
+                                  const DiskImageSession::OpenedImage  & opened,
+                                  const VolumeListing                  & listing,
+                                  DiskCommandResult                    & result);
+
+    //  One directory's rows, and with `recurse` the rows of everything below
+    //  it, each of those written as a full path.
+    HRESULT  AppendDirectoryRows (const IVolume      & volume,
+                                  VolumeKind           kind,
+                                  const std::string  & directory,
+                                  bool                 recurse,
+                                  DiskCommandResult  & result);
+
+    //  A typed path as the volume reads it. A path with no leading slash is
+    //  read from the volume directory and comes back unchanged; one with a
+    //  leading slash names the volume first, and is turned down when that name
+    //  is not this image's. A DOS 3.3 name is one name, slashes included.
+    HRESULT  ResolveVolumePath (const CommandLineOptions             & options,
+                                const DiskImageSession::OpenedImage  & opened,
+                                const std::string                    & typed,
+                                std::string                          & outPath,
+                                DiskCommandResult                    & result);
+
+    //  Puts --user on a CP/M name. An error on any other file system.
+    HRESULT  ApplyUser (const CommandLineOptions & options, VolumeKind kind, std::string & inOutName, DiskCommandResult & result);
+
+    //  The path `get`, `delete` and `boot` act on, and the name used in their
+    //  messages: the name as typed, or with --index the entry at that position.
+    HRESULT  ResolveEntryPath (const CommandLineOptions             & options,
+                               const DiskImageSession::OpenedImage  & opened,
+                               FilePath                             & outPath,
+                               std::string                          & outName,
+                               DiskCommandResult                    & result);
 
 
     //  Turns a volume layer's refusal into something a user can act on.
@@ -284,7 +362,10 @@ private:
     //  asserting on user input, but a number is not a reason -- the person
     //  reading it wants to know that their file is locked, not that something
     //  returned 0x80070005.
-    static std::string  DescribeVolumeRefusal (HRESULT hr);
+    //
+    //  The text is the reason in "Unable to delete HELLO: it is locked", and
+    //  a damaged file's is in the terms of kind's file system.
+    static std::string  DescribeVolumeRefusal (HRESULT hr, VolumeKind kind);
 
     //  Turns a tokenizer refusal into something a user can act on: which line,
     //  the line itself, and what is wrong with it. The line's own text is quoted
@@ -314,34 +395,31 @@ private:
     //  produces and what the default has always been.
     static Byte     DetectFileType  (const std::vector<Byte> & bytes, VolumeKind kind);
 
+    static HRESULT  ResolvePascalKind  (const CommandLineOptions & options, Byte & outType, DiskCommandResult & result);
+    static bool     ParseCpmAttributes (const std::string & text, bool & outReadOnly, bool & outSystem);
+
     static HRESULT  ResolveFileType (const CommandLineOptions & options,
                                      VolumeKind                 kind,
                                      const std::vector<Byte>  & hostBytes,
                                      Byte                     & outType,
                                      DiskCommandResult        & result);
 
-    //  The bytes a file from the host becomes on the disk, with whatever conversion was
-    //  asked for already applied. Refuses a conversion this build cannot do.
-    static HRESULT  BuildPutPayload (const CommandLineOptions  & options,
-                                     VolumeKind                  kind,
-                                     const std::vector<Byte>   & hostBytes,
-                                     FilePayload               & outPayload,
-                                     DiskCommandResult         & result);
-
     //  What the file is called on the disk: --as when given, otherwise the host
     //  file's own last component, which is the name the caller already chose.
     static std::string  GetOnDiskName (const CommandLineOptions & options);
 
+    //  With no --as, a host name in one of Casso Explorer's forms sets the
+    //  entry's name and, with no --text or --basic, its conversion. False for any
+    //  other host name, and the options are then left as they were.
+    static bool     ApplyHostFileName (CommandLineOptions & inOutOptions, ParsedHostName & outParsed);
+
+    //  Set the payload's type and aux type from that form's name.
+    static HRESULT  ApplyHostFileType (const ParsedHostName & parsed, VolumeKind kind, FilePayload & inOutPayload);
 
 
 
 
 
-    //  Applies the requested character conversion, or refuses one this build
-    //  cannot perform. A parsed-then-ignored flag is worse than an absent one.
-    static HRESULT  ApplyEncoding (const CommandLineOptions & options,
-                                   FilePayload              & payload,
-                                   DiskCommandResult        & result);
 
     //  One line per catalog entry, in the shape the guest's own listing uses --
     //  with every column the volume records, since ProDOS fills eof= and aux=
@@ -359,7 +437,25 @@ private:
 public:
     DiskImageSession &  GetSession ()  { return m_session; }
 
+    //  Public so a file read or written over an CassoLink converts as one
+    //  in an image does.
+    //  The bytes a file from the host becomes on the disk, with whatever conversion was
+    //  asked for already applied. Refuses a conversion this build cannot do.
+    static HRESULT  BuildPutPayload (const CommandLineOptions  & options,
+                                     VolumeKind                  kind,
+                                     const std::vector<Byte>   & hostBytes,
+                                     FilePayload               & outPayload,
+                                     DiskCommandResult         & result);
+
+    //  Applies the requested character conversion, or refuses one this build
+    //  cannot perform. A parsed-then-ignored flag is worse than an absent one.
+    static HRESULT  ApplyEncoding (const CommandLineOptions & options,
+                                   FilePayload              & payload,
+                                   DiskCommandResult        & result);
+
 private:
+    static SYSTEMTIME  GetLocalDate ();
+
     //  Whether a command puts bytes into the image it was given.
     static bool  WritesTheImage (CommandLineOptions::DiskOptions::Command command);
 
@@ -370,6 +466,10 @@ private:
     //  Caller-owned; null means nothing is announced, which is every test and
     //  every caller that has no emulator to talk to.
     IIntentChannel    * m_intentChannel = nullptr;
+
+    //  Caller-owned as well; none means no terminal.
+    ConfirmFn           m_confirm;
+    ClockFn             m_clock = GetLocalDate;
 
     IDiskFileIo       & m_fileIo;
     DiskImageSession    m_session;

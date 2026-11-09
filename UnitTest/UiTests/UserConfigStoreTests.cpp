@@ -2388,7 +2388,7 @@ public:
         holderPrefs.lastUpdateCheckUtc = 1790000000;
         holderPrefs.latestKnownVersion = "1.31.0";
         holderPrefs.skippedVersion     = "1.30.5";
-        AssertSucceeded (holder.SaveAll (holderPrefs, fs));
+        AssertSucceeded (holder.SaveUpdateFields (holderPrefs, fs));
 
         AssertSucceeded (waiter.ReadGlobalPrefs (fs, read));
 

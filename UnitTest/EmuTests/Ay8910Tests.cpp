@@ -9,7 +9,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace Ay8910TestNs
 {
-    static constexpr double     kClockHz    = 1022727.0;
+    static constexpr double     kClockHz    = 1020484.0;
     static constexpr uint32_t   kSampleRate = 44100;
 
 

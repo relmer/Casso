@@ -251,7 +251,27 @@ Byte Dos33Volume::ReadByte (int track, int sector, size_t offset) const
         return 0;
     }
 
-    return m_sectors[at];
+    return AccessSector (track, sector)[at];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::AccessSector
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const vector<Byte> & Dos33Volume::AccessSector (int track, int sector) const
+{
+    if (m_readObserver != nullptr)
+    {
+        m_readObserver->OnSectorRead ((size_t) ToUnit (track, sector));
+    }
+
+    return m_sectors;
 }
 
 
@@ -586,11 +606,28 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
     {
         FileEntry  listed;
 
-        listed.name        = entry.name;
-        listed.type        = (Byte) (entry.typeByte & ~kLockedBit);
-        listed.isLocked    = (entry.typeByte & kLockedBit) != 0;
-        listed.sizeUnits   = entry.sectorCount;
-        listed.isDirectory = false;
+        listed.catalogIndex = outListing.entries.size();
+        listed.name         = entry.name;
+        listed.type         = (Byte) (entry.typeByte & ~kLockedBit);
+        listed.isLocked     = (entry.typeByte & kLockedBit) != 0;
+        listed.sizeUnits    = entry.sectorCount;
+        listed.isDirectory  = false;
+
+        //  A binary's load address is in its first two bytes, not the catalog,
+        //  so listing it costs a walk to the file's first data sector.
+        if (listed.type == kTypeBinary)
+        {
+            ChainWalkGuard    guard (kUnitCount);
+            vector<uint32_t>  units;
+            vector<uint32_t>  listUnits;
+
+            if (CollectDataSectors (entry, units, listUnits, guard) && !units.empty())
+            {
+                listed.loadAddress    = (Word) (ReadByte (GetTrack (units[0]), GetSector (units[0]), 0)
+                                              | (ReadByte (GetTrack (units[0]), GetSector (units[0]), 1) << 8));
+                listed.hasLoadAddress = true;
+            }
+        }
 
         outListing.entries.push_back (listed);
     }
@@ -599,7 +636,7 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
     {
         for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
         {
-            bool  isFree = IsFreeInBitmap (m_sectors, track, sector);
+            bool  isFree = IsFreeInBitmap (AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
 
             freeUnits += isFree ? 1u : 0u;
         }
@@ -631,7 +668,6 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
     HRESULT              hr          = S_OK;
     size_t               bufferBytes = m_sectors.size();
     bool                 single      = path.IsSingleComponent();
-    bool                 found       = false;
     bool                 walked      = false;
     bool                 fullyParsed = true;
     uint16_t             owner       = 0;
@@ -646,8 +682,8 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
 
     CollectEntries (entries, damage, fullyParsed);
 
-    found = TryFindEntry (entries, path.GetLeaf(), owner);
-    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+    hr = FindEntry (entries, path, owner);
+    CHR (hr);
 
     {
         ChainWalkGuard    guard (kUnitCount);
@@ -658,9 +694,11 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
 
     CBREx (walked, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
 
-    outPayload          = FilePayload();
-    outPayload.type     = (Byte) (entries[owner].typeByte & ~kLockedBit);
-    outPayload.encoding = PayloadEncoding::Verbatim;
+    outPayload           = FilePayload();
+    outPayload.type      = (Byte) (entries[owner].typeByte & ~kLockedBit);
+    outPayload.encoding  = PayloadEncoding::Verbatim;
+    outPayload.access    = (entries[owner].typeByte & kLockedBit) != 0 ? FilePayload::kAccessLocked : FilePayload::kAccessUnlocked;
+    outPayload.hasAccess = true;
 
     for (uint32_t unit : units)
     {
@@ -793,7 +831,7 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
     {
         for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
         {
-            bool  isFree = IsFreeInBitmap (m_sectors, track, sector);
+            bool  isFree = IsFreeInBitmap (AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
 
             outReport.SetAllocatedInFreeMap (ToUnit (track, sector), !isFree);
         }
@@ -838,6 +876,66 @@ bool Dos33Volume::TryFindEntry (
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::FindEntry
+//
+//  DOS USES THE FIRST MATCH; THIS DOES NOT. DOS 3.3 does not enforce unique
+//  names: a catalog editor writes entries directly, and the Merlin disk has ten
+//  identical heading entries. Using the first of several would delete or
+//  rename an entry the caller did not select, so a shared name returns
+//  ERROR_DUP_NAME, and the catalog index selects exactly one entry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dos33Volume::FindEntry (
+    const vector<RawEntry>  & entries,
+    const FilePath          & path,
+    uint16_t                & outOwner)
+{
+    HRESULT      hr      = S_OK;
+    std::string  leaf    = path.GetLeaf();
+    size_t       matches = 0;
+    size_t       index   = 0;
+    bool         inRange = false;
+    bool         named   = false;
+
+
+
+    if (path.HasLeafIndex())
+    {
+        index   = path.GetLeafIndex();
+        inRange = index < entries.size();
+        CBREx (inRange, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+        named = _stricmp (entries[index].name.c_str(), leaf.c_str()) == 0;
+        CBREx (named, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+        outOwner = (uint16_t) index;
+    }
+    else
+    {
+        for (index = 0; index < entries.size(); index++)
+        {
+            if (_stricmp (entries[index].name.c_str(), leaf.c_str()) == 0)
+            {
+                outOwner = (matches == 0) ? (uint16_t) index : outOwner;
+                matches++;
+            }
+        }
+
+        CBREx (matches > 0,  HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+        CBREx (matches == 1, HRESULT_FROM_WIN32 (ERROR_DUP_NAME));
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -1076,7 +1174,7 @@ bool Dos33Volume::TryAllocateUnits (
         for (sector = NibblizationLayer::kSectorsPerTrack - 1; sector >= 0 && taken < count; sector--)
         {
             uint32_t  unit    = ToUnit (track, sector);
-            bool      isFree  = IsFreeInBitmap (m_sectors, track, sector);
+            bool      isFree  = IsFreeInBitmap (AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
             bool      claimed = report.IsClaimed (unit);
 
             if (isFree && !claimed)
@@ -1401,9 +1499,10 @@ HRESULT Dos33Volume::Write (
     bool                 single      = path.IsSingleComponent();
     bool                 nameOk      = false;
     bool                 exists      = false;
+    bool                 ambiguous   = false;
     bool                 isLocked    = false;
     bool                 fullyParsed = true;
-    Byte                 typeByte    = (Byte) (payload.type & ~kLockedBit);
+    Byte                 typeByte    = (Byte) ((payload.type & ~kLockedBit) | (payload.IsLocked() ? kLockedBit : 0));
     uint16_t             owner       = 0;
     vector<Byte>         nameBytes;
     vector<Byte>         stored;
@@ -1427,7 +1526,14 @@ HRESULT Dos33Volume::Write (
 
     CollectEntries (entries, damage, fullyParsed);
 
-    exists = TryFindEntry (entries, path.GetLeaf(), owner);
+    //  Replacing one of several entries with a name would replace whichever
+    //  comes first, so a shared name returns ERROR_DUP_NAME here too.
+    hr        = FindEntry (entries, path, owner);
+    exists    = SUCCEEDED (hr);
+    ambiguous = hr == HRESULT_FROM_WIN32 (ERROR_DUP_NAME);
+    CBREx (!ambiguous, hr);
+
+    hr = S_OK;
 
     if (exists)
     {
@@ -1560,7 +1666,6 @@ HRESULT Dos33Volume::Delete (
     HRESULT                hr          = S_OK;
     size_t                 bufferBytes = m_sectors.size();
     bool                   single      = path.IsSingleComponent();
-    bool                   found       = false;
     bool                   isLocked    = false;
     bool                   fullyParsed = true;
     uint16_t               owner       = 0;
@@ -1576,8 +1681,8 @@ HRESULT Dos33Volume::Delete (
 
     CollectEntries (entries, damage, fullyParsed);
 
-    found = TryFindEntry (entries, path.GetLeaf(), owner);
-    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+    hr = FindEntry (entries, path, owner);
+    CHR (hr);
 
     isLocked = (entries[owner].typeByte & kLockedBit) != 0;
     CBREx (!isLocked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
@@ -1707,7 +1812,6 @@ HRESULT Dos33Volume::SetStartupProgram (const FilePath & path, vector<Byte> & ou
     size_t                 bufferBytes = m_sectors.size();
     bool                   single      = path.IsSingleComponent();
     bool                   hasDos      = false;
-    bool                   found       = false;
     bool                   fullyParsed = true;
     uint16_t               owner       = 0;
     size_t                 i           = 0;
@@ -1726,8 +1830,8 @@ HRESULT Dos33Volume::SetStartupProgram (const FilePath & path, vector<Byte> & ou
 
     CollectEntries (entries, damage, fullyParsed);
 
-    found = TryFindEntry (entries, path.GetLeaf(), owner);
-    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+    hr = FindEntry (entries, path, owner);
+    CHR (hr);
 
     hr = BuildIntegrityReport (report);
     CHRA (hr);
@@ -1785,4 +1889,168 @@ bool Dos33Volume::IsRunnableAsGreeting (const VolumeListing & listing, const std
     }
 
     return runnable;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::Rename
+//
+//  Thirty bytes of the catalog entry change and nothing else does: no sector
+//  moves, the track/sector list stays where it was, and the free bitmap is
+//  untouched. DOS's own RENAME refuses a locked file, and so does this.
+//
+//  A NAME ALREADY ON THE VOLUME IS REFUSED unless it is the file's own,
+//  which lets a name be re-cased without a detour through a temporary.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dos33Volume::Rename (
+    const FilePath     & from,
+    const std::string  & to,
+    vector<Byte>       & outBuffer) const
+{
+    HRESULT                hr          = S_OK;
+    size_t                 bufferBytes = m_sectors.size();
+    bool                   single      = from.IsSingleComponent();
+    bool                   nameOk      = false;
+    bool                   taken       = false;
+    bool                   isLocked    = false;
+    bool                   fullyParsed = true;
+    uint16_t               owner       = 0;
+    uint16_t               holder      = 0;
+    size_t                 i           = 0;
+    vector<Byte>           nameBytes;
+    vector<RawEntry>       entries;
+    vector<std::string>    damage;
+    vector<Byte>           result;
+    VolumeIntegrityReport  report;
+
+
+
+    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    nameOk = TryEncodeCatalogName (to, nameBytes);
+    CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    CollectEntries (entries, damage, fullyParsed);
+
+    hr = FindEntry (entries, from, owner);
+    CHR (hr);
+
+    isLocked = (entries[owner].typeByte & kLockedBit) != 0;
+    CBREx (!isLocked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+
+    taken = TryFindEntry (entries, to, holder) && holder != owner;
+    CBREx (!taken, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
+
+    hr = BuildIntegrityReport (report);
+    CHRA (hr);
+
+    result = m_sectors;
+
+    for (i = 0; i < kNameBytes; i++)
+    {
+        WriteByteAt (result,
+                     entries[owner].catalogTrack,
+                     entries[owner].catalogSector,
+                     entries[owner].entryOffset + kEntOffName + i,
+                     nameBytes[i]);
+    }
+
+    // The same self-check every other mutating call runs over its own output.
+    // A rename moves nothing, so a disagreement would mean the name landed
+    // outside the entry it was meant for.
+    hr = HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::SetAttributes
+//
+//  The type byte has both the type and the lock bit. A binary's load address
+//  is the first two bytes of its first data sector, found through the first
+//  pair of its track/sector list. DOS 3.3 doesn't store dates.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dos33Volume::SetAttributes (
+    const FilePath        & path,
+    const FileAttributes  & attributes,
+    vector<Byte>          & outBuffer) const
+{
+    HRESULT                hr          = S_OK;
+    bool                   single      = path.IsSingleComponent();
+    bool                   dated       = attributes.hasCreated || attributes.hasModified;
+    bool                   whole       = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   listed      = false;
+    bool                   inImage     = false;
+    bool                   fullyParsed = true;
+    bool                   locked      = false;
+    uint16_t               owner       = 0;
+    Byte                   typeByte    = 0;
+    size_t                 pair        = 0;
+    size_t                 data        = 0;
+    vector<RawEntry>       entries;
+    vector<std::string>    damage;
+    vector<Byte>           result;
+    VolumeIntegrityReport  report;
+
+
+
+    CBREx (whole, E_INVALIDARG);
+    CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+    CBREx (!dated, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+    CBREx (!attributes.hasType || (attributes.type & kLockedBit) == 0, HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER));
+
+    CollectEntries (entries, damage, fullyParsed);
+
+    hr = FindEntry (entries, path, owner);
+    CHR (hr);
+
+    typeByte = attributes.hasType ? (Byte) ((entries[owner].typeByte & kLockedBit) | attributes.type) : entries[owner].typeByte;
+    locked   = attributes.hasAccess ? (attributes.access & FilePayload::kAccessWriteEnable) == 0 : (typeByte & kLockedBit) != 0;
+    typeByte = locked ? (Byte) (typeByte | kLockedBit) : (Byte) (typeByte & ~kLockedBit);
+
+    hr = BuildIntegrityReport (report);
+    CHRA (hr);
+
+    result = m_sectors;
+
+    WriteByteAt (result, entries[owner].catalogTrack, entries[owner].catalogSector, entries[owner].entryOffset + kEntOffType, typeByte);
+
+    //  Only a binary has a load address, and an empty one has no data sector for it.
+    if (attributes.hasAuxType)
+    {
+        CBREx ((typeByte & ~kLockedBit) == kTypeBinary, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+        pair   = Dos33Skeleton::GetSectorOffset (entries[owner].tsListTrack, entries[owner].tsListSector) + kTsOffFirstPair;
+        listed = pair + 1 < result.size() && result[pair] != 0;
+        CBREx (listed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        data    = Dos33Skeleton::GetSectorOffset (result[pair], result[pair + 1]);
+        inImage = data + 1 < result.size();
+        CBREx (inImage, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        result[data]     = (Byte) attributes.auxType;
+        result[data + 1] = (Byte) (attributes.auxType >> 8);
+    }
+
+    hr = HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
 }

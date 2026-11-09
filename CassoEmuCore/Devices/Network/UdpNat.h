@@ -2,9 +2,11 @@
 
 #include "Pch.h"
 
+#include "Seams/IHostFirewall.h"
 #include "Seams/IHostNetwork.h"
 
 class IGuestPacketSink;
+class ListenGate;
 
 
 
@@ -30,13 +32,19 @@ class UdpNat
 {
 public:
 
-    static constexpr uint64_t  kIdleCycles     = 120ULL * 1022727ULL;   // 120 s at 1.023 MHz
+    static constexpr uint64_t  kIdleCycles     = 120ULL * 1020484ULL;   // 120 s at 1.020 MHz
     static constexpr size_t    kMaxDatagram    = 65535;
 
     explicit UdpNat (IGuestPacketSink & sink) : m_sink (sink) {}
 
     void  SetHostNetwork  (IHostNetwork * network) { m_network = network; }
     void  SetLanAccess    (bool lanAccess)         { m_lanAccess = lanAccess; }
+
+    //  A flow whose guest port the gate does not admit sends from a socket
+    //  with no explicit bind, which Windows binds to a temporary port on the
+    //  first send: an explicit bind to the PC's addresses raises a Windows
+    //  Firewall prompt.
+    void  SetListenGate   (const ListenGate * gate)  { m_gate = gate; }
 
     void  SendFromGuest   (uint16_t                guestPort,
                            uint32_t                destinationIp,
@@ -47,11 +55,16 @@ public:
     // A port forward's bound socket, whose datagrams go to `guestPort`.
     void  AddForward      (uint16_t guestPort, std::unique_ptr<IHostSocket> socket);
 
-    void  Pump            (uint64_t now);
-    void  CloseFlows      ();    // all but the port forwards
-    void  CloseAll        ();
-    bool  IsActive        () const { return !m_flows.empty(); }
-    size_t  GetFlowCount  () const { return m_flows.size(); }
+    void    Pump         (uint64_t now);
+    void    CloseFlows   ();    // all but the port forwards
+    void    CloseAll     ();
+    bool    IsActive     () const { return !m_flows.empty(); }
+    size_t  GetFlowCount () const { return m_flows.size(); }
+
+    //  Each flow's PC port when it has the guest's port number, which other
+    //  computers send to while LAN access is on. A port forward's is the
+    //  forward's, and is left out.
+    void  GetInboundPorts (std::vector<FirewallPort> & outPorts) const;
 
 private:
 
@@ -61,17 +74,19 @@ private:
         std::set<uint64_t>            peers;          // HostEndpoints sent to, packed
         uint64_t                      lastActivity  = 0;
         bool                          isForward     = false;
+        bool                          samePort      = false;   // bound to the guest's port number, not an ephemeral one
     };
 
     static uint64_t  PackEndpoint (const HostEndpoint & endpoint);
 
-    Flow *  FindOrCreateFlow (uint16_t guestPort, uint64_t now);
+    Flow  * FindOrCreateFlow  (uint16_t guestPort, uint64_t now);
     bool    TryMapDestination (uint32_t destinationIp, uint16_t destinationPort, HostEndpoint & outHost);
     bool    IsAllowed         (const Flow & flow, const HostEndpoint & from) const;
     void    DrainFlow         (uint16_t guestPort, Flow & flow, uint64_t now);
 
     IGuestPacketSink                  & m_sink;
     IHostNetwork                      * m_network    = nullptr;
+    const ListenGate                  * m_gate       = nullptr;
     bool                                m_lanAccess  = false;
     uint32_t                            m_dnsServer  = 0;
     std::map<uint16_t, Flow>            m_flows;

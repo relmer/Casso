@@ -1,0 +1,11 @@
+###############################################################################
+#  Byte-verbatim fixtures. The images are obvious; the text files are the
+#  trap: the tests compare them byte for byte against what the command line
+#  writes, so a checkout that rewrote their line endings would fail every
+#  comparison with nothing actually wrong.
+###############################################################################
+* binary
+
+README.md        text=auto diff merge
+MakeFixtures.ps1 text=auto diff merge
+.gitattributes   text=auto diff merge

@@ -155,18 +155,18 @@ Error:
 //
 //  ApplyMicaBackdrop
 //
-//  Sets DWMWA_SYSTEMBACKDROP_TYPE = DWMSBT_MAINWINDOW (Mica). No-op
+//  Sets DWMWA_SYSTEMBACKDROP_TYPE to Mica, or Mica Alt when lt. No-op
 //  on pre-Win11. Caller is responsible for extending the frame into
 //  the client area first (DwmExtendFrameIntoClientArea) — without
 //  that, the backdrop is invisible.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDwm::ApplyMicaBackdrop (HWND hwnd, bool mica)
+void DxuiDwm::ApplyMicaBackdrop (HWND hwnd, bool mica, bool alt)
 {
     HRESULT  hr        = S_OK;
     HRESULT  hrAttrib  = S_OK;
-    DWORD    type      = mica ? kDwmsbtMainWindow : kDwmsbtNone;
+    DWORD    type      = !mica ? kDwmsbtNone : (alt ? kDwmsbtTabbedWindow : kDwmsbtMainWindow);
     bool     supported = false;
 
 

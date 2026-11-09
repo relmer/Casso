@@ -295,7 +295,7 @@ void GeneralPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
     if (m_hasLayout)
     {
-        hr = text.MeasureString (label.c_str(), fontPx, DxuiTheme::kBodyFace, widthPx, heightPx);
+        hr = text.MeasureString (label.c_str(), fontPx, DxuiTheme::GetUiFace(), widthPx, heightPx);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         // A failed or empty measurement keeps the full width rather than

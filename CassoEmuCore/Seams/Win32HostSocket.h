@@ -27,9 +27,10 @@ public:
 
     static HRESULT  Create (HostSocketKind kind, std::unique_ptr<IHostSocket> & outSocket);
 
-    HRESULT  Bind         (const HostEndpoint & local, bool allowBroadcast)          override;
-    HRESULT  GetLocal     (HostEndpoint & outLocal) const                            override;
-    HRESULT  Listen       ()                                                         override;
+    HRESULT  Bind           (const HostEndpoint & local, bool allowBroadcast)          override;
+    HRESULT  AllowBroadcast ()                                                       override;
+    HRESULT  GetLocal       (HostEndpoint & outLocal) const                            override;
+    HRESULT  Listen         ()                                                         override;
     HRESULT  Accept       (std::unique_ptr<IHostSocket>  & outAccepted,
                            HostEndpoint                  & outPeer,
                            bool                          & outWouldBlock)            override;

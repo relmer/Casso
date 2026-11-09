@@ -164,6 +164,11 @@ private:
     void            RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     float           GetGlyphIndent  (float fontPx) const;
     void            PaintItemGlyph  (IDxuiTextRenderer & text, int index, float x, float top, float height, uint32_t color, float fontPx) const;
+
+    //  An item's text, its tab-separated parts each starting where that part
+    //  starts in every item, so the parts line up as columns.
+    void            DrawItemText    (IDxuiTextRenderer & text, const std::wstring & item, float x, float top, float width, float height, uint32_t color, float fontPx) const;
+    float           GetColumnStarts (IDxuiTextRenderer & text, float fontPx, std::vector<float> & outStarts) const;
     void            OnPopupMove     (POINT localPx);
     void            OnPopupClick    (POINT localPx);
     ResolvedColors  ResolveColors   () const;

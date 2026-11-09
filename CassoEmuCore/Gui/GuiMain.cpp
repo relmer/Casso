@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
+
 #include "AssetBootstrap.h"
 #include "CommandLineHelp.h"
 #include "CommandLineParser.h"
@@ -18,7 +20,11 @@
 #include "Shell/Components/ShellUpdater.h"
 #include "Core/MachineScanner.h"
 #include "Shell/DiskMru.h"
+#include "CassoExplorer/Model/KnownFolderStore.h"
 #include "Ui/Chrome/CassoTheme.h"
+#include "Seams/Win32FirewallHelper.h"
+#include "Seams/Win32ProcessLauncher.h"
+#include "CassoExplorer/Model/LaunchCommand.h"
 
 #pragma comment(lib, "ole32.lib")
 
@@ -100,6 +106,41 @@ static HRESULT ParseCommandLine (
     outParsed = CommandLineParser::ParseEmulator ((int) pointers.size(), pointers.data());
 
     LocalFree (argv);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OpenInCassoExplorer
+//
+//  The installed package declares the disk image types for Casso alone, so
+//  its Open in Casso Explorer command starts Casso with --explore, and Casso
+//  starts the Casso Explorer beside it on the image and exits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT OpenInCassoExplorer (const std::string & image)
+{
+    HRESULT               hr               = S_OK;
+    wchar_t               module[MAX_PATH] = {};
+    DWORD                 length           = GetModuleFileNameW (nullptr, module, MAX_PATH);
+    Win32ProcessLauncher  launcher;
+    std::wstring          exe;
+
+
+
+    CBR (length != 0 && length < MAX_PATH);
+
+    exe = LaunchCommand::GetSiblingPath (fs::path (module).parent_path().wstring(), LaunchCommand::kCassoExplorerExe);
+
+    hr = launcher.Launch (exe, LaunchCommand::QuoteArgument (TextEncoding::NarrowToWide (image)));
+    CHR (hr);
 
 Error:
     return hr;
@@ -295,7 +336,7 @@ static HRESULT LoadMachineConfig (
                           TextEncoding::NarrowToWide (error)).c_str());
 
         // User chose Exit rather than downloading. Stop here with no
-        // config; wWinMain shuts down quietly.
+        // config; wCassoMain shuts down quietly.
         BAIL_OUT_IF (outUserExited, S_OK);
     }
 
@@ -354,6 +395,14 @@ static HRESULT LoadMachineConfig (
                                               && !AssetBootstrap::IsForeignCheckoutDisk (p)
                                               && IsSupportedDiskImageExtension (p.wstring());
                                    });
+
+            AssetBootstrap::AppendSiblingDisksFromFolders (
+                KnownFolderStore::LoadPickerFolders (fs_prefs, AssetBootstrap::GetAssetBaseDirectory().wstring(),
+                                                     mruExisting,
+                                                     (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
+                                                         std::chrono::system_clock::now().time_since_epoch()).count()),
+                mruPruned,
+                IsSupportedDiskImageExtension);
 
             AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned, mruExisting, IsSupportedDiskImageExtension);
             AssetBootstrap::AppendBundledDemoDisks (mruPruned, IsSupportedDiskImageExtension);
@@ -578,10 +627,15 @@ static void ReportAssertion (const wchar_t * message)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  wWinMain
+//  wCassoMain
 //
 //  Process entry point. Everything here is startup ORDERING -- each step is
 //  placed before something that depends on it.
+//
+//  The name is Casso's own rather than wWinMain because CassoExplorer's entry point
+//  lives in this same library, and a library keeps only one definition of a
+//  symbol. Casso.vcxproj maps the C runtime's call to wWinMain onto this
+//  function with /ALTERNATENAME, which is also why it has C linkage.
 //
 //  DPI awareness is set FIRST, and programmatically rather than through a
 //  manifest entry. Without per-monitor v2, Windows bitmap-scales the whole
@@ -615,7 +669,7 @@ static void ReportAssertion (const wchar_t * message)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int WINAPI wWinMain (
+extern "C" int WINAPI wCassoMain (
     _In_     HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
     _In_     LPWSTR    lpCmdLine,
@@ -634,16 +688,21 @@ int WINAPI wWinMain (
     wstring                              disk2Path;
     wstring                              tapePath;
     wstring                              titlePrefix;
+    fs::path                             serialLogPath;
     size_t                               traceCapacity = 0;
     bool                                 noImageWatch  = false;
     int                                  exitCode      = 0;
     bool                                 userExited    = false;
     bool                                 answered      = false;
+    bool                                 firewall      = false;
     CommandLineOptions::EmulatorOptions  parsed;
     MachineConfig                        config;
     std::unique_ptr<EmulatorShell>       shell         = std::make_unique<EmulatorShell>();
 
 
+
+    hr = ThreadName::SetForCurrentThread (L"Casso UI");
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     UNREFERENCED_PARAMETER (hPrevInstance);
     shell->SetStartupShowCommand (nCmdShow);
@@ -677,6 +736,10 @@ int WINAPI wWinMain (
     // ReportAssertion.
     SetBreakpointFunction (&ReportAssertion);
 
+    // Started elevated by the Network settings page, to change the firewall.
+    firewall = Win32FirewallHelper::TryRunFromCommandLine (exitCode);
+    BAIL_OUT_IF (firewall, S_OK);
+
     // Parse command line. A help request is answered and a command line that
     // could not be read is refused BEFORE any of the startup work below, so
     // neither one downloads an asset, writes a preference, or builds a machine
@@ -699,6 +762,16 @@ int WINAPI wWinMain (
 
     BAIL_OUT_IF (answered, S_OK);
 
+    // --explore: the package's Open in Casso Explorer command. Nothing of the
+    // emulator starts.
+    if (!parsed.explore.empty())
+    {
+        hr = OpenInCassoExplorer (parsed.explore);
+        exitCode = SUCCEEDED (hr) ? 0 : 1;
+    }
+
+    BAIL_OUT_IF (!parsed.explore.empty(), S_OK);
+
     machineName   = TextEncoding::NarrowToWide (parsed.machine);
     disk1Path     = TextEncoding::NarrowToWide (parsed.disk1);
     disk2Path     = TextEncoding::NarrowToWide (parsed.disk2);
@@ -717,6 +790,22 @@ int WINAPI wWinMain (
     // --title: set before the window exists, so the first caption the shell
     // composes already carries the launcher's label.
     shell->SetWindowTitlePrefix (titlePrefix);
+
+    // --serial-log: opened before the machine is built, so the bridges built
+    // with it write to the file from the first byte.
+    if (parsed.serialLogRequested)
+    {
+        SYSTEMTIME  now = {};
+
+        GetLocalTime (&now);
+
+        serialLogPath = parsed.serialLog.empty()
+                      ? EmulatorShell::GetDefaultSerialLogPath (AssetBootstrap::GetAssetBaseDirectory(), now)
+                      : fs::path (TextEncoding::NarrowToWide (parsed.serialLog));
+
+        hr = shell->OpenSerialLog (serialLogPath);
+        CHRN (hr, format (L"Could not open the serial log file:\n{}", serialLogPath.wstring()).c_str());
+    }
 
     // --updated / --cleanup-old: a relaunch by a finished zip update, which
     // removes the old files once the process that ran them has exited.

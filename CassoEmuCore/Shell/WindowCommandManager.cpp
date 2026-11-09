@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
+
 #include "WindowCommandManager.h"
 
 #include "../AssetBootstrap.h"
@@ -36,11 +38,17 @@
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/Chrome/DriveWidget.h"
+#include "Ui/Dialogs/AttributionsText.h"
 #include "Ui/Dialogs/CreateDiskDialog.h"
 #include "Ui/FileBrowseModel.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineManager.h"
+#include "CassoExplorer/Model/KnownFolderStore.h"
+#include "CassoExplorer/Model/LaunchCommand.h"
+#include "Config/Win32FileSystem.h"
+#include "Core/PathResolver.h"
+#include "Seams/Win32ProcessLauncher.h"
 
 
 
@@ -196,6 +204,9 @@ void  WindowCommandManager::PrimeDefaultPrinterDriver()
 
         std::thread ([driver, device] ()
         {
+            HRESULT  hrName = ThreadName::SetForCurrentThread (L"Casso printer probe");
+
+            IGNORE_RETURN_VALUE (hrName, S_OK);
             HDC  h = CreateDCW (driver.c_str(), device.c_str(), nullptr, nullptr);
             if (h != nullptr) { DeleteDC (h); }
         }).join();
@@ -269,7 +280,10 @@ HDC  WindowCommandManager::CreateDcFromDevNames (const PRINTDLGW & pd)
     {
         std::thread ([&] ()
         {
-            const DEVMODEW *  dmp = devmode.empty() ? nullptr : (const DEVMODEW *) devmode.data();
+            const DEVMODEW *  dmp    = devmode.empty() ? nullptr : (const DEVMODEW *) devmode.data();
+            HRESULT           hrName = ThreadName::SetForCurrentThread (L"Casso printer probe");
+
+            IGNORE_RETURN_VALUE (hrName, S_OK);
 
             hdc = CreateDCW (driver.c_str(), device.c_str(), nullptr, dmp);
         }).join();
@@ -433,6 +447,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { route = WindowCommandRoute::Machine; }
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_SALVAGE1  || id == IDM_DISK_SALVAGE2)           { route = WindowCommandRoute::Disk; }
+    else if (id == IDM_DISK_OPEN_CASSO_EXPLORER)                            { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_TAPE_INSERT    && id <= IDM_TAPE_FASTFORWARD)        { route = WindowCommandRoute::Disk; }
     else if (id == IDM_STORAGE_DRIVE2 || id == IDM_STORAGE_RECORDER)        { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { route = WindowCommandRoute::View; }
@@ -1134,7 +1149,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMountStarted)
+HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, const RECT * placeAtPx, bool & outMountStarted)
 {
     HRESULT                    hr        = S_OK;
     int                        choice    = IDYES;
@@ -1211,6 +1226,15 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
 
     hr = dialog.Create (params);
     CHRA (hr);
+
+    //  Opened from the picker, it takes the picker's place, so it reads as
+    //  the same window moving on to its next step.
+    if (placeAtPx != nullptr && placeAtPx->right > placeAtPx->left)
+    {
+        SetWindowPos (dialog.GetHwnd(), nullptr, placeAtPx->left, placeAtPx->top,
+                      placeAtPx->right - placeAtPx->left, placeAtPx->bottom - placeAtPx->top,
+                      SWP_NOZORDER | SWP_NOACTIVATE);
+    }
 
     dialog.SetTheme (&m_shell.m_chrome->GetTheme());
     dialog.ShowModalDialog (IDOK);
@@ -1350,21 +1374,27 @@ Error:
 //  GetRecentMedia
 //
 //  The picker's list for one kind of media: the recent entries of that kind
-//  that still exist, then the files of that kind in the folders of every
-//  recent entry, then the bundled demos. Disks and tapes share the recent list
-//  and the folders; the filter is the only difference.
+//  that still exist, then the files of that kind in the shared known-folder
+//  list and in the folders of every recent entry, then the bundled demos.
+//  Disks and tapes share the recent list and the folders; the filter is the
+//  only difference.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WindowCommandManager::GetRecentMedia (MediaFilter isWanted, std::vector<DiskMru::Entry> & entries)
 {
-    DiskMru                      mru      = DiskMru::FromUtf8 (m_shell.m_settings->GetPrefs().recentDisks,
-                                                               m_shell.m_settings->GetPrefs().recentDiskLoadedAt);
-    std::vector<DiskMru::Entry>  existing = mru.Prune ([] (const std::filesystem::path & p)
-                                                       {
-                                                           return std::filesystem::exists (p)
-                                                                  && !AssetBootstrap::IsForeignCheckoutDisk (p);
-                                                       });
+    DiskMru                      mru        = DiskMru::FromUtf8 (m_shell.m_settings->GetPrefs().recentDisks,
+                                                                 m_shell.m_settings->GetPrefs().recentDiskLoadedAt);
+    std::vector<DiskMru::Entry>  existing   = mru.Prune ([] (const std::filesystem::path & p)
+                                                         {
+                                                             std::error_code  ignore;
+
+                                                             return std::filesystem::exists (p, ignore)
+                                                                    && !AssetBootstrap::IsForeignCheckoutDisk (p);
+                                                         });
+    Win32FileSystem              fileSystem;
+    int64_t                      nowUnix    = (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
+                                                  std::chrono::system_clock::now().time_since_epoch()).count();
 
 
 
@@ -1378,6 +1408,12 @@ void WindowCommandManager::GetRecentMedia (MediaFilter isWanted, std::vector<Dis
         }
     }
 
+    AssetBootstrap::AppendSiblingDisksFromFolders (KnownFolderStore::LoadPickerFolders (fileSystem,
+                                                                                        AssetBootstrap::GetAssetBaseDirectory().wstring(),
+                                                                                        existing,
+                                                                                        nowUnix),
+                                                   entries,
+                                                   isWanted);
     AssetBootstrap::AppendSiblingDisksFromMruFolders (entries, existing, isWanted);
     AssetBootstrap::AppendBundledDemoDisks (entries, isWanted);
 }
@@ -1404,6 +1440,7 @@ HRESULT WindowCommandManager::PromptInsertTapeMru (const RECT * anchorRectPx)
     std::string                  error;
     bool                         userBrowsed   = false;
     bool                         userCreateNew = false;
+    RECT                         pickerRectPx  = {};
 
 
 
@@ -1419,6 +1456,7 @@ HRESULT WindowCommandManager::PromptInsertTapeMru (const RECT * anchorRectPx)
                                               chosenPath,
                                               userBrowsed,
                                               userCreateNew,
+                                              pickerRectPx,
                                               error);
     CHR (hr);
 
@@ -1465,6 +1503,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * ancho
     std::string                  error;
     bool                         userBrowsed   = false;
     bool                         userCreateNew = false;
+    RECT                         pickerRectPx  = {};
 
 
 
@@ -1485,6 +1524,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * ancho
                                               chosenPath,
                                               userBrowsed,
                                               userCreateNew,
+                                              pickerRectPx,
                                               error);
     CHR (hr);
 
@@ -1495,7 +1535,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * ancho
     }
     else if (userCreateNew)
     {
-        hr = CreateBlankDiskForDrive (drive, outMountStarted);
+        hr = CreateBlankDiskForDrive (drive, &pickerRectPx, outMountStarted);
         CHR (hr);
     }
     else if (!chosenPath.empty())
@@ -1570,6 +1610,12 @@ void WindowCommandManager::OnDiskCommand (int id)
             break;
         }
 
+        case IDM_DISK_OPEN_CASSO_EXPLORER:
+        {
+            OpenCassoExplorer();
+            break;
+        }
+
         // The tape items open their pickers here; the deck commands are
         // queued to the CPU thread by the tape manager.
         case IDM_TAPE_INSERT:      m_shell.m_tapeDeck->PickTape();                                     break;
@@ -1583,6 +1629,44 @@ void WindowCommandManager::OnDiskCommand (int id)
         // Each flips its device, connected to disconnected or back.
         case IDM_STORAGE_DRIVE2:   m_shell.SetSecondDriveConnected  (!m_shell.m_disks->ShouldShowExternalDrive()); break;
         case IDM_STORAGE_RECORDER: m_shell.SetTapeRecorderConnected (!m_shell.m_tapeDeck->IsRecorderConnected());  break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OpenCassoExplorer
+//
+//  Starts the disk browser beside this executable, telling it which emulator
+//  launched it. A browser this emulator already launched fronts itself and
+//  exits, so a second click brings the first window forward.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OpenCassoExplorer()
+{
+    Win32ProcessLauncher     launcher;
+    std::wstring             moduleDir = PathResolver::GetExecutableDirectory().wstring();
+    LaunchCommand::Outcome   outcome   = LaunchCommand::Outcome::Launched;
+    std::wstring             message;
+
+
+
+    outcome = LaunchCommand::LaunchCassoExplorer (launcher, moduleDir, m_shell.m_hwnd, m_shell.m_window->GetWindowTitlePrefix());
+
+    if (outcome == LaunchCommand::Outcome::Missing)
+    {
+        message = LaunchCommand::DescribeMissing (LaunchCommand::GetSiblingPath (moduleDir, LaunchCommand::kCassoExplorerExe));
+        EhmNotifyUser (message.c_str());
+    }
+    else if (outcome == LaunchCommand::Outcome::Failed)
+    {
+        message = L"Casso Explorer could not be started\nWindows could not start "
+                + LaunchCommand::GetSiblingPath (moduleDir, LaunchCommand::kCassoExplorerExe) + L".";
+        EhmNotifyUser (message.c_str());
     }
 }
 
@@ -2084,7 +2168,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
     PrinterJob *   job   = nullptr;
     bool           known = (id == IDM_PRINTER_DISCARD || id == IDM_PRINTER_COPY ||
                             id == IDM_PRINTER_PRINT   || id == IDM_PRINTER_SAVEAS)
-                           && m_shell.m_machine.GetRefs().printerCard != nullptr;
+                           && m_shell.m_machine.GetRefs().printerRing != nullptr;
 
 
 
@@ -2154,11 +2238,11 @@ void WindowCommandManager::OnPrinterNoPage (int id, PrinterJob * job)
 
     if (job != nullptr)
     {
-        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing(), job->GetRaster());
     }
     else
     {
-        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing());
     }
 }
 
@@ -2181,7 +2265,7 @@ void WindowCommandManager::OnPrinterCopy (PrinterJob * job)
 
 
 
-    m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+    m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing(), job->GetRaster());
     m_shell.m_printer->NotePrinterDeliveryResult (FAILED (hr));
 
     if (FAILED (hr))
@@ -2220,7 +2304,7 @@ void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
     if (choice != IDYES)
     {
         // Canceled: keep the strip and resume on the same page.
-        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing(), job->GetRaster());
     }
     else
     {
@@ -2228,7 +2312,7 @@ void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
         // sheet, and drop the persisted pending copy. The problem page (if
         // any) went with it, so a latched delivery error clears too.
         m_shell.m_audio->GetPrinterAudio().PlayTearOff();
-        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing());
         PrintJobStore::Clear (m_shell.GetPendingPrintDir());
         m_shell.m_printer->NotePrinterDeliveryResult (false);
     }
@@ -2289,7 +2373,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
     {
         // Modern session up, or the user canceled the print / save dialog:
         // keep the strip either way, no clear.
-        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing(), job->GetRaster());
     }
     else if (SUCCEEDED (hr))
     {
@@ -2301,7 +2385,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
         DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chrome->GetTheme(), msg.c_str(), L"Casso printer", MB_OK | MB_ICONINFORMATION);
 
         // Non-destructive: keep the paper so it can also be saved / printed.
-        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing(), job->GetRaster());
     }
     else
     {
@@ -2327,7 +2411,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
 
         // Keep the strip so the user can retry -- reseed the worker with it
         // (copied before the old job is replaced). It re-persists on exit.
-        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing(), job->GetRaster());
     }
 }
 
@@ -2426,6 +2510,8 @@ void WindowCommandManager::OnHelpCommand (int id)
 
         case IDM_HELP_ABOUT:
         {
+            static constexpr int  kAttributionsResult = 100;
+
             DialogDefinition def = {};
             def.title = L"About Casso";
             def.icon  = DialogIcon::AppPhotoreal;
@@ -2433,7 +2519,7 @@ void WindowCommandManager::OnHelpCommand (int id)
             def.body.push_back ({ L"Casso emulator\nCopyright (C) by Robert Elmer"
                                   L"\n\nVersion " _CRT_WIDE (VERSION_STRING)
                                   L"\nBuilt " _CRT_WIDE (VERSION_BUILD_TIMESTAMP)
-                                  L"\n\nAn Apple 2 family emulator.",
+                                  L"\n\nAn Apple II family emulator.",
                                   false, L"" });
 
             // Body runs flow at the body line height with no inter-run gap, so
@@ -2453,10 +2539,21 @@ void WindowCommandManager::OnHelpCommand (int id)
             def.body.push_back ({ L"", false, L"" });
             def.body.push_back ({ L"MIT License",
                                   true, L"https://github.com/relmer/Casso/blob/master/LICENSE" });
-            def.body.push_back ({ L"ImageWriter II sounds by Scott Lawrence (CC BY 4.0)",
-                                  true, L"https://github.com/BleuLlama/ImageWriterIISimulator" });
+            def.buttons.push_back ({ L"Attributions", kAttributionsResult, false, false, true });
             def.buttons.push_back ({ L"OK", 0, true, true });
-            (void) m_shell.ShowModalDialog (def);
+
+            //  The works under someone else's license, one dialog deeper, so
+            //  the About box stays about Casso.
+            if (m_shell.ShowModalDialog (def) == kAttributionsResult)
+            {
+                DialogDefinition  credits = {};
+
+                credits.title = L"Attributions";
+                credits.body  = AttributionsText::BuildBody();
+                credits.buttons.push_back ({ L"OK", 0, true, true });
+                (void) m_shell.ShowModalDialog (credits);
+            }
+
             break;
         }
     }

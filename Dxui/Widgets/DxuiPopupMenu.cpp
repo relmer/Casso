@@ -1,4 +1,6 @@
 #include "Pch.h"
+#include "Core/DxuiIconImage.h"
+#include "Theme/DxuiColor.h"
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiPopupMenu.h"
@@ -9,6 +11,7 @@
 #include "Core/DxuiUnicodeSymbols.h"
 #include "Core/DxuiSystemSettings.h"
 #include "Render/DxuiStroke.h"
+#include "Render/DxuiVectorIcon.h"
 
 
 
@@ -82,6 +85,32 @@ DxuiPopupMenuItem DxuiPopupMenuItem::ForSubmenu (std::shared_ptr<const DxuiComma
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiPopupMenuItem::ForIconRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPopupMenuItem DxuiPopupMenuItem::ForIconRow (std::vector<std::shared_ptr<const DxuiCommand>> commands)
+{
+    DxuiPopupMenuItem  item;
+
+
+
+    item.kind = Kind::IconRow;
+
+    for (std::shared_ptr<const DxuiCommand> & command : commands)
+    {
+        item.children.push_back (ForCommand (std::move (command)));
+    }
+
+    return item;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiPopupMenuItem::ForHeader
 //
 //  The label rides a command with nothing to dispatch, so a header measures
@@ -143,6 +172,24 @@ void DxuiPopupMenu::RefreshMetrics()
     }
 
     m_metrics = DxuiMenuMetrics::FromSystem (m_scaler.GetDpi());
+    m_cardPadPx = 0;
+
+    //  Explorer's separators are 10 dip tall: 15 px at 150%.
+    m_metrics.separatorHeightPx = (int) std::lround (m_scaler.ToPxf (s_kSeparatorDip));
+
+    //  A command bar's drop-down is half a dip tighter a row than a context
+    //  menu, as Explorer's are: 47 px against 48 at 150%. It also keeps
+    //  3 dip above its first row and below its last, and its separators are
+    //  3 dip tall: 4 px, and 5 px, at 150%. Its separators run from border to
+    //  border, and it is 8 dip narrower on the right.
+    if (m_compactRows)
+    {
+        m_metrics.rowHeightPx       -= (int) std::lround (m_scaler.ToPxf (0.5f));
+        m_metrics.separatorHeightPx  = (int) std::lround (m_scaler.ToPxf (s_kCompactSeparatorDip));
+        m_metrics.separatorInsetPx   = (int) kBorderDip;
+        m_metrics.rightPadPx        -= m_scaler.ToPx (s_kCompactRightTrimDip);
+        m_cardPadPx                  = (int) m_scaler.ToPxf (s_kCompactCardPadDip);
+    }
 }
 
 
@@ -224,6 +271,8 @@ void DxuiPopupMenu::ShowUnder (
     IDxuiTextRenderer              & text,
     const RECT                     & hostClient)
 {
+    m_holdAtPointer = false;
+
     ShowCore (anchor.left, anchor.bottom, anchor, Anchoring::Below, std::move (items), text, hostClient);
 }
 
@@ -246,6 +295,9 @@ void DxuiPopupMenu::ShowAt (
     IDxuiTextRenderer              & text,
     const RECT                     & hostClient)
 {
+    m_holdAtPointer = true;
+    m_pointerAt     = { x, y };
+
     RECT  anchor = { x, y, x, y };
 
 
@@ -334,10 +386,12 @@ void DxuiPopupMenu::ShowCore (
     IDxuiTextRenderer              & text,
     const RECT                     & hostClient)
 {
-    int  width  = 0;
-    int  height = 0;
-    int  left   = originX;
-    int  top    = originY;
+    int  width   = 0;
+    int  height  = 0;
+    int  limit   = 0;
+    int  visible = 0;
+    int  left    = originX;
+    int  top     = originY;
 
 
 
@@ -348,13 +402,14 @@ void DxuiPopupMenu::ShowCore (
 
     CloseChild();
 
-    m_rows       = std::move (items);
-    m_hover      = -1;
-    m_pressed    = -1;
-    m_visible    = true;
-    m_text       = &text;
-    m_hostClient = hostClient;
-    m_anchor     = anchor;
+    m_rows             = std::move (items);
+    m_hover            = -1;
+    m_pressed          = -1;
+    m_visible          = true;
+    m_text             = &text;
+    m_hostClient       = hostClient;
+    m_anchor           = anchor;
+    m_popupPointerSeen = false;
 
     // Popup DPI follows its host window, folding what used to be an
     // explicit SetDpi push from the consumer into the show path.
@@ -364,8 +419,28 @@ void DxuiPopupMenu::ShowCore (
         RefreshMetrics();
     }
 
-    width  = MeasureWidthPx (text);
-    height = GetContentHeightPx();
+    PlaceIconRow (OpensUpward (originX, originY, m_layout.GetContentHeightPx(), anchoring));
+    DropStraySeparators();
+
+    width        = (std::max) (m_layout.MeasureWidthPx (text), m_minWidthPx);
+    height       = m_layout.GetContentHeightPx();
+    limit        = m_layout.GetHeightLimitPx (anchor, anchoring);
+    m_layout.m_viewportPx = 0;
+    m_layout.m_scrollRow  = 0;
+
+    //  Too tall: as many whole rows as fit, and the rest scroll.
+    if (limit > 0 && height > limit)
+    {
+        visible = 0;
+
+        while (visible < (int) m_rows.size() && m_layout.GetRowTopPx (visible + 1) <= limit)
+        {
+            visible++;
+        }
+
+        height       = m_layout.GetRowTopPx (visible);
+        m_layout.m_viewportPx = height;
+    }
 
     if (left + width  > hostClient.right)  { left = hostClient.right  - width;  }
     if (top  + height > hostClient.bottom) { top  = hostClient.bottom - height; }
@@ -410,7 +485,7 @@ void DxuiPopupMenu::AcquirePopup (const RECT & anchor, Anchoring anchoring)
     int                        width     = m_boundsDip.right  - m_boundsDip.left;
     int                        height    = m_boundsDip.bottom - m_boundsDip.top;
     uint32_t                   bgArgb    = (m_theme != nullptr)
-                                              ? ResolvePalette().bg
+                                              ? m_painter.ResolvePalette().bg
                                               : DxuiPopupHost::kDefaultMenuBackgroundArgb;
 
 
@@ -424,6 +499,10 @@ void DxuiPopupMenu::AcquirePopup (const RECT & anchor, Anchoring anchoring)
         return;
     }
 
+    //  Explorer's menus are acrylic: the card tints a blurred view of what is
+    //  behind it, unless the system's transparency effects are off.
+    m_acrylic = DxuiPopupHost::IsAcrylicAvailable();
+
     params.ownerHwnd        = owner;
     params.anchorRectScreen = { topLeft.x, topLeft.y, botRight.x, botRight.y };
     params.flipIfOffscreen  = true;
@@ -434,16 +513,26 @@ void DxuiPopupMenu::AcquirePopup (const RECT & anchor, Anchoring anchoring)
     params.sizeDip.cx       = MulDiv (width,  DxuiDpiScaler::kBaseDpi, (int) dpi);
     params.sizeDip.cy       = MulDiv (height, DxuiDpiScaler::kBaseDpi, (int) dpi);
     params.backgroundArgb   = bgArgb;
+    params.acrylic          = m_acrylic;
 
-    // The open animation. Menus and submenus unfold; the system's animation
-    // switch, and the accessibility master switch behind it, turn it off.
+    //  The host sizes its card from those dips, which can round back a pixel
+    //  wider or taller; the menu takes that size, so its border rings the
+    //  whole card rather than leaving a strip of the card outside it.
+    m_boundsDip.right  = m_boundsDip.left + MulDiv (params.sizeDip.cx, (int) dpi, DxuiDpiScaler::kBaseDpi);
+    m_boundsDip.bottom = m_boundsDip.top  + MulDiv (params.sizeDip.cy, (int) dpi, DxuiDpiScaler::kBaseDpi);
+
+    // The open animation. A menu dropped from a bar, and a submenu, unfold;
+    // a context menu, opened at a point, fades in quickly, as Explorer's do.
+    // The system's animation switch, and the accessibility master switch
+    // behind it, turn either off.
+    params.revealFade       = anchoring == Anchoring::AtPoint;
     params.revealMs         = (!m_revealSuppressed &&
                                DxuiSystemSettings::Instance().AreMenuAnimationsEnabled())
-                                  ? kRevealMs : 0;
-    params.revealFade       = false;
+                                  ? (params.revealFade ? kFadeMs : kRevealMs) : 0;
     params.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopupMenu (p, t); };
     params.onMoveInside     = [this] (POINT localPx) { OnPopupMove  (localPx); };
     params.onClickInside    = [this] (POINT localPx) { OnPopupClick (localPx); };
+    params.onWheel          = [this] (int delta)     { m_layout.ScrollByRows (-(delta / WHEEL_DELTA) * s_kWheelRows); };
     params.onClosed         = [this] () { Hide(); };
     params.onClickOutside   = m_onClickOutside;
 
@@ -537,6 +626,7 @@ void DxuiPopupMenu::Hide()
 
 
     CloseChild();
+    SetIconHover (-1);
 
     m_visible     = false;
     m_hover       = -1;
@@ -615,47 +705,6 @@ bool DxuiPopupMenu::HitTest (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiPopupMenu::GetRowAtOffset
-//
-//  The row under a vertical offset from the menu's top edge, or -1 in a
-//  separator or outside the rows. Rows are not uniform once separators are
-//  in the list, so this walks rather than divides.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiPopupMenu::GetRowAtOffset (int relY) const
-{
-    int  y = 0;
-
-
-
-    if (relY < 0)
-    {
-        return -1;
-    }
-
-    for (int i = 0; i < (int) m_rows.size(); i++)
-    {
-        int  h = GetRowHeightPx (i);
-
-        if (relY < y + h)
-        {
-            return (m_rows[(size_t) i].kind == DxuiPopupMenuItem::Kind::Separator ||
-                    m_rows[(size_t) i].kind == DxuiPopupMenuItem::Kind::Header) ? -1 : i;
-        }
-
-        y += h;
-    }
-
-    return -1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiPopupMenu::HitTestIndex
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -668,7 +717,7 @@ int DxuiPopupMenu::HitTestIndex (int x, int y) const
 
     if (m_visible && IsPointInRect (m_boundsDip, x, y))
     {
-        idx = GetRowAtOffset (y - m_boundsDip.top);
+        idx = m_layout.GetRowAtOffset (y - m_boundsDip.top);
     }
 
     return idx;
@@ -680,194 +729,285 @@ int DxuiPopupMenu::HitTestIndex (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiPopupMenu::GetRowHeightPx
+//  DxuiPopupMenu::SetIconHover
+//
+//  The icon row is the only row with buttons, so a button index is enough to
+//  find its command.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiPopupMenu::GetRowHeightPx (int index) const
+void DxuiPopupMenu::SetIconHover (int button)
 {
-    bool  isSeparator = m_rows[(size_t) index].kind == DxuiPopupMenuItem::Kind::Separator;
+    const DxuiCommand  * command = nullptr;
 
 
 
-    return isSeparator ? m_metrics.separatorHeightPx : m_metrics.rowHeightPx;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiPopupMenu::GetRowTopPx
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiPopupMenu::GetRowTopPx (int index) const
-{
-    int  y = 0;
-
-
-
-    for (int i = 0; i < index; i++)
+    if (button == m_iconHover)
     {
-        y += GetRowHeightPx (i);
+        return;
     }
 
-    return y;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiPopupMenu::GetContentHeightPx
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiPopupMenu::GetContentHeightPx() const
-{
-    return GetRowTopPx ((int) m_rows.size());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiPopupMenu::MeasureRunPx
-//
-//  One text run in pixels, measured when the renderer can and estimated
-//  from a glyph width when it cannot. A renderer mid-resize can report zero
-//  for a run it measured fine a frame ago, and a zero-width row would fold
-//  the menu to its floor.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiPopupMenu::MeasureRunPx (const std::wstring & run, float fontDip, IDxuiTextRenderer & text) const
-{
-    HRESULT  hr = S_OK;
-    float    w  = 0.0f;
-    float    h  = 0.0f;
-
-
-
-    hr = text.MeasureString (run.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
-
-    if (FAILED (hr) || w <= 0.0f)
-    {
-        w = (float) ((int) run.size() * m_scaler.ToPx (kFallbackGlyphWidthDip));
-    }
-
-    return (int) std::ceil (w);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiPopupMenu::MeasureWidthPx
-//
-//  Width fitted to content as two independent columns: the label column is
-//  the widest label, the accelerator column the widest accelerator or submenu
-//  arrow, and a fixed gap separates them. Both column origins are recorded so
-//  the painter reads the SAME answer the measurement reached.
-//
-//  Measuring each row as label-plus-accelerator and taking the widest, which
-//  is what this replaces, sized the menu so that the LONGEST row cleared its
-//  own accelerator and no other row did: a long label on an accelerator-less
-//  row ran under the right-aligned accelerators above it. Separate columns
-//  cannot produce that, whatever the mix of rows.
-//
-//  The check gutter is reserved only for a list that HAS a checkable row, so
-//  a menu where nothing can ever check sits flush against its left pad rather
-//  than carrying an empty column.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiPopupMenu::MeasureWidthPx (IDxuiTextRenderer & text)
-{
-    float  fontPx      = m_metrics.fontPx;
-    int    widestLabel = 0;
-    int    widestAccel = 0;
-    int    width       = 0;
-
-
-
-    m_hasGutter = false;
+    m_iconHover = button;
 
     for (const DxuiPopupMenuItem & row : m_rows)
     {
-        if (row.command != nullptr && row.command->isChecked)
+        if (button >= 0 && row.kind == DxuiPopupMenuItem::Kind::IconRow && button < (int) row.children.size())
         {
-            m_hasGutter = true;
+            command = row.children[(size_t) button].command.get();
+            break;
         }
     }
 
-    m_labelLeftPx = m_metrics.leftPadPx + m_metrics.gutterGapPx
-                        + (m_hasGutter ? m_metrics.checkGutterPx : 0);
-
-    for (const DxuiPopupMenuItem & row : m_rows)
+    if (m_onIconHover)
     {
-        std::wstring  stripped;
-        int           mnIdx = -1;
-        wchar_t       mnCh  = 0;
-        int           px    = 0;
+        m_onIconHover (command);
+    }
+}
 
-        if (row.kind == DxuiPopupMenuItem::Kind::Separator || row.command == nullptr)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::GetIconButtonAt
+//
+//  The buttons sit side by side from the row's left padding.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiPopupMenu::GetIconButtonAt (int index, int localX) const
+{
+    int  size   = m_layout.GetIconButtonPx() + m_layout.GetIconDividerPx();
+    int  offset = localX - m_layout.GetIconRowLeftPx();
+    int  button = 0;
+
+
+
+    if (index < 0 || index >= (int) m_rows.size() || m_rows[(size_t) index].kind != DxuiPopupMenuItem::Kind::IconRow ||
+        size <= 0 || offset < 0)
+    {
+        return -1;
+    }
+
+    button = offset / size;
+
+    return (button < (int) m_rows[(size_t) index].children.size()) ? button : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::CommitIcon
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::CommitIcon (int index, int button)
+{
+    std::shared_ptr<const DxuiCommand>  cmd;
+    DxuiPopupMenu                     * root = nullptr;
+
+
+
+    if (button < 0 || index < 0 || index >= (int) m_rows.size() ||
+        button >= (int) m_rows[(size_t) index].children.size())
+    {
+        return;
+    }
+
+    cmd = m_rows[(size_t) index].children[(size_t) button].command;
+
+    if (cmd == nullptr || !cmd->IsEnabled())
+    {
+        return;
+    }
+
+    root = GetRoot();
+
+    root->m_committing = true;
+    root->Hide();
+
+    if (cmd->dispatch)
+    {
+        cmd->dispatch();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::DropStraySeparators
+//
+//  A caller building a menu from conditional groups can leave a separator
+//  first, last, or beside another; each draws as an empty band, so they go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::DropStraySeparators()
+{
+    std::vector<DxuiPopupMenuItem>  kept;
+
+
+
+    for (DxuiPopupMenuItem & row : m_rows)
+    {
+        bool  isSeparator = row.kind == DxuiPopupMenuItem::Kind::Separator;
+
+        if (isSeparator && (kept.empty() || kept.back().kind == DxuiPopupMenuItem::Kind::Separator))
         {
             continue;
         }
 
-        ParseMnemonic (row.command->GetLabelText(), stripped, mnIdx, mnCh);
+        kept.push_back (std::move (row));
+    }
 
-        px = MeasureRunPx (stripped, fontPx, text);
+    while (!kept.empty() && kept.back().kind == DxuiPopupMenuItem::Kind::Separator)
+    {
+        kept.pop_back();
+    }
 
-        if (px > widestLabel)
-        {
-            widestLabel = px;
-        }
+    m_rows = std::move (kept);
+}
 
-        //  A submenu row ends in a drawn chevron, which needs a fixed width
-        //  rather than a measured glyph.
-        if (row.kind == DxuiPopupMenuItem::Kind::Submenu)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::OpensUpward
+//
+//  Whether the pointer ends up nearer the menu's bottom than its top. A menu
+//  raised at the pointer hangs down from it, and one that would run off the
+//  monitor is slid back up onto it rather than flipped, as the popup host
+//  places it -- so it can end up over the pointer, and which end is nearer
+//  depends on how far it moved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPopupMenu::OpensUpward (int originX, int originY, int heightPx, Anchoring anchoring) const
+{
+    HWND         owner   = (m_popupHost != nullptr) ? m_popupHost->GetHwnd() : nullptr;
+    POINT        origin  = { originX, originY };
+    HMONITOR     monitor = nullptr;
+    MONITORINFO  info    = { sizeof (info) };
+
+
+
+    if (anchoring != Anchoring::AtPoint)
+    {
+        return false;
+    }
+
+    if (owner == nullptr)
+    {
         {
-            px = m_scaler.ToPx (s_kSubmenuChevronBoxDip);
-        }
-        else if (!row.command->accelerator.empty())
+        int  top = (std::max) ((int) m_hostClient.top, (std::min) (originY, (int) m_hostClient.bottom - heightPx));
+
+        return (top + heightPx - originY) < (originY - top);
+    }
+    }
+
+    ClientToScreen (owner, &origin);
+    monitor = MonitorFromPoint (origin, MONITOR_DEFAULTTONEAREST);
+
+    if (monitor == nullptr || !GetMonitorInfoW (monitor, &info))
+    {
+        return false;
+    }
+
+    {
+        LONG  top    = (std::max) (info.rcWork.top, (std::min) (origin.y, info.rcWork.bottom - (LONG) heightPx));
+        LONG  bottom = top + heightPx;
+
+        return (bottom - origin.y) < (origin.y - top);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::PlaceIconRow
+//
+//  First for a menu hanging down from the pointer, last for one rising up
+//  from it, so the buttons are always the nearest thing to the pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::PlaceIconRow (bool atBottom)
+{
+    DxuiPopupMenuItem               icons;
+    std::vector<DxuiPopupMenuItem>  rest;
+    bool                            found = false;
+
+
+
+    for (DxuiPopupMenuItem & row : m_rows)
+    {
+        if (!found && row.kind == DxuiPopupMenuItem::Kind::IconRow)
         {
-            px = MeasureRunPx (row.command->accelerator, fontPx, text);
+            icons = std::move (row);
+            found = true;
         }
         else
         {
-            px = 0;
-        }
-
-        if (px > widestAccel)
-        {
-            widestAccel = px;
+            rest.push_back (std::move (row));
         }
     }
 
-    m_accelWidthPx = widestAccel;
-    m_accelLeftPx  = m_labelLeftPx + widestLabel + ((widestAccel > 0) ? m_metrics.accelGapPx : 0);
+    m_rows.clear();
 
-    width = m_accelLeftPx + widestAccel + m_metrics.rightPadPx;
-
-    // Under the floor the slack goes between the columns, so the accelerators
-    // stay against the right edge rather than stranded mid-row.
-    if (width < m_metrics.minWidthPx)
+    if (!found)
     {
-        m_accelLeftPx += m_metrics.minWidthPx - width;
-        width          = m_metrics.minWidthPx;
+        m_rows = std::move (rest);
+        return;
     }
 
-    return width;
+    //  The separator beside the buttons goes with them.
+    if (atBottom)
+    {
+        if (!rest.empty() && rest.front().kind == DxuiPopupMenuItem::Kind::Separator)
+        {
+            rest.erase (rest.begin());
+        }
+
+        m_rows = std::move (rest);
+
+        if (!m_rows.empty())
+        {
+            m_rows.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+
+        m_rows.push_back (std::move (icons));
+    }
+    else
+    {
+        if (!rest.empty() && rest.back().kind == DxuiPopupMenuItem::Kind::Separator)
+        {
+            rest.pop_back();
+        }
+
+        m_rows.push_back (std::move (icons));
+
+        if (!rest.empty() && rest.front().kind != DxuiPopupMenuItem::Kind::Separator)
+        {
+            m_rows.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+
+        for (DxuiPopupMenuItem & row : rest)
+        {
+            m_rows.push_back (std::move (row));
+        }
+    }
 }
 
 
@@ -1011,6 +1151,10 @@ void DxuiPopupMenu::SetHover (int index)
     DisarmChild();
 
     m_hover = index;
+
+    //  A highlight moved past the menu's edge by a key brings its row into
+    //  view; the pointer can only rest on a row already in view.
+    m_layout.EnsureRowVisible (index);
 
     if (index >= 0 && m_onHighlight)
     {
@@ -1218,11 +1362,11 @@ void DxuiPopupMenu::OpenChild (int index, bool highlightFirst)
     m_child->m_clock        = m_clock;
     m_child->m_scaler.SetDpi (m_scaler.GetDpi());
 
-    rowTop         = GetRowTopPx (index);
+    rowTop         = m_layout.GetRowTopPx (index) - m_layout.GetScrollPx();
     rowRect.left   = m_boundsDip.left;
     rowRect.top    = m_boundsDip.top + rowTop;
     rowRect.right  = m_boundsDip.right;
-    rowRect.bottom = rowRect.top + GetRowHeightPx (index);
+    rowRect.bottom = rowRect.top + m_layout.GetRowHeightPx (index);
 
     m_child->ShowCore (m_boundsDip.right, rowRect.top, rowRect, Anchoring::Beside,
                        row->children, *m_text, m_hostClient);
@@ -1325,6 +1469,22 @@ void DxuiPopupMenu::Commit (int index)
     root = GetRoot();
     cb   = root->m_onSelect;
 
+    //  A toggle that keeps the menu open runs and redraws its check.
+    if (cmd->keepsMenuOpen)
+    {
+        if (cmd->dispatch)
+        {
+            cmd->dispatch();
+        }
+
+        if (m_activePopup != nullptr)
+        {
+            m_activePopup->MarkDirty();
+        }
+
+        return;
+    }
+
     root->m_committing = true;
     root->Hide();
 
@@ -1372,12 +1532,26 @@ void DxuiPopupMenu::OnMouseMove (int x, int y)
     }
 
     idx = HitTestIndex (x, y);
+    SetIconHover (GetIconButtonAt (idx, x - m_boundsDip.left));
+
+    //  A menu that opens under the pointer gets a move at the same spot, which
+    //  mustn't cascade the row it happens to be on. The pointer's first real
+    //  move does.
+    if (m_holdAtPointer && (x != m_pointerAt.x || y != m_pointerAt.y))
+    {
+        m_holdAtPointer = false;
+
+        if (idx >= 0 && idx == m_hover && m_rows[(size_t) idx].kind == DxuiPopupMenuItem::Kind::Submenu)
+        {
+            ArmChild (idx);
+        }
+    }
 
     if (idx >= 0 && idx != m_hover)
     {
         SetHover (idx);
 
-        if (m_rows[(size_t) idx].kind == DxuiPopupMenuItem::Kind::Submenu)
+        if (m_rows[(size_t) idx].kind == DxuiPopupMenuItem::Kind::Submenu && !m_holdAtPointer)
         {
             ArmChild (idx);
         }
@@ -1476,7 +1650,11 @@ bool DxuiPopupMenu::OnLButtonUp (int x, int y)
 
     if (commit >= 0)
     {
-        if (m_rows[(size_t) commit].kind == DxuiPopupMenuItem::Kind::Submenu)
+        if (m_rows[(size_t) commit].kind == DxuiPopupMenuItem::Kind::IconRow)
+        {
+            CommitIcon (commit, GetIconButtonAt (commit, x - m_boundsDip.left));
+        }
+        else if (m_rows[(size_t) commit].kind == DxuiPopupMenuItem::Kind::Submenu)
         {
             OpenChild (commit, true);
         }
@@ -1589,38 +1767,6 @@ bool DxuiPopupMenu::OnKey (WPARAM vk)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiPopupMenu::ResolvePalette
-//
-//  The application's override when one was supplied, else the theme.
-//  Disabled text is always the theme's; no override carries one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiPopupMenu::Palette DxuiPopupMenu::ResolvePalette() const
-{
-    Palette  pal;
-
-
-
-    pal.bg         = m_colorsSet ? m_colors.bg         : m_theme->BackgroundElevated();
-    pal.hover      = m_colorsSet ? m_colors.hover      : m_theme->HoverBackground();
-    pal.text       = m_colorsSet ? m_colors.text       : m_theme->Foreground();
-    pal.hoverText  = m_colorsSet ? m_colors.hoverText  : m_theme->Foreground();
-    pal.accel      = m_colorsSet ? m_colors.accel      : m_theme->ForegroundMuted();
-    pal.hoverAccel = m_colorsSet ? m_colors.hoverAccel : m_theme->ForegroundMuted();
-    pal.border     = m_colorsSet ? m_colors.border     : m_theme->Border();
-    pal.divider    = m_colorsSet ? m_colors.divider    : m_theme->Divider();
-    pal.disabled   = m_theme->ForegroundDisabled();
-
-    return pal;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiPopupMenu::Paint
 //
 //  In-window fallback path (no popup host wired up). Draws at the
@@ -1637,291 +1783,12 @@ void DxuiPopupMenu::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         return;
     }
 
-    PaintBody (painter, text, m_boundsDip.left, m_boundsDip.top);
+    m_painter.PaintBody (painter, text, m_boundsDip.left, m_boundsDip.top);
 
     if (HasOpenChild() && m_child->m_activePopup == nullptr)
     {
         m_child->Paint (painter, text);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiPopupMenu::PaintBody
-//
-//  Shared menu renderer. Background, border, then each row at the supplied
-//  origin. The in-window Paint passes the panel-absolute bounds; the popup
-//  render hook passes (0,0).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text, int originLeft, int originTop) const
-{
-    Palette  pal;
-    float    fontDip = m_metrics.fontPx;
-    float    left    = (float) originLeft;
-    float    top     = (float) originTop;
-    float    width   = (float) (m_boundsDip.right  - m_boundsDip.left);
-    float    height  = (float) (m_boundsDip.bottom - m_boundsDip.top);
-
-
-
-    if (m_theme == nullptr)
-    {
-        return;
-    }
-
-    pal = ResolvePalette();
-
-    // Rounded at the overlay radius. A hosted menu's card is also drawn by
-    // its popup host at this same radius and rect; a square fill here would
-    // paint the host's rounded corners back to square.
-    painter.FillRoundedRect (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), pal.bg);
-
-    // THE SHADOW IS THE EDGE. A hosted menu sits on the card its popup host
-    // drew under a shadow, and that falloff already lifts the card off what
-    // is behind it; an outline over it reads as a bright wire around the
-    // menu, which no system flyout has. The in-window fallback has no host
-    // and so no shadow, and there the outline is the only thing separating
-    // the menu from the panel under it, so it stays.
-    if (m_activePopup == nullptr)
-    {
-        painter.OutlineRoundedRect (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), (float) kBorderDip, pal.border);
-    }
-
-    for (int i = 0; i < (int) m_rows.size(); i++)
-    {
-        PaintRow (painter, text, pal, i, left, top, width, fontDip);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiPopupMenu::PaintRow
-//
-//  One row, reading everything from the command AT PAINT TIME: label,
-//  checked, enabled, accelerator. A separator is a divider line inset from
-//  both edges at the row's vertical midpoint.
-//
-//  The label is clipped to the label column and the accelerator is drawn LEFT
-//  aligned at the accelerator column's origin, so accelerators of unequal
-//  length share a left edge and a label that outgrows its column is elided
-//  rather than painted over the column beside it. A submenu arrow is the one
-//  thing right aligned, against the right pad reserved for it.
-//
-//  Text sits at the row's vertical center, computed from the metrics' line
-//  height so a row that grows with the system menu font stays centered.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiPopupMenu::PaintRow (
-    IDxuiPainter       & painter,
-    IDxuiTextRenderer  & text,
-    const Palette      & pal,
-    int                  index,
-    float                left,
-    float                top,
-    float                width,
-    float                fontDip) const
-{
-    HRESULT                    hr        = S_OK;
-    const DxuiPopupMenuItem &  row       = m_rows[(size_t) index];
-    int                        rowTopPx  = GetRowTopPx (index);
-    int                        rowH      = GetRowHeightPx (index);
-    int                        pad       = m_metrics.leftPadPx;
-    int                        gutter    = m_metrics.checkGutterPx;
-    int                        inset     = m_metrics.separatorInsetPx;
-    int                        labelLeft = m_labelLeftPx;
-    int                        padTop    = (rowH - m_metrics.lineHeightPx) / 2;
-    float                      y         = top + (float) rowTopPx;
-    float                      labelW    = (float) (m_accelLeftPx - labelLeft);
-    float                      accelW    = width - (float) m_accelLeftPx - (float) m_metrics.rightPadPx;
-    std::wstring               stripped;
-    int                        mnIdx     = -1;
-    wchar_t                    mnCh      = 0;
-    bool                       enabled   = false;
-    bool                       hovered   = false;
-    uint32_t                   labelArgb = 0;
-    uint32_t                   accelArgb = 0;
-
-
-
-    if (row.kind == DxuiPopupMenuItem::Kind::Separator)
-    {
-        painter.FillRect (left + (float) inset,
-                          top + (float) (rowTopPx + rowH / 2),
-                          width - (float) inset - (float) inset,
-                          kUnderlineThicknessDip,
-                          pal.divider);
-        return;
-    }
-
-    if (row.command == nullptr)
-    {
-        return;
-    }
-
-    //  A header is a title, not a choice: secondary ink, no hover, no check,
-    //  and no underline cue, since nothing under it answers a keystroke.
-    if (row.kind == DxuiPopupMenuItem::Kind::Header)
-    {
-        hr = text.DrawString (row.command->GetLabelText().c_str(),
-                              left + (float) labelLeft,
-                              y + (float) padTop,
-                              labelW,
-                              (float) rowH,
-                              pal.accel,
-                              fontDip,
-                              DxuiTheme::kBodyFace);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-        return;
-    }
-
-    enabled   = row.command->IsEnabled();
-    hovered   = (index == m_hover);
-    labelArgb = !enabled ? pal.disabled : (hovered ? pal.hoverText  : pal.text);
-    accelArgb = !enabled ? pal.disabled : (hovered ? pal.hoverAccel : pal.accel);
-
-    ParseMnemonic (row.command->GetLabelText(), stripped, mnIdx, mnCh);
-
-    if (hovered)
-    {
-        float  insetX = m_scaler.ToPxf ((float) kHoverInsetXDip);
-        float  insetY = m_scaler.ToPxf ((float) kHoverInsetYDip);
-
-        painter.FillRoundedRect (left  + insetX,
-                                 y     + insetY,
-                                 width - insetX - insetX,
-                                 (float) rowH - insetY - insetY,
-                                 m_scaler.ToPxf (kHoverRadiusDip),
-                                 pal.hover);
-    }
-
-    hr = text.DrawString (stripped.c_str(),
-                          left + (float) labelLeft,
-                          y + (float) padTop,
-                          labelW,
-                          (float) rowH,
-                          labelArgb,
-                          fontDip,
-                          DxuiTheme::kBodyFace);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    if (row.command->IsChecked())
-    {
-        hr = text.DrawString (s_kpszCheckMark,
-                              left + (float) pad,
-                              y + (float) padTop,
-                              (float) gutter,
-                              (float) rowH,
-                              labelArgb,
-                              fontDip,
-                              DxuiTheme::kBodyFace,
-                              DxuiTextHAlign::Center,
-                              DxuiTextVAlign::Top);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    if (m_showCues && mnIdx >= 0 && !stripped.empty() && enabled)
-    {
-        PaintUnderline (painter, text, stripped, mnIdx,
-                        left + (float) labelLeft, y + (float) padTop, fontDip, labelArgb);
-    }
-
-    //  Explorer ends a submenu row in a thin chevron, not a filled triangle:
-    //  two strokes meeting at a point, at the right of the accelerator column.
-    if (row.kind == DxuiPopupMenuItem::Kind::Submenu)
-    {
-        float  right = left + (float) m_accelLeftPx + accelW + (float) m_metrics.rightPadPx - (float) pad;
-        float  half  = m_scaler.ToPxf (s_kSubmenuChevronHalfDip);
-        float  depth = m_scaler.ToPxf (s_kSubmenuChevronDepthDip);
-        float  thick = (std::max) (1.0f, m_scaler.ToPxf (s_kSubmenuChevronStrokeDip));
-        float  tipX  = right - m_scaler.ToPxf (s_kSubmenuChevronInsetDip);
-        float  midY  = y + (float) rowH * 0.5f;
-
-        //  Centered on the row itself, not on the text line's offset within it,
-        //  and drawn as filled quads, whose edges are smoothed where a stroked
-        //  line's are not.
-        DxuiStroke::Segment (painter, tipX - depth, midY - half, tipX, midY, thick, accelArgb);
-        DxuiStroke::Segment (painter, tipX - depth, midY + half, tipX, midY, thick, accelArgb);
-    }
-    else if (!row.command->accelerator.empty())
-    {
-        hr = text.DrawString (row.command->accelerator.c_str(),
-                              left + (float) m_accelLeftPx,
-                              y + (float) padTop,
-                              accelW,
-                              (float) rowH,
-                              accelArgb,
-                              fontDip,
-                              DxuiTheme::kBodyFace,
-                              DxuiTextHAlign::Left,
-                              DxuiTextVAlign::Top);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiPopupMenu::PaintUnderline
-//
-//  The mnemonic cue: a one-pixel rule under the marked letter. Its left edge
-//  is the width of the text before the letter and its length is the width
-//  of the prefix-plus-letter less the prefix, both measured rather than
-//  estimated, so it sits under the glyph the parser marked.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiPopupMenu::PaintUnderline (
-    IDxuiPainter        & painter,
-    IDxuiTextRenderer   & text,
-    const std::wstring  & stripped,
-    int                   mnIdx,
-    float                 labelX,
-    float                 labelY,
-    float                 fontDip,
-    uint32_t              ink) const
-{
-    HRESULT       hr       = S_OK;
-    float         prefixW  = 0.0f;
-    float         withChW  = 0.0f;
-    float         fullH    = 0.0f;
-    float         ignoredH = 0.0f;
-    std::wstring  prefix   = stripped.substr (0, (size_t) mnIdx);
-    std::wstring  prefixCh = stripped.substr (0, (size_t) mnIdx + 1);
-
-
-
-    if (!prefix.empty())
-    {
-        hr = text.MeasureString (prefix.c_str(), fontDip, DxuiTheme::kBodyFace, prefixW, fullH);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-    else
-    {
-        std::wstring  oneCh (1, stripped[(size_t) mnIdx]);
-
-        hr = text.MeasureString (oneCh.c_str(), fontDip, DxuiTheme::kBodyFace, prefixW, fullH);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-        prefixW = 0.0f;
-    }
-
-    hr = text.MeasureString (prefixCh.c_str(), fontDip, DxuiTheme::kBodyFace, withChW, ignoredH);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    painter.FillRect (labelX + prefixW, labelY + fullH, withChW - prefixW, kUnderlineThicknessDip, ink);
 }
 
 
@@ -1940,7 +1807,7 @@ void DxuiPopupMenu::PaintUnderline (
 
 void DxuiPopupMenu::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
-    PaintBody (painter, text, 0, 0);
+    m_painter.PaintBody (painter, text, 0, 0);
 }
 
 
@@ -1954,19 +1821,55 @@ void DxuiPopupMenu::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer &
 //  Pointer-move inside the hosted popup (popup-local physical pixels). Maps
 //  the y to a row and applies the same hover rules as the in-window path.
 //
+//  A popup raised under the pointer receives a move at that spot as soon as
+//  it appears. The popup-local point of that move is unknown until it
+//  arrives, so the first move is stored and doesn't open a submenu; the
+//  first move to a different point does.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPopupMenu::OnPopupMove (POINT localPx)
 {
-    int  row = GetRowAtOffset (localPx.y);
+    int   row        = m_layout.GetRowAtOffset (localPx.y);
+    int   button     = GetIconButtonAt (row, localPx.x);
+    bool  firstMove  = !m_popupPointerSeen;
+    bool  holdingRow = false;
 
 
+
+    m_popupPointerSeen = true;
+
+    if (firstMove)
+    {
+        m_popupPointerAt = localPx;
+    }
+    else if (m_holdAtPointer && (localPx.x != m_popupPointerAt.x || localPx.y != m_popupPointerAt.y))
+    {
+        m_holdAtPointer = false;
+
+        if (row >= 0 && row == m_hover && m_rows[(size_t) row].kind == DxuiPopupMenuItem::Kind::Submenu)
+        {
+            OpenChild (row, false);
+        }
+    }
+
+    holdingRow = m_holdAtPointer;
+
+    if (button != m_iconHover)
+    {
+        SetIconHover (button);
+
+        if (m_activePopup != nullptr)
+        {
+            m_activePopup->MarkDirty();
+        }
+    }
 
     if (row >= 0 && row != m_hover)
     {
         SetHover (row);
 
-        if (m_rows[(size_t) row].kind == DxuiPopupMenuItem::Kind::Submenu)
+        if (m_rows[(size_t) row].kind == DxuiPopupMenuItem::Kind::Submenu && !holdingRow)
         {
             OpenChild (row, false);
         }
@@ -1992,7 +1895,7 @@ void DxuiPopupMenu::OnPopupMove (POINT localPx)
 
 void DxuiPopupMenu::OnPopupClick (POINT localPx)
 {
-    int  row = GetRowAtOffset (localPx.y);
+    int  row = m_layout.GetRowAtOffset (localPx.y);
 
 
 
@@ -2001,7 +1904,11 @@ void DxuiPopupMenu::OnPopupClick (POINT localPx)
         return;
     }
 
-    if (m_rows[(size_t) row].kind == DxuiPopupMenuItem::Kind::Submenu)
+    if (m_rows[(size_t) row].kind == DxuiPopupMenuItem::Kind::IconRow)
+    {
+        CommitIcon (row, GetIconButtonAt (row, localPx.x));
+    }
+    else if (m_rows[(size_t) row].kind == DxuiPopupMenuItem::Kind::Submenu)
     {
         OpenChild (row, true);
     }

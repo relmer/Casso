@@ -4,9 +4,13 @@
 
 #include "Core/DxuiEvents.h"
 #include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiInfoTip.h"
+#include "Widgets/DxuiPopupMenu.h"
 
 
 static constexpr UINT_PTR  s_kDialogTimerId   = 1;      // dialog caret-blink / poll timer id
+static constexpr UINT_PTR  s_kMenuTimerId     = 2;      // advances a dialog's context menu
+static constexpr UINT      s_kMenuTickMs      = 16;
 
 
 
@@ -44,7 +48,10 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.resizable             = params.resizable;
     hostParams.roundedCorners        = true;
     hostParams.darkMode              = true;
-    hostParams.backdrop              = DxuiHwndSourceBackdrop::None;
+    hostParams.backdrop              = !params.micaBackdrop ? DxuiHwndSourceBackdrop::None
+                                     : params.micaAlt       ? DxuiHwndSourceBackdrop::MicaAlt
+                                                            : DxuiHwndSourceBackdrop::Mica;
+    hostParams.drawOverBackdrop      = params.micaBackdrop;
     hostParams.createSwapChain       = true;
     hostParams.captionStyle          = params.captionStyle;
     hostParams.composited            = params.composited;
@@ -54,6 +61,7 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.appIconBig            = params.appIconBig;
     hostParams.appIconSmall          = params.appIconSmall;
     hostParams.presentSyncInterval   = params.presentSyncInterval;
+    hostParams.paceFrames            = params.paceFrames;
     hostParams.createNoActivate      = params.createNoActivate;
     hostParams.placement             = params.placement;
     hostParams.placementAnchorHwnd   = params.placementAnchorHwnd;
@@ -264,6 +272,14 @@ Error:
     if (ownerDisabled)
     {
         EnableWindow (m_ownerHwnd, TRUE);
+
+        //  When the active dialog is hidden, Windows chooses the next active
+        //  window, which after an Alt+Tab away and back can be another
+        //  program's. The owner is activated first, as DialogBox does.
+        if (GetActiveWindow() == GetHwnd())
+        {
+            SetActiveWindow (m_ownerHwnd);
+        }
     }
 
     if (m_source != nullptr)
@@ -588,6 +604,56 @@ DxuiMessageResult DxuiWindow::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnRButtonUp
+//
+//  The release too, for a context menu that opens as the button comes up, as
+//  Explorer's do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnRButtonUp (WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (wParam);
+
+    return DispatchMouse (DxuiMouseEventKind::Up,
+                          DxuiMouseButton::Right,
+                          (int) (short) LOWORD (lParam),
+                          (int) (short) HIWORD (lParam),
+                          0.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnXButtonUp
+//
+//  A five-button mouse's back and forward buttons, delivered on release,
+//  which is when Explorer acts on them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnXButtonUp (WPARAM wParam, LPARAM lParam)
+{
+    DxuiMouseButton  button = (GET_XBUTTON_WPARAM (wParam) == XBUTTON1) ? DxuiMouseButton::X1 : DxuiMouseButton::X2;
+
+
+
+    return DispatchMouse (DxuiMouseEventKind::Up,
+                          button,
+                          (int) (short) LOWORD (lParam),
+                          (int) (short) HIWORD (lParam),
+                          0.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnMouseMove
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -617,6 +683,36 @@ DxuiMessageResult DxuiWindow::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnMouseLeave
+//
+//  The pointer left the client area, off the window or onto its frame. The
+//  panel tree is sent DxuiMouseEventKind::Leave, so hover states and tips
+//  over the content end however fast the pointer went; the last move may
+//  have been over a row. Not while the window has the capture, so a drag
+//  continues until its release. NotHandled, so DefWindowProc is called too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnMouseLeave()
+{
+    HWND  hwnd = GetHwnd();
+
+
+
+    if (hwnd != nullptr && GetCapture() != hwnd)
+    {
+        (void) DispatchMouse (DxuiMouseEventKind::Leave, DxuiMouseButton::None, -1, -1, 0.0f);
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnMouseWheel
 //
 //  WM_MOUSEWHEEL packs the point in SCREEN coordinates; convert to the
@@ -626,9 +722,10 @@ DxuiMessageResult DxuiWindow::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 DxuiMessageResult DxuiWindow::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
 {
-    HWND   hwnd  = GetHwnd();
-    POINT  point = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
-    float  notch = (float) GET_WHEEL_DELTA_WPARAM (wParam) / (float) WHEEL_DELTA;
+    HWND               hwnd   = GetHwnd();
+    POINT              point  = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    float              notch  = (float) GET_WHEEL_DELTA_WPARAM (wParam) / (float) WHEEL_DELTA;
+    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
 
 
 
@@ -637,12 +734,19 @@ DxuiMessageResult DxuiWindow::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool h
         ScreenToClient (hwnd, &point);
     }
 
-    return DispatchMouse (DxuiMouseEventKind::Wheel,
-                          DxuiMouseButton::None,
-                          point.x,
-                          point.y,
-                          notch,
-                          horizontal);
+    //  The message's flags are the keys as they were when the wheel turned.
+    m_wheelCtrl = (GET_KEYSTATE_WPARAM (wParam) & MK_CONTROL) != 0;
+
+    result = DispatchMouse (DxuiMouseEventKind::Wheel,
+                            DxuiMouseButton::None,
+                            point.x,
+                            point.y,
+                            notch,
+                            horizontal);
+
+    m_wheelCtrl = false;
+
+    return result;
 }
 
 
@@ -670,6 +774,13 @@ DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
     if (HasModalOverlay())
     {
         (void) OnOverlayKey (vk);
+        result = DxuiMessageResult::Handled;
+    }
+    else if (GetPopupHost() != nullptr && GetPopupHost()->GetContextMenu().IsVisible())
+    {
+        //  An open context menu is where the keyboard is, as a Windows menu's
+        //  is: arrows, Enter, Escape and mnemonics act on it, not the page.
+        (void) GetPopupHost()->GetContextMenu().OnKey (vk);
         result = DxuiMessageResult::Handled;
     }
     else
@@ -815,7 +926,7 @@ DxuiMessageResult DxuiWindow::OnGetMinMax (MINMAXINFO * info)
         result = DxuiMessageResult::Handled;
     }
 
-    if (TryGetMaxClientSizePx (maxPx))
+    if (TryGetMaxTrackSizePx (maxPx))
     {
         info->ptMaxTrackSize.x = std::max (maxPx.cx, info->ptMinTrackSize.x);
         info->ptMaxTrackSize.y = std::max (maxPx.cy, info->ptMinTrackSize.y);
@@ -1033,6 +1144,24 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
         result = DxuiMessageResult::Handled;
     }
 
+    //  A dialog's context menu slides open, and opens its submenus, on these
+    //  ticks while it is up; the dialog's own tick is far too slow for that.
+    if (timerId == s_kMenuTimerId && m_source != nullptr)
+    {
+        DxuiPopupMenu  & menu = m_source->GetContextMenu();
+
+        menu.Tick ((int64_t) GetTickCount64());
+
+        if (!menu.IsVisible() && !menu.WantsTick())
+        {
+            HRESULT  hr = m_source->KillTimer (s_kMenuTimerId);
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        result = DxuiMessageResult::Handled;
+    }
+
     return result;
 }
 
@@ -1161,7 +1290,7 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
     ev.wheelDelta      = wheelDelta;
     ev.wheelHorizontal = wheelHorizontal;
     ev.shift       = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
-    ev.ctrl        = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+    ev.ctrl        = m_wheelCtrl || (GetKeyState (VK_CONTROL) & 0x8000) != 0;
     ev.alt         = (GetKeyState (VK_MENU)    & 0x8000) != 0;
 
     // A modal overlay captures all mouse input so the page beneath it stays
@@ -1176,12 +1305,36 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
         // In a dialog a press focuses the control under it before the control
         // sees the press, so a drop-down or slider already has focus when it
         // handles the click, and Tab continues from it.
+        //  A press anywhere but on a pinned info tip's "i" closes the tip.
+        if (kind == DxuiMouseEventKind::Down)
+        {
+            DxuiInfoTip::CloseOpenOutside (ev.positionDip);
+        }
+
         if (kind == DxuiMouseEventKind::Down && m_dialogActive && m_focus.FocusAtPoint (POINT { x, y }))
         {
             Invalidate();
         }
 
-        if (OnMouse (ev))
+        //  A move with no button down changes the controls under the pointer,
+        //  and the pointer's exit from the window empties them. During a drag
+        //  they aren't updated, so the control dragged from stays on the path.
+        if (kind == DxuiMouseEventKind::Move && button == DxuiMouseButton::None)
+        {
+            UpdatePointerPath (POINT { x, y }, false);
+        }
+        else if (kind == DxuiMouseEventKind::Leave)
+        {
+            UpdatePointerPath (POINT { x, y }, true);
+        }
+
+        //  A right-press on a scrollbar opens the bar's own menu, as Windows'
+        //  bars do, before the control or the window has the press.
+        if (kind == DxuiMouseEventKind::Down && button == DxuiMouseButton::Right && ShowScrollbarMenuIn (*this, GetHwnd(), POINT { x, y }))
+        {
+            result = DxuiMessageResult::Handled;
+        }
+        else if (OnMouse (ev))
         {
             // Repaint immediately when a control consumes the event so drags
             // (slider thumbs, scrubbing) and hover states track the cursor every
@@ -1191,9 +1344,199 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
             result = DxuiMessageResult::Handled;
             Invalidate();
         }
+
+        //  A context menu open in a dialog is ticked from here; otherwise only
+        //  an application window ticks one.
+        if (m_dialogActive && m_source != nullptr && m_source->GetContextMenu().IsVisible())
+        {
+            HRESULT  hr = m_source->SetTimer (s_kMenuTimerId, s_kMenuTickMs);
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdatePointerPath
+//
+//  The controls under the pointer found again, and each control on the old
+//  path that isn't on the new one sent the pointer away. A control removed
+//  from the tree since is skipped, as it may be gone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::UpdatePointerPath (POINT clientPx, bool leftWindow)
+{
+    std::vector<IDxuiControl *>  path;
+    bool                         sent = false;
+
+
+
+    if (!leftWindow)
+    {
+        CollectPathAt (*this, clientPx, path);
+    }
+
+    for (IDxuiControl * control : m_pointerPath)
+    {
+        bool  stays = std::find (path.begin(), path.end(), control) != path.end();
+
+        if (!stays && IsInTree (*this, control))
+        {
+            SendPointerAway (*control);
+            sent = true;
+        }
+    }
+
+    m_pointerPath = std::move (path);
+
+    if (sent)
+    {
+        Invalidate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CollectPathAt
+//
+//  The topmost visible child under the point, then its topmost child there,
+//  and so on down. The last-added child is drawn on top, as in OnMouse. A
+//  container that clips its children at the point isn't searched further.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::CollectPathAt (const IDxuiControl & control, POINT clientPx, std::vector<IDxuiControl *> & outPath)
+{
+    const IDxuiControl  * node  = &control;
+    bool                  found = true;
+
+
+
+    while (found && !node->IsPointClipped (clientPx))
+    {
+        size_t  count = node->GetChildCount();
+
+        found = false;
+
+        for (size_t i = count; !found && i > 0; i--)
+        {
+            IDxuiControl  * child = node->GetChild (i - 1);
+            RECT            rc    = (child != nullptr) ? child->GetBounds() : RECT {};
+
+            if (child != nullptr && child->IsVisible() && PtInRect (&rc, clientPx))
+            {
+                outPath.push_back (child);
+                node  = child;
+                found = true;
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsInTree
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindow::IsInTree (const IDxuiControl & root, const IDxuiControl * control)
+{
+    size_t  count = root.GetChildCount();
+    bool    found = false;
+
+
+
+    for (size_t i = 0; !found && i < count; i++)
+    {
+        const IDxuiControl  * child = root.GetChild (i);
+
+        found = child != nullptr && (child == control || IsInTree (*child, control));
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SendPointerAway
+//
+//  A move to a point outside every control, which clears a hover set from
+//  the pointer's position, then a DxuiMouseEventKind::Leave event, which
+//  clears one set otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::SendPointerAway (IDxuiControl & control)
+{
+    DxuiMouseEvent  ev;
+    bool            took = false;
+
+
+
+    ev.kind        = DxuiMouseEventKind::Move;
+    ev.button      = DxuiMouseButton::None;
+    ev.positionDip = { kNowherePx, kNowherePx };
+    took           = control.OnMouse (ev);
+    IGNORE_RETURN_VALUE (took, false);
+
+    ev.kind = DxuiMouseEventKind::Leave;
+    took    = control.OnMouse (ev);
+    IGNORE_RETURN_VALUE (took, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowScrollbarMenuIn
+//
+//  The control itself first, then the visible child under the point, down
+//  to the control whose bar it is on. A container that clips its children
+//  there, as a scrolled page does, is not searched below.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindow::ShowScrollbarMenuIn (IDxuiControl & control, HWND hwnd, POINT clientPx)
+{
+    bool    shown = control.ShowScrollbarMenu (hwnd, clientPx);
+    size_t  count = control.GetChildCount();
+
+
+
+    for (size_t i = 0; !shown && !control.IsPointClipped (clientPx) && i < count; i++)
+    {
+        IDxuiControl  * child = control.GetChild (i);
+        RECT            rc    = (child != nullptr) ? child->GetBounds() : RECT {};
+
+        if (child != nullptr && child->IsVisible() && PtInRect (&rc, clientPx))
+        {
+            shown = ShowScrollbarMenuIn (*child, hwnd, clientPx);
+        }
+    }
+
+    return shown;
 }
 
 
@@ -1265,15 +1608,23 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
                 break;
             }
 
-            isHandled = m_focus.HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
+            // The focused control receives Tab FIRST, as it already receives
+            // Enter. A control with internal stops, such as a hex view's two
+            // columns, returns true while it has another stop and false after
+            // the last, and the focus manager then moves focus to the next
+            // control.
+            isHandled = RouteKeyToFocused (vk, shift)
+                     || m_focus.HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
             break;
 
         case VK_ESCAPE:
             // The focused control gets Escape first, so an open drop-down
-            // closes rather than the dialog. Only a key nothing claims cancels.
-            if (RouteKeyToFocused (vk, shift))
+            // closes rather than the dialog, and then an open info tip does.
+            // Escape cancels the dialog only when neither of those consumes it.
+            if (RouteKeyToFocused (vk, shift) || DxuiInfoTip::CloseOpen())
             {
                 isHandled = true;
+                Invalidate();
                 break;
             }
 

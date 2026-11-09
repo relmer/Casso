@@ -34,12 +34,14 @@
 class StockBootDisks
 {
 public:
-    //  The two masters the emulator installs from, and the only ones a
-    //  bootable disk can be built out of today.
+    //  The disks a bootable disk can be built out of with no image supplied.
     enum class Which
     {
         Dos33Master,
         ProDosUsersDisk,
+        PascalBootDisk,
+        CpamBootDisk,
+        SoftCardBootDisk,
     };
 
     //  The names the two masters are cached under, and the ONE place either
@@ -56,6 +58,20 @@ public:
     //  because each half was internally consistent.
     static constexpr const wchar_t *  kpszDos33MasterFile     = L"DOS 3.3 System Master.dsk";
     static constexpr const wchar_t *  kpszProDosUsersDiskFile = L"ProDOS Users Disk.dsk";
+    static constexpr const wchar_t *  kpszPascalBootDiskFile  = L"Apple Pascal Boot Disk.dsk";
+    static constexpr const wchar_t *  kpszCpamBootDiskFile    = L"CPAM 5.1 Boot Disk.dsk";
+    static constexpr const wchar_t *  kpszSoftCardBootDiskFile = L"CPM 2.23 SoftCard Boot Disk.dsk";
+
+    //  The word that selects CP/M for a Microsoft SoftCard over the default,
+    //  CP/AM for Applied Engineering's card, in place of an image's path.
+    static constexpr const char *     kpszSoftCardWord        = "softcard";
+
+    //  The stock disk for a `--format` word and the value of `--bootable`, or
+    //  false when the value is an image's path or the format has no system.
+    static bool  TryGetStockDisk (const std::string & format, const std::string & source, Which & outDisk);
+
+    //  What a message or prompt calls it.
+    static const wchar_t *  GetLabel (Which disk);
 
     //  Where that master sits in the cache, whether or not it is there yet.
     //

@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Machines/Apple2/Common/StockBootDisks.h"
 #include "Shell/DiskMru.h"
 
 
@@ -130,6 +131,12 @@ public:
                                                       const std::vector<DiskMru::Entry> & scanFrom,
                                                       MediaFilter                         isWanted);
 
+    // The same scan over folders the caller chooses -- the shared known-folder
+    // list -- with the same filtering and de-duplication.
+    static void     AppendSiblingDisksFromFolders (const std::vector<fs::path>    & folders,
+                                                   std::vector<DiskMru::Entry>    & mountable,
+                                                   MediaFilter                      isWanted);
+
     // True if `p` is a disk belonging to a checkout of this repo OTHER than
     // the one this build runs from (a sibling .claude/worktrees/<name> copy,
     // or the main tree when the running exe lives in a worktree). Used to keep
@@ -219,6 +226,9 @@ public:
     //   outCreateNew = true if the user chose the pinned
     //                  <Create new disk...> row (caller runs
     //                  the create-disk flow for the same drive)
+    //   outPickerRectPx = where the picker's window was when it
+    //                  closed, in screen pixels, for a dialog that
+    //                  follows it to open in the same place
     static MediaPickerKind  MakeDiskPickerKind (int drive);
     static MediaPickerKind  MakeTapePickerKind ();
 
@@ -232,6 +242,7 @@ public:
                                            wstring                & outDiskPath,
                                            bool                   & outBrowse,
                                            bool                   & outCreateNew,
+                                           RECT                   & outPickerRectPx,
                                            string                 & outError);
 
     // Unified startup downloader. Inspects the current install for
@@ -267,11 +278,7 @@ public:
     // The stock OS masters the create-disk flow installs from. Availability
     // is the download cache under GetDiskDirectory(); Ensure downloads on
     // demand (blocking, no UI -- the caller owns consent and reporting).
-    enum class StockBootDisk
-    {
-        Dos33Master,
-        ProDosUsersDisk,
-    };
+    using StockBootDisk = StockBootDisks::Which;
 
     static fs::path  GetStockBootDiskPath  (StockBootDisk disk);
     static bool      IsStockBootDiskCached (StockBootDisk disk);

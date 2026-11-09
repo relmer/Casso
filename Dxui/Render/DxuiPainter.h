@@ -105,6 +105,8 @@ public:
     void    SetClipRect    (const RECT * clipPx)    override;
     bool    GetClipRect    (RECT & clipPx) const    override;
     float   GetGlobalAlpha () const                 override { return m_globalAlpha; }
+    void    PushClipRect   (float xPx, float yPx, float widthPx, float heightPx) override;
+    void    PopClipRect    ()                       override { if (!m_clips.empty()) { m_clips.pop_back(); } }
 
     int     GetPendingVertexCount () const { return (int) m_vertices.size(); }
 
@@ -158,9 +160,9 @@ private:
     };
 
 
-    HRESULT CreateShaders    ();
-    HRESULT CreatePipelineState ();
-    HRESULT EnsureVertexBuffer  (size_t requiredVerts);
+    HRESULT  CreateShaders       ();
+    HRESULT  CreatePipelineState ();
+    HRESULT  EnsureVertexBuffer  (size_t requiredVerts);
     void    PushQuad         (float xPx,
                               float yPx,
                               float widthPx,
@@ -217,4 +219,5 @@ private:
     RECT                              m_clipPx               = {};   // after the origin, like the vertices
 
     std::vector<Vertex>               m_vertices;
+    std::vector<D2D1_RECT_F>          m_clips;     // pushed clips, in origin-applied pixels, each within the one before
 };

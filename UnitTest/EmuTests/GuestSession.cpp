@@ -159,6 +159,37 @@ std::vector<Byte> GuestSession::RequireRepoImage (const char * repoPath)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GuestSession::FindGameImage
+//
+//  The image in the Casso Disks folder under Documents, where Casso makes new
+//  disks. READ-ONLY.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::FindGameImage (const wchar_t * fileName)
+{
+    PWSTR              documents = nullptr;
+    std::vector<Byte>  bytes;
+    HRESULT            hr        = SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &documents);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        bytes = ReadFileOrEmpty (std::filesystem::path (documents) / L"Casso Disks" / fileName);
+    }
+
+    CoTaskMemFree (documents);
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GuestSession::RequireDos33Master
 //
 ////////////////////////////////////////////////////////////////////////////////

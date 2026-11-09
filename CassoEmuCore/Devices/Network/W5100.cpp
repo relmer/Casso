@@ -580,6 +580,11 @@ Byte W5100::ReadSocket (
 
     if (offset == R::kSnRxRsr || offset == R::kSnRxRsr + 1)
     {
+        if (offset == R::kSnRxRsr && GetRxReceivedSize (socket) == 0)
+        {
+            m_emptyReceivePolls++;
+        }
+
         return ReadLatchedWord (socket, (Word) (offset - R::kSnRxRsr), GetRxReceivedSize (socket));
     }
 

@@ -22,8 +22,10 @@ class IDxuiTheme;
 //  A dialog's content that measures its own height at a given width, with
 //  the window's renderer and theme. DxuiDialogWindow sets its window's
 //  height from that measurement before the window appears, rather than from
-//  an estimate made before there was a renderer to measure with. Content
-//  with any text that wraps implements it.
+//  an estimate made before there was a renderer to measure with, and grows
+//  the window at every layout after that where the content does not fit,
+//  as after a move to a monitor with another DPI. Content with any text that
+//  wraps implements it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,9 +121,22 @@ protected:
     //
     void  OnDialogShowing () override;
 
+    //
+    //  Grows the window by deltaPx, keeping its center, for content whose
+    //  painted height is more than the room it was given. Nothing happens
+    //  for a delta that is not positive, or while the window is growing.
+    //
+    HRESULT  GrowHeightBy (int deltaPx);
+
 
 private:
     HRESULT  FitHeightToContent ();
+    HRESULT  ResizeHeightBy     (int deltaPx);
+
+    //  Grows the window when measured content is taller than `content`, its
+    //  rectangle in this layout; true when the window was resized. A layout
+    //  the growing itself causes is not checked again.
+    bool     GrowToContent      (const RECT & content);
 
     struct ButtonEntry
     {
@@ -133,4 +148,5 @@ private:
     DxuiPanel *                m_content = nullptr;
     std::unique_ptr<DxuiPanel> m_contentOwned;
     std::vector<ButtonEntry>   m_dialogButtons;
+    bool                       m_growing = false;
 };

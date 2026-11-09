@@ -113,7 +113,8 @@ struct CommandLineOptions
         //  the table is swept to check every command is described in the help,
         //  and the help request is not one of the things being described.
         enum class Command      { None, List, Get, Put, Delete, Boot, Create, Init,
-                                  SectorRead, SectorWrite, BlockRead, BlockWrite, Help };
+                                  Mkdir, Rmdir, SectorRead, SectorWrite, BlockRead,
+                                  BlockWrite, Krunch, Help };
 
         //  How a payload's bytes relate to the file on the host. Verbatim means
         //  no CHARACTER conversion -- length and header semantics still apply,
@@ -147,6 +148,17 @@ struct CommandLineOptions
 
         std::string  imagePath;                        // the disk image
         std::string  path;                             // the file ON the disk
+        size_t       index          = 0;               // --index: which entry in catalog order, from 1
+        bool         hasIndex       = false;
+        int          user           = 0;               // --user: a CP/M user number
+        bool         hasUser        = false;
+
+        //  Directory commands. `recurse` reaches everything below the path,
+        //  `force` takes locked entries too, and `yes` answers the question a
+        //  removal would otherwise ask.
+        bool         recurse        = false;           // --recurse, -r, -s
+        bool         force          = false;           // --force
+        bool         yes            = false;           // --yes, -y
         std::string  hostFile;                         // source for put, --out for get
         std::string  typeName;                         // --type, as the user wrote it
         Word         loadAddress    = 0;               // --load
@@ -163,6 +175,7 @@ struct CommandLineOptions
         //
         std::string  containerType;                    // --type: dsk, do, po, woz
         std::string  formatName;                       // --format: dos33, prodos, none
+        std::string  filesystem;                       // --filesystem: cpm, for an image with no recognized file system
         std::string  volumeName;                       // --volume: a DOS number or a ProDOS name
 
         //  TWO WAYS TO BOOT, AND THEY ARE NOT THE SAME MECHANISM, which is
@@ -336,6 +349,7 @@ struct CommandLineOptions
         std::string  disk1;                            // --disk1 <image>
         std::string  disk2;                            // --disk2 <image>
         std::string  tape;                             // --tape <file>
+        std::string  explore;                          // --explore <image>: open it in Casso Explorer instead
         size_t       traceEntries = 0;                 // --trace [size]; 0 = off
 
         //  The power-on DRAM seed, so a startup fault seen once can be
@@ -383,6 +397,17 @@ struct CommandLineOptions
         //  window readable while it runs, and a label that took the whole
         //  caption would buy identity at the cost of all of it.
         std::string  titlePrefix;                       // --title <text>
+
+        //  A file that every byte on a bridged serial port is written to, with
+        //  its port, direction and machine cycle, for protocol captures. The
+        //  path is optional; without one, the log is a new timestamped file in
+        //  the SerialLogs folder of Casso's data directory.
+        //
+        //  UNDOCUMENTED AND NOT IN THE HELP, for the same reason as
+        //  --no-image-watch: it serves work on the serial link's protocol, not
+        //  anyone running the emulator.
+        bool         serialLogRequested = false;        // --serial-log [file]
+        std::string  serialLog;                         // empty for the default file
 
         //  Set by Casso itself when it relaunches after replacing its own
         //  files from a release zip: `--updated` marks the launch, and

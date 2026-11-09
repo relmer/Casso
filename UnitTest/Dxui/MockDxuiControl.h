@@ -30,6 +30,8 @@ public:
     int   keyCount           = 0;
     int   focusChangedCount  = 0;
     bool  lastFocused        = false;
+    int   focusEnteredCount  = 0;
+    bool  lastEnteredForward = false;
     int   themeChangedCount  = 0;
     int   tickCount          = 0;
 
@@ -73,6 +75,12 @@ public:
         lastFocused = focused;
     }
 
-    void  OnThemeChanged() override                              { themeChangedCount++; }
+    void  OnFocusEntered (bool forward) override
+    {
+        focusEnteredCount++;
+        lastEnteredForward = forward;
+    }
+
+    void  OnThemeChanged () override                              { themeChangedCount++; }
     void  Tick           (int64_t /*nowMs*/) override             { tickCount++; }
 };

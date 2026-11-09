@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Network/UdpNat.h"
+#include "Net/ListenGate.h"
 #include "Devices/Network/IGuestPacketSink.h"
 #include "Devices/Network/VirtualSubnet.h"
 
@@ -95,8 +96,18 @@ Error:
 //
 //  UdpNat::FindOrCreateFlow
 //
-//  The same port number as the guest's when the PC has it free, otherwise
-//  an ephemeral one.
+//  The same port number as the guest's when the PC has it free and the
+//  firewall admits it. Otherwise the socket is left unbound, and the first
+//  send binds it to a temporary port: an explicit bind to the any-address,
+//  of any port, raises a Windows Firewall prompt for a program with no rule,
+//  and an unbound socket's send doesn't. The firewall admits replies from a
+//  peer the guest sent to, on the temporary port, as responses to the send.
+//
+//  The socket binds the any-address even with lanAccess off, unlike
+//  PortForwarder's. A flow is the guest's outbound path to the network, so a
+//  loopback bind cuts the Apple off from everything beyond the PC. A port
+//  forward's socket is inbound only, so it binds loopback until lanAccess is
+//  on. Here IsAllowed drops datagrams from senders the guest has not sent to.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,6 +119,9 @@ UdpNat::Flow * UdpNat::FindOrCreateFlow (
     std::unique_ptr<IHostSocket>   socket;
     Flow                         * flow   = nullptr;
     auto                           found  = m_flows.find (guestPort);
+    bool                           same   = false;
+    bool                           admits = false;
+    HRESULT                        bound  = E_FAIL;
 
 
 
@@ -121,17 +135,25 @@ UdpNat::Flow * UdpNat::FindOrCreateFlow (
     hr = m_network->CreateSocket (HostSocketKind::Udp, socket);
     CHR (hr);
 
-    hr = socket->Bind ({ VirtualSubnet::kAnyIp, guestPort }, true);
+    admits = m_gate == nullptr || m_gate->Admits (HostSocketKind::Udp, guestPort);
 
-    if (FAILED (hr))
+    if (admits)
     {
-        hr = socket->Bind ({ VirtualSubnet::kAnyIp, 0 }, true);
+        bound = socket->Bind ({ VirtualSubnet::kAnyIp, guestPort }, true);
+    }
+
+    same = SUCCEEDED (bound);
+
+    if (!same)
+    {
+        hr = socket->AllowBroadcast();
         CHR (hr);
     }
 
     flow               = &m_flows[guestPort];
     flow->socket       = std::move (socket);
     flow->lastActivity = now;
+    flow->samePort     = same;
 
 Error:
     return flow;
@@ -263,6 +285,27 @@ bool UdpNat::IsAllowed (
     return m_lanAccess
         || VirtualSubnet::IsLoopback (from.ipv4)
         || flow.peers.contains (PackEndpoint (from));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UdpNat::GetInboundPorts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UdpNat::GetInboundPorts (std::vector<FirewallPort> & outPorts) const
+{
+    for (const auto & [port, flow] : m_flows)
+    {
+        if (flow.samePort && !flow.isForward)
+        {
+            outPorts.push_back ({ HostSocketKind::Udp, port });
+        }
+    }
 }
 
 

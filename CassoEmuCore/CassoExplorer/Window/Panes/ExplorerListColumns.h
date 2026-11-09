@@ -1,0 +1,81 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "CassoExplorer/Model/GroupChoices.h"
+
+#include "CassoExplorer/Model/FolderViews.h"
+#include "CassoExplorer/Model/Location.h"
+
+struct ExplorerContext;
+class ExplorerListPane;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns
+//
+//  The file list's view and columns: the view each folder opens in, the
+//  columns the user chose from the header's menu, their order and widths,
+//  and each folder's sort, read from and written to the preferences per
+//  folder, as in File Explorer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class ExplorerListColumns
+{
+public:
+    ExplorerListColumns (ExplorerListPane & pane, ExplorerContext & context);
+
+    static bool  IsListColumnShown          (size_t column, bool chosen, Location::Kind kind, bool searching = false);
+    static bool  IsListColumnOffered        (size_t column, Location::Kind kind, bool searching = false);
+    void         ApplyColumnOrder           ();
+    void         ShowChosenColumns          ();
+    void         ChooseAll                  (size_t count) { m_chosen.assign (count, true); }
+    void         SetChosen                  (size_t column, bool chosen);
+    void         ApplyStoredColumnWidths    ();
+    void         ApplyColumnWidths          (const std::vector<int> & widthsDip);
+    void         RememberFolderColumnWidths (int column, int widthDip);
+    void         RememberFolderColumns      ();
+
+    //  The list's columns: the fixed ones, then the shell properties added
+    //  from Choose Details. LoadPropertyColumns sets them on the list.
+    const std::vector<DxuiListView::Column> &  GetListColumns      () const { return m_listColumns; }
+    void                                       LoadPropertyColumns ();
+    void                                       ChooseDetails       ();
+
+    //  The column order for the folder on display: the folder's, or the latest.
+    void                  SetFolderOrder     (std::vector<int> order) { m_folderOrder = std::move (order); }
+    bool                  ReadFolderOptions  ();
+    std::wstring          GetFolderViewKey   (FolderViews::FolderType * outType) const;
+    RowGrouping::Field    GetPropertyField   (const std::wstring & canonicalName);
+    GroupChoices::Folder  GetGroupFolder     () const;
+    bool                  IsFolderViewSaved  (const std::wstring & key) const;
+    bool                  IsDownloadsFolder  () const;
+    void                  ApplyFolderView    ();
+    void                  RememberFolderSort ();
+    DxuiListView::View    GetView            () const { return m_view; }
+    int                   GetIconDip         () const { return m_iconDip; }
+    std::vector<bool>   & GetChosen          ()       { return m_chosen; }
+    void                  SetView            (DxuiListView::View view);
+
+    //  One notch of Ctrl with the wheel, as in File Explorer: a larger or
+    //  smaller icon, or the next view past the smallest. Whether it changed.
+    bool                  StepIconSize       (int notches);
+
+    //  Whether the user set a column width in the folder on display.
+    bool                  HasFolderColumnWidths () const;
+
+private:
+    ExplorerListPane                   & m_pane;
+    ExplorerContext                    & m_context;
+    std::vector<bool>                    m_chosen;   // the columns the user chose
+    std::vector<int>                     m_folderOrder;   // the column order the folder on display uses
+    DxuiListView::View                   m_view        = DxuiListView::View::Details;
+    int                                  m_iconDip     = 0;   // the view's icon size; 0 is its default
+    std::wstring                         m_viewKey;   // the folder the view was chosen for: a new folder opens in its view
+    std::vector<DxuiListView::Column>    m_listColumns;
+};

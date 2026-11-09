@@ -1,0 +1,533 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "Core/UnicodeSymbols.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerCommands
+//
+//  The browser's command table: every menu row, its accelerator text, and the
+//  keys that reach it without the menu.
+//
+//  THE TABLE DECIDES NOTHING ABOUT STATE. Whether a row is enabled or checked,
+//  and what it does, are three functions the window supplies, each handed the
+//  command's id. The table owns the commands at fixed addresses, since the
+//  menu surfaces hold them by pointer and re-read them at paint time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class CassoExplorerCommands
+{
+public:
+    enum Id : int
+    {
+        kExit = 100,
+        kRefresh,
+        kTogglePreview,
+        kShowDisassembly,
+        kThemeLight,
+        kThemeDark,
+        kThemeSystem,
+        kBack,
+        kForward,
+        kUp,
+        kAbout,
+        kNewTab,
+        kCloseTab,
+        kNextTab,
+        kPreviousTab,
+        kThemeSkeuomorphic,
+        kThemeDarkModern,
+        kThemeRetroTerminal,
+        kNamingDescriptive,
+        kNamingCiderPress,
+        kCopy,
+        kSelectAll,
+        kGoToOffset,
+        kGroup1,
+        kGroup2,
+        kGroup4,
+        kGroup8,
+        kEditAddress,
+        kLineAddresses,
+        kFind,
+        kFindNext,
+        kNoData,
+        kFormatHex,
+        kFormatSigned,
+        kFormatUnsigned,
+        kColumns,
+        kColumnsAuto,
+        kColumns1,
+        kColumns2,
+        kColumns4,
+        kColumns8,
+        kColumns16,
+        kZoomIn,
+        kZoomOut,
+        kZoomReset,
+
+        //  F4: the address opens for editing and its history drops, as in
+        //  Explorer. Ctrl+L and Alt+D only open the address.
+        kAddressHistory,
+
+        //  The Options dialog, holding the settings that are not views.
+        kOptions,
+
+        //  Explorer's command bar: New, the clipboard, Rename and Delete over
+        //  the file list's selection, then Sort, View and the theme.
+        kNew,
+        kCutItems,
+        kCopyItems,
+        kPasteItems,
+        kRenameItem,
+        kDeleteItems,
+        kSort,
+        kView,
+        kTheme,
+        kNewFolder,
+        kNewDisk,
+        kSortAscending,
+        kSortDescending,
+        kViewDetails,
+        kGroupBy,
+        kGroupAscending,
+        kGroupDescending,
+
+        //  The last file operation undone, as Explorer's Ctrl+Z does.
+        kUndo,
+
+        //  The Recycle Bin's own buttons, on the command bar only there.
+        kEmptyRecycleBin,
+        kRestoreItems,
+
+        //  The command bar's Share, after the others so no id moves.
+        kShareItems,
+
+        //  A double hi-res picture's form, on the preview toolbar.
+        kPictureMonochrome,
+        kPictureColor,
+
+        //  An archive's Extract all, on the command bar while one is selected
+        //  or open, and on its menu.
+        kExtractAll,
+
+        //  A linked Apple's drive: the whole disk read into an image or
+        //  written from one, and the running operation canceled.
+        kReadDiskToImage,
+        kWriteImageToDisk,
+        kCancelLinkOperation,
+
+        //  A CassoLink connection added, from See more as well as the tree.
+        kAddLink,
+
+        //  The previewed Apple picture written to a PNG file.
+        kSavePicture,
+
+        //  The previewed WOZ image's Disk properties, on its META tab.
+        kEditWozMetadata,
+
+        //  Help > Check for updates.
+        kCheckForUpdates,
+
+        //  A search's results closed, on the command bar only there.
+        kCloseSearch,
+
+        //  The search's options, on the command bar only there.
+        kSearchOptions,
+
+        //  A search's results by relevance, on the Sort menu only there.
+        kSortByRelevance,
+
+        //  A hex preview's bytes in hex, the other form of the preview from
+        //  kShowDisassembly.
+        kShowBytes,
+
+        //  kSortByColumn + the column's index, one per list column.
+        kSortByColumn = 400,
+
+        //  kViewFirst + a DxuiListView::View, one per view.
+        kViewFirst    = 500,
+
+        //  kGroupByField + a RowGrouping::Field, None included.
+        kGroupByField = 600,
+        kGroupByLast  = 699,
+    };
+
+    enum class Menu { File, Edit, View, Go, Help, Count };
+
+    struct Handlers
+    {
+        std::function<void (int id)>  dispatch;
+        std::function<bool (int id)>  isEnabled;
+        std::function<bool (int id)>  isChecked;
+
+        //  The label of a command whose label changes, or empty for its own.
+        std::function<std::wstring (int id)>  getLabel;
+    };
+
+    explicit CassoExplorerCommands (Handlers handlers);
+
+    CassoExplorerCommands (const CassoExplorerCommands &)             = delete;
+    CassoExplorerCommands & operator= (const CassoExplorerCommands &) = delete;
+
+    std::vector<DxuiMenuBarItem>  BuildMenuItems() const;
+
+    //  The toolbar's entries, in strip order: navigation, refresh, and the
+    //  preview pane's toggle.
+    std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
+    //  The buttons a location adds to the command bar, after View.
+    enum class CommandBarExtra { None, RecycleBin, Archive, AppleDrive, Search };
+
+    std::vector<DxuiToolbar::Entry>  BuildCommandBarEntries (CommandBarExtra extra = CommandBarExtra::None) const;
+
+    //  The Fluent icon the command bar draws for a command, or none.
+    static const DxuiVectorIcon    * GetCommandBarIcon (int id);
+
+    //  The icon a menu row draws beside a command's label, or none.
+    static const DxuiVectorIcon    * GetMenuIcon (int id);
+
+    //  The View button's icon, which is the current view's, as Explorer's is.
+    static const DxuiVectorIcon    * GetViewButtonIcon (DxuiListView::View view);
+
+    //  The preview pane's toolbar: Go to and the byte grouping over a hex
+    //  view, or the line address toggle over a BASIC listing.
+    //  What the preview toolbar has: nothing, a listing's toggle, the hex
+    //  view's commands, or a double hi-res picture's two forms.
+    static constexpr int  kPreviewBarNone    = 0;
+    static constexpr int  kPreviewBarListing = 1;
+    static constexpr int  kPreviewBarHex     = 2;
+    static constexpr int  kPreviewBarPicture = 3;
+
+    //  A picture with no color choice: Save as PNG alone.
+    static constexpr int  kPreviewBarSave    = 4;
+
+    //  A WOZ image's catalog: Edit metadata.
+    static constexpr int  kPreviewBarWoz     = 5;
+
+    //  A VAR file's variables: the search box, which filters them.
+    static constexpr int  kPreviewBarVariables = 6;
+
+    std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries  (int bar, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;
+    static std::vector<int>          GetPreviewToolbarCommandIds (int bar);
+    static int                       GetPreviewBar               (int id);
+    static bool                      IsOnPreviewBar              (int id, int bar);
+
+    //  The toolbar entries' commands in strip order, so a host moving focus
+    //  along the strip can check whether each one is enabled.
+    static size_t                       GetToolbarEntryCount ();
+    static int                          GetToolbarCommandId  (size_t index);
+    std::shared_ptr<const DxuiCommand>  Find                 (int id) const;
+
+    //  The SVG a command's button and menu rows draw in place of its glyph;
+    //  the text is the caller's and must outlive the command.
+    void  SetSvg   (int id, const std::string * svg);
+    void  SetTip   (int id, const std::wstring & tip);
+    void  SetGlyph (int id, const wchar_t * glyph);
+
+    //  The SVG a menu draws beside the command, which the host reads for the
+    //  theme in use and sets again when the theme changes.
+    void  SetMenuSvg (int id, const std::string * svg);
+
+    //  The command a key reaches, or zero. Alt combinations are included, so
+    //  a caller asks before offering Alt to the menu bar's mnemonics.
+    static int  TranslateKey (WPARAM vk, bool ctrl, bool alt, bool shift);
+
+    //  The standard command for a row, or None for a row the window handles
+    //  itself.
+    static DxuiStandardCommand  GetStandardCommand (int id);
+
+    static const wchar_t *  GetMenuTitle (Menu menu);
+
+private:
+    struct Row
+    {
+        int                  id;
+        Menu                 menu;
+        const wchar_t      * label;
+        const wchar_t      * accelerator;
+        bool                 checkable;
+
+        //  Set for a row whose meaning belongs to the focused control rather
+        //  than to the window; the window routes it instead of switching on
+        //  its id.
+        DxuiStandardCommand  standard = DxuiStandardCommand::None;
+    };
+
+    struct ToolbarRow
+    {
+        int                id;
+        DxuiToolbar::Kind  kind;
+        int                group;
+        const wchar_t    * glyph;
+        const wchar_t    * shortLabel;
+        const wchar_t    * tip;
+        bool               iconOnly    = false;
+        bool               trailing    = false;
+        bool               seeMoreOnly = false;
+    };
+
+    struct Key
+    {
+        WPARAM  vk;
+        bool    ctrl;
+        bool    alt;
+        bool    shift;
+        int     id;
+    };
+
+    static constexpr int  kSeparator = 0;
+
+    static constexpr Row  kRows[] =
+    {
+        { kNewTab,            Menu::File, L"&New tab",            L"Ctrl+T",   false },
+        { kCloseTab,          Menu::File, L"&Close tab",          L"Ctrl+W",   false },
+        { kSeparator,         Menu::File, nullptr,                nullptr,     false },
+        { kExit,              Menu::File, L"E&xit",               nullptr,     false },
+        { kUndo,              Menu::Edit, L"&Undo",                L"Ctrl+Z",  false },
+        { kSeparator,         Menu::Edit, nullptr,                 nullptr,    false },
+        { kCopy,              Menu::Edit, L"&Copy",                L"Ctrl+C",  false, DxuiStandardCommand::Copy },
+        { kSelectAll,         Menu::Edit, L"Select &all",          L"Ctrl+A",  false, DxuiStandardCommand::SelectAll },
+        { kSeparator,         Menu::Edit, nullptr,                 nullptr,    false },
+        { kGoToOffset,        Menu::Edit, L"&Go to",               L"Ctrl+G",  false },
+        { kFind,              Menu::Edit, L"&Find",                L"Ctrl+E",  false },
+        { kFindNext,          Menu::Edit, L"Find &next",           L"F3",      false },
+
+        //  Rows under Menu::Count are in no menu bar menu; they are the hex
+        //  context menu's Columns submenu and its choices.
+        { kColumns,           Menu::Count, L"Columns",             nullptr,    false },
+        { kColumnsAuto,       Menu::Count, L"&Auto",               nullptr,    true  },
+        { kColumns1,          Menu::Count, L"&1",                  nullptr,    true  },
+        { kColumns2,          Menu::Count, L"&2",                  nullptr,    true  },
+        { kColumns4,          Menu::Count, L"&4",                  nullptr,    true  },
+        { kColumns8,          Menu::Count, L"&8",                  nullptr,    true  },
+        { kColumns16,         Menu::Count, L"1&6",                 nullptr,    true  },
+        { kRefresh,           Menu::View, L"&Refresh",            L"F5",       false },
+        { kSeparator,         Menu::View, nullptr,                nullptr,     false },
+        { kTogglePreview,     Menu::View, L"&Preview pane",       L"Alt+P",    true  },
+        { kShowDisassembly,   Menu::View, L"&Disassembly",        nullptr,     true  },
+        { kShowBytes,         Menu::View, L"&Bytes",              nullptr,     true  },
+        { kSeparator,         Menu::View, nullptr,                nullptr,     false },
+        { kZoomIn,            Menu::View, L"Zoom &in",            L"Ctrl++",   false },
+        { kZoomOut,           Menu::View, L"Zoom &out",           L"Ctrl+-",   false },
+        { kZoomReset,         Menu::View, L"Reset &zoom",         L"Ctrl+0",   false },
+        { kSeparator,         Menu::View, nullptr,                nullptr,     false },
+        { kThemeSkeuomorphic, Menu::View, L"Casso &Skeuomorphic (colors only)", nullptr, true },
+        { kThemeRetroTerminal, Menu::View, L"Casso &Retro Terminal", nullptr,  true  },
+        { kThemeDarkModern,   Menu::View, L"Casso Dark &Modern",  nullptr,     true  },
+        { kThemeDark,         Menu::View, L"Dar&k theme",         nullptr,     true  },
+        { kThemeLight,        Menu::View, L"&Light theme",        nullptr,     true  },
+        { kThemeSystem,       Menu::View, L"Follow &system",      nullptr,     true  },
+        { kSeparator,         Menu::View, nullptr,                nullptr,     false },
+        { kLineAddresses,     Menu::View, L"Show &address",           nullptr,  true },
+        { kSeparator,         Menu::View, nullptr,                nullptr,     false },
+        { kOptions,           Menu::View, L"&Options...",         nullptr,     false },
+
+        //  The command bar's buttons and the rows of its drop-downs.
+        { kNew,               Menu::Count, L"New",                 nullptr,     false },
+        { kCutItems,          Menu::Count, L"Cut",                 L"Ctrl+X",   false },
+        { kCopyItems,         Menu::Count, L"Copy",                L"Ctrl+C",   false },
+        { kPasteItems,        Menu::Count, L"Paste",               L"Ctrl+V",   false },
+        { kRenameItem,        Menu::Count, L"Rename",              L"F2",       false },
+        { kShareItems,        Menu::Count, L"Share",               nullptr,     false },
+        { kDeleteItems,       Menu::Count, L"Delete",              L"Del",      false },
+        { kSort,              Menu::Count, L"Sort",                nullptr,     false },
+        { kView,              Menu::Count, L"View",                nullptr,     false },
+        { kTheme,             Menu::Count, L"Theme",               nullptr,     false },
+        { kPictureMonochrome, Menu::Count, L"Monochrome",          nullptr,     true  },
+        { kPictureColor,      Menu::Count, L"Color",               nullptr,     true  },
+        { kExtractAll,        Menu::Count, L"Extract All...",      nullptr,     false },
+        { kNewFolder,         Menu::Count, L"&Folder",             nullptr,     false },
+        { kNewDisk,           Menu::Count, L"&Disk image...",      nullptr,     false },
+        { kSortAscending,     Menu::Count, L"&Ascending",          nullptr,     true  },
+        { kSortDescending,    Menu::Count, L"&Descending",         nullptr,     true  },
+        { kViewFirst + 1,     Menu::Count, L"E&xtra large icons",  nullptr,     true  },
+        { kViewFirst + 2,     Menu::Count, L"La&rge icons",        nullptr,     true  },
+        { kViewFirst + 3,     Menu::Count, L"&Medium icons",       nullptr,     true  },
+        { kViewFirst + 4,     Menu::Count, L"&Small icons",        nullptr,     true  },
+        { kViewFirst + 5,     Menu::Count, L"&List",               nullptr,     true  },
+        { kViewFirst + 0,     Menu::Count, L"&Details",            nullptr,     true  },
+        { kViewFirst + 6,     Menu::Count, L"&Tiles",              nullptr,     true  },
+        { kViewFirst + 7,     Menu::Count, L"&Content",            nullptr,     true  },
+        { kSortByColumn + 0,  Menu::Count, L"&Name",               nullptr,     true  },
+        { kSortByColumn + 1,  Menu::Count, L"&Date modified",      nullptr,     true  },
+        { kSortByColumn + 2,  Menu::Count, L"&Type",               nullptr,     true  },
+        { kSortByColumn + 3,  Menu::Count, L"&Size",               nullptr,     true  },
+        { kSortByColumn + 4,  Menu::Count, L"&Address",            nullptr,     true  },
+        { kSortByColumn + 5,  Menu::Count, L"&Locked",             nullptr,     true  },
+        { kSortByColumn + 6,  Menu::Count, L"&Original location",  nullptr,     true  },
+        { kSortByColumn + 7,  Menu::Count, L"Date d&eleted",       nullptr,     true  },
+        { kSortByColumn + 8,  Menu::Count, L"&Folder",             nullptr,     true  },
+        { kSortByRelevance,   Menu::Count, L"&Relevance",          nullptr,     true  },
+        { kGroupBy,           Menu::Count, L"&Group by",           nullptr,     false },
+        { kGroupByField + 1,  Menu::Count, L"&Name",               nullptr,     true  },
+        { kGroupByField + 2,  Menu::Count, L"&Date modified",      nullptr,     true  },
+        { kGroupByField + 3,  Menu::Count, L"&Type",               nullptr,     true  },
+        { kGroupByField + 4,  Menu::Count, L"&Size",               nullptr,     true  },
+        { kGroupByField + 0,  Menu::Count, L"(&None)",             nullptr,     true  },
+        { kGroupAscending,    Menu::Count, L"&Ascending",          nullptr,     true  },
+        { kGroupDescending,   Menu::Count, L"D&escending",         nullptr,     true  },
+        { kEmptyRecycleBin,   Menu::Count, L"Empty Recycle Bin",   nullptr,     false },
+        { kRestoreItems,      Menu::Count, L"Restore all items",   nullptr,     false },
+        { kCloseSearch,       Menu::Count, L"Close search",        nullptr,     false },
+        { kSearchOptions,     Menu::Count, L"Search options",      nullptr,     false },
+        { kReadDiskToImage,   Menu::Count, L"Create image...",     nullptr,     false },
+        { kWriteImageToDisk,  Menu::Count, L"Write image...",      nullptr,     false },
+        { kCancelLinkOperation, Menu::Count, L"Cancel",            nullptr,     false },
+        { kAddLink,           Menu::Count, L"Add a CassoLink connection...", nullptr, false },
+        { kSavePicture,       Menu::Count, L"&Save picture as...", nullptr,     false },
+        { kEditWozMetadata,   Menu::Count, L"&Edit metadata...",   nullptr,     false },
+
+        //  The hex view's own choices are on its context menu, and nowhere
+        //  else at the top of the window.
+        { kNoData,            Menu::Count, L"Show &text only",         nullptr,  true },
+        { kGroup1,            Menu::Count, L"&1-byte integer",         nullptr,  true },
+        { kGroup2,            Menu::Count, L"&2-byte integer",         nullptr,  true },
+        { kGroup4,            Menu::Count, L"&4-byte integer",         nullptr,  true },
+        { kFormatHex,         Menu::Count, L"&Hexadecimal",            nullptr,  true },
+        { kFormatSigned,      Menu::Count, L"&Signed",                 nullptr,  true },
+        { kFormatUnsigned,    Menu::Count, L"&Unsigned",               nullptr,  true },
+        { kBack,              Menu::Go,   L"&Back",               L"Alt+Left", false },
+        { kForward,           Menu::Go,   L"&Forward",            L"Alt+Right", false },
+        { kUp,                Menu::Go,   L"&Up one level",       L"Alt+Up",   false },
+        { kCheckForUpdates,   Menu::Help, L"Check for &updates...",      nullptr,     false },
+        { kAbout,             Menu::Help, L"&About Casso Explorer...",   L"F1",       false },
+    };
+
+    static constexpr ToolbarRow  kToolbarRows[] =
+    {
+        //  Back, Forward, Up and Refresh are one group of bare icons, as in
+        //  Explorer; the preview toggle keeps its label and sits at the far end,
+        //  where Explorer puts Details. A new tab opens from the tab strip.
+        { kBack,          DxuiToolbar::Kind::Command, 0, s_kpszMdl2Back,    L"Back",    L"Back (Alt+Left)",        true  },
+        { kForward,       DxuiToolbar::Kind::Command, 0, s_kpszMdl2Forward, L"Forward", L"Forward (Alt+Right)",    true  },
+        { kUp,            DxuiToolbar::Kind::Command, 0, s_kpszMdl2Up,      L"Up",      L"Up one level (Alt+Up)",  true  },
+        { kRefresh,       DxuiToolbar::Kind::Command, 0, s_kpszMdl2Refresh, L"Refresh", L"Refresh (F5)",           true  },
+    };
+
+    //  Explorer's command bar, on its own row under the address bar, where
+    //  the menu bar was.
+    static constexpr ToolbarRow  kCommandBarRows[] =
+    {
+        { kNew,           DxuiToolbar::Kind::DropDown, 1, s_kpszMdl2Add,    L"New",     L"New",                    false },
+        { kCutItems,      DxuiToolbar::Kind::Command, 2, s_kpszMdl2Cut,     L"Cut",     L"Cut",                    true  },
+        { kCopyItems,     DxuiToolbar::Kind::Command, 2, s_kpszMdl2Copy,    L"Copy",    L"Copy",                   true  },
+        { kPasteItems,    DxuiToolbar::Kind::Command, 2, s_kpszMdl2Paste,   L"Paste",   L"Paste",                  true  },
+        { kRenameItem,    DxuiToolbar::Kind::Command, 2, s_kpszMdl2Rename,  L"Rename",  L"Rename",                 true  },
+        { kShareItems,    DxuiToolbar::Kind::Command, 2, s_kpszMdl2Share,   L"Share",   L"Share",                  true  },
+        { kDeleteItems,   DxuiToolbar::Kind::Command, 2, s_kpszMdl2Delete,  L"Delete",  L"Delete",                 true  },
+        { kSort,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2Sort,   L"Sort",    L"Sort",                   false },
+        { kView,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2List,   L"View",    L"View",                   false },
+        { kAddLink,       DxuiToolbar::Kind::Command, 3, s_kpszMdl2Add,     L"Add a CassoLink connection...", L"Add a CassoLink connection", false, false, true },
+        { kAbout,         DxuiToolbar::Kind::Command, 3, s_kpszMdl2Info,    L"About Casso Explorer", L"About Casso Explorer", false, false, true },
+        { kOptions,       DxuiToolbar::Kind::Command, 3, s_kpszMdl2Setting, L"Options", L"Options",            false, false, true },
+        { kTheme,         DxuiToolbar::Kind::DropDown, 4, s_kpszMdl2Palette, L"Theme",  L"Theme",                  false, true },
+        { kTogglePreview, DxuiToolbar::Kind::Toggle,  4, s_kpszMdl2Preview, L"Preview", L"Preview pane",           false, true },
+    };
+
+    //  The Recycle Bin's buttons, after View while the bin is shown, as
+    //  Explorer's. Restore's label says whether it restores the selection or
+    //  everything, so it has no short label of its own.
+    static constexpr ToolbarRow  kSearchRows[] =
+    {
+        { kSearchOptions, DxuiToolbar::Kind::DropDown, 5, s_kpszMdl2Setting, L"Search options", L"Search options" },
+        { kCloseSearch,   DxuiToolbar::Kind::Command,  5, s_kpszMdl2Cancel,  L"Close search",   L"Close search"   },
+    };
+
+    static constexpr ToolbarRow  kRecycleBinRows[] =
+    {
+        { kEmptyRecycleBin, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Delete,  L"Empty Recycle Bin", L"Empty Recycle Bin" },
+        { kRestoreItems,    DxuiToolbar::Kind::Command, 5, s_kpszMdl2Restore, L"",                  L"Restore"           },
+    };
+
+    //  An archive's button, after View while one is selected or open, as
+    //  Explorer's.
+    static constexpr ToolbarRow  kArchiveRows[] =
+    {
+        { kExtractAll, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Download, L"Extract all", L"Extract all" },
+    };
+
+    //  A linked Apple's buttons, after View while the list is on the machine or
+    //  one of its drives. Refresh reads the drives again, as a Disk II has no
+    //  signal for a changed disk.
+    static constexpr ToolbarRow  kAppleDriveRows[] =
+    {
+        { kRefresh,             DxuiToolbar::Kind::Command, 5, s_kpszMdl2Refresh,  L"Refresh",      L"Refresh (F5)"                       },
+        { kReadDiskToImage,     DxuiToolbar::Kind::Command, 5, s_kpszMdl2Download, L"Create image", L"Create an image file from the disk" },
+        { kWriteImageToDisk,    DxuiToolbar::Kind::Command, 5, s_kpszMdl2Save,     L"Write image",  L"Write an image file to the disk"    },
+        { kCancelLinkOperation, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Cancel,   L"Cancel",       L"Cancel the running operation"       },
+    };
+
+    //  The faces of the hex preview's two forms: 6502 code, and the bytes it
+    //  assembles to.
+    static constexpr const wchar_t *  s_kpszDisassemblyFace = L"LDA\nRTS";
+    static constexpr const wchar_t *  s_kpszBytesFace       = L"A9\n60";
+
+    static constexpr ToolbarRow  kPreviewToolbarRows[] =
+    {
+        { kLineAddresses,     DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Tag,       L"Show address",  L"Show where each line starts in memory"                   },
+        { kShowDisassembly,   DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Disassembly",   L"Show disassembly",                                       true },
+        { kShowBytes,         DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Bytes",         L"Show bytes",                                             true },
+        //  The Go to and search boxes, which the host supplies as custom entries.
+        { kGoToOffset,        DxuiToolbar::Kind::Command, 0, nullptr,             L"Go to",         L""                                                       },
+        { kFind,              DxuiToolbar::Kind::Command, 1, nullptr,             L"Search",        L"",                                                       false, true },
+        { kPictureMonochrome, DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Contrast,  L"Monochrome",    L"Draw the picture as its bits, on a monochrome monitor" },
+        { kPictureColor,      DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Palette,   L"Color",         L"Draw the picture in color, on the color monitor"      },
+        { kSavePicture,       DxuiToolbar::Kind::Command, 1, s_kpszMdl2SaveAs,    L"Save as PNG",   L"Save the picture as a PNG file"                      },
+        { kEditWozMetadata,   DxuiToolbar::Kind::Command, 0, s_kpszMdl2Edit,      L"Edit metadata", L"Edit the image's title, publisher and other metadata" },
+    };
+
+    static constexpr Key  kKeys[] =
+    {
+        { VK_F1,    false, false, false, kAbout         },
+        { VK_F5,    false, false, false, kRefresh       },
+        { 'P',      false, true,  false, kTogglePreview },
+        { VK_LEFT,  false, true,  false, kBack          },
+        { VK_RIGHT, false, true,  false, kForward       },
+        { VK_UP,    false, true,  false, kUp            },
+        { 'T',      true,  false, false, kNewTab        },
+        { 'W',      true,  false, false, kCloseTab      },
+        { VK_TAB,   true,  false, false, kNextTab       },
+        { VK_TAB,   true,  false, true,  kPreviousTab   },
+        { 'G',      true,  false, false, kGoToOffset    },
+        { 'E',      true,  false, false, kFind          },
+        { 'F',      true,  false, false, kFind          },
+        { VK_OEM_PLUS,  true, false, false, kZoomIn     },
+        { VK_OEM_PLUS,  true, false, true,  kZoomIn     },
+        { VK_ADD,       true, false, false, kZoomIn     },
+        { VK_OEM_MINUS, true, false, false, kZoomOut    },
+        { VK_SUBTRACT,  true, false, false, kZoomOut    },
+        { '0',          true, false, false, kZoomReset  },
+        { VK_NUMPAD0,   true, false, false, kZoomReset  },
+        { VK_F3,    false, false, false, kFindNext      },
+        { 'L',      true,  false, false, kEditAddress   },
+        { 'D',      false, true,  false, kEditAddress   },
+        { VK_F4,    false, false, false, kAddressHistory },
+
+        //  File Explorer's view keys, in its menu's order.
+        { '1',      true,  false, true,  kViewFirst + 1 },
+        { '2',      true,  false, true,  kViewFirst + 2 },
+        { '3',      true,  false, true,  kViewFirst + 3 },
+        { '4',      true,  false, true,  kViewFirst + 4 },
+        { '5',      true,  false, true,  kViewFirst + 5 },
+        { '6',      true,  false, true,  kViewFirst + 0 },
+        { '7',      true,  false, true,  kViewFirst + 6 },
+        { '8',      true,  false, true,  kViewFirst + 7 },
+    };
+
+    //  The standard commands are NOT in the key table: DxuiCommandRouter
+    //  defines their keystrokes, and the focused control handles them. The
+    //  rows still include the accelerator text for the menu.
+
+    void                             ApplyToolbarRows (std::span<const ToolbarRow> rows);
+    std::vector<DxuiToolbar::Entry>  BuildEntries     (std::span<const ToolbarRow> rows) const;
+
+    Handlers                                   m_handlers;
+    std::vector<std::shared_ptr<DxuiCommand>>  m_commands;
+};

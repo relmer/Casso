@@ -52,7 +52,24 @@ Byte ProDosVolume::ReadByte (int block, size_t offset) const
         return 0;
     }
 
-    return m_sectors[at];
+    return AccessBlock (block)[at];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::AccessBlock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const vector<Byte> & ProDosVolume::AccessBlock (int block) const
+{
+    ProDosReader::NoteBlockRead (m_readObserver, block);
+
+    return m_sectors;
 }
 
 
@@ -78,22 +95,24 @@ Word ProDosVolume::ReadWord (int block, size_t offset) const
 //
 //  ProDosVolume::CollectEntries
 //
-//  Walks the volume directory chain, collecting every readable entry.
+//  Walks one directory's chain from its key block, collecting every readable
+//  entry.
 //
-//  The first record of the key block is the volume header rather than a file,
-//  so it is skipped. A record whose storage type is zero is an unused slot, not
+//  The first record of the key block is the directory's header rather than a
+//  file, in a subdirectory as in the volume directory, so it is skipped. A record whose storage type is zero is an unused slot, not
 //  the end of the directory -- ProDOS reuses slots in place, so a deleted file
 //  leaves a hole that later entries sit beyond.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ProDosVolume::CollectEntries (
+    int                   keyBlock,
     vector<RawEntry>    & outEntries,
     vector<std::string> & outDamage,
     bool                & outFullyParsed) const
 {
     ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
-    int             dirBlock = ProDosSkeleton::kDirKeyBlock;
+    int             dirBlock = keyBlock;
     int             n        = 0;
     size_t          i        = 0;
 
@@ -105,11 +124,11 @@ void ProDosVolume::CollectEntries (
     {
         bool  inRange = dirBlock > 0 && dirBlock < ProDosSkeleton::kTotalBlocks;
         bool  stepOk  = inRange && guard.TryVisit ((uint32_t) dirBlock);
-        int   first   = (dirBlock == ProDosSkeleton::kDirKeyBlock) ? 1 : 0;
+        int   first   = (dirBlock == keyBlock) ? 1 : 0;
 
         if (!stepOk)
         {
-            outDamage.push_back ("the volume directory chain loops or leaves the volume; "
+            outDamage.push_back ("the directory chain loops or leaves the volume; "
                                  "the entries listed are those reachable before it did");
             outFullyParsed = false;
             break;
@@ -141,6 +160,11 @@ void ProDosVolume::CollectEntries (
             entry.blocksUsed  = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffBlocksUsed);
             entry.access      = ReadByte (dirBlock, at + ProDosSkeleton::kEntOffAccess);
             entry.auxType     = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffAuxType);
+            entry.modDate     = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffModified);
+            entry.modTime     = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffModified + 2);
+            entry.createDate  = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffCreated);
+            entry.createTime  = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffCreated + 2);
+            entry.caseFlags   = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffCaseFlags);
 
             entry.eof = (uint32_t)
                 (ReadByte (dirBlock, at + ProDosSkeleton::kEntOffEof)
@@ -151,6 +175,8 @@ void ProDosVolume::CollectEntries (
             {
                 entry.name += (char) ReadByte (dirBlock, at + ProDosSkeleton::kEntOffName + i);
             }
+
+            entry.name = ApplyCaseFlags (entry.name, entry.caseFlags);
 
             outEntries.push_back (entry);
         }
@@ -308,6 +334,173 @@ bool ProDosVolume::CollectFileBlocks (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProDosVolume::ToFileEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FileEntry ProDosVolume::ToFileEntry (const RawEntry & entry)
+{
+    FileEntry  listed;
+
+
+
+    listed.name        = entry.name;
+    listed.type        = entry.fileType;
+    listed.isLocked    = (entry.access & kAccessWriteEnable) == 0;
+    listed.isDirectory = entry.storage == ProDosSkeleton::kStorageSubdir;
+    listed.sizeUnits   = entry.blocksUsed;
+    listed.eofBytes    = entry.eof;
+    listed.hasEofBytes = true;
+    listed.auxType     = entry.auxType;
+    listed.hasAuxType  = true;
+    listed.hasModified = TryToUnixTime (entry.modDate, entry.modTime, listed.modifiedUnix);
+    listed.access       = entry.access;
+    listed.hasAccess    = true;
+    listed.createdDate  = entry.createDate;
+    listed.createdTime  = entry.createTime;
+    listed.modifiedDate = entry.modDate;
+    listed.modifiedTime = entry.modTime;
+    listed.hasDates     = true;
+
+    // For a binary, the auxiliary type IS the load address. Naming it as such
+    // saves every caller from knowing that.
+    if (entry.fileType == kTypeBinary)
+    {
+        listed.loadAddress    = entry.auxType;
+        listed.hasLoadAddress = true;
+    }
+
+    return listed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::ResolveDirectory
+//
+//  Each component must name a subdirectory in the directory above it. The
+//  blocks visited on the way down are guarded, so a directory that points back
+//  at one it sits inside cannot walk forever.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::ResolveDirectory (const FilePath & directory, int & outKeyBlock) const
+{
+    HRESULT              hr          = S_OK;
+    int                  keyBlock    = ProDosSkeleton::kDirKeyBlock;
+    vector<RawEntry>     entries;
+    vector<std::string>  damage;
+    bool                 fullyParsed = true;
+    bool                 found       = false;
+    bool                 isDirectory = false;
+    bool                 stepOk      = false;
+    uint16_t             owner       = 0;
+    ChainWalkGuard       guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+
+
+
+    for (const std::string & component : directory.GetComponents())
+    {
+        entries.clear();
+        CollectEntries (keyBlock, entries, damage, fullyParsed);
+
+        found = TryFindEntry (entries, component, owner);
+        CBREx (found, HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND));
+
+        isDirectory = entries[owner].storage == ProDosSkeleton::kStorageSubdir;
+        CBREx (isDirectory, HRESULT_FROM_WIN32 (ERROR_DIRECTORY));
+
+        keyBlock = (int) entries[owner].keyPointer;
+        stepOk   = keyBlock > 0 && keyBlock < ProDosSkeleton::kTotalBlocks && guard.TryVisit ((uint32_t) keyBlock);
+        CBREx (stepOk, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+    }
+
+    outKeyBlock = keyBlock;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::GetParentPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FilePath ProDosVolume::GetParentPath (const FilePath & path)
+{
+    std::string  text;
+    size_t       i    = 0;
+
+
+
+    for (i = 0; i + 1 < path.GetComponents().size(); i++)
+    {
+        text += (text.empty() ? "" : "/") + path.GetComponents()[i];
+    }
+
+    return FilePath::Parse (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::EnumerateDirectory
+//
+//  The volume's name and free space describe the whole volume; only the
+//  entries come from the directory the path names.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::EnumerateDirectory (const FilePath & directory, VolumeListing & outListing) const
+{
+    HRESULT           hr          = S_OK;
+    int               keyBlock    = ProDosSkeleton::kDirKeyBlock;
+    vector<RawEntry>  entries;
+    bool              fullyParsed = true;
+
+
+
+    hr = Enumerate (outListing);
+    CHR (hr);
+
+    if (directory.IsEmpty())
+    {
+        return hr;
+    }
+
+    hr = ResolveDirectory (directory, keyBlock);
+    CHR (hr);
+
+    outListing.entries.clear();
+    CollectEntries (keyBlock, entries, outListing.damage, fullyParsed);
+
+    for (const RawEntry & entry : entries)
+    {
+        outListing.entries.push_back (ToFileEntry (entry));
+        outListing.entries.back().catalogIndex = outListing.entries.size() - 1;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProDosVolume::Enumerate
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -347,31 +540,12 @@ HRESULT ProDosVolume::Enumerate (VolumeListing & outListing) const
 
     outListing.totalUnits = (uint32_t) ProDosSkeleton::kTotalBlocks;
 
-    CollectEntries (entries, outListing.damage, fullyParsed);
+    CollectEntries (ProDosSkeleton::kDirKeyBlock, entries, outListing.damage, fullyParsed);
 
     for (const RawEntry & entry : entries)
     {
-        FileEntry  listed;
-
-        listed.name           = entry.name;
-        listed.type           = entry.fileType;
-        listed.isLocked       = (entry.access & kAccessWriteEnable) == 0;
-        listed.isDirectory    = entry.storage == ProDosSkeleton::kStorageSubdir;
-        listed.sizeUnits      = entry.blocksUsed;
-        listed.eofBytes       = entry.eof;
-        listed.hasEofBytes    = true;
-        listed.auxType        = entry.auxType;
-        listed.hasAuxType     = true;
-
-        // For a binary, the auxiliary type IS the load address. Naming it as
-        // such saves every caller from knowing that.
-        if (entry.fileType == kTypeBinary)
-        {
-            listed.loadAddress    = entry.auxType;
-            listed.hasLoadAddress = true;
-        }
-
-        outListing.entries.push_back (listed);
+        outListing.entries.push_back (ToFileEntry (entry));
+        outListing.entries.back().catalogIndex = outListing.entries.size() - 1;
     }
 
     // Volume bitmap: one bit per block, MSB of byte 0 is block 0, SET is free.
@@ -407,25 +581,31 @@ Error:
 
 HRESULT ProDosVolume::Read (const FilePath & path, FilePayload & outPayload) const
 {
-    HRESULT  hr          = S_OK;
-    size_t   bufferBytes = m_sectors.size();
-    bool     single      = path.IsSingleComponent();
-    Byte     fileType    = 0;
-    Word     auxType     = 0;
+    HRESULT              hr          = S_OK;
+    size_t               bufferBytes = m_sectors.size();
+    int                  dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
+    bool                 hasLeaf     = !path.IsEmpty();
+    Byte                 fileType    = 0;
+    Word                 auxType     = 0;
+    bool                 parsed      = true;
+    bool                 found       = false;
+    uint16_t             local       = 0;
+    vector<RawEntry>     entries;
+    vector<std::string>  damage;
 
 
 
     CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (hasLeaf, E_INVALIDARG);
 
-    // Subdirectory traversal is not built yet. Refusing a deeper path keeps the
-    // capability fillable later without any caller having been handed the wrong
-    // file in the meantime.
-    CBREx (single, E_INVALIDARG);
+    // A file in a subdirectory is found in that directory's own chain.
+    hr = ResolveDirectory (GetParentPath (path), dirKeyBlock);
+    CHR (hr);
 
     outPayload = FilePayload();
 
-    hr = ProDosReader::ExtractFile (m_sectors, path.GetLeaf(), outPayload.bytes,
-                                    fileType, auxType);
+    hr = ProDosReader::ExtractFileFromDirectory (m_sectors, dirKeyBlock, path.GetLeaf(), outPayload.bytes,
+                                                 fileType, auxType, m_readObserver);
     CHR (hr);
 
     outPayload.type       = fileType;
@@ -439,8 +619,162 @@ HRESULT ProDosVolume::Read (const FilePath & path, FilePayload & outPayload) con
         outPayload.hasLoadAddress = true;
     }
 
+    CollectEntries (dirKeyBlock, entries, damage, parsed);
+    found = TryFindEntry (entries, path.GetLeaf(), local);
+
+    if (found)
+    {
+        outPayload.access       = entries[local].access;
+        outPayload.hasAccess    = true;
+        outPayload.createdDate  = ReadWord (entries[local].dirBlock, entries[local].entryOffset + ProDosSkeleton::kEntOffCreated);
+        outPayload.createdTime  = ReadWord (entries[local].dirBlock, entries[local].entryOffset + ProDosSkeleton::kEntOffCreated + 2);
+        outPayload.modifiedDate = entries[local].modDate;
+        outPayload.modifiedTime = entries[local].modTime;
+        outPayload.hasDates     = true;
+    }
+
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::CollectDirectoryBlocks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosVolume::CollectDirectoryBlocks (
+    int                keyBlock,
+    vector<uint32_t> & outBlocks,
+    ChainWalkGuard   & guard) const
+{
+    int  block = keyBlock;
+
+
+
+    while (block != 0)
+    {
+        bool  inRange = block > 0 && block < ProDosSkeleton::kTotalBlocks;
+        bool  stepOk  = inRange && guard.TryVisit ((uint32_t) block);
+
+        if (!stepOk)
+        {
+            break;
+        }
+
+        outBlocks.push_back ((uint32_t) block);
+
+        block = ReadWord (block, ProDosSkeleton::kOffNextBlock);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::CollectEntriesBelow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosVolume::CollectEntriesBelow (
+    int                   keyBlock,
+    ChainWalkGuard      & guard,
+    vector<RawEntry>    & outEntries,
+    vector<std::string> & outDamage,
+    bool                & outFullyParsed) const
+{
+    vector<RawEntry>  here;
+    bool              parsed  = true;
+    bool              visitOk = false;
+    size_t            i       = 0;
+
+
+
+    visitOk = keyBlock > 0 && keyBlock < ProDosSkeleton::kTotalBlocks && guard.TryVisit ((uint32_t) keyBlock);
+
+    if (!visitOk)
+    {
+        outFullyParsed = false;
+
+        return;
+    }
+
+    CollectEntries (keyBlock, here, outDamage, parsed);
+
+    outFullyParsed = outFullyParsed && parsed;
+
+    for (i = 0; i < here.size(); i++)
+    {
+        outEntries.push_back (here[i]);
+
+        if (here[i].storage == ProDosSkeleton::kStorageSubdir)
+        {
+            CollectEntriesBelow ((int) here[i].keyPointer, guard, outEntries, outDamage, outFullyParsed);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::CollectAllEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosVolume::CollectAllEntries (
+    vector<RawEntry>    & outEntries,
+    vector<std::string> & outDamage,
+    bool                & outFullyParsed) const
+{
+    ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+
+
+
+    outEntries.clear();
+    outFullyParsed = true;
+
+    CollectEntriesBelow (ProDosSkeleton::kDirKeyBlock, guard, outEntries, outDamage, outFullyParsed);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::TryFindOwnerIndex
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProDosVolume::TryFindOwnerIndex (
+    const vector<RawEntry>  & all,
+    const RawEntry          & entry,
+    uint16_t                & outOwner)
+{
+    size_t  i = 0;
+
+
+
+    for (i = 0; i < all.size(); i++)
+    {
+        if (all[i].dirBlock == entry.dirBlock && all[i].entryOffset == entry.entryOffset)
+        {
+            outOwner = (uint16_t) i;
+
+            return true;
+        }
+    }
+
+    return false;
 }
 
 
@@ -482,7 +816,7 @@ HRESULT ProDosVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) c
 
     outReport.Reset ((uint32_t) ProDosSkeleton::kTotalBlocks);
 
-    CollectEntries (entries, damage, fullyParsed);
+    CollectAllEntries (entries, damage, fullyParsed);
     outReport.SetCatalogFullyParsed (fullyParsed);
 
     for (block = 0; block < kReservedBlocks; block++)
@@ -494,7 +828,20 @@ HRESULT ProDosVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) c
     {
         ChainWalkGuard    guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
         vector<uint32_t>  blocks;
-        bool              walked = CollectFileBlocks (entries[owner], blocks, guard);
+        bool              isDirectory = entries[owner].storage == ProDosSkeleton::kStorageSubdir;
+        bool              walked      = true;
+
+        //  A subdirectory owns its whole chain of directory blocks, not only
+        //  the key block the record points at. Leaving the rest unclaimed is
+        //  what let the allocator hand out a live directory block.
+        if (isDirectory)
+        {
+            CollectDirectoryBlocks ((int) entries[owner].keyPointer, blocks, guard);
+        }
+        else
+        {
+            walked = CollectFileBlocks (entries[owner], blocks, guard);
+        }
 
         for (uint32_t claimed : blocks)
         {
@@ -531,54 +878,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProDosVolume::WriteByteAt
-//
-//  Refuses a block the volume cannot hold rather than indexing past the end of
-//  the buffer, for the same reason ReadByte does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ProDosVolume::WriteByteAt (vector<Byte> & buffer, int block, size_t offset, Byte value)
-{
-    size_t  at = 0;
-
-
-
-    if (block < 0 || block >= ProDosSkeleton::kTotalBlocks)
-    {
-        return;
-    }
-
-    at = ProDosSkeleton::GetBlockByteOffset (block, offset);
-
-    if (at < buffer.size())
-    {
-        buffer[at] = value;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::WriteWordAt
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ProDosVolume::WriteWordAt (vector<Byte> & buffer, int block, size_t offset, Word value)
-{
-    WriteByteAt (buffer, block, offset,     (Byte) (value & 0xFF));
-    WriteByteAt (buffer, block, offset + 1, (Byte) (value >> 8));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ProDosVolume::IsFreeInBitmap
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -606,186 +905,43 @@ bool ProDosVolume::IsFreeInBitmap (const vector<Byte> & buffer, uint32_t block)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProDosVolume::SetFreeInBitmap
+//  ProDosVolume::ApplyCaseFlags
+//
+//  Bit 15 says the word describes the name at all; without it the entry came
+//  from ProDOS 8 and the name is what the directory holds. Bit 14 is the first
+//  character and the bits run down from there, a set bit meaning lower case.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProDosVolume::SetFreeInBitmap (vector<Byte> & buffer, uint32_t block, bool isFree)
+std::string ProDosVolume::ApplyCaseFlags (const std::string & name, Word caseFlags)
 {
-    size_t  at   = 0;
-    Byte    mask = (Byte) (0x80 >> (block % 8));
-    Byte    bits = 0;
+    std::string  shown (name);
+    size_t       i     = 0;
+    int          bit   = 0;
 
 
 
-    if (block >= (uint32_t) ProDosSkeleton::kTotalBlocks)
+    if ((caseFlags & ProDosSkeleton::kCaseFlagsPresent) == 0)
     {
-        return;
+        return shown;
     }
 
-    at = ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kBitmapBlock, (size_t) (block / 8));
-
-    if (at >= buffer.size())
+    for (i = 0; i < shown.size(); i++)
     {
-        return;
-    }
+        bit = ProDosSkeleton::kCaseFirstCharBit - (int) i;
 
-    bits       = buffer[at];
-    buffer[at] = isFree ? (Byte) (bits | mask) : (Byte) (bits & ~mask);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::TryEncodeDirectoryName
-//
-//  Fifteen characters at most, a letter first, then letters digits and periods
-//  -- the rule ProDOS itself enforces.
-//
-//  THIS VALIDATES ONLY NAMES BEING CREATED. Reading imposes no rule at all: a
-//  printable-text check on names being READ was tried on the DOS 3.3 side and
-//  reverted for rejecting twenty entries a vendor shipped. Creating a name is
-//  the opposite direction -- one ProDOS would not accept is one the guest can
-//  never open again, so refusing costs nothing and rejects nothing that exists.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ProDosVolume::TryEncodeDirectoryName (const std::string & name, std::string & outName)
-{
-    size_t  length = name.size();
-    size_t  i      = 0;
-    Byte    first  = 0;
-
-
-
-    outName.clear();
-
-    if (length == 0 || length > ProDosSkeleton::kVolumeNameBytes)
-    {
-        return false;
-    }
-
-    first = (Byte) name[0];
-
-    if (!(first >= 'A' && first <= 'Z') && !(first >= 'a' && first <= 'z'))
-    {
-        return false;
-    }
-
-    for (i = 0; i < length; i++)
-    {
-        Byte  c         = (Byte) name[i];
-        bool  isLetter  = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
-        bool  isDigit   = c >= '0' && c <= '9';
-        bool  permitted = isLetter || isDigit || c == '.';
-
-        if (!permitted)
+        if (bit < 0)
         {
-            outName.clear();
-
-            return false;
+            break;
         }
 
-        // The guest's keyboard produces upper case and its directory stores it,
-        // so a lower-case name would list as something nobody can type.
-        outName += (char) ((c >= 'a' && c <= 'z') ? (c - 'a' + 'A') : c);
+        if ((caseFlags & (Word) (1u << bit)) != 0 && shown[i] >= 'A' && shown[i] <= 'Z')
+        {
+            shown[i] = (char) (shown[i] - 'A' + 'a');
+        }
     }
 
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::GetStorageType
-//
-//  A seedling IS its data block. A sapling adds one index block of up to 256
-//  pointers above it. Past that the file needs a master index of index blocks,
-//  which is a tree -- and it is that growth, not the first two, that a writer
-//  handling only small files never exercises.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte ProDosVolume::GetStorageType (size_t dataBlockCount)
-{
-    if (dataBlockCount <= 1)
-    {
-        return ProDosSkeleton::kStorageSeedling;
-    }
-
-    if (dataBlockCount <= ProDosSkeleton::kPointersPerIndex)
-    {
-        return ProDosSkeleton::kStorageSapling;
-    }
-
-    return ProDosSkeleton::kStorageTree;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::GetOverheadBlocks
-//
-//  How many blocks the structure costs on top of the data itself. This is what
-//  makes the difference between the recorded block count and the file's length
-//  -- an index block is as allocated as the bytes it points at.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-size_t ProDosVolume::GetOverheadBlocks (size_t dataBlockCount)
-{
-    size_t  groups = (dataBlockCount + ProDosSkeleton::kPointersPerIndex - 1)
-                   / ProDosSkeleton::kPointersPerIndex;
-
-
-
-    if (dataBlockCount <= 1)
-    {
-        return 0;
-    }
-
-    if (dataBlockCount <= ProDosSkeleton::kPointersPerIndex)
-    {
-        return 1;
-    }
-
-    return groups + 1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::WriteIndexPointer
-//
-//  An index block holds 256 low bytes followed by the 256 matching high bytes,
-//  rather than 256 little-endian pairs. Writing it as pairs produces a file
-//  that reads back correctly for any block number below 256 and silently
-//  wrongly above it, which on a 280-block volume is most of the disk.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ProDosVolume::WriteIndexPointer (
-    vector<Byte>  & buffer,
-    int             indexBlock,
-    size_t          slot,
-    Word            target)
-{
-    WriteByteAt (buffer, indexBlock, slot, (Byte) (target & 0xFF));
-
-    WriteByteAt (buffer, indexBlock, slot + ProDosSkeleton::kPointersPerIndex,
-                 (Byte) (target >> 8));
+    return shown;
 }
 
 
@@ -818,386 +974,6 @@ bool ProDosVolume::TryFindEntry (
     }
 
     return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::TryFindFreeDirectorySlot
-//
-//  The first record in the volume directory chain whose storage-type nibble is
-//  zero. That nibble is ProDOS's own statement of occupancy, so unlike the
-//  DOS 3.3 catalog -- where an entry claiming no sectors is still an entry --
-//  there is nothing here to infer from what the record points at.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ProDosVolume::TryFindFreeDirectorySlot (int & outBlock, size_t & outOffset) const
-{
-    ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
-    int             dirBlock = ProDosSkeleton::kDirKeyBlock;
-    int             n        = 0;
-
-
-
-    while (dirBlock != 0)
-    {
-        bool  inRange = dirBlock > 0 && dirBlock < ProDosSkeleton::kTotalBlocks;
-        bool  stepOk  = inRange && guard.TryVisit ((uint32_t) dirBlock);
-        int   first   = (dirBlock == ProDosSkeleton::kDirKeyBlock) ? 1 : 0;
-
-        if (!stepOk)
-        {
-            break;
-        }
-
-        for (n = first; n < (int) ProDosSkeleton::kEntriesPerBlock; n++)
-        {
-            size_t  at      = ProDosSkeleton::kOffFirstEntry
-                            + (size_t) n * ProDosSkeleton::kEntryLength;
-            Byte    typeLen = ReadByte (dirBlock, at);
-
-            if ((typeLen & 0xF0) == ProDosSkeleton::kStorageInactive)
-            {
-                outBlock  = dirBlock;
-                outOffset = at;
-
-                return true;
-            }
-        }
-
-        dirBlock = ReadWord (dirBlock, ProDosSkeleton::kOffNextBlock);
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::TryAllocateBlocks
-//
-//  Hands out exactly `count` blocks or none at all, so a refusal leaves nothing
-//  half-reserved.
-//
-//  A block must be free in the bitmap AND unclaimed by the directory. The
-//  second condition is the one that matters: a bitmap calling a block free
-//  while an entry still points at it is exactly the state a previous bad delete
-//  leaves behind, and handing that block to the next file destroys the first
-//  one with nothing reporting it. Skipping those costs a little space and
-//  leaves the disagreement for the integrity report to name.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ProDosVolume::TryAllocateBlocks (
-    const VolumeIntegrityReport  & report,
-    size_t                         count,
-    vector<uint32_t>             & outBlocks) const
-{
-    uint32_t  block = 0;
-    size_t    taken = 0;
-
-
-
-    outBlocks.clear();
-
-    for (block = 0; block < (uint32_t) ProDosSkeleton::kTotalBlocks && taken < count; block++)
-    {
-        bool  isFree  = IsFreeInBitmap (m_sectors, block);
-        bool  claimed = report.IsClaimed (block);
-
-        if (isFree && !claimed)
-        {
-            outBlocks.push_back (block);
-            taken++;
-        }
-    }
-
-    return taken == count;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::ZeroBlocks
-//
-//  Every block a new file occupies is cleared first. An index block still
-//  holding a previous file's pointers would be read as this file's structure,
-//  and the tail of a partly filled last block would hand back bytes nobody
-//  ever wrote.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ProDosVolume::ZeroBlocks (vector<Byte> & buffer, const vector<uint32_t> & blocks)
-{
-    for (uint32_t block : blocks)
-    {
-        size_t  i = 0;
-
-        for (i = 0; i < (size_t) ProDosSkeleton::kBlockByteSize; i++)
-        {
-            WriteByteAt (buffer, (int) block, i, 0);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::PlaceFile
-//
-//  Lays the allocated blocks out as ProDOS does. The allocator hands them over
-//  in the order they are consumed here: the master index first when the file
-//  needs one, then each index block followed by the data blocks it describes.
-//
-//  A seedling has neither, and one loop covers all three shapes rather than
-//  three code paths that can disagree about the boundary between them.
-//
-//  The block list is checked against the shape before a single pointer is
-//  consumed, and the count is derived HERE rather than borrowed from the
-//  allocator's own helper. Borrowing it would make the check agree with the
-//  allocator by construction, including when both are wrong -- which is the
-//  case that matters, since the walk answers a short list by reading past the
-//  end of it. In a release build that is silent memory corruption rather than
-//  a failure.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT ProDosVolume::PlaceFile (
-    vector<Byte>            & buffer,
-    const vector<uint32_t>  & blocks,
-    size_t                    dataBlockCount,
-    const vector<Byte>      & bytes)
-{
-    HRESULT  hr        = S_OK;
-    size_t   supplied  = blocks.size();
-    size_t   needed    = 0;
-    size_t   cursor    = 0;
-    size_t   master    = 0;
-    size_t   group     = 0;
-    size_t   groups    = (dataBlockCount + ProDosSkeleton::kPointersPerIndex - 1)
-                       / ProDosSkeleton::kPointersPerIndex;
-    size_t   placed    = 0;
-    size_t   dataBytes = bytes.size();
-    bool     seedling  = dataBlockCount <= 1;
-    bool     tree      = dataBlockCount > ProDosSkeleton::kPointersPerIndex;
-
-
-
-    needed = dataBlockCount + (seedling ? 0 : groups) + (tree ? 1 : 0);
-
-    CBRAEx (supplied == needed, E_UNEXPECTED);
-
-    if (tree)
-    {
-        master = blocks[cursor];
-        cursor++;
-    }
-
-    for (group = 0; group < groups; group++)
-    {
-        size_t  index       = 0;
-        size_t  k           = 0;
-        size_t  inThisGroup = std::min ((size_t) ProDosSkeleton::kPointersPerIndex,
-                                        dataBlockCount - placed);
-
-        if (!seedling)
-        {
-            index = blocks[cursor];
-            cursor++;
-
-            if (tree)
-            {
-                WriteIndexPointer (buffer, (int) master, group, (Word) index);
-            }
-        }
-
-        for (k = 0; k < inThisGroup; k++)
-        {
-            size_t  data     = blocks[cursor];
-            size_t  from     = (placed + k) * (size_t) ProDosSkeleton::kBlockByteSize;
-            size_t  left     = (from < dataBytes) ? dataBytes - from : 0;
-            size_t  copyable = std::min ((size_t) ProDosSkeleton::kBlockByteSize, left);
-            size_t  i        = 0;
-
-            cursor++;
-
-            if (!seedling)
-            {
-                WriteIndexPointer (buffer, (int) index, k, (Word) data);
-            }
-
-            for (i = 0; i < copyable; i++)
-            {
-                WriteByteAt (buffer, (int) data, i, bytes[from + i]);
-            }
-        }
-
-        placed += inThisGroup;
-    }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::WriteDirectoryEntry
-//
-//  The whole record is cleared before any field is written. A slot being reused
-//  after a delete still carries the previous file's dates and version bytes,
-//  and leaving them would attach one file's history to another.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ProDosVolume::WriteDirectoryEntry (
-    vector<Byte>       & buffer,
-    int                  dirBlock,
-    size_t               entryOffset,
-    const std::string  & name,
-    Byte                 storage,
-    Byte                 fileType,
-    Word                 keyBlock,
-    Word                 blocksUsed,
-    uint32_t             eof,
-    Word                 auxType)
-{
-    size_t  nameBytes = name.size();
-    size_t  i         = 0;
-
-
-
-    for (i = 0; i < (size_t) ProDosSkeleton::kEntryLength; i++)
-    {
-        WriteByteAt (buffer, dirBlock, entryOffset + i, 0);
-    }
-
-    WriteByteAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffTypeName,
-                 (Byte) (storage | (Byte) nameBytes));
-
-    for (i = 0; i < nameBytes; i++)
-    {
-        WriteByteAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffName + i,
-                     (Byte) name[i]);
-    }
-
-    WriteByteAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffFileType, fileType);
-    WriteWordAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffKeyPointer, keyBlock);
-    WriteWordAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffBlocksUsed, blocksUsed);
-
-    WriteByteAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffEof,
-                 (Byte) (eof & 0xFF));
-    WriteByteAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffEof + 1,
-                 (Byte) ((eof >> 8) & 0xFF));
-    WriteByteAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffEof + 2,
-                 (Byte) ((eof >> 16) & 0xFF));
-
-    WriteByteAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffAccess,
-                 ProDosSkeleton::kAccessDefault);
-    WriteWordAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffAuxType, auxType);
-    WriteByteAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffHeaderPointer,
-                 (Byte) ProDosSkeleton::kDirKeyBlock);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::AdjustFileCount
-//
-//  The volume header's own tally of active entries. It is not what enumeration
-//  reads -- that walks the records -- but ProDOS itself reads it, so a volume
-//  whose tally disagrees with its directory is one the guest mounts oddly.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ProDosVolume::AdjustFileCount (vector<Byte> & buffer, int delta)
-{
-    size_t  countAt = ProDosSkeleton::kOffFirstEntry + ProDosSkeleton::kHdrOffFileCount;
-    size_t  at      = ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt);
-    size_t  atHigh  = ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt + 1);
-    int     count   = 0;
-
-
-
-    if (at >= buffer.size() || atHigh >= buffer.size())
-    {
-        return;
-    }
-
-    count = buffer[at] | (buffer[atHigh] << 8);
-    count += delta;
-
-    if (count < 0)
-    {
-        count = 0;
-    }
-
-    WriteWordAt (buffer, ProDosSkeleton::kDirKeyBlock, countAt, (Word) count);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::ResolveAuxType
-//
-//  WHERE A BINARY'S LOAD ADDRESS LIVES IS THE ONE THING THE TWO FILESYSTEMS
-//  DISAGREE ABOUT. DOS 3.3 writes it into the file's own first four bytes;
-//  ProDOS records it in the directory entry's auxiliary type and stores no
-//  header at all. So this filesystem's writer must not prepend anything, and a
-//  reader that applied DOS-style stripping here would come back four bytes
-//  short with no other symptom.
-//
-//  A binary with no load address is refused rather than defaulted, because
-//  $0000 is a legal load address and a default would be indistinguishable from
-//  an answer.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT ProDosVolume::ResolveAuxType (const FilePayload & payload, Word & outAuxType)
-{
-    HRESULT  hr       = S_OK;
-    bool     isBinary = payload.type == kTypeBinary;
-    bool     hasAddr  = payload.hasLoadAddress;
-
-
-
-    outAuxType = 0;
-
-    CBREx (!isBinary || hasAddr, HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER));
-
-    if (isBinary)
-    {
-        outAuxType = payload.loadAddress;
-    }
-    else if (payload.hasAuxType)
-    {
-        outAuxType = payload.auxType;
-    }
-
-Error:
-    return hr;
 }
 
 
@@ -1253,396 +1029,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProDosVolume::AddFile
-//
-//  Allocate from the volume bitmap, build whatever index structure the size
-//  calls for, write the data blocks, create the directory entry, and leave the
-//  bitmap agreeing with what was allocated.
-//
-//  Storage type GROWS with the file. A seedling is its own data block, a
-//  sapling adds one index block, and past 256 data blocks a master index of
-//  index blocks is required -- the shape no volume in the fixture set can hold,
-//  since a tree needs more blocks than a 5.25-inch disk has files big enough to
-//  fill.
-//
-//  Nothing is written into the volume this object holds. The complete new
-//  buffer is produced instead, so a refusal at any point leaves the caller with
-//  exactly what it had.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT ProDosVolume::AddFile (
-    const std::string   & name,
-    Byte                  fileType,
-    Word                  auxType,
-    const vector<Byte>  & bytes,
-    vector<Byte>        & outBuffer) const
-{
-    HRESULT                hr           = S_OK;
-    size_t                 payloadSize  = bytes.size();
-    bool                   slotOk       = false;
-    bool                   allocated    = false;
-    bool                   haveKeyBlock = false;
-    int                    slotBlock    = 0;
-    size_t                 slotOffset   = 0;
-    size_t                 dataBlocks   = 0;
-    size_t                 overhead     = 0;
-    vector<Byte>           result;
-    vector<uint32_t>       blocks;
-    VolumeIntegrityReport  report;
-
-
-
-    slotOk = TryFindFreeDirectorySlot (slotBlock, slotOffset);
-    CBREx (slotOk, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
-
-    hr = BuildIntegrityReport (report);
-    CHRA (hr);
-
-    dataBlocks = (payloadSize + (size_t) ProDosSkeleton::kBlockByteSize - 1)
-               / (size_t) ProDosSkeleton::kBlockByteSize;
-
-    // A file of no bytes still occupies its key block, which is what makes it a
-    // file rather than a name.
-    if (dataBlocks == 0)
-    {
-        dataBlocks = 1;
-    }
-
-    overhead  = GetOverheadBlocks (dataBlocks);
-    allocated = TryAllocateBlocks (report, dataBlocks + overhead, blocks);
-
-    CBREx (allocated, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
-
-    haveKeyBlock = !blocks.empty();
-    CBRA (haveKeyBlock);
-
-    result = m_sectors;
-
-    ZeroBlocks (result, blocks);
-
-    hr = PlaceFile (result, blocks, dataBlocks, bytes);
-    CHRA (hr);
-
-    for (uint32_t block : blocks)
-    {
-        SetFreeInBitmap (result, block, false);
-    }
-
-    WriteDirectoryEntry (result,
-                         slotBlock,
-                         slotOffset,
-                         name,
-                         GetStorageType (dataBlocks),
-                         fileType,
-                         (Word) blocks[0],
-                         (Word) blocks.size(),
-                         (uint32_t) payloadSize,
-                         auxType);
-
-    AdjustFileCount (result, 1);
-
-    hr = HandBackVerifiedResult (report, result, outBuffer);
-    CHRA (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::Write
-//
-//  Adds a file, or replaces one of the same name.
-//
-//  REPLACEMENT IS COMPUTED AS ONE WHOLE, matching the DOS 3.3 side. The removal
-//  is staged into a working buffer no caller can see, the new file is placed
-//  over that, and only a finished buffer is handed back. A removal APPLIED to
-//  the caller's image followed by a placement would free the old file and lose
-//  it outright if the placement then failed, which is worse than refusing.
-//
-//  REPLACEMENT NEEDS DESTROY PERMISSION AS WELL AS WRITE PERMISSION, and that
-//  is a consequence worth stating rather than discovering. ProDOS gates the two
-//  operations on different bits of the access byte, and a replacement here
-//  releases the old file's blocks -- a destroy in every way that matters -- so
-//  the staged removal applies its own gate. A file marked writable but not
-//  destroyable is therefore refused, which is the conservative answer while
-//  this layer rebuilds a file rather than rewriting it in place.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT ProDosVolume::Write (
-    const FilePath     & path,
-    const FilePayload  & payload,
-    vector<Byte>       & outBuffer) const
-{
-    HRESULT                hr           = S_OK;
-    size_t                 bufferBytes  = m_sectors.size();
-    size_t                 payloadSize  = payload.bytes.size();
-    bool                   single       = path.IsSingleComponent();
-    bool                   fits         = payloadSize <= kMaxFileBytes;
-    bool                   nameOk       = false;
-    bool                   exists       = false;
-    bool                   isLocked     = false;
-    bool                   fullyParsed  = true;
-    uint16_t               owner        = 0;
-    Word                   auxType      = 0;
-    std::string            name;
-    vector<Byte>           staged;
-    vector<RawEntry>       entries;
-    vector<std::string>    damage;
-    DeleteOutcome          removal;
-
-
-
-    //  Binds to `staged` by reference, and is read only once it is filled.
-    ProDosVolume           stagedVolume (staged);
-
-
-
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
-
-    nameOk = single && TryEncodeDirectoryName (path.GetLeaf(), name);
-
-    CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
-    CBREx (fits,   HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE));
-
-    hr = ResolveAuxType (payload, auxType);
-    CHR (hr);
-
-    CollectEntries (entries, damage, fullyParsed);
-
-    exists = TryFindEntry (entries, name, owner);
-
-    if (exists)
-    {
-        isLocked = (entries[owner].access & kAccessWriteEnable) == 0;
-    }
-
-    CBREx (!isLocked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
-
-    if (!exists)
-    {
-        hr = AddFile (name, payload.type, auxType, payload.bytes, outBuffer);
-        CHR (hr);
-    }
-    else
-    {
-        // The removal answers to the same rules a bare delete follows,
-        // including its refusal to hand back a block another entry claims. The
-        // replacement simply does not get that space.
-        hr = Delete (path, staged, removal);
-        CHR (hr);
-
-        hr = stagedVolume.AddFile (name, payload.type, auxType, payload.bytes, outBuffer);
-        CHR (hr);
-    }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::AppendDeleteWarnings
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ProDosVolume::AppendDeleteWarnings (DeleteOutcome & inOutOutcome)
-{
-    size_t  leaked = inOutOutcome.leakedUnits.size();
-
-
-
-    if (leaked > 0)
-    {
-        inOutOutcome.warnings.push_back (
-            std::to_string (leaked) + " "
-          + Utils::GetSingularOrPluralForm ((long long) leaked, "block", "blocks")
-          + " this file referenced are claimed by another directory entry"
-            " as well, and were left allocated rather than freed");
-    }
-
-    if (inOutOutcome.chainWasDamaged)
-    {
-        inOutOutcome.warnings.push_back (
-            "this file's index structure could not be followed to its end, so only"
-            " the blocks the walk reached were considered");
-    }
-
-    if (!inOutOutcome.catalogFullyParsed)
-    {
-        inOutOutcome.warnings.push_back (
-            "the directory did not parse completely, so an entry that could not be"
-            " read claims nothing this pass can see, and a block it shares with the"
-            " deleted file may have been freed while that entry still uses it");
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::Delete
-//
-//  The interface form. Everything it decided is available from the overload
-//  below; this one discards it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT ProDosVolume::Delete (const FilePath & path, vector<Byte> & outBuffer) const
-{
-    DeleteOutcome  outcome;
-
-
-
-    return Delete (path, outBuffer, outcome);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDosVolume::Delete
-//
-//  Removes a directory entry and returns ONLY the blocks the integrity report
-//  shows this entry alone claims.
-//
-//  That restriction is the whole point. Freeing a block a second file also
-//  references does not fail: the delete succeeds, the volume looks healthy, and
-//  the other file is destroyed the next time anything allocates -- possibly
-//  weeks later, with nothing connecting the two events. Space left allocated
-//  with nothing owning it is recoverable at any time; a block handed out from
-//  under a live file is not. So everything not uniquely owned is reported as
-//  leaked and left exactly where it is.
-//
-//  A FILE WHOSE INDEX STRUCTURE IS DAMAGED IS STILL DELETABLE, for the same
-//  reason as on DOS 3.3: refusing would strand the volume, and the developer
-//  this serves is working with precisely those disks.
-//
-//  A SUBDIRECTORY IS REFUSED. This layer does not walk into one, so the report
-//  credits it with its key block and nothing else -- deleting it would free
-//  that one block and silently orphan everything beneath. Refusing is honest
-//  until traversal exists.
-//
-//  The tombstone is ProDOS's own: the storage-type nibble goes to zero and the
-//  name length and name stay behind, which is how an undelete tool finds the
-//  file again. Nothing may key off the name to decide whether a record is live.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT ProDosVolume::Delete (
-    const FilePath  & path,
-    vector<Byte>    & outBuffer,
-    DeleteOutcome   & outOutcome) const
-{
-    HRESULT                hr          = S_OK;
-    size_t                 bufferBytes = m_sectors.size();
-    bool                   single      = path.IsSingleComponent();
-    bool                   found       = false;
-    bool                   isLocked    = false;
-    bool                   isDirectory = false;
-    bool                   fullyParsed = true;
-    uint16_t               owner       = 0;
-    Byte                   typeLen     = 0;
-    vector<RawEntry>       entries;
-    vector<std::string>    damage;
-    vector<Byte>           result;
-    VolumeIntegrityReport  report;
-
-
-
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
-    CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
-
-    CollectEntries (entries, damage, fullyParsed);
-
-    found = TryFindEntry (entries, path.GetLeaf(), owner);
-    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
-
-    // ProDOS gates removal on destroy-enable, not on write-enable, and the
-    // access byte can carry one without the other.
-    isLocked    = (entries[owner].access & kAccessDestroyEnable) == 0;
-    isDirectory = entries[owner].storage == ProDosSkeleton::kStorageSubdir;
-
-    // Being a directory is reported FIRST, and the order is not arbitrary. The
-    // subdirectories on Merlin's own ProDOS disk have destroy-enable clear, so
-    // testing the lock first tells the user their file is protected -- sending
-    // them off to unlock something that would still be refused afterwards. The
-    // capability refusal is the true one and belongs in front of the permission
-    // refusal.
-    CBREx (!isDirectory, HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED));
-    CBREx (!isLocked,    HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
-
-    hr = BuildIntegrityReport (report);
-    CHRA (hr);
-
-    outOutcome                    = DeleteOutcome();
-    outOutcome.catalogFullyParsed = report.IsCatalogFullyParsed();
-
-    result = m_sectors;
-
-    // The report walks the same directory in the same order over the same
-    // buffer, so an owner index names the same entry on both sides.
-    for (uint32_t block : report.GetClaimsOf (owner))
-    {
-        bool  mineAlone = report.IsUniquelyOwnedBy (block, owner);
-
-        if (mineAlone)
-        {
-            SetFreeInBitmap (result, block, true);
-            outOutcome.freedUnits.push_back (block);
-        }
-        else
-        {
-            outOutcome.leakedUnits.push_back (block);
-        }
-    }
-
-    for (uint16_t broken : report.GetUnfollowableChains())
-    {
-        if (broken == owner)
-        {
-            outOutcome.chainWasDamaged = true;
-        }
-    }
-
-    typeLen = ReadByte (entries[owner].dirBlock,
-                        entries[owner].entryOffset + ProDosSkeleton::kEntOffTypeName);
-
-    WriteByteAt (result,
-                 entries[owner].dirBlock,
-                 entries[owner].entryOffset + ProDosSkeleton::kEntOffTypeName,
-                 (Byte) (typeLen & 0x0F));
-
-    AdjustFileCount (result, -1);
-    AppendDeleteWarnings (outOutcome);
-
-    hr = HandBackVerifiedResult (report, result, outBuffer);
-    CHRA (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ProDosVolume::IsLaunchableSystemFile
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1663,101 +1049,73 @@ bool ProDosVolume::IsLaunchableSystemFile (const RawEntry & entry)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProDosVolume::SetStartupProgram
+//  ProDosVolume::TryToUnixTime
 //
-//  ProDOS stores no startup-program name anywhere. The kernel launches the
-//  first system program it comes to as it walks the volume directory, so the
-//  ORDERING IS THE MECHANISM, and setting the startup program means putting the
-//  chosen record in front of every other one the walk would stop at.
+//  The directory's packed date and time as Unix seconds. A zero date word is
+//  the "no date" ProDOS itself writes and a listing shows as <NO DATE>, and
+//  fields outside their ranges are treated the same way rather than being
+//  read as a date nobody set.
 //
-//  THIS IS DELIBERATELY NOT SHARED WITH THE DOS 3.3 SIDE. The two filesystems do
-//  not spell one idea differently: DOS 3.3 patches a name into its own code and
-//  ProDOS moves a directory record, and no "write the boot name" helper can be
-//  written that is honest about both. One would either patch a name ProDOS never
-//  reads or reorder a catalog DOS pays no attention to.
-//
-//  The two records are SWAPPED rather than the directory being repacked. Every
-//  other record keeps its position, its dates and its pointers, which is what
-//  makes this an edit a user can reason about -- and what keeps the volume's own
-//  tally of entries and every block pointer on it exactly as they were.
-//
-//  The kernel is excluded from the candidates on purpose: it is a system program
-//  too, the boot block finds it by name rather than by position, and nominating
-//  it would ask a booted ProDOS to load ProDOS.
+//  The day count uses the proleptic Gregorian arithmetic every civil-date
+//  routine reduces to, so no library calendar with a time zone of its own is
+//  consulted: the stamp is wall-clock time on a machine that had no zone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ProDosVolume::SetStartupProgram (const FilePath & path, vector<Byte> & outBuffer) const
+bool ProDosVolume::TryToUnixTime (Word date, Word time, int64_t & outUnix)
 {
-    HRESULT                hr          = S_OK;
-    size_t                 bufferBytes = m_sectors.size();
-    bool                   single      = path.IsSingleComponent();
-    bool                   found       = false;
-    bool                   launchable  = false;
-    bool                   fullyParsed = true;
-    uint16_t               owner       = 0;
-    uint16_t               first       = 0;
-    uint16_t               index       = 0;
-    size_t                 i           = 0;
-    vector<RawEntry>       entries;
-    vector<std::string>    damage;
-    vector<Byte>           result;
-    VolumeIntegrityReport  report;
+    constexpr int      kDaysPerEra       = 146097;
+    constexpr int      kYearsPerEra      = 400;
+    constexpr int64_t  kEpochDayOffset   = 719468;   // days from 0000-03-01 to 1970-01-01
+    constexpr int      kMonthsInYear     = 12;
+    constexpr int      kDaysInMonth      = 31;
+    constexpr int      kHoursInDay       = 24;
+    constexpr int      kMinutesInHour    = 60;
+    constexpr int      kSecondsInMinute  = 60;
+    constexpr int      kSecondsInDay     = 86400;
+    constexpr int      kFirstCentury     = 1900;
+    constexpr int      kSecondCentury    = 2000;
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
-    CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+    int       year   = (date >> 9) & 0x7F;
+    int       month  = (date >> 5) & 0x0F;
+    int       day    = date & 0x1F;
+    int       hour   = (time >> 8) & 0xFF;
+    int       minute = time & 0xFF;
+    int       era    = 0;
+    int       yoe    = 0;
+    int       doy    = 0;
+    int       doe    = 0;
+    int64_t   days   = 0;
 
-    CollectEntries (entries, damage, fullyParsed);
 
-    found = TryFindEntry (entries, path.GetLeaf(), owner);
-    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
-    launchable = IsLaunchableSystemFile (entries[owner]);
-    CBREx (launchable, HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE));
+    outUnix = 0;
 
-    hr = BuildIntegrityReport (report);
-    CHRA (hr);
-
-    // Entries arrive in the order the directory chain yields them, which is the
-    // order the boot path walks, so the first launchable record here is the one
-    // it would launch today.
-    first = owner;
-
-    for (index = 0; index < (uint16_t) entries.size(); index++)
+    if (date == 0 || month < 1 || month > kMonthsInYear || day < 1 || day > kDaysInMonth
+     || hour >= kHoursInDay || minute >= kMinutesInHour)
     {
-        bool  candidate = IsLaunchableSystemFile (entries[index]);
-
-        if (candidate)
-        {
-            first = index;
-            break;
-        }
+        return false;
     }
 
-    result = m_sectors;
+    year += (year < kCenturyPivotYear) ? kSecondCentury : kFirstCentury;
 
-    // A file already in front of every other candidate leaves the volume
-    // exactly as it was, rather than being rewritten to what it already says.
-    if (first != owner)
+    // Howard Hinnant's days-from-civil, with March as the first month so a
+    // leap day falls at the end of the year it belongs to.
+    if (month <= 2)
     {
-        for (i = 0; i < (size_t) ProDosSkeleton::kEntryLength; i++)
-        {
-            Byte  chosen   = ReadByte (entries[owner].dirBlock, entries[owner].entryOffset + i);
-            Byte  standing = ReadByte (entries[first].dirBlock, entries[first].entryOffset + i);
-
-            WriteByteAt (result, entries[first].dirBlock, entries[first].entryOffset + i, chosen);
-            WriteByteAt (result, entries[owner].dirBlock, entries[owner].entryOffset + i, standing);
-        }
+        year--;
     }
 
-    // The same self-check every other mutating call runs over its own output.
-    // A swap moves no block and frees nothing, so a disagreement here would mean
-    // the records were not the ones the walk described.
-    hr = HandBackVerifiedResult (report, result, outBuffer);
-    CHRA (hr);
+    era  = year / kYearsPerEra;
+    yoe  = year - era * kYearsPerEra;
+    doy  = (153 * (month + ((month > 2) ? -3 : 9)) + 2) / 5 + day - 1;
+    doe  = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    days = (int64_t) era * kDaysPerEra + doe - kEpochDayOffset;
 
-Error:
-    return hr;
+    outUnix = days * kSecondsInDay + (int64_t) hour * kMinutesInHour * kSecondsInMinute
+            + (int64_t) minute * kSecondsInMinute;
+
+    return true;
 }

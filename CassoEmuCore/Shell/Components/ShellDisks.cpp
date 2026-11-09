@@ -62,6 +62,9 @@
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
+#include "CassoExplorer/Model/KnownFolderStore.h"
+#include "Config/Win32FileSystem.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/DamagedMountReport.h"
 
 
@@ -411,20 +414,159 @@ void ShellDisks::OnMountCompleted (int drive, const std::string & path, HRESULT 
 void ShellDisks::HandleMountCompletion (const MountCompletion & completion)
 {
     std::wstring  message;
+    HWND          replyTo   = nullptr;
+    bool          handedOff = false;
 
 
+
+    handedOff = m_intentReplies.TryTakeInsert (completion.drive, completion.path, replyTo);
+    IGNORE_RETURN_VALUE (handedOff, true);
 
     RecordRecentDisk (fs::path (completion.path).wstring(), completion.result);
 
     if (SUCCEEDED (completion.result))
     {
+        //  Every disk mounted adds its folder, however it arrived: Casso
+        //  Explorer, a drop, the picker or the recent-disks menu.
+        RecordKnownFolder (completion.path);
+
+        if (replyTo != nullptr)
+        {
+            SendIntentReply (replyTo, IntentReplyTracker::MakeInsertReply (completion.result, std::string()));
+        }
+
         ReportDamagedMount (completion.drive);
         return;
     }
 
     message = DiskImageStore::FormatMountFailureMessage (completion.path, completion.diagnosis);
 
+    //  A tool that asked is told why instead; the dialog would sit behind the
+    //  window the user is looking at.
+    if (replyTo != nullptr)
+    {
+        SendIntentReply (replyTo, IntentReplyTracker::MakeInsertReply (completion.result,
+                                                                       TextEncoding::WideToNarrow (message)));
+        return;
+    }
+
     EhmNotifyUser (message.c_str());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::SendIntentReply
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::SendIntentReply (HWND target, const Win32IntentChannel::Reply & reply)
+{
+    bool  delivered = Win32IntentChannel::SendTo (target, m_shell.m_hwnd, Win32IntentChannel::GetReplyMessageId(),
+                                                  Win32IntentChannel::EncodeReply (reply));
+
+
+
+    IGNORE_RETURN_VALUE (delivered, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::PostIntentReply
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::PostIntentReply (HWND target, const Win32IntentChannel::Reply & reply)
+{
+    IntentReplyPost *  carried = new (std::nothrow) IntentReplyPost();
+
+
+
+    if (carried == nullptr)
+    {
+        return;
+    }
+
+    carried->target = target;
+    carried->reply  = reply;
+
+    if (m_shell.m_hwnd == nullptr || !PostMessageW (m_shell.m_hwnd, (UINT) AppMessage::ShellIntentReply, 0, (LPARAM) carried))
+    {
+        delete carried;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::RecordKnownFolder
+//
+//  Best effort: a mount that worked is not undone because the list could not
+//  be written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::RecordKnownFolder (const std::string & imagePath)
+{
+    Win32FileSystem   fsKnown;
+    KnownFolderStore  store (fsKnown, AssetBootstrap::GetAssetBaseDirectory().wstring());
+    std::wstring      folder  = fs::path (imagePath).parent_path().wstring();
+    int64_t           nowUnix = (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
+                                    std::chrono::system_clock::now().time_since_epoch()).count();
+    HRESULT           hr      = S_OK;
+
+
+
+    BAIL_OUT_IF (folder.empty(), S_OK);
+
+    hr = store.Append (folder, nowUnix);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::InstallIntentReplies
+//
+//  A reload a tool asked for is decided on the thread that owns disk writes;
+//  the answer is composed there and posted to the UI thread to be sent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::InstallIntentReplies()
+{
+    m_shell.m_machine.GetDiskStore().SetDecisionSink ([this] (const std::string & path, ChangeAction action,
+                                                              bool guestCopyPreserved, const std::string & preservedPath)
+    {
+        HWND                       replyTo = nullptr;
+        Win32IntentChannel::Reply  reply;
+
+        if (!m_intentReplies.TryTakeReload (path, replyTo) || replyTo == nullptr)
+        {
+            return;
+        }
+
+        if (IntentReplyTracker::TryMakeReloadReply (action, guestCopyPreserved, preservedPath, reply))
+        {
+            PostIntentReply (replyTo, reply);
+        }
+    });
 }
 
 
@@ -953,6 +1095,11 @@ void ShellDisks::InstallChangeReporting()
         HideChangeBanner();
     });
 
+    m_changeBanner.SetOnDismiss ([this] ()
+    {
+        HideChangeBanner();
+    });
+
     return;
 }
 
@@ -979,17 +1126,28 @@ void ShellDisks::InstallChangeReporting()
 void ShellDisks::ShowChangeBanner (const ChangeNotice & notice)
 {
     std::vector<std::wstring>  labels;
-    size_t                     i = 0;
+    bool                       dismissible = false;
+    size_t                     i           = 0;
 
 
 
+    //  The Ignore answer is the strip's close box; a dialog built from the
+    //  same prompt has it as a button.
     for (i = 0; i < notice.prompt.answers.size(); i++)
     {
-        labels.push_back (notice.prompt.answers[i].label);
+        if (notice.prompt.answers[i].action == ChangeAction::Ignore)
+        {
+            dismissible = true;
+        }
+        else
+        {
+            labels.push_back (notice.prompt.answers[i].label);
+        }
     }
 
-    m_changeBanner.SetText    (notice.prompt.message);
-    m_changeBanner.SetActions (labels);
+    m_changeBanner.SetText        (notice.prompt.message);
+    m_changeBanner.SetActions     (labels);
+    m_changeBanner.SetDismissible (dismissible);
 
     //  RE-ARMED ON EVERY CHANGE, not only the first. A later change re-words
     //  the strip already on screen, and a countdown left running from the
@@ -1001,7 +1159,7 @@ void ShellDisks::ShowChangeBanner (const ChangeNotice & notice)
 
     //  Replaced rather than stacked: a standing report absorbs later changes,
     //  so a second one re-words the strip already on screen.
-    m_changeBanner.SetVisible (!labels.empty());
+    m_changeBanner.SetVisible (!labels.empty() || dismissible);
 
     //  The band just changed height, so everything below it moves and the
     //  picture is rescaled into what is left. Nothing here positions the

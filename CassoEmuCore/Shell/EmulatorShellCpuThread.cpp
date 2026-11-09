@@ -5,6 +5,8 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/Components/ShellRenderer.h"
+#include "Shell/Components/ShellSerialCard.h"
+#include "Shell/Components/ShellNetworkCard.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/DiskManager.h"
@@ -22,6 +24,7 @@
 #include "Machines/Apple2/Common/SscSwitches.h"
 #include "Machines/Apple2/Common/SuperSerialCard.h"
 #include "Machines/Apple2/Common/UthernetCard.h"
+#include "Net/FirewallText.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Core/TextEncoding.h"
 #include "Ui/PrinterPanel.h"
@@ -256,6 +259,86 @@ void EmulatorShell::ConfigureNetworkCard (const NetworkCardSettings & settings)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReportUthernetListenFailures
+//
+//  The network card's infobar text: the ports deferred until the firewall
+//  admits them, the listeners moved to a later port, and the ports the guest
+//  cannot listen on, with the machine's serial connector when that connector
+//  has the port. Passed to the infobar only when it changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReportUthernetListenFailures()
+{
+    UthernetCard *                                 card     = m_machine.GetRefs().uthernet;
+    std::vector<W5100SocketBridge::ListenFailure>  failures;
+    std::vector<W5100SocketBridge::MovedListen>    moved;
+    std::vector<FirewallPort>                      deferred;
+    std::wstring                                   text;
+    std::wstring                                   serialText;
+    std::wstring                                   sentence;
+    int                                            serial   = 0;
+
+
+
+    if (card != nullptr)
+    {
+        failures = card->GetBridge().GetFailedListens();
+        moved    = card->GetBridge().GetMovedListens();
+        deferred = card->GetDeferredPorts();
+    }
+
+    text = FirewallText::DescribeBlocked (ShellNetworkCard::kFirewallTitle, deferred);
+
+    for (const W5100SocketBridge::MovedListen & listen : moved)
+    {
+        text += (text.empty() ? L"" : L"\n") + TextEncoding::NarrowToWide (W5100SocketBridge::DescribeMovedListen (listen));
+    }
+
+    for (const W5100SocketBridge::ListenFailure & failure : failures)
+    {
+        serial   = m_machine.GetSerialPortOnTcp (failure.port);
+        sentence = TextEncoding::NarrowToWide (W5100SocketBridge::DescribeListenFailure (failure, serial, m_machine.IsSerialPortOnCard (serial)));
+        text    += (text.empty() ? L"" : L"\n") + sentence;
+
+        if (serial != 0)
+        {
+            serialText += (serialText.empty() ? L"" : L"\n") + sentence;
+        }
+    }
+
+    if (text != m_lastListenProblem)
+    {
+        m_lastListenProblem = text;
+        m_networkCard->NoteListenProblem (text, serialText, deferred);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetGuestInboundPorts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<FirewallPort> EmulatorShell::GetGuestInboundPorts()
+{
+    UthernetCard *  card = m_machine.GetRefs().uthernet;
+
+
+
+    return (card != nullptr) ? card->GetInboundPorts() : std::vector<FirewallPort>();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HoldAppleKeysThroughReset
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -266,6 +349,53 @@ void EmulatorShell::HoldAppleKeysThroughReset (bool openApple, bool closedApple)
     {
         m_machine.GetRefs().iieKeyboard->HoldAppleKeysThroughReset (openApple, closedApple);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConnectSerialPort
+//
+//  A machine without the port returns an error the dispatcher ignores. A
+//  Super Serial Card's connector reports a device that cannot be attached,
+//  as it does when the machine is built.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::ConnectSerialPort (int port, const std::string & device, const std::string & path)
+{
+    HRESULT            hr   = S_OK;
+    SuperSerialCard  * card = m_machine.GetRefs().superSerialCard;
+
+
+
+    hr = m_machine.ConnectSerialPort (port, device, m_streamFactory.get(), m_serialLog.get(), path);
+
+    if (card != nullptr && card->GetSlot() == port)
+    {
+        card->SetAttachmentProblem (FAILED (hr) ? MachineHost::DescribeAttachmentFailure (device, path) : std::string());
+        m_serialCard->NoteMachineBuilt();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConnectParallelPrinter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::ConnectParallelPrinter (int slot, bool attached)
+{
+    return m_machine.ConnectParallelPrinter (slot, attached);
 }
 
 
@@ -413,6 +543,7 @@ void EmulatorShell::RunCpuThreadFrame()
 
     // Emulation always advances; only the publish is throttled and gated.
     ExecuteCpuSlices();
+    ReportUthernetListenFailures();
 
     if (m_renderer->ShouldPublishFrame())
     {

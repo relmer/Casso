@@ -39,17 +39,58 @@ enum class DialogIcon
 
 
 
+//
+//  A picture: straight-alpha RGBA rows, top first, and the square it is shown
+//  in. It goes above the body, or inline in a run. An About box that explains
+//  a name with pictures is the case; an app icon keeps using DialogIcon.
+//
+struct DialogImage
+{
+    std::vector<Byte>  rgba;
+    int                width     = 0;
+    int                height    = 0;
+    float              displayDp = 0.0f;
+};
+
+
+
+//
+//  One piece of a strip run: the picture when `image` has pixels, otherwise
+//  `text`. A piece with neither takes no room.
+//
+struct DialogInlinePiece
+{
+    DialogImage   image;
+    std::wstring  text;
+};
+
+
+
 struct DialogTextRun
 {
     std::wstring  text;
     bool          isHyperlink   = false;
-    std::wstring  hyperlinkUrl;   // ignored unless isHyperlink == true
+    std::wstring  hyperlinkUrl;   // the link's target, for isHyperlink or linkText
+
+    // When set, the run is one line of prose with this part of `text` linked
+    // to hyperlinkUrl, the rest of the line plain around it. The line does not
+    // wrap.
+    std::wstring  linkText;
 
     // When set, the run is an aligned three-column row rather than a line of
     // prose: `text`, an arrow, then `rightText`. Every column row in one body
     // shares its column positions, measured across all of them, so the arrows
     // form a single vertical line whatever the rows say.
     std::wstring  rightText;
+
+    // When not empty, the run is one centered line of pictures and short
+    // text, an equation of icons for instance, and `text` is not shown.
+    // Nothing in it wraps.
+    std::vector<DialogInlinePiece>  strip;
+
+    // A picture at the start of the run, with `text` wrapping beside it. A
+    // picture without pixels leaves an ordinary line of prose.
+    std::optional<DialogImage>  leadingImage;
 
     // A hyperlink wins: SetRuns tests this first, and a run carrying both
     // would otherwise render as plain text with the URL silently dropped.
@@ -84,14 +125,14 @@ struct DialogPaintContext
 
 struct DialogInputEvent
 {
-    enum class Kind { MouseMove, LeftButtonDown, LeftButtonUp, KeyDown, Char, Wheel };
-    Kind     kind       = Kind::MouseMove;
-    int      xPx        = 0;
-    int      yPx        = 0;
-    int      vkCode     = 0;     // valid for KeyDown
-    wchar_t  ch         = 0;     // valid for Char
-    int      wheelDelta = 0;     // valid for Wheel (WHEEL_DELTA multiples, +up / -down)
-    bool     wheelHorz  = false; // Wheel: true = horizontal (WM_MOUSEHWHEEL), false = vertical
+    enum class  Kind       { MouseMove, LeftButtonDown, LeftButtonUp, KeyDown, Char, Wheel };
+    Kind        kind       = Kind::MouseMove;
+    int         xPx        = 0;
+    int         yPx        = 0;
+    int         vkCode     = 0;   // valid for KeyDown
+    wchar_t     ch         = 0;   // valid for Char
+    int         wheelDelta = 0;   // valid for Wheel (WHEEL_DELTA multiples, +up / -down)
+    bool        wheelHorz  = false;   // Wheel: true = horizontal (WM_MOUSEHWHEEL), false = vertical
 };
 
 
@@ -106,6 +147,10 @@ struct DialogDefinition
     float                      iconSizeOverrideDp = 0.0f;
     std::vector<DialogTextRun> body;
     std::vector<DialogButton>  buttons;
+
+    // A picture above the body. Takes the place of an app icon when both are
+    // set, since the two occupy the same spot.
+    std::optional<DialogImage> image;
 
     // When set, a window-close gesture (title-bar X, Alt+F4, Escape)
     // returns this result code instead of the cancel button's. Use to

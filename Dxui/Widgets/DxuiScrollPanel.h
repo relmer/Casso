@@ -65,6 +65,7 @@ public:
                                   IDxuiTextRenderer   & text,
                                   const IDxuiTheme    & theme) override;
     bool     OnMouse             (const DxuiMouseEvent & ev) override;
+    bool     ShowScrollbarMenu   (HWND hwnd, POINT pt) override { return m_scrollbar.ShowContextMenu (hwnd, pt.x, pt.y, pt); }
     LPCWSTR  GetCursorForPoint   (POINT clientPx) const override;
     bool     IsPointClipped      (POINT clientPx) const override;
     bool     IsTabGroup          () const override { return true; }

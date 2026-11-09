@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
+
 #include "Shell/ControllerInputThread.h"
 
 
@@ -51,7 +53,7 @@ HRESULT ControllerInputThread::Start (
     m_events   = pEvents;
     m_tick     = std::move (tick);
     m_stopping = false;
-    m_thread   = std::thread ([this] { Run(); });
+    m_thread   = std::thread ([this] { HRESULT hrName = ThreadName::SetForCurrentThread (L"Casso controller input"); IGNORE_RETURN_VALUE (hrName, S_OK); Run(); });
 
 Error:
     return hr;

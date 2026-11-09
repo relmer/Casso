@@ -4,6 +4,9 @@
 #include "Core/DxuiCommand.h"
 #include "Theme/DxuiMenuMetrics.h"
 #include "Core/IDxuiControl.h"
+#include "Widgets/DxuiPopupMenuTypes.h"
+#include "Widgets/DxuiPopupMenuLayout.h"
+#include "Widgets/DxuiPopupMenuPainter.h"
 
 
 class DxuiHwndSource;
@@ -39,6 +42,13 @@ struct DxuiPopupMenuItem
         Separator,
         Submenu,
 
+        //  A row of icon buttons, one per child command, as Explorer puts Cut,
+        //  Copy, Paste, Rename and Delete along the edge of its menu nearest
+        //  the pointer. It stays first in the list the caller builds and moves
+        //  to the end, with the separator after it, when the menu opens
+        //  upward. The keyboard passes over it; its commands are elsewhere.
+        IconRow,
+
         //  A label over the rows that follow it, as Windows 11 menus title a
         //  group. Never hovered, clicked or reached by the keyboard.
         Header,
@@ -51,6 +61,7 @@ struct DxuiPopupMenuItem
     static DxuiPopupMenuItem  ForCommand   (std::shared_ptr<const DxuiCommand> cmd);
     static DxuiPopupMenuItem  ForSeparator ();
     static DxuiPopupMenuItem  ForSubmenu   (std::shared_ptr<const DxuiCommand> cmd, std::vector<DxuiPopupMenuItem> children);
+    static DxuiPopupMenuItem  ForIconRow   (std::vector<std::shared_ptr<const DxuiCommand>> commands);
     static DxuiPopupMenuItem  ForHeader    (std::wstring label);
 };
 
@@ -123,6 +134,19 @@ public:
     using ClosedFn = std::function<void (bool committed)>;
     using ClockFn  = std::function<uint64_t ()>;
 
+    //  A command row's own icon, between the check and the label. Its box is
+    //  a Fluent icon's 20 units, whose ink is Explorer's 16.
+    //  Explorer's menu icons: 16 dip, 13 from the menu's edge, their text 11
+    //  past them -- measured from its context menu at 150%.
+    static constexpr int  s_kRowIconDip      = 16;
+    static constexpr int  s_kRowIconLeftDip  = 13;
+    static constexpr int  s_kRowIconGapDip   = 11;
+
+    //  With a check column as well, Explorer's icon and text sit this much
+    //  further right than the column arithmetic puts them: 8 and 2 px at 150%.
+    static constexpr int  s_kGutterIconShiftDip     = 5;
+    static constexpr int  s_kGutterIconTextShiftDip = 1;
+
     DxuiPopupMenu  ();
     ~DxuiPopupMenu () override;
 
@@ -132,6 +156,12 @@ public:
 
     void  SetOnHighlightChange (SelectFn fn)    { m_onHighlight = std::move (fn); }
     void  SetOnClosed          (ClosedFn fn)    { m_onClosed = std::move (fn); }
+
+    //  Told which button of the icon row the pointer is over, as it moves on
+    //  and off them and as the menu closes, for the host's tooltip; null
+    //  when it is over none.
+    using IconHoverFn = std::function<void (const DxuiCommand * command)>;
+    void  SetOnIconHover       (IconHoverFn fn) { m_onIconHover = std::move (fn); }
 
     // Where a click that dismissed this menu landed, in screen pixels. See
     // DxuiPopupHost::Params::onClickOutside.
@@ -190,6 +220,28 @@ public:
     //  so the strip still sees the pointer and can swap titles on hover.
     void  SetGrabsCapture (bool grabs)          { m_grabsCapture = grabs; }
 
+    //  Rows half a dip shorter, as a command bar's drop-down is beside a
+    //  context menu.
+    void  SetCompactRows  (bool compact)        { m_compactRows = compact; RefreshMetrics(); }
+
+    //  The narrowest the next show may be, in pixels, so a menu hung from a
+    //  wide control -- an address bar's history -- can match its width. Zero
+    //  lets the content decide, and a shared menu should be given it again
+    //  before each show, or one caller's width leaks into the next.
+    void  SetMinWidthPx (int px)                { m_minWidthPx = (px > 0) ? px : 0; }
+
+    //  The tallest the menu may be, in pixels. A menu taller than this shows
+    //  as many whole rows as fit and scrolls: by the wheel, or by moving the
+    //  highlight past an edge. Unset, a hosted menu takes the room between
+    //  what opened it and the bottom of its monitor, so a long list hangs
+    //  under its anchor rather than flipping above it. A test pins it, since
+    //  it has no monitor.
+    void  SetMaxHeightPx (int px)               { m_layout.m_maxHeightPx = (px > 0) ? px : 0; }
+
+    int   GetScrollRow   () const               { return m_layout.m_scrollRow; }
+    bool  IsScrollable   () const               { return m_layout.m_viewportPx > 0; }
+    void  ScrollByRows   (int rows) { m_layout.ScrollByRows (rows); }
+
     void              SetPopupHost   (DxuiHwndSource * host) { m_popupHost = host; }
     DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
     DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
@@ -224,9 +276,22 @@ public:
     //  which row is under a point, moving the highlight, and picking a row
     //  outright. The row index is the item index, separators included.
     int   HitTestRow     (int x, int y) const   { return HitTestIndex (x, y); }
-    void  SetHighlight   (int index)            { SetHover (index); }
-    void  HighlightFirst ()                     { SetHover (FindFirstSelectable()); }
-    void  ActivateRow    (int index)            { Commit (index); }
+
+    //  Which of an icon row's buttons is under a point, or -1.
+    int  HitTestIconButton (int x, int y) const
+    {
+        int  row = HitTestIndex (x, y);
+
+        return (row >= 0) ? GetIconButtonAt (row, x - m_boundsDip.left) : -1;
+    }
+
+    int   GetIconHighlight () const              { return m_iconHover; }
+    void  SetHighlight     (int index)            { SetHover (index); }
+    void  HighlightFirst   ()                     { SetHover (FindFirstSelectable()); }
+    void  ActivateRow      (int index)            { Commit (index); }
+
+    //  A pointer move inside the hosted popup, in popup-local pixels.
+    void  MovePopupPointerForTest (POINT localPx) { OnPopupMove (localPx); }
 
     //  The reopen guard exists for an opener whose hosted popup dismisses
     //  itself on the click BEFORE the opener sees that click. An opener that
@@ -256,16 +321,52 @@ public:
                                 int                & outIndex,
                                 wchar_t            & outLower);
 
-    //  How long a menu takes to open. Public so whatever else slides in the
-    //  chrome takes the same time and moves the same way.
-    static constexpr int  kRevealMs = 150;
+    //  How long a menu takes to open: WinUI's menu opening, fitted to
+    //  Explorer's. Public so whatever else slides in the chrome takes the
+    //  same time and moves the same way.
+    static constexpr int  kRevealMs = 250;
 
 private:
     static constexpr int       kBorderDip              = 1;
     static constexpr int       kFallbackGlyphWidthDip  = 8;
     static constexpr float     kUnderlineThicknessDip  = 1.0f;
     static constexpr uint64_t  kReopenGuardMs          = 250;
+    static constexpr int       kFadeMs                 = 100;
 
+    //  Fewer rows than this fit below the anchor, and a hosted menu flips
+    //  above it rather than scroll in a sliver.
+    static constexpr int       s_kMinRowsBelowAnchor   = 5;
+    static constexpr int       s_kWheelRows            = 3;
+    static constexpr float     s_kThumbWidthDip        = 3.0f;
+
+    //  An icon row's buttons are square, a half again as tall as a command
+    //  row, with their glyph at the toolbar's size.
+    //  Explorer's icon strip, measured at 150%: 64 dip buttons from 4 px in,
+    //  82 px tall, the icon 21 px down, the label's box 53 px down, and the
+    //  rule between buttons 19 px down and 54 px long.
+    static constexpr int       s_kIconButtonDip        = 64;
+    static constexpr float     s_kIconRowDip           = 164.0f / 3.0f;
+    static constexpr float     s_kIconRowLeftDip       = 3.0f;
+    static constexpr float     s_kIconTopDip           = 14.0f;
+    static constexpr float     s_kIconLabelTopDip      = 106.0f / 3.0f;
+    static constexpr float     s_kIconLabelBoxDip      = 16.32f;
+    static constexpr float     s_kIconRuleTopDip       = 13.0f;
+    static constexpr float     s_kIconRuleDip          = 36.0f;
+    static constexpr float     s_kSeparatorDip         = 10.0f;
+    static constexpr float     s_kIconGlyphDip         = 16.0f;
+    static constexpr float     s_kIconLabelDip         = 11.0f;
+    static constexpr float     s_kDisabledIconAlpha    = 0.4f;
+    static constexpr float     s_kCompactCardPadDip    = 3.0f;
+    static constexpr float     s_kCompactSeparatorDip  = 3.0f;
+    static constexpr int       s_kCompactRightTrimDip  = 8;
+    static constexpr float     s_kCompactBorderDarken  = 0.4f;
+    static constexpr float     s_kAcrylicDarkOpacity   = 0.90f;          // the card's tint over the blurred backdrop
+    static constexpr float     s_kAcrylicLightOpacity  = 0.60f;
+    static constexpr float     s_kRadioCenterXDip      = 22.0f;          // 33 px from the card edge at 150%
+    static constexpr float     s_kRadioRadiusDip       = 7.0f / 3.0f;    // 3.5 px at 150%
+    static constexpr uint32_t  s_kRadioAlpha           = 0xC5;           // Windows' secondary text fill
+    static constexpr float     s_kCheckBoxDip          = 14.0f;          // a check box row's box, as File Explorer's filter draws it
+    static constexpr const wchar_t *  s_kIconFace      = L"Segoe Fluent Icons";
     //  The hover highlight is a rounded card inset from the menu's edges, not
     //  a full-bleed band: a square band running into the menu's own rounded
     //  corners reads as a stripe painted across the popup.
@@ -281,44 +382,25 @@ private:
     static constexpr float     s_kSubmenuChevronStrokeDip = 1.0f;
     static constexpr float     s_kSubmenuChevronInsetDip  = 4.0f;
 
-    struct Palette
-    {
-        uint32_t  bg         = 0;
-        uint32_t  hover      = 0;
-        uint32_t  text       = 0;
-        uint32_t  hoverText  = 0;
-        uint32_t  accel      = 0;
-        uint32_t  hoverAccel = 0;
-        uint32_t  border     = 0;
-        uint32_t  divider    = 0;
-        uint32_t  disabled   = 0;
-    };
-
-    //  Where a child hangs relative to its parent row, or where a root hangs
-    //  relative to what opened it.
-    enum class Anchoring
-    {
-        Below,
-        AtPoint,
-        Beside,
-    };
+    using Palette   = DxuiPopupMenuPalette;
+    using Anchoring = DxuiPopupMenuAnchoring;
 
     static bool  IsPointInRect (const RECT & rc, int x, int y);
 
     void  RefreshMetrics     ();
 
-    bool  IsSelectable       (int index) const;
-    int   FindNextSelectable (int from, int direction) const;
+    bool  IsSelectable        (int index) const;
+    int   FindNextSelectable  (int from, int direction) const;
     int   FindFirstSelectable () const;
-    bool  IsReopenSuppressed (const RECT & anchor) const;
+    bool  IsReopenSuppressed  (const RECT & anchor) const;
 
-    int   GetRowHeightPx     (int index) const;
-    int   GetRowTopPx        (int index) const;
-    int   GetContentHeightPx () const;
-    int   MeasureRunPx       (const std::wstring & run, float fontDip, IDxuiTextRenderer & text) const;
-    int   MeasureWidthPx     (IDxuiTextRenderer & text);
-    int   GetRowAtOffset     (int relY) const;
-    int   HitTestIndex       (int x, int y) const;
+    void  SetIconHover        (int button);
+    int   GetIconButtonAt     (int index, int localX) const;
+    void  CommitIcon          (int index, int button);
+    void  PlaceIconRow        (bool atBottom);
+    void  DropStraySeparators ();
+    bool  OpensUpward         (int originX, int originY, int heightPx, Anchoring anchoring) const;
+    int   HitTestIndex        (int x, int y) const;
 
     void  ShowCore           (int                              originX,
                               int                              originY,
@@ -327,21 +409,15 @@ private:
                               std::vector<DxuiPopupMenuItem>   items,
                               IDxuiTextRenderer              & text,
                               const RECT                     & hostClient);
-    void  AcquirePopup       (const RECT & anchor, Anchoring anchoring);
-    void  SetHover           (int index);
-    void  ArmChild           (int index);
-    void  DisarmChild        ();
-    void  OpenChild          (int index, bool highlightFirst);
-    void  CloseChild         ();
-    void  Commit             (int index);
-    DxuiPopupMenu *  GetRoot ();
+    void             AcquirePopup (const RECT & anchor, Anchoring anchoring);
+    void             SetHover     (int index);
+    void             ArmChild     (int index);
+    void             DisarmChild  ();
+    void             OpenChild    (int index, bool highlightFirst);
+    void             CloseChild   ();
+    void             Commit       (int index);
+    DxuiPopupMenu  * GetRoot      ();
 
-    Palette  ResolvePalette  () const;
-    void     PaintBody       (IDxuiPainter & painter, IDxuiTextRenderer & text, int originLeft, int originTop) const;
-    void     PaintRow        (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal,
-                              int index, float left, float top, float width, float fontDip) const;
-    void     PaintUnderline  (IDxuiPainter & painter, IDxuiTextRenderer & text, const std::wstring & stripped,
-                              int mnIdx, float labelX, float labelY, float fontDip, uint32_t ink) const;
     void     RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     void     OnPopupMove     (POINT localPx);
     void     OnPopupClick    (POINT localPx);
@@ -357,25 +433,27 @@ private:
     SelectFn             m_onSelect;
     SelectFn             m_onHighlight;
     ClosedFn             m_onClosed;
+    IconHoverFn          m_onIconHover;
     std::function<void (POINT)>  m_onClickOutside;
     ClockFn              m_clock;
     bool                 m_committing       = false;
     const IDxuiTheme   * m_theme            = nullptr;
     IDxuiTextRenderer  * m_text             = nullptr;
     int                  m_hover            = -1;
+    int                  m_iconHover        = -1;
     int                  m_pressed          = -1;
     bool                 m_visible          = false;
     bool                 m_revealSuppressed = false;
-    bool                 m_hasGutter        = false;
-    int                  m_labelLeftPx      = 0;
-    int                  m_accelLeftPx      = 0;
-    int                  m_accelWidthPx     = 0;
     bool                 m_showCues         = false;
     RECT                 m_hostClient       = {};
     RECT                 m_anchor           = {};
     RECT                 m_lastAnchor       = {};
     int                  m_submenuDelayMs   = 0;
     int                  m_pendingChild     = -1;
+    bool                 m_holdAtPointer    = false;   // opened under the pointer, which hasn't moved since
+    POINT                m_pointerAt        = {};
+    bool                 m_popupPointerSeen = false;   // the hosted popup has had its first pointer move
+    POINT                m_popupPointerAt   = {};
     uint64_t             m_pendingAtMs      = 0;
     uint64_t             m_closedAtMs       = 0;
     bool                 m_hasClosed        = false;
@@ -385,8 +463,18 @@ private:
     DxuiHwndSource     * m_popupHost        = nullptr;
     DxuiPopupHost      * m_activePopup      = nullptr;
     bool                 m_grabsCapture     = true;
+    bool                 m_compactRows      = false;
+    bool                 m_acrylic          = false;   // shown with a blurred backdrop under a translucent card
+    int                  m_cardPadPx        = 0;
+    int                  m_minWidthPx       = 0;
     bool                 m_reopenGuard      = true;
 
     bool                 m_colorsSet   = false;
     Palette              m_colors;
+
+    friend class DxuiPopupMenuLayout;
+    friend class DxuiPopupMenuPainter;
+
+    DxuiPopupMenuLayout   m_layout  { *this };
+    DxuiPopupMenuPainter  m_painter { *this };
 };

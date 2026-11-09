@@ -367,6 +367,10 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o) { return o.disk.formatName == "prodos"; },
               "--format picks the filesystem" },
 
+            { "disk", "filesystem", { "CassoCli", "disk", "list", "d.dsk", "--filesystem", "cpm" },
+              [] (const CommandLineOptions & o) { return o.disk.filesystem == "cpm"; },
+              "--filesystem selects CP/M for an image with no recognized file system" },
+
             { "disk", "volume", { "CassoCli", "disk", "create", "d.dsk", "--volume", "42" },
               [] (const CommandLineOptions & o) { return o.disk.volumeName == "42"; },
               "--volume names or numbers the volume" },
@@ -421,6 +425,25 @@ namespace CliSwitchCoverageTests
             { "disk", "block", { "CassoCli", "disk", "blockread", "d.po", "--block", "6" },
               [] (const CommandLineOptions & o) { return o.disk.block == 6; },
               "--block says which ProDOS block to start at" },
+
+            { "disk", "index", { "CassoCli", "disk", "delete", "d.dsk", "A", "--index", "3" },
+              [] (const CommandLineOptions & o) { return o.disk.hasIndex && o.disk.index == 3; },
+              "--index selects one of several entries that share a name" },
+
+            { "disk", "recurse", { "CassoCli", "disk", "list", "d.po", "GAMES", "--recurse" },
+              [] (const CommandLineOptions & o) { return o.disk.recurse; },
+              "--recurse reaches everything below the directory" },
+
+            { "disk", "force", { "CassoCli", "disk", "rmdir", "d.po", "GAMES", "--recurse", "--force" },
+              [] (const CommandLineOptions & o) { return o.disk.force; },
+              "--force removes locked entries with the rest" },
+
+            { "disk", "user", { "CassoCli", "disk", "get", "c.dsk", "A", "--user", "2" },
+              [] (const CommandLineOptions & o) { return o.disk.hasUser && o.disk.user == 2; },
+              "--user selects a CP/M user" },
+            { "disk", "yes", { "CassoCli", "disk", "rmdir", "d.po", "GAMES", "--recurse", "--yes" },
+              [] (const CommandLineOptions & o) { return o.disk.yes; },
+              "--yes answers the confirmation in advance" },
         };
     }
 

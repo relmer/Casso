@@ -66,7 +66,6 @@ public:
     // SaveGlobalPrefsDeferred. The delay is long enough that a slider drag
     // writes once when it settles, short enough that it is over before the
     // user reaches for the window's close button.
-    static constexpr UINT_PTR  kPrefsSaveTimerId = 0xCA55;
     static constexpr UINT      kPrefsSaveDelayMs = 750;
 
     // Persisted per-machine $cassoUiPrefs. Reads + merges the machine JSON,

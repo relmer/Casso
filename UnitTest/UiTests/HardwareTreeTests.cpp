@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Settings/SettingsPanelState.h"
+#include "Ui/Settings/SettingsJson.h"
 
 #include "Core/JsonParser.h"
 
@@ -15,7 +16,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  HardwareTreeTests
 //
 //  The pure-data shaping of the hardware tree. We exercise
-//  `SettingsPanelState::ExtractHardware` against fixture JSONs and
+//  `SettingsJson::ExtractHardware` against fixture JSONs and
 //  assert that the produced rows carry the right (kind, slot,
 //  capability, lockReason, enabled) for the SettingsPanel renderer
 //  to consume. The chrome surface is NOT loaded.
@@ -52,7 +53,7 @@ public:
             "slots":           [ { "slot": 6, "device": "disk-ii" } ]
         })JSON";
 
-        AssertSucceeded (SettingsPanelState::ExtractHardware (ParseOrFail (j), out));
+        AssertSucceeded (SettingsJson::ExtractHardware (ParseOrFail (j), out));
 
         Assert::AreEqual<size_t> (2u, out.size());
 
@@ -78,7 +79,7 @@ public:
             ]
         })JSON";
 
-        SettingsPanelState::ExtractHardware (ParseOrFail (j), out);
+        SettingsJson::ExtractHardware (ParseOrFail (j), out);
 
         Assert::IsTrue (out[0].capability == CapabilityFlag::Required,
                         L"required slot overrides default optional");
@@ -99,7 +100,7 @@ public:
             ]
         })JSON";
 
-        SettingsPanelState::ExtractHardware (ParseOrFail (j), out);
+        SettingsJson::ExtractHardware (ParseOrFail (j), out);
 
         Assert::IsTrue (out[0].capability == CapabilityFlag::PlatformLocked);
         Assert::AreEqual (std::string ("integrated on Apple //c"), out[0].lockReason);
@@ -118,7 +119,7 @@ public:
             ]
         })JSON";
 
-        SettingsPanelState::ExtractHardware (ParseOrFail (j), out);
+        SettingsJson::ExtractHardware (ParseOrFail (j), out);
 
         Assert::IsFalse (out[0].enabled, L"explicit enabled:false respected");
     }
@@ -139,7 +140,7 @@ public:
             ]
         })JSON";
 
-        SettingsPanelState::ExtractHardware (ParseOrFail (j), out);
+        SettingsJson::ExtractHardware (ParseOrFail (j), out);
 
         Assert::AreEqual<size_t> (2u, out.size());
         Assert::IsTrue (out[0].capability == CapabilityFlag::Required);
@@ -167,7 +168,7 @@ public:
             ]
         })JSON";
 
-        SettingsPanelState::ExtractHardware (ParseOrFail (j), out);
+        SettingsJson::ExtractHardware (ParseOrFail (j), out);
 
         Assert::AreEqual<size_t> (4u, out.size());
         Assert::IsTrue   (out[0].kind == HardwareEntryKind::InternalDevice);
@@ -196,7 +197,7 @@ public:
             "slots": [ { "slot": 6, "device": "disk-ii" } ]
         })JSON";
 
-        SettingsPanelState::ExtractHardware (ParseOrFail (j), out);
+        SettingsJson::ExtractHardware (ParseOrFail (j), out);
 
         Assert::AreEqual (std::string ("Slot 6: Disk ]["), out[0].displayName);
     }

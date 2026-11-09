@@ -1,0 +1,460 @@
+#include "Pch.h"
+#include "CassoExplorer/CassoExplorerProperties.h"
+#include "CassoExplorer/CassoExplorerRawDialog.h"
+#include "../EhmTestHelper.h"
+#include "../EmuTests/FixtureProvider.h"
+#include "CassoExplorer/Model/CatalogModel.h"
+#include "CassoExplorer/Model/ApplesoftVariables.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModelTests
+//
+//  Rows for every fixture entry, and the order each column puts them in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (CatalogModelTests)
+{
+public:
+
+    using Column = CatalogModel::Column;
+
+
+
+    static void LoadRows (const char * fixture, VolumeKind kind, std::vector<CatalogRow> & outRows)
+    {
+        FixtureProvider     fixtures;
+        vector<Byte>        bytes;
+        vector<Byte>        sectors;
+        SectorDecodeReport  report;
+        VolumeListing       listing;
+
+        AssertSucceeded (fixtures.OpenFixture (fixture, bytes));
+        AssertSucceeded (VolumeImage::Load (bytes, fixture, sectors, report));
+
+        if (kind == VolumeKind::Dos33)
+        {
+            Dos33Volume  volume (sectors);
+
+            AssertSucceeded (volume.Enumerate (listing));
+        }
+        else
+        {
+            ProDosVolume  volume (sectors);
+
+            AssertSucceeded (volume.Enumerate (listing));
+        }
+
+        CatalogModel::FromListing (listing, kind, outRows);
+
+        Assert::IsTrue (!outRows.empty(), L"the fixture must list");
+    }
+
+
+
+    static const CatalogRow & FindRow (const std::vector<CatalogRow> & rows, const wchar_t * name)
+    {
+        for (const CatalogRow & row : rows)
+        {
+            if (row.name == name)
+            {
+                return row;
+            }
+        }
+
+        Assert::Fail (L"row not found");
+
+        return rows[0];
+    }
+
+
+
+    //  A shortcut is listed without its extension, as Windows always lists
+    //  it; its name stays the file's whole name, for paths and renames.
+    TEST_METHOD (HostRow_HidesAShortcutsExtension)
+    {
+        FileSystemEntry  shortcut;
+        FileSystemEntry  text;
+
+        shortcut.name = L"Excel.lnk";
+        text.name     = L"notes.txt";
+
+        Assert::IsTrue  (CatalogModel::IsExtensionNeverShown (L".lnk"));
+        Assert::IsFalse (CatalogModel::IsExtensionNeverShown (L".txt"));
+        Assert::AreEqual (std::wstring (L"Excel"), CatalogModel::FromHostEntry (shortcut, false, 0).label);
+        Assert::AreEqual (std::wstring (L"Excel.lnk"), CatalogModel::FromHostEntry (shortcut, false, 0).name);
+        Assert::IsTrue  (CatalogModel::FromHostEntry (text, false, 0).label.empty());
+    }
+
+
+
+    TEST_METHOD (Dos33Rows_LetterTypesSectorSizesAndBinaryAddress)
+    {
+        std::vector<CatalogRow>  rows;
+
+        LoadRows ("CassoExplorer/dos33.dsk", VolumeKind::Dos33, rows);
+
+        Assert::AreEqual ((size_t) 7, rows.size());
+
+        Assert::AreEqual (std::wstring (L"A"),  FindRow (rows, L"HELLO").typeText);
+        Assert::AreEqual (std::wstring (L"T"),  FindRow (rows, L"NOTES").typeText);
+        Assert::AreEqual (std::wstring (L"B"),  FindRow (rows, L"PICTURE").typeText);
+        Assert::AreEqual (std::wstring (L"I"),  FindRow (rows, L"INTPROG").typeText);
+
+        //  DOS 3.3 records sectors, not bytes: 34 sectors for the picture.
+        Assert::AreEqual ((uint64_t) 34 * 256, FindRow (rows, L"PICTURE").sizeBytes);
+
+        //  A binary's load address comes from its first two bytes, since the
+        //  catalog does not record one; other types leave the column blank.
+        Assert::IsFalse (FindRow (rows, L"PICTURE").addressText.empty());
+        Assert::IsTrue  (FindRow (rows, L"HELLO").addressText.empty());
+        Assert::IsFalse (FindRow (rows, L"PICTURE").hasModified);
+        Assert::IsFalse (FindRow (rows, L"PICTURE").locked);
+        Assert::IsFalse (FindRow (rows, L"PICTURE").isDirectory);
+    }
+
+
+
+    TEST_METHOD (ProDosRows_MnemonicsExactSizesAddressesDirectoriesAndDates)
+    {
+        std::vector<CatalogRow>  rows;
+
+        LoadRows ("CassoExplorer/prodos.po", VolumeKind::ProDos, rows);
+
+        Assert::AreEqual ((size_t) 7, rows.size());
+
+        Assert::AreEqual (std::wstring (L"BAS"),   FindRow (rows, L"HELLO").typeText);
+        Assert::AreEqual (std::wstring (L"TXT"),   FindRow (rows, L"NOTES").typeText);
+        Assert::AreEqual (std::wstring (L"BIN"),   FindRow (rows, L"PICTURE").typeText);
+        Assert::AreEqual (std::wstring (L"DIR"),   FindRow (rows, L"SUBDIR").typeText);
+
+        Assert::AreEqual ((uint64_t) 8192,          FindRow (rows, L"PICTURE").sizeBytes);
+        Assert::AreEqual (std::wstring (L"$2000"),  FindRow (rows, L"PICTURE").addressText);
+        Assert::AreEqual (std::wstring (L"$0801"),  FindRow (rows, L"HELLO").addressText);
+        Assert::IsTrue   (FindRow (rows, L"SUBDIR").isDirectory);
+        Assert::IsTrue   (FindRow (rows, L"NOTES").hasModified);
+        Assert::AreEqual ((int64_t) 461594040,      FindRow (rows, L"NOTES").modifiedUnix);
+    }
+
+
+
+    //  The address of a CMD or SYS file is where it runs, whatever its
+    //  auxiliary type is. It is blank for a file whose auxiliary type is not
+    //  an address.
+    TEST_METHOD (ProDosRows_AddressIsWhereTheFileLoadsOrRuns)
+    {
+        FileEntry  entry;
+
+        entry.hasAuxType = true;
+        entry.auxType    = 0x0000;
+
+        entry.type = ProDosVolume::kTypeCommand;
+        Assert::AreEqual (std::wstring (L"$4000"), CatalogModel::FromFileEntry (entry, VolumeKind::ProDos, 0).addressText);
+
+        entry.type = ProDosVolume::kTypeSystem;
+        Assert::AreEqual (std::wstring (L"$2000"), CatalogModel::FromFileEntry (entry, VolumeKind::ProDos, 0).addressText);
+
+        entry.type    = ApplesoftVariables::kProDosType;
+        entry.auxType = 0x9292;
+        Assert::AreEqual (std::wstring (L"$9292"), CatalogModel::FromFileEntry (entry, VolumeKind::ProDos, 0).addressText);
+
+        entry.type    = ProDosVolume::kTypeText;
+        entry.auxType = 0x0050;
+        Assert::IsTrue (CatalogModel::FromFileEntry (entry, VolumeKind::ProDos, 0).addressText.empty(), L"a record length is not an address");
+    }
+
+
+
+    TEST_METHOD (HostRows_ExtensionTypeFolderAndDate)
+    {
+        FileSystemEntry  file;
+        FileSystemEntry  folder;
+        CatalogRow       fileRow;
+        CatalogRow       folderRow;
+
+        file.name         = L"game.dsk";
+        file.sizeBytes    = 143360;
+        file.modifiedUnix = 1700000000;
+
+        folder.name     = L"Disks";
+        folder.isFolder = true;
+
+        fileRow   = CatalogModel::FromHostEntry (file, true, 3);
+        folderRow = CatalogModel::FromHostEntry (folder, false, 4);
+
+        Assert::AreEqual (std::wstring (L"Apple II disk image"), fileRow.typeText, L"a disk image by its kind");
+        Assert::AreEqual ((uint64_t) 143360,        fileRow.sizeBytes);
+        Assert::IsTrue   (fileRow.isDiskImage);
+        Assert::IsTrue   (fileRow.hasModified);
+        Assert::AreEqual ((size_t) 3,               fileRow.sourceIndex);
+
+        Assert::AreEqual (std::wstring (L"Folder"), folderRow.typeText);
+        Assert::IsTrue   (folderRow.isDirectory);
+        Assert::IsFalse  (folderRow.hasModified);
+    }
+
+
+
+    //  An entry's General tab: its type with ProDOS's code, its exact size
+    //  and the blocks it takes, its address, date and lock, in Explorer's
+    //  groups. DOS 3.3 records no date, so it has no Modified row.
+    TEST_METHOD (Properties_DescribeAnEntryAsExplorersGeneralTab)
+    {
+        FileEntry                                   entry;
+        std::vector<CassoExplorerProperties::Row>   rows;
+        std::vector<CassoExplorerProperties::Row>   dos;
+
+        entry.name           = "DHIRES";
+        entry.type           = 0x06;
+        entry.sizeUnits      = 33;
+        entry.eofBytes       = 16384;
+        entry.hasEofBytes    = true;
+        entry.loadAddress    = 0x2000;
+        entry.hasLoadAddress = true;
+        entry.hasModified    = true;
+        entry.modifiedUnix   = 461590440;
+        entry.isLocked       = true;
+
+        rows = CassoExplorerProperties::DescribeEntry (entry, VolumeKind::ProDos, L"C:\\Disks\\a.po");
+
+        Assert::AreEqual (std::wstring (L"Type of file:"), rows[0].label);
+        Assert::IsTrue   (rows[0].value.find (L"($06)") != std::wstring::npos);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\a.po"), rows[1].value);
+        Assert::IsTrue   (rows[1].groupStart);
+        Assert::IsTrue   (rows[2].value.find (L"(16,384 bytes)") != std::wstring::npos, L"Size, exactly");
+        Assert::IsTrue   (rows[3].value.find (L"33 blocks") != std::wstring::npos, L"Size on disk, in blocks");
+        Assert::AreEqual (std::wstring (L"$2000"), rows[4].value);
+        Assert::AreEqual (std::wstring (L"Modified:"), rows[5].label);
+        Assert::AreEqual (std::wstring (L"Locked"), rows.back().value);
+
+        entry.hasModified = false;
+        entry.hasEofBytes = false;
+        dos = CassoExplorerProperties::DescribeEntry (entry, VolumeKind::Dos33, L"C:\\Disks\\b.dsk");
+
+        Assert::IsTrue (std::none_of (dos.begin(), dos.end(), [] (const CassoExplorerProperties::Row & row) { return row.label == L"Modified:"; }));
+        Assert::IsTrue (dos[3].value.find (L"33 sectors") != std::wstring::npos);
+    }
+
+
+    //  A raw read's fields: a start on the disk, and a count that reaches
+    //  its end at most; a count says nothing while the start is not valid.
+    TEST_METHOD (RawChoices_CheckTheStartAndTheCount)
+    {
+        int  value = 0;
+
+        Assert::IsTrue   (CassoExplorerRawChoices::TryParse (L" 17 ", value));
+        Assert::AreEqual (17, value);
+        Assert::IsFalse  (CassoExplorerRawChoices::TryParse (L"1 7", value));
+        Assert::IsFalse  (CassoExplorerRawChoices::TryParse (L"", value));
+        Assert::IsFalse  (CassoExplorerRawChoices::TryParse (L"-1", value));
+
+        Assert::IsTrue  (CassoExplorerRawChoices::ValidateTrack  (L"34").empty());
+        Assert::IsFalse (CassoExplorerRawChoices::ValidateTrack  (L"35").empty());
+        Assert::IsFalse (CassoExplorerRawChoices::ValidateSector (L"16").empty());
+        Assert::IsFalse (CassoExplorerRawChoices::ValidateBlock  (L"280").empty());
+
+        Assert::AreEqual (16, CassoExplorerRawChoices::GetSectorsFrom (34, 0), L"the last track's sixteen");
+        Assert::AreEqual (0,  CassoExplorerRawChoices::GetSectorsFrom (35, 0));
+        Assert::AreEqual (278, CassoExplorerRawChoices::GetBlocksFrom (2));
+
+        Assert::IsTrue  (CassoExplorerRawChoices::ValidateCount (L"16", 16).empty());
+        Assert::IsFalse (CassoExplorerRawChoices::ValidateCount (L"17", 16).empty(), L"past the end of the disk");
+        Assert::IsFalse (CassoExplorerRawChoices::ValidateCount (L"0",  16).empty());
+        Assert::IsTrue  (CassoExplorerRawChoices::ValidateCount (L"x",  0).empty(), L"the start says what is wrong");
+    }
+
+
+    //  Numbers in names sort by their value, as Explorer's do.
+    TEST_METHOD (Sort_ByName_NumbersGoByValue)
+    {
+        std::vector<CatalogRow>  rows (3);
+
+        rows[0].name = L"f10.txt";
+        rows[1].name = L"F2.txt";
+        rows[2].name = L"f1.txt";
+
+        CatalogModel::Sort (rows, Column::Name, false);
+
+        Assert::AreEqual (std::wstring (L"f1.txt"),  rows[0].name);
+        Assert::AreEqual (std::wstring (L"F2.txt"),  rows[1].name, L"f2 before f10, whatever its case");
+        Assert::AreEqual (std::wstring (L"f10.txt"), rows[2].name);
+    }
+
+
+
+    //  A search's results by relevance, descending as File Explorer opens them:
+    //  the index's rank first, then the order they were found in, with folders
+    //  among the files.
+    TEST_METHOD (Sort_ByRelevance_RankThenFoundOrder)
+    {
+        std::vector<CatalogRow>  rows (4);
+
+        rows[0].name = L"a";   rows[0].sourceIndex = 0;
+        rows[1].name = L"b";   rows[1].sourceIndex = 1;   rows[1].searchRank  = 5;
+        rows[2].name = L"c";   rows[2].sourceIndex = 2;   rows[2].isDirectory = true;
+        rows[3].name = L"d";   rows[3].sourceIndex = 3;   rows[3].searchRank  = 9;
+
+        CatalogModel::Sort (rows, Column::Name, true);
+        CatalogModel::Sort (rows, CatalogModel::kRelevance, true);
+
+        Assert::AreEqual (std::wstring (L"d"), rows[0].name, L"the highest rank leads");
+        Assert::AreEqual (std::wstring (L"b"), rows[1].name);
+        Assert::AreEqual (std::wstring (L"a"), rows[2].name, L"equal ranks go in the order found, not the last sort's");
+        Assert::AreEqual (std::wstring (L"c"), rows[3].name, L"a folder is not moved ahead");
+    }
+
+
+
+    TEST_METHOD (Sort_EveryColumnBothDirections_FoldersWhereExplorerPutsThem)
+    {
+        std::vector<CatalogRow>  rows;
+        size_t                   i    = 0;
+
+        LoadRows ("CassoExplorer/prodos.po", VolumeKind::ProDos, rows);
+
+        CatalogModel::Sort (rows, Column::Name, false);
+        Assert::AreEqual (std::wstring (L"SUBDIR"), rows[0].name, L"the directory leads");
+        Assert::AreEqual (std::wstring (L"DHIRES"), rows[1].name);
+        Assert::AreEqual (std::wstring (L"PICTURE"), rows[6].name);
+
+        CatalogModel::Sort (rows, Column::Name, true);
+        Assert::AreEqual (std::wstring (L"PICTURE"), rows[0].name);
+        Assert::AreEqual (std::wstring (L"DHIRES"), rows[5].name);
+        Assert::AreEqual (std::wstring (L"SUBDIR"), rows[6].name, L"descending, the directory goes last");
+
+        CatalogModel::Sort (rows, Column::Size, false);
+        for (i = 2; i < rows.size(); i++)
+        {
+            Assert::IsTrue (rows[i - 1].sizeBytes <= rows[i].sizeBytes, L"ascending size");
+        }
+
+        CatalogModel::Sort (rows, Column::Size, true);
+        Assert::AreEqual (std::wstring (L"DHIRES"), rows[0].name, L"the largest file first");
+        Assert::AreEqual (std::wstring (L"SUBDIR"), rows[6].name, L"and the directory last");
+
+        CatalogModel::Sort (rows, Column::Type, false);
+        Assert::AreEqual (std::wstring (L"HELLO"), rows[1].name, L"BAS sorts before BIN");
+
+        CatalogModel::Sort (rows, Column::Address, true);
+        Assert::AreEqual (std::wstring (L"$2000"), rows[1].addressText);
+
+        CatalogModel::Sort (rows, Column::Locked, false);
+        CatalogModel::Sort (rows, Column::Modified, false);
+        Assert::AreEqual ((size_t) 7, rows.size());
+    }
+
+
+
+    //  File Explorer's orders, read from a folder with two folders and two files
+    //  in it, dated and sized apart: descending puts the folders last, except
+    //  by type, and rows equal on the column go by name from A to Z.
+    TEST_METHOD (Sort_Descending_MatchesExplorersOrder)
+    {
+        std::vector<CatalogRow>  rows (4);
+
+        auto  order = [&] (Column column, bool descending)
+        {
+            std::wstring  names;
+
+            CatalogModel::Sort (rows, column, descending);
+
+            for (const CatalogRow & row : rows)
+            {
+                names += (names.empty() ? L"" : L",") + row.name;
+            }
+
+            return names;
+        };
+
+        for (int i = 0; i < 4; i++)
+        {
+            rows[(size_t) i].name         = std::wstring (i % 2 == 0 ? L"Folder" : L"File") + (wchar_t) (L'A' + i);
+            rows[(size_t) i].isDirectory  = i % 2 == 0;
+            rows[(size_t) i].typeText     = rows[(size_t) i].isDirectory ? L"File folder" : L"Text Document";
+            rows[(size_t) i].hasModified  = true;
+            rows[(size_t) i].modifiedUnix = 1000 * (i + 1);
+            rows[(size_t) i].sizeBytes    = rows[(size_t) i].isDirectory ? 0 : (uint64_t) (100 * i);
+        }
+
+        Assert::AreEqual (std::wstring (L"FolderA,FolderC,FileB,FileD"), order (Column::Modified, false));
+        Assert::AreEqual (std::wstring (L"FileD,FileB,FolderC,FolderA"), order (Column::Modified, true));
+        Assert::AreEqual (std::wstring (L"FolderA,FolderC,FileB,FileD"), order (Column::Size,     false));
+        Assert::AreEqual (std::wstring (L"FileD,FileB,FolderA,FolderC"), order (Column::Size,     true));
+        Assert::AreEqual (std::wstring (L"FolderA,FolderC,FileB,FileD"), order (Column::Type,     false));
+        Assert::AreEqual (std::wstring (L"FolderA,FolderC,FileB,FileD"), order (Column::Type,     true));
+        Assert::AreEqual (std::wstring (L"FolderA,FolderC,FileB,FileD"), order (Column::Name,     false));
+        Assert::AreEqual (std::wstring (L"FileD,FileB,FolderC,FolderA"), order (Column::Name,     true));
+    }
+
+
+
+    TEST_METHOD (Sort_DrivesGoByTheirLetter)
+    {
+        std::vector<CatalogRow>  rows (2);
+
+        rows[0].name     = L"Alpha (D:)";
+        rows[0].hostPath = L"D:\\";
+        rows[1].name     = L"Zulu (C:)";
+        rows[1].hostPath = L"C:\\";
+
+        for (CatalogRow & row : rows)
+        {
+            row.isDirectory = true;
+            row.isDrive     = true;
+        }
+
+        CatalogModel::Sort (rows, CatalogModel::Column::Name, false);
+
+        Assert::AreEqual (std::wstring (L"Zulu (C:)"), rows[0].name);
+    }
+
+
+    TEST_METHOD (SourceIndex_SurvivesASort)
+    {
+        std::vector<CatalogRow>  rows;
+        std::vector<CatalogRow>  original;
+
+        LoadRows ("CassoExplorer/prodos.po", VolumeKind::ProDos, rows);
+
+        original = rows;
+
+        CatalogModel::Sort (rows, Column::Name, true);
+
+        for (const CatalogRow & row : rows)
+        {
+            Assert::AreEqual (original[row.sourceIndex].name, row.name);
+        }
+    }
+
+
+
+    //  A DOS 3.3 heading entry: "A", backspaces, then its text. Control
+    //  characters are displayed in caret form and returned as muted ranges, one per run;
+    //  a typed caret and letter, and every other character, pass through
+    //  unmuted.
+    TEST_METHOD (DisplayName_ShowsControlCharactersInCaretFormAndMutesThem)
+    {
+        std::wstring                      name = std::wstring (L"A") + (wchar_t) 0x08 + (wchar_t) 0x08 + L"^H" + (wchar_t) 0x7F;
+        std::vector<std::pair<int, int>>  ranges;
+
+        Assert::AreEqual (std::wstring (L"A^H^H^H^?"), CatalogModel::GetDisplayName (name, ranges));
+        Assert::AreEqual ((size_t) 2, ranges.size());
+        Assert::AreEqual (1, ranges[0].first);
+        Assert::AreEqual (5, ranges[0].second, L"the two backspaces are one run");
+        Assert::AreEqual (7, ranges[1].first,  L"the typed ^H between them is not muted");
+        Assert::AreEqual (9, ranges[1].second);
+
+        Assert::AreEqual (std::wstring (L"MERLIN.X"), CatalogModel::GetDisplayName (L"MERLIN.X", ranges));
+        Assert::IsTrue   (ranges.empty());
+    }
+};

@@ -146,6 +146,96 @@ void DxuiCheckbox::Toggle()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiCheckbox::PaintBox
+//
+//  A checked box is filled and has a check mark; an empty one is outlined.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiCheckbox::PaintBox (IDxuiPainter      & painter,
+                             IDxuiTextRenderer & text,
+                             float               left,
+                             float               top,
+                             float               sizePx,
+                             float               onePx,
+                             bool                checked,
+                             uint32_t            emptyFill,
+                             uint32_t            outline,
+                             uint32_t            checkedFill,
+                             uint32_t            glyph)
+{
+    HRESULT  hr     = S_OK;
+    float    corner = onePx * DxuiTheme::kCornerRadiusDip;
+
+
+
+    if (!checked)
+    {
+        painter.FillRoundedRect    (left, top, sizePx, sizePx, corner, emptyFill);
+        painter.OutlineRoundedRect (left, top, sizePx, sizePx, corner, onePx, outline);
+        return;
+    }
+
+    painter.FillRoundedRect (left, top, sizePx, sizePx, corner, checkedFill);
+
+    hr = text.DrawString (s_kpszCheckMark, left, top, sizePx, sizePx, glyph, sizePx * 0.95f, L"Segoe UI Symbol",
+                          DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiCheckbox::PaintBoxOverText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiCheckbox::PaintBoxOverText (IDxuiTextRenderer & text,
+                                     float               left,
+                                     float               top,
+                                     float               sizePx,
+                                     float               onePx,
+                                     bool                checked,
+                                     uint32_t            emptyFill,
+                                     uint32_t            outline,
+                                     uint32_t            checkedFill,
+                                     uint32_t            glyph)
+{
+    HRESULT  hr    = S_OK;
+    float    right = left + sizePx;
+    float    below = top + sizePx;
+
+
+
+    hr = text.FillRect (left, top, sizePx, sizePx, checked ? checkedFill : emptyFill);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (!checked)
+    {
+        for (const auto & [x0, y0, x1, y1] : { std::array<float, 4> { left, top, right, top }, std::array<float, 4> { right, top, right, below },
+                                               std::array<float, 4> { right, below, left, below }, std::array<float, 4> { left, below, left, top } })
+        {
+            hr = text.DrawLine (x0, y0, x1, y1, onePx, outline);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+    else
+    {
+        hr = text.DrawString (s_kpszCheckMark, left, top, sizePx, sizePx, glyph, sizePx * 0.95f, L"Segoe UI Symbol",
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Paint
 //
 //  Hard-coded neutral palette for now. Slice C / P4 wires real theme
@@ -172,8 +262,14 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     uint32_t boxColor    = m_enabled
                             ? (m_pressed ? theme.ButtonPressed() : (m_hover ? theme.ButtonHover() : theme.ButtonIdle()))
                             : theme.PressedBackground();
-    glyphColor = m_enabled ? theme.ButtonText()  : theme.ForegroundDisabled();
-    textColor = m_enabled ? theme.Foreground()  : theme.ForegroundDisabled();
+
+    //  As Windows 11 draws one: an empty box is outlined in the text color at
+    //  60%, so it is visible on any background, and a checked one is filled.
+    uint32_t outlineColor = m_enabled ? ((theme.Foreground() & 0x00FFFFFFu) | 0x99000000u) : theme.ForegroundDisabled();
+    uint32_t checkedFill  = m_enabled ? theme.Accent() : theme.ForegroundDisabled();
+
+    glyphColor = DxuiTheme::GetContrastingText (checkedFill);
+    textColor  = m_enabled ? theme.Foreground()  : theme.ForegroundDisabled();
 
     // No area means this control has not been laid out yet: OnCreate() builds
     // the tree, but the first Layout() waits on the host sizing the window,
@@ -191,26 +287,11 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         float  labelX = 0.0f;
         float  labelW = 0.0f;
 
-        painter.FillRoundedRect (boxLeft, boxTop, boxSize, boxSize, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), boxColor);
-
-        if (m_checked)
-        {
-            hr = text.DrawString (s_kpszCheckMark,
-                                  boxLeft,
-                                  boxTop,
-                                  boxSize,
-                                  boxSize,
-                                  glyphColor,
-                                  boxSize * 0.95f,
-                                  L"Segoe UI Symbol",
-                                  DxuiTextHAlign::Center,
-                                  DxuiTextVAlign::Center);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
+        PaintBox (painter, text, boxLeft, boxTop, boxSize, m_scaler.ToPxf (1.0f), m_checked, boxColor, outlineColor, checkedFill, glyphColor);
 
         labelX = boxLeft + boxSize + labelGap;
         labelW = (float) (m_boundsDip.right - m_boundsDip.left) - boxSize - labelGap;
-        std::wstring  drawn  = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::kBodyFace,
+        std::wstring  drawn  = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::GetUiFace(),
                                                        labelW,
                                                        m_singleLineLabel ? DxuiElide::Tail
                                                                          : DxuiElide::None);
@@ -222,7 +303,7 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                               (float) (m_boundsDip.bottom - m_boundsDip.top),
                               textColor,
                               fontDip,
-                              DxuiTheme::kBodyFace,
+                              DxuiTheme::GetUiFace(),
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center,
                               DxuiFontWeight::Normal,
@@ -235,7 +316,7 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         //  had focus.
         if (m_focused && m_focusCueVisible)
         {
-            DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::kBodyFace,
+            DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::GetUiFace(),
                                       boxLeft,
                                       labelX,
                                       (float) m_boundsDip.top,

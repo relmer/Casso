@@ -305,6 +305,15 @@ public:
         Assert::IsFalse (path.IsRooted());
     }
 
+    TEST_METHOD (FilePath_FromName_KeepsASlashInsideTheName)
+    {
+        FilePath  path = FilePath::FromName ("COMM/ERR");
+
+        Assert::IsTrue   (path.IsSingleComponent(), L"A DOS 3.3 name may contain a slash, and it is part of the name");
+        Assert::AreEqual (std::string ("COMM/ERR"), path.GetLeaf());
+    }
+
+
     TEST_METHOD (FilePath_MultipleComponents_AreKeptWholeNotTruncated)
     {
         // The reason paths exist from the outset: a volume that cannot yet walk

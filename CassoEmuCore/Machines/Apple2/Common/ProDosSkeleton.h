@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorReadObserver.h"
 
 
 
@@ -43,11 +44,13 @@ public:
 
     static constexpr int     kBlockByteSize   = 512;
 
-private:
-    static constexpr int     kBlocksPerTrack  = 8;
+    //  The volume directory's blocks and the volume bitmap's.
     static constexpr int     kDirKeyBlock     = 2;
     static constexpr int     kDirLastBlock    = 5;
     static constexpr int     kBitmapBlock     = 6;
+
+private:
+    static constexpr int     kBlocksPerTrack  = 8;
 
     static constexpr Byte    kStorageVolumeDir = 0xF0;
     static constexpr Byte    kAccessDefault    = 0xC3;
@@ -78,9 +81,22 @@ private:
     static constexpr size_t  kEntOffKeyPointer    = 0x11;
     static constexpr size_t  kEntOffBlocksUsed    = 0x13;
     static constexpr size_t  kEntOffEof           = 0x15;
+    static constexpr size_t  kEntOffCreated       = 0x18;   // date word, then time word
     static constexpr size_t  kEntOffAccess        = 0x1E;
     static constexpr size_t  kEntOffAuxType       = 0x1F;
+    static constexpr size_t  kEntOffModified      = 0x21;   // date word, then time word
     static constexpr size_t  kEntOffHeaderPointer = 0x25;
+
+    //  GS/OS records the case of a name in the two bytes ProDOS 8 labeled
+    //  version and min_version, which it never read. Bit 15 set means the
+    //  remaining bits describe the name: bit 14 is its first character, bit 13
+    //  the second, and a set bit means that character is lowercase. The name
+    //  itself stays upper case, so ProDOS 8 reads the volume unchanged.
+    //
+    //  Apple's GS/OS Technical Note #8. `Desk.Accs` stores $B9C0.
+    static constexpr size_t  kEntOffCaseFlags   = 0x1C;
+    static constexpr Word    kCaseFlagsPresent  = 0x8000;
+    static constexpr int     kCaseFirstCharBit  = 14;
 
     //  The storage-type nibble of a directory record. Zero means the record is
     //  INACTIVE -- either never used or deleted -- and a deleted one keeps its
@@ -92,6 +108,24 @@ private:
     static constexpr Byte    kStorageTree     = 0x30;
     static constexpr Byte    kStorageSubdir   = 0xD0;
 
+    //  The first record of a subdirectory's key block is its own header, which
+    //  has this storage nibble rather than the 0xD0 of the record that
+    //  points at it from the parent.
+    static constexpr Byte    kStorageSubdirHdr = 0xE0;
+
+    //  Subdirectory header fields that the volume header does not have, all
+    //  relative to the header record. ProDOS reads the last three to walk back
+    //  up: which block holds the parent's record, which record it is, and how
+    //  long one record is.
+    static constexpr size_t  kHdrOffSubdirMarker      = 0x10;
+    static constexpr size_t  kHdrOffParentPointer     = 0x23;
+    static constexpr size_t  kHdrOffParentEntryNumber = 0x25;
+    static constexpr size_t  kHdrOffParentEntryLength = 0x26;
+
+    //  ProDOS stores 0x75 at the marker offset of every subdirectory header,
+    //  and its own file manager checks for it before trusting the block.
+    static constexpr Byte    kSubdirMarker = 0x75;
+
     //  Block pointers in an index block: 256 low bytes, then the 256 matching
     //  high bytes. Numerically the same as a sector's byte count, which is a
     //  coincidence worth not relying on.
@@ -100,6 +134,8 @@ private:
     friend class ProDosReader;
     friend class ProDosFileWriter;
     friend class ProDosVolume;
+    friend class ProDosVolumeWriter;
+    friend class ProDosVolumeRemover;
 
     //  ProDOS block half -> DOS 3.3 logical sector within the track. Derived
     //  from the standard 2:1 ProDOS physical interleave composed with the
@@ -137,6 +173,19 @@ public:
                                  Byte               & outFileType,
                                  Word               & outAuxType);
 
+    //  The same, for a file in the directory whose key block is given, which
+    //  may be a subdirectory's.
+    static HRESULT  ExtractFileFromDirectory (const vector<Byte>   & volume,
+                                              int                    dirKeyBlock,
+                                              const std::string    & fileName,
+                                              vector<Byte>         & outBytes,
+                                              Byte                 & outFileType,
+                                              Word                 & outAuxType,
+                                              ISectorReadObserver  * observer = nullptr);
+
+    //  A block's two sectors, to the observer if there is one.
+    static void  NoteBlockRead (ISectorReadObserver * observer, int block);
+
     //  A block number the volume could actually hold. Every pointer walked here
     //  comes off the disk, so none of them may be trusted: block numbers index
     //  directly into the sector buffer, and an out-of-range one reads far past
@@ -146,9 +195,10 @@ public:
 private:
     //  False when the index block itself is unusable, so the caller reports an
     //  unreadable file instead of gathering garbage.
-    static bool  AppendIndexedBlocks (const vector<Byte> & volume,
-                                      Word                 indexBlock,
-                                      vector<Word>       & dataBlocks);
+    static bool  AppendIndexedBlocks (const vector<Byte>   & volume,
+                                      Word                   indexBlock,
+                                      vector<Word>         & dataBlocks,
+                                      ISectorReadObserver  * observer);
 };
 
 

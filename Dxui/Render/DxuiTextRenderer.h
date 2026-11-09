@@ -1,6 +1,9 @@
 #pragma once
 
 #include "Render/IDxuiTextRenderer.h"
+#include "Render/DxuiRenderTargets.h"
+#include "Render/DxuiRenderIcons.h"
+#include "Render/DxuiGdiText.h"
 
 
 
@@ -57,6 +60,16 @@ public:
     // names nothing at all.
     static bool  HasSymbolFont () { return s_fontFallback != nullptr; }
 
+    //  Whether a font family with this name is installed. Private-use glyphs
+    //  in a missing face render as nothing, so a caller choosing between icon
+    //  fonts checks first.
+    static bool  IsFontFamilyInstalled (const wchar_t * family);
+
+    //  The height of text wrapped at a width, in DIPs, measured as DrawString
+    //  lays it out, for sizing a window before its renderer exists.
+    static HRESULT  MeasureWrappedDip (const wchar_t * text, float fontSizeDip, const wchar_t * fontFamily, DxuiFontWeight weight,
+                                       float widthDip, float & outHeightDip);
+
     // Process-wide typography, set from the active theme. Static for the same
     // reason as AddSymbolFont: each window creates a separate renderer, and a
     // theme applies to all of them.
@@ -75,8 +88,8 @@ public:
     HRESULT  BeginDraw        ();
     HRESULT  EndDraw          ();
 
-    HRESULT  BeginDrawOffscreen ();
-    HRESULT  EndDrawComposite   ();
+    HRESULT  BeginDrawOffscreen () { return m_targets.BeginDrawOffscreen(); }
+    HRESULT  EndDrawComposite   () { return m_targets.EndDrawComposite(); }
 
     // Record this pass instead of drawing it, and replay it at EndDrawDeferred.
     //
@@ -92,15 +105,15 @@ public:
     // a full-screen clear and a full-screen blit every frame for it -- 16 ms
     // at 2880x1824, which is the window-area cost GH #131 is about. This pays
     // neither.
-    HRESULT  BeginDrawDeferred ();
-    HRESULT  EndDrawDeferred   ();
+    HRESULT  BeginDrawDeferred () { return m_targets.BeginDrawDeferred(); }
+    HRESULT  EndDrawDeferred   () { return m_targets.EndDrawDeferred(); }
 
     // Glyphs as a TEXTURE. See IDxuiTextRenderer for what these are for;
     // the target is created on demand and grown to fit, and the view handed
     // back stays valid until the next BeginDrawToTexture.
-    HRESULT  BeginDrawToTexture (UINT widthPx, UINT heightPx) override;
-    HRESULT  EndDrawToTexture   (ID3D11ShaderResourceView ** outSrv) override;
-    void     GetDrawToTextureSize (UINT & outWidthPx, UINT & outHeightPx) const override;
+    HRESULT  BeginDrawToTexture   (UINT widthPx, UINT heightPx) override { return m_targets.BeginDrawToTexture (widthPx, heightPx); }
+    HRESULT  EndDrawToTexture     (ID3D11ShaderResourceView ** outSrv) override { return m_targets.EndDrawToTexture (outSrv); }
+    void     GetDrawToTextureSize (UINT & outWidthPx, UINT & outHeightPx) const override { m_targets.GetDrawToTextureSize (outWidthPx, outHeightPx); }
 
     // Source-compatibility aliases for existing call sites that
     // reference `DxuiTextRenderer::HAlign` / `::VAlign`. The canonical
@@ -127,6 +140,7 @@ public:
     // PopClipRect. Used by single-line text inputs to clip their
     // scrolling text content to the visible inner rect.
     HRESULT  PushClipRect     (float xDip, float yDip, float widthDip, float heightDip) override;
+    HRESULT  EraseRoundedRect (float xDip, float yDip, float widthDip, float heightDip, float radiusDip);
     HRESULT  PopClipRect      () override;
 
     void     PushTextSkew     (float tanX, float yPivotDip) override;
@@ -136,6 +150,7 @@ public:
     void     PopMonochromeGlyphs  () override { m_monochromeGlyphs = false; }
 
     HRESULT  FillEllipse      (float cxDip, float cyDip, float radiusXDip, float radiusYDip, uint32_t argbColor) override;
+    HRESULT  FillVectorIcon   (const DxuiVectorIcon & icon, float xDip, float yDip, float sizeDip, uint32_t foreground, uint32_t accent) override { return m_icons.FillVectorIcon (icon, xDip, yDip, sizeDip, foreground, accent); }
     HRESULT  DrawEllipse      (float cxDip, float cyDip, float radiusXDip, float radiusYDip, float thicknessDip, uint32_t argbColor) override;
     HRESULT  DrawLine         (float x0Dip, float y0Dip, float x1Dip, float y1Dip, float thicknessDip, uint32_t argbColor) override;
     HRESULT  FillPolygon      (const DxuiPointF * points, size_t count, uint32_t argbColor) override;
@@ -158,20 +173,26 @@ public:
                                float            destXDip,
                                float            destYDip,
                                float            destWidthDip,
-                               float            destHeightDip) override;
+                               float            destHeightDip) override
+    {
+        return m_icons.DrawFramebuffer (srcBgraPixels, srcWidthPx, srcHeightPx, destXDip, destYDip, destWidthDip, destHeightDip);
+    }
 
-    // Same shape as DrawFramebuffer but uses a SEPARATE cached
-    // ID2D1Bitmap so the emulator framebuffer cache (which gets
-    // refreshed every theme-preview frame) doesn't thrash against
-    // the title-bar icon cache (which is stable for the app's
-    // lifetime). Source pixels MUST be premultiplied BGRA8.
+    // Same shape as DrawFramebuffer but keeps its own cache, one bitmap per
+    // distinct picture, so the emulator framebuffer cache (refreshed every
+    // theme-preview frame) doesn't thrash against icons, and so several
+    // pictures can be drawn in one frame. Source pixels MUST be
+    // premultiplied BGRA8.
     HRESULT  DrawIconBitmap   (const uint32_t * srcBgraPremul,
                                int              srcWidthPx,
                                int              srcHeightPx,
                                float            destXDip,
                                float            destYDip,
                                float            destWidthDip,
-                               float            destHeightDip) override;
+                               float            destHeightDip) override
+    {
+        return m_icons.DrawIconBitmap (srcBgraPremul, srcWidthPx, srcHeightPx, destXDip, destYDip, destWidthDip, destHeightDip);
+    }
 
     HRESULT  MeasureString    (const wchar_t * text,
                                float           fontSizeDip,
@@ -192,6 +213,20 @@ public:
                                    float           maxWidthDip,
                                    float         & outWidthDip,
                                    float         & outHeightDip) override;
+
+    HRESULT  MeasureStringGdi  (const wchar_t * text, float fontSizePx, const wchar_t * fontFamily, float & outWidthPx) override { return m_gdi.MeasureStringGdi (text, fontSizePx, fontFamily, outWidthPx); }
+    HRESULT  GetLineHeightGdi  (float fontSizePx, const wchar_t * fontFamily, float & outHeightPx) override { return m_gdi.GetLineHeightGdi (fontSizePx, fontFamily, outHeightPx); }
+    bool     SetGdiClassicText (bool on) override  { bool was = m_gdiClassic; m_gdiClassic = on; return was; }
+
+    HRESULT  DrawSvgIcon       (const std::string & svg, float xDip, float yDip, float sizeDip) override { return m_icons.DrawSvgIcon (svg, xDip, yDip, sizeDip); }
+
+    HRESULT  HitTestText       (const wchar_t * text, float fontSizeDip, const wchar_t * fontFamily,
+                                float widthDip, float heightDip, DxuiTextHAlign hAlign, DxuiTextVAlign vAlign,
+                                float xDip, float yDip, size_t & outIndex) override;
+
+    HRESULT  GetTextRangeRects (const wchar_t * text, float fontSizeDip, const wchar_t * fontFamily,
+                                float widthDip, float heightDip, DxuiTextHAlign hAlign, DxuiTextVAlign vAlign,
+                                size_t start, size_t length, std::vector<TextRangeRect> & outRects) override;
 
     HRESULT  OnDeviceLost     ();
     HRESULT  OnDeviceRestored (ID3D11Device * pDevice);
@@ -246,9 +281,11 @@ private:
         bool                wrap    = false;
         float               maxW    = 0.0f;
         float               maxH    = 0.0f;
+        bool                gdi     = false;
 
         bool operator < (const LayoutCacheKey & o) const
         {
+            if (gdi     != o.gdi)     { return gdi     < o.gdi;     }
             if (text    != o.text)    { return text    < o.text;    }
             if (family  != o.family)  { return family  < o.family;  }
             if (sizeDip != o.sizeDip) { return sizeDip < o.sizeDip; }
@@ -295,38 +332,17 @@ private:
 
 
     ComPtr<ID2D1Factory1>       m_d2dFactory;
+
     ComPtr<ID2D1Device>         m_d2dDevice;
     ComPtr<ID2D1DeviceContext>  m_d2dContext;
-    D2D1_MATRIX_3X2_F           m_savedTransform     = D2D1::Matrix3x2F::Identity();
-    ComPtr<ID2D1Bitmap1>        m_target;
-    ComPtr<ID2D1Bitmap1>        m_offscreen;
 
-    // The page pass's recording, live only between BeginDrawDeferred and
-    // EndDrawDeferred. A command list cannot be reopened once closed, so this
-    // is a fresh one per frame rather than a cached resource.
-    ComPtr<ID2D1CommandList>    m_cmdList;
+    D2D1_MATRIX_3X2_F        m_savedTransform = D2D1::Matrix3x2F::Identity();
+    ComPtr<ID2D1Bitmap1>     m_target;
 
-    // The text-as-texture target, and the D3D texture behind it that the
-    // scene samples. Kept across calls and only recreated when a larger
-    // one is asked for, since a label is re-rendered only when it changes.
     // The D3D device the D2D one rides on, kept so the text-as-texture
     // target can be created. Everything else here works through D2D.
     ComPtr<ID3D11Device>              m_d3dDevice;
 
-    ComPtr<ID3D11Texture2D>           m_textureTarget;
-    ComPtr<ID3D11ShaderResourceView>  m_textureSrv;
-    ComPtr<ID2D1Bitmap1>              m_textureBitmap;
-    ComPtr<ID2D1Image>                m_savedTarget;
-    UINT                              m_textureW           = 0;
-    UINT                              m_textureH           = 0;
-    UINT                              m_offscreenW         = 0;
-    UINT                              m_offscreenH         = 0;
-    ComPtr<ID2D1Bitmap>               m_framebufferBitmap;
-    int                               m_framebufferBitmapW = 0;
-    int                               m_framebufferBitmapH = 0;
-    ComPtr<ID2D1Bitmap>               m_iconBitmap;
-    int                               m_iconBitmapW        = 0;
-    int                               m_iconBitmapH        = 0;
 
     ComPtr<IDWriteFactory>            m_dwriteFactory;
 
@@ -378,6 +394,9 @@ private:
     std::map<LayoutCacheKey,
              ComPtr<IDWriteTextLayout>>     m_layoutCache;
 
+    //  Laid out and drawn by GDI's whole-pixel advances while set.
+    bool                              m_gdiClassic = false;
+
     //  Pushes the stored origin into the D2D transform. Called on BeginDraw
     //  and on a SetOrigin made while drawing.
     void  ApplyOrigin ();
@@ -390,4 +409,12 @@ private:
 
     // See PushMonochromeGlyphs: while set, DrawString leaves color fonts off.
     bool                              m_monochromeGlyphs = false;
+
+    friend class DxuiRenderTargets;
+    friend class DxuiRenderIcons;
+    friend class DxuiGdiText;
+
+    DxuiRenderTargets  m_targets { *this };
+    DxuiRenderIcons    m_icons   { *this };
+    DxuiGdiText        m_gdi     { *this };
 };

@@ -55,6 +55,10 @@ static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
     { "rm",          CommandLineOptions::DiskOptions::Command::Delete      },
     { "del",         CommandLineOptions::DiskOptions::Command::Delete      },
     { "boot",        CommandLineOptions::DiskOptions::Command::Boot        },
+    { "mkdir",       CommandLineOptions::DiskOptions::Command::Mkdir       },
+    { "md",          CommandLineOptions::DiskOptions::Command::Mkdir       },
+    { "rmdir",       CommandLineOptions::DiskOptions::Command::Rmdir       },
+    { "rd",          CommandLineOptions::DiskOptions::Command::Rmdir       },
     { "create",      CommandLineOptions::DiskOptions::Command::Create      },
     { "new",         CommandLineOptions::DiskOptions::Command::Create      },
     { "init",        CommandLineOptions::DiskOptions::Command::Init        },
@@ -63,6 +67,7 @@ static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
     { "sectorwrite", CommandLineOptions::DiskOptions::Command::SectorWrite },
     { "blockread",   CommandLineOptions::DiskOptions::Command::BlockRead   },
     { "blockwrite",  CommandLineOptions::DiskOptions::Command::BlockWrite  },
+    { "krunch",      CommandLineOptions::DiskOptions::Command::Krunch      },
 };
 
 
@@ -233,6 +238,7 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "text",
     "basic",
     "format",
+    "filesystem",
     "volume",
     "bootable",
     "boot",
@@ -245,6 +251,11 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "logical",
     "physical",
     "block",
+    "index",
+    "user",
+    "recurse",
+    "force",
+    "yes",
 
     //  Here so `/on-change` is matched as one word rather than shredded into
     //  the single-character flags -o -n -c -h ...
@@ -306,13 +317,19 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     //  Undocumented, and here rather than in a help table for that reason:
     //  this list is what makes `/no-image-watch` canonicalize like every other
     //  flag, and the help is generated from tables this one does not feed.
-    //  `title` is here on the same terms -- see CommandLineOptions.
+    //  `title` and `serial-log` are here on the same terms -- see
+    //  CommandLineOptions.
     "no-image-watch",
     "title",
+    "serial-log",
 
     //  Also undocumented: what a relaunch after a self-update passes.
     "updated",
     "cleanup-old",
+
+    //  Undocumented as well: the installed package's Open in Casso Explorer
+    //  command, which opens the image in Casso Explorer instead.
+    "explore",
 };
 
 
@@ -322,7 +339,8 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
 //
 //  The machine, the disks and the tape are saved in the preferences already,
 //  so repeating them would undo a change made during the session. A seed is
-//  for reproducing one startup, not every startup after it.
+//  for reproducing one startup, not every startup after it. A serial log
+//  repeated would truncate the capture it was opened for.
 static constexpr CommandLineParser::EmulatorRelaunchRule  s_kEmulatorRelaunchRules[] =
 {
     { "machine",        CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
@@ -333,8 +351,10 @@ static constexpr CommandLineParser::EmulatorRelaunchRule  s_kEmulatorRelaunchRul
     { "seed",           CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "no-image-watch", CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Repeat },
     { "title",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Repeat },
-    { "updated",        CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Drop   },
+    { "serial-log",     CommandLineParser::OptionValue::OptionalPath, CommandLineParser::RelaunchRule::Drop   },
+    { "updated",       CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Drop   },
     { "cleanup-old",    CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "explore",        CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
 };
 
 
@@ -976,18 +996,23 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         //  Create and init name an image and nothing else. Everything they take
         //  beyond that arrives as an option, so a second operand is a mistake
         //  and is refused rather than dropped.
-        case CommandLineOptions::DiskOptions::Command::List:
         case CommandLineOptions::DiskOptions::Command::Create:
         case CommandLineOptions::DiskOptions::Command::Init:
         case CommandLineOptions::DiskOptions::Command::SectorRead:
         case CommandLineOptions::DiskOptions::Command::BlockRead:
+        case CommandLineOptions::DiskOptions::Command::Krunch:
             count = 1;
             break;
 
+        //  `list` takes a directory as its second operand, and takes the volume
+        //  directory when it is left out.
+        case CommandLineOptions::DiskOptions::Command::List:
         case CommandLineOptions::DiskOptions::Command::Get:
         case CommandLineOptions::DiskOptions::Command::Put:
         case CommandLineOptions::DiskOptions::Command::Delete:
         case CommandLineOptions::DiskOptions::Command::Boot:
+        case CommandLineOptions::DiskOptions::Command::Mkdir:
+        case CommandLineOptions::DiskOptions::Command::Rmdir:
         case CommandLineOptions::DiskOptions::Command::SectorWrite:
         case CommandLineOptions::DiskOptions::Command::BlockWrite:
             count = 2;
@@ -1053,7 +1078,8 @@ const char * CommandLineParser::GetDiskCommandWord (CommandLineOptions::DiskOpti
 bool CommandLineParser::IsDiskOptionNeedingValue (const std::string & arg)
 {
     return arg == "--out"  || arg == "--as"   || arg == "--type"
-        || arg == "--load" || arg == "--exec" || arg == "--on-change";
+        || arg == "--load" || arg == "--exec" || arg == "--on-change"
+        || arg == "--index" || arg == "--filesystem" || arg == "--user";
 }
 
 
@@ -1278,6 +1304,26 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
+        //  PowerShell's own words for these, and its short forms with them:
+        //  -r and -s both mean recurse there, and -y answers the question.
+        if (arg == "--recurse" || arg == "-r" || arg == "-s")
+        {
+            options.disk.recurse = true;
+            continue;
+        }
+
+        if (arg == "--force")
+        {
+            options.disk.force = true;
+            continue;
+        }
+
+        if (arg == "--yes" || arg == "-y")
+        {
+            options.disk.yes = true;
+            continue;
+        }
+
         if (arg == "--basic")
         {
             options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
@@ -1295,6 +1341,55 @@ void CommandLineParser::ParseDiskOptions (
         {
             options.disk.path = argv[i + 1];
             i++;
+            continue;
+        }
+
+        //  The catalog position of one of several entries with the same name,
+        //  counting from 1 as `disk list` prints it.
+        if (arg == "--index" && hasValue)
+        {
+            std::string    value  = argv[++i];
+            char         * end    = nullptr;
+            unsigned long  parsed = strtoul (value.c_str(), &end, 10);
+            bool           valid  = !value.empty() && end != nullptr && *end == '\0' && parsed >= 1;
+
+            if (!valid)
+            {
+                Refusal (options) << "Error: illegal " << FormatLongOption ("--index", options.flagPrefix) << " value\n"
+                                  << "       The index must identify a duplicate name, as shown by the 'disk list' command.\n";
+
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+            else
+            {
+                options.disk.index    = (size_t) parsed;
+                options.disk.hasIndex = true;
+            }
+
+            continue;
+        }
+
+        if (arg == "--user" && hasValue)
+        {
+            constexpr unsigned long  kMaxUser = 31;
+            std::string              value    = argv[++i];
+            char                   * end      = nullptr;
+            unsigned long            parsed   = strtoul (value.c_str(), &end, 10);
+            bool                     valid    = !value.empty() && end != nullptr && *end == '\0' && parsed <= kMaxUser;
+
+            if (!valid)
+            {
+                Refusal (options) << "Error: illegal " << FormatLongOption ("--user", options.flagPrefix) << " value\n"
+                                  << "       CP/M user numbers are 0 to 31.\n";
+
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+            else
+            {
+                options.disk.user    = (int) parsed;
+                options.disk.hasUser = true;
+            }
+
             continue;
         }
 
@@ -1418,6 +1513,13 @@ void CommandLineParser::ParseDiskOptions (
         if (arg == "--format" && hasValue)
         {
             options.disk.formatName = argv[i + 1];
+            i++;
+            continue;
+        }
+
+        if (arg == "--filesystem" && hasValue)
+        {
+            options.disk.filesystem = argv[i + 1];
             i++;
             continue;
         }
@@ -3199,7 +3301,7 @@ void CommandLineParser::ApplyAs65Defaults (CommandLineOptions & options, const F
 //  than printed here.
 //
 //  It used to be a warning written to stderr from inside the parser, after
-//  which parsing -- and the assembly -- carried on. That made a typo silent in
+//  which parsing -- and the assembly -- continued. That made a typo silent in
 //  every way that mattered: the warning scrolled past, the exit code was 0, and
 //  the output file was written as though the flag had been honored. Recording
 //  it lets the edge refuse the invocation and print the help for the mode the
@@ -4232,14 +4334,12 @@ std::string CommandLineParser::ApplyListingExtension (const std::string & name)
 //  a typo, and answering a typo by booting the last disk is how a session
 //  spends an afternoon capturing audio from the wrong image.
 //
-//  THERE IS NO OPERAND. A drive is filled by --disk1 or --disk2 and by nothing
-//  else, so a bare image path is refused rather than taken as either. It was
-//  read as drive 1 for one revision, on the reasoning that dragging a disk onto
-//  the executable should boot it -- but no file association is registered
-//  anywhere, dropping a disk on the RUNNING window already works, and the whole
-//  of what it bought was a second way to say --disk1. The assembler grammars
-//  gave up a bare source file for the same reason: an operand makes the tool
-//  guess at what the caller can state.
+//  A BARE DISK IMAGE IS A DRIVE'S DISK. Dropping images on Casso.exe in File
+//  Explorer, and opening one through Casso's file association, pass each path
+//  alone, so the first goes in drive 1 and a second in drive 2, as --disk1 and
+//  --disk2 would put them. Only a path with a disk image's extension is taken;
+//  any other bare argument is refused, since there is nothing else it could
+//  mean.
 //
 //  THE FIRST REFUSAL IS THE ONE REPORTED. The walk runs to the end regardless,
 //  since a refused command line starts nothing and what it reads afterward is
@@ -4309,6 +4409,7 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         else if (arg == "--disk1"   && hasValue) { parsed.disk1   = argv[++i]; }
         else if (arg == "--disk2"   && hasValue) { parsed.disk2   = argv[++i]; }
         else if (arg == "--tape"    && hasValue) { parsed.tape    = argv[++i]; }
+        else if (arg == "--explore" && hasValue) { parsed.explore = argv[++i]; }
         else if (arg == "--trace")
         {
             parsed.traceEntries = CommandLineOptions::EmulatorOptions::kTraceDefaultEntries;
@@ -4339,6 +4440,15 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         {
             parsed.titlePrefix = argv[++i];
         }
+        else if (arg == "--serial-log")
+        {
+            parsed.serialLogRequested = true;
+
+            if (hasValue && IsSerialLogPath (argv[i + 1]))
+            {
+                parsed.serialLog = argv[++i];
+            }
+        }
         else if (arg == "--updated")
         {
             parsed.wasUpdated = true;
@@ -4347,6 +4457,14 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         {
             ApplyCleanupPid (argv[++i], parsed);
         }
+        else if (!IsFlagShaped (raw) && IsDiskImagePath (raw) && parsed.disk1.empty())
+        {
+            parsed.disk1 = raw;
+        }
+        else if (!IsFlagShaped (raw) && IsDiskImagePath (raw) && parsed.disk2.empty())
+        {
+            parsed.disk2 = raw;
+        }
         else if (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean)
         {
             RefuseEmulatorArgument (raw, arg, parsed);
@@ -4354,6 +4472,45 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
     }
 
     return parsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::IsDiskImagePath
+//
+//  The six extensions Casso mounts, compared without regard to case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsDiskImagePath (const std::string & path)
+{
+    size_t       dot       = path.find_last_of ('.');
+    size_t       slash     = path.find_last_of ("\\/");
+    std::string  extension = (dot == std::string::npos || (slash != std::string::npos && slash > dot)) ? std::string() : path.substr (dot);
+
+
+
+    return std::any_of (std::begin (s_kpszDiskImageExtensions), std::end (s_kpszDiskImageExtensions),
+                        [&extension] (const char * known) { return _stricmp (extension.c_str(), known) == 0; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::IsSerialLogPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsSerialLogPath (const std::string & arg)
+{
+    return !IsFlagShaped (arg) && !IsDiskImagePath (arg);
 }
 
 
@@ -4397,10 +4554,9 @@ void CommandLineParser::RefuseEmulatorArgument (const std::string               
 
     if (!isFlag)
     {
-        //  A disk goes in a drive by being put there, so an image path with no
-        //  option in front of it is a reader assuming an operand this grammar
-        //  has never had. The options beside this message show the two that
-        //  take one.
+        //  A bare argument that is not a disk image, or a third image with
+        //  both drives filled, has nowhere to go. The options beside this
+        //  message show what does take one.
         parsed.refusalMessage = "Error: unexpected argument " + raw;
     }
     else if (canonical == "--machine" || canonical == "--disk1"
@@ -4576,7 +4732,8 @@ std::vector<std::string> CommandLineParser::SelectRelaunchArguments (int argc, c
         hasValue = (i + 1) < argc;
         takes    = !hasEqual && hasValue &&
                    (rule->value == OptionValue::Required ||
-                    (rule->value == OptionValue::OptionalSize && isdigit ((unsigned char) argv[i + 1][0])));
+                    (rule->value == OptionValue::OptionalSize && isdigit ((unsigned char) argv[i + 1][0])) ||
+                    (rule->value == OptionValue::OptionalPath && IsSerialLogPath (argv[i + 1])));
 
         if (rule->rule == RelaunchRule::Repeat)
         {

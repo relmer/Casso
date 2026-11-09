@@ -54,22 +54,71 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  linkHover                = 0;
     uint32_t  panelBg                  = 0;
     uint32_t  panelEdge                = 0;
-    uint32_t  buttonIdle               = 0;
-    uint32_t  buttonHover              = 0;
-    uint32_t  buttonPressed            = 0;
-    uint32_t  buttonBorder             = 0;
-    uint32_t  tooltipBg                = 0;
-    uint32_t  tooltipBorder            = 0;
-    uint32_t  tooltipText              = 0;
-    uint32_t  errorText                = 0;
+
+    //  The background of row surfaces (a list's body, a tree's pane) and of the
+    //  status bar. In Explorer each has its own fill, distinct from the panel
+    //  color and from each other. A zero value falls back to the panel color.
+    uint32_t  contentBg                = 0;
+    uint32_t  statusBg                 = 0;
+
+    //  A control set into a bar, such as an address box. A zero value falls
+    //  back to the dropdown surface.
+    uint32_t  controlBg                = 0;
+
+    //  List column title text, and lines within a content surface (a header's
+    //  underline, the separators between columns). Both are much lower contrast
+    //  than the panel edge: Explorer's are a few levels off its list
+    //  background.
+    uint32_t  headingText              = 0;
+    uint32_t  contentEdge              = 0;
+    uint32_t  splitterHighlight        = 0;
+    uint32_t  contentHover             = 0;
+    uint32_t  contentSelection         = 0;
+
+    //  The outline around a selected row while its list has focus. A zero value
+    //  draws none.
+    uint32_t  contentSelectionEdge     = 0;
+    uint32_t  contentSelectionInactive = 0;
+    uint32_t  contentSelectionMulti    = 0;
+
+    //  The outline on a selected row in a pane without focus, the lines
+    //  between a list header's columns, and the line under a tab strip. Zero
+    //  draws no outline and no strip line; a zero divider takes contentEdge.
+    uint32_t  contentSelectionInactiveEdge = 0;
+    uint32_t  contentHeaderDivider         = 0;
+    uint32_t  menuSeparator                = 0;
+    uint32_t  tabStripEdge                 = 0;
+    uint32_t  buttonIdle                   = 0;
+    uint32_t  buttonHover                  = 0;
+    uint32_t  buttonPressed                = 0;
+    uint32_t  buttonBorder                 = 0;
+    uint32_t  tooltipBg                    = 0;
+    uint32_t  tooltipBorder                = 0;
+    uint32_t  tooltipText                  = 0;
+    uint32_t  errorText                    = 0;
 
     // IDxuiTheme overrides map the named tokens onto the generic contract
     // so any Dxui widget paints against this theme through the interface.
-    uint32_t  Background          () const override { return panelBg;            }
-    uint32_t  BackgroundElevated  () const override { return dropdownBg;         }
-    uint32_t  HoverBackground     () const override { return navHover;           }
-    uint32_t  PressedBackground   () const override { return buttonPressed;      }
-    uint32_t  SelectionBackground () const override { return navHover;           }
+    uint32_t  Background                   () const override { return panelBg;            }
+    uint32_t  BackgroundElevated           () const override { return dropdownBg;         }
+    uint32_t  ContentBackground            () const override { return (contentBg != 0) ? contentBg : panelBg; }
+    uint32_t  ContentEdge                  () const override { return (contentEdge != 0) ? contentEdge : panelEdge; }
+    uint32_t  SplitterHighlight            () const override { return (splitterHighlight != 0) ? splitterHighlight : panelEdge; }
+    uint32_t  ContentHover                 () const override { return (contentHover != 0) ? contentHover : navHover; }
+    uint32_t  ContentSelection             () const override { return (contentSelection != 0) ? contentSelection : navHover; }
+    uint32_t  ContentSelectionEdge         () const override { return contentSelectionEdge; }
+    uint32_t  ContentSelectionInactive     () const override { return (contentSelectionInactive != 0) ? contentSelectionInactive : ContentSelection(); }
+    uint32_t  ContentSelectionMulti        () const override { return (contentSelectionMulti    != 0) ? contentSelectionMulti    : ContentSelection(); }
+    uint32_t  ContentSelectionInactiveEdge () const override { return contentSelectionInactiveEdge; }
+    uint32_t  ContentHeaderDivider         () const override { return (contentHeaderDivider != 0) ? contentHeaderDivider : ContentEdge(); }
+    uint32_t  MenuSeparator                () const override { return (menuSeparator != 0) ? menuSeparator : Divider(); }
+    uint32_t  TabStripEdge                 () const override { return tabStripEdge; }
+    uint32_t  StatusBackground             () const override { return (statusBg  != 0) ? statusBg  : panelBg; }
+    uint32_t  ControlBackground            () const override { return (controlBg != 0) ? controlBg : dropdownBg; }
+    uint32_t  HoverBackground              () const override { return navHover;           }
+    uint32_t  MenuHover                    () const override { return (dropdownHover != 0) ? dropdownHover : navHover; }
+    uint32_t  PressedBackground            () const override { return buttonPressed;      }
+    uint32_t  SelectionBackground          () const override { return navHover;           }
 
     uint32_t  Foreground          () const override { return bodyText;           }
     uint32_t  ForegroundMuted     () const override { return dropdownAccel;      }
@@ -80,7 +129,7 @@ struct DxuiTheme : public IDxuiTheme
         return (bodyText & 0x00FFFFFFu) | 0x80000000u;
     }
 
-    uint32_t  HeadingForeground   () const override { return titleText;          }
+    uint32_t  HeadingForeground   () const override { return (headingText != 0) ? headingText : titleText; }
     uint32_t  ErrorForeground     () const override { return errorText;          }
 
     uint32_t  Accent              () const override { return link;               }
@@ -110,7 +159,19 @@ struct DxuiTheme : public IDxuiTheme
     // Typography. Faces and sizes are centralized here so widgets read
     // theme fonts instead of repeating literals. Icon-glyph faces (Segoe
     // MDL2 Assets / Symbol) stay at the use site -- they are not text.
+    //  kBodyFace is Segoe UI, which File Explorer's list and tree still use;
+    //  the rest of a modern window's text is in GetUiFace's face.
     static constexpr wchar_t       kBodyFace    [] = L"Segoe UI";
+    static constexpr wchar_t       kVariableFace[] = L"Segoe UI Variable Text";
+
+    //  Segoe UI Variable where Windows has it, as its own apps are set;
+    //  Segoe UI where it does not.
+    static const wchar_t *         GetUiFace ();
+
+    //  White or black, whichever reads on `fill`: the check in a checked box
+    //  and the dot in a selected radio button, on the accent color.
+    static uint32_t                GetContrastingText (uint32_t fill);
+
     static constexpr wchar_t       kMonoFace    [] = L"Cascadia Mono";
 
     //  The system body face, drawn whatever face a theme puts in place of
@@ -136,10 +197,10 @@ struct DxuiTheme : public IDxuiTheme
     //  difference sit exactly concentric inside one.
     static constexpr float         kOverlayCornerRadiusDip = 8.0f;
 
-    DxuiFontHandle  BodyFont      () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::Normal   }; }
-    DxuiFontHandle  BodyBoldFont  () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::SemiBold }; }
-    DxuiFontHandle  CaptionFont   () const override { return { kBodyFace, kCaptionSizeDip, DxuiFontWeight::Normal   }; }
-    DxuiFontHandle  HeadingFont   () const override { return { kBodyFace, kHeadingSizeDip, DxuiFontWeight::Normal   }; }
+    DxuiFontHandle  BodyFont      () const override { return { GetUiFace(), kBodySizeDip,    DxuiFontWeight::Normal   }; }
+    DxuiFontHandle  BodyBoldFont  () const override { return { GetUiFace(), kBodySizeDip,    DxuiFontWeight::SemiBold }; }
+    DxuiFontHandle  CaptionFont   () const override { return { GetUiFace(), kCaptionSizeDip, DxuiFontWeight::Normal   }; }
+    DxuiFontHandle  HeadingFont   () const override { return { GetUiFace(), kHeadingSizeDip, DxuiFontWeight::Normal   }; }
     DxuiFontHandle  MonospaceFont () const override { return { kMonoFace, kBodySizeDip,    DxuiFontWeight::Normal   }; }
 
     float  BodyLineHeightDip () const override { return 18.0f; }

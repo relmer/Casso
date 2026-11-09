@@ -63,6 +63,10 @@ public:
     //  Disks/Casso, found from the working directory up; or a FAILED test.
     static std::vector<Byte>  RequireRepoImage (const char * repoPath);
 
+    //  A game image from the Casso Disks folder in Documents, outside of
+    //  the repo; empty when it isn't there, and the test skips.
+    static std::vector<Byte>  FindGameImage    (const wchar_t * fileName);
+
     //  Mounts the bytes in slot 6 drive 1 and parks the processor on the boot
     //  ROM's entry, having executed nothing.
     //

@@ -30,6 +30,8 @@ public:
     HRESULT WriteAllText         (const std::wstring & path,
                                   const std::string  & content) override;
     bool    Exists               (const std::wstring & path) override;
+    bool    DirectoryExists      (const std::wstring & path) override;
+    HRESULT MakeDirectory        (const std::wstring & path) override;
     HRESULT Delete               (const std::wstring & path) override;
     HRESULT EnumerateFiles       (const std::wstring        & directory,
                                   std::vector<std::wstring> & outFilenames) override;
@@ -37,8 +39,17 @@ public:
                                   std::vector<std::wstring> & outDirNames) override;
     HRESULT EnumerateEntries     (const std::wstring           & directory,
                                   std::vector<FileSystemEntry> & outEntries) override;
+    HRESULT EnumerateAllEntries  (const std::wstring           & directory,
+                                  std::vector<FileSystemEntry> & outEntries) override;
     HRESULT GetReadOnlyAttribute (const std::wstring & path,
                                   bool               & outReadOnly) override;
     HRESULT SetReadOnlyAttribute (const std::wstring & path,
                                   bool                 readOnly) override;
+    HRESULT ResolveFinalPath     (const std::wstring & path,
+                                  std::wstring       & outPath) override;
+
+private:
+    static HRESULT  ListEntries (const std::wstring           & directory,
+                                 bool                           includeHidden,
+                                 std::vector<FileSystemEntry> & outEntries);
 };

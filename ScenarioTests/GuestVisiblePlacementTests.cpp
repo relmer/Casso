@@ -5,6 +5,7 @@
 #include "GuestSession.h"
 #include "TestMachine.h"
 #include "Devices/Disk/DiskCommandRunner.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -88,8 +89,9 @@ public:
     static constexpr const char *  kLockedRow  = "*A 003 HELLO";
 
     //  What the guest heads its own catalog with. Asserted so that a case
-    //  collecting nothing at all cannot pass the rows test by vacuity.
-    static constexpr const char *  kMasterHeading = "DISK VOLUME 254";
+    //  collecting nothing at all cannot pass the rows test by vacuity. The DOS
+    //  heading is built from the master's VTOC, since the drive's address
+    //  fields have the VTOC's volume number and DOS prints the volume it read.
     static constexpr const char *  kProDosHeading = "/APPLESOFT";
 
     static constexpr size_t  kPayloadBytes  = 512;
@@ -138,6 +140,14 @@ public:
     //  Placement, through the command path a user actually travels.
     //  ------------------------------------------------------------------
     //
+
+    static std::string GetMasterHeading (const std::vector<Byte> & image)
+    {
+        constexpr size_t  kVtocOffset = (size_t) (Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack) * NibblizationLayer::kSectorByteSize;
+
+        return std::format ("DISK VOLUME {:03}", image[kVtocOffset + Dos33Skeleton::kVtocOffVolumeNumber]);
+    }
+
 
     static CommandLineOptions MakePutOptions (const char * onDiskName, const char * typeName)
     {
@@ -334,7 +344,7 @@ public:
 
         rows = GuestSession::TypeAndCollect (machine, "CATALOG");
 
-        Assert::IsTrue (GuestSession::AnyRowIs (rows, kMasterHeading),
+        Assert::IsTrue (GuestSession::AnyRowIs (rows, GetMasterHeading (master)),
             L"the guest must have printed its own catalog heading, or nothing was cataloged");
 
         GuestSession::AssertTheOnlyRowsMentioning (rows, kPlacedName, kDos33Row);
@@ -415,7 +425,7 @@ public:
         Assert::AreEqual (DiskCommandResult::kNoOutput, put.exitStatus,
             L"placing over a locked file must produce no output");
 
-        Assert::IsTrue (put.diagnostics.find ("is locked on this volume") != std::string::npos,
+        Assert::IsTrue (put.diagnostics.find (": it is locked") != std::string::npos,
             L"and must report the file is locked -- not merely that something went wrong");
 
         Assert::IsTrue (put.diagnostics.find (kLockedFile) != std::string::npos,
@@ -434,7 +444,7 @@ public:
 
         Assert::AreEqual (size_t (1), newlines,
             L"and as ONE reason: a second line means the refusal reported its cause and then "
-            L"carried on far enough to trip over something else");
+            L"went on far enough to trip over something else");
 
         Assert::IsTrue (io.files[kImagePath] == master,
             L"the image must be byte-for-byte what it was");

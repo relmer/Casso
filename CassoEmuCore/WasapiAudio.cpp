@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/ThreadName.h"
+
 #include "WasapiAudio.h"
 #include "Audio/AudioGenerator.h"
 #include "Audio/DriveAudioMixer.h"
@@ -187,8 +189,8 @@ HRESULT WasapiAudio::Initialize()
     CHRA (hr);
 
     // Samples per emulation frame, TRUNCATED rather than exact: the Apple's
-    // frame rate is kAppleCpuClock / kAppleCyclesPerFrame = 60.05 Hz, not 60,
-    // so 44100 Hz gives 734.3 and this keeps 734. The fraction does not matter
+    // frame rate is kAppleCpuClock / kAppleCyclesPerFrame = 59.92 Hz, not 60,
+    // so at 44100 Hz the exact count is 735.9 and the truncated one is 735. The fraction does not matter
     // because the only reader is the pending-buffer cap in SubmitFrame.
     //
     // The product is taken in 64 bits because a 32-bit multiply wraps once the
@@ -210,7 +212,7 @@ HRESULT WasapiAudio::Initialize()
     CHRA (hr);
 
     m_renderStop.store (false, std::memory_order_relaxed);
-    m_renderThread = std::thread (&WasapiAudio::RenderPump, this);
+    m_renderThread = std::thread ([this] { HRESULT hrName = ThreadName::SetForCurrentThread (L"Casso audio"); IGNORE_RETURN_VALUE (hrName, S_OK); RenderPump(); });
 
     m_initialized = true;
 

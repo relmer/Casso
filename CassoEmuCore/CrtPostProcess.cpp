@@ -813,6 +813,8 @@ HRESULT CrtPostProcess::Process (
     local.pixelScaleY = scale.y;
     local.pictureV0   = picture.v0;
     local.pictureV1   = picture.v1;
+    local.pictureX    = (float) viewportRect.left;
+    local.pictureY    = (float) viewportRect.top;
 
     hr = UploadConstants (local);
     CHRA (hr);

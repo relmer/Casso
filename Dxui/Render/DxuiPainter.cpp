@@ -341,6 +341,7 @@ HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx)
     m_viewportWidthPx  = viewportWidthPx;
     m_viewportHeightPx = viewportHeightPx;
     m_vertices.clear();
+    m_clips.clear();
     m_betweenBeginEnd  = true;
     m_hasClip          = false;
 
@@ -526,10 +527,10 @@ void DxuiPainter::PushQuad (
     Vertex  br  = bottomRight;
     float   x0  = xPx + m_originXPx;
     float   y0  = yPx + m_originYPx;
-    float   cx0 = 0.0f;
-    float   cy0 = 0.0f;
-    float   cx1 = 0.0f;
-    float   cy1 = 0.0f;
+    float   cx0 = x0;
+    float   cy0 = y0;
+    float   cx1 = x0 + widthPx;
+    float   cy1 = y0 + heightPx;
     float   u0  = 0.0f;
     float   u1  = 0.0f;
     float   v0  = 0.0f;
@@ -541,13 +542,26 @@ void DxuiPainter::PushQuad (
     // vertex attribute -- color, shape-local position, edge distances -- is
     // affine in screen position across an axis-aligned quad, so the trimmed
     // corners interpolate to exactly what the pixel shader would have seen
-    // there, and a clipped rounded rect keeps its curve.
-    if (m_hasClip)
+    // there, and a clipped rounded rect keeps its curve. The rect SetClipRect
+    // set and the innermost one PushClipRect pushed both apply, so the quad
+    // keeps only what lies inside both.
+    if (m_hasClip || !m_clips.empty())
     {
-        cx0 = std::max (x0,            (float) m_clipPx.left);
-        cy0 = std::max (y0,            (float) m_clipPx.top);
-        cx1 = std::min (x0 + widthPx,  (float) m_clipPx.right);
-        cy1 = std::min (y0 + heightPx, (float) m_clipPx.bottom);
+        if (m_hasClip)
+        {
+            cx0 = (std::max) (cx0, (float) m_clipPx.left);
+            cy0 = (std::max) (cy0, (float) m_clipPx.top);
+            cx1 = (std::min) (cx1, (float) m_clipPx.right);
+            cy1 = (std::min) (cy1, (float) m_clipPx.bottom);
+        }
+
+        if (!m_clips.empty())
+        {
+            cx0 = (std::max) (cx0, m_clips.back().left);
+            cy0 = (std::max) (cy0, m_clips.back().top);
+            cx1 = (std::min) (cx1, m_clips.back().right);
+            cy1 = (std::min) (cy1, m_clips.back().bottom);
+        }
 
         if (cx1 <= cx0 || cy1 <= cy0 || widthPx <= 0.0f || heightPx <= 0.0f)
         {
@@ -581,6 +595,33 @@ void DxuiPainter::PushQuad (
     // one insert so the vector grows/size-checks once rather than six times
     // (the six 24-byte copies are the same either way; Vertex is a POD).
     m_vertices.insert (m_vertices.end(), { tl, tr, bl, bl, tr, br });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PushClipRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::PushClipRect (float xPx, float yPx, float widthPx, float heightPx)
+{
+    D2D1_RECT_F  clip = D2D1::RectF (xPx + m_originXPx, yPx + m_originYPx, xPx + m_originXPx + widthPx, yPx + m_originYPx + heightPx);
+
+
+
+    if (!m_clips.empty())
+    {
+        clip.left   = (std::max) (clip.left,   m_clips.back().left);
+        clip.top    = (std::max) (clip.top,    m_clips.back().top);
+        clip.right  = (std::min) (clip.right,  m_clips.back().right);
+        clip.bottom = (std::min) (clip.bottom, m_clips.back().bottom);
+    }
+
+    m_clips.push_back (clip);
 }
 
 

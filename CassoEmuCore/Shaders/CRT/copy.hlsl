@@ -5,6 +5,7 @@
 // scratch becomes the back buffer's eight, so this is the only place the
 // rounding is ever seen, and the only place worth dithering.
 
+cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; float g_pixelScaleX; float g_pixelScaleY; float g_pictureV0; float g_pictureV1; float g_bloomThreshold; float g_pictureX; float g_pictureY; };
 Texture2D    tex : register(t0);
 SamplerState sam : register(s0);
 struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };
@@ -46,9 +47,14 @@ float DitherRand (int2 c, int salt)
 //
 // One offset for all three channels, not three: a neutral gray dithered per
 // channel picks up faint color speckle, and moved together it stays gray.
+//
+// The coordinates are counted from the picture's top left corner, not the
+// target's, so the same picture is grained the same wherever it is drawn: in
+// a letterboxed window, in the desk scene's own target, or in a preview.
+// Floored, so the bars left of and above the picture count down from -1.
 float DitherOffset (float2 pixel)
 {
-    int2   c = int2 ((int) pixel.x, (int) pixel.y);
+    int2   c = int2 ((int) floor (pixel.x), (int) floor (pixel.y));
     float  a = DitherRand (c, 11);
     float  b = DitherRand (c, 23);
     return (a + b - 1.0f) * (1.0f / 255.0f);
@@ -73,6 +79,6 @@ float4 main (PSInput i) : SV_TARGET
 // across that span dithered the faintest, most band-prone part of the picture
 // at a fraction of the amplitude it needed, leaving its residual error still
 // correlated with the signal -- which is the condition that draws a contour.
-    c.rgb += DitherOffset (i.pos.xy);
+    c.rgb += DitherOffset (i.pos.xy - float2 (g_pictureX, g_pictureY));
     return c;
 }

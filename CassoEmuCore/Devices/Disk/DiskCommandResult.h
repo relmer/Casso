@@ -32,6 +32,11 @@ struct DiskCommandResult
     //  about, with the block scrolled off the top.
     bool          usageShown     = false;
 
+    //  The volume's HRESULT behind a failure, for a caller that reports it
+    //  with a message of its choosing rather than the diagnostics; S_OK
+    //  when the command did not record one.
+    HRESULT       failure        = S_OK;
+
     std::string        output;   // stdout, text
     std::string        diagnostics;   // stderr, always
     std::vector<Byte>  payload;   // stdout, binary
@@ -42,6 +47,12 @@ struct DiskCommandResult
     void  Fail (const std::string  & imagePath,
                 const std::string  & name,
                 const std::string  & sentence);
+
+    //  Fail with "Unable to <action>: <reason>", as "Unable to delete HELLO:
+    //  it is locked", after the image path.
+    void  FailAction (const std::string  & imagePath,
+                      const std::string  & action,
+                      const std::string  & reason);
 
     //  Image, file, reason, in that order: a script's user needs to know
     //  which disk before anything else.

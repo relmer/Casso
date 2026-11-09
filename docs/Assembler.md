@@ -479,7 +479,7 @@ passes three.
 | `ORG` | Origin. It **relocates**: output stays one contiguous stream and only the program counter moves. With no operand it resyncs the program counter to where output has actually reached. |
 | `DSK` | Names the output. A name supplied with `-o` or `--as` beats it. **A second one closes the file the first opened and begins another**, so a source carrying two produces two files with no `SAV` anywhere. The name stays in effect until another replaces it. |
 | `TYP` | Sets the filesystem type the output takes, as a ProDOS type byte. The accepted set is Merlin's own, from its manual: `$00` no type, `$06` binary, `$F0`–`$F7` command and user-defined, and `$FF` system. `$04` text and `$FC` Applesoft are accepted besides, which Merlin lists in neither direction; anything else is refused naming the byte, as Merlin's `ILLEGAL FILE TYPE` does. On DOS 3.3 only `$04`, `$06` and `$FC` have counterparts and the rest are refused by name, because DOS 3.3 has five types and none of them means a system program, a command file, or no type at all. `--type` beats it. **`TYP` is ProDOS-only in real Merlin** — Merlin Pro 2.23 under DOS 3.3 answers `Bad opcode` to it — so writing a typed output onto a DOS 3.3 volume is this tool going beyond the period assembler rather than matching it. |
-| `SAV` | Writes the span accumulated since the previous save and carries on, so one source produces several files. **The accumulation is emptied**, so no byte appears in two outputs, and each output records the address its own first byte assembles to. A name is required. |
+| `SAV` | Writes the span accumulated since the previous save and continues, so one source produces several files. **The accumulation is emptied**, so no byte appears in two outputs, and each output records the address its own first byte assembles to. A name is required. |
 | `END` | End of assembly |
 | `PUT` `USE` | Include another file. The operand is a short name; Merlin prepends `T.` to reach the file on disk. |
 | `DO` `ELSE` `FIN` | Conditional assembly |
@@ -611,7 +611,7 @@ Four things about that list are worth reading twice.
   volume now, so the type has somewhere to land. The save-object directive was
   waiting on a decision about multi-output assembly rather than on a capability,
   and that decision was made: it writes the span accumulated since the previous
-  save and carries on. Both are documented with the other supported directives
+  save and continues. Both are documented with the other supported directives
   above.
 
 The four constructs and the issues they point at come from one table in

@@ -70,27 +70,23 @@ std::int64_t GeneralPageModel::GetDayNumber (const SYSTEMTIME & date)
 //
 //  GeneralPageModel::MakeClockText
 //
-//  A 12-hour clock time, such as "8:46 AM".
+//  A time in the user's format, such as "8:46 AM".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring GeneralPageModel::MakeClockText (const SYSTEMTIME & time)
 {
-    constexpr int  kHoursPerHalfDay = 12;
+    wchar_t       buffer[64] = {};
+    std::wstring  text;
 
 
 
-    int            hour             = time.wHour % kHoursPerHalfDay;
-    bool           isPm             = time.wHour >= kHoursPerHalfDay;
+    GetTimeFormatEx (LOCALE_NAME_USER_DEFAULT, TIME_NOSECONDS, &time, nullptr, buffer, (int) std::size (buffer));
 
+    text = buffer;
+    std::replace (text.begin(), text.end(), L'\x202F', L' ');
 
-
-    if (hour == 0)
-    {
-        hour = kHoursPerHalfDay;
-    }
-
-    return std::format (L"{}:{:02} {}", hour, (int) time.wMinute, isPm ? L"PM" : L"AM");
+    return text;
 }
 
 

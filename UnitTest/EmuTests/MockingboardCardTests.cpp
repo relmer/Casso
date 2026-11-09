@@ -408,7 +408,7 @@ namespace MockingboardCardTestNs
 
         TEST_METHOD (RenderedAudioMatchesBaseline)
         {
-            static constexpr uint32_t   kExpectedHash = 0x9563EB75;   // captured from the shipping card
+            static constexpr uint32_t   kExpectedHash = 0x5049916D;   // captured at the 1,020,484 Hz clock
 
             uint32_t   hash    = 0;
             wchar_t    msg[64] = {};
@@ -471,7 +471,7 @@ namespace MockingboardCardTestNs
 
             ProgramBaselineTones (card);
 
-            Assert::AreEqual<uint32_t> (0x9563EB75, HashRenderedAudio (card),
+            Assert::AreEqual<uint32_t> (0x5049916D, HashRenderedAudio (card),
                                         L"An unprogrammed voice chip must not change rendered audio");
         }
 

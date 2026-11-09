@@ -52,7 +52,7 @@ public:
     static constexpr size_t    kQueueLimit       = 4096;
     static constexpr uint16_t  kMaxMss           = 1460;
     static constexpr uint16_t  kDefaultMss       = 536;
-    static constexpr uint64_t  kRetransmitCycles = 1022727;    // 1 s at 1.023 MHz
+    static constexpr uint64_t  kRetransmitCycles = 1020484;    // 1 s at 1.020 MHz
     static constexpr int       kMaxRetransmits   = 8;
 
     static std::unique_ptr<TcpNatConnection>  MakeOutbound (IGuestPacketSink              & sink,

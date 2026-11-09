@@ -61,6 +61,13 @@ static constexpr Byte    kCleaned             = 1;
 // preservation dump loses the one record of where it came from.
 static constexpr char    kCassoCreator[]      = "Casso " VERSION_STRING;
 
+// The META keys the WOZ reference defines.
+static constexpr const char *  s_kStandardMetaKeys[] =
+{
+    "title", "subtitle", "publisher", "developer", "copyright", "version", "language", "requires_ram",
+    "requires_machine", "notes", "side", "side_name", "contributor", "image_date",
+};
+
 
 
 
@@ -516,6 +523,232 @@ HRESULT WozLoader::SetWriteProtectFlag (vector<Byte> & fileBytes, bool writeProt
     // "not computed", which would quietly drop the file's own damage check.
     Write32LE (fileBytes.data() + kSigLen,
                Crc32 (fileBytes.data() + kHeaderSize, rawSize - kHeaderSize));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::IsWriteProtectFlagSet
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozLoader::IsWriteProtectFlagSet (const vector<Byte> & fileBytes)
+{
+    HRESULT   hr         = S_OK;
+    size_t    infoOffset = 0;
+    uint32_t  infoSize   = 0;
+    bool      isWoz      = fileBytes.size() >= kHeaderSize && (MatchSig (fileBytes.data(), kSigV2) || MatchSig (fileBytes.data(), kSigV1));
+
+
+
+    if (!isWoz)
+    {
+        return false;
+    }
+
+    hr = FindChunkPayload (fileBytes, kInfoMagic, infoOffset, infoSize);
+
+    return SUCCEEDED (hr) && infoSize >= kInfoChunkSize && fileBytes[infoOffset + kInfoWriteProtectOff] != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::ApplyEdits
+//
+//  Disk properties' edits, made in the file's bytes: INFO's fields are
+//  changed where they are, the old META is removed, the new one is appended
+//  after the last chunk, and the header CRC is computed again.
+//
+//  A file whose CRC doesn't match is left alone, since a new CRC would hide
+//  the damage. So is a file with a FLUX chunk after META: removing META
+//  would move FLUX off the block INFO points to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WozLoader::ApplyEdits (vector<Byte> & fileBytes, const Edits & edits)
+{
+    HRESULT                 hr     = S_OK;
+    vector<Byte>            bytes  = fileBytes;
+    bool                    isWoz  = bytes.size() >= kHeaderSize && (MatchSig (bytes.data(), kSigV2) || MatchSig (bytes.data(), kSigV1));
+    uint32_t                stored = 0;
+    uint32_t                crc    = 0;
+    bool                    intact = false;
+    bool                    atEnd  = false;
+    std::vector<ChunkSpan>  chunks;
+    size_t                  end    = 0;
+    const ChunkSpan       * info   = nullptr;
+    const ChunkSpan       * meta   = nullptr;
+    const ChunkSpan       * flux   = nullptr;
+    Byte                  * fields = nullptr;
+    std::string             text;
+    size_t                  at     = 0;
+
+
+
+    CBREx (isWoz, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    //  Zero means the writer didn't compute a CRC.
+    stored = Read32LE (bytes.data() + kSigLen);
+    crc    = Crc32 (bytes.data() + kHeaderSize, bytes.size() - kHeaderSize);
+    intact = stored == 0 || stored == crc;
+    CBREx (intact, HRESULT_FROM_WIN32 (ERROR_CRC));
+
+    hr = FormatMeta (edits.meta, text);
+    CHR (hr);
+
+    WalkChunks (bytes, chunks, end);
+
+    for (const ChunkSpan & chunk : chunks)
+    {
+        info = MatchMagic (chunk.id, kInfoMagic) ? &chunk : info;
+        meta = MatchMagic (chunk.id, kMetaMagic) ? &chunk : meta;
+        flux = MatchMagic (chunk.id, kFluxMagic) ? &chunk : flux;
+    }
+
+    CBREx (info != nullptr && info->size >= kInfoChunkSize, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    fields                            = bytes.data() + info->payload;
+    fields[kInfoOffsetWriteProtected] = static_cast<Byte> (edits.writeProtected ? 1 : 0);
+
+    //  A version 1 INFO ends at the disk sides, and the rest is padding.
+    if (fields[kInfoOffsetVersion] >= kInfoVersion2)
+    {
+        fields[kInfoOffsetBootSectorFormat] = edits.bootSectorFormat;
+        Write16LE (fields + kInfoOffsetCompatibleHw, edits.compatibleHardware);
+        Write16LE (fields + kInfoOffsetRequiredRam,  edits.requiredRamK);
+    }
+    else
+    {
+        CBREx (edits.bootSectorFormat == kBootSectorUnknown && edits.compatibleHardware == 0 && edits.requiredRamK == 0, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+    }
+
+    if (meta != nullptr)
+    {
+        CBREx (flux == nullptr || flux->start < meta->start, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+        bytes.erase (bytes.begin() + (ptrdiff_t) meta->start, bytes.begin() + (ptrdiff_t) (meta->payload + meta->size));
+        end -= kChunkHeaderSize + meta->size;
+    }
+
+    //  A META appended after bytes that aren't a chunk, such as track blocks a
+    //  TRKS chunk doesn't cover, can't be reached by a walk of the chunks.
+    if (!text.empty())
+    {
+        atEnd = end == bytes.size();
+        CBREx (atEnd, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+        at = bytes.size();
+        bytes.resize (at + kChunkHeaderSize + text.size());
+
+        memcpy    (bytes.data() + at, kMetaMagic, sizeof (kMetaMagic));
+        Write32LE (bytes.data() + at + sizeof (kMetaMagic), static_cast<uint32_t> (text.size()));
+        memcpy    (bytes.data() + at + kChunkHeaderSize, text.data(), text.size());
+    }
+
+    Write32LE (bytes.data() + kSigLen, Crc32 (bytes.data() + kHeaderSize, bytes.size() - kHeaderSize));
+
+    fileBytes.swap (bytes);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::IsStandardMetaKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozLoader::IsStandardMetaKey (const std::string & key)
+{
+    return std::any_of (std::begin (s_kStandardMetaKeys), std::end (s_kStandardMetaKeys), [&key] (const char * standard) { return key == standard; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::WalkChunks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozLoader::WalkChunks (const vector<Byte> & raw, std::vector<ChunkSpan> & outChunks, size_t & outEnd)
+{
+    size_t  pos  = kHeaderSize;
+    bool    more = true;
+
+
+
+    outChunks.clear();
+
+    while (more && pos + kChunkHeaderSize <= raw.size())
+    {
+        ChunkSpan  chunk;
+        bool       isId = std::all_of (raw.begin() + (ptrdiff_t) pos, raw.begin() + (ptrdiff_t) (pos + sizeof (chunk.id)), [] (Byte b) { return b >= 'A' && b <= 'Z'; });
+
+        chunk.start   = pos;
+        chunk.payload = pos + kChunkHeaderSize;
+        chunk.size    = Read32LE (raw.data() + pos + sizeof (chunk.id));
+        more          = isId && chunk.payload + chunk.size <= raw.size();
+
+        if (more)
+        {
+            memcpy (chunk.id, raw.data() + pos, sizeof (chunk.id));
+            outChunks.push_back (chunk);
+            pos = chunk.payload + chunk.size;
+        }
+    }
+
+    outEnd = pos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::FormatMeta
+//
+//  A field with no value is written with an empty one, as the reference has
+//  a standard key with no value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WozLoader::FormatMeta (const std::vector<MetaField> & fields, std::string & outText)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    outText.clear();
+
+    for (const MetaField & field : fields)
+    {
+        bool  plain = !field.key.empty()
+                   && field.key.find_first_of   ("\t\r\n") == std::string::npos
+                   && field.value.find_first_of ("\t\r\n") == std::string::npos;
+
+        CBREx (plain, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        outText += field.key + '\t' + field.value + '\n';
+    }
 
 Error:
     return hr;
@@ -1044,8 +1277,11 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
     size_t  rawSize = raw.size();
     bool    sigV1   = false;
     bool    sigV2   = false;
+    Byte    positions[kTmapChunkSize];
 
 
+
+    memset (positions, kTmapEmptyTrack, sizeof (positions));
 
     out = Description();
 
@@ -1100,6 +1336,8 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
                 out.bootSectorFormat    = info[kInfoOffsetBootSectorFormat];
                 out.hasBitTiming        = true;
                 out.bitTiming           = info[kInfoOffsetBitTiming];
+                out.compatibleHardware  = Read16LE (info + kInfoOffsetCompatibleHw);
+                out.requiredRamK        = Read16LE (info + kInfoOffsetRequiredRam);
             }
         }
         else if (MatchMagic (id, kTmapMagic) && chunkSize >= kTmapChunkSize)
@@ -1112,6 +1350,7 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
             {
                 if (tmap[qt] != kTmapEmptyTrack)
                 {
+                    positions[qt] = tmap[qt];
                     out.quarterTracksWithData++;
 
                     if (!seen[tmap[qt]])
@@ -1122,12 +1361,67 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
                 }
             }
         }
+        else if (MatchMagic (id, kFluxMagic) && chunkSize >= kTmapChunkSize)
+        {
+            const Byte *  flux      = raw.data() + chunkPos;
+            bool          seen[256] = {};
+            size_t        qt        = 0;
+
+            for (qt = 0; qt < kTmapChunkSize; qt++)
+            {
+                if (flux[qt] != kTmapEmptyTrack)
+                {
+                    positions[qt] = flux[qt];
+                }
+
+                if (flux[qt] != kTmapEmptyTrack && !seen[flux[qt]])
+                {
+                    seen[flux[qt]] = true;
+                    out.fluxSlotsWithData++;
+                }
+            }
+        }
         else if (MatchMagic (id, kMetaMagic))
         {
             ParseMetaChunk (raw.data() + chunkPos, chunkSize, out.meta);
         }
 
         pos = chunkPos + chunkSize;
+    }
+
+    {
+        bool  onWhole[256]  = {};
+        bool  offWhole[256] = {};
+
+        out.wholeTrackHasData.assign (kTmapChunkSize / 4, false);
+
+        for (size_t qt = 0; qt < kTmapChunkSize; qt++)
+        {
+            if (positions[qt] == kTmapEmptyTrack)
+            {
+                continue;
+            }
+
+            if (qt % 4 == 0)
+            {
+                onWhole[positions[qt]]     = true;
+                out.wholeTrackHasData[qt / 4] = true;
+            }
+            else
+            {
+                offWhole[positions[qt]] = true;
+            }
+        }
+
+        for (size_t slot = 0; slot < std::size (onWhole); slot++)
+        {
+            out.slotsOffWholeTracks += (offWhole[slot] && !onWhole[slot]) ? 1 : 0;
+        }
+
+        for (size_t qt = 0; qt < kTmapChunkSize; qt++)
+        {
+            out.positionsOffWholeTracks += (positions[qt] != kTmapEmptyTrack && !onWhole[positions[qt]]) ? 1 : 0;
+        }
     }
 }
 
