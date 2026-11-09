@@ -321,7 +321,7 @@ without the others in its merge.
 - [X] T138 [US9] Confirm 033's `RunMkdir`, `RunRmdir` and `CommitEdit` writes go through the shared writer and pass SC-017's checks; add those cases to `UT/DiskWritePathTests.cpp` (the cases are in `UnitTest/EmuTests/SectorWriteThroughVolumeTests.cpp`)
 - [X] T139 [US10] Explorer comparison sources ("As first opened"), "Compare disk images" switching an existing window after FR-108's confirmation (FR-117). Done 2026-11-09: the sources are "This image" and "As first opened", and A is the focused image
 - [X] T140 [US8] ProDOS subdirectories at any depth and forks inside them in `DD/Inspector/FileMap/ProDosMapReader.cpp`, using 033's subdirectory constants; extend `UT/FileMapTestImages.cpp` and `UT/FileMapTests.cpp` (two levels deep, US8 scenario 3); file comparison paths through subdirectories (FR-087, FR-120). Done 2026-11-09: the reader already followed subdirectories at any depth and their forks; the test image gained SUBFORK, both forks two directories down, and a comparison test pairs a file in a subdirectory by its full path
-- [ ] T141 [US7] Add SC-020's Explorer-to-Casso scenario to `ScenarioTests/GuestVisibleInspectorEditTests.cpp` (with and without unsaved guest writes)
+- [X] T141 [US7] Add SC-020's Explorer-to-Casso scenario to `ScenarioTests/GuestVisibleInspectorEditTests.cpp` (with and without unsaved guest writes)
 
 ---
 

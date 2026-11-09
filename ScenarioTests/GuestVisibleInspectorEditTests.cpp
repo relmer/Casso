@@ -4,11 +4,16 @@
 #include "GuestSession.h"
 #include "KeystrokeInjector.h"
 #include "TestMachine.h"
+#include "CassoExplorer/ExplorerInspectorHost.h"
+#include "CassoExplorer/Model/DiskOperations.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/DiskComparer.h"
 #include "Devices/Disk/Inspector/InspectorImageLoader.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Seams/IIntentChannel.h"
+#include "Seams/IntentReplyTracker.h"
+#include "Seams/Win32IntentChannel.h"
 #include "Shell/InspectorRequestQueue.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -44,6 +49,14 @@ public:
     static constexpr const char *  kImagePath  = "edit.dsk";
     static constexpr const char *  kHostFile   = "C:\\build\\prog.bin";
     static constexpr const char *  kPlacedName = "PROG";
+
+    //  The path GuestSession mounts its disk under, and the two builds of
+    //  the program the shared-image tests use.
+    static constexpr const char    *  kSharedPath     = "gate.dsk";
+    static constexpr const wchar_t *  kSharedPathWide = L"gate.dsk";
+    static constexpr Byte             kFirstSeed      = 0x21;
+    static constexpr Byte             kSecondSeed     = 0x5C;
+    static constexpr time_t           kPreservedTime  = 1'000'000'000;
 
 
 
@@ -176,6 +189,14 @@ public:
     //  as the inspector's editor finds the field it draws.
     static std::vector<SectorWrite> MakeWrites (const DiskImage & drive, const std::vector<Byte> & current, const std::vector<Byte> & target)
     {
+        return MakeWrites (DiskCopy::MakeFromImage (drive, 1, kImagePath, 0, false), current, target);
+    }
+
+
+
+    //  The same edits, found on a copy of the disk.
+    static std::vector<SectorWrite> MakeWrites (const std::shared_ptr<const DiskCopy> & disk, const std::vector<Byte> & current, const std::vector<Byte> & target)
+    {
         std::vector<SectorWrite>  writes;
         DiskAnalysis              analysis;
         size_t                    offset   = 0;
@@ -184,7 +205,7 @@ public:
 
 
 
-        DiskAnalyzer::Analyze (DiskCopy::MakeFromImage (drive, 1, kImagePath, 0, false), DecodeSettings::MakeStandard(), analysis);
+        DiskAnalyzer::Analyze (disk, DecodeSettings::MakeStandard(), analysis);
 
         for (offset = 0; offset + kSectorBytes <= target.size(); offset += kSectorBytes)
         {
@@ -258,6 +279,276 @@ public:
 
         return spans;
     }
+
+
+
+    //  Explorer's intent channel, with the test machine's disk store as the
+    //  emulator that receives each intent.
+    class StoreIntents : public IIntentChannel
+    {
+    public:
+        explicit StoreIntents (MachineHost & machine) : m_machine (machine) {}
+
+        void StateIntent (const std::string & imagePath, ExternalChangeIntent intent) override
+        {
+            m_machine.GetDiskStore().NoteExternalChange (imagePath, intent, true);
+        }
+
+    private:
+        MachineHost & m_machine;
+    };
+
+
+
+    //  A running Casso booted from a disk, and the folder the disk's file is
+    //  in. The store reads and writes the folder, and the action it reports
+    //  for a changed file is the input of the reply. While isSaveFailing is set
+    //  Casso's saves of the disk fail, so the guest's writes stay unsaved
+    //  after the drive stops.
+    struct SharedDisk
+    {
+        TestMachine     machine       { "Apple2e" };
+        FakeDiskFileIo  io;
+        StoreIntents    intents       { machine };
+        int64_t         nowMs         = 0;
+        bool            isSaveFailing = false;
+        int             decisions     = 0;
+        ChangeAction    action        = ChangeAction::Ignore;
+        bool            isPreserved   = false;
+        std::string     preservedPath;
+
+        explicit SharedDisk (const std::vector<Byte> & bytes)
+        {
+            DiskImageStore &  store = machine.GetDiskStore();
+
+
+
+            io.files[kSharedPath]  = bytes;
+            io.stamps[kSharedPath] = FileStamp { bytes.size(), 100 };
+            io.files[kHostFile]    = MakePayload (kSecondSeed);
+            io.stamps[kHostFile]   = FileStamp { kPayloadBytes, 100 };
+
+            GuestSession::BootToPrompt (machine, bytes);
+
+            store.SetFileIo          (&io);
+            store.SetClock           ([this] () { return nowMs; });
+            store.SetTimestampSource ([] () { return kPreservedTime; });
+            store.SetImageReader     ([this] (const std::string & path, std::vector<Byte> & outBytes) { return io.ReadAllBytes (path, outBytes); });
+
+            store.SetFlushSink ([this] (const std::string & path, const std::vector<Byte> & saved)
+            {
+                return isSaveFailing ? HRESULT_FROM_WIN32 (ERROR_SHARING_VIOLATION) : io.WriteAllBytes (path, saved);
+            });
+
+            store.SetIdentityReader ([this] (const std::string & path)
+            {
+                ImageIdentity  identity;
+
+                identity.recorded = SUCCEEDED (io.Stat (path, identity.stamp));
+
+                return identity;
+            });
+
+            store.SetDecisionSink ([this] (const std::string &, ChangeAction newAction, bool preserved, const std::string & savePath)
+            {
+                decisions++;
+                action        = newAction;
+                isPreserved   = preserved;
+                preservedPath = savePath;
+            });
+        }
+
+        //  Casso after a change of the file: the quiet period passes, the
+        //  reload runs, and the reply is made from the decision as Casso's
+        //  window makes it. False when there is no reply.
+        bool Reload (Win32IntentChannel::Reply & outReply)
+        {
+            isSaveFailing  = false;
+            nowMs         += MountedImageState::kQuietPeriodMs;
+            machine.GetDiskStore().ApplyPendingReload();
+
+            return decisions > 0 && IntentReplyTracker::TryMakeReloadReply (action, isPreserved, preservedPath, outReply);
+        }
+
+        const DiskImage & GetDrive()
+        {
+            return *machine.GetDiskStore().GetImage (kSlot, kDrive);
+        }
+
+        std::vector<Byte> GetDriveBytes()
+        {
+            std::vector<Byte>  bytes;
+
+
+
+            AssertSucceeded (GetDrive().Serialize (bytes));
+
+            return bytes;
+        }
+    };
+
+
+
+    //  Explorer's file commands replacing PROG with the second build: a
+    //  delete, then a put. With a channel, each command states its intent
+    //  after its write.
+    static void ReplaceProgram (FakeDiskFileIo & io, IIntentChannel * intents)
+    {
+        DiskOperations          ops (io);
+        DiskOperations::Result  result;
+
+
+
+        ops.SetIntentChannel (intents);
+
+        result = ops.Delete (kSharedPath, kPlacedName);
+        Logger::WriteMessage (result.message.c_str());
+        Assert::IsTrue (result.Succeeded(), L"the delete succeeds");
+
+        result = ops.Put (kSharedPath, kHostFile, kPlacedName, "B", true, kLoadAddress, DiskOperations::Encoding::Verbatim);
+        Logger::WriteMessage (result.message.c_str());
+        Assert::IsTrue (result.Succeeded(), L"the put succeeds");
+    }
+
+
+
+    //  A program the guest saves to the disk in the drive, which Casso has
+    //  not written to the file.
+    static void SaveGuestProgram (SharedDisk & disk, const std::vector<Byte> & file)
+    {
+        std::vector<std::string>  rows;
+
+
+
+        disk.isSaveFailing = true;
+
+        KeystrokeInjector::InjectLine (disk.machine, "10 PRINT \"SC-020\"", GuestSession::kLineCycles);
+        rows = GuestSession::TypeAndCollect (disk.machine, "SAVE NEWPROG");
+
+        Assert::IsFalse (GuestSession::AnyRowContains (rows, "ERROR"), L"the guest saves the program");
+        Assert::IsTrue  (disk.GetDrive().IsDirty(), L"the drive has unsaved guest writes");
+        Assert::IsTrue  (disk.io.files[kSharedPath] == file, L"and the file is as it was");
+    }
+
+
+
+    //  SC-020: an apply from Explorer's inspector on the image a running
+    //  Casso has, next to Explorer's file commands writing the same bytes to
+    //  a second Casso's image. Both Cassos, their drives and their folders
+    //  end the same, and the inspector's note is Casso's reply when the reply
+    //  is not a plain reload.
+    static void AssertAnApplyEndsAsFileCommandsDo (bool hasGuestWrites)
+    {
+        std::vector<Byte>          master    = GuestSession::RequireDos33Master();
+        std::vector<Byte>          first     = PlaceBuild (master, kFirstSeed);
+        std::vector<Byte>          target;
+        std::vector<Byte>          guestDisk;
+        std::vector<Byte>          replyBytes;
+        FakeDiskFileIo             scratch;
+        SharedDisk                 edited    (first);
+        SharedDisk                 commanded (first);
+        ExplorerInspectorHost      host      (kSharedPathWide, edited.io, &edited.intents);
+        InspectorRequest           request;
+        vector<InspectorReply>     replies;
+        Win32IntentChannel::Reply  editedReply;
+        Win32IntentChannel::Reply  commandedReply;
+        COPYDATASTRUCT             copyData  = {};
+        std::wstring               note;
+
+
+
+        //  The bytes the file commands write, worked out ahead on a copy.
+        scratch.files[kSharedPath]  = first;
+        scratch.stamps[kSharedPath] = FileStamp { first.size(), 100 };
+        scratch.files[kHostFile]    = MakePayload (kSecondSeed);
+        scratch.stamps[kHostFile]   = FileStamp { kPayloadBytes, 100 };
+        ReplaceProgram (scratch, nullptr);
+        target = scratch.files[kSharedPath];
+        Assert::IsFalse (target == first, L"the commands change the file");
+
+        AssertGuestLoads (edited.machine,    kFirstSeed);
+        AssertGuestLoads (commanded.machine, kFirstSeed);
+
+        if (hasGuestWrites)
+        {
+            SaveGuestProgram (edited,    first);
+            SaveGuestProgram (commanded, first);
+            guestDisk = edited.GetDriveBytes();
+            Assert::IsTrue (guestDisk == commanded.GetDriveBytes(), L"both guests wrote the same disk");
+        }
+
+        //  Explorer's inspector reads the file and applies the difference.
+        (void) host.PostInspectorRequest ({ InspectorRequestKind::CopyDisk, 0, 0, {}, -1 });
+        host.TakeInspectorReplies (replies);
+        Assert::AreEqual (static_cast<size_t> (1), replies.size());
+        Assert::IsNotNull (replies[0].disk.get());
+
+        request.kind      = InspectorRequestKind::Apply;
+        request.mediaId   = replies[0].mediaId;
+        request.applyKind = ApplyKind::Apply;
+        request.writes    = MakeWrites (replies[0].disk, first, target);
+        Assert::IsFalse (request.writes.empty(), L"the edit changes some sectors");
+
+        for (const SectorWrite & write : request.writes)
+        {
+            request.expectedCounts.push_back ({ write.slot, 0 });
+        }
+
+        replies.clear();
+        (void) host.PostInspectorRequest (request);
+        host.TakeInspectorReplies (replies);
+        Assert::AreEqual (static_cast<size_t> (1), replies.size());
+        Assert::IsTrue (replies[0].applyOutcome == ApplyOutcome::Applied, replies[0].reason.c_str());
+        Assert::IsTrue (edited.io.files[kSharedPath] == target, L"the apply writes the bytes the file commands write");
+
+        Assert::IsTrue (edited.Reload (editedReply), L"Casso replies to the apply");
+        replyBytes        = Win32IntentChannel::EncodeReply (editedReply);
+        copyData.dwData   = Win32IntentChannel::GetReplyMessageId();
+        copyData.cbData   = static_cast<DWORD> (replyBytes.size());
+        copyData.lpData   = replyBytes.data();
+        Assert::IsTrue (host.HandleCopyData (copyData), L"the inspector's host takes the reply");
+        note = host.TakeHostNote();
+
+        //  Explorer's file commands, on the second Casso's image.
+        ReplaceProgram (commanded.io, &commanded.intents);
+        Assert::IsTrue (commanded.io.files[kSharedPath] == target);
+        Assert::IsTrue (commanded.Reload (commandedReply), L"Casso replies to the file commands");
+
+        //  Casso.
+        Assert::IsTrue   (edited.action == commanded.action, L"the actions match");
+        Assert::AreEqual (hasGuestWrites, edited.isPreserved);
+        Assert::AreEqual (hasGuestWrites, commanded.isPreserved);
+        Assert::AreEqual (commanded.preservedPath, edited.preservedPath);
+        Assert::IsTrue   (editedReply.kind == commandedReply.kind, L"and so do the replies");
+        Assert::AreEqual (commandedReply.text, editedReply.text);
+
+        //  Its drive.
+        Assert::IsTrue  (edited.GetDriveBytes()    == target, L"the drive has the applied disk");
+        Assert::IsTrue  (commanded.GetDriveBytes() == target, L"as it has the file commands' disk");
+        Assert::IsFalse (edited.GetDrive().IsDirty());
+        Assert::IsFalse (commanded.GetDrive().IsDirty());
+
+        //  Its files.
+        Assert::IsTrue (edited.io.files == commanded.io.files, L"the two folders have the same files");
+
+        if (hasGuestWrites)
+        {
+            Assert::IsTrue  (editedReply.kind == Win32IntentChannel::ReplyKind::ReloadConflict);
+            Assert::IsTrue  (edited.io.files.at (edited.preservedPath) == guestDisk, L"the guest's disk is in a file beside the image");
+            Assert::IsFalse (note.empty(), L"the inspector's note is Casso's reply");
+            Assert::IsTrue  (note == ExplorerInspectorHost::DescribeCassoReply (replyBytes.data(), replyBytes.size()), note.c_str());
+        }
+        else
+        {
+            Assert::IsTrue (editedReply.kind == Win32IntentChannel::ReplyKind::ReloadDone);
+            Assert::IsTrue (note.empty(), note.c_str());
+        }
+
+        //  The guest reads the new build on both.
+        AssertGuestLoads (edited.machine,    kSecondSeed);
+        AssertGuestLoads (commanded.machine, kSecondSeed);
+    }
+
 
 
     TEST_METHOD (AGuestLoadsTheBytesAnAppliedEditPutInAFile)
@@ -506,5 +797,19 @@ public:
         Assert::IsFalse  (GuestSession::AnyRowContains (rows, "ERROR"), L"every read completes with a good checksum");
         Assert::AreEqual (static_cast<int> (0), static_cast<int> (flags[0]), L"no read returned a mix of old and new bytes");
         Assert::AreEqual (static_cast<int> (1), static_cast<int> (flags[1]), L"the loop reads the new bytes");
+    }
+
+
+
+    TEST_METHOD (AnExplorerApplyEndsAsExplorerFileCommandsDo)
+    {
+        AssertAnApplyEndsAsFileCommandsDo (false);
+    }
+
+
+
+    TEST_METHOD (AnExplorerApplyOverUnsavedGuestWritesEndsAsFileCommandsDo)
+    {
+        AssertAnApplyEndsAsFileCommandsDo (true);
     }
 };
