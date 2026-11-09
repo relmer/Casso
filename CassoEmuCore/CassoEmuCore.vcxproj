@@ -457,6 +457,10 @@
     <ClCompile Include="FileTypes\RandomText.cpp" />
     <ClCompile Include="FileTypes\MerlinSource.cpp" />
     <ClCompile Include="FileTypes\ScAssemblerSource.cpp" />
+    <ClCompile Include="FileTypes\PackBytes.cpp" />
+    <ClCompile Include="FileTypes\SuperHiRes.cpp" />
+    <ClCompile Include="FileTypes\HiResFormats.cpp" />
+    <ClCompile Include="FileTypes\SuperHiRes3200.cpp" />
     <ClCompile Include="Devices\Disk\Archives\ZipAppleDouble.cpp" />
     <ClCompile Include="Devices\Disk\Archives\ContainerDiskFileIo.cpp" />
     <ClCompile Include="Devices\Disk\Archives\Bzip2Decoder.cpp" />
@@ -1184,6 +1188,9 @@
     <ClInclude Include="FileTypes\RandomText.h" />
     <ClInclude Include="FileTypes\MerlinSource.h" />
     <ClInclude Include="FileTypes\ScAssemblerSource.h" />
+    <ClInclude Include="FileTypes\PackBytes.h" />
+    <ClInclude Include="FileTypes\SuperHiRes.h" />
+    <ClInclude Include="FileTypes\HiResFormats.h" />
     <ClInclude Include="Devices\Disk\Archives\ZipAppleDouble.h" />
     <ClInclude Include="Devices\Disk\Archives\ContainerDiskFileIo.h" />
     <ClInclude Include="Devices\Disk\Archives\Bzip2Decoder.h" />
