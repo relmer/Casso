@@ -451,18 +451,18 @@ public:
         rig.parts->listPane.FillList();
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"HELLO"));
 
-        rig.parts->fileOps.BeginRename();
+        rig.parts->rename.BeginRename();
 
         for (wchar_t ch : std::wstring (L"BYE"))
         {
             key.kind = DxuiKeyEventKind::Char;
             key.vk   = ch;
-            rig.parts->fileOps.HandleRenameKey (key);
+            rig.parts->rename.HandleRenameKey (key);
         }
 
         key.kind = DxuiKeyEventKind::Down;
         key.vk   = VK_RETURN;
-        rig.parts->fileOps.HandleRenameKey (key);
+        rig.parts->rename.HandleRenameKey (key);
 
         Assert::AreEqual ((size_t) 1, rig.browser.GetSelectedRows().size());
         Assert::AreEqual (std::wstring (L"BYE"), rig.browser.GetRows()[(size_t) rig.browser.GetSelectedRows()[0]].name);
@@ -501,18 +501,18 @@ public:
         rig.parts->listPane.FillList();
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"Disk 001.dsk"));
 
-        rig.parts->fileOps.BeginRename();
+        rig.parts->rename.BeginRename();
 
         for (wchar_t ch : std::wstring (L"Archon"))
         {
             key.kind = DxuiKeyEventKind::Char;
             key.vk   = ch;
-            rig.parts->fileOps.HandleRenameKey (key);
+            rig.parts->rename.HandleRenameKey (key);
         }
 
         key.kind = DxuiKeyEventKind::Down;
         key.vk   = VK_RETURN;
-        rig.parts->fileOps.HandleRenameKey (key);
+        rig.parts->rename.HandleRenameKey (key);
 
         AssertSucceeded (read.Parse (rig.io.files[path]));
         Assert::IsFalse  (renamed.empty(), L"the image is renamed");

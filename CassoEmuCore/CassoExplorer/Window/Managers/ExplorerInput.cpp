@@ -13,6 +13,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerRename.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
@@ -375,7 +376,7 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    if (m_context.fileOps.HandleRenameMouse (ev))
+    if (m_context.rename.HandleRenameMouse (ev))
     {
         return true;
     }
@@ -618,9 +619,9 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
     }
 
     //  A rename in place has every key.
-    if (m_context.fileOps.IsRenaming())
+    if (m_context.rename.IsRenaming())
     {
-        m_context.fileOps.HandleRenameKey (ev);
+        m_context.rename.HandleRenameKey (ev);
         return true;
     }
 
@@ -682,7 +683,7 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
 
     //  Ctrl+Z on the files undoes the last file operation; in a text box it is
     //  the box's own, which has the keys before this.
-    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_focus == ExplorerPane::List || m_focus == ExplorerPane::Tree) && !m_context.fileOps.IsRenaming())
+    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_focus == ExplorerPane::List || m_focus == ExplorerPane::Tree) && !m_context.rename.IsRenaming())
     {
         m_context.fileOps.UndoLast();
         return true;

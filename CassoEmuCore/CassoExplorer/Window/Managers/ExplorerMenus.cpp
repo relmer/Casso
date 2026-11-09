@@ -16,6 +16,7 @@
 #include "Seams/Win32ShellIcons.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerRename.h"
 
 
 
@@ -869,7 +870,7 @@ void ExplorerMenus::RunNewChoice (const Location & target, const std::wstring & 
         m_context.fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::HostNewItem, Location(), { created } });
         if (m_context.listPane.SelectRowNamed (std::filesystem::path (created).filename().wstring()))
         {
-            m_context.fileOps.BeginRename();
+            m_context.rename.BeginRename();
         }
     }
 }

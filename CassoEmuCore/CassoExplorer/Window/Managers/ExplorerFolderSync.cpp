@@ -9,6 +9,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerRename.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "Core/AppMessages.h"
@@ -528,7 +529,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
 
     //  Not while a rename is open or a button is down: the rows under either
     //  would change. The changes wait, and the timer tries again.
-    if (m_context.fileOps.IsRenaming() || m_context.listPane.IsBusy() || m_context.treePane.IsInteracting())
+    if (m_context.rename.IsRenaming() || m_context.listPane.IsBusy() || m_context.treePane.IsInteracting())
     {
         SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerFolder, CassoExplorerWindow::kFolderSettleMs, nullptr);
         return;

@@ -21,6 +21,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerRename.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "Seams/Win32ShellItemVerbs.h"
@@ -1032,9 +1033,9 @@ void ExplorerListPane::FillList()
     m_context.cassoLinkManager.NoteListFilled();
 
     //  The rows are about to change under it.
-    if (m_context.fileOps.GetRenameRow() >= 0)
+    if (m_context.rename.GetRenameRow() >= 0)
     {
-        m_context.fileOps.EndRename (false);
+        m_context.rename.EndRename (false);
     }
 
     //  Before the cells are built, since their icons are fetched at the

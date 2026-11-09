@@ -89,6 +89,7 @@ ExplorerWindowParts::ExplorerWindowParts (IExplorerWindow             & window,
                  .menus            = menus,
                  .commandManager   = commandManager,
                  .fileOps          = fileOps,
+                 .rename           = rename,
                  .manifestSync     = manifestSync,
                  .opener           = opener,
                  .cassoTarget      = cassoTarget,
@@ -159,7 +160,7 @@ void ExplorerWindowParts::CreateControls()
     toolbars.CreateNavBar();
     addressBar.Create();
     toolbars.CreateMenuBar();
-    fileOps.Create();
+    rename.Create();
     toolbars.CreateCommandBar();
     preview.CreateToolbar();
     toolbars.Create();

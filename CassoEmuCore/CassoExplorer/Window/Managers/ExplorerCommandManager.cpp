@@ -20,6 +20,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerRename.h"
 #include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
@@ -1224,7 +1225,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
             break;
 
         case CassoExplorerActions::Verb::Rename:
-            m_context.fileOps.BeginRename();
+            m_context.rename.BeginRename();
             break;
 
         case CassoExplorerActions::Verb::Lock:
@@ -1245,7 +1246,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
             //  on a linked drive it is written once the read is done.
             if (outcome.Succeeded() && !m_context.browser.IsAppleDriveLocation() && m_context.listPane.SelectRowNamed (TextEncoding::NarrowToWide (converted)))
             {
-                m_context.fileOps.BeginRename();
+                m_context.rename.BeginRename();
             }
 
             break;
@@ -1303,7 +1304,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
             if (m_context.listPane.SelectRowNamed (newName))
             {
-                m_context.fileOps.BeginRename();
+                m_context.rename.BeginRename();
             }
 
             break;

@@ -13,6 +13,7 @@ class ExplorerAddressBar;
 class ExplorerCommandManager;
 class ExplorerDragDrop;
 class ExplorerFileOps;
+class ExplorerRename;
 class ExplorerManifestSync;
 class ExplorerOpen;
 class ExplorerCassoTarget;
@@ -109,6 +110,7 @@ public:
     ExplorerMenus               & menus;
     ExplorerCommandManager      & commandManager;
     ExplorerFileOps             & fileOps;
+    ExplorerRename              & rename;
     ExplorerManifestSync        & manifestSync;
     ExplorerOpen                & opener;
     ExplorerCassoTarget         & cassoTarget;

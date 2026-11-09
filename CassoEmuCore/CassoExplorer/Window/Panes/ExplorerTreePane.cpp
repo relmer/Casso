@@ -13,6 +13,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerRename.h"
 #include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
@@ -1203,7 +1204,7 @@ void ExplorerTreePane::AddTreeIconRow (std::vector<DxuiPopupMenuItem> & items, c
 
             if (verb == CassoExplorerActions::Verb::Rename)
             {
-                m_context.fileOps.BeginTreeRename (id);
+                m_context.rename.BeginTreeRename (id);
                 return;
             }
 

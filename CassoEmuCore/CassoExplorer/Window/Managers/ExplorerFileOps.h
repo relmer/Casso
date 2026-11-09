@@ -43,12 +43,7 @@ public:
 
     explicit ExplorerFileOps (ExplorerContext & context);
 
-    static constexpr int  kMaxCatalogName = 30;
     static constexpr int  kRestoreRetries = 5;
-
-    void  Create            ();
-    bool  IsRenaming        () const { return m_renameRow >= 0 || !m_renameTreeId.empty(); }
-    int   GetRenameRow      () const { return m_renameRow; }
 
     void                    PushUndo              (UndoStep step);
 
@@ -59,7 +54,6 @@ public:
     bool                                 CanUndo                     () const { return !m_undo.empty(); }
     const UndoStep                     & GetLastUndo                 () const { return m_undo.back(); }
     void                                 PasteHere                   (const std::wstring & folder);
-    void                                 BeginTreeRename             (const std::wstring & id);
     void                                 PasteIntoVolume             ();
     void                                 PushPutUndo                 (const CassoExplorerActions::Outcome & outcome, const std::wstring & image, const std::string & inner);
     CassoExplorerActions::AddressFn      MakeAddressPrompt           ();
@@ -77,12 +71,8 @@ public:
 
 
     void                                 DeleteSelectionPermanently  ();
-    void                                 BeginRename                 ();
-    void                                 EndRename                   (bool commit);
     bool                                 CountDownRestore            () { return --m_restoreTicks <= 0; }
 
-    bool  HandleRenameMouse (const DxuiMouseEvent & ev);
-    void  HandleRenameKey   (const DxuiKeyEvent & ev);
 
 private:
     //  What the last cut takes away once it is pasted, read when it was cut.
@@ -101,13 +91,5 @@ private:
     ExplorerContext        & m_context;
     CutSource                m_cut;
     std::vector<UndoStep>    m_undo;   // newest last
-
-
-    //  Rename in place: the box over the name, and the list row being renamed,
-    //  or -1, or the tree node.
-    DxuiTextInput  * m_renameBox    = nullptr;
-    int              m_renameRow    = -1;
-    std::wstring     m_renameHiddenExtension;   // a shortcut's .lnk, left out of the box
-    std::wstring     m_renameTreeId;
-    int              m_restoreTicks = 0;
+    int                      m_restoreTicks = 0;
 };
