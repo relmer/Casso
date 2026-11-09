@@ -65,19 +65,19 @@ public:
 
     int  GetSlot () const { return m_slot; }
 
-    Byte Read (Word address) override;
-    void Write (Word address, Byte value) override;
-    Word GetStart() const override { return m_ioStart; }
-    Word GetEnd() const override { return m_ioEnd; }
-    void Reset() override;
-    void SoftReset() override;
-    void PowerCycle (Prng & prng) override;
+    Byte  Read       (Word address) override;
+    void  Write      (Word address, Byte value) override;
+    Word  GetStart   () const override { return m_ioStart; }
+    Word  GetEnd     () const override { return m_ioEnd; }
+    void  Reset      () override;
+    void  SoftReset  () override;
+    void  PowerCycle (Prng & prng) override;
 
-    HRESULT       MountDisk (int drive, const string & path);
-    void          EjectDisk (int drive);
-    DiskImage *   GetDisk (int drive);
-    void          SetExternalDisk (int drive, DiskImage * external);
-    bool          HasExternalDisk (int drive) const;
+    HRESULT      MountDisk       (int drive, const string & path);
+    void         EjectDisk       (int drive);
+    DiskImage  * GetDisk         (int drive);
+    void         SetExternalDisk (int drive, DiskImage * external);
+    bool         HasExternalDisk (int drive) const;
 
     //  What the guest did with each drive since its disk went in, for the
     //  disk inspector: arrivals of the head at each quarter track, and
@@ -86,8 +86,8 @@ public:
 
     //  Where the guest read and wrote on each quarter track of a drive since
     //  its disk went in (FR-161).
-    const DiskAccessLog &  GetAccessLog (int drive) const { return m_access[std::clamp (drive, 0, kDriveCount - 1)]; }
-    bool          IsWriteBlocked  (int drive) const;
+    const DiskAccessLog  & GetAccessLog   (int drive) const { return m_access[std::clamp (drive, 0, kDriveCount - 1)]; }
+    bool                   IsWriteBlocked (int drive) const;
 
     // Spec-006 bug 14b. When EmulatorShell drives mount/eject through
     // DiskImageStore + SetExternalDisk (bypassing this class's own
@@ -95,15 +95,15 @@ public:
     // runs and the IDisk2EventSink never sees the user-facing
     // insert/eject. These notify-only entrypoints let the shell fire
     // those events without re-routing the actual image bytes.
-    void          NotifyDiskInserted (int drive);
-    void          NotifyDiskEjected (int drive);
+    void  NotifyDiskInserted (int drive);
+    void  NotifyDiskEjected  (int drive);
 
     // Audio sink wiring (spec 005-disk-ii-audio FR-001..FR-004).
     // Caller-owned; controller never deletes it. Single sink covers
     // both drives (per-drive routing happens at the source-mixer
     // level via separate IDriveAudioSource instances).
-    void          SetAudioSink (IDriveAudioSink * sink) { m_audioSink = sink; }
-    IDriveAudioSink * GetAudioSink() const                 { return m_audioSink; }
+    void               SetAudioSink (IDriveAudioSink * sink) { m_audioSink = sink; }
+    IDriveAudioSink  * GetAudioSink () const                 { return m_audioSink; }
 
     // Spec-006 debug-window event sink wiring. Caller-owned;
     // controller never deletes it. Pass nullptr to detach (the
@@ -173,28 +173,28 @@ public:
     void   SetCpuCycleSource (const uint64_t * cycleSource) noexcept { m_cpuCycleSource = cycleSource; m_lastCpuSync = (cycleSource != nullptr) ? *cycleSource : 0; }
 
     // Inspectors used by Phase 9 tests.
-    int    GetActiveDrive() const { return m_activeDrive; }
-    bool   IsMotorOn() const { return m_motorOn; }
-    bool   IsMotorAtSpeed() const { return m_motorOn && m_motorSpinupRemaining == 0; }
-    uint32_t  GetMotorSpinupRemaining() const { return m_motorSpinupRemaining; }
+    int       GetActiveDrive          () const { return m_activeDrive; }
+    bool      IsMotorOn               () const { return m_motorOn; }
+    bool      IsMotorAtSpeed          () const { return m_motorOn && m_motorSpinupRemaining == 0; }
+    uint32_t  GetMotorSpinupRemaining () const { return m_motorSpinupRemaining; }
     // Head position of the selected drive; each drive has its own head.
-    int    GetQuarterTrack() const { return m_quarterTrack[m_activeDrive]; }
-    int    GetCurrentTrack() const { return m_quarterTrack[m_activeDrive] / 4; }
-    bool   IsQ6() const { return m_q6; }
-    bool   IsQ7() const { return m_q7; }
-    Disk2NibbleEngine &  GetEngine (int drive)  { return m_engine[drive]; }
-    const Disk2NibbleEngine &  GetEngine (int drive) const { return m_engine[drive]; }
+    int                        GetQuarterTrack () const { return m_quarterTrack[m_activeDrive]; }
+    int                        GetCurrentTrack () const { return m_quarterTrack[m_activeDrive] / 4; }
+    bool                       IsQ6            () const { return m_q6; }
+    bool                       IsQ7            () const { return m_q7; }
+    Disk2NibbleEngine        & GetEngine       (int drive)  { return m_engine[drive]; }
+    const Disk2NibbleEngine  & GetEngine       (int drive) const { return m_engine[drive]; }
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
-    void   HandleSwitch (int offset);
-    void   HandlePhase (int phase, bool on);
-    void   OnLatchLoad ();
-    void   UpdateEngineSelection();
-    void   UpdateEngineWriteMode();
-    Byte   HandleReadDispatch();
-    void   CatchUpToCpu();
+    void  HandleSwitch          (int offset);
+    void  HandlePhase           (int phase, bool on);
+    void  OnLatchLoad           ();
+    void  UpdateEngineSelection ();
+    void  UpdateEngineWriteMode ();
+    Byte  HandleReadDispatch    ();
+    void  CatchUpToCpu          ();
 
     // Offers the idle callback a turn, at most once per emulated frame.
     void   PumpIdleCallback (uint32_t cpuCycles);

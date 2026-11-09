@@ -24,7 +24,7 @@ public:
 
     //  The quarter track to select on turning it on, or -1 on turning it off.
     int   SetOn (bool isOn, int headQuarterTrack, int64_t nowMs);
-    bool  IsOn () const { return m_isOn; }
+    bool  IsOn  () const { return m_isOn; }
 
     void  OnHandSelection () { m_isOn = false; }
 

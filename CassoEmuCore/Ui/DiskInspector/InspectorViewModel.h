@@ -83,17 +83,17 @@ public:
     void                RestoreSelection (const InspectorSelection & selection);
     SelectionHistory &  GetHistory       () { return m_history; }
 
-    int                    GetQuarterTrack     () const { return m_quarterTrack; }
-    int                    GetSectorIndex      () const { return m_sectorIndex; }
-    int                    GetFirstNibble      () const { return m_firstNibble; }
-    int                    GetNibbleCount      () const { return m_nibbleCount; }
-    int                    GetFirstByte        () const { return m_firstByte; }
-    int                    GetByteCount        () const { return m_byteCount; }
-    bool                   IsTextColumn        () const { return m_isTextColumn; }
-    int                    GetNibbleAnchor     () const { return m_nibbleAnchor; }
-    int                    GetByteAnchor       () const { return m_byteAnchor; }
-    const TrackAnalysis *  GetTrack            () const;
-    const AnalyzedSector * GetSector           () const;
+    int                     GetQuarterTrack () const { return m_quarterTrack; }
+    int                     GetSectorIndex  () const { return m_sectorIndex; }
+    int                     GetFirstNibble  () const { return m_firstNibble; }
+    int                     GetNibbleCount  () const { return m_nibbleCount; }
+    int                     GetFirstByte    () const { return m_firstByte; }
+    int                     GetByteCount    () const { return m_byteCount; }
+    bool                    IsTextColumn    () const { return m_isTextColumn; }
+    int                     GetNibbleAnchor () const { return m_nibbleAnchor; }
+    int                     GetByteAnchor   () const { return m_byteAnchor; }
+    const TrackAnalysis   * GetTrack        () const;
+    const AnalyzedSector  * GetSector       () const;
 
     //  Platter zoom and pan.
     void    ZoomAbout       (double zoom, Point anchor);
@@ -162,10 +162,10 @@ public:
 
     //  A flight zooms the platter out until both the view's center and the
     //  selection are in view, then in to the selection (FR-038). ZoomAbout, PanBy, Fit and StopFlight end the flight.
-    void    StartFlight     (double nowMs);
-    bool    StepFlight      (double nowMs);
-    void    StopFlight      () { m_isFlying = false; }
-    bool    IsFlying        () const { return m_isFlying; }
+    void              StartFlight  (double nowMs);
+    bool              StepFlight   (double nowMs);
+    void              StopFlight   () { m_isFlying = false; }
+    bool              IsFlying     () const { return m_isFlying; }
     PlatterPlacement  GetPlacement (const RECT & boundsPx) const;
 
     //  Strip.
@@ -183,12 +183,12 @@ public:
     vector<std::pair<double, double>>  GetByteRuns () const;
 
 private:
-    void    SelectFirstSector      ();
-    void    FitStripToTrack        ();
-    void    ClearBytes             ();
-    void    BringSelectionIntoView ();
-    void    ClampPan               ();
-    static double  Ease            (double t);
+    void           SelectFirstSector      ();
+    void           FitStripToTrack        ();
+    void           ClearBytes             ();
+    void           BringSelectionIntoView ();
+    void           ClampPan               ();
+    static double  Ease                   (double t);
 
     const DiskAnalysis *  m_analysis      = nullptr;
     uint64_t              m_mediaId       = 0;

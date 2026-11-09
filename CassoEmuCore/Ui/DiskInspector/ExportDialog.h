@@ -64,7 +64,7 @@ protected:
     void  OnCreate () override;
 
 private:
-    void  OnOkClicked ();
+    void  OnOkClicked  ();
     bool  BuildSectors (std::wstring & outError);
     bool  BuildTrack   (ExportForm form, std::wstring & outError);
 

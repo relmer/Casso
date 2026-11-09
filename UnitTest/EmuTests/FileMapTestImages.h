@@ -59,6 +59,6 @@ public:
     static void  BreakSector (DiskAnalysis & inOut, int track, int physical, bool isMissing);
 
 private:
-    static void  SetWord (Byte * at, int value);
+    static void  SetWord    (Byte * at, int value);
     static void  SetDosName (Byte * at, const char * name);
 };

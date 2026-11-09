@@ -41,13 +41,13 @@ protected:
     void  OnDialogTick () override;
 
 private:
-    void      OnOkClicked     ();
-    void      ShowHint        (GoToKind kind);
-    void      FillFiles       ();
-    bool      Validate        ();
-    IDxuiControl * GetEntryControl (GoToKind kind);
-    GoToKind  GetChosenKind   () const;
-    int       GetEnteredTrack () const;
+    void            OnOkClicked     ();
+    void            ShowHint        (GoToKind kind);
+    void            FillFiles       ();
+    bool            Validate        ();
+    IDxuiControl  * GetEntryControl (GoToKind kind);
+    GoToKind        GetChosenKind   () const;
+    int             GetEnteredTrack () const;
 
     static LPCWSTR                          GetEntryLabel      (GoToKind kind);
     static vector<vector<std::wstring>>     BuildDosOrderTable ();

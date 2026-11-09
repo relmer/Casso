@@ -28,19 +28,19 @@ public:
     static vector<std::wstring>  GetFileColumns (const FileMap & map);
     static vector<TableRow>      BuildFileRows  (const FileMap & map, bool isShowingDeleted, bool isBadOnly, int sortColumn, bool isDescending);
 
-    static std::wstring  FormatRole      (MapFileSystem fileSystem, SectorRole role);
-    static std::wstring  FormatResult    (SectorResult result);
+    static std::wstring  FormatRole         (MapFileSystem fileSystem, SectorRole role);
+    static std::wstring  FormatResult       (SectorResult result);
     static std::wstring  FormatResultPhrase (SectorResult result);
-    static std::wstring  FormatCell      (const FileMap & map, int cell);
-    static std::wstring  FormatOwners    (const FileMap & map, int cell);
-    static std::wstring  FormatTooltip   (const FileMap & map, int cell);
-    static std::wstring  FormatStates    (const MappedFile & file);
-    static std::wstring  FormatSize      (const FileMap & map, const MappedFile & file);
-    static std::wstring  FormatNotMapped (const FileMap & map);
-    static std::wstring  FormatVolume    (const FileMap & map);
-    static std::wstring  FormatColumnAxis (const FileMap & map);
-    static std::wstring  FormatMap       (const FileMap & map);
-    static wchar_t       GetRoleLetter   (SectorRole role);
+    static std::wstring  FormatCell         (const FileMap & map, int cell);
+    static std::wstring  FormatOwners       (const FileMap & map, int cell);
+    static std::wstring  FormatTooltip      (const FileMap & map, int cell);
+    static std::wstring  FormatStates       (const MappedFile & file);
+    static std::wstring  FormatSize         (const FileMap & map, const MappedFile & file);
+    static std::wstring  FormatNotMapped    (const FileMap & map);
+    static std::wstring  FormatVolume       (const FileMap & map);
+    static std::wstring  FormatColumnAxis   (const FileMap & map);
+    static std::wstring  FormatMap          (const FileMap & map);
+    static wchar_t       GetRoleLetter      (SectorRole role);
 
     //  A word or two for a sector's role, short enough for a File map cell.
     static std::wstring  GetRoleWord     (MapFileSystem fileSystem, SectorRole role);

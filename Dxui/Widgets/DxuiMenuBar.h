@@ -106,18 +106,18 @@ public:
     void  Close             ();
     void  CloseAll          ();
 
-    int   OpenIndex         () const { return m_isOpen ? m_openIndex    : -1;       }
-    int   OpenMenuIndex     () const { return m_openIndex;                          }
-    bool  IsOpen            () const { return m_isOpen;                             }
-    bool  IsOpenByKeyboard  () const { return m_isOpen && m_openedByKeyboard;       }
-    int   GetHighlightIndex () const;
-    int   GetHoverIndex     () const { return m_hoverIndex;                         }
-    int   GetMenuCount      () const { return (int) m_items.size();                 }
-    const std::vector<DxuiMenuBarItem> &  GetItems () const { return m_items; }
-    void  SetFocusedMenu    (int menuIndex);
-    void  ClearFocus        ();
-    bool  HasFocus          () const { return m_hasFocus;                           }
-    int   GetFocusedMenu    () const { return m_focusedIndex;                       }
+    int                                   OpenIndex         () const { return m_isOpen ? m_openIndex    : -1;       }
+    int                                   OpenMenuIndex     () const { return m_openIndex;                          }
+    bool                                  IsOpen            () const { return m_isOpen;                             }
+    bool                                  IsOpenByKeyboard  () const { return m_isOpen && m_openedByKeyboard;       }
+    int                                   GetHighlightIndex () const;
+    int                                   GetHoverIndex     () const { return m_hoverIndex;                         }
+    int                                   GetMenuCount      () const { return (int) m_items.size();                 }
+    const std::vector<DxuiMenuBarItem>  & GetItems          () const { return m_items; }
+    void                                  SetFocusedMenu    (int menuIndex);
+    void                                  ClearFocus        ();
+    bool                                  HasFocus          () const { return m_hasFocus;                           }
+    int                                   GetFocusedMenu    () const { return m_focusedIndex;                       }
 
     bool  HandleAltKey      (wchar_t ch);
     bool  HandleKey         (WPARAM vk);
@@ -187,10 +187,10 @@ private:
     bool  ActivateMnemonicRow (wchar_t ch);
     void  ShowOpenMenu        ();
 
-    int   HitTitleIndex       (int x, int y) const;
-    int   GetVisibleRowCount  (int menuIndex) const;
-    int   ToRowIndex          (int itemIndex) const;
-    const DxuiPopupMenuItem *  GetEntryAt (int menuIndex, int rowIndex) const;
+    int                        HitTitleIndex      (int x, int y) const;
+    int                        GetVisibleRowCount (int menuIndex) const;
+    int                        ToRowIndex         (int itemIndex) const;
+    const DxuiPopupMenuItem  * GetEntryAt         (int menuIndex, int rowIndex) const;
 
     static bool  ShouldShowMnemonicCues (bool openedByKeyboard);
 

@@ -35,23 +35,23 @@ public:
     explicit PlatterView (InspectorViewContext & context);
     ~PlatterView () override;
 
-    void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool  OnMouse    (const DxuiMouseEvent & ev) override;
-    bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
+    void  Paint              (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnMouse            (const DxuiMouseEvent & ev) override;
+    bool  GetTooltip         (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
     bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
 
-    PlatterRenderer &  GetRenderer ()       { return m_renderer; }
-    PlatterHit         HitTest     (POINT pointPx) const;
-    bool               IsEcho      (int quarterTrack) const;
-    bool               IsDragging  () const { return m_isPanning || m_isTilting; }
-    void               ZoomBy      (double factor, POINT anchorPx);
+    PlatterRenderer  & GetRenderer     ()       { return m_renderer; }
+    PlatterHit         HitTest         (POINT pointPx) const;
+    bool               IsEcho          (int quarterTrack) const;
+    bool               IsDragging      () const { return m_isPanning || m_isTilting; }
+    void               ZoomBy          (double factor, POINT anchorPx);
     void               ZoomAboutCenter (double factor);
     void               StepZoom        (int steps);
     void               StepZoomAt      (int steps, POINT anchorPx);
     vector<double>     GetZoomStops    () const;
     //  Where the head's bullseye is drawn, or false when there is no head.
-    bool               GetHeadPoint (POINT & outPointPx) const;
-    void               SetAlignmentShown (bool isShown) { m_isAlignmentShown = isShown; }
+    bool  GetHeadPoint      (POINT & outPointPx) const;
+    void  SetAlignmentShown (bool isShown) { m_isAlignmentShown = isShown; }
 
 private:
     friend class PlatterOverlays;
@@ -67,28 +67,28 @@ private:
     void           PaintNibbles   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintRing      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view, int quarterTrack,
                                    const TrackAnalysis & track, const RingTurns & turns, double start, double end);
-    static void    ShadeArc       (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb);
-    bool           IsSelectedNibble (int quarterTrack, int nibble) const;
-    static void    DrawRadial     (IDxuiPainter & painter, const PlatterPlacement & view, double turn, double r0, double r1, float thicknessPx, uint32_t argb);
+    static void  ShadeArc         (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb);
+    bool         IsSelectedNibble (int quarterTrack, int nibble) const;
+    static void  DrawRadial       (IDxuiPainter & painter, const PlatterPlacement & view, double turn, double r0, double r1, float thicknessPx, uint32_t argb);
     void           DrawUpright    (IDxuiTextRenderer & text, const PlatterPlacement & view, double turn, double radius, const std::wstring & value, float widthPx,
                                    float textPx, uint32_t argb) const;
-    bool           BuildTip       (POINT pointPx, InspectorTip & outTip) const;
-    bool           IsShowingValues (const PlatterPlacement & view, int quarterTrack) const;
-    bool           IsShowingTicks  (const PlatterPlacement & view, int quarterTrack) const;
-    bool           IsShowingBits   (const PlatterPlacement & view, int quarterTrack) const;
-    const TrackAnalysis *  GetRingTrack (int quarterTrack) const;
-    const RingTurns &      GetRingTurns (int slot, const TrackAnalysis & track) const;
-    void           PaintDisk      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view, bool isStill);
-    void           PaintHead      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
-    static void  GetHeadPlace   (const PlatterPlacement & view, double radius, float drop, float along, float across, float & outX, float & outY);
-    void         PaintIndexLabel (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view) const;
-    static void  PaintHeadShape (IDxuiPainter & painter, const PlatterPlacement & view, double radius, float drop, float tip, float hole, float reach, uint32_t argb, float line, uint32_t edge);
-    bool         IsIndexStill (const PlatterPlacement & view);
-    bool         IsIndexLabelClear (const PlatterPlacement & view, float cx, float cy, float w, float h) const;
-    static std::array<float, 4>  GetPlaneMap (const PlatterPlacement & view, double dx, double dy, float & outX, float & outY);
-    bool           OnTiltMouse    (const DxuiMouseEvent & ev);
-    void           OutlineRing    (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, float thicknessPx, uint32_t argb) const;
-    static void    OutlineCircle  (IDxuiPainter & painter, float cx, float cy, float radius, float thicknessPx, uint32_t argb);
+    bool                           BuildTip          (POINT pointPx, InspectorTip & outTip) const;
+    bool                           IsShowingValues   (const PlatterPlacement & view, int quarterTrack) const;
+    bool                           IsShowingTicks    (const PlatterPlacement & view, int quarterTrack) const;
+    bool                           IsShowingBits     (const PlatterPlacement & view, int quarterTrack) const;
+    const TrackAnalysis          * GetRingTrack      (int quarterTrack) const;
+    const RingTurns              & GetRingTurns      (int slot, const TrackAnalysis & track) const;
+    void                           PaintDisk         (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view, bool isStill);
+    void                           PaintHead         (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
+    static void                    GetHeadPlace      (const PlatterPlacement & view, double radius, float drop, float along, float across, float & outX, float & outY);
+    void                           PaintIndexLabel   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view) const;
+    static void                    PaintHeadShape    (IDxuiPainter & painter, const PlatterPlacement & view, double radius, float drop, float tip, float hole, float reach, uint32_t argb, float line, uint32_t edge);
+    bool                           IsIndexStill      (const PlatterPlacement & view);
+    bool                           IsIndexLabelClear (const PlatterPlacement & view, float cx, float cy, float w, float h) const;
+    static std::array<float, 4>    GetPlaneMap       (const PlatterPlacement & view, double dx, double dy, float & outX, float & outY);
+    bool                           OnTiltMouse       (const DxuiMouseEvent & ev);
+    void                           OutlineRing       (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, float thicknessPx, uint32_t argb) const;
+    static void                    OutlineCircle     (IDxuiPainter & painter, float cx, float cy, float radius, float thicknessPx, uint32_t argb);
 
     //  A circle on the disk around its center: round in the flat view, and
     //  drawn through Project in the tilted one.
@@ -97,7 +97,7 @@ private:
 
     //  How many pixels one pixel of the flat disk at a point is drawn as,
     //  the smaller of along the ring and across it; 1 in the flat view.
-    PlatterPlacement  MakeView       () const;
+    PlatterPlacement           MakeView    () const;
     InspectorViewModel::Point  ToViewPoint (POINT pointPx) const;
 
     PlatterRenderer                   m_renderer;

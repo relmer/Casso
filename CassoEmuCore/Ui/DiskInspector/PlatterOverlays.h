@@ -36,34 +36,34 @@ public:
 
     explicit PlatterOverlays (PlatterView & view) : m_view (view) {}
 
-    void           PaintFiles       (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
-    void           PaintDiffs       (IDxuiPainter & painter, const PlatterPlacement & view);
-    void           PaintHits        (IDxuiPainter & painter, const PlatterPlacement & view);
-    void           PaintAlignment   (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
-    void           PaintAccess      (IDxuiPainter & painter, const PlatterPlacement & view, AccessKind kind) const;
-    void           DimForAccess     (IDxuiPainter & painter, const PlatterPlacement & view) const;
-    static uint32_t                      GetHeatColor (uint32_t rgb, uint32_t count, uint32_t most);
-    static const DiskAccessLog::Spans &  GetSpans     (const DriveAccess & access, AccessKind kind);
-    void           PaintSelectedArc (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
-    void           GetFileArcs      (vector<FileArc> & outArcs) const;
-    void           DimOutsideFile   (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const;
-    void           PaintMarquee     (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const;
-    bool           IsOverSelection  (const PlatterPlacement & view, POINT pointPx) const;
+    void                                 PaintFiles       (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
+    void                                 PaintDiffs       (IDxuiPainter & painter, const PlatterPlacement & view);
+    void                                 PaintHits        (IDxuiPainter & painter, const PlatterPlacement & view);
+    void                                 PaintAlignment   (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
+    void                                 PaintAccess      (IDxuiPainter & painter, const PlatterPlacement & view, AccessKind kind) const;
+    void                                 DimForAccess     (IDxuiPainter & painter, const PlatterPlacement & view) const;
+    static uint32_t                      GetHeatColor     (uint32_t rgb, uint32_t count, uint32_t most);
+    static const DiskAccessLog::Spans  & GetSpans         (const DriveAccess & access, AccessKind kind);
+    void                                 PaintSelectedArc (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
+    void                                 GetFileArcs      (vector<FileArc> & outArcs) const;
+    void                                 DimOutsideFile   (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const;
+    void                                 PaintMarquee     (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const;
+    bool                                 IsOverSelection  (const PlatterPlacement & view, POINT pointPx) const;
 
 private:
-    void           PaintArcMark     (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, double start, double end, bool isSelected) const;
-    void           GetMarkBand      (const PlatterPlacement & view, int quarterTrack, double & outR0, double & outR1) const;
-    RECT           GetArcBox        (const PlatterPlacement & view, double start, double end, double r0, double r1) const;
-    void           GetVisibleRadii  (const PlatterPlacement & view, double r0, double r1, double & outNear, double & outFar) const;
-    static void    GetDiffTurns     (const Difference & difference, const TrackAnalysis & track, const PlatterView::RingTurns & turns, double & outA, double & outB);
-    void           ShadeRingArc     (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb) const;
-    void  ShadeTrackField (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, int ring, uint32_t argb) const;
-    vector<std::pair<double, double>>  GetVisibleParts (const PlatterPlacement & view, double a, double b) const;
-    bool           IsBandVisible    (const PlatterPlacement & view, double r0, double r1) const;
-    void           DrawMarqueeArc   (const InspectorMarquee & marquee, IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r) const;
-    void           DrawMarqueeClear (const InspectorMarquee & marquee, IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r) const;
-    double         GetClearTurn     (const PlatterPlacement & view, double turn, double inner, double outer) const;
-    bool           GetSelectionBorder (const PlatterPlacement & view, double & outStart, double & outEnd, double & outR0, double & outR1) const;
+    void                               PaintArcMark       (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, double start, double end, bool isSelected) const;
+    void                               GetMarkBand        (const PlatterPlacement & view, int quarterTrack, double & outR0, double & outR1) const;
+    RECT                               GetArcBox          (const PlatterPlacement & view, double start, double end, double r0, double r1) const;
+    void                               GetVisibleRadii    (const PlatterPlacement & view, double r0, double r1, double & outNear, double & outFar) const;
+    static void                        GetDiffTurns       (const Difference & difference, const TrackAnalysis & track, const PlatterView::RingTurns & turns, double & outA, double & outB);
+    void                               ShadeRingArc       (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb) const;
+    void                               ShadeTrackField    (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, int ring, uint32_t argb) const;
+    vector<std::pair<double, double>>  GetVisibleParts    (const PlatterPlacement & view, double a, double b) const;
+    bool                               IsBandVisible      (const PlatterPlacement & view, double r0, double r1) const;
+    void                               DrawMarqueeArc     (const InspectorMarquee & marquee, IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r) const;
+    void                               DrawMarqueeClear   (const InspectorMarquee & marquee, IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r) const;
+    double                             GetClearTurn       (const PlatterPlacement & view, double turn, double inner, double outer) const;
+    bool                               GetSelectionBorder (const PlatterPlacement & view, double & outStart, double & outEnd, double & outR0, double & outR1) const;
 
     PlatterView  & m_view;
 };

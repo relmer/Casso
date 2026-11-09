@@ -33,10 +33,10 @@ public:
     bool          OnMouse    (const DxuiMouseEvent & ev) override;
     std::wstring  GetTip     (POINT pointPx, RECT & outAnchorPx) const override;
 
-    void  Layout      (const RECT & area, const DxuiDpiScaler & scaler);
-    int   GetHeightPx (const DxuiDpiScaler & scaler) const;
-    void  SetHint     (const std::wstring & hint) { m_hint = hint; }
-    void  SetZoom     (double zoom);
+    void  Layout         (const RECT & area, const DxuiDpiScaler & scaler);
+    int   GetHeightPx    (const DxuiDpiScaler & scaler) const;
+    void  SetHint        (const std::wstring & hint) { m_hint = hint; }
+    void  SetZoom        (double zoom);
     bool  IsZoomDragging () const { return m_zoomControl != nullptr && m_zoomControl->IsDragging(); }
     bool  IsOverZoom     (POINT p) const { return m_zoomControl != nullptr && m_zoomControl->IsOverControls (p); }
 

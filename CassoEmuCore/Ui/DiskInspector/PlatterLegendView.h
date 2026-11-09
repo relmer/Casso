@@ -64,8 +64,8 @@ public:
     int   GetHeightDip () const;
 
     //  The legend's width for its entries, titles and notes, padding included.
-    static int    GetWidthDip  (IDxuiTextRenderer & text, const InspectorViewContext & context);
-    static float  GetColumnDip (IDxuiTextRenderer & text, const InspectorViewContext & context);
+    static int    GetWidthDip    (IDxuiTextRenderer & text, const InspectorViewContext & context);
+    static float  GetColumnDip   (IDxuiTextRenderer & text, const InspectorViewContext & context);
     static int    GetColumnCount (const LegendSection & section);
 
     static vector<LegendEntry>    BuildEntries  (const DiskInspectorPalette & palette, bool isTimingMode, double range);

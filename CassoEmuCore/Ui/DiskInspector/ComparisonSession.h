@@ -85,15 +85,15 @@ public:
     bool                        IsBusy         () const;
     bool                        HasResult      () const { return m_hasResult; }
     bool                        HasOwnSettings () const { return m_hasOwnSettings; }
-    const ComparisonSource &    GetSourceA     () const { return m_sources[kSideA]; }
-    const ComparisonSource &    GetSourceB     () const { return m_sources[kSideB]; }
-    const DiskAnalysis &        GetB           () const { return m_b; }
-    const AnalysisScheduler &   GetBScheduler  () const { return *m_bScheduler; }
-    const DiskComparison &      GetResult      () const { return m_result; }
-    const vector<Difference> &  GetListed      () const { return m_listed; }
-    const ComparisonOptions &   GetOptions     () const { return m_options; }
-    const std::wstring &        GetBError      () const { return m_errors[kSideB]; }
-    const std::wstring &        GetAError      () const { return m_errors[kSideA]; }
+    const ComparisonSource    & GetSourceA     () const { return m_sources[kSideA]; }
+    const ComparisonSource    & GetSourceB     () const { return m_sources[kSideB]; }
+    const DiskAnalysis        & GetB           () const { return m_b; }
+    const AnalysisScheduler   & GetBScheduler  () const { return *m_bScheduler; }
+    const DiskComparison      & GetResult      () const { return m_result; }
+    const vector<Difference>  & GetListed      () const { return m_listed; }
+    const ComparisonOptions   & GetOptions     () const { return m_options; }
+    const std::wstring        & GetBError      () const { return m_errors[kSideB]; }
+    const std::wstring        & GetAError      () const { return m_errors[kSideA]; }
     uint64_t                    GetVersion     () const { return m_version; }
 
     //  The quarter tracks waiting to be compared again, or being compared,
@@ -116,12 +116,12 @@ private:
         DiskComparison  result;
     };
 
-    void  NoteChange  (bool isWhole);
-    void  StartRead   (int side, IDiskInspectorHost & host);
-    void  ReadFile    (int side, const std::string & utf8Path);
-    void  ReadBytes   (int side, std::shared_ptr<const vector<Byte>> bytes, const std::string & utf8Path);
-    void  Deliver     (LoadedDisk loaded, vector<LoadedDisk> & outLoadsForA);
-    void  StartB      (std::shared_ptr<const DiskCopy> copy);
+    void  NoteChange   (bool isWhole);
+    void  StartRead    (int side, IDiskInspectorHost & host);
+    void  ReadFile     (int side, const std::string & utf8Path);
+    void  ReadBytes    (int side, std::shared_ptr<const vector<Byte>> bytes, const std::string & utf8Path);
+    void  Deliver      (LoadedDisk loaded, vector<LoadedDisk> & outLoadsForA);
+    void  StartB       (std::shared_ptr<const DiskCopy> copy);
     void  TakeBResults ();
     void  StartCompare (const DiskAnalysis & a);
     void  TakeCompared ();

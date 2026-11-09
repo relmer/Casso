@@ -56,23 +56,23 @@ public:
     void          ApplyPrefs    (const DiskInspectorPrefs & prefs) override;
     void          OnDiskStarted (const DiskChange & change) override;
 
-    void    Layout         (const RECT & area, const DxuiDpiScaler & scaler);
-    int     GetMinWidthPx  (const DxuiDpiScaler & scaler) const;
+    void    Layout          (const RECT & area, const DxuiDpiScaler & scaler);
+    int     GetMinWidthPx   (const DxuiDpiScaler & scaler) const;
     int     GetBottomBandPx (const DxuiDpiScaler & scaler) const;
-    bool    Contains       (POINT pointPx) const;
-    bool    IsOverlayOn    (PlatterOverlay overlay) const;
-    void    SetOverlay     (PlatterOverlay overlay, bool isOn);
-    void    ShowLegend     (bool isPinned);
-    void    HideLegend     ();
-    void    ToggleTilt     ();
-    double  GetLastTilt    () const { return m_lastTilt; }
+    bool    Contains        (POINT pointPx) const;
+    bool    IsOverlayOn     (PlatterOverlay overlay) const;
+    void    SetOverlay      (PlatterOverlay overlay, bool isOn);
+    void    ShowLegend      (bool isPinned);
+    void    HideLegend      ();
+    void    ToggleTilt      ();
+    double  GetLastTilt     () const { return m_lastTilt; }
 
 private:
-    void    Place          ();
-    void    TrackLegendHover (POINT pointPx);
-    bool    IsSliderWanted () const;
-    int     GetChipsWidthPx (const DxuiDpiScaler & scaler) const;
-    int     GetZoomWidthPx  (const DxuiDpiScaler & scaler) const;
+    void  Place            ();
+    void  TrackLegendHover (POINT pointPx);
+    bool  IsSliderWanted   () const;
+    int   GetChipsWidthPx  (const DxuiDpiScaler & scaler) const;
+    int   GetZoomWidthPx   (const DxuiDpiScaler & scaler) const;
 
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;

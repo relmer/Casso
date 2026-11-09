@@ -39,8 +39,8 @@ public:
         std::map<int, vector<Run>>  bytes;
     };
 
-    void  Build (const vector<SearchHit> & hits, const FileMap * map, const std::wstring & queryText);
-    void  Clear ();
+    void  Build   (const vector<SearchHit> & hits, const FileMap * map, const std::wstring & queryText);
+    void  Clear   ();
     bool  IsEmpty () const { return m_tracks.empty(); }
 
     const std::map<const TrackAnalysis *, TrackMarks> &  GetTracks () const { return m_tracks; }

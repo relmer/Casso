@@ -60,12 +60,12 @@ public:
     void      ServiceWaiting ();
 
 private:
-    const DiskImage *     GetImage         (int drive, InspectorDiskIdentity & outIdentity) override;
-    DiskImage *           GetImageForEdit  (int drive) override;
-    InspectorDriveMotion  GetMotion        (int drive) override;
-    InspectorSaveResult   SaveDrive        (int drive) override;
-    void                  SetMachinePaused (bool isPaused) override;
-    vector<std::string>   GetMountedPaths  () override;
+    const DiskImage       * GetImage         (int drive, InspectorDiskIdentity & outIdentity) override;
+    DiskImage             * GetImageForEdit  (int drive) override;
+    InspectorDriveMotion    GetMotion        (int drive) override;
+    InspectorSaveResult     SaveDrive        (int drive) override;
+    void                    SetMachinePaused (bool isPaused) override;
+    vector<std::string>     GetMountedPaths  () override;
 
     CpuManager                                      & m_cpuManager;
     MachineHost                                     & m_machine;

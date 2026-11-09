@@ -34,15 +34,15 @@ public:
     //  The width a sector's bytes take at full size.
     static int  GetFullWidthPx (const DxuiDpiScaler & scaler);
 
-    void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool  OnMouse (const DxuiMouseEvent & ev) override;
-    bool  GetTooltip         (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
+    void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnMouse    (const DxuiMouseEvent & ev) override;
+    bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
 
     //  Editing (FR-097): typing goes to the selected sector's pending edit at
     //  the cursor, the first selected byte, in the column last clicked.
-    void  SetEditing (bool isEditing) { m_isEditing = isEditing; m_isLowNibble = false; }
-    bool  IsEditing  () const         { return m_isEditing; }
-    bool  OnEditKey  (const DxuiKeyEvent & ev);
+    void  SetEditing         (bool isEditing) { m_isEditing = isEditing; m_isLowNibble = false; }
+    bool  IsEditing          () const         { return m_isEditing; }
+    bool  OnEditKey          (const DxuiKeyEvent & ev);
     bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
 
     //  Pixels at the right of the header's first line reserved for the
@@ -54,14 +54,14 @@ public:
     static wchar_t  GetTextChar (Byte value);
 
 private:
-    float  PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y);
+    float  PaintHeader     (IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y);
     void   PaintHeaderItem (IDxuiTextRenderer & text, const IDxuiTheme & theme, const HeaderItem & item, float x, float y, float rowH) const;
-    void   PaintCursor (IDxuiPainter & painter, const IDxuiTheme & theme);
-    void   MoveCursor  (int offset, bool isTextColumn, bool isLowNibble);
-    int    GetEdit     () const;
-    void   PaintBytes  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y);
-    void   PaintSelection (IDxuiPainter & painter, const IDxuiTheme & theme);
-    int    HitTest     (POINT pointPx, bool & outIsText) const;
+    void   PaintCursor     (IDxuiPainter & painter, const IDxuiTheme & theme);
+    void   MoveCursor      (int offset, bool isTextColumn, bool isLowNibble);
+    int    GetEdit         () const;
+    void   PaintBytes      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y);
+    void   PaintSelection  (IDxuiPainter & painter, const IDxuiTheme & theme);
+    int    HitTest         (POINT pointPx, bool & outIsText) const;
 
     //  Where the bytes were last drawn, for hit testing.
     struct ByteGrid

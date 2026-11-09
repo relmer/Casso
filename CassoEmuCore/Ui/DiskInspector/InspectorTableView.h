@@ -42,22 +42,22 @@ public:
     void  SetWrapsText (bool isWrapped) { m_list.SetWrapsText (isWrapped); }
 
     //  A line inside the list, under its header, while it has no rows.
-    void  SetEmptyText (const std::wstring & text) { m_emptyText = text; }
-    void  SetOnSelect (SelectFn select) { m_select = std::move (select); }
-    void  SetOnSort   (SortFn sort);
+    void  SetEmptyText     (const std::wstring & text) { m_emptyText = text; }
+    void  SetOnSelect      (SelectFn select) { m_select = std::move (select); }
+    void  SetOnSort        (SortFn sort);
     void  SetSortIndicator (int column, bool isDescending) { m_list.SetSortIndicator (column, isDescending); }
     void  SelectRowWhere   (const std::function<bool (const TableRow & row)> & isMatch);
-    void  Tick        (int64_t nowMs) override { m_list.Tick (nowMs); }
+    void  Tick             (int64_t nowMs) override { m_list.Tick (nowMs); }
 
     const vector<TableRow> &  GetRows () const { return m_rows; }
 
     //  The selected row under the header, tab-separated, for Copy (FR-057).
     std::wstring  GetSelectedText () const;
 
-    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool  OnMouse (const DxuiMouseEvent & ev) override;
-    bool  OnKey   (const DxuiKeyEvent & ev) override;
+    void  Layout     (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnMouse    (const DxuiMouseEvent & ev) override;
+    bool  OnKey      (const DxuiKeyEvent & ev) override;
     bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
 
 private:

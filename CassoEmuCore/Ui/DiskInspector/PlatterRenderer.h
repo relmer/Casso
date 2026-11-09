@@ -105,9 +105,9 @@ private:
         bool                           isEcho = false;
     };
 
-    HRESULT  Upload      (ID3D11DeviceContext * pContext);
-    HRESULT  EnsureKinds (UINT rows);
-    static void  ToFloat4 (uint32_t argb, float (&out)[4]);
+    HRESULT      Upload      (ID3D11DeviceContext * pContext);
+    HRESULT      EnsureKinds (UINT rows);
+    static void  ToFloat4    (uint32_t argb, float (&out)[4]);
 
     ID3D11Device                      * m_device       = nullptr;   // non-owning
     ComPtr<ID3D11VertexShader>          m_vs;

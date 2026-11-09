@@ -31,10 +31,10 @@ class ComparisonPart : public IInspectorComponent
 public:
     ComparisonPart (InspectorSession & session, IInspectorComponentHost & host, DifferencesView & diffsTab, TrackStripView & stripB, FilesView & files);
 
-    void          Create     () override;
-    void          Update     () override;
-    void          PaintUnder (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    std::wstring  GetTip     (POINT pointPx, RECT & outAnchorPx) const override;
+    void          Create         () override;
+    void          Update         () override;
+    void          PaintUnder     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    std::wstring  GetTip         (POINT pointPx, RECT & outAnchorPx) const override;
     void          OnDiskStarting (const DiskChange & change) override;
 
     void  Layout           (const RECT & bar, const DxuiDpiScaler & scaler);

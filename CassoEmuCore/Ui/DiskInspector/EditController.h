@@ -91,8 +91,8 @@ public:
     //  fit. Hex text that does not read as pairs of hex digits writes nothing.
     int   Paste (int edit, int offset, const std::wstring & text, bool isTextColumn, int & outOverflow);
 
-    bool  Undo ();
-    bool  Redo ();
+    bool  Undo    ();
+    bool  Redo    ();
     bool  CanUndo () const { return m_undoAt > 0; }
     bool  CanRedo () const { return m_undoAt < static_cast<int> (m_actions.size()); }
 
@@ -119,13 +119,13 @@ public:
 
     //  Whether a sector of a record has changed bytes pending, and how many
     //  of a record's sectors do, for the marks in other views (FR-097).
-    bool                         HasChanges         (int slot, Byte sectorNumber) const;
-    int                          CountChangedSectors (int slot) const;
+    bool  HasChanges          (int slot, Byte sectorNumber) const;
+    int   CountChangedSectors (int slot) const;
 
     Counts                       GetCounts () const;
     bool                         IsEmpty   () const { return GetCounts().sectors == 0; }
-    const vector<PendingEdit> &  GetEdits  () const { return m_edits; }
-    const PendingEdit &          GetEdit   (int edit) const { return m_edits[edit]; }
+    const vector<PendingEdit>  & GetEdits  () const { return m_edits; }
+    const PendingEdit          & GetEdit   (int edit) const { return m_edits[edit]; }
 
 private:
     struct Action
@@ -139,9 +139,9 @@ private:
         vector<PendingEdit>  setAfter;
     };
 
-    void  Record   (Action action);
-    void  Restore  (const Action & action, bool isUndo);
-    bool  SetBytes (int edit, int offset, const vector<Byte> & values);
+    void        Record    (Action action);
+    void        Restore   (const Action & action, bool isUndo);
+    bool        SetBytes  (int edit, int offset, const vector<Byte> & values);
     static int  FindField (const TrackAnalysis & track, Byte sectorNumber, DiskFieldKind kind, uint32_t nearCell);
 
     vector<PendingEdit>  m_edits;

@@ -691,7 +691,7 @@ public:
     //  unit tests can assert the final NC return without instantiating
     //  the full WndProc dispatch.
     //
-    static LRESULT  KindToHt  (DxuiHitTestKind kind);
+    static LRESULT  KindToHt       (DxuiHitTestKind kind);
     HRESULT         ShowSystemMenu (POINT ptScreen);
 
     //

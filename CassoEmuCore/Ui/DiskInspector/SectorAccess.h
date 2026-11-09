@@ -50,5 +50,5 @@ public:
 
 private:
     static vector<uint32_t>  CountHalfCovered (const TrackAnalysis & track, const vector<CellSpan> & spans, bool isAddress);
-    static uint32_t  GetOverlap (uint32_t length, uint32_t spanStart, uint32_t spanEnd, uint32_t fieldStart, uint32_t fieldEnd);
+    static uint32_t          GetOverlap       (uint32_t length, uint32_t spanStart, uint32_t spanEnd, uint32_t fieldStart, uint32_t fieldEnd);
 };

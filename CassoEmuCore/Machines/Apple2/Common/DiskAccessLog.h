@@ -76,11 +76,11 @@ public:
     void  ObserveWrite (int quarterTrack, uint32_t cell);
     void  EndWrite     ();
 
-    const Spans &  GetReads      () const { return m_reads; }
+    const Spans  & GetReads        () const { return m_reads; }
     uint32_t       GetNibblesTaken (int quarterTrack) const { return m_taken[static_cast<size_t> (quarterTrack)]; }
-    const Spans &  GetWrites     () const { return m_writes; }
-    const Spans &  GetScans      () const { return m_scans; }
-    uint64_t       GetGeneration () const { return m_generation; }
+    const Spans  & GetWrites       () const { return m_writes; }
+    const Spans  & GetScans        () const { return m_scans; }
+    uint64_t       GetGeneration   () const { return m_generation; }
 
     //  Counts one more access of a stretch: on a stretch already listed that
     //  covers at least half of it or of the new one, or as a new stretch.

@@ -30,7 +30,7 @@ public:
     //  A round button's hover fill and focus ring are circles, for a button
     //  drawn on a round background.
     void  SetRound          (bool isRound)              { m_isRound = isRound; }
-    void  SetOnClick          (ClickFn click)             { m_click = std::move (click); }
+    void  SetOnClick        (ClickFn click)             { m_click = std::move (click); }
     void  SetDpi            (UINT dpi)                  { m_scaler.SetDpi (dpi); }
     void  SetAccessibleName (const std::wstring & name) { m_a11yName = name; }
     void  SetEnabled        (bool enabled)              { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }

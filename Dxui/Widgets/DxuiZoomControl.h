@@ -37,9 +37,9 @@ public:
     DxuiZoomControl             (const DxuiZoomControl &) = delete;
     DxuiZoomControl & operator= (const DxuiZoomControl &) = delete;
 
-    void    SetZoom    (double zoom);
-    double  GetZoom    () const { return m_zoom; }
-    void    SetOnZoom  (ZoomFn fn) { m_onZoom = std::move (fn); }
+    void    SetZoom       (double zoom);
+    double  GetZoom       () const { return m_zoom; }
+    void    SetOnZoom     (ZoomFn fn) { m_onZoom = std::move (fn); }
     bool    IsSliderShown () const { return m_isSliderShown || m_isHoverShown; }
 
     //  The slider appears while the pointer is over the percentage, and stays
@@ -58,7 +58,7 @@ public:
 
     //  The zoom a number of steps from `zoom` through the standard stops, as
     //  a browser zooms: -1 for the next stop down, 1 for the next one up.
-    static double  StepZoom      (double zoom, int steps);
+    static double        StepZoom   (double zoom, int steps);
     static std::wstring  FormatZoom (double zoom);
 
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;

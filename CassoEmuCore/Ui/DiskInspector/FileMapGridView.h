@@ -41,9 +41,9 @@ public:
 
     explicit FileMapGridView (InspectorViewContext & context);
 
-    void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool  OnMouse    (const DxuiMouseEvent & ev) override;
-    bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
+    void  Paint              (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnMouse            (const DxuiMouseEvent & ev) override;
+    bool  GetTooltip         (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
     bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
 
     void  SetMap         (const FileMap * map)    { m_map = map; }
@@ -104,18 +104,18 @@ private:
     void  PaintMap  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & g, int cell, int number, bool isDimmed,
                      const SectorSource * source);
-    void  PaintMarquee (IDxuiPainter & painter, const Grid & g, const vector<int> & numbers) const;
+    void      PaintMarquee (IDxuiPainter & painter, const Grid & g, const vector<int> & numbers) const;
     bool      IsDimmed     (int cell) const;
     bool      IsHitCell    (int cell) const;
     bool      IsEditedCell (int cell) const;
     uint32_t  GetCellColor (int cell) const;
 
-    void      MakeRoleLabels (IDxuiTextRenderer & text, const Grid & g, float textPx);
-    void      PaintLabels    (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & g, float textPx) const;
-    bool      PaintBytes     (IDxuiPainter & painter, IDxuiTextRenderer & text, const SectorSource & source, int cell, uint32_t ink) const;
-    ByteLayout GetByteLayout (float cellW, float cellH) const;
-    void      ClampPan       ();
-    void      ConfigureBars  (const Grid & g);
+    void        MakeRoleLabels (IDxuiTextRenderer & text, const Grid & g, float textPx);
+    void        PaintLabels    (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & g, float textPx) const;
+    bool        PaintBytes     (IDxuiPainter & painter, IDxuiTextRenderer & text, const SectorSource & source, int cell, uint32_t ink) const;
+    ByteLayout  GetByteLayout  (float cellW, float cellH) const;
+    void        ClampPan       ();
+    void        ConfigureBars  (const Grid & g);
 
     static constexpr size_t  kRoleCount = static_cast<size_t> (SectorRole::CrossLinked) + 1;
 

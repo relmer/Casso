@@ -42,10 +42,10 @@ private:
         int                   depth = 0;
     };
 
-    static void  ReadDirectory (Walk & walk, int keyBlock, const std::wstring & prefix, SectorRole role, int owner);
-    static void  ReadEntry     (Walk & walk, const Byte * entry, const std::wstring & prefix);
-    static void  ReadFork      (Walk & walk, int file, int storage, int key, uint32_t eof);
-    static void  ReadIndex     (Walk & walk, int file, int index, int blocks, std::set<int> & visited);
+    static void  ReadDirectory  (Walk & walk, int keyBlock, const std::wstring & prefix, SectorRole role, int owner);
+    static void  ReadEntry      (Walk & walk, const Byte * entry, const std::wstring & prefix);
+    static void  ReadFork       (Walk & walk, int file, int storage, int key, uint32_t eof);
+    static void  ReadIndex      (Walk & walk, int file, int index, int blocks, std::set<int> & visited);
     static bool  ReadChainBlock (Walk & walk, int file, int block, SectorRole role, std::set<int> & visited, Block & outBlock);
 
     static std::wstring  ReadName    (const Byte * entry);

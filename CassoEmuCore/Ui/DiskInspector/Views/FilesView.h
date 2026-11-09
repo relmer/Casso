@@ -28,11 +28,11 @@ class FilesView : public IInspectorComponent
 public:
     FilesView (InspectorSession & session, IInspectorComponentHost & host);
 
-    void          Create     () override;
-    void          PaintOver  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    std::wstring  GetTip     (POINT pointPx, RECT & outAnchorPx) const override;
-    void          GetPrefs   (DiskInspectorPrefs & inOut) const override;
-    void          ApplyPrefs (const DiskInspectorPrefs & prefs) override;
+    void          Create        () override;
+    void          PaintOver     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    std::wstring  GetTip        (POINT pointPx, RECT & outAnchorPx) const override;
+    void          GetPrefs      (DiskInspectorPrefs & inOut) const override;
+    void          ApplyPrefs    (const DiskInspectorPrefs & prefs) override;
     void          OnDiskStarted (const DiskChange & change) override;
 
     void  Layout          (const RECT & area, const DxuiDpiScaler & scaler);

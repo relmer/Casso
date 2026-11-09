@@ -27,9 +27,9 @@ public:
     //  A WOZ bit or flux track more than this far from nominal is reported.
     static constexpr double  kTrackLengthTolerance = 0.02;
 
-    static void          Analyze    (std::shared_ptr<const DiskCopy> copy, const DecodeSettings & settings, DiskAnalysis & out);
-    static void          Reanalyze  (std::shared_ptr<const DiskCopy> copy, std::span<const int> slots, DiskAnalysis & inOut);
-    static TrackContext  GetContext (const DiskCopy & copy, int slot);
+    static void          Analyze                (std::shared_ptr<const DiskCopy> copy, const DecodeSettings & settings, DiskAnalysis & out);
+    static void          Reanalyze              (std::shared_ptr<const DiskCopy> copy, std::span<const int> slots, DiskAnalysis & inOut);
+    static TrackContext  GetContext             (const DiskCopy & copy, int slot);
     static vector<int>   GetQuarterTracksOfSlot (const DiskCopy & copy, int slot);
 
     //  One record at a time, for a caller that analyzes records off its own
@@ -40,14 +40,14 @@ public:
     static void                                  Assemble      (DiskAnalysis & inOut);
 
 private:
-    static void  BuildEntries         (DiskAnalysis & inOut);
-    static void  AddTrackFindings     (DiskAnalysis & inOut);
-    static void  AddVolumeFindings    (DiskAnalysis & inOut);
-    static void  AddLayoutFindings    (DiskAnalysis & inOut);
-    static void  AddLengthFindings    (DiskAnalysis & inOut);
-    static void  AddDamageFindings    (DiskAnalysis & inOut);
-    static void  AddImageFindings     (DiskAnalysis & inOut);
+    static void  BuildEntries          (DiskAnalysis & inOut);
+    static void  AddTrackFindings      (DiskAnalysis & inOut);
+    static void  AddVolumeFindings     (DiskAnalysis & inOut);
+    static void  AddLayoutFindings     (DiskAnalysis & inOut);
+    static void  AddLengthFindings     (DiskAnalysis & inOut);
+    static void  AddDamageFindings     (DiskAnalysis & inOut);
+    static void  AddImageFindings      (DiskAnalysis & inOut);
     static void  AddFileSystemFindings (DiskAnalysis & inOut);
-    static void  Summarize            (DiskAnalysis & inOut);
-    static int   GetHomeQuarterTrack  (const DiskCopy & copy, int slot);
+    static void  Summarize             (DiskAnalysis & inOut);
+    static int   GetHomeQuarterTrack   (const DiskCopy & copy, int slot);
 };

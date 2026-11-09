@@ -29,14 +29,14 @@ public:
     static constexpr Byte kKindMask    = 0x0F;
     static constexpr Byte kNoEdge      = 0xFF;
 
-    static Byte         Encode      (PlatterKind kind);
-    static PlatterKind  Decode      (Byte value);
-    static void         BuildCells  (const TrackAnalysis & analysis, vector<Byte> & outCells);
-    static void         MapToTime   (const TrackAnalysis & analysis, vector<Byte> & inOutCells);
-    static void         BuildEdges  (const TrackAnalysis & analysis, const vector<Byte> & cells, vector<Byte> & outEdges);
-    static void         BuildLevels (const vector<Byte> & cells, vector<vector<Byte>> & outLevels);
-    static bool         IsEchoRing  (std::span<const int> slots, int ring);
+    static Byte         Encode        (PlatterKind kind);
+    static PlatterKind  Decode        (Byte value);
+    static void         BuildCells    (const TrackAnalysis & analysis, vector<Byte> & outCells);
+    static void         MapToTime     (const TrackAnalysis & analysis, vector<Byte> & inOutCells);
+    static void         BuildEdges    (const TrackAnalysis & analysis, const vector<Byte> & cells, vector<Byte> & outEdges);
+    static void         BuildLevels   (const vector<Byte> & cells, vector<vector<Byte>> & outLevels);
+    static bool         IsEchoRing    (std::span<const int> slots, int ring);
     static int          GetCenterRing (std::span<const int> slots, int ring);
     static int          StepRecording (std::span<const int> slots, int ring, int step);
-    static PlatterKind  GetKindOf   (NibbleKind kind);
+    static PlatterKind  GetKindOf     (NibbleKind kind);
 };

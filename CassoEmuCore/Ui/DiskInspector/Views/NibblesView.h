@@ -38,9 +38,9 @@ public:
 
     explicit NibblesView (InspectorViewContext & context) : InspectorView (context) {}
 
-    void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool  OnMouse    (const DxuiMouseEvent & ev) override;
-    bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
+    void  Paint              (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnMouse            (const DxuiMouseEvent & ev) override;
+    bool  GetTooltip         (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
     bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
 
     //  Scrolls so the given nibble's line is about a third of the way down.
@@ -64,21 +64,21 @@ private:
         bool  isHeader    = false;
     };
 
-    void   Rebuild        () const;
-    float  GetLineTop     (int line) const;
-    float  GetLineHeight  (int line) const;
-    int    GetVisibleLines () const;
-    bool   IsLineInView   (int line) const;
-    int    HitLine       (POINT pointPx) const;
-    int    HitTest        (POINT pointPx) const;
-    bool   IsOnChevron    (POINT pointPx) const;
-    int    GetLastFirstLine () const;
-    bool   IsInSelection  (const TrackAnalysis & track, int nibble) const;
-    bool   IsInRange      (int nibble) const;
-    void   PaintHeader    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const NibbleSection & section, float y);
-    void   PaintRow       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const Line & line, float y);
-    static bool      IsOutsideTable (const TrackAnalysis & track, int nibble);
-    static uint32_t  GetOwnCells    (const TrackAnalysis & track, int nibble);
+    void             Rebuild          () const;
+    float            GetLineTop       (int line) const;
+    float            GetLineHeight    (int line) const;
+    int              GetVisibleLines  () const;
+    bool             IsLineInView     (int line) const;
+    int              HitLine          (POINT pointPx) const;
+    int              HitTest          (POINT pointPx) const;
+    bool             IsOnChevron      (POINT pointPx) const;
+    int              GetLastFirstLine () const;
+    bool             IsInSelection    (const TrackAnalysis & track, int nibble) const;
+    bool             IsInRange        (int nibble) const;
+    void             PaintHeader      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const NibbleSection & section, float y);
+    void             PaintRow         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const Line & line, float y);
+    static bool      IsOutsideTable   (const TrackAnalysis & track, int nibble);
+    static uint32_t  GetOwnCells      (const TrackAnalysis & track, int nibble);
 
     mutable vector<NibbleSection>    m_sections;
     mutable vector<Line>             m_lines;

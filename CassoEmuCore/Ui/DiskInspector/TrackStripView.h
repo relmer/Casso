@@ -36,59 +36,59 @@ public:
 
     explicit TrackStripView (InspectorViewContext & context) : InspectorView (context) {}
 
-    void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool  OnMouse    (const DxuiMouseEvent & ev) override;
-    bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
+    void  Paint              (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnMouse            (const DxuiMouseEvent & ev) override;
+    bool  GetTooltip         (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
     bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
 
     void          ZoomAboutCenter (double factor);
     void          StepZoom        (int steps);
     void          PanBy           (double fractionOfView);
-    void  SelectFieldAt  (const TrackAnalysis & track, float x);
-    void  ShowWholeTrack  ();
+    void          SelectFieldAt   (const TrackAnalysis & track, float x);
+    void          ShowWholeTrack  ();
     std::wstring  GetReadout      () const;
 
     //  Which side of a comparison the strip shows: 0 for A, 1 for B.
     void          SetSide         (int side) { m_side = side; }
 
 private:
-    void           PaintTrack   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track);
-    void           PaintCells      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
-    void           PaintTimingLine (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g, float top, float bottom);
-    void           PaintFiles      (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
-    void           GetFileParts    (const TrackAnalysis & track, const StripGeometry & g, vector<StripSegment> & outParts) const;
-    void           DimOutsideFile  (IDxuiPainter & painter, const vector<StripSegment> & parts) const;
-    void           PaintMarquee    (IDxuiPainter & painter, const vector<StripSegment> & parts) const;
-    void           PaintSelection  (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g);
-    void           PaintShimmer    (IDxuiPainter & painter, const StripGeometry & g) const;
-    void           PaintDiffs      (IDxuiPainter & painter, const TrackAnalysis & track, const StripGeometry & g);
-    void           PaintHits       (IDxuiPainter & painter, const TrackAnalysis & track, const StripGeometry & g);
-    void           PaintHead       (IDxuiPainter & painter, const StripGeometry & g) const;
-    bool           IsHeadOnTrack   () const;
-    static LPCWSTR GetHeadLabel    (HeadActivity activity);
-    void           PaintDividers   (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g, float top, float height);
-    void           PaintSeam       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
-    void           PaintLabels  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
-    void           PaintStretchLabels (IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g, bool isInLabelRow);
+    void            PaintTrack         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track);
+    void            PaintCells         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
+    void            PaintTimingLine    (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g, float top, float bottom);
+    void            PaintFiles         (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
+    void            GetFileParts       (const TrackAnalysis & track, const StripGeometry & g, vector<StripSegment> & outParts) const;
+    void            DimOutsideFile     (IDxuiPainter & painter, const vector<StripSegment> & parts) const;
+    void            PaintMarquee       (IDxuiPainter & painter, const vector<StripSegment> & parts) const;
+    void            PaintSelection     (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g);
+    void            PaintShimmer       (IDxuiPainter & painter, const StripGeometry & g) const;
+    void            PaintDiffs         (IDxuiPainter & painter, const TrackAnalysis & track, const StripGeometry & g);
+    void            PaintHits          (IDxuiPainter & painter, const TrackAnalysis & track, const StripGeometry & g);
+    void            PaintHead          (IDxuiPainter & painter, const StripGeometry & g) const;
+    bool            IsHeadOnTrack      () const;
+    static LPCWSTR  GetHeadLabel       (HeadActivity activity);
+    void            PaintDividers      (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g, float top, float height);
+    void            PaintSeam          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
+    void            PaintLabels        (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
+    void            PaintStretchLabels (IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g, bool isInLabelRow);
     float          GetLabelRowClearance (IDxuiTextRenderer & text, const TrackAnalysis & track, const StripGeometry & g, const NibbleSection & section,
                                          float x0, float x1) const;
     int            GetSectorParts  (const TrackAnalysis & track, const StripGeometry & g, int sectorIndex, double & outStart, double & outEnd,
                                     std::array<StripSegment, 2> & outParts) const;
-    int            GetSectorAtX    (const TrackAnalysis & track, float xPx) const;
-    float          GetSectorLabel  (IDxuiTextRenderer & text, const AnalyzedSector & sector, float widthPx, std::wstring & outLabel) const;
+    int                  GetSectorAtX       (const TrackAnalysis & track, float xPx) const;
+    float                GetSectorLabel     (IDxuiTextRenderer & text, const AnalyzedSector & sector, float widthPx, std::wstring & outLabel) const;
     static std::wstring  GetNibbleKindLabel (NibbleKind kind);
-    int            GetSeamSegments (const TrackAnalysis & track, const StripGeometry & g, std::array<StripSegment, 2> & outParts) const;
-    bool           IsOverSeam      (const TrackAnalysis & track, float xPx) const;
-    bool           BuildTip        (POINT pointPx, InspectorTip & outTip) const;
-    float          GetCellPx       (const TrackAnalysis & track) const;
-    vector<double> GetZoomStops    (const TrackAnalysis & track) const;
-    void           StepZoomAt      (int steps, double fraction);
-    static bool    IsTimed         (const TrackAnalysis & track);
-    void           UpdateTurns  (const TrackAnalysis & track) const;
-    StripGeometry  MakeGeometry () const;
-    RECT           GetBarRect   () const;
-    int            GetNibbleAtX (const TrackAnalysis & track, float xPx) const;
-    int            GetCellAtX   (const TrackAnalysis & track, float xPx) const;
+    int                  GetSeamSegments    (const TrackAnalysis & track, const StripGeometry & g, std::array<StripSegment, 2> & outParts) const;
+    bool                 IsOverSeam         (const TrackAnalysis & track, float xPx) const;
+    bool                 BuildTip           (POINT pointPx, InspectorTip & outTip) const;
+    float                GetCellPx          (const TrackAnalysis & track) const;
+    vector<double>       GetZoomStops       (const TrackAnalysis & track) const;
+    void                 StepZoomAt         (int steps, double fraction);
+    static bool          IsTimed            (const TrackAnalysis & track);
+    void                 UpdateTurns        (const TrackAnalysis & track) const;
+    StripGeometry        MakeGeometry       () const;
+    RECT                 GetBarRect         () const;
+    int                  GetNibbleAtX       (const TrackAnalysis & track, float xPx) const;
+    int                  GetCellAtX         (const TrackAnalysis & track, float xPx) const;
 
     mutable const TrackAnalysis  * m_turnsOf      = nullptr;
     mutable vector<double>         m_turns;

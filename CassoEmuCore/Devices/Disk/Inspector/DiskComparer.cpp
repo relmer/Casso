@@ -590,7 +590,7 @@ void DiskComparer::ListNibbles (const TrackAnalysis & a, const TrackAnalysis & b
 
     for (const Hunk & h : hunks)
     {
-        Difference  d { DifferenceKind::Nibbles, quarterTrack };
+        Difference  d      { DifferenceKind::Nibbles, quarterTrack };
         bool        isSync = true;
 
         for (int i = h.firstA; isSync && i < h.firstA + h.countA; i++)

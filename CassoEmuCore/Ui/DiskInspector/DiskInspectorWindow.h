@@ -98,10 +98,10 @@ public:
     //  The walkthrough from its first step (FR-153).
     void     OpenWalkthrough () override;
 
-    void     Layout      (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void     Paint       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool     OnMouse     (const DxuiMouseEvent & ev) override;
-    bool     OnKey       (const DxuiKeyEvent & ev) override;
+    void     Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool     OnMouse           (const DxuiMouseEvent & ev) override;
+    bool     OnKey             (const DxuiKeyEvent & ev) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
 protected:
@@ -116,22 +116,22 @@ protected:
 
 private:
     //  IInspectorComponentHost, through which the components call the window.
-    IInspectorComponentHost & GetHost () { return *this; }
-    DxuiPanel          & GetControlParent () override { return *this; }
-    HWND                 GetOwnerHwnd     () const override { return GetHwnd(); }
-    DxuiHwndSource     * GetPopupHost     () const override { return DxuiWindow::GetPopupHost(); }
-    IDxuiTextRenderer  * GetTextRenderer  () const override { return DxuiWindow::GetTextRenderer(); }
-    void                 Relayout         () override;
-    void                 SetStatusNote    (const std::wstring & note) override;
-    bool                 Confirm          (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action) override;
-    void                 TakeTracks       (const InspectorReply & reply) override;
-    void                 RequestCopy      () override;
-    void                 StartDisk        (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason) override;
-    void                 NotifyDiskStarting    (const DiskChange & change) override;
-    void                 NotifyDiskStarted     (const DiskChange & change) override;
-    void                 NotifyAnalysisChanged () override;
-    bool                 OfferReply            (const InspectorReply & reply) override;
-    void                 SetWindowZoom    (double zoom) override { SetZoom (zoom); }
+    IInspectorComponentHost  & GetHost               () { return *this; }
+    DxuiPanel                & GetControlParent      () override { return *this; }
+    HWND                       GetOwnerHwnd          () const override { return GetHwnd(); }
+    DxuiHwndSource           * GetPopupHost          () const override { return DxuiWindow::GetPopupHost(); }
+    IDxuiTextRenderer        * GetTextRenderer       () const override { return DxuiWindow::GetTextRenderer(); }
+    void                       Relayout              () override;
+    void                       SetStatusNote         (const std::wstring & note) override;
+    bool                       Confirm               (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action) override;
+    void                       TakeTracks            (const InspectorReply & reply) override;
+    void                       RequestCopy           () override;
+    void                       StartDisk             (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason) override;
+    void                       NotifyDiskStarting    (const DiskChange & change) override;
+    void                       NotifyDiskStarted     (const DiskChange & change) override;
+    void                       NotifyAnalysisChanged () override;
+    bool                       OfferReply            (const InspectorReply & reply) override;
+    void                       SetWindowZoom         (double zoom) override { SetZoom (zoom); }
 
     void          BuildCommands ();
     static bool   RunCommand    (const InspectorCommands::Command & command);
@@ -139,19 +139,19 @@ private:
 
 
 
-    RECT  GetWalkthroughArea (WalkthroughArea area) const;
-    void  UpdateControls   ();
-    void  OnSelection      () override;
-    void  ShowTrackTab     (int tab) override;
-    void  ShowTabContent   ();
-    void  SetZoom              (double zoom);
-    void  LayoutContent        (const RECT & boundsPx, const DxuiDpiScaler & scaler);
-    static bool  IsZoomKey     (WPARAM vk);
-    int   StepRecording        (int quarterTrack, int step) const;
+    RECT          GetWalkthroughArea (WalkthroughArea area) const;
+    void          UpdateControls     ();
+    void          OnSelection        () override;
+    void          ShowTrackTab       (int tab) override;
+    void          ShowTabContent     ();
+    void          SetZoom            (double zoom);
+    void          LayoutContent      (const RECT & boundsPx, const DxuiDpiScaler & scaler);
+    static bool   IsZoomKey          (WPARAM vk);
+    int           StepRecording      (int quarterTrack, int step) const;
     std::wstring  GetButtonTip       (POINT pointPx, RECT & outAnchorPx) const;
-    void  ShowDiskTab      (int tab) override;
-    void  UpdateTooltip    (POINT pointPx);
-    static bool   IsInside    (const RECT & rect, POINT pointPx);
+    void          ShowDiskTab        (int tab) override;
+    void          UpdateTooltip      (POINT pointPx);
+    static bool   IsInside           (const RECT & rect, POINT pointPx);
 
     InspectorSession                   m_session;
     std::unique_ptr<FilesView>         m_files;

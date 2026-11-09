@@ -53,10 +53,10 @@ class InspectorTables
 public:
     static constexpr int  kCategoryCount = static_cast<int> (FindingCategory::Protection) + 1;
 
-    static vector<std::wstring>  GetFindingColumns ();
-    static vector<std::wstring>  GetTrackColumns   ();
-    static vector<std::wstring>  GetFieldColumns   ();
-    static vector<std::wstring>  GetImageColumns   ();
+    static vector<std::wstring>  GetFindingColumns   ();
+    static vector<std::wstring>  GetTrackColumns     ();
+    static vector<std::wstring>  GetFieldColumns     ();
+    static vector<std::wstring>  GetImageColumns     ();
     static vector<std::wstring>  GetSearchHitColumns ();
 
     static vector<TableRow>  BuildFindings (const DiskAnalysis & analysis, uint32_t categoryMask, int sortColumn, bool isDescending);
@@ -72,8 +72,8 @@ public:
     //  index.
     static vector<TableRow>  BuildSearchHits (const vector<SearchHit> & hits, const DiskAnalysis * analysis, const FileMap * map);
 
-    static std::array<int, kCategoryCount>  CountCategories (const DiskAnalysis & analysis);
-    static uint32_t                         GetAllCategories ();
+    static std::array<int, kCategoryCount>  CountCategories      (const DiskAnalysis & analysis);
+    static uint32_t                         GetAllCategories     ();
     static bool                             IsAlignmentNoteShown (const DiskAnalysis & analysis);
 
     //  Cells in sort order: numbers by value, text by its letters.
@@ -93,7 +93,7 @@ private:
     static void          AddMetaRows       (vector<TableRow> & inOut, const WozFileLayout & layout);
     static void          AddMapRows        (vector<TableRow> & inOut, LPCWSTR title, const std::array<Byte, WozFileLayout::kMapEntries> & map);
     static void          AddRecordRows     (vector<TableRow> & inOut, const WozFileLayout & layout, const DiskCopy * live);
-    static int  FindRecordRing (const std::array<Byte, WozFileLayout::kMapEntries> & map, size_t record);
+    static int           FindRecordRing    (const std::array<Byte, WozFileLayout::kMapEntries> & map, size_t record);
     static size_t        GetRecordLength   (const DiskCopy * live, size_t record, size_t stored);
     static void          AddChunkRows      (vector<TableRow> & inOut, const WozFileLayout & layout);
     static std::wstring  FormatImageFormat (const ImageDetails & image);

@@ -245,11 +245,11 @@ private:
         bool              isRunForced  = false;
     };
 
-    static InspectorReply  Answer (uint64_t id, const InspectorRequest & request, IInspectorDiskSource & source);
+    static InspectorReply  Answer         (uint64_t id, const InspectorRequest & request, IInspectorDiskSource & source);
     static void            AnswerSaveCopy (const InspectorRequest & request, IInspectorDiskSource & source, InspectorReply & inOutReply);
 
     //  Makes an apply at a safe point; false while it waits for one.
-    bool  TryApply (uint64_t id, const InspectorRequest & request, IInspectorDiskSource & source, bool & inOutIsRunForced, InspectorReply & outReply);
+    bool  TryApply    (uint64_t id, const InspectorRequest & request, IInspectorDiskSource & source, bool & inOutIsRunForced, InspectorReply & outReply);
     bool  IsSafePoint (const InspectorRequest & request, const InspectorDriveMotion & motion);
 
     mutable std::mutex                             m_lock;

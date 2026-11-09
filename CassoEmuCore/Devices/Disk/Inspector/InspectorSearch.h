@@ -84,8 +84,8 @@ public:
 
     //  A hit's place, as "Track 17.25, nibble $1A3" or "Track 3, sector $5
     //  at $2C".
-    static std::wstring       FormatHit    (const SearchHit & hit);
-    static std::wstring       FormatHitCount (size_t count);
+    static std::wstring  FormatHit      (const SearchHit & hit);
+    static std::wstring  FormatHitCount (size_t count);
 
     //  Whether the record a hit was found in has been analyzed again since.
     static bool               IsOutOfDate  (const SearchHit & hit, const DiskAnalysis & analysis);
@@ -170,9 +170,9 @@ public:
     static bool  IsPartial (GoToKind kind, const std::wstring & text);
 
 private:
-    static const TrackAnalysis *  GetTrack (const DiskAnalysis & analysis, int quarterTrack);
-    static std::wstring  GetEntryError (const DiskAnalysis & analysis, int quarterTrack, GoToKind kind);
-    static bool  GetBlockRange (const DiskAnalysis & analysis, int & outLow, int & outHigh);
-    static int   FindSector (const TrackAnalysis & track, GoToKind kind, int value);
-    static bool  FindFile   (const DiskAnalysis & analysis, const std::wstring & path, GoToTarget & outTarget);
+    static const TrackAnalysis  * GetTrack      (const DiskAnalysis & analysis, int quarterTrack);
+    static std::wstring           GetEntryError (const DiskAnalysis & analysis, int quarterTrack, GoToKind kind);
+    static bool                   GetBlockRange (const DiskAnalysis & analysis, int & outLow, int & outHigh);
+    static int                    FindSector    (const TrackAnalysis & track, GoToKind kind, int value);
+    static bool                   FindFile      (const DiskAnalysis & analysis, const std::wstring & path, GoToTarget & outTarget);
 };

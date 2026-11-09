@@ -136,7 +136,7 @@ public:
     //  as its widest cell, the first column's cells at the left and the rest
     //  centered. An empty grid draws nothing. Drawn in a popup only.
     void  SetTable        (const std::vector<std::vector<std::wstring>> & rows);
-    void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
+    void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
     void  SetTheme        (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
 
@@ -146,9 +146,9 @@ public:
     //  WS_EX_TRANSPARENT | WS_EX_LAYERED so pointer events pass
     //  through to whatever is underneath; dismiss is OnPointerLeave.
     //
-    void  SetPopupHost    (DxuiHwndSource * host) { m_popupHost = host; m_pfnIsActive = (m_pfnIsActive != nullptr) ? m_pfnIsActive : IsAppActive; }
-    DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
-    DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
+    void              SetPopupHost   (DxuiHwndSource * host) { m_popupHost = host; m_pfnIsActive = (m_pfnIsActive != nullptr) ? m_pfnIsActive : IsAppActive; }
+    DxuiHwndSource  * GetPopupHost   () const { return m_popupHost;   }
+    DxuiPopupHost   * GetActivePopup () const { return m_activePopup; }
 
     void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs);
     void  RequestHide     (int64_t nowMs);
@@ -190,8 +190,8 @@ public:
     const std::wstring & GetText   () const { return m_text;    }
     const RECT         & GetAnchor () const { return m_anchor;  }
 
-    void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    const wchar_t *  GetFace () const { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::GetUiFace(); }
+    void             Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    const wchar_t  * GetFace () const { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::GetUiFace(); }
 
     //
     //  IDxuiControl overrides — additive shims so DxuiTooltip can
@@ -222,9 +222,9 @@ private:
     //  Apply the current text, anchor and swatch to the balloon already up,
     //  or show a new one when there is none to update.
     //
-    void  UpdatePopup        ();
-    void  AssertPopupShown   () const;
-    void  MeasureBox         (RECT & outAnchorScreen, SIZE & outSizeDip);
+    void     UpdatePopup       ();
+    void     AssertPopupShown  () const;
+    void     MeasureBox        (RECT & outAnchorScreen, SIZE & outSizeDip);
     float    GetSwatchColumnPx () const;
     void     MeasureTable      (float fontPx, float & outWidthPx, float & outHeightPx);
     int64_t  GetHideAtMs       (int64_t nowMs) const;

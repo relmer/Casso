@@ -248,8 +248,8 @@ private:
 
     //  Whether an enabled Disk II card is in a slot other than 6.
     bool               HasOtherDiskController () const;
-    DxuiMessageResult  OnKeyDown       (WPARAM vk, LPARAM lParam) override;
-    DxuiMessageResult  OnKeyUp         (WPARAM vk, LPARAM lParam) override;
+    DxuiMessageResult  OnKeyDown              (WPARAM vk, LPARAM lParam) override;
+    DxuiMessageResult  OnKeyUp                (WPARAM vk, LPARAM lParam) override;
 
     // IDxuiViewportInputSink -- the emulator viewport routes its raw
     // keyboard input here (SetWantsAllKeys(true) so even Esc/Tab/arrows
@@ -981,8 +981,8 @@ private:
 
     // The disk inspector: one window, lazily created and reused, and the host
     // that answers its requests on the CPU thread.
-    std::unique_ptr<class DiskInspectorWindow> m_diskInspector;
-    ShellInspectorHost                        m_inspectorHost { m_cpuManager, m_machine };
+    std::unique_ptr<class DiskInspectorWindow>  m_diskInspector;
+    ShellInspectorHost                          m_inspectorHost { m_cpuManager, m_machine };
     // The host services the clipboard manager and the dialogs go through.
     // Declared ahead of the manager, which holds a reference to the clipboard.
     Win32Clipboard                            m_hostClipboard;
