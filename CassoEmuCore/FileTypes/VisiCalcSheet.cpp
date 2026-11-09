@@ -143,7 +143,7 @@ HRESULT VisiCalcSheet::Parse (std::span<const Byte> bytes, Sheet & outSheet, std
 
     for (const std::wstring & wide : TextCharset::DecodeLines (bytes, Charset::AppleText))
     {
-        std::string  line = TextEncoding::WideToNarrow (wide);
+        std::string  line   = TextEncoding::WideToNarrow (wide);
         Cell         cell;
         size_t       length = 0;
 
