@@ -136,6 +136,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Render/DxuiTextRenderer.h"
 #include "Render/DxuiRoundedOutline.h"
 #include "Render/Dxui3DRenderer.h"
+#include "Render/DxuiShadow.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/DxuiWindowsThemeColors.h"
 #include "Theme/IDxuiTheme.h"

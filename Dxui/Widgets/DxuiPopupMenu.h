@@ -155,7 +155,9 @@ public:
     void  SetColors   (uint32_t bgArgb,
                        uint32_t hoverArgb,
                        uint32_t textArgb,
+                       uint32_t hoverTextArgb,
                        uint32_t accelArgb,
+                       uint32_t hoverAccelArgb,
                        uint32_t borderArgb,
                        uint32_t dividerArgb);
     void  ClearColors ()                        { m_colorsSet = false; }
@@ -363,13 +365,15 @@ private:
 
     struct Palette
     {
-        uint32_t  bg       = 0;
-        uint32_t  hover    = 0;
-        uint32_t  text     = 0;
-        uint32_t  accel    = 0;
-        uint32_t  border   = 0;
-        uint32_t  divider  = 0;
-        uint32_t  disabled = 0;
+        uint32_t  bg         = 0;
+        uint32_t  hover      = 0;
+        uint32_t  text       = 0;
+        uint32_t  hoverText  = 0;
+        uint32_t  accel      = 0;
+        uint32_t  hoverAccel = 0;
+        uint32_t  border     = 0;
+        uint32_t  divider    = 0;
+        uint32_t  disabled   = 0;
     };
 
     //  Where a child hangs relative to its parent row, or where a root hangs

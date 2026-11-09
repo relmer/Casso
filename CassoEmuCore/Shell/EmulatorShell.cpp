@@ -532,6 +532,59 @@ bool EmulatorShell::CrtMonitorActive() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::AreDrivesAutoHidden
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::AreDrivesAutoHidden() const
+{
+    return m_renderer->GetD3D().IsFullscreen() || m_settings->GetPrefs().autoHideDrives;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::IsDeskSlideActive
+//
+//  Windowed with auto-hide on, and always in fullscreen. The desk without a
+//  monitor has no monitor to place the drives in front of, so it uses the
+//  strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsDeskSlideActive() const
+{
+    return AreDrivesAutoHidden() && CrtMonitorActive();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::AreDrivesOnStrip
+//
+//  Every path that places, draws or hit-tests the strip's drives calls this
+//  instead of testing for fullscreen, so auto-hide and fullscreen use the
+//  same strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::AreDrivesOnStrip() const
+{
+    return AreDrivesAutoHidden() && !IsDeskSlideActive();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LayoutDriveRowForTest
 //
 //  The flat drive band's row, for the band layout tests: lays the row out in

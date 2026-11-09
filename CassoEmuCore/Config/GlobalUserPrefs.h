@@ -45,6 +45,12 @@ struct GlobalUserPrefs
     // skeuoMonitorFrame / deskScene keys, both ignored when loading.)
     bool         crtMonitor          = true;
 
+    // Whether the drives collapse off the bottom of the window until the
+    // pointer comes near the bottom edge, the way they do in fullscreen. While
+    // collapsed they reserve no space, and the picture takes the room. Every
+    // theme, flat or desk scene.
+    bool         autoHideDrives      = false;
+
     // The frames-per-second readout over the picture.
     //
     // OFF UNTIL ASKED FOR, in every build. It used to default on in a debug

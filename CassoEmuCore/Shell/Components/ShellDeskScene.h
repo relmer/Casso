@@ -185,6 +185,16 @@ public:
     // the //c external-drive connection, the same gates the 2D widgets use.
     int     DeskSceneDriveCount  () const;
 
+    // The drive count and metrics the desk is framed with. With the drives
+    // auto-hidden, the framing is the monitor alone: no drives and no
+    // recorder.
+    int               GetDeskCompositionDriveCount () const;
+    DeskSceneMetrics  GetDeskCompositionMetrics    () const;
+
+    // Whether a strip label extends below the strip's area, where it would be
+    // drawn over the //c switch strip mid-slide. Always false off the strip.
+    bool              IsBelowStripArea             (const RECT & labelPx, bool onStrip) const;
+
     // Zoom by `factor` about a client point, so whatever is under the cursor
     // stays under it. Zooming about the viewport CENTER instead would push
     // the thing being inspected off toward an edge exactly as it got big
@@ -446,6 +456,16 @@ public:
                    "every baked label the shell makes needs a slot in the scene");
 
 private:
+    // The red bar in the bottom-right corner of the strip's area that lights
+    // while a hidden drive is busy.
+    RECT     GetStripGlimmerRect  () const;
+
+    // Draws the 3D drive strip cropped to the picture area.
+    HRESULT  RenderClippedStrip   (ID3D11RenderTargetView * rtv);
+
+    // Crops the flat drive and recorder widgets' text; null clears it.
+    void     SetFlatStripTextClip (const RECT * clipPx);
+
     EmulatorShell  & m_shell;
 
     bool  m_sceneOrbitMoved = false;

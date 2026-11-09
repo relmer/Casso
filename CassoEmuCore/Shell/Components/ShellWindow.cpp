@@ -280,8 +280,8 @@ SIZE ShellWindow::GetClientSizeForFramebufferPx (int framebufferWidthDp, int fra
     if (m_shell.CrtMonitorActive())
     {
         SIZE   center     = DeskSceneLayout::CenterSizeForDisplayPx (framebufferWpx, framebufferHpx,
-                                                                     m_shell.m_scaler.GetDpi(), m_shell.m_scene->DeskSceneDriveCount(),
-                                                                     m_shell.m_scene->GetScene().Metrics(),
+                                                                     m_shell.m_scaler.GetDpi(), m_shell.m_scene->GetDeskCompositionDriveCount(),
+                                                                     m_shell.m_scene->GetDeskCompositionMetrics(),
                                                                      m_shell.m_scaler.ToPx (s_kSceneDriveGapDp + s_kStripEdgeZoneDp));
         float  savedScale = m_shell.m_chrome->GetSceneScale();
 
@@ -515,7 +515,7 @@ void ShellWindow::ApplyAppIconToWindow (HWND target)
 //  The thread check is not defensive coding -- SwitchMachine legitimately
 //  calls this from the CPU thread, while DxuiHwndSource::SetTitle mutates the
 //  caption bar and asserts the UI thread. An off-thread call therefore posts
-//  WM_APP_DXUI_UPDATE_TITLE and returns; the message loop calls back here on
+//  AppMessage::ShellUpdateTitle and returns; the message loop calls back here on
 //  the right thread. (That same message doubles as the machine-switch signal
 //  to reflow the chrome -- see RunMessageLoop.)
 //
@@ -548,12 +548,12 @@ void ShellWindow::UpdateWindowTitle()
 
     // SwitchMachine calls this on the CPU thread; DxuiHwndSource::SetTitle
     // mutates the caption bar and asserts the UI thread. Bounce off-thread
-    // callers through the message loop (WM_APP_DXUI_UPDATE_TITLE handler above).
+    // callers through the message loop (AppMessage::ShellUpdateTitle handler above).
     isOffThread = GetWindowThreadProcessId (m_shell.m_hwnd, nullptr) != GetCurrentThreadId();
 
     if (isOffThread)
     {
-        PostMessageW (m_shell.m_hwnd, WM_APP_DXUI_UPDATE_TITLE, 0, 0);
+        PostMessageW (m_shell.m_hwnd, (UINT) AppMessage::ShellUpdateTitle, 0, 0);
     }
 
     BAIL_OUT_IF (isOffThread, S_OK);
@@ -1215,6 +1215,11 @@ void ShellWindow::LayOutForSize (UINT widthPx, UINT heightPx)
                 // The 3D scene owns the drives; nothing to lay out. The hit
                 // registry is refreshed below with the rest of the chrome.
             }
+            else if (m_shell.AreDrivesOnStrip())
+            {
+                // Auto-hide: the strip lays the widgets out each frame while it
+                // is up, and hides them while it is down.
+            }
             else if (fHasDisk)
             {
                 m_shell.m_chrome->LayoutDriveWidgetsInCommandBar (m_shell.m_disks->GetDriveChrome(), bottomInsetPx, static_cast<int> (width), renderH, dpi,
@@ -1246,7 +1251,7 @@ void ShellWindow::LayOutForSize (UINT widthPx, UINT heightPx)
             // window size now accounts for. ReflowChromeForMachineChange reads
             // these pre-switch values to grow/shrink the window by the band delta.
             m_shell.m_chrome->RecordSizedFor (fHasDisk, m_shell.MachineHasCaseSwitches());
-            m_shell.m_chrome->LayoutDriveBandSurface (!m_shell.DeskSceneActive(), RECT{ 0, driveRect.top, static_cast<int> (width), renderH });
+            m_shell.m_chrome->LayoutDriveBandSurface (!m_shell.DeskSceneActive() && !m_shell.AreDrivesOnStrip(), RECT{ 0, driveRect.top, static_cast<int> (width), renderH });
 
             m_shell.m_chrome->LayoutSwitchBar (dpi);
 
@@ -1259,7 +1264,9 @@ void ShellWindow::LayOutForSize (UINT widthPx, UINT heightPx)
                 m_shell.m_uiShell.GetHitTester().Clear();
                 m_shell.RegisterScreenDropTarget();
 
-                if (fHasDisk)
+                // With auto-hide on, no drive rects are registered, as in
+                // fullscreen: the widgets are off screen most of the time.
+                if (fHasDisk && !m_shell.AreDrivesOnStrip())
                 {
                     m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { m_shell.m_disks->GetDriveChrome()[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
                     if (m_shell.m_disks->ShouldShowExternalDrive())

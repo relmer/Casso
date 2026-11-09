@@ -516,6 +516,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_MACHINE_ARROWS_PADDLE:   return m_input->GetPointerMode() == InputMappingMode::Paddle;
             case IDM_VIEW_FRAME_RATE:         return m_settings->GetPrefs().showFrameRate;
             case IDM_VIEW_SCENE_VIEW:         return m_settings->GetPrefs().showSceneView;
+            case IDM_VIEW_AUTOHIDE_DRIVES:    return m_settings->GetPrefs().autoHideDrives;
 
             default:                          return false;
         }
@@ -563,6 +564,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_TAPE_REWIND:      return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Rewind,      m_tapeDeck->GetTapeView());
             case IDM_TAPE_FASTFORWARD: return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::FastForward, m_tapeDeck->GetTapeView());
             case IDM_TAPE_EJECT:       return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Eject,       m_tapeDeck->GetTapeView());
+            case IDM_VIEW_DRIVE_STRIP: return AreDrivesAutoHidden();
             default:           return true;
         }
     });
@@ -665,13 +667,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         {
             m_scene->SyncSceneDriveChrome();
         }
-        else
+        else if (!AreDrivesOnStrip())
         {
             m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, clientW, clientH, dpi, m_chrome->GetSceneScale(),
                                                       m_disks->ShouldShowExternalDrive() ? 2 : 1);
         }
 
-        m_chrome->LayoutDriveBandSurface (!DeskSceneActive(), RECT{ 0, driveRect.top, clientW, clientH });
+        m_chrome->LayoutDriveBandSurface (!DeskSceneActive() && !AreDrivesOnStrip(), RECT{ 0, driveRect.top, clientW, clientH });
 
         m_chrome->LayoutSwitchBar (dpi);
     }
@@ -1592,7 +1594,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 {
     // A disk changed outside Casso. The store decided on the thread that owns
     // disk writes; both of these build UI, so they land here.
-    if (msg == WM_APP_CHANGE_REPORT)
+    if (msg == (UINT) AppMessage::ShellChangeReport)
     {
         ShellDisks::ChangeNotice *  carried = reinterpret_cast<ShellDisks::ChangeNotice *> (lParam);
 
@@ -1605,7 +1607,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == WM_APP_CHANGE_ASK)
+    if (msg == (UINT) AppMessage::ShellChangeAsk)
     {
         ShellDisks::ChangeNotice *  carried = reinterpret_cast<ShellDisks::ChangeNotice *> (lParam);
 
@@ -1618,7 +1620,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == WM_APP_NOTIFY_USER)
+    if (msg == (UINT) AppMessage::ShellNotifyUser)
     {
         wstring *  carried = reinterpret_cast<wstring *> (lParam);
 
@@ -1631,7 +1633,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == WM_APP_SHOW_NOTICE)
+    if (msg == (UINT) AppMessage::ShellShowNotice)
     {
         wstring *  carried = reinterpret_cast<wstring *> (lParam);
 
@@ -1649,7 +1651,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // host input to their input event sink, which is UI-thread only. Going
     // live in reverse execution posts it too, so the keys and mouse button let
     // go of behind live are released here first.
-    if (msg == WM_APP_GAMEPORT_FLUSH)
+    if (msg == (UINT) AppMessage::ShellGameportFlush)
     {
         std::vector<DxuiKeyEvent>  held;
         std::vector<HeldInput>     heldInputs;
@@ -1698,7 +1700,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     }
 
     // The //c's 80/40 switch behind live waits on this question.
-    if (msg == WM_APP_CONFIRM_INPUT)
+    if (msg == (UINT) AppMessage::ShellConfirmInput)
     {
         m_debugger->OnConfirmInputDiverge();
 
@@ -1706,7 +1708,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     }
 
     // The replay stopped where the guest reads input held behind live.
-    if (msg == WM_APP_HELD_INPUT_READ)
+    if (msg == (UINT) AppMessage::ShellHeldInputRead)
     {
         m_debugger->OnHeldInputRead();
 
@@ -1714,7 +1716,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     }
 
     // A debugger edit behind live waits on this question.
-    if (msg == WM_APP_CONFIRM_DIVERGE)
+    if (msg == (UINT) AppMessage::ShellConfirmDiverge)
     {
         m_debugger->OnConfirmDiverge();
 
@@ -1722,7 +1724,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     }
 
     // PASTE's text, queued on the CPU thread, typed as Edit > Paste types.
-    if (msg == WM_APP_PASTE_TEXT)
+    if (msg == (UINT) AppMessage::ShellPasteText)
     {
         m_input->DeliverQueuedPaste();
 
@@ -1730,7 +1732,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     }
 
     // A more specific debug project opened, with the last one's items on offer.
-    if (msg == WM_APP_CONFIRM_PROJECT_MERGE)
+    if (msg == (UINT) AppMessage::ShellConfirmProjectMerge)
     {
         m_debugger->OnConfirmProjectMerge();
 
@@ -1739,7 +1741,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
     // The players' slots changed, or a controller came or went. Saying so and
     // writing it to the prefs both belong here, not on the controller thread.
-    if (msg == WM_APP_CONTROLLER_PICK)
+    if (msg == (UINT) AppMessage::ShellControllerPick)
     {
         m_input->GetControllers().ApplyPendingControllerPick();
         return DxuiMessageResult::Handled;
@@ -1747,7 +1749,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
     // A mount that ran on the CPU thread wants its damage report raised here,
     // where a modal can be built.
-    if (msg == WM_APP_REPORT_DAMAGE)
+    if (msg == (UINT) AppMessage::ShellReportDamage)
     {
         m_disks->ReportDamagedMount ((int) wParam);
 
@@ -1757,7 +1759,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // One mount's outcome, from whichever thread ran it. Startup mounts land
     // here too, which is what keeps a bad --disk1 from raising a dialog before
     // there was a pump to run it.
-    if (msg == WM_APP_MOUNT_COMPLETED)
+    if (msg == (UINT) AppMessage::ShellMountCompleted)
     {
         ShellDisks::MountCompletion *  carried = reinterpret_cast<ShellDisks::MountCompletion *> (lParam);
 
@@ -1772,7 +1774,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
     // An answer for a tool that asked, known on another thread or inside the
     // tool's own send.
-    if (msg == WM_APP_INTENT_REPLY)
+    if (msg == (UINT) AppMessage::ShellIntentReply)
     {
         IntentReplyPost *  carried = reinterpret_cast<IntentReplyPost *> (lParam);
 
@@ -1786,7 +1788,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     }
 
     // A piece of update work finished on the update service's thread.
-    if (msg == WM_APP_UPDATE_RESULT)
+    if (msg == (UINT) AppMessage::ShellUpdateResult)
     {
         UpdateResult *  carried = reinterpret_cast<UpdateResult *> (lParam);
 
@@ -1799,7 +1801,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == WM_APP_DXUI_UPDATE_TITLE)
+    if (msg == (UINT) AppMessage::ShellUpdateTitle)
     {
         m_window->UpdateWindowTitle();
         m_chrome->ReflowChromeForMachineChange();

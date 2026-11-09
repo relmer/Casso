@@ -623,9 +623,9 @@ void CassqueWindow::ApplyTheme()
 
     if (m_menuBar != nullptr)
     {
-        m_menuBar->SetStripColors    (m_theme->navStrip, m_theme->navHover, m_theme->navItemText);
-        m_menuBar->SetDropdownColors (m_theme->dropdownBg, m_theme->dropdownHover, m_theme->dropdownItemText,
-                                      m_theme->dropdownAccel, m_theme->panelEdge, m_theme->buttonBorder);
+        m_menuBar->SetStripColors    (m_theme->navStrip, m_theme->navStripHover, m_theme->navItemText, m_theme->navHoverText);
+        m_menuBar->SetDropdownColors (m_theme->dropdownBg, m_theme->dropdownHover, m_theme->dropdownItemText, m_theme->dropdownHoverText,
+                                      m_theme->dropdownAccel, m_theme->dropdownHoverAccel, m_theme->dropdownBorder, m_theme->dropdownDivider);
     }
 
     if (m_toolbar != nullptr)

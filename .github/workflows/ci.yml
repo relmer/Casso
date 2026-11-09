@@ -605,14 +605,40 @@ jobs:
           Invoke-WebRequest -Uri 'https://aka.ms/wingetcreate/latest' -OutFile $dest -UseBasicParsing
 
           $baseUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag"
+          $outDir  = Join-Path $env:RUNNER_TEMP 'winget'
 
           # One bundle, one URL. wingetcreate reads the family name, the
           # signature hash and both architectures out of it.
           & $dest update $pkgId `
             --version $version `
             --urls "$baseUrl/Casso-$version.msixbundle" `
-            --submit
+            --out $outDir
 
           if ($LASTEXITCODE -ne 0) {
               throw "wingetcreate failed ($LASTEXITCODE). The release itself is published and unaffected."
+          }
+
+          # winget-pkgs accepts only schema 1.28.0 or newer, and the latest
+          # wingetcreate release (1.12.13) writes 1.12.0. Raise any older
+          # schema version to 1.28.0.
+          $minSchema = [version] '1.28.0'
+          $manifests = Get-ChildItem $outDir -Recurse -Filter *.yaml
+
+          foreach ($file in $manifests) {
+              $text = Get-Content $file.FullName -Raw
+
+              if ($text -match 'ManifestVersion:\s*(\d+\.\d+\.\d+)' -and [version] $Matches[1] -lt $minSchema) {
+                  $old  = [regex]::Escape($Matches[1])
+                  $text = $text -replace "ManifestVersion:\s*$old", "ManifestVersion: $minSchema"
+                  $text = $text -replace "\.$old\.schema\.json", ".$minSchema.schema.json"
+                  Set-Content $file.FullName $text -NoNewline
+              }
+          }
+
+          & $dest submit `
+            --prtitle "New version: $pkgId version $version" `
+            $manifests[0].DirectoryName
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "wingetcreate submit failed ($LASTEXITCODE). The release itself is published and unaffected."
           }

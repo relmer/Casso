@@ -1,0 +1,29 @@
+{
+    "$cassoThemeVersion": 1,
+    "$cassoBuiltIn":      true,
+    "name":               "Phosphor",
+    "familyId":           "apple2",
+    "variantId":          "iic",
+    "author":             "Casso",
+    "description":        "P1 green phosphor on black glass, in VT323, with inverse-video highlights.",
+    "crtDefaults": {
+        "brightness": 1.1,
+        "scanlines":  { "enabled": true, "intensity": 0.85 },
+        "bloom":      { "enabled": true, "radius": 2.0, "strength": 0.7 },
+        "colorBleed": { "enabled": true, "width":  1.5 }
+    },
+    "uiTokens": {
+        "chrome": {
+            "titleTextColor": "#b8ffc8",
+            "backgroundGradient": ["#050605", "#050605"]
+        },
+        "timingsMs": { "driveDoor": 95 }
+    },
+    "driveVisualProfile": {
+        "style": "disk2",
+        "colorway": "iic-platinum",
+        "doorAnimation": "compactLatch",
+        "syncChannel": "drive-door"
+    },
+    "useMicaBackdrop": false
+}

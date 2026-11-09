@@ -589,7 +589,7 @@ void ShellDebugger::OfferProjectMerge (const DebugProject & old)
 
     if (m_host.GetMainWindow() != nullptr)
     {
-        PostMessageW (m_host.GetMainWindow(), WM_APP_CONFIRM_PROJECT_MERGE, 0, 0);
+        PostMessageW (m_host.GetMainWindow(), (UINT) AppMessage::ShellConfirmProjectMerge, 0, 0);
     }
 }
 

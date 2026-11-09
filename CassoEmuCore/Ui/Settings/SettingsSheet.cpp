@@ -331,17 +331,23 @@ HRESULT SettingsSheet::OpenModeless (
         m_apply.ApplyThemeLive (m_themePage->GetSelectedThemeId());
     });
 
-    // The 3D desk-scene opt in/out: applies + persists immediately (the
-    // scene appears/disappears on the live chrome behind the sheet), so
-    // there is no staged state to revert on Cancel.
+    // The CRT monitor and auto-hide checkboxes are staged like the theme pick:
+    // OK applies and persists them, and Cancel discards them. The page's mock
+    // window previews the CRT checkbox in the meantime.
     m_themePage->SetCrtMonitorChecked (prefs.crtMonitor);
     m_themePage->SetOnCrtMonitorToggled ([this] (bool enabled)
     {
-        m_emuShell->GetChrome().SetCrtMonitorEnabled (enabled);
+        m_apply.StageCrtMonitor (enabled);
     });
 
-    // The General page: every control is live and persisted on the click,
-    // like the CRT opt-in above, so Cancel has nothing to revert.
+    m_themePage->SetAutoHideDrivesChecked (prefs.autoHideDrives);
+    m_themePage->SetOnAutoHideDrivesToggled ([this] (bool enabled)
+    {
+        m_apply.StageAutoHideDrives (enabled);
+    });
+
+    // The General page: every control is live and persisted on the click, so
+    // Cancel has nothing to revert.
     m_generalPage->SetAutoUpdateChecked (prefs.autoUpdateCheck);
     m_generalPage->SetAudioOfferChecked (GeneralPageModel::IsOfferChecked (prefs.audioDownloadConsent));
     m_generalPage->SetRomOfferChecked   (GeneralPageModel::IsOfferChecked (prefs.romRefreshConsent));

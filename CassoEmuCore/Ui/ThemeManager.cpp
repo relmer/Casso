@@ -117,8 +117,8 @@ ThemeManager::ThemeManager (
 //  PresentationRank
 //
 //  Where a built-in theme sits in the order the Settings dropdown offers
-//  the catalog: Skeuomorphic, then RetroTerminal, then DarkModern -- most
-//  period-authentic to least. A theme the table does not name (anything
+//  the catalog: Skeuomorphic, then RetroTerminal, then Phosphor, then
+//  DarkModern -- most period-authentic to least. A theme the table does not name (anything
 //  user-authored) ranks after all of them and keeps its discovery order
 //  among its peers.
 //
@@ -126,7 +126,7 @@ ThemeManager::ThemeManager (
 
 size_t ThemeManager::PresentationRank (const std::string & themeName)
 {
-    static const char * const  kOrder[] = { "Skeuomorphic", "RetroTerminal", "DarkModern" };
+    static const char * const  kOrder[] = { "Skeuomorphic", "RetroTerminal", "Phosphor", "DarkModern" };
 
 
 

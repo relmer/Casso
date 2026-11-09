@@ -634,8 +634,9 @@ SceneHitResult ShellDeskScene::StripHit (int xPx, int yPx) const
 //
 //  ShellDeskScene::RecorderHit
 //
-//  In fullscreen the recorder exists only on the strip, and only while the
-//  strip is up; the desk composition there holds the glass alone.
+//  In fullscreen, and with auto-hide on, the recorder exists only on the
+//  strip, and only while the strip is up; the desk composition doesn't
+//  include it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -645,7 +646,7 @@ SceneHitResult ShellDeskScene::RecorderHit (int xPx, int yPx) const
 
 
 
-    if (!m_shell.m_renderer->GetD3D().IsFullscreen())
+    if (!m_shell.AreDrivesOnStrip())
     {
         return DeskSceneHit (xPx, yPx);
     }
@@ -674,14 +675,14 @@ SceneHitResult ShellDeskScene::RecorderHit (int xPx, int yPx) const
 
 RECT ShellDeskScene::GetVolumeWheelRect (float * widthPx) const
 {
-    bool                          fs      = m_shell.m_renderer->GetD3D().IsFullscreen();
-    bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top;
+    bool                          stripOn = m_shell.AreDrivesOnStrip();
+    bool                          onStrip = stripOn && m_stripRectPx.bottom > m_stripRectPx.top;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
     const float *                 box     = m_deskScene.RecorderModel().VolumeWheelBox();
     float                         lo[2]   = { FLT_MAX, FLT_MAX };
     float                         hi[2]   = { -FLT_MAX, -FLT_MAX };
     int                           grow    = m_shell.m_scaler.ToPx (s_kVolumeWheelSlopDp);
-    bool                          isShown = m_shell.DeskSceneActive() && (!fs || onStrip) && comp.hasRecorder != 0 &&
+    bool                          isShown = m_shell.DeskSceneActive() && (!stripOn || onStrip) && comp.hasRecorder != 0 &&
                                             m_deskScene.HasRecorder() && box[3] > box[0];
     RECT                          rect    = {};
 
@@ -1029,6 +1030,67 @@ int ShellDeskScene::DeskSceneDriveCount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDeskScene::GetDeskCompositionDriveCount
+//
+//  The windowed layout and the Ctrl+0 inverse both call this, so the size
+//  Ctrl+0 picks matches the desk the layout then composes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDeskScene::GetDeskCompositionDriveCount() const
+{
+    return m_shell.AreDrivesAutoHidden() ? 0 : DeskSceneDriveCount();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetDeskCompositionMetrics
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DeskSceneMetrics ShellDeskScene::GetDeskCompositionMetrics() const
+{
+    DeskSceneMetrics  metrics = m_deskScene.Metrics();
+
+
+
+    if (m_shell.AreDrivesAutoHidden())
+    {
+        metrics.hasRecorder = false;
+    }
+
+    return metrics;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::IsBelowStripArea
+//
+//  The labels are chrome text, drawn in a pass after every fill, so the
+//  switch strip can't cover them the way it covers the drives. A label is
+//  hidden until the slide has brought it fully into the area.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsBelowStripArea (const RECT & labelPx, bool onStrip) const
+{
+    return onStrip && labelPx.bottom > m_shell.m_chrome->GetDriveStripAreaPx().bottom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDeskScene::SyncSceneViewReadout
 //
 //  The scene pose -- orbit, zoom and pan -- written across the middle of the
@@ -1339,15 +1401,15 @@ void ShellDeskScene::SyncSceneDriveChrome()
 
 void ShellDeskScene::SyncSceneDriveLabels()
 {
-    // FULLSCREEN LABELS THE STRIP'S DRIVES, not the desk's: the overlay is
-    // the only place drives appear there, and a drive worth revealing is
-    // worth naming. Its composition is the strip's, and the labels come and
-    // go with the slide.
-    bool                          fs      = m_shell.m_renderer->GetD3D().IsFullscreen();
-    bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top &&
+    // FULLSCREEN AND AUTO-HIDE LABEL THE STRIP'S DRIVES, not the desk's: the
+    // overlay is the only place drives appear there, and a drive worth
+    // revealing is worth labeling. Its composition is the strip's, and the
+    // labels come and go with the slide.
+    bool                          stripOn = m_shell.AreDrivesOnStrip();
+    bool                          onStrip = stripOn && m_stripRectPx.bottom > m_stripRectPx.top &&
                                             m_stripComp.driveCount > 0;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
-    bool                          visible = m_shell.DeskSceneActive() && (!fs || onStrip);
+    bool                          visible = m_shell.DeskSceneActive() && (!stripOn || onStrip);
     float                         fontDip = s_kSceneDriveLabelFontDip;
     // The strip has nothing in front of its drives, so it keeps the chrome
     // label; the desk hands its names to the scene instead.
@@ -1450,7 +1512,7 @@ void ShellDeskScene::SyncSceneDriveLabels()
         m_sceneDriveLabel[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
         m_sceneDriveLabel[i].SetDpi         (m_shell.m_scaler.GetDpi());
         m_sceneDriveLabel[i].Layout         (nameRc, m_shell.m_scaler);
-        m_sceneDriveLabel[i].SetVisible     (!name.empty() && !inScene);
+        m_sceneDriveLabel[i].SetVisible     (!name.empty() && !inScene && !IsBelowStripArea (rc, onStrip));
 
         m_sceneDriveInfoIcon[i].SetText        (s_kpszMdl2Info);
         m_sceneDriveInfoIcon[i].SetFontFace    (DriveWidget::kInfoIconFamily);
@@ -1458,7 +1520,7 @@ void ShellDeskScene::SyncSceneDriveLabels()
         m_sceneDriveInfoIcon[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
         m_sceneDriveInfoIcon[i].SetDpi         (m_shell.m_scaler.GetDpi());
         m_sceneDriveInfoIcon[i].Layout         (iconRc, m_shell.m_scaler);
-        m_sceneDriveInfoIcon[i].SetVisible     (showIcon && !inScene);
+        m_sceneDriveInfoIcon[i].SetVisible     (showIcon && !inScene && !IsBelowStripArea (rc, onStrip));
 
         // The icon's own tooltip target, ahead of the name's.
         m_sceneInfoIconRect[i] = showIcon ? iconHit : RECT{};
@@ -1568,7 +1630,7 @@ void ShellDeskScene::SyncStripTapeLabels (const DeskSceneComposition            
         m_stripTapeLabel[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
         m_stripTapeLabel[i].SetDpi         (m_shell.m_scaler.GetDpi());
         m_stripTapeLabel[i].Layout         (rc, m_shell.m_scaler);
-        m_stripTapeLabel[i].SetVisible     (!name.empty());
+        m_stripTapeLabel[i].SetVisible     (!name.empty() && !IsBelowStripArea (rc, onStrip));
     }
 }
 
@@ -1630,9 +1692,10 @@ void ShellDeskScene::SetStripLabelMarquee (DxuiShadowedText & label, int cell, c
 
 bool ShellDeskScene::UpdateSceneLabelHover (int x, int y, int64_t nowMs)
 {
-    // In fullscreen the names are the strip's, while it is up.
-    bool                          fs      = m_shell.m_renderer->GetD3D().IsFullscreen();
-    bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top;
+    // In fullscreen and with auto-hide on, the disk labels are under the
+    // strip's drives, while the strip is up.
+    bool                          stripOn = m_shell.AreDrivesOnStrip();
+    bool                          onStrip = stripOn && m_stripRectPx.bottom > m_stripRectPx.top;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
     POINT                         pt      = { x, y };
     int                           hovered = -1;
@@ -1640,7 +1703,7 @@ bool ShellDeskScene::UpdateSceneLabelHover (int x, int y, int64_t nowMs)
 
 
 
-    if (m_shell.DeskSceneActive() && (!fs || onStrip))
+    if (m_shell.DeskSceneActive() && (!stripOn || onStrip))
     {
         for (int i = 0; i < comp.driveCount && i < (int) m_sceneDriveLabelRect.size(); i++)
         {
@@ -1890,11 +1953,12 @@ bool ShellDeskScene::SyncRecorderKeys (int64_t nowMs)
 
 void ShellDeskScene::SyncSceneTapeLabel()
 {
-    // In fullscreen the recorder is on the strip, while the strip is up.
-    bool                          fs        = m_shell.m_renderer->GetD3D().IsFullscreen();
-    bool                          onStrip   = fs && m_stripRectPx.bottom > m_stripRectPx.top;
+    // In fullscreen and with auto-hide on, the recorder is on the strip, while
+    // the strip is up.
+    bool                          stripOn   = m_shell.AreDrivesOnStrip();
+    bool                          onStrip   = stripOn && m_stripRectPx.bottom > m_stripRectPx.top;
     const DeskSceneComposition &  comp      = onStrip ? m_stripComp : m_deskScene.Composition();
-    bool                          visible   = m_shell.DeskSceneActive() && (!fs || onStrip) &&
+    bool                          visible   = m_shell.DeskSceneActive() && (!stripOn || onStrip) &&
                                               comp.hasRecorder != 0 && m_deskScene.HasRecorder() &&
                                               m_shell.m_tapeDeck->IsTapeRecorderShown();
     TapeDeckView                  view      = m_shell.m_tapeDeck->GetTapeView();
@@ -3699,7 +3763,7 @@ bool ShellDeskScene::EndLButtonDrag (int x, int y)
 bool ShellDeskScene::OnLButtonUp (int x, int y)
 {
     POINT           pt       = { x, y };
-    bool            inStrip  = m_shell.m_renderer->GetD3D().IsFullscreen() &&
+    bool            inStrip  = m_shell.AreDrivesOnStrip() &&
                                m_stripRectPx.bottom > m_stripRectPx.top &&
                                PtInRect (&m_stripRectPx, pt);
     SceneHitResult  sceneHit = inStrip ? StripHit (x, y) : DeskSceneHit (x, y);
@@ -3716,9 +3780,9 @@ bool ShellDeskScene::OnLButtonUp (int x, int y)
     {
         m_shell.m_disks->Eject (6, sceneHit.driveIndex);
 
-        // A browse opened from the strip pins it, so the strip does not
-        // hide under the dialog.
-        m_stripBrowseOpen = inStrip;
+        // A browse opened from the strip or the desk's slide pins it, so the
+        // drives don't hide under the dialog.
+        m_stripBrowseOpen = inStrip || m_shell.IsDeskSlideActive();
         m_shell.m_disks->BrowseForDisk (sceneHit.driveIndex,
                                         inStrip ? &m_stripComp.driveRectPx[sceneHit.driveIndex]
                                                 : &m_deskScene.Composition().driveRectPx[sceneHit.driveIndex]);
@@ -3730,7 +3794,7 @@ bool ShellDeskScene::OnLButtonUp (int x, int y)
     // The labels under the recorder: its counter sets the position and its
     // name picks a tape, as on the flat deck, on the strip too, which a
     // dialog opened from it pins, as a drive's browse does.
-    m_stripBrowseOpen = inStrip;
+    m_stripBrowseOpen = inStrip || m_shell.IsDeskSlideActive();
 
     if (PtInRect (&m_sceneTapeCounterRect, pt))
     {
@@ -4028,11 +4092,11 @@ void ShellDeskScene::ClearHover (int64_t nowMs)
 //
 //  ShellDeskScene::GetDriveTooltip
 //
-//  The drive tooltip for a point on the desk or the fullscreen strip; empty
-//  when there is none. Windowed, every name and padlock is on the name
-//  strips, so the tooltips are the info icon's and, for a padlock, the
-//  write-protect composition anchored to its label. In fullscreen, a drive on
-//  the strip also has the image's name as its tooltip.
+//  The drive tooltip for a point on the desk or the strip, or empty. Every
+//  name and padlock is on the name strips, the strip's drives included, so
+//  the tooltips are the info icon's and, for a padlock, the write-protect
+//  composition anchored to its label. A tooltip on a drive's case would
+//  repeat its label.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4068,26 +4132,6 @@ void ShellDeskScene::GetDriveTooltip (int x, int y, std::wstring & outTip, RECT 
                             i + 1,
                             std::filesystem::path (m_shell.m_machine.GetDiskStore().GetSourcePath (6, i)).filename().wstring(),
                             states[i].writeProtect);
-        }
-    }
-
-    if (outTip.empty() && m_shell.m_renderer->GetD3D().IsFullscreen() &&
-        m_stripRectPx.bottom > m_stripRectPx.top && PtInRect (&m_stripRectPx, pt))
-    {
-        SceneHitResult  hit = StripHit (x, y);
-
-        if (hit.target == SceneHitResult::Target::Drive)
-        {
-            std::wstring  imageName = std::filesystem::path (
-                m_shell.m_machine.GetDiskStore().GetSourcePath (6, hit.driveIndex)).filename().wstring();
-
-            outAnchor = m_stripComp.driveRectPx[hit.driveIndex];
-            outTip    = ComposeWriteProtectTooltip (hit.driveIndex + 1, imageName, states[hit.driveIndex].writeProtect);
-
-            if (outTip.empty())
-            {
-                outTip = imageName;
-            }
         }
     }
 }
@@ -4143,7 +4187,7 @@ bool ShellDeskScene::IsGrabbableAt (int x, int y) const
 SceneHitResult ShellDeskScene::StorageHit (int x, int y) const
 {
     POINT           pt      = { x, y };
-    bool            inStrip = m_shell.m_renderer->GetD3D().IsFullscreen() &&
+    bool            inStrip = m_shell.AreDrivesOnStrip() &&
                               m_stripRectPx.bottom > m_stripRectPx.top &&
                               PtInRect (&m_stripRectPx, pt);
     SceneHitResult  hit     = inStrip ? StripHit (x, y) : DeskSceneHit (x, y);
@@ -4355,26 +4399,106 @@ Error:
 //
 //  ShellDeskScene::RenderStripOverlay
 //
-//  The fullscreen drive strip, the slid band TickStrip composed, and while the
-//  strip is hidden, the activity glimmer in the corner (FR-015).
+//  The drive strip, in fullscreen or with auto-hide on: the slid band
+//  TickStrip composed. In fullscreen, while the strip is hidden, the activity
+//  glimmer in the corner (FR-015), whether the drives are on the strip or
+//  slide up on the desk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDeskScene::RenderStripOverlay (ID3D11RenderTargetView * rtv, int backBufferW, int backBufferH)
 {
-    if (m_stripRectPx.bottom > m_stripRectPx.top)
+    if (m_shell.AreDrivesOnStrip() && m_stripRectPx.bottom > m_stripRectPx.top)
     {
-        HRESULT  hrStrip = m_deskScene.RenderStrip (rtv, m_stripComp);
+        HRESULT  hrStrip = RenderClippedStrip (rtv);
 
         IGNORE_RETURN_VALUE (hrStrip, S_OK);
     }
 
-    if (m_stripState.ActivityIndicator())
+    if (m_stripState.ActivityIndicator() && m_shell.m_renderer->GetD3D().IsFullscreen())
     {
-        RECT  glimmer = { backBufferW - 34, backBufferH - 14, backBufferW - 12, backBufferH - 8 };
-
-        m_deskScene.DrawDebugRect (glimmer, backBufferW, backBufferH, 0xFFB01818);
+        m_deskScene.DrawDebugRect (GetStripGlimmerRect(), backBufferW, backBufferH, 0xFFB01818);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetStripGlimmerRect
+//
+//  The red bar in the bottom-right corner of the strip's area that lights
+//  while a hidden drive is busy.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT ShellDeskScene::GetStripGlimmerRect() const
+{
+    constexpr int  kRightInsetPx  = 12;
+    constexpr int  kBottomInsetPx = 8;
+    constexpr int  kWidthPx       = 22;
+    constexpr int  kHeightPx      = 6;
+    RECT           area           = m_shell.m_chrome->GetDriveStripAreaPx();
+
+
+
+    return RECT { area.right  - kRightInsetPx  - kWidthPx,
+                  area.bottom - kBottomInsetPx - kHeightPx,
+                  area.right  - kRightInsetPx,
+                  area.bottom - kBottomInsetPx };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::SetFlatStripTextClip
+//
+//  The flat counterpart of RenderClippedStrip. The widgets' fills are drawn
+//  before the //c switch strip and stay under it; their text is drawn in a
+//  later pass, so only the text is cropped. Null clears the crop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::SetFlatStripTextClip (const RECT * clipPx)
+{
+    m_shell.m_disks->GetDriveChrome()[0].SetTextClip (clipPx);
+    m_shell.m_disks->GetDriveChrome()[1].SetTextClip (clipPx);
+    m_shell.m_tapeDeck->GetWidget().SetTextClip (clipPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::RenderClippedStrip
+//
+//  Crops the 3D strip to the picture area. Mid-slide the strip extends below
+//  that area, and in a window the //c switch strip is down there: cropped,
+//  the drives slide in and out from behind it instead of over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellDeskScene::RenderClippedStrip (ID3D11RenderTargetView * rtv)
+{
+    HRESULT  hr   = S_OK;
+    RECT     area = m_shell.m_chrome->GetDriveStripAreaPx();
+
+
+
+    m_deskScene.SetClipRect (&area);
+
+    hr = m_deskScene.RenderStrip (rtv, m_stripComp);
+
+    m_deskScene.SetClipRect (nullptr);
+
+    return hr;
 }
 
 
@@ -4540,11 +4664,13 @@ void ShellDeskScene::SyncDeviceVisuals (bool badgeMoved)
 //
 //  ShellDeskScene::TickStrip
 //
-//  The fullscreen drive overlay strip (FR-015): ticks the state machine from
-//  this frame's observations, applies its capture effects, and composes the
-//  slid band the present hook renders. The flat themes use the same state
-//  machine with the 2D widgets laid into the band, so fullscreen hides and
-//  brings back the drives the same way in every theme.
+//  The drive overlay strip (FR-015), in fullscreen or with auto-hide on:
+//  ticks the state machine from this frame's observations, applies its
+//  capture effects, and composes the slid band the present hook renders. The
+//  flat themes use the same state machine with the 2D widgets laid into the
+//  band, so the drives hide and come back the same way in every theme. On the
+//  windowed desk with the monitor, the same state machine raises the desk's
+//  drives instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4556,30 +4682,46 @@ void ShellDeskScene::TickStrip (bool anyDriveLive)
 
 
 
-    if (m_shell.m_renderer->GetD3D().IsFullscreen() && stripHasDrives)
+    if ((m_shell.AreDrivesOnStrip() || m_shell.IsDeskSlideActive()) && stripHasDrives)
     {
         StripInputs   inputs;
         StripEffects  effects;
-        POINT         cursor  = {};
-        RECT          client  = {};
+        POINT         cursor     = {};
+        RECT          client     = {};
+        RECT          area       = m_shell.m_chrome->GetDriveStripAreaPx();
+        bool          deskSlide  = m_shell.IsDeskSlideActive();
+        RECT          engageRect = deskSlide ? m_shell.m_chrome->GetDeskSlideCoverPx() : m_stripRectPx;
         int64_t       stripNowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                        std::chrono::steady_clock::now().time_since_epoch()).count();
 
         GetClientRect (m_shell.m_hwnd, &client);
+        SetFlatStripTextClip (&area);
 
         inputs.nowMs = stripNowMs;
 
+        // The edge is the bottom of the strip's area: the screen's bottom in
+        // fullscreen, the picture's bottom in a window with auto-hide on. On
+        // the windowed desk it is taller: the lower half of the desk under
+        // the monitor.
         if (DxuiInputState::GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor) && PtInRect (&client, cursor))
         {
-            inputs.pointerAtBottomEdge = cursor.y >= client.bottom - m_shell.m_scaler.ToPx (s_kStripEdgeZoneDp);
+            LONG  edgeTop = (deskSlide && !m_shell.m_renderer->GetD3D().IsFullscreen()) ? m_shell.m_chrome->GetDeskSlideRevealTopPx()
+                                                                                         : area.bottom - m_shell.m_scaler.ToPx (s_kStripEdgeZoneDp);
+
+
+
+            inputs.pointerAtBottomEdge = PtInRect (&area, cursor) && cursor.y >= edgeTop;
             inputs.pointerOverStrip    = m_stripState.Mode() != StripMode::Hidden &&
-                                         PtInRect (&m_stripRectPx, cursor);
+                                         PtInRect (&engageRect, cursor);
         }
 
         inputs.hotkey        = m_stripHotkeyPending;
         m_stripHotkeyPending = false;
 
-        inputs.pinned        = m_stripBrowseOpen || m_shell.m_chrome->IsDriveTooltipVisible();
+        // A drive's menu pins the strip too, or the drive it was opened on
+        // would slide away while the pointer is on the menu.
+        inputs.pinned        = m_stripBrowseOpen || m_shell.m_chrome->IsDriveTooltipVisible() ||
+                               (m_shell.m_host != nullptr && m_shell.m_host->GetContextMenu().IsVisible());
 
         // LIVE, not Active: Mouse mode being CONFIGURED is not the guest
         // owning the pointer. At a BASIC prompt in Mouse mode the host
@@ -4614,19 +4756,43 @@ void ShellDeskScene::TickStrip (bool anyDriveLive)
             m_stripSuppressGuestMouse = false;
         }
 
+        // The desk's slide re-solves the scene only when the progress moves,
+        // and the frame at progress 0 is presented too, so nothing is left
+        // part-way up.
+        if (deskSlide)
+        {
+            float  progress = m_stripState.SlideProgress (stripNowMs);
+
+            if (progress != m_shell.m_chrome->GetDeskSlideProgress())
+            {
+                m_shell.m_chrome->ComposeDeskSlide (progress);
+                m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+            }
+        }
+
         // The band slides up from the bottom edge: only the top
         // `progress * height` sliver is on-screen mid-animation. The flat
         // widgets' band is the windowed drive bar's height; the scene's is
         // the row its drives compose into.
+        else
         {
-            float  progress = m_stripState.SlideProgress (stripNowMs);
-            int    bandH    = m_shell.DeskSceneActive() ? m_shell.m_scaler.ToPx (s_kStripBandDp)
-                                                        : m_shell.m_scaler.ToPx (m_shell.m_chrome->GetDriveBarThicknessDp());
+            float  progress   = m_stripState.SlideProgress (stripNowMs);
+            int    bandH      = m_shell.DeskSceneActive() ? m_shell.m_scaler.ToPx (s_kStripBandDp)
+                                                          : m_shell.m_scaler.ToPx (m_shell.m_chrome->GetDriveBarThicknessDp());
+            bool   wasShowing = m_stripRectPx.bottom > m_stripRectPx.top;
+
+            // On the frame where the strip finishes hiding, the mode is
+            // already Hidden, so nothing else requests a present. Without
+            // this, the last partly-slid frame stays on screen.
+            if (progress <= 0.0f && wasShowing)
+            {
+                m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+            }
 
             if (progress > 0.0f)
             {
-                m_stripRectPx = { 0, client.bottom - (int) (progress * (float) bandH),
-                                                   client.right, client.bottom - (int) (progress * (float) bandH) + bandH };
+                m_stripRectPx = { area.left, area.bottom - (int) (progress * (float) bandH),
+                                  area.right, area.bottom - (int) (progress * (float) bandH) + bandH };
 
                 if (m_shell.DeskSceneActive())
                 {
@@ -4664,7 +4830,7 @@ void ShellDeskScene::TickStrip (bool anyDriveLive)
                     // bar anchors them, over the band's own surface. They paint
                     // after the picture, so they ride over it.
                     m_shell.m_chrome->LayoutDriveBandSurface (true, m_stripRectPx);
-                    m_shell.m_chrome->LayoutDriveWidgetsInCommandBar (m_shell.m_disks->GetDriveChrome(), bandH, client.right,
+                    m_shell.m_chrome->LayoutDriveWidgetsInCommandBar (m_shell.m_disks->GetDriveChrome(), bandH, area.right,
                                                                       m_stripRectPx.bottom, m_shell.m_scaler.GetDpi(), 1.0f,
                                                                       m_shell.m_disks->ShouldShowExternalDrive() ? 2 : 1);
 
@@ -4692,23 +4858,29 @@ void ShellDeskScene::TickStrip (bool anyDriveLive)
 
         // The strip's drive labels move with its slide: positioned again on
         // every pass so they track the band on its way in and out, and gone
-        // with it. The flat widgets have their own labels.
-        if (m_shell.DeskSceneActive())
+        // with it. The flat widgets draw their labels themselves. The desk's
+        // slide positions them in ComposeDeskSlide.
+        if (m_shell.DeskSceneActive() && !deskSlide)
         {
             SyncSceneDriveLabels();
         }
 
-        if (m_stripState.Mode() != StripMode::Hidden || m_stripState.ActivityIndicator())
+        // The hidden-state glimmer is fullscreen only, so frames are requested
+        // for it only there.
+        if (m_stripState.Mode() != StripMode::Hidden ||
+            (m_stripState.ActivityIndicator() && m_shell.m_renderer->GetD3D().IsFullscreen()))
         {
             m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
         }
     }
     else
     {
-        // Not presenting the strip (windowed, or fullscreen left): never
-        // strand a suppressed guest mouse.
+        // Not presenting the strip (windowed without auto-hide, or fullscreen
+        // left): never strand a suppressed guest mouse.
         m_stripSuppressGuestMouse = false;
         m_stripRectPx             = {};
+
+        SetFlatStripTextClip (nullptr);
     }
 }
 

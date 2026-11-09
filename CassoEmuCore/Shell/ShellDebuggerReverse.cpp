@@ -76,7 +76,7 @@ void ShellDebugger::StartReverseRecording()
 
         m_reverseHost->SetLiveCallback ([this] ()
         {
-            PostMessageW (m_host.GetMainWindow(), WM_APP_GAMEPORT_FLUSH, 0, 0);
+            PostMessageW (m_host.GetMainWindow(), (UINT) AppMessage::ShellGameportFlush, 0, 0);
         });
     }
 
@@ -493,7 +493,7 @@ bool ShellDebugger::GuardHistoryEdit (const DebugCommand & command)
 
     if (isFirst)
     {
-        PostMessageW (m_host.GetMainWindow(), WM_APP_CONFIRM_DIVERGE, 0, 0);
+        PostMessageW (m_host.GetMainWindow(), (UINT) AppMessage::ShellConfirmDiverge, 0, 0);
     }
 
     return false;
@@ -557,7 +557,7 @@ void ShellDebugger::HoldInputBehindLive (HeldInput input)
 
     if (verdict == DivergenceVerdict::Ask)
     {
-        PostMessageW (m_host.GetMainWindow(), WM_APP_CONFIRM_INPUT, 0, 0);
+        PostMessageW (m_host.GetMainWindow(), (UINT) AppMessage::ShellConfirmInput, 0, 0);
     }
 }
 
@@ -613,7 +613,7 @@ void ShellDebugger::StopForHeldInputRead()
     m_isResumeOwedAfterHeldRead.store (isRunning, memory_order_release);
 
     m_host.UpdateWindowTitle();
-    PostMessageW (m_host.GetMainWindow(), WM_APP_HELD_INPUT_READ, 0, 0);
+    PostMessageW (m_host.GetMainWindow(), (UINT) AppMessage::ShellHeldInputRead, 0, 0);
 }
 
 
@@ -737,7 +737,7 @@ void ShellDebugger::OnConfirmInputDiverge()
     // open: no return to live will hand the input back, so hand it now.
     if (!IsBehindLiveForUi())
     {
-        PostMessageW (m_host.GetMainWindow(), WM_APP_GAMEPORT_FLUSH, 0, 0);
+        PostMessageW (m_host.GetMainWindow(), (UINT) AppMessage::ShellGameportFlush, 0, 0);
     }
 }
 
