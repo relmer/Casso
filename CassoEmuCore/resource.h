@@ -170,6 +170,7 @@
 //   Skeuomorphic:   300..319
 //   DarkModern:     320..339
 //   RetroTerminal:  340..359
+//   Phosphor:       370..389
 #define IDR_THEME_SKEUO_THEME_JSON          300
 #define IDR_THEME_SKEUO_FONT_TTF            310
 #define IDR_THEME_SKEUO_FONT_OFL            311
@@ -184,6 +185,10 @@
 #define IDR_THEME_RETRO_FONT_TTF            350
 #define IDR_THEME_RETRO_FONT_OFL            351
 #define IDR_THEME_RETRO_FONT_TODO           352
+
+#define IDR_THEME_PHOSPHOR_THEME_JSON       370
+#define IDR_THEME_PHOSPHOR_FONT_TTF         380
+#define IDR_THEME_PHOSPHOR_FONT_OFL         381
 
 // Casso's own symbol font: the open and closed Apple keycap glyphs at
 // U+E000 / U+E001. Unlike the theme fonts above it is never extracted to

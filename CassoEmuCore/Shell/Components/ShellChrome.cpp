@@ -1454,15 +1454,22 @@ void ShellChrome::ApplyThemeToChrome (const CassoTheme & theme)
 
 
 
-    int   desiredThicknessDp = theme.compactDrives ? s_kCompactDriveBarDp : s_kFullDriveBarDp;
-    int   priorThicknessDp   = m_driveBarThicknessDp;
-    RECT  rcClient           = {};
-    RECT  rcWindow           = {};
-    int   centerW            = 0;
-    int   centerH            = 0;
-    bool  canResize          = false;
+    int      desiredThicknessDp = theme.compactDrives ? s_kCompactDriveBarDp : s_kFullDriveBarDp;
+    int      priorThicknessDp   = m_driveBarThicknessDp;
+    RECT     rcClient           = {};
+    RECT     rcWindow           = {};
+    int      centerW            = 0;
+    int      centerH            = 0;
+    bool     canResize          = false;
+    HRESULT  hrType             = S_OK;
 
 
+
+    // The body face and glow are process-wide, so they change before any
+    // widget measures text for the new theme. The window is resized below,
+    // and that layout pass measures in the new face.
+    hrType = AssetBootstrap::ApplyThemeTypography (m_shell.m_hInstance, theme);
+    IGNORE_RETURN_VALUE (hrType, S_OK);
 
     // The device selector's glyph style follows the drive style --
     // full skeuomorphic themes get the 3/4 perspective peripherals, compact

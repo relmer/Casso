@@ -173,17 +173,21 @@ void DxuiPopupMenu::SetColors (
     uint32_t  bgArgb,
     uint32_t  hoverArgb,
     uint32_t  textArgb,
+    uint32_t  hoverTextArgb,
     uint32_t  accelArgb,
+    uint32_t  hoverAccelArgb,
     uint32_t  borderArgb,
     uint32_t  dividerArgb)
 {
-    m_colors.bg      = bgArgb;
-    m_colors.hover   = hoverArgb;
-    m_colors.text    = textArgb;
-    m_colors.accel   = accelArgb;
-    m_colors.border  = borderArgb;
-    m_colors.divider = dividerArgb;
-    m_colorsSet      = true;
+    m_colors.bg         = bgArgb;
+    m_colors.hover      = hoverArgb;
+    m_colors.text       = textArgb;
+    m_colors.hoverText  = hoverTextArgb;
+    m_colors.accel      = accelArgb;
+    m_colors.hoverAccel = hoverAccelArgb;
+    m_colors.border     = borderArgb;
+    m_colors.divider    = dividerArgb;
+    m_colorsSet         = true;
 }
 
 
@@ -1598,13 +1602,15 @@ DxuiPopupMenu::Palette DxuiPopupMenu::ResolvePalette() const
 
 
 
-    pal.bg       = m_colorsSet ? m_colors.bg      : m_theme->BackgroundElevated();
-    pal.hover    = m_colorsSet ? m_colors.hover   : m_theme->HoverBackground();
-    pal.text     = m_colorsSet ? m_colors.text    : m_theme->Foreground();
-    pal.accel    = m_colorsSet ? m_colors.accel   : m_theme->ForegroundMuted();
-    pal.border   = m_colorsSet ? m_colors.border  : m_theme->Border();
-    pal.divider  = m_colorsSet ? m_colors.divider : m_theme->Divider();
-    pal.disabled = m_theme->ForegroundDisabled();
+    pal.bg         = m_colorsSet ? m_colors.bg         : m_theme->BackgroundElevated();
+    pal.hover      = m_colorsSet ? m_colors.hover      : m_theme->HoverBackground();
+    pal.text       = m_colorsSet ? m_colors.text       : m_theme->Foreground();
+    pal.hoverText  = m_colorsSet ? m_colors.hoverText  : m_theme->Foreground();
+    pal.accel      = m_colorsSet ? m_colors.accel      : m_theme->ForegroundMuted();
+    pal.hoverAccel = m_colorsSet ? m_colors.hoverAccel : m_theme->ForegroundMuted();
+    pal.border     = m_colorsSet ? m_colors.border     : m_theme->Border();
+    pal.divider    = m_colorsSet ? m_colors.divider    : m_theme->Divider();
+    pal.disabled   = m_theme->ForegroundDisabled();
 
     return pal;
 }
@@ -1742,6 +1748,7 @@ void DxuiPopupMenu::PaintRow (
     int                        mnIdx     = -1;
     wchar_t                    mnCh      = 0;
     bool                       enabled   = false;
+    bool                       hovered   = false;
     uint32_t                   labelArgb = 0;
     uint32_t                   accelArgb = 0;
 
@@ -1779,12 +1786,13 @@ void DxuiPopupMenu::PaintRow (
     }
 
     enabled   = row.command->IsEnabled();
-    labelArgb = enabled ? pal.text  : pal.disabled;
-    accelArgb = enabled ? pal.accel : pal.disabled;
+    hovered   = (index == m_hover);
+    labelArgb = !enabled ? pal.disabled : (hovered ? pal.hoverText  : pal.text);
+    accelArgb = !enabled ? pal.disabled : (hovered ? pal.hoverAccel : pal.accel);
 
     ParseMnemonic (row.command->GetLabelText(), stripped, mnIdx, mnCh);
 
-    if (index == m_hover)
+    if (hovered)
     {
         float  insetX = m_scaler.ToPxf ((float) kHoverInsetXDip);
         float  insetY = m_scaler.ToPxf ((float) kHoverInsetYDip);

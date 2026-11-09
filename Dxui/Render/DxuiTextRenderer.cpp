@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DxuiTextRenderer.h"
+#include "Theme/DxuiTheme.h"
 
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dwrite.lib")
@@ -158,19 +159,11 @@ HRESULT DxuiTextRenderer::AddSymbolFont (
     IUnknown                             * factoryRaw      = nullptr;
     ComPtr<IDWriteFactory>                 dwrite;
     ComPtr<IDWriteFactory5>                factory;
-    ComPtr<IDWriteInMemoryFontFileLoader>  loader;
-    ComPtr<IDWriteFontFile>                fontFile;
-    ComPtr<IDWriteFontSetBuilder1>         setBuilder;
-    ComPtr<IDWriteFontSet>                 fontSet;
     ComPtr<IDWriteFontCollection1>         collection;
-    ComPtr<IDWriteFontFamily>              family;
-    ComPtr<IDWriteLocalizedStrings>        familyNames;
     ComPtr<IDWriteFontFallbackBuilder>     fallbackBuilder;
     ComPtr<IDWriteFontFallback>            systemFallback;
     ComPtr<IDWriteFontFallback>            fallback;
     DWRITE_UNICODE_RANGE                   range           = {};
-    UINT32                                 familyCount     = 0;
-    UINT32                                 nameLength      = 0;
     std::wstring                           familyName;
     const wchar_t                        * targetFamily    = nullptr;
 
@@ -178,9 +171,12 @@ HRESULT DxuiTextRenderer::AddSymbolFont (
 
     DXUI_ASSERT_UI_THREAD();
 
-    CBRAEx (pFontBytes, E_INVALIDARG);
-    CBRAEx (byteCount > 0, E_INVALIDARG);
     CBRAEx (firstCodepoint <= lastCodepoint, E_INVALIDARG);
+
+    hr = CreateMemoryFontCollection (pFontBytes, byteCount, collection, familyName);
+    CHRA (hr);
+
+    targetFamily = familyName.c_str();
 
     // The shared factory hands back the same object every renderer already
     // holds, so no instance is needed to register against it.
@@ -193,56 +189,6 @@ HRESULT DxuiTextRenderer::AddSymbolFont (
 
     hr = dwrite.As (&factory);
     CHRA (hr);
-
-    hr = factory->CreateInMemoryFontFileLoader (&loader);
-    CHRA (hr);
-
-    hr = factory->RegisterFontFileLoader (loader.Get());
-    CHRA (hr);
-
-    // A null owner means DirectWrite copies the bytes, so the caller's buffer
-    // does not have to outlive this call.
-    hr = loader->CreateInMemoryFontFileReference (factory.Get(),
-                                                 pFontBytes,
-                                                 static_cast<UINT32> (byteCount),
-                                                 nullptr,
-                                                 &fontFile);
-    CHRA (hr);
-
-    hr = factory->CreateFontSetBuilder (&setBuilder);
-    CHRA (hr);
-
-    hr = setBuilder->AddFontFile (fontFile.Get());
-    CHRA (hr);
-
-    hr = setBuilder->CreateFontSet (&fontSet);
-    CHRA (hr);
-
-    hr = factory->CreateFontCollectionFromFontSet (fontSet.Get(), &collection);
-    CHRA (hr);
-
-    familyCount = collection->GetFontFamilyCount();
-    CBRA (familyCount > 0);
-
-    hr = collection->GetFontFamily (0, &family);
-    CHRA (hr);
-
-    hr = family->GetFamilyNames (&familyNames);
-    CHRA (hr);
-
-    // Sized from the string rather than a fixed buffer: a font whose family
-    // name did not fit would fail the whole registration over a name nothing
-    // reads but the mapping below.
-    hr = familyNames->GetStringLength (0, &nameLength);
-    CHRA (hr);
-
-    familyName.resize (static_cast<size_t> (nameLength) + 1);
-
-    hr = familyNames->GetString (0, familyName.data(),
-                                 static_cast<UINT32> (familyName.size()));
-    CHRA (hr);
-
-    targetFamily = familyName.c_str();
 
     hr = factory->CreateFontFallbackBuilder (&fallbackBuilder);
     CHRA (hr);
@@ -273,6 +219,347 @@ HRESULT DxuiTextRenderer::AddSymbolFont (
     // the collection reading as loaded while no format could ever use it.
     s_symbolFonts  = collection;
     s_fontFallback = fallback;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateMemoryFontCollection
+//
+//  Loads one font file from memory into a separate collection and returns
+//  the family name read from the font, so the file is the single authority
+//  on what it is called.
+//
+//  A null owner on the file reference means DirectWrite copies the bytes, so
+//  the caller's buffer does not have to outlive this call.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::CreateMemoryFontCollection (
+    const void                      * pFontBytes,
+    size_t                            byteCount,
+    ComPtr<IDWriteFontCollection1>  & outCollection,
+    std::wstring                    & outFamilyName)
+{
+    HRESULT                                hr              = S_OK;
+    IUnknown                             * factoryRaw      = nullptr;
+    ComPtr<IDWriteFactory>                 dwrite;
+    ComPtr<IDWriteFactory5>                factory;
+    ComPtr<IDWriteInMemoryFontFileLoader>  loader;
+    ComPtr<IDWriteFontFile>                fontFile;
+    ComPtr<IDWriteFontSetBuilder1>         setBuilder;
+    ComPtr<IDWriteFontSet>                 fontSet;
+    ComPtr<IDWriteFontCollection1>         collection;
+    ComPtr<IDWriteFontFamily>              family;
+    ComPtr<IDWriteLocalizedStrings>        familyNames;
+    UINT32                                 familyCount     = 0;
+    UINT32                                 nameLength      = 0;
+    std::wstring                           familyName;
+    bool                                   isLoaderMissing = false;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRAEx (pFontBytes, E_INVALIDARG);
+    CBRAEx (byteCount > 0, E_INVALIDARG);
+
+    hr = DWriteCreateFactory (DWRITE_FACTORY_TYPE_SHARED,
+                              __uuidof (IDWriteFactory),
+                              &factoryRaw);
+    CHRA (hr);
+
+    dwrite.Attach (static_cast<IDWriteFactory *> (factoryRaw));
+
+    hr = dwrite.As (&factory);
+    CHRA (hr);
+
+    isLoaderMissing = (s_memoryFontLoader == nullptr);
+
+    if (isLoaderMissing)
+    {
+        hr = factory->CreateInMemoryFontFileLoader (&loader);
+        CHRA (hr);
+
+        hr = factory->RegisterFontFileLoader (loader.Get());
+        CHRA (hr);
+
+        s_memoryFontLoader = loader;
+    }
+
+    hr = s_memoryFontLoader->CreateInMemoryFontFileReference (factory.Get(),
+                                                             pFontBytes,
+                                                             static_cast<UINT32> (byteCount),
+                                                             nullptr,
+                                                             &fontFile);
+    CHRA (hr);
+
+    hr = factory->CreateFontSetBuilder (&setBuilder);
+    CHRA (hr);
+
+    hr = setBuilder->AddFontFile (fontFile.Get());
+    CHRA (hr);
+
+    hr = setBuilder->CreateFontSet (&fontSet);
+    CHRA (hr);
+
+    hr = factory->CreateFontCollectionFromFontSet (fontSet.Get(), &collection);
+    CHRA (hr);
+
+    familyCount = collection->GetFontFamilyCount();
+    CBRA (familyCount > 0);
+
+    hr = collection->GetFontFamily (0, &family);
+    CHRA (hr);
+
+    hr = family->GetFamilyNames (&familyNames);
+    CHRA (hr);
+
+    // Sized from the string rather than a fixed buffer, so a long family name
+    // cannot fail the load.
+    hr = familyNames->GetStringLength (0, &nameLength);
+    CHRA (hr);
+
+    familyName.resize (static_cast<size_t> (nameLength) + 1);
+
+    hr = familyNames->GetString (0, familyName.data(),
+                                 static_cast<UINT32> (familyName.size()));
+    CHRA (hr);
+
+    familyName.resize (static_cast<size_t> (nameLength));
+
+    outCollection = collection;
+    outFamilyName = familyName;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetBodyFace
+//
+//  Replaces the body face with an in-memory font in every renderer in the
+//  process. A request for DxuiTheme::kBodyFace, or for no family at all,
+//  is drawn in the replacement at sizeScale times the requested size. Every
+//  other family, such as the monospace and icon faces, is drawn in the
+//  requested family.
+//
+//  Measurement goes through the same substitution as drawing, so a layout
+//  that measures its text fits the replacement face.
+//
+//  Setting the face that is already current is a no-op, so a theme can apply
+//  its typography on every activation without rebuilding every format.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::SetBodyFace (
+    const void  * pFontBytes,
+    size_t        byteCount,
+    float         sizeScale)
+{
+    HRESULT                         hr         = S_OK;
+    ComPtr<IDWriteFontCollection1>  collection;
+    std::wstring                    familyName;
+    bool                            isCurrent  = false;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRAEx (sizeScale > 0.0f, E_INVALIDARG);
+
+    isCurrent = (s_bodyFaceFonts != nullptr)
+                && (pFontBytes == s_bodyFaceSource)
+                && (sizeScale  == s_bodyFaceScale);
+    BAIL_OUT_IF (isCurrent, S_OK);
+
+    hr = CreateMemoryFontCollection (pFontBytes, byteCount, collection, familyName);
+    CHRA (hr);
+
+    s_bodyFaceFonts  = collection;
+    s_bodyFaceFamily = familyName;
+    s_bodyFaceSource = pFontBytes;
+    s_bodyFaceScale  = sizeScale;
+    s_typographyGeneration++;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClearBodyFace
+//
+//  Returns the body face to the system face at the requested size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextRenderer::ClearBodyFace()
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (s_bodyFaceFonts != nullptr)
+    {
+        s_bodyFaceFonts.Reset();
+        s_bodyFaceFamily.clear();
+        s_bodyFaceSource = nullptr;
+        s_bodyFaceScale  = 1.0f;
+        s_typographyGeneration++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTextGlow
+//
+//  Draws a halo around every string in the string's color, at `alpha` times
+//  the text's alpha, radiusEm of the font size from the glyph. Zero alpha
+//  turns the halo off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextRenderer::SetTextGlow (uint8_t alpha, float radiusEm)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    s_glowAlpha    = alpha;
+    s_glowRadiusEm = (radiusEm < 0.0f) ? 0.0f : radiusEm;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsBodyFaceRequest
+//
+//  Whether a family argument specifies the body face. A null family is the
+//  body face, as it is everywhere else in this renderer.
+//
+//  DxuiTheme::kSystemFace has the same text as kBodyFace and is compared by
+//  address, so text that specifies it is drawn in the system face under any
+//  theme.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextRenderer::IsBodyFaceRequest (const wchar_t * family)
+{
+    bool  isSystemFace = (family == DxuiTheme::kSystemFace);
+
+
+
+    return !isSystemFace
+           && ((family == nullptr) || (wcscmp (family, DxuiTheme::kBodyFace) == 0));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncTypography
+//
+//  Drops this renderer's formats, layouts and cap-height measurements when
+//  the process-wide body face changed since they were built. The caches are
+//  keyed on the family and size a caller requested, not on the face that
+//  was drawn, so without this the old face would be drawn after a theme
+//  switch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextRenderer::SyncTypography()
+{
+    if (m_typographyGeneration != s_typographyGeneration)
+    {
+        m_formatCache.clear();
+        m_capMidCache.clear();
+        m_layoutCache.clear();
+        m_typographyGeneration = s_typographyGeneration;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawGlow
+//
+//  The halo SetTextGlow turns on: the layout drawn at eight points on a
+//  circle around the origin, in the text's color at the glow alpha, under
+//  the text itself. Taps on a circle rather than a blur effect, because a
+//  blur operates on a bitmap, so the text would first be drawn into an
+//  intermediate one, and this runs for every string in the chrome.
+//
+//  Color fonts are off for the taps, so an emoji contributes a halo in the
+//  text color rather than eight colored copies of itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::DrawGlow (
+    IDWriteTextLayout       * pLayout,
+    D2D1_POINT_2F             origin,
+    uint32_t                  argbColor,
+    float                     fontSizeDip,
+    D2D1_DRAW_TEXT_OPTIONS    options)
+{
+    constexpr float                 kDiagonal        = 0.70710678f;
+    constexpr int                   kTapCount        = 8;
+    constexpr uint32_t              kAlphaMax        = 255;
+    constexpr float                 kTapX[kTapCount] = { 1.0f, -1.0f, 0.0f,  0.0f,  kDiagonal, -kDiagonal,  kDiagonal, -kDiagonal };
+    constexpr float                 kTapY[kTapCount] = { 0.0f,  0.0f, 1.0f, -1.0f,  kDiagonal,  kDiagonal, -kDiagonal, -kDiagonal };
+    HRESULT                         hr               = S_OK;
+    ComPtr<ID2D1SolidColorBrush>    brush;
+    ID2D1SolidColorBrush          * rawBrush         = nullptr;
+    uint32_t                        textAlpha        = argbColor >> 24;
+    uint32_t                        glowAlpha        = ((uint32_t) s_glowAlpha * textAlpha) / kAlphaMax;
+    uint32_t                        glowArgb         = (glowAlpha << 24) | (argbColor & 0x00FFFFFFu);
+    float                           radius           = fontSizeDip * s_glowRadiusEm;
+    D2D1_DRAW_TEXT_OPTIONS          tapOpts          = options & ~D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT;
+
+
+
+    CBRAEx (pLayout, E_INVALIDARG);
+    CBRA (m_d2dContext);
+
+    BAIL_OUT_IF (glowAlpha == 0 || radius <= 0.0f, S_OK);
+
+    hr = EnsureBrush (glowArgb, &rawBrush);
+    CHRA (hr);
+    brush.Attach (rawBrush);
+
+    brush->SetOpacity (m_globalAlpha);
+
+    for (int i = 0; i < kTapCount; i++)
+    {
+        m_d2dContext->DrawTextLayout (D2D1::Point2F (origin.x + kTapX[i] * radius,
+                                                     origin.y + kTapY[i] * radius),
+                                      pLayout,
+                                      brush.Get(),
+                                      tapOpts);
+    }
 
 Error:
     return hr;
@@ -1041,9 +1328,13 @@ HRESULT DxuiTextRenderer::EnsureTextFormat (
     DxuiFontWeight        weight,
     IDWriteTextFormat  ** outFormat)
 {
-    HRESULT             hr        = S_OK;
-    TextFormatKey       key;
-    const wchar_t     * useFamily = (family != nullptr) ? family : L"Segoe UI";
+    HRESULT                   hr           = S_OK;
+    TextFormatKey             key;
+    const wchar_t           * useFamily    = (family != nullptr) ? family : L"Segoe UI";
+    const wchar_t           * createFamily = useFamily;
+    IDWriteFontCollection   * collection   = nullptr;
+    float                     createSize   = fontSizeDip;
+    bool                      isSubstitute = false;
 
 
 
@@ -1051,6 +1342,20 @@ HRESULT DxuiTextRenderer::EnsureTextFormat (
     CBRA (m_dwriteFactory);
 
     *outFormat = nullptr;
+
+    SyncTypography();
+
+    // A replacement body face is created from s_bodyFaceFonts at
+    // s_bodyFaceScale, but cached under the family and size the caller
+    // requested.
+    isSubstitute = (s_bodyFaceFonts != nullptr) && IsBodyFaceRequest (family);
+
+    if (isSubstitute)
+    {
+        createFamily = s_bodyFaceFamily.c_str();
+        collection   = s_bodyFaceFonts.Get();
+        createSize   = fontSizeDip * s_bodyFaceScale;
+    }
 
     key.family  = useFamily;
     key.sizeDip = fontSizeDip;
@@ -1069,12 +1374,12 @@ HRESULT DxuiTextRenderer::EnsureTextFormat (
     {
         ComPtr<IDWriteTextFormat>  format;
 
-        hr = m_dwriteFactory->CreateTextFormat (useFamily,
-                                                nullptr,
+        hr = m_dwriteFactory->CreateTextFormat (createFamily,
+                                                collection,
                                                 static_cast<DWRITE_FONT_WEIGHT> (weight),
                                                 DWRITE_FONT_STYLE_NORMAL,
                                                 DWRITE_FONT_STRETCH_NORMAL,
-                                                fontSizeDip,
+                                                createSize,
                                                 L"en-us",
                                                 &format);
         CHRA (hr);
@@ -1204,6 +1509,8 @@ HRESULT DxuiTextRenderer::EnsureLayout (
 
     *outLayout = nullptr;
 
+    SyncTypography();
+
     key.text    = text;
     key.family  = useFamily;
     key.sizeDip = fontSizeDip;
@@ -1324,6 +1631,9 @@ HRESULT DxuiTextRenderer::EnsureCapMidY (
     DWRITE_FONT_METRICS            metrics     = {};
     DWRITE_LINE_METRICS            lineMetrics = {};
     UINT32                         lineCount   = 0;
+    UINT32                         nameLength  = 0;
+    std::wstring                   formatFamily;
+    float                          formatSize  = 0.0f;
     const wchar_t                * useFamily     = (family != nullptr) ? family : L"Segoe UI";
     const wchar_t                * kMeasureText  = L"Mg";
 
@@ -1331,6 +1641,12 @@ HRESULT DxuiTextRenderer::EnsureCapMidY (
 
     CBRA (m_dwriteFactory);
     CBRAEx (format, E_INVALIDARG);
+
+    // The face and size come from the format, not the request: a replacement
+    // body face has a different family and size than the caller specified.
+    nameLength = format->GetFontFamilyNameLength();
+    formatSize = format->GetFontSize();
+    formatFamily.resize (static_cast<size_t> (nameLength) + 1);
 
     key.family  = useFamily;
     key.sizeDip = fontSizeDip;
@@ -1362,7 +1678,12 @@ HRESULT DxuiTextRenderer::EnsureCapMidY (
     hr = format->GetFontCollection (&collection);
     CHRA (hr);
 
-    hr = collection->FindFamilyName (useFamily, &familyIndex, &familyFound);
+    hr = format->GetFontFamilyName (formatFamily.data(), static_cast<UINT32> (formatFamily.size()));
+    CHRA (hr);
+
+    formatFamily.resize (static_cast<size_t> (nameLength));
+
+    hr = collection->FindFamilyName (formatFamily.c_str(), &familyIndex, &familyFound);
     CHRA (hr);
     CBRA (familyFound);
 
@@ -1386,7 +1707,7 @@ HRESULT DxuiTextRenderer::EnsureCapMidY (
         float  baselineY    = 0.0f;
         CBRA (upem > 0.0f);
 
-        capHeightDip = (float) metrics.capHeight * (fontSizeDip / upem);
+        capHeightDip = (float) metrics.capHeight * (formatSize / upem);
         baselineY = lineMetrics.baseline;
 
         outCapMidY         = baselineY - capHeightDip * 0.5f;
@@ -1536,12 +1857,25 @@ HRESULT DxuiTextRenderer::DrawString (
         // legacy unclipped behavior. The layout owns the box (widthDip x
         // heightDip); the origin carries any cap-height vertical shift applied
         // to layoutRect above.
-        D2D1_DRAW_TEXT_OPTIONS  opts = m_monochromeGlyphs ? D2D1_DRAW_TEXT_OPTIONS_NONE
-                                                          : D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT;
+        bool                    isMono = m_monochromeGlyphs || s_monochromeGlyphsForced;
+        D2D1_DRAW_TEXT_OPTIONS  opts   = isMono ? D2D1_DRAW_TEXT_OPTIONS_NONE
+                                                : D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT;
 
         if (!wrap)
         {
             opts |= D2D1_DRAW_TEXT_OPTIONS_CLIP;
+        }
+
+        // No halo on kSystemFace text, which is drawn as print on hardware
+        // rather than as screen text.
+        if (s_glowAlpha > 0 && fontFamily != DxuiTheme::kSystemFace)
+        {
+            hr = DrawGlow (layout.Get(),
+                           D2D1::Point2F (layoutRect.left, layoutRect.top),
+                           argbColor,
+                           fontSizeDip,
+                           opts);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
         m_d2dContext->DrawTextLayout (D2D1::Point2F (layoutRect.left, layoutRect.top),
