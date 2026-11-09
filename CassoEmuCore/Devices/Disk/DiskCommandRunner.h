@@ -174,6 +174,15 @@ public:
     static void  AppendTypeExtension (std::string & imagePath, const std::string & containerType);
 
     void  RunCreate (const CommandLineOptions & options, DiskCommandResult & result);
+
+    //  A ProDOS volume larger than a floppy, in a block container.
+    static bool  IsLargeCreate          (const CommandLineOptions & options);
+    static bool  IsBlockOnlyExtension   (const std::string & imagePath);
+    static bool  IsProDosOrderExtension (const std::string & imagePath);
+    static bool  TryGetLargeBlockCount  (const std::string & sizeName, uint32_t & outBlocks);
+    void         BuildLargeProDos       (const CommandLineOptions & options, DiskCommandResult & result);
+    void         ReformatLargeProDos    (const CommandLineOptions & options, const FileStamp & stamp, DiskCommandResult & result);
+
     void  RunInit   (const CommandLineOptions & options, DiskCommandResult & result);
 
     //

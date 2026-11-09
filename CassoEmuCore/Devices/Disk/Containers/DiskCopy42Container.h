@@ -50,7 +50,10 @@ struct DiskCopy42Header
 class DiskCopy42Container
 {
 public:
-    static constexpr size_t  kHeaderSize = 84;
+    static constexpr size_t  kHeaderSize       = 84;
+
+    //  The tag bytes Disk Copy keeps for each 512-byte block of a disk.
+    static constexpr size_t  kTagBytesPerBlock = 12;
 
     static bool      IsDiskCopy42    (std::span<const Byte> bytes);
     static HRESULT   Parse           (std::span<const Byte> bytes, DiskCopy42Header & outHeader, std::vector<Byte> & outData, std::string & outError);

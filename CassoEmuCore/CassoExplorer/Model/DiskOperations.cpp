@@ -645,6 +645,7 @@ DiskOperations::Result DiskOperations::Krunch (const std::string & imagePath)
 void DiskOperations::FillNewDisk (const NewDiskRequest & request, CommandLineOptions & inOutOptions)
 {
     inOutOptions.disk.containerType = request.containerType;
+    inOutOptions.disk.sizeName      = request.sizeName;
     inOutOptions.disk.formatName    = request.formatName;
     inOutOptions.disk.volumeName    = request.volumeName;
     inOutOptions.disk.bootable      = request.bootable;

@@ -11,6 +11,10 @@
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "DiskImageStore.h"
+#include "Devices/Disk/Containers/ImageContainer.h"
+#include "Devices/Disk/Containers/TwoImgContainer.h"
+#include "Devices/Disk/Containers/DiskCopy42Container.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/DamagedMountReport.h"
 #include "Machines/Apple2/Common/StockBootDisks.h"
@@ -3411,6 +3415,7 @@ void DiskCommandRunner::RunCreate (const CommandLineOptions & options, DiskComma
     size_t              nibbleTrackSize = 0;
     bool                named           = !options.disk.imagePath.empty();
     bool                alreadyThere    = false;
+    bool                isLarge         = false;
     CommandLineOptions  resolved        = options;
 
 
@@ -3424,6 +3429,15 @@ void DiskCommandRunner::RunCreate (const CommandLineOptions & options, DiskComma
                                       "is already there, and create will not write over it. "
                                       "Use init to reformat it, or choose another name"));
 
+    isLarge = IsLargeCreate (resolved);
+
+    if (isLarge)
+    {
+        BuildLargeProDos (resolved, result);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     hr = ResolveContainer (resolved, nibbleTrackSize, format, result);
     CHR (hr);
 
@@ -3435,6 +3449,292 @@ void DiskCommandRunner::RunCreate (const CommandLineOptions & options, DiskComma
     {
         BuildAndWrite (resolved, format, nibbleTrackSize, false, result);
     }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::IsLargeCreate
+//
+//  A create of a ProDOS volume larger than a floppy: a size past 140K, or a
+//  container only a block volume has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::IsLargeCreate (const CommandLineOptions & options)
+{
+    std::string  size    = options.disk.sizeName;
+    bool         isSized = !size.empty() && size != "140k" && size != "140K";
+
+
+
+    return isSized || IsBlockOnlyExtension (options.disk.imagePath);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::IsBlockOnlyExtension
+//
+//  An extension only a block volume is written with: hard disk images, 2IMG
+//  and Disk Copy 4.2.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::IsBlockOnlyExtension (const std::string & imagePath)
+{
+    ImageContainerKind  kind = ImageContainer::GetKind (imagePath, 0);
+
+
+
+    return kind == ImageContainerKind::Blocks || kind == ImageContainerKind::TwoImg || kind == ImageContainerKind::DiskCopy42;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::IsProDosOrderExtension
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::IsProDosOrderExtension (const std::string & imagePath)
+{
+    std::string  extension = std::filesystem::path (imagePath).extension().string();
+
+
+
+    std::transform (extension.begin(), extension.end(), extension.begin(),
+                    [] (char c) { return (char) std::tolower ((unsigned char) c); });
+
+    return extension == ".po";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::TryGetLargeBlockCount
+//
+//  The block count of a size word. 32M is the 65,535 blocks a ProDOS volume
+//  addresses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::TryGetLargeBlockCount (const std::string & sizeName, uint32_t & outBlocks)
+{
+    static constexpr struct { const char * pszName; uint32_t blocks; }  kSizes[] =
+    {
+        { "140k", 280   },
+        { "800k", 1600  },
+        { "5m",   10240 },
+        { "10m",  20480 },
+        { "20m",  40960 },
+        { "32m",  65535 },
+    };
+
+
+
+    std::string  lowered = sizeName.empty() ? std::string ("800k") : sizeName;
+
+
+
+    std::transform (lowered.begin(), lowered.end(), lowered.begin(),
+                    [] (char c) { return (char) std::tolower ((unsigned char) c); });
+
+    for (const auto & size : kSizes)
+    {
+        if (lowered == size.pszName)
+        {
+            outBlocks = size.blocks;
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::BuildLargeProDos
+//
+//  A formatted ProDOS volume of the size asked for, in the container the
+//  image's extension selects: raw blocks for `.po` and `.hdv`, 2IMG in ProDOS
+//  order, or Disk Copy 4.2, which holds 800K disks only.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::BuildLargeProDos (const CommandLineOptions & options, DiskCommandResult & result)
+{
+    constexpr uint32_t  k800KBlocks = 1600;
+
+
+
+    HRESULT                        hr         = S_OK;
+    ImageContainerKind             kind       = ImageContainer::GetKind (options.disk.imagePath, 0);
+    uint32_t                       blocks     = 0;
+    bool                           sizeKnown  = TryGetLargeBlockCount (options.disk.sizeName, blocks);
+    bool                           isProDos   = options.disk.formatName.empty() || options.disk.formatName == "prodos";
+    std::string                    name       = options.disk.volumeName.empty() ? std::string ("NEWDISK") : options.disk.volumeName;
+    bool                           nameOk     = ProDosVolume::IsValidName (name);
+    bool                           container  = false;
+    bool                           fitsDc42   = false;
+    vector<Byte>                   volume;
+    vector<Byte>                   imageBytes;
+    TwoImgHeader                   twoImg;
+    DiskCopy42Header               diskCopy;
+    DiskImageSession::OpenedImage  target;
+
+
+
+    if (kind == ImageContainerKind::None)
+    {
+        kind = ImageContainerKind::Blocks;
+    }
+
+    container = IsBlockOnlyExtension (options.disk.imagePath) || IsProDosOrderExtension (options.disk.imagePath);
+    fitsDc42  = kind != ImageContainerKind::DiskCopy42 || blocks == k800KBlocks;
+
+    CBRF (sizeKnown, (result.diagnostics   += ApplyPrefix ("Error: illegal %Lsize value\n"
+                                                           "       The sizes are 140K, 800K, 5M, 10M, 20M and 32M.\n"),
+                      result.exitStatus     = DiskCommandResult::kNoOutput,
+                      result.badCommandLine = true));
+    CBRF (isProDos,  (result.diagnostics   += ApplyPrefix ("Error: illegal %Lformat for a large disk\n"
+                                                           "       Disks larger than 140K are ProDOS volumes.\n"),
+                      result.exitStatus     = DiskCommandResult::kNoOutput,
+                      result.badCommandLine = true));
+    CBRF (container, (result.diagnostics   += "Error: illegal container for a large disk\n"
+                                              "       Disks larger than 140K are written as .po, .hdv, .2mg or .dc42 images.\n",
+                      result.exitStatus     = DiskCommandResult::kNoOutput,
+                      result.badCommandLine = true));
+    CBRF (fitsDc42,  (result.diagnostics   += "Error: illegal size for a Disk Copy 4.2 image\n"
+                                              "       A Disk Copy 4.2 image is an 800K disk.\n",
+                      result.exitStatus     = DiskCommandResult::kNoOutput,
+                      result.badCommandLine = true));
+    CBRF (nameOk,    (result.diagnostics   += "Error: illegal volume name\n"
+                                              "       ProDOS volume names are 1-15 characters, starting with a letter, and can include letters, digits, and periods.\n",
+                      result.exitStatus     = DiskCommandResult::kNoOutput,
+                      result.badCommandLine = true));
+
+    volume.assign ((size_t) blocks * (size_t) ProDosSkeleton::kBlockByteSize, 0);
+
+    hr = ProDosSkeleton::Write (volume, name);
+    CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be built"));
+
+    //  A 140K volume is built in DOS logical order, and every container here
+    //  has its blocks in order.
+    if (!ProDosSkeleton::IsBlockOrder (volume.size()))
+    {
+        VolumeImage::DosLogicalToProDosFile (vector<Byte> (volume), volume);
+    }
+
+    if (kind == ImageContainerKind::TwoImg)
+    {
+        TwoImgContainer::Build (twoImg, volume, imageBytes);
+    }
+    else if (kind == ImageContainerKind::DiskCopy42)
+    {
+        diskCopy.name = name;
+        diskCopy.tags.assign ((size_t) blocks * DiskCopy42Container::kTagBytesPerBlock, 0);
+        DiskCopy42Container::Build (diskCopy, volume, imageBytes);
+    }
+    else
+    {
+        imageBytes = std::move (volume);
+    }
+
+    target.imagePath     = options.disk.imagePath;
+    target.stampRecorded = false;
+    target.isNew         = true;
+
+    hr = m_session.CommitImage (target, imageBytes, result);
+    CHR (hr);
+
+    result.output     += std::format ("{}: ProDOS volume {}, {} blocks\n", options.disk.imagePath, name, blocks);
+    result.exitStatus  = DiskCommandResult::kClean;
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ReformatLargeProDos
+//
+//  A new ProDOS volume over an existing block image, at the size the image
+//  has. The container's header is kept, as any write through the volume
+//  layer keeps it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::ReformatLargeProDos (const CommandLineOptions & options, const FileStamp & stamp, DiskCommandResult & result)
+{
+    HRESULT                        hr       = S_OK;
+    bool                           isProDos = options.disk.formatName.empty() || options.disk.formatName == "prodos";
+    std::string                    name     = options.disk.volumeName.empty() ? std::string ("NEWDISK") : options.disk.volumeName;
+    bool                           nameOk   = ProDosVolume::IsValidName (name);
+    vector<Byte>                   original;
+    vector<Byte>                   sectors;
+    vector<Byte>                   imageBytes;
+    SectorDecodeReport             report;
+    std::string                    refusal;
+    DiskImageSession::OpenedImage  target;
+
+
+
+    CBRF (isProDos, (result.diagnostics   += ApplyPrefix ("Error: illegal %Lformat for a large disk\n"
+                                                          "       Disks larger than 140K are ProDOS volumes.\n"),
+                     result.exitStatus     = DiskCommandResult::kNoOutput,
+                     result.badCommandLine = true));
+    CBRF (nameOk,   (result.diagnostics   += "Error: illegal volume name\n"
+                                             "       ProDOS volume names are 1-15 characters, starting with a letter, and can include letters, digits, and periods.\n",
+                     result.exitStatus     = DiskCommandResult::kNoOutput,
+                     result.badCommandLine = true));
+
+    hr = m_fileIo.ReadAllBytes (options.disk.imagePath, original);
+    CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be read"));
+
+    hr = VolumeImage::Load (original, options.disk.imagePath, sectors, report);
+    CHRF (hr, result.Fail (options.disk.imagePath, "", "is not an image this tool can read"));
+
+    hr = ProDosSkeleton::Write (sectors, name);
+    CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be built"));
+
+    hr = VolumeImage::Save (original, options.disk.imagePath, sectors, imageBytes, refusal);
+    CHRF (hr, result.Fail (options.disk.imagePath, "", refusal.empty() ? std::string ("could not be written") : refusal));
+
+    target.imagePath     = options.disk.imagePath;
+    target.stamp         = stamp;
+    target.stampRecorded = true;
+    target.isNew         = false;
+
+    hr = m_session.CommitImage (target, imageBytes, result);
+    CHR (hr);
+
+    result.output     += std::format ("{}: ProDOS volume {}, {} blocks\n", options.disk.imagePath, name, ProDosSkeleton::GetBlockCount (sectors.size()));
+    result.exitStatus  = DiskCommandResult::kClean;
 
 Error:
     return;
@@ -3604,6 +3904,16 @@ void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommand
            result.exitStatus      = DiskCommandResult::kNoOutput,
            result.badCommandLine  = true));
 
+    hr = m_fileIo.Stat (options.disk.imagePath, stamp);
+    CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be measured"));
+
+    if (ImageContainer::GetKind (options.disk.imagePath, (size_t) stamp.sizeBytes) != ImageContainerKind::None)
+    {
+        ReformatLargeProDos (options, stamp, result);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     //  From the file's own name, because the file is what is being reformatted.
     hr = DiskImageStore::GetSourceFormatByExtension (options.disk.imagePath, format);
     CHRF (hr, result.Fail (options.disk.imagePath, "", "is not a kind of image this tool writes"));
@@ -3615,9 +3925,6 @@ void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommand
         //  size circulates under either extension, so reformatting by the name
         //  would resize a .nib that happens to hold the smaller tracks --
         //  turning a reformat into a rewrite of the whole container.
-        hr = m_fileIo.Stat (options.disk.imagePath, stamp);
-        CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be measured"));
-
         hr = NibbleImageCodec::ResolveGeometry ((size_t) stamp.sizeBytes, nibbleTrackSize);
         CHRF (hr, result.Fail (options.disk.imagePath, "",
                                "is not a nibble image of a length this tool recognizes"));

@@ -67,6 +67,7 @@ public:
     struct NewDiskRequest
     {
         std::string  containerType;    // dsk, do, po, woz, nib, nb2; empty takes the extension
+        std::string  sizeName;         // 140k, 800k, 5m, 10m, 20m, 32m; empty is 140K
         std::string  formatName;       // dos33, prodos, none
         std::string  volumeName;       // a DOS number or a ProDOS name; empty takes the default
         bool         bootable     = false;

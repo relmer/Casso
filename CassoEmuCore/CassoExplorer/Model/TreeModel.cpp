@@ -9,6 +9,7 @@
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Devices/Disk/Containers/ImageContainer.h"
 
 
 
@@ -138,7 +139,7 @@ bool TreeModel::IsSupportedImage (const std::wstring & fileName)
         }
     }
 
-    return false;
+    return ImageContainer::IsListedExtension (extension);
 }
 
 

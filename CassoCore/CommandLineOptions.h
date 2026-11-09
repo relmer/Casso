@@ -174,6 +174,7 @@ struct CommandLineOptions
         //  `init` takes the container as it finds it.
         //
         std::string  containerType;                    // --type: dsk, do, po, woz
+        std::string  sizeName;                         // --size: 140K, 800K, 5M, 10M, 20M, 32M
         std::string  formatName;                       // --format: dos33, prodos, none
         std::string  filesystem;                       // --filesystem: cpm, for an image with no recognized file system
         std::string  volumeName;                       // --volume: a DOS number or a ProDOS name

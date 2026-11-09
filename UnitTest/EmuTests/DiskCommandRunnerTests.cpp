@@ -1,4 +1,6 @@
 #include "Pch.h"
+#include "Devices/Disk/Containers/DiskCopy42Container.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
 #include "FakeDiskFileIo.h"
@@ -1724,6 +1726,128 @@ public:
                         L"and it reports what it made");
     }
 
+    //  A ProDOS volume larger than a floppy, in each block container.
+    TEST_METHOD (Create_WritesA5MBProDosVolume)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("big.hdv");
+        vector<Byte>        written;
+        vector<Byte>        sectors;
+        SectorDecodeReport  report;
+
+
+
+        options.disk.sizeName = "5M";
+
+        DiskCommandResult  result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        AssertSucceeded (io.ReadAllBytes ("big.hdv", written));
+        Assert::AreEqual ((size_t) 10240 * 512, written.size());
+
+        AssertSucceeded (VolumeImage::Load (written, "big.hdv", sectors, report));
+        Assert::IsTrue (VolumeImage::DetectFilesystem (sectors) == VolumeKind::ProDos);
+    }
+
+    TEST_METHOD (Create_WritesAn800KDiskCopyImage)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result = runner.Run (MakeCreate ("disk.dc42"));
+        vector<Byte>       written;
+
+
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        AssertSucceeded (io.ReadAllBytes ("disk.dc42", written));
+        Assert::IsTrue (DiskCopy42Container::IsDiskCopy42 (written));
+    }
+
+    TEST_METHOD (Create_WritesA140KTwoImgInProDosOrder)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("small.2mg");
+        vector<Byte>        written;
+        vector<Byte>        sectors;
+        SectorDecodeReport  report;
+
+
+
+        options.disk.sizeName = "140k";
+
+        DiskCommandResult  result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        AssertSucceeded (io.ReadAllBytes ("small.2mg", written));
+        AssertSucceeded (VolumeImage::Load (written, "small.2mg", sectors, report));
+        Assert::IsTrue (VolumeImage::DetectFilesystem (sectors) == VolumeKind::ProDos);
+    }
+
+    TEST_METHOD (Init_ReformatsAHardDiskImageAtItsSize)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("big.hdv");
+        vector<Byte>        written;
+        vector<Byte>        sectors;
+        SectorDecodeReport  report;
+        VolumeListing       listing;
+
+
+
+        options.disk.sizeName = "10M";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.command    = CommandLineOptions::DiskOptions::Command::Init;
+        options.disk.sizeName   = "";
+        options.disk.volumeName = "AGAIN";
+
+        DiskCommandResult  result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        AssertSucceeded (io.ReadAllBytes ("big.hdv", written));
+        Assert::AreEqual ((size_t) 20480 * 512, written.size());
+
+        AssertSucceeded (VolumeImage::Load (written, "big.hdv", sectors, report));
+        AssertSucceeded (VolumeImage::CreateVolume (VolumeKind::ProDos, sectors)->Enumerate (listing));
+        Assert::AreEqual (std::string ("AGAIN"), listing.volumeName);
+    }
+
+    TEST_METHOD (Create_RefusesALargeDosDisk)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("big.po");
+
+
+
+        options.disk.sizeName   = "800K";
+        options.disk.formatName = "dos33";
+
+        DiskCommandResult  result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsFalse (io.Exists ("big.po"));
+    }
+
+    TEST_METHOD (Create_RefusesADiskCopyImageThatIsNot800K)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("disk.dc42");
+
+
+
+        options.disk.sizeName = "5M";
+
+        DiskCommandResult  result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("Disk Copy") != std::string::npos);
+    }
+
     //  IT WILL NOT WRITE OVER SOMETHING. A disk somebody still wanted is one
     //  keystroke from a disk they no longer have, and the refusal names the
     //  command for meaning it.
@@ -1802,17 +1926,17 @@ public:
     {
         FakeDiskFileIo      io;
         DiskCommandRunner   runner (io);
-        CommandLineOptions  options = MakeCreate ("new.2mg");
+        CommandLineOptions  options = MakeCreate ("new.dmg");
         DiskCommandResult   result;
 
-        options.disk.containerType = "2mg";
+        options.disk.containerType = "dmg";
         result                     = runner.Run (options);
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.badCommandLine, L"so the page prints above it");
-        Assert::IsTrue (result.diagnostics.find ("2mg") != std::string::npos,
+        Assert::IsTrue (result.diagnostics.find ("dmg") != std::string::npos,
                         L"and the word they typed is quoted back");
-        Assert::IsFalse (io.Exists ("new.2mg"), L"and nothing was written");
+        Assert::IsFalse (io.Exists ("new.dmg"), L"and nothing was written");
     }
 
     //

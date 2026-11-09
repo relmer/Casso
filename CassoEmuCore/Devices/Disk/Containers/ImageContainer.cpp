@@ -49,3 +49,27 @@ ImageContainerKind ImageContainer::GetKind (const std::string & path, size_t fil
 
     return ImageContainerKind::None;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ImageContainer::IsListedExtension
+//
+//  The extensions, lower case and without the dot, that a folder lists as
+//  disk images. `.img` and `.iso` are opened by the command-line tool but
+//  aren't listed, since most files with them on a PC are PC disk images.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ImageContainer::IsListedExtension (const std::string & extension)
+{
+    static constexpr const char *  kpszListed[] = { "hdv", "2mg", "2img", "dc", "dc42", "image" };
+
+
+
+    return std::any_of (std::begin (kpszListed), std::end (kpszListed),
+                        [&] (const char * listed) { return extension == listed; });
+}

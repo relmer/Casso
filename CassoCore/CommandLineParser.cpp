@@ -240,6 +240,7 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "format",
     "filesystem",
     "volume",
+    "size",
     "bootable",
     "boot",
     "flux",
@@ -1437,6 +1438,14 @@ void CommandLineParser::ParseDiskOptions (
             {
                 options.disk.typeName = argv[i + 1];
             }
+
+            i++;
+            continue;
+        }
+
+        if (arg == "--size" && hasValue)
+        {
+            options.disk.sizeName = argv[i + 1];
 
             i++;
             continue;

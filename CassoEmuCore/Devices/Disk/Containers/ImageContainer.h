@@ -39,5 +39,6 @@ enum class ImageContainerKind
 class ImageContainer
 {
 public:
-    static ImageContainerKind  GetKind (const std::string & path, size_t fileBytes);
+    static ImageContainerKind  GetKind           (const std::string & path, size_t fileBytes);
+    static bool                IsListedExtension (const std::string & extension);
 };

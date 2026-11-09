@@ -708,15 +708,19 @@ std::wstring CatalogModel::GetDiskImageTypeName (const std::wstring & name)
 {
     static constexpr std::pair<const wchar_t *, const wchar_t *>  s_kTypes[] =
     {
-        { L".dsk", L"Apple II disk image"       },
-        { L".do",  L"DOS-order disk image"      },
-        { L".po",  L"ProDOS-order disk image"   },
-        { L".d13", L"13-sector disk image"      },
-        { L".nib", L"Nibble disk image"         },
-        { L".nb2", L"NB2 nibble disk image"     },
-        { L".woz", L"WOZ disk image"            },
-        { L".2mg", L"2IMG disk image"           },
-        { L".hdv", L"ProDOS hard disk image"    },
+        { L".dsk",   L"Apple II disk image"       },
+        { L".do",    L"DOS-order disk image"      },
+        { L".po",    L"ProDOS-order disk image"   },
+        { L".d13",   L"13-sector disk image"      },
+        { L".nib",   L"Nibble disk image"         },
+        { L".nb2",   L"NB2 nibble disk image"     },
+        { L".woz",   L"WOZ disk image"            },
+        { L".2mg",   L"2IMG disk image"           },
+        { L".2img",  L"2IMG disk image"           },
+        { L".hdv",   L"ProDOS hard disk image"    },
+        { L".dc",    L"Disk Copy 4.2 disk image"  },
+        { L".dc42",  L"Disk Copy 4.2 disk image"  },
+        { L".image", L"Disk Copy 4.2 disk image"  },
     };
     size_t        dot       = name.rfind (L'.');
     std::wstring  extension = (dot == std::wstring::npos) ? std::wstring() : name.substr (dot);

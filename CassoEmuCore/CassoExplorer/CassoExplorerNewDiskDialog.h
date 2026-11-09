@@ -38,11 +38,25 @@ public:
 
     static constexpr Choice  kContainers[] =
     {
-        { L"WOZ (.woz)",           "woz" },
-        { L"DOS order (.dsk)",     "dsk" },
-        { L"ProDOS order (.po)",   "po"  },
-        { L"Nibble (.nib)",        "nib" },
-        { L"Nibble (.nb2)",        "nb2" },
+        { L"WOZ (.woz)",            "woz"  },
+        { L"DOS order (.dsk)",      "dsk"  },
+        { L"ProDOS order (.po)",    "po"   },
+        { L"Nibble (.nib)",         "nib"  },
+        { L"Nibble (.nb2)",         "nb2"  },
+        { L"Hard disk (.hdv)",      "hdv"  },
+        { L"2IMG (.2mg)",           "2mg"  },
+        { L"Disk Copy 4.2 (.dc42)", "dc42" },
+    };
+
+    //  The sizes a ProDOS volume can be made at.
+    static constexpr Choice  kSizes[] =
+    {
+        { L"140K (5.25\" disk)", "140k" },
+        { L"800K (3.5\" disk)",  "800k" },
+        { L"5 MB hard disk",     "5m"   },
+        { L"10 MB hard disk",    "10m"  },
+        { L"20 MB hard disk",    "20m"  },
+        { L"32 MB hard disk",    "32m"  },
     };
 
     //  CP/M's two boot disks, the default first.
@@ -55,6 +69,7 @@ public:
     static std::vector<std::wstring>  GetFormatLabels    ();
     static std::vector<std::wstring>  GetContainerLabels ();
     static std::vector<std::wstring>  GetCpmSystemLabels ();
+    static std::vector<std::wstring>  GetSizeLabels      ();
 
     //  What `--bootable` receives: the image's path when one is typed, the word
     //  for a SoftCard when that's the CP/M system chosen, and otherwise nothing,
@@ -63,7 +78,7 @@ public:
 
     //  The request for the chosen indices. An index out of range takes the
     //  first choice; an empty volume leaves the runner's default.
-    static DiskOperations::NewDiskRequest  MakeRequest (int formatIndex, int containerIndex, const std::wstring & volume, bool bootable);
+    static DiskOperations::NewDiskRequest  MakeRequest (int formatIndex, int containerIndex, const std::wstring & volume, bool bootable, int sizeIndex = 0);
 
     //  The file name with the container's extension, added when it has none.
     static std::wstring  ApplyExtension (const std::wstring & name, int containerIndex);
@@ -80,6 +95,7 @@ public:
     //  taken.
     static std::wstring  ValidateFileName  (const std::wstring & name, int containerIndex, const std::function<bool (const std::wstring &)> & exists);
     static std::wstring  ValidateVolume    (int formatIndex, const std::wstring & volume);
+    static std::wstring  ValidateSize      (int formatIndex, int containerIndex, int sizeIndex);
 
     //  The most characters the volume field takes for a format: a DOS 3.3
     //  volume number's three digits, or a ProDOS name's fifteen characters.
@@ -123,6 +139,9 @@ public:
         DxuiComboBox    * container      = nullptr;
         DxuiLabel       * formatLabel    = nullptr;
         DxuiComboBox    * format         = nullptr;
+        DxuiLabel       * sizeLabel      = nullptr;
+        DxuiComboBox    * size           = nullptr;
+        DxuiFieldError  * sizeError      = nullptr;
         DxuiLabel       * volumeLabel    = nullptr;
         DxuiTextInput   * volume         = nullptr;
         DxuiFieldError  * volumeError    = nullptr;
@@ -247,6 +266,9 @@ private:
     DxuiComboBox          m_container;
     DxuiLabel             m_formatLabel;
     DxuiComboBox          m_format;
+    DxuiLabel             m_sizeLabel;
+    DxuiComboBox          m_size;
+    DxuiFieldError        m_sizeError;
     DxuiLabel             m_volumeLabel;
     DxuiLabel             m_fileLabel;
     DxuiLabel             m_fileName;

@@ -151,7 +151,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         CommandLineOptions::DiskOptions::Command::Create,
         "create | new",
         "Make a new image file, formatted and ready to use",
-        "CassoCli disk create <image> [%Ltype <t>] [%Lformat <f>] [%Lvolume <v>]\n"
+        "CassoCli disk create <image> [%Ltype <t>] [%Lformat <f>] [%Lvolume <v>] [%Lsize <s>]\n"
         "                               [%Lbootable [<image>]] [%Lflux [<tracks>]]\n"
         "                               [%Lboot <file> [%Lload $XXXX] [%Lexec $XXXX]]",
         "  %Ltype <t>              The container type is taken from the name's extension by default; use this switch to override. "
@@ -160,6 +160,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lformat <f>            The filesystem: dos33, prodos, pascal, cpm, or none. Defaults to dos33\n"
         "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS or Apple Pascal, the volume name"
                                    " (default NEWDISK). CP/M has no volume\n"
+        "  %Lsize <s>              The size of a ProDOS volume: 140K, 800K, 5M, 10M, 20M or 32M. Defaults to 140K, or 800K for a .hdv,"
+                                   " .2mg or .dc42 image. A larger size is written as a .po, .hdv, .2mg or .dc42 image, and .dc42 is 800K only\n"
         "  %Lbootable [<image>]    Makes the disk bootable by copying operating system files to it. It automatically uses the master disk"
                                    " for the selected format, but this can be overridden by supplying an image of your own."
                                    " For CP/M, the default is CP/AM 5.1, and softcard in place of <image> selects CP/M 2.23 for a Microsoft SoftCard\n"
