@@ -289,26 +289,52 @@ void DxuiRenderTarget::RenderFrame (const IDxuiTheme * theme)
         // path is skipped entirely rather than merged with it.
         if (!composed)
         {
-            m_context->OMSetRenderTargets    (1, &backRtv, nullptr);
-            m_context->ClearRenderTargetView (backRtv, clearColor);
+            //  A frame where only the animation layer moves starts from the frame
+            //  saved under it. The full-frame hooks paint the whole window, so
+            //  with either of them every frame is whole.
+            bool     hasLayer = theme != nullptr && HasAnimationLayer() && !BeforePresentHook() && !AfterPaintHook();
+            bool     isReused = false;
+            HRESULT  hrFrame  = S_OK;
 
-            // Composite the consumer's content (e.g. the Apple ][ framebuffer) into the
-            // back buffer FIRST; the panel-tree passes below are additive.
+            if (hasLayer && m_isAnimationFrame && m_isFrameSaved)
             {
-                const std::function<void()> &  beforeHook = BeforePresentHook();
-
-                if (beforeHook)
-                {
-                    beforeHook();
-                }
+                hrFrame  = RestoreFrame (backRtv);
+                isReused = SUCCEEDED (hrFrame);
             }
 
-            // Paint the content tree + host caption + modal overlay onto the back
-            // buffer (subclass owns what "content" is; the text renderer's D2D target
-            // is already bound to this back buffer by the subclass's CreateBackBufferRtv).
-            if (theme != nullptr)
+            m_context->OMSetRenderTargets (1, &backRtv, nullptr);
+
+            if (!isReused)
             {
-                PaintContent (backRtv, (int) sz.cx, (int) sz.cy, *theme);
+                m_context->ClearRenderTargetView (backRtv, clearColor);
+
+                // Composite the consumer's content (e.g. the Apple ][ framebuffer) into the
+                // back buffer FIRST; the panel-tree passes below are additive.
+                {
+                    const std::function<void()> &  beforeHook = BeforePresentHook();
+
+                    if (beforeHook)
+                    {
+                        beforeHook();
+                    }
+                }
+
+                // Paint the content tree + host caption + modal overlay onto the back
+                // buffer (subclass owns what "content" is; the text renderer's D2D target
+                // is already bound to this back buffer by the subclass's CreateBackBufferRtv).
+                if (theme != nullptr)
+                {
+                    PaintContent (backRtv, (int) sz.cx, (int) sz.cy, *theme);
+                }
+
+                hrFrame        = hasLayer ? SaveFrame (backRtv) : E_FAIL;
+                m_isFrameSaved = hasLayer && SUCCEEDED (hrFrame);
+            }
+
+            if (hasLayer)
+            {
+                m_context->OMSetRenderTargets (1, &backRtv, nullptr);
+                PaintAnimationLayer (backRtv, (int) sz.cx, (int) sz.cy, *theme);
             }
 
             // After-paint compositor hook: full-screen shader passes on the back buffer
@@ -325,5 +351,99 @@ void DxuiRenderTarget::RenderFrame (const IDxuiTheme * theme)
             PresentFrame();
         }
     }
+
+    m_isAnimationFrame = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiRenderTarget::SaveFrame
+//
+//  A texture of the back buffer's size and format, made again when either
+//  changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiRenderTarget::SaveFrame (ID3D11RenderTargetView * backRtv)
+{
+    HRESULT                  hr     = S_OK;
+    ComPtr<ID3D11Resource>   back;
+    ComPtr<ID3D11Texture2D>  backTex;
+    D3D11_TEXTURE2D_DESC     desc   = {};
+    D3D11_TEXTURE2D_DESC     saved  = {};
+
+
+
+    backRtv->GetResource (&back);
+    hr = back.As (&backTex);
+    CHRA (hr);
+
+    backTex->GetDesc (&desc);
+
+    if (m_savedFrame != nullptr)
+    {
+        m_savedFrame->GetDesc (&saved);
+    }
+
+    if (m_savedFrame == nullptr || saved.Width != desc.Width || saved.Height != desc.Height || saved.Format != desc.Format)
+    {
+        m_savedFrame.Reset();
+
+        desc.Usage          = D3D11_USAGE_DEFAULT;
+        desc.BindFlags      = 0;
+        desc.CPUAccessFlags = 0;
+        desc.MiscFlags      = 0;
+
+        hr = m_device->CreateTexture2D (&desc, nullptr, &m_savedFrame);
+        CHRA (hr);
+    }
+
+    m_context->CopyResource (m_savedFrame.Get(), backTex.Get());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiRenderTarget::RestoreFrame
+//
+//  Fails for a back buffer of another size, which then paints whole.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiRenderTarget::RestoreFrame (ID3D11RenderTargetView * backRtv)
+{
+    HRESULT                  hr     = S_OK;
+    ComPtr<ID3D11Resource>   back;
+    ComPtr<ID3D11Texture2D>  backTex;
+    D3D11_TEXTURE2D_DESC     desc   = {};
+    D3D11_TEXTURE2D_DESC     saved  = {};
+
+
+
+    CBRA (m_savedFrame != nullptr);
+
+    backRtv->GetResource (&back);
+    hr = back.As (&backTex);
+    CHRA (hr);
+
+    backTex->GetDesc (&desc);
+    m_savedFrame->GetDesc (&saved);
+
+    CBR (saved.Width == desc.Width && saved.Height == desc.Height && saved.Format == desc.Format);
+
+    m_context->CopyResource (backTex.Get(), m_savedFrame.Get());
+
+Error:
+    return hr;
 }
 

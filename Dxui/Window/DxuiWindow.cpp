@@ -160,6 +160,14 @@ void DxuiWindow::AttachSource()
             PaintDragLayer (painter, text, theme);
         });
 
+    // A layer that moves alone paints last, over the frame saved under it.
+    m_source->SetAnimationLayerHooks (
+        [this] () { return HasAnimationLayer(); },
+        [this] (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+        {
+            PaintAnimationLayer (painter, text, theme);
+        });
+
     // Populate children BEFORE installing the root so the first layout
     // pass (driven by SetContentRootRef) sees the fully-built tree.
     OnCreate();
@@ -609,6 +617,37 @@ void DxuiWindow::Invalidate()
         InvalidateRect (hwnd, nullptr, FALSE);
         UpdateWindow   (hwnd);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InvalidateAnimationLayer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::InvalidateAnimationLayer()
+{
+    HWND  hwnd    = GetHwnd();
+    RECT  pending = {};
+
+
+
+    if (hwnd == nullptr)
+    {
+        return;
+    }
+
+    //  A paint already asked for, by input or a change, is a whole frame.
+    if (!GetUpdateRect (hwnd, &pending, FALSE))
+    {
+        m_source->RequestAnimationFrame();
+    }
+
+    Invalidate();
 }
 
 

@@ -317,7 +317,8 @@ public:
     //  walks this panel tree). Consumers with a per-frame data model
     //  call this after mutating state.
     //
-    void     Invalidate ();
+    void  Invalidate               ();
+    void  InvalidateAnimationLayer ();
 
     void                SetTheme           (const IDxuiTheme * theme);
     const IDxuiTheme  * GetTheme           () const { return m_theme; }
@@ -486,6 +487,15 @@ protected:
     //
     virtual bool  HasDragLayer      () const { return false; }
     virtual void  PaintDragLayer    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+                  { UNREFERENCED_PARAMETER (painter); UNREFERENCED_PARAMETER (text); UNREFERENCED_PARAMETER (theme); }
+
+    //
+    //  A layer that moves while the rest of the window stands still, painted
+    //  last. InvalidateAnimationLayer paints only it, over the frame saved
+    //  under it, unless a paint was already asked for.
+    //
+    virtual bool  HasAnimationLayer   () const { return false; }
+    virtual void  PaintAnimationLayer (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
                   { UNREFERENCED_PARAMETER (painter); UNREFERENCED_PARAMETER (text); UNREFERENCED_PARAMETER (theme); }
 
     //

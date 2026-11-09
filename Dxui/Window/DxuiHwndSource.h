@@ -697,6 +697,11 @@ public:
     void  SetDragLayerHooks (std::function<bool()> isActive,
                              std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> paint);
 
+    //  A layer that moves while the rest of the window stands still, painted
+    //  last; while a drag layer or a modal overlay is up, it is not.
+    void  SetAnimationLayerHooks (std::function<bool()> isActive,
+                                  std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> paint);
+
     LRESULT  WndProc           (UINT msg, WPARAM wp, LPARAM lp);
 
     //
@@ -861,6 +866,9 @@ private:
 
     HRESULT  PaintLayer (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme, const LayerPaintFn & paint);
 
+    bool  HasAnimationLayer   () const override;
+    void  PaintAnimationLayer (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme) override;
+
     // What to do with the frame after the client claims a message. Most
     // handlers want nothing; input handlers repaint. `IfNotSuppressed` is the
     // wheel's variant -- a precision touchpad's message flood would otherwise
@@ -1000,6 +1008,8 @@ private:
     std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> m_topLayerPaintHook;
     std::function<bool()>                                                       m_dragLayerActiveHook;
     std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> m_dragLayerPaintHook;
+    std::function<bool()>                                                       m_animationLayerActiveHook;
+    std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> m_animationLayerPaintHook;
     std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)>    m_defaultProcForTest;
     std::function<BOOL (TRACKMOUSEEVENT *)>                m_trackMouseEventForTest;
     IDxuiControl  * m_lastHoveredNcControl     = nullptr;

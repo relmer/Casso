@@ -1300,7 +1300,7 @@ void DebuggerWindow::RenderFrame()
         isAnimating = pane->Tick (now) || isAnimating;
     }
 
-    isAnimating = m_timelineScrub.IsScrubbing() || IsTimelineShimmering() || isAnimating;
+    isAnimating = m_timelineScrub.IsScrubbing() || isAnimating;
     isAnimating = m_windowZoom.Tick (now) || isAnimating;
 
     //  A pane pinned or unpinned morphs between its place and its edge tab.
@@ -1331,8 +1331,15 @@ void DebuggerWindow::RenderFrame()
     isCaretOn   = caret != nullptr && caret->IsCaretOn();
     isAnimating = isAnimating || caret != m_paintedCaret || isCaretOn != m_isPaintedCaretOn;
 
+    //  The history bar's shimmer, while it is all that moves, paints alone
+    //  over the frame saved under it.
     if (!IsFramePaintDue (hasUpdate, isAnimating))
     {
+        if (IsTimelineShimmering())
+        {
+            InvalidateAnimationLayer();
+        }
+
         return;
     }
 

@@ -1673,6 +1673,64 @@ void DxuiHwndSource::SetOverlayHooks (std::function<bool()> isActive,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetAnimationLayerHooks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetAnimationLayerHooks (std::function<bool()> isActive,
+                                             std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> paint)
+{
+    m_animationLayerActiveHook = std::move (isActive);
+    m_animationLayerPaintHook  = std::move (paint);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasAnimationLayer
+//
+//  A drag layer or a modal overlay paints after the layer would, so with
+//  either up the layer is part of an ordinary frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::HasAnimationLayer() const
+{
+    bool  isCovered = (m_dragLayerActiveHook && m_dragLayerActiveHook()) || (m_overlayActiveHook && m_overlayActiveHook());
+
+
+
+    return !isCovered && m_animationLayerActiveHook && m_animationLayerActiveHook() && m_animationLayerPaintHook;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintAnimationLayer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::PaintAnimationLayer (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme)
+{
+    HRESULT  hr = PaintLayer (target, widthPx, heightPx, theme, m_animationLayerPaintHook);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetTopLayerHooks
 //
 ////////////////////////////////////////////////////////////////////////////////

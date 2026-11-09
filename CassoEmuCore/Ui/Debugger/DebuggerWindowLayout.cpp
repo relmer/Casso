@@ -685,7 +685,6 @@ void DebuggerWindow::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & 
     m_dockSite->PaintSlidUnder (painter, theme);
     DxuiWindow::PaintTopLayer  (painter, text, theme);
     m_dockSite->PaintSlidOver  (painter, text, theme);
-    PaintTimelineShimmer       (painter);
     PaintZoomPopup             (painter, text, theme);
 }
 
@@ -715,6 +714,9 @@ bool DebuggerWindow::IsTimelineShimmering() const
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DebuggerWindow::PaintTimelineShimmer
+//
+//  The window's animation layer: while it is all that moves, a frame paints
+//  the shimmer alone over the frame saved under it.
 //
 //  Timed by the steady clock, to a fraction of a millisecond: the band moves
 //  about 20 pixels a frame, and with GetTickCount64's 15.6 ms steps some
@@ -756,7 +758,7 @@ void DebuggerWindow::PaintTimelineShimmer (IDxuiPainter & painter)
 
 bool DebuggerWindow::HasTopLayer() const
 {
-    if (DxuiWindow::HasTopLayer() || m_windowZoom.IsShown() || IsTimelineShimmering())
+    if (DxuiWindow::HasTopLayer() || m_windowZoom.IsShown())
     {
         return true;
     }

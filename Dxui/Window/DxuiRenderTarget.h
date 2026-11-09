@@ -70,6 +70,10 @@ public:
     void  SetComposeHook (ComposeHook hook);
     bool  HasComposeHook () const { return static_cast<bool> (m_composeHook); }
 
+    //  The next frame paints only the animation layer, over the frame saved
+    //  under it, when one of the same size is saved.
+    void  RequestAnimationFrame () { m_isAnimationFrame = true; }
+
 protected:
     //  Render one frame: clear, run the before-present hook, paint the content
     //  (subclass PaintContent), then run the after-paint hook (or, on the
@@ -120,6 +124,12 @@ protected:
     virtual const std::function<void()> &  BeforePresentHook () const = 0;
     virtual const std::function<void(ID3D11RenderTargetView *, int, int)> &  AfterPaintHook () const = 0;
 
+    //  A layer that moves while the rest of the window stands still. It paints
+    //  last, over a frame saved without it, so a frame where it alone moves
+    //  copies the saved frame back and paints only the layer.
+    virtual bool  HasAnimationLayer   () const { return false; }
+    virtual void  PaintAnimationLayer (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme) { (void) target; (void) widthPx; (void) heightPx; (void) theme; }
+
     //  Device + drawing pipeline. Created + torn down by the subclass (it owns
     //  the adapter / swap-chain details); consumed by RenderFrame.
     ComPtr<ID3D11Device>              m_device;
@@ -133,6 +143,14 @@ protected:
 
 private:
     HRESULT  EnsureComposeTarget (int widthPx, int heightPx, bool & recreated);
+
+    //  The back buffer copied to the saved frame, and back.
+    HRESULT  SaveFrame    (ID3D11RenderTargetView * backRtv);
+    HRESULT  RestoreFrame (ID3D11RenderTargetView * backRtv);
+
+    ComPtr<ID3D11Texture2D>           m_savedFrame;
+    bool                              m_isFrameSaved     = false;
+    bool                              m_isAnimationFrame = false;
 
     //  Offscreen compose target (opt-in). Allocated lazily by EnsureComposeTarget
     //  the first frame a compose hook is installed, sized to the back buffer;
