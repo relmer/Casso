@@ -12,6 +12,8 @@
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "DiskImageStore.h"
 #include "Core/AppleSingleCodec.h"
+#include "Devices/Disk/Archives/ArchiveVolume.h"
+#include "Machines/Apple2/Common/VolumeIntegrityReport.h"
 #include "Devices/Disk/Containers/ImageContainer.h"
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
@@ -1267,6 +1269,87 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
         result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, name, note) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::RunTest
+//
+//  Each problem the image's structure has, a line each: for a volume, the
+//  units claimed twice, the units in use and marked free, the chains that
+//  couldn't be followed and any catalog damage; for an archive, each record
+//  whose header or data doesn't match its CRC. Units marked in use that no
+//  file claims aren't listed: a DOS 3.3 disk's tracks for DOS are marked so
+//  with no file on them. A clean image says so and exits clean.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunTest (const CommandLineOptions & options, DiskCommandResult & result)
+{
+    HRESULT                        hr     = S_OK;
+    bool                           named  = !options.disk.imagePath.empty();
+    DiskImageSession::OpenedImage  opened;
+    VolumeIntegrityReport          report;
+    VolumeListing                  listing;
+    std::vector<std::string>       problems;
+
+
+
+    CBRF (named, ReportMissingParameter ("<image>", result));
+
+    hr = m_session.OpenImage (options.disk.imagePath, opened, result);
+    CHR (hr);
+
+    if (opened.kind == VolumeKind::Archive)
+    {
+        ArchiveVolume (opened.sectors).CollectDamage (problems);
+    }
+    else
+    {
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
+
+        hr = volume->BuildIntegrityReport (report);
+        CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be checked"));
+
+        hr = volume->Enumerate (listing);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        for (uint32_t unit : report.GetCrossLinked())
+        {
+            problems.push_back (std::format ("unit {} is claimed by more than one file", unit));
+        }
+
+        for (uint32_t unit : report.GetClaimedButFree())
+        {
+            problems.push_back (std::format ("unit {} is in use but marked free", unit));
+        }
+
+        for (uint16_t owner : report.GetUnfollowableChains())
+        {
+            problems.push_back (std::format ("file {} has a block chain that couldn't be followed", owner + 1));
+        }
+
+        problems.insert (problems.end(), listing.damage.begin(), listing.damage.end());
+    }
+
+    for (const std::string & problem : problems)
+    {
+        result.output += options.disk.imagePath + ": " + problem + "\n";
+    }
+
+    if (problems.empty())
+    {
+        result.output += options.disk.imagePath + ": no problems found\n";
+    }
+
+    result.exitStatus = problems.empty() ? DiskCommandResult::kClean : DiskCommandResult::kWithComplaints;
 
 Error:
     return;
@@ -2628,6 +2711,10 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
 
         case CommandLineOptions::DiskOptions::Command::Krunch:
             RunKrunch (options, result);
+            break;
+
+        case CommandLineOptions::DiskOptions::Command::Test:
+            RunTest (options, result);
             break;
 
         case CommandLineOptions::DiskOptions::Command::SectorRead:

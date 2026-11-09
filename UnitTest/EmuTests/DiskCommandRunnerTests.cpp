@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
+#include "Devices/Disk/Archives/NuFxArchive.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
@@ -1813,6 +1814,44 @@ public:
         AssertSucceeded (VolumeImage::Load (written, "big.hdv", sectors, report));
         AssertSucceeded (VolumeImage::CreateVolume (VolumeKind::ProDos, sectors)->Enumerate (listing));
         Assert::AreEqual (std::string ("AGAIN"), listing.volumeName);
+    }
+
+    TEST_METHOD (Test_ReportsACleanImageAndADamagedArchive)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("clean.dsk");
+        NuFxArchive         archive;
+        NuFxRecord          record;
+        vector<Byte>        bytes;
+
+
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.command     = CommandLineOptions::DiskOptions::Command::Test;
+        options.disk.commandWord = "test";
+
+        DiskCommandResult  clean = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, clean.exitStatus, TextEncoding::NarrowToWide (clean.output + clean.diagnostics).c_str());
+        Assert::IsTrue (clean.output.find ("no problems") != std::string::npos);
+
+        record.threads.push_back (NuFxArchive::MakeFilenameThread ("A"));
+        record.threads.push_back (NuFxArchive::MakeDataThread (NuFxThread::kKindDataFork, vector<Byte> (100, 1)));
+        record.threads[1].format = NuFxThread::kFormatStored;
+        record.threads[1].stored = vector<Byte> (100, 1);
+        archive.records.push_back (record);
+        archive.Build (bytes);
+        bytes[bytes.size() - 1] ^= 0xFF;
+        io.files["bad.shk"] = bytes;
+
+        options.disk.imagePath = "bad.shk";
+
+        DiskCommandResult  damaged = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kWithComplaints, damaged.exitStatus);
+        Assert::IsTrue (damaged.output.find ("CRC") != std::string::npos);
     }
 
     TEST_METHOD (Create_RefusesALargeDosDisk)

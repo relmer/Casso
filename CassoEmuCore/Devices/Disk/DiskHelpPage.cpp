@@ -255,6 +255,16 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "Moves the files toward the start of the volume in directory order, as the Filer's K command does. Apple Pascal disks only.",
         "CassoCli disk krunch apple1.dsk"
     },
+
+    {
+        CommandLineOptions::DiskOptions::Command::Test,
+        "test",
+        "Check a disk image's or an archive's structure",
+        "CassoCli disk test <image>",
+        nullptr,
+        "Lists each problem found: blocks or sectors claimed twice or marked wrongly, catalog damage, and in a ShrinkIt archive each record whose data doesn't match its CRC.",
+        "CassoCli disk test games.shk"
+    },
 };
 
 

@@ -1801,7 +1801,7 @@ Session 2026-11-09. Plan's Phase 33, research R36 to R57, contracts `contracts/v
 - [ ] T556 [US21] Add `ContainerPath` in `CassoEmuCore/Devices/Disk/Archives/ContainerPath.h/.cpp`, with `Open` and `Replace` as the contract defines them, so an archive or image opens inside a ZIP, gzip, image or archive at any depth, and a write rebuilds each container and replaces the host file last through a temporary file (FR-187). Tests on `InMemoryFileSystem` three levels deep
 - [ ] T557 [US21] Read a ZIP member's AppleDouble entry, as CiderPress II writes it, for the member's type, aux type and resource fork (FR-187)
 - [ ] T558 [US21] Browse NuFX, Binary II and nested containers in Casso Explorer's tree, list, preview and Properties, and create a new archive from a selection or an image from the context menu
-- [ ] T559 [US21] Add Test to the context menu and `casso disk test`: `VolumeIntegrityReport` for an image and each record's CRC for an archive, each problem listed (FR-188)
+- [ ] T559 [US21] Add Test to the context menu and `casso disk test`: `VolumeIntegrityReport` for an image and each record's CRC for an archive, each problem listed (FR-188). Done: `casso disk test`. Open: the context menu's Test
 - [ ] T560 [US21] Add `scripts/FetchCiderPressTestFiles.ps1` to fetch `test-files.sdk` and `dos-files.do.gz` from CiderPress II's repository into `ScenarioTests/Fixtures/CiderPress/`, out of the repository, as the ROMs are. Ask the owner before the first download
 - [ ] T561 [US21] Scenario tests in `ScenarioTests/ArchiveTests.cpp`: every file in `test-files.sdk` copied out matches CiderPress II's extraction, `dos-files.do.gz` opens, and an archive and an `.sdk` built by Casso Explorer pass CiderPress II's Test and `nulib2 t` (SC-052)
 

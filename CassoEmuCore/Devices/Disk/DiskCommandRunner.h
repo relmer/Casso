@@ -177,6 +177,9 @@ public:
 
     //  A ProDOS volume larger than a floppy, in a block container.
     //  The `._NAME` file a data fork's resource fork is written to.
+    //  Each problem an image's or archive's structure has.
+    void  RunTest (const CommandLineOptions & options, DiskCommandResult & result);
+
     static std::string  GetAppleDoublePath (const std::string & hostFile);
     HRESULT             WriteAppleDouble   (const std::string & hostFile, const FilePayload & payload);
 
