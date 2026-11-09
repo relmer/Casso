@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerActions.h"
-#include "CassoLink/FullSend/FullSendManifest.h"
 #include "Seams/Win32ProcessLauncher.h"
 
 struct ExplorerContext;
@@ -53,11 +52,6 @@ public:
 
     void                    PushUndo              (UndoStep step);
 
-    //  Host files deleted, and files restored: each image in a Full Send
-    //  folder is removed from the folder's manifest, and put back when it is
-    //  restored while this window is open.
-    void                    NoteManifestDeletes   (const std::vector<std::wstring> & paths);
-    void                    NoteManifestRestores  (const std::vector<std::wstring> & paths);
     void                    UndoLast              ();
     static const wchar_t  * GetUndoLabel          (UndoStep::Kind kind);
 
@@ -103,22 +97,11 @@ private:
 
     void  ReportPasted       (IDataObject * data, const CassoExplorerActions::Outcome & outcome);
     bool  IsCutFrom          (const std::string & inner) const;
-    void  NoteManifestRename (const std::wstring & oldPath, const std::wstring & newName);
 
     ExplorerContext        & m_context;
     CutSource                m_cut;
     std::vector<UndoStep>    m_undo;   // newest last
 
-    //  What a deleted image's deletion removed and changed in the manifest,
-    //  and the folder as it was deleted from, by the image's path in
-    //  lowercase, for when it is restored.
-    struct RemovedRows
-    {
-        std::string      folder;
-        FullSendRemoval  removal;
-    };
-
-    std::map<std::wstring, RemovedRows>  m_removedRows;
 
     //  Rename in place: the box over the name, and the list row being renamed,
     //  or -1, or the tree node.

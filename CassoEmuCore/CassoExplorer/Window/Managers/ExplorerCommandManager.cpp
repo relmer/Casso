@@ -20,6 +20,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
@@ -891,7 +892,7 @@ bool ExplorerCommandManager::RunRecycleBinVerb (CassoExplorerActions::Verb verb)
 
             if (SUCCEEDED (hr) && verb == Verb::Restore)
             {
-                m_context.fileOps.NoteManifestRestores (originals);
+                m_context.manifestSync.NoteRestores (originals);
             }
 
             m_context.folderSync.RefreshAfterHostChange();
@@ -1137,7 +1138,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
                 if (SUCCEEDED (hr) && !hostPaths.empty() && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.AreSelectedRowsSearchFiles()))
                 {
                     m_context.fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::Recycle, Location(), hostPaths });
-                    m_context.fileOps.NoteManifestDeletes (hostPaths);
+                    m_context.manifestSync.NoteDeletes (hostPaths);
                 }
 
                 m_context.folderSync.RefreshAfterHostChange();

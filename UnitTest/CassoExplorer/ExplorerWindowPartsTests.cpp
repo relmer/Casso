@@ -545,11 +545,11 @@ public:
         rig.io.files[path] = manifest.Format();
         rig.Open();
 
-        rig.parts->fileOps.NoteManifestDeletes ({ image });
+        rig.parts->manifestSync.NoteDeletes ({ image });
         AssertSucceeded (read.Parse (rig.io.files[path]));
         Assert::IsTrue (read.GetRows().empty(), L"the deleted image's row is removed");
 
-        rig.parts->fileOps.NoteManifestRestores ({ L"c:\\sends\\disk 001.DSK" });
+        rig.parts->manifestSync.NoteRestores ({ L"c:\\sends\\disk 001.DSK" });
         AssertSucceeded (read.Parse (rig.io.files[path]));
         Assert::AreEqual ((size_t) 1, read.GetRows().size(), L"and put back when it is restored");
         Assert::AreEqual (std::string ("Disk 001.dsk"), read.GetRows()[0].file);
@@ -580,7 +580,7 @@ public:
         rig.io.files[path] = before;
         rig.Open();
 
-        rig.parts->fileOps.NoteManifestDeletes ({ L"C:\\Sends\\Disk 001.dsk" });
+        rig.parts->manifestSync.NoteDeletes ({ L"C:\\Sends\\Disk 001.dsk" });
 
         Assert::IsTrue (rig.io.files[path] == before);
     }
