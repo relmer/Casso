@@ -11,10 +11,11 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWorksWpTests, AppleWorksDbTests and AppleWorksSsTests
+//  AppleWorksWpTests, AppleWorksDbTests, AppleWorksSsTests and
+//  AppleWorksGsWpTests
 //
-//  Files built in each test from the layouts in File Type Notes $19, $1A
-//  and $1B, then decoded.
+//  Files built in each test from the layouts in File Type Notes $19, $1A,
+//  $1B and $50/$8010, then decoded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,5 +172,49 @@ public:
         Assert::AreEqual (std::wstring (L"-1,234,567.0"), AppleWorksSs::FormatNumber (-1234567.0, 4, 1));
         Assert::AreEqual (std::wstring (L"12.50%"),       AppleWorksSs::FormatNumber (0.125, 5, 2));
         Assert::AreEqual (std::wstring (L"0.1"),          AppleWorksSs::FormatNumber (0.1, 6, 0));
+    }
+};
+
+
+
+TEST_CLASS (AppleWorksGsWpTests)
+{
+public:
+
+    TEST_METHOD (Decode_ParagraphsStylesAndRulers)
+    {
+        std::vector<Byte>  bytes (668, 0);
+        std::vector<Byte>  block = { 0, 0, 0, 0 };
+        std::vector<Byte>  ruler (52, 0);
+        size_t             second = 0;
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        bytes[438] = 2;
+
+        block.insert (block.end(), { 0, 0, 0x01, 12, 0, 0, 0, 'H', 'i', 0x02, 0x00, 'x', 0x0D });
+        second = block.size();
+        block.insert (block.end(), { 0, 0, 0, 12, 0, 0, 0, 0x0D });
+        block[0] = (Byte) block.size();
+        block[2] = (Byte) block.size();
+        ruler[2] = 0x20;
+
+        bytes.insert (bytes.end(), { 2, 0 });
+        bytes.insert (bytes.end(), { 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+        bytes.insert (bytes.end(), { 0, 0, (Byte) second, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+        bytes.insert (bytes.end(), ruler.begin(), ruler.end());
+        bytes.insert (bytes.end(), { (Byte) block.size(), 0, 0, 0 });
+        bytes.insert (bytes.end(), block.begin(), block.end());
+
+        AssertSucceeded (AppleWorksGsWp::Decode (bytes, FileFacts(), DecodeOptions(), file, error));
+
+        Assert::AreEqual ((size_t) 1, file.paragraphs.size(), L"The closing empty paragraph is dropped");
+        Assert::IsTrue   (file.paragraphs[0].alignment == Alignment::Center);
+        Assert::AreEqual ((size_t) 2, file.paragraphs[0].runs.size());
+        Assert::IsTrue   (file.paragraphs[0].runs[0].bold);
+        Assert::AreEqual (std::wstring (L"x"), file.paragraphs[0].runs[1].text);
+        Assert::IsFalse  (file.paragraphs[0].runs[1].bold);
     }
 };

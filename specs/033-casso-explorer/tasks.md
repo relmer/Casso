@@ -1712,7 +1712,7 @@ Session 2026-11-08. Plan's Phase 32, research R35, contract `contracts/file-type
 - [X] T496 [P] [US18] `AppleWorksWp`: decode paragraphs, tabs, bold, italic, underline and alignment from AppleWorks 3.0's format, and list a later version's features in `notes` (FR-158)
 - [X] T497 [P] [US18] `AppleWorksDb`: decode the categories as headings and each record as a row (FR-159)
 - [X] T498 [P] [US18] `AppleWorksSs`: decode each cell's stored value, or its formula as entered when the file has no value, with column letters as headings and the row number first in each row (FR-159)
-- [ ] T499 [P] [US18] `AppleWorksGsWp`: decode paragraphs, tabs, styles and alignment from the AppleWorks GS word processor's format, $50/$8010 (FR-158)
+- [X] T499 [P] [US18] `AppleWorksGsWp`: decode paragraphs, tabs, styles and alignment from the AppleWorks GS word processor's format, $50/$8010 (FR-158)
 - [ ] T500 [P] [US18] `TeachDocument`: decode the text and its style runs, $50/$5445, with the styles FR-158 lists (FR-158)
 - [ ] T501 [P] [US18] `VisiCalcSheet`: decode the saved entries by the storage chapter of the 1982 VisiCalc User's Guide, each coordinate and its contents, with formulas as entered (FR-159)
 - [ ] T502 [P] [US18] `MagicWindowDocument`: decode the text with Magic Window's formatting commands removed (FR-158)

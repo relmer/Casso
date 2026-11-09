@@ -13,8 +13,8 @@
 //  AppleWorks
 //
 //  What the three AppleWorks file types have in common: a word in the
-//  6502's order, and the text of a cell, a category or a line, ASCII with
-//  MouseText in the high bit's half on 3.0.
+//  6502's order, the text of a cell, a category or a line, ASCII with
+//  MouseText in the high bit's half on 3.0, and a paragraph's styled runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +22,9 @@ class AppleWorks
 {
 public:
     static Word          ReadWord   (std::span<const Byte> bytes, size_t at);
+    static uint32_t      ReadLong   (std::span<const Byte> bytes, size_t at);
     static std::wstring  DecodeText (std::span<const Byte> bytes);
+    static void          AddText    (Paragraph & paragraph, const std::wstring & text, bool bold, bool italic, bool underline);
 };
 
 
@@ -73,7 +75,6 @@ private:
     static constexpr Byte    kTab           = 0x16;
     static constexpr Byte    kTabFill       = 0x17;
 
-    static void  AddText (Paragraph & paragraph, const std::wstring & text, bool bold, bool underline);
 };
 
 
@@ -154,4 +155,53 @@ private:
 
     static std::wstring  DecodeCell     (std::span<const Byte> cell, Byte width, int sheetFormat, int sheetDecimals);
     static std::wstring  AddThousands   (const std::wstring & digits);
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWorksGsWp
+//
+//  An AppleWorks GS word processor file, $50/$8010, as File Type Note
+//  $50/$8010 sets it out: a header and globals, then the body's paragraph
+//  array, rulers and text blocks, and the page header's and footer's after
+//  them. A paragraph is a 7-byte header, then text with style codes inline,
+//  to a carriage return.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class AppleWorksGsWp
+{
+public:
+    static bool     Matches (const FileFacts & facts, std::span<const Byte> bytes);
+    static HRESULT  Decode  (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError);
+
+private:
+    static constexpr Byte    kFileType       = 0x50;
+    static constexpr Word    kAuxType        = 0x8010;
+    static constexpr size_t  kGlobalsAt      = 282;
+    static constexpr size_t  kBodyVarsAt     = kGlobalsAt + 146;
+    static constexpr size_t  kHeadVarsAt     = kGlobalsAt + 226;
+    static constexpr size_t  kFootVarsAt     = kGlobalsAt + 306;
+    static constexpr size_t  kLastParagraph  = 10;
+    static constexpr size_t  kArrayAt        = kGlobalsAt + 386;
+    static constexpr size_t  kEntryBytes     = 12;
+    static constexpr size_t  kRulerBytes     = 52;
+    static constexpr size_t  kHeaderBytes    = 7;
+
+    static constexpr Byte    kFontChange     = 0x01;
+    static constexpr Byte    kStyleChange    = 0x02;
+    static constexpr Byte    kSizeChange     = 0x03;
+    static constexpr Byte    kColorChange    = 0x04;
+    static constexpr Byte    kPageNumber     = 0x05;
+    static constexpr Byte    kDate           = 0x06;
+    static constexpr Byte    kTime           = 0x07;
+    static constexpr Byte    kTab            = 0x09;
+    static constexpr Byte    kReturn         = 0x0D;
+
+    static Alignment  GetAlignment     (Word statusBits);
+    static void       DecodeParagraph  (std::span<const Byte> bytes, Charset charset, Paragraph & outParagraph);
 };

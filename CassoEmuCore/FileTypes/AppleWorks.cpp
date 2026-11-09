@@ -25,6 +25,21 @@ Word AppleWorks::ReadWord (std::span<const Byte> bytes, size_t at)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleWorks::ReadLong
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t AppleWorks::ReadLong (std::span<const Byte> bytes, size_t at)
+{
+    return (uint32_t) ReadWord (bytes, at) | ((uint32_t) ReadWord (bytes, at + 2) << 16);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleWorks::DecodeText
 //
 //  A byte past $7F is the character in its low seven bits, MouseText for a
@@ -80,16 +95,17 @@ bool AppleWorksWp::Matches (const FileFacts & facts, std::span<const Byte> bytes
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWorksWp::AddText
+//  AppleWorks::AddText
 //
 //  Text in the style of the paragraph's last run joins it; text in another
 //  style starts a run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleWorksWp::AddText (Paragraph & paragraph, const std::wstring & text, bool bold, bool underline)
+void AppleWorks::AddText (Paragraph & paragraph, const std::wstring & text, bool bold, bool italic, bool underline)
 {
-    bool  same = !paragraph.runs.empty() && paragraph.runs.back().bold == bold && paragraph.runs.back().underline == underline;
+    const Run  * last = paragraph.runs.empty() ? nullptr : &paragraph.runs.back();
+    bool         same = last != nullptr && last->bold == bold && last->italic == italic && last->underline == underline;
 
 
 
@@ -99,7 +115,7 @@ void AppleWorksWp::AddText (Paragraph & paragraph, const std::wstring & text, bo
     }
     else
     {
-        paragraph.runs.push_back (Run { text, bold, false, underline });
+        paragraph.runs.push_back (Run { text, bold, italic, underline });
     }
 }
 
@@ -224,7 +240,7 @@ HRESULT AppleWorksWp::Decode (std::span<const Byte> bytes, const FileFacts & fac
 
                 if (!insert.empty())
                 {
-                    AddText (paragraph, insert, bold, underline);
+                    AppleWorks::AddText (paragraph, insert, bold, false, underline);
                 }
             }
 
@@ -685,5 +701,221 @@ HRESULT AppleWorksSs::Decode (std::span<const Byte> bytes, const FileFacts & fac
         row.resize (columns + 1);
     }
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWorksGsWp::Matches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWorksGsWp::Matches (const FileFacts & facts, std::span<const Byte> bytes)
+{
+    return facts.HasProDosType (kFileType, kAuxType) && bytes.size() >= kArrayAt + 2;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWorksGsWp::GetAlignment
+//
+//  A ruler's status bits 7, 6 and 5 are full, right and center
+//  justification; with none of them set, the text is aligned left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Alignment AppleWorksGsWp::GetAlignment (Word statusBits)
+{
+    if (statusBits & 0x80)
+    {
+        return Alignment::Justified;
+    }
+
+    if (statusBits & 0x40)
+    {
+        return Alignment::Right;
+    }
+
+    return (statusBits & 0x20) ? Alignment::Center : Alignment::Left;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWorksGsWp::DecodeParagraph
+//
+//  The header's third byte is the first character's style: bit 0 bold,
+//  bit 1 italic, bit 2 underline. Text between codes is decoded in the
+//  character set; a font, size or color change is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWorksGsWp::DecodeParagraph (std::span<const Byte> bytes, Charset charset, Paragraph & outParagraph)
+{
+    Byte               style = (bytes.size() > 2) ? bytes[2] : 0;
+    size_t             at    = kHeaderBytes;
+    std::vector<Byte>  pending;
+    auto               flush = [&]()
+    {
+        if (!pending.empty())
+        {
+            AppleWorks::AddText (outParagraph, TextCharset::DecodeLine (pending, charset), (style & 0x01) != 0, (style & 0x02) != 0, (style & 0x04) != 0);
+            pending.clear();
+        }
+    };
+
+
+
+    while (at < bytes.size() && bytes[at] != kReturn)
+    {
+        Byte  b = bytes[at++];
+
+        switch (b)
+        {
+            case kFontChange:
+                flush();
+                at += 2;
+                break;
+
+            case kStyleChange:
+                flush();
+                style = (at < bytes.size()) ? bytes[at] : style;
+                at++;
+                break;
+
+            case kSizeChange:
+            case kColorChange:
+                flush();
+                at++;
+                break;
+
+            case kPageNumber:
+                pending.push_back ('#');
+                break;
+
+            case kDate:
+                flush();
+                AppleWorks::AddText (outParagraph, L"[date]", (style & 0x01) != 0, (style & 0x02) != 0, (style & 0x04) != 0);
+                break;
+
+            case kTime:
+                flush();
+                AppleWorks::AddText (outParagraph, L"[time]", (style & 0x01) != 0, (style & 0x02) != 0, (style & 0x04) != 0);
+                break;
+
+            default:
+                pending.push_back (b);
+                break;
+        }
+    }
+
+    flush();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWorksGsWp::Decode
+//
+//  Each text block on disk is a long of its size, then the block. A
+//  paragraph's offset counts from the block's start, and its ruler sets
+//  its alignment. The body always ends in an empty paragraph, which is
+//  dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleWorksGsWp::Decode (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError)
+{
+    HRESULT              hr       = S_OK;
+    Charset              charset  = TextCharset::Resolve (options.charset, true);
+    size_t               count    = AppleWorks::ReadWord (bytes, kArrayAt);
+    size_t               rulersAt = kArrayAt + 2 + count * kEntryBytes;
+    size_t               rulers   = 0;
+    size_t               blocks   = 0;
+    size_t               at       = 0;
+    std::vector<size_t>  starts;
+    bool                 inside   = rulersAt <= bytes.size();
+
+
+
+    UNREFERENCED_PARAMETER (facts);
+
+    outFile.kind = DecodedFile::Kind::Document;
+
+    if (AppleWorks::ReadWord (bytes, kBodyVarsAt + kLastParagraph) == 0)
+    {
+        return S_OK;
+    }
+
+    CBRFEx (inside, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = L"The paragraph array isn't in the file.");
+
+    for (size_t entry = 0; entry < count; entry++)
+    {
+        size_t  base = kArrayAt + 2 + entry * kEntryBytes;
+
+        blocks = std::max<size_t> (blocks, AppleWorks::ReadWord (bytes, base) + 1u);
+        rulers = std::max<size_t> (rulers, AppleWorks::ReadWord (bytes, base + 6) + 1u);
+    }
+
+    at = rulersAt + rulers * kRulerBytes;
+
+    while (starts.size() < blocks && at + 4 <= bytes.size())
+    {
+        starts.push_back (at + 4);
+        at += 4 + AppleWorks::ReadLong (bytes, at);
+    }
+
+    for (size_t entry = 0; entry < count; entry++)
+    {
+        size_t     base  = kArrayAt + 2 + entry * kEntryBytes;
+        size_t     block = AppleWorks::ReadWord (bytes, base);
+        size_t     ruler = rulersAt + AppleWorks::ReadWord (bytes, base + 6) * kRulerBytes;
+        size_t     start = 0;
+        Paragraph  paragraph;
+
+        if (block >= starts.size())
+        {
+            outFile.notes.push_back (L"The file ends before its last text block.");
+            break;
+        }
+
+        start = starts[block] + AppleWorks::ReadWord (bytes, base + 2);
+
+        if (start >= bytes.size())
+        {
+            outFile.notes.push_back (L"The file ends before its last paragraph.");
+            break;
+        }
+
+        paragraph.alignment = (ruler + 4 <= bytes.size()) ? GetAlignment (AppleWorks::ReadWord (bytes, ruler + 2)) : Alignment::Left;
+        DecodeParagraph (bytes.subspan (start), charset, paragraph);
+        outFile.paragraphs.push_back (std::move (paragraph));
+    }
+
+    if (!outFile.paragraphs.empty() && outFile.paragraphs.back().runs.empty())
+    {
+        outFile.paragraphs.pop_back();
+    }
+
+    if (AppleWorks::ReadWord (bytes, kHeadVarsAt + kLastParagraph) != 0 || AppleWorks::ReadWord (bytes, kFootVarsAt + kLastParagraph) != 0)
+    {
+        outFile.notes.push_back (L"The page header and footer are dropped.");
+    }
+
+Error:
     return hr;
 }

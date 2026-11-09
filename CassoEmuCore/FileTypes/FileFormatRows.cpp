@@ -27,13 +27,14 @@ std::vector<FileFormatTable::Row> FileFormatRows::Make()
 
     return
     {
-        Row { FileFormat::Merlin,       &MerlinSource::Matches,      &MerlinSource::Decode,      &MerlinSource::Import, L".Merlin.txt",        false },
-        Row { FileFormat::PascalText,   &PascalText::Matches,        &PascalText::Decode,        &PascalText::Import,   L".Pascal text.txt",   false },
-        Row { FileFormat::RandomText,   &RandomText::Matches,        &RandomText::Decode,        nullptr,               L".Random text.csv",   false },
-        Row { FileFormat::ScAssembler,  &ScAssemblerSource::Matches, &ScAssemblerSource::Decode, nullptr,               L".S-C Assembler.txt", false },
-        Row { FileFormat::AppleWorksWp, &AppleWorksWp::Matches,      &AppleWorksWp::Decode,      nullptr,               L".AppleWorks WP.rtf", false },
-        Row { FileFormat::AppleWorksDb, &AppleWorksDb::Matches,      &AppleWorksDb::Decode,      nullptr,               L".AppleWorks DB.csv", false },
-        Row { FileFormat::AppleWorksSs, &AppleWorksSs::Matches,      &AppleWorksSs::Decode,      nullptr,               L".AppleWorks SS.csv", false },
+        Row { FileFormat::Merlin,         &MerlinSource::Matches,      &MerlinSource::Decode,      &MerlinSource::Import, L".Merlin.txt",           false },
+        Row { FileFormat::PascalText,     &PascalText::Matches,        &PascalText::Decode,        &PascalText::Import,   L".Pascal text.txt",      false },
+        Row { FileFormat::RandomText,     &RandomText::Matches,        &RandomText::Decode,        nullptr,               L".Random text.csv",      false },
+        Row { FileFormat::ScAssembler,    &ScAssemblerSource::Matches, &ScAssemblerSource::Decode, nullptr,               L".S-C Assembler.txt",    false },
+        Row { FileFormat::AppleWorksWp,   &AppleWorksWp::Matches,      &AppleWorksWp::Decode,      nullptr,               L".AppleWorks WP.rtf",    false },
+        Row { FileFormat::AppleWorksDb,   &AppleWorksDb::Matches,      &AppleWorksDb::Decode,      nullptr,               L".AppleWorks DB.csv",    false },
+        Row { FileFormat::AppleWorksSs,   &AppleWorksSs::Matches,      &AppleWorksSs::Decode,      nullptr,               L".AppleWorks SS.csv",    false },
+        Row { FileFormat::AppleWorksGsWp, &AppleWorksGsWp::Matches,    &AppleWorksGsWp::Decode,    nullptr,               L".AppleWorks GS WP.rtf", true },
 
         Row { FileFormat::SuperHiRes,         &SuperHiRes::MatchesScreen,          &SuperHiRes::DecodeScreen,          nullptr, L".Super Hi-Res.png", true },
         Row { FileFormat::PackedSuperHiRes,   &SuperHiRes::MatchesPacked,          &SuperHiRes::DecodePacked,          nullptr, L".Super Hi-Res.png", true },
