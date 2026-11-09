@@ -298,9 +298,9 @@ without the others in its merge.
 
 ---
 
-## Phase 15: Rebase onto 033
+## Phase 15: Take in 033
 
-- [ ] T129 Wait until 033 has merged master (its T082); rebase `040-disk-inspector` onto `origin/033-casso-explorer` (Merge 1's commits drop out as already upstream); rebuild and run the full suite; fix renames surfaced by the compiler; `CheckStyle.ps1 -Mode Tree`
+- [X] T129 Bring 033's code into `040-disk-inspector`: the 033 session merged 040 into `033-casso-explorer` and ran the full gate (ab9a299f7), and 040 fast-forwarded to that merge on 2026-11-09. This replaces the rebase onto `origin/033-casso-explorer`
 
 ---
 
