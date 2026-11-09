@@ -26,7 +26,7 @@ class FindSession
 public:
     //  Searches the analysis; false, with no hits, for a pattern that cannot
     //  be read. An empty pattern clears the hits and is not an error.
-    bool  Run    (const DiskAnalysis & analysis, int quarterTrack, const SearchQuery & query, bool isAnalysisPartial);
+    bool  Run    (const DiskAnalysis & analysis, int quarterTrack, const DiskSearchQuery & query, bool isAnalysisPartial);
 
     //  The same search again, keeping the selected hit's place among the
     //  hits where the new count allows.
@@ -46,15 +46,15 @@ public:
     //  The hits whose record has not been analyzed again since the search.
     vector<SearchHit>  GetCurrentHits (const DiskAnalysis & analysis) const;
 
-    const vector<SearchHit> &  GetHits  () const { return m_hits; }
-    const SearchQuery       &  GetQuery () const { return m_query; }
-    SearchQuery             &  GetQuery ()       { return m_query; }
+    const vector<SearchHit>  & GetHits  () const { return m_hits; }
+    const DiskSearchQuery    & GetQuery () const { return m_query; }
+    DiskSearchQuery          & GetQuery ()       { return m_query; }
     int                        GetIndex () const { return m_index; }
     int                        GetCount () const { return static_cast<int> (m_hits.size()); }
     bool                       IsEmpty  () const { return m_hits.empty(); }
 
 private:
-    SearchQuery        m_query;
+    DiskSearchQuery    m_query;
     vector<SearchHit>  m_hits;
     int                m_index        = -1;
     int                m_quarterTrack = 0;

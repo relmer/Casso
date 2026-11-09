@@ -116,7 +116,7 @@ bool InspectorSearch::ParsePattern (const std::wstring & text, SearchKind kind, 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<SearchHit> InspectorSearch::Find (const DiskAnalysis & analysis, int quarterTrack, const SearchQuery & query)
+vector<SearchHit> InspectorSearch::Find (const DiskAnalysis & analysis, int quarterTrack, const DiskSearchQuery & query)
 {
     vector<SearchHit>  hits;
     vector<SearchItem> items;
@@ -155,7 +155,7 @@ vector<SearchHit> InspectorSearch::Find (const DiskAnalysis & analysis, int quar
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InspectorSearch::FindInTrack (const TrackAnalysis & track, int quarterTrack, const vector<SearchItem> & items, const SearchQuery & query,
+void InspectorSearch::FindInTrack (const TrackAnalysis & track, int quarterTrack, const vector<SearchItem> & items, const DiskSearchQuery & query,
                                    vector<SearchHit> & inOutHits)
 {
     if (query.kind != SearchKind::Nibbles)

@@ -49,7 +49,7 @@ public:
     InspectorTableView & GetResults () const { return *m_findResults; }
 
 private:
-    void  RunFind       (const SearchQuery & query);
+    void  RunFind       (const DiskSearchQuery & query);
     void  SyncFindMarks ();
     void  SelectHit     (const SearchHit & hit);
 

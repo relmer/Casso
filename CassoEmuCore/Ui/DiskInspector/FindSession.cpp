@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool FindSession::Run (const DiskAnalysis & analysis, int quarterTrack, const SearchQuery & query, bool isAnalysisPartial)
+bool FindSession::Run (const DiskAnalysis & analysis, int quarterTrack, const DiskSearchQuery & query, bool isAnalysisPartial)
 {
     vector<SearchItem>  items;
     bool                isRead = query.text.empty() || InspectorSearch::ParsePattern (query.text, query.kind, items);

@@ -26,7 +26,7 @@
 class FindBar : public DxuiPanel
 {
 public:
-    using SearchFn = std::function<void (const SearchQuery & query)>;
+    using SearchFn = std::function<void (const DiskSearchQuery & query)>;
     using StepFn   = std::function<void (int step)>;
     using ActionFn = std::function<void ()>;
 
@@ -39,9 +39,9 @@ public:
     void  SetOnClose  (ActionFn close)  { m_close  = std::move (close); }
 
     //  The query in the controls, and the one the hits are for.
-    void         SetQuery    (const SearchQuery & query);
-    SearchQuery  GetQuery    () const;
-    void         SetSearched (const SearchQuery & query) { m_searched = query; m_hasSearched = true; }
+    void             SetQuery    (const DiskSearchQuery & query);
+    DiskSearchQuery  GetQuery    () const;
+    void             SetSearched (const DiskSearchQuery & query) { m_searched = query; m_hasSearched = true; }
 
     //  The selected hit's place among the hits, as "3 of 16" or "No
     //  matches"; and why a pattern could not be read, or nothing.
@@ -64,7 +64,7 @@ public:
     static std::wstring  GetBadPatternMessage (SearchKind kind);
 
     //  Whether two queries find the same hits.
-    static bool  IsSame (const SearchQuery & a, const SearchQuery & b);
+    static bool  IsSame (const DiskSearchQuery & a, const DiskSearchQuery & b);
 
     void  Layout  (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -75,25 +75,25 @@ private:
     void  Submit   (int step);
     void  ShowHint ();
 
-    DxuiTextInput  * m_input          = nullptr;
-    DxuiComboBox   * m_kind           = nullptr;
-    DxuiCheckbox   * m_wholeDisk      = nullptr;
-    DxuiCheckbox   * m_anyBit         = nullptr;
-    DxuiLabel      * m_count          = nullptr;
-    DxuiButton     * m_prev           = nullptr;
-    DxuiButton     * m_next           = nullptr;
-    DxuiButton     * m_listButton     = nullptr;
-    DxuiButton     * m_closeButton    = nullptr;
-    DxuiInfoTip    * m_hintTip        = nullptr;
-    DxuiLabel      * m_error          = nullptr;
-    SearchFn         m_search;
-    StepFn           m_step;
-    ActionFn         m_list;
-    ActionFn         m_close;
-    SearchQuery      m_searched;
-    bool             m_hasSearched    = false;
-    bool             m_isError        = false;
-    bool             m_hasFocusedLook = false;
-    RECT             m_areaPx         = {};
-    DxuiDpiScaler    m_scaler;
+    DxuiTextInput    * m_input          = nullptr;
+    DxuiComboBox     * m_kind           = nullptr;
+    DxuiCheckbox     * m_wholeDisk      = nullptr;
+    DxuiCheckbox     * m_anyBit         = nullptr;
+    DxuiLabel        * m_count          = nullptr;
+    DxuiButton       * m_prev           = nullptr;
+    DxuiButton       * m_next           = nullptr;
+    DxuiButton       * m_listButton     = nullptr;
+    DxuiButton       * m_closeButton    = nullptr;
+    DxuiInfoTip      * m_hintTip        = nullptr;
+    DxuiLabel        * m_error          = nullptr;
+    SearchFn           m_search;
+    StepFn             m_step;
+    ActionFn           m_list;
+    ActionFn           m_close;
+    DiskSearchQuery    m_searched;
+    bool               m_hasSearched    = false;
+    bool               m_isError        = false;
+    bool               m_hasFocusedLook = false;
+    RECT               m_areaPx         = {};
+    DxuiDpiScaler      m_scaler;
 };
