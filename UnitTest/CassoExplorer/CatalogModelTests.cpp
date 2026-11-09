@@ -172,6 +172,7 @@ public:
         }
 
         Assert::IsFalse (CatalogModel::TryGetColumn (CatalogModel::kFirstAddedColumnId + 4, column), L"An id from a later build");
+        Assert::AreEqual (99, CatalogModel::GetColumnId (CatalogModel::kColumnCount + CatalogModel::kMaxPropertyColumns - 1), L"The last property's id is below the added columns'");
         Assert::IsFalse (CatalogModel::TryGetColumn (-1, column));
         Assert::IsTrue  (CatalogModel::IsHiddenUntilChosen ((size_t) Column::ResourceFork));
         Assert::IsFalse (CatalogModel::IsHiddenUntilChosen ((size_t) Column::Size));

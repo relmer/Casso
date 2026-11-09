@@ -900,9 +900,16 @@ void ExplorerListColumns::RememberFolderColumnWidths (int column, int widthDip)
 
 void ExplorerListColumns::LoadPropertyColumns()
 {
-    const std::vector<std::wstring> &  names = m_context.prefs.propertyColumns;
+    std::vector<std::wstring> &  names = m_context.prefs.propertyColumns;
 
 
+
+    //  A hand-edited file may list more than the ids below the added columns
+    //  allow.
+    if (names.size() > CatalogModel::kMaxPropertyColumns)
+    {
+        names.resize (CatalogModel::kMaxPropertyColumns);
+    }
 
     m_listColumns = BrowserCells::GetColumns();
 
@@ -991,6 +998,11 @@ RowGrouping::Field ExplorerListColumns::GetPropertyField (const std::wstring & c
     if (found != names.end())
     {
         return RowGrouping::MakePropertyField ((size_t) (found - names.begin()));
+    }
+
+    if (names.size() >= CatalogModel::kMaxPropertyColumns)
+    {
+        return RowGrouping::Field::None;
     }
 
     entries = m_context.prefs.folderViews.GetEntries();
@@ -1169,6 +1181,12 @@ void ExplorerListColumns::ChooseDetails()
 
     result = model.GetResult();
 
+    //  The properties stop at the ids the added columns start at.
+    if (result.added.size() > CatalogModel::kMaxPropertyColumns - m_context.prefs.propertyColumns.size())
+    {
+        result.added.resize (CatalogModel::kMaxPropertyColumns - m_context.prefs.propertyColumns.size());
+    }
+
     if (!result.added.empty())
     {
         entries = m_context.prefs.folderViews.GetEntries();
@@ -1189,10 +1207,14 @@ void ExplorerListColumns::ChooseDetails()
     //  This folder's choice, and the default for folders without a saved one.
     m_chosen      = result.chosen;
     m_folderOrder.clear();
+    m_chosen.resize (m_listColumns.size(), true);
 
     for (int column : result.order)
     {
-        m_folderOrder.push_back (CatalogModel::GetColumnId ((size_t) column));
+        if (column >= 0 && (size_t) column < m_listColumns.size())
+        {
+            m_folderOrder.push_back (CatalogModel::GetColumnId ((size_t) column));
+        }
     }
 
     m_context.prefs.columnOrder = m_folderOrder;

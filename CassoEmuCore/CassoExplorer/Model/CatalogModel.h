@@ -189,10 +189,12 @@ public:
     //  Folder, a column's id is its position, and a shell property's is its
     //  position less the added columns, the ids both had before the columns
     //  from DataFork on existed. Those have ids from kFirstAddedColumnId,
-    //  above every property's id, so adding a column doesn't change an id,
-    //  and an id doesn't indicate a position.
+    //  above every property's id, since the properties are capped at
+    //  kMaxPropertyColumns, so adding a column doesn't change an id, and an
+    //  id doesn't indicate a position.
     static constexpr size_t  kOriginalColumnCount = (size_t) Column::Folder + 1;
-    static constexpr int     kFirstAddedColumnId  = 10000;
+    static constexpr int     kFirstAddedColumnId  = 100;
+    static constexpr size_t  kMaxPropertyColumns  = (size_t) kFirstAddedColumnId - kOriginalColumnCount;
 
     static int   GetColumnId  (size_t column);
     static bool  TryGetColumn (int id, size_t & outColumn);
