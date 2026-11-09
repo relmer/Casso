@@ -26,6 +26,8 @@ Entries before versioning was introduced use dates only.
 - An optional setting to auto-hide drives. The drives stay hidden until the
   pointer is near the bottom of the window, like they did in full screen. Turn
   it on in Settings > Theme, the View menu, or right-click on a drive.
+- A Phosphor theme: green phosphor on black glass, in the VT323 terminal font,
+  with inverse-video menu highlights.
 
 ### Changed
 

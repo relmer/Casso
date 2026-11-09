@@ -178,7 +178,7 @@ private:
 
     static constexpr uint32_t  kHoverWash = 0x18FFFFFF;
 
-    static constexpr const wchar_t * kFontFamily = DxuiTheme::kBodyFace;
+    static constexpr const wchar_t * kFontFamily = DxuiTheme::kSystemFace;
     static constexpr const wchar_t * kLabelEighty   = L"80/40";
     static constexpr const wchar_t * kLabelKeyboard = L"keyboard";
     static constexpr const wchar_t * kLabelDiskUse  = L"disk use";

@@ -220,17 +220,21 @@ void DxuiPopupMenu::SetColors (
     uint32_t  bgArgb,
     uint32_t  hoverArgb,
     uint32_t  textArgb,
+    uint32_t  hoverTextArgb,
     uint32_t  accelArgb,
+    uint32_t  hoverAccelArgb,
     uint32_t  borderArgb,
     uint32_t  dividerArgb)
 {
-    m_colors.bg      = bgArgb;
-    m_colors.hover   = hoverArgb;
-    m_colors.text    = textArgb;
-    m_colors.accel   = accelArgb;
-    m_colors.border  = borderArgb;
-    m_colors.divider = dividerArgb;
-    m_colorsSet      = true;
+    m_colors.bg         = bgArgb;
+    m_colors.hover      = hoverArgb;
+    m_colors.text       = textArgb;
+    m_colors.hoverText  = hoverTextArgb;
+    m_colors.accel      = accelArgb;
+    m_colors.hoverAccel = hoverAccelArgb;
+    m_colors.border     = borderArgb;
+    m_colors.divider    = dividerArgb;
+    m_colorsSet         = true;
 }
 
 

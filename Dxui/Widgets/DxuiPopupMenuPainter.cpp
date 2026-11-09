@@ -48,13 +48,15 @@ DxuiPopupMenuPalette DxuiPopupMenuPainter::ResolvePalette() const
 
 
 
-    pal.bg       = m_menu.m_colorsSet ? m_menu.m_colors.bg      : m_menu.m_theme->BackgroundElevated();
-    pal.hover    = m_menu.m_colorsSet ? m_menu.m_colors.hover   : m_menu.m_theme->MenuHover();
-    pal.text     = m_menu.m_colorsSet ? m_menu.m_colors.text    : m_menu.m_theme->Foreground();
-    pal.accel    = m_menu.m_colorsSet ? m_menu.m_colors.accel   : m_menu.m_theme->ForegroundMuted();
-    pal.border   = m_menu.m_colorsSet ? m_menu.m_colors.border  : m_menu.m_theme->Border();
-    pal.divider  = m_menu.m_colorsSet ? m_menu.m_colors.divider : m_menu.m_theme->MenuSeparator();
-    pal.disabled = m_menu.m_theme->ForegroundDisabled();
+    pal.bg         = m_menu.m_colorsSet ? m_menu.m_colors.bg         : m_menu.m_theme->BackgroundElevated();
+    pal.hover      = m_menu.m_colorsSet ? m_menu.m_colors.hover      : m_menu.m_theme->MenuHover();
+    pal.text       = m_menu.m_colorsSet ? m_menu.m_colors.text       : m_menu.m_theme->Foreground();
+    pal.hoverText  = m_menu.m_colorsSet ? m_menu.m_colors.hoverText  : m_menu.m_theme->Foreground();
+    pal.accel      = m_menu.m_colorsSet ? m_menu.m_colors.accel      : m_menu.m_theme->ForegroundMuted();
+    pal.hoverAccel = m_menu.m_colorsSet ? m_menu.m_colors.hoverAccel : m_menu.m_theme->ForegroundMuted();
+    pal.border     = m_menu.m_colorsSet ? m_menu.m_colors.border     : m_menu.m_theme->Border();
+    pal.divider    = m_menu.m_colorsSet ? m_menu.m_colors.divider    : m_menu.m_theme->MenuSeparator();
+    pal.disabled   = m_menu.m_theme->ForegroundDisabled();
 
     return pal;
 }
@@ -207,6 +209,7 @@ void DxuiPopupMenuPainter::PaintRow (
     int                        mnIdx     = -1;
     wchar_t                    mnCh      = 0;
     bool                       enabled   = false;
+    bool                       hovered   = false;
     uint32_t                   labelArgb = 0;
     uint32_t                   accelArgb = 0;
 
@@ -253,12 +256,13 @@ void DxuiPopupMenuPainter::PaintRow (
     }
 
     enabled   = row.command->IsEnabled();
-    labelArgb = enabled ? pal.text  : pal.disabled;
-    accelArgb = enabled ? pal.accel : pal.disabled;
+    hovered   = (index == m_menu.m_hover);
+    labelArgb = !enabled ? pal.disabled : (hovered ? pal.hoverText  : pal.text);
+    accelArgb = !enabled ? pal.disabled : (hovered ? pal.hoverAccel : pal.accel);
 
     DxuiPopupMenu::ParseMnemonic (row.command->GetLabelText(), stripped, mnIdx, mnCh);
 
-    if (index == m_menu.m_hover)
+    if (hovered)
     {
         float  insetX = m_menu.m_scaler.ToPxf ((float) DxuiPopupMenu::kHoverInsetXDip);
         float  insetY = m_menu.m_scaler.ToPxf ((float) DxuiPopupMenu::kHoverInsetYDip);

@@ -23,6 +23,7 @@
 using MediaFilter = bool (*) (const std::wstring & path);
 
 class IDxuiTheme;
+struct CassoTheme;
 
 
 
@@ -93,6 +94,11 @@ public:
     // words when this failed, so a machine without the font still names the
     // key rather than showing a missing-glyph box that says nothing.
     static HRESULT  RegisterSymbolFont    (HINSTANCE hInstance);
+
+    // Apply a theme's body face and text glow to every text renderer in the
+    // process. Best-effort: when the face's font is missing from the module
+    // image, the system face is used.
+    static HRESULT  ApplyThemeTypography  (HINSTANCE hInstance, const CassoTheme & theme);
 
     // Returns the install root that contains (or should contain) the
     // per-machine `Machines/` and per-device `Devices/` subtrees. The

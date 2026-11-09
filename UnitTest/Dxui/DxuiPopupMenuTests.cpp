@@ -879,6 +879,51 @@ public:
     }
 
 
+    TEST_METHOD (Paint_HoveredRowUsesHoverTextColors)
+    {
+        constexpr uint32_t  kBg         = 0xFF000000;
+        constexpr uint32_t  kHover      = 0xFF505050;
+        constexpr uint32_t  kText       = 0xFF101010;
+        constexpr uint32_t  kHoverText  = 0xFF202020;
+        constexpr uint32_t  kAccel      = 0xFF303030;
+        constexpr uint32_t  kHoverAccel = 0xFF404040;
+        constexpr uint32_t  kBorder     = 0xFF606060;
+        constexpr uint32_t  kDivider    = 0xFF707070;
+        constexpr int       kGammaRow   = 3;
+
+        Fixture               f;
+        DxuiPopupMenu         menu;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        uint32_t              alphaArgb      = 0;
+        uint32_t              gammaArgb      = 0;
+        uint32_t              gammaAccelArgb = 0;
+
+
+
+        f.gamma->accelerator = L"Ctrl+G";
+
+        menu.SetTheme     (&theme);
+        menu.SetColors    (kBg, kHover, kText, kHoverText, kAccel, kHoverAccel, kBorder, kDivider);
+        menu.ShowAt       (0, 0, f.FlatList(), text, MakeHost (800, 600));
+        menu.SetHighlight (kGammaRow);
+        menu.Paint        (painter, text);
+
+        for (const RecordedTextCall & c : text.Calls())
+        {
+            if (c.kind != RecordedTextKind::DrawString)  { continue; }
+            if (c.text == f.alpha->label)                { alphaArgb      = c.argb; }
+            if (c.text == L"Gamma")                      { gammaArgb      = c.argb; }
+            if (c.text == L"Ctrl+G")                     { gammaAccelArgb = c.argb; }
+        }
+
+        Assert::AreEqual (kHoverText,  gammaArgb,      L"the hovered label takes the hover text color");
+        Assert::AreEqual (kHoverAccel, gammaAccelArgb, L"the hovered accelerator takes the hover accelerator color");
+        Assert::AreEqual (kText,       alphaArgb,      L"a row that is not hovered is drawn in the item text color");
+    }
+
+
     TEST_METHOD (LegacyItems_BecomeCheckableRows_AndSelectReportsIndex)
     {
         DxuiPopupMenu                    menu;

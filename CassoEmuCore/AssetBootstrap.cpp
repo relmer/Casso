@@ -928,11 +928,22 @@ static constexpr EmbeddedThemeFile s_kRetroTerminalFiles[] =
 
 
 
+static constexpr EmbeddedThemeFile s_kPhosphorFiles[] =
+{
+    { IDR_THEME_PHOSPHOR_THEME_JSON,      "theme.json"          },
+    { IDR_THEME_PHOSPHOR_FONT_TTF,        "fonts/VT323-Regular.ttf" },
+    { IDR_THEME_PHOSPHOR_FONT_OFL,        "fonts/OFL.txt"       },
+};
+
+
+
+
 static const EmbeddedTheme s_kEmbeddedThemes[] =
 {
     { "Skeuomorphic",  1, span<const EmbeddedThemeFile> (s_kSkeuomorphicFiles)  },
     { "DarkModern",    1, span<const EmbeddedThemeFile> (s_kDarkModernFiles)    },
     { "RetroTerminal", 1, span<const EmbeddedThemeFile> (s_kRetroTerminalFiles) },
+    { "Phosphor",      1, span<const EmbeddedThemeFile> (s_kPhosphorFiles)      },
 };
 
 
@@ -1169,6 +1180,60 @@ HRESULT AssetBootstrap::RegisterSymbolFont (HINSTANCE hInstance)
     CHRA (hr);
 
 Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyThemeTypography
+//
+//  Sets the process-wide body face and text glow from a theme. The face is
+//  read from the module image rather than from the extracted theme folder,
+//  for the same reason as RegisterSymbolFont: chrome text has to draw
+//  whatever became of the asset directory.
+//
+//  Non-asserting when the resource is missing: a test host links this code
+//  without Casso's resources. The body face is cleared, and the chrome is
+//  drawn in the system face.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::ApplyThemeTypography (HINSTANCE hInstance, const CassoTheme & theme)
+{
+    HRESULT           hr           = S_OK;
+    span<const Byte>  bytes;
+    bool              isSystemFace = (theme.bodyFace == CassoTheme::BodyFace::System);
+    bool              embedded     = false;
+
+
+
+    DxuiTextRenderer::SetTextGlow               (theme.textGlowAlpha, theme.textGlowRadiusEm);
+    DxuiTextRenderer::SetMonochromeGlyphsForced (theme.monochromeGlyphs);
+
+    if (isSystemFace)
+    {
+        DxuiTextRenderer::ClearBodyFace();
+    }
+
+    BAIL_OUT_IF (isSystemFace, S_OK);
+
+    bytes    = ExtractResource (hInstance, IDR_THEME_PHOSPHOR_FONT_TTF);
+    embedded = !bytes.empty();
+    CBR (embedded);
+
+    hr = DxuiTextRenderer::SetBodyFace (bytes.data(), bytes.size(), theme.bodyFaceScale);
+    CHR (hr);
+
+Error:
+    if (FAILED (hr))
+    {
+        DxuiTextRenderer::ClearBodyFace();
+    }
+
     return hr;
 }
 

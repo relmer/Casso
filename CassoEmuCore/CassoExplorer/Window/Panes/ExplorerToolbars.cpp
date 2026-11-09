@@ -180,9 +180,9 @@ void ExplorerToolbars::ApplyTheme (const DxuiTheme & theme)
         return;
     }
 
-    m_menuBar->SetStripColors    (theme.navStrip, theme.navHover, theme.navItemText);
-    m_menuBar->SetDropdownColors (theme.dropdownBg, theme.dropdownHover, theme.dropdownItemText,
-                                  theme.dropdownAccel, theme.panelEdge, theme.buttonBorder);
+    m_menuBar->SetStripColors    (theme.navStrip, theme.navHover, theme.navItemText, theme.navHoverText);
+    m_menuBar->SetDropdownColors (theme.dropdownBg, theme.dropdownHover, theme.dropdownItemText, theme.dropdownHoverText,
+                                  theme.dropdownAccel, theme.dropdownHoverAccel, theme.panelEdge, theme.buttonBorder);
 
     m_toolbar->SetStripColors    (theme.navStrip, theme.navItemText);
     m_toolbar->SetEdgeColor      (theme.Border());

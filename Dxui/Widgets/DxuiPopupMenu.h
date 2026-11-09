@@ -175,7 +175,9 @@ public:
     void  SetColors   (uint32_t bgArgb,
                        uint32_t hoverArgb,
                        uint32_t textArgb,
+                       uint32_t hoverTextArgb,
                        uint32_t accelArgb,
+                       uint32_t hoverAccelArgb,
                        uint32_t borderArgb,
                        uint32_t dividerArgb);
     void  ClearColors ()                        { m_colorsSet = false; }

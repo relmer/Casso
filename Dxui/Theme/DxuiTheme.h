@@ -40,10 +40,14 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  navStrip                 = 0;
     uint32_t  navHover                 = 0;
     uint32_t  navItemText              = 0;
+    uint32_t  navStripHover            = 0;
+    uint32_t  navHoverText             = 0;
     uint32_t  dropdownBg               = 0;
     uint32_t  dropdownItemText         = 0;
     uint32_t  dropdownAccel            = 0;
     uint32_t  dropdownHover            = 0;
+    uint32_t  dropdownHoverText        = 0;
+    uint32_t  dropdownHoverAccel       = 0;
     uint32_t  dropdownBorder           = 0;
     uint32_t  dropdownDivider          = 0;
     uint32_t  link                     = 0;
@@ -169,6 +173,14 @@ struct DxuiTheme : public IDxuiTheme
     static uint32_t                GetContrastingText (uint32_t fill);
 
     static constexpr wchar_t       kMonoFace    [] = L"Cascadia Mono";
+
+    //  The system body face, drawn whatever face a theme puts in place of
+    //  kBodyFace, and without a theme's text glow. For chrome that depicts
+    //  hardware, such as a case's silk-screen. The renderer compares it by
+    //  address, not by its text, so pass this constant itself rather than a
+    //  copy of the string.
+    static constexpr wchar_t       kSystemFace  [] = L"Segoe UI";
+
     static constexpr float         kBodySizeDip    = 13.0f;
     static constexpr float         kCaptionSizeDip = 12.0f;
     static constexpr float         kHeadingSizeDip = 14.0f;
@@ -214,10 +226,14 @@ struct DxuiTheme : public IDxuiTheme
         theme.navStrip                  = 0xFF2A2D32;
         theme.navHover                  = 0xFF3D6FB5;
         theme.navItemText               = 0xFFF0F0F0;
+        theme.navStripHover             = 0xFF3D6FB5;
+        theme.navHoverText              = 0xFFF0F0F0;
         theme.dropdownBg                = 0xFF26282C;
         theme.dropdownItemText          = 0xFFF0F0F0;
         theme.dropdownAccel             = 0xFFB8C0CA;
         theme.dropdownHover             = 0xFF3D6FB5;
+        theme.dropdownHoverText         = 0xFFF0F0F0;
+        theme.dropdownHoverAccel        = 0xFFB8C0CA;
         theme.dropdownBorder            = 0xFF3A3D42;
         theme.dropdownDivider           = 0xFF3A3D42;
         theme.link                      = 0xFF6FB8FF;
@@ -255,10 +271,14 @@ struct DxuiTheme : public IDxuiTheme
         theme.navStrip                  = 0xFFEAEAEA;
         theme.navHover                  = 0xFFCFE2FF;
         theme.navItemText               = 0xFF1A1A1A;
+        theme.navStripHover             = 0xFFCFE2FF;
+        theme.navHoverText              = 0xFF1A1A1A;
         theme.dropdownBg                = 0xFFFBFBFB;
         theme.dropdownItemText          = 0xFF1A1A1A;
         theme.dropdownAccel             = 0xFF606060;
         theme.dropdownHover             = 0xFFCFE2FF;
+        theme.dropdownHoverText         = 0xFF1A1A1A;
+        theme.dropdownHoverAccel        = 0xFF606060;
         theme.dropdownBorder            = 0xFFC8C8C8;
         theme.dropdownDivider           = 0xFFE0E0E0;
         theme.link                      = 0xFF1A6FD0;

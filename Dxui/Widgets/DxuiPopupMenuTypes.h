@@ -17,13 +17,15 @@
 
 struct DxuiPopupMenuPalette
 {
-    uint32_t  bg       = 0;
-    uint32_t  hover    = 0;
-    uint32_t  text     = 0;
-    uint32_t  accel    = 0;
-    uint32_t  border   = 0;
-    uint32_t  divider  = 0;
-    uint32_t  disabled = 0;
+    uint32_t  bg         = 0;
+    uint32_t  hover      = 0;
+    uint32_t  text       = 0;
+    uint32_t  hoverText  = 0;
+    uint32_t  accel      = 0;
+    uint32_t  hoverAccel = 0;
+    uint32_t  border     = 0;
+    uint32_t  divider    = 0;
+    uint32_t  disabled   = 0;
 };
 
 enum class DxuiPopupMenuAnchoring
