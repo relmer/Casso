@@ -142,6 +142,8 @@ public:
             Assert::AreEqual (0, FileOf (map, L"EMPTY").GetUsedCount());
             Assert::IsTrue   (FileOf (map, L"GONE").isDeleted);
             Assert::AreEqual (1, FileOf (map, L"DIR1/DIR2/DEEP").GetUsedCount(), L"two subdirectories deep");
+            Assert::AreEqual (3, FileOf (map, L"DIR1/DIR2/SUBFORK").GetUsedCount(), L"both forks of a file in a subdirectory");
+            Assert::IsTrue   (map.cells[23].role == SectorRole::IndexBlock, L"its extended key block");
 
             Assert::IsTrue (map.cells[2].role == SectorRole::VtocOrKeyBlock);
             Assert::IsTrue (map.cells[3].role == SectorRole::CatalogOrDirectory);

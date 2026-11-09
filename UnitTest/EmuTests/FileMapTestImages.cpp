@@ -288,17 +288,28 @@ vector<Byte> FileMapTestImages::MakeProDos()
     //  GONE: deleted, its seedling in block 19 free again.
     setEntry (entry (key, 5), 0x0, "GONE", 0x04, 19, 1, 50);
 
-    //  DIR1 at block 20 has DIR2 at block 21, which has DEEP in block 22.
+    //  DIR1 at block 20 has DIR2 at block 21, which has DEEP in block 22 and
+    //  SUBFORK: extended key 23, data fork seedling 24, resource fork
+    //  seedling 25.
     setEntry (entry (key, 6), 0xD, "DIR1", 0x0F, 20, 1, 512);
     setHeader (GetBlock (image, 20), 0xE, "DIR1", 1);
     setEntry (entry (GetBlock (image, 20), 1), 0xD, "DIR2", 0x0F, 21, 1, 512);
-    setHeader (GetBlock (image, 21), 0xE, "DIR2", 1);
+    setHeader (GetBlock (image, 21), 0xE, "DIR2", 2);
     setEntry (entry (GetBlock (image, 21), 1), 0x1, "DEEP", 0x04, 22, 1, 5);
+    setEntry (entry (GetBlock (image, 21), 2), 0x5, "SUBFORK", 0x06, 23, 3, 512);
+    GetBlock (image, 23)[0] = 0x1;
+    SetWord (GetBlock (image, 23) + 1, 24);
+    SetWord (GetBlock (image, 23) + 3, 1);
+    GetBlock (image, 23)[5] = 10;
+    GetBlock (image, 23)[0x100] = 0x1;
+    SetWord (GetBlock (image, 23) + 0x101, 25);
+    SetWord (GetBlock (image, 23) + 0x103, 1);
+    GetBlock (image, 23)[0x105] = 20;
 
     //  The bitmap: every block free, then the ones in use taken.
     std::fill (bitmap, bitmap + 35, Byte (0xFF));
 
-    for (b = 0; b <= 22; b++)
+    for (b = 0; b <= 25; b++)
     {
         if (b != 19)
         {
