@@ -307,6 +307,13 @@ struct CassoTheme : public DxuiTheme
         theme.tooltipBorder             = kDim;
         theme.tooltipText               = kNormal;
         theme.errorText                 = 0xFFFF6B6B;
+        theme.diskInspector                 = DiskInspectorColors::MakeDark();
+        theme.diskInspector.sync            = 0xFF24503A;
+        theme.diskInspector.nothingRecorded = 0xFF0A140C;
+        theme.diskInspector.mapFree         = kWash;
+        theme.diskInspector.timingNominal   = 0xFF2E5038;
+        theme.diskInspector.pendingPattern  = kRule;
+        theme.diskInspector.selection       = kBright;
         return theme;
     }
 
