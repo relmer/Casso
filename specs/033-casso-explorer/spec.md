@@ -2911,12 +2911,21 @@ write; Full Send; verified reads and writes; the cassette bootstrap.
 **3. CassoLink**
 
 The owner's only real Apple is a //c, so the devices it lacks are tested in
-other emulators run as targets of the link, never as sources of code:
-MAME's //c with ROM 4 and its //c Plus for SmartPort and the UniDisk 3.5,
-AppleWin's hard disk card, KEGS, GSplus or MAME for the IIgs, and MAME's
-Apple /// driver. Casso Explorer connects to each emulator's serial port over
-TCP, as to MAME's null modem. MAME's Apple /// socket connection has a
-reported bug, so it is checked first.
+emulators run as targets of the link, never as sources of code:
+
+- Casso first: once Casso has its SmartPort hard disk card, #101, and 3.5"
+  drives, #163, block devices are tested as the //c's serial port is now,
+  in the scenario tests on Casso's emulated machines.
+- AppleWin until then, for a hard drive through its hard disk card, with its
+  Super Serial Card over TCP.
+- MAME only where nothing else emulates the machine: the Apple ///, and the
+  UniDisk 3.5 on a //c with ROM 4 or a //c Plus, for any test that
+  comes before #163. MAME is launched from a script with the disk and its null modem on
+  TCP, and its Lua scripting types at the machine, so its UI is never used.
+  Its Apple /// socket connection has a reported bug, so it is checked
+  first.
+- KEGS, GSplus or MAME for the IIgs serial ports, whichever connects over
+  TCP.
 
 1. Block devices on the Apple: a UniDisk 3.5, a //c's 3.5" port and a hard
    drive, through their firmware (M), after step 1.2.
@@ -2926,8 +2935,8 @@ reported bug, so it is checked first.
 5. Files and disks to tape audio and back, in WAV, MP3 and Ogg (S to M).
 6. Serial cards through Pascal firmware entry points, for third-party cards
    (M).
-7. The IIgs serial ports (M), tested in KEGS, GSplus or MAME.
-8. An Apple /// client under SOS (L), tested in MAME.
+7. The IIgs serial ports (M).
+8. An Apple /// client under SOS (L).
 
 **4. File systems and layouts**
 
