@@ -7,6 +7,7 @@
 #include "HandlerTestRig.h"
 #include "TestHelpers.h"
 #include "Ui/Debugger/HeatStrip.h"
+#include "Ui/Debugger/Panes/CodeEditCommands.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -291,6 +292,23 @@ namespace DebuggerTests
     TEST_CLASS (HeatDataRangeTests)
     {
     public:
+
+        //  Data marked over an instruction ends before a symbol inside it: the
+        //  last byte of one table can be read with the first of the next.
+        TEST_METHOD (DataEndsBeforeASymbolInsideTheInstruction)
+        {
+            DebuggerViewSnapshot  snapshot;
+            auto                  symbols = std::make_shared<DebuggerViewSnapshot::SymbolsState>();
+
+
+
+            symbols->symbols = { { "hex_chars", 0x60A0 }, { "title_text", 0x60B0 }, { "LIMIT", 0x60AF, SymbolTableId::User, true } };
+            snapshot.symbols = symbols;
+
+            Assert::AreEqual ((Word) 0x60AF, CodeEditCommands::GetDataEnd (snapshot, 0x60AF, 0x60B0), L"46 53 ends at the 46");
+            Assert::AreEqual ((Word) 0x60B2, CodeEditCommands::GetDataEnd (snapshot, 0x60B0, 0x60B2), L"a symbol at the line's start");
+            Assert::AreEqual ((Word) 0x60AE, CodeEditCommands::GetDataEnd (snapshot, 0x60AD, 0x60AE), L"a constant is no address");
+        }
 
         //  The bytes around an address that were read or written and never
         //  run, to the first byte that ran or that nothing touched.

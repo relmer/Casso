@@ -35,7 +35,7 @@ CodeEditCommands::CodeEditCommands (IDebuggerPaneHost & host, const ICodeViews &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<std::pair<Word, Word>> CodeEditCommands::GetSelection (int view, int row) const
+std::optional<std::pair<Word, Word>> CodeEditCommands::GetSelection (int view, int row, bool isData) const
 {
     const std::vector<DebuggerViewSnapshot::CodeLine>  & lines    = m_views.GetCodeLines (view);
     const std::vector<int>                             & selected = m_views.GetCodeList (view)->GetSelectedRows();
@@ -71,11 +71,17 @@ std::optional<std::pair<Word, Word>> CodeEditCommands::GetSelection (int view, i
 
         const DebuggerViewSnapshot::CodeLine  & line  = lines[(size_t) index];
         Word                                    count = (Word) std::max<size_t> (1, (line.bytes.size() + 1) / 3);
+        Word                                    end   = (Word) (line.address + count - 1);
 
 
+
+        if (isData)
+        {
+            end = GetDataEnd (*m_host.GetLatestSnapshot(), line.address, end);
+        }
 
         first = first.has_value() ? std::min (*first, line.address) : line.address;
-        last  = std::max (last, (Word) (line.address + count - 1));
+        last  = std::max (last, end);
     }
 
     if (!first.has_value())
@@ -84,6 +90,38 @@ std::optional<std::pair<Word, Word>> CodeEditCommands::GetSelection (int view, i
     }
 
     return std::pair<Word, Word> { *first, std::max (last, *first) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CodeEditCommands::GetDataEnd
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word CodeEditCommands::GetDataEnd (const DebuggerViewSnapshot & snapshot, Word at, Word last)
+{
+    Word  end = last;
+
+
+
+    if (snapshot.symbols == nullptr)
+    {
+        return last;
+    }
+
+    for (const SymbolInfo & symbol : snapshot.symbols->symbols)
+    {
+        if (!symbol.isConstant && symbol.address > at && symbol.address <= end)
+        {
+            end = (Word) (symbol.address - 1);
+        }
+    }
+
+    return end;
 }
 
 
@@ -106,6 +144,7 @@ void CodeEditCommands::AddItems (int view, const DebuggerViewSnapshot::CodeLine 
     Word                          at       = line.address;
     Word                          count    = (Word) std::max<size_t> (1, (line.bytes.size() + 1) / 3);
     std::pair<Word, Word>         range    = GetSelection (view, row).value_or (std::pair<Word, Word> { at, (Word) (at + count - 1) });
+    std::pair<Word, Word>         data     = GetSelection (view, row, true).value_or (std::pair<Word, Word> { at, GetDataEnd (snapshot, at, (Word) (at + count - 1)) });
     bool                          isCall   = line.instruction.starts_with ("JSR") && line.target.has_value();
     Word                          routine  = isCall ? *line.target : at;
     std::string                   name     = isCall ? line.shownOperand : line.label;
@@ -151,7 +190,7 @@ void CodeEditCommands::AddItems (int view, const DebuggerViewSnapshot::CodeLine 
 
     for (const auto & [label, directive] : kMarks)
     {
-        items.push_back ({ PaneMenu::MakeInSubmenu (L"Mark as data", label), [this, range, directive] { m_host.RunAction (DebuggerActions::GetMarkData (directive, range.first, range.second, m_host.GetMode())); } });
+        items.push_back ({ PaneMenu::MakeInSubmenu (L"Mark as data", label), [this, data, directive] { m_host.RunAction (DebuggerActions::GetMarkData (directive, data.first, data.second, m_host.GetMode())); } });
     }
 
     if (snapshot.heatColumns != nullptr && HeatStrip::TryGetDataRange (*snapshot.heatColumns, at, dataFirst, dataLast))

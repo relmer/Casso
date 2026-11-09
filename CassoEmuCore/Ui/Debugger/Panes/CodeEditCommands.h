@@ -29,7 +29,9 @@ public:
     //  The first address of the first selected line through the last byte
     //  of the last, or the clicked line's bytes when it is not among the
     //  selected; none when no row is a line.
-    std::optional<std::pair<Word, Word>>  GetSelection (int view, int row) const;
+    //  For data, a line's bytes end before a symbol's address inside its
+    //  instruction, since the symbol marks where other data starts.
+    std::optional<std::pair<Word, Word>>  GetSelection (int view, int row, bool isData = false) const;
 
     //  A line's entries, for the row of the line clicked.
     void                 AddItems     (int view, const DebuggerViewSnapshot::CodeLine & line, int row, PaneMenuItems & items);
@@ -43,6 +45,10 @@ public:
     //  The bytes from first through last, as the view's lines have them;
     //  false where the lines do not cover the range without a gap.
     bool                 TryGetBytes  (int view, Word first, Word last, std::vector<Byte> & bytes) const;
+
+    //  The last byte of the data from `at` through `last`: the byte before the
+    //  first symbol address after `at`, or `last` with none.
+    static Word          GetDataEnd   (const DebuggerViewSnapshot & snapshot, Word at, Word last);
 
 private:
     struct Edit
