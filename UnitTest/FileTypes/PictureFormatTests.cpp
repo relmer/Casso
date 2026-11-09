@@ -31,14 +31,14 @@ public:
     {
         std::vector<Byte>  in       = { 0x01, 'A', 'B', 0x42, 'C', 0x80, 1, 2, 3, 4, 0xC1, 'D' };
         std::vector<Byte>  out;
-        std::vector<Byte>  wanted   = { 'A', 'B', 'C', 'C', 'C', 1, 2, 3, 4 };
+        std::vector<Byte>  correct  = { 'A', 'B', 'C', 'C', 'C', 1, 2, 3, 4 };
 
 
 
-        wanted.insert (wanted.end(), 8, 'D');
+        correct.insert (correct.end(), 8, 'D');
 
         Assert::AreEqual (in.size(), PackBytes::Unpack (in, 1000, out));
-        Assert::IsTrue   (out == wanted);
+        Assert::IsTrue   (out == correct);
     }
 
 

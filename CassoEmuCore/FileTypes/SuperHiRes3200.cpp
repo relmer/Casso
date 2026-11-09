@@ -170,7 +170,7 @@ HRESULT SuperHiRes3200::DecodeDreamGrafix (std::span<const Byte> bytes, const Fi
     HRESULT             hr       = S_OK;
     size_t              footer   = bytes.size() - kFooterBytes;
     bool                many     = (bytes[footer] | (bytes[footer + 1] << 8)) == 1;
-    size_t              wanted   = many ? SuperHiRes::kPixelBytes + kPaletteBytes : SuperHiRes::kScreenBytes;
+    size_t              full     = many ? SuperHiRes::kPixelBytes + kPaletteBytes : SuperHiRes::kScreenBytes;
     std::vector<Byte>   unpacked;
     SuperHiRes::Screen  screen;
     bool                whole    = false;
@@ -180,11 +180,11 @@ HRESULT SuperHiRes3200::DecodeDreamGrafix (std::span<const Byte> bytes, const Fi
     UNREFERENCED_PARAMETER (facts);
     UNREFERENCED_PARAMETER (options);
 
-    hr = UnpackLzw (bytes.first (footer), wanted, unpacked);
+    hr = UnpackLzw (bytes.first (footer), full, unpacked);
     CHRF (hr, outError = L"The DreamGrafix picture doesn't unpack.");
 
-    whole = unpacked.size() >= wanted;
-    CBRFEx (whole, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = std::format (L"The DreamGrafix picture unpacks to {} bytes, not {}.", unpacked.size(), wanted));
+    whole = unpacked.size() >= full;
+    CBRFEx (whole, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = std::format (L"The DreamGrafix picture unpacks to {} bytes, not {}.", unpacked.size(), full));
 
     if (many)
     {
