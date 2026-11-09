@@ -407,7 +407,7 @@ Commit after each phase (constitution, Commit Discipline), with
 - [X] T158 [US6] In Casso, draw the head in the tilted view at the near edge as a translucent head carriage on its rail with the bullseye on the disk and a soft shadow, the pointer passing through it, in `PlatterView.cpp` per FR-152 (missing)
 - [X] T159 [US6] With T101, save the tilt and whether the walkthrough has been seen with the window's state in `CEC/Config/GlobalUserPrefs.h/.cpp` and Explorer's preferences per FR-080 (missing).
 - [X] T160 [US17] With T101, save the window's zoom and restore it when the window opens in `CEC/Ui/DiskInspector/DiskInspectorWindow.cpp` per FR-154, FR-080 (missing)
-- [ ] T161 [US17] Once 033 reaches master, put the status band on 033's `DxuiStatusBar`: the hint in a stretch field and `DxuiZoomControl` over a fixed field of `DxuiZoomControl::kWidthDip` at its right, in `CEC/Ui/DiskInspector/DiskInspectorWindow.cpp` per FR-154 (missing)
+- [X] T161 [US17] Once 033 reaches master, put the status band on 033's `DxuiStatusBar`: the hint in a stretch field and `DxuiZoomControl` over a fixed field of `DxuiZoomControl::kWidthDip` at its right, in `CEC/Ui/DiskInspector/DiskInspectorWindow.cpp` per FR-154 (missing)
 
 ## Phase 19: Convergence
 
