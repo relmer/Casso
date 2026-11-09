@@ -343,8 +343,9 @@ public:
             store.SetIdentityReader ([this] (const std::string & path)
             {
                 ImageIdentity  identity;
+                HRESULT        hr = io.Stat (path, identity.stamp);
 
-                identity.recorded = SUCCEEDED (io.Stat (path, identity.stamp));
+                identity.recorded = SUCCEEDED (hr);
 
                 return identity;
             });
