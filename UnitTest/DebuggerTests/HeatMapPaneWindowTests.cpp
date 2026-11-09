@@ -847,10 +847,10 @@ namespace HeatMapPaneWindowTests
 
 
 
-        //  A floating map's tip is pending until the cell's last writer and
-        //  reader are known, and is drawn in the floating window once a
-        //  snapshot contains them.
-        TEST_METHOD (AFloatingMapsPendingTipIsDrawnOnceItsWriterAndReaderArrive)
+        //  A floating map's tip is up in the floating window at once, and its
+        //  last writer and reader lines are filled in once a snapshot
+        //  contains them.
+        TEST_METHOD (AFloatingMapsTipIsFilledInOnceItsWriterAndReaderArrive)
         {
             CassoTheme             theme    = CassoTheme::MakeSkeuomorphic();
             HeatMapHost            host;
@@ -878,7 +878,8 @@ namespace HeatMapPaneWindowTests
 
             tip = window.GetFloatingPanes().FindTip (DebuggerLayout::kHeatMap);
             Assert::IsNotNull (tip, L"the floating window has a tooltip");
-            Assert::IsFalse   (tip->IsVisible(), L"not before its writer and reader are in");
+            Assert::IsTrue    (tip->IsVisible(), L"up before its writer and reader are in");
+            Assert::IsTrue    (tip->GetText().contains (s_kchEllipsis), L"with ellipses in their place");
 
             hover.address           = target;
             snapshot.heatMap.hover  = std::make_shared<const HeatAccessHover> (hover);
@@ -887,14 +888,15 @@ namespace HeatMapPaneWindowTests
 
             Assert::IsTrue    (tip->IsVisible(), L"the tip is up in the floating window once they are");
             Assert::AreEqual  (view->GetTipText (target), tip->GetText());
+            Assert::IsFalse   (tip->GetText().contains (s_kchEllipsis), L"filled in");
         }
 
 
 
-        //  The tip waits for the machine to say what last wrote and read the
-        //  cell, so it is never shown with one line and then grown; once they
-        //  are in, it shows at once, with no dwell.
-        TEST_METHOD (OverTheMapTheTipShowsWholeWithNoDwell)
+        //  The tip is up at once, with no dwell, before the machine has looked
+        //  up what last wrote and read the cell; those lines are filled in
+        //  when they arrive.
+        TEST_METHOD (OverTheMapTheTipShowsAtOnceWithNoDwell)
         {
             CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
             HeatMapHost      host;
@@ -916,14 +918,16 @@ namespace HeatMapPaneWindowTests
             move.positionDip = { cell.left + 1, cell.top + 1 };
             (void) window.OnMouse (move);
 
-            Assert::IsFalse (window.GetTooltip().IsVisible(), L"not before its writer and reader are in");
-            Assert::IsTrue  (view->GetHover().has_value(), L"but the cell is framed");
+            Assert::IsTrue  (window.GetTooltip().IsVisible(), L"up before its writer and reader are in");
+            Assert::IsTrue  (window.GetTooltip().GetText().contains (s_kchEllipsis), L"with ellipses in their place");
+            Assert::IsTrue  (view->GetHover().has_value(), L"and the cell is framed");
 
             hover.address = target;
             view->SetHoverAccess (std::make_shared<const HeatAccessHover> (hover));
             (void) window.OnMouse (move);
 
-            Assert::IsTrue   (window.GetTooltip().IsVisible(), L"no dwell once they are");
+            Assert::IsTrue   (window.GetTooltip().IsVisible(), L"up once they are");
+            Assert::IsFalse  (window.GetTooltip().GetText().contains (s_kchEllipsis), L"filled in");
             Assert::AreEqual (view->GetTipText (target), window.GetTooltip().GetText());
             Assert::IsTrue   (window.GetTooltip().GetText().starts_with (std::format (L"${:04X}  untouched\n", target)), L"the whole tip");
         }

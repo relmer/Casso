@@ -2087,9 +2087,9 @@ std::wstring HeatMapView::FormatAmount (Byte level) const
 //  times, read once" while cumulative; "$C65E  untouched" when nothing did.
 //  In a bank's view the address is where in the bank the cell is, "Aux RAM
 //  $2000". A byte only ever run as an operand is "executed as an operand".
-//  A line follows for each overlay on the cell (DescribeMarks). Once the
-//  machine has looked them up for the cell, a line for its last writer and
-//  one for its last reader follow.
+//  A line follows for each overlay on the cell (DescribeMarks), then a line
+//  for its last writer and one for its last reader while the machine looks
+//  them up. Until it has for the cell, the two lines end in an ellipsis.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2145,6 +2145,11 @@ std::wstring HeatMapView::GetTipText (Word address) const
     {
         text += L"\n" + HeatAccessJump::Describe (true,  m_hoverAccess->writer);
         text += L"\n" + HeatAccessJump::Describe (false, m_hoverAccess->reader);
+    }
+    else if (m_onHoverChanged)
+    {
+        text += std::wstring (L"\nLast written by ") + s_kchEllipsis;
+        text += std::wstring (L"\nLast read by ")    + s_kchEllipsis;
     }
 
     return contents.empty() ? text : contents + L"\n" + text;

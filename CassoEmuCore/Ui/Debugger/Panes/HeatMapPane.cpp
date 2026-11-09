@@ -962,10 +962,9 @@ bool HeatMapPane::RouteContentMouse (const DxuiMouseEvent & ev)
 //  HeatMapPane::TryGetTipAt
 //
 //  Over the zoom, how to zoom, as a control's tip. Over the map, the cell the
-//  mouse picks and what touched it, at once and following the pointer. Until
-//  the machine has looked up the cell's last writer and reader, a tip already
-//  up stays as it is and none is put up, so a tip never shows one line and
-//  then grows; Apply shows it whole once they arrive.
+//  mouse picks and what touched it, at once and following the pointer. The
+//  cell's last writer and reader come from the machine a frame or more later;
+//  until then their lines end in an ellipsis, and Apply fills them in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -982,7 +981,6 @@ bool HeatMapPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
     }
 
     m_tipAt.reset();
-    m_isTipPending = false;
 
     if ((int64_t) GetTickCount64() - m_zoomedAtMs < kZoomQuietMs)
     {
@@ -994,17 +992,14 @@ bool HeatMapPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
         return false;
     }
 
-    m_tipAt        = clientPx;
-    m_isTipPending = !m_view->IsTipComplete (clientPx);
-    tip.placement  = DxuiTip::Placement::FollowPointer;
+    m_tipAt       = clientPx;
+    tip.placement = DxuiTip::Placement::FollowPointer;
 
     if (m_view->GetPickAt (clientPx).has_value())
     {
         m_view->GetTipFrame (*m_view->GetPickAt (clientPx), tip.frameLabel, tip.frameArgb);
         m_view->GetTipTag   (*m_view->GetPickAt (clientPx), tip.cornerTag,  tip.cornerTagArgb);
     }
-
-    tip.isPending  = m_isTipPending;
 
     return true;
 }
@@ -1258,10 +1253,10 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
     }
 
     //  The tip over the map lists the last writer and reader as soon as they
-    //  come in, without waiting for the mouse to move, and a tip pending
-    //  until they came in opens now. It opens in the window the pane is in,
-    //  so a floating pane's tip is drawn in its floating window.
-    if (isNewHover && m_tipAt.has_value() && (m_host.IsPaneTooltipVisible (GetId()) || m_isTipPending))
+    //  come in, without waiting for the mouse to move, in place of the
+    //  ellipses. The tip is drawn in the window the pane is in, so a
+    //  floating pane's tip is drawn in its floating window.
+    if (isNewHover && m_tipAt.has_value() && m_host.IsPaneTooltipVisible (GetId()))
     {
         m_host.UpdatePaneTooltip (GetId(), *m_tipAt);
     }

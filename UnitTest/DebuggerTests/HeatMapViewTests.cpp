@@ -1512,6 +1512,37 @@ namespace DebuggerTests
 
 
 
+        //  The tip is up at once: the last writer and reader lines end in an
+        //  ellipsis until the machine's answer for the cell is in, then are
+        //  replaced by it.
+        TEST_METHOD (TheWriterAndReaderLinesAreFilledInWhenTheyArrive)
+        {
+            HeatMapView      view;
+            HeatAccessHover  hover;
+            std::wstring     text;
+
+
+
+            Place (view);
+            Assert::IsFalse (view.GetTipText (0x2000).contains (L"Last written by"), L"no lines when nothing looks them up");
+
+            view.SetOnHoverChanged ([] (std::optional<Word>) {});
+            text = view.GetTipText (0x2000);
+            Assert::IsTrue (text.ends_with (std::wstring (L"\nLast written by ") + s_kchEllipsis + L"\nLast read by " + s_kchEllipsis), text.c_str());
+
+            hover.address = 0x2001;
+            view.SetHoverAccess (std::make_shared<const HeatAccessHover> (hover));
+            Assert::IsTrue (view.GetTipText (0x2000).contains (s_kchEllipsis), L"the ellipses remain with another cell's answer");
+
+            hover.address = 0x2000;
+            view.SetHoverAccess (std::make_shared<const HeatAccessHover> (hover));
+            text = view.GetTipText (0x2000);
+            Assert::IsFalse (text.contains (s_kchEllipsis), text.c_str());
+            Assert::IsTrue  (text.ends_with (L"\nNot written since counting started\nNot read since counting started"), text.c_str());
+        }
+
+
+
         TEST_METHOD (WhileTheHeatIsRebuiltTheBarSaysSo)
         {
             HeatMapView           view;

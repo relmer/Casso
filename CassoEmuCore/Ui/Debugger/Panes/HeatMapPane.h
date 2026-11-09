@@ -128,7 +128,6 @@ private:
     //  The point the tip over the map is for, and whether it is pending until
     //  a snapshot brings the cell's last writer and reader.
     std::optional<POINT>                         m_tipAt;
-    bool                                         m_isTipPending  = false;
 
     //  The last cell's accesses the machine looked up, and the CPU's cycle
     //  at the last snapshot and whether it was behind live, for the access
