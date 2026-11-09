@@ -117,6 +117,8 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  ControlBackground            () const override { return (controlBg != 0) ? controlBg : dropdownBg; }
     uint32_t  HoverBackground              () const override { return navHover;           }
     uint32_t  MenuHover                    () const override { return (dropdownHover != 0) ? dropdownHover : navHover; }
+    uint32_t  MenuHoverForeground          () const override { return (dropdownHover != 0 && dropdownHoverText  != 0) ? dropdownHoverText  : Foreground();      }
+    uint32_t  MenuHoverForegroundMuted     () const override { return (dropdownHover != 0 && dropdownHoverAccel != 0) ? dropdownHoverAccel : ForegroundMuted(); }
     uint32_t  PressedBackground            () const override { return buttonPressed;      }
     uint32_t  SelectionBackground          () const override { return navHover;           }
 

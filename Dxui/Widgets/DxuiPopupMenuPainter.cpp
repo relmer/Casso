@@ -51,9 +51,9 @@ DxuiPopupMenuPalette DxuiPopupMenuPainter::ResolvePalette() const
     pal.bg         = m_menu.m_colorsSet ? m_menu.m_colors.bg         : m_menu.m_theme->BackgroundElevated();
     pal.hover      = m_menu.m_colorsSet ? m_menu.m_colors.hover      : m_menu.m_theme->MenuHover();
     pal.text       = m_menu.m_colorsSet ? m_menu.m_colors.text       : m_menu.m_theme->Foreground();
-    pal.hoverText  = m_menu.m_colorsSet ? m_menu.m_colors.hoverText  : m_menu.m_theme->Foreground();
+    pal.hoverText  = m_menu.m_colorsSet ? m_menu.m_colors.hoverText  : m_menu.m_theme->MenuHoverForeground();
     pal.accel      = m_menu.m_colorsSet ? m_menu.m_colors.accel      : m_menu.m_theme->ForegroundMuted();
-    pal.hoverAccel = m_menu.m_colorsSet ? m_menu.m_colors.hoverAccel : m_menu.m_theme->ForegroundMuted();
+    pal.hoverAccel = m_menu.m_colorsSet ? m_menu.m_colors.hoverAccel : m_menu.m_theme->MenuHoverForegroundMuted();
     pal.border     = m_menu.m_colorsSet ? m_menu.m_colors.border     : m_menu.m_theme->Border();
     pal.divider    = m_menu.m_colorsSet ? m_menu.m_colors.divider    : m_menu.m_theme->MenuSeparator();
     pal.disabled   = m_menu.m_theme->ForegroundDisabled();

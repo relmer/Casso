@@ -175,6 +175,12 @@ public:
     // The fill under a menu item the pointer is over.
     virtual uint32_t  MenuHover () const { return HoverBackground(); }
 
+    // The label and accelerator text on that fill. A theme with a bright
+    // MenuHover, such as an inverse-video highlight, overrides both with a
+    // dark color.
+    virtual uint32_t  MenuHoverForeground      () const { return Foreground();      }
+    virtual uint32_t  MenuHoverForegroundMuted () const { return ForegroundMuted(); }
+
     // The line along the bottom of a tab strip, broken under the selected tab
     // where it joins the row below; none by default.
     virtual uint32_t  TabStripEdge () const { return 0; }
