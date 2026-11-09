@@ -350,9 +350,12 @@ private:
     float                    m_deskSlideProgress   = 0.0f;
     RECT                     m_deskSlideCoverPx    = {};
 
-    // The top of the zone that raises the desk's devices: the lower half of
-    // the desk under the monitor. Written by UpdateDeskSlideCover.
+    // The top of the zone that reveals the drives: see
+    // FullscreenStripState::GetRevealTopPx. Written by UpdateViewportLayout
+    // and UpdateDeskSlideCover, from the bottom of the monitor's frame (or of
+    // the display where there is no frame).
     LONG                     m_deskSlideRevealTopPx = 0;
+    LONG                     m_stripContentBottomPx = 0;
 
     void    UpdateDeskSlideCover (const DeskSceneComposition & comp);
     int     GetDeskSlideClearPx  () const;
