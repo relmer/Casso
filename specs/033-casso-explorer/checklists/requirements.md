@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [x] No [NEEDS CLARIFICATION] markers remain (2026-10-14: CassoLink's command-line question resolved; Casso Explorer only)
+- [x] No [NEEDS CLARIFICATION] markers remain (2026-11-09: LANceGS kept, language servers cut; 2026-10-14: CassoLink's command-line question resolved; Casso Explorer only)
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -51,3 +51,5 @@
 - 2026-11-08: FR-156 extended to CiderPress II's converters other than the Macintosh formats, and FR-172 (shape tables) and FR-173 (character sets) added. Rechecked against every item above; all pass.
 
 - 2026-11-08: Stories 19 to 21 (large images, resource forks, ShrinkIt and Binary II), FR-174 to FR-189, SC-050 to SC-052 and the Roadmap added. Rechecked against every item above; all pass. The tools and emulators listed are the owner's comparison set and test targets, not design choices.
+
+- 2026-11-09: Stories 22 to 38 (the Roadmap's remaining steps), FR-190 to FR-242, SC-053 to SC-066, edge cases, key entities, two clarifications, and the assumptions they replace added. Every other item above passes. The hardware, emulators and formats listed are the owner's comparison set and test targets, not design choices.
