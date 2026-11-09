@@ -1004,7 +1004,7 @@ bool WatchesPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused)
     if (m_grid->IsEditing())
     {
         (void) m_grid->OnKey (ev);
-        m_host.Repaint();
+        m_host.RepaintLater();
         return true;
     }
 

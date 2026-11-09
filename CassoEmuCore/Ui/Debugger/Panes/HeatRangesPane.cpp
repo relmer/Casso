@@ -1315,7 +1315,7 @@ bool HeatRangesPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focus
             m_editor->OnKey (ev);
         }
 
-        m_host.Repaint();
+        m_host.RepaintLater();
         return true;
     }
 
@@ -1328,7 +1328,7 @@ bool HeatRangesPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focus
         (isPlain && (ev.vk == VK_DELETE || ev.vk == VK_INSERT || ev.vk == VK_F2 || ev.vk == VK_RETURN)))
     {
         (void) m_list->OnKey (ev);
-        m_host.Repaint();
+        m_host.RepaintLater();
         return true;
     }
 

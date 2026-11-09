@@ -998,7 +998,7 @@ bool BreakpointsPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focu
             m_nameEditor->OnKey (ev);
         }
 
-        m_host.Repaint();
+        m_host.RepaintLater();
         return true;
     }
 

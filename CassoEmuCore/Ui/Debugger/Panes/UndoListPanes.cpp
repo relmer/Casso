@@ -463,7 +463,7 @@ bool ValueEditPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focuse
             m_editor->OnKey (ev);
         }
 
-        m_host.Repaint();
+        m_host.RepaintLater();
         return true;
     }
 
