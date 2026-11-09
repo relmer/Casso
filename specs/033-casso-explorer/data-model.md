@@ -247,3 +247,37 @@ never stored in `links`.
 - **DecodeOptions**: `recordLength`, 0 for the one found; `charset`, one of AppleText, MacOsRoman or Iso8859_1, defaulting to MacOsRoman for a IIgs format and AppleText otherwise. One per file while its tab is open, not saved.
 - **GlyphSheet**: `name`, `family`, `style`, `size`, and each glyph's bitmap and advance; drawn sixteen glyphs to a row into a Picture.
 - **Validation**: `Decode` fails with `ERROR_INVALID_DATA` and a reason for bytes that fail a format's check; a `DecodedFile` is never partial, except for the lines its `notes` list.
+
+## Volumes, archives and containers (Stories 19 to 21, R36 to R39)
+
+- **VolumeLayout**: `Dos140K`, `Dos13` or `Blocks`, and `blockCount` for `Blocks`. A `Dos140K` buffer is 143,360 bytes and a `Dos13` buffer 116,480; a `Blocks` buffer is `blockCount * 512` bytes, at most 65,535 blocks for ProDOS.
+- **IBlockStore**: `GetBlockCount`, `ReadBlocks (first, count, out)`, `WriteBlocks (first, bytes)`, `Commit`. A write past the end fails with `E_INVALIDARG`.
+- **TwoImgHeader**: `creator` (4 bytes), `format` (0 DOS order, 1 ProDOS order, 2 nibbles), `flags` (bit 31 locked, bit 8 volume number valid, low byte the volume number), `blockCount`, `comment`, `creatorData`. Written back as read on every save (FR-176).
+- **DiskCopy42Header**: `name` (up to 63 bytes), `dataSize`, `tagSize`, `dataChecksum`, `tagChecksum`, `diskFormat`, `formatByte`, and the tag bytes. A data checksum that doesn't match opens read-only with the reason.
+- **FilePayload** gains `resourceFork` (bytes) and `finderInfo` (32 bytes, empty for none). **FileEntry** gains `resourceForkBytes` and `access`, the six flags FR-180 lists.
+- **ContainerPath**: a list of steps, each `{ kind, name }`, kind one of HostFile, ZipMember, Gzip, ImageFile, ArchiveRecord, Partition. A location's id is its steps joined; equal paths are one location.
+- **ArchiveRecord**: `name`, `fileType`, `auxType`, `created`, `modified`, `access`, `dataLength`, `resourceLength`, `diskBlocks` for a disk record, the threads with their format and CRC, and `crcOk`.
+
+## CassoLink additions (Stories 23 to 29, R40 to R48)
+
+- **LinkModule**: `id`, `version`, `address` ($4000 to $7FFF), `entries`, `bytes`. A connection loads the modules its machine and interfaces use, after Ready.
+- **BlockDevice**: `slot`, `unit`, `blockCount`, `isSmartPort`, `volumeName`, `kind` (5.25" via firmware, 3.5", hard disk, unknown).
+- **ResumeRecord**, `NAME.partial.json`: `slot`, `unit`, `blockCount`, `volumeName`, `directoryHash` (SHA-256 in hex), `direction` (read or write), `lastVerifiedBlock`, `imagePath`. Deleted when the image is renamed to its final name.
+- **RawCapture**: per quarter track, `position` (0 to 140), `empty`, the bytes and their timings, and `differingRanges`; the report lists each position with differing ranges.
+- **VirtualDriveSettings**, in a link's saved settings: `drive1` and `drive2`, each an image path or empty.
+- **AudioLinkSettings**, in a link's saved settings: `inputDevice`, `outputDevice` (WASAPI ids), `level` (last measured, not saved).
+
+## File systems and layouts (Stories 30 to 34, R49 to R52)
+
+- **VolumeKind** gains `Dos32`, `Hfs`, `Sos`, `Rdos`.
+- **Dos33Geometry**: `tracks` (35 to 50, or 80 for the Basis 108 layout), `sectorsPerTrack` (13, 16 or 32), `bitmapBytesPerTrack` (4, or 2 for the Basis 108).
+- **Partition**: `index`, `firstBlock`, `blockCount`, `layout`, `volumeKind`, `damaged`. Partitions don't overlap except in a hybrid, whose file systems share one buffer.
+- **PhysicalDrive**: `number`, `model`, `bytes`, `bus`, `removable`. Only removable drives are listed (FR-221).
+
+## Tools (Stories 35 to 38, R53 to R56)
+
+- **Disk list CSV**, one row per image: `path`, `container`, `fileSystem`, `volumeName`, `files`, `freeBytes`, `crc32`, `sha256`, `hasMore`.
+- **Duplicate CSV**, one row per member: `set`, `kind` (disk or file), `path`, `name` for a file, `sha256`.
+- **ResultsLocation**: `id`, `tool` (disk list, duplicates), `root`, `rows`, `finished`. Closed with its tab, not saved.
+- **ViewerState**: `folder` (a location), `current` (an entry), the tab's sort order when each step is taken.
+- **TapeRecording sidecar**, `NAME.tape.txt`: a line per file with its start time (mm:ss.s), length, load address and load command.

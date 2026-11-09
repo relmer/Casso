@@ -26,7 +26,7 @@ its decoder is written. The table is the test list for
 | AppleWorks SS | $1B | none | grid | `NAME.AppleWorks SS.csv` | no | AppleWorks |
 | AppleWorks GS WP | $50/$8010 | none | document | `NAME.AppleWorks GS WP.rtf` | no | AWGS |
 | Teach | $50/$5445 | none | document | `NAME.Teach.rtf` | no | Teach |
-| VisiCalc | $04, name ending `.VC` | T, name ending `.VC` | grid | `NAME.VisiCalc.csv` | no | R35 |
+| VisiCalc | $04, name ending `.VC` | T, name ending `.VC` | grid, recalculated | `NAME.VisiCalc.csv` | no | R35, R57 |
 | Gutenberg | Gutenberg volume | Gutenberg volume | text | `NAME.Gutenberg.txt` | no | Gutenberg, GutenbergWP |
 | Magic Window | none | B, name ending `.MW`, a 256-byte header starting $8D | text | `NAME.Magic Window.txt` | no | MagicWindow |
 | Super hi-res | $C1/$0000 | none | picture | `NAME.Super Hi-Res.png` | no | SuperHiRes |
@@ -46,6 +46,8 @@ its decoder is written. The table is the test list for
 | Fontrix font | none | B, name starting `SET.`, $90 $F7 $B2 at $18, or $6F $08 $4D in an edited font | sheet | `NAME.Font.png` | no | Fontrix |
 | Print Shop font | $F8/$C316 for Print Shop GS | B at $6000 or $5FF4, more than 576 bytes | sheet | `NAME.Font.png` | no | PrintShop |
 | IIgs bitmap font | $C8 | none | sheet | `NAME.Font.png` | no | BitmapFont |
+| Wizardry scenario | Pascal file `SCENARIO.DATA` on a Wizardry I to III disk | Pascal kind 5, the same name | lists, maps | `NAME.Wizardry.txt`, `NAME.Level N.png` | no | R56 |
+| Infocom story | BIN, or a host `.z1` to `.z8` or `.dat`, with a Z-machine header: version 1 to 8 at $00, the high memory, dictionary and object table addresses inside the file | the story's sectors on an Infocom disk with no catalog, from track 3 on, opened as one file | listing | `NAME.Infocom.txt` | no | Z-Machine Standards Document 1.1 |
 
 Import rows: a host file whose suffix is the row's Out suffix is put as
 that format with no dialog, and the suffix is stripped from the catalog
@@ -72,7 +74,7 @@ enum class FileFormat { None, PascalText, RandomText, Merlin, ScAssembler, Lisa,
                         SuperHiRes3200, DreamGrafix, SuperHiRes3201, IigsAnimation,
                         Lz4fh, PrintShopGraphic, PrintShopGsClipArt, ShapeTable,
                         IigsIcons, HiResFont, Apple3Font, FontrixFont, PrintShopFont,
-                        IigsFont };
+                        IigsFont, WizardryScenario, InfocomStory };
 
 class FileFormatTable
 {
@@ -90,3 +92,14 @@ public:
 `Decode` fails with `ERROR_INVALID_DATA` and a reason in words for a file
 that fails its check, which FR-169's preview and copy report. `Export`
 writes RTF, CSV, text or PNG by the `DecodedFile`'s kind.
+
+## BASIC tools (Story 37, R55)
+
+| Command | Input | Output |
+|---|---|---|
+| `casso basic tokenize --applesoft\|--integer IN OUT` | a listing in UTF-8 or Apple text | the program BASIC saves, with the load address Applesoft's SAVE writes |
+| `casso basic list IN OUT` | a tokenized program | its listing, as Get writes it |
+| `casso basic renumber --start N --step N IN OUT` | a tokenized program | the renumbered program; fails with the line when a number would pass 63999 or 32767 |
+| `casso basic xref IN` | a tokenized program | the cross-reference, as the preview lists it |
+
+Cross-reference listing: one section each for variables, line references, and CALL, PEEK and POKE addresses, each entry followed by the lines it is on, in ascending order.

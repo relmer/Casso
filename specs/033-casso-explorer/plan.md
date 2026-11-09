@@ -106,7 +106,9 @@ specs/033-cassque/
 │   ├── intent-channel.md
 │   ├── host-file-names.md
 │   ├── dxui-additions.md
-│   └── cassolink.md        # section H wire contract and session interface
+│   ├── cassolink.md        # section H wire contract and session interface
+│   ├── file-types.md
+│   └── volumes-and-archives.md   # Stories 19 to 21 and 30 to 34
 ├── tasks.md              # /speckit-tasks output
 └── validation.md         # quickstart outcomes, written during the last phase
 ```
@@ -528,7 +530,7 @@ The prefix follows the folder and extension from `CassoExplorerPrefs` to `LinkOp
 
 ## Order of the remaining work
 
-The spec's Roadmap sets the order. Stories 19 to 21, large images, resource forks and archives, come before Phase 32, after the 040-disk-inspector merge, and are planned in full when they start.
+The spec's Roadmap sets the order. Stories 19 to 21, large images, resource forks and archives, come before Phase 32, after the 040-disk-inspector merge. Phase 33 plans them with Stories 22 to 38.
 
 ## Phase 32: File types (Session 2026-11-08, tasks.md Phase 35)
 
@@ -544,3 +546,125 @@ Story 18, as in Design's File types. Order, each step with its tests:
 8. Validation: quickstart §7d, SC-047 to SC-049 in validation.md.
 
 Constitution re-check: I, EHM and class-static helpers in every decoder; II, every decoder is a pure function tested on fixture bytes, and no test opens a host file; V, a table of formats and no plugin layer (R35); VI, nothing is added to an executable. PASS.
+
+## Phase 33: Stories 19 to 38 (Session 2026-11-09, tasks.md Phases 36 on)
+
+Stories 19 to 38, FR-175 to FR-242, research R36 to R57, contracts
+[volumes-and-archives.md](contracts/volumes-and-archives.md),
+[cassolink.md](contracts/cassolink.md)'s Modules section and
+[file-types.md](contracts/file-types.md)'s added rows. The order is the
+Roadmap's. Each step is one or more commits, each with its tests, and each
+step ends with the unit suite, the scenario suites it touches and CheckStyle
+passing.
+
+### Technical context added
+
+**Dependencies**: bzip2 (BSD-style), libvorbis and libogg (BSD), vendored
+under `External/` with their license files, and Windows' Media Foundation MP3
+encoder. No GPL code. CiderPress II's notes (Apache 2.0), Apple's File Type
+Notes, Inside Macintosh: Files, the Z-Machine Standards Document and the
+programs' manuals are the format sources (FR-171).
+
+**Test targets outside Casso**: AppleWin, MAME, KEGS and GSplus, launched by
+scripts in `scripts/EmuTargets/`, each with its serial port or network card
+on TCP. Each is run manually for the stories that list it, and the results go in
+`validation.md`; the unit and scenario suites never start them.
+
+**Performance**: SC-054's 32 MB volume at 115,200 baud is about 47 minutes a
+direction, so resuming (R42) is part of the design rather than a refinement.
+SC-055's capture time is met by sending repeated reads only where they differ
+(R43). SC-064's walk of 5,000 images runs on a worker thread and lists rows as
+they are found.
+
+### Source layout added
+
+```text
+CassoEmuCore/
+├── Devices/Disk/
+│   ├── VolumeLayout.h                 # NEW: Dos140K, Dos13, Blocks (R36)
+│   ├── IBlockStore.h, FileBlockStore.h/.cpp, MemoryBlockStore.h/.cpp
+│   ├── Containers/                    # NEW: TwoImgContainer, DiskCopy42Container (R37)
+│   ├── Archives/                      # NEW: NuFxArchive, NuLzw, SqueezeDecoder, LzcDecoder,
+│   │                                  #      BinaryTwoArchive, GzipFile, ArchiveVolume, ContainerPath (R39)
+│   └── Partitions/                    # NEW: PartitionLayout and one class per layout (R50)
+├── Machines/Apple2/Common/
+│   ├── HfsVolume.h/.cpp, HfsBTree.h/.cpp        # NEW (R51)
+│   ├── SosVolume.h/.cpp, RdosVolume.h/.cpp      # NEW (R52)
+│   └── NibblizationLayer.cpp                    # 5-and-3 codec (R49)
+├── CassoLink/Apple/Modules/           # NEW: Block.s, Capture.s, Cassette.s, Scc.s,
+│                                      #      PascalFirmware.s, Cs8900a.s, Lan91c96.s,
+│                                      #      VirtualDrive.s, SosInterp.s (R40 to R48)
+├── CassoLink/Session/                 # CassoLinkBlockTransfer, CassoLinkCapture, CassoLinkResume
+├── Devices/Tape/TapeRecordingWriter.h/.cpp, TapeRecordingVolume.h/.cpp   # NEW (R46)
+├── Audio/WasapiCapture.h/.cpp         # NEW (R45)
+├── FileTypes/VisiCalcEvaluator, WizardryScenario, ZMachineStory          # NEW (R56, R57)
+├── CassoExplorer/Window/Viewer/ExplorerViewer.h/.cpp                     # NEW (R53)
+├── CassoExplorer/Model/CollectionWalk, DiskIdentity, ResultsLocation     # NEW (R54)
+└── Seams/RawDevice/                   # NEW: RawDeviceServer (elevated), RawDeviceClient, IRawDevice (R50)
+CassoCore/
+├── IntegerBasicTokenizer.h/.cpp, BasicRenumber.h/.cpp, BasicCrossReference.h/.cpp   # NEW (R55)
+External/
+├── bzip2/, libogg/, libvorbis/        # NEW
+scripts/EmuTargets/                    # NEW: AppleWin, MAME, KEGS, GSplus launchers
+```
+
+### Order
+
+1. **Large volumes (Story 19)**: `VolumeLayout` threaded through
+   the volume classes and `GetBlockByteOffset`, so that today's volume tests
+   run as they are; `Blocks` loads and saves; `TwoImgContainer`,
+   `DiskCopy42Container`; the size checks; New disk's and `casso disk
+   create`'s sizes; the raw block dialogs at any size; `IBlockStore` and its
+   two implementations.
+2. **Resource forks (Story 20)**: storage type 5 in the reader and
+   writer; `FilePayload`'s forks; AppleSingle and AppleDouble with resource
+   forks; the Details columns; the copy rules of FR-182.
+3. **Archives (Story 21)**: `NuLzw`, `SqueezeDecoder`,
+   `LzcDecoder`, bzip2 and gzip; `NuFxArchive` and `BinaryTwoArchive`, read
+   then build; `ArchiveVolume`; `ContainerPath` and nested opening; Test
+   (FR-188). Before it, check what Casso Explorer does today with an image inside a
+   ZIP, as the Roadmap sets.
+4. **File types (Story 18)**: as Phase 32 plans it, then
+   `VisiCalcEvaluator` (Story 22).
+5. **Link modules and block devices (Story 23)**: Load module
+   and the module header; the block module; `CassoLinkBlockTransfer`;
+   `CassoLinkResume`; the device nodes. Tested in Casso once it has #101's
+   card, and in AppleWin and MAME by script until then (FR-194).
+6. **raw capture (Story 24)**: the capture module; the stream
+   builder and WOZ 2 writer with TMAP; Full Send's option; Archon on the
+   owner's //c.
+7. **virtual drives (Story 25)**: `CASSOLINK.SYSTEM`, the driver,
+   GETBUFR, the journal.
+8. **cassette disks (Story 26)**: `WasapiCapture`; the cassette
+   module; ADTPro's audio client served; `CassettePort` capture in the
+   scenario tests.
+9. **tape recordings (Story 27)**: `TapeRecordingWriter` for WAV,
+   MP3 and Ogg; `TapeRecordingVolume`; disk audio.
+10. **more interfaces (Story 28)**: the SCC module and IIgs
+    speed; the Pascal firmware module; the CS8900A and LAN91C96 modules with
+    their IP stack; the tests by script.
+11. **the Apple /// client (Story 29)**: `SOS.INTERP`; Make
+    CassoLink SOS disk; MAME's Apple /// socket bug checked first.
+12. **DOS 3.2 and large DOS 3.3 (Story 30)**: the 5-and-3 codec;
+    `.d13`; the VTOC's counts and the Basis 108 bitmap; 13-sector disks over
+    the link.
+13. **partitions (Story 31)**: `PartitionLayout` and each layout;
+    hybrids; copy and replace; `RawDeviceServer` and the elevated process.
+14. **HFS (Story 32)**, **SOS (Story 33)**, **Gutenberg writes and RDOS (Story 34)**.
+15. **the viewer (Story 35)**, **collection tools (Story
+    36)**, **BASIC tools and game data (Stories 37 and 38)**.
+
+### Constitution check for Phase 33
+
+| Principle | Status | Notes |
+|---|---|---|
+| I. Code Quality | PASS | EHM, VerbNoun, class-static helpers in every new class; the vendored libraries are compiled as they ship, outside CheckStyle, as `External/` is today. |
+| II. Testing Discipline | PASS | Containers, archives, codecs, volumes, layouts and decoders are pure classes tested on fixture bytes and `MemoryBlockStore`. Link modules run in `TestMachine` scenario tests on Casso's //c, Super Serial Card and Uthernet II, and cassette through `CassettePort`. `IRawDevice` is a seam, so no test opens a drive. The emulator targets are validation, not tests. |
+| III. UX Consistency | PASS | Archives, partitions, recordings and results are folders with the list, preview and context menu every folder has. |
+| IV. Performance | PASS | Paged stores above 32 MB; resume for long transfers; the collection walk on a worker thread. |
+| V. Simplicity | PASS with one entry | Link modules add a load step and an entry table. The alternative is a program that doesn't fit in memory (R40). |
+| VI. Thin Executable | PASS | The elevated `/rawdevice` mode is an entry in the core, selected by the command line. |
+
+Complexity Tracking: link modules, as V notes, for the reason in R40.
+
+Post-design re-check: PASS.
