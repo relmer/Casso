@@ -163,20 +163,6 @@ public:
             AssertSucceeded (session->Start (settings));
         }
 
-        //  A row of the text page, from a column, as text with its trailing
-        //  spaces cut.
-        std::string  Row (Word address, int column = 0)
-        {
-            std::string  text;
-
-            for (int i = column; i < 40; i++)
-            {
-                text += (char) (machine.GetCpu()->ReadByte ((Word) (address + i)) & 0x7F);
-            }
-
-            return text.substr (0, text.find_last_not_of (' ') + 1);
-        }
-
         ~Rig()
         {
             session.reset();
@@ -209,9 +195,6 @@ public:
             return sectors;
         }
     };
-
-    static constexpr Word  kRowError = 0x06A8;
-    static constexpr int   kField    = 12;
 
     static std::vector<std::string>  Names (const VolumeListing & listing)
     {
@@ -315,150 +298,5 @@ public:
             AssertSucceeded (rig.Finish (rig.session->WriteDisk (1, "back.dsk"))->result);
             Assert::IsTrue (rig.Sectors (1) == next, L"drive 1 is the image");
         }
-    }
-
-
-
-    //  Format disk on a floppy never formatted: a nibble image of sync bytes
-    //  alone, with no address fields, written with a new DOS 3.3 disk as Format
-    //  builds one, then listed.
-    TEST_METHOD (WriteDisk_FormatsAnUnformattedDisk)
-    {
-        Rig                rig (true, 115200);
-        std::vector<Byte>  blank (35 * 6656, 0xFF);
-        std::vector<Byte>  disk (NibblizationLayer::kImageByteSize, 0);
-
-        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (6, 0, "", DiskFormat::Nib, blank));
-        AssertSucceeded (Dos33Skeleton::Write (disk, 254));
-        rig.fileIo.files["new.dsk"] = disk;
-
-        auto  write = rig.Finish (rig.session->WriteDisk (1, "new.dsk"));
-
-        Logger::WriteMessage (std::format ("Write: 0x{:08X} {}", (uint32_t) write->result, write->message).c_str());
-        AssertSucceeded (write->result);
-        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
-    }
-
-
-
-    //  A drive with no disk has no address fields to find: the catalog read
-    //  fails within a few revolutions of each read rather than waiting out
-    //  all of its tries, and the other drive is free again soon after. The
-    //  link is connected first, so the time measured is the read's, and not
-    //  the program's load, which takes longer for a larger program.
-    TEST_METHOD (AnEmptyDrive_FailsInSeconds)
-    {
-        Rig       rig (true, 115200);
-        uint64_t  spent = 0;
-
-        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
-
-        rig.machine.GetDiskStore().Eject (6, 1);
-
-        auto  empty = rig.session->Enumerate (2, FilePath());
-
-        while (!rig.sink.IsDone (empty) && spent < kBudget)
-        {
-            rig.machine.RunCycles (kFrame);
-            spent += kFrame;
-        }
-
-        Logger::WriteMessage (std::format ("Empty drive: {:.1f} seconds", spent / 1020484.0).c_str());
-        Assert::IsTrue (FAILED (empty->result), L"no disk, no catalog");
-        Assert::IsTrue (spent < 10ULL * 1'020'484, L"in seconds, not minutes");
-        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
-    }
-
-
-
-    //  Drive 1's catalog, then a failed read of an emptied drive 2, then drive
-    //  1's catalog again. The drive 2 read steps drive 2's head to track 0;
-    //  drive 1's head stays on the track of the first read, the position in
-    //  the program's curhalf for drive 1.
-    TEST_METHOD (AnEmptyDriveAfterARead_LeavesTheOtherDriveReadable)
-    {
-        Rig       rig (true, 115200);
-        uint64_t  spent = 0;
-
-        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
-
-        rig.machine.GetDiskStore().Eject (6, 1);
-
-        auto  empty = rig.session->Enumerate (2, FilePath());
-
-        while (!rig.sink.IsDone (empty) && spent < kBudget)
-        {
-            rig.machine.RunCycles (kFrame);
-            spent += kFrame;
-        }
-
-        Assert::IsTrue (FAILED (empty->result), L"no disk, no catalog");
-
-        auto  again = rig.Finish (rig.session->Enumerate (1, FilePath()));
-
-        AssertSucceeded (again->result);
-        Assert::AreEqual (std::string(), rig.Row (kRowError), L"no error row");
-    }
-
-
-    //  A whole 140 KB disk at 115,200 baud within 30 seconds; the line alone
-    //  takes about 12.5.
-    TEST_METHOD (ReadDisk_At115200_TakesUnder30Seconds)
-    {
-        Rig       rig (true, 115200);
-        uint64_t  spent = 0;
-
-        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
-
-        auto  disk    = rig.session->ReadDisk (1, "m.dsk", false);
-        auto  started = std::chrono::steady_clock::now();
-
-        //  At the //c's own speed, so each wait on the PC costs what it would on
-        //  a real //c rather than many emulated frames.
-        while (!rig.sink.IsDone (disk) && spent < kBudget)
-        {
-            rig.machine.RunCycles (kFrame);
-            spent += kFrame;
-
-            while (std::chrono::steady_clock::now() - started < std::chrono::microseconds (spent * 1'000'000 / 1'020'484))
-            {
-                std::this_thread::sleep_for (std::chrono::milliseconds (1));
-            }
-        }
-
-        Logger::WriteMessage (std::format ("Read disk: {:.1f} seconds", spent / 1020484.0).c_str());
-        AssertSucceeded (disk->result);
-        Assert::IsTrue (spent < 30ULL * 1'020'484, L"a whole disk in under 30 seconds (SC-027)");
-    }
-
-
-
-    //  A whole disk written at 115,200 baud, at the //c's own speed: a track
-    //  at a time, each written in one revolution and read back once.
-    TEST_METHOD (WriteDisk_At115200_TakesUnderAMinute)
-    {
-        Rig       rig (true, 115200);
-        uint64_t  spent = 0;
-
-        AssertSucceeded (rig.Finish (rig.session->ReadDisk (1, "m.dsk", false))->result);
-
-        auto  disk    = rig.session->WriteDisk (2, "m.dsk");
-        auto  started = std::chrono::steady_clock::now();
-
-        while (!rig.sink.IsDone (disk) && spent < kBudget)
-        {
-            rig.machine.RunCycles (kFrame);
-            spent += kFrame;
-
-            while (std::chrono::steady_clock::now() - started < std::chrono::microseconds (spent * 1'000'000 / 1'020'484))
-            {
-                std::this_thread::sleep_for (std::chrono::milliseconds (1));
-            }
-        }
-
-        Logger::WriteMessage (std::format ("Write disk: {:.1f} seconds", spent / 1020484.0).c_str());
-        AssertSucceeded (disk->result);
-        Assert::IsTrue (rig.Sectors (2) == rig.Sectors (1), L"drive 2 is drive 1's disk");
-        Assert::IsTrue (spent < 60ULL * 1'020'484, L"a whole disk in under a minute");
     }
 };

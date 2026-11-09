@@ -1,17 +1,18 @@
 #include "Pch.h"
 
-#include "EhmTestHelper.h"
-#include "FixtureProvider.h"
-#include "TestMachine.h"
-#include "TextScreenScraper.h"
+#include "../EhmTestHelper.h"
+#include "../EmuTests/FixtureProvider.h"
+#include "../EmuTests/TestMachine.h"
+#include "../EmuTests/TextScreenScraper.h"
 #include "Core/TextEncoding.h"
-#include "CassoLink/InMemoryCassoLinkFolder.h"
+#include "InMemoryCassoLinkFolder.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/LinkFault.h"
 #include "CassoLink/LinkProgram.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Seams/InProcessByteStream.h"
+#include "SteppedByteStream.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -37,7 +38,6 @@ TEST_CLASS (CassoLinkFaultTests)
 public:
 
     static constexpr uint64_t  kFrame       = 17030;
-    static constexpr uint64_t  kBudget      = 400'000'000;
     static constexpr Byte      kFastControl = 0x10;     // 115,200 baud
     static constexpr Byte      kTrack       = 17;
     static constexpr size_t    kSector      = 3;
@@ -49,6 +49,7 @@ public:
         InMemoryCassoLinkFolder               folder;
         std::shared_ptr<InProcessByteStream>  machineEnd;
         std::shared_ptr<InProcessByteStream>  hostEnd;
+        std::shared_ptr<SteppedByteStream>    stream;
         std::unique_ptr<CassoLinkHost>        host;
         std::vector<Byte>                     dos;
         std::vector<Byte>                     prodos;
@@ -82,8 +83,8 @@ public:
             InProcessByteStream::CreatePair (machineEnd, hostEnd);
             Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
 
-            host = std::make_unique<CassoLinkHost> (hostEnd, folder, [] () { return std::array<Byte, 4> {}; });
-            host->SetOperationTimeout (60000);
+            stream = std::make_shared<SteppedByteStream> (machine, hostEnd);
+            host   = std::make_unique<CassoLinkHost> (stream, folder, [] () { return std::array<Byte, 4> {}; });
             host->SetFaultProgram (true);
             host->SetActivitySink ([this] (const std::string & text) { std::lock_guard<std::mutex> guard (lock); activity.push_back (text); });
 
@@ -97,23 +98,16 @@ public:
             machine.GetCpu()->SetPC (LinkProgram::kShimAddress);
         }
 
-        //  Steps the machine while the host runs `operation`.
+        //  The host runs `operation` on this thread; its reads run the machine.
         HRESULT  Run (std::function<HRESULT()> operation)
         {
-            auto  result = std::async (std::launch::async, operation);
+            uint64_t  start  = stream->GetCycles();
+            HRESULT   result = operation();
 
 
 
-            spent = 0;
-
-            while (result.wait_for (std::chrono::seconds (0)) != std::future_status::ready && spent < kBudget)
-            {
-                machine.RunCycles (kFrame);
-                spent += kFrame;
-            }
-
-            Assert::IsTrue (spent < kBudget, L"the operation finishes");
-            return result.get();
+            spent = stream->GetCycles() - start;
+            return result;
         }
 
         //  The program with the Fault command loaded, and the line at

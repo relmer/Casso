@@ -352,12 +352,15 @@
     <ClCompile Include="CassoLink\FullSendTests.cpp" />
     <ClCompile Include="CassoLink\TrackVerifierTests.cpp" />
     <ClCompile Include="CassoLink\LinkedDiskTests.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkFaultTests.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkSectorTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSessionTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSearchTests.cpp" />
     <ClCompile Include="CassoLink\RunningCassoRegistryTests.cpp" />
     <ClCompile Include="CassoLink\LinkBootstrapTests.cpp" />
     <ClCompile Include="CassoLink\DiskDriverTimingTests.cpp" />
     <ClCompile Include="CassoLink\KrunchProgramTests.cpp" />
+    <ClCompile Include="CassoLink\ProgramDriveTests.cpp" />
     <ClCompile Include="CassoLink\ProgramKeyTests.cpp" />
     <ClCompile Include="CassoLink\ProgramKrunchMapTests.cpp" />
     <ClCompile Include="CassoLink\ProgramScreenTests.cpp" />
