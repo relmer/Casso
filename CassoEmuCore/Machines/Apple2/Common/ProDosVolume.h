@@ -76,6 +76,9 @@ public:
 
     HRESULT  BuildIntegrityReport (VolumeIntegrityReport & outReport) const override;
 
+    //  The blocks the volume has: 280 for a 140K disk, the buffer's blocks otherwise.
+    int      GetBlockCount() const;
+
     //  The self-check every computed write and delete runs over its own output,
     //  and the ONLY way a computed buffer reaches a caller. Refuses a buffer
     //  that disagrees with itself in a way the buffer it was computed from did
@@ -159,7 +162,8 @@ private:
     //  startup program was the kernel would only load it a second time.
     static constexpr const char *  kpszKernelName = "PRODOS";
 
-    Byte  ReadByte (int block, size_t offset) const;
+    Byte  ReadByte        (int block, size_t offset) const;
+    bool  IsBitmapBitFree (uint32_t block) const;
 
     //  The buffer, for a read of one block of it. Every read of the volume's
     //  own buffer goes through here, so the read observer has each sector.

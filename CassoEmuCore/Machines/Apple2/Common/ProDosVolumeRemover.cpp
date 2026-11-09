@@ -144,6 +144,7 @@ HRESULT ProDosVolumeRemover::DeleteEntry (
 {
     HRESULT                         hr          = S_OK;
     size_t                          bufferBytes = m_volume.m_sectors.size();
+    bool                            sizeOk      = ProDosSkeleton::IsValidVolumeSize (bufferBytes);
     bool                            found       = false;
     bool                            isLocked    = false;
     bool                            permitted   = false;
@@ -161,7 +162,7 @@ HRESULT ProDosVolumeRemover::DeleteEntry (
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (sizeOk, E_INVALIDARG);
 
     hr = m_volume.ResolveDirectory (ProDosVolume::GetParentPath (path), dirKeyBlock);
     CHR (hr);
@@ -278,7 +279,7 @@ void ProDosVolumeRemover::CollectRemovalEntries (
 
 
 
-    visitOk = keyBlock > 0 && keyBlock < ProDosSkeleton::kTotalBlocks && guard.TryVisit ((uint32_t) keyBlock);
+    visitOk = keyBlock > 0 && keyBlock < m_volume.GetBlockCount() && guard.TryVisit ((uint32_t) keyBlock);
 
     if (!visitOk)
     {
@@ -294,7 +295,7 @@ void ProDosVolumeRemover::CollectRemovalEntries (
     for (i = 0; i < entries.size(); i++)
     {
         DirectoryRemovalEntry  listed;
-        ChainWalkGuard         blockGuard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+        ChainWalkGuard         blockGuard ((uint32_t) m_volume.GetBlockCount());
         vector<uint32_t>       blocks;
         bool                   walked = true;
 
@@ -345,10 +346,11 @@ HRESULT ProDosVolumeRemover::BuildRemovalPlan (const FilePath & path, DirectoryR
 {
     HRESULT                hr          = S_OK;
     size_t                 bufferBytes = m_volume.m_sectors.size();
+    bool                   sizeOk      = ProDosSkeleton::IsValidVolumeSize (bufferBytes);
     int                    keyBlock    = ProDosSkeleton::kDirKeyBlock;
     bool                   named       = !path.IsEmpty();
-    ChainWalkGuard         guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
-    ChainWalkGuard         blockGuard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+    ChainWalkGuard         guard ((uint32_t) m_volume.GetBlockCount());
+    ChainWalkGuard         blockGuard ((uint32_t) m_volume.GetBlockCount());
     vector<uint32_t>                blocks;
     DirectoryRemovalEntry           itself;
     int                             parentKey = ProDosSkeleton::kDirKeyBlock;
@@ -360,7 +362,7 @@ HRESULT ProDosVolumeRemover::BuildRemovalPlan (const FilePath & path, DirectoryR
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (sizeOk, E_INVALIDARG);
     CBREx (named, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
     outPlan = DirectoryRemovalPlan();
@@ -514,6 +516,7 @@ HRESULT ProDosVolumeRemover::RemoveDirectory (
 {
     HRESULT               hr          = S_OK;
     size_t                bufferBytes = m_volume.m_sectors.size();
+    bool                  sizeOk      = ProDosSkeleton::IsValidVolumeSize (bufferBytes);
     bool                  permitted   = false;
     size_t                i           = 0;
     vector<Byte>          staged;
@@ -521,7 +524,7 @@ HRESULT ProDosVolumeRemover::RemoveDirectory (
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (sizeOk, E_INVALIDARG);
 
     hr = BuildRemovalPlan (path, plan);
     CHR (hr);

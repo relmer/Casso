@@ -13,6 +13,8 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/TrackWritability.h"
 #include "Devices/Disk/SectorFieldWriter.h"
+#include "Devices/Disk/Containers/TwoImgContainer.h"
+#include "Devices/Disk/Containers/DiskCopy42Container.h"
 
 
 
@@ -151,12 +153,13 @@ HRESULT VolumeImage::Load (
     SectorDecodeReport   & outReport,
     MountDiagnosis       & outDiagnosis)
 {
-    HRESULT     hr      = S_OK;
-    DiskFormat  format  = DiskFormat::Dsk;
-    size_t      size    = fileBytes.size();
-    bool        sized   = false;
-    bool        hasData = size != 0;
-    DiskImage   image;
+    HRESULT             hr      = S_OK;
+    DiskFormat          format  = DiskFormat::Dsk;
+    size_t              size    = fileBytes.size();
+    bool                sized   = false;
+    bool                hasData = size != 0;
+    ImageContainerKind  kind    = ImageContainer::GetKind (path, size);
+    DiskImage           image;
 
 
 
@@ -164,6 +167,14 @@ HRESULT VolumeImage::Load (
 
     outDiagnosis              = MountDiagnosis();
     outDiagnosis.fileByteSize = size;
+
+    if (kind != ImageContainerKind::None)
+    {
+        hr = LoadContainer (kind, fileBytes, outSectors, outReport, outDiagnosis);
+        CHR (hr);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     hr = DiskImageStore::GetSourceFormatByExtension (path, format);
     CHRF (hr, outDiagnosis.failure = MountFailure::UnknownExtension);
@@ -353,14 +364,23 @@ HRESULT VolumeImage::Save (
     vector<Byte>        & outFileBytes,
     std::string         & outRefusalReason)
 {
-    HRESULT     hr     = S_OK;
-    DiskFormat  format = DiskFormat::Dsk;
-    bool        sized  = editedSectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    HRESULT             hr     = S_OK;
+    DiskFormat          format = DiskFormat::Dsk;
+    bool                sized  = editedSectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    ImageContainerKind  kind   = ImageContainer::GetKind (path, originalFileBytes.size());
 
 
 
     outFileBytes.clear();
     outRefusalReason.clear();
+
+    if (kind != ImageContainerKind::None)
+    {
+        hr = SaveContainer (kind, originalFileBytes, editedSectors, outFileBytes, outRefusalReason);
+        CHR (hr);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     CBRAEx (sized, E_INVALIDARG);
 
@@ -583,7 +603,7 @@ bool VolumeImage::IsPlausibleVolumeName (const vector<Byte> & sectors, size_t na
 
     for (i = 0; valid && i < nameLength; i++)
     {
-        Byte  c = sectors[ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 1 + i)];
+        Byte  c = sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 2, 0x04 + 1 + i)];
 
         if (i == 0)
         {
@@ -648,7 +668,7 @@ bool VolumeImage::LooksLikeDos33 (const vector<Byte> & sectors)
 
 bool VolumeImage::LooksLikeProDos (const vector<Byte> & sectors)
 {
-    size_t  header  = ProDosSkeleton::GetBlockByteOffset (2, 0x04);
+    size_t  header  = ProDosSkeleton::GetBlockByteOffset (sectors.size(), 2, 0x04);
     Byte    typeLen = 0;
     size_t  nameLen = 0;
     Word    total   = 0;
@@ -674,15 +694,15 @@ bool VolumeImage::LooksLikeProDos (const vector<Byte> & sectors)
         return false;
     }
 
-    total  = (Word) (sectors[ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 0x25)]
-                  | (sectors[ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 0x26)] << 8));
-    bitmap = (Word) (sectors[ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 0x23)]
-                  | (sectors[ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 0x24)] << 8));
+    total  = (Word) (sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 2, 0x04 + 0x25)]
+                  | (sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 2, 0x04 + 0x26)] << 8));
+    bitmap = (Word) (sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 2, 0x04 + 0x23)]
+                  | (sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 2, 0x04 + 0x24)] << 8));
 
-    return sectors[ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 0x1F)] == 0x27   // entry length
-        && sectors[ProDosSkeleton::GetBlockByteOffset (2, 0x04 + 0x20)] == 0x0D   // entries per block
-        && total  > 0 && total  <= (Word) ProDosSkeleton::kTotalBlocks
-        && bitmap > 0 && bitmap <  (Word) ProDosSkeleton::kTotalBlocks;
+    return sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 2, 0x04 + 0x1F)] == 0x27   // entry length
+        && sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 2, 0x04 + 0x20)] == 0x0D   // entries per block
+        && total  > 0 && total  <= (Word) ProDosSkeleton::GetBlockCount (sectors.size())
+        && bitmap > 0 && bitmap <  (Word) ProDosSkeleton::GetBlockCount (sectors.size());
 }
 
 
@@ -726,9 +746,11 @@ VolumeKind VolumeImage::DetectFilesystem (const vector<Byte> & sectors)
 
 
 
+    //  A buffer larger than a floppy is a run of blocks, and of the file
+    //  systems here only ProDOS is that large.
     if (!sized)
     {
-        return VolumeKind::Unknown;
+        return ProDosSkeleton::IsValidVolumeSize (sectors.size()) && LooksLikeProDos (sectors) ? VolumeKind::ProDos : VolumeKind::Unknown;
     }
 
     if (LooksLikeDos33 (sectors))
@@ -816,4 +838,224 @@ std::unique_ptr<IVolume> VolumeImage::CreateVolume (VolumeKind kind, const vecto
     }
 
     return volume;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::LoadContainer
+//
+//  A raw block image is its own payload. A 2IMG payload is read by its
+//  header's format, nibbles through the nibble layer as a `.nib` is. A Disk
+//  Copy 4.2 image's data is blocks, read whatever its checksum; Save is where
+//  a bad checksum stops a write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT VolumeImage::LoadContainer (
+    ImageContainerKind     kind,
+    const vector<Byte>   & fileBytes,
+    vector<Byte>         & outSectors,
+    SectorDecodeReport   & outReport,
+    MountDiagnosis       & outDiagnosis)
+{
+    HRESULT           hr       = S_OK;
+    bool              hasData  = !fileBytes.empty();
+    bool              isDos    = false;
+    bool              dosSized = false;
+    TwoImgHeader      twoImg;
+    DiskCopy42Header  diskCopy;
+    vector<Byte>      payload;
+    std::string       error;
+    DiskImage         image;
+
+
+
+    CBRFEx (hasData, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH),
+            outDiagnosis.failure = MountFailure::EmptyFile);
+
+    if (kind == ImageContainerKind::Blocks)
+    {
+        hr = LoadBlockPayload (fileBytes, outSectors);
+        CHRF (hr, outDiagnosis.failure = MountFailure::WrongSizeForFormat);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (kind == ImageContainerKind::DiskCopy42)
+    {
+        hr = DiskCopy42Container::Parse (fileBytes, diskCopy, payload, error);
+        CHRF (hr, outDiagnosis.failure = MountFailure::Unrecognized);
+
+        hr = LoadBlockPayload (payload, outSectors);
+        CHRF (hr, outDiagnosis.failure = MountFailure::WrongSizeForFormat);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    hr = TwoImgContainer::Parse (fileBytes, twoImg, payload, error);
+    CHRF (hr, outDiagnosis.failure = MountFailure::Unrecognized);
+
+    if (twoImg.format == TwoImgHeader::kFormatNibbles)
+    {
+        hr = LoadBitStream (DiskFormat::Nib, payload, image);
+        CHRF (hr, outDiagnosis.failure = MountFailure::Unrecognized);
+
+        hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, outSectors, outReport);
+        CHRF (hr, outDiagnosis.failure = MountFailure::Unrecognized);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    isDos    = twoImg.format == TwoImgHeader::kFormatDosOrder;
+    dosSized = payload.size() == (size_t) NibblizationLayer::kImageByteSize;
+
+    if (isDos)
+    {
+        CBRFEx (dosSized, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH),
+                outDiagnosis.failure = MountFailure::WrongSizeForFormat);
+
+        outSectors = payload;
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    hr = LoadBlockPayload (payload, outSectors);
+    CHRF (hr, outDiagnosis.failure = MountFailure::WrongSizeForFormat);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::SaveContainer
+//
+//  The inverse of LoadContainer, with each container's header written back as
+//  it was read. A Disk Copy 4.2 image whose data checksum didn't match isn't
+//  written, since a rewrite would compute a checksum over the damage and hide
+//  it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT VolumeImage::SaveContainer (
+    ImageContainerKind     kind,
+    const vector<Byte>   & originalFileBytes,
+    const vector<Byte>   & editedSectors,
+    vector<Byte>         & outFileBytes,
+    std::string          & outRefusalReason)
+{
+    HRESULT           hr      = S_OK;
+    TwoImgHeader      twoImg;
+    DiskCopy42Header  diskCopy;
+    vector<Byte>      payload;
+    vector<Byte>      newPayload;
+    std::string       error;
+
+
+
+    if (kind == ImageContainerKind::Blocks)
+    {
+        SaveBlockPayload (editedSectors, outFileBytes);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (kind == ImageContainerKind::DiskCopy42)
+    {
+        hr = DiskCopy42Container::Parse (originalFileBytes, diskCopy, payload, error);
+        CHRF (hr, outRefusalReason = error);
+
+        CBRFEx (!diskCopy.isDataChecksumBad, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA),
+                outRefusalReason = "The Disk Copy 4.2 image's data doesn't match its checksum, so it isn't written.");
+
+        SaveBlockPayload (editedSectors, newPayload);
+        DiskCopy42Container::Build (diskCopy, newPayload, outFileBytes);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    hr = TwoImgContainer::Parse (originalFileBytes, twoImg, payload, error);
+    CHRF (hr, outRefusalReason = error);
+
+    if (twoImg.format == TwoImgHeader::kFormatNibbles)
+    {
+        hr = SaveBitStream (DiskFormat::Nib, payload, editedSectors, newPayload, outRefusalReason);
+        CHR (hr);
+    }
+    else if (twoImg.format == TwoImgHeader::kFormatDosOrder)
+    {
+        newPayload = editedSectors;
+    }
+    else
+    {
+        SaveBlockPayload (editedSectors, newPayload);
+    }
+
+    TwoImgContainer::Build (twoImg, newPayload, outFileBytes);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::LoadBlockPayload
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT VolumeImage::LoadBlockPayload (const vector<Byte> & payload, vector<Byte> & outSectors)
+{
+    HRESULT  hr       = S_OK;
+    bool     isFloppy = payload.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool     sizeOk   = ProDosSkeleton::IsValidVolumeSize (payload.size());
+
+
+
+    CBREx (sizeOk, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH));
+
+    if (isFloppy)
+    {
+        ProDosFileToDosLogical (payload, outSectors);
+    }
+    else
+    {
+        outSectors = payload;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::SaveBlockPayload
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void VolumeImage::SaveBlockPayload (const vector<Byte> & sectors, vector<Byte> & outPayload)
+{
+    if (sectors.size() == (size_t) NibblizationLayer::kImageByteSize)
+    {
+        DosLogicalToProDosFile (sectors, outPayload);
+    }
+    else
+    {
+        outPayload = sectors;
+    }
 }

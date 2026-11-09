@@ -31,7 +31,10 @@ class ProDosSkeleton
 public:
     static constexpr int  kTotalBlocks = 280;
 
-    //  Empty formatted volume (data-only). Buffer must be kImageByteSize.
+    //  The most blocks a ProDOS volume addresses.
+    static constexpr int  kMaxBlocks = 65535;
+
+    //  Empty formatted volume (data-only), at the buffer's size.
     static HRESULT  Write (vector<Byte> & buffer, const std::string & volumeName);
 
     //  Boot blocks + PRODOS + BASIC.SYSTEM from the master image.
@@ -40,7 +43,13 @@ public:
     //  Byte offset of a position inside a ProDOS block within the DOS 3.3
     //  logical-sector buffer. Public so the file writer / reader, the block
     //  commands and the builder's tests address blocks the same single way.
-    static size_t   GetBlockByteOffset (int block, size_t offsetInBlock);
+    static size_t   GetBlockByteOffset    (int block, size_t offsetInBlock);
+    static size_t   GetBlockByteOffset    (size_t bufferBytes, int block, size_t offsetInBlock);
+    static int      GetBlockCount         (size_t bufferBytes);
+    static bool     IsValidVolumeSize     (size_t bufferBytes);
+    static bool     IsBlockOrder          (size_t bufferBytes);
+    static int      GetReservedBlockCount (size_t bufferBytes);
+    static size_t   GetBitmapByteOffset   (const vector<Byte> & buffer, uint32_t block);
 
     static constexpr int     kBlockByteSize   = 512;
 
@@ -147,7 +156,8 @@ private:
         { 7, 6 },  { 5, 4 },   { 3, 2 },   { 1, 15 },
     };
 
-    static void  WriteWord (vector<Byte> & buffer, int block, size_t offsetInBlock, Word value);
+    static void  WriteWord   (vector<Byte> & buffer, int block, size_t offsetInBlock, Word value);
+    static void  WriteBitmap (vector<Byte> & buffer, int blocks);
 };
 
 
@@ -184,13 +194,13 @@ public:
                                               ISectorReadObserver  * observer = nullptr);
 
     //  A block's two sectors, to the observer if there is one.
-    static void  NoteBlockRead (ISectorReadObserver * observer, int block);
+    static void  NoteBlockRead (ISectorReadObserver * observer, size_t bufferBytes, int block);
 
     //  A block number the volume could actually hold. Every pointer walked here
     //  comes off the disk, so none of them may be trusted: block numbers index
     //  directly into the sector buffer, and an out-of-range one reads far past
     //  its end rather than merely returning something wrong.
-    static bool  IsBlockInRange (Word block);
+    static bool  IsBlockInRange (const vector<Byte> & volume, Word block);
 
 private:
     //  False when the index block itself is unusable, so the caller reports an

@@ -438,6 +438,9 @@
     <ClCompile Include="Devices\Disk\DiskCommandRunner.cpp" />
     <ClCompile Include="Devices\Disk\DiskHelpPage.cpp" />
     <ClCompile Include="Devices\Disk\DiskImageSession.cpp" />
+    <ClCompile Include="Devices\Disk\Containers\DiskCopy42Container.cpp" />
+    <ClCompile Include="Devices\Disk\Containers\ImageContainer.cpp" />
+    <ClCompile Include="Devices\Disk\Containers\TwoImgContainer.cpp" />
     <ClCompile Include="Machines\Apple2\Common\WozCompatibility.cpp" />
     <ClCompile Include="Machines\Apple2\Common\WozLoader.cpp" />
     <ClCompile Include="Machines\Apple2\Common\BlankDiskBuilder.cpp" />
@@ -1067,6 +1070,9 @@
     <ClInclude Include="Devices\Disk\DiskCommandRunner.h" />
     <ClInclude Include="Devices\Disk\DiskHelpPage.h" />
     <ClInclude Include="Devices\Disk\DiskImageSession.h" />
+    <ClInclude Include="Devices\Disk\Containers\DiskCopy42Container.h" />
+    <ClInclude Include="Devices\Disk\Containers\ImageContainer.h" />
+    <ClInclude Include="Devices\Disk\Containers\TwoImgContainer.h" />
     <ClInclude Include="Machines\Apple2\Common\WozCompatibility.h" />
     <ClInclude Include="Machines\Apple2\Common\WozLoader.h" />
     <ClInclude Include="Machines\Apple2\Common\WozMetadata.h" />
