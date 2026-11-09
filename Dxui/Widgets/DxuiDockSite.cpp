@@ -1909,8 +1909,8 @@ std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetDockToMenu (const std::wstr
 //  Dock returns a floating or hidden pane to its place. Dock in tab group
 //  tabs a tool window in with the documents. Auto hide pins the pane to the
 //  edge its pin would. Move to new window floats the pane; All to new
-//  window floats its group, which a floating window can hold only when the
-//  group is the pane alone. Close is the application's.
+//  window floats its whole group in one window, and the group's selected tab
+//  is selected in the window. Close is the application's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1942,6 +1942,7 @@ std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetPaneMenu (const std::wstrin
         m_onFloat (pane, POINT { (area.left + area.right) / 2, (area.top + area.bottom) / 2 });
         return true;
     };
+    std::wstring               active     = pane;
 
 
 
@@ -1963,6 +1964,7 @@ std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetPaneMenu (const std::wstrin
         bool  holdsMe       = std::find (group.panes.begin(), group.panes.end(), pane) != group.panes.end();
 
         documents = (documents.empty() && holdsDocument && !holdsMe) ? group.active : documents;
+        active    = holdsMe ? group.active : active;
     }
 
     documents = (m_isDocument && !m_isDocument (pane)) ? documents : std::wstring();
@@ -1977,7 +1979,21 @@ std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetPaneMenu (const std::wstrin
         items.push_back ({ L"Move to new window", floatPane, canFloat });
     }
 
-    items.push_back ({ L"All to new window", floatPane, canFloat && mine.size() == 1 });
+    if (mine.size() > 1 && m_onFloatGroup)
+    {
+        items.push_back ({ L"All to new window", [this, mine, active]
+        {
+            RECT  area = m_boundsDip;
+
+            m_onFloatGroup (mine, active, POINT { (area.left + area.right) / 2, (area.top + area.bottom) / 2 });
+            return true;
+        }, canFloat });
+    }
+    else
+    {
+        items.push_back ({ L"All to new window", floatPane, canFloat && mine.size() == 1 });
+    }
+
     items.push_back ({ L"", nullptr, false });
     items.push_back ({ L"Close", [this, pane] { m_onClosePane (pane); return true; }, canClose, L"Shift+Esc" });
 

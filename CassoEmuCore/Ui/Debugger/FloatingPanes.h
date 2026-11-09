@@ -154,11 +154,12 @@ public:
     void  MarkSyncNeeded () { m_isSyncNeeded = true; m_host.RequestFloatSync(); }
     void  Sync           ();
 
-    void  RequestFloat (const std::wstring & pane, POINT clientPx);
-    void  TearOff      (const std::wstring & pane, POINT clientPx);
-    void  TearOffGroup (const std::vector<std::wstring> & panes, const std::wstring & active, POINT clientPx);
-    void  CarryTornOff ();
-    void  ActivateMoved ();
+    void  RequestFloat      (const std::wstring & pane, POINT clientPx);
+    void  RequestFloatGroup (const std::vector<std::wstring> & panes, const std::wstring & active, POINT clientPx);
+    void  TearOff           (const std::wstring & pane, POINT clientPx);
+    void  TearOffGroup      (const std::vector<std::wstring> & panes, const std::wstring & active, POINT clientPx);
+    void  CarryTornOff      ();
+    void  ActivateMoved     ();
     void  DockBack     (const std::wstring & pane);
     void  Show         (const std::wstring & pane);
 

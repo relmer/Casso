@@ -119,6 +119,11 @@ public:
     using GroupFloatFn = std::function<void (const std::vector<std::wstring> & panes, const std::wstring & active, POINT pointDip)>;
     void  SetOnTearOffGroup   (GroupFloatFn fn)       { m_onTearOffGroup = std::move (fn); }
 
+    //  All to new window on a group of several: every pane of the group
+    //  floats in one window, and `active` is its selected tab. Without a
+    //  handler the item is enabled only for a pane alone in its group.
+    void  SetOnFloatGroupRequested (GroupFloatFn fn)  { m_onFloatGroup = std::move (fn); }
+
     //  The area of the group a docked pane is in, as drawn, title bar and
     //  tabs included: what a floating window must be to show it the same.
     bool  TryGetPaneGroupRect (const std::wstring & pane, RECT & rect) const;
@@ -462,6 +467,7 @@ private:
     FloatFn                                       m_onFloat;
     FloatFn                                       m_onTearOff;
     GroupFloatFn                                  m_onTearOffGroup;
+    GroupFloatFn                                  m_onFloatGroup;
 
     std::wstring                   m_dragPane;
     std::vector<std::wstring>      m_dragPanes;

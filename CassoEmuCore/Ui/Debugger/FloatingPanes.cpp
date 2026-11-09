@@ -449,6 +449,38 @@ void FloatingPanes::RequestFloat (const std::wstring & pane, POINT clientPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FloatingPanes::RequestFloatGroup
+//
+//  All to new window: every pane of a docked group floats in one window at
+//  the size the group had docked, and `active` is the selected tab. The
+//  window is activated once it is up, as Move to new window's is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FloatingPanes::RequestFloatGroup (const std::vector<std::wstring> & panes, const std::wstring & active, POINT clientPx)
+{
+    DxuiDockSite  & site = *m_host.GetFloatDockSite();
+    RECT            rect = GetTearOffRect (active, clientPx);
+
+
+
+    if (!site.EditPaneLayout().FloatGroup (panes, active, m_host.GetMonitorKey (rect), rect))
+    {
+        return;
+    }
+
+    site.Relayout();
+    MarkSyncNeeded();
+    m_host.SaveLayout();
+    m_movedPane = active;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FloatingPanes::ActivateMoved
 //
 //  The window a pane was moved to by Move to new window is activated once
