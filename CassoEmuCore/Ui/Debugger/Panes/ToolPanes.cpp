@@ -222,6 +222,8 @@ void SymbolsPane::Configure()
                           { L"Address", 0, true,  DxuiTextHAlign::Left } });
 
     m_list->SetActivateOnDoubleClick (true);
+    m_list->SetSortIndicator         ((int) m_sort, m_isReverse);
+    m_list->SetOnSortColumn          ([this] (int column) { SortBy (column); });
 
     m_list->SetOnActivateRow ([this] (int row)
     {
@@ -323,8 +325,33 @@ void SymbolsPane::RebuildRows()
         return;
     }
 
-    m_rows = GetRows (*m_symbols, m_kind, m_open);
+    m_rows = GetRows (*m_symbols, m_kind, m_open, m_sort, m_isReverse);
     m_list->SetRows (GetCells (*m_symbols, m_rows, m_open));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolsPane::SortBy
+//
+//  A click on a heading sorts by that column, and a second click on the
+//  same heading reverses the order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolsPane::SortBy (int column)
+{
+    Sort  sort = (column == 1) ? Sort::Address : Sort::Name;
+
+
+
+    m_isReverse = (sort == m_sort) && !m_isReverse;
+    m_sort      = sort;
+    m_list->SetSortIndicator ((int) m_sort, m_isReverse);
+    RebuildRows();
 }
 
 
@@ -480,13 +507,15 @@ void SymbolsPane::SaveTable (const std::string & table)
 //  SymbolsPane::GetRows
 //
 //  The heading of each table the pane lists, then, under an open heading,
-//  its symbols in the order the table has them.
+//  its symbols in the order chosen.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<SymbolsPane::Row> SymbolsPane::GetRows (const DebuggerViewSnapshot::SymbolsState & symbols, Kind kind, const std::set<std::string> & open)
+std::vector<SymbolsPane::Row> SymbolsPane::GetRows (const DebuggerViewSnapshot::SymbolsState & symbols, Kind kind, const std::set<std::string> & open,
+                                                    Sort sort, bool isReverse)
 {
     std::vector<Row>  rows;
+    size_t            first = 0;
 
 
 
@@ -505,14 +534,26 @@ std::vector<SymbolsPane::Row> SymbolsPane::GetRows (const DebuggerViewSnapshot::
         }
 
         rows.push_back ({ table.name, std::string(), 0, true });
+        first = rows.size();
 
         for (const SymbolInfo & symbol : symbols.symbols)
         {
             if (symbol.table == table.id && open.contains (table.name))
             {
-                rows.push_back ({ table.name, symbol.name, symbol.address, false });
+                rows.push_back ({ table.name, symbol.name, symbol.address, false, symbol.isConstant });
             }
         }
+
+        std::stable_sort (rows.begin() + (std::ptrdiff_t) first, rows.end(), [sort, isReverse] (const Row & left, const Row & right)
+        {
+            int  byName    = _stricmp (left.name.c_str(), right.name.c_str());
+            int  byAddress = (left.address == right.address) ? 0 : (left.address < right.address) ? -1 : 1;
+            int  order     = (sort == Sort::Name) ? (byName != 0 ? byName : byAddress) : (byAddress != 0 ? byAddress : byName);
+
+
+
+            return isReverse ? order > 0 : order < 0;
+        });
     }
 
     return rows;
@@ -577,7 +618,6 @@ std::string SymbolsPane::GetFileOf (const DebuggerViewSnapshot::SymbolsState & s
 std::vector<std::vector<DxuiListView::Cell>> SymbolsPane::GetCells (const DebuggerViewSnapshot::SymbolsState & symbols, const std::vector<Row> & rows, const std::set<std::string> & open)
 {
     std::vector<std::vector<DxuiListView::Cell>>  cells;
-    size_t                                        index = 0;
 
 
 
@@ -600,17 +640,8 @@ std::vector<std::vector<DxuiListView::Cell>> SymbolsPane::GetCells (const Debugg
             continue;
         }
 
-        while (index < symbols.symbols.size() && (symbols.symbols[index].name != row.name || symbols.symbols[index].address != row.address))
-        {
-            index++;
-        }
-
-        bool  isConstant = index < symbols.symbols.size() && symbols.symbols[index].isConstant;
-
-
-
         cells.push_back ({ { L"   " + TextEncoding::NarrowToWide (row.name) },
-                           { isConstant ? std::format (L"{:04X} (constant)", row.address) : std::format (L"${:04X}", row.address) } });
+                           { row.isConstant ? std::format (L"{:04X} (constant)", row.address) : std::format (L"${:04X}", row.address) } });
     }
 
     return cells;

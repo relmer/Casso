@@ -90,8 +90,16 @@ public:
     {
         std::string  table;
         std::string  name;
-        Word         address   = 0;
-        bool         isHeading = false;
+        Word         address    = 0;
+        bool         isHeading  = false;
+        bool         isConstant = false;
+    };
+
+    //  The column a table's symbols are sorted by.
+    enum class Sort
+    {
+        Name,
+        Address,
     };
 
     SymbolsPane (IDebuggerPaneHost & host, Kind kind);
@@ -109,12 +117,16 @@ public:
 
     static bool          IsUserTable       (SymbolTableId table);
 
-    static std::vector<Row>                              GetRows  (const DebuggerViewSnapshot::SymbolsState & symbols, Kind kind, const std::set<std::string> & open);
+    //  Each table's symbols are sorted by sort, by name ignoring case or by
+    //  address, then by the other, in reverse when isReverse.
+    static std::vector<Row>                              GetRows  (const DebuggerViewSnapshot::SymbolsState & symbols, Kind kind, const std::set<std::string> & open,
+                                                                   Sort sort = Sort::Name, bool isReverse = false);
     static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const DebuggerViewSnapshot::SymbolsState & symbols, const std::vector<Row> & rows, const std::set<std::string> & open);
 
 private:
     void  SaveTable    (const std::string & table);
     void  RebuildRows  ();
+    void  SortBy       (int column);
 
     //  The file a table was loaded from, or empty for a table filled any
     //  other way.
@@ -124,6 +136,8 @@ private:
     std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>    m_symbols;
     std::vector<Row>                                             m_rows;
     std::set<std::string>                                        m_open;   // the tables whose headings are open
+    Sort                                                         m_sort      = Sort::Name;
+    bool                                                         m_isReverse = false;
 };
 
 

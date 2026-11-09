@@ -208,6 +208,44 @@ namespace DebuggerToolPanesTests
         }
 
 
+        //  A table's symbols are in name order, ignoring case, or in address
+        //  order, either way reversed on request; each table is sorted under
+        //  its own heading.
+        TEST_METHOD (EachTablesSymbolsSortByNameOrAddress)
+        {
+            auto                           symbols = std::make_shared<DebuggerViewSnapshot::SymbolsState> (*MakeSymbols());
+            std::set<std::string>          open    = { "user" };
+            std::vector<SymbolsPane::Row>  rows;
+            auto                           names   = [&rows] ()
+            {
+                std::vector<std::string>  each;
+
+
+
+                for (const SymbolsPane::Row & row : rows)
+                {
+                    each.push_back (row.isHeading ? "[" + row.table + "]" : row.name);
+                }
+
+                return each;
+            };
+
+
+
+            symbols->symbols.push_back ({ "draw", 0x6000, SymbolTableId::User });
+
+            rows = SymbolsPane::GetRows (*symbols, SymbolsPane::Kind::User, open);
+            Assert::IsTrue (names() == std::vector<std::string> { "[user]", "draw", "LOOP", "WIDTH" }, L"by name, ignoring case");
+
+            rows = SymbolsPane::GetRows (*symbols, SymbolsPane::Kind::User, open, SymbolsPane::Sort::Address);
+            Assert::IsTrue (names() == std::vector<std::string> { "[user]", "WIDTH", "LOOP", "draw" }, L"by address");
+
+            rows = SymbolsPane::GetRows (*symbols, SymbolsPane::Kind::User, open, SymbolsPane::Sort::Name, true);
+            Assert::IsTrue (names() == std::vector<std::string> { "[user]", "WIDTH", "LOOP", "draw" }, L"by name, reversed");
+            Assert::IsTrue (rows[1].isConstant, L"a constant is marked on its row");
+        }
+
+
         //  A heading starts closed, with no symbols under it; a table loaded
         //  from a file has the file's name.
         TEST_METHOD (AHeadingStartsClosedAndHasItsFilesName)
