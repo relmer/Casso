@@ -198,5 +198,19 @@ namespace DebuggerTests
 
             Assert::IsTrue (found);
         }
+
+
+        //  A label line is a symbol in the first column with at most a comment
+        //  after it: not an instruction, a directive or a comment alone.
+        TEST_METHOD (ALabelLineIsALabelAndAComment)
+        {
+            Assert::IsTrue  (SourcePane::IsLabelLine (L"draw_bar"));
+            Assert::IsTrue  (SourcePane::IsLabelLine (L"draw_bar        ; add one * to the bar"));
+            Assert::IsFalse (SourcePane::IsLabelLine (L"draw_bar  ldx count"), L"a label on an instruction");
+            Assert::IsFalse (SourcePane::IsLabelLine (L"        ldx count"));
+            Assert::IsFalse (SourcePane::IsLabelLine (L"count   .byte 0"), L"a label on a directive");
+            Assert::IsFalse (SourcePane::IsLabelLine (L"; a comment"));
+            Assert::IsFalse (SourcePane::IsLabelLine (L""));
+        }
     };
 }

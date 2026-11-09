@@ -104,8 +104,9 @@ public:
 
     //  A view's rows. A source row goes above an instruction whose source line
     //  differs from the instruction before it, when the line's text is known.
+    //  The label lines directly above that source line go above it too.
     static std::vector<Row>  BuildRows (const std::vector<DebuggerViewSnapshot::CodeLine> & lines, bool showSource,
-                                        const HasLineFn & hasLine);
+                                        const HasLineFn & hasLine, const HasLineFn & isLabelLine = nullptr);
 
     static int   GetLineOfRow (const std::vector<Row> & rows, int row);
     static int   GetRowOfLine (const std::vector<Row> & rows, int codeLine);

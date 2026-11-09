@@ -282,7 +282,8 @@ std::wstring DisassemblyOptions::GetSymbolsTip (const std::vector<std::string> &
 std::vector<DisassemblyOptions::Row> DisassemblyOptions::BuildRows (
     const std::vector<DebuggerViewSnapshot::CodeLine>  & lines,
     bool                                                 showSource,
-    const HasLineFn                                    & hasLine)
+    const HasLineFn                                    & hasLine,
+    const HasLineFn                                    & isLabelLine)
 {
     std::vector<Row>     rows;
     std::pair<int, int>  previous = { -1, 0 };
@@ -293,10 +294,22 @@ std::vector<DisassemblyOptions::Row> DisassemblyOptions::BuildRows (
     {
         const DebuggerViewSnapshot::CodeLine  & line  = lines[i];
         std::pair<int, int>                     place = { line.sourceFileId, line.sourceLine };
+        int                                     first = line.sourceLine;
 
         if (showSource && line.sourceFileId >= 0 && place != previous && hasLine && hasLine (line.sourceFileId, line.sourceLine))
         {
-            rows.push_back ({ -1, line.sourceFileId, line.sourceLine });
+            //  The label lines directly above the line, back to the line of
+            //  the instruction before it, go above it: a label alone on its
+            //  line produces no instruction of its own.
+            while (isLabelLine && first > 1 && (previous.first != line.sourceFileId || first - 1 > previous.second) && isLabelLine (line.sourceFileId, first - 1))
+            {
+                first--;
+            }
+
+            for (int each = first; each <= line.sourceLine; each++)
+            {
+                rows.push_back ({ -1, line.sourceFileId, each });
+            }
         }
 
         previous = place;

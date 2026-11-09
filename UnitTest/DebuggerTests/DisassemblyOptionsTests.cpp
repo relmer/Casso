@@ -1,4 +1,4 @@
-﻿#include "Pch.h"
+#include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
 #include "ControllerRig.h"
@@ -349,6 +349,47 @@ namespace DisassemblyOptionsTests
 
             Assert::IsFalse  (DisassemblyCells::TryGetSourceRowSpan (rows, 1, lines, first, count), L"an instruction's row");
             Assert::IsFalse  (DisassemblyCells::TryGetSourceRowSpan (rows, rows.size(), lines, first, count), L"no row");
+        }
+
+
+
+        //  A label alone on its line produces no instruction, so it goes above
+        //  the source line of the instruction it labels, back to the line of
+        //  the instruction before it and no further.
+        TEST_METHOD (LabelLinesGoAboveTheLineTheyLabel)
+        {
+            std::vector<DebuggerViewSnapshot::CodeLine>  lines (3);
+            std::vector<DisassemblyOptions::Row>         rows;
+            auto                                         always  = [] (int, int) { return true; };
+            auto                                         isLabel = [] (int, int line) { return line == 2 || (line >= 4 && line <= 7); };
+            std::vector<int>                             shown;
+            std::vector<int>                             expected = { 4, 5, 6, 7, -1, 8, -1, 9, -1 };
+
+
+
+            lines[0] = { .address = 0x6000, .bytes = "A9 41" };
+            lines[1] = { .address = 0x6002, .bytes = "60" };
+            lines[2] = { .address = 0x6003, .bytes = "00" };
+
+            lines[0].sourceFileId = 0;
+            lines[0].sourceLine   = 7;
+            lines[1].sourceFileId = 0;
+            lines[1].sourceLine   = 8;
+            lines[2].sourceFileId = 0;
+            lines[2].sourceLine   = 9;
+
+            rows = DisassemblyOptions::BuildRows (lines, true, always, isLabel);
+
+            for (const DisassemblyOptions::Row & each : rows)
+            {
+                shown.push_back (each.codeLine < 0 ? each.sourceLine : -1);
+            }
+
+            Assert::IsTrue (expected == shown, L"lines 4 to 6 above line 7, not line 2 past the code on line 3, and not line 7 again above line 8");
+
+            rows = DisassemblyOptions::BuildRows (lines, true, always);
+
+            Assert::AreEqual ((size_t) 6, rows.size(), L"no label lines without the check");
         }
 
 
