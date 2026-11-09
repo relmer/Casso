@@ -707,6 +707,14 @@ bool WatchesPane::CommitCell (int row, int column, const std::wstring & typed, s
 
     (void) row;
 
+    //  A watch's expression erased removes the watch, as an undoable step.
+    if (edit.isOpen && column == 0 && edit.what.kind == RowKind::Manual && typed.find_first_not_of (L" \t") == std::wstring::npos)
+    {
+        m_edit = Edit {};
+        RemoveWatch (edit.what.index);
+        return true;
+    }
+
     //  For an expression that cannot be watched, the edit stays open and the
     //  watch it would replace remains.
     if (snapshot != nullptr && edit.isOpen && column == 0 && edit.what.kind == RowKind::Manual)

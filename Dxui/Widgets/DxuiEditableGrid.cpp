@@ -1316,6 +1316,11 @@ bool DxuiEditableGrid::OnKey (const DxuiKeyEvent & ev)
                     (void) BeginEdit (GetDataRowCount(), column);
                 }
             }
+            else if (ev.vk == VK_RETURN)
+            {
+                //  Enter on an add row left empty ends the add.
+                EndEdit (false);
+            }
 
             return true;
         }

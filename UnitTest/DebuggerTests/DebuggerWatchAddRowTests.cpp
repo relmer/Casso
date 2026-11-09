@@ -190,6 +190,43 @@ namespace DebuggerWatchAddRowTests
         }
 
 
+        //  Enter on the add row with nothing typed ends the add and runs no
+        //  command; on a watch whose expression was erased, it removes the
+        //  watch.
+        TEST_METHOD (EnterOnAnEmptyEditEndsTheAddOrRemovesTheWatch)
+        {
+            CassoTheme                       theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                host;
+            WatchWindow                      window   (theme, host);
+            DxuiDpiScaler                    scaler;
+            DxuiEditableGrid               * grid     = BeginAdd (window, scaler);
+            auto                             snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::WatchLine  watch;
+
+
+
+            window.Press (VK_RETURN);
+            Assert::IsFalse  (grid->IsEditing(), L"the add ends");
+            Assert::IsTrue   (host.commands.empty(), L"with nothing added");
+
+            watch.id          = 0;
+            watch.address     = 0x0300;
+            watch.expression  = "300";
+            watch.value       = "0000";
+            watch.enabled     = true;
+            snapshot->watches = { watch };
+            window.TakeSnapshot (snapshot);
+
+            window.GetWatchesPane().BeginEdit (0, 0);
+            window.Press (VK_BACK);
+            window.Press (VK_BACK);
+            window.Press (VK_BACK);
+            window.Press (VK_RETURN);
+
+            Assert::AreEqual ((size_t) 1, host.actions.size(), L"one action");
+            Assert::AreEqual (DebuggerActions::GetClearWatch (0, CommandMode::AppleWin).echo, host.commands[0], L"the watch is removed");
+        }
+
         //  A window with an empty watch grid whose columns have widths, as after a
         //  paint, and its add row's edit begun.
         static DxuiEditableGrid * BeginAdd (WatchWindow & window, DxuiDpiScaler & scaler)
@@ -266,8 +303,9 @@ namespace DebuggerWatchAddRowTests
         }
 
 
-        //  An empty name takes neither Enter nor Tab.
-        TEST_METHOD (AnEmptyNameTakesNeitherEnterNorTab)
+        //  An empty name adds nothing: Tab moves on to the value, and Enter
+        //  ends the add.
+        TEST_METHOD (AnEmptyNameAddsNothing)
         {
             CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost   host;
@@ -278,11 +316,14 @@ namespace DebuggerWatchAddRowTests
 
 
             window.Press (VK_TAB);
+
+            Assert::IsTrue   (grid->IsEditing(), L"the edit stays open");
+            Assert::AreEqual (1, grid->GetEditColumn(), L"Tab moved to the value");
+
             window.Press (VK_RETURN);
 
             Assert::IsTrue   (host.commands.empty());
-            Assert::IsTrue   (grid->IsEditing(), L"the edit closed");
-            Assert::AreEqual (1, grid->GetEditColumn(), L"Tab moved to the value");
+            Assert::IsFalse  (grid->IsEditing(), L"Enter ends the add");
         }
 
 
