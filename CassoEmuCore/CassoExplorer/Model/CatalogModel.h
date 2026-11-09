@@ -37,6 +37,7 @@ struct CatalogRow
     bool          hasResourceFork   = false;
     bool          hasForks          = false;
     std::wstring  accessText;
+
     int64_t       modifiedUnix = 0;
     bool          hasModified  = false;
 

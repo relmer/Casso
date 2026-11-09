@@ -392,8 +392,8 @@ std::wstring ExplorerListColumns::GetFolderViewKey (FolderViews::FolderType * ou
 
 void ExplorerListColumns::ApplyFolderView()
 {
-    FolderViews::FolderType  type      = FolderViews::FolderType::Generic;
-    std::wstring             key       = GetFolderViewKey (nullptr);
+    FolderViews::FolderType  type       = FolderViews::FolderType::Generic;
+    std::wstring             key        = GetFolderViewKey (nullptr);
     bool                     searching  = SearchQuery::IsId (m_context.browser.GetLocation().path);
     size_t                   sortColumn = 0;
     FolderViewEntry          entry;

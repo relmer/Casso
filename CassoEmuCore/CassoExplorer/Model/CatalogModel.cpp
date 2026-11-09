@@ -771,6 +771,7 @@ std::wstring CatalogModel::GetDiskImageTypeName (const std::wstring & name)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CatalogModel::GetColumnId
@@ -883,6 +884,8 @@ const std::vector<CatalogModel::Column> & CatalogModel::GetDefaultOrder()
 std::wstring CatalogModel::FormatAccess (Byte access)
 {
     static constexpr std::pair<Byte, wchar_t>  kFlags[] = { { 0x80, L'D' }, { 0x40, L'N' }, { 0x20, L'B' }, { 0x04, L'I' }, { 0x02, L'W' }, { 0x01, L'R' } };
+
+
 
     std::wstring  text;
 
