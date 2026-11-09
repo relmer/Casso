@@ -744,3 +744,19 @@ Each file the branch added or grew past about 2,000 lines, with its size when th
 | DxuiTreeView (2,002) | `DxuiTreeView.cpp` 2,003 |
 
 The largest is `DxuiTreeView.cpp`, at 2,003 lines.
+
+## 12. Packaged firewall walk, 2026-11-08 (T256)
+
+The Release x64 build packed by `BuildMsix.ps1` and registered from its layout with Developer Mode on, as the Azure-signed package can't be installed here. On this PC, with the Ethernet network public and Tailscale's private.
+
+| Check | Result |
+|---|---|
+| Registered 1.32.0: the manifest's rules for Casso Explorer, UDP 6510 and TCP 6400, and for Casso, UDP 6511 and TCP 6502-6509, on every profile, with no prompt | Passed |
+| Packaged Casso Explorer listening on UDP 6510 and linking to sp8 | Failed at first: the packaged process read every port as blocked. Fixed in `59fda3cd5`; it then listened and linked with no prompt |
+| Registered 1.32.1 over it: the rules moved to the new install folder, the old ones gone, no prompt | Passed |
+| The package's UDP 6510 rule disabled by the owner in Windows Firewall: the warning in the connection's pane and the tip on its tree node | Passed, after the window was activated, a few seconds late |
+| Allow: UAC, then "Casso Explorer, UDP 6510" for private and public, and the listener open in the same process | Passed |
+| A serial connection with no warning throughout | Passed |
+| Packaged Casso's Uthernet II infobar | Not walked: no machine with the card and LAN access in Casso's settings here |
+
+Two findings to follow up: the pane didn't offer to make the network private, with Tailscale's network private beside the public one, and the warning appeared only some seconds after the rule changed.

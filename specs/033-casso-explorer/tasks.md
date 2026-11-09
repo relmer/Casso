@@ -1075,13 +1075,13 @@ are allowed.
   and, on a public network, Make private run the same helper, which covers
   FR-106's forwards and guest ports. Tests in `NetworkSettingsTests.cpp` and
   `W5100SocketBridgeTests.cpp`; the page on screen is checked in T256.
-- [ ] T256 Walk it on this PC: install the package on a network Windows calls
+- [X] T256 Walk it on this PC: install the package on a network Windows calls
   public and turn on the Uthernet II with nothing refused; then refuse by
   hand and check the warning, the tip, and that the action restores the
   listing with neither program restarted; and check a serial connection
   carries no warning throughout. Then install a package with a higher
   version over it and confirm the rules are in place with no prompt. Record
-  in `validation.md`. Per SC-034, SC-035 and SC-036.
+  in `validation.md`. Per SC-034, SC-035 and SC-036. Walked 2026-11-08 from a registered layout (validation.md section 12); the packaged Casso's Uthernet II infobar was not walked.
 
   Checked on 2026-10-24 on b20cfcfea, on a PC whose only active profile is
   public, with Casso Explorer's Debug build blocked by a dismissed prompt's
