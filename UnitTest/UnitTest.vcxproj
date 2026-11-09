@@ -356,6 +356,7 @@
     <ClCompile Include="CassoLink\CassoLinkSearchTests.cpp" />
     <ClCompile Include="CassoLink\RunningCassoRegistryTests.cpp" />
     <ClCompile Include="CassoLink\LinkBootstrapTests.cpp" />
+    <ClCompile Include="CassoLink\SerialLoaderTests.cpp" />
     <ClCompile Include="EmuTests\AciaBridgeEndpointTests.cpp" />
     <ClCompile Include="EmuTests\SerialPortDeviceTests.cpp" />
     <ClCompile Include="EmuTests\SerialTrafficLogTests.cpp" />

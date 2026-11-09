@@ -10,7 +10,6 @@
 #include "EmuTests/FakeDiskFileIo.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/LinkAudioBootstrap.h"
-#include "CassoLink/LinkBootstrap.h"
 #include "CassoLink/LinkFault.h"
 #include "CassoLink/LinkProgram.h"
 #include "Core/TextEncoding.h"
@@ -36,10 +35,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  CassoLinkFaultSessionTests
 //
 //  Faults injected into whole sessions, as a Debug build of Casso Explorer
-//  arms them: over a //e's Super Serial Card, a //e's Uthernet II, the
-//  cassette input and a //c's serial bootstrap. Each fault is taken from the
-//  process's list as the operation, the bootstrap or the cassette audio
-//  starts, and the link recovers or fails with its error.
+//  arms them: over a //e's Super Serial Card, a //e's Uthernet II and the
+//  cassette input. Each fault is taken from the process's list as the
+//  operation or the cassette audio starts, and the link recovers or fails
+//  with its error. A fault in a serial bootstrap is covered by unit tests:
+//  SerialLoaderTests runs the loader's check on a //c, and
+//  CassoLinkSessionTests the session's recovery through the prompt probe.
 //
 //  The cassette case requires Apple's firmware for the card, at
 //  %LOCALAPPDATA%\Casso\Devices\SuperSerialCard\SSC.rom, as the card's other
@@ -456,77 +457,6 @@ public:
         machine.GetTapeDeck().Play (*machine.GetCpu()->GetBusCyclePtr());
         machine.RunCycles ((uint64_t) ((seconds + 1.0) * machine.GetConfig().clockSpeed));
         machine.GetTapeDeck().Update (*machine.GetCpu()->GetBusCyclePtr());
-    }
-
-
-
-    //  A byte of the shim the serial bootstrap sends, flipped: the loader's
-    //  XOR fails, it returns to the BASIC prompt, and the bootstrap fails. A
-    //  link started with no Bootstrap chosen then sends its probe, which the
-    //  Apple runs at the prompt, and the Apple is bootstrapped and linked.
-    TEST_METHOD (ABootstrapFlip_FailsTheLoadersCheck_AndTheAppleIsBootstrappedAgainFromThePrompt)
-    {
-        Enabled                               enabled;
-        TestMachine                           machine ("Apple2c");
-        std::shared_ptr<InProcessByteStream>  machineEnd;
-        Factory                               factory;
-        InMemoryCassoLinkFolder               folder;
-        FakeDiskFileIo                        fileIo;
-        Sink                                  sink;
-        std::vector<std::string>              lines;
-        size_t                                typed    = 0;
-        HRESULT                               result   = S_OK;
-        std::shared_ptr<LinkOperation>        bootstrap;
-        CassoLinkSettings                     settings = EmulatedSettings ("//c");
-
-
-
-        AssertSucceeded (LinkBootstrap::BuildLines (lines));
-
-        for (const std::string & line : lines)
-        {
-            typed += line.size();
-        }
-
-        //  The shim's first page, after the lines and the page count.
-        Arm (std::format ("bootstrap:flip@{}", typed + 1 + 40).c_str());
-
-        machine.SetVideoTiming (std::make_unique<VideoTiming>());
-        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
-        machine.PowerCycle();
-        machine.RunCycles (2'000'000ULL);
-
-        //  At the BASIC prompt, with the port readied.
-        machine.GetCpu()->SetPC (0xE000);
-        machine.RunCycles (2'000'000ULL);
-
-        InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
-        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
-
-        Type (machine, "IN#2\r");
-        Type (machine, "\x01" "14B");
-
-        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, LoadDos33()));
-
-        {
-            CassoLinkSession  session (factory, folder, fileIo, sink);
-
-            session.SetBootstrapPause (40);
-            AssertSucceeded (session.StartWithBootstrap (settings, bootstrap));
-
-            result = Finish (machine, sink, bootstrap)->result;
-            Assert::IsTrue (FAILED (result), L"the loader's XOR failed");
-        }
-
-        Assert::IsTrue (sink.HasActivity ("Injected a fault"));
-
-        {
-            CassoLinkSession  session (factory, folder, fileIo, sink);
-
-            session.SetBootstrapPause (40);
-            AssertSucceeded (session.Start (settings));
-            AssertSucceeded (Finish (machine, sink, session.Enumerate (2, FilePath()))->result);
-        }
     }
 
 
