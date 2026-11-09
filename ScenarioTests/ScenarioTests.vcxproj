@@ -180,7 +180,6 @@
     <ClCompile Include="DurableCommitFileTests.cpp" />
     <ClCompile Include="GuestVisibleSharedImageTests.cpp" />
     <ClCompile Include="GuestVisibleFluxTests.cpp" />
-    <ClCompile Include="CassoLinkAdtProTests.cpp" />
     <ClCompile Include="CassoLinkFaultSessionTests.cpp" />
     <ClCompile Include="RealPascalCpmDiskTests.cpp" />
     <ClCompile Include="CassoLinkSessionTests.cpp" />
