@@ -135,13 +135,13 @@ private:
     int                      m_cassoDriveCount   = 0;   // the drives the Casso the window targets has
     std::vector<UndoStep>    m_undo;   // newest last
 
-    //  The manifest rows a deleted image's deletion removed, and the folder
-    //  as it was deleted from, by the image's path in lowercase, for when it
-    //  is restored.
+    //  What a deleted image's deletion removed and changed in the manifest,
+    //  and the folder as it was deleted from, by the image's path in
+    //  lowercase, for when it is restored.
     struct RemovedRows
     {
-        std::string               folder;
-        std::vector<FullSendRow>  rows;
+        std::string      folder;
+        FullSendRemoval  removal;
     };
 
     std::map<std::wstring, RemovedRows>  m_removedRows;

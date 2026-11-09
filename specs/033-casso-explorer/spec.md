@@ -2091,8 +2091,11 @@ source and read the manifest. Repeat on a real //c with real floppies.
   Undoing the rename MUST put the old name back in the manifest. The
   manifest MUST be written under the folder's lock, which a session sending
   to the folder takes, and a manifest that can't be read MUST be left as it
-  is. An image deleted in Casso Explorer MUST be removed from the manifest,
-  with the rows of its duplicates, and the rows MUST be put back, in order
+  is. An image deleted in Casso Explorer MUST be removed from the manifest.
+  The earliest row with a file that repeats it MUST take its
+  place, with its duplicateOf and, for a duplicate, its status, and the
+  other rows that repeat it MUST then repeat that row. With no such row, the
+  rows that repeat it MUST be removed. Every row MUST be put back, in order
   of their sequence, when the image is restored by Undo or from the Recycle
   Bin in the same Casso Explorer window. The manifest MUST NOT be changed for
   a file Windows didn't delete, as when its confirmation was canceled.

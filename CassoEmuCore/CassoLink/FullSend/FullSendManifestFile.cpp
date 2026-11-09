@@ -52,7 +52,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT FullSendManifestFile::NoteDelete (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, std::vector<FullSendRow> & outRows)
+HRESULT FullSendManifestFile::NoteDelete (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, FullSendRemoval & outRemoval)
 {
     HRESULT           hr      = S_OK;
     std::string       path    = folder + "\\" + FullSendManifest::kFileName;
@@ -62,17 +62,17 @@ HRESULT FullSendManifestFile::NoteDelete (IDiskFileIo & fileIo, const std::strin
 
 
 
-    outRows.clear();
+    outRemoval = FullSendRemoval();
 
     hr = Read (fileIo, path, manifest, exists);
     CHR (hr);
     BAIL_OUT_IF (!exists, S_OK);
 
-    outRows = manifest.RemoveImage (name);
-    BAIL_OUT_IF (outRows.empty(), S_OK);
+    outRemoval = manifest.RemoveImage (name);
+    BAIL_OUT_IF (outRemoval.IsEmpty(), S_OK);
 
     hr = Write (fileIo, path, manifest);
-    CHRF (hr, outRows.clear());
+    CHRF (hr, outRemoval = FullSendRemoval());
 
 Error:
     return hr;
@@ -90,7 +90,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT FullSendManifestFile::NoteRestore (IDiskFileIo & fileIo, const std::string & folder, const std::vector<FullSendRow> & rows)
+HRESULT FullSendManifestFile::NoteRestore (IDiskFileIo & fileIo, const std::string & folder, const FullSendRemoval & removal)
 {
     HRESULT           hr      = S_OK;
     std::string       path    = folder + "\\" + FullSendManifest::kFileName;
@@ -100,12 +100,12 @@ HRESULT FullSendManifestFile::NoteRestore (IDiskFileIo & fileIo, const std::stri
 
 
 
-    BAIL_OUT_IF (rows.empty(), S_OK);
+    BAIL_OUT_IF (removal.IsEmpty(), S_OK);
 
     hr = Read (fileIo, path, manifest, exists);
     CHR (hr);
 
-    manifest.RestoreRows (rows);
+    manifest.RestoreRows (removal);
 
     hr = Write (fileIo, path, manifest);
     CHR (hr);

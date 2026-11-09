@@ -27,11 +27,11 @@ public:
     //  is not written.
     static HRESULT  NoteRename  (IDiskFileIo & fileIo, const std::string & folder, const std::string & oldName, const std::string & newName);
 
-    //  A file in `folder` deleted: the rows NoteDelete removed are returned,
-    //  for NoteRestore when the file is restored. Each writes the manifest
-    //  only when it changes it.
-    static HRESULT  NoteDelete  (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, std::vector<FullSendRow> & outRows);
-    static HRESULT  NoteRestore (IDiskFileIo & fileIo, const std::string & folder, const std::vector<FullSendRow> & rows);
+    //  A file in `folder` deleted: what NoteDelete removed and changed is
+    //  returned, for NoteRestore when the file is restored. Each writes the
+    //  manifest only when it changes it.
+    static HRESULT  NoteDelete  (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, FullSendRemoval & outRemoval);
+    static HRESULT  NoteRestore (IDiskFileIo & fileIo, const std::string & folder, const FullSendRemoval & removal);
 
 private:
     static HRESULT  Read  (IDiskFileIo & fileIo, const std::string & path, FullSendManifest & outManifest, bool & outExists);

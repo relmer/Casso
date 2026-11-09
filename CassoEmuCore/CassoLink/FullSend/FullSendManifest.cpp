@@ -410,33 +410,68 @@ bool FullSendManifest::RenameImage (const std::string & oldName, const std::stri
 //
 //  FullSendManifest::RemoveImage
 //
+//  The earliest row with a file that repeats the deleted image takes its
+//  place: its duplicateOf becomes the deleted row's, and a duplicate takes
+//  the deleted row's status, as the images are the same. Each other row that
+//  repeats the deleted image then repeats that one. With no such row, the
+//  rows that repeat it have no file, and are removed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<FullSendRow> FullSendManifest::RemoveImage (const std::string & name)
+FullSendRemoval FullSendManifest::RemoveImage (const std::string & name)
 {
-    std::vector<FullSendRow>  removed;
+    FullSendRemoval           removal;
     std::vector<FullSendRow>  others;
+    const FullSendRow       * deleted  = nullptr;
+    const FullSendRow       * promoted = nullptr;
+    std::string               original;
 
 
 
     for (const FullSendRow & row : m_rows)
     {
-        bool  image     = !row.file.empty() && _stricmp (row.file.c_str(), name.c_str()) == 0;
-        bool  duplicate = row.file.empty() && !row.duplicateOf.empty() && _stricmp (row.duplicateOf.c_str(), name.c_str()) == 0;
+        bool  image   = !row.file.empty() && _stricmp (row.file.c_str(), name.c_str()) == 0;
+        bool  repeats = !row.file.empty() && !image && _stricmp (row.duplicateOf.c_str(), name.c_str()) == 0;
 
-        if (image || duplicate)
+        deleted  = (image && deleted == nullptr) ? &row : deleted;
+        promoted = (repeats && (promoted == nullptr || row.sequence < promoted->sequence)) ? &row : promoted;
+    }
+
+    original = (promoted != nullptr) ? promoted->file : std::string();
+
+    for (const FullSendRow & row : m_rows)
+    {
+        bool         image   = !row.file.empty() && _stricmp (row.file.c_str(), name.c_str()) == 0;
+        bool         repeats = !image && !row.duplicateOf.empty() && _stricmp (row.duplicateOf.c_str(), name.c_str()) == 0;
+        FullSendRow  changed = row;
+
+        if (image || (repeats && promoted == nullptr))
         {
-            removed.push_back (row);
+            removal.removed.push_back (row);
+            continue;
         }
-        else
+
+        if (repeats && &row == promoted)
         {
-            others.push_back (row);
+            changed.duplicateOf = (deleted != nullptr) ? deleted->duplicateOf : std::string();
+            changed.status      = (row.status != kStatusDuplicate) ? row.status : (deleted != nullptr) ? deleted->status : std::string (kStatusSent);
         }
+        else if (repeats)
+        {
+            changed.duplicateOf = original;
+        }
+
+        if (repeats)
+        {
+            removal.changed.push_back (row);
+        }
+
+        others.push_back (changed);
     }
 
     m_rows = std::move (others);
 
-    return removed;
+    return removal;
 }
 
 
@@ -447,11 +482,28 @@ std::vector<FullSendRow> FullSendManifest::RemoveImage (const std::string & name
 //
 //  FullSendManifest::RestoreRows
 //
+//  The rows a deletion changed are found by their sequence and hash, since
+//  a rename after the deletion changes only a row's file.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void FullSendManifest::RestoreRows (const std::vector<FullSendRow> & rows)
+void FullSendManifest::RestoreRows (const FullSendRemoval & removal)
 {
-    for (const FullSendRow & row : rows)
+    for (const FullSendRow & before : removal.changed)
+    {
+        auto  found = std::find_if (m_rows.begin(), m_rows.end(), [&before] (const FullSendRow & row)
+        {
+            return row.sequence == before.sequence && row.hash == before.hash;
+        });
+
+        if (found != m_rows.end())
+        {
+            found->duplicateOf = before.duplicateOf;
+            found->status      = before.status;
+        }
+    }
+
+    for (const FullSendRow & row : removal.removed)
     {
         bool  listed = std::any_of (m_rows.begin(), m_rows.end(), [&row] (const FullSendRow & other)
         {

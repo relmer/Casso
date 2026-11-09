@@ -318,12 +318,12 @@ void ExplorerFileOps::NoteManifestDeletes (const std::vector<std::wstring> & pat
 
         removed.folder = TextEncoding::WideToNarrow (file.parent_path().wstring());
 
-        hr = FullSendManifestFile::NoteDelete (io, removed.folder, TextEncoding::WideToNarrow (file.filename().wstring()), removed.rows);
+        hr = FullSendManifestFile::NoteDelete (io, removed.folder, TextEncoding::WideToNarrow (file.filename().wstring()), removed.removal);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         std::transform (key.begin(), key.end(), key.begin(), towlower);
 
-        if (!removed.rows.empty())
+        if (!removed.removal.IsEmpty())
         {
             m_removedRows[key] = std::move (removed);
         }
@@ -360,7 +360,7 @@ void ExplorerFileOps::NoteManifestRestores (const std::vector<std::wstring> & pa
             continue;
         }
 
-        hr = FullSendManifestFile::NoteRestore (io, found->second.folder, found->second.rows);
+        hr = FullSendManifestFile::NoteRestore (io, found->second.folder, found->second.removal);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         m_removedRows.erase (found);

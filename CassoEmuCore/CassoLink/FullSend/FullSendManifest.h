@@ -10,8 +10,9 @@
 //
 //  FullSendRow
 //
-//  One disk in a Full Send's manifest. A duplicate has an empty file, and
-//  duplicateOf is the earlier image's file name.
+//  One disk in a Full Send's manifest. duplicateOf is the file name of the
+//  earlier image whose hash this disk's image has. A duplicate an older
+//  session listed has an empty file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,6 +30,27 @@ struct FullSendRow
     std::string  verification = "none";
     int          recovered  = 0;
     int          unreliable = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendRemoval
+//
+//  What deleting an image changed in a manifest: the rows removed, and each
+//  changed row as it was before.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct FullSendRemoval
+{
+    std::vector<FullSendRow>  removed;
+    std::vector<FullSendRow>  changed;
+
+    bool  IsEmpty () const { return removed.empty() && changed.empty(); }
 };
 
 
@@ -83,15 +105,15 @@ public:
     //  set to the new one. False when no row has the old name.
     bool                 RenameImage       (const std::string & oldName, const std::string & newName);
 
-    //  An image deleted from the folder: its row and the rows of its
-    //  duplicates are removed, and returned so they can be restored. A row
-    //  that has an image, as a disk sent again although it was a repeat, is
-    //  not removed.
-    std::vector<FullSendRow>  RemoveImage  (const std::string & name);
+    //  An image deleted from the folder: its row is removed, and the rows that
+    //  repeat it are changed or removed, as in RemoveImage's comment. What was
+    //  removed and changed is returned so RestoreRows can put it back.
+    FullSendRemoval      RemoveImage       (const std::string & name);
 
-    //  Rows a deletion removed, put back in order of their sequence. A row
-    //  the manifest has already is left out.
-    void                 RestoreRows       (const std::vector<FullSendRow> & rows);
+    //  A deletion's rows put back: the changed ones as they were, and the
+    //  removed ones in order of their sequence. A row the manifest has
+    //  already is left out.
+    void                 RestoreRows       (const FullSendRemoval & removal);
 
 private:
     static constexpr size_t  kColumns       = 12;
