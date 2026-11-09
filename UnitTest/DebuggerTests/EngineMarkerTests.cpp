@@ -201,11 +201,12 @@ namespace DebuggerTests
                 //  the machine commands, and the window's shell has the video
                 //  and sound logs, so a session alone returns them as not
                 //  available, the same way in every mode. The mock target's memory has no Applesoft, so
-                //  the BASIC commands fail, the same way in every mode.
+                //  the BASIC commands fail, the same way in every mode, except BASICCLEAR: it only resets
+                //  the zero-page pointers, as Applesoft's NEW does, so it succeeds without a program.
                 status = (name == "PANEL" || name == "SAVESTATE" || name == "LOADSTATE" || name == "VIDEOLOG" || name == "SOUNDLOG" || name == "PROJECT" ||
                           name == "RESET" || name == "PASTE" || name == "SCREEN" || name == "SCREENSHOT" || name == "EXIT") ? CommandStatus::NotAvailable : CommandStatus::Ok;
 
-                if (name.starts_with ("BASIC"))
+                if (name.starts_with ("BASIC") && name != "BASICCLEAR")
                 {
                     status = CommandStatus::Error;
                 }
