@@ -21,6 +21,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerDeletion.h"
 #include "CassoExplorer/Window/Managers/ExplorerRename.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
@@ -735,7 +736,7 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
         if (ev.shift && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.GetLocation().kind == Location::Kind::ShellFolder)
             && !m_context.browser.TryGetSelectedCassoLinkPaths (linkPaths))
         {
-            m_context.fileOps.DeleteSelectionPermanently();
+            m_context.deletion.DeleteSelectionPermanently();
         }
         else
         {

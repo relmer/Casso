@@ -14,8 +14,7 @@ struct ExplorerContext;
 //
 //  ExplorerFileOps
 //
-//  File operations on the selection: paste, cut and copy, copying paths, and
-//  deleting.
+//  File operations on the selection: paste, cut and copy, and copying paths.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,9 +35,7 @@ public:
     //  the paste, in FinishCut.
     void                               CutEntriesToClipboard      (HostFileNaming::Style style);
     void                               FinishCut                  ();
-    HRESULT                            RecycleHostFiles           (const std::vector<std::wstring> & paths);
     void                               CopySelectedPaths          ();
-    void                               DeleteSelectionPermanently ();
 
 private:
     //  What the last cut takes away once it is pasted, read when it was cut.

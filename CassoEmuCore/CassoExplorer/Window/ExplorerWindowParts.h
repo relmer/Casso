@@ -9,6 +9,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerDeletion.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerRename.h"
 #include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
@@ -105,6 +106,7 @@ struct ExplorerWindowParts
     ExplorerMenus                           menus            { context };
     ExplorerCommandManager                  commandManager   { context };
     ExplorerFileOps                         fileOps          { context };
+    ExplorerDeletion                        deletion         { context };
     ExplorerUndo                            undo             { context };
     ExplorerRename                          rename           { context };
     ExplorerManifestSync                    manifestSync     { context };

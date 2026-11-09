@@ -9,6 +9,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerDeletion.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
@@ -1287,7 +1288,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
         }
         else
         {
-            recycled = m_context.fileOps.RecycleHostFiles (source.hostPaths);
+            recycled = m_context.deletion.RecycleHostFiles (source.hostPaths);
         }
 
         if (FAILED (recycled))

@@ -57,58 +57,6 @@ ExplorerFileOps::ExplorerFileOps (ExplorerContext & context)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerFileOps::DeleteSelectionPermanently
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerFileOps::DeleteSelectionPermanently()
-{
-    std::vector<std::wstring>  ids;
-    HRESULT                    hr = S_OK;
-
-
-
-    if (!m_context.browser.TryGetSelectedShellIds (ids))
-    {
-        return;
-    }
-
-    hr = m_context.shellVerbs.DeletePermanently (m_context.window.GetHwnd(), ids);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    m_context.manifestSync.NoteDeletes (ids);
-    m_context.folderSync.RefreshAfterHostChange();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerFileOps::RecycleHostFiles
-//
-//  To the Recycle Bin rather than gone, so a move whose files a disk image
-//  has in another form can be undone. Through the shell's delete, so a file
-//  too large for the bin is deleted only once the user confirms.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT ExplorerFileOps::RecycleHostFiles (const std::vector<std::wstring> & paths)
-{
-    HRESULT  hr = m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), paths);
-
-
-
-    return (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED)) ? S_OK : hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerFileOps::GetPasteFolder
 //
 //  A single folder row takes the paste; otherwise the folder being shown.
