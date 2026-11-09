@@ -15,9 +15,9 @@
 //  An Object Module Format file, ProDOS types $B1 to $BE, as the OMF
 //  appendix of the Apple IIgs GS/OS Reference sets it out: segments one
 //  after another, each a header, then opcode bytes and their operands, to
-//  an END record. Version 1 counts a segment in 512-byte
-//  blocks and has a kind byte; versions 2.0 and 2.1 count it in bytes and
-//  have a kind word, and 2.1 adds TEMPORG. A label is a Pascal string when
+//  an END record. Version 1 counts a segment in 512-byte blocks and has a
+//  kind byte; versions 2.0 and 2.1 count it in bytes and have a kind word,
+//  and 2.1 adds TEMPORG. A label is a Pascal string when
 //  the header's label length is 0, otherwise that many bytes; a number is
 //  the header's number length in bytes.
 //
