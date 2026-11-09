@@ -29,8 +29,17 @@ static void AppendLong (std::vector<Byte> & bytes, uint32_t value)
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeFork
+//
 //  A fork with the map at 16, its index at 48, one entry and the end entry,
 //  and the resource at 88.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static std::vector<Byte> MakeFork (Word type, std::span<const Byte> resource)
 {
     std::vector<Byte>  fork;
