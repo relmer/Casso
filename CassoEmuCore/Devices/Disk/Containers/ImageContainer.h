@@ -22,6 +22,13 @@ enum class ImageContainerKind
     Blocks,
     TwoImg,
     DiskCopy42,
+
+    //  A ShrinkIt or Binary II archive, read as the archive it is; a ShrinkIt
+    //  disk archive, read as the disk inside it; a gzip file, read as the
+    //  image inside it.
+    Archive,
+    ShrinkItDisk,
+    Gzip,
 };
 
 

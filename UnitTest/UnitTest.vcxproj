@@ -312,6 +312,8 @@
     <ClCompile Include="EmuTests\ResourceForkTests.cpp" />
     <ClCompile Include="EmuTests\NuLzwTests.cpp" />
     <ClCompile Include="EmuTests\NuFxArchiveTests.cpp" />
+    <ClCompile Include="EmuTests\ArchiveWrapperTests.cpp" />
+    <ClCompile Include="EmuTests\ArchiveVolumeTests.cpp" />
     <ClCompile Include="EmuTests\WozLoaderTests.cpp" />
     <ClCompile Include="EmuTests\FluxTrackTests.cpp" />
     <ClCompile Include="EmuTests\FluxTestImages.cpp" />

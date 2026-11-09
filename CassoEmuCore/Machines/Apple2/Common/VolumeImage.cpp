@@ -15,6 +15,8 @@
 #include "Devices/Disk/SectorFieldWriter.h"
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
+#include "Devices/Disk/Archives/ArchiveVolume.h"
+#include "Devices/Disk/Archives/GzipFile.h"
 
 
 
@@ -170,7 +172,7 @@ HRESULT VolumeImage::Load (
 
     if (kind != ImageContainerKind::None)
     {
-        hr = LoadContainer (kind, fileBytes, outSectors, outReport, outDiagnosis);
+        hr = LoadContainer (kind, fileBytes, std::filesystem::path (path).replace_extension().string(), outSectors, outReport, outDiagnosis);
         CHR (hr);
 
         BAIL_OUT_IF (true, S_OK);
@@ -376,7 +378,7 @@ HRESULT VolumeImage::Save (
 
     if (kind != ImageContainerKind::None)
     {
-        hr = SaveContainer (kind, originalFileBytes, editedSectors, outFileBytes, outRefusalReason);
+        hr = SaveContainer (kind, originalFileBytes, std::filesystem::path (path).replace_extension().string(), editedSectors, outFileBytes, outRefusalReason);
         CHR (hr);
 
         BAIL_OUT_IF (true, S_OK);
@@ -723,6 +725,7 @@ const char * VolumeImage::GetSystemName (VolumeKind kind)
         case VolumeKind::ProDos: return "ProDOS";
         case VolumeKind::Pascal: return "Apple Pascal";
         case VolumeKind::Cpm:    return "CP/M";
+        case VolumeKind::Archive: return "Archive";
         default:                 return "";
     }
 }
@@ -745,6 +748,12 @@ VolumeKind VolumeImage::DetectFilesystem (const vector<Byte> & sectors)
     bool  sized = sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
 
 
+
+    //  An archive's buffer is the archive itself.
+    if (ArchiveVolume::IsArchive (sectors))
+    {
+        return VolumeKind::Archive;
+    }
 
     //  A buffer larger than a floppy is a run of blocks, and of the file
     //  systems here only ProDOS is that large.
@@ -822,6 +831,12 @@ std::unique_ptr<IVolume> VolumeImage::CreateVolume (VolumeKind kind, const vecto
             break;
         }
 
+        case VolumeKind::Archive:
+        {
+            volume = std::make_unique<ArchiveVolume> (sectors);
+            break;
+        }
+
         case VolumeKind::Cpm:
         {
             auto  cpm = std::make_unique<CpmVolume> (sectors);
@@ -858,14 +873,17 @@ std::unique_ptr<IVolume> VolumeImage::CreateVolume (VolumeKind kind, const vecto
 HRESULT VolumeImage::LoadContainer (
     ImageContainerKind     kind,
     const vector<Byte>   & fileBytes,
+    const std::string    & innerPath,
     vector<Byte>         & outSectors,
     SectorDecodeReport   & outReport,
     MountDiagnosis       & outDiagnosis)
 {
-    HRESULT           hr       = S_OK;
-    bool              hasData  = !fileBytes.empty();
-    bool              isDos    = false;
-    bool              dosSized = false;
+    HRESULT           hr        = S_OK;
+    bool              hasData   = !fileBytes.empty();
+    bool              isDos     = false;
+    bool              dosSized  = false;
+    bool              isArchive = false;
+    std::string       innerName;
     TwoImgHeader      twoImg;
     DiskCopy42Header  diskCopy;
     vector<Byte>      payload;
@@ -881,6 +899,38 @@ HRESULT VolumeImage::LoadContainer (
     {
         hr = LoadBlockPayload (fileBytes, outSectors);
         CHRF (hr, outDiagnosis.failure = MountFailure::WrongSizeForFormat);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (kind == ImageContainerKind::Archive)
+    {
+        isArchive = ArchiveVolume::IsArchive (fileBytes);
+        CBRFEx (isArchive, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outDiagnosis.failure = MountFailure::Unrecognized);
+
+        outSectors = fileBytes;
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (kind == ImageContainerKind::ShrinkItDisk)
+    {
+        hr = ExtractShrinkItDisk (fileBytes, payload, error);
+        CHRF (hr, outDiagnosis.failure = MountFailure::Unrecognized);
+
+        hr = LoadBlockPayload (payload, outSectors);
+        CHRF (hr, outDiagnosis.failure = MountFailure::WrongSizeForFormat);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (kind == ImageContainerKind::Gzip)
+    {
+        hr = GzipFile::Expand (fileBytes, payload, innerName, error);
+        CHRF (hr, outDiagnosis.failure = MountFailure::Unrecognized);
+
+        hr = Load (payload, innerPath, outSectors, outReport, outDiagnosis);
+        CHR (hr);
 
         BAIL_OUT_IF (true, S_OK);
     }
@@ -948,22 +998,54 @@ Error:
 HRESULT VolumeImage::SaveContainer (
     ImageContainerKind     kind,
     const vector<Byte>   & originalFileBytes,
+    const std::string    & innerPath,
     const vector<Byte>   & editedSectors,
     vector<Byte>         & outFileBytes,
     std::string          & outRefusalReason)
 {
-    HRESULT           hr      = S_OK;
+    HRESULT           hr        = S_OK;
     TwoImgHeader      twoImg;
     DiskCopy42Header  diskCopy;
     vector<Byte>      payload;
     vector<Byte>      newPayload;
     std::string       error;
+    std::string       innerName;
 
 
 
     if (kind == ImageContainerKind::Blocks)
     {
         SaveBlockPayload (editedSectors, outFileBytes);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (kind == ImageContainerKind::Archive)
+    {
+        outFileBytes = editedSectors;
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (kind == ImageContainerKind::ShrinkItDisk)
+    {
+        SaveBlockPayload (editedSectors, newPayload);
+
+        hr = ReplaceShrinkItDisk (originalFileBytes, newPayload, outFileBytes, outRefusalReason);
+        CHR (hr);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (kind == ImageContainerKind::Gzip)
+    {
+        hr = GzipFile::Expand (originalFileBytes, payload, innerName, error);
+        CHRF (hr, outRefusalReason = error);
+
+        hr = Save (payload, innerPath, editedSectors, newPayload, outRefusalReason);
+        CHR (hr);
+
+        GzipFile::Build (newPayload, innerName, outFileBytes);
 
         BAIL_OUT_IF (true, S_OK);
     }
@@ -1058,4 +1140,94 @@ void VolumeImage::SaveBlockPayload (const vector<Byte> & sectors, vector<Byte> &
     {
         outPayload = sectors;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::ExtractShrinkItDisk
+//
+//  The disk in a ShrinkIt disk archive's first record that has one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT VolumeImage::ExtractShrinkItDisk (const vector<Byte> & fileBytes, vector<Byte> & outDisk, std::string & outError)
+{
+    HRESULT              hr      = S_OK;
+    NuFxArchive          archive;
+    const NuFxThread   * disk    = nullptr;
+    const NuFxRecord   * holder  = nullptr;
+
+
+
+    hr = NuFxArchive::Parse (fileBytes, archive, outError);
+    CHR (hr);
+
+    for (const NuFxRecord & record : archive.records)
+    {
+        disk = NuFxArchive::FindThread (record, NuFxThread::kClassData, NuFxThread::kKindDiskImage);
+
+        if (disk != nullptr)
+        {
+            holder = &record;
+            break;
+        }
+    }
+
+    CBRFEx (holder, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = "The archive has no disk in it.");
+
+    hr = NuFxArchive::ExpandThread (*holder, *disk, outDisk, outError);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::ReplaceShrinkItDisk
+//
+//  The archive again with its disk record's disk replaced, LZW/2-compressed,
+//  and every other record as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT VolumeImage::ReplaceShrinkItDisk (const vector<Byte> & originalFileBytes, const vector<Byte> & disk, vector<Byte> & outFileBytes, std::string & outRefusalReason)
+{
+    HRESULT      hr       = S_OK;
+    NuFxArchive  archive;
+    bool         replaced = false;
+
+
+
+    hr = NuFxArchive::Parse (originalFileBytes, archive, outRefusalReason);
+    CHR (hr);
+
+    for (NuFxRecord & record : archive.records)
+    {
+        for (NuFxThread & thread : record.threads)
+        {
+            if (!replaced && thread.threadClass == NuFxThread::kClassData && thread.kind == NuFxThread::kKindDiskImage)
+            {
+                thread           = NuFxArchive::MakeDataThread (NuFxThread::kKindDiskImage, disk);
+                record.extraType = (uint32_t) (disk.size() / ProDosSkeleton::kBlockByteSize);
+                record.version   = std::max<Word> (record.version, 3);
+                replaced         = true;
+            }
+        }
+    }
+
+    CBRFEx (replaced, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outRefusalReason = "The archive has no disk in it.");
+
+    archive.Build (outFileBytes);
+
+Error:
+    return hr;
 }

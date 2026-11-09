@@ -33,6 +33,9 @@ enum class VolumeKind
     ProDos,
     Pascal,
     Cpm,
+
+    //  A NuFX or Binary II archive, whose bytes are the buffer.
+    Archive,
 };
 
 
@@ -144,19 +147,23 @@ private:
     //  block images, 2IMG and Disk Copy 4.2.
     static HRESULT  LoadContainer (ImageContainerKind     kind,
                                    const vector<Byte>   & fileBytes,
+                                   const std::string    & innerPath,
                                    vector<Byte>         & outSectors,
                                    SectorDecodeReport   & outReport,
                                    MountDiagnosis       & outDiagnosis);
     static HRESULT  SaveContainer (ImageContainerKind     kind,
                                    const vector<Byte>   & originalFileBytes,
+                                   const std::string    & innerPath,
                                    const vector<Byte>   & editedSectors,
                                    vector<Byte>         & outFileBytes,
                                    std::string          & outRefusalReason);
 
     //  A block-order payload as the volume layer's buffer: a 140K one in DOS
     //  logical order, a larger one as it is.
-    static HRESULT  LoadBlockPayload (const vector<Byte> & payload, vector<Byte> & outSectors);
-    static void     SaveBlockPayload (const vector<Byte> & sectors, vector<Byte> & outPayload);
+    static HRESULT  LoadBlockPayload    (const vector<Byte> & payload, vector<Byte> & outSectors);
+    static HRESULT  ExtractShrinkItDisk (const vector<Byte> & fileBytes, vector<Byte> & outDisk, std::string & outError);
+    static HRESULT  ReplaceShrinkItDisk (const vector<Byte> & originalFileBytes, const vector<Byte> & disk, vector<Byte> & outFileBytes, std::string & outRefusalReason);
+    static void     SaveBlockPayload    (const vector<Byte> & sectors, vector<Byte> & outPayload);
 
     static std::string  DescribeUnwritableTrack (int track);
     static void         CollectSectorWrites     (const vector<Byte> & priorSectors, const vector<Byte> & editedSectors, vector<SectorWrite> & outWrites);

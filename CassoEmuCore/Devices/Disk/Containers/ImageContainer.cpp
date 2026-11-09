@@ -37,6 +37,21 @@ ImageContainerKind ImageContainer::GetKind (const std::string & path, size_t fil
         return ImageContainerKind::DiskCopy42;
     }
 
+    if (extension == ".shk" || extension == ".bxy" || extension == ".bny" || extension == ".bqy" || extension == ".sea")
+    {
+        return ImageContainerKind::Archive;
+    }
+
+    if (extension == ".sdk")
+    {
+        return ImageContainerKind::ShrinkItDisk;
+    }
+
+    if (extension == ".gz")
+    {
+        return ImageContainerKind::Gzip;
+    }
+
     if (extension == ".hdv" || extension == ".img" || extension == ".iso")
     {
         return ImageContainerKind::Blocks;
@@ -66,7 +81,7 @@ ImageContainerKind ImageContainer::GetKind (const std::string & path, size_t fil
 
 bool ImageContainer::IsListedExtension (const std::string & extension)
 {
-    static constexpr const char *  kpszListed[] = { "hdv", "2mg", "2img", "dc", "dc42", "image" };
+    static constexpr const char *  kpszListed[] = { "hdv", "2mg", "2img", "dc", "dc42", "image", "shk", "sdk", "bxy", "bny", "bqy", "sea" };
 
 
 
