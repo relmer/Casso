@@ -643,7 +643,7 @@ public:
         vector<Byte>     woz        = MakeWoz();
         vector<Byte>     captured;
         const size_t     flippedBit = 200;
-        DiskImageStore   store2;
+        auto             store2     = std::make_unique<DiskImageStore>();   // a second store is too big for the stack beside the first
 
         store.SetFlushSink ([&] (const string &, const vector<Byte> & b) { captured = b; return S_OK; });
 
@@ -655,8 +655,8 @@ public:
 
         // Reload the flushed bytes: the write must survive the full WOZ
         // serialize -> file -> reload cycle (DiskImage::Serialize dispatch).
-        AssertSucceeded (store2.MountFromBytes (kSlot, kDrive, "g.woz", DiskFormat::Woz, captured));
-        Assert::AreEqual (Byte (0), store2.GetImage (kSlot, kDrive)->ReadBit (0, flippedBit),
+        AssertSucceeded (store2->MountFromBytes (kSlot, kDrive, "g.woz", DiskFormat::Woz, captured));
+        Assert::AreEqual (Byte (0), store2->GetImage (kSlot, kDrive)->ReadBit (0, flippedBit),
             L"a guest write to a .woz must survive flush + reload through the store");
     }
 
@@ -712,35 +712,35 @@ public:
 
     TEST_METHOD (MotorOffFlush_persistsDirtyWozThroughStore)
     {
-        DiskImageStore   store;
+        auto             store      = std::make_unique<DiskImageStore>();
         vector<Byte>     woz        = MakeWoz();
         vector<Byte>     captured;
         bool             flushed    = false;
         const size_t     flippedBit = 200;
-        DiskImageStore   store2;
+        auto             store2     = std::make_unique<DiskImageStore>();
 
-        store.SetFlushSink ([&] (const string &, const vector<Byte> & b)
+        store->SetFlushSink ([&] (const string &, const vector<Byte> & b)
         {
             captured = b;
             flushed  = true;
             return S_OK;
         });
 
-        AssertSucceeded (store.MountFromBytes (6, 0, "m.woz", DiskFormat::Woz, woz));
-        store.GetImage (6, 0)->WriteBit (0, flippedBit, 0);   // dirty guest write
+        AssertSucceeded (store->MountFromBytes (6, 0, "m.woz", DiskFormat::Woz, woz));
+        store->GetImage (6, 0)->WriteBit (0, flippedBit, 0);   // dirty guest write
 
-        Disk2Controller  ctrl (6);
-        ctrl.SetMotorOffFlushCallback ([&] () { store.FlushAll(); });
+        auto  ctrl = std::make_unique<Disk2Controller> (6);   // the controller and both stores are too big for the stack
+        ctrl->SetMotorOffFlushCallback ([&] () { store->FlushAll(); });
 
-        ctrl.Write (0xC0E9, 0x00);    // motor on
-        ctrl.Write (0xC0E8, 0x00);    // motor off (arm spindown)
-        ctrl.Tick  (1100000);         // past the spindown -> callback -> FlushAll
+        ctrl->Write (0xC0E9, 0x00);    // motor on
+        ctrl->Write (0xC0E8, 0x00);    // motor off (arm spindown)
+        ctrl->Tick (1100000);         // past the spindown -> callback -> FlushAll
 
         Assert::IsTrue (flushed, L"motor spin-down must persist dirty images via the store");
 
         // The write must have made it into the persisted bytes.
-        AssertSucceeded (store2.MountFromBytes (6, 0, "m.woz", DiskFormat::Woz, captured));
-        Assert::AreEqual (Byte (0), store2.GetImage (6, 0)->ReadBit (0, flippedBit),
+        AssertSucceeded (store2->MountFromBytes (6, 0, "m.woz", DiskFormat::Woz, captured));
+        Assert::AreEqual (Byte (0), store2->GetImage (6, 0)->ReadBit (0, flippedBit),
             L"the write persisted at motor-off must survive reload");
     }
 
