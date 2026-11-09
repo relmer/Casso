@@ -315,6 +315,11 @@ struct CassoTheme : public DxuiTheme
         theme.tooltipBorder             = kDim;
         theme.tooltipText               = kNormal;
         theme.errorText                 = 0xFFFF6B6B;
+
+        // The focused pane is outlined in the bright green, not the lavender
+        // a green accent on green-black would otherwise get: a monochrome
+        // terminal has no other hue to show it in.
+        theme.focusAccent               = kBright;
         return theme;
     }
 

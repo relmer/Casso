@@ -375,16 +375,20 @@ std::vector<std::wstring> FindWidgetSet::GetHistory (const std::wstring & pane) 
 
 std::wstring FindWidgetSet::GetTarget() const
 {
-    std::wstring  pane = m_window.GetFocusPane();
+    std::wstring       pane = m_window.GetFocusPane();
+    IDxuiFindTarget  * last = (m_active != nullptr) ? m_window.GetFindView (m_activePane) : nullptr;
 
 
 
+    //  The focused pane's find, or else the find last used while its text is
+    //  in sight; never one that is neither, which would take the keys away
+    //  from the focused pane.
     if (m_window.GetFindView (pane) != nullptr)
     {
         return pane;
     }
 
-    return DebuggerLayout::kConsole;
+    return (last != nullptr && last->IsFindVisible()) ? m_activePane : std::wstring();
 }
 
 
@@ -865,6 +869,11 @@ void FindWidgetSet::Find (bool forward)
     int                count   = 0;
 
 
+
+    if (target.empty())
+    {
+        return;
+    }
 
     //  F3 searches the text with the keys, if it can; from elsewhere, the
     //  pane whose widget is open and in sight. A closed document's widget

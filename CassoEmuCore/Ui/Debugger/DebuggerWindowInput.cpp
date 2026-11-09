@@ -561,10 +561,16 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
         }
     }
 
-    //  Find acts on the window, not the machine.
+    //  Find acts on the window, not the machine, and on the focused pane
+    //  alone: a pane with no find of its own opens none, rather than another
+    //  pane's, which would take the keys away from it.
     if (action == DebuggerKeySchemes::Action::Find)
     {
-        m_finds->Open (m_finds->GetTarget());
+        if (GetFindView (GetFocusPane()) != nullptr)
+        {
+            m_finds->Open (GetFocusPane());
+        }
+
         return true;
     }
 

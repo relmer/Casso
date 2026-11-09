@@ -74,6 +74,8 @@ public:
     bool                               IsFixed          () const override { return m_view == 0; }
     void                               AddToDock        (DxuiDockSite & dock) override;
     IDxuiControl                     * GetContent       () const override;
+    IDxuiFindTarget                  * GetFindView      () const override { return m_list; }
+    DebuggerPaneFrame                * GetFindFrame     () const override { return m_frame.get(); }
     std::vector<IDxuiControl *>        GetControls      () const override;
     std::vector<DxuiListView *>        GetLists         () const override { return { m_list }; }
     std::vector<DxuiToolbar *>         GetBars          () const override { return { m_bar.GetBar() }; }

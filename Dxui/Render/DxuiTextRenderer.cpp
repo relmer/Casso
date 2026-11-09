@@ -1532,6 +1532,16 @@ HRESULT DxuiTextRenderer::DrawString (
         // place and use NEAR alignment.
     }
 
+    //  A line taller than its box -- a face swapped in at a larger scale, in
+    //  a row set close to the line height -- runs past the bottom of a box
+    //  moved down to center its capitals. The text is near-aligned there, so
+    //  a taller box moves nothing, and the clip below keeps the text in its
+    //  column without cutting through the bottoms of its letters.
+    if (vAlign == VAlign::CenterOnCapHeight && !wrap)
+    {
+        heightDip += fontSizeDip;
+    }
+
     hr = EnsureLayout (text, fontFamily, fontSizeDip, weight,
                        hAlign, vAlign, wrap, widthDip, heightDip, &rawLayout);
     CHRA (hr);
