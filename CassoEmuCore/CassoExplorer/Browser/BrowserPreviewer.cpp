@@ -170,7 +170,8 @@ void BrowserPreviewer::PreviewAppleEntry (const std::string & entryPath, const F
 
     if (SUCCEEDED (hr))
     {
-        hr = PreviewDecoder::Render (entry, m_browser.m_kind, payload, GetHexForm (m_browser.GetLocation().path + L"|" + TextEncoding::NarrowToWide (entryPath)), m_bus, m_preview, m_previewMonitor, m_customArgb);
+        hr = PreviewDecoder::Render (entry, m_browser.m_kind, payload, GetHexForm (m_browser.GetLocation().path + L"|" + TextEncoding::NarrowToWide (entryPath)), m_bus, m_preview, m_previewMonitor, m_customArgb,
+                                     GetDecodeOptions (m_browser.GetLocation().path, entryPath));
     }
 
     if (FAILED (hr) && m_preview.message.empty())
@@ -218,6 +219,63 @@ PreviewDecoder::HexForm BrowserPreviewer::GetHexForm (const std::wstring & fileK
     }
 
     return m_hexForm;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::SetCharset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::SetCharset (Charset charset)
+{
+    if (!m_hexFormKey.empty())
+    {
+        m_decodeOptions[m_hexFormKey].charset = charset;
+        UpdatePreview();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::SetRecordLength
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::SetRecordLength (size_t recordLength)
+{
+    if (!m_hexFormKey.empty())
+    {
+        m_decodeOptions[m_hexFormKey].recordLength = recordLength;
+        UpdatePreview();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::GetDecodeOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DecodeOptions BrowserPreviewer::GetDecodeOptions (const std::wstring & imagePath, const std::string & entryPath) const
+{
+    auto  found = m_decodeOptions.find (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath));
+
+
+
+    return (found != m_decodeOptions.end()) ? found->second : DecodeOptions();
 }
 
 
@@ -1208,7 +1266,8 @@ void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::
         return;
     }
 
-    hr = PreviewDecoder::Render (entry, kind, payload, GetHexForm (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath)), m_bus, m_preview, m_previewMonitor, m_customArgb);
+    hr = PreviewDecoder::Render (entry, kind, payload, GetHexForm (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath)), m_bus, m_preview, m_previewMonitor, m_customArgb,
+                                 GetDecodeOptions (imagePath, entryPath));
 
     //  A double hi-res picture's monitor follows its form, which is known once
     //  it is decoded.

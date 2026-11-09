@@ -119,7 +119,10 @@ struct Grid
 //
 //  A file decoded whole, as lines, a document, a grid or a picture. The
 //  notes list what the decoder couldn't represent, such as a feature of a
-//  later version or the missing lines of a short picture.
+//  later version or the missing lines of a short picture. The character set
+//  is the one the text was read in, Default for a format that has one fixed
+//  set, and the record length the one a random-access text file was split
+//  by.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,4 +139,6 @@ struct DecodedFile
     int                        width  = 0;
     int                        height = 0;
     std::vector<std::wstring>  notes;
+    Charset                    charset      = Charset::Default;
+    size_t                     recordLength = 0;
 };

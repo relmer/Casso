@@ -6,6 +6,7 @@
 #include "CassoExplorer/CassoExplorerRawDialog.h"
 #include "Machines/Apple2/Common/StockBootDisks.h"
 #include "CassoExplorer/CassoExplorerOptionsDialog.h"
+#include "CassoExplorer/CassoExplorerPromptDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
 #include "CassoExplorer/Model/SearchQuery.h"
@@ -280,6 +281,10 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kPictureColor:      return m_context.browser.CanTogglePictureColor();
         case CassoExplorerCommands::kSavePicture:       return m_context.browser.GetPreview().kind == PreviewContent::Kind::Picture && !m_context.browser.GetPreview().bgra.empty();
         case CassoExplorerCommands::kEditWozMetadata:   return !m_context.browser.GetPreview().wozPath.empty();
+        case CassoExplorerCommands::kCharsetAppleText:
+        case CassoExplorerCommands::kCharsetMacOsRoman:
+        case CassoExplorerCommands::kCharsetIso8859:    return m_context.browser.GetPreview().charset != Charset::Default;
+        case CassoExplorerCommands::kRecordLength:      return m_context.browser.GetPreview().recordLength > 0;
         case CassoExplorerCommands::kFindNext:          return m_context.preview.GetFind().CanFindNext();
 
         //  The search box finds in the hex view and filters a VAR file's variables.
@@ -383,6 +388,9 @@ bool ExplorerCommandManager::IsChecked (int id) const
         case CassoExplorerCommands::kThemeRetroTerminal: return m_context.prefs.theme == CassoExplorerPrefs::kThemeRetroTerminal;
         case CassoExplorerCommands::kPictureMonochrome: return m_context.browser.CanTogglePictureColor() && m_context.browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiResMono;
         case CassoExplorerCommands::kPictureColor:      return m_context.browser.CanTogglePictureColor() && m_context.browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes;
+        case CassoExplorerCommands::kCharsetAppleText:  return m_context.browser.GetPreview().charset == Charset::AppleText;
+        case CassoExplorerCommands::kCharsetMacOsRoman: return m_context.browser.GetPreview().charset == Charset::MacOsRoman;
+        case CassoExplorerCommands::kCharsetIso8859:    return m_context.browser.GetPreview().charset == Charset::Iso8859_1;
         case CassoExplorerCommands::kNoData:            return !m_context.preview.GetHex().IsShowingValues();
         case CassoExplorerCommands::kGroup1:            return m_context.preview.GetHex().IsShowingValues() && m_context.prefs.hexGrouping == 1;
         case CassoExplorerCommands::kGroup2:            return m_context.preview.GetHex().IsShowingValues() && m_context.prefs.hexGrouping == 2;
@@ -614,6 +622,11 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kSavePicture:        m_context.preview.GetPicture().SavePicture();                                  break;
         case CassoExplorerCommands::kEditWozMetadata:    m_context.properties.ShowWozProperties (m_context.browser.GetPreview().wozPath, WozPropertiesDialog::kMetaTab); break;
 
+        case CassoExplorerCommands::kCharsetAppleText:   ChooseCharset (Charset::AppleText);  break;
+        case CassoExplorerCommands::kCharsetMacOsRoman:  ChooseCharset (Charset::MacOsRoman); break;
+        case CassoExplorerCommands::kCharsetIso8859:     ChooseCharset (Charset::Iso8859_1);  break;
+        case CassoExplorerCommands::kRecordLength:       ChooseRecordLength();                break;
+
         case CassoExplorerCommands::kGoToOffset:
             m_context.preview.GetFind().FocusGoTo();
             break;
@@ -719,6 +732,99 @@ void ExplorerCommandManager::Dispatch (int id)
     }
 
     m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerCommandManager::ChooseCharset
+//
+//  Reads the previewed text again in a character set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::ChooseCharset (Charset charset)
+{
+    m_context.browser.SetPreviewCharset (charset);
+    m_context.preview.FillPreview();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerCommandManager::ChooseRecordLength
+//
+//  Opens the prompt for the record length of the previewed random-access
+//  text file, prefilled with the current one, and opens it again after text
+//  that isn't a length. An empty answer or 0 is the length found in the file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::ChooseRecordLength()
+{
+    std::wstring  text   = std::to_wstring (m_context.browser.GetPreview().recordLength);
+    size_t        length = 0;
+    bool          parsed = false;
+
+
+
+    while (!parsed && CassoExplorerPromptDialog::Ask (m_context.window.GetHwnd(), m_context.theme, L"Record length",
+                                                       L"Bytes in each record, or 0 for the length found in the file:", text, kRecordLengthDigits, text))
+    {
+        parsed = TryParseRecordLength (text, length);
+
+        if (!parsed)
+        {
+            m_context.window.ShowMessage (L"Type a length from 1 to 65535, or 0.", MB_ICONWARNING);
+        }
+    }
+
+    if (parsed)
+    {
+        m_context.browser.SetPreviewRecordLength (length);
+        m_context.preview.FillPreview();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerCommandManager::TryParseRecordLength
+//
+//  A record length in decimal digits, from 0 to 65535. Empty text is 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerCommandManager::TryParseRecordLength (const std::wstring & text, size_t & outLength)
+{
+    size_t  value = 0;
+    bool    valid = text.size() <= kRecordLengthDigits;
+
+
+
+    for (wchar_t ch : text)
+    {
+        valid = valid && ch >= L'0' && ch <= L'9';
+        value = value * 10 + (size_t) (ch - L'0');
+    }
+
+    valid = valid && value <= kRecordLengthMax;
+
+    if (valid)
+    {
+        outLength = value;
+    }
+
+    return valid;
 }
 
 

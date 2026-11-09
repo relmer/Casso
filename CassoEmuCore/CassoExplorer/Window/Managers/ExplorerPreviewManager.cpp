@@ -224,6 +224,8 @@ void ExplorerPreviewManager::FillPreview()
     bool                    forms    = picture && m_context.browser.CanTogglePictureColor();
     bool                    shell    = preview.kind == PreviewContent::Kind::Shell;
     bool                    woz      = !preview.wozPath.empty();
+    bool                    random   = preview.recordLength > 0;
+    bool                    sets     = preview.charset != Charset::Default;
     bool                    details  = visible && woz && preview.kind == PreviewContent::Kind::Catalog && !preview.details.empty();
     bool                    hadThem  = m_summary->IsVisible();
     int                     mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
@@ -233,6 +235,8 @@ void ExplorerPreviewManager::FillPreview()
                                      : forms    ? CassoExplorerCommands::kPreviewBarPicture
                                      : picture  ? CassoExplorerCommands::kPreviewBarSave
                                      : vars     ? CassoExplorerCommands::kPreviewBarVariables
+                                     : random   ? CassoExplorerCommands::kPreviewBarRecords
+                                     : sets     ? CassoExplorerCommands::kPreviewBarText
                                      : woz      ? CassoExplorerCommands::kPreviewBarWoz
                                                 : CassoExplorerCommands::kPreviewBarNone;
 

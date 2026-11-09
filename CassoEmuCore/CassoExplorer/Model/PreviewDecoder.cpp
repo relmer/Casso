@@ -22,6 +22,7 @@
 #include "Ui/Debugger/SourceSyntax.h"
 #include "FileTypes/FileFormatTable.h"
 #include "FileTypes/HiResFormats.h"
+#include "FileTypes/TextCharset.h"
 
 
 
@@ -870,6 +871,17 @@ HRESULT PreviewDecoder::Render (
 
     hr = RenderByType (entry, kind, payload, hexForm, bus, outContent, monitor, customArgb);
 
+    //  Apple text read by its type alone is read again in a chosen set.
+    if (SUCCEEDED (hr) && outContent.kind == PreviewContent::Kind::Text && payload.textForm == PayloadTextForm::AppleHighAscii)
+    {
+        outContent.charset = TextCharset::Resolve (options.charset, false);
+
+        if (outContent.charset != Charset::AppleText)
+        {
+            outContent.lines = TextCharset::DecodeLines (payload.bytes, outContent.charset);
+        }
+    }
+
     if (!error.empty())
     {
         outContent.warning = error;
@@ -893,7 +905,9 @@ HRESULT PreviewDecoder::Render (
 
 void PreviewDecoder::FromDecoded (const DecodedFile & decoded, PreviewContent & outContent)
 {
-    outContent = PreviewContent();
+    outContent              = PreviewContent();
+    outContent.charset      = decoded.charset;
+    outContent.recordLength = decoded.recordLength;
 
     switch (decoded.kind)
     {

@@ -170,6 +170,12 @@ struct PreviewContent
     //  and metadata in `details`, listed above it.
     std::wstring               wozPath;
 
+    //  The character set text was read in, Default when the preview has no
+    //  choice of one, and the record length a random-access text file was
+    //  split by, 0 for any other file.
+    Charset                    charset      = Charset::Default;
+    size_t                     recordLength = 0;
+
     bool  operator== (const PreviewContent &) const = default;
 };
 

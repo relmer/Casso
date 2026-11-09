@@ -95,7 +95,8 @@ HRESULT RandomText::Decode (std::span<const Byte> bytes, const FileFacts & facts
     usable = length > 0;
     CBRFEx (usable, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = L"The file's record length isn't known.");
 
-    outFile.kind = DecodedFile::Kind::Grid;
+    outFile.kind         = DecodedFile::Kind::Grid;
+    outFile.recordLength = length;
 
     for (size_t start = 0; start < bytes.size(); start += length)
     {

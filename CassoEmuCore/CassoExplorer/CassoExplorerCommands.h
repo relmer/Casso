@@ -149,6 +149,13 @@ public:
         //  kShowDisassembly.
         kShowBytes,
 
+        //  The character set a text preview is read in, a choice of one, and
+        //  the record length a random-access text file is split by.
+        kCharsetAppleText,
+        kCharsetMacOsRoman,
+        kCharsetIso8859,
+        kRecordLength,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -213,6 +220,11 @@ public:
 
     //  A VAR file's variables: the search box, which filters them.
     static constexpr int  kPreviewBarVariables = 6;
+
+    //  Text with a choice of character set, and a random-access text file,
+    //  which has the record length as well.
+    static constexpr int  kPreviewBarText    = 7;
+    static constexpr int  kPreviewBarRecords = 8;
 
     std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries  (int bar, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;
     static std::vector<int>          GetPreviewToolbarCommandIds (int bar);
@@ -383,6 +395,10 @@ private:
         { kAddLink,           Menu::Count, L"Add a CassoLink connection...", nullptr, false },
         { kSavePicture,       Menu::Count, L"&Save picture as...", nullptr,     false },
         { kEditWozMetadata,   Menu::Count, L"&Edit metadata...",   nullptr,     false },
+        { kCharsetAppleText,  Menu::Count, L"&Apple text",         nullptr,     true  },
+        { kCharsetMacOsRoman, Menu::Count, L"&Mac OS Roman",       nullptr,     true  },
+        { kCharsetIso8859,    Menu::Count, L"&ISO 8859-1",         nullptr,     true  },
+        { kRecordLength,      Menu::Count, L"&Record length...",   nullptr,     false },
 
         //  The hex view's own choices are on its context menu, and nowhere
         //  else at the top of the window.
@@ -481,6 +497,10 @@ private:
         { kPictureColor,      DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Palette,   L"Color",         L"Draw the picture in color, on the color monitor"      },
         { kSavePicture,       DxuiToolbar::Kind::Command, 1, s_kpszMdl2SaveAs,    L"Save as PNG",   L"Save the picture as a PNG file"                      },
         { kEditWozMetadata,   DxuiToolbar::Kind::Command, 0, s_kpszMdl2Edit,      L"Edit metadata", L"Edit the image's title, publisher and other metadata" },
+        { kCharsetAppleText,  DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Apple text",    L"Read the text as Apple II text"                        },
+        { kCharsetMacOsRoman, DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Mac OS Roman",  L"Read the text as Mac OS Roman, the Apple IIgs set"     },
+        { kCharsetIso8859,    DxuiToolbar::Kind::Toggle,  0, nullptr,             L"ISO 8859-1",    L"Read the text as ISO 8859-1"                           },
+        { kRecordLength,      DxuiToolbar::Kind::Command, 1, nullptr,             L"Record length", L"Set the length the file is split into records by"      },
     };
 
     static constexpr Key  kKeys[] =

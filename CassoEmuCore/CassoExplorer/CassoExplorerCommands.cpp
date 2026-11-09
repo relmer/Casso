@@ -42,6 +42,7 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
                             || (row.id >= kGroupAscending && row.id <= kGroupDescending)
                             || (row.id >= kThemeLight && row.id <= kThemeRetroTerminal)
                             || (row.id >= kPictureMonochrome && row.id <= kPictureColor)
+                            || (row.id >= kCharsetAppleText && row.id <= kCharsetIso8859)
                             || row.id == kShowDisassembly || row.id == kShowBytes;
 
         command->dispatch = [this, id]()
@@ -642,6 +643,8 @@ int CassoExplorerCommands::GetPreviewBar (int id)
     return (id == kLineAddresses)                                                  ? kPreviewBarListing
          : (id == kPictureMonochrome || id == kPictureColor || id == kSavePicture) ? kPreviewBarPicture
          : (id == kEditWozMetadata)                                                ? kPreviewBarWoz
+         : (id >= kCharsetAppleText && id <= kCharsetIso8859)                      ? kPreviewBarText
+         : (id == kRecordLength)                                                   ? kPreviewBarRecords
                                                                                    : kPreviewBarHex;
 }
 
@@ -653,12 +656,14 @@ int CassoExplorerCommands::GetPreviewBar (int id)
 //
 //  CassoExplorerCommands::IsOnPreviewBar
 //
-//  Save as PNG is on both picture bars, and Search on the variables' bar as
-//  well as the hex view's.
+//  Save as PNG is on both picture bars, Search on the variables' bar as
+//  well as the hex view's, and the character sets on a random-access text
+//  file's bar as well as the text bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CassoExplorerCommands::IsOnPreviewBar (int id, int bar)
 {
-    return GetPreviewBar (id) == bar || (id == kSavePicture && bar == kPreviewBarSave) || (id == kFind && bar == kPreviewBarVariables);
+    return GetPreviewBar (id) == bar || (id == kSavePicture && bar == kPreviewBarSave) || (id == kFind && bar == kPreviewBarVariables)
+        || (GetPreviewBar (id) == kPreviewBarText && bar == kPreviewBarRecords);
 }

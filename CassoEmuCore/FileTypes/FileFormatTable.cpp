@@ -177,7 +177,8 @@ HRESULT FileFormatTable::Decode (FileFormat format, std::span<const Byte> bytes,
     hr = row->decode (bytes, facts, resolved, outFile, outError);
     CHR (hr);
 
-    outFile.format = format;
+    outFile.format  = format;
+    outFile.charset = HasCharsetChoice (format) ? resolved.charset : Charset::Default;
 
 Error:
     if (FAILED (hr))
@@ -331,6 +332,31 @@ bool FileFormatTable::IsIigsFormat (FileFormat format)
 
 
     return row != nullptr && row->iigs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileFormatTable::HasCharsetChoice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FileFormatTable::HasCharsetChoice (FileFormat format)
+{
+    switch (format)
+    {
+        case FileFormat::PascalText:
+        case FileFormat::RandomText:
+        case FileFormat::Teach:
+        case FileFormat::AppleWorksGsWp:
+            return true;
+
+        default:
+            return false;
+    }
 }
 
 

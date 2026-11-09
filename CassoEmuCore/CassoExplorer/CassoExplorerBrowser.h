@@ -210,6 +210,10 @@ public:
     //  bytes.
     void  ShowShellPreviewBytes () { m_previewer.ShowShellPreviewBytes(); }
     void  SetHexForm            (PreviewDecoder::HexForm form) { m_previewer.SetHexForm (form); }
+    void  SetPreviewCharset     (Charset charset)              { m_previewer.SetCharset (charset); }
+    void  SetPreviewRecordLength (size_t recordLength)         { m_previewer.SetRecordLength (recordLength); }
+
+    DecodeOptions  GetDecodeOptions (const std::wstring & imagePath, const std::string & entryPath) const { return m_previewer.GetDecodeOptions (imagePath, entryPath); }
 
     const std::vector<CatalogRow>  & GetRows    () const { return m_rows;      }
     const PreviewContent           & GetPreview () const { return m_previewer.m_preview;   }

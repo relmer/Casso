@@ -88,6 +88,9 @@ public:
     static FileFormat       GetImportBySuffix  (const std::wstring & hostName);
     static bool             IsIigsFormat       (FileFormat format);
 
+    //  Whether a format's text is read in the character set of the options.
+    static bool             HasCharsetChoice   (FileFormat format);
+
     static const std::vector<Row> &  GetRows ();
 
 private:

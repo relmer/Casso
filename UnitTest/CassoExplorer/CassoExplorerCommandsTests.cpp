@@ -167,9 +167,13 @@ public:
         Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarHex)     == std::vector<int> { CassoExplorerCommands::kShowDisassembly, CassoExplorerCommands::kShowBytes, CassoExplorerCommands::kGoToOffset, CassoExplorerCommands::kFind });
         Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarPicture) == std::vector<int> { CassoExplorerCommands::kPictureMonochrome, CassoExplorerCommands::kPictureColor, CassoExplorerCommands::kSavePicture });
         Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarSave)    == std::vector<int> { CassoExplorerCommands::kSavePicture });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarText)    == std::vector<int> { CassoExplorerCommands::kCharsetAppleText, CassoExplorerCommands::kCharsetMacOsRoman, CassoExplorerCommands::kCharsetIso8859 });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarRecords) == std::vector<int> { CassoExplorerCommands::kCharsetAppleText, CassoExplorerCommands::kCharsetMacOsRoman, CassoExplorerCommands::kCharsetIso8859, CassoExplorerCommands::kRecordLength });
         Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarNone).empty());
 
         Assert::IsTrue (commands.Find (CassoExplorerCommands::kPictureMonochrome)->radio);
         Assert::IsTrue (commands.Find (CassoExplorerCommands::kPictureColor)->radio);
         Assert::IsFalse (commands.Find (CassoExplorerCommands::kSavePicture)->radio);
+        Assert::IsTrue (commands.Find (CassoExplorerCommands::kCharsetMacOsRoman)->radio);
+        Assert::IsFalse (commands.Find (CassoExplorerCommands::kRecordLength)->radio);
     }};

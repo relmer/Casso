@@ -317,6 +317,7 @@
     <ClCompile Include="EmuTests\ZipAppleDoubleTests.cpp" />
     <ClCompile Include="EmuTests\ContainerDiskFileIoTests.cpp" />
     <ClCompile Include="FileTypes\WriterTests.cpp" />
+    <ClCompile Include="FileTypes\CharsetTests.cpp" />
     <ClCompile Include="FileTypes\TextFormatTests.cpp" />
     <ClCompile Include="FileTypes\PictureFormatTests.cpp" />
     <ClCompile Include="FileTypes\AppleWorksTests.cpp" />

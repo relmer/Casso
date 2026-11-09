@@ -78,6 +78,16 @@ public:
     void  ShowShellPreviewBytes ();
     void  SetHexForm            (PreviewDecoder::HexForm form);
 
+    //  The character set and the record length of the file previewed now,
+    //  in effect for that file until the window closes. A record length of 0 is
+    //  the one found.
+    void  SetCharset            (Charset charset);
+    void  SetRecordLength       (size_t recordLength);
+
+    //  The choices made for a file, by its image's path and its path in the
+    //  image; the defaults for a file with none.
+    DecodeOptions  GetDecodeOptions (const std::wstring & imagePath, const std::string & entryPath) const;
+
     void                     SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb = PicturePreview::kDefaultCustomArgb);
 
     PicturePreview::Monitor  GetPictureMonitor () const;
@@ -125,4 +135,7 @@ private:
     //  The form of the file previewed now, which another file resets.
     PreviewDecoder::HexForm             m_hexForm        = PreviewDecoder::HexForm::Auto;
     std::wstring                        m_hexFormKey;
+
+    //  The decode choices of each file one was made for, by file key.
+    std::map<std::wstring, DecodeOptions>  m_decodeOptions;
 };
