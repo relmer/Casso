@@ -275,6 +275,13 @@ public:
     //  The paths of the selection when every row is a CassoLink item.
     bool  TryGetSelectedCassoLinkPaths (std::vector<std::wstring> & outPaths) const { return m_loader.TryGetSelectedCassoLinkPaths (outPaths); }
 
+    //  The selection by the shell's names for it, when every selected row is a
+    //  host file or an item the shell lists; false when any is inside a disk
+    //  image. Copy and the shell's commands reach a selected row by its place
+    //  in the shell, which a shell folder's and Home's rows have.
+    bool         TryGetSelectedShellIds (std::vector<std::wstring> & outIds) const;
+    static bool  HasShellRows           (Location::Kind kind, bool home) { return kind == Location::Kind::ShellFolder || home; }
+
     //  The next list of a linked machine or drive reads its disks again, as
     //  a refresh does.
     void  ForgetLinkVisit () { m_loader.m_linkVisit = Location(); m_loader.m_linkReadAt.clear(); }

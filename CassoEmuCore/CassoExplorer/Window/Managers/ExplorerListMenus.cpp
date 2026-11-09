@@ -877,7 +877,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
                 hr = m_context.shellVerbs.ShowRecycledMenu (m_context.window.GetHwnd(), paths, screen);
                 m_context.folderSync.RefreshAfterHostChange();
             }
-            else if (m_context.fileOps.TryGetSelectedShellIds (paths))
+            else if (m_context.browser.TryGetSelectedShellIds (paths))
             {
                 hr = m_context.shellVerbs.ShowShellMenu (m_context.window.GetHwnd(), paths, screen, [this]() { m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Rename); });
             }

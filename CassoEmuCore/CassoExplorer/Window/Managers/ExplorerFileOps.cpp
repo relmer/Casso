@@ -508,7 +508,7 @@ void ExplorerFileOps::DeleteSelectionPermanently()
 
 
 
-    if (!TryGetSelectedShellIds (ids))
+    if (!m_context.browser.TryGetSelectedShellIds (ids))
     {
         return;
     }
@@ -518,59 +518,6 @@ void ExplorerFileOps::DeleteSelectionPermanently()
 
     NoteManifestDeletes (ids);
     m_context.folderSync.RefreshAfterHostChange();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerFileOps::TryGetSelectedShellIds
-//
-//  The selection by the shell's names for it, when every selected row is a
-//  host file or an item the shell lists; false when any is inside a disk
-//  image.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerFileOps::TryGetSelectedShellIds (std::vector<std::wstring> & outIds) const
-{
-    const std::vector<CatalogRow> &  rows = m_context.browser.GetRows();
-
-
-
-    outIds.clear();
-
-    if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
-    {
-        m_context.browser.GetSelectedHostPaths (outIds);
-        return !outIds.empty();
-    }
-
-    //  CassoLink's items drag as the files they are written to.
-    if (m_context.browser.TryGetSelectedCassoLinkPaths (outIds))
-    {
-        return true;
-    }
-
-    if (!HasShellRows (m_context.browser.GetLocation().kind, m_context.browser.IsHomeLocation()))
-    {
-        return false;
-    }
-
-    for (int row : m_context.browser.GetSelectedRows())
-    {
-        if (row < 0 || (size_t) row >= rows.size() || !rows[(size_t) row].imagePath.empty())
-        {
-            outIds.clear();
-            return false;
-        }
-
-        outIds.push_back (rows[(size_t) row].hostPath.empty() ? rows[(size_t) row].shellId : rows[(size_t) row].hostPath);
-    }
-
-    return !outIds.empty();
 }
 
 
@@ -781,93 +728,6 @@ void ExplorerFileOps::CopySelectedPaths()
     if (!text.empty())
     {
         DxuiClipboard::SetText (m_context.window.GetHwnd(), text);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerFileOps::OpenSelectedEntries
-//
-//  Files inside an image open in the programs Windows has for them, from
-//  copies in a folder of their own, as Explorer opens a file inside a zip.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerFileOps::OpenSelectedEntries()
-{
-    std::vector<std::wstring>  paths;
-    HRESULT                    hr    = CassoExplorerDragOut::WriteToTempFolder (m_context.browser, m_context.commandManager.GetNamingStyle(), paths);
-
-
-
-    if (FAILED (hr))
-    {
-        m_context.window.ShowMessage (L"The files could not be read out of the image to open.", MB_ICONWARNING);
-        return;
-    }
-
-    for (const std::wstring & path : paths)
-    {
-        hr = m_context.shellVerbs.Open (m_context.window.GetHwnd(), path);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerFileOps::OpenEachSelected
-//
-//  Several items open each on its own, as Explorer's do: a folder or an image
-//  in a tab of its own, a file in its program. All are read before the first
-//  tab opens, since a new tab lists something else.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerFileOps::OpenEachSelected()
-{
-    HRESULT                    hr      = S_OK;
-    std::vector<Location>      places;
-    std::vector<std::wstring>  files;
-    Location                   place;
-    std::wstring               path;
-    bool                       written = m_context.browser.PrepareCassoLinkItems();
-
-
-
-    for (int row : m_context.browser.GetSelectedRows())
-    {
-        if (m_context.browser.TryGetRowLocation (row, place))
-        {
-            places.push_back (place);
-        }
-        else if (written && !m_context.browser.IsImageLocation() && m_context.browser.TryGetRowPath (row, path))
-        {
-            files.push_back (path);
-        }
-    }
-
-    for (const std::wstring & file : files)
-    {
-        hr = m_context.shellVerbs.Open (m_context.window.GetHwnd(), file);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    for (const Location & each : places)
-    {
-        m_context.browser.OpenInNewTab (each);
-    }
-
-    if (!places.empty())
-    {
-        m_context.listPane.FillList();
     }
 }
 

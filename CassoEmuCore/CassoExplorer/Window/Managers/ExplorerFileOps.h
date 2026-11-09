@@ -51,7 +51,6 @@ public:
     bool  IsRenaming        () const { return m_renameRow >= 0 || !m_renameTreeId.empty(); }
     int   GetRenameRow      () const { return m_renameRow; }
 
-    void                    OpenSelectedEntries   ();
     void                    PushUndo              (UndoStep step);
 
     //  Host files deleted, and files restored: each image in a Full Send
@@ -81,11 +80,8 @@ public:
     void                                 FinishCut                   ();
     HRESULT                              RecycleHostFiles            (const std::vector<std::wstring> & paths);
     void                                 CopySelectedPaths           ();
-    void                                 OpenEachSelected            ();
 
-    //  Copy and the shell's commands reach a selected row by its place in the shell.
-    static bool                          HasShellRows                (Location::Kind kind, bool home) { return kind == Location::Kind::ShellFolder || home; }
-    bool                                 TryGetSelectedShellIds      (std::vector<std::wstring> & outIds) const;
+
     void                                 DeleteSelectionPermanently  ();
     void                                 BeginRename                 ();
     void                                 EndRename                   (bool commit);

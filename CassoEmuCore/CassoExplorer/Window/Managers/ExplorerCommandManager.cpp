@@ -20,6 +20,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
@@ -997,7 +998,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::Open:
             if (m_context.browser.IsImageLocation() && !(m_context.browser.GetSelectedRows().size() == 1 && m_context.browser.OpenRow (m_context.browser.GetSelectedRows()[0])))
             {
-                m_context.fileOps.OpenSelectedEntries();
+                m_context.opener.OpenSelectedEntries();
             }
             else if (m_context.browser.IsImageLocation())
             {
@@ -1005,7 +1006,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
             }
             else if (m_context.browser.GetSelectedRows().size() > 1)
             {
-                m_context.fileOps.OpenEachSelected();
+                m_context.opener.OpenEachSelected();
             }
             else if (!m_context.browser.GetSelectedRows().empty() && m_context.browser.OpenRow (m_context.browser.GetSelectedRows()[0]))
             {
@@ -1062,7 +1063,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
                 break;
             }
 
-            if (m_context.fileOps.TryGetSelectedShellIds (hostPaths))
+            if (m_context.browser.TryGetSelectedShellIds (hostPaths))
             {
                 hr = m_context.shellVerbs.PlaceOnClipboard (m_context.window.GetHwnd(), hostPaths, verb == CassoExplorerActions::Verb::Cut);
             }
@@ -1121,7 +1122,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
                     m_context.browser.GetSelectedHostPaths (hostPaths);
                     hr = m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), hostPaths);
                 }
-                else if (m_context.fileOps.TryGetSelectedShellIds (hostPaths))
+                else if (m_context.browser.TryGetSelectedShellIds (hostPaths))
                 {
                     hr = (m_context.browser.GetLocation().kind == Location::Kind::ShellFolder)
                        ? m_context.shellVerbs.RunItemVerb (m_context.window.GetHwnd(), hostPaths, "delete")

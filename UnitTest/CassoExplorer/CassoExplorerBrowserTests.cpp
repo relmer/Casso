@@ -1583,9 +1583,9 @@ public:
 
     TEST_METHOD (ShellRows_AreReachedOnHome_AndInShellFolders)
     {
-        Assert::IsTrue  (ExplorerFileOps::HasShellRows (Location::Kind::None, true));
-        Assert::IsTrue  (ExplorerFileOps::HasShellRows (Location::Kind::ShellFolder, false));
-        Assert::IsFalse (ExplorerFileOps::HasShellRows (Location::Kind::HostFolder, false));
+        Assert::IsTrue  (CassoExplorerBrowser::HasShellRows (Location::Kind::None, true));
+        Assert::IsTrue  (CassoExplorerBrowser::HasShellRows (Location::Kind::ShellFolder, false));
+        Assert::IsFalse (CassoExplorerBrowser::HasShellRows (Location::Kind::HostFolder, false));
     }
 
     TEST_METHOD (DesktopListing_DropsTheControlPanelCommandBesideTheFolder)

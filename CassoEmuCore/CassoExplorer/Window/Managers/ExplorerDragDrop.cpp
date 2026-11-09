@@ -1370,7 +1370,7 @@ void ExplorerDragDrop::BeginDragOut()
     //  do: the shell's own data object, with its thumbnails, its drop words,
     //  and what each target does with it. Only an image's entries need the
     //  formats built here.
-    if (m_context.fileOps.TryGetSelectedShellIds (shellIds))
+    if (m_context.browser.TryGetSelectedShellIds (shellIds))
     {
         hr = m_context.shellVerbs.DragItems (shellIds, DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK, images ? icon.get() : nullptr);
         IGNORE_RETURN_VALUE (hr, S_OK);

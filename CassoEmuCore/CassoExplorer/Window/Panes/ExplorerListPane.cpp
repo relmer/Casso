@@ -21,6 +21,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
@@ -245,7 +246,7 @@ void ExplorerListPane::Configure()
         else if (m_context.browser.GetSelectedRows().size() > 1)
         {
             //  Enter on several opens each, as Explorer's does.
-            m_context.fileOps.OpenEachSelected();
+            m_context.opener.OpenEachSelected();
         }
         else if (m_context.browser.OpenRow (row))
         {
@@ -254,7 +255,7 @@ void ExplorerListPane::Configure()
         else if (m_context.browser.IsImageLocation())
         {
             //  A file in an image opens in its own program, from a copy.
-            m_context.fileOps.OpenSelectedEntries();
+            m_context.opener.OpenSelectedEntries();
         }
         else if (m_context.browser.GetLocation().kind == Location::Kind::ShellFolder && row >= 0 && (size_t) row < m_context.browser.GetRows().size())
         {

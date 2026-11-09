@@ -2445,3 +2445,56 @@ bool CassoExplorerBrowser::GoForwardBy (size_t steps)
 
     return moved > 0;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::TryGetSelectedShellIds
+//
+//  The selection by the shell's names for it, when every selected row is a
+//  host file or an item the shell lists; false when any is inside a disk
+//  image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::TryGetSelectedShellIds (std::vector<std::wstring> & outIds) const
+{
+    const std::vector<CatalogRow> &  rows = GetRows();
+
+
+
+    outIds.clear();
+
+    if (GetLocation().kind == Location::Kind::HostFolder)
+    {
+        GetSelectedHostPaths (outIds);
+        return !outIds.empty();
+    }
+
+    //  CassoLink's items drag as the files they are written to.
+    if (TryGetSelectedCassoLinkPaths (outIds))
+    {
+        return true;
+    }
+
+    if (!HasShellRows (GetLocation().kind, IsHomeLocation()))
+    {
+        return false;
+    }
+
+    for (int row : GetSelectedRows())
+    {
+        if (row < 0 || (size_t) row >= rows.size() || !rows[(size_t) row].imagePath.empty())
+        {
+            outIds.clear();
+            return false;
+        }
+
+        outIds.push_back (rows[(size_t) row].hostPath.empty() ? rows[(size_t) row].shellId : rows[(size_t) row].hostPath);
+    }
+
+    return !outIds.empty();
+}
