@@ -240,4 +240,42 @@ public:
         Assert::AreEqual (1.0f, fsm.SlideProgress (now));
     }
 
+    TEST_METHOD (RevealTop_Is_One_Inch_Above_The_Area_Bottom_When_The_Free_Space_Is_Small)
+    {
+        constexpr int   kDpi = 96;
+        constexpr LONG  kTop = 0;
+        constexpr LONG  kBot = 800;
+
+        // 150 px free is under two inches (192 px): one inch (96 px).
+        Assert::AreEqual (kBot - kDpi, FullscreenStripState::GetRevealTopPx (kTop, kBot, kBot - 150, kDpi));
+
+        // Exactly two inches free is not "more than": still one inch.
+        Assert::AreEqual (kBot - kDpi, FullscreenStripState::GetRevealTopPx (kTop, kBot, kBot - 2 * kDpi, kDpi));
+
+        // Content reaching the bottom (fullscreen glass): one inch.
+        Assert::AreEqual (kBot - kDpi, FullscreenStripState::GetRevealTopPx (kTop, kBot, kBot, kDpi));
+    }
+
+    TEST_METHOD (RevealTop_Is_The_Bottom_Half_Of_The_Free_Space_When_It_Exceeds_Two_Inches)
+    {
+        constexpr int   kDpi = 96;
+        constexpr LONG  kTop = 0;
+        constexpr LONG  kBot = 800;
+
+        // 400 px free: the bottom 200 px.
+        Assert::AreEqual ((LONG) 600, FullscreenStripState::GetRevealTopPx (kTop, kBot, 400, kDpi));
+    }
+
+    TEST_METHOD (RevealTop_Scales_With_Dpi_And_Stays_Inside_The_Area)
+    {
+        // 144 dpi: an inch is 144 px.
+        Assert::AreEqual ((LONG) 656, FullscreenStripState::GetRevealTopPx (0, 800, 790, 144));
+
+        // A tiny area never yields a top above the area.
+        Assert::AreEqual ((LONG) 0, FullscreenStripState::GetRevealTopPx (0, 50, 50, 96));
+
+        // Content below the area clamps to the area's bottom.
+        Assert::AreEqual ((LONG) 704, FullscreenStripState::GetRevealTopPx (0, 800, 5000, 96));
+    }
+
 };

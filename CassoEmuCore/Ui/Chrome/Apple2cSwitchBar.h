@@ -51,7 +51,8 @@ public:
 
     void  Hide            ()
     {
-        m_bounds     = {};
+        SetBounds (RECT {});
+
         m_resetRect  = {};
         m_eightyRect = {};
         m_kbdRect    = {};
@@ -104,7 +105,6 @@ public:
 
     Part  GetPartAt (int x, int y) const;
     bool  HitTest   (int x, int y) const  { return GetPartAt (x, y) != Part::None; }
-    RECT  GetBounds () const              { return m_bounds; }
 
     const wchar_t * GetTooltipTextAt (int x, int y) const;
 
@@ -239,7 +239,6 @@ private:
     static void      ShearGradH (IDxuiPainter & p, float xL, float yTop, float w, float h,
                                  float tan, float refBottom, uint32_t left, uint32_t right, int cols);
 
-    RECT                 m_bounds       = {};
     RECT                 m_resetRect    = {};
     RECT                 m_eightyRect   = {};   // clickable: key + label
     RECT                 m_kbdRect      = {};

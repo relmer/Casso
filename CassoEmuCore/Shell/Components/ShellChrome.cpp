@@ -1003,6 +1003,8 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
     m_driveStripAreaPx = m_shell.m_renderer->GetD3D().IsFullscreen() ? RECT { 0, 0, widthPx, heightPx }
                                                                      : m_centerBand.GetBounds();
 
+    m_stripContentBottomPx = viewportRect.bottom;
+
     UpdateDeskSlideCover (m_shell.IsDeskSlideActive() ? m_shell.m_scene->GetScene().Composition() : DeskSceneComposition {});
 
     m_shell.m_viewport->Layout (viewportRect, m_shell.m_scaler);
@@ -1107,9 +1109,11 @@ int ShellChrome::GetDeskSlideClearPx() const
 //  front faces down to the area's bottom. Their lids, running back into the
 //  scene, are left out. Empty while the devices are out of the composition.
 //
-//  The reveal zone, which brings them up, is the lower half of the desk
-//  between the monitor's bottom and the area's bottom; never less than the
-//  plain edge zone.
+//  The reveal zone, which brings them up, is one inch tall at the area's
+//  bottom. When the space between the bottom of the monitor's frame and the
+//  area's bottom is more than two inches, it is the bottom half of that
+//  space. Without a monitor frame (no 3D monitor), the display's bottom
+//  stands in for the frame's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1118,8 +1122,8 @@ void ShellChrome::UpdateDeskSlideCover (const DeskSceneComposition & comp)
     constexpr int  kStayMarginDp = 24;
     RECT           cover         = {};
     LONG           frontTopPx    = 0;
-    LONG           edgeTopPx     = m_driveStripAreaPx.bottom - m_shell.m_scaler.ToPx (s_kStripEdgeZoneDp);
-    LONG           monitorBottom = std::min (comp.monitorRectPx.bottom, m_driveStripAreaPx.bottom);
+    bool           hasFrame      = comp.monitorRectPx.bottom > comp.monitorRectPx.top;
+    LONG           contentBottom = hasFrame ? comp.monitorRectPx.bottom : m_stripContentBottomPx;
 
 
 
@@ -1131,12 +1135,8 @@ void ShellChrome::UpdateDeskSlideCover (const DeskSceneComposition & comp)
 
     m_deskSlideCoverPx = cover;
 
-    m_deskSlideRevealTopPx = edgeTopPx;
-
-    if (comp.monitorRectPx.bottom > comp.monitorRectPx.top)
-    {
-        m_deskSlideRevealTopPx = std::min (edgeTopPx, monitorBottom + (m_driveStripAreaPx.bottom - monitorBottom) / 2);
-    }
+    m_deskSlideRevealTopPx = FullscreenStripState::GetRevealTopPx (m_driveStripAreaPx.top, m_driveStripAreaPx.bottom,
+                                                                   contentBottom, m_shell.m_scaler.GetDpi());
 }
 
 

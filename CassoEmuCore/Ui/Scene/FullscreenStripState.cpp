@@ -145,6 +145,32 @@ float FullscreenStripState::SlideProgress (int64_t nowMs) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullscreenStripState::GetRevealTopPx
+//
+//  One pixel per dpi is one inch. The content's bottom is clamped into the
+//  area, so content that reaches past the area leaves a one-inch zone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LONG FullscreenStripState::GetRevealTopPx (LONG areaTopPx, LONG areaBottomPx, LONG contentBottomPx, int dpi)
+{
+    constexpr LONG  kSplitThresholdInches = 2;
+    LONG            inchPx                = (LONG) dpi;
+    LONG            contentBottom         = std::clamp (contentBottomPx, areaTopPx, areaBottomPx);
+    LONG            freePx                = areaBottomPx - contentBottom;
+    LONG            heightPx              = (freePx > kSplitThresholdInches * inchPx) ? freePx / kSplitThresholdInches : inchPx;
+
+
+
+    return std::max (areaTopPx, areaBottomPx - heightPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullscreenStripState::BeginReveal
 //
 ////////////////////////////////////////////////////////////////////////////////
