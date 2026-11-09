@@ -582,15 +582,23 @@ namespace W5100SocketBridgeTests
         }
 
 
-        TEST_METHOD (TakenPortFallsBackToEphemeral)
+        //  For a taken port, another port isn't bound explicitly, which would
+        //  raise a Windows Firewall prompt; the first send binds a temporary one.
+        TEST_METHOD (TakenPortSendsFromATemporaryPort)
         {
             UthernetRig  rig;
 
             rig.network.OccupyPort (HostSocketKind::Udp, kAdtPro);
             rig.OpenSocket (1, R::kProtocolUdp, kAdtPro);
+            rig.SetDestination (1, VirtualSubnet::kBroadcastIp, kAdtPro);
+            rig.bus.Send (1, MakePattern (8, 1));
 
-            Assert::AreEqual (R::kSockUdp, rig.bus.Status (1));
-            Assert::IsNotNull (rig.network.FindBound (HostSocketKind::Udp, FakeHostNetwork::kFirstEphemeralPort).get());
+            auto  socket = rig.network.FindBound (HostSocketKind::Udp, FakeHostNetwork::kFirstEphemeralPort);
+
+            Assert::AreEqual  (R::kSockUdp, rig.bus.Status (1));
+            Assert::IsNotNull (socket.get());
+            Assert::AreEqual  ((size_t) 1, socket->sentDatagrams.size());
+            Assert::IsTrue    (socket->allowBroadcast, L"a broadcast is permitted");
         }
 
 
@@ -842,6 +850,27 @@ namespace W5100SocketBridgeTests
             rig.Pump();
 
             Assert::IsNotNull (rig.network.FindBound (HostSocketKind::Tcp, kAdtPro).get());
+            Assert::IsTrue    (rig.card.GetBridge().GetDeferredPorts().empty());
+        }
+
+
+        //  With LAN access off no datagram from the LAN is delivered to the socket,
+        //  so a port the gate doesn't admit isn't deferred; the socket sends
+        //  unbound instead of binding the port, which would raise a prompt.
+        TEST_METHOD (WithLanAccessOff_AUdpSocketTheGateRefuses_SendsUnbound)
+        {
+            UthernetRig  rig;
+            ListenGate   gate;
+
+            gate.Set (MakeSnapshot ({}), MakeProgram());
+            rig.card.GetBridge().SetListenGate (&gate);
+
+            rig.OpenSocket (1, R::kProtocolUdp, kPeerPort);
+            rig.SetDestination (1, VirtualSubnet::kBroadcastIp, kAdtPro);
+            rig.bus.Send (1, MakePattern (8, 1));
+
+            Assert::IsNull    (rig.network.FindBound (HostSocketKind::Udp, kPeerPort).get(), L"the guest's port is not bound");
+            Assert::IsNotNull (rig.network.FindBound (HostSocketKind::Udp, FakeHostNetwork::kFirstEphemeralPort).get(), L"the send binds a temporary port");
             Assert::IsTrue    (rig.card.GetBridge().GetDeferredPorts().empty());
         }
 

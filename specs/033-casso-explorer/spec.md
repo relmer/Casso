@@ -2063,7 +2063,12 @@ source and read the manifest. Repeat on a real //c with real floppies.
   connected to, so no Windows Firewall prompt appears for it. The port MUST
   wait, with the program's warning and its Allow, and MUST open once the
   port is admitted. An interface with no network identified, such as Hyper-V's
-  Default Switch, MUST NOT add its category.
+  Default Switch, MUST NOT add its category. The guest's outgoing UDP, from
+  the address translation or an Uthernet II socket with LAN access off, MUST
+  NOT be deferred: a port the firewall doesn't admit, or one the PC has in
+  use, MUST be sent from a socket with no explicit bind, which the first send
+  binds to a temporary port, since an explicit bind to the PC's addresses
+  raises the prompt and an unbound send doesn't.
 - **FR-153**: When the PC has an Uthernet II listener's port in use, such as
   6502 in a second Casso on the PC, the listener MUST move to the next port
   the PC has free, up to the seventh port after the guest's. The guest's

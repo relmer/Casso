@@ -6,6 +6,7 @@
 #include "Seams/IHostNetwork.h"
 
 class IGuestPacketSink;
+class ListenGate;
 
 
 
@@ -38,6 +39,12 @@ public:
 
     void  SetHostNetwork  (IHostNetwork * network) { m_network = network; }
     void  SetLanAccess    (bool lanAccess)         { m_lanAccess = lanAccess; }
+
+    //  A flow whose guest port the gate does not admit sends from a socket
+    //  with no explicit bind, which Windows binds to a temporary port on the
+    //  first send: an explicit bind to the PC's addresses raises a Windows
+    //  Firewall prompt.
+    void  SetListenGate   (const ListenGate * gate)  { m_gate = gate; }
 
     void  SendFromGuest   (uint16_t                guestPort,
                            uint32_t                destinationIp,
@@ -79,6 +86,7 @@ private:
 
     IGuestPacketSink                  & m_sink;
     IHostNetwork                      * m_network    = nullptr;
+    const ListenGate                  * m_gate       = nullptr;
     bool                                m_lanAccess  = false;
     uint32_t                            m_dnsServer  = 0;
     std::map<uint16_t, Flow>            m_flows;

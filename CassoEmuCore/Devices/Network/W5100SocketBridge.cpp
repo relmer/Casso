@@ -330,28 +330,40 @@ void W5100SocketBridge::OpenDeferred()
 //
 //  W5100SocketBridge::OpenUdp
 //
-//  A UDP socket binds its source port on the PC, or an ephemeral one when
-//  the PC has that port taken.
+//  A UDP socket binds its source port on the PC when the PC has it free and
+//  the firewall admits it. Otherwise it is left unbound, and the first send
+//  binds it to a temporary port: an explicit bind to the any-address raises
+//  a Windows Firewall prompt for a program with no rule, and an unbound
+//  socket's send doesn't. With LAN access on, a port the firewall doesn't
+//  admit is deferred before this, as other computers send to it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void W5100SocketBridge::OpenUdp (int socket)
 {
-    HRESULT   hr   = S_OK;
-    Slot    & slot = m_slots[(size_t) socket];
-    uint16_t  port = m_chip.GetSourcePort (socket);
+    HRESULT   hr     = S_OK;
+    Slot    & slot   = m_slots[(size_t) socket];
+    uint16_t  port   = m_chip.GetSourcePort (socket);
+    bool      admits = m_gate == nullptr || m_gate->Admits (HostSocketKind::Udp, port);
+    HRESULT   bind   = E_FAIL;
+    bool      bound  = false;
 
 
 
     hr = m_hostNetwork->CreateSocket (HostSocketKind::Udp, slot.host);
     CHR (hr);
 
-    hr = slot.host->Bind ({ VirtualSubnet::kAnyIp, port }, true);
-    slot.hostPort = SUCCEEDED (hr) ? port : 0;
-
-    if (FAILED (hr))
+    if (admits)
     {
-        hr = slot.host->Bind ({ VirtualSubnet::kAnyIp, 0 }, true);
+        bind = slot.host->Bind ({ VirtualSubnet::kAnyIp, port }, true);
+    }
+
+    bound         = SUCCEEDED (bind);
+    slot.hostPort = bound ? port : 0;
+
+    if (!bound)
+    {
+        hr = slot.host->AllowBroadcast();
         CHR (hr);
     }
 
