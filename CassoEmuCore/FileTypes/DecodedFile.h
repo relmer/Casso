@@ -130,14 +130,14 @@ struct DecodedFile
 {
     enum class Kind { Lines, Document, Grid, Picture };
 
-    FileFormat                 format = FileFormat::None;
-    Kind                       kind   = Kind::Lines;
+    FileFormat                 format       = FileFormat::None;
+    Kind                       kind         = Kind::Lines;
     std::vector<std::wstring>  lines;
     std::vector<Paragraph>     paragraphs;
     Grid                       grid;
     std::vector<uint32_t>      bgra;
-    int                        width  = 0;
-    int                        height = 0;
+    int                        width        = 0;
+    int                        height       = 0;
     std::vector<std::wstring>  notes;
     Charset                    charset      = Charset::Default;
     size_t                     recordLength = 0;
