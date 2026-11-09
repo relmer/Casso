@@ -1780,8 +1780,8 @@ void DxuiTabStrip::PaintCompactTab (
         PaintHoverBox (painter, r, isArmed ? DxuiColor::Darken (pal.tabHover, kPressedScale) : pal.tabHover);
     }
 
-    //  A mark with no face of its own is drawn in the system face, which no
-    //  theme replaces: a theme's body face may have no glyph for it, and the
+    //  A mark with no face given is drawn in the system face, which no theme
+    //  replaces: a theme's body face may have no glyph for it, and the
     //  fallback face's glyph is placed off the label's line.
     if (!tab.mark.empty() && tab.markArgb != 0)
     {
