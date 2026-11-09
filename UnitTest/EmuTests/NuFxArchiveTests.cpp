@@ -149,4 +149,26 @@ public:
         AssertFailed (NuFxArchive::Parse (bytes, parsed, error));
         Assert::IsFalse (error.empty());
     }
+
+
+    TEST_METHOD (HeaderName_SurvivesARebuild)
+    {
+        NuFxArchive        archive;
+        NuFxArchive        parsed;
+        NuFxRecord         record;
+        std::vector<Byte>  bytes;
+        std::string        error;
+
+
+
+        record.version    = 1;
+        record.headerName = "OLD.README";
+        record.threads.push_back (NuFxArchive::MakeDataThread (NuFxThread::kKindDataFork, std::vector<Byte> (100, 'x')));
+        archive.records.push_back (record);
+        archive.Build (bytes);
+
+        AssertSucceeded (NuFxArchive::Parse (bytes, parsed, error));
+        Assert::AreEqual (std::string ("OLD.README"), NuFxArchive::GetName (parsed.records[0]));
+        Assert::IsTrue (parsed.records[0].headerCrcOk);
+    }
 };

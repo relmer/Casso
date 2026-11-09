@@ -542,7 +542,8 @@ void NuFxArchive::BuildRecord (const NuFxRecord & record, std::vector<Byte> & ou
     Write16 (outBytes, (Word) optionSize);
     outBytes.insert (outBytes.end(), record.optionList.begin(), record.optionList.end());
     outBytes.insert (outBytes.end(), optionPad, 0);
-    Write16 (outBytes, 0);
+    Write16 (outBytes, (Word) record.headerName.size());
+    outBytes.insert (outBytes.end(), record.headerName.begin(), record.headerName.end());
 
     for (const NuFxThread & thread : record.threads)
     {

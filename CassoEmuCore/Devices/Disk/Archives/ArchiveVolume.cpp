@@ -22,6 +22,14 @@ ArchiveVolume::ArchiveVolume (const vector<Byte> & bytes)
         return;
     }
 
+    if (IsSelfExtracting (bytes))
+    {
+        m_isNuFx           = true;
+        m_isSelfExtracting = true;
+        m_parsed           = NuFxArchive::Parse (std::span<const Byte> (bytes).subspan (kSelfExtractingOffset), m_nufx, m_error);
+        return;
+    }
+
     m_parsed = BinaryTwoArchive::Parse (bytes, m_bny, m_error);
 
     if (SUCCEEDED (m_parsed) && m_bny.size() == 1 && NuFxArchive::IsNuFx (m_bny[0].data))
@@ -30,6 +38,31 @@ ArchiveVolume::ArchiveVolume (const vector<Byte> & bytes)
         m_wrappedInBny = true;
         m_parsed       = NuFxArchive::Parse (m_bny[0].data, m_nufx, m_error);
     }
+    else if (SUCCEEDED (m_parsed) && m_bny.size() == 1 && IsSelfExtracting (m_bny[0].data))
+    {
+        m_isNuFx           = true;
+        m_wrappedInBny     = true;
+        m_isSelfExtracting = true;
+        m_parsed           = NuFxArchive::Parse (std::span<const Byte> (m_bny[0].data).subspan (kSelfExtractingOffset), m_nufx, m_error);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ArchiveVolume::IsSelfExtracting
+//
+//  GS ShrinkIt's self-extracting archive: the extractor program, then the
+//  archive at a fixed offset.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ArchiveVolume::IsSelfExtracting (const vector<Byte> & bytes)
+{
+    return bytes.size() > kSelfExtractingOffset && NuFxArchive::IsNuFx (std::span<const Byte> (bytes).subspan (kSelfExtractingOffset));
 }
 
 
@@ -44,7 +77,7 @@ ArchiveVolume::ArchiveVolume (const vector<Byte> & bytes)
 
 bool ArchiveVolume::IsArchive (const vector<Byte> & bytes)
 {
-    return NuFxArchive::IsNuFx (bytes) || BinaryTwoArchive::IsBinaryTwo (bytes);
+    return NuFxArchive::IsNuFx (bytes) || IsSelfExtracting (bytes) || BinaryTwoArchive::IsBinaryTwo (bytes);
 }
 
 
@@ -167,7 +200,8 @@ void ArchiveVolume::ToProDosDate (const std::array<Byte, 8> & when, Word & outDa
 //
 //  ArchiveVolume::FromProDosDate
 //
-//  A two-digit year below 40 is this century's, as ProDOS 8 reads it.
+//  A two-digit year below 40 is this century's, as ProDOS 8 reads it. No date
+//  is all zeros, as it is in ProDOS.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -184,6 +218,11 @@ std::array<Byte, 8> ArchiveVolume::FromProDosDate (Word date, Word time)
     int                  day   = date & 0x1F;
 
 
+
+    if (date == 0 && time == 0)
+    {
+        return when;
+    }
 
     when[1] = (Byte) (time & 0xFF);
     when[2] = (Byte) (time >> 8);
@@ -509,16 +548,21 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ArchiveVolume::BuildBack (const NuFxArchive & nufx, const std::vector<BinaryTwoEntry> & bny, vector<Byte> & outBuffer) const
+HRESULT ArchiveVolume::BuildBack (const NuFxArchive & nufx, const std::vector<BinaryTwoEntry> & bny, vector<Byte> & outBuffer) const
 {
+    HRESULT                      hr = S_OK;
     std::vector<BinaryTwoEntry>  wrapper;
 
 
 
+    outBuffer.clear();
+
+    CBREx (!m_isSelfExtracting, HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT));
+
     if (!m_isNuFx)
     {
         BinaryTwoArchive::Build (bny, outBuffer);
-        return;
+        BAIL_OUT_IF (true, S_OK);
     }
 
     nufx.Build (outBuffer);
@@ -530,6 +574,9 @@ void ArchiveVolume::BuildBack (const NuFxArchive & nufx, const std::vector<Binar
 
         BinaryTwoArchive::Build (wrapper, outBuffer);
     }
+
+Error:
+    return hr;
 }
 
 
@@ -619,7 +666,8 @@ HRESULT ArchiveVolume::Write (const FilePath & path, const FilePayload & payload
         }
     }
 
-    BuildBack (nufx, bny, outBuffer);
+    hr = BuildBack (nufx, bny, outBuffer);
+    CHR (hr);
 
 Error:
     return hr;
@@ -680,7 +728,8 @@ HRESULT ArchiveVolume::Delete (const FilePath & path, vector<Byte> & outBuffer, 
         bny.erase (bny.begin() + (ptrdiff_t) index);
     }
 
-    BuildBack (nufx, bny, outBuffer);
+    hr = BuildBack (nufx, bny, outBuffer);
+    CHR (hr);
 
 Error:
     return hr;
@@ -720,7 +769,8 @@ HRESULT ArchiveVolume::CreateDirectory (const FilePath & path, vector<Byte> & ou
     folder.storageType = 0x0D;
     bny.push_back (folder);
 
-    BuildBack (m_nufx, bny, outBuffer);
+    hr = BuildBack (m_nufx, bny, outBuffer);
+    CHR (hr);
 
 Error:
     return hr;
@@ -835,7 +885,8 @@ HRESULT ArchiveVolume::RemoveDirectory (const FilePath & path, bool force, vecto
         }
     }
 
-    BuildBack (nufx, bny, outBuffer);
+    hr = BuildBack (nufx, bny, outBuffer);
+    CHR (hr);
 
 Error:
     return hr;
@@ -938,7 +989,8 @@ HRESULT ArchiveVolume::Rename (const FilePath & from, const std::string & to, ve
         bny[index].name = JoinName (renamed);
     }
 
-    BuildBack (nufx, bny, outBuffer);
+    hr = BuildBack (nufx, bny, outBuffer);
+    CHR (hr);
 
 Error:
     return hr;
@@ -992,7 +1044,8 @@ HRESULT ArchiveVolume::SetAttributes (const FilePath & path, const FileAttribute
         entry.modTime    = attributes.hasModified ? attributes.modifiedTime : entry.modTime;
     }
 
-    BuildBack (nufx, bny, outBuffer);
+    hr = BuildBack (nufx, bny, outBuffer);
+    CHR (hr);
 
 Error:
     return hr;

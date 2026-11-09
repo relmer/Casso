@@ -1875,7 +1875,7 @@ HRESULT DiskCommandRunner::BuildPutPayload (
     char                   note[160]    = {};
     std::string            hostText;
     ApplesoftListingError  listingError;
-    bool                   hasAddresses = kind == VolumeKind::Dos33 || kind == VolumeKind::ProDos;
+    bool                   hasAddresses = kind == VolumeKind::Dos33 || kind == VolumeKind::ProDos || kind == VolumeKind::Archive;
     bool                   isReadOnly   = false;
     bool                   allowed      = hasAddresses || (!options.disk.hasLoadAddress && options.disk.encoding != CommandLineOptions::DiskOptions::Encoding::Basic);
 

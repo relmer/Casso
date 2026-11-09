@@ -19,7 +19,8 @@
 //  write returning the archive built again. A Binary II file of one NuFX
 //  archive, a `.bxy`, is the NuFX archive, written back inside its Binary II
 //  header. NuFX has no directory records, so a folder is there while a file
-//  is in it.
+//  is in it. A self-extracting archive, `.sea` or a `.bse` that wraps one,
+//  is read only, since its extractor program may depend on the archive's size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +52,10 @@ public:
     void     CollectDamage (std::vector<std::string> & outDamage) const;
 
 private:
-    static constexpr Byte  kDefaultAccess = 0xE3;
+    static constexpr Byte    kDefaultAccess        = 0xE3;
+    static constexpr size_t  kSelfExtractingOffset = 12005;
+
+    static bool  IsSelfExtracting (const vector<Byte> & bytes);
 
     static std::vector<std::string>  SplitName      (const std::string & name, char separator);
     static std::string               JoinName       (const std::vector<std::string> & components);
@@ -63,11 +67,12 @@ private:
     size_t                    GetCount  () const;
     bool                      TryFind   (const FilePath & path, size_t & outIndex) const;
     FileEntry                 ToEntry   (size_t index, const std::string & leaf) const;
-    void                      BuildBack (const NuFxArchive & nufx, const std::vector<BinaryTwoEntry> & bny, vector<Byte> & outBuffer) const;
+    HRESULT                   BuildBack (const NuFxArchive & nufx, const std::vector<BinaryTwoEntry> & bny, vector<Byte> & outBuffer) const;
 
-    bool                         m_isNuFx       = false;
-    bool                         m_wrappedInBny = false;
-    HRESULT                      m_parsed       = S_OK;
+    bool                         m_isNuFx           = false;
+    bool                         m_wrappedInBny     = false;
+    bool                         m_isSelfExtracting = false;
+    HRESULT                      m_parsed           = S_OK;
     std::string                  m_error;
     NuFxArchive                  m_nufx;
     std::vector<BinaryTwoEntry>  m_bny;

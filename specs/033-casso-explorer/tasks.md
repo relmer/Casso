@@ -1783,14 +1783,14 @@ Session 2026-11-09. Plan's Phase 33, research R36 to R57, contracts `contracts/v
 - [X] T543 [US20] Add entries 2, 9 and 11 to `AppleSingleCodec` in `CassoEmuCore/Core/AppleSingleCodec.h/.cpp`, and an AppleDouble form with no entry 1. Tests in `UnitTest/EmuTests/AppleSingleCodecTests.cpp`
 - [X] T544 [US20] Write the resource fork on a copy to the PC in each host name style, AppleSingle or `._NAME`, and create an extended file from a put of either (FR-181), in `HostFileNaming` and `CassoExplorerActions`. Tests in `UnitTest/CassoExplorer/HostFileNamingTests.cpp`
 - [ ] T545 [US20] Add the Data fork, Resource fork, Total size and Access columns to Details (FR-180), with access as the six flags. Open: column indices are saved in each folder's view in `CassoExplorerPrefs.json`, so new columns move the shell property columns after them, and the saved views take a migration first
-- [ ] T546 [US20] Scenario test in `ScenarioTests/ResourceForkTests.cpp` on an 800K IIgs disk from CiderPress II: a Teach document copied to another image and to the PC and back, compared in both forks and Finder information (SC-051). Open: the image is CiderPress II's, fetched by T560
+- [X] T546 [US20] Scenario test in `ScenarioTests/ResourceForkTests.cpp` on an 800K IIgs disk from CiderPress II: a Teach document copied to another image and to the PC and back, compared in both forks and Finder information (SC-051). Open: the image is CiderPress II's, fetched by T560
 
 ## Phase 38: ShrinkIt and Binary II archives (User Story 21)
 
 **Goal**: archives browse, change and nest as folders. **Independent test**: quickstart §7e steps 4 and 5.
 
 - [X] T547 [US21] Record what Casso Explorer does today with a disk image inside a ZIP: open it, copy a file out, put one in. Note the result in `specs/033-casso-explorer/research.md` R39
-- [ ] T548 [P] [US21] Add `NuLzw` in `CassoEmuCore/Devices/Disk/Archives/NuLzw.h/.cpp`, LZW/1 and LZW/2 both ways, from CiderPress II's LZW notes. Tests include a 4 KB chunk stored uncompressed and a table reset. Done in code and round-tripped: LZW/2 both ways, LZW/1 expansion. Open: checked only against its own output until T560 brings ShrinkIt archives
+- [X] T548 [P] [US21] Add `NuLzw` in `CassoEmuCore/Devices/Disk/Archives/NuLzw.h/.cpp`, LZW/1 and LZW/2 both ways, from CiderPress II's LZW notes. Tests include a 4 KB chunk stored uncompressed and a table reset. Done in code and round-tripped: LZW/2 both ways, LZW/1 expansion. Checked against CiderPress II: its archives expand, and archives Casso writes pass `cp2 test`
 - [X] T549 [P] [US21] Add `SqueezeDecoder` and `LzcDecoder` (12 and 16 bits) in `CassoEmuCore/Devices/Disk/Archives/`
 - [ ] T550 [P] [US21] Vendor bzip2 under `External/bzip2/` with its license file, built as a static library into CassoEmuCore, decode only
 - [X] T551 [P] [US21] Add `GzipFile` over `Update/Inflate.cpp` in `CassoEmuCore/Devices/Disk/Archives/GzipFile.h/.cpp`, reading RFC 1952's header, CRC-32 and size, and writing with a stored block
@@ -1802,8 +1802,8 @@ Session 2026-11-09. Plan's Phase 33, research R36 to R57, contracts `contracts/v
 - [X] T557 [US21] Read a ZIP member's AppleDouble entry, as CiderPress II writes it, for the member's type, aux type and resource fork (FR-187). `ZipAppleDouble::Apply`; T558 calls it when a ZIP member is copied to a disk
 - [ ] T558 [US21] Browse NuFX, Binary II and nested containers in Casso Explorer's tree, list, preview and Properties, and create a new archive from a selection or an image from the context menu. Done: an image in a ZIP folder is listed as an image and opens and writes through `ContainerDiskFileIo`, in Casso Explorer and `casso disk`. Open: creating an archive, Properties for a record, and `ZipAppleDouble::Apply` on a copy out of a ZIP
 - [ ] T559 [US21] Add Test to the context menu and `casso disk test`: `VolumeIntegrityReport` for an image and each record's CRC for an archive, each problem listed (FR-188). Done: `casso disk test`. Open: the context menu's Test
-- [ ] T560 [US21] Add `scripts/FetchCiderPressTestFiles.ps1` to fetch `test-files.sdk` and `dos-files.do.gz` from CiderPress II's repository into `ScenarioTests/Fixtures/CiderPress/`, out of the repository, as the ROMs are. Ask the owner before the first download
-- [ ] T561 [US21] Scenario tests in `ScenarioTests/ArchiveTests.cpp`: every file in `test-files.sdk` copied out matches CiderPress II's extraction, `dos-files.do.gz` opens, and an archive and an `.sdk` built by Casso Explorer pass CiderPress II's Test and `nulib2 t` (SC-052)
+- [X] T560 [US21] Add `scripts/FetchCiderPressTestFiles.ps1` to fetch `test-files.sdk` and `dos-files.do.gz` from CiderPress II's repository into `UnitTest/Fixtures/CiderPress/`, out of the repository, as the ROMs are. Ask the owner before the first download
+- [X] T561 [US21] Scenario tests in `ScenarioTests/ArchiveTests.cpp`: every file in `test-files.sdk` copied out matches CiderPress II's extraction, `dos-files.do.gz` opens, and an archive and an `.sdk` built by Casso Explorer pass CiderPress II's Test (SC-052). `cp2 test` stands in for `nulib2 t`, so NuLib2 isn't installed
 
 ## Phase 39: VisiCalc sheets with their values (User Story 22)
 

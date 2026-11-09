@@ -178,6 +178,8 @@
     <ClCompile Include="CassoExplorerFileContentsTests.cpp" />
     <ClCompile Include="CassoExplorerShellSearchTests.cpp" />
     <ClCompile Include="WozEditRealImageTests.cpp" />
+    <ClCompile Include="ArchiveTests.cpp" />
+    <ClCompile Include="ResourceForkTests.cpp" />
     <ClCompile Include="DurableCommitFileTests.cpp" />
     <ClCompile Include="GuestVisibleDiskAccessTests.cpp" />
     <ClCompile Include="GuestVisibleInspectorEditTests.cpp" />

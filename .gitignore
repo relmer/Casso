@@ -443,3 +443,7 @@ Apple2/Demos/**/*.bin
 # built from, not intermediates. They live under CassoRocks/ and the pattern
 # above would otherwise make `git add` skip a regenerated one without a word.
 !Apple2/Demos/CassoRocks/*.bin
+
+# CiderPress II's test files, fetched by scripts/FetchCiderPressTestFiles.ps1 under its
+# Apache 2.0 license and not redistributed here.
+UnitTest/Fixtures/CiderPress/
