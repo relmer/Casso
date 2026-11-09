@@ -1038,6 +1038,8 @@ files as they are fails SC-037.
 - **Nesting**: a location's path is a list of steps, each a container: a host file, a ZIP member, a gzip file, a disk image's file or an archive's record. Opening a step reads its bytes from the step before. A write goes back up the list, rebuilding each container in turn, and the host file is replaced last, through a temporary file.
 - **Disk records**: a disk record is a volume, opened by `VolumeImage` from its bytes. An 800K record is a `Blocks` buffer (R36).
 
+**Before ContainerPath** (T547, read from the code on 2026-11-09): a ZIP is a shell folder, listed by the Windows ZIP folder. Its members have no file system path, since `SIGDN_FILESYSPATH` fails for them, so a disk image in a ZIP is listed with an empty `hostPath`, and `isDiskImage` is false. The image is listed as an ordinary file with the shell's type text, and the preview pane has no catalog for it. A double-click calls `OpenShellItem`: the ZIP folder extracts the image to a temporary folder and starts the program associated with its extension, and a change made there isn't written back into the ZIP. A file on the image can't be copied out and one can't be put in, because the image never opens as a volume. Dragging the image out of the ZIP copies it, through the shell.
+
 **Rationale**: an archive as an `IVolume` gets every operation the window has without a second set of paths, and the step list handles any depth with one rule.
 
 **Alternatives considered**: NufxLib, now BSD-licensed. It is C with separate file I/O and allocation, and wrapping it is not smaller than LZW/2 and the record format. It is the test reference beside CiderPress II.

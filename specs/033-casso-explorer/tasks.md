@@ -1789,7 +1789,7 @@ Session 2026-11-09. Plan's Phase 33, research R36 to R57, contracts `contracts/v
 
 **Goal**: archives browse, change and nest as folders. **Independent test**: quickstart §7e steps 4 and 5.
 
-- [ ] T547 [US21] Record what Casso Explorer does today with a disk image inside a ZIP: open it, copy a file out, put one in. Note the result in `specs/033-casso-explorer/research.md` R39
+- [X] T547 [US21] Record what Casso Explorer does today with a disk image inside a ZIP: open it, copy a file out, put one in. Note the result in `specs/033-casso-explorer/research.md` R39
 - [ ] T548 [P] [US21] Add `NuLzw` in `CassoEmuCore/Devices/Disk/Archives/NuLzw.h/.cpp`, LZW/1 and LZW/2 both ways, from CiderPress II's LZW notes. Tests include a 4 KB chunk stored uncompressed and a table reset. Done in code and round-tripped: LZW/2 both ways, LZW/1 expansion. Open: checked only against its own output until T560 brings ShrinkIt archives
 - [X] T549 [P] [US21] Add `SqueezeDecoder` and `LzcDecoder` (12 and 16 bits) in `CassoEmuCore/Devices/Disk/Archives/`
 - [ ] T550 [P] [US21] Vendor bzip2 under `External/bzip2/` with its license file, built as a static library into CassoEmuCore, decode only
