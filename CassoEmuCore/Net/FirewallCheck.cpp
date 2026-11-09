@@ -63,7 +63,7 @@ FirewallVerdict FirewallCheck::Evaluate (const FirewallSnapshot & snapshot, cons
                                    : FirewallAdmission::NoRule;
 
         bool  worse = GetSeverity (here.admission) >  GetSeverity (verdict.admission);
-        bool  tie   = GetSeverity (here.admission) == GetSeverity (verdict.admission) && verdict.profile == FirewallProfile::Public && !here.IsAdmitted();
+        bool  tie   = GetSeverity (here.admission) == GetSeverity (verdict.admission) && verdict.IsOnPublic() && !here.IsAdmitted();
 
         if (worse || tie)
         {

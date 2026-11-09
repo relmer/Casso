@@ -940,6 +940,7 @@ HRESULT Win32FileContents::LaunchHost (const std::wstring & exe, HANDLE hostInpu
 
     listBuffer.resize (listSize);
     list = (LPPROC_THREAD_ATTRIBUTE_LIST) listBuffer.data();
+    CBR (list != nullptr);
 
     ok = InitializeProcThreadAttributeList (list, 1, 0, &listSize);
     CWR (ok);

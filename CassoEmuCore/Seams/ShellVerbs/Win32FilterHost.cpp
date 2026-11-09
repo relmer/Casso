@@ -547,6 +547,8 @@ void Win32FilterHost::ReadChunkValues (IFilter * filter, std::wstring & text)
         {
             AppendValue (*value, text);
 
+            //  GetValue initializes the value it returns.
+#pragma warning (suppress: 33001)
             PropVariantClear (value);
             CoTaskMemFree (value);
         }
