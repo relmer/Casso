@@ -3,6 +3,7 @@
 #include "FileTypes/HiResFormats.h"
 #include "CassoExplorer/Model/PicturePreview.h"
 #include "Core/MemoryBus.h"
+#include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 
@@ -207,7 +208,7 @@ HRESULT HiResFont::Decode (std::span<const Byte> bytes, const FileFacts & facts,
 
     CBRFEx (sized, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = L"A hi-res font is 768 or 1,024 bytes.");
 
-    sheet.name   = std::wstring (facts.name.begin(), facts.name.end());
+    sheet.name   = TextEncoding::NarrowToWide (facts.name);
     sheet.family = (bytes.size() == kApple3Bytes) ? L"Apple /// font" : L"Apple II font";
 
     for (size_t glyphAt = 0; glyphAt + 8 <= bytes.size(); glyphAt += 8)
@@ -287,6 +288,8 @@ bool PrintShopGraphic::MatchesGs (const FileFacts & facts, std::span<const Byte>
 HRESULT PrintShopGraphic::Decode (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError)
 {
     static constexpr uint32_t  kColors[] = { 0xFFFFFFFF, 0xFF0000FF, 0xFFFF0000, 0xFFCC00CC, 0xFFFFFF00, 0xFF00FF00, 0xFFFF6600, 0xFF000000 };
+
+
 
     HRESULT  hr     = S_OK;
     bool     color  = facts.HasProDosType (0xF8, 0xC323);
@@ -443,7 +446,7 @@ HRESULT PrintShopFont::Decode (std::span<const Byte> bytes, const FileFacts & fa
 
     CBRFEx (read, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = L"The Print Shop font's glyphs aren't in the file.");
 
-    sheet.name   = std::wstring (facts.name.begin(), facts.name.end());
+    sheet.name   = TextEncoding::NarrowToWide (facts.name);
     sheet.family = L"Print Shop font";
     sheet.Draw (outFile);
 
@@ -543,6 +546,8 @@ void ShapeTable::DrawNumber (DecodedFile & file, int left, int top, int number)
 {
     static constexpr uint16_t  kDigits[] = { 0x7B6F, 0x2C97, 0x73E7, 0x73CF, 0x5BC9, 0x79CF, 0x79EF, 0x7249, 0x7BEF, 0x7BCF };
 
+
+
     std::string  text  = std::to_string (number);
     int          x     = left + (kCell - (int) text.size() * 4) / 2;
 
@@ -584,6 +589,8 @@ HRESULT ShapeTable::Decode (std::span<const Byte> bytes, const FileFacts & facts
 {
     static constexpr int  kDx[] = { 0, 1, 0, -1 };
     static constexpr int  kDy[] = { -1, 0, 1, 0 };
+
+
 
     HRESULT  hr    = S_OK;
     bool     ok    = Check (bytes);

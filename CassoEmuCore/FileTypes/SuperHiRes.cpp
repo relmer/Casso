@@ -152,6 +152,8 @@ void SuperHiRes::Render (const Screen & screen, DecodedFile & outFile)
 {
     static constexpr Byte  kQuarter[] = { 8, 12, 0, 4 };
 
+
+
     bool    wide   = false;
     size_t  height = std::max<size_t> (screen.lines, 1);
     size_t  drawn  = std::min (screen.lines, screen.pixels.size() / screen.bytesPerLine);
@@ -257,7 +259,7 @@ HRESULT SuperHiRes::DecodePacked (std::span<const Byte> bytes, const FileFacts &
     HRESULT            hr       = S_OK;
     std::vector<Byte>  unpacked;
     Screen             screen;
-    bool               complete = false;
+    bool               any      = false;
 
 
 
@@ -270,8 +272,8 @@ HRESULT SuperHiRes::DecodePacked (std::span<const Byte> bytes, const FileFacts &
 
     PackBytes::Unpack (bytes, kScreenBytes, unpacked);
 
-    complete = unpacked.size() >= kPixelBytes;
-    CBRFEx (complete || !unpacked.empty(), HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = L"The packed picture doesn't unpack.");
+    any = !unpacked.empty();
+    CBRFEx (any, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = L"The packed picture doesn't unpack.");
 
     FromScreenBytes (unpacked, screen);
     screen.lines = 200;
@@ -298,6 +300,8 @@ HRESULT SuperHiRes::DecodePaintworks (std::span<const Byte> bytes, const FileFac
 {
     constexpr size_t  kPixelsAt = 0x222;
     constexpr size_t  kMaxLines = 400;
+
+
 
     HRESULT  hr     = S_OK;
     Screen   screen;

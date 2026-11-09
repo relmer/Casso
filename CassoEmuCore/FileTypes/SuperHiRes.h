@@ -84,12 +84,12 @@ private:
 class SuperHiRes3200
 {
 public:
-    static bool     MatchesBrooks     (const FileFacts & facts, std::span<const Byte> bytes);
-    static bool     Matches3201       (const FileFacts & facts, std::span<const Byte> bytes);
+    static bool     MatchesBrooks      (const FileFacts & facts, std::span<const Byte> bytes);
+    static bool     Matches3201        (const FileFacts & facts, std::span<const Byte> bytes);
     static bool     MatchesDreamGrafix (const FileFacts & facts, std::span<const Byte> bytes);
-    static HRESULT  DecodeBrooks      (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError);
-    static HRESULT  Decode3201        (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError);
-    static HRESULT  DecodeDreamGrafix (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError);
+    static HRESULT  DecodeBrooks       (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError);
+    static HRESULT  Decode3201         (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError);
+    static HRESULT  DecodeDreamGrafix  (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError);
 
     //  DreamGrafix's LZW: codes of 9 to 12 bits, least significant first, 256
     //  clearing the table and 257 ending.

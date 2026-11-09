@@ -60,6 +60,8 @@ bool SuperHiRes3200::MatchesDreamGrafix (const FileFacts & facts, std::span<cons
 {
     static constexpr char  kSignature[] = "\x0A" "DreamWorld";
 
+
+
     return facts.HasProDosType (0xC0, 0x8005) && bytes.size() > kFooterBytes
         && memcmp (bytes.data() + bytes.size() - 11, kSignature, 11) == 0;
 }
