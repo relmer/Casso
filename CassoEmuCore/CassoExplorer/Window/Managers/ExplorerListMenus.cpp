@@ -10,6 +10,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
@@ -410,7 +411,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         return;
     }
 
-    m_context.fileOps.AskCassoToDescribe();
+    m_context.cassoTarget.AskCassoToDescribe();
 
     //  The background's menu opens on the view's own choices, as Explorer's
     //  does.
@@ -581,7 +582,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
         if (verb == CassoExplorerActions::Verb::Open)
         {
-            command->menuImage   = m_context.menus.GetOpenMenuImage (browsable, m_context.fileOps.GetSelectedImagePath());
+            command->menuImage   = m_context.menus.GetOpenMenuImage (browsable, m_context.cassoTarget.GetSelectedImagePath());
             command->accelerator = L"Enter";
         }
 
@@ -589,7 +590,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         //  described yet is given the benefit of the doubt.
         if (verb == CassoExplorerActions::Verb::InsertDrive2)
         {
-            command->isEnabled = [this]() { return m_context.fileOps.GetCassoDriveCount() != 1; };
+            command->isEnabled = [this]() { return m_context.cassoTarget.GetCassoDriveCount() != 1; };
         }
 
         if (verb == CassoExplorerActions::Verb::Paste)
@@ -923,7 +924,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
 void ExplorerListMenus::AddOpenWithMenu (std::vector<DxuiPopupMenuItem> & items)
 {
-    std::wstring                          path   = m_context.fileOps.GetSelectedImagePath();
+    std::wstring                          path   = m_context.cassoTarget.GetSelectedImagePath();
     std::vector<IShellItemVerbs::Handler> handlers;
     std::vector<DxuiPopupMenuItem>        children;
     std::shared_ptr<DxuiCommand>          parent = std::make_shared<DxuiCommand>();

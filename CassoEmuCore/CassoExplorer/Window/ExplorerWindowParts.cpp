@@ -89,6 +89,7 @@ ExplorerWindowParts::ExplorerWindowParts (IExplorerWindow             & window,
                  .menus            = menus,
                  .commandManager   = commandManager,
                  .fileOps          = fileOps,
+                 .cassoTarget      = cassoTarget,
                  .properties       = properties,
                  .input            = input,
                  .tips             = tips,
@@ -358,7 +359,7 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         switch (reply.kind)
         {
             case Win32IntentChannel::ReplyKind::MachineDescription:
-                fileOps.SetCassoDriveCount (reply.driveCount);
+                cassoTarget.SetCassoDriveCount (reply.driveCount);
                 break;
 
             case Win32IntentChannel::ReplyKind::InsertDone:

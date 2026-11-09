@@ -7,6 +7,7 @@
 #include "Config/UserConfigStore.h"
 #include "Core/JsonParser.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -125,7 +126,7 @@ public:
         AssertSucceeded (files.WriteAllText (store.GetUserPrefsFilePath(),
                          R"({ "global": {}, "machines": { "Apple2Plus": { "slots": [ { "slot": 6, "device": "disk-ii", "ports": ["disk-ii-drive", ""] } ] } } })"));
 
-        AssertSucceeded (ExplorerFileOps::MergeUserMachineDelta ("Apple2Plus", files, json));
+        AssertSucceeded (ExplorerCassoTarget::MergeUserMachineDelta ("Apple2Plus", files, json));
         AssertSucceeded (JsonParser::Parse (json, merged, error));
 
         Assert::IsTrue (merged.HasArray ("slots", slots));
@@ -144,7 +145,7 @@ public:
         std::string         shipped  = json;
 
         AssertSucceeded (files.WriteAllText (store.GetUserPrefsFilePath(), R"({ "global": {}, "machines": { "Apple2e": { "name": "other" } } })"));
-        AssertSucceeded (ExplorerFileOps::MergeUserMachineDelta ("Apple2Plus", files, json));
+        AssertSucceeded (ExplorerCassoTarget::MergeUserMachineDelta ("Apple2Plus", files, json));
 
         Assert::AreEqual (shipped, json);
     }

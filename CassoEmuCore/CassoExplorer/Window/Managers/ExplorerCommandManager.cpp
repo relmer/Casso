@@ -20,6 +20,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
@@ -1010,10 +1011,10 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
             {
                 m_context.listPane.FillList();
             }
-            else if (!m_context.fileOps.GetSelectedImagePath().empty())
+            else if (!m_context.cassoTarget.GetSelectedImagePath().empty())
             {
                 //  Not something to browse: a real file, in its own program.
-                hr = m_context.shellVerbs.Open (m_context.window.GetHwnd(), m_context.fileOps.GetSelectedImagePath());
+                hr = m_context.shellVerbs.Open (m_context.window.GetHwnd(), m_context.cassoTarget.GetSelectedImagePath());
             }
 
             break;
@@ -1086,7 +1087,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
             break;
 
         case CassoExplorerActions::Verb::ExtractFiles:
-            ExtractImageFiles (m_context.fileOps.GetSelectedImagePath());
+            ExtractImageFiles (m_context.cassoTarget.GetSelectedImagePath());
             break;
 
         case CassoExplorerActions::Verb::Paste:
@@ -1250,11 +1251,11 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
         case CassoExplorerActions::Verb::InsertDrive1:
         case CassoExplorerActions::Verb::InsertDrive2:
-            m_context.fileOps.InsertIntoDrive (m_context.fileOps.GetSelectedImagePath(), verb == CassoExplorerActions::Verb::InsertDrive1 ? 1 : 2);
+            m_context.cassoTarget.InsertIntoDrive (m_context.cassoTarget.GetSelectedImagePath(), verb == CassoExplorerActions::Verb::InsertDrive1 ? 1 : 2);
             break;
 
         case CassoExplorerActions::Verb::OpenInNewCasso:
-            m_context.fileOps.OpenInNewCasso (m_context.fileOps.GetSelectedImagePath());
+            m_context.cassoTarget.OpenInNewCasso (m_context.cassoTarget.GetSelectedImagePath());
             break;
 
         case CassoExplorerActions::Verb::NewDisk:

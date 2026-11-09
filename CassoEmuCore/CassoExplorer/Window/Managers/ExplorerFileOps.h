@@ -51,10 +51,6 @@ public:
     bool  IsRenaming        () const { return m_renameRow >= 0 || !m_renameTreeId.empty(); }
     int   GetRenameRow      () const { return m_renameRow; }
 
-    //  How many drives the Casso the window targets has, from its reply.
-    void                    SetCassoDriveCount    (int count) { m_cassoDriveCount = count; }
-    int                     GetCassoDriveCount    () const { return m_cassoDriveCount; }
-    static HRESULT          MergeUserMachineDelta (const std::string & machine, IFileSystem & files, std::string & inoutJson);
     void                    OpenSelectedEntries   ();
     void                    PushUndo              (UndoStep step);
 
@@ -93,12 +89,6 @@ public:
     void                                 DeleteSelectionPermanently  ();
     void                                 BeginRename                 ();
     void                                 EndRename                   (bool commit);
-    void                                 InsertIntoDrive             (const std::wstring & imagePath, int drive);
-    void                                 OpenInNewCasso              (const std::wstring & imagePath);
-    HWND                                 FindCassoTarget             () const;
-    int                                  GetDefaultMachineDriveCount ();
-    void                                 AskCassoToDescribe          ();
-    std::wstring                         GetSelectedImagePath        () const;
     bool                                 CountDownRestore            () { return --m_restoreTicks <= 0; }
 
     bool  HandleRenameMouse (const DxuiMouseEvent & ev);
@@ -121,9 +111,6 @@ private:
 
     ExplorerContext        & m_context;
     CutSource                m_cut;
-    Win32ProcessLauncher     m_launcher;
-    int                      m_defaultDriveCount = -1;   // the default machine's, once read
-    int                      m_cassoDriveCount   = 0;   // the drives the Casso the window targets has
     std::vector<UndoStep>    m_undo;   // newest last
 
     //  What a deleted image's deletion removed and changed in the manifest,
