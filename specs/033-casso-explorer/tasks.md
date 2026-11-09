@@ -1705,7 +1705,7 @@ Session 2026-11-08. Plan's Phase 32, research R35, contract `contracts/file-type
 
 - [ ] T493 [US18] Add `PCodeDisassembler` in `CassoCore/PCodeDisassembler.h/.cpp` beside `Disassembler`, with one opcode table for the p-code version Apple Pascal 1.1 to 1.3 compile, from the Apple Pascal Operating System Reference Manual. Tests in `UnitTest/CassoCore/PCodeDisassemblerTests.cpp`
 - [ ] T494 [US18] `PascalCodefile`: list the segment dictionary, each segment's name, kind, size and machine type, and each segment's procedure dictionary; disassemble p-code procedures with `PCodeDisassembler` and 6502 segments with `Disassembler`, and list a segment of another p-code version in hex with its version reported (FR-164)
-- [ ] T495 [P] [US18] `OmfFile`: list each segment's header, its name, load name, kind, sizes, alignment and bank, in OMF versions 1, 2.0 and 2.1, and each record by its opcode, with code and data bytes in hex (FR-165)
+- [X] T495 [P] [US18] `OmfFile`: list each segment's header, its name, load name, kind, sizes, alignment and bank, in OMF versions 1, 2.0 and 2.1, and each record by its opcode, with code and data bytes in hex (FR-165)
 
 **Business**
 

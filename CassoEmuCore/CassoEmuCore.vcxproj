@@ -461,6 +461,7 @@
     <ClCompile Include="FileTypes\AppleWorks.cpp" />
     <ClCompile Include="FileTypes\IigsResources.cpp" />
     <ClCompile Include="FileTypes\IigsFormats.cpp" />
+    <ClCompile Include="FileTypes\OmfFile.cpp" />
     <ClCompile Include="FileTypes\TeachDocument.cpp" />
     <ClCompile Include="FileTypes\SuperHiRes.cpp" />
     <ClCompile Include="FileTypes\HiResFormats.cpp" />
@@ -1196,6 +1197,7 @@
     <ClInclude Include="FileTypes\AppleWorks.h" />
     <ClInclude Include="FileTypes\IigsResources.h" />
     <ClInclude Include="FileTypes\IigsFormats.h" />
+    <ClInclude Include="FileTypes\OmfFile.h" />
     <ClInclude Include="FileTypes\TeachDocument.h" />
     <ClInclude Include="FileTypes\SuperHiRes.h" />
     <ClInclude Include="FileTypes\HiResFormats.h" />

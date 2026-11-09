@@ -5,6 +5,7 @@
 #include "FileTypes/HiResFormats.h"
 #include "FileTypes/IigsFormats.h"
 #include "FileTypes/MerlinSource.h"
+#include "FileTypes/OmfFile.h"
 #include "FileTypes/PascalText.h"
 #include "FileTypes/RandomText.h"
 #include "FileTypes/ScAssemblerSource.h"
@@ -38,6 +39,7 @@ std::vector<FileFormatTable::Row> FileFormatRows::Make()
         Row { FileFormat::AppleWorksSs,   &AppleWorksSs::Matches,      &AppleWorksSs::Decode,      nullptr,               L".AppleWorks SS.csv",    false },
         Row { FileFormat::AppleWorksGsWp, &AppleWorksGsWp::Matches,    &AppleWorksGsWp::Decode,    nullptr,               L".AppleWorks GS WP.rtf", true },
         Row { FileFormat::Teach,          &TeachDocument::Matches,     &TeachDocument::Decode,     nullptr,               L".Teach.rtf",            true },
+        Row { FileFormat::Omf,            &OmfFile::Matches,           &OmfFile::Decode,           nullptr,               L".OMF.txt",              true },
 
         Row { FileFormat::SuperHiRes,         &SuperHiRes::MatchesScreen,          &SuperHiRes::DecodeScreen,          nullptr, L".Super Hi-Res.png", true },
         Row { FileFormat::PackedSuperHiRes,   &SuperHiRes::MatchesPacked,          &SuperHiRes::DecodePacked,          nullptr, L".Super Hi-Res.png", true },
