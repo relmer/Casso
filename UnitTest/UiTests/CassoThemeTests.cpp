@@ -54,4 +54,49 @@ public:
                           L"Retro Terminal is not replaced by Dark Modern");
         Assert::AreEqual (CassoTheme::MakeDarkModern().navStrip, modern.navStrip);
     }
+
+
+    TEST_METHOD (Phosphor_IsCompactAndDrawsInVt323)
+    {
+        CassoTheme  theme = CassoTheme::MakeByName ("Phosphor", false);
+
+        Assert::IsTrue (theme.compactDrives, L"Phosphor uses the flat drive widgets");
+        Assert::IsTrue (theme.bodyFace == CassoTheme::BodyFace::Vt323);
+        Assert::AreEqual (CassoTheme::MakePhosphor().navStrip, theme.navStrip,
+                          L"Phosphor is not replaced by Dark Modern");
+    }
+
+
+    TEST_METHOD (Phosphor_MenuHighlightIsInverseVideo)
+    {
+        CassoTheme  theme = CassoTheme::MakePhosphor();
+
+        Assert::AreEqual (theme.navItemText,      theme.navStripHover,     L"a lit menu title is filled with the text color");
+        Assert::AreEqual (theme.navStrip,         theme.navHoverText,      L"and its text takes the strip color");
+        Assert::AreEqual (theme.dropdownItemText, theme.dropdownHover,     L"a hovered menu row is filled with the text color");
+        Assert::AreEqual (theme.dropdownBg,       theme.dropdownHoverText, L"and its text takes the menu background");
+
+        // The generic hover fill sits under ordinary body text in buttons,
+        // lists and tabs, so it must not be the text color.
+        Assert::AreNotEqual (theme.bodyText, theme.navHover);
+    }
+
+
+    TEST_METHOD (OtherThemes_KeepTheirTextColorOnHover)
+    {
+        CassoTheme  themes[] = { CassoTheme::MakeSkeuomorphic(),
+                                 CassoTheme::MakeDarkModern(),
+                                 CassoTheme::MakeRetroTerminal() };
+
+        for (const CassoTheme & theme : themes)
+        {
+            Assert::AreEqual (theme.navItemText,      theme.navHoverText);
+            Assert::AreEqual (theme.dropdownItemText, theme.dropdownHoverText);
+            Assert::AreEqual (theme.dropdownAccel,    theme.dropdownHoverAccel);
+            Assert::AreEqual (theme.navHover,         theme.navStripHover);
+            Assert::IsTrue   (theme.bodyFace == CassoTheme::BodyFace::System);
+            Assert::AreEqual ((int) 0, (int) theme.textGlowAlpha);
+            Assert::IsFalse  (theme.monochromeGlyphs);
+        }
+    }
 };

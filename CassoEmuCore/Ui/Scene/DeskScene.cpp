@@ -271,8 +271,14 @@ DeskSceneMetrics DeskScene::Metrics() const
 
     // The room the contact shadows need on the floor, so the containment
     // solve keeps them inside the picture instead of clipping them away.
-    metrics.monitorPadSideMm  = kMonitorShadowMarginSideMm;
-    metrics.monitorPadDepthMm = kMonitorShadowMarginDepthMm;
+    //
+    // The monitor reserves only a drive's room, not its full shadow. The
+    // reserve matters only when the monitor is on the desk alone, and
+    // there its long forward margin, nearer the eye than the monitor, framed
+    // the monitor in a wide band of empty floor. The near end of its shadow
+    // is under its bezel anyway, and only the faint outer penumbra is cut.
+    metrics.monitorPadSideMm  = kShadowMarginSideMm;
+    metrics.monitorPadDepthMm = kShadowMarginDepthMm;
     metrics.drivePadSideMm    = kShadowMarginSideMm;
     metrics.drivePadDepthMm   = kShadowMarginDepthMm;
 
@@ -434,7 +440,18 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
         lighting.shadowStrength = m_stripPass ? 0.0f : kShadowStrength;
     }
 
-    lighting.refDist = DeskSceneModel::kLightRefMm;
+    // The lights are moved into model space through the inverse placement, so
+    // for a device placed at a uniform scale below 1, every light is farther
+    // away by 1 / scale, and the falloff dimmed it. The reference distance is
+    // scaled to match, so a scaled device is lit as brightly as at full size.
+    {
+        float  scale = std::sqrt (world[0] * world[0] + world[1] * world[1] + world[2] * world[2]);
+
+
+
+        lighting.refDist = (scale > 0.0f) ? DeskSceneModel::kLightRefMm / scale : DeskSceneModel::kLightRefMm;
+    }
+
     lighting.span    = DeskSceneModel::kShadeSpan;
     lighting.gain    = 2.05f;
 
@@ -2557,6 +2574,18 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
             CHRA (hr);
         }
 
+        // Glass only, the sliding drives and recorder are the only bodies,
+        // and they are in front of the tube: they go in this plate, over the
+        // raster, depth-tested against the glass already in the buffer.
+        if (glassOnly && (m_comp.driveCount > 0 || m_comp.hasRecorder != 0))
+        {
+            hr = DrawDrives (m_comp, viewport);
+            CHRA (hr);
+
+            hr = DrawRecorder (m_comp, viewport);
+            CHRA (hr);
+        }
+
         // The mask and the sheen are the faceplate's own layers, so they ride
         // the tube.
         if (!m_maskVerts.empty())
@@ -2591,14 +2620,24 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     // they test depth without writing it, which is what keeps a name from
     // leaving its transparent rectangle in the buffer.
     //
-    // Both belong to bodies the glass-only presentation leaves out: the names
-    // are anchored to the drives, and the only glow is the power lamp's.
+    // Glass only, the disk labels and drive lamps are drawn only while the
+    // sliding drives are in the composition.
     if (!glassOnly)
     {
         hr = DrawDiskLabels (m_comp, viewport);
         CHRA (hr);
 
         hr = DrawLampGlows (m_comp, viewport, true);
+        CHRA (hr);
+    }
+    else if (m_comp.driveCount > 0)
+    {
+        // The sliding drives' labels and lamps. The monitor's lamp is on the
+        // case, which is not drawn glass-only.
+        hr = DrawDiskLabels (m_comp, viewport);
+        CHRA (hr);
+
+        hr = DrawLampGlows (m_comp, viewport, false);
         CHRA (hr);
     }
 

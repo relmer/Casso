@@ -607,6 +607,18 @@ private:
     // pointer mapping, the Ctrl+0 solve -- follows this, not DeskSceneActive.
     bool    CrtMonitorActive     () const;
 
+    // The drives collapse out of view until summoned: always in fullscreen,
+    // and windowed when auto-hide is on.
+    bool    AreDrivesAutoHidden  () const;
+
+    // Auto-hidden on the desk with the monitor, windowed or fullscreen: the
+    // drives are real scene objects that rise in front of the monitor.
+    bool    IsDeskSlideActive    () const;
+
+    // The drives are on the slide-up strip at the bottom edge: auto-hidden
+    // anywhere but the desk with the monitor.
+    bool    AreDrivesOnStrip     () const;
+
     // A file dropped on a drive or the recorder.
     void    OnFileDropped      (int tag, const std::wstring & path);
 
@@ -890,7 +902,7 @@ protected:
 private:
 
     // Written by the controller thread when the players' slots change,
-    // read on the UI thread once WM_APP_CONTROLLER_PICK arrives: persisting
+    // read on the UI thread once AppMessage::ShellControllerPick arrives: persisting
     // prefs and raising a notice are both UI-thread work.
     std::mutex                               m_controllerPickMutex;
     std::vector<std::wstring>                m_controllerPickNotices;

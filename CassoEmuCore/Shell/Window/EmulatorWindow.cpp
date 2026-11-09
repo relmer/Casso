@@ -613,6 +613,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_MACHINE_ARROWS_PADDLE:   return m_pointerMode == InputMappingMode::Paddle;
             case IDM_VIEW_FRAME_RATE:         return m_settings->GetPrefs().showFrameRate;
             case IDM_VIEW_SCENE_VIEW:         return m_settings->GetPrefs().showSceneView;
+            case IDM_VIEW_AUTOHIDE_DRIVES:    return m_settings->GetPrefs().autoHideDrives;
 
             default:                          return false;
         }
@@ -662,6 +663,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_TAPE_REWIND:      return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Rewind,      m_tapeDeck->GetTapeView());
             case IDM_TAPE_FASTFORWARD: return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::FastForward, m_tapeDeck->GetTapeView());
             case IDM_TAPE_EJECT:       return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Eject,       m_tapeDeck->GetTapeView());
+            case IDM_VIEW_DRIVE_STRIP: return AreDrivesAutoHidden();
             default:           return true;
         }
     });
@@ -764,13 +766,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         {
             m_scene->SyncSceneDriveChrome();
         }
-        else
+        else if (!AreDrivesOnStrip())
         {
             m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, clientW, clientH, dpi, m_chrome->m_chromeSceneScale,
                                                       m_disks->ShouldShowExternalDrive() ? 2 : 1);
         }
 
-        m_chrome->m_driveBandSurface.SetVisible (!DeskSceneActive());
+        m_chrome->m_driveBandSurface.SetVisible (!DeskSceneActive() && !AreDrivesOnStrip());
         m_chrome->m_driveBandSurface.SetBounds (RECT{ 0, driveRect.top, clientW, clientH });
 
         m_chrome->LayoutSwitchBar (dpi);
@@ -1569,6 +1571,11 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 // The 3D scene owns the drives; nothing to lay out. The hit
                 // registry is refreshed below with the rest of the chrome.
             }
+            else if (AreDrivesOnStrip())
+            {
+                // Auto-hide: the strip lays the widgets out each frame while it
+                // is up, and hides them while it is down.
+            }
             else if (fHasDisk)
             {
                 m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, static_cast<int> (width), renderH, dpi,
@@ -1602,7 +1609,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             m_chrome->m_chromeSizedForHasDisk = fHasDisk;
             m_chrome->m_chromeSizedForApple2c = MachineHasCaseSwitches();
 
-            m_chrome->m_driveBandSurface.SetVisible (!DeskSceneActive());
+            m_chrome->m_driveBandSurface.SetVisible (!DeskSceneActive() && !AreDrivesOnStrip());
             m_chrome->m_driveBandSurface.SetBounds (RECT{ 0, driveRect.top, static_cast<int> (width), renderH });
 
             m_chrome->LayoutSwitchBar (dpi);
@@ -1614,7 +1621,10 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             else
             {
                 m_uiShell.GetHitTester().Clear();
-                if (fHasDisk)
+
+                // With auto-hide on, no drive rects are registered, as in
+                // fullscreen: the widgets are off screen most of the time.
+                if (fHasDisk && !AreDrivesOnStrip())
                 {
                     m_uiShell.GetHitTester().Register (DxuiHitRect { m_disks->GetDriveChrome()[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
                     if (m_disks->ShouldShowExternalDrive())
@@ -1935,7 +1945,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 {
     // A disk changed outside Casso. The store decided on the thread that owns
     // disk writes; both of these build UI, so they land here.
-    if (msg == WM_APP_CHANGE_REPORT)
+    if (msg == (UINT) AppMessage::ShellChangeReport)
     {
         ShellDisks::ChangeNotice *  carried = reinterpret_cast<ShellDisks::ChangeNotice *> (lParam);
 
@@ -1948,7 +1958,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == WM_APP_CHANGE_ASK)
+    if (msg == (UINT) AppMessage::ShellChangeAsk)
     {
         ShellDisks::ChangeNotice *  carried = reinterpret_cast<ShellDisks::ChangeNotice *> (lParam);
 
@@ -1961,7 +1971,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == WM_APP_NOTIFY_USER)
+    if (msg == (UINT) AppMessage::ShellNotifyUser)
     {
         wstring *  carried = reinterpret_cast<wstring *> (lParam);
 
@@ -1974,7 +1984,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == WM_APP_SHOW_NOTICE)
+    if (msg == (UINT) AppMessage::ShellShowNotice)
     {
         wstring *  carried = reinterpret_cast<wstring *> (lParam);
 
@@ -1990,7 +2000,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // Game-port input submitted off the UI thread (the controller thread, or a
     // machine rebuild) waits here to be written: the device setters report
     // host input to their input event sink, which is UI-thread only.
-    if (msg == WM_APP_GAMEPORT_FLUSH)
+    if (msg == (UINT) AppMessage::ShellGameportFlush)
     {
         m_gamePortMixer.FlushPending();
 
@@ -1999,7 +2009,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
     // The players' slots changed, or a controller came or went. Saying so and
     // writing it to the prefs both belong here, not on the controller thread.
-    if (msg == WM_APP_CONTROLLER_PICK)
+    if (msg == (UINT) AppMessage::ShellControllerPick)
     {
         std::vector<std::wstring>  notices;
         bool                       haveEntriesChanged     = false;
@@ -2025,7 +2035,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
     // A mount that ran on the CPU thread wants its damage report raised here,
     // where a modal can be built.
-    if (msg == WM_APP_REPORT_DAMAGE)
+    if (msg == (UINT) AppMessage::ShellReportDamage)
     {
         m_disks->ReportDamagedMount ((int) wParam);
 
@@ -2035,7 +2045,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // One mount's outcome, from whichever thread ran it. Startup mounts land
     // here too, which is what keeps a bad --disk1 from raising a dialog before
     // there was a pump to run it.
-    if (msg == WM_APP_MOUNT_COMPLETED)
+    if (msg == (UINT) AppMessage::ShellMountCompleted)
     {
         ShellDisks::MountCompletion *  carried = reinterpret_cast<ShellDisks::MountCompletion *> (lParam);
 
@@ -2049,7 +2059,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     }
 
     // A piece of update work finished on the update service's thread.
-    if (msg == WM_APP_UPDATE_RESULT)
+    if (msg == (UINT) AppMessage::ShellUpdateResult)
     {
         UpdateResult *  carried = reinterpret_cast<UpdateResult *> (lParam);
 
@@ -2062,7 +2072,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == WM_APP_DXUI_UPDATE_TITLE)
+    if (msg == (UINT) AppMessage::ShellUpdateTitle)
     {
         m_window->UpdateWindowTitle();
         m_chrome->ReflowChromeForMachineChange();

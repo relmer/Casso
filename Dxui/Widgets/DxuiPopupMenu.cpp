@@ -180,17 +180,21 @@ void DxuiPopupMenu::SetColors (
     uint32_t  bgArgb,
     uint32_t  hoverArgb,
     uint32_t  textArgb,
+    uint32_t  hoverTextArgb,
     uint32_t  accelArgb,
+    uint32_t  hoverAccelArgb,
     uint32_t  borderArgb,
     uint32_t  dividerArgb)
 {
-    m_colors.bg      = bgArgb;
-    m_colors.hover   = hoverArgb;
-    m_colors.text    = textArgb;
-    m_colors.accel   = accelArgb;
-    m_colors.border  = borderArgb;
-    m_colors.divider = dividerArgb;
-    m_colorsSet      = true;
+    m_colors.bg         = bgArgb;
+    m_colors.hover      = hoverArgb;
+    m_colors.text       = textArgb;
+    m_colors.hoverText  = hoverTextArgb;
+    m_colors.accel      = accelArgb;
+    m_colors.hoverAccel = hoverAccelArgb;
+    m_colors.border     = borderArgb;
+    m_colors.divider    = dividerArgb;
+    m_colorsSet         = true;
 }
 
 
@@ -1605,13 +1609,15 @@ DxuiPopupMenu::Palette DxuiPopupMenu::ResolvePalette() const
 
 
 
-    pal.bg       = m_colorsSet ? m_colors.bg      : m_theme->BackgroundElevated();
-    pal.hover    = m_colorsSet ? m_colors.hover   : m_theme->HoverBackground();
-    pal.text     = m_colorsSet ? m_colors.text    : m_theme->Foreground();
-    pal.accel    = m_colorsSet ? m_colors.accel   : m_theme->ForegroundMuted();
-    pal.border   = m_colorsSet ? m_colors.border  : m_theme->Border();
-    pal.divider  = m_colorsSet ? m_colors.divider : m_theme->Divider();
-    pal.disabled = m_theme->ForegroundDisabled();
+    pal.bg         = m_colorsSet ? m_colors.bg         : m_theme->BackgroundElevated();
+    pal.hover      = m_colorsSet ? m_colors.hover      : m_theme->HoverBackground();
+    pal.text       = m_colorsSet ? m_colors.text       : m_theme->Foreground();
+    pal.hoverText  = m_colorsSet ? m_colors.hoverText  : m_theme->Foreground();
+    pal.accel      = m_colorsSet ? m_colors.accel      : m_theme->ForegroundMuted();
+    pal.hoverAccel = m_colorsSet ? m_colors.hoverAccel : m_theme->ForegroundMuted();
+    pal.border     = m_colorsSet ? m_colors.border     : m_theme->Border();
+    pal.divider    = m_colorsSet ? m_colors.divider    : m_theme->Divider();
+    pal.disabled   = m_theme->ForegroundDisabled();
 
     return pal;
 }
@@ -1681,8 +1687,18 @@ void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text,
     // Rounded at the overlay radius. A hosted menu's card is also drawn by
     // its popup host at this same radius and rect; a square fill here would
     // paint the host's rounded corners back to square.
-    painter.FillRoundedRect    (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), pal.bg);
-    painter.OutlineRoundedRect (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), (float) kBorderDip, pal.border);
+    painter.FillRoundedRect (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), pal.bg);
+
+    // THE SHADOW IS THE EDGE. A hosted menu sits on the card its popup host
+    // drew under a shadow, and that falloff already lifts the card off what
+    // is behind it; an outline over it reads as a bright wire around the
+    // menu, which no system flyout has. The in-window fallback has no host
+    // and so no shadow, and there the outline is the only thing separating
+    // the menu from the panel under it, so it stays.
+    if (m_activePopup == nullptr)
+    {
+        painter.OutlineRoundedRect (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), (float) kBorderDip, pal.border);
+    }
 
     for (int i = 0; i < (int) m_rows.size(); i++)
     {
@@ -1739,6 +1755,7 @@ void DxuiPopupMenu::PaintRow (
     int                        mnIdx     = -1;
     wchar_t                    mnCh      = 0;
     bool                       enabled   = false;
+    bool                       hovered   = false;
     uint32_t                   labelArgb = 0;
     uint32_t                   accelArgb = 0;
 
@@ -1776,12 +1793,13 @@ void DxuiPopupMenu::PaintRow (
     }
 
     enabled   = row.command->IsEnabled();
-    labelArgb = enabled ? pal.text  : pal.disabled;
-    accelArgb = enabled ? pal.accel : pal.disabled;
+    hovered   = (index == m_hover);
+    labelArgb = !enabled ? pal.disabled : (hovered ? pal.hoverText  : pal.text);
+    accelArgb = !enabled ? pal.disabled : (hovered ? pal.hoverAccel : pal.accel);
 
     ParseMnemonic (row.command->GetLabelText(), stripped, mnIdx, mnCh);
 
-    if (index == m_hover)
+    if (hovered)
     {
         float  insetX = m_scaler.ToPxf ((float) kHoverInsetXDip);
         float  insetY = m_scaler.ToPxf ((float) kHoverInsetYDip);

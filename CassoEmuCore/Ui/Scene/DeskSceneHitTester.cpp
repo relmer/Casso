@@ -127,6 +127,7 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
     // the opposite of a refinement.
     float  tMonitorBody   = FLT_MAX;
     float  tDriveBody[2]  = { FLT_MAX, FLT_MAX };
+    float  tRecorderBody  = FLT_MAX;
     bool   monitorFrontal = (monitorBoundsMin == nullptr || monitorBoundsMax == nullptr);
 
     if (includeGlass && monitorBoundsMin != nullptr && monitorBoundsMax != nullptr)
@@ -175,14 +176,37 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
         }
     }
 
+    // The recorder's body too. Beside the monitor it never overlaps the
+    // glass, but the drives and the recorder slide up IN FRONT of the glass
+    // when auto-hidden, and in fullscreen the glass fills the screen: there
+    // a recorder that did not count let the picture take every click on it.
+    if (comp.hasRecorder != 0 && recorderBoundsMin != nullptr && recorderBoundsMax != nullptr)
+    {
+        float  invWorld[16]   = {};
+        float  modelOrigin[3] = {};
+        float  modelDir[3]    = {};
+        float  tNear          = 0.0f;
+
+        if (SceneCamera::Inverse44 (comp.recorderWorld, invWorld) &&
+            SceneCamera::TransformPoint (invWorld, origin, modelOrigin))
+        {
+            SceneCamera::TransformVector (invWorld, dir, modelDir);
+
+            if (RayHitsBox (modelOrigin, modelDir, recorderBoundsMin, recorderBoundsMax, tNear))
+            {
+                tRecorderBody = tNear;
+            }
+        }
+    }
+
     if (includeGlass && monitorFrontal &&
         CurvedDisplayMath::EmulatedPixelFromScreenPx (glass, monWorld, comp.viewProj,
                                                       comp.viewportPx, screenX, screenY,
                                                       displayW, displayH, result.emulatedPixel))
     {
-        // The picture is the monitor's; a drive standing nearer along the
-        // ray means the ray is not looking at the picture at all.
-        bool  occluded = false;
+        // The picture is the monitor's; a drive or the recorder standing
+        // nearer along the ray means the ray is not looking at the picture.
+        bool  occluded = tRecorderBody < tMonitorBody - kOcclusionSlackMm;
 
         for (int drive = 0; drive < comp.driveCount; drive++)
         {

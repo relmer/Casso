@@ -438,6 +438,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id == IDM_STORAGE_DRIVE2 || id == IDM_STORAGE_RECORDER)        { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_DRIVE_STRIP)                                   { route = WindowCommandRoute::View; }
+    else if (id == IDM_VIEW_AUTOHIDE_DRIVES)                               { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_FRAME_RATE)                                    { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_SCENE_VIEW)                                    { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_CONTROLLER_SETTINGS)                           { route = WindowCommandRoute::View; }
@@ -917,6 +918,12 @@ void WindowCommandManager::OnViewCommand (int id)
             break;
         }
 
+        case IDM_VIEW_AUTOHIDE_DRIVES:
+        {
+            m_shell.m_chrome->SetAutoHideDrives (!m_shell.m_settings->GetPrefs().autoHideDrives);
+            break;
+        }
+
         case IDM_VIEW_RESET_SIZE:
         {
             // One key puts everything back: the machine faces front at its
@@ -1036,10 +1043,11 @@ void WindowCommandManager::OnViewCommand (int id)
 
         case IDM_VIEW_DRIVE_STRIP:
         {
-            // Only meaningful in fullscreen; the FSM consumes the edge on its
-            // next tick (releasing a guest capture if one is held). Windowed,
+            // Only meaningful while the drives are auto-hidden, in fullscreen
+            // or with auto-hide on; the FSM consumes the edge on its next tick
+            // (releasing the guest's pointer capture if it has one). Otherwise
             // the drives are already on screen.
-            if (m_shell.m_renderer->GetD3D().IsFullscreen())
+            if (m_shell.AreDrivesAutoHidden())
             {
                 m_shell.m_scene->RequestStripHotkey();
                 m_shell.m_renderer->GetD3D().MarkRedrawNeeded();

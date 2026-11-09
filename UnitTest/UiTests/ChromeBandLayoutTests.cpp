@@ -49,6 +49,20 @@ public:
     }
 
 
+    TEST_METHOD (WithAutoHideOnTheDriveBandCollapses)
+    {
+        ChromeBandInputs  inputs = Typical();
+
+        Assert::AreNotEqual (0, ChromeBandLayout::DriveBandDp (inputs), L"the typical machine has a band to collapse");
+
+        inputs.drivesOnStrip = true;
+
+        Assert::AreEqual (0, ChromeBandLayout::DriveBandDp (inputs));
+        Assert::AreEqual (0, ChromeBandLayout::Compute (inputs, At (96)).drive,
+                          L"the drives slide up over the picture, so they reserve no room");
+    }
+
+
     TEST_METHOD (TheDriveBandZoomsWithTheScene)
     {
         ChromeBandInputs  inputs = Typical();

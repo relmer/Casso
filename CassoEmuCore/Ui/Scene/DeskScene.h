@@ -383,9 +383,8 @@ public:
     // The monitor's are far longer still. It is seen almost head-on (the
     // camera gazes down ~5 degrees), so its patch of floor is nearly edge-on
     // and its own overhanging bezel hides the near end of it: a drive-sized
-    // margin projects to about a pixel. Reaching ~90 mm forward costs the
-    // scene nothing, because the drive row already stands 85 mm ahead of the
-    // monitor and sets the composition's forward bound.
+    // margin projects to about a pixel. The framing reserves less than this
+    // for the monitor; see DeskScene::Metrics.
     static constexpr float  kShadowMarginSideMm         = 9.0f;
 
     // The mounted image's name below the drive: how tall the text stands

@@ -1717,7 +1717,13 @@ void DxuiPopupHost::RenderNow()
         painterBegun = true;
         m_painter.SetGlobalAlpha (m_revealAlpha);
 
-        hr = m_textRenderer.BeginDraw();
+        // Text goes into a Direct2D command list that is replayed after the
+        // painter's fills, as in DxuiHwndSource::PaintContent. The painter
+        // buffers the card and row fills while text is drawn, and past a few
+        // hundred draws Direct2D flushes early. Text drawn straight at the
+        // back buffer before that flush ended up under the fills submitted
+        // afterward, which blanked the top rows of a long menu.
+        hr = m_textRenderer.BeginDrawDeferred();
         CHRA (hr);
         textBegun = true;
         m_textRenderer.SetGlobalAlpha (m_revealAlpha);
@@ -1742,7 +1748,7 @@ void DxuiPopupHost::RenderNow()
         painterBegun = false;
         CHRA (hr);
 
-        hr = m_textRenderer.EndDraw();
+        hr = m_textRenderer.EndDrawDeferred();
         textBegun = false;
         CHRA (hr);
     }
@@ -1754,7 +1760,7 @@ Error:
 
     if (textBegun)
     {
-        (void) m_textRenderer.EndDraw();
+        (void) m_textRenderer.EndDrawDeferred();
     }
 
     if (painterBegun)

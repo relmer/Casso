@@ -190,7 +190,7 @@ void EmulatorShell::ShowNotification (const std::wstring & message)
     {
         wstring *  carried = new (std::nothrow) wstring (message);
 
-        if (carried != nullptr && !PostMessageW (m_hwnd, WM_APP_NOTIFY_USER, 0,
+        if (carried != nullptr && !PostMessageW (m_hwnd, (UINT) AppMessage::ShellNotifyUser, 0,
                                                  reinterpret_cast<LPARAM> (carried)))
         {
             delete carried;
@@ -242,7 +242,7 @@ void EmulatorShell::PostNotification (const std::wstring & message)
 
     carried = new (std::nothrow) wstring (message);
 
-    if (carried != nullptr && !PostMessageW (m_hwnd, WM_APP_NOTIFY_USER, 0,
+    if (carried != nullptr && !PostMessageW (m_hwnd, (UINT) AppMessage::ShellNotifyUser, 0,
                                              reinterpret_cast<LPARAM> (carried)))
     {
         delete carried;

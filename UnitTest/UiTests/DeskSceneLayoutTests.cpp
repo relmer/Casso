@@ -37,6 +37,9 @@ public:
     // either side of it.
     static constexpr float  kEdgeTolerancePx  = 0.5f;
 
+    // The room left under sliding drives for their labels.
+    static constexpr int    kSlideClearPx     = 30;
+
     // Metrics mirroring the real models: Monitor //c 248x280x226 with the
     // generated glass rect, Disk II 155x222x86 (model space X/Y-back/Z-up).
     static DeskSceneMetrics MakeMetrics()
@@ -191,6 +194,108 @@ public:
         AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, b));
 
         Assert::AreEqual (0, memcmp (&a, &b, sizeof (a)));
+    }
+
+    TEST_METHOD (Sliding_Frames_The_Monitor_Alone_At_Every_Progress)
+    {
+        DeskSceneMetrics      metrics   = MakeMetrics();
+        RECT                  vp        = { 0, 0, 1120, 768 };
+        DeskSceneComposition  alone;
+        float                 steps[]   = { 0.0f, 0.5f, 1.0f };
+
+
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 0, metrics, alone));
+
+        for (float progress : steps)
+        {
+            DeskSceneComposition  sliding;
+
+
+
+            AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, progress, kSlideClearPx, sliding));
+
+            Assert::AreEqual (0, memcmp (alone.viewProj, sliding.viewProj, sizeof (alone.viewProj)), L"the camera is the monitor-only camera");
+            Assert::AreEqual (0, memcmp (alone.monitorWorld, sliding.monitorWorld, sizeof (alone.monitorWorld)), L"the monitor stays on the desk");
+            Assert::AreEqual (0, memcmp (&alone.glassRectPx, &sliding.glassRectPx, sizeof (RECT)));
+        }
+    }
+
+    TEST_METHOD (Sliding_At_Zero_Omits_The_Devices)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1120, 768 };
+        DeskSceneComposition  comp;
+
+
+
+        metrics.hasRecorder = true;
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.0f, kSlideClearPx, comp));
+
+        Assert::AreEqual (0, comp.driveCount);
+        Assert::AreEqual (0, comp.hasRecorder);
+    }
+
+    TEST_METHOD (Sliding_Raises_The_Drives_In_Front_Of_The_Monitor)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        RECT                  vp            = { 0, 0, 1120, 768 };
+        DeskSceneComposition  quarter;
+        DeskSceneComposition  half;
+        DeskSceneComposition  full;
+        float                 driveBackZ    = 0.0f;
+        float                 monitorFrontZ = -metrics.monitorMin[1];
+
+
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.25f, kSlideClearPx, quarter));
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.5f,  kSlideClearPx, half));
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f,  kSlideClearPx, full));
+
+        Assert::AreEqual (2, full.driveCount);
+        Assert::IsTrue (quarter.driveRectPx[0].top > half.driveRectPx[0].top, L"the drives rise as the slide progresses");
+        Assert::IsTrue (half.driveRectPx[0].top > full.driveRectPx[0].top);
+        Assert::IsTrue (full.driveRectPx[0].top < vp.bottom, L"fully up, the drives are in the frame");
+        Assert::IsTrue (full.driveRectPx[0].bottom <= vp.bottom - kSlideClearPx + 1, L"fully up, the fronts and the labels are inside the frame");
+        Assert::IsTrue (full.driveWorld[0][13] >= 0.0f, L"fully up, the drives are on the desk or raised off it, never sunk into it");
+
+        // Model Y points back and maps to world -Z at the row's scale (cell 0),
+        // so a drive's back is its world Z less its scaled rearmost model Y.
+        driveBackZ = full.driveWorld[0][14] - full.driveWorld[0][0] * metrics.driveMax[1];
+        Assert::IsTrue (driveBackZ >= monitorFrontZ + DeskSceneLayout::kSlideMonitorGapMm - 0.01f,
+                        L"the drives are wholly in front of the monitor, never inside it");
+        Assert::IsTrue (full.driveWorld[0][0] < 1.0f, L"nearer the eye than the monitor, the drives are scaled to look its size");
+    }
+
+    TEST_METHOD (Sliding_Row_Fits_Within_The_Frame)
+    {
+        DeskSceneMetrics      metrics     = MakeMetrics();
+        RECT                  narrow      = { 0, 0, 700, 900 };
+        RECT                  wide        = { 0, 0, 2400, 768 };
+        DeskSceneComposition  comp;
+        float                 narrowScale = 0.0f;
+
+
+
+        // A recorder about the size of the real one, so the row is wider than
+        // the monitor.
+        metrics.hasRecorder    = true;
+        metrics.recorderMin[0] = 0.0f;   metrics.recorderMax[0] = 230.0f;
+        metrics.recorderMin[1] = 0.0f;   metrics.recorderMax[1] = 150.0f;
+        metrics.recorderMin[2] = 0.0f;   metrics.recorderMax[2] = 50.0f;
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (narrow, 96, 2, metrics, 1.0f, kSlideClearPx, comp));
+
+        Assert::IsTrue (comp.driveRectPx[0].left    >= narrow.left,  L"the row is inside the frame on the left");
+        Assert::IsTrue (comp.recorderRectPx.right   <= narrow.right, L"the recorder is inside the frame on the right");
+
+        narrowScale = comp.driveWorld[0][0];
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (wide, 96, 2, metrics, 1.0f, kSlideClearPx, comp));
+
+        Assert::IsTrue (comp.driveWorld[0][0] > narrowScale, L"only a row wider than the frame is shrunk to fit");
+        Assert::IsTrue (comp.recorderRectPx.right <= wide.right);
     }
 
     TEST_METHOD (Empty_Viewport_Reports_S_FALSE)
@@ -1110,6 +1215,77 @@ public:
         Assert::AreEqual (0.0f,    bandMin[1], kEdgeTolerancePx);
         Assert::AreEqual (1080.0f, bandMax[1], kEdgeTolerancePx);
         Assert::IsTrue   (bandMin[0] > 0.0f, L"a 16:9 screen is wider than the picture");
+    }
+
+
+    TEST_METHOD (Fullscreen_Drives_Slide_Up_Without_Moving_The_Glass)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  screen  = { 0, 0, 1920, 1080 };
+        DeskSceneComposition  glass;
+        DeskSceneComposition  hidden;
+        DeskSceneComposition  raised;
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH, metrics, glass));
+        Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH, metrics, hidden,
+                                                                   2, 0.0f, kSlideClearPx));
+        Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH, metrics, raised,
+                                                                   2, 1.0f, kSlideClearPx));
+
+        Assert::AreEqual (0, memcmp (glass.viewProj, raised.viewProj, sizeof (glass.viewProj)), L"the camera is the same with the drives up");
+        Assert::AreEqual (0, memcmp (&glass.glassRectPx, &raised.glassRectPx, sizeof (RECT)));
+        Assert::AreEqual (0, hidden.driveCount, L"hidden, the drives are out of the composition");
+        Assert::AreEqual (2, raised.driveCount);
+        Assert::IsTrue (raised.driveRectPx[0].left >= screen.left && raised.driveRectPx[1].right <= screen.right,
+                        L"the row fits the screen's width");
+        Assert::IsTrue (raised.driveRectPx[0].bottom <= screen.bottom - kSlideClearPx + 1,
+                        L"the fronts and the labels are on screen");
+    }
+
+
+    TEST_METHOD (Fullscreen_Drive_Row_Is_Centered_On_The_Screen)
+    {
+        // The glass is off-center in the case, and the camera aims at the
+        // glass, so a row centered on the case would land off to one side.
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  screen  = { 0, 0, 1920, 1080 };
+        DeskSceneComposition  comp;
+        float                 rowMid  = 0.0f;
+
+
+
+        metrics.glass.x0 = 10.0f;
+        metrics.glass.x1 = 200.0f;
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH, metrics, comp,
+                                                                   2, 1.0f, kSlideClearPx));
+
+        rowMid = (float) (comp.driveRectPx[0].left + comp.driveRectPx[1].right) * 0.5f;
+
+        Assert::AreEqual (960.0f, rowMid, 4.0f, L"the row is centered left to right");
+    }
+
+
+    TEST_METHOD (Slide_Front_Top_Ignores_The_Lids)
+    {
+        DeskSceneMetrics      metrics  = MakeMetrics();
+        RECT                  vp       = { 0, 0, 1120, 768 };
+        DeskSceneComposition  comp;
+        LONG                  frontTop = 0;
+
+
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f, kSlideClearPx, comp));
+
+        Assert::IsTrue (DeskSceneLayout::GetSlideFrontTopPx (comp, metrics, frontTop));
+        Assert::IsTrue (frontTop > comp.driveRectPx[0].top, L"the lid behind the face projects higher and is left out");
+        Assert::IsTrue (frontTop < comp.driveRectPx[0].bottom);
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.0f, kSlideClearPx, comp));
+
+        Assert::IsFalse (DeskSceneLayout::GetSlideFrontTopPx (comp, metrics, frontTop), L"no devices, no faces");
     }
 
 

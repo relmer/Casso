@@ -57,6 +57,16 @@ public:
     // names nothing at all.
     static bool  HasSymbolFont () { return s_fontFallback != nullptr; }
 
+    // Process-wide typography, set from the active theme. Static for the same
+    // reason as AddSymbolFont: each window creates a separate renderer, and a
+    // theme applies to all of them.
+    static HRESULT  SetBodyFace               (const void * pFontBytes,
+                                               size_t       byteCount,
+                                               float        sizeScale);
+    static void     ClearBodyFace             ();
+    static void     SetTextGlow               (uint8_t alpha, float radiusEm);
+    static void     SetMonochromeGlyphsForced (bool forced) { s_monochromeGlyphsForced = forced; }
+
     HRESULT  BindBackBuffer   (IDXGISurface * pBackBufferSurface,
                                UINT           dpiX,
                                UINT           dpiY);
@@ -199,6 +209,13 @@ public:
 private:
     static D2D1_COLOR_F  ColorFromArgb (uint32_t argbColor);
 
+    static HRESULT       CreateMemoryFontCollection (const void                      * pFontBytes,
+                                                     size_t                            byteCount,
+                                                     ComPtr<IDWriteFontCollection1>  & outCollection,
+                                                     std::wstring                    & outFamilyName);
+
+    static bool          IsBodyFaceRequest          (const wchar_t * family);
+
     struct TextFormatKey
     {
         std::wstring        family;
@@ -318,6 +335,37 @@ private:
     // nothing looks a family up in it by name.
     static inline ComPtr<IDWriteFontCollection1>  s_symbolFonts;
     static inline ComPtr<IDWriteFontFallback>     s_fontFallback;
+
+    // One loader for every in-memory font, registered with the shared factory
+    // when the first in-memory font is loaded. DirectWrite has no way to
+    // unregister a loader that existing formats reference, so a loader per
+    // call would accumulate one per theme switch.
+    static inline ComPtr<IDWriteInMemoryFontFileLoader>  s_memoryFontLoader;
+
+    // Set by SetBodyFace. s_bodyFaceSource is the caller's buffer, compared
+    // only to make a repeat of the same face a no-op. Every change bumps
+    // s_typographyGeneration, and a renderer whose caches predate the current
+    // generation drops them before building a format.
+    static inline ComPtr<IDWriteFontCollection1>  s_bodyFaceFonts;
+    static inline std::wstring                    s_bodyFaceFamily;
+    static inline const void                    * s_bodyFaceSource       = nullptr;
+    static inline float                           s_bodyFaceScale        = 1.0f;
+    static inline uint32_t                        s_typographyGeneration = 0;
+    static inline uint8_t                         s_glowAlpha            = 0;
+    static inline float                           s_glowRadiusEm         = 0.0f;
+
+    // Set by SetMonochromeGlyphsForced: every renderer draws as though
+    // PushMonochromeGlyphs were in effect, so an emoji takes the text color.
+    static inline bool                            s_monochromeGlyphsForced = false;
+
+    uint32_t                                      m_typographyGeneration = 0;
+
+    void     SyncTypography ();
+    HRESULT  DrawGlow       (IDWriteTextLayout      * pLayout,
+                             D2D1_POINT_2F            origin,
+                             uint32_t                 argbColor,
+                             float                    fontSizeDip,
+                             D2D1_DRAW_TEXT_OPTIONS   options);
 
     std::map<TextFormatKey,
              ComPtr<IDWriteTextFormat>>  m_formatCache;

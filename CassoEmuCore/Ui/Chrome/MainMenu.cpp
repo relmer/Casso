@@ -121,12 +121,15 @@ void MainMenu::PaintDropdown (
 void MainMenu::ApplyChromeColors (const CassoTheme & theme)
 {
     SetStripColors    (theme.navStrip,
-                       theme.navHover,
-                       theme.navItemText);
+                       theme.navStripHover,
+                       theme.navItemText,
+                       theme.navHoverText);
     SetDropdownColors (theme.dropdownBg,
                        theme.dropdownHover,
                        theme.dropdownItemText,
+                       theme.dropdownHoverText,
                        theme.dropdownAccel,
-                       theme.navHover,
-                       theme.navHover);
+                       theme.dropdownHoverAccel,
+                       theme.dropdownBorder,
+                       theme.dropdownDivider);
 }

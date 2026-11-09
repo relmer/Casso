@@ -12,6 +12,7 @@
 #include "SettingsPreviewController.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Config/UserConfigStore.h"
 #include "Shell/Components/ShellSettings.h"
@@ -185,6 +186,8 @@ void SettingsApplyController::ClearPending()
 {
     m_pendingMachine.clear();
     m_pendingTheme.clear();
+    m_pendingCrtMonitor.reset();
+    m_pendingAutoHideDrives.reset();
 }
 
 
@@ -569,6 +572,20 @@ void SettingsApplyController::CommitApply()
         m_pendingTheme.clear();
     }
 
+    // The theme page's checkboxes are staged like the theme pick. Each setter
+    // persists the pref and relays out only when the value differs.
+    if (m_pendingCrtMonitor.has_value())
+    {
+        m_emuShell->GetChrome().SetCrtMonitorEnabled (*m_pendingCrtMonitor);
+        m_pendingCrtMonitor.reset();
+    }
+
+    if (m_pendingAutoHideDrives.has_value())
+    {
+        m_emuShell->GetChrome().SetAutoHideDrives (*m_pendingAutoHideDrives);
+        m_pendingAutoHideDrives.reset();
+    }
+
     // FR-132: the committed theme becomes the new baseline so a later
     // Cancel (after another "Apply now") reverts to THIS state, and the
     // live-apply flag is cleared now that the pick is persisted.
@@ -619,6 +636,8 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
 {
     m_pendingMachine.clear();
     m_pendingTheme.clear();
+    m_pendingCrtMonitor.reset();
+    m_pendingAutoHideDrives.reset();
 
     // Controller edits never reached the service, so undoing them is only
     // putting the page's copies back.

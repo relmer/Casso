@@ -524,6 +524,59 @@ bool EmulatorShell::CrtMonitorActive() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::AreDrivesAutoHidden
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::AreDrivesAutoHidden() const
+{
+    return m_renderer->GetD3D().IsFullscreen() || m_settings->GetPrefs().autoHideDrives;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::IsDeskSlideActive
+//
+//  Windowed with auto-hide on, and always in fullscreen. The desk without a
+//  monitor has no monitor to place the drives in front of, so it uses the
+//  strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsDeskSlideActive() const
+{
+    return AreDrivesAutoHidden() && CrtMonitorActive();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::AreDrivesOnStrip
+//
+//  Every path that places, draws or hit-tests the strip's drives calls this
+//  instead of testing for fullscreen, so auto-hide and fullscreen use the
+//  same strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::AreDrivesOnStrip() const
+{
+    return AreDrivesAutoHidden() && !IsDeskSlideActive();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LayoutDriveRowForTest
 //
 //  The flat drive band's row, for the band layout tests: lays the row out in
@@ -695,7 +748,7 @@ HRESULT EmulatorShell::Initialize (
 
     m_gamePortMixer.SetApplyThread (std::this_thread::get_id(), [hwnd = m_hwnd]
     {
-        PostMessageW (hwnd, WM_APP_GAMEPORT_FLUSH, 0, 0);
+        PostMessageW (hwnd, (UINT) AppMessage::ShellGameportFlush, 0, 0);
     });
 
     m_gamePortMixer.SetSink (m_gamePortSink.get());
@@ -732,14 +785,14 @@ HRESULT EmulatorShell::Initialize (
                 m_controllerPickHasHolders = m_controllerPickHasHolders || change.haveLastHoldersChanged;
             }
 
-            PostMessageW (m_hwnd, WM_APP_CONTROLLER_PICK, 0, 0);
+            PostMessageW (m_hwnd, (UINT) AppMessage::ShellControllerPick, 0, 0);
         });
 
     // A connect or disconnect changes who owns the axes but tells the user
     // nothing, so it takes the same trip to the UI thread without a notice.
     m_controllerService->SetStateChangedFn ([this]
     {
-        PostMessageW (m_hwnd, WM_APP_CONTROLLER_PICK, 0, 0);
+        PostMessageW (m_hwnd, (UINT) AppMessage::ShellControllerPick, 0, 0);
     });
 
     // The Controllers page asking for a controller to be read wakes the

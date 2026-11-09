@@ -73,11 +73,16 @@ public:
 
     void  SetItems          (std::vector<DxuiMenuBarItem> items);
     void  SetPopupHost      (DxuiHwndSource * host);
-    void  SetStripColors    (uint32_t stripArgb, uint32_t hoverArgb, uint32_t textArgb);
+    void  SetStripColors    (uint32_t stripArgb,
+                             uint32_t hoverArgb,
+                             uint32_t textArgb,
+                             uint32_t hoverTextArgb);
     void  SetDropdownColors (uint32_t bgArgb,
                              uint32_t hoverArgb,
                              uint32_t textArgb,
+                             uint32_t hoverTextArgb,
                              uint32_t accelArgb,
+                             uint32_t hoverAccelArgb,
                              uint32_t borderArgb,
                              uint32_t dividerArgb);
 
@@ -224,10 +229,11 @@ private:
     bool                          m_hasFocus         = false;
     UINT                          m_dpi              = 96;
 
-    bool                          m_stripColorsSet      = false;
-    uint32_t                      m_stripBgOverride     = 0;
-    uint32_t                      m_stripHoverOverride  = 0;
-    uint32_t                      m_stripTextOverride   = 0;
+    bool                          m_stripColorsSet         = false;
+    uint32_t                      m_stripBgOverride        = 0;
+    uint32_t                      m_stripHoverOverride     = 0;
+    uint32_t                      m_stripTextOverride      = 0;
+    uint32_t                      m_stripHoverTextOverride = 0;
 
     IDxuiTextRenderer           * m_textRendererForMeasure = nullptr;
 };

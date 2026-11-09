@@ -118,6 +118,15 @@ public:
                                         IDxuiTextRenderer   & text,
                                         const IDxuiTheme    & theme) override;
 
+    // Crops the widget's text to a rect; null clears it. On the slide-up
+    // strip the text is drawn after every fill, so without the crop it is
+    // drawn over the //c switch strip while the strip slides.
+    void               SetTextClip     (const RECT * clipPx)
+    {
+        m_textClip    = (clipPx != nullptr) ? *clipPx : RECT {};
+        m_hasTextClip = (clipPx != nullptr);
+    }
+
     //
     //  IDxuiControl::Layout — treats boundsDip.left / boundsDip.top as
     //  the widget's anchor and computes its own body / face / slot /
@@ -348,6 +357,10 @@ private:
     // The info icon's hover and click target, set by Paint and empty whenever
     // the icon is not on screen, so a stale target never outlives it.
     RECT                 m_infoIconRect      = {};
+
+    // The crop SetTextClip applies to every string the widget draws.
+    RECT                 m_textClip          = {};
+    bool                 m_hasTextClip       = false;
 
     // True while the pointer is inside the hit band, which
     // gives the name its button treatment. The shell already tells the widget

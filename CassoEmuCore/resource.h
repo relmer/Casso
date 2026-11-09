@@ -133,6 +133,10 @@
 // screenshot carries the pose it was taken from. Same default rule.
 #define IDM_VIEW_SCENE_VIEW         40073
 
+// Collapse the drives off the bottom edge until the pointer comes near it.
+// Taken from a separate block: open branches use the 40089-40499 range.
+#define IDM_VIEW_AUTOHIDE_DRIVES    40500
+
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_CHECK_UPDATES      40041
 #define IDM_HELP_ABOUT              40042
@@ -169,6 +173,7 @@
 //   Skeuomorphic:   300..319
 //   DarkModern:     320..339
 //   RetroTerminal:  340..359
+//   Phosphor:       370..389
 #define IDR_THEME_SKEUO_THEME_JSON          300
 #define IDR_THEME_SKEUO_FONT_TTF            310
 #define IDR_THEME_SKEUO_FONT_OFL            311
@@ -183,6 +188,10 @@
 #define IDR_THEME_RETRO_FONT_TTF            350
 #define IDR_THEME_RETRO_FONT_OFL            351
 #define IDR_THEME_RETRO_FONT_TODO           352
+
+#define IDR_THEME_PHOSPHOR_THEME_JSON       370
+#define IDR_THEME_PHOSPHOR_FONT_TTF         380
+#define IDR_THEME_PHOSPHOR_FONT_OFL         381
 
 // Casso's own symbol font: the open and closed Apple keycap glyphs at
 // U+E000 / U+E001. Unlike the theme fonts above it is never extracted to

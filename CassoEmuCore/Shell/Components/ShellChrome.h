@@ -12,6 +12,7 @@
 
 class DriveWidget;
 class EmulatorShell;
+struct DeskSceneComposition;
 
 
 
@@ -84,7 +85,7 @@ public:
     // switch: adding/removing the Disk ][ controller changes the drive band +
     // widgets + hit-test map, but no WM_SIZE fires when the window size itself
     // is unchanged, so OnSize would never re-evaluate it. See the
-    // WM_APP_DXUI_UPDATE_TITLE handler (the switch-completion signal).
+    // AppMessage::ShellUpdateTitle handler (the switch-completion signal).
     void    ReflowChromeForMachineChange  ();
 
     // How tall the bar is at a given width, for the band that reserves the
@@ -119,6 +120,16 @@ public:
     // Settings > Theme opt in/out for the CRT monitor. Applies live -- relays
     // out the chrome in place -- and persists to GlobalUserPrefs.
     void    SetCrtMonitorEnabled (bool enabled);
+
+    // The drive bar's auto-hide, from Settings > Theme, the View menu and the
+    // drive context menu. Applies live and persists to GlobalUserPrefs.
+    void    SetAutoHideDrives    (bool enabled);
+
+    // The rect the drive strip slides up into. See m_driveStripAreaPx.
+    RECT    GetDriveStripAreaPx  () const { return m_driveStripAreaPx; }
+
+    // Re-solves the desk with the drives risen by `progress` (0 to 1).
+    void    ComposeDeskSlide     (float progress);
 
     // Fullscreen presentation (FR-014): every chrome element collapses to
     // nothing -- host caption, menu bar, toolbar, joystick row, drive band,
@@ -326,6 +337,25 @@ private:
     ChromeBand               m_switchBand;
     ChromeBand               m_centerBand;
     int                      m_driveBarThicknessDp = s_kInitialDriveBandDp;
+
+    // The rect the drive strip slides up into, anchored to its bottom edge:
+    // the whole client in fullscreen, the center band windowed. Written by
+    // UpdateViewportLayout.
+    RECT                     m_driveStripAreaPx    = {};
+
+    // The desk's slide (auto-hide with the monitor, windowed): the scene box
+    // the last layout solved in, how far the devices have risen (0 to 1), and
+    // the screen rect of the devices and their labels.
+    RECT                     m_deskSlideBox        = {};
+    float                    m_deskSlideProgress   = 0.0f;
+    RECT                     m_deskSlideCoverPx    = {};
+
+    // The top of the zone that raises the desk's devices: the lower half of
+    // the desk under the monitor. Written by UpdateDeskSlideCover.
+    LONG                     m_deskSlideRevealTopPx = 0;
+
+    void    UpdateDeskSlideCover (const DeskSceneComposition & comp);
+    int     GetDeskSlideClearPx  () const;
 
     // Whether the current WINDOW height was sized for a Disk ][ controller
     // being present. Written by OnSize (the authoritative layout, WM_SIZE-only)

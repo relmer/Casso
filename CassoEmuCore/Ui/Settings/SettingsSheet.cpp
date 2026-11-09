@@ -327,17 +327,23 @@ HRESULT SettingsSheet::OpenModeless (
         m_apply.ApplyThemeLive (m_themePage->GetSelectedThemeId());
     });
 
-    // The 3D desk-scene opt in/out: applies + persists immediately (the
-    // scene appears/disappears on the live chrome behind the sheet), so
-    // there is no staged state to revert on Cancel.
+    // The CRT monitor and auto-hide checkboxes are staged like the theme pick:
+    // OK applies and persists them, and Cancel discards them. The page's mock
+    // window previews the CRT checkbox in the meantime.
     m_themePage->SetCrtMonitorChecked (prefs.crtMonitor);
     m_themePage->SetOnCrtMonitorToggled ([this] (bool enabled)
     {
-        m_emuShell->GetChrome().SetCrtMonitorEnabled (enabled);
+        m_apply.StageCrtMonitor (enabled);
     });
 
-    // The General page: every control is live and persisted on the click,
-    // like the CRT opt-in above, so Cancel has nothing to revert.
+    m_themePage->SetAutoHideDrivesChecked (prefs.autoHideDrives);
+    m_themePage->SetOnAutoHideDrivesToggled ([this] (bool enabled)
+    {
+        m_apply.StageAutoHideDrives (enabled);
+    });
+
+    // The General page: every control is live and persisted on the click, so
+    // Cancel has nothing to revert.
     m_generalPage->SetAutoUpdateChecked (prefs.autoUpdateCheck);
     m_generalPage->SetAudioOfferChecked (GeneralPageModel::IsOfferChecked (prefs.audioDownloadConsent));
     m_generalPage->SetRomOfferChecked   (GeneralPageModel::IsOfferChecked (prefs.romRefreshConsent));
@@ -1156,6 +1162,7 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
     const uint32_t                * fbPixels = nullptr;
     CrtUvRect                       uv       = { 0.0f, 0.0f, 1.0f, 1.0f };
     RECT                            viewport = {};
+    bool                            pictured = false;
 
 
 
@@ -1221,9 +1228,22 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
     // The DPI does not set the scene's size -- SolveComposition contain-fits
     // the scene's corners to the viewport and never consults it -- so this
     // only feeds the layout's own dp-based reservations.
-    hr = (request.mode == ThemePage::PreviewSceneMode::Full)
-       ? DeskSceneLayout::Compute      (request.rectPx, request.dpi, 2, m_previewScene.Metrics(), comp)
-       : DeskSceneLayout::ComputeStrip (request.rectPx, request.dpi, 2, m_previewScene.Metrics(), comp);
+    // Auto-hidden drives are the live desk's slide at rest: the monitor alone.
+    pictured = (request.mode == ThemePage::PreviewSceneMode::Full ||
+                request.mode == ThemePage::PreviewSceneMode::MonitorOnly);
+
+    if (request.mode == ThemePage::PreviewSceneMode::Full)
+    {
+        hr = DeskSceneLayout::Compute (request.rectPx, request.dpi, 2, m_previewScene.Metrics(), comp);
+    }
+    else if (request.mode == ThemePage::PreviewSceneMode::MonitorOnly)
+    {
+        hr = DeskSceneLayout::ComputeSliding (request.rectPx, request.dpi, 2, m_previewScene.Metrics(), 0.0f, 0, comp);
+    }
+    else
+    {
+        hr = DeskSceneLayout::ComputeStrip (request.rectPx, request.dpi, 2, m_previewScene.Metrics(), comp);
+    }
 
     if (FAILED (hr) || hr == S_FALSE)
     {
@@ -1233,7 +1253,7 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
     m_previewScene.SetComposition (comp);
     m_previewScene.SetClipRect    (&request.clipPx);
 
-    if (request.mode == ThemePage::PreviewSceneMode::Full)
+    if (pictured)
     {
         // The picture comes from the emulator's framebuffer bytes: this
         // device has no CRT chain of its own, and the preview already has the

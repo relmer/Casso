@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Core/AppMessages.h"
+
 #include "Ui/Chrome/ChromeMetrics.h"
 
 
@@ -13,22 +15,11 @@
 //  EmulatorShellInternal
 //
 //  What the shell's translation units share and nothing else needs: the
-//  private window messages, the tuning constants, and the one clock helper
+//  tuning constants, and the one clock helper
 //  the banners are timed by. The shell is one class in twelve files, split
 //  by concern; this is the file-scope state those files had when it was one.
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-// Private window messages, posted between threads and handled by the window.
-#define WM_APP_NOTIFY_USER     (WM_APP + 0x22)
-#define WM_APP_REPORT_DAMAGE   (WM_APP + 0x23)
-#define WM_APP_MOUNT_COMPLETED (WM_APP + 0x25)
-#define WM_APP_CHANGE_REPORT   (WM_APP + 0x26)
-#define WM_APP_CHANGE_ASK      (WM_APP + 0x27)
-#define WM_APP_SHOW_NOTICE     (WM_APP + 0x28)
-#define WM_APP_GAMEPORT_FLUSH  (WM_APP + 0x29)
-#define WM_APP_CONTROLLER_PICK (WM_APP + 0x2A)
-#define WM_APP_UPDATE_RESULT   (WM_APP + 0x2B)
 
 
 
@@ -248,16 +239,3 @@ static constexpr int     s_kChromeFocusDrive0        = 17;
 static constexpr int     s_kChromeFocusDrive1        = 18;
 static constexpr int     s_kChromeFocusCount         = 19;
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-// Posted (not sent) to the shell HWND to marshal a window-title refresh
-// onto the UI thread when UpdateWindowTitle is called from the CPU thread
-// (SwitchMachine). Drained by RunMessageLoop before DispatchMessage.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-#define WM_APP_DXUI_UPDATE_TITLE (WM_APP + 0x21)

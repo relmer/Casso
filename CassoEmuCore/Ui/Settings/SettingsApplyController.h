@@ -57,6 +57,8 @@ public:
     void  ClearPending        ();
     void  StagePendingMachine (const std::string & name);
     void  StagePendingTheme   (const std::string & name);
+    void  StageCrtMonitor     (bool enabled) { m_pendingCrtMonitor     = enabled; }
+    void  StageAutoHideDrives (bool enabled) { m_pendingAutoHideDrives = enabled; }
 
     // FR-132: apply the given theme LIVE to the real chrome now, without
     // closing the panel and without persisting. Keeps the pick staged so
@@ -96,8 +98,10 @@ private:
 
     // Staged user picks. Live writes occur on commit; cancel just
     // clears these without touching the running machine / theme.
-    std::string  m_pendingMachine;
-    std::string  m_pendingTheme;
+    std::string           m_pendingMachine;
+    std::string           m_pendingTheme;
+    std::optional<bool>   m_pendingCrtMonitor;
+    std::optional<bool>   m_pendingAutoHideDrives;
 
     // FR-132: theme baseline captured at Show (the persisted active
     // theme id) plus a flag tracking whether "Apply now" live-applied a
