@@ -58,6 +58,12 @@ jobs:
           if (-not $vstest) { throw 'vstest.console.exe not found' }
           Add-Content $env:GITHUB_PATH (Split-Path $vstest)
 
+      # The 64-bit compiler and linker (PreferredToolArchitecture=x64), not
+      # the 32-bit ones x86 MSBuild picks by default: link-time code
+      # generation of the larger outputs, the unit-test DLL first, outgrew a
+      # 32-bit process's memory (C1002 "compiler is out of heap space in pass
+      # 2"). Code analysis runs on the same 64-bit compiler, as Build.ps1's
+      # -RunCodeAnalysis does locally, so the two agree.
       - name: Build
         run: msbuild Casso.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.platform }} -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:PreferredToolArchitecture=x64 -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
 
@@ -143,6 +149,7 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v3
 
+      # 64-bit tools, as the x64 build above uses and for the same reason.
       - name: Build ARM64
         run: msbuild Casso.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:PreferredToolArchitecture=x64 -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
 
