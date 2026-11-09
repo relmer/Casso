@@ -626,6 +626,7 @@ void NuFxArchive::Build (std::vector<Byte> & outBytes) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  NuFxArchive::MakeDiskRecord
@@ -638,6 +639,8 @@ void NuFxArchive::Build (std::vector<Byte> & outBytes) const
 NuFxRecord NuFxArchive::MakeDiskRecord (std::span<const Byte> blocks, const std::string & name, Word fileSystem)
 {
     constexpr Word  kBlockBytes = 512;
+
+
 
     NuFxRecord  record;
 
