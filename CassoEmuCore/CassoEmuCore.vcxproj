@@ -442,6 +442,8 @@
     <ClCompile Include="Devices\Disk\Containers\ImageContainer.cpp" />
     <ClCompile Include="Devices\Disk\Containers\TwoImgContainer.cpp" />
     <ClCompile Include="Devices\Disk\FileBlockStore.cpp" />
+    <ClCompile Include="Devices\Disk\Archives\NuLzw.cpp" />
+    <ClCompile Include="Devices\Disk\Archives\NuFxArchive.cpp" />
     <ClCompile Include="Devices\Disk\MemoryBlockStore.cpp" />
     <ClCompile Include="Machines\Apple2\Common\WozCompatibility.cpp" />
     <ClCompile Include="Machines\Apple2\Common\WozLoader.cpp" />
@@ -1076,6 +1078,8 @@
     <ClInclude Include="Devices\Disk\Containers\ImageContainer.h" />
     <ClInclude Include="Devices\Disk\Containers\TwoImgContainer.h" />
     <ClInclude Include="Devices\Disk\FileBlockStore.h" />
+    <ClInclude Include="Devices\Disk\Archives\NuLzw.h" />
+    <ClInclude Include="Devices\Disk\Archives\NuFxArchive.h" />
     <ClInclude Include="Devices\Disk\IBlockStore.h" />
     <ClInclude Include="Devices\Disk\MemoryBlockStore.h" />
     <ClInclude Include="Machines\Apple2\Common\WozCompatibility.h" />
