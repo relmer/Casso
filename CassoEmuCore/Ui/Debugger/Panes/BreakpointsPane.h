@@ -4,6 +4,7 @@
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/PaneBarSlot.h"
 #include "Ui/Debugger/Panes/IDebuggerPane.h"
+#include "Ui/Debugger/Panes/ListValueFilters.h"
 
 class BreakpointBarCommands;
 class DebuggerPaneFrame;
@@ -18,7 +19,8 @@ class DebuggerPaneFrame;
 //
 //  The breakpoints: a toolbar over a list of every breakpoint, each row its
 //  checkbox, the gutter's mark and a cell for each visible column, sorted
-//  by the heading last clicked. A breakpoint is renamed in a box laid over its
+//  by the heading last clicked and filtered from the Kind, Trigger and File
+//  headings. A breakpoint is renamed in a box laid over its
 //  Name cell. Each change is one step on the pane's undo list.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,6 +53,9 @@ public:
     void                             ToggleColumn   (BreakpointColumns::Column column);
     void                             Sort           (BreakpointColumns::Column column);
 
+    //  The filters of the Kind, Trigger and File headings.
+    ListValueFilters               & GetFilters     () { return m_filters; }
+
     //  Whether a bar entry can act, and its step.
     bool  IsBarEntryEnabled (int id) const;
     void  RunBarEntry       (int id);
@@ -75,6 +80,8 @@ public:
     IDxuiControl                     * GetContent         () const override;
     std::vector<IDxuiControl *>        GetControls        () const override;
     std::vector<DxuiListView *>        GetLists           () const override { return { m_list }; }
+    IDxuiFindTarget                  * GetFindView        () const override { return m_list; }
+    DebuggerPaneFrame                * GetFindFrame       () const override { return m_frame.get(); }
     std::vector<DxuiToolbar *>         GetBars            () const override { return { m_bar.GetBar() }; }
     std::optional<PaneColorKeySpec>    GetColorKey        () const override;
     void                               Apply              (const DebuggerViewSnapshot & snapshot) override;
@@ -97,6 +104,7 @@ private:
 
     void                                               SetColumns       ();
     void                                               ApplyRows        ();
+    void                                               FilterOrder      (const std::vector<BreakpointColumns::Cells> & allCells);
     void                                               SetBarMenus      ();
     void                                               NewBreakpoint    (BreakpointDialog::Type type);
     BreakpointDialog::Validator                        MakeValidator    (std::optional<int> editedId);
@@ -116,6 +124,7 @@ private:
     std::unique_ptr<DebuggerPaneFrame>       m_frame;
     std::unique_ptr<BreakpointBarCommands>   m_commands;
     Shown                                    m_shown      = BreakpointColumns::GetDefaultShown();
+    ListValueFilters                         m_filters;
     std::vector<size_t>                      m_order;
     std::vector<int>                         m_rowIds;          // each row's breakpoint id, as the rows were last set
     int                                      m_sort       = -1;

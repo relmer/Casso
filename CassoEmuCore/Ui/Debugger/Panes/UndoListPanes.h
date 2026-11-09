@@ -209,6 +209,8 @@ public:
     ~StackPane() override;
 
     StackHistory                 & GetHistory   () { return m_history; }
+    IDxuiFindTarget              * GetFindView  () const override { return m_list; }
+    DebuggerPaneFrame            * GetFindFrame () const override { return m_frame.get(); }
 
     void                           Configure    () override;
     void                           Apply        (const DebuggerViewSnapshot & snapshot) override;

@@ -679,6 +679,7 @@ void BookmarksPane::Configure()
                           { L"Symbol",   0, true,  DxuiTextHAlign::Left } });
 
     m_list->SetActivateOnDoubleClick (true);
+    m_list->SetOnSortColumn          ([this] (int column) { SortBy (column); });
 
     m_list->SetOnActivateRow ([this] (int row)
     {
@@ -705,9 +706,84 @@ void BookmarksPane::Configure()
 
 void BookmarksPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
-    m_bookmarks = snapshot.bookmarks;
+    m_bookmarks = GetSorted (snapshot.bookmarks, snapshot.symbols.get(), m_sort, m_isReverse);
     m_list->SetRows (GetCells (m_bookmarks, snapshot.symbols.get()));
     ShowNewListRow();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BookmarksPane::SortBy
+//
+//  A click on a heading sorts by that column, and a second click on the
+//  same heading reverses the order. The selected bookmark is selected in
+//  its new row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BookmarksPane::SortBy (int column)
+{
+    const DebuggerViewSnapshot                      * snapshot = m_host.GetLatestSnapshot();
+    std::optional<DebuggerViewSnapshot::WatchLine>    selected = GetBookmark (m_list->GetSelectedRow());
+
+
+
+    m_isReverse = (column == m_sort) && !m_isReverse;
+    m_sort      = column;
+    m_list->SetSortIndicator (m_sort, m_isReverse);
+
+    if (snapshot == nullptr)
+    {
+        return;
+    }
+
+    Apply (*snapshot);
+
+    for (size_t row = 0; selected.has_value() && row < m_bookmarks.size(); row++)
+    {
+        if (m_bookmarks[row].id == selected->id)
+        {
+            m_list->SetSelectedRow ((int) row);
+        }
+    }
+
+    m_host.Repaint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BookmarksPane::GetSorted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DebuggerViewSnapshot::WatchLine> BookmarksPane::GetSorted (std::vector<DebuggerViewSnapshot::WatchLine>   bookmarks,
+                                                                      const DebuggerViewSnapshot::SymbolsState     * symbols, int column, bool isReverse)
+{
+    if (column < 0 || column > 2)
+    {
+        return bookmarks;
+    }
+
+    std::ranges::stable_sort (bookmarks, [symbols, column, isReverse] (const DebuggerViewSnapshot::WatchLine & left, const DebuggerViewSnapshot::WatchLine & right)
+    {
+        int  order = (column == 0) ? left.id - right.id
+                   : (column == 1) ? (int) left.address - (int) right.address
+                   :                 _stricmp (FindSymbolName (symbols, left.address).c_str(), FindSymbolName (symbols, right.address).c_str());
+
+
+
+        return isReverse ? order > 0 : order < 0;
+    });
+
+    return bookmarks;
 }
 
 
@@ -847,7 +923,8 @@ std::optional<Word> BookmarksPane::GetNext (const std::vector<DebuggerViewSnapsh
 ////////////////////////////////////////////////////////////////////////////////
 
 DataBlocksPane::DataBlocksPane (IDebuggerPaneHost & host) :
-    ToolListPane (host, DebuggerLayout::kDataBlocks, L"Data ranges")
+    ToolListPane (host, DebuggerLayout::kDataBlocks, L"Data ranges"),
+    m_filters    (host)
 {
 }
 
@@ -868,6 +945,15 @@ void DataBlocksPane::Configure()
                           { L"Kind",  0, true,  DxuiTextHAlign::Left } });
 
     m_list->SetActivateOnDoubleClick (true);
+    m_list->SetOnSortColumn          ([this] (int column) { SortBy (column); });
+
+    m_filters.Attach (m_list, { kKindColumn }, [this]
+    {
+        if (m_host.GetLatestSnapshot() != nullptr)
+        {
+            Apply (*m_host.GetLatestSnapshot());
+        }
+    });
 
     m_list->SetOnActivateRow ([this] (int row)
     {
@@ -894,9 +980,123 @@ void DataBlocksPane::Configure()
 
 void DataBlocksPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
-    m_blocks = snapshot.dataBlocks;
-    m_list->SetRows (GetCells (m_blocks));
+    std::vector<std::wstring>  kinds;
+
+
+
+    for (const DataBlockEntry & block : snapshot.dataBlocks)
+    {
+        kinds.push_back (GetKindText (block.kind));
+    }
+
+    m_filters.SetValues (kKindColumn, kinds);
+
+    m_blocks = GetSorted (snapshot.dataBlocks, m_sort, m_isReverse);
+    std::erase_if (m_blocks, [this] (const DataBlockEntry & block) { return !m_filters.IsShown (kKindColumn, GetKindText (block.kind)); });
+
+    if (m_blocks.empty() && !snapshot.dataBlocks.empty())
+    {
+        m_list->SetRows ({ MakeNote (L"No data ranges match the filter.") });
+    }
+    else
+    {
+        m_list->SetRows (GetCells (m_blocks));
+    }
+
     ShowNewListRow();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataBlocksPane::SortBy
+//
+//  A click on a heading sorts by that column, and a second click on the
+//  same heading reverses the order. The selected block is selected in its
+//  new row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DataBlocksPane::SortBy (int column)
+{
+    const DebuggerViewSnapshot     * snapshot = m_host.GetLatestSnapshot();
+    std::optional<DataBlockEntry>    selected = GetBlock (m_list->GetSelectedRow());
+
+
+
+    m_isReverse = (column == m_sort) && !m_isReverse;
+    m_sort      = column;
+    m_list->SetSortIndicator (m_sort, m_isReverse);
+
+    if (snapshot == nullptr)
+    {
+        return;
+    }
+
+    Apply (*snapshot);
+
+    for (size_t row = 0; selected.has_value() && row < m_blocks.size(); row++)
+    {
+        if (m_blocks[row].first == selected->first)
+        {
+            m_list->SetSelectedRow ((int) row);
+        }
+    }
+
+    m_host.Repaint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataBlocksPane::GetSorted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DataBlockEntry> DataBlocksPane::GetSorted (std::vector<DataBlockEntry> blocks, int column, bool isReverse)
+{
+    if (column < 0 || column > 2)
+    {
+        return blocks;
+    }
+
+    std::ranges::stable_sort (blocks, [column, isReverse] (const DataBlockEntry & left, const DataBlockEntry & right)
+    {
+        int  order = (column == 0) ? _stricmp (left.name.c_str(), right.name.c_str())
+                   : (column == 1) ? (int) left.first - (int) right.first
+                   :                 _wcsicmp (GetKindText (left.kind), GetKindText (right.kind));
+
+
+
+        return isReverse ? order > 0 : order < 0;
+    });
+
+    return blocks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataBlocksPane::GetKindText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DataBlocksPane::GetKindText (DataBlockKind kind)
+{
+    static constexpr const wchar_t *  s_kKinds[] = { L"Bytes", L"Words", L"Addresses", L"Text", L"Floats" };
+
+
+
+    return s_kKinds[(size_t) kind];
 }
 
 
@@ -962,7 +1162,6 @@ bool DataBlocksPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems &
 
 std::vector<std::vector<DxuiListView::Cell>> DataBlocksPane::GetCells (const std::vector<DataBlockEntry> & blocks)
 {
-    static constexpr const wchar_t *  kKinds[] = { L"Bytes", L"Words", L"Addresses", L"Text", L"Floats" };
     std::vector<std::vector<DxuiListView::Cell>>  cells;
 
 
@@ -970,7 +1169,7 @@ std::vector<std::vector<DxuiListView::Cell>> DataBlocksPane::GetCells (const std
     for (const DataBlockEntry & block : blocks)
     {
         cells.push_back ({ { TextEncoding::NarrowToWide (block.name) }, { std::format (L"${:04X}-${:04X}", block.first, block.last) },
-                           { kKinds[(size_t) block.kind] } });
+                           { GetKindText (block.kind) } });
     }
 
     if (cells.empty())

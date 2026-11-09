@@ -14,6 +14,7 @@
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "../Dxui/MockDxuiTheme.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
+#include "Ui/Debugger/Panes/BreakpointsPane.h"
 #include "Ui/Debugger/Panes/ProfilerPane.h"
 #include "Ui/Debugger/Panes/CommGraph.h"
 #include "Ui/Debugger/Panes/CommLogController.h"
@@ -298,6 +299,181 @@ namespace DebuggerToolPanesTests
             Assert::AreEqual ((Word) 0x0300, BookmarksPane::GetNext (bookmarks, 0x0400, false).value_or (0), L"round to the first");
             Assert::AreEqual ((Word) 0x0400, BookmarksPane::GetNext (bookmarks, 0x0300, true).value_or (0),  L"round to the last");
             Assert::IsFalse  (BookmarksPane::GetNext ({}, 0x0300, false).has_value());
+        }
+
+
+
+        //  A heading sorts by its column, backward on the second click, and
+        //  rows that compare equal stay in the order given.
+        TEST_METHOD (BookmarksAndDataRangesSortByAColumn)
+        {
+            std::vector<DebuggerViewSnapshot::WatchLine>  bookmarks = { { 2, 0x0400, "", true }, { 0, 0x0300, "", true }, { 1, 0x0400, "", true } };
+            std::vector<DataBlockEntry>                   blocks    = { { "table", 0x0900, 0x090F, DataBlockKind::Words }, { "Hello", 0x0800, 0x0805, DataBlockKind::Text },
+                                                                        { "ZERO",  0x0A00, 0x0A01, DataBlockKind::Bytes } };
+            std::vector<DebuggerViewSnapshot::WatchLine>  sorted;
+            std::vector<DataBlockEntry>                   sortedBlocks;
+
+
+
+            sorted = BookmarksPane::GetSorted (bookmarks, nullptr, -1, false);
+            Assert::AreEqual (2, sorted[0].id, L"as given for no column");
+
+            sorted = BookmarksPane::GetSorted (bookmarks, nullptr, 0, false);
+            Assert::AreEqual (0, sorted[0].id);
+            Assert::AreEqual (2, sorted[2].id);
+
+            sorted = BookmarksPane::GetSorted (bookmarks, nullptr, 1, false);
+            Assert::AreEqual (0, sorted[0].id, L"$0300 first");
+            Assert::AreEqual (2, sorted[1].id, L"equal addresses in the order given");
+            Assert::AreEqual (1, sorted[2].id);
+
+            sorted = BookmarksPane::GetSorted (bookmarks, nullptr, 1, true);
+            Assert::AreEqual (2, sorted[0].id);
+            Assert::AreEqual (0, sorted[2].id, L"$0300 last");
+
+            sortedBlocks = DataBlocksPane::GetSorted (blocks, 0, false);
+            Assert::AreEqual (std::string ("Hello"), sortedBlocks[0].name, L"case is ignored");
+            Assert::AreEqual (std::string ("ZERO"),  sortedBlocks[2].name);
+
+            sortedBlocks = DataBlocksPane::GetSorted (blocks, 1, true);
+            Assert::AreEqual ((Word) 0x0A00, sortedBlocks[0].first);
+
+            sortedBlocks = DataBlocksPane::GetSorted (blocks, 2, false);
+            Assert::AreEqual (std::string ("ZERO"),  sortedBlocks[0].name, L"Bytes, Text, Words");
+            Assert::AreEqual (std::string ("table"), sortedBlocks[2].name);
+        }
+
+
+
+        //  A hidden value is in the heading's menu after its rows are gone,
+        //  and the heading has the funnel until the filter is cleared.
+        TEST_METHOD (AHeadingFilterHidesAValueAndListsItInTheMenu)
+        {
+            CassoTheme                 theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost          host;
+            ToolWindow                 window (theme, host);
+            ListValueFilters           filters (window.GetPaneHostForTest());
+            std::vector<std::wstring>  values;
+
+
+
+            values = ListValueFilters::MergeValues ({ L"words", L"Bytes" }, { L"Text", L"Bytes" });
+            Assert::AreEqual ((size_t) 3, values.size(), L"each value once");
+            Assert::AreEqual (std::wstring (L"Bytes"), values[0]);
+            Assert::AreEqual (std::wstring (L"Text"),  values[1]);
+            Assert::AreEqual (std::wstring (L"words"), values[2], L"in order ignoring case");
+
+            Assert::AreEqual (std::wstring (L"(Blank)"), ListValueFilters::GetLabel (L""));
+            Assert::AreEqual (std::wstring (L"Text"),    ListValueFilters::GetLabel (L"Text"));
+
+            filters.SetValues (2, { L"Bytes", L"Text" });
+            Assert::IsTrue  (filters.IsShown (2, L"Text"));
+            Assert::IsFalse (filters.IsAnyFiltered());
+
+            filters.Toggle (2, L"Text");
+            Assert::IsFalse (filters.IsShown (2, L"Text"));
+            Assert::IsTrue  (filters.IsShown (2, L"Bytes"));
+            Assert::IsTrue  (filters.IsFiltered (2));
+            Assert::IsFalse (filters.IsFiltered (1));
+
+            filters.SetValues (2, { L"Bytes" });
+            Assert::AreEqual ((size_t) 2, filters.GetMenuValues (2).size(), L"the hidden value is listed with no row left");
+
+            filters.Toggle (2, L"Text");
+            Assert::IsFalse (filters.IsFiltered (2), L"checked again");
+
+            filters.Toggle (2, L"Bytes");
+            filters.Clear  (2);
+            Assert::IsTrue (filters.IsShown (2, L"Bytes"));
+        }
+
+
+
+        TEST_METHOD (DataRangesLeaveOutAHiddenKind)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            ToolWindow         window   (theme, host);
+            auto               snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DataBlocksPane   * pane     = nullptr;
+
+
+
+            snapshot->symbols    = MakeSymbols();
+            snapshot->dataBlocks = { { "TABLE", 0x0900, 0x090F, DataBlockKind::Words }, { "HELLO", 0x0800, 0x0805, DataBlockKind::Text } };
+
+            window.OnCreate();
+
+            pane = dynamic_cast<DataBlocksPane *> (window.FindPaneForTest (DebuggerLayout::kDataBlocks));
+            Assert::IsNotNull (pane);
+
+            window.TakeSnapshot (snapshot);
+            pane->Apply (*snapshot);
+            Assert::AreEqual (2, pane->GetList()->GetRowCount());
+            Assert::IsFalse  (pane->GetList()->IsColumnFiltered (2));
+
+            pane->GetFilters().Toggle (2, L"Words");
+            pane->GetFilters().ShowState();
+            pane->Apply (*snapshot);
+
+            Assert::AreEqual (1, pane->GetList()->GetRowCount());
+            Assert::AreEqual (std::string ("HELLO"), pane->GetBlock (0)->name);
+            Assert::IsTrue   (pane->GetList()->IsColumnFiltered (2), L"the Kind heading has the funnel");
+            Assert::AreEqual ((size_t) 2, pane->GetFilters().GetMenuValues (2).size(), L"Words is in the menu to check again");
+
+            pane->GetFilters().Toggle (2, L"Text");
+            pane->Apply (*snapshot);
+
+            Assert::AreEqual (1, pane->GetList()->GetRowCount(), L"one line for no match");
+            Assert::IsFalse  (pane->GetBlock (0).has_value());
+        }
+
+
+
+        TEST_METHOD (BreakpointsLeaveOutAHiddenKind)
+        {
+            CassoTheme                              theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                       host;
+            ToolWindow                              window   (theme, host);
+            auto                                    snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::BreakpointLine    bp;
+            BreakpointsPane                       * pane     = nullptr;
+            size_t                                  kind     = (size_t) BreakpointColumns::Column::Kind;
+            std::vector<std::wstring>               kinds;
+
+
+
+            bp.id      = 1;
+            bp.address = 0x0300;
+
+            snapshot->symbols     = MakeSymbols();
+            snapshot->breakpoints = { bp };
+
+            window.OnCreate();
+
+            pane = dynamic_cast<BreakpointsPane *> (window.FindPaneForTest (DebuggerLayout::kBreakpoints));
+            Assert::IsNotNull (pane);
+
+            window.TakeSnapshot (snapshot);
+            pane->Apply (*snapshot);
+            Assert::AreEqual (1, pane->GetList()->GetRowCount());
+
+            kinds = pane->GetFilters().GetMenuValues (kind);
+            Assert::AreEqual ((size_t) 1, kinds.size());
+
+            pane->GetFilters().Toggle (kind, kinds[0]);
+            pane->GetFilters().ShowState();
+            pane->Apply (*snapshot);
+
+            Assert::AreEqual (0, pane->GetList()->GetRowCount());
+            Assert::IsTrue   (pane->GetList()->IsColumnFiltered (kind));
+
+            pane->GetFilters().Clear (kind);
+            pane->GetFilters().ShowState();
+            pane->Apply (*snapshot);
+
+            Assert::AreEqual (1, pane->GetList()->GetRowCount());
+            Assert::IsFalse  (pane->GetList()->IsColumnFiltered (kind));
         }
 
 

@@ -182,11 +182,13 @@ view. The screen views (`TEXT`, `HGR` and their forms) and the appearance
 commands (`BW`, `COLOR`, `FONT`) are not available; the emulator window
 displays the screen.
 
-Ctrl+F opens a find bar over the pane with the keyboard focus (the console, a
-source document or an event log), as Visual Studio Code's does, and over the
-console from any other pane. In a log it searches the text of the visible
-columns of the rows that pass the filters, and selects the match's row. One
-pane has the bar at a time. The bar has the text to find, then toggles for
+Ctrl+F opens a find bar over the pane with the keyboard focus, as Visual Studio
+Code's does: the console, a source document, the disassembly, an event log, or
+a list pane (Breakpoints, Watches, Stack, Call stack, Trace, BASIC program,
+Symbols, Bookmarks, Data ranges). From any other pane it opens over the
+console. The search button on the disassembly's bar opens the same find bar.
+In a list it searches the text of the visible columns of the rows that pass the
+filters, and selects the match's row. One pane has the bar at a time. The bar has the text to find, then toggles for
 match case (Aa), match whole word (ab) and regular expression (.*), the match's
 place among all of them ("2 of 5"), up and down arrows for the previous and
 next match, and a close button. With no toggle on, the text is found as a plain
@@ -463,12 +465,15 @@ other control characters that end a string follow its quotes as bytes:
 `ASC "SYMBOLS DEMO",$00`.
 
 **View > Data ranges** lists each range marked as data, with **Go to** and
-**Delete**.
+**Delete**. A click on a heading sorts the list by that column, and a second
+click reverses the order. The Kind heading's chevron opens a menu of the kinds
+in the list, each checked while its ranges are listed.
 
 ### Bookmarks
 
 **View > Bookmarks** lists each bookmark's number, address and symbol, with
-**Go to** and **Delete**. Ctrl+K, K adds or removes a bookmark on the selected
+**Go to** and **Delete**. A click on a heading sorts the list by that column,
+and a second click reverses the order. Ctrl+K, K adds or removes a bookmark on the selected
 disassembly line, and Ctrl+K, N and Ctrl+K, P go to the next and the previous
 bookmark.
 
@@ -754,6 +759,13 @@ Reading uninitialized memory, a video line and a beam position are rows of the
 pane after the table's breakpoints; unchecking or removing one runs
 `BRKUNINIT OFF`, `BPV OFF` or `BPBEAM OFF`, and a read before written is listed
 as counting from the next power cycle until the heat map tracks writes.
+
+The Kind, Trigger and File headings each have a chevron that opens a menu of
+the column's values, each checked while its breakpoints are listed. Clearing a
+check hides those rows at once and the menu stays open, as File Explorer's
+does. A filtered heading has a funnel, and **Clear filter** on its menu lists
+every row again. Hiding a column clears its filter. The filters last until the
+debugger window closes.
 
 ## Stepping and history
 

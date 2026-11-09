@@ -3,6 +3,7 @@
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/PaneBarSlot.h"
 #include "Ui/Debugger/Panes/IDebuggerPane.h"
+#include "Ui/Debugger/Panes/ListValueFilters.h"
 
 class DebuggerPaneFrame;
 
@@ -35,6 +36,8 @@ public:
     IDxuiControl               * GetContent     () const override;
     std::vector<IDxuiControl *>  GetControls    () const override { return { m_list }; }
     std::vector<DxuiListView *>  GetLists       () const override { return { m_list }; }
+    IDxuiFindTarget            * GetFindView    () const override { return m_list; }
+    DebuggerPaneFrame          * GetFindFrame   () const override { return m_frame.get(); }
 
 protected:
     //  Copy, for the rows selected in the list.
@@ -108,8 +111,6 @@ public:
     void                 Apply             (const DebuggerViewSnapshot & snapshot) override;
     bool                 AddMenuItems      (DxuiListView * list, int row, PaneMenuItems & items) override;
     bool                 RouteContentMouse (const DxuiMouseEvent & ev) override;
-    IDxuiFindTarget    * GetFindView       () const override { return m_list; }
-    DebuggerPaneFrame  * GetFindFrame      () const override { return m_frame.get(); }
     const Row          * GetRow            (int row) const;
 
     //  A table's heading opened or closed, by the table's name.
@@ -148,8 +149,9 @@ private:
 //
 //  BookmarksPane
 //
-//  The bookmarks, each its number, its address and the symbol there.
-//  Activating one moves the disassembly to its address.
+//  The bookmarks, each its number, its address and the symbol there, sorted
+//  by the heading last clicked. Activating one moves the disassembly to its
+//  address.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -172,8 +174,18 @@ public:
     //  from the last to the first; none when there are none.
     static std::optional<Word>  GetNext (const std::vector<DebuggerViewSnapshot::WatchLine> & bookmarks, Word from, bool isBackward);
 
+    //  The bookmarks in a column's order: by number, by address, or by the
+    //  symbol's text ignoring case; backward with `isReverse`, and as given
+    //  for no column. Bookmarks that compare equal stay in the order given.
+    static std::vector<DebuggerViewSnapshot::WatchLine>  GetSorted (std::vector<DebuggerViewSnapshot::WatchLine>   bookmarks,
+                                                                     const DebuggerViewSnapshot::SymbolsState     * symbols, int column, bool isReverse);
+
 private:
+    void  SortBy (int column);
+
     std::vector<DebuggerViewSnapshot::WatchLine>      m_bookmarks;
+    int                                               m_sort      = -1;
+    bool                                              m_isReverse = false;
 };
 
 
@@ -184,7 +196,8 @@ private:
 //
 //  DataBlocksPane
 //
-//  The ranges marked as data, each its name, its range and its kind.
+//  The ranges marked as data, each its name, its range and its kind, sorted
+//  by the heading last clicked and filtered by kind from the Kind heading.
 //  Activating one moves the disassembly to its first address.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -203,6 +216,22 @@ public:
 
     static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::vector<DataBlockEntry> & blocks);
 
+    //  The blocks in a column's order: by name ignoring case, by first
+    //  address, or by the kind's text; backward with `isReverse`, and as
+    //  given for no column. Blocks that compare equal stay in the order given.
+    static std::vector<DataBlockEntry>  GetSorted   (std::vector<DataBlockEntry> blocks, int column, bool isReverse);
+    static const wchar_t              * GetKindText (DataBlockKind kind);
+
+    //  The Kind heading's filter.
+    ListValueFilters                  & GetFilters  () { return m_filters; }
+
 private:
+    static constexpr size_t  kKindColumn = 2;
+
+    void  SortBy (int column);
+
     std::vector<DataBlockEntry>    m_blocks;
+    ListValueFilters               m_filters;
+    int                            m_sort      = -1;
+    bool                           m_isReverse = false;
 };

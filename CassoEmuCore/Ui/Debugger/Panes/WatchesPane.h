@@ -45,6 +45,8 @@ public:
 
     void                         Configure         () override;
     std::vector<IDxuiControl *>  GetControls       () const override;
+    IDxuiFindTarget            * GetFindView       () const override { return m_list; }
+    DebuggerPaneFrame          * GetFindFrame      () const override { return m_frame.get(); }
     void                         Apply             (const DebuggerViewSnapshot & snapshot) override;
     bool                         RouteEditKey      (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
     bool                         RouteContentMouse (const DxuiMouseEvent & ev) override;

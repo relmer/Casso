@@ -164,15 +164,18 @@ void DisassemblyViewPane::CreateControls()
 
 void DisassemblyViewPane::Configure()
 {
-    DxuiToolbar  * bar = m_bar.GetBar();
+    DxuiToolbar                      * bar     = m_bar.GetBar();
+    std::vector<DxuiToolbar::Entry>    entries = m_group.BuildBarEntries();
 
 
+
+    entries.push_back (m_host.GetFindEntry (GetId()));
 
     bar->SetTextRenderer  (m_host.GetPaneTextRenderer());
     bar->SetPopupHost     (m_host.GetPanePopupHost());
     bar->SetCompact       (true);
     bar->SetPaneTextInset (true);
-    bar->SetEntries       (m_group.BuildBarEntries());
+    bar->SetEntries       (std::move (entries));
     bar->SetVisible       (false);
 
     //  A code row selected selects its line in the source pane (FR-054).

@@ -36,6 +36,8 @@ public:
     IDxuiControl                   * GetContent      () const override;
     std::vector<IDxuiControl *>      GetControls     () const override { return { m_button, m_list }; }
     std::vector<DxuiListView *>      GetLists        () const override { return { m_list }; }
+    IDxuiFindTarget                * GetFindView     () const override { return m_list; }
+    DebuggerPaneFrame              * GetFindFrame    () const override { return m_frame.get(); }
     std::vector<IDxuiControl *>      GetPressTargets () const override { return { m_button }; }
     void                             Apply           (const DebuggerViewSnapshot & snapshot) override;
     bool                             AddMenuItems    (DxuiListView * list, int row, PaneMenuItems & items) override;

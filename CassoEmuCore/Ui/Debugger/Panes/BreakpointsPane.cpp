@@ -23,7 +23,8 @@
 
 BreakpointsPane::BreakpointsPane (IDebuggerPaneHost & host) :
     IDebuggerPane (host),
-    m_bar         (host, DebuggerLayout::kBreakpoints, L"Breakpoint commands")
+    m_bar         (host, DebuggerLayout::kBreakpoints, L"Breakpoint commands"),
+    m_filters     (host)
 {
 }
 
@@ -144,6 +145,9 @@ void BreakpointsPane::Configure()
     m_list->SetActivateOnDoubleClick (true);
 
     SetColumns();
+
+    m_filters.Attach (m_list, { (size_t) BreakpointColumns::Column::Kind, (size_t) BreakpointColumns::Column::Trigger, (size_t) BreakpointColumns::Column::File },
+                      [this] { ApplyRows(); });
 
     m_list->SetOnActivateRow ([this] (int row)
     {
@@ -1040,6 +1044,7 @@ void BreakpointsPane::SetColumns()
     }
 
     m_list->SetColumns (columns);
+    m_filters.ShowState();
 }
 
 
@@ -1072,10 +1077,52 @@ std::vector<std::wstring> BreakpointsPane::GetRowKeys() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointsPane::FilterOrder
+//
+//  Each filtering column's values are those of every breakpoint, so a hidden
+//  value stays in the heading's menu; then each breakpoint with a hidden
+//  value is taken out of the order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointsPane::FilterOrder (const std::vector<BreakpointColumns::Cells> & allCells)
+{
+    static constexpr BreakpointColumns::Column  s_kFiltered[] = { BreakpointColumns::Column::Kind, BreakpointColumns::Column::Trigger, BreakpointColumns::Column::File };
+
+
+
+    for (BreakpointColumns::Column column : s_kFiltered)
+    {
+        std::vector<std::wstring>  values;
+
+        for (const BreakpointColumns::Cells & cells : allCells)
+        {
+            values.push_back (TextEncoding::NarrowToWide (cells[(size_t) column]));
+        }
+
+        m_filters.SetValues ((size_t) column, values);
+    }
+
+    std::erase_if (m_order, [this, &allCells] (size_t index)
+    {
+        return index >= allCells.size() || std::ranges::any_of (s_kFiltered, [this, &allCells, index] (BreakpointColumns::Column column)
+        {
+            return !m_filters.IsShown ((size_t) column, TextEncoding::NarrowToWide (allCells[index][(size_t) column]));
+        });
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointsPane::ApplyRows
 //
 //  A checkbox and the code views' gutter mark ahead of the name, then a
-//  cell for each column, in the order the chosen heading sorts them.
+//  cell for each column, in the order the chosen heading sorts them, without
+//  the breakpoints hidden by the headings' filters.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1083,6 +1130,7 @@ void BreakpointsPane::ApplyRows()
 {
     const DebuggerViewSnapshot                    * snapshot = m_host.GetLatestSnapshot();
     std::vector<std::vector<DxuiListView::Cell>>    rows;
+    std::vector<BreakpointColumns::Cells>           allCells;
     std::vector<int>                                selectedIds;
     std::vector<int>                                selectedRows;
     int                                             anchorId = GetIdOfRow (m_list->GetAnchorRow());
@@ -1118,10 +1166,17 @@ void BreakpointsPane::ApplyRows()
         }
     }
 
+    for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot->breakpoints)
+    {
+        allCells.push_back (BreakpointColumns::GetCells (*snapshot, bp));
+    }
+
+    FilterOrder (allCells);
+
     for (size_t index : m_order)
     {
         const DebuggerViewSnapshot::BreakpointLine  & bp    = snapshot->breakpoints[index];
-        BreakpointColumns::Cells                      cells = BreakpointColumns::GetCells (*snapshot, bp);
+        const BreakpointColumns::Cells              & cells = allCells[index];
         std::vector<DxuiListView::Cell>               row;
 
         //  A breakpoint on a BASIC line the program does not have is drawn as
@@ -1255,6 +1310,13 @@ void BreakpointsPane::ToggleColumn (BreakpointColumns::Column column)
     }
 
     m_shown[(size_t) column] = !m_shown[(size_t) column];
+
+    //  A hidden column has no heading to clear its filter from.
+    if (!m_shown[(size_t) column])
+    {
+        m_filters.Clear ((size_t) column);
+    }
+
     SetColumns();
     ApplyRows();
 
