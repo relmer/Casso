@@ -88,7 +88,7 @@ public:
             return S_OK;
         }
 
-        size_t  GetReadableCount () override         { return m_state->sent.size(); }
+        size_t  GetReadableCount() override          { return m_state->sent.size(); }
         bool    IsClosed         () const override   { return m_state->destroyed || m_state->shutdownSent; }
         void    Close            () override         { m_state->inboundEof = true; }
 
@@ -513,12 +513,12 @@ public:
     //  flipped: the track is read again, and the sector sent again.
     TEST_METHOD (FlipsFromEitherEnd_AreRecoveredFrom)
     {
-        Rig                rig (LinkDisk());
-        const Byte         sector[] = { 0 };
-        std::vector<Byte>  pattern (256, 0x6C);
-        std::vector<Byte>  data;
-        CassoLinkStatus    status;
-        LinkFault          fault;
+        Rig                       rig (LinkDisk());
+        const Byte                sector[] = { 0 };
+        std::vector<Byte>         pattern (256, 0x6C);
+        std::vector<Byte>         data;
+        CassoLinkStatus           status;
+        LinkFault                 fault;
         std::vector<std::string>  activity;
 
 

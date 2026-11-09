@@ -46,7 +46,7 @@ public:
 
             HRESULT  Write            (const Byte * data, size_t count) override                                   { return end->Write (data, count); }
             HRESULT  Read             (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override { return end->Read (buffer, capacity, timeoutMs, outRead); }
-            size_t   GetReadableCount () override                                                                 { return end->GetReadableCount(); }
+            size_t   GetReadableCount() override                                                                  { return end->GetReadableCount(); }
             bool     IsClosed         () const override                                                           { return end->IsClosed(); }
             void     Close            () override                                                                 { }
         };

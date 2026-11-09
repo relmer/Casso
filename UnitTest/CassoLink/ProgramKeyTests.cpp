@@ -150,11 +150,11 @@ public:
         const Byte         sector[] = { 0 };
         std::vector<Byte>  data;
         CassoLinkStatus    status;
-        Byte               key     = 0;
-        uint64_t           start   = 0;
-        uint64_t           checked = 0;
-        bool               pressed = false;
-        bool               spun    = false;
+        Byte               key      = 0;
+        uint64_t           start    = 0;
+        uint64_t           checked  = 0;
+        bool               pressed  = false;
+        bool               spun     = false;
 
 
 

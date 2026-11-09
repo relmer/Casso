@@ -299,7 +299,9 @@ public:
 
             //  A torn directory sector can fail to parse, or parse with a name
             //  no file had.
-            if (FAILED (PascalVolume (sectors).Enumerate (listing)) ||
+            HRESULT  listed = PascalVolume (sectors).Enumerate (listing);
+
+            if (FAILED (listed) ||
                 std::any_of (listing.entries.begin(), listing.entries.end(), [&] (const FileEntry & e) { return !before.contains (e.name); }))
             {
                 Assert::AreEqual (1, report.sectorsLost + report.sectorsRecovered, (where + L": the directory is damaged with no sector damaged").c_str());
@@ -309,8 +311,9 @@ public:
             for (const FileEntry & entry : listing.entries)
             {
                 FilePayload  payload;
+                HRESULT      read = PascalVolume (sectors).Read (FilePath::Parse (entry.name), payload);
 
-                changed += (FAILED (PascalVolume (sectors).Read (FilePath::Parse (entry.name), payload)) || payload.bytes != before.at (entry.name)) ? 1 : 0;
+                changed += (FAILED (read) || payload.bytes != before.at (entry.name)) ? 1 : 0;
             }
 
             Assert::AreEqual (before.size(), listing.entries.size(), (where + L": every file is listed").c_str());

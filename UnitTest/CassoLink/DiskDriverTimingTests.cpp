@@ -105,7 +105,7 @@ public:
             std::vector<Byte>     dos;
             std::vector<Byte>     shim;
             std::string           errors;
-            Word                  at = LinkProgram::kShimAddress;
+            Word                  at   = LinkProgram::kShimAddress;
             MemoryDevice        * disk = machine.GetRefs().diskController;
 
 

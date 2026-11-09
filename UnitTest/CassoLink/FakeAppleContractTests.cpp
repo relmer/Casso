@@ -46,7 +46,7 @@ public:
         explicit RecordingStream (std::shared_ptr<IByteStream> i) : inner (std::move (i)) {}
 
         HRESULT  Write            (const Byte * data, size_t count) override { return inner->Write (data, count); }
-        size_t   GetReadableCount () override                               { return inner->GetReadableCount(); }
+        size_t   GetReadableCount() override                                { return inner->GetReadableCount(); }
         bool     IsClosed         () const override                         { return inner->IsClosed(); }
         void     Close            () override                               { inner->Close(); }
 
@@ -85,8 +85,9 @@ public:
             CassoLinkPacket  packet;
             size_t           consumed = 0;
             bool             complete = false;
+            HRESULT          decoded  = CassoLinkCodec::Decode (rest, consumed, packet, complete);
 
-            if (FAILED (CassoLinkCodec::Decode (rest, consumed, packet, complete)) || consumed == 0)
+            if (FAILED (decoded) || consumed == 0)
             {
                 packets.push_back (std::format ("undecoded byte ${:02X}", rest[0]));
                 rest.erase (rest.begin());
