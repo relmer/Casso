@@ -49,3 +49,5 @@
 - 2026-11-08: User Story 18 (every common Apple II file type), FR-156 to FR-171, SC-047 to SC-049 and edge cases added. Reviewed against every item above: testable and bounded by the list in FR-156. The formats, RTF, CSV and PNG come from the owner's request, not design choices. The one clarification marker, whether p-code is disassembled, is resolved: it is.
 
 - 2026-11-08: FR-156 extended to CiderPress II's converters other than the Macintosh formats, and FR-172 (shape tables) and FR-173 (character sets) added. Rechecked against every item above; all pass.
+
+- 2026-11-08: Stories 19 to 21 (large images, resource forks, ShrinkIt and Binary II), FR-174 to FR-189, SC-050 to SC-052 and the Roadmap added. Rechecked against every item above; all pass. The tools and emulators listed are the owner's comparison set and test targets, not design choices.

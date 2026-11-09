@@ -526,6 +526,10 @@ MAC Address has no canonical name. `Win32PropertyColumns::GetKey` takes the key'
 
 The prefix follows the folder and extension from `CassoExplorerPrefs` to `LinkOperation::imagePrefix`. The Full Send row is an `adtpro:<path>` node under CassoLink's root, so it has the same path tip as an ADTPro server's folder.
 
+## Order of the remaining work
+
+The spec's Roadmap sets the order. Stories 19 to 21, large images, resource forks and archives, come before Phase 32, after the 040-disk-inspector merge, and are planned in full when they start.
+
 ## Phase 32: File types (Session 2026-11-08, tasks.md Phase 35)
 
 Story 18, as in Design's File types. Order, each step with its tests:

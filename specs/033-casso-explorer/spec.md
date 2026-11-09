@@ -583,6 +583,7 @@ hardware.
 - Q: Are the IIgs formats in scope? -> A: Yes: AppleWorks GS, OMF, super hi-res in each form, IIgs icons and IIgs bitmap fonts. A 65816 disassembly is not.
 - Q: Is a Pascal codefile's p-code disassembled? -> A: Yes, into p-code mnemonics with their operands, beside the segment and procedure dictionaries.
 - Q: Does the list go past the owner's first one? -> A: Yes, to every converter CiderPress II has except the Macintosh formats: Applesoft shape tables, Paintworks, DreamGrafix and `.3201` pictures, IIgs animation files, Fontrix fonts, Apple /// hi-res fonts, Print Shop GS clip art in color, a record length chosen in the preview, and text character sets.
+- Q: In what order is the rest built? -> A: The Roadmap at the end of this spec. ShrinkIt is read and written in one story, since one without the other is half a feature. 040-disk-inspector merges into this branch first, for its sector editor. Devices the owner has no real Apple for are tested in other emulators: MAME, AppleWin, KEGS and GSplus.
 - Q: Are Gutenberg disks written? -> A: Not yet. A Gutenberg volume is read-only, as in CiderPress II, since its free-space map's format is undocumented. Writing is a later item, after the map is worked out from disks Gutenberg saves in Casso.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -1304,6 +1305,113 @@ editor and in Merlin, run in Casso.
     contents don't decode, **When** it is selected, **Then** the reason is
     drawn above its bytes; **When** it is copied out, **Then** that file is
     skipped with the reason reported, and the others in the copy complete.
+13. **Given** a multiple selection, **When** the user picks Convert to
+    folder from its context menu, **Then** each file is written to the
+    chosen folder with its conversion, and the files that fail are listed
+    after the rest are written.
+
+---
+
+### User Story 19 - 800K and hard disk images (Priority: P1)
+
+A user opens an 800K 3.5" ProDOS disk, a 32 MB hard disk image or a Disk
+Copy 4.2 image in Casso Explorer and works with it as with a 140K floppy:
+browsing, previews, copies in and out, renames, deletes and new folders. They
+create a new 800K or hard disk image from the New disk dialog or the
+command line.
+
+**Why this priority**: IIgs software, hard disk collections and most
+downloads from the archives are larger than 140K, and ShrinkIt disk
+archives (Story 21) usually contain 800K disks. Nothing larger than a floppy
+opens today.
+
+**Independent Test**: Open an 800K `.po`, a 32 MB `.hdv`, an 800K 2IMG and a
+Disk Copy 4.2 image made by CiderPress II. Copy a file into each and out
+again, and create a folder. Open each image in CiderPress II and run its
+Test; open the 800K image in MAME's //c Plus and catalog it from ProDOS.
+
+**Acceptance Scenarios**:
+
+1. **Given** a ProDOS image of any size up to 32 MB, **When** it is opened,
+   **Then** it is browsed and changed as a 140K ProDOS image is.
+2. **Given** a 2IMG image, **When** it is opened, **Then** its DOS-order,
+   ProDOS-order or nibble data is read by its header, and the header's
+   comment, creator and flags are listed in Properties and written back
+   as read on every write.
+3. **Given** a Disk Copy 4.2 image of 400K or 800K, **When** it is opened,
+   **Then** its data checksum is checked, and **When** it is written,
+   **Then** the checksum is updated and its tag bytes are written back.
+4. **Given** the New disk dialog or `casso disk create`, **When** an 800K or
+   hard disk size is picked, **Then** a formatted ProDOS image of that size
+   is created.
+
+---
+
+### User Story 20 - Files with resource forks (Priority: P1)
+
+On a IIgs disk, each file with a resource fork is listed with both fork
+lengths. The user copies one to another ProDOS disk with both forks, and to
+the PC without losing the resource fork.
+
+**Why this priority**: Most IIgs files have a resource fork: AppleWorks GS
+and Teach documents, icons, applications. A file read without its fork
+breaks, and the Teach decoder in Story 18 reads its styles from the fork.
+
+**Independent Test**: On an 800K IIgs disk from CiderPress II, list a Teach
+document, copy it to another ProDOS image and to a PC folder in each host
+name style, and put the PC copy back. Compare both forks and the Finder
+information with the original, and run CiderPress II's Test on the image.
+
+**Acceptance Scenarios**:
+
+1. **Given** a ProDOS file with a resource fork, **When** its folder is
+   listed, **Then** its data fork length, resource fork length and total
+   size have columns, as do its full access flags.
+2. **Given** such a file, **When** it is copied between ProDOS volumes,
+   **Then** both forks and its Finder information are copied.
+3. **Given** such a file, **When** it is copied to the PC, **Then** the
+   resource fork and Finder information are written with it, and **When**
+   that copy is put back, **Then** the file is identical to the original.
+4. **Given** such a file, **When** it is copied to a DOS 3.3, Pascal or CP/M
+   volume, **Then** only its data fork is written, and a message reports that the
+   resource fork was not copied.
+
+---
+
+### User Story 21 - ShrinkIt and Binary II archives (Priority: P1)
+
+A user opens a ShrinkIt archive from a download as a folder, copies files out
+of it, opens a disk inside it as a disk image, adds and removes files, and
+creates new archives, including one from a disk image. Binary II files, and
+archives inside disk images, ZIP files and gzip files, open the same way.
+
+**Why this priority**: ShrinkIt and Binary II are how Apple II software is
+distributed, and Story 18's sample files are in a ShrinkIt disk archive. An
+archive that opens but can't be changed or made is half a feature.
+
+**Independent Test**: Open CiderPress II's `test-files.sdk` and
+`dos-files.do.gz`, copy every file out, and compare them with CiderPress II's
+extraction. Create an archive of several files with resource forks, and
+an `.sdk` of an 800K disk, and run CiderPress II's Test and NuLib2's test on
+each. Open an archive stored on a ProDOS disk inside a ZIP file.
+
+**Acceptance Scenarios**:
+
+1. **Given** a `.shk`, `.bxy`, `.sea` or `.sdk` file, **When** it is opened,
+   **Then** its records are listed with name, file type, aux type, dates,
+   access and fork lengths, and a disk record opens as a disk image.
+2. **Given** an archive, **When** a file is added, deleted or renamed,
+   **Then** the archive is written with the change, and **When** a new
+   archive is created from files or from a disk image, **Then** it opens in
+   CiderPress II with no errors.
+3. **Given** a Binary II file, `.bny` or `.bqy`, **When** it is opened,
+   **Then** its files are listed and copied as an archive's are, and **When**
+   files are added, **Then** it is written as Binary II.
+4. **Given** an archive or disk image inside a ZIP file, a gzip file, a disk
+   image or another archive, **When** it is opened, **Then** it opens in
+   place, at any depth.
+5. **Given** an archive whose record fails its CRC, **When** it is opened or
+   tested, **Then** that record is reported, and the rest are readable.
 
 ---
 ### Edge Cases
@@ -2406,6 +2514,75 @@ editor and in Merlin, run in Casso.
   published under a license that allows it. Source code under the GPL MAY
   be read for a format's behavior, and MUST NOT be copied or
   paraphrased into Casso.
+- **FR-174**: A multiple selection's context menu MUST offer Convert to
+  folder, which writes each file with its conversion to a folder the user
+  picks. A file that fails MUST be skipped, and every failure listed when
+  the rest are written.
+
+**Large volumes**
+
+- **FR-175**: ProDOS volumes of any size up to 65,535 blocks MUST be read
+  and written in raw block images, `.po`, `.hdv`, `.img` and `.iso`, in
+  2IMG, `.2mg` and `.2img`, and in Disk Copy 4.2, `.dc`, `.dc42` and
+  `.image`. Every operation available on a 140K ProDOS image MUST be
+  available on them, the raw block dialogs included.
+- **FR-176**: A 2IMG image MUST be read by its header: DOS order, ProDOS
+  order or nibbles, at any size the format allows. Its comment, creator,
+  flags and creator data MUST be listed in Properties and written back on
+  every write.
+- **FR-177**: A Disk Copy 4.2 image's data checksum MUST be checked when it
+  is opened and updated when it is written. Its tag bytes MUST be written
+  back with it.
+- **FR-178**: The New disk dialog and `casso disk create` MUST offer 800K and
+  hard disk sizes for ProDOS, up to 32 MB, in each container FR-175 lists.
+
+**Resource forks**
+
+- **FR-179**: ProDOS extended files, storage type 5, MUST be listed, read,
+  written, renamed and deleted, and a copy between ProDOS volumes MUST copy
+  both forks and the Finder information.
+- **FR-180**: Details MUST offer data fork length, resource fork length,
+  total size and access flags columns. Access flags MUST list each of
+  destroy, rename, backup, invisible, write and read.
+- **FR-181**: A copy to the PC MUST write the resource fork and Finder
+  information: inside the file in the AppleSingle style, and in an
+  AppleDouble file, `._NAME`, beside the data fork in the Descriptive and
+  CiderPress styles. A put of a data fork with its AppleDouble file, or of an
+  AppleSingle file with a resource fork, MUST create an extended file
+  identical to the original.
+- **FR-182**: A copy of a file with a resource fork to a DOS 3.3, Pascal or
+  CP/M volume MUST write its data fork alone and report that the resource
+  fork was not copied.
+
+**Archives**
+
+- **FR-183**: NuFX archives, `.shk`, `.sdk`, `.bxy` and `.sea`, MUST be
+  browsed as folders. Each record MUST be listed with its name, file type,
+  aux type, dates, access and fork lengths, and a disk record MUST open as
+  a disk image of its volume, a 140K disk's block order converted for the
+  140K volume classes.
+- **FR-184**: Every NuFX compression MUST be read: none, Squeeze, LZW/1,
+  LZW/2, LZC 12 and 16, Deflate and bzip2. Each thread's CRC MUST be
+  checked, and a record that fails MUST be reported while the rest are
+  readable.
+- **FR-185**: NuFX archives MUST be written: created from files or from a
+  disk image, and records added, deleted and renamed. New records MUST be
+  compressed with LZW/2, the compression ShrinkIt reads in every version.
+- **FR-186**: Binary II files, `.bny` and `.bqy`, MUST be read and written,
+  and a Binary II file wrapping a NuFX archive, `.bxy`, MUST open as the
+  archive.
+- **FR-187**: An archive or disk image MUST open in place inside a ZIP file,
+  a gzip file, a disk image or another archive, at any depth. A ZIP member
+  stored with Apple file type information in an AppleDouble entry, as
+  CiderPress II writes them, MUST be read with its type, aux type and
+  resource fork.
+- **FR-188**: Test MUST check a disk image's structure with
+  `VolumeIntegrityReport` and an archive's CRCs, from Casso Explorer's
+  context menu and `casso disk test`, and report each problem found.
+- **FR-189**: The archive formats MUST be implemented from published
+  documentation, by the rule FR-171 sets: CiderPress II's NuFX, LZW,
+  Squeeze and LZC notes, and the NuFX and Binary II specifications from
+  Apple's File Type Notes.
 
 ### Key Entities
 
@@ -2598,6 +2775,14 @@ editor and in Merlin, run in Casso.
   Pascal's editor with the same text.
 - **SC-049**: A file of any of these formats, up to 64 KB, is previewed
   within half a second of being selected.
+- **SC-050**: An 800K and a 32 MB image changed in Casso Explorer pass
+  CiderPress II's Test, and the 800K image catalogs in ProDOS on MAME's //c
+  Plus.
+- **SC-051**: A file with a resource fork copied to the PC and put back is
+  identical in both forks and its Finder information.
+- **SC-052**: Every file in CiderPress II's `test-files.sdk` copied out of
+  Casso Explorer is identical to CiderPress II's extraction of it, and an
+  archive Casso Explorer creates passes CiderPress II's Test and NuLib2's.
 
 ## Assumptions
 
@@ -2688,3 +2873,91 @@ editor and in Merlin, run in Casso.
   later feature; here the Apple side is a server with a status screen.
 - The link is used from Casso Explorer only; there is no command-line
   entry for it beside `casso disk`.
+
+## Roadmap
+
+The order in which Casso Explorer's remaining work is built, from GitHub
+issue #181 checked against CiderPress II, ADTPro, a2kit, AppleCommander,
+DiskBrowser and DiskM8 (Session 2026-11-08). Each step is specified in full,
+as Stories 18 to 21 are, before it is built. Effort is for agent-driven work:
+S is a day or two, M up to a week, L several weeks.
+
+**Done on this branch**: DOS 3.3, ProDOS, Apple Pascal and CP/M read and
+write; Full Send; verified reads and writes; the cassette bootstrap.
+
+**1. Foundations**
+
+1. Merge `040-disk-inspector` into this branch, with its session: the sector
+   and block editor, and the Pascal and CP/M file maps. It changes the
+   volume layer, which step 2 changes too, so it goes first.
+2. 800K and hard disk images, 2IMG and Disk Copy 4.2: Story 19 (M).
+3. Files with resource forks, AppleDouble, and the fork and access columns:
+   Story 20 (M).
+4. ShrinkIt and Binary II, reading and writing, nested archives, gzip, ZIP
+   with Apple file types, and Test: Story 21 (M to L). First, check what
+   Casso Explorer does today with a disk image inside a ZIP file.
+
+**2. File types**: Story 18, in this order, the most used first in each group.
+
+1. RTF and CSV writers, and Convert to folder (FR-174).
+2. Text: Pascal textfiles, random-access text.
+3. Business: AppleWorks Classic, then AppleWorks GS, Teach, VisiCalc,
+   Gutenberg and Magic Window. VisiCalc recalculation, as DiskBrowser does
+   it, is added here as a later step (M).
+4. Code: Merlin and S-C first, then LISA, Business BASIC, Pascal codefiles
+   and OMF.
+5. Pictures, then fonts and shape tables.
+
+**3. CassoLink**
+
+The owner's only real Apple is a //c, so the devices it lacks are tested in
+other emulators run as targets of the link, never as sources of code:
+MAME's //c with ROM 4 and its //c Plus for SmartPort and the UniDisk 3.5,
+AppleWin's hard disk card, KEGS, GSplus or MAME for the IIgs, and MAME's
+Apple /// driver. Casso Explorer connects to each emulator's serial port over
+TCP, as to MAME's null modem. MAME's Apple /// socket connection has a
+reported bug, so it is checked first.
+
+1. Block devices on the Apple: a UniDisk 3.5, a //c's 3.5" port and a hard
+   drive, through their firmware (M), after step 1.2.
+2. Raw capture of copy-protected disks, with Archon as the test disk (L).
+3. Virtual drives, #178.
+4. Whole disks over cassette audio, as ADTPro sends them (M).
+5. Files and disks to tape audio and back, in WAV, MP3 and Ogg (S to M).
+6. Serial cards through Pascal firmware entry points, for third-party cards
+   (M).
+7. The IIgs serial ports (M), tested in KEGS, GSplus or MAME.
+8. An Apple /// client under SOS (L), tested in MAME.
+
+**4. File systems and layouts**
+
+1. DOS 3.2 13-sector disks, and 40- and 80-track DOS 3.3 disks (M), with
+   #164.
+2. Partition layouts, partition copy and replace, and raw access to a CF
+   card: CFFA, DOS.MASTER, DOS hybrids, AmDOS, OzDOS, UniDOS, FocusDrive,
+   MicroDrive and Pascal ProFile Manager (M to L), after step 1.2.
+3. HFS, the Mac's Hierarchical File System, which GS/OS reads and writes on
+   IIgs 3.5" and hard disks, read and write (M to L).
+4. SOS, the Apple ///'s file system, read and write (M), with step 3.8.
+5. Gutenberg writes, from `feedback-backlog.md`.
+6. RDOS, read-only (S).
+
+**5. Tools**
+
+1. A viewer window with previous and next arrows (S to M).
+2. Collection tools, from DiskBrowser and DiskM8: a disk list with
+   checksums, duplicates across many disks by whole disk and by file, and a
+   search inside disk images that includes detokenized BASIC (M).
+3. Language tools, from a2kit: tokenizing, detokenizing and renumbering
+   Applesoft and Integer BASIC, a BASIC cross-reference of variables, calls
+   and jumps as DiskBrowser lists them, and language servers for Applesoft
+   and Merlin (M).
+4. Game data viewers, from DiskBrowser: Wizardry scenarios and Infocom story
+   files (M each).
+
+**Elsewhere**: Casso's hard disk card, #101, built beside step 1.2 so that
+Casso boots what Casso Explorer writes; 3.5" drive emulation, #163.
+
+**Cut**: the Macintosh formats (MFS, DART, MOOF, MacBinary, Mac TS, Apple
+Partition Map, MacPaint), Trackstar, AppleLink PE, ADTPro's DOS ADT client
+and half tracks, drives attached to the PC, and 65816 disassembly.
