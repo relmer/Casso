@@ -248,6 +248,9 @@ public:
     void                SetTheme           (const IDxuiTheme * theme);
     const IDxuiTheme  * GetTheme           () const { return m_theme; }
     void                SetTitle           (const std::wstring & title);
+
+    //  The smallest size the user can resize the window to, as at creation.
+    void                SetMinSizeDip      (const SIZE & sizeDip) { m_minSizeDip = sizeDip; }
     int                 GetCaptionHeightPx () const { return m_source != nullptr ? m_source->GetCaptionHeightPx() : 0; }
     UINT                GetDpi             () const { return m_source != nullptr ? m_source->GetScaler().GetDpi() : USER_DEFAULT_SCREEN_DPI; }
 
@@ -283,6 +286,12 @@ protected:
     //  simply drops focus rather than leaving it somewhere invisible.
     //
     void  RefreshFocusOrder (IDxuiControl * fallback);
+
+    //
+    //  The focus manager, for a window that walks focus with Tab outside
+    //  dialog mode and routes keys to the focused control itself.
+    //
+    DxuiFocusManager &  GetFocusManager () { return m_focus; }
 
     //
     //  Subclass hooks. OnCreate fires once the backend + HWND exist

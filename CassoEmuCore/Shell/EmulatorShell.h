@@ -19,6 +19,7 @@
 #include "Shell/Input/ShellKeyRouting.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/CpuManager.h"
+#include "Shell/ShellInspectorHost.h"
 #include "Shell/MachineHost.h"
 #include "Ui/UiShell.h"
 #include "Ui/UiCommandTypes.h"
@@ -220,6 +221,9 @@ public:
     void  SoftReset  ();
     void  PowerCycle ();
 
+    // The disk inspector for a drive: created on first use, then shown and
+    // pointed at that drive.
+    void OpenDiskInspector (int drive);
 private:
 
     //  The shell the EHM notification sink forwards to. One per process; set
@@ -228,6 +232,22 @@ private:
     static EmulatorShell *  s_pNotifyShell;
     DxuiMessageResult  OnChar          (WPARAM ch, LPARAM lParam) override;
     DxuiMessageResult  OnCommand       (WORD commandId) override;
+    DxuiMessageResult  OnClose         () override;
+
+    //  True when nothing in the disk inspector's pending edits for `drive`
+    //  is discarded by `action`, or the user confirms that they are. A
+    //  drive of -1 matches either drive.
+    bool               ConfirmInspectorDiscard (int drive, const std::wstring & action);
+
+    //  Open the disk inspector on a drive, in the foreground only when
+    //  `activate`; save its state for the next launch; at launch, reopen it
+    //  when it was open at exit (FR-080).
+    void               ShowDiskInspector   (int drive, bool activate);
+    void               SaveInspectorPrefs  (bool isOpen);
+    void               ReopenDiskInspector ();
+
+    //  Whether an enabled Disk II card is in a slot other than 6.
+    bool               HasOtherDiskController () const;
     DxuiMessageResult  OnKeyDown       (WPARAM vk, LPARAM lParam) override;
     DxuiMessageResult  OnKeyUp         (WPARAM vk, LPARAM lParam) override;
 
@@ -298,6 +318,7 @@ private:
     // before it became CpuCommandDispatcher. The disk, drive-sound and tape
     // commands go to ShellDisks, ShellAudio and ShellTapeDeck.
     void     StepInstruction           () override;
+    void     ServiceInspectorRequests  () override;
     void     SaveTrace                 () override;
     void     ConfigureNetworkCard      (const NetworkCardSettings & settings) override;
     void     HoldAppleKeysThroughReset (bool openApple, bool closedApple) override;
@@ -958,6 +979,10 @@ private:
     // (>= 0) every keydown is consumed so letters never leak to the //e.
     int             m_chromeFocusIndex      = -1;
 
+    // The disk inspector: one window, lazily created and reused, and the host
+    // that answers its requests on the CPU thread.
+    std::unique_ptr<class DiskInspectorWindow> m_diskInspector;
+    ShellInspectorHost                        m_inspectorHost { m_cpuManager, m_machine };
     // The host services the clipboard manager and the dialogs go through.
     // Declared ahead of the manager, which holds a reference to the clipboard.
     Win32Clipboard                            m_hostClipboard;

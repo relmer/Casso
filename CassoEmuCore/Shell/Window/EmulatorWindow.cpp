@@ -25,6 +25,7 @@
 #include "Config/CrtResolver.h"
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
+#include "Ui/DiskInspector/DiskInspectorWindow.h"
 #include "Ui/PrinterPanel.h"
 #include "Core/PathResolver.h"
 #include "Version.h"
@@ -652,6 +653,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_DISK_WP2:      return m_disks->IsWriteProtectToggleOffered (1);
             case IDM_DISK_SALVAGE1: return m_disks->IsSalvageOffered (0);
             case IDM_DISK_SALVAGE2: return m_disks->IsSalvageOffered (1);
+            case IDM_DISK_INSPECT1: return m_disks->GetManager()->HasSlot6Controller();
+            case IDM_DISK_INSPECT2: return m_disks->GetManager()->HasSlot6Controller() && m_disks->ShouldShowExternalDrive();
             case IDM_STORAGE_DRIVE2:   return m_disks->IsSecondDriveOffered();
             case IDM_STORAGE_RECORDER: return m_tapeDeck->MachineHasCassettePort();
             case IDM_DISK_INSERT2:     return m_disks->ShouldShowExternalDrive();
@@ -1028,7 +1031,13 @@ int EmulatorShell::RunMessageLoop()
             bool  settingsActive = (m_settings->GetSheet() != nullptr &&
                                     m_settings->GetSheet()->GetHwnd() == GetActiveWindow());
 
-            if (settingsActive ||
+            // Keystrokes sent to the disk inspector, or a popup owned by it,
+            // skip the main window's accelerators: Ctrl+0 there resets the
+            // inspector's zoom, not the main window's size.
+            bool  inspectorTarget = (m_diskInspector != nullptr && m_diskInspector->GetHwnd() != nullptr && msg.hwnd != nullptr &&
+                                     GetAncestor (msg.hwnd, GA_ROOTOWNER) == m_diskInspector->GetHwnd());
+
+            if (settingsActive || inspectorTarget ||
                 m_window->m_accelTable == nullptr ||
                 !TranslateAccelerator (m_hwnd, m_window->m_accelTable, &msg))
             {

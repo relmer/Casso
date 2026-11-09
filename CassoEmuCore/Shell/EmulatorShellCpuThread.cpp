@@ -569,6 +569,11 @@ void EmulatorShell::RunCpuThreadFrame()
         m_renderer->m_lastRenderFlashOn  = current.flashOn;
         m_renderer->m_lastRenderColorSig = current.colorSig;
     }
+
+    //  Publish each drive's head and counts for a visible disk inspector, and
+    //  check any apply that waits for a safe point again.
+    m_inspectorHost.PublishStatus();
+    m_inspectorHost.ServiceWaiting();
 }
 
 

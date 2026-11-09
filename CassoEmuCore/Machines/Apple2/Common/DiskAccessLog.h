@@ -1,0 +1,110 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "Devices/Disk/DiskImage.h"
+
+
+
+
+
+//  A stretch of a quarter track's cells the guest read or wrote, and how
+//  many times. `end` is less than `start` for a stretch that crosses the
+//  index.
+struct CellSpan
+{
+    uint32_t  start = 0;
+    uint32_t  end   = 0;
+    uint32_t  count = 0;
+
+    bool operator== (const CellSpan &) const = default;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskAccessLog
+//
+//  Where on each quarter track of one drive the guest read a data field,
+//  where it wrote and which address fields it scanned, as cell positions
+//  (FR-161). A read is a data field the guest took from the latch, from its
+//  D5 AA AD prologue through its body and the DE AA of its epilogue when
+//  the guest checks it, after which the guest skips cells before its next
+//  nibble, as RWTS and the boot PROM do while they decode the field. A
+//  guest searching for an address field takes every nibble that passes,
+//  data fields included, with no gap. A scan is an address field the guest
+//  took from the latch, from its D5 AA 96 prologue through its eight
+//  nibbles, as it does while it searches for a sector. A write is a run of
+//  nibbles the guest loaded into the latch while writing, each close after
+//  the one before. The same stretch read, written or scanned again counts
+//  again. Cleared when the drive's disk changes, with the visit counts
+//  (FR-068).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class DiskAccessLog
+{
+public:
+    using Spans = std::array<vector<CellSpan>, DiskImage::kQuarterTrackCount>;
+
+    //  A data field's nibbles between its prologue and epilogue, with slack
+    //  for a padded field.
+    static constexpr uint32_t  kMinDataNibbles = 340;
+    static constexpr uint32_t  kMaxDataNibbles = 420;
+
+    //  A field read with no check of its epilogue, as the boot PROM reads,
+    //  counts when the gap comes within this many nibbles of its prologue:
+    //  the body, its checksum and a few nibbles more.
+    static constexpr uint32_t  kMaxOpenNibbles = 348;
+
+    //  After a field's epilogue, a gap of more cells than this before the
+    //  guest's next nibble marks the field as read.
+    static constexpr uint32_t  kPauseCells     = 64;
+
+    //  Write nibbles further apart than this start another run.
+    static constexpr uint32_t  kWriteGapCells  = 64;
+
+    //  An address field's nibbles between its prologue and epilogue.
+    static constexpr uint32_t  kAddressNibbles = 8;
+
+    void  Clear        ();
+    void  ObserveRead  (int quarterTrack, uint8_t nibble, uint32_t cell, uint32_t trackCells);
+    void  EndRead      ();
+    void  ObserveWrite (int quarterTrack, uint32_t cell);
+    void  EndWrite     ();
+
+    const Spans &  GetReads      () const { return m_reads; }
+    uint32_t       GetNibblesTaken (int quarterTrack) const { return m_taken[static_cast<size_t> (quarterTrack)]; }
+    const Spans &  GetWrites     () const { return m_writes; }
+    const Spans &  GetScans      () const { return m_scans; }
+    uint64_t       GetGeneration () const { return m_generation; }
+
+    //  Counts one more access of a stretch: on a stretch already listed that
+    //  covers at least half of it or of the new one, or as a new stretch.
+    static void  Add (vector<CellSpan> & inOut, uint32_t start, uint32_t end);
+
+private:
+    static uint32_t  GetOverlap (const CellSpan & a, uint32_t start, uint32_t end);
+
+    Spans                                                m_reads;
+    Spans                                                m_writes;
+    Spans                                                m_scans;
+    std::array<uint32_t, DiskImage::kQuarterTrackCount>  m_taken        = {};
+    uint64_t                                             m_generation   = 0;
+    int                                                  m_readTrack    = -1;
+    uint8_t                                              m_prev[2]      = {};
+    uint32_t                                             m_prevCell[2]  = {};
+    bool                                                 m_isInData     = false;
+    uint32_t                                             m_dataStart    = 0;
+    uint32_t                                             m_dataCount    = 0;
+    bool                                                 m_isClosed     = false;
+    bool                                                 m_isInAddress  = false;
+    uint32_t                                             m_addressStart = 0;
+    uint32_t                                             m_addressCount = 0;
+    int                                                  m_writeTrack   = -1;
+    uint32_t                                             m_writeStart   = 0;
+    uint32_t                                             m_writeLast    = 0;
+};

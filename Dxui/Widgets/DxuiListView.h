@@ -357,6 +357,10 @@ public:
     int   HitTestHeaderColumn (int xPx, int yPx) const { return m_header.HitTestHeaderColumn (xPx, yPx); }
     int   HitTestRow          (int xPx, int yPx) const;
 
+    //  The full text of the cell under a point, list-relative as HitTestRow's,
+    //  when the last paint cut it short.
+    bool  GetClippedCellText  (int xPx, int yPx, std::wstring & outText) const;
+
     //  One item's cell in dips (a zero width spans the list), its icon's size,
     //  whether items run down columns rather than along rows, whether the
     //  name sits under the icon, and how many text lines it has.
@@ -469,6 +473,11 @@ public:
     // list uses.
     void  SetTextSelectionColors   (bool enabled)                { m_textSelectionColors = enabled; }
 
+    // Opt-in word wrap for pushed rows. When on, a stretch-column cell with
+    // `elide == DxuiElide::None` wraps inside the column, and its row grows by
+    // the extra lines. Default off; a grouped list doesn't wrap.
+    void  SetWrapsText             (bool enabled)                { m_rows.SetWrapsText (enabled); }
+
     // Raised once when an interactive column-resize drag completes, with
     // the column index and its new effective width in physical pixels.
     // Lets a host that owns a persisted column model (e.g. the debug
@@ -569,6 +578,7 @@ private:
     static constexpr int    s_kScrollbarWidthDip = 10;
     static constexpr int    s_kCellIconDip       = 16;
     static constexpr int    s_kMinColWidthDip    = 48;
+    static constexpr int    s_kWrapMinWidthDip   = 160;
     static constexpr int    s_kResizeGrabDip     = 4;
     static constexpr int    s_kHScrollStepDip    = 32;
     static constexpr float  s_kFontDip           = 13.0f;

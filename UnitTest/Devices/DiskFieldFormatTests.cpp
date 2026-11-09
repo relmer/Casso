@@ -304,6 +304,45 @@ public:
 
 
 
+    TEST_METHOD (GetByteNibbles_FindsEveryBitOfEveryByte)
+    {
+        for (DiskFieldKind kind : { DiskFieldKind::Sixteen, DiskFieldKind::Thirteen })
+        {
+            for (int byte = 0; byte < DiskFieldFormat::kSectorBytes; byte++)
+            {
+                std::array<Byte, DiskFieldFormat::kSectorBytes>  bytes    = {};
+                std::vector<Byte>                                plain;
+                std::vector<Byte>                                changed;
+                std::vector<int>                                 low;
+                int                                              high     = 0;
+                Byte                                             checksum = 0;
+                Byte                                             was      = 0;
+                Byte                                             now      = 0;
+
+
+
+                DiskFieldFormat::GetByteNibbles (kind, byte, high, low);
+                DiskFieldFormat::EncodeData     (kind, bytes, plain, checksum);
+
+                bytes[byte] = 0xFF;
+                DiskFieldFormat::EncodeData     (kind, bytes, changed, checksum);
+
+                //  Undo the chain, so only the nibbles with the byte's bits
+                //  differ.
+                for (int i = 0; i < DiskFieldFormat::GetBodyLength (kind); i++)
+                {
+                    bool  isChanged = (DiskFieldFormat::TranslateNibble (kind, plain[i]) ^ was) != (DiskFieldFormat::TranslateNibble (kind, changed[i]) ^ now);
+
+                    was = DiskFieldFormat::TranslateNibble (kind, plain[i])   ^ was;
+                    now = DiskFieldFormat::TranslateNibble (kind, changed[i]) ^ now;
+
+                    Assert::AreEqual (i == high || std::find (low.begin(), low.end(), i) != low.end(), isChanged);
+                }
+            }
+        }
+    }
+
+
     TEST_METHOD (AChecksumOfAllZerosAndAllOnesIsStable)
     {
         std::array<Byte, kSectorBytes>  bytes    = {};

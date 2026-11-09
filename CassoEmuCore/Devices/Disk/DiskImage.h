@@ -42,9 +42,12 @@ enum class TrackKind
 enum class DamageReason
 {
     OutsideFile,           // the track's blocks lie outside the file
-    CountExceedsBlocks,    // its bit or byte count needs more than its blocks hold
+    CountExceedsBlocks,    // its bit or byte count is more than its blocks have room for
     TruncatedRun,          // flux data ending in a 255 with nothing to end the run
     V1RecordPastTrks,      // a WOZ 1 track record past the end of TRKS
+    RecordLocationMissing, // a count above zero with a start block or block count of zero
+    RecordInHeader,        // a start block inside the file's header (below block 3)
+    MapEntryOutOfRange,    // a TMAP or FLUX entry from 160 to 254, which names no record
 };
 
 
@@ -53,6 +56,16 @@ struct DamagedTrack
     int           trkIndex = 0;
     bool          isFlux   = false;
     DamageReason  reason   = DamageReason::OutsideFile;
+};
+
+
+//  A map entry that points at no record. It belongs to a quarter track, not a
+//  record, so it is kept apart from DamagedTrack.
+struct DamagedQuarterTrack
+{
+    int           quarterTrack = 0;
+    bool          isFlux       = false;
+    Byte          entry        = 0;
 };
 
 
@@ -151,7 +164,10 @@ public:
     // would replace the damaged tracks with blank ones and hide the damage.
     void                         AddDamagedTrack     (const DamagedTrack & track) { m_damagedTracks.push_back (track); }
     const vector<DamagedTrack> & GetDamagedTracks    () const { return m_damagedTracks; }
-    bool                         HasDamagedTracks    () const { return !m_damagedTracks.empty(); }
+    bool                         HasDamagedTracks    () const { return !m_damagedTracks.empty() || !m_damagedQuarterTracks.empty(); }
+
+    void                                AddDamagedQuarterTrack  (const DamagedQuarterTrack & entry) { m_damagedQuarterTracks.push_back (entry); }
+    const vector<DamagedQuarterTrack> & GetDamagedQuarterTrackEntries () const { return m_damagedQuarterTracks; }
 
     // Either kind of damage: what read-only enforcement, salvage and the
     // mount report all key off.
@@ -175,6 +191,20 @@ public:
     void             SetSourceFormat     (DiskFormat fmt) { m_format = fmt; }
     bool             IsTrackDirty        (int track) const;
     void             ClearDirty          ();
+
+    //  Nibbles the guest loaded into the write latch over each record since
+    //  the disk was inserted or reloaded; a save leaves them.
+    void             CountGuestWrite     (int slot);
+    uint64_t         GetGuestWriteCount  (int slot) const;
+
+    //  Times the store wrote the disk to a file since it was inserted or
+    //  reloaded, for the inspector's Image tab (FR-071).
+    void             NoteSaved           () { m_saveCount++; }
+    uint64_t         GetSaveCount        () const { return m_saveCount; }
+
+    //  The file's bytes as the disk was inserted or last reloaded. A save
+    //  leaves them, so they give the disk as it went in.
+    const vector<Byte> &  GetSourceBytes () const { return m_rawSourceBytes; }
 
     //  Records that a track's bits were replaced wholesale, which the bulk
     //  writers below must do because they bypass WriteBit and so bypass the
@@ -261,26 +291,29 @@ private:
     // which case neither out-parameter is meaningful.
     bool     TryLocateBit     (int track, size_t bitIndex, size_t & byteIdx, int & shift) const;
 
-    string                m_filePath;
-    vector<vector<Byte>>  m_trackBits;
-    vector<size_t>        m_trackBitCounts;
-    vector<bool>          m_trackDirty;
-    vector<bool>          m_trackChangedByWriter;
-    vector<bool>          m_trackGuestWritten;
-    vector<int>           m_quarterTrackMap;
-    vector<TrackKind>     m_slotKind;
-    vector<FluxTrack>     m_fluxTracks;
-    uint64_t              m_layoutGeneration    = 0;
-    IPendingWriteOwner *  m_pendingWriteOwner   = nullptr;
-    vector<DamagedTrack>  m_damagedTracks;
-    DiskFormat            m_format              = DiskFormat::Dsk;
-    bool                  m_loaded              = false;
-    bool                  m_dirty               = false;
-    bool                  m_imageWriteProtected = false;
-    bool                  m_userWriteProtected  = false;
-    bool                  m_fileReadOnly        = false;
-    bool                  m_fileNoPermission    = false;
-    bool                  m_sourceCrcMismatch   = false;
-    vector<Byte>          m_rawSourceBytes;
-    WozMetadata           m_wozMetadata;
+    string                         m_filePath;
+    vector<vector<Byte>>           m_trackBits;
+    vector<size_t>                 m_trackBitCounts;
+    vector<bool>                   m_trackDirty;
+    vector<bool>                   m_trackChangedByWriter;
+    vector<bool>                   m_trackGuestWritten;
+    vector<uint64_t>               m_guestWriteCounts;
+    uint64_t                       m_saveCount            = 0;
+    vector<int>                    m_quarterTrackMap;
+    vector<TrackKind>              m_slotKind;
+    vector<FluxTrack>              m_fluxTracks;
+    uint64_t                       m_layoutGeneration     = 0;
+    IPendingWriteOwner           * m_pendingWriteOwner    = nullptr;
+    vector<DamagedTrack>           m_damagedTracks;
+    vector<DamagedQuarterTrack>    m_damagedQuarterTracks;
+    DiskFormat                     m_format               = DiskFormat::Dsk;
+    bool                           m_loaded               = false;
+    bool                           m_dirty                = false;
+    bool                           m_imageWriteProtected  = false;
+    bool                           m_userWriteProtected   = false;
+    bool                           m_fileReadOnly         = false;
+    bool                           m_fileNoPermission     = false;
+    bool                           m_sourceCrcMismatch    = false;
+    vector<Byte>                   m_rawSourceBytes;
+    WozMetadata                    m_wozMetadata;
 };

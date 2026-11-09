@@ -4,6 +4,7 @@
 
 #include "Core/JsonValue.h"
 #include "Config/CrtTypes.h"
+#include "Config/DiskInspectorPrefs.h"
 #include "Config/IFileSystem.h"
 #include "Ui/UiCommandTypes.h"
 #include "Ui/ColorUtil.h"
@@ -265,6 +266,8 @@ struct GlobalUserPrefs
 
     // Sets the update check and pending update fields above to those of `other`.
     void  CopyUpdateFieldsFrom (const GlobalUserPrefs & other);
+    // The disk inspector window's state (FR-080).
+    DiskInspectorPrefs  diskInspector;
 
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;

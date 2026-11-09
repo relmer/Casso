@@ -18,6 +18,13 @@
 
 
 
+//  The face a command's glyph is drawn in, as a toolbar draws it.
+static constexpr const wchar_t *  s_kpszGlyphFace = L"Segoe MDL2 Assets";
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiPopupMenuPainter::DxuiPopupMenuPainter
@@ -317,6 +324,20 @@ void DxuiPopupMenuPainter::PaintRow (
                               labelArgb,
                               fontDip,
                               DxuiTheme::GetUiFace(),
+                              DxuiTextHAlign::Center,
+                              DxuiTextVAlign::Top);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+    else if (row.command->isGlyphInMenus && row.command->glyph != nullptr)
+    {
+        hr = text.DrawString (row.command->glyph,
+                              left + (float) pad,
+                              y + (float) padTop,
+                              (float) gutter,
+                              (float) rowH,
+                              labelArgb,
+                              fontDip,
+                              s_kpszGlyphFace,
                               DxuiTextHAlign::Center,
                               DxuiTextVAlign::Top);
         IGNORE_RETURN_VALUE (hr, S_OK);

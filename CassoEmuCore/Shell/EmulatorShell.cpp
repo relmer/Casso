@@ -32,6 +32,7 @@
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
+#include "Ui/DiskInspector/DiskInspectorWindow.h"
 #include "Core/PathResolver.h"
 #include "Version.h"
 #include "BuildInfo.h"
@@ -265,6 +266,7 @@ EmulatorShell::~EmulatorShell()
 
     m_cpuManager.Stop();
 
+    m_diskInspector.reset();
     // The printer panel holds no machine sinks -- just close its window.
     m_printer->ClosePrinterPanel();
 
@@ -976,6 +978,7 @@ HRESULT EmulatorShell::Initialize (
     m_tapeDeck->InsertStartupTape (tapePath);
 
     ApplyPersistedMachinePrefs();
+    ReopenDiskInspector();
 
 Error:
     return hr;

@@ -1,0 +1,87 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "Ui/DiskInspector/InspectorView.h"
+
+struct HeaderItem;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorsView
+//
+//  The Sector data tab: the selected sector's header, then its 256 bytes as
+//  16 rows of 16 with hex offsets and a text column, zero bytes and bytes of
+//  $80 or more in their own colors, and bad data marked (FR-040); while
+//  comparing, B's paired sector below, the bytes that differ marked in both.
+//  Read-only; editing comes with the sector editor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class SectorsView : public InspectorView
+{
+public:
+    static constexpr int  kRowDip      = 18;
+    static constexpr int  kHeaderDip   = 22;
+    static constexpr int  kBytesPerRow = 16;
+
+    explicit SectorsView (InspectorViewContext & context) : InspectorView (context) {}
+
+    //  The width a sector's bytes take at full size.
+    static int  GetFullWidthPx (const DxuiDpiScaler & scaler);
+
+    void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
+    bool  GetTooltip         (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
+
+    //  Editing (FR-097): typing goes to the selected sector's pending edit at
+    //  the cursor, the first selected byte, in the column last clicked.
+    void  SetEditing (bool isEditing) { m_isEditing = isEditing; m_isLowNibble = false; }
+    bool  IsEditing  () const         { return m_isEditing; }
+    bool  OnEditKey  (const DxuiKeyEvent & ev);
+    bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
+
+    //  Pixels at the right of the header's first line reserved for the
+    //  window's "Copy sector" button.
+    void  SetHeaderReserve (int px) { m_headerReservePx = static_cast<float> (px); }
+
+    //  The text column's character for a byte: high bit masked, "." for
+    //  anything not printable.
+    static wchar_t  GetTextChar (Byte value);
+
+private:
+    float  PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y);
+    void   PaintHeaderItem (IDxuiTextRenderer & text, const IDxuiTheme & theme, const HeaderItem & item, float x, float y, float rowH) const;
+    void   PaintCursor (IDxuiPainter & painter, const IDxuiTheme & theme);
+    void   MoveCursor  (int offset, bool isTextColumn, bool isLowNibble);
+    int    GetEdit     () const;
+    void   PaintBytes  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y);
+    void   PaintSelection (IDxuiPainter & painter, const IDxuiTheme & theme);
+    int    HitTest     (POINT pointPx, bool & outIsText) const;
+
+    //  Where the bytes were last drawn, for hit testing.
+    struct ByteGrid
+    {
+        float  top      = 0.0f;
+        float  rowH     = 1.0f;
+        float  hexLeft  = 0.0f;
+        float  textLeft = 0.0f;
+        float  byteW    = 1.0f;
+        float  charW    = 1.0f;
+        bool   isShown  = false;
+    };
+
+    void                   PaintGrid      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const ByteGrid & grid, std::span<const Byte> bytes,
+                                           std::span<const Byte> other, std::span<const Byte> hits, std::span<const Byte> changed, float textPx);
+    std::span<const Byte>  GetPairedBytes (const TrackAnalysis & track) const;
+
+    ByteGrid  m_grid;
+    float     m_headerReservePx = 0.0f;
+    bool      m_isDragging      = false;
+    bool      m_isEditing       = false;
+    bool      m_isLowNibble     = false;
+};

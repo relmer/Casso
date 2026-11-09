@@ -131,6 +131,9 @@ public:
     uint64_t   GetLastFluxPulseClock() const { return m_fluxPulseClock; }
     uint64_t   GetFluxPulseCount() const { return m_fluxPulseCount; }
     bool       IsOnFluxTrack() const { return m_isFluxSlot; }
+    int        GetSlot() const { return m_slot; }
+    double     GetAngle() const;
+    size_t     GetCurrentTrackBits() const;
 
     // Flux time is kept in exact units of 1/45 of a 125 ns tick. The master
     // clock is 14.31818 MHz = 315/22 MHz, the CPU runs at 1/14 of it (45/44
@@ -205,10 +208,8 @@ private:
     void       StepLss();
     uint8_t    ApplyHeadWindow (uint8_t inBit);
     uint8_t    NextWeakBit();
-    size_t     GetCurrentTrackBits() const;
     void       ResolveSlot();
     void       RefreshSlot();
-    double     GetAngle() const;
     void       PlaceHead (double angle);
     void       SeekFlux (double angle);
     uint8_t    StepFluxPulse();

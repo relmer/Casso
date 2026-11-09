@@ -8,6 +8,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Machines/Apple2/Common/Disk2AddressMarkWatcher.h"
+#include "Machines/Apple2/Common/DiskAccessLog.h"
 
 
 class IDriveAudioSink;
@@ -62,6 +63,8 @@ public:
 
     explicit Disk2Controller (int slot);
 
+    int  GetSlot () const { return m_slot; }
+
     Byte Read (Word address) override;
     void Write (Word address, Byte value) override;
     Word GetStart() const override { return m_ioStart; }
@@ -75,6 +78,16 @@ public:
     DiskImage *   GetDisk (int drive);
     void          SetExternalDisk (int drive, DiskImage * external);
     bool          HasExternalDisk (int drive) const;
+
+    //  What the guest did with each drive since its disk went in, for the
+    //  disk inspector: arrivals of the head at each quarter track, and
+    //  whether its last write was dropped because the disk cannot be written.
+    uint32_t      GetVisitCount   (int drive, int quarterTrack) const;
+
+    //  Where the guest read and wrote on each quarter track of a drive since
+    //  its disk went in (FR-161).
+    const DiskAccessLog &  GetAccessLog (int drive) const { return m_access[std::clamp (drive, 0, kDriveCount - 1)]; }
+    bool          IsWriteBlocked  (int drive) const;
 
     // Spec-006 bug 14b. When EmulatorShell drives mount/eject through
     // DiskImageStore + SetExternalDisk (bypassing this class's own
@@ -170,12 +183,14 @@ public:
     bool   IsQ6() const { return m_q6; }
     bool   IsQ7() const { return m_q7; }
     Disk2NibbleEngine &  GetEngine (int drive)  { return m_engine[drive]; }
+    const Disk2NibbleEngine &  GetEngine (int drive) const { return m_engine[drive]; }
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
     void   HandleSwitch (int offset);
     void   HandlePhase (int phase, bool on);
+    void   OnLatchLoad ();
     void   UpdateEngineSelection();
     void   UpdateEngineWriteMode();
     Byte   HandleReadDispatch();
@@ -207,6 +222,10 @@ private:
     // Constant kMotorSpindownCycles lives in the public section
     // for test access.
     uint32_t             m_motorSpindownCycles = 0;
+
+    std::array<std::array<uint32_t, kMaxQuarterTrack + 1>, kDriveCount>  m_visits         = {};
+    std::array<DiskAccessLog, kDriveCount>                                m_access;
+    std::array<bool, kDriveCount>                                         m_isWriteBlocked = {};
 
     // Issue #67 deliverable 1: motor spin-up window remainder.
     // Constant kMotorSpinupCycles lives in the public section

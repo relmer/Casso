@@ -484,6 +484,25 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListColumns::EnsureMeasured
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListColumns::EnsureMeasured (IDxuiTextRenderer & text) const
+{
+    if (m_measuredWPx.size() != m_list.m_columns.size() || (m_preciseAutoFit && m_measureDirty))
+    {
+        MeasureColumnsPx (text);
+        m_measureDirty = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetColumnNaturalWidthPx
 //
 //  Natural pixel width of a single column ignoring any stretch fill:
@@ -507,6 +526,12 @@ int DxuiListColumns::GetColumnNaturalWidthPx (size_t c) const
         if (c < m_overrideWPx.size() && m_overrideWPx[c] >= 0)
         {
             wpx = m_overrideWPx[c];
+        }
+        else if (m_list.m_rows.IsWrapped() && m_list.m_columns[c].stretch)
+        {
+            //  A wrapped column fills the width the other columns don't use;
+            //  this is its narrowest before the list scrolls sideways.
+            wpx = m_list.m_scaler.ToPx (DxuiListRows::s_kWrapMinWidthDip);
         }
         else if (m_list.m_columns[c].widthDip > 0)
         {

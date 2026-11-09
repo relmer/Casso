@@ -549,7 +549,7 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
 
     controller = FindSlot6Controller();
     image      = m_diskStore.GetImage (6, drive);
-    inserted   = (change != BayChange::Ejected);
+    inserted   = (change == BayChange::Inserted || change == BayChange::Swapped);
 
     //  Insert and swap sounds are held during the cold-boot mount window and a
     //  programmatic remount (reset / power-cycle rebuild); an eject sound
@@ -570,8 +570,9 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
     }
 
     //  The debug event fires whichever way the disk went, and is not held at
-    //  cold boot: the debug log is not something a launch should hide.
-    if (controller != nullptr)
+    //  cold boot: the debug log is not something a launch should hide. A
+    //  restored state doesn't move a disk.
+    if (controller != nullptr && change != BayChange::Restored)
     {
         if (inserted)
         {
@@ -613,6 +614,9 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
                 m_diskAudioSources[drive]->OnDiskInserted();
             }
 
+            break;
+
+        case BayChange::Restored:
             break;
 
         case BayChange::Swapped:
@@ -699,6 +703,8 @@ HRESULT DiskManager::Mount (int slot, int drive, const std::wstring & path)
 
     command = (drive == 0) ? IDM_DISK_INSERT1 : IDM_DISK_INSERT2;
 
+    BAIL_OUT_IF (m_confirmDiscard && !m_confirmDiscard (drive, L"Inserting another disk"), S_OK);
+
     m_cpuManager.PostCommand (command, fs::path (path).string());
 
 Error:
@@ -743,6 +749,11 @@ void DiskManager::Eject (int slot, int drive)
     {
         if      (drive == 0) { command = IDM_DISK_EJECT1; }
         else if (drive == 1) { command = IDM_DISK_EJECT2; }
+    }
+
+    if (command != 0 && m_confirmDiscard && !m_confirmDiscard (drive, L"Ejecting the disk"))
+    {
+        command = 0;
     }
 
     if (command != 0)

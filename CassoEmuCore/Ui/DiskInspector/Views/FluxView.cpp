@@ -1,0 +1,1199 @@
+#include "Pch.h"
+
+#include "Ui/DiskInspector/Views/FluxView.h"
+#include "Core/UnicodeSymbols.h"
+#include "Devices/Disk/Inspector/InspectorClipboard.h"
+#include "Devices/Disk/Inspector/InspectorFormat.h"
+#include "Devices/Disk/Inspector/TrackAnalyzer.h"
+#include "Ui/DiskInspector/InspectorMarquee.h"
+#include "Ui/DiskInspector/InspectorText.h"
+#include "Ui/DiskInspector/PlatterGeometry.h"
+
+
+
+
+
+static constexpr float   s_kAxisDip         = 52.0f;
+static constexpr float   s_kGapDip          = 8.0f;
+static constexpr float   s_kScopeRowDip     = 24.0f;
+static constexpr float   s_kScopeOptionDip  = 100.0f;
+static constexpr float   s_kLabelRowDip     = 16.0f;
+static constexpr float   s_kPlotShare       = 0.55f;
+static constexpr float   s_kPointDip        = 2.0f;
+static constexpr float   s_kPairDip         = 4.0f;
+static constexpr float   s_kHitDip          = 12.0f;
+static constexpr float   s_kCursorPadDip    = 4.0f;
+static constexpr float   s_kCellRuleDip     = 14.0f;
+static constexpr float   s_kDotCellShare    = 0.22f;
+static constexpr float   s_kDotMaxShare     = 3.0f;
+static constexpr float   s_kCursorThickness = 1.5f;
+static constexpr float   s_kUnderlineDip    = 2.0f;
+static constexpr int     s_kDragThresholdPx = 4;
+static constexpr int     s_kPeakRadius      = 6;
+static constexpr int     s_kPeakShare       = 10;
+static constexpr int     s_kTickEveryUs     = 4;
+static constexpr double  s_kTicksPerUs      = 8.0;
+static constexpr double  s_kWheelZoomStep   = 1.25;
+static constexpr uint8_t s_kPlain           = 1;
+static constexpr uint8_t s_kSelected        = 2;
+static constexpr uint8_t s_kPair            = 4;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::Paint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    const TrackAnalysis *  track   = m_context.GetTrack();
+    const DiskCopy *       copy    = (m_context.analysis != nullptr) ? m_context.analysis->copy.get() : nullptr;
+    bool                   isTimed = track != nullptr && track->framed.isFlux && track->framed.turnTicks > 0;
+
+
+
+    if (isTimed)
+    {
+        Update (*track);
+        PaintPlot      (painter, text, theme, *track);
+        PaintHistogram (painter, text, theme, *track);
+    }
+    else if (track != nullptr && track->framed.cellCount > 0)
+    {
+        text.DrawString (FormatNoTiming (copy != nullptr ? copy->format : DiskFormat::Woz, copy != nullptr ? copy->woz.info.version : 0).c_str(),
+                         static_cast<float> (m_boundsDip.left), static_cast<float> (m_boundsDip.top), GetWidth(), m_scaler.ToPxf (s_kScopeRowDip) * 4,
+                         theme.Foreground(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal,
+                         true);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::FormatNoTiming
+//
+//  Only a WOZ file of version 2.1 or later can image a track as flux, which
+//  has each bit's timing. A WOZ file's INFO chunk version is 3 for 2.1, 4 for
+//  2.2 and so on; in such a file, a track imaged as bits has no timing. A
+//  sector image has no tracks at all, so Casso builds them from its sectors,
+//  and a nibble image has the nibbles but no time between bits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FluxView::FormatNoTiming (DiskFormat format, int wozInfoVersion)
+{
+    static constexpr int  kFluxInfoVersion = 3;
+
+
+
+    std::wstring  note;
+
+
+
+    switch (format)
+    {
+        case DiskFormat::Dsk:
+        case DiskFormat::Do:
+        case DiskFormat::Po:
+            note = std::format (L"This is a .{} disk image, which has only the sectors' data. Casso builds its tracks from that data, "
+                                L"so they have no timing information or copy protection.",
+                                (format == DiskFormat::Dsk) ? L"dsk" : (format == DiskFormat::Do) ? L"do" : L"po");
+            break;
+
+        case DiskFormat::Nib:
+            note = L"This is a nibble disk image, which has the nibbles of each track but no timing between bits.";
+            break;
+
+        default:
+            note = (wozInfoVersion >= kFluxInfoVersion)
+                       ? std::format (L"This is a WOZ 2.{} disk image, but this track does not contain timing information because it was imaged as bits. "
+                                      L"Only tracks imaged as flux include timing information.", wozInfoVersion - kFluxInfoVersion + 1)
+                       : std::wstring (L"This track does not have timing information. Only WOZ 2.1 or higher supports imaging tracks as flux, "
+                                       L"which includes timing information.");
+            break;
+    }
+
+    return note;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::PaintPlot
+//
+//  Each transition at its recorded time across the strip's view, its
+//  interval upward; a transition is drawn once per pixel and kind, so the
+//  whole track costs no more than the plot has pixels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxView::PaintPlot (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track)
+{
+    RECT           plot    = GetPlotRect();
+    StripGeometry  g       = MakeGeometry();
+    int            w       = std::max (static_cast<int> (plot.right - plot.left), 1);
+    int            h       = std::max (static_cast<int> (plot.bottom - plot.top), 1);
+    double         start   = m_context.model->GetStripStart();
+    double         span    = m_context.model->GetStripSpan();
+    float          textPx  = m_scaler.ToPxf (kSmallDip);
+    float          point   = m_scaler.ToPxf (s_kPointDip);
+    float          grown   = std::clamp (GetCellPx() * s_kDotCellShare, point, point * s_kDotMaxShare);
+    float          x       = 0;
+    float          y       = 0;
+    float          size    = 0;
+    double         offset  = 0;
+    int            k       = 0;
+    int            cell    = 0;
+    size_t         at      = 0;
+    uint8_t        kind    = 0;
+    uint32_t       color   = 0;
+
+
+
+    painter.FillRect (static_cast<float> (plot.left), static_cast<float> (plot.top), static_cast<float> (w), static_cast<float> (h), theme.BackgroundElevated());
+
+    for (k = 1; k <= 3; k++)
+    {
+        y = GetPlotY (k * TrackAnalyzer::kNominalCellTicks);
+        painter.DrawLine (static_cast<float> (plot.left), y, static_cast<float> (plot.right), y, 1.0f, theme.Divider());
+        text.DrawString (InspectorText::FormatCount (k, L"cell", L"cells").c_str(), static_cast<float> (m_boundsDip.left), y - textPx, m_scaler.ToPxf (s_kAxisDip) - m_scaler.ToPxf (s_kGapDip),
+                         2 * textPx, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        text.DrawString (L"late", static_cast<float> (m_boundsDip.left), y - 2.2f * textPx, m_scaler.ToPxf (s_kAxisDip) - m_scaler.ToPxf (s_kGapDip),
+                         2 * textPx, theme.ForegroundMuted(), textPx * 0.85f, DxuiTheme::kBodyFace, DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        text.DrawString (L"early", static_cast<float> (m_boundsDip.left), y + 0.2f * textPx, m_scaler.ToPxf (s_kAxisDip) - m_scaler.ToPxf (s_kGapDip),
+                         2 * textPx, theme.ForegroundMuted(), textPx * 0.85f, DxuiTheme::kBodyFace, DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    }
+
+    PaintCellRules (painter, theme, track);
+    PaintMarks (painter, text, theme, track, g);
+    PaintSelection (painter, theme, g);
+
+    text.DrawString (std::format (L"Each dot is a flux transition. Its height is the time since the transition before it, in cells of about 4 {}s.\n"
+                                  L"1 cell is a 1 bit after a 1 bit; 2 and 3 cells have one and two 0 bits between. Larger colored dots are too close to read.", s_kpszMicro).c_str(),
+                     static_cast<float> (plot.left) + m_scaler.ToPxf (s_kGapDip), static_cast<float> (plot.bottom) - 3 * textPx,
+                     static_cast<float> (w) - 2 * m_scaler.ToPxf (s_kGapDip), 3 * textPx, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace);
+
+    m_occupied.assign (static_cast<size_t> (w) * static_cast<size_t> (h), 0);
+
+    for (const FluxInterval & interval : m_intervals)
+    {
+        offset  = interval.turn - start;
+        offset -= std::floor (offset);
+
+        if (offset >= span)
+        {
+            continue;
+        }
+
+        x    = static_cast<float> (plot.left) + static_cast<float> (offset / span) * static_cast<float> (w);
+        y    = GetPlotY (interval.ticks);
+        kind = interval.isWithinCell ? s_kPair : (IsSelected (interval) ? s_kSelected : s_kPlain);
+        cell = std::clamp (static_cast<int> (x - plot.left), 0, w - 1);
+        at   = static_cast<size_t> (std::clamp (static_cast<int> (y - plot.top), 0, h - 1)) * w + cell;
+
+        if ((m_occupied[at] & kind) == 0)
+        {
+            m_occupied[at] |= kind;
+            size            = (kind == s_kPair) ? 2.0f * grown : grown;
+            color           = (kind == s_kPair) ? m_context.palette.colors.failedChecksum : (kind == s_kSelected) ? theme.Accent() : theme.Foreground();
+            painter.FillRect (x - size / 2, y - size / 2, size, size, color);
+        }
+    }
+
+    PaintCursor (painter, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::PaintSelection
+//
+//  The selection's stretch of the plot lit by the window's shimmer (FR-038).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g) const
+{
+    RECT                         plot   = GetPlotRect();
+    std::array<StripSegment, 2>  parts  = {};
+    double                       first  = 0;
+    double                       length = 0;
+    uint32_t                     accent = theme.Accent();
+    int                          count  = 0;
+    int                          k      = 0;
+
+
+
+    if (m_hasSel && !m_cellTurns.empty())
+    {
+        first   = m_cellTurns[std::min<size_t> (m_selFirst, m_cellTurns.size() - 1)];
+        length  = m_cellTurns[std::min<size_t> (m_selEnd, m_cellTurns.size() - 1)] - first;
+        length -= std::floor (length);
+        count   = g.GetSegments (first, length, parts);
+
+        for (k = 0; k < count; k++)
+        {
+            InspectorMarquee::PaintShimmer (painter, parts[k].x0, static_cast<float> (plot.top), parts[k].x1 - parts[k].x0, static_cast<float> (plot.bottom - plot.top),
+                                            InspectorMarquee::GetClockMs(), { static_cast<LONG> (parts[k].x0), plot.top, static_cast<LONG> (parts[k].x1), plot.bottom });
+            painter.OutlineRect (parts[k].x0, static_cast<float> (plot.top), parts[k].x1 - parts[k].x0, static_cast<float> (plot.bottom - plot.top), m_scaler.ToPxf (s_kUnderlineDip), accent);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::PaintCursor
+//
+//  A thin line across only the dots of one cell line, from the shortest
+//  interval around that line to the longest. With cells drawn, it marks the
+//  transition nearest the pointer in time, on whichever line that is; zoomed
+//  out, it is at the pointer on the nearest line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxView::PaintCursor (IDxuiPainter & painter, const IDxuiTheme & theme) const
+{
+    RECT   plot = GetPlotRect();
+    int    line = GetNearestLine (m_context.hoverPx.y);
+    float  pad  = m_scaler.ToPxf (s_kCursorPadDip);
+    float  x    = static_cast<float> (m_context.hoverPx.x);
+    int    hit  = IsShowingCells() ? HitInterval (m_context.hoverPx) : -1;
+
+
+
+    if (hit >= 0)
+    {
+        line = GetIntervalLine (m_intervals[hit].ticks);
+        x    = GetIntervalX (m_intervals[hit]);
+    }
+
+    if (PtInRect (&plot, m_context.hoverPx) && m_lineTicks[line].second > 0)
+    {
+        painter.DrawLine (x, GetPlotY (m_lineTicks[line].second) - pad, x, GetPlotY (m_lineTicks[line].first) + pad, s_kCursorThickness, theme.Accent());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::PaintCellRules
+//
+//  A rule between each cell in view and the next, a transition's dot being at
+//  the middle of its cell, once cells are at least
+//  s_kCellRuleDip apart.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxView::PaintCellRules (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track) const
+{
+    RECT      plot  = GetPlotRect();
+    double    start = m_context.model->GetStripStart();
+    uint32_t  count = track.framed.cellCount;
+    uint32_t  cell  = 0;
+    float     x     = 0.0f;
+    float     last  = static_cast<float> (plot.left);
+
+
+
+    if (IsShowingCells())
+    {
+        cell = PlatterGeometry::GetCellAtTurn (track, start - std::floor (start));
+
+        for (uint32_t n = 0; n < count; n++)
+        {
+            x = GetTurnX ((m_cellTurns[(cell + n) % count] + m_cellTurns[(cell + n) % count + 1]) / 2);
+
+            //  The first cell's middle can be just before the view, which wraps
+            //  past its far side.
+            if (n == 0 && x > plot.right)
+            {
+                continue;
+            }
+
+            if (x < last || x > plot.right)
+            {
+                break;
+            }
+
+            last = x;
+            painter.DrawLine (x, static_cast<float> (plot.top), x, static_cast<float> (plot.bottom) - 3 * m_scaler.ToPxf (kSmallDip), 1.0f, theme.Divider());
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::IsShowingCells
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FluxView::IsShowingCells() const
+{
+    return GetCellPx() >= m_scaler.ToPxf (s_kCellRuleDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetCellPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float FluxView::GetCellPx() const
+{
+    RECT  plot = GetPlotRect();
+
+
+
+    return (m_cellTurns.size() > 1) ? static_cast<float> ((plot.right - plot.left) / (m_context.model->GetStripSpan() * (m_cellTurns.size() - 1))) : 0.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetTurnX
+//
+//  Where a turn is across the plot, past the right edge when out of view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float FluxView::GetTurnX (double turn) const
+{
+    RECT    plot   = GetPlotRect();
+    double  offset = turn - m_context.model->GetStripStart();
+
+
+
+    offset -= std::floor (offset);
+
+    return static_cast<float> (plot.left + offset / m_context.model->GetStripSpan() * (plot.right - plot.left));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetIntervalX
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float FluxView::GetIntervalX (const FluxInterval & interval) const
+{
+    return GetTurnX (interval.turn);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetIntervalLine
+//
+//  The index of the cell line nearest an interval, from 0 for 1 cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FluxView::GetIntervalLine (double ticks)
+{
+    return std::clamp (static_cast<int> (std::lround (ticks / TrackAnalyzer::kNominalCellTicks)) - 1, 0, 2);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetNearestLine
+//
+//  The index of the cell line nearest a height in the plot, from 0 for 1 cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FluxView::GetNearestLine (LONG y) const
+{
+    RECT    plot  = GetPlotRect();
+    double  cells = (plot.bottom - y) * kPlotCells / std::max (static_cast<double> (plot.bottom - plot.top), 1.0);
+
+
+
+    return std::clamp (static_cast<int> (std::lround (cells)) - 1, 0, 2);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::PaintMarks
+//
+//  The index and each sector's address prologue, as rules down the plot
+//  with their labels along its top.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxView::PaintMarks (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g)
+{
+    const FramedTrack &          framed = track.framed;
+    RECT                         plot   = GetPlotRect();
+    std::array<StripSegment, 2>  parts  = {};
+    float                        textPx = m_scaler.ToPxf (kSmallDip);
+    float                        rowH   = m_scaler.ToPxf (s_kLabelRowDip);
+    float                        pad    = m_scaler.ToPxf (3.0f);
+    int                          count  = 0;
+    int                          k      = 0;
+    uint32_t                     cell   = 0;
+    std::wstring                 label;
+
+
+
+    count = g.GetSegments (0.0, 1e-9, parts);
+
+    for (k = 0; k < count; k++)
+    {
+        painter.DrawLine (parts[k].x0, static_cast<float> (plot.top), parts[k].x0, static_cast<float> (plot.bottom), 1.5f, theme.ForegroundMuted());
+        text.DrawString (L"Index", parts[k].x0 + pad, static_cast<float> (plot.top), m_scaler.ToPxf (s_kAxisDip), rowH, theme.ForegroundMuted(), textPx,
+                         DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    }
+
+    for (const AnalyzedSector & sector : track.sectors)
+    {
+        cell  = framed.nibbles[track.fields[sector.addressField].firstNibble].startCell % framed.cellCount;
+        count = g.GetSegments (m_cellTurns[cell], 1e-9, parts);
+        label = std::wstring (DiskInspectorPalette::GetStateSymbol (sector.state)) + L" " + InspectorFormat::FormatSector (sector.sector).substr (1);
+
+        for (k = 0; k < count; k++)
+        {
+            painter.DrawLine (parts[k].x0, static_cast<float> (plot.top), parts[k].x0, static_cast<float> (plot.bottom), 1.0f, theme.Divider());
+            text.DrawString (label.c_str(), parts[k].x0 + pad, static_cast<float> (plot.top) + rowH, m_scaler.ToPxf (s_kAxisDip), rowH,
+                             m_context.palette.GetStateColor (sector.state), textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center,
+                             DxuiFontWeight::SemiBold, false);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::PaintHistogram
+//
+//  A bar per 0.125 µs of interval, scaled to the tallest, intervals under
+//  half a cell in the color of the pairs they make, with the count over each
+//  cluster and rules at one, two and three cells (FR-045).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxView::PaintHistogram (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track)
+{
+    bool           hasSelection = false;
+    FluxHistogram  histogram    = GetHistogram (track, hasSelection);
+    RECT           bars         = GetBarsRect();
+    std::wstring   message;
+
+
+
+    PaintScope (painter, text, theme, histogram);
+
+    painter.FillRect (static_cast<float> (bars.left), static_cast<float> (bars.top), static_cast<float> (bars.right - bars.left),
+                      static_cast<float> (bars.bottom - bars.top), theme.BackgroundElevated());
+
+    message = (m_scope == HistogramScope::Selection && !hasSelection) ? L"Select nibbles or a sector to see their intervals."
+            : (histogram.total == 0)                                   ? L"No transitions in the selection."
+            :                                                            L"";
+
+    if (message.empty())
+    {
+        PaintBars (painter, text, theme, histogram);
+    }
+    else
+    {
+        text.DrawString (message.c_str(), static_cast<float> (bars.left), static_cast<float> (bars.top), static_cast<float> (bars.right - bars.left),
+                         static_cast<float> (bars.bottom - bars.top), theme.ForegroundMuted(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace,
+                         DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::PaintBars
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxView::PaintBars (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const FluxHistogram & histogram)
+{
+    RECT   bars    = GetBarsRect();
+    float  textPx  = m_scaler.ToPxf (kSmallDip);
+    float  rowH    = m_scaler.ToPxf (s_kLabelRowDip);
+    float  axis    = m_scaler.ToPxf (s_kAxisDip);
+    float  left    = static_cast<float> (bars.left);
+    float  w       = static_cast<float> (bars.right - bars.left);
+    float  barsTop = static_cast<float> (bars.top) + rowH;
+    float  barsH   = std::max (static_cast<float> (bars.bottom) - barsTop, 1.0f);
+    float  binW    = w / FluxHistogram::kBinCount;
+    float  x       = 0;
+    float  hgt     = 0;
+    int    b       = 0;
+    int    k       = 0;
+
+
+
+    for (k = 1; k <= 3; k++)
+    {
+        x = left + static_cast<float> (k * TrackAnalyzer::kNominalCellTicks / FluxHistogram::kBinCount) * w;
+        painter.DrawLine (x, static_cast<float> (bars.top), x, static_cast<float> (bars.bottom), 1.0f, theme.Divider());
+    }
+
+    for (b = 0; b < FluxHistogram::kBinCount; b++)
+    {
+        if (histogram.counts[b] > 0)
+        {
+            hgt = std::max (barsH * histogram.counts[b] / histogram.peak, 1.0f);
+            painter.FillRect (left + b * binW, static_cast<float> (bars.bottom) - hgt, std::max (binW - 1.0f, 1.0f), hgt,
+                              (b < TrackAnalyzer::kNominalCellTicks / 2) ? m_context.palette.colors.failedChecksum : theme.Accent());
+        }
+    }
+
+    for (int peak : FindPeaks (histogram))
+    {
+        hgt = barsH * histogram.counts[peak] / histogram.peak;
+        text.DrawString (InspectorFormat::FormatCount (static_cast<uint64_t> (histogram.counts[peak])).c_str(), left + peak * binW - axis,
+                         static_cast<float> (bars.bottom) - hgt - rowH, 2 * axis + binW, rowH, theme.Foreground(), textPx, DxuiTheme::kBodyFace,
+                         DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    }
+
+    for (b = s_kTickEveryUs; b * s_kTicksPerUs < FluxHistogram::kBinCount; b += s_kTickEveryUs)
+    {
+        x = left + static_cast<float> (b * s_kTicksPerUs / FluxHistogram::kBinCount) * w;
+        text.DrawString (std::format (L"{} {}s", b, s_kpszMicro).c_str(), x - axis, static_cast<float> (bars.bottom), 2 * axis, rowH, theme.ForegroundMuted(),
+                         textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::PaintScope
+//
+//  The histogram's two scopes as tabs, and the count it has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxView::PaintScope (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const FluxHistogram & histogram)
+{
+    RECT          row    = GetScopeRect();
+    float         textPx = m_scaler.ToPxf (kTextDip);
+    float         line   = m_scaler.ToPxf (s_kUnderlineDip);
+    std::wstring  total  = InspectorText::FormatCount (histogram.total, L"transition", L"transitions");
+
+
+
+    for (HistogramScope scope : { HistogramScope::WholeTrack, HistogramScope::Selection })
+    {
+        RECT  option     = GetScopeOption (scope);
+        bool  isSelected = scope == m_scope;
+
+        text.DrawString (scope == HistogramScope::WholeTrack ? L"Whole track" : L"Selection", static_cast<float> (option.left), static_cast<float> (option.top),
+                         static_cast<float> (option.right - option.left), static_cast<float> (option.bottom - option.top),
+                         isSelected ? theme.Foreground() : theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center,
+                         DxuiFontWeight::Normal, false);
+
+        if (isSelected)
+        {
+            painter.FillRect (static_cast<float> (option.left), static_cast<float> (option.bottom) - line, static_cast<float> (option.right - option.left), line, theme.Accent());
+        }
+    }
+
+    text.DrawString (total.c_str(), static_cast<float> (row.left), static_cast<float> (row.top), static_cast<float> (row.right - row.left),
+                     static_cast<float> (row.bottom - row.top), theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Right,
+                     DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::OnMouse
+//
+//  A click on a scope switches the histogram. Over the plot the wheel zooms,
+//  a drag selects nibbles and Shift and a drag pans, as on the strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FluxView::OnMouse (const DxuiMouseEvent & ev)
+{
+    const TrackAnalysis *  track     = m_context.GetTrack();
+    RECT                   plot      = GetPlotRect();
+    POINT                  p         = ev.positionDip;
+    bool                   isInPlot  = PtInRect (&plot, p) != FALSE;
+    bool                   isHandled = false;
+    double                 span      = m_context.model->GetStripSpan();
+    double                 width     = std::max (static_cast<double> (plot.right - plot.left), 1.0);
+    double                 newSpan   = 0;
+    int                    nibble    = -1;
+    RECT                   whole     = GetScopeOption (HistogramScope::WholeTrack);
+    RECT                   selection = GetScopeOption (HistogramScope::Selection);
+
+
+
+    switch (track != nullptr && track->framed.isFlux ? ev.kind : DxuiMouseEventKind::Leave)
+    {
+        case DxuiMouseEventKind::Wheel:
+            if (isInPlot && !ev.wheelHorizontal && !ev.shift)
+            {
+                newSpan = std::clamp (span / std::pow (s_kWheelZoomStep, ev.wheelDelta), StripGeometry::kMinSpan, 1.0);
+                m_context.model->SetStrip (StripGeometry::GetStartForZoom (m_context.model->GetStripStart(), span, newSpan, (p.x - plot.left) / width), newSpan);
+                isHandled = true;
+            }
+            else if (isInPlot)
+            {
+                m_context.model->SetStrip (m_context.model->GetStripStart() - ev.wheelDelta * span / 8.0, span);
+                isHandled = true;
+            }
+
+            break;
+
+        case DxuiMouseEventKind::Down:
+            if (ev.button == DxuiMouseButton::Left && (PtInRect (&whole, p) || PtInRect (&selection, p)))
+            {
+                m_scope   = PtInRect (&whole, p) ? HistogramScope::WholeTrack : HistogramScope::Selection;
+                isHandled = true;
+            }
+            else if (isInPlot && ev.button == DxuiMouseButton::Left)
+            {
+                m_isPressed = true;
+                m_isPanning = false;
+                m_isShift   = ev.shift;
+                m_pressAt   = p;
+                m_lastAt    = p;
+                isHandled   = true;
+                nibble      = ev.shift ? -1 : GetNibbleAtX (*track, p.x);
+
+                if (nibble >= 0)
+                {
+                    m_context.model->SelectNibbles (m_context.model->GetQuarterTrack(), nibble, 1);
+                }
+            }
+
+            break;
+
+        case DxuiMouseEventKind::Move:
+            if (m_isPressed && !m_isPanning && m_isShift && std::abs (p.x - m_pressAt.x) >= s_kDragThresholdPx)
+            {
+                m_isPanning = true;
+            }
+
+            nibble = (m_isPressed && !m_isShift && std::abs (p.x - m_pressAt.x) >= s_kDragThresholdPx) ? GetNibbleAtX (*track, std::clamp (p.x, plot.left, plot.right - 1)) : -1;
+
+            if (nibble >= 0)
+            {
+                m_context.model->ExtendNibbles (nibble);
+            }
+
+            if (m_isPanning)
+            {
+                m_context.model->SetStrip (m_context.model->GetStripStart() - (p.x - m_lastAt.x) / width * span, span);
+                m_lastAt = p;
+            }
+
+            isHandled = isInPlot || m_isPressed;
+            break;
+
+        case DxuiMouseEventKind::Up:
+            isHandled   = m_isPressed;
+            m_isPressed = false;
+            m_isPanning = false;
+            break;
+
+        default:
+            break;
+    }
+
+    return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetTooltip
+//
+//  A transition's cell and interval in the plot, a bar's range and count
+//  in the histogram.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FluxView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
+{
+    const TrackAnalysis *  track        = m_context.GetTrack();
+    bool                   hasSelection = false;
+    int                    i            = -1;
+    int                    b            = -1;
+    FluxHistogram          histogram;
+
+
+
+    if (track != nullptr && track->framed.isFlux && !m_isPanning)
+    {
+        Update (*track);
+        i = HitInterval (pointPx);
+        b = (i < 0) ? HitBin (pointPx) : -1;
+    }
+
+    if (i >= 0)
+    {
+        const FluxInterval &  interval = m_intervals[i];
+
+        outText = std::format (L"Transition at cell {}\n{} since the one before, {:.2f} cells", InspectorFormat::FormatCount (interval.cell),
+                               InspectorFormat::FormatMicroseconds (interval.ticks), interval.ticks / TrackAnalyzer::kNominalCellTicks);
+
+        if (interval.isWithinCell)
+        {
+            outText += L"\nWithin one cell of the one before, so the drive reads the two as one";
+        }
+    }
+    else if (b >= 0)
+    {
+        histogram = GetHistogram (*track, hasSelection);
+        outText   = std::format (L"{:.3f} to {:.3f} {}s\n{}", b * FluxHistogram::kBinMicroseconds, (b + 1) * FluxHistogram::kBinMicroseconds, s_kpszMicro,
+                                 InspectorText::FormatCount (histogram.counts[b], L"transition", L"transitions"));
+    }
+
+    outAnchorPx = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
+
+    return i >= 0 || b >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::FindPeaks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<int> FluxView::FindPeaks (const FluxHistogram & histogram)
+{
+    vector<int>  peaks;
+    int          b      = 0;
+    int          k      = 0;
+    bool         isPeak = false;
+
+
+
+    for (b = 0; b < FluxHistogram::kBinCount; b++)
+    {
+        isPeak = histogram.counts[b] > 0 && histogram.counts[b] * s_kPeakShare >= histogram.peak;
+
+        for (k = std::max (b - s_kPeakRadius, 0); isPeak && k <= std::min (b + s_kPeakRadius, FluxHistogram::kBinCount - 1); k++)
+        {
+            //  Ties go to the first bin, so a flat top gets one count.
+            isPeak = (k < b) ? histogram.counts[k] < histogram.counts[b] : histogram.counts[k] <= histogram.counts[b];
+        }
+
+        if (isPeak)
+        {
+            peaks.push_back (b);
+        }
+    }
+
+    return peaks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::Update
+//
+//  A track's intervals and whole-track histogram are built once; the
+//  selection's cells are found on every paint, since it changes elsewhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxView::Update (const TrackAnalysis & track) const
+{
+    if (m_of != &track)
+    {
+        FluxTiming::BuildIntervals (track, m_intervals);
+        FluxTiming::BuildCellTurns (track, m_cellTurns);
+        m_whole = FluxTiming::BuildHistogram (m_intervals, 0, UINT32_MAX);
+        m_lineTicks.fill ({ UINT32_MAX, 0 });
+
+        for (const FluxInterval & interval : m_intervals)
+        {
+            auto &  ticks = m_lineTicks[GetIntervalLine (static_cast<double> (interval.ticks))];
+
+            ticks.first  = std::min<uint32_t> (ticks.first,  static_cast<uint32_t> (interval.ticks));
+            ticks.second = std::max<uint32_t> (ticks.second, static_cast<uint32_t> (interval.ticks));
+        }
+
+        m_of    = &track;
+    }
+
+    m_hasSel = FluxTiming::GetSelectionCells (track, m_context.model->GetFirstNibble(), m_context.model->GetNibbleCount(),
+                                              m_context.model->GetSectorIndex(), m_selFirst, m_selEnd);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetHistogram
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FluxHistogram FluxView::GetHistogram (const TrackAnalysis & track, bool & outHasSelection) const
+{
+    FluxHistogram  histogram;
+
+
+
+    (void) track;
+    outHasSelection = m_hasSel;
+
+    if (m_scope == HistogramScope::WholeTrack)
+    {
+        histogram = m_whole;
+    }
+    else if (m_hasSel)
+    {
+        histogram = FluxTiming::BuildHistogram (m_intervals, m_selFirst, m_selEnd);
+    }
+
+    return histogram;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::IsSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FluxView::IsSelected (const FluxInterval & interval) const
+{
+    bool  isWrapped = m_selEnd < m_selFirst;
+
+
+
+    return m_hasSel && (isWrapped ? (interval.cell >= m_selFirst || interval.cell < m_selEnd) : (interval.cell >= m_selFirst && interval.cell < m_selEnd));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::MakeGeometry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+StripGeometry FluxView::MakeGeometry() const
+{
+    RECT  plot = GetPlotRect();
+
+
+
+    return StripGeometry (m_context.model->GetStripStart(), m_context.model->GetStripSpan(), static_cast<float> (plot.left), static_cast<float> (plot.right - plot.left));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetNibbleAtX
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FluxView::GetNibbleAtX (const TrackAnalysis & track, LONG x) const
+{
+    RECT    plot = GetPlotRect();
+    double  turn = m_context.model->GetStripStart() + m_context.model->GetStripSpan() * (x - plot.left) / std::max (static_cast<double> (plot.right - plot.left), 1.0);
+
+
+
+    return PlatterGeometry::GetNibbleAt (track, PlatterGeometry::GetCellAtTurn (track, turn - std::floor (turn)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetPlotRect
+//
+//  The plot over the top part of the tab, past a gutter for its labels; the
+//  scope row, then the histogram and its axis labels, below it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT FluxView::GetPlotRect() const
+{
+    RECT  plot = m_boundsDip;
+
+
+
+    plot.left   += m_scaler.ToPx (static_cast<int> (s_kAxisDip));
+    plot.bottom  = plot.top + static_cast<LONG> ((m_boundsDip.bottom - m_boundsDip.top - m_scaler.ToPxf (s_kScopeRowDip)) * s_kPlotShare);
+
+    return plot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetScopeRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT FluxView::GetScopeRect() const
+{
+    RECT  row = GetPlotRect();
+
+
+
+    row.top    = row.bottom + m_scaler.ToPx (static_cast<int> (s_kGapDip));
+    row.bottom = row.top + m_scaler.ToPx (static_cast<int> (s_kScopeRowDip));
+
+    return row;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetBarsRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT FluxView::GetBarsRect() const
+{
+    RECT  bars = GetScopeRect();
+
+
+
+    bars.top    = bars.bottom + m_scaler.ToPx (static_cast<int> (s_kGapDip));
+    bars.bottom = std::max (bars.top + 1, static_cast<LONG> (m_boundsDip.bottom - m_scaler.ToPx (static_cast<int> (s_kLabelRowDip))));
+
+    return bars;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetScopeOption
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT FluxView::GetScopeOption (HistogramScope scope) const
+{
+    RECT  option = GetScopeRect();
+    int   width  = m_scaler.ToPx (static_cast<int> (s_kScopeOptionDip));
+
+
+
+    option.left  += (scope == HistogramScope::WholeTrack) ? 0 : width;
+    option.right  = option.left + width;
+
+    return option;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetPlotY
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float FluxView::GetPlotY (double ticks) const
+{
+    RECT    plot  = GetPlotRect();
+    double  share = std::min (ticks / (TrackAnalyzer::kNominalCellTicks * kPlotCells), 1.0);
+
+
+
+    return static_cast<float> (plot.bottom) - static_cast<float> (share) * static_cast<float> (plot.bottom - plot.top);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::HitInterval
+//
+//  The transition whose time is nearest the pointer, within a few pixels or,
+//  with cells drawn, a few cells; zoomed out, only on the cell line nearest
+//  the point. Otherwise -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FluxView::HitInterval (POINT pointPx) const
+{
+    RECT    plot   = GetPlotRect();
+    double  start  = m_context.model->GetStripStart();
+    double  span   = m_context.model->GetStripSpan();
+    float   w      = static_cast<float> (plot.right - plot.left);
+    bool    isAny  = IsShowingCells();
+    float   reach  = isAny ? 3.0f * GetCellPx() : m_scaler.ToPxf (s_kHitDip);
+    float   best   = reach;
+    float   dx     = 0;
+    int     line   = GetNearestLine (pointPx.y);
+    double  offset = 0;
+    size_t  i      = 0;
+    int     hit    = -1;
+
+
+
+    for (i = 0; PtInRect (&plot, pointPx) && i < m_intervals.size(); i++)
+    {
+        offset  = m_intervals[i].turn - start;
+        offset -= std::floor (offset);
+        dx      = std::abs (static_cast<float> (plot.left) + static_cast<float> (offset / span) * w - pointPx.x);
+
+        if (offset < span && dx <= best && (isAny || (m_intervals[i].ticks >= m_lineTicks[line].first && m_intervals[i].ticks <= m_lineTicks[line].second)))
+        {
+            best = dx;
+            hit  = static_cast<int> (i);
+        }
+    }
+
+    return hit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::HitBin
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FluxView::HitBin (POINT pointPx) const
+{
+    RECT  bars = GetBarsRect();
+    int   bin  = -1;
+
+
+
+    if (PtInRect (&bars, pointPx))
+    {
+        bin = std::clamp (static_cast<int> ((pointPx.x - bars.left) * FluxHistogram::kBinCount / std::max (bars.right - bars.left, 1L)), 0,
+                          FluxHistogram::kBinCount - 1);
+    }
+
+    return bin;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetHistogramText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FluxView::GetHistogramText() const
+{
+    const TrackAnalysis *         track        = m_context.GetTrack();
+    bool                          hasSelection = false;
+    FluxHistogram                 histogram;
+    vector<vector<std::wstring>>  rows;
+    int                           b            = 0;
+
+
+
+    if (track != nullptr && track->framed.isFlux)
+    {
+        Update (*track);
+        histogram = GetHistogram (*track, hasSelection);
+    }
+
+    for (b = 0; b < FluxHistogram::kBinCount; b++)
+    {
+        if (histogram.counts[b] > 0)
+        {
+            rows.push_back ({ std::format (L"{:.3f}", b * FluxHistogram::kBinMicroseconds), std::format (L"{:.3f}", (b + 1) * FluxHistogram::kBinMicroseconds),
+                              std::to_wstring (histogram.counts[b]) });
+        }
+    }
+
+    return rows.empty() ? std::wstring() : InspectorClipboard::FormatTable ({ std::format (L"From ({}s)", s_kpszMicro), std::format (L"To ({}s)", s_kpszMicro), L"Transitions" }, rows);
+}

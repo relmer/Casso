@@ -113,6 +113,9 @@
 // Live: neither needs a reset, and each is saved with the machine.
 #define IDM_STORAGE_DRIVE2          40087
 #define IDM_STORAGE_RECORDER        40088
+#define IDM_DISK_INSPECT1           40194
+#define IDM_DISK_INSPECT2           40195
+#define IDM_DISK_INSPECTOR_SERVICE  40196  // internal: the CPU thread answers the disk inspector's requests
 #define IDM_SSC_SWITCHES            40400  // Settings: the Super Serial Card's DIP switches
 
 // Apply the Uthernet II's LAN access and port forwards to the running card.

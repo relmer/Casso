@@ -40,8 +40,11 @@ public:
     HRESULT OnDeviceRestored (ID3D11Device         * pDevice,
                               ID3D11DeviceContext  * pContext);
 
+    //  A target given here is the one DrawCustom shares; without one,
+    //  DrawCustom does nothing.
     HRESULT Begin            (int viewportWidthPx,
-                              int viewportHeightPx);
+                              int viewportHeightPx,
+                              ID3D11RenderTargetView * pCustomTarget = nullptr);
 
     void    FillRect         (float xPx,
                               float yPx,
@@ -93,8 +96,13 @@ public:
                                uint32_t argbColor) override;
     void    DrawLine          (float x0, float y0, float x1, float y1,
                                float thicknessPx, uint32_t argbColor) override;
+    void    FillTaperedCapsule (float x0, float y0, float r0, float x1, float y1, float r1,
+                                float holeRadiusPx, float rimPx, uint32_t argbColor) override;
+    void    FillTaperedCapsuleOnPlane (float x0, float y0, const std::array<float, 4> & planeToScreen, float bx, float by, float r0, float r1,
+                                       float hole, float rim, uint32_t argbColor) override;
 
     HRESULT End            (ID3D11RenderTargetView * pRtv);
+    void    DrawCustom     (const RECT & rectPx, const DxuiCustomDraw & draw) override;
 
     // Global alpha multiplier applied to every vertex's alpha channel.
     // Used by the Settings panel's live-preview state machine to fade
@@ -129,6 +137,7 @@ private:
         Ellipse     = 3,
         Capsule     = 4,
         ConvexQuad  = 5,
+        TaperedCapsule = 6,
     };
 
 
@@ -163,6 +172,7 @@ private:
     HRESULT  CreateShaders       ();
     HRESULT  CreatePipelineState ();
     HRESULT  EnsureVertexBuffer  (size_t requiredVerts);
+    HRESULT  Flush               (ID3D11RenderTargetView * pRtv);
     void    PushQuad         (float xPx,
                               float yPx,
                               float widthPx,
@@ -217,6 +227,7 @@ private:
     float                             m_originYPx            = 0.0f;
     bool                              m_hasClip              = false;
     RECT                              m_clipPx               = {};   // after the origin, like the vertices
+    ID3D11RenderTargetView          * m_customTarget         = nullptr;   // non-owning, Begin to End
 
     std::vector<Vertex>               m_vertices;
     std::vector<D2D1_RECT_F>          m_clips;     // pushed clips, in origin-applied pixels, each within the one before

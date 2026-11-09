@@ -165,6 +165,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
             DispatchParallelPrinter (cmd.payload, targets.machine);
             break;
 
+        case IDM_DISK_INSPECTOR_SERVICE:
+            targets.machine.ServiceInspectorRequests();
+            break;
+
         default:
             break;
     }

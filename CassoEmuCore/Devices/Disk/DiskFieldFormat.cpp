@@ -150,6 +150,60 @@ int DiskFieldFormat::GetBodyLength (DiskFieldKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskFieldFormat::GetByteNibbles
+//
+//  6-and-2 has the high six bits of byte N at nibble 86 + N and the low two
+//  bits in nibble N mod 86. 5-and-3 takes the bytes in groups of five: each of
+//  the group's first three bytes has its low three bits in a separate nibble,
+//  and those three nibbles also have the low three bits of the fourth and
+//  fifth bytes. The last byte is alone in the first nibble and the last one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskFieldFormat::GetByteNibbles (DiskFieldKind kind, int byte, int & outHigh, std::vector<int> & outLow)
+{
+    static constexpr int  kGroups       = 51;
+    static constexpr int  kGroupSize    = 5;
+    static constexpr int  kAreas        = 3;
+    static constexpr int  kAuxCount     = kBodyLength62 - kSectorBytes;
+    static constexpr int  kSecondaryLen = kBodyLength53 - kSectorBytes;
+
+
+
+    int  from = (kGroups - 1) - byte / kGroupSize;
+    int  area = byte % kGroupSize;
+
+
+
+    outLow.clear();
+
+    if (kind == DiskFieldKind::Sixteen)
+    {
+        outHigh = kAuxCount + byte;
+        outLow.push_back (byte % kAuxCount);
+    }
+    else if (byte == kSectorBytes - 1)
+    {
+        outHigh = kBodyLength53 - 1;
+        outLow.push_back (0);
+    }
+    else
+    {
+        outHigh = kSecondaryLen + area * kGroups + from;
+
+        for (int a = (area < kAreas) ? area : 0; a < ((area < kAreas) ? area + 1 : kAreas); a++)
+        {
+            outLow.push_back ((kSecondaryLen - 1) - (a * kGroups + from));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskFieldFormat::GetTableSize
 //
 ////////////////////////////////////////////////////////////////////////////////

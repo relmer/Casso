@@ -68,7 +68,17 @@ DxuiListViewTypes::ScrollLayout DxuiListScrollbars::ComputeScrollLayout() const
         cap              = (rowH > 0 && bodyH > 0) ? (bodyH / rowH) : 0;
         layout.rowCap    = cap;
         layout.partialPx = (rowH > 0 && bodyH > 0) ? (bodyH % rowH) : 0;
+        layout.bodyH     = bodyH;
         layout.vBar     = (cap > 0) && (rows > cap);
+
+        //  Wrapped rows count by their own heights, and none is lifted.
+        if (m_list.m_rows.IsWrapped())
+        {
+            layout.rowCap    = m_list.m_rows.CountRowsFitting (m_list.m_topRow, bodyH);
+            layout.partialPx = 0;
+            layout.vBar      = bodyH > 0 && m_list.m_rows.CountRowsFitting (0, bodyH) < rows;
+        }
+
         layout.viewportW = fullW - (layout.vBar ? barW : 0);
     }
 
@@ -223,6 +233,11 @@ int DxuiListScrollbars::GetMaxTopRow() const
         return (grid.lines - grid.visible) * grid.perLine;
     }
 
+    if (m_list.m_rows.IsWrapped())
+    {
+        return (rows > 0) ? m_list.m_rows.GetTopRowEndingAt (rows - 1, ComputeScrollLayout().bodyH) : 0;
+    }
+
     //  A body that shows part of one more row scrolls one further, the last
     //  row then whole at the bottom and the top one cut off.
     if (rows <= cap)
@@ -279,7 +294,7 @@ bool DxuiListScrollbars::CanLiftRows() const
 
 
 
-    if (m_list.IsItemsView())
+    if (m_list.IsItemsView() || m_list.m_rows.IsWrapped())
     {
         return false;
     }
@@ -1140,7 +1155,7 @@ int DxuiListScrollbars::GetRequiredHeightPx() const
 
 
 
-    return headerH + hdrGap + rows * rowH;
+    return headerH + hdrGap + (m_list.m_rows.IsWrapped() ? m_list.m_rows.GetRowsHeightPx (0, m_list.GetRowCount()) : rows * rowH);
 }
 
 

@@ -8,6 +8,34 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiCustomDrawArgs
+//
+//  What a custom draw gets: the painter's device and target, the target's
+//  size, the rectangle to draw in and the part of it that is visible, all in
+//  target pixels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct DxuiCustomDrawArgs
+{
+    ID3D11Device            * device          = nullptr;
+    ID3D11DeviceContext     * context         = nullptr;
+    ID3D11RenderTargetView  * target          = nullptr;
+    int                       targetWidthPx   = 0;
+    int                       targetHeightPx  = 0;
+    RECT                      rectPx          = {};
+    RECT                      clipPx          = {};
+};
+
+
+using DxuiCustomDraw = std::function<void (const DxuiCustomDrawArgs & args)>;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IDxuiPainter
 //
 //  Pure-virtual interface for the geometry painter. Widgets paint
@@ -91,6 +119,24 @@ public:
                                      uint32_t argbColor)
     { (void) x0; (void) y0; (void) x1; (void) y1; (void) x2; (void) y2; (void) x3; (void) y3; (void) argbColor; }
 
+    // A tapered capsule: a circle of radius r0 at (x0, y0) and one of radius
+    // r1 at (x1, y1), joined by the lines tangent to both, filled in one
+    // pass. A hole of holeRadiusPx at (x0, y0) is left out, and a rimPx
+    // greater than 0 limits the fill to a band that thick inside the edge.
+    // Either is off at 0.
+    virtual void  FillTaperedCapsule (float x0, float y0, float r0, float x1, float y1, float r1, float holeRadiusPx, float rimPx, uint32_t argbColor)
+    { (void) x0; (void) y0; (void) r0; (void) x1; (void) y1; (void) r1; (void) holeRadiusPx; (void) rimPx; (void) argbColor; }
+
+    // The same capsule laid on a plane: (x0, y0) is where its first circle's
+    // center falls on screen, (bx, by) is its second circle's center and the
+    // radii, hole and rim are lengths, all in the plane's units, and
+    // planeToScreen is the 2x2 map from a step in the plane to a step on
+    // screen, by columns (x then y). A tilted plane's map draws the capsule
+    // foreshortened as the plane is.
+    virtual void  FillTaperedCapsuleOnPlane (float x0, float y0, const std::array<float, 4> & planeToScreen, float bx, float by, float r0, float r1,
+                                             float hole, float rim, uint32_t argbColor)
+    { (void) x0; (void) y0; (void) planeToScreen; (void) bx; (void) by; (void) r0; (void) r1; (void) hole; (void) rim; (void) argbColor; }
+
     virtual void  FillEllipse       (float cxPx, float cyPx,
                                      float radiusXPx, float radiusYPx,
                                      uint32_t argbColor)
@@ -127,4 +173,12 @@ public:
     // Defaulted to no-ops so a mock or a simple painter compiles unchanged.
     virtual void   PushClipRect (float xPx, float yPx, float widthPx, float heightPx) { (void) xPx; (void) yPx; (void) widthPx; (void) heightPx; }
     virtual void   PopClipRect  ()                                                       {}
+    // Runs `draw` to render D3D11 content of its own into `rectPx`, between
+    // the shapes drawn before this call, which it covers, and the shapes and
+    // text drawn after it, which cover it. The painter draws its queued shapes
+    // first; `draw` sets every pipeline state it uses and must leave the
+    // render target, viewport and scissor for the painter to set again. Not
+    // called where the painter has no render target to share, as in a popup;
+    // defaulted to a no-op so a mock compiles unchanged.
+    virtual void   DrawCustom (const RECT & rectPx, const DxuiCustomDraw & draw) { (void) rectPx; (void) draw; }
 };

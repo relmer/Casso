@@ -333,9 +333,10 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
-    // WM_XBUTTONUP. HIWORD (wParam) is XBUTTON1 or XBUTTON2, a five-button
-    // mouse's back and forward buttons; lParam packs the client point.
-    // Default returns NotHandled.
+    // WM_XBUTTONUP. HIWORD (wParam) is XBUTTON1 for a mouse's back button
+    // or XBUTTON2 for its forward button; lParam packs the (x, y)
+    // client-coordinate point. NotHandled lets DefWindowProc turn the
+    // release into WM_APPCOMMAND.
     virtual DxuiMessageResult  OnXButtonUp      (WPARAM wParam, LPARAM lParam)
     {
         UNREFERENCED_PARAMETER (wParam);
@@ -441,6 +442,15 @@ public:
     // Fires BEFORE the resize, so a client that wants the resulting
     // placement has to wait for the OnSize that follows.
     virtual void  OnUserWindowStateCommand () {}
+
+    // WM_SYSCOMMAND for a command the client added to the system menu, with
+    // its low four bits cleared. The system's own commands, SC_SIZE and up,
+    // are passed to DefWindowProc instead.
+    virtual DxuiMessageResult  OnSysCommand     (UINT command)
+    {
+        UNREFERENCED_PARAMETER (command);
+        return DxuiMessageResult::NotHandled;
+    }
 
     virtual void  OnEnterSizeMove    () {}
     virtual void  OnExitSizeMove     () {}

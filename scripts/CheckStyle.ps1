@@ -914,6 +914,63 @@ function ConvertTo-FnDeclParts
         ParenCol = $paren
     }
 }
+# CS0026: the most lines a .cpp may have, and the files over it when the
+# rule arrived: on 040-disk-inspector, and in the 033 tree the 040 merge
+# brought it to. Split a listed file and take it off the list; never add one.
+$script:MaxCppLines    = 2000
+$script:LongCppAllowed = @(
+    'CassoCore/AssemblySession.cpp',
+    'CassoCore/CommandLineParser.cpp',
+    'CassoEmuCore/AssetBootstrap.cpp',
+    'CassoEmuCore/CassoExplorer/CassoExplorerActions.cpp',
+    'CassoEmuCore/CassoExplorer/CassoExplorerBrowser.cpp',
+    'CassoEmuCore/CassoExplorer/Model/CassoLinkConnections.cpp',
+    'CassoEmuCore/CassoExplorer/Window/Managers/CassoLinkManager.cpp',
+    'CassoEmuCore/CassoExplorer/Window/Managers/ExplorerListMenus.cpp',
+    'CassoEmuCore/CassoExplorer/Window/Panes/ExplorerListPane.cpp',
+    'CassoEmuCore/Config/UserConfigStore.cpp',
+    'CassoEmuCore/Controllers/ControllerInputService.cpp',
+    'CassoEmuCore/Controllers/ControllerProfileStore.cpp',
+    'CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp',
+    'CassoEmuCore/Devices/Disk/DiskImageStore.cpp',
+    'CassoEmuCore/Machines/Apple2/Common/Dos33Volume.cpp',
+    'CassoEmuCore/Machines/Apple2/Common/WozLoader.cpp',
+    'CassoEmuCore/Seams/Win32ShellIcons.cpp',
+    'CassoEmuCore/Shell/Components/ShellChrome.cpp',
+    'CassoEmuCore/Shell/Components/ShellDeskScene.cpp',
+    'CassoEmuCore/Shell/MachineBuilder.cpp',
+    'CassoEmuCore/Shell/Window/EmulatorWindow.cpp',
+    'CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp',
+    'CassoEmuCore/Shell/WindowCommandManager.cpp',
+    'CassoEmuCore/Ui/Printer3DScene.cpp',
+    'CassoEmuCore/Ui/Scene/DeskScene.cpp',
+    'CassoEmuCore/Ui/Scene/DeskSceneLayout.cpp',
+    'CassoEmuCore/Ui/Scene/DeskSceneModel.cpp',
+    'CassoEmuCore/Ui/Settings/ControllersPage.cpp',
+    'CassoEmuCore/Ui/Settings/ControllersPageState.cpp',
+    'CassoEmuCore/Ui/Settings/SettingsPanelState.cpp',
+    'CassoEmuCore/Ui/Settings/SettingsSheet.cpp',
+    'Dxui/Render/DxuiTextRenderer.cpp',
+    'Dxui/Widgets/DxuiListView.cpp',
+    'Dxui/Widgets/DxuiPopupMenu.cpp',
+    'Dxui/Widgets/DxuiToolbar.cpp',
+    'Dxui/Widgets/DxuiTreeView.cpp',
+    'Dxui/Widgets/ListView/DxuiListItemLayout.cpp',
+    'Dxui/Window/DxuiHwndSource.cpp',
+    'Dxui/Window/DxuiPopupHost.cpp',
+    'UnitTest/AssemblerTests.cpp',
+    'UnitTest/CommandLineTests.cpp',
+    'UnitTest/ControllerTests/ControllerInputServiceTests.cpp',
+    'UnitTest/ControllerTests/ControllersPageStateTests.cpp',
+    'UnitTest/CpuOperationTests.cpp',
+    'UnitTest/EmuTests/DiskCommandRunnerTests.cpp',
+    'UnitTest/EmuTests/ProDosVolumeTests.cpp',
+    'UnitTest/EmuTests/SharedImageTests.cpp',
+    'UnitTest/EmuTests/WozLoaderTests.cpp',
+    'UnitTest/MerlinCorpusTests.cpp',
+    'UnitTest/MerlinDirectiveTests.cpp',
+    'UnitTest/UiTests/UserConfigStoreTests.cpp'
+)
 
 # Same line classifiers FixDeclAlign.ps1 uses to spot a declaration run.
 $script:DeclRegex = '^\s*(?:const\s+|constexpr\s+|static\s+)*[A-Za-z_][A-Za-z0-9_:<>,\s\*&\[\]]*\s+[\*&]?\s*[A-Za-z_]\w*(\s*\[[^\]]*\])?\s*(=[^;]*|\{[^;]*\})?;\s*(//.*)?$'
@@ -922,7 +979,7 @@ $script:DeclExcl  = '\breturn\b|\bdelete\b|\bgoto\b|\bthrow\b|\+\+|--|^\s*(else|
 
 ####################################################################
 #
-#  Test-Structure  (CS0014 / CS0015 / CS0016 / CS0017 / CS0019 / CS0025)
+#  Test-Structure  (CS0014 / CS0015 / CS0016 / CS0017 / CS0019 / CS0025 / CS0026)
 #
 #  The formatting rules that a per-line regex cannot see:
 #
@@ -933,6 +990,7 @@ $script:DeclExcl  = '\breturn\b|\bdelete\b|\bgoto\b|\bthrow\b|\+\+|--|^\s*(else|
 #    CS0019  a declaration run aligns its name and `=` or `{` columns
 #    CS0025  a header's function declaration run aligns its name, `*` or `&`,
 #            and `(` columns
+#    CS0026  a .cpp has at most 2,000 lines
 #
 #  These need whole-file context, which is why they sat un-gated: a
 #  file-scoped check fails a push for violations the diff never touched,
@@ -1272,6 +1330,22 @@ function Test-Structure
 
                 $fnRun.Clear()
                 if ($null -ne $fp) { $fnRun.Add($fp) }
+            }
+        }
+
+        # ---- CS0026: a .cpp over the length limit --------------------------
+        # A file past about 2,000 lines is a class doing too much; split it
+        # into components. The range is the lines past the limit, so in Diff
+        # mode a push is stopped only by lines it adds there. Files over the
+        # limit when the rule arrived are listed in $script:LongCppAllowed;
+        # the list only shrinks.
+        if ($rel -like '*.cpp' -and $lines.Length -gt $script:MaxCppLines -and $script:LongCppAllowed -notcontains $rel)
+        {
+            $findings += [pscustomobject]@{
+                Id    = 'CS0026'
+                First = $script:MaxCppLines + 1
+                Last  = $lines.Length
+                Text  = "$($lines.Length) lines -- a .cpp is limited to $($script:MaxCppLines); split the class into components"
             }
         }
 

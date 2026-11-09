@@ -16,8 +16,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  The commit sequence over the in-memory file table: Replace and CreateNew
 //  each succeed in order (write, metadata, flush, then replace or rename),
-//  and a failure at any step leaves the target byte for byte as it was and
-//  no temporary behind.
+//  a failure at any step but the metadata copy leaves the target byte for
+//  byte as it was and no temporary behind, and a failed metadata copy does
+//  not stop the commit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,7 +119,6 @@ public:
         const Case  cases[] =
         {
             { L"write",    CommitMode::Replace,   CommitPlan::Step::WriteTemporary, [] (FakeDiskFileIo & io) { io.failNextWrite    = true; } },
-            { L"metadata", CommitMode::Replace,   CommitPlan::Step::CopyMetadata,   [] (FakeDiskFileIo & io) { io.failNextMetadata = true; } },
             { L"flush",    CommitMode::Replace,   CommitPlan::Step::FlushTemporary, [] (FakeDiskFileIo & io) { io.failNextFlush    = true; } },
             { L"replace",  CommitMode::Replace,   CommitPlan::Step::Replace,        [] (FakeDiskFileIo & io) { io.failNextReplace  = true; } },
             { L"rename",   CommitMode::CreateNew, CommitPlan::Step::Replace,        [] (FakeDiskFileIo & io) { io.failNextRename   = true; } },
@@ -171,5 +171,25 @@ public:
 
         Assert::AreNotEqual (abandoned, io.writtenPaths[0]);
         Assert::IsTrue (io.files[abandoned] == MakeBytes (0x99), L"another commit's temporary is not touched");
+    }
+
+
+    TEST_METHOD (AFailedMetadataCopyStillFlushesAndReplacesTheTarget)
+    {
+        FakeDiskFileIo        io;
+        CommitPlan::Progress  progress;
+
+
+
+        Seed (io);
+        io.failNextMetadata = true;
+
+        AssertSucceeded (DurableCommit::Commit (io, kTarget, MakeBytes (0x22), kTag, CommitMode::Replace, progress));
+
+        Assert::AreEqual (1, io.metadataCount);
+        Assert::AreEqual (1, io.flushCount);
+        Assert::IsTrue (progress.replaceSucceeded);
+        Assert::IsTrue (io.files[kTarget] == MakeBytes (0x22));
+        Assert::IsTrue (io.HasNoTemporaryFiles());
     }
 };

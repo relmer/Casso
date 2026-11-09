@@ -327,7 +327,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx)
+HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx, ID3D11RenderTargetView * pCustomTarget)
 {
     HRESULT  hr = S_OK;
 
@@ -344,6 +344,7 @@ HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx)
     m_clips.clear();
     m_betweenBeginEnd  = true;
     m_hasClip          = false;
+    m_customTarget     = pCustomTarget;
 
 Error:
     return hr;
@@ -1166,6 +1167,126 @@ void DxuiPainter::DrawLine (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FillTaperedCapsule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::FillTaperedCapsule (
+    float     x0,
+    float     y0,
+    float     r0,
+    float     x1,
+    float     y1,
+    float     r1,
+    float     holeRadiusPx,
+    float     rimPx,
+    uint32_t  argbColor)
+{
+    FillTaperedCapsuleOnPlane (x0, y0, { 1.0f, 0.0f, 0.0f, 1.0f }, x1 - x0, y1 - y0, r0, r1, holeRadiusPx, rimPx, argbColor);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FillTaperedCapsuleOnPlane
+//
+//  One quad covering the capsule on screen, cut by the tapered capsule's
+//  distance function in the pixel shader, so the whole capsule is filled
+//  once: a translucent color has no seams or overlaps inside it. Each of the
+//  quad's corners has its position in the plane, which the map makes affine in
+//  screen position, and the shader turns the plane distance into pixels by
+//  its screen derivatives. The hole and the rim go to the shader in the
+//  first two edge slots, unused by this kind otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::FillTaperedCapsuleOnPlane (
+    float                         x0,
+    float                         y0,
+    const std::array<float, 4> &  planeToScreen,
+    float                         bx,
+    float                         by,
+    float                         r0,
+    float                         r1,
+    float                         hole,
+    float                         rim,
+    uint32_t                      argbColor)
+{
+    float   a      = planeToScreen[0];
+    float   c      = planeToScreen[1];
+    float   b      = planeToScreen[2];
+    float   d      = planeToScreen[3];
+    float   det    = a * d - b * c;
+    float   left   = FLT_MAX;
+    float   top    = FLT_MAX;
+    float   right  = -FLT_MAX;
+    float   bottom = -FLT_MAX;
+    float   reach  = std::max (r0, r1);
+    Vertex  tl     = MakeVertex (argbColor, m_globalAlpha);
+    Vertex  tr;
+    Vertex  bl;
+    Vertex  br;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if ((r0 <= 0.0f && r1 <= 0.0f) || std::fabs (det) < 1.0e-6f)
+    {
+        return;
+    }
+
+    //  The screen box around the plane box of both circles.
+    for (float px : { std::min (0.0f, bx) - reach, std::max (0.0f, bx) + reach })
+    {
+        for (float py : { std::min (0.0f, by) - reach, std::max (0.0f, by) + reach })
+        {
+            left   = std::min (left,   x0 + a * px + b * py);
+            right  = std::max (right,  x0 + a * px + b * py);
+            top    = std::min (top,    y0 + c * px + d * py);
+            bottom = std::max (bottom, y0 + c * px + d * py);
+        }
+    }
+
+    left   -= kShapeFringePx;
+    top    -= kShapeFringePx;
+    right  += kShapeFringePx;
+    bottom += kShapeFringePx;
+
+    tl.shape0 = bx;
+    tl.shape1 = by;
+    tl.shape2 = r0;
+    tl.shape3 = r1;
+    tl.edge0  = hole;
+    tl.edge1  = rim;
+    tl.kind   = (float) ShapeKind::TaperedCapsule;
+
+    tr = tl;
+    bl = tl;
+    br = tl;
+
+    //  Each corner's place in the plane, through the inverse map.
+    for (Vertex * v : { &tl, &tr, &bl, &br })
+    {
+        float  sx = ((v == &tl || v == &bl) ? left : right)  - x0;
+        float  sy = ((v == &tl || v == &tr) ? top  : bottom) - y0;
+
+        v->localX = ( d * sx - b * sy) / det;
+        v->localY = (-c * sx + a * sy) / det;
+    }
+
+    PushQuad (left, top, right - left, bottom - top, tl, tr, bl, br);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  End
 //
 //  Flushes everything accumulated since Begin as ONE draw call.
@@ -1180,8 +1301,8 @@ void DxuiPainter::DrawLine (
 //  renderer do the same -- so all three can interleave freely without any of
 //  them assuming what state it inherits.
 //
-//  m_betweenBeginEnd is cleared BEFORE the early-out, so an empty batch or a
-//  null target still closes the Begin/End pair rather than leaving the painter
+//  m_betweenBeginEnd is cleared BEFORE the flush, so an empty batch or a null
+//  target still closes the Begin/End pair rather than leaving the painter
 //  believing it is mid-batch.
 //
 //  WRITE_DISCARD tells the driver the previous vertex contents are dead, so it
@@ -1196,6 +1317,81 @@ void DxuiPainter::DrawLine (
 
 HRESULT DxuiPainter::End (ID3D11RenderTargetView * pRtv)
 {
+    DXUI_ASSERT_UI_THREAD();
+
+    m_betweenBeginEnd = false;
+    m_customTarget    = nullptr;
+
+    return Flush (pRtv);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawCustom
+//
+//  The shapes drawn so far go to the target first, so the custom content
+//  covers them; the shapes after it go in the next flush and cover it. A
+//  rectangle the clip hides entirely is not drawn at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::DrawCustom (const RECT & rectPx, const DxuiCustomDraw & draw)
+{
+    HRESULT             hr      = S_OK;
+    DxuiCustomDrawArgs  args;
+    bool                canDraw = false;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    canDraw = m_betweenBeginEnd && m_customTarget != nullptr && draw;
+    BAIL_OUT_IF (!canDraw, S_OK);
+
+    args.device         = m_device;
+    args.context        = m_context;
+    args.target         = m_customTarget;
+    args.targetWidthPx  = m_viewportWidthPx;
+    args.targetHeightPx = m_viewportHeightPx;
+    args.rectPx         = rectPx;
+
+    OffsetRect (&args.rectPx, (int) m_originXPx, (int) m_originYPx);
+    args.clipPx = args.rectPx;
+
+    if (m_hasClip)
+    {
+        BAIL_OUT_IF (!IntersectRect (&args.clipPx, &args.rectPx, &m_clipPx), S_OK);
+    }
+
+    BAIL_OUT_IF (IsRectEmpty (&args.clipPx), S_OK);
+
+    hr = Flush (m_customTarget);
+    CHRA (hr);
+
+    draw (args);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Flush
+//
+//  Draws the shapes queued so far and empties the list, leaving the pass open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiPainter::Flush (ID3D11RenderTargetView * pRtv)
+{
     HRESULT                     hr               = S_OK;
     D3D11_MAPPED_SUBRESOURCE    mapped           = {};
     UINT                        stride           = sizeof (Vertex);
@@ -1209,8 +1405,7 @@ HRESULT DxuiPainter::End (ID3D11RenderTargetView * pRtv)
 
     DXUI_ASSERT_UI_THREAD();
 
-    m_betweenBeginEnd = false;
-    hasNothingToDraw  = m_vertices.empty() || (pRtv == nullptr);
+    hasNothingToDraw = m_vertices.empty() || (pRtv == nullptr);
 
     BAIL_OUT_IF (hasNothingToDraw, S_OK);
 

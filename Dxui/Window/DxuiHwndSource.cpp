@@ -1125,6 +1125,71 @@ bool DxuiHwndSource::TryGetPlacementForSize (const SIZE & windowSizePx, POINT & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHwndSource::RestoreInitialPlacement
+//
+//  The size the window was created at, at the DPI of the monitor it is on
+//  and fitted to that monitor's work area, about the window's center and
+//  inside the work area, on the same monitor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiHwndSource::RestoreInitialPlacement()
+{
+    HRESULT  hr       = S_OK;
+    UINT     dpi      = 0;
+    SIZE     sizePx   = {};
+    RECT     workArea = {};
+    RECT     windowPx = {};
+    POINT    topLeft  = {};
+    BOOL     isRead   = FALSE;
+    BOOL     isPlaced = FALSE;
+    bool     isWork   = false;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    BAIL_OUT_IF (m_hwnd == nullptr, S_OK);
+
+    if (IsZoomed (m_hwnd))
+    {
+        ShowWindow (m_hwnd, SW_RESTORE);
+    }
+
+    dpi    = GetDpiForWindow (m_hwnd);
+    dpi    = (dpi != 0) ? dpi : s_kDefaultDpi;
+    sizePx = { MulDiv (m_params.initialSizeDip.cx, (int) dpi, (int) s_kDefaultDpi), MulDiv (m_params.initialSizeDip.cy, (int) dpi, (int) s_kDefaultDpi) };
+    isWork = TryGetAnchorWorkArea (m_hwnd, workArea);
+
+    if (m_params.fitToWorkArea && isWork)
+    {
+        sizePx = FitSizeToWorkArea (sizePx, workArea);
+    }
+
+    isRead = GetWindowRect (m_hwnd, &windowPx);
+    CWRA (isRead);
+
+    topLeft = { (windowPx.left + windowPx.right - sizePx.cx) / 2, (windowPx.top + windowPx.bottom - sizePx.cy) / 2 };
+
+    if (isWork)
+    {
+        topLeft.x = std::clamp (topLeft.x, workArea.left, std::max (workArea.left, workArea.right  - sizePx.cx));
+        topLeft.y = std::clamp (topLeft.y, workArea.top,  std::max (workArea.top,  workArea.bottom - sizePx.cy));
+    }
+
+    isPlaced = SetWindowPos (m_hwnd, nullptr, topLeft.x, topLeft.y, sizePx.cx, sizePx.cy, SWP_NOZORDER | SWP_NOACTIVATE);
+    CWRA (isPlaced);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Destroy
 //
 //  Idempotent. Releases render resources first (they reference the
@@ -2377,7 +2442,7 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     // the ordering too and pays a full-screen clear and a full-screen blit
     // every frame for it, which is the window-area cost GH #131 is about.
     // Recording pays neither.
-    hr = m_painter->Begin (widthPx, heightPx);
+    hr = m_painter->Begin (widthPx, heightPx, target);
     CHRA (hr);
     painterBegun = true;
 
@@ -2413,7 +2478,7 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     // flushed last of all -- bleeding through the dialog.)
     if (m_overlayActiveHook && m_overlayActiveHook() && m_overlayPaintHook)
     {
-        hr = m_painter->Begin (widthPx, heightPx);
+        hr = m_painter->Begin (widthPx, heightPx, target);
         CHRA (hr);
         painterBegun = true;
 
@@ -2810,6 +2875,21 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
 
             break;
 
+        //  Windows opens no system menu for a right-click on a caption the
+        //  window draws itself, so the host opens it.
+        case WM_NCRBUTTONUP:
+            isHandled = wp == HTCAPTION && (GetWindowLongPtrW (m_hwnd, GWL_STYLE) & WS_SYSMENU) != 0;
+
+            if (isHandled)
+            {
+                HRESULT  hrMenu = ShowSystemMenu (ptScreen);
+
+                IGNORE_RETURN_VALUE (hrMenu, S_OK);
+            }
+
+            result = 0;
+            break;
+
         case WM_DPICHANGED:
             HandleDpiChanged (wp, lp);
 
@@ -2844,7 +2924,10 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
                 if (m_client != nullptr) { m_client->OnUserWindowStateCommand(); }
             }
 
-            isHandled = false;
+            // A command the client added to the system menu.
+            isHandled = m_client != nullptr && (wp & 0xFFF0) < SC_SIZE &&
+                        m_client->OnSysCommand ((UINT) (wp & 0xFFF0)) == DxuiMessageResult::Handled;
+            result    = 0;
             break;
 
         case WM_ENTERSIZEMOVE:
@@ -4687,6 +4770,50 @@ DxuiHitTestKind DxuiHwndSource::ClassifyResizeEdge (POINT clientDip,
     else if (right)             { kind = DxuiHitTestKind::ResizeEdgeRight;  }
 
     return kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::ShowSystemMenu
+//
+//  The window's system menu at a point on the screen, its items enabled as
+//  Windows enables them for the window's state, and the chosen command
+//  posted as WM_SYSCOMMAND.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiHwndSource::ShowSystemMenu (POINT ptScreen)
+{
+    HRESULT  hr        = S_OK;
+    HMENU    menu      = GetSystemMenu (m_hwnd, FALSE);
+    bool     isMax     = ::IsZoomed (m_hwnd) != FALSE;
+    bool     isSizable = (GetWindowLongPtrW (m_hwnd, GWL_STYLE) & WS_THICKFRAME) != 0;
+    UINT     command   = 0;
+    BOOL     isPosted  = FALSE;
+
+
+
+    CWRA (menu);
+
+    EnableMenuItem (menu, SC_RESTORE,  MF_BYCOMMAND | (isMax ? MF_ENABLED : MF_GRAYED));
+    EnableMenuItem (menu, SC_MOVE,     MF_BYCOMMAND | (isMax ? MF_GRAYED  : MF_ENABLED));
+    EnableMenuItem (menu, SC_SIZE,     MF_BYCOMMAND | (isMax || !isSizable ? MF_GRAYED : MF_ENABLED));
+    EnableMenuItem (menu, SC_MAXIMIZE, MF_BYCOMMAND | (isMax || !isSizable ? MF_GRAYED : MF_ENABLED));
+    EnableMenuItem (menu, SC_MINIMIZE, MF_BYCOMMAND | MF_ENABLED);
+    SetMenuDefaultItem (menu, SC_CLOSE, FALSE);
+
+    command = static_cast<UINT> (TrackPopupMenu (menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, ptScreen.x, ptScreen.y, 0, m_hwnd, nullptr));
+    BAIL_OUT_IF (command == 0, S_OK);
+
+    isPosted = PostMessageW (m_hwnd, WM_SYSCOMMAND, command, 0);
+    CWRA (isPosted);
+
+Error:
+    return hr;
 }
 
 

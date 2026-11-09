@@ -45,6 +45,15 @@ public:
     }
 
 
+    TEST_METHOD (Lerp_FallingChannel_ReachesItsEnd)
+    {
+        // A channel that falls must round the same way as one that rises,
+        // not toward zero, or t = 1 stops one short of the end.
+        Assert::AreEqual (0x00000000u, DxuiColor::Lerp (0x00000003u, 0x00000000u, 1.0f));
+        Assert::AreEqual (0x00000002u, DxuiColor::Lerp (0x00000003u, 0x00000000u, 0.5f));
+    }
+
+
     TEST_METHOD (Lerp_OutOfRange_ClampsEachChannel)
     {
         Assert::AreEqual (0xFFFFFFFFu, DxuiColor::Lerp (0x80808080u, 0xFFFFFFFFu, 2.0f));

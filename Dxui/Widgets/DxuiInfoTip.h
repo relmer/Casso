@@ -31,7 +31,7 @@
 class DxuiInfoTip : public IDxuiControl
 {
 public:
-    DxuiInfoTip  () { SetFocusable (true); m_tooltip.SetExpires (false); }
+    DxuiInfoTip  () { SetFocusable (true); }
     ~DxuiInfoTip () override;
 
     //  The pinned tip closed, if one is open; false when none was.
@@ -45,6 +45,7 @@ public:
     void  SetRect      (const RECT & rect)         { SetBounds (rect); }
     void  SetDpi       (UINT dpi)                  { m_scaler.SetDpi (dpi); m_tooltip.SetDpi (dpi); }
     void  SetPopupHost (DxuiHwndSource * host)     { m_tooltip.SetPopupHost (host); }
+    void  SetTable     (const std::vector<std::vector<std::wstring>> & rows) { m_tooltip.SetTable (rows); }
 
     const std::wstring  & GetText    () const { return m_text; }
     const DxuiTooltip   & GetTooltip () const { return m_tooltip; }

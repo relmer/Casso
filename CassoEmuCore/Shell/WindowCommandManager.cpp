@@ -448,6 +448,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_SALVAGE1  || id == IDM_DISK_SALVAGE2)           { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_OPEN_CASSO_EXPLORER)                            { route = WindowCommandRoute::Disk; }
+    else if (id == IDM_DISK_INSPECT1  || id == IDM_DISK_INSPECT2)           { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_TAPE_INSERT    && id <= IDM_TAPE_FASTFORWARD)        { route = WindowCommandRoute::Disk; }
     else if (id == IDM_STORAGE_DRIVE2 || id == IDM_STORAGE_RECORDER)        { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { route = WindowCommandRoute::View; }
@@ -636,7 +637,11 @@ void WindowCommandManager::OnFileCommand (int id)
 
         case IDM_FILE_EXIT:
         {
-            DestroyWindow (m_shell.m_hwnd);
+            if (m_shell.OnClose() == DxuiMessageResult::NotHandled)
+            {
+                DestroyWindow (m_shell.m_hwnd);
+            }
+
             break;
         }
     }
@@ -1589,6 +1594,11 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_DISK_EJECT1:
         case IDM_DISK_EJECT2:
         {
+            if (!m_shell.ConfirmInspectorDiscard ((id == IDM_DISK_EJECT1) ? 0 : 1, L"Ejecting the disk"))
+            {
+                break;
+            }
+
             m_shell.PostCommand (static_cast<WORD> (id));
             break;
         }
@@ -1613,6 +1623,13 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_DISK_OPEN_CASSO_EXPLORER:
         {
             OpenCassoExplorer();
+            break;
+        }
+
+        case IDM_DISK_INSPECT1:
+        case IDM_DISK_INSPECT2:
+        {
+            m_shell.OpenDiskInspector ((id == IDM_DISK_INSPECT1) ? 0 : 1);
             break;
         }
 

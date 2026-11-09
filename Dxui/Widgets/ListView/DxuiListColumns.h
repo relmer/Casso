@@ -49,6 +49,10 @@ public:
     int   GetTotalMeasuredWidthPx   () const;
     void  MeasureColumnsPx          (IDxuiTextRenderer & text) const;
 
+    //  Measures the columns when they haven't been, or when precise auto-fit
+    //  has marked the measurement stale.
+    void  EnsureMeasured            (IDxuiTextRenderer & text) const;
+
     void  UpdateAutoFitFromRows    ();
     void  ResetAutoFit             ();
     int   GetVisibleColumnCount    () const;

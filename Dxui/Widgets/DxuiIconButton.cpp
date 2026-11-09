@@ -224,6 +224,7 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     float            focusInset    = 0.0f;
     float            focusThick    = 0.0f;
     uint32_t         glyphArgb     = 0;
+    float            corner        = 0.0f;
 
 
 
@@ -237,6 +238,7 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     focusInset = m_scaler.ToPxf (kFocusInsetPx);
     focusThick = m_scaler.ToPxf (kFocusRingPx);
     glyphArgb = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
+    corner    = m_isRound ? std::min (w, h) / 2.0f : m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip);
 
 
 
@@ -244,7 +246,7 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     if (m_enabled && (m_hover || m_pressed))
     {
-        painter.FillRoundedRect (x, y, w, h, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), theme.HoverBackground());
+        painter.FillRoundedRect (x, y, w, h, corner, theme.HoverBackground());
         glyphArgb = theme.Accent();
     }
 
@@ -266,7 +268,7 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                     y + focusInset,
                                     w - focusInset * kDoubleInset,
                                     h - focusInset * kDoubleInset,
-                                    m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                    corner,
                                     focusThick,
                                     theme.FocusRing());
     }

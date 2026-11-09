@@ -637,7 +637,7 @@ DxuiMessageResult DxuiWindow::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
 DxuiMessageResult DxuiWindow::OnXButtonUp (WPARAM wParam, LPARAM lParam)
 {
-    DxuiMouseButton  button = (GET_XBUTTON_WPARAM (wParam) == XBUTTON1) ? DxuiMouseButton::X1 : DxuiMouseButton::X2;
+    DxuiMouseButton  button = (GET_XBUTTON_WPARAM (wParam) == XBUTTON1) ? DxuiMouseButton::Back : DxuiMouseButton::Forward;
 
 
 
@@ -701,7 +701,7 @@ DxuiMessageResult DxuiWindow::OnMouseLeave()
 
     if (hwnd != nullptr && GetCapture() != hwnd)
     {
-        (void) DispatchMouse (DxuiMouseEventKind::Leave, DxuiMouseButton::None, -1, -1, 0.0f);
+        (void) DispatchMouse (DxuiMouseEventKind::Leave, DxuiMouseButton::None, SHRT_MIN, SHRT_MIN, 0.0f);
     }
 
     return DxuiMessageResult::NotHandled;

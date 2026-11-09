@@ -516,6 +516,7 @@ bool DiskImageStore::RescueOnTheWayOut (Entry & entry, const string & original)
     }
 
     entry.image->ClearDirty();
+    entry.image->NoteSaved();
 
     return true;
 }
@@ -1225,6 +1226,7 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
     // must not repeat on every later eject or power cycle.
     entry.image->SetSourceCrcMismatch (false);
     entry.image->ClearDirty();
+    entry.image->NoteSaved();
 
     //  The file this store just wrote is a change to it, and without this the
     //  next flush would find its own commit sitting where the mount-time
@@ -2039,6 +2041,40 @@ DiskImage * DiskImageStore::GetImage (int slot, int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetMediaId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DiskImageStore::GetMediaId (int slot, int drive) const
+{
+    return IsValidBay (slot, drive) ? GetEntry (slot, drive).mediaId : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NoteStateRestored
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::NoteStateRestored (int slot, int drive)
+{
+    if (IsValidBay (slot, drive) && GetEntry (slot, drive).image != nullptr)
+    {
+        GetEntry (slot, drive).mediaId = ++m_lastMediaId;
+        EmitBayChange (slot, drive, BayChange::Restored);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsMounted
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2279,6 +2315,11 @@ int64_t DiskImageStore::GetNowMs() const
 
 void DiskImageStore::EmitBayChange (int slot, int drive, BayChange change)
 {
+    if (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount)
+    {
+        m_entries[slot][drive].mediaId = ++m_lastMediaId;
+    }
+
     if (m_bayChangeSink)
     {
         m_bayChangeSink (slot, drive, change);
@@ -3142,6 +3183,7 @@ HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const 
     //  The identity is refreshed from the file the bytes came from, so the
     //  swap does not immediately look like another external change.
     entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+    entry.mediaId = ++m_lastMediaId;
 
     hrAssess             = AssessSalvage (slot, drive, assessment);
     entry.salvageOffered = SUCCEEDED (hrAssess) && assessment.isOffered;

@@ -220,11 +220,13 @@
     <ClCompile Include="Widgets\DxuiToolbarEditBox.cpp" />
     <ClCompile Include="Widgets\DxuiTabDragModel.cpp" />
     <ClCompile Include="Widgets\DxuiTabDragVisual.cpp" />
+    <ClCompile Include="Widgets\DxuiZoomControl.cpp" />
     <ClCompile Include="Widgets\DxuiShimmer.cpp" />
     <ClCompile Include="Widgets\DxuiTabSlides.cpp" />
     <ClCompile Include="Widgets\DxuiTabStrip.cpp" />
     <ClCompile Include="Widgets\DxuiTabStripPainter.cpp" />
     <ClCompile Include="Widgets\DxuiTextInput.cpp" />
+    <ClCompile Include="Widgets\DxuiSegmentedControl.cpp" />
     <ClCompile Include="Widgets\DxuiToggle.cpp" />
     <ClCompile Include="Theme\DxuiTheme.cpp" />
     <ClCompile Include="Widgets\DxuiSelectableText.cpp" />
@@ -305,6 +307,7 @@
     <ClInclude Include="Theme\DxuiMenuMetrics.h" />
     <ClInclude Include="Theme\DxuiWindowsThemeColors.h" />
     <ClInclude Include="Theme\DxuiVisualStyleCheckBox.h" />
+    <ClInclude Include="Theme\DiskInspectorColors.h" />
     <ClInclude Include="Theme\DxuiColor.h" />
     <ClInclude Include="Theme\DxuiTheme.h" />
     <ClInclude Include="Theme\DxuiRowLook.h" />
@@ -350,6 +353,8 @@
     <ClInclude Include="Widgets\DxuiScrollPanel.h" />
     <ClInclude Include="Widgets\DxuiSearchBox.h" />
     <ClInclude Include="Widgets\DxuiSlider.h" />
+    <ClInclude Include="Widgets\DxuiZoomControl.h" />
+    <ClInclude Include="Widgets\DxuiCustomVisual.h" />
     <ClInclude Include="Widgets\DxuiSurface.h" />
     <ClInclude Include="Widgets\DxuiAddressBar.h" />
     <ClInclude Include="Widgets\DxuiTextView.h" />
@@ -361,6 +366,7 @@
     <ClInclude Include="Widgets\DxuiTabStrip.h" />
     <ClInclude Include="Widgets\DxuiTabStripPainter.h" />
     <ClInclude Include="Widgets\DxuiTextInput.h" />
+    <ClInclude Include="Widgets\DxuiSegmentedControl.h" />
     <ClInclude Include="Widgets\DxuiToggle.h" />
     <ClInclude Include="Widgets\DxuiSelectableText.h" />
     <ClInclude Include="Widgets\DxuiSuggestionList.h" />

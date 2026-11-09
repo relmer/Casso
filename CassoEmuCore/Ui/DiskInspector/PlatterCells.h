@@ -1,0 +1,42 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "Ui/DiskInspector/DiskInspectorPalette.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterCells
+//
+//  What the platter samples for one ring: a byte per cell with its kind,
+//  and coarser levels for when a pixel covers many cells. Each byte has the
+//  kind's priority above the kind, so the larger of two bytes is the one to
+//  draw: a failed checksum over noise, noise over random bits, and those over
+//  every other kind (FR-023). Level k has the largest byte of each run of
+//  2^k cells, which keeps a feature narrower than a pixel one pixel wide.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class PlatterCells
+{
+public:
+    static constexpr int  kMaxLevels   = 17;
+    static constexpr int  kKindBits    = 4;
+    static constexpr Byte kKindMask    = 0x0F;
+    static constexpr Byte kNoEdge      = 0xFF;
+
+    static Byte         Encode      (PlatterKind kind);
+    static PlatterKind  Decode      (Byte value);
+    static void         BuildCells  (const TrackAnalysis & analysis, vector<Byte> & outCells);
+    static void         MapToTime   (const TrackAnalysis & analysis, vector<Byte> & inOutCells);
+    static void         BuildEdges  (const TrackAnalysis & analysis, const vector<Byte> & cells, vector<Byte> & outEdges);
+    static void         BuildLevels (const vector<Byte> & cells, vector<vector<Byte>> & outLevels);
+    static bool         IsEchoRing  (std::span<const int> slots, int ring);
+    static int          GetCenterRing (std::span<const int> slots, int ring);
+    static int          StepRecording (std::span<const int> slots, int ring, int step);
+    static PlatterKind  GetKindOf   (NibbleKind kind);
+};

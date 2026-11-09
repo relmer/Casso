@@ -908,7 +908,7 @@ int DxuiListItemLayout::GetPageSlidePx() const
 
 bool DxuiListItemLayout::UsesPageSlide() const
 {
-    return m_pageSlideEnabled && (m_list.m_view == DxuiListViewTypes::View::Details || UsesItemLayout());
+    return m_pageSlideEnabled && !m_list.m_rows.IsWrapped() && (m_list.m_view == DxuiListViewTypes::View::Details || UsesItemLayout());
 }
 
 
@@ -930,6 +930,11 @@ int DxuiListItemLayout::GetRestScrollPx() const
     if (UsesItemLayout())
     {
         return GetItemTopPx (GetItemLayout());
+    }
+
+    if (m_list.m_rows.IsWrapped())
+    {
+        return m_list.m_rows.GetRowsHeightPx (0, m_list.m_topRow);
     }
 
     return m_list.IsItemsView() ? 0 : m_list.m_topRow * m_list.GetRowHeightPx() + m_list.m_scrollbars.GetRowShiftPx();
@@ -961,7 +966,7 @@ int DxuiListItemLayout::GetScrollViewPx() const
 
     layout = m_list.m_scrollbars.ComputeScrollLayout();
 
-    return layout.rowCap * m_list.GetRowHeightPx() + layout.partialPx;
+    return m_list.m_rows.IsWrapped() ? layout.bodyH : layout.rowCap * m_list.GetRowHeightPx() + layout.partialPx;
 }
 
 
@@ -2000,7 +2005,7 @@ POINT DxuiListItemLayout::GetItemScrollOffsetPx() const
 
     if (!m_list.IsItemsView())
     {
-        return POINT { m_list.m_leftPx, m_list.m_topRow * m_list.GetRowHeightPx() - m_list.GetHeaderHeightPx() - (m_list.m_showHeader ? m_list.GetHeaderGapPx() : 0) };
+        return POINT { m_list.m_leftPx, (m_list.m_rows.IsWrapped() ? m_list.m_rows.GetRowsHeightPx (0, m_list.m_topRow) : m_list.m_topRow * m_list.GetRowHeightPx()) - m_list.GetHeaderHeightPx() - (m_list.m_showHeader ? m_list.GetHeaderGapPx() : 0) };
     }
 
     if (GetItemMetrics (m_list.m_view).columns)

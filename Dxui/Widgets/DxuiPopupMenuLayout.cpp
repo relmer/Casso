@@ -415,9 +415,9 @@ int DxuiPopupMenuLayout::MeasureRunPx (const std::wstring & run, float fontDip, 
 //  row ran under the right-aligned accelerators above it. Separate columns
 //  cannot produce that, whatever the mix of rows.
 //
-//  The check gutter is reserved only for a list that HAS a checkable row, so
-//  a menu where nothing can ever check sits flush against its left pad rather
-//  than carrying an empty column.
+//  The check gutter is reserved only for a list that HAS a checkable row or a
+//  row whose glyph is drawn in menus, so a menu where nothing can ever check
+//  sits flush against its left pad, with no empty column.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -435,7 +435,7 @@ int DxuiPopupMenuLayout::MeasureWidthPx (IDxuiTextRenderer & text)
 
     for (const DxuiPopupMenuItem & row : m_menu.m_rows)
     {
-        if (row.command != nullptr && row.command->isChecked)
+        if (row.command != nullptr && (row.command->isChecked || (row.command->isGlyphInMenus && row.command->glyph != nullptr)))
         {
             m_hasGutter = true;
         }

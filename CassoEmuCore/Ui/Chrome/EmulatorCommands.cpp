@@ -37,12 +37,14 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_DISK_EJECT1,              MainMenuId::Disk,    L"Eject dri&ve 1",         L"Ctrl+Shift+1"  },
     { IDM_DISK_WP1,                 MainMenuId::Disk,    L"&Write-protect disk 1",  nullptr          },
     { IDM_DISK_SALVAGE1,            MainMenuId::Disk,    L"Sa&lvage readable sectors...", nullptr    },
+    { IDM_DISK_INSPECT1,            MainMenuId::Disk,    L"Inspect &disk 1...",     nullptr          },
     { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
-    { IDM_STORAGE_DRIVE2,           MainMenuId::Disk,    L"Attach &drive 2",        nullptr          },
+    { IDM_STORAGE_DRIVE2,           MainMenuId::Disk,    L"Attac&h drive 2",        nullptr          },
     { IDM_DISK_INSERT2,             MainMenuId::Disk,    L"I&nsert drive 2...",     L"Ctrl+2"        },
     { IDM_DISK_EJECT2,              MainMenuId::Disk,    L"Eje&ct drive 2",         L"Ctrl+Shift+2"  },
     { IDM_DISK_WP2,                 MainMenuId::Disk,    L"Write-&protect disk 2",  nullptr          },
     { IDM_DISK_SALVAGE2,            MainMenuId::Disk,    L"Salvage readable sec&tors...", nullptr    },
+    { IDM_DISK_INSPECT2,            MainMenuId::Disk,    L"Inspect dis&k 2...",     nullptr          },
     { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
     { IDM_STORAGE_RECORDER,         MainMenuId::Disk,    L"Attach ca&ssette recorder", nullptr       },
     { IDM_TAPE_INSERT,              MainMenuId::Disk,    L"Insert t&ape...",        nullptr          },
@@ -329,7 +331,7 @@ std::wstring EmulatorCommands::GetDrive2Label (bool isExternal, bool isAttached)
     }
     else
     {
-        label = isAttached ? L"Detach &drive 2" : L"Attach &drive 2";
+        label = isAttached ? L"Detac&h drive 2" : L"Attac&h drive 2";
     }
 
     return label;

@@ -355,9 +355,9 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
 
     //  A five-button mouse's back and forward buttons move through the tab's
     //  history wherever the pointer is, as in Explorer.
-    if (ev.kind == DxuiMouseEventKind::Up && (ev.button == DxuiMouseButton::X1 || ev.button == DxuiMouseButton::X2))
+    if (ev.kind == DxuiMouseEventKind::Up && (ev.button == DxuiMouseButton::Back || ev.button == DxuiMouseButton::Forward))
     {
-        m_context.commandManager.Dispatch (ev.button == DxuiMouseButton::X1 ? CassoExplorerCommands::kBack : CassoExplorerCommands::kForward);
+        m_context.commandManager.Dispatch (ev.button == DxuiMouseButton::Back ? CassoExplorerCommands::kBack : CassoExplorerCommands::kForward);
         return true;
     }
 

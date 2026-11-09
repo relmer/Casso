@@ -387,6 +387,10 @@ public:
     //  will not say where the anchor or its monitor is.
     bool  TryGetPlacementForSize (const SIZE & windowSizePx, POINT & outTopLeft) const;
 
+    //  The window returned to the size it was created at, about its center on
+    //  the monitor it is on, for a "Default size" command.
+    HRESULT  RestoreInitialPlacement();
+
     //  The rect of the system button (minimize, maximize, close) under a
     //  screen point, in client pixels -- the space a tooltip anchor takes.
     //  False when the point is over no system button.
@@ -688,6 +692,7 @@ public:
     //  the full WndProc dispatch.
     //
     static LRESULT  KindToHt  (DxuiHitTestKind kind);
+    HRESULT         ShowSystemMenu (POINT ptScreen);
 
     //
     //  Whether an NC mouse message may be claimed by a caption system

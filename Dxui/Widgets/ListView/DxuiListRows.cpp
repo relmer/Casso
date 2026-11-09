@@ -7,6 +7,7 @@
 #include "Widgets/DxuiListView.h"
 #include "Core/DxuiIconImage.h"
 #include "Widgets/DxuiCheckbox.h"
+#include "Render/DxuiStroke.h"
 
 
 
@@ -343,6 +344,7 @@ void DxuiListRows::DragSelectTo (int ly)
     int  body    = ly - headerH - hdrGap;
     int  row     = 0;
     int  line    = 0;
+    int  visible = -1;
 
 
 
@@ -354,6 +356,15 @@ void DxuiListRows::DragSelectTo (int ly)
     }
 
     line = (body < 0) ? m_list.m_topRow - 1 : m_list.m_topRow + (body + m_list.m_scrollbars.GetRowShiftPx()) / rowH;
+
+    //  Wrapped rows are found by their heights; past the last one in view is
+    //  the row after it.
+    if (IsWrapped() && body >= 0)
+    {
+        visible = FindVisibleRow (body);
+        line    = m_list.m_topRow + ((visible >= 0) ? visible : m_list.m_scrollbars.GetVisibleRowCapacity());
+    }
+
     line = (std::max) (0, (std::min) (line, m_list.m_grouping.GetLineCount() - 1));
     row  = m_list.m_grouping.GetRowOfLine (line);
 
@@ -377,6 +388,276 @@ void DxuiListRows::DragSelectTo (int ly)
         if (m_list.m_onSelectionChanged)
         {
             m_list.m_onSelectionChanged (row);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListRows::IsWrapped
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListRows::IsWrapped() const
+{
+    return m_wrapsText && !m_list.m_virtual && !m_list.IsItemsView() && !m_list.HasGroupLines();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListRows::IsWrappedCell
+//
+//  A stretch-column cell that leaves elision unset. Its column's elision
+//  applies only while the list doesn't wrap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListRows::IsWrappedCell (size_t column, const DxuiListViewTypes::Cell & cell) const
+{
+    return IsWrapped()
+        && column < m_list.m_columns.size()
+        && m_list.m_columns[column].stretch
+        && cell.elide == DxuiElide::None;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListRows::GetRowHeightPx
+//
+//  The uniform row height, or while wrapping, the row's measured height.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListRows::GetRowHeightPx (int row) const
+{
+    int  rowH = m_list.GetRowHeightPx();
+
+
+
+    return (IsWrapped() && row >= 0 && row < (int) m_rowHeightsPx.size()) ? (std::max) (rowH, m_rowHeightsPx[(size_t) row]) : rowH;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListRows::GetRowsHeightPx
+//
+//  The height of the rows from first up to end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListRows::GetRowsHeightPx (int first, int end) const
+{
+    int  height = 0;
+
+
+
+    for (int r = (std::max) (first, 0); r < end; ++r)
+    {
+        height += GetRowHeightPx (r);
+    }
+
+    return height;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListRows::CountRowsFitting
+//
+//  How many whole rows from topRow fit in bodyH. A row taller than the body
+//  counts as one, so it is painted cut off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListRows::CountRowsFitting (int topRow, int bodyH) const
+{
+    int  rows  = m_list.GetRowCount();
+    int  used  = 0;
+    int  count = 0;
+
+
+
+    for (int r = (std::max) (topRow, 0); r < rows && used + GetRowHeightPx (r) <= bodyH; ++r)
+    {
+        used += GetRowHeightPx (r);
+        count++;
+    }
+
+    return (count == 0 && bodyH > 0 && topRow < rows) ? 1 : count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListRows::GetTopRowEndingAt
+//
+//  The smallest top row for which lastRow is the last whole row in view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListRows::GetTopRowEndingAt (int lastRow, int bodyH) const
+{
+    int  top  = std::clamp (lastRow, 0, (std::max) (m_list.GetRowCount() - 1, 0));
+    int  used = GetRowHeightPx (top);
+
+
+
+    while (top > 0 && used + GetRowHeightPx (top - 1) <= bodyH)
+    {
+        top--;
+        used += GetRowHeightPx (top);
+    }
+
+    return top;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListRows::FindVisibleRow
+//
+//  The row at bodyY below the header, counted from the top row, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListRows::FindVisibleRow (int bodyY) const
+{
+    int  found = -1;
+    int  top   = 0;
+
+
+
+    for (int r = m_list.m_topRow; bodyY >= 0 && found < 0 && r < m_list.GetRowCount() && top <= bodyY; ++r)
+    {
+        found = (bodyY < top + GetRowHeightPx (r)) ? (r - m_list.m_topRow) : -1;
+        top  += GetRowHeightPx (r);
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListRows::MeasureForPaint
+//
+//  Measures the columns and, while wrapping, each row's height, then
+//  resolves the scroll layout for them. When the wrapped rows are taller
+//  than the body, the scroll bar narrows the wrapped column, so the rows
+//  are measured again at that width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListViewTypes::ScrollLayout DxuiListRows::MeasureForPaint (IDxuiTextRenderer & text) const
+{
+    DxuiListViewTypes::ScrollLayout  layout;
+    int                              pass   = 0;
+
+
+
+    if (m_list.m_theme != nullptr && !m_list.m_columns.empty())
+    {
+        m_list.m_columnSizing.EnsureMeasured (text);
+    }
+
+    layout = m_list.m_scrollbars.ComputeScrollLayout();
+
+    for (pass = 0; IsWrapped() && m_list.m_theme != nullptr && pass < 2; ++pass)
+    {
+        MeasureRowHeights (text, layout.viewportW);
+        layout = m_list.m_scrollbars.ComputeScrollLayout();
+    }
+
+    return layout;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListRows::MeasureRowHeights
+//
+//  Each row's height for its wrapped cells: the uniform row height, plus
+//  the height of every line past the first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListRows::MeasureRowHeights (IDxuiTextRenderer & text, int viewportW) const
+{
+    HRESULT           hr       = S_OK;
+    int               rowH     = m_list.GetRowHeightPx();
+    float             fontPx   = m_list.m_scaler.ToPxf (m_list.m_fontDip);
+    float             cellPadR = (float) m_list.m_scaler.ToPx (DxuiListView::s_kCellPadRightDip);
+    int               wrapW    = -1;
+    float             lineW    = 0.0f;
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    m_list.m_columnSizing.ComputeColumnLayout ((float) viewportW, colXPx, colWPx);
+
+    for (size_t c = 0; c < m_list.m_columns.size() && c < colWPx.size() && wrapW < 0; ++c)
+    {
+        wrapW = (m_list.m_columns[c].visible && m_list.m_columns[c].stretch) ? colWPx[c] : -1;
+    }
+
+    if (wrapW == m_wrapWidthPx && m_rowHeightsPx.size() == m_list.m_rowData.size())
+    {
+        return;
+    }
+
+    m_wrapWidthPx = wrapW;
+    m_rowHeightsPx.assign (m_list.m_rowData.size(), rowH);
+
+    hr = text.MeasureString (L"Ag", fontPx, m_list.GetBodyFace(), lineW, m_wrapLinePx);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (size_t r = 0; r < m_list.m_rowData.size(); ++r)
+    {
+        for (size_t c = 0; c < m_list.m_columns.size() && c < m_list.m_rowData[r].size() && c < colWPx.size(); ++c)
+        {
+            float  cellW = (float) colWPx[c] - (float) m_list.m_columnSizing.GetCellPadLeftPx (c) - cellPadR;
+            float  textW = 0.0f;
+            float  textH = 0.0f;
+
+            if (IsWrappedCell (c, m_list.m_rowData[r][c]) && cellW > 0.0f)
+            {
+                hr = text.MeasureStringWrapped (m_list.m_rowData[r][c].text.c_str(), fontPx, m_list.GetBodyFace(), cellW, textW, textH);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+
+                m_rowHeightsPx[r] = (std::max) (m_rowHeightsPx[r], rowH + (int) std::ceil ((std::max) (0.0f, textH - m_wrapLinePx)));
+            }
         }
     }
 }
@@ -443,7 +724,24 @@ void DxuiListRows::Paint (
     //  Where firstRow is drawn: the rows lifted at the end of the list or
     //  after a page down, and moved with a sliding page.
     top   = y + headerH + hdrGap - (float) m_list.m_scrollbars.GetRowShiftPx() + (float) m_list.m_items.GetPageSlidePx() - (float) (m_list.m_topRow - firstRow) * rowH;
-    spots = m_list.m_grouping.PlaceDataLines (top, firstRow, lastRow, clipTop, clipH);
+
+    m_clipped.clear();
+
+    //  Wrapped rows are placed one under another by their own heights.
+    if (IsWrapped())
+    {
+        top = y + headerH + hdrGap;
+
+        for (int r = (std::max) (firstRow, 0); r < (std::min) (lastRow, m_list.GetRowCount()); ++r)
+        {
+            spots.push_back ({ r, -1, top, false });
+            top += (float) GetRowHeightPx (r);
+        }
+    }
+    else
+    {
+        spots = m_list.m_grouping.PlaceDataLines (top, firstRow, lastRow, clipTop, clipH);
+    }
 
     for (const DxuiListViewTypes::LineSpot & spot : spots)
     {
@@ -465,6 +763,7 @@ void DxuiListRows::Paint (
         }
 
         const std::vector<DxuiListViewTypes::Cell>  & cells = m_list.GetRowCells (r);
+        float                                         thisH = (float) GetRowHeightPx (r);
         bool                                          isHov = (r == m_list.m_hovered);
         bool                       isSel = ((m_list.m_listFocused || m_list.m_alwaysShowSelection) &&
                                             (m_list.m_multiSelect ? m_list.IsRowSelected (r) : r == m_list.m_selectedRow));
@@ -490,12 +789,12 @@ void DxuiListRows::Paint (
 
         if (look.fill != 0)
         {
-            painter.FillRect (x + boxL, ry + boxInsetY, boxW - boxL, rowH - boxInsetY * 2.0f, look.fill);
+            painter.FillRect (x + boxL, ry + boxInsetY, boxW - boxL, thisH - boxInsetY * 2.0f, look.fill);
         }
 
         if (look.edge != 0)
         {
-            painter.OutlineRect (x + boxL, ry + boxInsetY, boxW - boxL, rowH - boxInsetY * 2.0f, DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), look.edge);
+            painter.OutlineRect (x + boxL, ry + boxInsetY, boxW - boxL, thisH - boxInsetY * 2.0f, DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), look.edge);
         }
 
         for (size_t c = 0; c < m_list.m_columns.size() && c < cells.size(); ++c)
@@ -657,23 +956,58 @@ void DxuiListRows::Paint (
             }
 
             //  Text wider than its column ends in an ellipsis, as Explorer's does,
-            //  rather than being cut through a letter.
-            shown = DxuiTextElide::ToWidth (text, cells[c].text, fontPx, m_list.GetBodyFace(),
-                                            (float) colWPx[c] - padL - cellPadR - iconShift, DxuiElide::Tail);
+            //  rather than being cut through a letter, unless the column or cell
+            //  cuts it another way or the list wraps it. A cell cut short is
+            //  noted, for a tip with its full text.
+            {
+                DxuiElide  mode    = (cells[c].elide != DxuiElide::None) ? cells[c].elide
+                                   : (m_list.m_columns[c].elide != DxuiElide::None) ? m_list.m_columns[c].elide : DxuiElide::Tail;
+                bool       isWrap  = IsWrappedCell (c, cells[c]);
+                bool       isTall  = thisH > rowH;
+                float      linePad = (rowH - m_wrapLinePx) / 2.0f;
+                float      cellX   = x + colOff + (float) colXPx[c] + padL + iconShift;
 
-            hr = text.DrawString (shown.c_str(),
-                                  x + colOff + (float) colXPx[c] + padL + iconShift,
-                                  ry,
-                                  (float) colWPx[c] - padL - cellPadR - iconShift,
-                                  rowH,
-                                  argb,
-                                  fontPx,
-                                  m_list.GetBodyFace(),
-                                  m_list.m_columns[c].align,
-                                  DxuiTextVAlign::CenterOnCapHeight,
-                                  DxuiFontWeight::Normal,
-                                  false);
-            IGNORE_RETURN_VALUE (hr, S_OK);
+                shown = isWrap ? cells[c].text : DxuiTextElide::ToWidth (text, cells[c].text, fontPx, m_list.GetBodyFace(),
+                                                                          (float) colWPx[c] - padL - cellPadR - iconShift, mode);
+
+                if (shown != cells[c].text)
+                {
+                    m_clipped.push_back ({ r, c });
+                }
+
+                if (cells[c].isHeading)
+                {
+                    float  size  = fontPx * 0.3f;
+                    float  cx    = cellX + size * 1.5f;
+                    float  cy    = ry + rowH / 2.0f;
+                    float  thick = (std::max) (1.0f, m_list.m_scaler.ToPxf (1.0f));
+
+                    if (cells[c].isOpen)
+                    {
+                        DxuiStroke::Segment (painter, cx - size, cy - size / 2.0f, cx, cy + size / 2.0f, thick, argb);
+                        DxuiStroke::Segment (painter, cx, cy + size / 2.0f, cx + size, cy - size / 2.0f, thick, argb);
+                    }
+                    else
+                    {
+                        DxuiStroke::Segment (painter, cx - size / 2.0f, cy - size, cx + size / 2.0f, cy, thick, argb);
+                        DxuiStroke::Segment (painter, cx + size / 2.0f, cy, cx - size / 2.0f, cy + size, thick, argb);
+                    }
+                }
+
+                hr = text.DrawString (shown.c_str(),
+                                      cellX,
+                                      isTall ? ry + linePad : ry,
+                                      (float) colWPx[c] - padL - cellPadR - iconShift,
+                                      isTall ? thisH - 2.0f * linePad : rowH,
+                                      argb,
+                                      fontPx,
+                                      m_list.GetBodyFace(),
+                                      m_list.m_columns[c].align,
+                                      isTall ? DxuiTextVAlign::Top : DxuiTextVAlign::CenterOnCapHeight,
+                                      cells[c].isStrong ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal,
+                                      isWrap);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+            }
         }
     }
 

@@ -108,6 +108,16 @@
       <VariableName>g_CrtCopy</VariableName>
       <HeaderFileOutput>$(IntDir)Shaders\copy.h</HeaderFileOutput>
     </FxCompile>
+    <FxCompile Include="$(MSBuildThisFileDirectory)Platter\platter.vs.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <VariableName>g_PlatterVs</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\platter.vs.h</HeaderFileOutput>
+    </FxCompile>
+    <FxCompile Include="$(MSBuildThisFileDirectory)Platter\platter.ps.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <VariableName>g_PlatterPs</VariableName>
+      <HeaderFileOutput>$(IntDir)Shaders\platter.ps.h</HeaderFileOutput>
+    </FxCompile>
   </ItemGroup>
 
 </Project>
