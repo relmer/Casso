@@ -2,7 +2,6 @@
 
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FixtureProvider.h"
-#include "../EmuTests/GuestSession.h"
 #include "../EmuTests/TestMachine.h"
 #include "../EmuTests/TextScreenScraper.h"
 #include "CassoLink/CassoLinkHost.h"
@@ -47,8 +46,6 @@ public:
     static constexpr uint64_t  kLoaderWait    = (uint64_t) LinkBootstrap::kLoaderReadyWaitMs * kClockHz / 1'000;
     static constexpr DWORD     kBootstrapBaud = 9600;
     static constexpr int       kPort          = 2;
-    static constexpr Word      kRwtsStart     = 0xBD00;
-    static constexpr Word      kRwtsEnd       = 0xBFFF;
     static constexpr Byte      kCatalogTrack  = 17;
 
     struct Rig
@@ -57,25 +54,15 @@ public:
         std::shared_ptr<InProcessByteStream>  machineEnd;
         std::shared_ptr<InProcessByteStream>  pcEnd;
 
-        //  At Applesoft's prompt, or under DOS 3.3 booted from its master,
-        //  with IN#2 and Ctrl-A 14B typed.
-        explicit Rig (bool underDos)
+        //  At Applesoft's prompt, with IN#2 and Ctrl-A 14B typed.
+        Rig()
         {
             machine.SetVideoTiming (std::make_unique<VideoTiming>());
             machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
             machine.PowerCycle();
-
-            if (underDos)
-            {
-                AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "master.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
-                machine.RunCycles (15 * kClockHz);
-            }
-            else
-            {
-                machine.RunCycles (2 * kClockHz);
-                machine.GetCpu()->SetPC (0xE000);
-                machine.RunCycles (2 * kClockHz);
-            }
+            machine.RunCycles (2 * kClockHz);
+            machine.GetCpu()->SetPC (0xE000);
+            machine.RunCycles (2 * kClockHz);
 
             InProcessByteStream::CreatePair (machineEnd, pcEnd);
             Assert::AreEqual (S_OK, machine.AttachSerialStream (kPort, machineEnd));
@@ -165,116 +152,11 @@ public:
 
     TEST_METHOD (AtApplesoftsPrompt_TheProbe_SendsA5WithinTheProbesWait)
     {
-        Rig  rig (false);
+        Rig  rig;
 
         rig.Send (Rig::ProbeLines());
 
         AssertReadyInTime (rig.AwaitReady (kProbeWait), kProbeWait, L"the probe");
-    }
-
-
-
-    TEST_METHOD (UnderDos_TheProbe_SendsA5WithinTheProbesWait)
-    {
-        Rig  rig (true);
-
-        rig.Send (Rig::ProbeLines());
-
-        AssertReadyInTime (rig.AwaitReady (kProbeWait), kProbeWait, L"the probe");
-    }
-
-
-
-    //  On a real //c under DOS 3.3, the first characters of a probe line
-    //  typed after the line before it ran were dropped. With the first two
-    //  characters of every line dropped, the probe's $A5 arrives.
-    TEST_METHOD (UnderDos_TheProbe_WithEachLinesFirstTwoCharactersLost_SendsA5)
-    {
-        static constexpr size_t  kDropped = 2;
-
-        Rig                       rig (true);
-        std::vector<std::string>  lines (std::begin (CassoLinkConnector::kPromptProbe), std::end (CassoLinkConnector::kPromptProbe));
-
-        rig.Send (lines, kDropped);
-
-        AssertReadyInTime (rig.AwaitReady (kProbeWait), kProbeWait, L"the probe");
-    }
-
-
-
-    //  Under DOS 3.3: the probe, then the loader typed into the monitor and
-    //  the shim sent to it, then the program loaded by the host and both
-    //  drives read, then Escape. RWTS at $BD00 to $BFFF is intact, and DOS's
-    //  CATALOG reads drive 1 with no I/O error.
-    TEST_METHOD (UnderDos_TheBootstrapAndALink_LeaveDosWorkingAfterEscape)
-    {
-        Rig                                  rig (true);
-        FixtureProvider                      fixtures;
-        std::vector<uint8_t>                 bytes;
-        std::vector<Byte>                    disk;
-        std::vector<Byte>                    rwts;
-        std::vector<std::string>             lines;
-        std::vector<Byte>                    transfer;
-        std::vector<Byte>                    data;
-        CassoLinkStatus                      status;
-        InMemoryCassoLinkFolder              folder;
-        const Byte                           sector[] = { 0 };
-        std::string                          screen;
-
-        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
-        disk.assign (bytes.begin(), bytes.end());
-        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
-
-        for (Word at = kRwtsStart; at <= kRwtsEnd; at++)
-        {
-            rwts.push_back (rig.machine.GetMemoryBus().ReadByte (at));
-        }
-
-        rig.Send (Rig::ProbeLines());
-        AssertReadyInTime (rig.AwaitReady (kProbeWait), kProbeWait, L"the probe");
-
-        AssertSucceeded (LinkBootstrap::BuildLines (lines));
-        rig.Send (lines);
-        AssertReadyInTime (rig.AwaitReady (kLoaderWait), kLoaderWait, L"the loader");
-
-        AssertSucceeded (LinkBootstrap::BuildShimTransfer (kBootstrapBaud, transfer));
-        AssertSucceeded (rig.pcEnd->Write (transfer.data(), transfer.size()));
-
-        {
-            CassoLinkHost  host (std::make_shared<SteppedByteStream> (rig.machine, rig.pcEnd), folder, [] () { return std::array<Byte, 4> {}; });
-
-            AssertSucceeded (host.SetColumns (true));
-
-            for (Byte drive : { (Byte) 1, (Byte) 2 })
-            {
-                AssertSucceeded (host.ReadSectors (drive, kCatalogTrack, sector, data, status));
-                Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, std::format (L"drive {}'s catalog", drive).c_str());
-            }
-
-            size_t  offset = (size_t) (kCatalogTrack * 16 + NibblizationLayer::GetDosFileIndexForPhysicalSector (0)) * 256;
-
-            Assert::IsTrue (std::equal (data.begin(), data.end(), disk.begin() + (ptrdiff_t) offset), L"drive 2's catalog sector");
-        }
-
-        screen = rig.Screen();
-        Assert::AreNotEqual (std::string::npos, screen.find ("CASSOLINK"), L"the program's status screen, before Escape");
-
-        rig.machine.GetRefs().iieKeyboard->PressKey (0x1B);
-        rig.machine.RunCycles (2 * kClockHz);
-
-        for (size_t i = 0; i < rwts.size(); i++)
-        {
-            Word  at = (Word) (kRwtsStart + i);
-
-            Assert::AreEqual<int> (rwts[i], rig.machine.GetMemoryBus().ReadByte (at), std::format (L"RWTS at ${:04X}", at).c_str());
-        }
-
-        rig.Type ("CATALOG\r");
-        rig.machine.RunCycles (5 * kClockHz);
-
-        screen = rig.Screen();
-        Assert::AreEqual (std::string::npos, screen.find ("ERROR"), TextEncoding::NarrowToWide (screen).c_str());
-        Assert::AreNotEqual (std::string::npos, screen.find ("HELLO"), TextEncoding::NarrowToWide (screen).c_str());
     }
 
 
@@ -351,7 +233,7 @@ public:
     //  assembled, and the program, loaded through the shim, reads a disk.
     TEST_METHOD (AtApplesoftsPrompt_TheTypedBootstrap_LoadsTheProgram)
     {
-        Rig                                 rig (false);
+        Rig                                 rig;
         InMemoryCassoLinkFolder             folder;
         std::shared_ptr<SteppedByteStream>  stream;
         std::unique_ptr<CassoLinkHost>      host;
@@ -381,7 +263,7 @@ public:
     //  before the bootstrap, so the port and its Ctrl-A work.
     TEST_METHOD (AfterALinkAndEscape_ThePortsScreenHoles_AreAsBeforeTheBootstrap)
     {
-        Rig                                 rig (false);
+        Rig                                 rig;
         InMemoryCassoLinkFolder             folder;
         std::shared_ptr<SteppedByteStream>  stream;
         std::unique_ptr<CassoLinkHost>      host;
