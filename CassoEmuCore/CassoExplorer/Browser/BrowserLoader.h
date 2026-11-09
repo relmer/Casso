@@ -70,6 +70,12 @@ public:
     bool     CanListImage          (const std::wstring & imagePath);
     bool     TryGetImageLocation   (int row, Location & outLocation) const;
 
+    std::wstring  MakeContainerPath (const std::wstring & folderId, const std::wstring & name) const;
+
+    //  The path a shell folder's image row opens by: its path on the disk, or
+    //  in a ZIP, its ContainerPath's text.
+    static const std::wstring &  GetImagePath (const CatalogRow & row) { return row.hostPath.empty() ? row.containerPath : row.hostPath; }
+
 private:
     struct ImageProblem
     {

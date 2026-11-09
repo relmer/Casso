@@ -875,7 +875,9 @@ std::wstring BrowserCells::GetLocationLabel (const Location & location)
         return path;
     }
 
-    slash = path.rfind (L'\\');
+    //  An image in a ZIP is labeled with the part of its path after the ZIP's
+    //  path and its folders in the ZIP.
+    slash = path.find_last_of (L"\\|/");
 
     return (slash == std::wstring::npos) ? path : path.substr (slash + 1);
 }

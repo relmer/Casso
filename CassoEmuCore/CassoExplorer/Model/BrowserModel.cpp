@@ -514,6 +514,19 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
 
         case Location::Kind::DiskImage:
         case Location::Kind::DiskDirectory:
+            //  An image in a ZIP follows the ZIP and its folders, as the
+            //  shell's id for the image would have them.
+            if (location.path.find (L'|') != std::wstring::npos)
+            {
+                std::wstring  shellId = location.path;
+
+                std::replace_if (shellId.begin(), shellId.end(), [] (wchar_t c) { return c == L'|' || c == L'/'; }, L'\\');
+                slash = shellId.rfind (L'\\');
+                AppendArchiveSegments (Location::MakeShellFolder (shellId.substr (0, slash), std::wstring()), root, segments);
+                segments.push_back (AddressSegment { shellId.substr (slash + 1), Location::MakeDiskImage (location.path) });
+                break;
+            }
+
             slash = location.path.rfind (L'\\');
             AppendHostSegments (location.path.substr (0, (slash == std::wstring::npos) ? 0 : slash), root, segments);
             segments.push_back (AddressSegment { location.path.substr (slash + 1), Location::MakeDiskImage (location.path) });

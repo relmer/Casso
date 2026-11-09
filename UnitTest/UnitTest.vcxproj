@@ -314,6 +314,7 @@
     <ClCompile Include="EmuTests\SqueezeLzcTests.cpp" />
     <ClCompile Include="EmuTests\ContainerPathTests.cpp" />
     <ClCompile Include="EmuTests\ZipAppleDoubleTests.cpp" />
+    <ClCompile Include="EmuTests\ContainerDiskFileIoTests.cpp" />
     <ClCompile Include="EmuTests\NuFxArchiveTests.cpp" />
     <ClCompile Include="EmuTests\ArchiveWrapperTests.cpp" />
     <ClCompile Include="EmuTests\ArchiveVolumeTests.cpp" />

@@ -908,7 +908,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
 
     slot->watcher = std::make_unique<Win32FolderWatcher>();
     slot->intents = std::make_unique<Win32IntentChannel>();
-    slot->browser = std::make_unique<CassoExplorerBrowser> (m_fs, m_fileIo);
+    slot->browser = std::make_unique<CassoExplorerBrowser> (m_fs, m_containerIo);
     slot->actions = std::make_unique<CassoExplorerActions> (*slot->browser, m_fs);
 
     slot->browser->GetOperations().SetIntentChannel (slot->intents.get());

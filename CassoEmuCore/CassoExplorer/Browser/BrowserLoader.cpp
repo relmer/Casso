@@ -227,6 +227,14 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
         row.imageCatalogIndex = items[index].catalogIndex;
         row.imageDirectory    = items[index].imageDirectory;
         row.isDiskImage  = !row.isDirectory && !row.hostPath.empty() && TreeModel::IsSupportedImage (row.hostPath);
+
+        //  An image in a ZIP has no path on the disk, and opens by the ZIP's.
+        if (!row.isDirectory && row.hostPath.empty() && TreeModel::IsSupportedImage (row.name) && m_browser.m_previewer.IsLocalArchivePath (id))
+        {
+            row.containerPath = MakeContainerPath (id, row.name);
+            row.isDiskImage   = !row.containerPath.empty();
+        }
+
         //  An image the shell lists with no file on the disk, as one inside a
         //  zip, has its kind's type text.
         row.typeText     = (!row.isDirectory && !CatalogModel::GetDiskImageTypeName (row.name).empty()) ? CatalogModel::GetDiskImageTypeName (row.name) : row.typeText;
@@ -945,7 +953,7 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
 
     //  A read-only file refuses every write the runner would make, so the
     //  verbs that write are offered grayed rather than failing at the end.
-    hrReadOnly = m_browser.m_fs.GetReadOnlyAttribute (path, m_writeProtected);
+    hrReadOnly = m_browser.m_fs.GetReadOnlyAttribute (path.substr (0, path.find (L'|')), m_writeProtected);
     IGNORE_RETURN_VALUE (hrReadOnly, S_OK);
 
     return S_OK;
@@ -1018,7 +1026,7 @@ HRESULT BrowserLoader::LoadAppleDrive (const Location & location)
 bool BrowserLoader::LeaveMissingLocation()
 {
     Location      location = m_browser.GetLocation();
-    std::wstring  path     = location.path;
+    std::wstring  path     = location.path.substr (0, location.path.find (L'|'));
     size_t        slash    = 0;
 
 
@@ -1083,7 +1091,7 @@ bool BrowserLoader::TryGetImageLocation (int row, Location & outLocation) const
     }
 
     path = (location.kind == Location::Kind::HostFolder)  ? CassoExplorerBrowser::JoinPath (location.path, m_browser.m_rows[(size_t) row].name)
-         : (location.kind == Location::Kind::ShellFolder) ? m_browser.m_rows[(size_t) row].hostPath
+         : (location.kind == Location::Kind::ShellFolder) ? GetImagePath (m_browser.m_rows[(size_t) row])
                                                           : std::wstring();
 
     if (path.empty())
@@ -1119,6 +1127,74 @@ bool BrowserLoader::IsOnMissingDrive (const Location & location) const
 
     return hostPath && location.path.size() >= 2 && location.path[1] == L':'
         && !m_browser.m_fs.DirectoryExists (location.path.substr (0, 2) + L"\\");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserLoader::MakeContainerPath
+//
+//  An image's ContainerPath text from the shell's id for the ZIP folder it is
+//  listed in, such as `C:\Disks\set.zip\games`: the first ZIP on the disk in
+//  the id is the host file, and each ZIP inside it starts another step.
+//  Empty when no part of the id is a ZIP on the disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BrowserLoader::MakeContainerPath (const std::wstring & folderId, const std::wstring & name) const
+{
+    static constexpr std::wstring_view  kZip = L".zip";
+
+
+
+    std::wstring  host;
+    std::wstring  member;
+    std::wstring  text;
+    size_t        at    = 0;
+    bool          found = false;
+
+
+
+    auto isZip = [] (const std::wstring & part)
+    {
+        return part.size() > kZip.size() && _wcsicmp (part.c_str() + part.size() - kZip.size(), kZip.data()) == 0;
+    };
+
+    while (!found && at != std::wstring::npos)
+    {
+        at   = folderId.find (L'\\', at + 1);
+        host = folderId.substr (0, at);
+
+        found = isZip (host) && m_browser.m_fs.Exists (host);
+    }
+
+    if (!found)
+    {
+        return std::wstring();
+    }
+
+    text = host;
+
+    for (size_t start = host.size() + 1; start < folderId.size();)
+    {
+        size_t        slash = folderId.find (L'\\', start);
+        std::wstring  part  = folderId.substr (start, (slash == std::wstring::npos) ? std::wstring::npos : slash - start);
+
+        member += (member.empty() ? L"" : L"/") + part;
+
+        if (isZip (part))
+        {
+            text  += L"|" + member;
+            member.clear();
+        }
+
+        start = (slash == std::wstring::npos) ? folderId.size() : slash + 1;
+    }
+
+    return text + L"|" + member + (member.empty() ? L"" : L"/") + name;
 }
 
 

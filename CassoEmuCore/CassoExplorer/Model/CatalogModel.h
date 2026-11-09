@@ -96,6 +96,10 @@ struct CatalogRow
     bool          homeInList        = false;   // Home's item in its grouped list, not in a section
     std::wstring  imagePath;
     size_t        imageCatalogIndex = 0;
+
+    //  A disk image inside a ZIP the shell lists, as a ContainerPath's text,
+    //  which it opens by; empty for every other row.
+    std::wstring  containerPath;
     std::string   imageDirectory;
     int64_t       deletedUnix       = 0;
     bool          hasDeleted        = false;

@@ -14,6 +14,7 @@
 #include "Config/Win32FileSystem.h"
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/Win32DiskFileIo.h"
+#include "Devices/Disk/Archives/ContainerDiskFileIo.h"
 #include "Seams/Win32LinkAnnouncements.h"
 #include "Seams/Win32NetworkChanges.h"
 #include "Seams/Win32HostFirewall.h"
@@ -215,6 +216,7 @@ private:
 
     Win32FileSystem                           m_fs;
     Win32DiskFileIo                           m_fileIo;
+    ContainerDiskFileIo                       m_containerIo    { m_fileIo };
     Win32ByteStreamFactory                    m_streams;
     CassoLinkFolder                           m_linkFolder;
     CassoLinkConnections                      m_links;

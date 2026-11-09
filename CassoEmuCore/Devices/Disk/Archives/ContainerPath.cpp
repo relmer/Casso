@@ -43,11 +43,173 @@ std::string ContainerPath::GetId() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ContainerPath::ToString
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ContainerPath::ToString() const
+{
+    std::string  text;
+
+
+
+    for (const ContainerStep & step : steps)
+    {
+        if (step.kind == ContainerStep::Kind::Gzip)
+        {
+            continue;
+        }
+
+        if (!text.empty())
+        {
+            text += kPathSeparator;
+        }
+
+        text += step.name;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainerPath::Parse
+//
+//  A gzip step goes in when a name ending `.gz` has a step after it; a
+//  gzip at the end is expanded by the image loader, as one on the PC is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ContainerPath ContainerPath::Parse (const std::string & text)
+{
+    ContainerPath  path;
+    size_t         start = 0;
+    size_t         bar   = 0;
+    std::string    prior;
+
+
+
+    while (start <= text.size())
+    {
+        std::string  name;
+
+        bar  = text.find (kPathSeparator, start);
+        name = text.substr (start, (bar == std::string::npos) ? std::string::npos : bar - start);
+
+        if (path.steps.empty())
+        {
+            path.steps.push_back ({ ContainerStep::Kind::HostFile, name });
+        }
+        else
+        {
+            if (HasExtension (prior, ".gz"))
+            {
+                path.steps.push_back ({ ContainerStep::Kind::Gzip, std::string() });
+                prior = StripGzipExtension (prior);
+            }
+
+            path.steps.push_back ({ HasExtension (prior, ".zip") ? ContainerStep::Kind::ZipMember : ContainerStep::Kind::ImageFile, name });
+        }
+
+        prior = name;
+
+        if (bar == std::string::npos)
+        {
+            break;
+        }
+
+        start = bar + 1;
+    }
+
+    return path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ContainerPath::Open
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ContainerPath::Open (const ContainerPath & path, IFileSystem & fs, OpenedContainer & outOpened, std::string & outError)
+{
+    HRESULT      hr       = S_OK;
+    bool         isRooted = !path.steps.empty();
+    std::string  content;
+
+
+
+    outOpened = {};
+
+    CBRAEx (isRooted, E_INVALIDARG);
+
+    hr = fs.ReadAllText (TextEncoding::Utf8ToWide (path.GetHost()), content);
+    CHRF (hr, outError = std::format ("{} couldn't be read.", GetLeafName (path.GetHost())));
+
+    hr = OpenBytes (path, std::span<const Byte> ((const Byte *) content.data(), content.size()), outOpened, outError);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainerPath::Replace
+//
+//  The host file is written once every step is rebuilt, so a failure at any
+//  step returns before it is written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ContainerPath::Replace (const ContainerPath & path, IFileSystem & fs, std::span<const Byte> innerBytes, std::string & outError)
+{
+    HRESULT            hr       = S_OK;
+    bool               isRooted = !path.steps.empty();
+    std::string        content;
+    std::vector<Byte>  rebuilt;
+
+
+
+    CBRAEx (isRooted, E_INVALIDARG);
+
+    hr = fs.ReadAllText (TextEncoding::Utf8ToWide (path.GetHost()), content);
+    CHRF (hr, outError = std::format ("{} couldn't be read.", GetLeafName (path.GetHost())));
+
+    hr = ReplaceBytes (path, std::span<const Byte> ((const Byte *) content.data(), content.size()), innerBytes, rebuilt, outError);
+    CHR (hr);
+
+    content.assign (rebuilt.begin(), rebuilt.end());
+
+    hr = fs.WriteAllText (TextEncoding::Utf8ToWide (path.GetHost()), content);
+    CHRF (hr, outError = std::format ("{} couldn't be written.", GetLeafName (path.GetHost())));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainerPath::OpenBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ContainerPath::OpenBytes (const ContainerPath & path, std::span<const Byte> hostBytes, OpenedContainer & outOpened, std::string & outError)
 {
     HRESULT             hr = S_OK;
     std::vector<Level>  levels;
@@ -56,7 +218,7 @@ HRESULT ContainerPath::Open (const ContainerPath & path, IFileSystem & fs, Opene
 
     outOpened = {};
 
-    hr = OpenLevels (path, fs, levels, outError);
+    hr = OpenLevels (path, hostBytes, levels, outError);
     CHR (hr);
 
     outOpened.bytes = std::move (levels.back().bytes);
@@ -72,23 +234,24 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ContainerPath::Replace
+//  ContainerPath::ReplaceBytes
 //
 //  Each step is opened first, so that every container is rebuilt from the
-//  bytes it has now. A failure at any step returns before the host file is written.
+//  bytes it has now.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ContainerPath::Replace (const ContainerPath & path, IFileSystem & fs, std::span<const Byte> innerBytes, std::string & outError)
+HRESULT ContainerPath::ReplaceBytes (const ContainerPath & path, std::span<const Byte> hostBytes, std::span<const Byte> innerBytes, std::vector<Byte> & outHostBytes, std::string & outError)
 {
     HRESULT             hr = S_OK;
     std::vector<Level>  levels;
     std::vector<Byte>   rebuilt;
-    std::string         content;
 
 
 
-    hr = OpenLevels (path, fs, levels, outError);
+    outHostBytes.clear();
+
+    hr = OpenLevels (path, hostBytes, levels, outError);
     CHR (hr);
 
     levels.back().bytes.assign (innerBytes.begin(), innerBytes.end());
@@ -101,10 +264,7 @@ HRESULT ContainerPath::Replace (const ContainerPath & path, IFileSystem & fs, st
         levels[i - 1].bytes = std::move (rebuilt);
     }
 
-    content.assign (levels[0].bytes.begin(), levels[0].bytes.end());
-
-    hr = fs.WriteAllText (TextEncoding::Utf8ToWide (path.steps[0].name), content);
-    CHRF (hr, outError = std::format ("{} couldn't be written.", GetLeafName (path.steps[0].name)));
+    outHostBytes = std::move (levels[0].bytes);
 
 Error:
     return hr;
@@ -122,12 +282,11 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ContainerPath::OpenLevels (const ContainerPath & path, IFileSystem & fs, std::vector<Level> & outLevels, std::string & outError)
+HRESULT ContainerPath::OpenLevels (const ContainerPath & path, std::span<const Byte> hostBytes, std::vector<Level> & outLevels, std::string & outError)
 {
-    HRESULT      hr       = S_OK;
-    bool         isRooted = !path.steps.empty() && path.steps[0].kind == ContainerStep::Kind::HostFile;
-    std::string  content;
-    Level        level;
+    HRESULT  hr       = S_OK;
+    bool     isRooted = !path.steps.empty() && path.steps[0].kind == ContainerStep::Kind::HostFile;
+    Level    level;
 
 
 
@@ -135,10 +294,7 @@ HRESULT ContainerPath::OpenLevels (const ContainerPath & path, IFileSystem & fs,
 
     CBRAEx (isRooted, E_INVALIDARG);
 
-    hr = fs.ReadAllText (TextEncoding::Utf8ToWide (path.steps[0].name), content);
-    CHRF (hr, outError = std::format ("{} couldn't be read.", GetLeafName (path.steps[0].name)));
-
-    level.bytes.assign (content.begin(), content.end());
+    level.bytes.assign (hostBytes.begin(), hostBytes.end());
     level.name = path.steps[0].name;
     outLevels.push_back (std::move (level));
 
@@ -416,9 +572,23 @@ std::string ContainerPath::StripGzipExtension (const std::string & name)
 
 
 
-    bool  hasExtension = name.size() > kExtension.size() && _stricmp (name.c_str() + name.size() - kExtension.size(), kExtension.data()) == 0;
+    return HasExtension (name, kExtension) ? name.substr (0, name.size() - kExtension.size()) : name;
+}
 
 
 
-    return hasExtension ? name.substr (0, name.size() - kExtension.size()) : name;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainerPath::HasExtension
+//
+//  Whether a name ends with the extension, in any case, after at least one
+//  other character.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ContainerPath::HasExtension (const std::string & name, std::string_view extension)
+{
+    return name.size() > extension.size() && _stricmp (name.c_str() + name.size() - extension.size(), extension.data()) == 0;
 }

@@ -30,6 +30,10 @@ IDR_THEME_DARK_THEME_JSON          RCDATA "..\\Resources\\Themes\\DarkModern\\th
 
 IDR_THEME_RETRO_THEME_JSON         RCDATA "..\\Resources\\Themes\\RetroTerminal\\theme.json"
 
+IDR_THEME_PHOSPHOR_THEME_JSON      RCDATA "..\\Resources\\Themes\\Phosphor\\theme.json"
+IDR_THEME_PHOSPHOR_FONT_TTF        RCDATA "..\\Resources\\Themes\\Phosphor\\fonts\\VT323-Regular.ttf"
+IDR_THEME_PHOSPHOR_FONT_OFL        RCDATA "..\\Resources\\Themes\\Phosphor\\fonts\\OFL.txt"
+
 // Version Information
 VS_VERSION_INFO VERSIONINFO
     FILEVERSION     VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,0

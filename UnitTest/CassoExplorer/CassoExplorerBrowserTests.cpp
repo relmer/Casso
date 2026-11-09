@@ -15,6 +15,8 @@
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/AppleSingleCodec.h"
 #include "Machines/Apple2/Common/AppleFileName.h"
+#include "Devices/Disk/Archives/ContainerDiskFileIo.h"
+#include "Update/ZipArchive.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -388,6 +390,52 @@ public:
         Assert::IsTrue   (host.browser.GetPreview().kind == PreviewContent::Kind::Hex);
         Assert::AreEqual ((size_t) 4, host.browser.GetPreview().bytes.size());
         Assert::IsTrue   (host.browser.GetPreview().textFile, L"Plain text opens showing its characters");
+    }
+
+
+    //  A disk image in a ZIP is listed as an image, and opens by the ZIP's
+    //  path and its path in the ZIP.
+    TEST_METHOD (Archive_ImageInsideOpensThroughTheZip)
+    {
+        static constexpr Byte  kEmptyZip[22] = { 0x50, 0x4B, 0x05, 0x06 };
+
+        InMemoryFileSystem                fs;
+        FakeDiskFileIo                    io;
+        ContainerDiskFileIo               nested  { io };
+        CassoExplorerBrowser              browser { fs, nested };
+        FakeRecycleBin                    shell;
+        IShellItemVerbs::ShellFolderItem  inside;
+        FixtureProvider                   fixtures;
+        std::vector<Byte>                 image;
+        std::vector<Byte>                 zip;
+        Location                          target;
+        int                               row     = 0;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", image));
+        AssertSucceeded (ZipArchive::Replace (kEmptyZip, "disks/dos33.dsk", image, zip));
+        AssertSucceeded (fs.WriteAllText (L"C:\\Disks\\set.zip", std::string (zip.begin(), zip.end())));
+        io.files["C:\\Disks\\set.zip"]  = zip;
+        io.stamps["C:\\Disks\\set.zip"] = FileStamp { zip.size(), 100 };
+
+        inside.id       = L"C:\\Disks\\set.zip\\disks\\dos33.dsk";
+        inside.name     = L"dos33.dsk";
+        inside.typeText = L"Disk image";
+        shell.shellItems.push_back (inside);
+        browser.SetShellVerbs (&shell);
+
+        browser.NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\set.zip\\disks", L"disks"));
+        row = FindRow (browser, L"dos33.dsk");
+
+        Assert::IsTrue (browser.GetRows()[(size_t) row].isDiskImage);
+        Assert::IsTrue (browser.TryGetRowLocation (row, target));
+        Assert::IsTrue (target.kind == Location::Kind::DiskImage);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\set.zip|disks/dos33.dsk"), target.path);
+
+        Assert::IsTrue (browser.OpenRow (row));
+        Assert::IsFalse (browser.GetRows().empty(), L"The image's catalog is listed");
+        Assert::AreEqual (std::wstring (L"dos33.dsk"), BrowserCells::GetLocationLabel (target));
     }
 
 

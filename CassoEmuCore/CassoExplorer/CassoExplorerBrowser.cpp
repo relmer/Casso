@@ -1282,9 +1282,9 @@ bool CassoExplorerBrowser::TryGetRowLocation (int row, Location & outLocation)
         {
             outLocation = item.hostPath.empty() ? Location::MakeShellFolder (item.shellId, item.name) : Location::MakeHostFolder (item.hostPath);
         }
-        else if (item.isDiskImage && m_loader.CanListImage (item.hostPath))
+        else if (item.isDiskImage && m_loader.CanListImage (BrowserLoader::GetImagePath (item)))
         {
-            outLocation = Location::MakeDiskImage (item.hostPath);
+            outLocation = Location::MakeDiskImage (BrowserLoader::GetImagePath (item));
         }
         else
         {
