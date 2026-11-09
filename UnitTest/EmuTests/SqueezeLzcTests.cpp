@@ -5,6 +5,10 @@
 #include "Devices/Disk/Archives/NuFxArchive.h"
 #include "Devices/Disk/Archives/NuLzw.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/Archives/Bzip2Decoder.h"
+
+#define BZ_NO_STDIO
+#include "../External/bzip2/bzlib.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -348,7 +352,7 @@ public:
     }
 
 
-    TEST_METHOD (NuFxThread_ExpandsSqueezeAndLzc)
+    TEST_METHOD (NuFxThread_ExpandsSqueezeLzcAndBzip2)
     {
         std::vector<Byte>  text = MakeText (5'000, 17);
         NuFxRecord         record;
@@ -372,6 +376,23 @@ public:
         thread.stored = CompressLzc (text, 16, false, false);
         AssertSucceeded (NuFxArchive::ExpandThread (record, thread, unpacked, error));
         Assert::IsTrue (unpacked == text);
+
+        {
+            std::vector<Byte>  packed (text.size() + text.size() / 100 + 600);
+            unsigned int       size = (unsigned int) packed.size();
+
+            Assert::AreEqual (BZ_OK, BZ2_bzBuffToBuffCompress ((char *) packed.data(), &size, (char *) text.data(), (unsigned int) text.size(), 9, 0, 0));
+            packed.resize (size);
+
+            thread.format = NuFxThread::kFormatBzip2;
+            thread.stored = packed;
+            AssertSucceeded (NuFxArchive::ExpandThread (record, thread, unpacked, error));
+            Assert::IsTrue (unpacked == text);
+
+            packed[packed.size() / 2] ^= 0x55;
+            thread.stored = packed;
+            Assert::IsTrue (FAILED (NuFxArchive::ExpandThread (record, thread, unpacked, error)));
+        }
 
         thread.format = NuFxThread::kFormatSqueeze;
         thread.eof    = 2;

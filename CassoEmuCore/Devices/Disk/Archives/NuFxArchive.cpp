@@ -4,6 +4,7 @@
 #include "Devices/Disk/Archives/NuLzw.h"
 #include "Devices/Disk/Archives/SqueezeDecoder.h"
 #include "Devices/Disk/Archives/LzcDecoder.h"
+#include "Devices/Disk/Archives/Bzip2Decoder.h"
 #include "Update/Inflate.h"
 
 
@@ -329,6 +330,11 @@ HRESULT NuFxArchive::ExpandThread (const NuFxRecord & record, const NuFxThread &
 
         case NuFxThread::kFormatLzw2:
             hr = NuLzw::ExpandLzw2 (thread.stored, length, outBytes, outError);
+            CHR (hr);
+            break;
+
+        case NuFxThread::kFormatBzip2:
+            hr = Bzip2Decoder::Expand (thread.stored, length, outBytes, outError);
             CHR (hr);
             break;
 
