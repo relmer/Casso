@@ -1,0 +1,424 @@
+#include "Pch.h"
+
+#include "Devices/Disk/Archives/ContainerPath.h"
+#include "Devices/Disk/Archives/GzipFile.h"
+#include "Devices/Disk/FilePath.h"
+#include "Machines/Apple2/Common/IVolume.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "Config/IFileSystem.h"
+#include "Core/TextEncoding.h"
+#include "Update/ZipArchive.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainerPath::GetId
+//
+//  Each step's kind and name, joined with a separator no name contains.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ContainerPath::GetId() const
+{
+    std::string  id;
+
+
+
+    for (const ContainerStep & step : steps)
+    {
+        id += (char) ('0' + (int) step.kind);
+        id += step.name;
+        id += kIdSeparator;
+    }
+
+    return id;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainerPath::Open
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ContainerPath::Open (const ContainerPath & path, IFileSystem & fs, OpenedContainer & outOpened, std::string & outError)
+{
+    HRESULT             hr = S_OK;
+    std::vector<Level>  levels;
+
+
+
+    outOpened = {};
+
+    hr = OpenLevels (path, fs, levels, outError);
+    CHR (hr);
+
+    outOpened.bytes = std::move (levels.back().bytes);
+    outOpened.name  = levels.back().name;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainerPath::Replace
+//
+//  Each step is opened first, so that every container is rebuilt from the
+//  bytes it has now. A failure at any step returns before the host file is written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ContainerPath::Replace (const ContainerPath & path, IFileSystem & fs, std::span<const Byte> innerBytes, std::string & outError)
+{
+    HRESULT             hr = S_OK;
+    std::vector<Level>  levels;
+    std::vector<Byte>   rebuilt;
+    std::string         content;
+
+
+
+    hr = OpenLevels (path, fs, levels, outError);
+    CHR (hr);
+
+    levels.back().bytes.assign (innerBytes.begin(), innerBytes.end());
+
+    for (size_t i = levels.size() - 1; i > 0; i--)
+    {
+        hr = ReplaceStep (path.steps[i], levels[i - 1], levels[i], rebuilt, outError);
+        CHR (hr);
+
+        levels[i - 1].bytes = std::move (rebuilt);
+    }
+
+    content.assign (levels[0].bytes.begin(), levels[0].bytes.end());
+
+    hr = fs.WriteAllText (TextEncoding::Utf8ToWide (path.steps[0].name), content);
+    CHRF (hr, outError = std::format ("{} couldn't be written.", GetLeafName (path.steps[0].name)));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainerPath::OpenLevels
+//
+//  The bytes at every step, the host file's first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ContainerPath::OpenLevels (const ContainerPath & path, IFileSystem & fs, std::vector<Level> & outLevels, std::string & outError)
+{
+    HRESULT      hr       = S_OK;
+    bool         isRooted = !path.steps.empty() && path.steps[0].kind == ContainerStep::Kind::HostFile;
+    std::string  content;
+    Level        level;
+
+
+
+    outLevels.clear();
+
+    CBRAEx (isRooted, E_INVALIDARG);
+
+    hr = fs.ReadAllText (TextEncoding::Utf8ToWide (path.steps[0].name), content);
+    CHRF (hr, outError = std::format ("{} couldn't be read.", GetLeafName (path.steps[0].name)));
+
+    level.bytes.assign (content.begin(), content.end());
+    level.name = path.steps[0].name;
+    outLevels.push_back (std::move (level));
+
+    for (size_t i = 1; i < path.steps.size(); i++)
+    {
+        Level  next;
+
+        hr = OpenStep (path.steps[i], outLevels.back(), next, outError);
+        CHR (hr);
+
+        outLevels.push_back (std::move (next));
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainerPath::OpenStep
+//
+//  One step's bytes from the step before. A gzip file's inner name is the
+//  outer one without `.gz`, as for an image opened from a gzip on the PC.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ContainerPath::OpenStep (const ContainerStep & step, const Level & parent, Level & outLevel, std::string & outError)
+{
+    HRESULT                hr    = S_OK;
+    bool                   found = false;
+    std::vector<ZipEntry>  entries;
+
+
+
+    outLevel = {};
+
+    switch (step.kind)
+    {
+        case ContainerStep::Kind::ZipMember:
+            hr = ZipArchive::Extract (parent.bytes, entries);
+            CHRF (hr, outError = std::format ("{} doesn't open as a ZIP file.", GetLeafName (parent.name)));
+
+            for (ZipEntry & entry : entries)
+            {
+                if (!found && entry.path == step.name)
+                {
+                    found          = true;
+                    outLevel.bytes = std::move (entry.data);
+                }
+            }
+
+            CBRFEx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), outError = std::format ("{} isn't in {}.", step.name, GetLeafName (parent.name)));
+
+            outLevel.name = step.name;
+            break;
+
+        case ContainerStep::Kind::Gzip:
+            hr = GzipFile::Expand (parent.bytes, outLevel.bytes, outLevel.gzipName, outError);
+            CHR (hr);
+
+            outLevel.name = StripGzipExtension (parent.name);
+            break;
+
+        case ContainerStep::Kind::ImageFile:
+        case ContainerStep::Kind::ArchiveRecord:
+            hr = ReadVolume (parent, step.name, outLevel.bytes, outError);
+            CHR (hr);
+
+            outLevel.name = step.name;
+            break;
+
+        case ContainerStep::Kind::Partition:
+            CBRFEx (false, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), outError = "Casso doesn't open partitions yet.");
+            break;
+
+        default:
+            CBRAEx (false, E_INVALIDARG);
+            break;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainerPath::ReplaceStep
+//
+//  The step before, rebuilt with this step's new bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ContainerPath::ReplaceStep (const ContainerStep & step, const Level & parent, const Level & child, std::vector<Byte> & outParent, std::string & outError)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    outParent.clear();
+
+    switch (step.kind)
+    {
+        case ContainerStep::Kind::ZipMember:
+            hr = ZipArchive::Replace (parent.bytes, step.name, child.bytes, outParent);
+            CHRF (hr, outError = std::format ("{} couldn't be rebuilt.", GetLeafName (parent.name)));
+            break;
+
+        case ContainerStep::Kind::Gzip:
+            GzipFile::Build (child.bytes, child.gzipName, outParent);
+            break;
+
+        case ContainerStep::Kind::ImageFile:
+        case ContainerStep::Kind::ArchiveRecord:
+            hr = WriteVolume (parent, step.name, child.bytes, outParent, outError);
+            CHR (hr);
+            break;
+
+        case ContainerStep::Kind::Partition:
+            CBRFEx (false, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), outError = "Casso doesn't open partitions yet.");
+            break;
+
+        default:
+            CBRAEx (false, E_INVALIDARG);
+            break;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainerPath::ReadVolume
+//
+//  A file's data fork from the image or archive in `parent`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ContainerPath::ReadVolume (const Level & parent, const std::string & file, std::vector<Byte> & outBytes, std::string & outError)
+{
+    HRESULT                   hr     = S_OK;
+    std::vector<Byte>         sectors;
+    SectorDecodeReport        report;
+    VolumeKind                kind   = VolumeKind::Unknown;
+    std::unique_ptr<IVolume>  volume;
+    FilePayload               payload;
+    std::string               leaf   = GetLeafName (parent.name);
+
+
+
+    outBytes.clear();
+
+    hr = VolumeImage::Load (parent.bytes, parent.name, sectors, report);
+    CHRF (hr, outError = std::format ("{} doesn't open as a disk image or an archive.", leaf));
+
+    kind   = VolumeImage::DetectFilesystem (sectors);
+    volume = VolumeImage::CreateVolume (kind, sectors);
+    CBRFEx (volume != nullptr, HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME), outError = std::format ("{} has no file system Casso reads.", leaf));
+
+    hr = volume->Read (FilePath::Parse (file), payload);
+    CHRF (hr, outError = std::format ("{} isn't on {}.", file, leaf));
+
+    outBytes = std::move (payload.bytes);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainerPath::WriteVolume
+//
+//  The file is deleted and written again with its type, dates, access and
+//  resource fork, and the image saved in the form it was read in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ContainerPath::WriteVolume (const Level & parent, const std::string & file, std::span<const Byte> bytes, std::vector<Byte> & outParent, std::string & outError)
+{
+    HRESULT                   hr        = S_OK;
+    std::vector<Byte>         sectors;
+    std::vector<Byte>         deleted;
+    std::vector<Byte>         edited;
+    SectorDecodeReport        report;
+    VolumeKind                kind      = VolumeKind::Unknown;
+    std::unique_ptr<IVolume>  volume;
+    std::unique_ptr<IVolume>  rewritten;
+    FilePayload               payload;
+    FilePath                  path      = FilePath::Parse (file);
+    std::string               leaf      = GetLeafName (parent.name);
+    std::string               reason;
+
+
+
+    outParent.clear();
+
+    hr = VolumeImage::Load (parent.bytes, parent.name, sectors, report);
+    CHRF (hr, outError = std::format ("{} doesn't open as a disk image or an archive.", leaf));
+
+    kind   = VolumeImage::DetectFilesystem (sectors);
+    volume = VolumeImage::CreateVolume (kind, sectors);
+    CBRFEx (volume != nullptr, HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME), outError = std::format ("{} has no file system Casso reads.", leaf));
+
+    hr = volume->Read (path, payload);
+    CHRF (hr, outError = std::format ("{} isn't on {}.", file, leaf));
+
+    payload.bytes.assign (bytes.begin(), bytes.end());
+
+    hr = volume->Delete (path, deleted);
+    CHRF (hr, outError = std::format ("{} couldn't be replaced on {}.", file, leaf));
+
+    rewritten = VolumeImage::CreateVolume (kind, deleted);
+    CBRFEx (rewritten != nullptr, HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME), outError = std::format ("{} has no file system Casso reads.", leaf));
+
+    hr = rewritten->Write (path, payload, edited);
+    CHRF (hr, outError = std::format ("{} doesn't fit on {}.", file, leaf));
+
+    hr = VolumeImage::Save (parent.bytes, parent.name, edited, outParent, reason);
+    CHRF (hr, outError = reason);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainerPath::GetLeafName
+//
+//  The part of a path after its last separator, '/' or '\\'.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ContainerPath::GetLeafName (const std::string & path)
+{
+    size_t  slash = path.find_last_of ("/\\");
+
+
+
+    return (slash == std::string::npos) ? path : path.substr (slash + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainerPath::StripGzipExtension
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ContainerPath::StripGzipExtension (const std::string & name)
+{
+    static constexpr std::string_view  kExtension = ".gz";
+
+
+
+    bool  hasExtension = name.size() > kExtension.size() && _stricmp (name.c_str() + name.size() - kExtension.size(), kExtension.data()) == 0;
+
+
+
+    return hasExtension ? name.substr (0, name.size() - kExtension.size()) : name;
+}

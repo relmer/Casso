@@ -245,23 +245,15 @@ HRESULT ZipArchive::ExtractEntry (
     const CentralRecord    & record,
     ZipEntry               & outEntry)
 {
-    static constexpr std::uint32_t  kSignature      = 0x04034B50;
-    static constexpr size_t         kHeaderSize     = 30;
-    static constexpr size_t         kNameLenOffset  = 26;
-    static constexpr size_t         kExtraLenOffset = 28;
     static constexpr std::uint16_t  kEncryptedFlag  = 0x0001;
     static constexpr std::uint16_t  kMethodStored   = 0;
     static constexpr std::uint16_t  kMethodDeflated = 8;
     HRESULT                         hr              = S_OK;
-    size_t                          dataOffset      = 0;
     std::span<const Byte>           data;
     bool                            isSafePath      = false;
     bool                            isEncrypted     = (record.flags & kEncryptedFlag) != 0;
     bool                            isKnown         = record.method == kMethodStored || record.method == kMethodDeflated;
     bool                            isSmall         = record.uncompressedSize <= kMaxEntryBytes;
-    bool                            hasHeader       = archive.size() >= kHeaderSize && record.localOffset <= archive.size() - kHeaderSize;
-    bool                            hasData         = false;
-    bool                            isSigned        = false;
     bool                            isSizeRight     = false;
     bool                            isCrcRight      = false;
 
@@ -275,18 +267,10 @@ HRESULT ZipArchive::ExtractEntry (
     CBREx (!isEncrypted, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
     CBREx (isKnown,      HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
     CBREx (isSmall,      HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (hasHeader,    HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    isSigned = ReadU32 (archive, record.localOffset) == kSignature;
-    CBREx (isSigned, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    hr = LocateData (archive, record, data);
+    CHR (hr);
 
-    dataOffset = record.localOffset + kHeaderSize +
-                 ReadU16 (archive, record.localOffset + kNameLenOffset) +
-                 ReadU16 (archive, record.localOffset + kExtraLenOffset);
-    hasData    = dataOffset <= archive.size() && record.compressedSize <= archive.size() - dataOffset;
-    CBREx (hasData, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-    data                 = archive.subspan (dataOffset, record.compressedSize);
     outEntry.path        = record.path;
     outEntry.isDirectory = record.path.ends_with ('/');
 
@@ -313,6 +297,307 @@ Error:
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ZipArchive::LocateData
+//
+//  An entry's compressed bytes, after its local header's name and extra
+//  field. `archive` ends where the central directory starts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ZipArchive::LocateData (
+    std::span<const Byte>    archive,
+    const CentralRecord    & record,
+    std::span<const Byte>  & outData)
+{
+    static constexpr std::uint32_t  kSignature      = 0x04034B50;
+    static constexpr size_t         kHeaderSize     = 30;
+    static constexpr size_t         kNameLenOffset  = 26;
+    static constexpr size_t         kExtraLenOffset = 28;
+    HRESULT                         hr              = S_OK;
+    size_t                          dataOffset      = 0;
+    bool                            hasHeader       = archive.size() >= kHeaderSize && record.localOffset <= archive.size() - kHeaderSize;
+    bool                            hasData         = false;
+    bool                            isSigned        = false;
+
+
+
+    outData = {};
+
+    CBREx (hasHeader, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    isSigned = ReadU32 (archive, record.localOffset) == kSignature;
+    CBREx (isSigned, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    dataOffset = record.localOffset + kHeaderSize +
+                 ReadU16 (archive, record.localOffset + kNameLenOffset) +
+                 ReadU16 (archive, record.localOffset + kExtraLenOffset);
+    hasData    = dataOffset <= archive.size() && record.compressedSize <= archive.size() - dataOffset;
+    CBREx (hasData, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    outData = archive.subspan (dataOffset, record.compressedSize);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ZipArchive::Replace
+//
+//  Each local header is written again from its central record, without a
+//  data descriptor, so the copied entries' offsets and sizes are exact. The
+//  archive comment isn't copied.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ZipArchive::Replace (
+    std::span<const Byte>    archive,
+    const std::string      & path,
+    std::span<const Byte>    data,
+    std::vector<Byte>      & outArchive)
+{
+    static constexpr std::uint32_t  kEndSignature     = 0x06054B50;
+    static constexpr std::uint32_t  kCentralSignature = 0x02014B50;
+    static constexpr std::uint16_t  kVersion          = 20;
+    static constexpr std::uint16_t  kMethodStored     = 0;
+    static constexpr std::uint16_t  kDosDate1980      = 0x0021;
+    static constexpr size_t         kCentralSize      = 46;
+    static constexpr size_t         kMadeByOffset     = 4;
+    static constexpr size_t         kNeededOffset     = 6;
+    static constexpr size_t         kDateOffset       = 14;
+    static constexpr size_t         kNameLenOffset    = 28;
+    static constexpr size_t         kEntryCountOffset = 10;
+    static constexpr size_t         kCdOffsetOffset   = 16;
+    HRESULT                         hr                = S_OK;
+    size_t                          endOffset         = 0;
+    std::uint16_t                   entryCount        = 0;
+    std::uint32_t                   cdOffset          = 0;
+    size_t                          offset            = 0;
+    size_t                          next              = 0;
+    std::uint16_t                   written           = 0;
+    std::uint32_t                   directoryOffset   = 0;
+    bool                            found             = false;
+    bool                            isCdInside        = false;
+    std::uint32_t                   dataCrc           = ComputeCrc32 (data);
+    std::span<const Byte>           stored;
+    std::vector<Byte>               directory;
+    std::vector<Byte>               added;
+    CentralRecord                   record;
+
+
+
+    outArchive.clear();
+
+    hr = FindEndRecord (archive, endOffset);
+    CHR (hr);
+
+    entryCount = ReadU16 (archive, endOffset + kEntryCountOffset);
+    cdOffset   = ReadU32 (archive, endOffset + kCdOffsetOffset);
+    isCdInside = cdOffset <= endOffset;
+    CBREx (isCdInside, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    offset = cdOffset;
+
+    for (std::uint16_t i = 0; i < entryCount; i++, written++)
+    {
+        hr = ReadCentralRecord (archive.first (endOffset), offset, record, next);
+        CHR (hr);
+
+        if (record.path == path)
+        {
+            found = true;
+            AppendEntry (archive.subspan (offset, next - offset), kMethodStored, dataCrc, data, (std::uint32_t) data.size(), outArchive, directory);
+        }
+        else
+        {
+            hr = LocateData (archive.first (cdOffset), record, stored);
+            CHR (hr);
+
+            AppendEntry (archive.subspan (offset, next - offset), record.method, record.crc32, stored, record.uncompressedSize, outArchive, directory);
+        }
+
+        offset = next;
+    }
+
+    if (!found)
+    {
+        added.assign (kCentralSize, 0);
+        SetU32 (added, 0,              kCentralSignature);
+        SetU16 (added, kMadeByOffset,  kVersion);
+        SetU16 (added, kNeededOffset,  kVersion);
+        SetU16 (added, kDateOffset,    kDosDate1980);
+        SetU16 (added, kNameLenOffset, (std::uint16_t) path.size());
+        added.insert (added.end(), path.begin(), path.end());
+
+        AppendEntry (added, kMethodStored, dataCrc, data, (std::uint32_t) data.size(), outArchive, directory);
+        written++;
+    }
+
+    directoryOffset = (std::uint32_t) outArchive.size();
+
+    outArchive.insert (outArchive.end(), directory.begin(), directory.end());
+    PutU32 (outArchive, kEndSignature);
+    PutU16 (outArchive, 0);
+    PutU16 (outArchive, 0);
+    PutU16 (outArchive, written);
+    PutU16 (outArchive, written);
+    PutU32 (outArchive, (std::uint32_t) directory.size());
+    PutU32 (outArchive, directoryOffset);
+    PutU16 (outArchive, 0);
+
+Error:
+    if (FAILED (hr))
+    {
+        outArchive.clear();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ZipArchive::AppendEntry
+//
+//  A local header and the entry's bytes onto the archive, and its central
+//  record onto the directory, both with the method, CRC, sizes and offset
+//  given. The data descriptor flag is cleared in both.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ZipArchive::AppendEntry (
+    std::span<const Byte>    central,
+    std::uint16_t            method,
+    std::uint32_t            crc32,
+    std::span<const Byte>    stored,
+    std::uint32_t            uncompressedSize,
+    std::vector<Byte>      & outArchive,
+    std::vector<Byte>      & outDirectory)
+{
+    static constexpr std::uint32_t  kLocalSignature   = 0x04034B50;
+    static constexpr std::uint16_t  kDescriptorFlag   = 0x0008;
+    static constexpr size_t         kNeededOffset     = 6;
+    static constexpr size_t         kFlagsOffset      = 8;
+    static constexpr size_t         kMethodOffset     = 10;
+    static constexpr size_t         kTimeOffset       = 12;
+    static constexpr size_t         kDateOffset       = 14;
+    static constexpr size_t         kCrcOffset        = 16;
+    static constexpr size_t         kCompSizeOffset   = 20;
+    static constexpr size_t         kUncompSizeOffset = 24;
+    static constexpr size_t         kNameLenOffset    = 28;
+    static constexpr size_t         kLocalOffset      = 42;
+    static constexpr size_t         kHeaderSize       = 46;
+    std::uint16_t                   flags             = (std::uint16_t) (ReadU16 (central, kFlagsOffset) & ~kDescriptorFlag);
+    std::uint16_t                   nameLength        = ReadU16 (central, kNameLenOffset);
+    std::uint32_t                   localOffset       = (std::uint32_t) outArchive.size();
+    size_t                          directoryAt       = outDirectory.size();
+
+
+
+    PutU32 (outArchive, kLocalSignature);
+    PutU16 (outArchive, ReadU16 (central, kNeededOffset));
+    PutU16 (outArchive, flags);
+    PutU16 (outArchive, method);
+    PutU16 (outArchive, ReadU16 (central, kTimeOffset));
+    PutU16 (outArchive, ReadU16 (central, kDateOffset));
+    PutU32 (outArchive, crc32);
+    PutU32 (outArchive, (std::uint32_t) stored.size());
+    PutU32 (outArchive, uncompressedSize);
+    PutU16 (outArchive, nameLength);
+    PutU16 (outArchive, 0);
+    outArchive.insert (outArchive.end(), central.begin() + kHeaderSize, central.begin() + kHeaderSize + nameLength);
+    outArchive.insert (outArchive.end(), stored.begin(), stored.end());
+
+    outDirectory.insert (outDirectory.end(), central.begin(), central.end());
+    SetU16 (outDirectory, directoryAt + kFlagsOffset,      flags);
+    SetU16 (outDirectory, directoryAt + kMethodOffset,     method);
+    SetU32 (outDirectory, directoryAt + kCrcOffset,        crc32);
+    SetU32 (outDirectory, directoryAt + kCompSizeOffset,   (std::uint32_t) stored.size());
+    SetU32 (outDirectory, directoryAt + kUncompSizeOffset, uncompressedSize);
+    SetU32 (outDirectory, directoryAt + kLocalOffset,      localOffset);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ZipArchive::PutU16
+//
+//  Little-endian, appended.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ZipArchive::PutU16 (std::vector<Byte> & bytes, std::uint16_t value)
+{
+    bytes.push_back ((Byte) value);
+    bytes.push_back ((Byte) (value >> 8));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ZipArchive::PutU32
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ZipArchive::PutU32 (std::vector<Byte> & bytes, std::uint32_t value)
+{
+    PutU16 (bytes, (std::uint16_t) value);
+    PutU16 (bytes, (std::uint16_t) (value >> 16));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ZipArchive::SetU16
+//
+//  Little-endian, over bytes already there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ZipArchive::SetU16 (std::vector<Byte> & bytes, size_t offset, std::uint16_t value)
+{
+    bytes[offset]     = (Byte) value;
+    bytes[offset + 1] = (Byte) (value >> 8);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ZipArchive::SetU32
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ZipArchive::SetU32 (std::vector<Byte> & bytes, size_t offset, std::uint32_t value)
+{
+    SetU16 (bytes, offset,     (std::uint16_t) value);
+    SetU16 (bytes, offset + 2, (std::uint16_t) (value >> 16));
 }
 
 

@@ -96,8 +96,8 @@ public:
 class ContainerPath
 {
 public:
-    static HRESULT  Open    (const ContainerPath & path, IFileSystem & fs, OpenedContainer & outOpened);
-    static HRESULT  Replace (const ContainerPath & path, IFileSystem & fs, std::span<const Byte> innerBytes);
+    static HRESULT  Open    (const ContainerPath & path, IFileSystem & fs, OpenedContainer & outOpened, std::string & outError);
+    static HRESULT  Replace (const ContainerPath & path, IFileSystem & fs, std::span<const Byte> innerBytes, std::string & outError);
 };
 ```
 
