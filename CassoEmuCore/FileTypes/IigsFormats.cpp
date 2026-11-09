@@ -39,6 +39,8 @@ std::wstring IigsFont::DescribeStyle (Word style)
 {
     static constexpr const wchar_t *  kNames[] = { L"bold", L"italic", L"underline", L"outline", L"shadow" };
 
+
+
     std::wstring  text;
 
 

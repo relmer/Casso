@@ -60,15 +60,15 @@ public:
     static HRESULT  Decode  (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError);
 
 private:
-    static constexpr Byte      kFileType   = 0xCA;
+    static constexpr Byte      kFileType    = 0xCA;
     static constexpr size_t    kHeaderBytes = 26;
-    static constexpr size_t    kNameAt     = 66;
-    static constexpr size_t    kTypeAt     = 82;
-    static constexpr size_t    kIconAt     = 86;
-    static constexpr int       kGap        = 4;
-    static constexpr uint32_t  kBackground = 0xFF808080;
-    static constexpr uint32_t  kMaskInk    = 0xFF000000;
-    static constexpr uint32_t  kMaskPaper  = 0xFFFFFFFF;
+    static constexpr size_t    kNameAt      = 66;
+    static constexpr size_t    kTypeAt      = 82;
+    static constexpr size_t    kIconAt      = 86;
+    static constexpr int       kGap         = 4;
+    static constexpr uint32_t  kBackground  = 0xFF808080;
+    static constexpr uint32_t  kMaskInk     = 0xFF000000;
+    static constexpr uint32_t  kMaskPaper   = 0xFFFFFFFF;
 
     struct Icon
     {
