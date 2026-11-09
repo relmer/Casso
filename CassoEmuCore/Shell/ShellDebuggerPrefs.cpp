@@ -377,6 +377,47 @@ void ShellDebuggerPrefs::SetDebuggerEchoingActions (bool isEchoing)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDebuggerPrefs::IsDebuggerLinkingToFileExplorer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDebuggerPrefs::IsDebuggerLinkingToFileExplorer()
+{
+    return m_settings.linksInFileExplorer;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebuggerPrefs::SetDebuggerLinkingToFileExplorer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebuggerPrefs::SetDebuggerLinkingToFileExplorer (bool isFileExplorer)
+{
+    if (m_settings.linksInFileExplorer == isFileExplorer)
+    {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+        m_settings.linksInFileExplorer = isFileExplorer;
+    }
+
+    m_host.SaveSettings();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDebuggerPrefs::IsDebuggerSkipNoticeShown
 //
 ////////////////////////////////////////////////////////////////////////////////

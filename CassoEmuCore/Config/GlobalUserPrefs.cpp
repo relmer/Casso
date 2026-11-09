@@ -119,6 +119,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerSerialLogOptions",
     "debuggerNetworkLogOptions",
     "debuggerEchoActions",
+    "debuggerLinksInFileExplorer",
     "debuggerSkipNotice",
     "debuggerOpenViews",
     "debuggerTextZoomPercent",
@@ -1319,6 +1320,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("debuggerSerialLogOptions",   JsonValue (debugger.serialLogOptions));
     root.emplace_back ("debuggerNetworkLogOptions",  JsonValue (debugger.networkLogOptions));
     root.emplace_back ("debuggerEchoActions",        JsonValue (debugger.echoActions));
+    root.emplace_back ("debuggerLinksInFileExplorer", JsonValue (debugger.linksInFileExplorer));
     root.emplace_back ("debuggerSkipNotice",         JsonValue (debugger.skipNoticeShown));
     root.emplace_back ("debuggerOpenViews",  JsonValue (debugger.openViews));
     root.emplace_back ("debuggerTextZoomPercent", JsonValue ((double) debugger.textZoomPercent));
@@ -1607,6 +1609,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     debugger.networkLogOptions  = GetStringOpt (v, "debuggerNetworkLogOptions",  debugger.networkLogOptions);
 
     debugger.echoActions     = TryGetBoolOpt (v, "debuggerEchoActions", debugger.echoActions);
+    debugger.linksInFileExplorer = TryGetBoolOpt (v, "debuggerLinksInFileExplorer", debugger.linksInFileExplorer);
     debugger.skipNoticeShown = TryGetBoolOpt (v, "debuggerSkipNotice",  debugger.skipNoticeShown);
 
     debugger.textZoomPercent = std::clamp (GetIntOpt (v, "debuggerTextZoomPercent", debugger.textZoomPercent),

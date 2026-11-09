@@ -50,6 +50,17 @@ public:
                                    HWND                  owner,
                                    const std::wstring  & titlePrefix);
 
+    //  `/select,"<path>"`, and `--title <prefix>` when there is one: the
+    //  browser opens the file's folder with the file selected.
+    static std::wstring  MakeSelectArguments (const std::wstring & path, const std::wstring & titlePrefix);
+
+    //  Starts the browser beside `moduleDirectory` at a file's folder, the
+    //  file selected, or reports it missing without trying.
+    static Outcome  LaunchCassoExplorerAt (IProcessLauncher    & launcher,
+                                           const std::wstring  & moduleDirectory,
+                                           const std::wstring  & path,
+                                           const std::wstring  & titlePrefix);
+
     //  The sentence shown when the browser is not beside the emulator.
     static std::wstring  DescribeMissing (const std::wstring & exePath);
 };

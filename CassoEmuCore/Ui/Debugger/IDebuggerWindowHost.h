@@ -194,6 +194,11 @@ public:
     virtual bool         IsDebuggerEchoingActions  ()                      { return false; }
     virtual void         SetDebuggerEchoingActions (bool isEchoing)        { (void) isEchoing; }
 
+    //  Whether a console link opens its file in File Explorer rather than in
+    //  Casso Explorer, saved with the other settings.
+    virtual bool         IsDebuggerLinkingToFileExplorer  ()                    { return false; }
+    virtual void         SetDebuggerLinkingToFileExplorer (bool isFileExplorer) { (void) isFileExplorer; }
+
     //  The window's state with no setting of its own, by name, saved with the
     //  debug project: "console", "find" and "columns".
     virtual std::string  GetDebuggerWindowState (const std::string & name)                       { (void) name; return {}; }

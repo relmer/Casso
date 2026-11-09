@@ -3904,8 +3904,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-372**: A source document's notice MUST lie inside the pane with a margin on
   every side, and MUST be no taller than its text when it has no button.
 - **FR-373**: A file in a console line MUST be a link in the console pane,
-  with its full path as its tip, that opens File Explorer with the file
-  selected; the line MUST NOT write out the full path, while the reply's text
+  with its full path as its tip, that opens the file's folder with the file
+  selected in Casso Explorer, or in File Explorer when the console menu's
+  Open links in File Explorer is checked or Casso Explorer does not start; the line MUST NOT write out the full path, while the reply's text
   for the debug channel and batch mode MUST have it. This MUST apply to every
   full path in every console line, from any command or notice, quoted or not:
   each is replaced by its file's name, linked.

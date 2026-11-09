@@ -316,40 +316,42 @@ public:
     std::string         GetDebuggerTimelineDock     () override { return m_prefs.GetDebuggerTimelineDock(); }
     void                SetDebuggerTimelineDock     (const std::string & text) override { m_prefs.SetDebuggerTimelineDock (text); }
 
-    HistoryThumbnails                   * GetHistoryThumbnails          () override { return &m_historyThumbnails; }
-    void                                  SeekHistoryCycle              (uint64_t cycle, bool isInterim) override;
-    bool                                  IsHistorySeekBusy             () const override;
-    std::string                           GetDebuggerFocusedPane        () override { return m_prefs.GetDebuggerFocusedPane(); }
-    void                                  SetDebuggerFocusedPane        (const std::string & text) override { m_prefs.SetDebuggerFocusedPane (text); }
-    bool                                  IsDebuggerEchoingActions      () override { return m_prefs.IsDebuggerEchoingActions(); }
-    void                                  SetDebuggerEchoingActions     (bool isEchoing) override { m_prefs.SetDebuggerEchoingActions (isEchoing); }
-    std::string                           GetDebuggerWindowState        (const std::string & name) override { return m_prefs.GetDebuggerWindowState (name); }
-    std::map<std::string, std::string>    GetProjectWindowStrings       () const;
-    void                                  SetProjectWindowStrings       (const std::map<std::string, std::string> & strings);
-    void                                  SetDebuggerWindowState        (const std::string & name, const std::string & text) override { m_prefs.SetDebuggerWindowState (name, text); }
-    bool                                  IsDebuggerSkipNoticeShown     () override { return m_prefs.IsDebuggerSkipNoticeShown(); }
-    void                                  SetDebuggerSkipNoticeShown    (bool isShown) override { m_prefs.SetDebuggerSkipNoticeShown (isShown); }
-    int                                   GetDebuggerTextZoomPercent    () override { return m_prefs.GetDebuggerTextZoomPercent(); }
-    void                                  SetDebuggerTextZoomPercent    (int percent) override { m_prefs.SetDebuggerTextZoomPercent (percent); }
-    std::string                           GetDebuggerDisassemblyOptions () override { return m_prefs.GetDebuggerDisassemblyOptions(); }
-    void                                  SetDebuggerDisassemblyOptions (const std::string & text) override { m_prefs.SetDebuggerDisassemblyOptions (text); }
-    std::string                           GetDebuggerHeatMapOptions     () override { return m_prefs.GetDebuggerHeatMapOptions(); }
-    void                                  SetDebuggerHeatMapOptions     (const std::string & text) override { m_prefs.SetDebuggerHeatMapOptions (text); }
-    std::string                           GetDebuggerDiskDrives         () override { return m_prefs.GetDebuggerDiskDrives(); }
-    void                                  SetDebuggerDiskDrives         (const std::string & text) override { m_prefs.SetDebuggerDiskDrives (text); }
-    std::string                           GetDebuggerProfilerPeriod     () override { return m_prefs.GetDebuggerProfilerPeriod(); }
-    void                                  SetDebuggerProfilerPeriod     (const std::string & text) override { m_prefs.SetDebuggerProfilerPeriod (text); }
-    void                                  ResetDebuggerHeatMap          () override;
-    void                                  SendDebuggerHeatMapRequest    (const std::string & words) override;
-    std::string                           GetDebuggerHeatMapRanges      () override { return m_prefs.GetDebuggerHeatMapRanges(); }
-    void                                  SetDebuggerHeatMapRanges      (const std::string & text) override { m_prefs.SetDebuggerHeatMapRanges (text); }
-    std::string                           GetDebuggerOpenViews          () override { return m_prefs.GetDebuggerOpenViews(); }
-    void                                  SetDebuggerOpenViews          (const std::string & text) override { m_prefs.SetDebuggerOpenViews (text); }
-    bool                                  TakeDebuggerProjectState      () override;
-    bool                                  TryGetDebuggerProject         (DebugProject & project) override;
-    void                                  SetDebuggerStartupCommands    (const std::vector<DebugProject::StartupCommand> & commands) override;
-    bool                                  TryGetDebuggerPlacement       (RECT & rectPx) override { return m_prefs.TryGetDebuggerPlacement (rectPx); }
-    void                                  SetDebuggerPlacement          (const RECT & rectPx) override { m_prefs.SetDebuggerPlacement (rectPx); }
+    HistoryThumbnails                   * GetHistoryThumbnails             () override { return &m_historyThumbnails; }
+    void                                  SeekHistoryCycle                 (uint64_t cycle, bool isInterim) override;
+    bool                                  IsHistorySeekBusy                () const override;
+    std::string                           GetDebuggerFocusedPane           () override { return m_prefs.GetDebuggerFocusedPane(); }
+    void                                  SetDebuggerFocusedPane           (const std::string & text) override { m_prefs.SetDebuggerFocusedPane (text); }
+    bool                                  IsDebuggerEchoingActions         () override { return m_prefs.IsDebuggerEchoingActions(); }
+    void                                  SetDebuggerEchoingActions        (bool isEchoing) override { m_prefs.SetDebuggerEchoingActions (isEchoing); }
+    bool                                  IsDebuggerLinkingToFileExplorer  () override { return m_prefs.IsDebuggerLinkingToFileExplorer(); }
+    void                                  SetDebuggerLinkingToFileExplorer (bool isFileExplorer) override { m_prefs.SetDebuggerLinkingToFileExplorer (isFileExplorer); }
+    std::string                           GetDebuggerWindowState           (const std::string & name) override { return m_prefs.GetDebuggerWindowState (name); }
+    std::map<std::string, std::string>    GetProjectWindowStrings          () const;
+    void                                  SetProjectWindowStrings          (const std::map<std::string, std::string> & strings);
+    void                                  SetDebuggerWindowState           (const std::string & name, const std::string & text) override { m_prefs.SetDebuggerWindowState (name, text); }
+    bool                                  IsDebuggerSkipNoticeShown        () override { return m_prefs.IsDebuggerSkipNoticeShown(); }
+    void                                  SetDebuggerSkipNoticeShown       (bool isShown) override { m_prefs.SetDebuggerSkipNoticeShown (isShown); }
+    int                                   GetDebuggerTextZoomPercent       () override { return m_prefs.GetDebuggerTextZoomPercent(); }
+    void                                  SetDebuggerTextZoomPercent       (int percent) override { m_prefs.SetDebuggerTextZoomPercent (percent); }
+    std::string                           GetDebuggerDisassemblyOptions    () override { return m_prefs.GetDebuggerDisassemblyOptions(); }
+    void                                  SetDebuggerDisassemblyOptions    (const std::string & text) override { m_prefs.SetDebuggerDisassemblyOptions (text); }
+    std::string                           GetDebuggerHeatMapOptions        () override { return m_prefs.GetDebuggerHeatMapOptions(); }
+    void                                  SetDebuggerHeatMapOptions        (const std::string & text) override { m_prefs.SetDebuggerHeatMapOptions (text); }
+    std::string                           GetDebuggerDiskDrives            () override { return m_prefs.GetDebuggerDiskDrives(); }
+    void                                  SetDebuggerDiskDrives            (const std::string & text) override { m_prefs.SetDebuggerDiskDrives (text); }
+    std::string                           GetDebuggerProfilerPeriod        () override { return m_prefs.GetDebuggerProfilerPeriod(); }
+    void                                  SetDebuggerProfilerPeriod        (const std::string & text) override { m_prefs.SetDebuggerProfilerPeriod (text); }
+    void                                  ResetDebuggerHeatMap             () override;
+    void                                  SendDebuggerHeatMapRequest       (const std::string & words) override;
+    std::string                           GetDebuggerHeatMapRanges         () override { return m_prefs.GetDebuggerHeatMapRanges(); }
+    void                                  SetDebuggerHeatMapRanges         (const std::string & text) override { m_prefs.SetDebuggerHeatMapRanges (text); }
+    std::string                           GetDebuggerOpenViews             () override { return m_prefs.GetDebuggerOpenViews(); }
+    void                                  SetDebuggerOpenViews             (const std::string & text) override { m_prefs.SetDebuggerOpenViews (text); }
+    bool                                  TakeDebuggerProjectState         () override;
+    bool                                  TryGetDebuggerProject            (DebugProject & project) override;
+    void                                  SetDebuggerStartupCommands       (const std::vector<DebugProject::StartupCommand> & commands) override;
+    bool                                  TryGetDebuggerPlacement          (RECT & rectPx) override { return m_prefs.TryGetDebuggerPlacement (rectPx); }
+    void                                  SetDebuggerPlacement             (const RECT & rectPx) override { m_prefs.SetDebuggerPlacement (rectPx); }
     SourceLookup FindDebuggerSource   (const DebugSourceFile & record, const std::wstring & debugFilePath,
                                        const std::string & programKey) override
     {

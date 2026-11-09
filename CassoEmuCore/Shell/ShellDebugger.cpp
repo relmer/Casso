@@ -763,15 +763,18 @@ bool ShellDebugger::TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapsh
 //
 //  OpenDebuggerFile
 //
-//  UI thread. A console link opens its file in File Explorer, at the file's
-//  folder with the file selected. Another place to open it in, chosen by a
-//  setting, is added here.
+//  UI thread. A console link opens its file's folder with the file selected:
+//  in Casso Explorer, or in File Explorer when the setting picks it or Casso
+//  Explorer does not start.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::OpenDebuggerFile (const std::wstring & path)
 {
-    m_host.ShowFileInFolder (path);
+    if (m_prefs.IsDebuggerLinkingToFileExplorer() || !m_host.ShowFileInCassoExplorer (path))
+    {
+        m_host.ShowFileInFolder (path);
+    }
 }
 
 

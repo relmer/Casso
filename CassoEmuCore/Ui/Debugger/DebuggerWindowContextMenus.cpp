@@ -640,14 +640,16 @@ bool DebuggerWindow::ShowColumnMenu (DxuiListView * list, POINT clientPx)
 //
 //  DebuggerWindow::GetConsoleMenuCommands
 //
-//  The console output's rows after the edit rows: Clear, and whether the
-//  console lists the window's actions as commands.
+//  The console output's rows after the edit rows: Clear, whether the console
+//  lists the window's actions as commands, and whether its links open in File
+//  Explorer rather than Casso Explorer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::shared_ptr<DxuiCommand>> DebuggerWindow::GetConsoleMenuCommands()
 {
-    bool  isEchoing = m_host != nullptr && m_host->IsDebuggerEchoingActions();
+    bool  isEchoing  = m_host != nullptr && m_host->IsDebuggerEchoingActions();
+    bool  isExplorer = m_host != nullptr && m_host->IsDebuggerLinkingToFileExplorer();
 
 
 
@@ -659,6 +661,13 @@ std::vector<std::shared_ptr<DxuiCommand>> DebuggerWindow::GetConsoleMenuCommands
             if (m_host != nullptr)
             {
                 m_host->SetDebuggerEchoingActions (!isEchoing);
+            }
+        }),
+        DebuggerMenuCommand::Make (L"Open links in File Explorer", isExplorer, [this, isExplorer]
+        {
+            if (m_host != nullptr)
+            {
+                m_host->SetDebuggerLinkingToFileExplorer (!isExplorer);
             }
         }),
     };

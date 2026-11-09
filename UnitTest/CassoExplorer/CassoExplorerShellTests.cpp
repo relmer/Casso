@@ -295,6 +295,22 @@ public:
     }
 
 
+    //  A console link's file opens with its folder shown and the file
+    //  selected, the path read back as written, spaces and all.
+    TEST_METHOD (SelectArguments_ParseBack)
+    {
+        CassoExplorerLaunchOptions  options;
+        const wchar_t *             paths[] = { L"C:\\Work\\demo.dbg", L"C:\\My Projects\\symbols demo.cassoproj" };
+
+        for (const wchar_t * path : paths)
+        {
+            Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments (Split (LaunchCommand::MakeSelectArguments (path, L"035 debugger")), options), path);
+            Assert::AreEqual (std::wstring (path), options.selectPath);
+            Assert::AreEqual (std::wstring (L"035 debugger"), options.titlePrefix);
+        }
+    }
+
+
     TEST_METHOD (ChooseTheme_FollowsPreferenceThenSystem)
     {
         DxuiLightTheme  light;

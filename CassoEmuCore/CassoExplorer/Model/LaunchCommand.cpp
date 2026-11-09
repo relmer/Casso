@@ -187,6 +187,61 @@ std::wstring LaunchCommand::DescribeMissing (const std::wstring & exePath)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LaunchCommand::MakeSelectArguments
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring LaunchCommand::MakeSelectArguments (const std::wstring & path, const std::wstring & titlePrefix)
+{
+    std::wstring  arguments = L"/select," + QuoteArgument (path);
+
+
+
+    if (!titlePrefix.empty())
+    {
+        arguments += L" --title " + QuoteArgument (titlePrefix);
+    }
+
+    return arguments;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LaunchCommand::LaunchCassoExplorerAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LaunchCommand::Outcome LaunchCommand::LaunchCassoExplorerAt (
+    IProcessLauncher    & launcher,
+    const std::wstring  & moduleDirectory,
+    const std::wstring  & path,
+    const std::wstring  & titlePrefix)
+{
+    std::wstring  exePath = GetSiblingPath (moduleDirectory, kCassoExplorerExe);
+    HRESULT       hr      = S_OK;
+
+
+
+    if (!launcher.Exists (exePath))
+    {
+        return Outcome::Missing;
+    }
+
+    hr = launcher.Launch (exePath, MakeSelectArguments (path, titlePrefix));
+
+    return SUCCEEDED (hr) ? Outcome::Launched : Outcome::Failed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LaunchCommand::LaunchCassoExplorer
 //
 ////////////////////////////////////////////////////////////////////////////////

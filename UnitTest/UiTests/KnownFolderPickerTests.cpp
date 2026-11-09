@@ -113,6 +113,23 @@ public:
 
 
 
+    TEST_METHOD (Launch_CassoExplorerAtAFileSelectsIt)
+    {
+        FakeProcessLauncher     launcher;
+        LaunchCommand::Outcome  outcome = LaunchCommand::LaunchCassoExplorerAt (launcher, L"C:\\Casso", L"C:\\Work\\demo.dbg", L"");
+
+        Assert::IsTrue   (outcome == LaunchCommand::Outcome::Missing, L"no browser beside the emulator");
+        Assert::IsTrue   (launcher.launched.empty());
+
+        launcher.present.push_back (L"C:\\Casso\\CassoExplorer.exe");
+        outcome = LaunchCommand::LaunchCassoExplorerAt (launcher, L"C:\\Casso", L"C:\\Work\\demo.dbg", L"");
+
+        Assert::IsTrue   (outcome == LaunchCommand::Outcome::Launched);
+        Assert::AreEqual (std::wstring (L"/select,C:\\Work\\demo.dbg"), launcher.launched[0].arguments);
+    }
+
+
+
     TEST_METHOD (Launch_AMissingBrowserIsReportedAndNothingStarts)
     {
         FakeProcessLauncher     launcher;
