@@ -1780,10 +1780,13 @@ void DxuiTabStrip::PaintCompactTab (
         PaintHoverBox (painter, r, isArmed ? DxuiColor::Darken (pal.tabHover, kPressedScale) : pal.tabHover);
     }
 
+    //  A mark with no face of its own is drawn in the system face, which no
+    //  theme replaces: a theme's body face may have no glyph for it, and the
+    //  fallback face's glyph is placed off the label's line.
     if (!tab.mark.empty() && tab.markArgb != 0)
     {
         hr = text.DrawString (tab.mark.c_str(), labelX, top, markPx, height,
-                              tab.markArgb, fontPx, tab.markFace.empty() ? DxuiTheme::kBodyFace : tab.markFace.c_str(),
+                              tab.markArgb, fontPx, tab.markFace.empty() ? DxuiTheme::kSystemFace : tab.markFace.c_str(),
                               DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
