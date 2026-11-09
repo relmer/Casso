@@ -1457,8 +1457,9 @@ editor and in Merlin, run in Casso.
 - **A super hi-res picture shorter than a full screen, or a packed one that
   ends early**: the lines read are drawn and the rest is black, and the preview
   reports how many lines are missing.
-- **A Pascal text file dropped onto a ProDOS or DOS 3.3 image**: it is put as
-  plain text, since neither file system has a Pascal textfile type.
+- **A Pascal text file dropped onto a ProDOS or DOS 3.3 image**: on ProDOS it
+  is put as a Pascal textfile, type $03, and on DOS 3.3, which has no such
+  type, as plain text.
 - **A Merlin source line longer than Merlin accepts**: the put fails
   with the line number.
 - **A font with characters missing from its range**: the missing ones are
@@ -2329,7 +2330,8 @@ editor and in Merlin, run in Casso.
   `NAME.Pascal text.txt`, with each indentation code expanded to spaces. A
   text file put onto a Pascal volume MUST be written as a textfile Apple
   Pascal's editor opens, with `.TEXT` added to its catalog name when it has
-  no such suffix.
+  no such suffix. A file with the `.Pascal text.txt` suffix put onto a
+  ProDOS volume MUST be written as type $03.
 - **FR-162**: Merlin source MUST be drawn in label, opcode, operand and
   comment columns, and written as text, `NAME.Merlin.txt`, with the fields
   separated by spaces. A file with that suffix, or one the put dialog sets to
@@ -2375,8 +2377,9 @@ editor and in Merlin, run in Casso.
   conversions.
 - **FR-171**: Each format MUST be implemented from published documentation:
   Apple's File Type Notes, the programs' manuals and format descriptions
-  published under a license that allows it. Source code under the GPL MUST
-  NOT be read.
+  published under a license that allows it. Source code under the GPL MAY
+  be read for a format's behavior, and MUST NOT be copied or
+  paraphrased into Casso.
 
 ### Key Entities
 

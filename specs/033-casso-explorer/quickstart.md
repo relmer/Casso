@@ -231,6 +231,17 @@ Prerequisites: the link running on an emulated //c with two drives, then on a re
 7. Press F again with the same folder. Sequence numbers continue, and a disk from the first run is not sent without Space.
 8. Compare each image with one from Read disk to image on the same disk.
 
+## 7d. File types (Story 18, FR-156 to FR-171)
+
+Prerequisites: the fixture disks from Phase 32 step 1, and Word or WordPad, Excel, Notepad and Photos on the PC.
+
+1. For each row of [contracts/file-types.md](contracts/file-types.md), select its fixture in Casso Explorer. Result: the preview matches the program that saved it, run in Casso on the same disk (SC-047), within half a second (SC-049).
+2. Drag each fixture to a PC folder and open the result. Result: the suffix in the contract, and the same text, values or pixels in the PC program.
+3. Right-drag one fixture of each preview kind out. Result: the menu offers the conversion and a raw copy, and the raw copy matches `casso disk get` byte for byte.
+4. Drag `NAME.Merlin.txt` back onto a DOS 3.3 and a ProDOS image. Result: each file is identical to the original (SC-048), and Merlin, run in Casso, loads it.
+5. Drop a `.txt` file on a Pascal volume and open it in Apple Pascal's editor in Casso. Result: the same text, and `.TEXT` on the catalog name.
+6. Run `casso disk get` on a fixture of each kind. Result: the same file as the drag in step 2 (FR-170).
+7. Select a fixture with a byte changed so that its check fails. Result: the reason above the bytes, and a copy out that skips it with the reason and copies the rest (FR-169).
 ## 8. Headless tests
 
 ```powershell

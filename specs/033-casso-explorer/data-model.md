@@ -236,3 +236,13 @@ never stored in `links`.
 | `duplicateOf` | the earlier image's file name, for a duplicate |
 
 `FullSendSession` states: Checking (drive), Sending (drive), Paused, Ended (reason). A session reads an existing manifest once, at its start, for its fingerprints, hashes and the next sequence number. A manifest that cannot be parsed ends the session before any disk is read, and is never overwritten.
+
+## File types (User Story 18)
+
+- **FileFormat**: one value per row of [contracts/file-types.md](contracts/file-types.md), plus `None`.
+- **DecodedFile**: `format`; `kind`, one of Lines, Document, Grid or Picture; `lines` for Lines; `paragraphs` for Document; `columns` and `rows` of strings for Grid; `bgra`, `width` and `height` for Picture; `notes`, lines listing what the decoder couldn't represent, such as an AppleWorks 5 feature or a missing super hi-res line.
+- **Paragraph**: `alignment` (left, center, right, justified), `runs`.
+- **Run**: `text`, `bold`, `italic`, `underline`. A tab is a character of the text.
+- **Grid**: `columns`, a heading for each column, and `rows`, each a vector of cell strings. A database's categories are the headings. A spreadsheet's headings are column letters and its first cell in each row is the row number.
+- **GlyphSheet**: `name`, `family`, `style`, `size`, and each glyph's bitmap and advance; drawn sixteen glyphs to a row into a Picture.
+- **Validation**: `Decode` fails with `ERROR_INVALID_DATA` and a reason for bytes that fail a format's check; a `DecodedFile` is never partial, except for the lines its `notes` list.

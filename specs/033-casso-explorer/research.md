@@ -964,3 +964,27 @@ files as they are fails SC-037.
 
 - **The write-protect line as a swap signal.** It changes as a disk slides past the sensor, but only a polled, selected drive reports it, and polling would spin a drive during a swap. It is a possible later refinement after a test on real drives.
 - **Labels typed on the Apple.** The keyboard has a one-character latch that cannot be polled during a disk read. The owner ruled this out.
+
+## R35. File type decoders and converters (User Story 18)
+
+**Finding**: CiderPress II's format notes (`ndocs/formatdoc` in fadden/CiderPress2, Apache License 2.0) cover every format in FR-156 except VisiCalc. Each note cites the primary documents it was written from: Apple's File Type Notes and IIgs Technical Notes, the programs' manuals, and disassemblies. LZ4FH ($08/$8066) is documented by fhpack, its author's packer. Gutenberg documents are on disks in Gutenberg's file system, which Casso has no volume class for. Business BASIC is the Apple ///'s, found on ProDOS volumes as type $09.
+
+**Decision**:
+
+- **Sources**: the formats are written from the File Type Notes, the IIgs Technical Notes and the manuals first, and from CiderPress II's notes where those are silent. Its code is Apache-licensed and may be read; it is not copied, so Casso has no license notice to add. GPL code, such as ADTPro's and the original CiderPress's converters, may be read for a format's behavior and is never copied or paraphrased.
+- **VisiCalc**: the storage chapter of the 1982 VisiCalc User's Guide on bitsavers, and files saved by VisiCalc run in Casso as the fixtures. A saved sheet is a DOS text file of entries, as replayed by a load. Each entry's coordinate and contents are read, and formulas are written as entered, since the file has no computed values.
+- **Gutenberg**: a read-only `GutenbergVolume` behind `IVolume`, from CiderPress II's Gutenberg notes. Writing to a Gutenberg disk is out of scope.
+- **Identification**: one table of formats, matched on the volume kind, ProDOS type and aux type, DOS 3.3 type, name prefix or suffix and size, followed by each format's content check. This is the table in [contracts/file-types.md](contracts/file-types.md).
+- **P-code**: Apple Pascal's p-machine opcodes, from the Apple Pascal Operating System Reference Manual and the p-System's published instruction set, for the p-code version a codefile's segment dictionary has. A segment of another version is listed with its bytes in hex and the version reported.
+- **OMF**: versions 1, 2.0 and 2.1, from the Apple IIgs Programmer's Workshop Reference and its OMF appendix.
+- **Super hi-res**: $C1/0000 unpacked, $C0/0001 PackBytes, $C0/0002 Apple Preferred, and $C1/0002 3200-color, drawn with each line's palette and 320 or 640 mode bit, and IIgs TN #63's color values.
+- **Outputs**: RTF 1.5 with only `\b`, `\i`, `\ul`, `\ql`, `\qc`, `\qr`, `\qj`, `\tab` and `\par`, which Word and WordPad both open; CSV as RFC 4180 specifies, in UTF-8 with a byte order mark so Excel reads it as UTF-8; PNG through `PngCodec`.
+- **Text characters**: MouseText and the IIgs's Mac-style characters are mapped to Unicode by one table in `UnicodeSymbols.h`.
+
+**Rationale**: with one table of formats, identification is in one place and tested alone, and the decoders are pure functions over bytes, as `PreviewDecoder`'s are. RTF is the smallest styled format both PC programs read.
+
+**Alternatives considered**:
+
+- **DOCX or XLSX output**: a zip and XML writer for formatting that RTF and CSV already cover. Not adopted.
+- **A plugin interface per format**: a plugin layer is contrary to the constitution's simplicity principle, and a table of function pointers is enough.
+- **Leaving Gutenberg out**: FR-156 lists it, and with no volume class its documents never appear.

@@ -390,6 +390,44 @@ tasks.md, whose phases 10 to 15 are gap-fixing passes over sections A to G:
 
 Story 17 and R34. F on the Apple sends an unprompted Key, and the session's idle loop queues the Full Send with the folder and format from the Full Send page in Options. `FullSendSession` is a pure class in the core: a state machine over injected drive reads, a clock and a file store, so every path runs in the unit tests with scripted disks. `CassoLinkManager` runs one session per Apple, through the queue FR-098 defines, and each whole-disk read reuses Read disk to image's path, its unreadable list included. The Apple-side program adds Session screen, Wait for key and Key (contract), and bumps its version so a running shim loads the new program. Files are written to a temporary name and renamed when complete, so FR-087's rule for a partial image applies. `FullSendManifest` is a separate pure class for parsing and writing the manifest.
 
+### File types
+
+Story 18, FR-156 to FR-171, research R35, contract
+[contracts/file-types.md](contracts/file-types.md). The decoders live in
+`CassoEmuCore/FileTypes/`, outside `CassoExplorer/`, because the
+command-line tool's get and put apply the same conversions (FR-170).
+Each format is one class with static `Check`, `Decode` and, for the import
+rows, `Encode`, over bytes, with no I/O. `FileFormatTable` matches a file
+to a format and calls it. A decoder produces a `DecodedFile` of one of four
+kinds: lines, a styled document, a grid, or a picture. `RtfWriter`,
+`CsvWriter` and `PngCodec` write the three converted forms, and lines are
+written as UTF-8 text.
+
+- **Preview**: `PreviewDecoder::Decide` calls `FileFormatTable::Identify`
+  first. `PreviewContent` gains `Kind::Document` with paragraphs of styled
+  runs, and `Kind::Grid` with columns and rows. `DxuiTextView`'s span gains
+  bold, italic and underline, and its row gains an alignment, for
+  documents. Grids are drawn in a `DxuiListView` in Details, as an archive's
+  rows are.
+- **Copy out**: `HostFileNaming::ConvertedKind` is replaced by `FileFormat`
+  plus the existing BASIC and text kinds, so `Make` and `Parse` cover every
+  suffix in the contract. The drag-out and Get paths in
+  `CassoExplorerActions` and `DiskCommandRunner`'s get call
+  `FileFormatTable::Export`. The right-drag menu and the Get dialog add the
+  raw choice (FR-168).
+- **Put**: a suffix from an import row selects `Encode`; the put dialog's
+  type choice lists the import rows the destination supports.
+- **Pictures**: super hi-res is decoded to BGRA in the core with each
+  line's palette, and never passes through the CRT pass. LZ4FH is
+  decompressed to an 8 KB hi-res page and drawn by `PicturePreview`, so the
+  Display page's monitor applies. Fonts and icons are drawn onto a sheet by
+  `GlyphSheet`, in the core.
+- **Gutenberg**: `GutenbergVolume`, read-only, behind `IVolume` beside the
+  other volume classes; `VolumeKind` gains `Gutenberg`. Writes fail with the
+  read-only error the other volume classes return for a locked disk.
+- **P-code**: `PCodeDisassembler` in CassoCore beside `Disassembler`, over
+  one opcode table for the p-code version Apple Pascal 1.1 to 1.3 compile.
+
 ### Component split
 
 Each component is built as Shell/Components are: a class with a
@@ -487,3 +525,18 @@ MAC Address has no canonical name. `Win32PropertyColumns::GetKey` takes the key'
 `FullSendSession::ReadStableTrack` stops at the first whole read, and `RunRound` passes over the drive just sent unless its disk changed during the read. That is 36 track reads per DOS 3.3 disk on one drive, down from 42. The arm's moves between tracks 0 and 17 stay, as the fingerprint needs both before the read and the catalog track again after it.
 
 The prefix follows the folder and extension from `CassoExplorerPrefs` to `LinkOperation::imagePrefix`. The Full Send row is an `adtpro:<path>` node under CassoLink's root, so it has the same path tip as an ADTPro server's folder.
+
+## Phase 32: File types (Session 2026-11-08)
+
+Story 18, as in Design's File types. Order, each step with its tests:
+
+1. The contract's *notes* cells filled from CiderPress II's notes and the File Type Notes they cite; `FileFormatTable` with `Identify` and every row's match, and the fixtures: a file of each format saved by its program run in Casso, or taken from a disk image the owner has.
+2. `DecodedFile`, `RtfWriter`, `CsvWriter`, `GlyphSheet`; `PreviewContent`'s document and grid kinds; `DxuiTextView`'s styled spans and row alignment.
+3. Text and code: Pascal textfile both ways, random-access text, Merlin both ways, S-C Assembler, LISA in each version, Business BASIC.
+4. Code files: `PCodeDisassembler` and Pascal codefiles; OMF.
+5. Business: AppleWorks WP, DB and SS, AppleWorks GS WP, Teach, VisiCalc, Magic Window; `GutenbergVolume` and Gutenberg documents.
+6. Pictures and fonts: super hi-res in its four forms, LZ4FH, Print Shop graphics and fonts, IIgs icons, Apple II hi-res fonts, IIgs bitmap fonts.
+7. Copy out and put: `HostFileNaming`'s suffixes, the drag, Get and right-drag paths, the put dialog's type choice, `DiskCommandRunner`'s get and put.
+8. Validation: quickstart §7d, SC-047 to SC-049 in validation.md.
+
+Constitution re-check: I, EHM and class-static helpers in every decoder; II, every decoder is a pure function tested on fixture bytes, and no test opens a host file; V, a table of formats and no plugin layer (R35); VI, nothing is added to an executable. PASS.
