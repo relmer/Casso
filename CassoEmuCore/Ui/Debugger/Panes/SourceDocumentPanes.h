@@ -179,6 +179,9 @@ private:
     int                              GetSlotAt      (POINT atDip) const;
     void                             HoverGutters   (POINT atDip, int dragSlot);
 
+    //  The document of a file open on its own, given to the record it matched.
+    void                             TakeOverLoose  (const std::wstring & path, int fileId);
+
     IDebuggerPaneHost                    & m_host;
     std::vector<SourceDocumentPane *>      m_documents;
     SourceDocuments                        m_files;

@@ -1286,8 +1286,60 @@ void SourceDocumentGroup::ShowDropped (const std::wstring & path)
         return;
     }
 
+    TakeOverLoose (path, source.files[(size_t) index].id);
     Open (source.files[(size_t) index].id, 0, true);
 
     m_documents[(size_t) m_activeSlot]->GetModel().ShowDropped (lookup, index);
     Apply();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceDocumentGroup::TakeOverLoose
+//
+//  A file open on its own, as it is while the debug file beside it loads, is
+//  the record's file now: its document shows the record in the same slot,
+//  and so in the same place, rather than a second document opening for it.
+//  With the record already open elsewhere, the file's own document closes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourceDocumentGroup::TakeOverLoose (const std::wstring & path, int fileId)
+{
+    int  looseId = -1;
+    int  slot    = -1;
+
+
+
+    for (const auto & [id, open] : m_looseFiles)
+    {
+        looseId = (_wcsicmp (open.c_str(), path.c_str()) == 0) ? id : looseId;
+    }
+
+    slot = (looseId >= 0) ? m_files.Find (looseId) : -1;
+
+    if (looseId < 0)
+    {
+        return;
+    }
+
+    m_looseFiles.erase (looseId);
+
+    if (slot < 0)
+    {
+        return;
+    }
+
+    if (m_files.Find (fileId) >= 0)
+    {
+        Close (slot);
+        return;
+    }
+
+    m_files.Replace (slot, fileId);
+    m_documents[(size_t) slot]->GetModel().SetFile (fileId);
 }

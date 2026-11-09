@@ -24,7 +24,8 @@ namespace DebuggerLooseSourceTests
     //  LooseSourceHost
     //
     //  A host whose files are a map of path to content, which keeps the
-    //  commands it was given. No dropped file matches a debug file record.
+    //  commands it was given. A dropped file matches the record `match`, or
+    //  none at -1.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,6 +89,7 @@ namespace DebuggerLooseSourceTests
 
             if (found != files.end())
             {
+                index       = match;
                 lookup.path = path;
                 lookup.text = found->second;
             }
@@ -99,6 +101,7 @@ namespace DebuggerLooseSourceTests
 
         std::map<std::wstring, std::string>  files;
         std::map<std::string, std::string>   sources;
+        int                                  match = -1;   // the record a dropped file matches
         std::vector<std::string>             commands;
         std::vector<DebugVerb>               verbs;
         FakeHostDialogs                      dialogs;
@@ -446,6 +449,51 @@ namespace DebuggerLooseSourceTests
             Assert::AreEqual (std::string ("SYM LOAD \"C:\\Work\\main.dbg\""), host.commands[0]);
         }
 
+
+        //  A source opened before the debug file beside it loads is matched to
+        //  its record once it does, in the document it is already in: no
+        //  second document opens, and none is left with no symbols.
+        TEST_METHOD (TheDebugFileBesideASourceTakesOverItsDocument)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            LooseSourceHost    host;
+            LooseSourceWindow  window (theme, host);
+            auto               snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebugSourceFile    file;
+            int                slot     = -1;
+            int                open     = 0;
+
+
+
+            host.files[L"C:\\Work\\main.a65"] = "start   lda #$41\n";
+            host.files[L"C:\\Work\\main.dbg"] = "version\tmajor=2,minor=0\n";
+            host.sources["main.a65"]          = "start   lda #$41\n";
+
+            window.GetSourceGroup().OpenSourcePath (L"C:\\Work\\main.a65");
+            slot = window.GetShownSlot();
+            Assert::IsTrue (window.GetSourceGroup().IsLoose (slot), L"on its own while the debug file loads");
+
+            file.id   = 0;
+            file.name = "main.a65";
+
+            snapshot->source                = DebuggerViewSnapshot::SourceState();
+            snapshot->source->debugFilePath = L"C:\\Work\\main.dbg";
+            snapshot->source->programKey    = "key";
+            snapshot->source->files.push_back (file);
+            host.match = 0;
+
+            window.TakeSnapshot (snapshot);
+
+            for (int each = 0; each < SourceDocuments::kMaxDocuments; each++)
+            {
+                open += window.GetSourceGroup().IsOpen (each) ? 1 : 0;
+            }
+
+            Assert::AreEqual (1, open, L"one document");
+            Assert::IsTrue   (window.GetSourceGroup().IsOpen (slot), L"in the slot it was in");
+            Assert::IsFalse  (window.GetSourceGroup().IsLoose (slot), L"with the record's file");
+            Assert::AreEqual (0, window.GetSourceGroup().GetDocument (slot).GetModel().GetFile());
+        }
 
         TEST_METHOD (AnUnknownFileThatReadsAsSymbolsLoads)
         {
