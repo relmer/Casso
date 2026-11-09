@@ -35,10 +35,17 @@ public:
 
     //  The parts of the system ROM GetRomArea finds, which a memory window
     //  outlines apart.
-    static constexpr std::array<const wchar_t *, 5>  kRomParts =
+    static constexpr std::array<const wchar_t *, 11>  kRomParts =
     {
         L"Monitor", L"Integer BASIC", L"Applesoft BASIC", L"80-column firmware", L"internal firmware",
+        L"serial port 1 firmware", L"serial port 2 firmware", L"memory expansion firmware",
+        L"SmartPort firmware", L"disk port firmware", L"mouse firmware",
     };
+
+    //  The //c's built-in ports at the slot numbers its firmware gives them:
+    //  each slot's I/O and its ROM page's part. Empty on any other machine.
+    static std::wstring  GetBuiltInIo  (const std::string & machineId, int slot);
+    static std::wstring  GetBuiltInRom (const std::string & machineId, int slot);
 
     //  The outline colors: ROM's and I/O's are their bytes' colors, and the
     //  language card's and aux RAM's the memory map's. Until a view has the
@@ -76,7 +83,7 @@ public:
     static uint16_t      GetRomPartKey (const std::string & machineId, Word address);
 
     static uint16_t      GetKey       (MemoryRegion region, Word address);
-    static std::wstring  GetLabel     (uint16_t key, const SlotCards & cards);
+    static std::wstring  GetLabel     (uint16_t key, const SlotCards & cards, const std::string & machineId = {});
     static std::wstring  GetCardText  (const std::string & card);
     static uint32_t      GetColor     (uint16_t key, const Colors & colors);
 

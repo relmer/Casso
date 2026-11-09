@@ -55,11 +55,12 @@ uint16_t MemoryRegionKeys::GetKey (MemoryRegion region, Word address)
 //
 //  A slot's ranges by the card in it, "Slot 2: Super Serial Card", or
 //  "Slot 3: empty" for a slot with no card. Slot 0's I/O is the language
-//  card's switches, which bank its RAM in at $D000-$FFFF.
+//  card's switches, which bank its RAM in at $D000-$FFFF. The //c's ranges
+//  are its built-in ports'.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring MemoryRegionKeys::GetLabel (uint16_t key, const SlotCards & cards)
+std::wstring MemoryRegionKeys::GetLabel (uint16_t key, const SlotCards & cards, const std::string & machineId)
 {
     int  slot = 0;
 
@@ -68,6 +69,11 @@ std::wstring MemoryRegionKeys::GetLabel (uint16_t key, const SlotCards & cards)
     if (key > kRegionSlotRom && key < kRegionSlotRom + kSlotCount)
     {
         slot = key - kRegionSlotRom;
+
+        if (!GetBuiltInRom (machineId, slot).empty())
+        {
+            return L"ROM: " + GetBuiltInRom (machineId, slot);
+        }
 
         return cards[(size_t) slot].empty() ? std::format (L"Slot {}: empty", slot)
                                             : std::format (L"Slot {}: {}", slot, GetCardText (cards[(size_t) slot]));
@@ -80,6 +86,11 @@ std::wstring MemoryRegionKeys::GetLabel (uint16_t key, const SlotCards & cards)
         if (slot == 0)
         {
             return L"Slot 0: language card switches";
+        }
+
+        if (!GetBuiltInIo (machineId, slot).empty())
+        {
+            return GetBuiltInIo (machineId, slot);
         }
 
         return cards[(size_t) slot].empty() ? std::format (L"Slot {}: empty", slot)
@@ -116,8 +127,8 @@ std::wstring MemoryRegionKeys::GetLabel (uint16_t key, const SlotCards & cards)
 //  The Monitor is $F800-$FFFF on every model, under Integer BASIC from
 //  $E000 on the original Apple ][ and Applesoft from $D000 on the rest. The
 //  //e's internal $C100-$CFFF has the 80-column firmware at $C300 and in the
-//  expansion space; the rest of it, and all of the //c's, is the machine's
-//  internal firmware.
+//  expansion space, and the //c's has its built-in ports' firmware in the
+//  slot pages; the rest of either is the machine's internal firmware.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,7 +170,76 @@ std::wstring MemoryRegionKeys::GetRomArea (const std::string & machineId, Word a
         return L"80-column firmware";
     }
 
+    if (address < kExpansion && !GetBuiltInRom (machineId, (address >> 8) & 0x07).empty())
+    {
+        return GetBuiltInRom (machineId, (address >> 8) & 0x07);
+    }
+
     return L"internal firmware";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryRegionKeys::GetBuiltInIo
+//
+//  The //c's firmware (ROM 3 and 4) gives serial port 1 slot 1, serial port
+//  2 slot 2, the memory expansion slot 4 and the disk port slot 6; slots 3,
+//  5 and 7 have no I/O.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring MemoryRegionKeys::GetBuiltInIo (const std::string & machineId, int slot)
+{
+    static constexpr std::array<const wchar_t *, kSlotCount>  kIo =
+    {
+        L"", L"Serial port 1 (printer)", L"Serial port 2 (modem)", L"Unused",
+        L"Memory expansion", L"Unused", L"Disk port (IWM)", L"Unused",
+    };
+
+
+
+    if (!machineId.starts_with ("Apple2c") || slot < 0 || slot >= kSlotCount)
+    {
+        return {};
+    }
+
+    return kIo[(size_t) slot];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryRegionKeys::GetBuiltInRom
+//
+//  The //c's slot pages: each port's firmware, the 80-column firmware at
+//  $C300, the SmartPort's for 3.5" drives at $C500, and the mouse's at
+//  $C700.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring MemoryRegionKeys::GetBuiltInRom (const std::string & machineId, int slot)
+{
+    static constexpr std::array<const wchar_t *, kSlotCount>  kRom =
+    {
+        L"", L"serial port 1 firmware", L"serial port 2 firmware", L"80-column firmware",
+        L"memory expansion firmware", L"SmartPort firmware", L"disk port firmware", L"mouse firmware",
+    };
+
+
+
+    if (!machineId.starts_with ("Apple2c") || slot < 1 || slot >= kSlotCount)
+    {
+        return {};
+    }
+
+    return kRom[(size_t) slot];
 }
 
 
@@ -201,7 +281,7 @@ uint16_t MemoryRegionKeys::GetRomPartKey (const std::string & machineId, Word ad
 
 std::wstring MemoryRegionKeys::GetRomLabel (uint16_t key, Word address, const SlotCards & cards, const std::string & machineId)
 {
-    return GetLabel ((key == kRegionRom) ? GetRomPartKey (machineId, address) : key, cards);
+    return GetLabel ((key == kRegionRom) ? GetRomPartKey (machineId, address) : key, cards, machineId);
 }
 
 

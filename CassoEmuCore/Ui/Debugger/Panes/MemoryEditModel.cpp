@@ -520,7 +520,7 @@ void MemoryEditModel::ReadRegions (uint64_t offset, std::span<uint16_t> out) con
 
 bool MemoryEditModel::TryGetRegionStyle (uint16_t region, uint32_t & outArgb, std::wstring & outLabel) const
 {
-    outLabel = MemoryRegionKeys::GetLabel (region, m_slotCards);
+    outLabel = MemoryRegionKeys::GetLabel (region, m_slotCards, m_machineId);
     outArgb  = MemoryRegionKeys::GetColor (region, m_regionColors);
 
     return !outLabel.empty() && outArgb != 0;

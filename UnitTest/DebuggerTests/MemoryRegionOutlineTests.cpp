@@ -137,7 +137,7 @@ namespace DebuggerTests
             Assert::IsTrue   (MemoryRegionKeys::GetRomArea ("Apple2", 0xD000).empty(), L"no part of the original ROM there");
             Assert::AreEqual (std::wstring (L"80-column firmware"), MemoryRegionKeys::GetRomArea ("Apple2eEnhanced", 0xC300));
             Assert::AreEqual (std::wstring (L"80-column firmware"), MemoryRegionKeys::GetRomArea ("Apple2eEnhanced", 0xC800));
-            Assert::AreEqual (std::wstring (L"internal firmware"),  MemoryRegionKeys::GetRomArea ("Apple2c",         0xC300));
+            Assert::AreEqual (std::wstring (L"internal firmware"),  MemoryRegionKeys::GetRomArea ("Apple2c",         0xC800));
 
             Assert::AreEqual (std::wstring (L"ROM: Applesoft BASIC"),
                               MemoryRegionKeys::GetRomLabel (MemoryRegionKeys::kRegionRom, 0xE000, cards, machine));
@@ -147,6 +147,24 @@ namespace DebuggerTests
                               MemoryRegionKeys::GetRomLabel (MemoryRegionKeys::kRegionLcBank2, 0xD000, cards, machine), L"no ROM behind it");
             Assert::AreEqual (std::wstring (L"ROM: Applesoft BASIC, Monitor"),
                               MemoryRegionKeys::GetRangeLabel (MemoryRegionKeys::kRegionRom, 0xD000, 0x3000, cards, machine), L"a range's parts, each once");
+        }
+
+
+        //  The //c has no slots: its slot ranges are labeled with the built-in
+        //  ports its firmware puts there.
+        TEST_METHOD (TheIicsSlotRangesAreItsBuiltInPorts)
+        {
+            MemoryRegionKeys::SlotCards  cards;
+
+
+
+            Assert::AreEqual (std::wstring (L"Serial port 1 (printer)"),     MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC098), cards, "Apple2c"));
+            Assert::AreEqual (std::wstring (L"Disk port (IWM)"),             MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0E0), cards, "Apple2c"));
+            Assert::AreEqual (std::wstring (L"Unused"),                      MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0F0), cards, "Apple2c"));
+            Assert::AreEqual (std::wstring (L"Slot 0: language card switches"), MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,   0xC080), cards, "Apple2c"));
+            Assert::AreEqual (std::wstring (L"ROM: mouse firmware"),         MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC700), cards, "Apple2c"));
+            Assert::AreEqual (std::wstring (L"ROM: serial port 2 firmware"), MemoryRegionKeys::GetRomLabel (MemoryRegionKeys::kRegionRom, 0xC200, cards, "Apple2c"));
+            Assert::AreEqual (std::wstring (L"Slot 6: empty"),               MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0E0), cards, "Apple2eEnhanced"), L"a //e's slots stay slots");
         }
 
 

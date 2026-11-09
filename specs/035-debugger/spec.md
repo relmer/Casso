@@ -361,6 +361,11 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: What does the tip do when the Operand and result cell is wholly out of view, as when the columns left of it are widened past the pane's edge? -> A: It comes up with the pointer anywhere on the row, with every line below the row from the pane's left edge, in the same font, colors and fill (FR-026a).
 - Q: How wide is the tip, and where does it wrap? -> A: It extends to the right to the end of its text and wraps only at the screen's edge. The owner: "There will almost always be space to the right to extend the line as far as we need." An instruction's result goes on the line below its operand, from the same left, and the tip is as wide as the wider of the two. A source or data line is drawn on one line from its start, its label rather than its directive, and only a line wider than the screen wraps: under the comment's first character in a comment, four characters right of the code otherwise. A source document's operand and result take the disassembly's colors, and its tip follows the same rules (FR-026a).
 - Q: How is the in-place tip filled and laid out, and which rows have one? -> A: One model for every disassembly row and source line. Every line of the tip has the row's highlight across the whole row, from the row's start to the tip's right edge; the owner: "The highlight should start at the BEGINNING OF THE LINE. The WHOLE LINE should have the highlight color." The first line is the row's text where the view draws it, run on to include everything cut off; the operand and then the result go below it, under the code ("The operand and result should begin under 'bne'"), except that an operand in view but cut off stays on the first line with its result under it. A source row's comment takes the first line in place of its operand and result, which go below. Any cut-off text has a tip, a comment or source line among them. An operand's symbol joins the tip as another operand value, and the symbol tip does not appear on that row while the in-place tip is up. The tip starts on the monitor the row starts on and extends right as far as its text runs, into the monitor beside it, with no other repositioning: "If it doesn't fit due to monitor arrangement ... too bad, the user can move their windows around." An italic data line draws an italic tip (FR-026a).
+### Session 2026-11-08 (owner review: heat map sections, range labels, tips)
+
+- Q: How are the heat map's ranges labeled? -> A: Zoomed or not, the CPU's bank is cut into boxed sections, each starting a row under its label: the built-in RAM ranges (zero page, the stack, the text and hi-res pages, and the RAM between them), the I/O, each slot's I/O and ROM page by its card ("Slot 2: Super Serial Card", "Slot 3: empty"), the expansion ROM, and each part of the system ROM ("ROM: Applesoft BASIC", "ROM: Monitor"). The owner: "label the regions correctly regardless" of the ranges turned on. The //c's slot ranges are its built-in ports. Each part is labeled by what it is, not by its ROM file, at the owner's request (FR-400).
+- Q: What is in a heat map cell and its tip? -> A: A cell with a symbol has its name above its value, and I/O is read without side effects. The tip's first line is the cell's contents ("LOOP: BIT RD80COL  (2C 1F C0)", "KBD: C1", "Value: 42"), the tip is framed and labeled with the cell's range, PC and SP are a tag at the end of the first line, and the contrast of text and lines is at least WCAG's (FR-401).
+- Q: Does the memory window label its outlines the same way? -> A: Yes: by card, and the system ROM is outlined in its parts (FR-402).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -4025,6 +4030,19 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   pane's toolbar and menu and the File menu MUST offer it as Clear BASIC
   program, confirmed first unless the program is empty. BASIC breakpoints
   MUST NOT be removed, so the same program loaded again has them.
+- **FR-400**: In the CPU's bank the heat map MUST be cut into sections, each
+  starting a row in a rounded box with its label on the top edge: the built-in
+  RAM ranges and the RAM between them, the I/O, each slot's I/O and ROM page
+  labeled by its card or as empty, the expansion ROM, and each part of the
+  system ROM by its name. Banking MUST change a section's label and color, not
+  the layout. On a //c the slot ranges MUST be labeled as its built-in ports.
+- **FR-401**: A heat map cell with a symbol MUST have its name above its value,
+  and I/O MUST be read without side effects. The tip's first line MUST be the
+  cell's contents; the tip MUST be framed and labeled with the cell's range,
+  with equal margins, and PC and SP MUST be a tag on its first line. Its text
+  and lines MUST have at least WCAG's contrast (4.5:1 and 3:1).
+- **FR-402**: A memory window MUST label a slot's outlines by its card, and
+  outline and label each part of the system ROM apart.
 
 ### Key Entities
 
