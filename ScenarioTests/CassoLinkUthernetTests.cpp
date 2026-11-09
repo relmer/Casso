@@ -3,6 +3,7 @@
 #include "EhmTestHelper.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
+#include "PacedRun.h"
 #include "TestMachine.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "EmuTests/FakeDiskFileIo.h"
@@ -48,7 +49,6 @@ TEST_CLASS (CassoLinkUthernetScenarioTests)
 {
 public:
 
-    static constexpr uint64_t  kCyclesPerMs = 1023;
     static constexpr uint64_t  kBootCycles  = 20'000'000;
     static constexpr uint16_t  kPort        = 26502;
     static constexpr int       kSlot        = 3;
@@ -120,26 +120,13 @@ public:
             Assert::IsNotNull (machine.GetRefs().uthernet, L"the card must be installed");
         }
 
-        //  Runs at 1.023 MHz of wall time until `done` or the time runs out.
+        //  Runs as fast as the PC allows, in real time only while the guest
+        //  waits on the PC, until `done` or the time runs out.
         void  RunUntil (std::function<bool()> done, DWORD ms)
         {
-            ULONGLONG  start = GetTickCount64();
-            uint64_t   ran   = 0;
-            uint64_t   due   = 0;
+            TestMachine  * machines[] = { &machine };
 
-            while (!done() && GetTickCount64() - start < ms)
-            {
-                due = (GetTickCount64() - start) * kCyclesPerMs;
-
-                if (ran < due)
-                {
-                    ran += machine.RunCycles (due - ran);
-                }
-                else
-                {
-                    Sleep (1);
-                }
-            }
+            PacedRun::RunUntil (machines, done, ms);
         }
 
         std::shared_ptr<LinkOperation>  Finish (std::shared_ptr<LinkOperation> operation)
@@ -417,129 +404,20 @@ public:
         }
     }
 
-    //  The universal disk finds the card in slot 3, takes the address the
-    //  virtual DHCP server offers over the address it was built with,
-    //  broadcasts an announcement, and links.
-    TEST_METHOD (TheUniversalDisk_GetsAnAddressByDhcp_Announces_AndLinks)
-    {
-        constexpr uint16_t     kUniversalPort = kPort + 2;
-        Rig                    rig;
-        FixtureProvider        fixtures;
-        std::vector<uint8_t>   bytes;
-        std::vector<Byte>      dos;
-        std::vector<Byte>      boot;
-        LinkShimOptions        options;
-        CassoLinkSettings      settings;
-        VolumeListing          catalog;
-        Win32LinkAnnouncements listener (LinkProgram::kAnnouncePort);
-        std::string            row;
-        std::array<Byte, 6>    cardMac = {};
-        LinkAnnouncement       ours;
-        std::string            dhcp    = std::format ("UTHERNET II, SLOT 3, {}.{}.{}.{}:{}",
-                                                     VirtualSubnet::kGuestIp >> 24, (VirtualSubnet::kGuestIp >> 16) & 0xFF,
-                                                     (VirtualSubnet::kGuestIp >> 8) & 0xFF, VirtualSubnet::kGuestIp & 0xFF, kUniversalPort);
-
-        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
-        dos.assign (bytes.begin(), bytes.end());
-        AssertSucceeded (Dos33Volume (dos).Enumerate (catalog));
-
-        options.network.address = { 192, 168, 77, 77 };
-        options.network.mac     = { 0x00, 0x08, 0xDC, 0x11, 0x22, 0x33 };
-        options.network.port    = kUniversalPort;
-
-        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, boot));
-
-        GuestSession::Mount (rig.machine, boot);
-        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, dos));
-
-        AssertSucceeded (listener.SetListening (true));
-
-        rig.RunUntil ([&] () { row = rig.Row (kRow4); return row.find (" AT ") != std::string::npos; }, kWaitMs);
-        Assert::AreEqual (dhcp, row, L"the address from DHCP, not the one built in");
-
-        //  Announcements from other Apples on the LAN arrive on the same
-        //  port, so the one to check is matched by this card's MAC address,
-        //  read from the program's memory.
-        for (size_t at = 0; at < cardMac.size(); at++)
-        {
-            cardMac[at] = rig.machine.GetCpu()->ReadByte ((Word) (LinkProgram::kUniversalW5100 + LinkProgram::kNetMacOffset + at));
-        }
-
-        Assert::IsTrue (std::equal (options.network.mac.begin(), options.network.mac.begin() + 3, cardMac.begin()),
-                        L"the MAC address's first three bytes as built, the rest salted on the Apple");
-
-        auto  findOurs = [&] ()
-        {
-            for (const LinkAnnouncement & announcement : listener.GetAnnounced())
-            {
-                if (announcement.mac == cardMac)
-                {
-                    ours = announcement;
-                    return true;
-                }
-            }
-
-            return false;
-        };
-
-        rig.RunUntil (findOurs, kWaitMs);
-        Assert::IsTrue (findOurs(), L"an announcement from this card's MAC address");
-        Assert::AreEqual (std::format ("127.0.0.1:{}", kUniversalPort), ours.GetAddressText(),
-                          L"from this PC, so at the address the card's socket is on");
-        AssertSucceeded (listener.SetListening (false));
-
-        settings.name      = "Uthernet";
-        settings.transport = LinkTransport::Uthernet;
-        settings.address   = std::format ("127.0.0.1:{}", kUniversalPort);
-
-        {
-            CassoLinkSession  session (rig.factory, rig.folder, rig.fileIo, rig.sink);
-
-            session.SetRetryInterval (kRetryMs);
-            settings.use40 = true;
-            AssertSucceeded (session.Start (settings));
-
-            auto  list = rig.Finish (session.Enumerate (2, FilePath()));
-
-            AssertSucceeded (list->result);
-            Assert::AreEqual (catalog.entries.size(), list->listing.entries.size(), L"drive 2's catalog over the card the disk found");
-        }
-
-        //  With the PC gone, the program listens again and sends an
-        //  announcement, so a Casso Explorer started again lists the Apple.
-        Win32LinkAnnouncements  again (LinkProgram::kAnnouncePort);
-
-        AssertSucceeded (again.SetListening (true));
-
-        auto  findAgain = [&] ()
-        {
-            for (const LinkAnnouncement & announcement : again.GetAnnounced())
-            {
-                if (announcement.mac == cardMac)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        };
-
-        rig.RunUntil (findAgain, kWaitMs);
-        Assert::IsTrue (findAgain(), L"an announcement is sent from the program after the PC disconnects");
-        Assert::AreEqual (LinkProgram::kProgramVersion, (Word) (rig.machine.GetCpu()->ReadByte (0x0803) | (rig.machine.GetCpu()->ReadByte (0x0804) << 8)),
-                          L"from the program, not the disk's first stage");
-        AssertSucceeded (again.SetListening (false));
-    }
-
-    //  Two Cassos on the PC boot the universal disk with one port. The second
-    //  card's listener moves to the next port, its announcement contains that
-    //  port, and a session links to each Apple.
-    TEST_METHOD (TwoCassosOnThePc_AnnounceTwoPorts_AndBothLink)
+    //  Two Cassos on the PC, each Apple booted once from the universal disk
+    //  with one port. Each takes the address the virtual DHCP server offers
+    //  over the address the disk was built with, and salts the disk's MAC
+    //  address with its memory, so the two differ. The second card's listener
+    //  moves to the next port, and its announcement contains that port. A
+    //  session links to each Apple, and once the PC disconnects, the program
+    //  on each sends its announcement again.
+    TEST_METHOD (TwoApplesOnTheUniversalDisk_GetAddresses_Announce_Link_AndAnnounceAgain)
     {
         constexpr uint16_t                   kSharedPort = kPort + 4;
         std::array<std::unique_ptr<Rig>, 2>  rigs;
         std::array<std::array<Byte, 6>, 2>   macs        = {};
         std::array<uint16_t, 2>              ports       = {};
+        std::array<std::string, 2>           rows;
         FixtureProvider                      fixtures;
         std::vector<uint8_t>                 bytes;
         std::vector<Byte>                    dos;
@@ -547,8 +425,12 @@ public:
         LinkShimOptions                      options;
         VolumeListing                        catalog;
         Win32LinkAnnouncements               listener (LinkProgram::kAnnouncePort);
-        ULONGLONG                            start   = 0;
-        uint64_t                             ran     = 0;
+        std::array<TestMachine *, 2>         machines    = {};
+        std::string                          dhcp        = std::format ("UTHERNET II, SLOT 3, {}.{}.{}.{}:{}",
+                                                                        VirtualSubnet::kGuestIp >> 24, (VirtualSubnet::kGuestIp >> 16) & 0xFF,
+                                                                        (VirtualSubnet::kGuestIp >> 8) & 0xFF, VirtualSubnet::kGuestIp & 0xFF, kSharedPort);
+
+
 
         AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
         dos.assign (bytes.begin(), bytes.end());
@@ -563,15 +445,16 @@ public:
 
         for (size_t apple = 0; apple < rigs.size(); apple++)
         {
-            rigs[apple] = std::make_unique<Rig>();
+            rigs[apple]     = std::make_unique<Rig>();
+            machines[apple] = &rigs[apple]->machine;
 
             GuestSession::Mount (rigs[apple]->machine, boot);
             AssertSucceeded (rigs[apple]->machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, dos));
             rigs[apple]->machine.GetMemoryBus().WriteByte (0x5000, (Byte) (0x11 * (apple + 1)));
         }
 
-        //  Both Apples run together at 1.023 MHz of wall time until each one's
-        //  announcement has arrived.
+        //  Each Apple's MAC address, from the program's memory, and the port
+        //  of the announcement with it.
         auto  findBoth = [&] ()
         {
             size_t  found = 0;
@@ -596,28 +479,31 @@ public:
             return found == rigs.size();
         };
 
-        start = GetTickCount64();
-
-        while (!findBoth() && GetTickCount64() - start < kWaitMs)
+        PacedRun::RunUntil (machines, [&] ()
         {
-            uint64_t  due = (GetTickCount64() - start) * kCyclesPerMs;
+            rows[0] = rigs[0]->Row (kRow4);
+            rows[1] = rigs[1]->Row (kRow4);
 
-            if (ran < due)
-            {
-                rigs[0]->machine.RunCycles (due - ran);
-                ran += rigs[1]->machine.RunCycles (due - ran);
-            }
-            else
-            {
-                Sleep (1);
-            }
-        }
+            return rows[0].find (':') != std::string::npos && rows[1].find (':') != std::string::npos;
+        }, kWaitMs);
 
+        Assert::AreEqual (dhcp, rows[0], L"the address from DHCP, not the one built in");
+        Assert::AreEqual (dhcp, rows[1]);
+
+        PacedRun::RunUntil (machines, findBoth, kWaitMs);
         Assert::IsTrue   (findBoth(), L"an announcement from each card's MAC address");
         AssertSucceeded (listener.SetListening (false));
-        Assert::IsTrue   (ports[0] != ports[1], L"each Apple's announcement contains the port its listener is on");
-        Assert::IsTrue   (ports[0] == kSharedPort || ports[1] == kSharedPort, L"one listener is on the disk's port");
-        Assert::IsTrue   (ports[0] == kSharedPort + 1 || ports[1] == kSharedPort + 1, L"and the other on the next port");
+
+        for (size_t apple = 0; apple < rigs.size(); apple++)
+        {
+            Assert::IsTrue (std::equal (options.network.mac.begin(), options.network.mac.begin() + 3, macs[apple].begin()),
+                            L"the MAC address's first three bytes as built, the rest salted on the Apple");
+        }
+
+        Assert::IsTrue (macs[0] != macs[1], L"two Apples whose memory differs have two addresses");
+        Assert::IsTrue (ports[0] != ports[1], L"each Apple's announcement contains the port its listener is on");
+        Assert::IsTrue (ports[0] == kSharedPort || ports[1] == kSharedPort, L"one listener is on the disk's port");
+        Assert::IsTrue (ports[0] == kSharedPort + 1 || ports[1] == kSharedPort + 1, L"and the other on the next port");
 
         for (size_t apple = 0; apple < rigs.size(); apple++)
         {
@@ -637,42 +523,35 @@ public:
             AssertSucceeded (list->result);
             Assert::AreEqual (catalog.entries.size(), list->listing.entries.size(), L"drive 2's catalog on each Apple");
         }
-    }
 
+        //  With the PC gone, each program listens again and sends its
+        //  announcement, so a Casso Explorer started again lists the Apple.
+        Win32LinkAnnouncements  again (LinkProgram::kAnnouncePort);
 
-    //  The disk's MAC address is salted with the Apple's own memory, so two
-    //  Apples booted from copies of one disk have two addresses.
-    TEST_METHOD (TheUniversalDisksMac_DiffersBetweenTwoApples)
-    {
-        std::array<std::array<Byte, 6>, 2>  macs = {};
-        LinkShimOptions                     options;
-        std::vector<Byte>                   boot;
+        AssertSucceeded (again.SetListening (true));
 
-        options.network.address = { 192, 168, 77, 77 };
-        options.network.mac     = { 0x00, 0x08, 0xDC, 0x11, 0x22, 0x33 };
-        options.network.port    = kPort + 3;
-
-        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, boot));
-
-        for (size_t apple = 0; apple < macs.size(); apple++)
+        auto  findAgain = [&] ()
         {
-            Rig          rig;
-            std::string  row;
+            size_t  found = 0;
 
-            GuestSession::Mount (rig.machine, boot);
-            rig.machine.GetMemoryBus().WriteByte (0x5000, (Byte) (0x11 * (apple + 1)));
-
-            rig.RunUntil ([&] () { row = rig.Row (kRow4); return row.find (" AT ") != std::string::npos; }, kWaitMs);
-
-            for (size_t at = 0; at < macs[apple].size(); at++)
+            for (const LinkAnnouncement & announcement : again.GetAnnounced())
             {
-                macs[apple][at] = rig.machine.GetCpu()->ReadByte ((Word) (LinkProgram::kUniversalW5100 + LinkProgram::kNetMacOffset + at));
+                found += (announcement.mac == macs[0] || announcement.mac == macs[1]) ? 1 : 0;
             }
 
-            Assert::IsTrue (macs[apple][0] == 0x00 && macs[apple][1] == 0x08 && macs[apple][2] == 0xDC, L"the first three bytes as built");
+            return found == rigs.size();
+        };
+
+        PacedRun::RunUntil (machines, findAgain, kWaitMs);
+        Assert::IsTrue (findAgain(), L"an announcement is sent from each program after the PC disconnects");
+
+        for (size_t apple = 0; apple < rigs.size(); apple++)
+        {
+            Assert::AreEqual (LinkProgram::kProgramVersion, (Word) (rigs[apple]->machine.GetCpu()->ReadByte (0x0803) | (rigs[apple]->machine.GetCpu()->ReadByte (0x0804) << 8)),
+                              L"from the program, not the disk's first stage");
         }
 
-        Assert::IsTrue (macs[0] != macs[1], L"two Apples whose memory differs have two addresses");
+        AssertSucceeded (again.SetListening (false));
     }
 
     //  Two Apples, each with an Uthernet II, linked to one PC at once. Each
@@ -708,28 +587,13 @@ public:
         AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
         dos.assign (bytes.begin(), bytes.end());
 
-        //  Both machines run at 1.023 MHz of wall time, a step of each in turn.
+        //  Both machines run a slice each in turn, in real time only while one
+        //  waits on the PC.
         auto  runBoth = [&] (std::function<bool()> done, DWORD ms)
         {
-            ULONGLONG                  start = GetTickCount64();
-            std::array<uint64_t, 2>    ran   = { 0, 0 };
-            uint64_t                   due   = 0;
+            TestMachine  * machines[] = { &rigs[0]->machine, &rigs[1]->machine };
 
-            while (!done() && GetTickCount64() - start < ms)
-            {
-                due = (GetTickCount64() - start) * kCyclesPerMs;
-
-                for (size_t apple = 0; apple < rigs.size(); apple++)
-                {
-                    if (ran[apple] < due)
-                    {
-                        ran[apple] += rigs[apple]->machine.RunCycles (due - ran[apple]);
-                    }
-                }
-
-                Sleep (1);
-            }
-
+            PacedRun::RunUntil (machines, done, ms);
             Assert::IsTrue (done());
         };
 

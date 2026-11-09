@@ -212,6 +212,7 @@
     <ClCompile Include="..\UnitTest\NetworkTests\W5100Driver.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="PacedRun.h" />
     <ClInclude Include="Pch.h" />
   </ItemGroup>
   <ItemGroup>

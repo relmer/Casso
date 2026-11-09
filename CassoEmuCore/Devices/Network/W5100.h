@@ -42,6 +42,13 @@ public:
     bool  IsInterruptPending () const;
     Word  GetAddressPointer  () const { return m_pointer; }
 
+    //  Reads of a socket's received size that found nothing received: the
+    //  guest polling for data that has not arrived. A test that runs the
+    //  guest faster than real time slows it to real time while this count
+    //  rises, so the guest's timeouts, counted in cycles, measure real time
+    //  while it waits on the PC.
+    uint64_t  GetEmptyReceivePolls () const { return m_emptyReceivePolls; }
+
     // Internal space, with the register side effects of an IDM_DR access.
     Byte  ReadInternal       (Word address);
     void  WriteInternal      (Word address, Byte value);
@@ -109,9 +116,10 @@ private:
     Word      GetRxReceivedSize    (int socket) const;
     Byte      ReadLatchedWord      (int socket, Word offset, Word value);
 
-    std::vector<Byte>                           m_mem     = std::vector<Byte> (kMemorySize);
-    std::array<SocketState, kSocketCount>       m_sockets = {};
-    Word                                        m_pointer = 0;
-    IW5100Backend                             * m_backend = nullptr;
-    NullW5100Backend                            m_nullBackend;
+    std::vector<Byte>                        m_mem               = std::vector<Byte> (kMemorySize);
+    std::array<SocketState, kSocketCount>    m_sockets           = {};
+    Word                                     m_pointer           = 0;
+    uint64_t                                 m_emptyReceivePolls = 0;
+    IW5100Backend                          * m_backend           = nullptr;
+    NullW5100Backend                         m_nullBackend;
 };

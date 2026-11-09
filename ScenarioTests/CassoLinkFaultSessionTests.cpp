@@ -3,6 +3,7 @@
 #include "EhmTestHelper.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
+#include "PacedRun.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
@@ -52,7 +53,6 @@ public:
 
     static constexpr uint64_t  kFrame        = 17030;
     static constexpr uint64_t  kBudget       = 6'000'000'000;
-    static constexpr uint64_t  kCyclesPerMs  = 1023;
     static constexpr uint64_t  kBootCycles   = 20'000'000;
     static constexpr uint16_t  kNetworkPort  = 26503;
     static constexpr DWORD     kNetworkWait  = 120'000;
@@ -607,29 +607,15 @@ public:
         Assert::IsTrue (sink.HasActivity ("Injected a fault"));
     }
 
-    //  The guest at 1.023 MHz of wall time, as its socket's traffic takes
-    //  real time, until the operation finishes.
+    //  The guest as fast as the PC allows, in real time only while it waits
+    //  on the PC, until the operation finishes.
     static std::shared_ptr<LinkOperation>  FinishInRealTime (TestMachine & machine, Sink & sink, std::shared_ptr<LinkOperation> operation)
     {
-        ULONGLONG  start = GetTickCount64();
-        uint64_t   ran   = 0;
-        uint64_t   due   = 0;
+        TestMachine  * machines[] = { &machine };
 
 
 
-        while (!sink.IsDone (operation) && GetTickCount64() - start < kNetworkWait)
-        {
-            due = (GetTickCount64() - start) * kCyclesPerMs;
-
-            if (ran < due)
-            {
-                ran += machine.RunCycles (due - ran);
-            }
-            else
-            {
-                Sleep (1);
-            }
-        }
+        PacedRun::RunUntil (machines, [&] () { return sink.IsDone (operation); }, kNetworkWait);
 
         Assert::IsTrue (sink.IsDone (operation), L"the operation finishes");
         return operation;
