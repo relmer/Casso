@@ -56,6 +56,7 @@ std::vector<FileFormatTable::Row> FileFormatRows::Make()
         Row { FileFormat::PrintShopGraphic,   &PrintShopGraphic::Matches,          &PrintShopGraphic::Decode,          nullptr, L".Print Shop.png",   false },
         Row { FileFormat::PrintShopFont,      &PrintShopFont::Matches,             &PrintShopFont::Decode,             nullptr, L".Font.png",         false },
         Row { FileFormat::HiResFont,          &HiResFont::MatchesApple2,           &HiResFont::Decode,                 nullptr, L".Font.png",         false },
+        Row { FileFormat::FontrixFont,        &FontrixFont::Matches,               &FontrixFont::Decode,               nullptr, L".Font.png",         false },
         Row { FileFormat::Apple3Font,         &HiResFont::MatchesApple3,           &HiResFont::Decode,                 nullptr, L".Font.png",         false },
         Row { FileFormat::ShapeTable,         &ShapeTable::Matches,                &ShapeTable::Decode,                nullptr, L".Shape table.png",  false },
         Row { FileFormat::IigsFont,           &IigsFont::Matches,                  &IigsFont::Decode,                  nullptr, L".Font.png",         true },

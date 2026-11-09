@@ -148,3 +148,32 @@ private:
 
     static void  DrawNumber (DecodedFile & file, int left, int top, int number);
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FontrixFont
+//
+//  A Fontrix font: a DOS 3.3 binary file whose name starts SET., or a
+//  ProDOS BIN at $6400, with $90 $F7 $B2 at $18, or its inverse in a font
+//  saved while editing. $10 is the glyph count, $11 the first character,
+//  $12 set for a proportional font and $14 the height; from $20, a file
+//  offset for each character from the space, each glyph's rows a whole
+//  number of bytes with the leftmost pixel in bit 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class FontrixFont
+{
+public:
+    static bool     Matches (const FileFacts & facts, std::span<const Byte> bytes);
+    static HRESULT  Decode  (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError);
+
+private:
+    static constexpr size_t  kMaxBytes  = 20480;
+    static constexpr size_t  kTableAt   = 0x20;
+    static constexpr Word    kAuxType   = 0x6400;
+};

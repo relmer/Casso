@@ -15,7 +15,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PackBytesTests, DreamGrafixLzwTests, Lz4fhTests and ShapeTableTests
+//  PackBytesTests, DreamGrafixLzwTests, Lz4fhTests, ShapeTableTests and
+//  FontrixFontTests
 //
 //  Streams built in each test, unpacked or checked, and an LZ4FH file
 //  previewed as a hi-res picture.
@@ -175,5 +176,45 @@ public:
         AssertSucceeded (ShapeTable::Decode (table, FileFacts(), DecodeOptions(), file, error));
         Assert::IsTrue  (file.kind == DecodedFile::Kind::Picture);
         Assert::IsFalse (file.bgra.empty());
+    }
+};
+
+
+TEST_CLASS (FontrixFontTests)
+{
+public:
+
+    TEST_METHOD (Decode_ProportionalGlyphsFromTheTable)
+    {
+        std::vector<Byte>  bytes (0x20, 0);
+        FileFacts          facts;
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        bytes[0x10] = 2;
+        bytes[0x11] = 'A';
+        bytes[0x12] = 1;
+        bytes[0x14] = 2;
+        bytes[0x18] = 0x90;
+        bytes[0x19] = 0xF7;
+        bytes[0x1A] = 0xB2;
+
+        bytes.resize (0x20 + 2 * ('A' - 32), 0);
+        bytes.insert (bytes.end(), { 0x80, 0x00, 0x82, 0x00, 0x84, 0x00 });
+        bytes.resize (0x80, 0);
+        bytes.insert (bytes.end(), { 0x01, 0x03, 0x05, 0x00 });
+
+        facts.volume = VolumeKind::Dos33;
+        facts.type   = 0x04;
+        facts.name   = "SET.TEST";
+
+        Assert::IsTrue (FontrixFont::Matches (facts, bytes));
+        AssertSucceeded (FontrixFont::Decode (bytes, facts, DecodeOptions(), file, error));
+        Assert::IsTrue (file.kind == DecodedFile::Kind::Picture);
+
+        bytes[0x18] = 0;
+        Assert::IsFalse (FontrixFont::Matches (facts, bytes), L"Without the signature");
     }
 };

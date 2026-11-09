@@ -4,6 +4,7 @@
 #include "CassoExplorer/Model/PicturePreview.h"
 #include "Core/MemoryBus.h"
 #include "Core/TextEncoding.h"
+#include "FileTypes/AppleWorks.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 
@@ -658,6 +659,111 @@ HRESULT ShapeTable::Decode (std::span<const Byte> bytes, const FileFacts & facts
 
         DrawNumber (outFile, left, top + kCell, shape + 1);
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FontrixFont::Matches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FontrixFont::Matches (const FileFacts & facts, std::span<const Byte> bytes)
+{
+    bool  typed  = (facts.IsDos33() && facts.type == 0x04 && facts.IsNameStarting ("SET.")) || facts.HasProDosType (0x06, kAuxType);
+    bool  marked = bytes.size() > kTableAt && bytes.size() <= kMaxBytes
+                   && ((bytes[0x18] == 0x90 && bytes[0x19] == 0xF7 && bytes[0x1A] == 0xB2) || (bytes[0x18] == 0x6F && bytes[0x19] == 0x08 && bytes[0x1A] == 0x4D));
+
+
+
+    return typed && marked && bytes[0x10] >= 1 && bytes[0x10] <= 94 && bytes[0x11] >= 33 && bytes[0x11] <= 127 && bytes[0x12] <= 1 && bytes[0x14] > 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FontrixFont::Decode
+//
+//  A glyph's row bytes are the distance to the next glyph's offset over
+//  the height. A proportional glyph is as wide as its rightmost pixel. The
+//  sheet starts at the space, so each cell is its character less 32.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FontrixFont::Decode (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError)
+{
+    HRESULT     hr           = S_OK;
+    size_t      count        = bytes[0x10];
+    size_t      first        = bytes[0x11];
+    bool        proportional = bytes[0x12] != 0;
+    size_t      height       = bytes[0x14];
+    GlyphSheet  sheet;
+    bool        inside       = kTableAt + 2 * (first - 32 + count + 1) <= bytes.size();
+
+
+
+    UNREFERENCED_PARAMETER (options);
+
+    CBRFEx (inside, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = L"The font's offset table runs past the end of the file.");
+
+    sheet.name   = TextEncoding::NarrowToWide (facts.name);
+    sheet.family = L"Fontrix font";
+    sheet.style  = proportional ? L"proportional" : L"fixed width";
+    sheet.size   = (int) height;
+    sheet.glyphs.resize (first - 32);
+
+    for (size_t index = first - 32; index < first - 32 + count; index++)
+    {
+        size_t  start    = AppleWorks::ReadWord (bytes, kTableAt + 2 * index);
+        size_t  next     = AppleWorks::ReadWord (bytes, kTableAt + 2 * index + 2);
+        size_t  rowBytes = (next > start) ? (next - start) / height : 0;
+        Glyph   glyph;
+
+        if (rowBytes > 0 && start + rowBytes * height <= bytes.size())
+        {
+            int  width = (int) (rowBytes * 8);
+
+            if (proportional)
+            {
+                width = 0;
+
+                for (size_t row = 0; row < height; row++)
+                {
+                    for (size_t column = 0; column < rowBytes * 8; column++)
+                    {
+                        if ((bytes[start + row * rowBytes + column / 8] >> (column % 8)) & 1)
+                        {
+                            width = std::max (width, (int) column + 1);
+                        }
+                    }
+                }
+            }
+
+            glyph.width  = width;
+            glyph.height = (int) height;
+
+            for (size_t row = 0; row < height; row++)
+            {
+                for (int column = 0; column < width; column++)
+                {
+                    glyph.pixels.push_back (((bytes[start + row * rowBytes + (size_t) column / 8] >> (column % 8)) & 1) != 0);
+                }
+            }
+        }
+
+        sheet.glyphs.push_back (std::move (glyph));
+    }
+
+    sheet.Draw (outFile);
 
 Error:
     return hr;

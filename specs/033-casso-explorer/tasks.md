@@ -1732,7 +1732,7 @@ Session 2026-11-08. Plan's Phase 32, research R35, contract `contracts/file-type
 
 - [X] T513 [P] [US18] `IigsAnimation`: decode the first frame of a $C2/$0000 animation file to BGRA, with the frame count in `notes` (FR-166)
 - [X] T514 [P] [US18] `ShapeTable`: draw each shape of an Applesoft shape table at scale 1 and rotation 0, eight to a row with its number under it, clipped to its cell, and an empty shape as a blank cell (FR-172)
-- [ ] T515 [P] [US18] `FontrixFont`: decode a Fontrix font onto a `GlyphSheet` (FR-167)
+- [X] T515 [P] [US18] `FontrixFont`: decode a Fontrix font onto a `GlyphSheet` (FR-167)
 - [ ] T516 [US18] Offer a record length in a random-access text file's preview that replaces the one found, applied to the preview and to a copy out of that file, while its tab is open (FR-160)
 - [ ] T517 [US18] Offer Apple text, Mac OS Roman and ISO 8859-1 as the character set of a text preview and a text copy out, with Mac OS Roman the default for a IIgs format, while its tab is open, in every text decoder through `DecodeOptions::charset` (FR-173). Tests in `UnitTest/FileTypes/CharsetTests.cpp`
 
