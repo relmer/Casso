@@ -116,7 +116,7 @@ public:
         Assert::AreEqual ((size_t) 2, file.grid.rows.size(), L"The standard values aren't an entry");
         Assert::AreEqual (std::wstring (L"AL"), file.grid.rows[0][0]);
         Assert::AreEqual (std::wstring (L"Feb 09 84"), file.grid.rows[0][1]);
-        Assert::AreEqual (std::wstring (), file.grid.rows[1][0]);
+        Assert::AreEqual (std::wstring(), file.grid.rows[1][0]);
         Assert::AreEqual (std::wstring (L"1:05 PM"), file.grid.rows[1][1]);
     }
 };
