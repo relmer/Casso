@@ -212,8 +212,7 @@ namespace DebuggerTests
                 ids.push_back (window.GetMemoryGroup().GetBar()->GetEntryCommandId (i));
             }
 
-            for (int id : { MemoryBarCommands::kAddress, MemoryBarCommands::kRefresh, MemoryBarCommands::kColumns,
-                            MemoryBarCommands::kGrouping })
+            for (int id : { MemoryBarCommands::kAddress, MemoryBarCommands::kRefresh, MemoryBarCommands::kColumns })
             {
                 Assert::IsTrue (std::find (ids.begin(), ids.end(), id) != ids.end(), std::format (L"entry {} is on the bar", id).c_str());
             }
@@ -222,6 +221,35 @@ namespace DebuggerTests
             Assert::IsNull (window.FindButton (L"Poke"),     L"memory is written in the view or from the console");
         }
 
+
+        //  The memory window's menu starts with the hex view's, as Casso
+        //  Explorer shows it: the value sizes and formats checked as they are
+        //  set, the Columns choices in their submenu, and Copy, disabled with
+        //  nothing selected.
+        TEST_METHOD (TheViewsOwnMenuBecomesThePaneMenusRows)
+        {
+            DxuiHexView                     view;
+            std::vector<DxuiPopupMenuItem>  from;
+            PaneMenuItems                   rows;
+            auto                            find = [&rows] (const std::wstring & label)
+            {
+                return std::ranges::find_if (rows, [&label] (const auto & row) { return row.first == label; });
+            };
+
+
+
+            (void) view.SetGrouping (2);
+            view.BuildContextMenu (from);
+            MemoryWindowGroup::AppendViewItems (from, std::wstring(), rows);
+
+            Assert::IsTrue (find (std::wstring (1, PaneMenu::kChecked) + L"2-byte integer") != rows.end(), L"the grouping in force is checked");
+            Assert::IsTrue (find (L"1-byte integer") != rows.end(), L"another is not");
+            Assert::AreEqual ((ptrdiff_t) 6, std::ranges::count_if (rows, [] (const auto & row) { return row.first.starts_with (PaneMenu::MakeInSubmenu (L"Columns", L"")); }), L"the six Columns choices are in their submenu");
+            Assert::IsTrue (find (L"Copy") != rows.end() && !find (L"Copy")->second, L"Copy, with nothing selected, is disabled");
+
+            find (L"1-byte integer")->second();
+            Assert::AreEqual (1, view.GetGrouping(), L"a row does what the view's own menu does");
+        }
 
         //  The undo history the window opens with is the machine's the first
         //  snapshot is from, so that snapshot clears none of it; a later
@@ -434,7 +462,8 @@ namespace DebuggerTests
         }
 
 
-        TEST_METHOD (ColumnsAndGroupingSetTheActiveWindow)        {
+        TEST_METHOD (ColumnsAndTheViewsGroupingSizeTheActiveWindow)
+        {
             CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
             MemoryBarHost    host;
             MemoryBarWindow  window (theme, host);
@@ -446,7 +475,7 @@ namespace DebuggerTests
             window.GetMemoryGroup().ChooseColumns (4);
             Assert::AreEqual (4, window.GetFirstHexView()->GetBytesPerRow(), L"four bytes a row");
 
-            window.GetMemoryGroup().ChooseGrouping (2);
+            (void) window.GetFirstHexView()->SetGrouping (2);
             Assert::AreEqual (8, window.GetFirstHexView()->GetBytesPerRow(), L"four words a row");
 
             window.GetMemoryGroup().ChooseColumns (0);

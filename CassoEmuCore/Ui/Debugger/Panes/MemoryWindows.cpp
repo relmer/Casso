@@ -534,7 +534,6 @@ void MemoryWindowGroup::SetBarMenus()
 {
     std::vector<DxuiPopupMenuItem>  history;
     std::vector<DxuiPopupMenuItem>  columns;
-    std::vector<DxuiPopupMenuItem>  grouping;
     MemoryWindowPane              * window   = GetActive();
 
 
@@ -555,16 +554,8 @@ void MemoryWindowGroup::SetBarMenus()
                                                                                      [this, choice] { ChooseColumns (choice); })));
     }
 
-    for (int choice : MemoryBarCommands::GetGroupingChoices())
-    {
-        grouping.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (MemoryBarCommands::GetGroupingName (choice),
-                                                                                      window != nullptr && window->GetModel().GetGrouping() == choice,
-                                                                                      [this, choice] { ChooseGrouping (choice); })));
-    }
-
     m_bar->SetDropDownItems (MemoryBarCommands::kAddress,  std::move (history));
     m_bar->SetDropDownItems (MemoryBarCommands::kColumns,  std::move (columns));
-    m_bar->SetDropDownItems (MemoryBarCommands::kGrouping, std::move (grouping));
 }
 
 
@@ -593,11 +584,6 @@ std::wstring MemoryWindowGroup::GetBarLabel (int id) const
     if (id == MemoryBarCommands::kColumns)
     {
         return L"Columns: " + MemoryBarCommands::GetColumnsLabel (window->GetModel().GetColumns());
-    }
-
-    if (id == MemoryBarCommands::kGrouping)
-    {
-        return MemoryBarCommands::GetGroupingLabel (window->GetModel().GetGrouping());
     }
 
     return std::wstring();
@@ -675,7 +661,7 @@ std::wstring MemoryWindowGroup::GetBarTip (int id) const
 //  MemoryWindowGroup::RunBarEntry
 //
 //  The drop-downs open from the strip; a choice from one comes back through
-//  ChooseColumns or ChooseGrouping.
+//  ChooseColumns.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -721,24 +707,6 @@ void MemoryWindowGroup::RunBarEntry (int id)
 void MemoryWindowGroup::ChooseColumns (int columns)
 {
     GetActive()->GetModel().SetColumns (columns);
-    SetBarMenus();
-    m_host.RelayoutWindow();
-    m_host.Repaint();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryWindowGroup::ChooseGrouping
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MemoryWindowGroup::ChooseGrouping (int grouping)
-{
-    GetActive()->GetModel().SetGrouping (grouping);
     SetBarMenus();
     m_host.RelayoutWindow();
     m_host.Repaint();
@@ -1469,9 +1437,10 @@ bool MemoryWindowGroup::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 
 void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT clientPx, PaneMenuItems & items)
 {
-    MemoryWindowPane     * each  = &window;
-    MemoryPane           & model = window.GetModel();
-    std::optional<Word>    byte;
+    MemoryWindowPane                * each  = &window;
+    MemoryPane                      & model = window.GetModel();
+    std::optional<Word>               byte;
+    std::vector<DxuiPopupMenuItem>    viewItems;
 
 
 
@@ -1482,10 +1451,21 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
     }
 
     m_active = each;
-    items.push_back ({ L"Copy",                   [each] { each->GetView()->CopySelection(); } });
-    items.push_back ({ L"Go to...",               [this] { m_host.FocusControl (m_box); } });
-    items.push_back ({ L"Change bytes per value", [each] { (void) each->GetModel().CycleGrouping(); } });
-    items.push_back ({ L"Find...",                [this, each] { FindIn (each); } });
+
+    //  The hex view's menu, as Casso Explorer shows it, then the debugger's items.
+    window.GetView()->SetOnSettingsChanged ([this, each]
+    {
+        each->GetModel().SyncFromView();
+        SetBarMenus();
+        m_host.RelayoutWindow();
+        m_host.Repaint();
+    });
+
+    window.GetView()->BuildContextMenu (viewItems);
+    AppendViewItems (viewItems, std::wstring(), items);
+    items.push_back (PaneMenu::MakeSeparator());
+    items.push_back ({ L"Go to...", [this] { m_host.FocusControl (m_box); } });
+    items.push_back ({ L"Find...",  [this, each] { FindIn (each); } });
 
     if (model.GetSelectedRange().has_value())
     {
@@ -1524,6 +1504,51 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
     if (byte.has_value())
     {
         m_host.AddHeatAccessItems (*byte, HeatMapOptions::Bank::Cpu, items);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryWindowGroup::AppendViewItems
+//
+//  The view's menu as the pane menu's rows: a check as kChecked, a submenu's
+//  rows under its label, a disabled row with no action, and no mnemonic.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryWindowGroup::AppendViewItems (const std::vector<DxuiPopupMenuItem> & from, const std::wstring & submenu, PaneMenuItems & items)
+{
+    for (const DxuiPopupMenuItem & each : from)
+    {
+        std::wstring  label     = (each.command != nullptr) ? each.command->label : std::wstring();
+        bool          isChecked = false;
+        bool          isEnabled = true;
+
+
+
+        std::erase (label, L'&');
+
+        if (each.kind == DxuiPopupMenuItem::Kind::Separator && submenu.empty())
+        {
+            items.push_back (PaneMenu::MakeSeparator());
+        }
+        else if (each.kind == DxuiPopupMenuItem::Kind::Submenu)
+        {
+            AppendViewItems (each.children, label, items);
+        }
+        else if (each.kind == DxuiPopupMenuItem::Kind::Command && each.command != nullptr)
+        {
+            isChecked = each.command->isChecked && each.command->isChecked();
+            isEnabled = !each.command->isEnabled || each.command->isEnabled();
+            label     = isChecked ? std::wstring (1, PaneMenu::kChecked) + label : label;
+            label     = submenu.empty() ? label : PaneMenu::MakeInSubmenu (submenu, label);
+
+            items.push_back ({ label, isEnabled ? std::function<void()> ([command = each.command] { command->dispatch(); }) : std::function<void()>() });
+        }
     }
 }
 

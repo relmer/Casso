@@ -105,12 +105,14 @@ public:
     void                                 SubmitBox       ();
     void                                 RunBarEntry     (int id);
     void                                 ChooseColumns   (int columns);
-    void                                 ChooseGrouping  (int grouping);
     bool                                 IsBarEnabled    (int id) const;
     void                                 Undo            (MemoryWindowPane * window, bool redo);
 
     //  A window's menu on its bytes.
     void                                 AddWindowMenuItems (MemoryWindowPane & window, POINT clientPx, PaneMenuItems & items);
+
+    //  A DxuiHexView menu as the pane menu's rows, a submenu's under its label.
+    static void                          AppendViewItems (const std::vector<DxuiPopupMenuItem> & from, const std::wstring & submenu, PaneMenuItems & items);
 
     const std::wstring             & GetId                  () const override { static const std::wstring  s_kId = L"memory-group"; return s_kId; }
     std::wstring                     GetTitle               () const override { return {}; }

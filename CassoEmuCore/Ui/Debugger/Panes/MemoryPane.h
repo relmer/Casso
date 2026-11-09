@@ -89,8 +89,8 @@ public:
     //  Scrolls to an address and asks for a read there.
     void  GoTo (Word address);
 
-    //  One, two, four bytes a value, and round again. Returns the new grouping.
-    int   CycleGrouping ();
+    //  The grouping and columns the hex view's menu set.
+    void  SyncFromView  ();
 
     //  One, two or four bytes a value.
     void  SetGrouping (int bytesPerValue);

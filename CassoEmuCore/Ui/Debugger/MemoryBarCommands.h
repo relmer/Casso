@@ -27,7 +27,6 @@ public:
     static constexpr int  kAddress   = 1;
     static constexpr int  kRefresh   = 2;
     static constexpr int  kColumns   = 3;
-    static constexpr int  kGrouping  = 4;
     static constexpr int  kUndo      = 5;
     static constexpr int  kRedo      = 6;
     static constexpr int  kHeat      = 7;
@@ -52,10 +51,6 @@ public:
     static const std::vector<int> &  GetColumnChoices  ();
     static std::wstring              GetColumnsLabel   (int columns);
 
-    //  The grouping drop-down's choices, bytes a value.
-    static const std::vector<int> &  GetGroupingChoices ();
-    static std::wstring              GetGroupingName    (int grouping);
-    static std::wstring              GetGroupingLabel   (int grouping);
 
 private:
     struct Row

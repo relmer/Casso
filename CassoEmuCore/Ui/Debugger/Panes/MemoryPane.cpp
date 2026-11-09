@@ -349,16 +349,14 @@ void MemoryPane::GoTo (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryPane::CycleGrouping
+//  MemoryPane::SyncFromView
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int MemoryPane::CycleGrouping()
+void MemoryPane::SyncFromView()
 {
-    m_grouping = (m_grouping >= 4) ? 1 : m_grouping * 2;
-    (void) m_view->SetGrouping (m_grouping);
-
-    return m_grouping;
+    m_grouping = m_view->GetGrouping();
+    m_columns  = m_view->GetColumns();
 }
 
 

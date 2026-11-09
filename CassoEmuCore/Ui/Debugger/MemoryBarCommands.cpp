@@ -30,7 +30,6 @@ const std::vector<MemoryBarCommands::Row> & MemoryBarCommands::GetRows()
         { kAddress,   L"Address",           nullptr,            L"Address: a hex address, a register, a symbol or an expression such as (3E),Y", DxuiToolbar::Kind::DropDown, 0, false },
         { kRefresh,   L"Refresh",           s_kGlyphRefresh,    L"Read this window's bytes again",                                               DxuiToolbar::Kind::Command,  0, true  },
         { kColumns,   L"Columns",           nullptr,            L"Values in each row, or as many as fit",                                        DxuiToolbar::Kind::DropDown, 1, false },
-        { kGrouping,  L"Group by bytes",    nullptr,            L"Show each value as a byte, a word or a long",                                  DxuiToolbar::Kind::DropDown, 1, false },
         { kUndo,      L"Undo",              s_kGlyphUndo,       L"Undo the last change made in this window",                                     DxuiToolbar::Kind::Command,  2, true  },
         { kRedo,      L"Redo",              s_kGlyphRedo,       L"Redo the change just undone",                                                  DxuiToolbar::Kind::Command,  2, true  },
         { kHeat,      L"Heat",              nullptr,            L"Tint each byte by its heat, in the heat map's colors",                         DxuiToolbar::Kind::Toggle,   3, false },
@@ -198,66 +197,3 @@ std::wstring MemoryBarCommands::GetColumnsLabel (int columns)
 
 
 
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryBarCommands::GetGroupingChoices
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const std::vector<int> & MemoryBarCommands::GetGroupingChoices()
-{
-    static const std::vector<int>  choices = { 1, 2, 4 };
-
-
-
-    return choices;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryBarCommands::GetGroupingName
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring MemoryBarCommands::GetGroupingName (int grouping)
-{
-    constexpr int  kWord = 2;
-    constexpr int  kLong = 4;
-
-
-
-    switch (grouping)
-    {
-    case kWord: return L"Words";
-    case kLong: return L"Longs";
-    default:    return L"Bytes";
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryBarCommands::GetGroupingLabel
-//
-//  What the drop-down sets, with the choice in force: "Group by words".
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring MemoryBarCommands::GetGroupingLabel (int grouping)
-{
-    std::wstring  name = GetGroupingName (grouping);
-
-
-
-    name[0] = (wchar_t) towlower (name[0]);
-
-    return L"Group by " + name;
-}
