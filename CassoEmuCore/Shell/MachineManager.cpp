@@ -579,6 +579,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     }
 
     m_shell.m_disks->GetManager()->MountCommandLineDisks (carryDisk1, carryDisk2);
+    m_shell.m_debugger->NotifyDebugDisksMounted();
 
     // Each machine keeps its own tape, as it keeps its own disks.
     m_shell.m_tapeDeck->GetManager()->OnMachineSwitched();

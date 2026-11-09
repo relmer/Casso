@@ -781,6 +781,7 @@ HRESULT EmulatorShell::Initialize (
     m_disks->InstallMountReporting();
 
     m_disks->GetManager()->MountCommandLineDisks (disk1Path, disk2Path);
+    m_debugger->NotifyDebugDisksMounted();
 
     m_tapeDeck->InsertStartupTape (tapePath);
 

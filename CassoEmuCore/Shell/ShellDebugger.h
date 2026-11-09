@@ -101,6 +101,11 @@ public:
     void NotifyDebugReset          (bool isPowerCycle);
     void NotifyDebugMachineChanged (const std::string & machineName);
 
+    // A machine just built is power cycled with its drives empty and then
+    // has its disks mounted, so the disk now in drive 1 is the one it boots,
+    // and the project's scope.
+    void NotifyDebugDisksMounted   ();
+
     // Reverse execution. Recording starts once a machine is built and power
     // cycled, from the settings read at start, and stops before a machine is
     // torn down and at exit; all three run on the CPU thread, as does

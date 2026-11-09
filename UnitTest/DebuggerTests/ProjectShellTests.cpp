@@ -358,6 +358,42 @@ namespace ProjectShellTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
+        //  TheDiskMountedAfterABuildsPowerCycleIsTheBootDisk
+        //
+        //  A machine is built with a power cycle while its drives are empty,
+        //  and then its disks are mounted, so the machine boots the disk in
+        //  drive 1: its project is the disk's, as after a restart.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (TheDiskMountedAfterABuildsPowerCycleIsTheBootDisk)
+        {
+            ProjectRig            rig (TestMachine::Slots::DiskOnly);
+            std::vector<Byte>     blank (NibblizationLayer::kImageByteSize, 0);
+            DiskImageStore      & disks = rig.shell->GetMachine().GetDiskStore();
+            Reply                 reply;
+            const ProjectData   * data  = nullptr;
+
+
+
+            disks.SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
+            rig.shell->GetDebugger().NotifyDebugReset (true);
+
+            Assert::AreEqual (S_OK, disks.MountFromBytes (6, 0, "C:\\Disks\\boot.dsk", DiskFormat::Dsk, blank));
+            rig.shell->GetDebugger().NotifyDebugDisksMounted();
+
+            rig.Attach();
+            data = std::get_if<ProjectData> (&(reply = rig.Run ("PROJECT")).data);
+            Assert::IsNotNull (data);
+            Assert::AreEqual (std::string ("machineBoot"), data->scope, L"the boot disk's project, not the machine's");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
         //  MergeAddsTheLastProjectsItems
         //
         //  The binary's project replaces the machine's breakpoints with its
