@@ -1496,7 +1496,8 @@ void ExplorerCommandManager::RunRawVerb (CassoExplorerActions::Verb verb)
         }
     }
 
-    where = CassoExplorerRawDialog::Ask (m_context.window.GetHwnd(), m_context.theme, title, sectors, reading);
+    where = CassoExplorerRawDialog::Ask (m_context.window.GetHwnd(), m_context.theme, title, sectors, reading,
+                                         sectors ? CassoExplorerRawChoices::kBlocks : m_context.actions.GetTargetBlockCount());
 
     if (!where.confirmed)
     {

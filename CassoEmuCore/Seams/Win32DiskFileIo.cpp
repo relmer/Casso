@@ -229,6 +229,66 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32DiskFileIo::ReadAt
+//
+//  Exactly the bytes asked for, from an offset inside the file, or an error:
+//  a range that runs past the end is refused rather than read short.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32DiskFileIo::ReadAt (const std::string & path, uint64_t offset, std::span<Byte> outBytes)
+{
+    HRESULT        hr       = S_OK;
+    std::wstring   widePath = std::filesystem::path (path).wstring();
+    HANDLE         file     = INVALID_HANDLE_VALUE;
+    LARGE_INTEGER  size     = {};
+    LARGE_INTEGER  at       = {};
+    DWORD          read     = 0;
+    size_t         count    = outBytes.size();
+    BOOL           ok       = FALSE;
+    bool           fits     = false;
+
+
+
+    CBRAEx (count <= MAXDWORD, E_INVALIDARG);
+
+    file = CreateFileW (widePath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    CWR (file != INVALID_HANDLE_VALUE);
+
+    ok = GetFileSizeEx (file, &size);
+    CWR (ok);
+
+    fits = offset + count <= (uint64_t) size.QuadPart;
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
+
+    at.QuadPart = (LONGLONG) offset;
+
+    ok = SetFilePointerEx (file, at, nullptr, FILE_BEGIN);
+    CWR (ok);
+
+    if (!outBytes.empty())
+    {
+        ok = ReadFile (file, outBytes.data(), (DWORD) count, &read, nullptr);
+        CWR (ok);
+        CBREx (read == (DWORD) count, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
+    }
+
+Error:
+    if (file != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle (file);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32DiskFileIo::Stat
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -90,13 +90,13 @@ std::wstring CassoExplorerRawChoices::ValidateSector (const std::wstring & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring CassoExplorerRawChoices::ValidateBlock (const std::wstring & text)
+std::wstring CassoExplorerRawChoices::ValidateBlock (const std::wstring & text, int blockCount)
 {
     int  value = 0;
 
 
 
-    return (TryParse (text, value) && value < kBlocks) ? std::wstring() : L"Enter a block from 0 to 279.";
+    return (TryParse (text, value) && value < blockCount) ? std::wstring() : std::format (L"Enter a block from 0 to {}.", blockCount - 1);
 }
 
 
@@ -160,9 +160,9 @@ int CassoExplorerRawChoices::GetSectorsFrom (int track, int sector)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int CassoExplorerRawChoices::GetBlocksFrom (int block)
+int CassoExplorerRawChoices::GetBlocksFrom (int block, int blockCount)
 {
-    return (block >= 0 && block < kBlocks) ? kBlocks - block : 0;
+    return (block >= 0 && block < blockCount) ? blockCount - block : 0;
 }
 
 
@@ -352,7 +352,7 @@ bool CassoExplorerRawPanel::OnMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CassoExplorerRawDialog::Outcome CassoExplorerRawDialog::Ask (HWND owner, const IDxuiTheme * theme, const std::wstring & title, bool sectors, bool reading)
+CassoExplorerRawDialog::Outcome CassoExplorerRawDialog::Ask (HWND owner, const IDxuiTheme * theme, const std::wstring & title, bool sectors, bool reading, int blockCount)
 {
     HRESULT                   hr     = S_OK;
     CassoExplorerRawDialog    dialog;
@@ -364,6 +364,7 @@ CassoExplorerRawDialog::Outcome CassoExplorerRawDialog::Ask (HWND owner, const I
     dialog.m_theme   = theme;
     dialog.m_sectors = sectors;
     dialog.m_reading = reading;
+    dialog.m_blocks  = blockCount;
 
     params.title                    = title;
     params.hInstance                = GetModuleHandleW (nullptr);
@@ -480,7 +481,7 @@ void CassoExplorerRawDialog::OnCreate()
 
     m_validator.AddField ([this]()
     {
-        return m_sectors ? CassoExplorerRawChoices::ValidateTrack (m_start.GetText()) : CassoExplorerRawChoices::ValidateBlock (m_start.GetText());
+        return m_sectors ? CassoExplorerRawChoices::ValidateTrack (m_start.GetText()) : CassoExplorerRawChoices::ValidateBlock (m_start.GetText(), m_blocks);
     }, &m_startError);
 
     m_validator.AddField ([this]()
@@ -529,7 +530,7 @@ int CassoExplorerRawDialog::GetAvailable() const
 
     if (!m_sectors)
     {
-        return CassoExplorerRawChoices::GetBlocksFrom (start);
+        return CassoExplorerRawChoices::GetBlocksFrom (start, m_blocks);
     }
 
     return CassoExplorerRawChoices::TryParse (m_sector.GetText(), sector) ? CassoExplorerRawChoices::GetSectorsFrom (start, sector) : 0;

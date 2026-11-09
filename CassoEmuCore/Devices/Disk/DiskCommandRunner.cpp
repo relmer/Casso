@@ -4501,20 +4501,28 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
     bool                           onDisk       = false;
     bool                           isARead      = false;
     bool                           fits         = false;
+    int                            blocks       = 0;
     DiskImageSession::OpenedImage  opened;
     vector<Byte>                   payload;
     char                           summary[192] = {};
 
 
 
-    onDisk = options.disk.block >= 0 && options.disk.block < ProDosSkeleton::kTotalBlocks;
+    //  No filesystem needed, and none looked for: a block is geometry, not
+    //  a volume, and blocks 0-1 of a disk with no filesystem are still worth
+    //  looking at.
+    hr = m_session.OpenImage (options.disk.imagePath, opened, result, false);
+    CHR (hr);
+
+    blocks = ProDosSkeleton::GetBlockCount (opened.sectors.size());
+    onDisk = options.disk.block >= 0 && options.disk.block < blocks;
 
     if (!onDisk)
     {
         snprintf (summary, sizeof (summary),
                   "Error: block %d is out of range\n"
                   "       Blocks are 0-%d.\n",
-                  options.disk.block, ProDosSkeleton::kTotalBlocks - 1);
+                  options.disk.block, blocks - 1);
     }
 
     CBRFEx (onDisk, E_INVALIDARG, RefuseBadValue (result, summary));
@@ -4531,11 +4539,11 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
 
     CBRFEx (isARead, E_INVALIDARG, RefuseBadValue (result, summary));
 
-    fits = options.disk.block + options.disk.count <= ProDosSkeleton::kTotalBlocks;
+    fits = options.disk.block + options.disk.count <= blocks;
 
     if (!fits)
     {
-        int  spare = ProDosSkeleton::kTotalBlocks - options.disk.block;
+        int  spare = blocks - options.disk.block;
 
         snprintf (summary, sizeof (summary),
                   "Error: not enough blocks available\n"
@@ -4551,19 +4559,13 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
 
     CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
 
-    //  No filesystem needed, and none looked for: a block is geometry, not
-    //  a volume, and blocks 0-1 of a disk with no filesystem are still worth
-    //  looking at.
-    hr = m_session.OpenImage (options.disk.imagePath, opened, result, false);
-    CHR (hr);
-
     for (int index = 0; index < options.disk.count; index++)
     {
         int  block = options.disk.block + index;
 
         for (int half = 0; half < 2; half++)
         {
-            size_t  at = ProDosSkeleton::GetBlockByteOffset (block, (size_t) half * kHalfBytes);
+            size_t  at = ProDosSkeleton::GetBlockByteOffset (opened.sectors.size(), block, (size_t) half * kHalfBytes);
 
             if (at + kHalfBytes > opened.sectors.size())
             {
@@ -4652,6 +4654,7 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
     bool                           named        = !options.disk.hostFile.empty();
     bool                           onDisk       = false;
     bool                           fits         = false;
+    int                            blocks       = 0;
     DiskImageSession::OpenedImage  opened;
     vector<Byte>                   payload;
     vector<Byte>                   edited;
@@ -4661,14 +4664,18 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
 
     CBRF (named, ReportMissingParameter ("<file>", result));
 
-    onDisk = options.disk.block >= 0 && options.disk.block < ProDosSkeleton::kTotalBlocks;
+    hr = m_session.OpenImage (options.disk.imagePath, opened, result, false);
+    CHR (hr);
+
+    blocks = ProDosSkeleton::GetBlockCount (opened.sectors.size());
+    onDisk = options.disk.block >= 0 && options.disk.block < blocks;
 
     if (!onDisk)
     {
         snprintf (summary, sizeof (summary),
                   "Error: block %d is out of range\n"
                   "       Blocks are 0-%d.\n",
-                  options.disk.block, ProDosSkeleton::kTotalBlocks - 1);
+                  options.disk.block, blocks - 1);
     }
 
     CBRFEx (onDisk, E_INVALIDARG, RefuseBadValue (result, summary));
@@ -4676,18 +4683,15 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
     hr = m_fileIo.ReadAllBytes (options.disk.hostFile, payload);
     CHRF (hr, result.Fail (options.disk.hostFile, "", "cannot be read"));
 
-    hr = m_session.OpenImage (options.disk.imagePath, opened, result, false);
-    CHR (hr);
-
     edited = opened.sectors;
 
     needed = (payload.size() + kBlockBytes - 1) / kBlockBytes;
 
-    fits = (size_t) options.disk.block + needed <= (size_t) ProDosSkeleton::kTotalBlocks;
+    fits = (size_t) options.disk.block + needed <= (size_t) blocks;
 
     if (!fits)
     {
-        int  spare = ProDosSkeleton::kTotalBlocks - options.disk.block;
+        int  spare = blocks - options.disk.block;
 
         snprintf (summary, sizeof (summary),
                   "Error: not enough blocks available\n"
@@ -4710,7 +4714,7 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
         for (int half = 0; half < 2; half++)
         {
             size_t  from  = index * kBlockBytes + (size_t) half * kHalfBytes;
-            size_t  at    = ProDosSkeleton::GetBlockByteOffset (block, (size_t) half * kHalfBytes);
+            size_t  at    = ProDosSkeleton::GetBlockByteOffset (edited.size(), block, (size_t) half * kHalfBytes);
             size_t  count = 0;
 
             if (from >= payload.size())

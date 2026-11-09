@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerActions.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "CassoExplorer/Model/BasicConversion.h"
 #include "CassoExplorer/Model/ContentSniffer.h"
 #include "CassoExplorer/Model/DragPayload.h"
@@ -2067,6 +2069,43 @@ CassoExplorerActions::ImageFacts & CassoExplorerActions::GetImageFacts (const st
     }
 
     return *facts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::GetTargetBlockCount
+//
+//  The blocks the image a raw block read or write goes to has: 280 for a
+//  floppy, and the volume's blocks for a larger image. An image that can't be
+//  read is taken as a floppy, which the read or write then reports.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoExplorerActions::GetTargetBlockCount() const
+{
+    HRESULT             hr     = S_OK;
+    std::string         target = TextEncoding::WideToNarrow (GetFormatTarget());
+    int                 blocks = ProDosSkeleton::kTotalBlocks;
+    vector<Byte>        bytes;
+    vector<Byte>        sectors;
+    SectorDecodeReport  report;
+
+
+
+    hr = m_browser.GetOperations().GetFileIo().ReadAllBytes (target, bytes);
+    CHR (hr);
+
+    hr = VolumeImage::Load (bytes, target, sectors, report);
+    CHR (hr);
+
+    blocks = ProDosSkeleton::GetBlockCount (sectors.size());
+
+Error:
+    return blocks;
 }
 
 

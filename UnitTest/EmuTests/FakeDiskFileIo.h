@@ -144,6 +144,24 @@ public:
         return S_OK;
     }
 
+    HRESULT  ReadAt (const std::string & path, uint64_t offset, std::span<Byte> outBytes) override
+    {
+        auto  found = files.find (path);
+
+        if (found == files.end())
+        {
+            return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+        }
+
+        if (offset + outBytes.size() > found->second.size())
+        {
+            return HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF);
+        }
+
+        std::copy_n (found->second.begin() + (ptrdiff_t) offset, outBytes.size(), outBytes.begin());
+        return S_OK;
+    }
+
     HRESULT  Stat (const std::string & path, FileStamp & outStamp) override
     {
         auto  found = stamps.find (path);

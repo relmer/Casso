@@ -174,6 +174,9 @@ public:
     //  verbs act on the same image.
     std::wstring  GetFormatTarget() const;
 
+    //  The blocks the format target has, for a raw block read or write.
+    int           GetTargetBlockCount() const;
+
     //  Raw access through the runner's sector and block verbs. Sectors are
     //  numbered as DOS 3.3 numbers them.
     Outcome  ReadSectors  (int track, int sector, int count, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical) { return m_appleDrive.ReadSectors (track, sector, count, hostPath, numbering); }

@@ -14,7 +14,8 @@
 //
 //  The rules for where a read or write of raw sectors or blocks starts and
 //  how far it runs, kept apart from the dialog so they are testable without a
-//  window. A 140K disk is 35 tracks of 16 sectors, or 280 blocks.
+//  window. A 140K disk is 35 tracks of 16 sectors, or 280 blocks, and a larger
+//  volume has the blocks its image has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,14 +41,14 @@ public:
     //  Why a field's text cannot be used, or empty when it can.
     static std::wstring  ValidateTrack  (const std::wstring & text);
     static std::wstring  ValidateSector (const std::wstring & text);
-    static std::wstring  ValidateBlock  (const std::wstring & text);
+    static std::wstring  ValidateBlock  (const std::wstring & text, int blockCount = kBlocks);
 
     //  A count runs at most to the end of the disk; `available` is how far
     //  that is from the start, or zero when the start itself is not valid.
     static std::wstring  ValidateCount  (const std::wstring & text, int available);
 
     static int           GetSectorsFrom (int track, int sector);
-    static int           GetBlocksFrom  (int block);
+    static int           GetBlocksFrom  (int block, int blockCount = kBlocks);
 };
 
 
@@ -125,7 +126,7 @@ public:
         DiskOperations::Numbering    numbering = DiskOperations::Numbering::Logical;
     };
 
-    static Outcome  Ask (HWND owner, const IDxuiTheme * theme, const std::wstring & title, bool sectors, bool reading);
+    static Outcome  Ask (HWND owner, const IDxuiTheme * theme, const std::wstring & title, bool sectors, bool reading, int blockCount = CassoExplorerRawChoices::kBlocks);
 
 protected:
     void  OnCreate     () override;
@@ -139,6 +140,7 @@ private:
     const IDxuiTheme       * m_theme      = nullptr;
     bool                     m_sectors    = true;
     bool                     m_reading    = true;
+    int                      m_blocks     = CassoExplorerRawChoices::kBlocks;
     bool                     m_fitted     = false;
     DxuiButton             * m_ok         = nullptr;
     DxuiFieldValidator       m_validator;
