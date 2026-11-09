@@ -30,6 +30,7 @@
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
+#include "FileTypes/FileFormatTable.h"
 #include "IntegerBasicDetokenizer.h"
 #include "Utils.h"
 
@@ -2018,6 +2019,13 @@ bool DiskCommandRunner::ApplyHostFileName (CommandLineOptions & inOutOptions, Pa
         return false;
     }
 
+    //  A conversion with no import is a host file like any other. One with
+    //  an import is text on a file system the import isn't for.
+    if (outParsed.converted == ParsedHostName::ConvertedKind::Format && FileFormatTable::GetImportBySuffix (TextEncoding::NarrowToWide (leaf)) == FileFormat::None)
+    {
+        return false;
+    }
+
     inOutOptions.disk.path = outParsed.catalogName;
 
     if (unconverted && outParsed.converted == ParsedHostName::ConvertedKind::ApplesoftListing)
@@ -2111,6 +2119,8 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
     FilePath                       path;
     vector<Byte>                   hostBytes;
     vector<Byte>                   edited;
+    std::wstring                   importError;
+    bool                           imported  = false;
 
 
 
@@ -2129,8 +2139,29 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
 
     CHRF (hr, result.Fail (options.disk.hostFile, "", "cannot be read"));
 
-    hr = BuildPutPayload (effective, opened.kind, hostBytes, payload, result);
-    CHR (hr);
+    //  A conversion Casso Explorer wrote that has an import for this file
+    //  system is put back in its Apple form, under the name that form has
+    //  there, unless the command line has --type, --load, --text or --basic.
+    imported = hostForm && parsed.converted == ParsedHostName::ConvertedKind::Format
+            && options.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim
+            && options.disk.typeName.empty() && !options.disk.hasLoadAddress
+            && HostFileNaming::CanImport (parsed.format, opened.kind);
+
+    if (imported)
+    {
+        if (options.disk.path.empty())
+        {
+            diskName = HostFileNaming::MakeImportName (diskName, parsed.format, opened.kind);
+        }
+
+        hr = FileFormatTable::Import (parsed.format, opened.kind, hostBytes, payload, importError);
+        CHRF (hr, result.FailAction (options.disk.imagePath, "write " + diskName, TextEncoding::WideToNarrow (importError)));
+    }
+    else
+    {
+        hr = BuildPutPayload (effective, opened.kind, hostBytes, payload, result);
+        CHR (hr);
+    }
 
     //  The type and address in a name Casso Explorer wrote, unless the command
     //  line has --type, --load, --text or --basic.

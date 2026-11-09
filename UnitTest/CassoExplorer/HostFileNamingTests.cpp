@@ -192,6 +192,69 @@ public:
     }
 
 
+    //  A conversion of the file format table has the row's suffix, and Parse
+    //  returns the row and the catalog name.
+    TEST_METHOD (Converted_FormatRows_RoundTripThroughParse)
+    {
+        ParsedHostName  parsed;
+
+        Assert::AreEqual (std::wstring (L"DEMO.S.Merlin.txt"),      HostFileNaming::ForConverted ("DEMO.S", FileFormat::Merlin));
+        Assert::AreEqual (std::wstring (L"PIC.Super Hi-Res.png"),   HostFileNaming::ForConverted ("PIC", FileFormat::SuperHiRes));
+        Assert::AreEqual (std::wstring (L"BUDGET.VisiCalc.csv"),    HostFileNaming::ForConverted ("BUDGET", FileFormat::VisiCalc));
+
+        Assert::IsTrue   (HostFileNaming::Parse (L"DEMO.S.Merlin.txt", parsed));
+        Assert::IsTrue   (parsed.converted == Kind::Format);
+        Assert::IsTrue   (parsed.format == FileFormat::Merlin);
+        Assert::AreEqual (std::string ("DEMO.S"), parsed.catalogName);
+
+        Assert::IsTrue   (HostFileNaming::Parse (L"LETTER.AppleWorks WP.rtf", parsed));
+        Assert::IsTrue   (parsed.converted == Kind::Format);
+        Assert::IsTrue   (parsed.format == FileFormat::AppleWorksWp);
+        Assert::AreEqual (std::string ("LETTER"), parsed.catalogName);
+
+        //  The BASIC and text forms aren't rows of the table.
+        Assert::IsTrue   (HostFileNaming::Parse (L"NOTES.Text.txt", parsed));
+        Assert::IsTrue   (parsed.converted == Kind::Text);
+        Assert::IsTrue   (parsed.format == FileFormat::None);
+    }
+
+
+    TEST_METHOD (CanImport_IsTrueOnlyWhereTheProgramSavesTheFile)
+    {
+        Assert::IsTrue  (HostFileNaming::CanImport (FileFormat::Merlin, VolumeKind::ProDos));
+        Assert::IsTrue  (HostFileNaming::CanImport (FileFormat::Merlin, VolumeKind::Dos33));
+        Assert::IsFalse (HostFileNaming::CanImport (FileFormat::Merlin, VolumeKind::Pascal));
+        Assert::IsFalse (HostFileNaming::CanImport (FileFormat::Merlin, VolumeKind::Cpm));
+
+        Assert::IsTrue  (HostFileNaming::CanImport (FileFormat::PascalText, VolumeKind::Pascal));
+        Assert::IsTrue  (HostFileNaming::CanImport (FileFormat::PascalText, VolumeKind::ProDos));
+        Assert::IsFalse (HostFileNaming::CanImport (FileFormat::PascalText, VolumeKind::Dos33));
+
+        Assert::IsFalse (HostFileNaming::CanImport (FileFormat::VisiCalc, VolumeKind::ProDos));
+    }
+
+
+    //  Merlin source is NAME.S on ProDOS and T.NAME on DOS 3.3, and a Pascal
+    //  textfile ends in .TEXT on a Pascal volume.
+    TEST_METHOD (MakeImportName_GivesTheNameTheProgramSavesUnder)
+    {
+        Assert::AreEqual (std::string ("DEMO.S"),   HostFileNaming::MakeImportName ("DEMO.S", FileFormat::Merlin, VolumeKind::ProDos));
+        Assert::AreEqual (std::string ("DEMO.S"),   HostFileNaming::MakeImportName ("DEMO", FileFormat::Merlin, VolumeKind::ProDos));
+        Assert::AreEqual (std::string ("DEMO.S"),   HostFileNaming::MakeImportName ("T.DEMO", FileFormat::Merlin, VolumeKind::ProDos));
+        Assert::AreEqual (std::string ("T.DEMO"),   HostFileNaming::MakeImportName ("T.DEMO", FileFormat::Merlin, VolumeKind::Dos33));
+        Assert::AreEqual (std::string ("T.DEMO"),   HostFileNaming::MakeImportName ("DEMO", FileFormat::Merlin, VolumeKind::Dos33));
+        Assert::AreEqual (std::string ("T.DEMO"),   HostFileNaming::MakeImportName ("DEMO.S", FileFormat::Merlin, VolumeKind::Dos33));
+        Assert::AreEqual (std::string ("DEMO"),     HostFileNaming::MakeImportName ("DEMO", FileFormat::Merlin, VolumeKind::Pascal));
+
+        Assert::AreEqual (std::string ("ABCDEFGHIJKLM.S"), HostFileNaming::MakeImportName ("ABCDEFGHIJKLMNO", FileFormat::Merlin, VolumeKind::ProDos));
+
+        Assert::AreEqual (std::string ("HELLO.TEXT"),      HostFileNaming::MakeImportName ("HELLO.TEXT", FileFormat::PascalText, VolumeKind::Pascal));
+        Assert::AreEqual (std::string ("HELLO.TEXT"),      HostFileNaming::MakeImportName ("HELLO", FileFormat::PascalText, VolumeKind::Pascal));
+        Assert::AreEqual (std::string ("LONGPROGRA.TEXT"), HostFileNaming::MakeImportName ("LONGPROGRAMNAME", FileFormat::PascalText, VolumeKind::Pascal));
+        Assert::AreEqual (std::string ("HELLO.TEXT"),      HostFileNaming::MakeImportName ("HELLO.TEXT", FileFormat::PascalText, VolumeKind::ProDos));
+    }
+
+
     TEST_METHOD (Dos33TypeTable_MapsBothWays)
     {
         Byte  type = 0;

@@ -86,6 +86,11 @@ public:
     //  and the format a host name's suffix is an import row's, or None.
     static const wchar_t *  GetSuffix          (FileFormat format);
     static FileFormat       GetImportBySuffix  (const std::wstring & hostName);
+
+    //  The first row whose suffix a host name ends in, or None. Several
+    //  formats have one suffix, so this is the format of an import row or a
+    //  sign that the file is a conversion, not the format it was made from.
+    static FileFormat       GetBySuffix        (const std::wstring & hostName);
     static bool             IsIigsFormat       (FileFormat format);
 
     //  Whether a format's text is read in the character set of the options.

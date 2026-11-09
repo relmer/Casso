@@ -301,18 +301,52 @@ const wchar_t * FileFormatTable::GetSuffix (FileFormat format)
 
 FileFormat FileFormatTable::GetImportBySuffix (const std::wstring & hostName)
 {
+    const Row  * row = FindRow (GetBySuffix (hostName));
+
+
+
+    return (row != nullptr && row->import != nullptr) ? row->format : FileFormat::None;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileFormatTable::GetBySuffix
+//
+//  An import row is returned ahead of another row with its suffix.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FileFormat FileFormatTable::GetBySuffix (const std::wstring & hostName)
+{
+    FileFormat  found = FileFormat::None;
+
+
+
     for (const Row & row : GetRows())
     {
         size_t  length = wcslen (row.suffix);
 
-        if (row.import != nullptr && length > 0 && hostName.size() > length
-            && _wcsicmp (hostName.c_str() + hostName.size() - length, row.suffix) == 0)
+        if (length == 0 || hostName.size() <= length || _wcsicmp (hostName.c_str() + hostName.size() - length, row.suffix) != 0)
+        {
+            continue;
+        }
+
+        if (row.import != nullptr)
         {
             return row.format;
         }
+
+        if (found == FileFormat::None)
+        {
+            found = row.format;
+        }
     }
 
-    return FileFormat::None;
+    return found;
 }
 
 

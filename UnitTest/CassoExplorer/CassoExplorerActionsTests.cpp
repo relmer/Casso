@@ -9,6 +9,7 @@
 #include "Core/AppleSingleCodec.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Devices/Disk/Archives/NuFxArchive.h"
@@ -132,6 +133,74 @@ public:
         plan = CassoExplorerActions::PlanPut (L"NOTES.Text.txt", Bytes ("anything"), VolumeKind::ProDos);
         Assert::IsTrue   (plan.encoding == CassoExplorerActions::Encoding::Text);
         Assert::IsFalse  (plan.usePayload);
+    }
+
+
+    //  A conversion with an import row is put as the file its program
+    //  saves, under the name that file has on the target.
+    TEST_METHOD (PlanPut_ImportSuffixPutsTheAppleForm)
+    {
+        std::vector<Byte>              source = Bytes ("START LDA #$00 ;zero\n RTS\n");
+        CassoExplorerActions::PutPlan  plan;
+
+        plan = CassoExplorerActions::PlanPut (L"C:\\x\\DEMO.S.Merlin.txt", source, VolumeKind::ProDos);
+        Assert::IsTrue   (plan.usePayload);
+        Assert::IsTrue   (plan.namedItself);
+        Assert::IsTrue   (plan.importFormat == FileFormat::Merlin);
+        Assert::IsTrue   (plan.refusal.empty(), plan.refusal.c_str());
+        Assert::AreEqual (std::string ("DEMO.S"), plan.catalogName);
+        Assert::IsTrue   (plan.payload.type == ProDosVolume::kTypeText);
+        Assert::IsTrue   (!plan.payload.bytes.empty() && plan.payload.bytes.back() == 0x8D);
+        Assert::AreEqual (std::wstring (L"Merlin source"), CassoExplorerActions::DescribePlan (plan, VolumeKind::ProDos));
+
+        plan = CassoExplorerActions::PlanPut (L"DEMO.S.Merlin.txt", source, VolumeKind::Dos33);
+        Assert::IsTrue   (plan.usePayload);
+        Assert::AreEqual (std::string ("T.DEMO"), plan.catalogName);
+        Assert::IsTrue   (plan.payload.type == Dos33Volume::kTypeBinary);
+        Assert::IsTrue   (plan.payload.hasLoadAddress);
+
+        plan = CassoExplorerActions::PlanPut (L"HELLO.TEXT.Pascal text.txt", Bytes ("program hello;\nbegin\nend.\n"), VolumeKind::Pascal);
+        Assert::IsTrue   (plan.usePayload);
+        Assert::IsTrue   (plan.importFormat == FileFormat::PascalText);
+        Assert::AreEqual (std::string ("HELLO.TEXT"), plan.catalogName);
+        Assert::IsTrue   (plan.payload.type == PascalVolume::kKindText);
+        Assert::AreEqual (std::wstring (L"Pascal text"), CassoExplorerActions::DescribePlan (plan, VolumeKind::Pascal));
+    }
+
+
+    //  On a file system the import isn't for, the file is put as text. A
+    //  conversion with no import row is put by the content rule.
+    TEST_METHOD (PlanPut_ConversionWithNoImportHere_IsTextOrDecidedByContent)
+    {
+        std::vector<Byte>              picture (8192, 0x00);
+        CassoExplorerActions::PutPlan  plan;
+
+        plan = CassoExplorerActions::PlanPut (L"HELLO.TEXT.Pascal text.txt", Bytes ("program hello;\n"), VolumeKind::Dos33);
+        Assert::IsFalse  (plan.usePayload);
+        Assert::IsTrue   (plan.importFormat == FileFormat::None);
+        Assert::IsTrue   (plan.encoding == CassoExplorerActions::Encoding::Text);
+
+        plan = CassoExplorerActions::PlanPut (L"PIC.Super Hi-Res.png", picture, VolumeKind::ProDos);
+        Assert::IsTrue   (plan.importFormat == FileFormat::None);
+        Assert::IsFalse  (plan.encoding == CassoExplorerActions::Encoding::Text);
+    }
+
+
+    TEST_METHOD (PlanForced_ImportConversions_PutAnyHostFileAsTheAppleForm)
+    {
+        std::vector<Byte>              source = Bytes (" LDA #$00\n RTS\n");
+        CassoExplorerActions::PutPlan  plan;
+
+        plan = CassoExplorerActions::PlanForced (L"C:\\x\\demo.asm", source, VolumeKind::ProDos, CassoExplorerActions::Conversion::MerlinSource);
+        Assert::IsTrue   (plan.usePayload);
+        Assert::IsTrue   (plan.importFormat == FileFormat::Merlin);
+        Assert::IsTrue   (plan.payload.type == ProDosVolume::kTypeText);
+        Assert::IsTrue   (plan.catalogName.size() > 2 && plan.catalogName.substr (plan.catalogName.size() - 2) == ".S", TextEncoding::NarrowToWide (plan.catalogName).c_str());
+
+        plan = CassoExplorerActions::PlanForced (L"C:\\x\\hello.pas", Bytes ("program hello;\n"), VolumeKind::Pascal, CassoExplorerActions::Conversion::PascalText);
+        Assert::IsTrue   (plan.usePayload);
+        Assert::IsTrue   (plan.importFormat == FileFormat::PascalText);
+        Assert::AreEqual (std::string ("HELLO.TEXT"), plan.catalogName);
     }
 
 

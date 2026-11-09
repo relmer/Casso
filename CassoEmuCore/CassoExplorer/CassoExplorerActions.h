@@ -260,6 +260,7 @@ public:
     static PutPlan       PlanPutByContent     (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind);
     static PutPlan       PlanForcedConversion (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind, Conversion conversion);
     static PutPlan       AdaptPlanToVolume    (PutPlan plan, VolumeKind kind);
+    static void          PlanImport           (PutPlan & inOutPlan, FileFormat format, const std::vector<Byte> & bytes, VolumeKind kind);
     static std::string   SanitizePascalName   (const std::wstring & stem);
     static std::string   SanitizeCpmName      (const std::wstring & stem);
 

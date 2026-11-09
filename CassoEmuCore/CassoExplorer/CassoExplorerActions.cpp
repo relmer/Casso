@@ -13,6 +13,7 @@
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "FileTypes/FileFormatTable.h"
 
 
 
@@ -676,17 +677,12 @@ std::string CassoExplorerActions::SanitizeCpmName (const std::wstring & stem)
 
 ActionsTypes::PutPlan CassoExplorerActions::AdaptPlanToVolume (PutPlan plan, VolumeKind kind)
 {
-    constexpr size_t  kMaxStem = 10;
-    size_t            dot      = 0;
-
-
-
     if (kind != VolumeKind::Pascal && kind != VolumeKind::Cpm)
     {
         return plan;
     }
 
-    if (plan.usePayload)
+    if (plan.usePayload && plan.importFormat == FileFormat::None)
     {
         plan.payload.type           = (kind == VolumeKind::Pascal) ? HostFileNaming::MapProDosToPascalKind (plan.payload.type) : (Byte) 0;
         plan.payload.hasAuxType     = false;
@@ -703,10 +699,9 @@ ActionsTypes::PutPlan CassoExplorerActions::AdaptPlanToVolume (PutPlan plan, Vol
         plan.encoding = Encoding::Verbatim;
     }
 
-    if (kind == VolumeKind::Pascal && plan.encoding == Encoding::Text && PascalVolume::GetKindFromName (plan.catalogName) != PascalVolume::kKindText)
+    if (kind == VolumeKind::Pascal && plan.encoding == Encoding::Text)
     {
-        dot              = plan.catalogName.rfind ('.');
-        plan.catalogName = plan.catalogName.substr (0, (std::min) ((dot == std::string::npos) ? plan.catalogName.size() : dot, kMaxStem)) + ".TEXT";
+        plan.catalogName = HostFileNaming::MakePascalTextName (plan.catalogName);
     }
 
     return plan;
@@ -788,8 +783,10 @@ ActionsTypes::PutPlan CassoExplorerActions::PlanForced (const std::wstring & hos
 ActionsTypes::PutPlan CassoExplorerActions::PlanForcedConversion (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind, Conversion conversion)
 {
     PutPlan                  plan;
+    ParsedHostName           parsed;
     Word                     suggested = 0;
     ContentSniffer::Verdict  verdict   = ContentSniffer::Classify (std::span<const Byte> (bytes.data(), bytes.size()), suggested);
+    bool                     isImport  = conversion == Conversion::PascalText || conversion == Conversion::MerlinSource;
 
 
 
@@ -797,8 +794,23 @@ ActionsTypes::PutPlan CassoExplorerActions::PlanForcedConversion (const std::wst
 
     plan.catalogName = MakeCatalogName (hostName, kind);
 
+    //  An import of a file that has a conversion's name goes in under the
+    //  name the conversion was made from.
+    if (isImport && HostFileNaming::Parse (GetLeafName (hostName), parsed) && parsed.converted != ParsedHostName::ConvertedKind::None)
+    {
+        plan.catalogName = SanitizeCatalogName (TextEncoding::NarrowToWide (parsed.catalogName), kind);
+    }
+
     switch (conversion)
     {
+        case Conversion::PascalText:
+            PlanImport (plan, FileFormat::PascalText, bytes, kind);
+            break;
+
+        case Conversion::MerlinSource:
+            PlanImport (plan, FileFormat::Merlin, bytes, kind);
+            break;
+
         case Conversion::Text:
             plan.encoding = Encoding::Text;
             break;
@@ -908,6 +920,16 @@ std::wstring CassoExplorerActions::DescribePlan (const PutPlan & plan, VolumeKin
     if (!plan.namedItself)
     {
         return std::wstring();
+    }
+
+    if (plan.importFormat == FileFormat::Merlin)
+    {
+        return L"Merlin source";
+    }
+
+    if (plan.importFormat == FileFormat::PascalText)
+    {
+        return L"Pascal text";
     }
 
     if (plan.usePayload)
@@ -1056,7 +1078,20 @@ ActionsTypes::PutPlan CassoExplorerActions::PlanPutByContent (const std::wstring
             return plan;
         }
 
-        if (parsed.converted != ParsedHostName::ConvertedKind::None)
+        if (parsed.converted == ParsedHostName::ConvertedKind::Format && FileFormatTable::GetImportBySuffix (GetLeafName (hostName)) != FileFormat::None)
+        {
+            PlanImport (plan, parsed.format, bytes, kind);
+            plan.namedItself = true;
+            return plan;
+        }
+
+        //  A conversion with no way back, such as a picture's PNG, is a host
+        //  file like any other.
+        if (parsed.converted == ParsedHostName::ConvertedKind::Format)
+        {
+            plan.catalogName = MakeCatalogName (hostName, kind);
+        }
+        else if (parsed.converted != ParsedHostName::ConvertedKind::None)
         {
             plan.encoding    = Encoding::Text;
             plan.namedItself = true;
@@ -1097,6 +1132,45 @@ ActionsTypes::PutPlan CassoExplorerActions::PlanPutByContent (const std::wstring
     }
 
     return plan;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::PlanImport
+//
+//  A host file through the import of a row of the file format table, as the
+//  payload and under the catalog name that format has on the volume. On a
+//  file system the format isn't written to, the file goes in as text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerActions::PlanImport (PutPlan & inOutPlan, FileFormat format, const std::vector<Byte> & bytes, VolumeKind kind)
+{
+    HRESULT       hr    = S_OK;
+    std::wstring  error;
+
+
+
+    if (!HostFileNaming::CanImport (format, kind))
+    {
+        inOutPlan.encoding = Encoding::Text;
+        return;
+    }
+
+    inOutPlan.catalogName  = SanitizeCatalogName (TextEncoding::NarrowToWide (HostFileNaming::MakeImportName (inOutPlan.catalogName, format, kind)), kind);
+    inOutPlan.usePayload   = true;
+    inOutPlan.importFormat = format;
+
+    hr = FileFormatTable::Import (format, kind, std::span<const Byte> (bytes.data(), bytes.size()), inOutPlan.payload, error);
+
+    if (FAILED (hr))
+    {
+        inOutPlan.refusal = error.empty() ? std::wstring (L"The file could not be converted.") : error;
+    }
 }
 
 

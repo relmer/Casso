@@ -1017,17 +1017,26 @@ bool BrowserPreviewer::TryPreviewText (const std::wstring & name, std::span<cons
 //  BrowserPreviewer::IsAppleExportName
 //
 //  A BASIC listing or a text file Casso Explorer exported to the host, by the
-//  suffix the export appends to its catalog name.
+//  suffix the export appends to its catalog name. A conversion of the file
+//  format table counts when it is text: its pictures, documents and tables
+//  have the previews Windows has for them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BrowserPreviewer::IsAppleExportName (const std::wstring & name)
 {
-    ParsedHostName  parsed;
+    static constexpr const wchar_t  * kTextExtension = L".txt";
+    ParsedHostName                    parsed;
+    size_t                            dot            = name.rfind (L'.');
 
 
 
-    return HostFileNaming::Parse (name, parsed) && parsed.converted != ParsedHostName::ConvertedKind::None;
+    if (!HostFileNaming::Parse (name, parsed) || parsed.converted == ParsedHostName::ConvertedKind::None)
+    {
+        return false;
+    }
+
+    return parsed.converted != ParsedHostName::ConvertedKind::Format || _wcsicmp (name.c_str() + dot, kTextExtension) == 0;
 }
 
 

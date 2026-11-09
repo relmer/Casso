@@ -4,6 +4,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/Model/HostFileNaming.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
@@ -1488,6 +1489,16 @@ void ExplorerDragDrop::ShowDropMenu()
             m_context.menus.AddMenuCommand (items, L"Copy here as &text",           [this]() { RunDrop (CassoExplorerActions::Conversion::Text); });
             m_context.menus.AddMenuCommand (items, L"Copy here as Applesoft &BASIC", [this]() { RunDrop (CassoExplorerActions::Conversion::Applesoft); });
             m_context.menus.AddMenuCommand (items, L"Copy here as &binary...",      [this]() { RunDrop (CassoExplorerActions::Conversion::Binary); });
+
+            if (HostFileNaming::CanImport (FileFormat::PascalText, m_pendingDrop.targetKind))
+            {
+                m_context.menus.AddMenuCommand (items, L"Copy here as &Pascal text", [this]() { RunDrop (CassoExplorerActions::Conversion::PascalText); });
+            }
+
+            if (HostFileNaming::CanImport (FileFormat::Merlin, m_pendingDrop.targetKind))
+            {
+                m_context.menus.AddMenuCommand (items, L"Copy here as &Merlin source", [this]() { RunDrop (CassoExplorerActions::Conversion::MerlinSource); });
+            }
         }
     }
 

@@ -3953,6 +3953,61 @@ public:
     }
 
 
+    //  A conversion with an import goes back in as the file its program
+    //  saves: Merlin source on DOS 3.3 is a binary file whose name starts T.
+    TEST_METHOD (Put_ACassoExplorerMerlinName_GoesInAsMerlinSource)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, "C:\\out\\DEMO.S.Merlin.txt", nullptr);
+        DiskCommandResult   result;
+        DiskCommandResult   readBack;
+        std::string         listing;
+        std::string         text    = "START LDA #$00 ;zero\n RTS\n";
+
+
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "C:\\out\\DEMO.S.Merlin.txt", vector<Byte> (text.begin(), text.end()));
+
+        result   = runner.Run (options);
+        listing  = ListCommittedImage (io, kBlankImage);
+        readBack = GetFromCommittedImage (io, kBlankImage, "T.DEMO");
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+        Assert::IsTrue (listing.find (" T.DEMO\n") != std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+        Assert::IsTrue (listing.find (" B ") != std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+        Assert::IsTrue (!readBack.payload.empty() && readBack.payload.back() == 0x8D, L"Merlin's lines end in $8D");
+    }
+
+
+    //  A conversion with no import is a host file like any other, so it
+    //  goes in under its whole name.
+    TEST_METHOD (Put_AConversionWithNoImport_IsUsedAsWritten)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, "C:\\out\\PIC.LZ4FH.png", nullptr);
+        std::string         listing;
+
+
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "C:\\out\\PIC.LZ4FH.png", MakePayload());
+
+        options.disk.typeName       = "B";
+        options.disk.hasLoadAddress = true;
+        options.disk.loadAddress    = kLoadAddress;
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        listing = ListCommittedImage (io, kBlankImage);
+
+        Assert::IsTrue (listing.find (" PIC\n") == std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+        Assert::IsTrue (listing.find ("PIC.") != std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+    }
+
+
     //  Every other host name goes in as written, and --as takes precedence
     //  over a name in Casso Explorer's form.
     TEST_METHOD (Put_ANameInNoCassoExplorerForm_OrAnAsName_IsUsedAsWritten)

@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/DiskOperations.h"
+#include "FileTypes/DecodedFile.h"
 
 struct LinkOperation;
 
@@ -82,8 +83,9 @@ struct ActionsTypes
     //  What a put does with the bytes. ByContent is the rule a left-drag
     //  follows: the name's type first, then the content. The others are the
     //  choices a right-drag's menu offers when the content rule would be a
-    //  guess.
-    enum class Conversion { ByContent, Text, Applesoft, Binary };
+    //  guess. PascalText and MerlinSource are the imports of the file format
+    //  table, on the file systems each is written to.
+    enum class Conversion { ByContent, Text, Applesoft, Binary, PascalText, MerlinSource };
 
     //  Whether the files a drop holds already say what they are, and the
     //  one row a menu shows when they do: "BIN $2000" for a recorded type,
@@ -137,6 +139,9 @@ struct ActionsTypes
         //  an AppleSingle container -- rather than the content rule deciding.
         bool           namedItself      = false;
         std::wstring   refusal;
+
+        //  The row of the file format table whose import made the payload.
+        FileFormat     importFormat     = FileFormat::None;
     };
 
     using WrittenFn = std::function<void (const std::wstring & imagePath)>;
