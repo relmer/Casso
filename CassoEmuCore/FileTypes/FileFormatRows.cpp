@@ -9,6 +9,7 @@
 #include "FileTypes/MagicWindowDocument.h"
 #include "FileTypes/MerlinSource.h"
 #include "FileTypes/OmfFile.h"
+#include "FileTypes/PascalCodefile.h"
 #include "FileTypes/PascalText.h"
 #include "FileTypes/RandomText.h"
 #include "FileTypes/ScAssemblerSource.h"
@@ -48,6 +49,7 @@ std::vector<FileFormatTable::Row> FileFormatRows::Make()
         Row { FileFormat::VisiCalc,       &VisiCalcSheet::Matches,       &VisiCalcSheet::Decode,       nullptr,               L".VisiCalc.csv",         false },
         Row { FileFormat::MagicWindow,    &MagicWindowDocument::Matches, &MagicWindowDocument::Decode, nullptr,               L".Magic Window.txt",     false },
         Row { FileFormat::BusinessBasic,  &BusinessBasic::Matches,       &BusinessBasic::Decode,       nullptr,               L".Business BASIC.txt",   false },
+        Row { FileFormat::PascalCode,     &PascalCodefile::Matches,      &PascalCodefile::Decode,      nullptr,               L".Pascal code.txt",      false },
 
         Row { FileFormat::SuperHiRes,         &SuperHiRes::MatchesScreen,          &SuperHiRes::DecodeScreen,          nullptr, L".Super Hi-Res.png", true },
         Row { FileFormat::PackedSuperHiRes,   &SuperHiRes::MatchesPacked,          &SuperHiRes::DecodePacked,          nullptr, L".Super Hi-Res.png", true },

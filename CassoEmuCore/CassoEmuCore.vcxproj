@@ -454,6 +454,7 @@
     <ClCompile Include="FileTypes\FileFormatTable.cpp" />
     <ClCompile Include="FileTypes\FileFormatRows.cpp" />
     <ClCompile Include="FileTypes\PascalText.cpp" />
+    <ClCompile Include="FileTypes\PascalCodefile.cpp" />
     <ClCompile Include="FileTypes\RandomText.cpp" />
     <ClCompile Include="FileTypes\MerlinSource.cpp" />
     <ClCompile Include="FileTypes\ScAssemblerSource.cpp" />
@@ -1194,6 +1195,7 @@
     <ClInclude Include="FileTypes\FileFormatTable.h" />
     <ClInclude Include="FileTypes\FileFormatRows.h" />
     <ClInclude Include="FileTypes\PascalText.h" />
+    <ClInclude Include="FileTypes\PascalCodefile.h" />
     <ClInclude Include="FileTypes\RandomText.h" />
     <ClInclude Include="FileTypes\MerlinSource.h" />
     <ClInclude Include="FileTypes\ScAssemblerSource.h" />

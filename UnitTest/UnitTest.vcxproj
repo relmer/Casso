@@ -323,6 +323,7 @@
     <ClCompile Include="FileTypes\IigsFormatTests.cpp" />
     <ClCompile Include="FileTypes\OmfFileTests.cpp" />
     <ClCompile Include="FileTypes\VisiCalcSheetTests.cpp" />
+    <ClCompile Include="FileTypes\PascalCodefileTests.cpp" />
     <ClCompile Include="EmuTests\NuFxArchiveTests.cpp" />
     <ClCompile Include="EmuTests\ArchiveWrapperTests.cpp" />
     <ClCompile Include="EmuTests\ArchiveVolumeTests.cpp" />
@@ -436,6 +437,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerNamedControlTests.cpp" />
     <ClCompile Include="CassoExplorer\IntegerBasicDetokenizerTests.cpp" />
     <ClCompile Include="CassoExplorer\DisassemblerTests.cpp" />
+    <ClCompile Include="CassoExplorer\PCodeDisassemblerTests.cpp" />
     <ClCompile Include="CassoExplorer\HostFileNamingTests.cpp" />
     <ClCompile Include="CassoExplorer\ContentSnifferTests.cpp" />
     <ClCompile Include="CassoExplorer\CatalogModelTests.cpp" />

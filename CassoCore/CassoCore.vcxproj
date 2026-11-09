@@ -139,6 +139,7 @@
     <ClCompile Include="AppleTextCodec.cpp" />
     <ClCompile Include="ApplesoftTokenizer.cpp" />
     <ClCompile Include="Disassembler.cpp" />
+    <ClCompile Include="PCodeDisassembler.cpp" />
     <ClCompile Include="IntegerBasicDetokenizer.cpp" />
     <ClCompile Include="OutputFormats.cpp" />
     <ClCompile Include="As65Dialect.cpp" />
@@ -192,6 +193,7 @@
     <ClInclude Include="AppleTextCodec.h" />
     <ClInclude Include="ApplesoftTokenizer.h" />
     <ClInclude Include="Disassembler.h" />
+    <ClInclude Include="PCodeDisassembler.h" />
     <ClInclude Include="IntegerBasicDetokenizer.h" />
     <ClInclude Include="OutputFormats.h" />
     <ClInclude Include="As65Dialect.h" />
