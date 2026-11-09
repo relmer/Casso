@@ -446,6 +446,7 @@
     <ClCompile Include="Devices\Disk\Archives\SqueezeDecoder.cpp" />
     <ClCompile Include="Devices\Disk\Archives\LzcDecoder.cpp" />
     <ClCompile Include="Devices\Disk\Archives\ContainerPath.cpp" />
+    <ClCompile Include="Devices\Disk\Archives\ZipAppleDouble.cpp" />
     <ClCompile Include="Devices\Disk\Archives\NuFxArchive.cpp" />
     <ClCompile Include="Devices\Disk\Archives\BinaryTwoArchive.cpp" />
     <ClCompile Include="Devices\Disk\Archives\GzipFile.cpp" />
@@ -1088,6 +1089,7 @@
     <ClInclude Include="Devices\Disk\Archives\SqueezeDecoder.h" />
     <ClInclude Include="Devices\Disk\Archives\LzcDecoder.h" />
     <ClInclude Include="Devices\Disk\Archives\ContainerPath.h" />
+    <ClInclude Include="Devices\Disk\Archives\ZipAppleDouble.h" />
     <ClInclude Include="Devices\Disk\Archives\NuFxArchive.h" />
     <ClInclude Include="Devices\Disk\Archives\BinaryTwoArchive.h" />
     <ClInclude Include="Devices\Disk\Archives\GzipFile.h" />
