@@ -17,8 +17,9 @@ class InspectorSession;
 //
 //  InspectorDialogs
 //
-//  The inspector's dialogs: Go to (FR-055), Export (FR-058), and the decode
-//  settings with the change they make to the analysis (FR-019).
+//  The inspector's dialogs: Go to (FR-055), Export (FR-058), the decode
+//  settings with the change they make to the analysis (FR-019), and the
+//  confirmations.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +36,10 @@ public:
     void  OpenExport         ();
     void  OpenDecodeSettings ();
     void  ApplySettings      (const DecodeSettings & settings);
+
+    //  A modal question with a button for the action and one for Cancel;
+    //  true for the action.
+    bool  Confirm (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action);
 
 private:
     InspectorSession         & m_session;

@@ -40,8 +40,6 @@
 #include "Ui/DiskInspector/Components/TrackColumn.h"
 #include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/FindBar.h"
-#include "Ui/Dialogs/DialogBodyContent.h"
-#include "Ui/Dialogs/MessageDialog.h"
 #include "Ui/DiskInspector/Views/FluxView.h"
 #include "Ui/DiskInspector/GoToDialog.h"
 #include "Ui/DiskInspector/Views/NibblesView.h"
@@ -1833,48 +1831,7 @@ void DiskInspectorWindow::ShowTabContent()
 
 bool DiskInspectorWindow::Confirm (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action)
 {
-    static constexpr int  kWidthDip  = 560;
-    static constexpr int  kChromeDip = 108;
-    static constexpr int  kMaxDip    = 640;
-    static constexpr int  kYes       = 1;
-
-
-
-    auto                                content = std::make_unique<DialogBodyContent>();
-    MessageDialog                       dialog;
-    DxuiWindow::CreateParams            params;
-    vector<DialogTextRun>               runs;
-    HRESULT                             hr      = S_OK;
-    int                                 result  = 0;
-
-
-
-    for (const std::wstring & line : lines)
-    {
-        runs.push_back ({ line + L"\n" });
-    }
-
-    content->SetRuns (runs);
-    params.initialSizeDip = { kWidthDip, std::min (kMaxDip, kChromeDip + content->GetPreferredHeightDip()) };
-
-    dialog.Configure (std::move (content), { { action, kYes, true, false }, { L"Cancel", 0, false, true } }, 0);
-
-    params.title                    = title;
-    params.hInstance                = GetModuleHandle (nullptr);
-    params.ownerHwnd                = GetHwnd();
-    params.resizable                = false;
-    params.insetContentBelowCaption = true;
-    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
-    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
-
-    hr = dialog.Create (params);
-    CHRA (hr);
-
-    dialog.SetTheme (m_session.theme);
-    result = dialog.TranslateResult (dialog.ShowModalDialog (dialog.GetDefaultCommandId()));
-
-Error:
-    return result == kYes;
+    return m_dialogs->Confirm (title, lines, action);
 }
 
 
