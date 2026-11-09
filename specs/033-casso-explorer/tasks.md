@@ -1750,3 +1750,247 @@ Session 2026-11-08. Plan's Phase 32, research R35, contract `contracts/file-type
 - [ ] T524 [US18] Put a Merlin source file back onto DOS 3.3 and ProDOS images and load it in Merlin in Casso; put a text file on a Pascal volume and open it in Apple Pascal's editor in Casso (SC-048)
 - [ ] T525 [US18] Walk quickstart §7d on Debug and Release, and write the results to `specs/033-casso-explorer/validation.md`
 - [ ] T526 Run `scripts/CheckStyle.ps1 -Mode Tree`, the code-analysis rebuild, and the unit and scenario suites in Debug and Release before the master merge
+
+## Phases 36 to 55: the Roadmap (Stories 19 to 38)
+
+Session 2026-11-09. Plan's Phase 33, research R36 to R57, contracts `contracts/volumes-and-archives.md`, `contracts/cassolink.md`'s Modules section and `contracts/file-types.md`'s added rows. **Phases 36 to 38 run before Phase 35**, since Story 18's fixtures are in a ShrinkIt archive; Phase 39 runs after Phase 35, and Phases 40 to 55 in order. Every new class has its tests in `<Class>Tests.cpp` in the `UnitTest` folder of its area; tests on real files go in `ScenarioTests`. Each phase ends with the build, CheckStyle and the suites it touches passing.
+
+## Phase 36: 800K and hard disk images (User Story 19)
+
+**Goal**: ProDOS volumes up to 32 MB, 2IMG and Disk Copy 4.2 work as 140K images do. **Independent test**: quickstart §7e steps 1 and 2.
+
+- [ ] T527 [US19] Add `VolumeLayout` and `VolumeLayoutKind` (`Dos140K`, `Dos13`, `Blocks`) in `CassoEmuCore/Devices/Disk/VolumeLayout.h`, as `contracts/volumes-and-archives.md` defines them, with "a `Blocks` buffer is `blockCount * 512` bytes, at most 65,535 blocks for ProDOS"
+- [ ] T528 [US19] Make `ProDosSkeleton::GetBlockByteOffset` take a `VolumeLayout` in `CassoEmuCore/Machines/Apple2/Common/ProDosSkeleton.h/.cpp`, returning today's pairing for `Dos140K` and `block * 512 + offset` for `Blocks`, and pass the layout through `ProDosVolume`, `ProDosVolumeWriter`, `ProDosVolumeRemover`, `PascalVolume` and `CpmVolume`. Every existing volume test passes with no change to what it checks
+- [ ] T529 [US19] Load and save `Blocks` images in `VolumeImage::Load` and `Save` for `.po` larger than 140K, `.hdv`, `.img` and `.iso`, and add `DiskFormat::Blocks` in `CassoEmuCore/Devices/Disk/IDiskImage.h`. Tests in `UnitTest/EmuTests/VolumeImageTests.cpp` with an 800K and a 32 MB volume built in the test
+- [ ] T530 [P] [US19] Add `TwoImgContainer` in `CassoEmuCore/Devices/Disk/Containers/TwoImgContainer.h/.cpp`: `Parse` into a `TwoImgHeader` and payload, `Build` from both, DOS order, ProDOS order and nibbles; the header's comment, creator, flags and creator data written back as read (FR-176). Tests include each format, a header with no comment, and a length that doesn't match the file
+- [ ] T531 [P] [US19] Add `DiskCopy42Container` in `CassoEmuCore/Devices/Disk/Containers/DiskCopy42Container.h/.cpp`: the 84-byte header, the rotate-and-add data and tag checksums over big-endian words, checked on open and recomputed on build, and the tag bytes written back (FR-177). "A data checksum that doesn't match opens read-only with the reason." Tests include 400K and 800K images
+- [ ] T532 [US19] Add `DiskFormat::TwoImg` and `DiskFormat::DiskCopy42`, route `.2mg`, `.2img`, `.dc`, `.dc42` and `.image` through the containers in `VolumeImage`, and pass a 2IMG nibble payload to the nibble layer as a `.nib` is
+- [ ] T533 [US19] Replace the 143,360-byte checks with layout checks in `DiskImage.h`, `DiskImageStore.cpp`, `MountDiagnosis.cpp`, `BlankDiskBuilder.cpp`, `DiskCommandRunner.cpp`, `CassoLinkHost.h` and `CassoLinkAdtProServer.h`, so the ADTPro server serves a `Blocks` image to its virtual drives
+- [ ] T534 [US19] Add 800K, 5 MB, 10 MB, 20 MB and 32 MB ProDOS sizes in each FR-175 container to the New disk dialog and `casso disk create` (FR-178). Tests in `UnitTest/EmuTests/DiskCommandRunnerTests.cpp`
+- [ ] T535 [US19] Open the raw block dialogs, Properties and the 040 sector editor on `Blocks` volumes at any size, the block range taken from the layout
+- [ ] T536 [P] [US19] Add `IBlockStore`, `FileBlockStore` (64 KB pages read on demand, dirty pages written on `Commit`) and `MemoryBlockStore` in `CassoEmuCore/Devices/Disk/`. "A write past the end fails with `E_INVALIDARG`." Tests on `FakeDiskFileIo`
+- [ ] T537 [US19] List 2IMG and Disk Copy 4.2 headers in Properties, and register the new extensions for Casso Explorer's file associations
+- [ ] T538 [US19] Scenario tests in `ScenarioTests/LargeVolumeTests.cpp` on CiderPress II's 800K, 32 MB, 2IMG and Disk Copy 4.2 images: copy in and out, a new folder, and a byte-for-byte comparison with CiderPress II's output (SC-050). Add `scripts/EmuTargets/Mame.ps1` with the //c Plus target and record the ProDOS catalog in `validation.md`
+
+## Phase 37: Files with resource forks (User Story 20)
+
+**Goal**: extended files are listed, copied and put with both forks. **Independent test**: quickstart §7e step 3.
+
+- [ ] T539 [US20] Add `resourceFork` and `finderInfo` to `FilePayload`, and `resourceForkBytes` and `access` to `FileEntry`, in `CassoEmuCore/Machines/Apple2/Common/VolumeTypes.h`, as data-model.md defines them: `finderInfo` "32 bytes, empty for none"
+- [ ] T540 [US20] Read storage type 5 in `ProDosVolume`: the key block's data and resource mini-entries and the two Finder information entries (FR-179). Tests in `UnitTest/EmuTests/ProDosVolumeTests.cpp` with an extended file of each fork tree size
+- [ ] T541 [US20] Write, rename and delete storage type 5 in `ProDosVolumeWriter` and `ProDosVolumeRemover`, each fork's tree written as a file's is, and the integrity report counting both forks' blocks
+- [ ] T542 [US20] Copy both forks and the Finder information between ProDOS volumes in `CrossVolumeCopy`, and write the data fork alone with `S_FALSE` and FR-182's message to DOS 3.3, Pascal and CP/M
+- [ ] T543 [US20] Add entries 2, 9 and 11 to `AppleSingleCodec` in `CassoEmuCore/Core/AppleSingleCodec.h/.cpp`, and an AppleDouble form with no entry 1. Tests in `UnitTest/EmuTests/AppleSingleCodecTests.cpp`
+- [ ] T544 [US20] Write the resource fork on a copy to the PC in each host name style, AppleSingle or `._NAME`, and create an extended file from a put of either (FR-181), in `HostFileNaming` and `CassoExplorerActions`. Tests in `UnitTest/CassoExplorer/HostFileNamingTests.cpp`
+- [ ] T545 [US20] Add the Data fork, Resource fork, Total size and Access columns to Details (FR-180), with access as the six flags
+- [ ] T546 [US20] Scenario test in `ScenarioTests/ResourceForkTests.cpp` on an 800K IIgs disk from CiderPress II: a Teach document copied to another image and to the PC and back, compared in both forks and Finder information (SC-051)
+
+## Phase 38: ShrinkIt and Binary II archives (User Story 21)
+
+**Goal**: archives browse, change and nest as folders. **Independent test**: quickstart §7e steps 4 and 5.
+
+- [ ] T547 [US21] Record what Casso Explorer does today with a disk image inside a ZIP: open it, copy a file out, put one in. Note the result in `specs/033-casso-explorer/research.md` R39
+- [ ] T548 [P] [US21] Add `NuLzw` in `CassoEmuCore/Devices/Disk/Archives/NuLzw.h/.cpp`, LZW/1 and LZW/2 both ways, from CiderPress II's LZW notes. Tests include a 4 KB chunk stored uncompressed and a table reset
+- [ ] T549 [P] [US21] Add `SqueezeDecoder` and `LzcDecoder` (12 and 16 bits) in `CassoEmuCore/Devices/Disk/Archives/`
+- [ ] T550 [P] [US21] Vendor bzip2 under `External/bzip2/` with its license file, built as a static library into CassoEmuCore, decode only
+- [ ] T551 [P] [US21] Add `GzipFile` over `Update/Inflate.cpp` in `CassoEmuCore/Devices/Disk/Archives/GzipFile.h/.cpp`, reading RFC 1952's header, CRC-32 and size, and writing with a stored block
+- [ ] T552 [US21] Add `NuFxArchive` read in `CassoEmuCore/Devices/Disk/Archives/NuFxArchive.h/.cpp`: the master header, records, threads in every format of the contract, each thread's CRC checked, and a record that fails reported while the rest read (FR-184). "`crcOk`" set per `ArchiveRecord`
+- [ ] T553 [US21] Add `NuFxArchive::Build`: new and changed records in LZW/2, other records copied with their compressed bytes, and a disk record built from an image (FR-185). Tests compare with NuLib2's output on the same files
+- [ ] T554 [P] [US21] Add `BinaryTwoArchive` read and build in `CassoEmuCore/Devices/Disk/Archives/BinaryTwoArchive.h/.cpp`, with a `.bxy` opening as its NuFX archive (FR-186)
+- [ ] T555 [US21] Add `ArchiveVolume` implementing `IVolume` over a parsed archive in `CassoEmuCore/Devices/Disk/Archives/ArchiveVolume.h/.cpp`: list, read, write, rename and delete, a write returning the rebuilt archive, and a disk record opened as a volume, 280 blocks as `Dos140K`
+- [ ] T556 [US21] Add `ContainerPath` in `CassoEmuCore/Devices/Disk/Archives/ContainerPath.h/.cpp`, with `Open` and `Replace` as the contract defines them, so an archive or image opens inside a ZIP, gzip, image or archive at any depth, and a write rebuilds each container and replaces the host file last through a temporary file (FR-187). Tests on `InMemoryFileSystem` three levels deep
+- [ ] T557 [US21] Read a ZIP member's AppleDouble entry, as CiderPress II writes it, for the member's type, aux type and resource fork (FR-187)
+- [ ] T558 [US21] Browse NuFX, Binary II and nested containers in Casso Explorer's tree, list, preview and Properties, and create a new archive from a selection or an image from the context menu
+- [ ] T559 [US21] Add Test to the context menu and `casso disk test`: `VolumeIntegrityReport` for an image and each record's CRC for an archive, each problem listed (FR-188)
+- [ ] T560 [US21] Add `scripts/FetchCiderPressTestFiles.ps1` to fetch `test-files.sdk` and `dos-files.do.gz` from CiderPress II's repository into `ScenarioTests/Fixtures/CiderPress/`, out of the repository, as the ROMs are. Ask the owner before the first download
+- [ ] T561 [US21] Scenario tests in `ScenarioTests/ArchiveTests.cpp`: every file in `test-files.sdk` copied out matches CiderPress II's extraction, `dos-files.do.gz` opens, and an archive and an `.sdk` built by Casso Explorer pass CiderPress II's Test and `nulib2 t` (SC-052)
+
+## Phase 39: VisiCalc sheets with their values (User Story 22)
+
+Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independent test**: quickstart §7h step 1.
+
+- [ ] T562 [US22] Add `VisiCalcEvaluator` in `CassoEmuCore/FileTypes/VisiCalcEvaluator.h/.cpp`: parse each formula into a tree; evaluate in the file's order, rows or columns, one pass per recalculation; every function and operator in the VisiCalc User's Guide's reference section; ERROR and NA as VisiCalc has them (FR-190). Tests include a circular reference and each function
+- [ ] T563 [US22] Format values as VisiCalc formats them, general, integer, dollars and cents, left, right and graph, at the column width, in `VisiCalcSheet`
+- [ ] T564 [US22] Draw computed values in the preview and write them on a copy out, with a preview choice that writes formulas instead (FR-190)
+- [ ] T565 [US22] Scenario test in `ScenarioTests/VisiCalcTests.cpp`: each sample sheet's cells match the values VisiCalc draws after a recalculation, run in Casso (SC-053)
+
+## Phase 40: Block devices on a real Apple (User Story 23)
+
+**Goal**: 3.5" drives and hard drives on a linked Apple. **Independent test**: quickstart §7f step 1.
+
+- [ ] T566 [US23] Add Load module to `CassoLink/Apple/Program.s` and `CassoLinkCodec`: the module header, its CRC, the entry table, the version check on each connection, and the request table's dispatch to a module's entries (contract's Modules section). Allocate the request codes and update the contract's table
+- [ ] T567 [US23] Assemble each `CassoLink/Apple/Modules/*.s` at build time as the program is, with a size check against $4000 to $7FFF, in `LinkProgram`
+- [ ] T568 [US23] Write `CassoLink/Apple/Modules/Block.s`: scan slots 1 to 7 for the ProDOS block signature, SmartPort STATUS per unit, READ BLOCK and WRITE BLOCK, each block sent with its CRC, and verify by reading back when verify is on (R41)
+- [ ] T569 [US23] Add `CassoLinkBlockTransfer` in `CassoEmuCore/CassoLink/Session/`: List block devices, Read blocks and Write blocks over a queue with progress, errors in words for no disk, write protected, device offline and I/O error with the block number (FR-193)
+- [ ] T570 [US23] Add `CassoLinkResume` in `CassoEmuCore/CassoLink/Session/`: `NAME.partial` and `NAME.partial.json` every 64 verified blocks, with the ResumeRecord fields in data-model.md, the offer to continue when "slot, unit, block count, volume name and directory hash match", and the rename on the last block (R42). Tests with a link dropped at block 1,000 of 65,535
+- [ ] T571 [US23] List each block device as a node under the Apple with its slot, unit, size and volume, and browse, copy, Read disk to image and Write image to disk on it, in `CassoLinkManager` and the browser's link listing (FR-191, FR-192)
+- [ ] T572 [US23] Draw the device, block and progress on the Apple's screen during a block transfer
+- [ ] T573 [US23] Scenario tests in `ScenarioTests/CassoLinkBlockTests.cpp` on a `TestMachine` with a fake ProDOS block device card in a slot: list, read, write and resume
+- [ ] T574 [US23] Add `scripts/EmuTargets/AppleWin.ps1` (hard disk card, Super Serial Card on TCP) and MAME's //c ROM 4 with a UniDisk 3.5 and //c Plus targets to `scripts/EmuTargets/Mame.ps1`; run quickstart §7f step 1 on each and record SC-054 in `validation.md`
+
+## Phase 41: Capture copy-protected disks (User Story 24)
+
+**Goal**: protected disks become WOZ images that boot. **Independent test**: quickstart §7f step 2.
+
+- [ ] T575 [US24] Write `CassoLink/Apple/Modules/Capture.s`: quarter-track stepping, two revolutions per read with each byte's cycle count, an empty position reported once, and later reads sent as the ranges that differ from the first (R43, FR-196)
+- [ ] T576 [US24] Add `CassoLinkCapture` in `CassoEmuCore/CassoLink/Session/`: request each position from 0 to 140, build each stream with two zero bits after each sync byte, cut one revolution where the stream repeats, and write differing ranges as zero bits. Tests on byte and timing sequences captured from an emulated //c
+- [ ] T577 [US24] Write the capture as WOZ 2 with TMAP and TRKS, INFO's creator "Casso Explorer" and its version, and META's capture date and drive, through the WOZ writer the image layer uses (FR-195, FR-198)
+- [ ] T578 [US24] Add Capture raw disk to an Apple drive's menu, with the report of differing positions, and Options' Capture raw on protected disks for Full Send, the manifest's `status` `raw-capture` (FR-197)
+- [ ] T579 [US24] Scenario tests in `ScenarioTests/CassoLinkCaptureTests.cpp`: each protected WOZ in the test set, mounted in an emulated //c, captured and compared track by track with its source, and booted (SC-055)
+- [ ] T580 [US24] Capture Archon on the owner's //c, boot the image in Casso, and record the time in `validation.md` (SC-055: under 5 minutes)
+
+## Phase 42: Virtual drives over CassoLink (User Story 25)
+
+**Goal**: images on the PC as ProDOS drives. **Independent test**: quickstart §7f step 3.
+
+- [ ] T581 [US25] Write `CassoLink/Apple/Modules/VirtualDrive.s` and `CASSOLINK.SYSTEM`: load the serial code and driver, allocate four pages through BASIC.SYSTEM's GETBUFR, install the driver for drives 1 and 2 of the first free slot from 7 down, and start `BASIC.SYSTEM` (R44, FR-200)
+- [ ] T582 [US25] Add Make CassoLink ProDOS disk: a 140K ProDOS image with `CASSOLINK.SYSTEM`, the user's `PRODOS` and `BASIC.SYSTEM`, from an image the user picks (FR-199)
+- [ ] T583 [US25] Serve Virtual block on the PC: each write to a one-block journal beside the image, then the image, then the journal cleared, each flushed before the reply, and a leftover journal applied on the next open (FR-201). Tests with a crash between each step
+- [ ] T584 [US25] Add `VirtualDriveSettings` to a link's saved settings, "`drive1` and `drive2`, each an image path or empty", and the connection page's two image pickers
+- [ ] T585 [US25] Scenario test in `ScenarioTests/CassoLinkVirtualDriveTests.cpp` on an emulated //c: SAVE a file to each drive from BASIC.SYSTEM and compare the images; repeat on the owner's //c and record SC-056
+
+## Phase 43: Whole disks over cassette audio (User Story 26)
+
+**Goal**: disks both ways through the cassette ports. **Independent test**: quickstart §7f step 4.
+
+- [ ] T586 [US26] Add `WasapiCapture` in `CassoEmuCore/Audio/WasapiCapture.h/.cpp`, shared-mode capture from a chosen input device, behind a seam for the tests
+- [ ] T587 [US26] Write `CassoLink/Apple/Modules/Cassette.s` in ADTPro's published audio encoding: each track a packet with a CRC, sent by toggling $C020 and received by reading $C060 (R45)
+- [ ] T588 [US26] Decode and encode the audio on the PC in `CassoEmuCore/CassoLink/Session/CassoLinkAudio.h/.cpp`, with a failed track requested again up to five times (FR-203)
+- [ ] T589 [US26] Serve ADTPro's audio client by its published protocol (FR-204)
+- [ ] T590 [US26] Add `AudioLinkSettings` and the connection page's input and output devices and level meter, with the level drawn in red out of range (FR-202)
+- [ ] T591 [US26] Feed Casso's cassette input from the PC side's audio and capture its output in `CassettePort` for the scenario tests
+- [ ] T592 [US26] Scenario tests in `ScenarioTests/CassoLinkCassetteTests.cpp` on an emulated ][+ and //e: a 140K disk each way, and ADTPro's audio client (SC-057)
+
+## Phase 44: Files and disks as tape audio (User Story 27)
+
+**Goal**: tape recordings as files and folders. **Independent test**: quickstart §7f step 5.
+
+- [ ] T593 [P] [US27] Vendor libogg and libvorbis under `External/` with their license files, encode only
+- [ ] T594 [US27] Add `TapeRecordingWriter` in `CassoEmuCore/Devices/Tape/TapeRecordingWriter.h/.cpp`: the monitor's format, a BASIC program's length record, two-second gaps, and WAV, MP3 through Media Foundation and Ogg Vorbis at 44.1 kHz mono, with the `NAME.tape.txt` sidecar of data-model.md (FR-205)
+- [ ] T595 [US27] Add `TapeRecordingVolume`, a read-only `IVolume` over `TapeRecordScanner`'s records, each file's checksum checked and a failure listed with its reason (FR-206)
+- [ ] T596 [US27] Add Convert to tape audio and Convert to disk audio to the context menu, disk audio being the cassette module's stream written to a file (FR-207)
+- [ ] T597 [US27] Scenario tests in `ScenarioTests/TapeRecordingTests.cpp`: each format loaded and run in an emulated ][+, read back and compared (SC-058)
+
+## Phase 45: More Apples and interfaces (User Story 28)
+
+**Goal**: the link on a IIgs, Pascal-firmware cards and two more Ethernet cards. **Independent test**: quickstart §7f step 6.
+
+- [ ] T598 [US28] Write `CassoLink/Apple/Modules/Scc.s`: the IIgs's modem and printer ports through the 8530, and the program's speed change at $C036 around each 5.25" read and write (FR-208)
+- [ ] T599 [US28] Write `CassoLink/Apple/Modules/PascalFirmware.s`: a card with the Pascal 1.1 signature and no ID match, through its init, read, write and status entries (FR-209)
+- [ ] T600 [US28] Write a minimal ARP, IPv4, UDP and TCP stack with one connection, shared by `CassoLink/Apple/Modules/Cs8900a.s` and `Lan91c96.s`, with the Uthernet II's announcement (FR-210)
+- [ ] T601 [US28] Accept a IIgs with a Super Serial Card and compatibles such as the Laser 128 in the program's machine detection (FR-211)
+- [ ] T602 [US28] Add KEGS, GSplus, MAME (IIgs with a Super Serial Card, Laser 128, LANceGS) and AppleWin (Uthernet) targets to `scripts/EmuTargets/`; run Story 14's scenarios on each and record SC-059 in `validation.md`. Check MAME's LANceGS MAC address first
+
+## Phase 46: An Apple /// client (User Story 29)
+
+**Goal**: the link under SOS. **Independent test**: quickstart §7f step 6.
+
+- [ ] T603 [US29] Check MAME's Apple /// serial-over-socket connection, and record the result in research.md R48
+- [ ] T604 [US29] Assemble the program as `SOS.INTERP` with an SOS transport over `.RS232` and the Block module's requests through SOS's block calls, in `CassoLink/Apple/SosInterp.s` (FR-213)
+- [ ] T605 [US29] Add Make CassoLink SOS disk: a disk with the user's `SOS.KERNEL` and `SOS.DRIVER` and the interpreter (FR-212)
+- [ ] T606 [US29] List the Apple /// as a root with its built-in, external and block drives, and run every Story 14 operation on it (FR-214). Record SC-059 on MAME's Apple /// in `validation.md`
+
+## Phase 47: DOS 3.2 and large DOS 3.3 disks (User Story 30)
+
+**Goal**: 13-sector, 40-, 50- and 80-track disks. **Independent test**: quickstart §7g step 1.
+
+- [ ] T607 [US30] Add the 5-and-3 codec to `NibblizationLayer`, D5 AA B5 address prologs and 410-nibble data fields, and load `.d13` and 13-sector `.nib` and `.woz` images as `Dos13` (FR-215). Tests round-trip a track
+- [ ] T608 [US30] Read and write DOS 3.2's catalog in `Dos33Volume` on a `Dos13` buffer, and create 13-sector images from the New disk dialog and `casso disk create`
+- [ ] T609 [US30] Read the track and sector counts from the VTOC in `Dos33Volume`, with `Dos33Geometry` as data-model.md defines it: "`tracks` (35 to 50, or 80 for the Basis 108 layout), `sectorsPerTrack` (13, 16 or 32), `bitmapBytesPerTrack` (4, or 2 for the Basis 108)" (FR-217)
+- [ ] T610 [US30] Read 13-sector disks over the link with Read quarter track at whole positions, decoded on the PC, and write them with Write nibble track (FR-216)
+- [ ] T611 [US30] Scenario tests in `ScenarioTests/Dos32Tests.cpp` on CiderPress II's samples: each file copied out matches, and changed images pass Test; read a 13-sector disk on the owner's //c and record it in `validation.md`
+
+## Phase 48: Partitions and hybrid disks (User Story 31)
+
+**Goal**: partitioned images and cards as volumes. **Independent test**: quickstart §7g steps 1 and 4.
+
+- [ ] T612 [US31] Add `PartitionLayout` and `Partition` in `CassoEmuCore/Devices/Disk/Partitions/PartitionLayout.h`, with `Detect` over an `IBlockStore`. "Partitions don't overlap except in a hybrid"
+- [ ] T613 [P] [US31] `CffaLayout`: consecutive 32 MB slices with a volume directory at block 2, and after the fourth, the 1.2 GS/OS driver's HFS partitions (FR-218)
+- [ ] T614 [P] [US31] `FocusDriveLayout` and `MicroDriveLayout`: each partition map in block 0
+- [ ] T615 [P] [US31] `DosMasterLayout`, `UniDosLayout` (with AmDOS and OzDOS) and `PpmLayout`, from CiderPress II's notes
+- [ ] T616 [US31] Open DOS 3.3 hybrids with ProDOS or Pascal as two file systems on one buffer, a write failing when it would allocate a block the other's map has as used (FR-220)
+- [ ] T617 [US31] List each partition as a node, and add Copy partition to image and Replace partition with its confirmation (FR-219)
+- [ ] T618 [US31] Add `IRawDevice`, `RawDeviceServer` and `RawDeviceClient` in `CassoEmuCore/Seams/RawDevice/`: the `/rawdevice` mode in the core's entry, started elevated with `runas` and a pipe name, serving block reads and writes, exiting when the pipe closes; removable drives only, by `IOCTL_STORAGE_QUERY_PROPERTY` (FR-221). Tests on a fake `IRawDevice`
+- [ ] T619 [US31] Add Open physical card, listing removable drives with model and size, and confirming each write with them (FR-221)
+- [ ] T620 [US31] Scenario tests in `ScenarioTests/PartitionTests.cpp` on each layout's sample image, then a CFFA image written to a CF card in a USB reader and read back, with the results in `validation.md` (SC-060)
+
+## Phase 49: HFS volumes (User Story 32)
+
+**Goal**: HFS read and write. **Independent test**: quickstart §7g steps 1 and 2.
+
+- [ ] T621 [US32] Add `HfsBTree` in `CassoEmuCore/Machines/Apple2/Common/HfsBTree.h/.cpp`: search, insert and delete with node splits and merges, as Inside Macintosh: Files specifies. Tests with a tree three levels deep
+- [ ] T622 [US32] Add `HfsVolume` implementing `IVolume` over an `IBlockStore`: the master directory block, bitmap, catalog and extents trees, both forks, Finder information, Mac OS Roman names of up to 31 characters, and dates, up to 2 GB, larger volumes read-only with the reason (FR-222)
+- [ ] T623 [US32] Map types and creators between HFS and ProDOS by the File Type Note's table, and report a name the target can't store (FR-223)
+- [ ] T624 [US32] Create HFS images at 800K and hard disk sizes from the New disk dialog and `casso disk create` (FR-224)
+- [ ] T625 [US32] Scenario tests in `ScenarioTests/HfsTests.cpp` on GS/OS-made images; boot GS/OS in KEGS or GSplus on a changed image and record SC-061
+
+## Phase 50: SOS volumes (User Story 33)
+
+- [ ] T626 [US33] Add `SosVolume` in `CassoEmuCore/Machines/Apple2/Common/SosVolume.h/.cpp`, sharing `ProDosVolume`'s reader and writer with an SOS type table, on 140K disks and ProFile images (FR-225)
+- [ ] T627 [US33] Map types between SOS and ProDOS, and report a type the target lacks (FR-226); create 140K and ProFile 5 MB SOS images
+- [ ] T628 [US33] Scenario tests in `ScenarioTests/SosTests.cpp` on CiderPress II's and MAME's SOS images; boot a changed disk in MAME's Apple /// (SC-060)
+
+## Phase 51: Gutenberg writes and RDOS (User Story 34)
+
+- [ ] T629 [US34] Work out Gutenberg's free-space map from disks Gutenberg saves in Casso, blank, after one document, after a delete and after a long document, and document it in `contracts/file-types.md` (FR-227)
+- [ ] T630 [US34] Add writes, renames and deletes to `GutenbergVolume`, updating the map as Gutenberg does, and remove the read-only rule (FR-227)
+- [ ] T631 [P] [US34] Add a read-only `RdosVolume` for RDOS 2.1, 3.2 and 3.3 in `CassoEmuCore/Machines/Apple2/Common/RdosVolume.h/.cpp` (FR-228)
+- [ ] T632 [US34] Scenario tests: a document written by Casso Explorer opens and saves again in Gutenberg in Casso (SC-062); each RDOS sample file matches CiderPress II's extraction
+
+## Phase 52: A viewer window (User Story 35)
+
+- [ ] T633 [US35] Add `ExplorerViewer` in `CassoEmuCore/CassoExplorer/Window/Viewer/ExplorerViewer.h/.cpp`: a top-level `DxuiWindow` with the preview pane's components, one per Casso Explorer window, reused (FR-229)
+- [ ] T634 [US35] Step previous and next in the folder's sort order at the time of the step, by arrows and Left and Right, skipping folders and stopping at each end with the arrow disabled (FR-230). Tests on the model with a folder changed between steps
+- [ ] T635 [US35] Add Save as with Get's choices, Ctrl and the wheel to zoom pictures, and Options' Enter opens the viewer (FR-229, FR-231)
+- [ ] T636 [US35] Measure a step on files up to 64 KB and record SC-063 in `validation.md`
+
+## Phase 53: Collection tools (User Story 36)
+
+- [ ] T637 [US36] Add `CollectionWalk` in `CassoEmuCore/CassoExplorer/Model/`: a worker thread over a folder's subtree and every container `ContainerPath` opens, reporting rows as found (FR-232)
+- [ ] T638 [US36] Add `DiskIdentity`: SHA-256 of the decoded volume buffer, and `hasMore` for a WOZ track whose data its sectors don't decode; a file's identity is the SHA-256 of its data fork and type (FR-233). Tests with one disk as `.dsk`, `.po`, 2IMG and WOZ
+- [ ] T639 [US36] Add `ResultsLocation`, `results:<id>`, with the Disk list and duplicate columns of data-model.md, each duplicate set a group, and the folder context menu on each row (FR-233a)
+- [ ] T640 [US36] Add Disk list and Find duplicates to a folder's context menu and Save as CSV to the results toolbar
+- [ ] T641 [US36] Search each file inside an image as `FileFormatTable::Export` writes it when File contents is on, BASIC detokenized and binary files skipped (FR-234)
+- [ ] T642 [US36] Add `casso disk list`, `casso disk dupes` and `casso disk search` (FR-235)
+- [ ] T643 [US36] Scenario test on a 5,000-image test set with known duplicates: under five minutes, every duplicate found and none false (SC-064)
+
+## Phase 54: BASIC language tools (User Story 37)
+
+- [ ] T644 [P] [US37] Add `IntegerBasicTokenizer` in `CassoCore/IntegerBasicTokenizer.h/.cpp` from the detokenizer's token table, and use it on a put (FR-236)
+- [ ] T645 [P] [US37] Add `BasicRenumber` in `CassoCore/BasicRenumber.h/.cpp`: every line and each GOTO, GOSUB, ON, THEN, LIST, RUN and DEL target, failing with the line past 63999 or 32767 (FR-237)
+- [ ] T646 [P] [US37] Add `BasicCrossReference` in `CassoCore/BasicCrossReference.h/.cpp`, the listing of `contracts/file-types.md`, drawn in the preview (FR-238)
+- [ ] T647 [US37] Add `casso basic tokenize`, `list`, `renumber` and `xref`, as the contract lists them
+- [ ] T648 [US37] Scenario tests: each sample listing tokenized matches BASIC's in Casso, and each renumbered program runs with the same output (SC-065)
+
+## Phase 55: Game data viewers (User Story 38)
+
+- [ ] T649 [P] [US38] `WizardryScenario` in `CassoEmuCore/FileTypes/`: monsters, items and characters as Lines, and each maze level as a Picture with walls, doors and special squares, from published community format notes (FR-240)
+- [ ] T650 [P] [US38] `ZMachineStory` in `CassoEmuCore/FileTypes/`: header, abbreviations, dictionary, object tree and decoded strings for versions 1 to 8, by the Z-Machine Standards Document 1.1, and an Infocom disk with no catalog opened as one file (FR-241)
+- [ ] T651 [US38] Add both rows to `FileFormatTable`, with copy outs as text and PNG
+- [ ] T652 [US38] Scenario tests on Wizardry I to III and Infocom samples, checked against the games run in Casso and an interpreter (SC-066)
+
+## Phase 56: Roadmap validation and merge
+
+- [ ] T653 Walk quickstart §7e to §7h on Debug and Release, and write the results to `specs/033-casso-explorer/validation.md`
+- [ ] T654 Run `scripts/CheckStyle.ps1 -Mode Tree`, the code-analysis rebuild, and the unit and scenario suites in Debug and Release before each master merge
+
+### Dependencies for Phases 36 to 56
+
+- Phase 36 before everything that opens a volume larger than 140K: 37, 38, 40, 48, 49, 50.
+- Phase 37 before 38 (archive records with resource forks) and 49 (HFS forks).
+- Phase 38 before Phase 35's fixtures (T478) and Phase 53's walk.
+- Phase 40's Load module (T566, T567) before every other link module: 41, 42, 43, 45, 46.
+- Phase 41's quarter-track read before Phase 47's 13-sector link reads.
+- Phase 43 before 44's disk audio.
+- Phase 50 before 46's SOS volumes are browsed.
+
+### Parallel examples
+
+- Phase 36: T530, T531 and T536 together.
+- Phase 38: T548, T549, T550, T551 and T554 together.
+- Phase 48: T613, T614 and T615 together.
+- Phase 54: T644, T645 and T646 together.
+
+### Strategy
+
+No MVP: each story ships whole. Merge master into this branch after each phase. A phase merges to master once its tests and its quickstart steps pass and the owner approves the commit subjects.
