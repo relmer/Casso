@@ -577,6 +577,12 @@ hardware.
 - Q: How is a fault armed on real hardware? -> A: From a Debug-only menu in Casso Explorer, for the next operation, or with `--link-faults` at launch, for a list of them. Release builds have neither, and their program has no Fault command.
 - Q: What is on the Apple's screen after an operation fails? -> A: The drive's bar stays where it stopped, with FAILED over it, until the next operation on that drive.
 
+### Session 2026-11-08
+
+- Q: Are the file type conversions a separate feature? -> A: No. They are User Story 18 of this feature, on the same branch, after Casso Explorer's merge to master.
+- Q: Are the IIgs formats in scope? -> A: Yes: AppleWorks GS, OMF, super hi-res in each form, IIgs icons and IIgs bitmap fonts. A 65816 disassembly is not.
+- Q: Is a Pascal codefile's p-code disassembled? -> A: Yes, into p-code mnemonics with their operands, beside the segment and procedure dictionaries.
+
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
 
@@ -1230,6 +1236,74 @@ source and read the manifest. Repeat on a real //c with real floppies.
    **Then** the session starts when that operation ends.
 
 ---
+
+### User Story 18 - Read and convert every common Apple II file type (Priority: P2)
+
+Each document, program source, picture and font on a disk is drawn as it
+was meant to be read: an AppleWorks letter as
+formatted text, a spreadsheet as a grid, Merlin source in its columns, a
+super hi-res picture in color, a font as a sheet of its characters. Dragging
+the file to a PC folder writes a file a PC program opens: rich text, CSV,
+plain text or PNG. Pascal text and Merlin source go back onto a disk from
+the PC as files the Apple programs open.
+
+**Why this priority**: These are the files a collection consists of. A hex
+dump of an AppleWorks file, or a raw binary of a picture, means opening
+another program for every file, and Casso Explorer exists to remove that
+step.
+
+**Independent Test**: For each type in FR-156, preview a sample file on a
+disk image and compare it with the program that made it, run in Casso. Drag
+it out and open the result in a PC program: Word or WordPad for rich text,
+Excel for CSV, Notepad for text, Photos for PNG. Put a Pascal text file and
+a Merlin source file back onto an image, and open each in Apple Pascal's
+editor and in Merlin, run in Casso.
+
+**Acceptance Scenarios**:
+
+1. **Given** an AppleWorks or AppleWorks GS word processor document, or a
+   Teach document, **When** it is selected, **Then** its text is drawn with
+   its paragraphs, tabs, bold, italic, underline and alignment; **When** it
+   is dragged out, **Then** it is written as rich text with the same styles.
+2. **Given** a Gutenberg or Magic Window document, **When** it is selected or
+   dragged out, **Then** its text is drawn or written as plain text, with
+   the program's formatting commands removed.
+3. **Given** an AppleWorks database, an AppleWorks spreadsheet or a VisiCalc
+   file, **When** it is selected, **Then** it is drawn as a grid of rows and
+   columns; **When** it is dragged out, **Then** it is written as CSV with
+   one row of the grid on each line.
+4. **Given** a random-access text file, **When** it is selected or dragged
+   out, **Then** each record is one row, drawn as a grid or written as CSV.
+5. **Given** a Pascal textfile, **When** it is selected or dragged out,
+   **Then** its text is drawn or written with its indentation expanded;
+   **When** a text file from the PC is dropped onto a Pascal volume,
+   **Then** it is put as a Pascal textfile that Apple Pascal's editor opens.
+6. **Given** a Merlin source file, **When** it is selected, **Then** its
+   lines are drawn in label, opcode, operand and comment columns; **When**
+   it is dragged out and later dropped back onto an image, **Then** the file
+   on the image is identical to the original.
+7. **Given** an S-C Assembler, LISA or Business BASIC file, **When** it is
+   selected or dragged out, **Then** its listing is drawn or written as text,
+   for each version of LISA's tokens.
+8. **Given** a Pascal codefile or an OMF file, **When** it is selected or
+   dragged out, **Then** its segments are listed with their headers and
+   contents.
+9. **Given** a super hi-res, packed super hi-res, 3200-color, LZ4FH or Print
+   Shop picture, or a IIgs icon file, **When** it is selected, **Then** the
+   picture or each icon is drawn; **When** it is dragged out, **Then** it is
+   written as PNG.
+10. **Given** an Apple II hi-res font, a Print Shop font or a IIgs bitmap
+    font, **When** it is selected, **Then** every character it has is drawn
+    on a sheet with the font's name and size; **When** it is dragged out,
+    **Then** the sheet is written as PNG.
+11. **Given** any of these files, **When** the user right-drags it out,
+    **Then** the menu offers the conversion and a raw copy.
+12. **Given** a file whose type matches one of these formats but whose
+    contents don't decode, **When** it is selected, **Then** the reason is
+    drawn above its bytes; **When** it is copied out, **Then** that file is
+    skipped with the reason reported, and the others in the copy complete.
+
+---
 ### Edge Cases
 
 - **A picture on a monochrome monitor**: green, amber and white show a
@@ -1372,6 +1446,26 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **A Full Send when the link drops**: the session ends with the reason, the
   images already written and the manifest remain on the PC, and the partial
   image is discarded.
+- **An AppleWorks file from a later version**: a document from AppleWorks
+  4 or 5, with features 3.0 lacks, is drawn with what the 3.0 format
+  defines, and the rest is listed as unsupported rather than dropped
+  silently.
+- **A spreadsheet formula with no stored value**: the cell's formula is
+  written as entered, as VisiCalc saves formulas with no results.
+- **A CSV field with a comma, a quote or a line break**: the field is quoted,
+  and a quote inside it is doubled.
+- **A super hi-res picture shorter than a full screen, or a packed one that
+  ends early**: the lines read are drawn and the rest is black, and the preview
+  reports how many lines are missing.
+- **A Pascal text file dropped onto a ProDOS or DOS 3.3 image**: it is put as
+  plain text, since neither file system has a Pascal textfile type.
+- **A Merlin source line longer than Merlin accepts**: the put fails
+  with the line number.
+- **A font with characters missing from its range**: the missing ones are
+  left blank on the sheet.
+- **A random-access text file on DOS 3.3**: the record length isn't stored,
+  so it is taken from the spacing of its entries; a file with one record is
+  drawn as sequential text.
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -2198,6 +2292,92 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **FR-150**: After an operation fails, FAILED MUST be drawn over that drive's bar on the Apple's screen until the next operation on the drive.
 - **FR-151**: A cassette bootstrap read that fails the monitor's checksum MUST NOT run. The monitor's command reads the tape and runs it on one line, so the monitor alone prints ERR and runs what it read. The Apple MUST read the tape again with nothing typed, and Casso Explorer MUST send the audio again while the shim hasn't sent Ready, up to five times, then report that the Apple didn't start.
 
+**File types**
+
+- **FR-156**: Casso Explorer MUST preview and convert each of these formats:
+  Pascal textfiles; random-access text; Merlin source; S-C Assembler source;
+  LISA source, in each version of its tokens; Business BASIC; Pascal
+  codefiles; OMF; AppleWorks word processor, database and spreadsheet
+  files; AppleWorks GS word processor files; VisiCalc; Teach; Gutenberg;
+  Magic Window; super hi-res, packed super hi-res and 3200-color pictures;
+  LZ4FH pictures; Print Shop graphics; IIgs icons; Apple II hi-res fonts;
+  Print Shop fonts; IIgs bitmap fonts. A 65816 disassembly is out of scope.
+- **FR-157**: A format MUST be identified by its ProDOS file type and aux
+  type where it has them, and on DOS 3.3 and Pascal volumes by the file
+  type, name prefix and size it is saved with. The contents MUST pass the
+  format's checks before the file is converted; a file that fails them falls
+  to the existing rules, as hex and a raw copy.
+- **FR-158**: AppleWorks and AppleWorks GS word processor files and Teach
+  files MUST be drawn as styled text: paragraphs, tabs, bold, italic,
+  underline and alignment. A copy out MUST write rich text,
+  `NAME.AppleWorks WP.rtf`, `NAME.AppleWorks GS WP.rtf` or `NAME.Teach.rtf`.
+  Gutenberg and Magic Window files MUST be drawn and written as plain text,
+  `NAME.Gutenberg.txt` or `NAME.Magic Window.txt`, with their formatting
+  commands removed.
+- **FR-159**: AppleWorks databases, AppleWorks spreadsheets and VisiCalc
+  files MUST be drawn as a grid, and a copy out MUST write CSV in UTF-8,
+  quoted as RFC 4180 specifies: `NAME.AppleWorks DB.csv`,
+  `NAME.AppleWorks SS.csv` or `NAME.VisiCalc.csv`. The first row MUST
+  be a database's categories. A spreadsheet cell MUST be written as its
+  stored value, or its formula as entered when the file has no value for it.
+- **FR-160**: A random-access text file MUST be drawn as a grid and written as
+  CSV, `NAME.Random text.csv`, one record on each row and one field of the
+  record, split at its carriage returns, in each column. The record length
+  MUST come from the aux type on ProDOS and from the spacing of its entries
+  on DOS 3.3.
+- **FR-161**: A Pascal textfile MUST be drawn and written as text,
+  `NAME.Pascal text.txt`, with each indentation code expanded to spaces. A
+  text file put onto a Pascal volume MUST be written as a textfile Apple
+  Pascal's editor opens, with `.TEXT` added to its catalog name when it has
+  no such suffix.
+- **FR-162**: Merlin source MUST be drawn in label, opcode, operand and
+  comment columns, and written as text, `NAME.Merlin.txt`, with the fields
+  separated by spaces. A file with that suffix, or one the put dialog sets to
+  Merlin source, MUST be put as the file Merlin saves on that file system:
+  a TXT file ending `.S` on ProDOS, a binary file whose name starts with
+  `T.` on DOS 3.3. A Merlin file copied out and put back MUST be identical
+  to the original.
+- **FR-163**: S-C Assembler source, LISA source and Business BASIC MUST be
+  drawn and written as listings, `NAME.S-C Assembler.txt`, `NAME.LISA.txt`
+  and `NAME.Business BASIC.txt`. LISA MUST be decoded in each version of its
+  tokens. These three convert out only.
+- **FR-164**: A Pascal codefile MUST list its segment dictionary: each
+  segment's name, kind, size and machine type, and each segment's procedure
+  dictionary. Each p-code procedure MUST be disassembled into p-code
+  mnemonics with their operands, and a segment of 6502 code MUST be
+  disassembled. A copy out MUST
+  write the listing, `NAME.Pascal code.txt`.
+- **FR-165**: An OMF file MUST list each segment's header: its name, load
+  name, kind, sizes, alignment and bank. Each record MUST be listed by its
+  opcode, with code and data bytes in hex. A copy out MUST write the
+  listing, `NAME.OMF.txt`.
+- **FR-166**: Super hi-res, packed super hi-res, 3200-color and LZ4FH
+  pictures, Print Shop graphics and IIgs icons MUST be drawn, and a copy out
+  MUST write PNG: `NAME.Super Hi-Res.png`, `NAME.3200 Color.png`,
+  `NAME.LZ4FH.png`, `NAME.Print Shop.png` or `NAME.IIgs Icons.png`. A super
+  hi-res picture MUST be drawn in the colors of its palettes, at 320 or 640
+  pixels as each line's mode sets, and MUST NOT take the Display page's
+  monitor, since a IIgs's monitor is RGB. An LZ4FH picture is a hi-res
+  picture and MUST be drawn as US9 draws one. An icon file MUST be drawn
+  with each icon and its mask beside its name.
+- **FR-167**: Apple II hi-res fonts, Print Shop fonts and IIgs bitmap fonts
+  MUST be drawn as a sheet of every character the font has, in rows of
+  sixteen, with the font's name, family, style and size where the format
+  stores them. A copy out MUST write the sheet as PNG, `NAME.Font.png`.
+- **FR-168**: Each of these conversions MUST be the default for a drag or
+  Get out, as the BASIC and text conversions are. A right-drag out MUST
+  offer the conversion and a raw copy, and Get MUST offer the same choice.
+  A raw copy's name MUST follow FR-017 and FR-017a.
+- **FR-169**: A file that matches a format's type but fails to decode MUST
+  be previewed with the decoder's reason above its bytes. A copy out MUST
+  skip that file and report the reason, as FR-018a does, and complete the rest.
+- **FR-170**: The command-line tool's get and put MUST apply the same
+  conversions.
+- **FR-171**: Each format MUST be implemented from published documentation:
+  Apple's File Type Notes, the programs' manuals and format descriptions
+  published under a license that allows it. Source code under the GPL MUST
+  NOT be read.
+
 ### Key Entities
 
 - **Known folder**: a host folder the user has opened a disk from; path,
@@ -2380,6 +2560,15 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **SC-044**: A search of C:\Windows with File contents off returns the same files as the Windows search folder for the same name condition, in no more than a quarter of its time.
 - **SC-045**: A search with File contents on lists its first result within 2 seconds of its folder being walked, and finds a word in a .txt, a .md, a UTF-16 .log and a .docx, but not in a .dll.
 - **SC-046**: Each fault kind recovers, or fails with a message in words, in its scenario test, and the same fault armed on a real //c over serial has the same result.
+- **SC-047**: For each format in FR-156, a sample file previews with the same
+  text, values or pixels as the program that made it draws in Casso, and its
+  converted copy opens in Word, Excel, Notepad or Photos with the same
+  content.
+- **SC-048**: A Merlin source file copied out and put back is identical byte
+  for byte, and a Pascal text file put onto a Pascal volume opens in Apple
+  Pascal's editor with the same text.
+- **SC-049**: A file of any of these formats, up to 64 KB, is previewed
+  within half a second of being selected.
 
 ## Assumptions
 
