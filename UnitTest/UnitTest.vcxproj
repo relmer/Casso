@@ -367,6 +367,7 @@
     <ClCompile Include="CassoLink\PromptProbeTests.cpp" />
     <ClCompile Include="CassoLink\SerialLoaderTests.cpp" />
     <ClCompile Include="CassoLink\ShimTests.cpp" />
+    <ClCompile Include="CassoLink\UthernetProgramTests.cpp" />
     <ClCompile Include="EmuTests\AciaBridgeEndpointTests.cpp" />
     <ClCompile Include="EmuTests\SerialPortDeviceTests.cpp" />
     <ClCompile Include="EmuTests\SerialTrafficLogTests.cpp" />
