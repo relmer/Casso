@@ -3,6 +3,7 @@
 #include "FileTypes/FileFormatRows.h"
 #include "FileTypes/AppleWorks.h"
 #include "FileTypes/HiResFormats.h"
+#include "FileTypes/IigsFormats.h"
 #include "FileTypes/MerlinSource.h"
 #include "FileTypes/PascalText.h"
 #include "FileTypes/RandomText.h"
@@ -51,5 +52,8 @@ std::vector<FileFormatTable::Row> FileFormatRows::Make()
         Row { FileFormat::HiResFont,          &HiResFont::MatchesApple2,           &HiResFont::Decode,                 nullptr, L".Font.png",         false },
         Row { FileFormat::Apple3Font,         &HiResFont::MatchesApple3,           &HiResFont::Decode,                 nullptr, L".Font.png",         false },
         Row { FileFormat::ShapeTable,         &ShapeTable::Matches,                &ShapeTable::Decode,                nullptr, L".Shape table.png",  false },
+        Row { FileFormat::IigsFont,           &IigsFont::Matches,                  &IigsFont::Decode,                  nullptr, L".Font.png",         true },
+        Row { FileFormat::IigsIcons,          &IigsIcons::Matches,                 &IigsIcons::Decode,                 nullptr, L".IIgs Icons.png",   true },
+        Row { FileFormat::IigsAnimation,      &IigsAnimation::Matches,             &IigsAnimation::Decode,             nullptr, L".Animation.png",    true },
     };
 }
