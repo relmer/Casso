@@ -5,6 +5,8 @@
 #include "InMemoryCassoLinkFolder.h"
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "CassoLink/LinkBootstrap.h"
+#include "CassoLink/LinkFault.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -152,6 +154,14 @@ public:
         }
     };
 
+    //  Faults on for a test, and off with none left armed after it, so the
+    //  other tests' programs have no Fault command.
+    struct FaultsEnabled
+    {
+        FaultsEnabled()  { LinkFaults::Enable(); }
+        ~FaultsEnabled() { LinkFaults::Disable(); }
+    };
+
     static FilePayload  Binary (Byte type, size_t length, Byte seed)
     {
         FilePayload  payload;
@@ -259,6 +269,78 @@ public:
         rig.Start (500);
 
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready, 20000), L"the next attempt's prompt drew the Ready");
+    }
+
+
+
+
+    //  A byte of the shim the bootstrap sends, flipped: the loader's XOR
+    //  fails, it returns to Applesoft's prompt, and the bootstrap fails. A
+    //  link then started with no Bootstrap chosen probes the prompt, the
+    //  Apple sends the ready byte, and it is bootstrapped and linked.
+    TEST_METHOD (ABootstrapFlip_FailsTheBootstrap_AndTheProbeBootstrapsTheAppleAgain)
+    {
+        constexpr DWORD   kConnectTimeoutMs = 1000;
+        constexpr DWORD   kNoRetryMs        = 60000;
+        constexpr DWORD   kReadyWaitMs      = 20000;
+        constexpr size_t  kFlipOffset       = 40;     // a byte of the shim's first page
+
+        FaultsEnabled                   enabled;
+        Rig                             rig;
+        CassoLinkSettings               settings;
+        std::shared_ptr<LinkOperation>  bootstrap;
+        std::vector<std::string>        lines;
+        std::vector<LinkFault>          faults;
+        size_t                          typed    = 0;
+
+
+
+        AssertSucceeded (LinkBootstrap::BuildLines (lines));
+
+        for (const std::string & line : lines)
+        {
+            typed += line.size();
+        }
+
+        //  Counted from the loader's first typed byte: the lines, the page
+        //  count, then the shim's first page.
+        Assert::AreEqual (S_OK, LinkFault::Parse (std::format ("bootstrap:flip@{}", typed + 1 + kFlipOffset).c_str(), faults));
+        LinkFaults::Arm (faults);
+
+        rig.apple.startAsShim = true;
+        rig.apple.typedLoader = true;
+
+        settings.name      = "Test";
+        settings.transport = LinkTransport::Emulated;
+        settings.address   = "127.0.0.1:6502";
+
+        rig.session->SetBootstrapPause (0, 0);
+        rig.session->SetConnectTimeout (kConnectTimeoutMs);
+        rig.session->SetRetryInterval (kNoRetryMs);
+        AssertSucceeded (rig.session->StartWithBootstrap (settings, bootstrap));
+
+        rig.Finish (bootstrap);
+
+        Assert::IsTrue   (FAILED (bootstrap->result), L"the loader's XOR failed, and no shim sent Ready");
+        Assert::AreEqual (1, rig.apple.loaderXorFails.load());
+        Assert::IsTrue   (rig.apple.atPrompt.load(), L"the Apple is back at the prompt");
+
+        {
+            std::lock_guard<std::mutex>  guard (rig.sink.lock);
+
+            Assert::IsTrue (std::any_of (rig.sink.activities.begin(), rig.sink.activities.end(),
+                                         [] (const std::string & text) { return text.find ("Injected a fault") != std::string::npos; }));
+        }
+
+        //  A new link, with no Bootstrap chosen: no Ready arrives, the probe
+        //  finds the prompt, and the bootstrap runs again, this time whole.
+        rig.session = std::make_unique<CassoLinkSession> (rig.factory, rig.folder, rig.fileIo, rig.sink);
+        rig.session->SetBootstrapPause (0, 0);
+        rig.session->SetConnectTimeout (kConnectTimeoutMs);
+        AssertSucceeded (rig.session->Start (settings));
+
+        Assert::IsTrue   (rig.sink.WaitForState (LinkState::Ready, kReadyWaitMs), L"the probe found the prompt and the bootstrap linked");
+        Assert::AreEqual (1, rig.apple.loaderXorFails.load(), L"the second shim passed the loader's XOR");
     }
 
 
