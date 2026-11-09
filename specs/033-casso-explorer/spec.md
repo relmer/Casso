@@ -3268,10 +3268,14 @@ interpreter's.
 **Partitions and hybrid disks**
 
 - **FR-218**: These layouts MUST be found by their published markers and
-  opened as a node per partition, with its number, size and volume: CFFA,
+  opened as a node per partition, with its number, size and volume:
   FocusDrive and MicroDrive partition maps; DOS.MASTER volumes inside a
   ProDOS volume; AmDOS, OzDOS and UniDOS 800K disks; DOS 3.3 hybrids with
-  ProDOS or Pascal; and Pascal ProFile Manager volumes.
+  ProDOS or Pascal; and Pascal ProFile Manager volumes. A CFFA card has no
+  map: its partitions are consecutive 32 MB slices, found by the volume
+  directory at the start of each, as firmware 1.2 and 2.x both read them.
+  After the fourth slice, the HFS partitions of up to 1 GB that the CFFA's
+  GS/OS driver for firmware 1.2 adds MUST also be opened.
 - **FR-219**: Copy partition to image MUST write a partition's blocks as an
   image, and Replace partition MUST write an image no larger than the
   partition over it, after a confirmation that lists both.
