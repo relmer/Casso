@@ -1016,11 +1016,12 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             {
                 const VolumeListing  & listing = catalog->second->listing;
 
-                row.volume = (catalog->second->volumeKind == VolumeKind::Pascal) ? TextEncoding::NarrowToWide (listing.volumeName) + L":"
-                           : (catalog->second->volumeKind == VolumeKind::Cpm)    ? std::wstring (L"CP/M")
-                           : listing.hasVolumeName                               ? L"/" + TextEncoding::NarrowToWide (listing.volumeName)
-                           : listing.hasVolumeNumber                             ? std::format (L"DOS 3.3 volume {}", listing.volumeNumber)
-                                                                                 : std::wstring();
+                row.volume = (catalog->second->volumeKind == VolumeKind::Pascal)    ? TextEncoding::NarrowToWide (listing.volumeName) + L":"
+                           : (catalog->second->volumeKind == VolumeKind::Cpm)       ? std::wstring (L"CP/M")
+                           : (catalog->second->volumeKind == VolumeKind::Gutenberg) ? TextEncoding::NarrowToWide (listing.volumeName)
+                           : listing.hasVolumeName                                  ? L"/" + TextEncoding::NarrowToWide (listing.volumeName)
+                           : listing.hasVolumeNumber                                ? std::format (L"DOS 3.3 volume {}", listing.volumeNumber)
+                                                                                    : std::wstring();
 
                 for (const FileEntry & entry : listing.entries)
                 {

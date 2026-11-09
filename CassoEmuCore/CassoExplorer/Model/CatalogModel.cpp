@@ -25,9 +25,9 @@
 
 uint64_t CatalogModel::GetUnitBytes (VolumeKind kind)
 {
-    return (kind == VolumeKind::Dos33) ? (uint64_t) NibblizationLayer::kSectorByteSize
-         : (kind == VolumeKind::Cpm)   ? (uint64_t) CpmVolume::kBlockBytes
-                                       : (uint64_t) ProDosSkeleton::kBlockByteSize;
+    return (kind == VolumeKind::Dos33 || kind == VolumeKind::Gutenberg) ? (uint64_t) NibblizationLayer::kSectorByteSize
+         : (kind == VolumeKind::Cpm)                                 ? (uint64_t) CpmVolume::kBlockBytes
+                                                                     : (uint64_t) ProDosSkeleton::kBlockByteSize;
 }
 
 
@@ -104,6 +104,12 @@ std::wstring CatalogModel::GetTypeText (Byte type, VolumeKind kind)
     if (kind == VolumeKind::Cpm)
     {
         return std::wstring();
+    }
+
+    //  A Gutenberg type is a letter, and a document's is a space.
+    if (kind == VolumeKind::Gutenberg)
+    {
+        return (type == ' ') ? std::wstring() : std::wstring (1, (wchar_t) type);
     }
 
     for (const ProDosTypeName & row : kProDosTypeNames)

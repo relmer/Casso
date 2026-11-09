@@ -132,10 +132,10 @@ AppleSingleFile DragPayload::MakeAppleSingle (const FileEntry & entry, VolumeKin
     file.realName      = entry.name;
     file.hasProDosInfo = true;
     file.access        = entry.isLocked ? 0x01 : 0xC3;
-    file.fileType      = isDos                       ? HostFileNaming::MapDos33ToProDosType (entry.type)
-                       : (kind == VolumeKind::Pascal) ? HostFileNaming::MapPascalToProDosType (entry.type)
-                       : (kind == VolumeKind::Cpm)    ? (Byte) 0
-                                                      : entry.type;
+    file.fileType      = isDos                                                      ? HostFileNaming::MapDos33ToProDosType (entry.type)
+                       : (kind == VolumeKind::Pascal)                               ? HostFileNaming::MapPascalToProDosType (entry.type)
+                       : (kind == VolumeKind::Cpm || kind == VolumeKind::Gutenberg) ? (Byte) 0
+                                                                                    : entry.type;
     file.auxType       = entry.hasLoadAddress ? entry.loadAddress : entry.auxType;
 
     if (entry.hasModified)
@@ -167,7 +167,7 @@ std::string DragPayload::EncodeCatalogEntries (
 
     bytes += sourceImage;
     bytes += '\n';
-    bytes += (kind == VolumeKind::Dos33) ? "dos33" : (kind == VolumeKind::Pascal) ? "pascal" : (kind == VolumeKind::Cpm) ? "cpm" : "prodos";
+    bytes += (kind == VolumeKind::Dos33) ? "dos33" : (kind == VolumeKind::Pascal) ? "pascal" : (kind == VolumeKind::Cpm) ? "cpm" : (kind == VolumeKind::Gutenberg) ? "gutenberg" : "prodos";
     bytes += '\n';
 
     for (const std::string & path : catalogPaths)
@@ -218,11 +218,12 @@ bool DragPayload::DecodeCatalogEntries (
 
     outSourceImage = lines[0];
 
-    if (lines[1] == "dos33")       { outKind = VolumeKind::Dos33; }
-    else if (lines[1] == "prodos") { outKind = VolumeKind::ProDos; }
-    else if (lines[1] == "pascal") { outKind = VolumeKind::Pascal; }
-    else if (lines[1] == "cpm")    { outKind = VolumeKind::Cpm; }
-    else                           { return false; }
+    if (lines[1] == "dos33")          { outKind = VolumeKind::Dos33; }
+    else if (lines[1] == "prodos")    { outKind = VolumeKind::ProDos; }
+    else if (lines[1] == "pascal")    { outKind = VolumeKind::Pascal; }
+    else if (lines[1] == "cpm")       { outKind = VolumeKind::Cpm; }
+    else if (lines[1] == "gutenberg") { outKind = VolumeKind::Gutenberg; }
+    else                              { return false; }
 
     outCatalogPaths.assign (lines.begin() + 2, lines.end());
 

@@ -3,6 +3,7 @@
 #include "Core/TextEncoding.h"
 #include "FileTypes/BusinessBasic.h"
 #include "FileTypes/FileFormatTable.h"
+#include "FileTypes/GutenbergDocument.h"
 #include "FileTypes/LisaSource.h"
 #include "FileTypes/MagicWindowDocument.h"
 #include "FileTypes/MerlinSource.h"
@@ -20,8 +21,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PascalTextTests, RandomTextTests, MerlinSourceTests,
-//  ScAssemblerSourceTests, FileFormatTableTests, MagicWindowDocumentTests
-//  BusinessBasicTests and LisaSourceTests
+//  ScAssemblerSourceTests, FileFormatTableTests, MagicWindowDocumentTests,
+//  GutenbergDocumentTests, BusinessBasicTests and LisaSourceTests
 //
 //  Files built in each test, identified by the table, decoded, and for the
 //  import rows encoded back.
@@ -242,6 +243,72 @@ public:
 
         facts.name = "LETTER";
         Assert::IsFalse (MagicWindowDocument::Matches (facts, bytes));
+    }
+};
+
+
+TEST_CLASS (GutenbergDocumentTests)
+{
+public:
+
+    TEST_METHOD (Decode_SplitsLinesAndEndsAtTheFirstZero)
+    {
+        std::vector<Byte>  bytes = { 0xC8, 0xC9, 0x8D, 0x81, 0xEC, 0x9F, 0xEF, 0xFF, 0x8D, 0xD8, 0x00, 0xD9, 0x8D };
+        FileFacts          facts;
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        facts.volume = VolumeKind::Gutenberg;
+        facts.type   = ' ';
+
+        Assert::IsTrue (GutenbergDocument::Matches (facts, bytes));
+        AssertSucceeded (GutenbergDocument::Decode (bytes, facts, DecodeOptions(), file, error));
+
+        Assert::IsTrue (file.lines == std::vector<std::wstring> { L"HI", L"lo", L"X" });
+        Assert::IsTrue (file.notes.empty(), L"No alternate character, so no note");
+    }
+
+
+    TEST_METHOD (Decode_DropsAlternateCharactersWithANote)
+    {
+        std::vector<Byte>  bytes = { 0xC1, 0x41, 0xC2, 0x8D };
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        AssertSucceeded (GutenbergDocument::Decode (bytes, FileFacts(), DecodeOptions(), file, error));
+
+        Assert::IsTrue (file.lines == std::vector<std::wstring> { L"AB" });
+        Assert::AreEqual ((size_t) 1, file.notes.size());
+    }
+
+
+    TEST_METHOD (Matches_DocumentsOnAGutenbergVolumeOnly)
+    {
+        std::vector<Byte>  bytes = { 0xC8, 0xC9, 0x8D, 0x00 };
+        FileFacts          facts;
+
+
+
+        facts.volume = VolumeKind::Gutenberg;
+        facts.type   = 'L';
+        Assert::IsTrue (GutenbergDocument::Matches (facts, bytes), L"A locked document");
+
+        facts.type = 'P';
+        Assert::IsFalse (GutenbergDocument::Matches (facts, bytes), L"A program");
+
+        facts.type = ' ';
+        Assert::IsFalse (GutenbergDocument::Matches (facts, std::vector<Byte>()), L"An empty file");
+
+        facts.volume = VolumeKind::Dos33;
+        Assert::IsFalse (GutenbergDocument::Matches (facts, bytes), L"Another file system");
+
+        Assert::IsTrue (FileFormatTable::Identify (MakeEntry ("TEXT", ' '), VolumeKind::Gutenberg, bytes) == FileFormat::Gutenberg);
+        Assert::IsTrue (FileFormatTable::Identify (MakeEntry ("BOOT", 'P'), VolumeKind::Gutenberg, bytes) == FileFormat::None);
+        Assert::AreEqual (L".Gutenberg.txt", FileFormatTable::GetSuffix (FileFormat::Gutenberg));
     }
 };
 

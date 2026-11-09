@@ -312,6 +312,7 @@
     <ClCompile Include="Machines\Apple2\Common\NativeListing.cpp" />
     <ClCompile Include="Machines\Apple2\Common\PascalVolume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\CpmVolume.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\GutenbergVolume.cpp" />
     <ClCompile Include="CassoExplorer\Model\FilesystemChoices.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AssembledFilePlacement.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosVolume.cpp" />
@@ -464,6 +465,7 @@
     <ClCompile Include="FileTypes\IigsFormats.cpp" />
     <ClCompile Include="FileTypes\OmfFile.cpp" />
     <ClCompile Include="FileTypes\VisiCalcSheet.cpp" />
+    <ClCompile Include="FileTypes\GutenbergDocument.cpp" />
     <ClCompile Include="FileTypes\MagicWindowDocument.cpp" />
     <ClCompile Include="FileTypes\BusinessBasic.cpp" />
     <ClCompile Include="FileTypes\LisaSource.cpp" />
@@ -1033,6 +1035,7 @@
     <ClInclude Include="Machines\Apple2\Common\NativeListing.h" />
     <ClInclude Include="Machines\Apple2\Common\PascalVolume.h" />
     <ClInclude Include="Machines\Apple2\Common\CpmVolume.h" />
+    <ClInclude Include="Machines\Apple2\Common\GutenbergVolume.h" />
     <ClInclude Include="CassoExplorer\Model\FilesystemChoices.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolume.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolumeRemover.h" />
@@ -1205,6 +1208,7 @@
     <ClInclude Include="FileTypes\IigsFormats.h" />
     <ClInclude Include="FileTypes\OmfFile.h" />
     <ClInclude Include="FileTypes\VisiCalcSheet.h" />
+    <ClInclude Include="FileTypes\GutenbergDocument.h" />
     <ClInclude Include="FileTypes\MagicWindowDocument.h" />
     <ClInclude Include="FileTypes\BusinessBasic.h" />
     <ClInclude Include="FileTypes\LisaSource.h" />

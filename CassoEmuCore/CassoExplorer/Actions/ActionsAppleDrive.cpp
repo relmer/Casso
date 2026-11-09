@@ -1692,6 +1692,10 @@ std::wstring ActionsAppleDrive::DescribeAppleDrive() const
     {
         text += L" (CP/M)";
     }
+    else if (m_actions.m_browser.GetVolumeKind() == VolumeKind::Gutenberg)
+    {
+        text += std::format (L" ({})", TextEncoding::NarrowToWide (listing.volumeName));
+    }
     else if (listing.hasVolumeName)
     {
         text += std::format (L" (/{})", TextEncoding::NarrowToWide (listing.volumeName));

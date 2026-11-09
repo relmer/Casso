@@ -186,6 +186,10 @@ void BrowserCells::DescribeVolumeSpace (const std::wstring & imagePath, const Vo
     {
         outStatus.freeSpaceTip += L", CP/M volume";
     }
+    else if (kind == VolumeKind::Gutenberg)
+    {
+        outStatus.freeSpaceTip += L", Gutenberg volume " + TextEncoding::NarrowToWide (listing.volumeName);
+    }
 }
 
 

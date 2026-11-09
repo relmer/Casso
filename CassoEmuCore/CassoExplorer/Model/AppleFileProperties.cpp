@@ -61,7 +61,7 @@ std::vector<AppleFileProperties::TypeChoice> AppleFileProperties::GetTypeChoices
             choices.push_back (MakeChoice (row));
         }
     }
-    else if (kind != VolumeKind::Cpm)
+    else if (kind != VolumeKind::Cpm && kind != VolumeKind::Gutenberg)
     {
         for (const NamedType & row : kProDosTypes)
         {

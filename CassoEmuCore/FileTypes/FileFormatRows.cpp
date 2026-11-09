@@ -3,6 +3,7 @@
 #include "FileTypes/FileFormatRows.h"
 #include "FileTypes/AppleWorks.h"
 #include "FileTypes/BusinessBasic.h"
+#include "FileTypes/GutenbergDocument.h"
 #include "FileTypes/HiResFormats.h"
 #include "FileTypes/IigsFormats.h"
 #include "FileTypes/LisaSource.h"
@@ -47,6 +48,7 @@ std::vector<FileFormatTable::Row> FileFormatRows::Make()
         Row { FileFormat::Teach,          &TeachDocument::Matches,       &TeachDocument::Decode,       nullptr,               L".Teach.rtf",            true },
         Row { FileFormat::Omf,            &OmfFile::Matches,             &OmfFile::Decode,             nullptr,               L".OMF.txt",              true },
         Row { FileFormat::VisiCalc,       &VisiCalcSheet::Matches,       &VisiCalcSheet::Decode,       nullptr,               L".VisiCalc.csv",         false },
+        Row { FileFormat::Gutenberg,      &GutenbergDocument::Matches,   &GutenbergDocument::Decode,   nullptr,               L".Gutenberg.txt",        false },
         Row { FileFormat::MagicWindow,    &MagicWindowDocument::Matches, &MagicWindowDocument::Decode, nullptr,               L".Magic Window.txt",     false },
         Row { FileFormat::BusinessBasic,  &BusinessBasic::Matches,       &BusinessBasic::Decode,       nullptr,               L".Business BASIC.txt",   false },
         Row { FileFormat::PascalCode,     &PascalCodefile::Matches,      &PascalCodefile::Decode,      nullptr,               L".Pascal code.txt",      false },

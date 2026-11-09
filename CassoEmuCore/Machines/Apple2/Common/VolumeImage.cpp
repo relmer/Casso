@@ -6,6 +6,7 @@
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/GutenbergVolume.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -726,6 +727,7 @@ const char * VolumeImage::GetSystemName (VolumeKind kind)
         case VolumeKind::Pascal: return "Apple Pascal";
         case VolumeKind::Cpm:    return "CP/M";
         case VolumeKind::Archive: return "Archive";
+        case VolumeKind::Gutenberg: return "Gutenberg";
         default:                 return "";
     }
 }
@@ -775,6 +777,11 @@ VolumeKind VolumeImage::DetectFilesystem (const vector<Byte> & sectors)
     if (PascalVolume::IsFound (sectors))
     {
         return VolumeKind::Pascal;
+    }
+
+    if (GutenbergVolume::IsFound (sectors))
+    {
+        return VolumeKind::Gutenberg;
     }
 
     //  Last, as the only one with no signature.
@@ -843,6 +850,15 @@ std::unique_ptr<IVolume> VolumeImage::CreateVolume (VolumeKind kind, const vecto
 
             cpm->SetReadObserver (observer);
             volume = std::move (cpm);
+            break;
+        }
+
+        case VolumeKind::Gutenberg:
+        {
+            auto  gutenberg = std::make_unique<GutenbergVolume> (sectors);
+
+            gutenberg->SetReadObserver (observer);
+            volume = std::move (gutenberg);
             break;
         }
 
