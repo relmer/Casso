@@ -357,6 +357,7 @@
     <ClCompile Include="CassoLink\RunningCassoRegistryTests.cpp" />
     <ClCompile Include="CassoLink\LinkBootstrapTests.cpp" />
     <ClCompile Include="CassoLink\DiskDriverTimingTests.cpp" />
+    <ClCompile Include="CassoLink\KrunchProgramTests.cpp" />
     <ClCompile Include="CassoLink\PromptProbeTests.cpp" />
     <ClCompile Include="CassoLink\SerialLoaderTests.cpp" />
     <ClCompile Include="EmuTests\AciaBridgeEndpointTests.cpp" />
