@@ -969,6 +969,10 @@ ActionsTypes::PutPlan CassoExplorerActions::PlanAppleSingle (const std::wstring 
         SetTypedPayload (plan, file.data, ProDosVolume::kTypeBinary, true, load, isDos);
     }
 
+    plan.payload.resourceFork    = file.resourceFork;
+    plan.payload.finderInfo      = file.finderInfo;
+    plan.payload.hasResourceFork = file.hasResourceFork;
+
     return plan;
 }
 

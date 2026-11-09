@@ -54,6 +54,11 @@ public:
         std::string        output;        // the runner's stdout text
         std::vector<Byte>  payload;       // a get's bytes when no file was written
 
+        //  A get's resource fork and Finder information, for a file that has one.
+        std::vector<Byte>  resourceFork;
+        std::vector<Byte>  finderInfo;
+        bool               hasResourceFork = false;
+
         //  For a Read, the sectors of the file the image could not be decoded
         //  at, which read as zeros; for a List, whether the catalog chain was
         //  damaged, so entries may be missing.

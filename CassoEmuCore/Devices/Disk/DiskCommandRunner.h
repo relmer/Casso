@@ -176,6 +176,10 @@ public:
     void  RunCreate (const CommandLineOptions & options, DiskCommandResult & result);
 
     //  A ProDOS volume larger than a floppy, in a block container.
+    //  The `._NAME` file a data fork's resource fork is written to.
+    static std::string  GetAppleDoublePath (const std::string & hostFile);
+    HRESULT             WriteAppleDouble   (const std::string & hostFile, const FilePayload & payload);
+
     static bool  IsLargeCreate          (const CommandLineOptions & options);
     static bool  IsBlockOnlyExtension   (const std::string & imagePath);
     static bool  IsProDosOrderExtension (const std::string & imagePath);

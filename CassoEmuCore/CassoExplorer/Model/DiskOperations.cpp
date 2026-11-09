@@ -125,7 +125,10 @@ DiskOperations::Result DiskOperations::RunCommand (const CommandLineOptions & op
 
     if (command.hasPayload)
     {
-        result.payload = std::move (command.payload);
+        result.payload         = std::move (command.payload);
+    result.resourceFork    = std::move (command.resourceFork);
+    result.finderInfo      = std::move (command.finderInfo);
+    result.hasResourceFork = command.hasResourceFork;
     }
 
     return result;

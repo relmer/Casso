@@ -34,6 +34,9 @@ public:
     //  The most blocks a ProDOS volume addresses.
     static constexpr int  kMaxBlocks = 65535;
 
+    //  An extended file's Finder information: FInfo, then FXInfo.
+    static constexpr size_t  kFinderInfoBytes = 32;
+
     //  Empty formatted volume (data-only), at the buffer's size.
     static HRESULT  Write (vector<Byte> & buffer, const std::string & volumeName);
 
@@ -117,6 +120,15 @@ private:
     static constexpr Byte    kStorageTree     = 0x30;
     static constexpr Byte    kStorageSubdir   = 0xD0;
 
+    //  An extended file: a data fork and a resource fork under one entry,
+    //  whose key block has each fork's entry and the Finder information.
+    static constexpr Byte    kStorageExtended      = 0x50;
+    static constexpr size_t  kExtOffDataFork       = 0x000;
+    static constexpr size_t  kExtOffFinderInfo     = 0x008;
+    static constexpr size_t  kExtOffResourceFork   = 0x100;
+    static constexpr size_t  kFinderInfoEntryBytes = 18;
+    static constexpr size_t  kFinderInfoEntries    = 2;
+
     //  The first record of a subdirectory's key block is its own header, which
     //  has this storage nibble rather than the 0xD0 of the record that
     //  points at it from the parent.
@@ -174,6 +186,14 @@ private:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ProDosForks
+{
+    vector<Byte>  data;
+    vector<Byte>  resource;
+    vector<Byte>  finderInfo;
+    bool          isExtended = false;
+};
+
 class ProDosReader
 {
 public:
@@ -193,6 +213,27 @@ public:
                                               Word                 & outAuxType,
                                               ISectorReadObserver  * observer = nullptr);
 
+    //  Both forks and the Finder information of an extended file; the data
+    //  fork alone of any other.
+    static HRESULT  ExtractForksFromDirectory (const vector<Byte>   & volume,
+                                               int                    dirKeyBlock,
+                                               const std::string    & fileName,
+                                               ProDosForks          & outForks,
+                                               Byte                 & outFileType,
+                                               Word                 & outAuxType,
+                                               ISectorReadObserver  * observer = nullptr);
+
+    //  One fork's bytes from its storage type, key block and length.
+    static HRESULT  ReadFork (const vector<Byte>   & volume,
+                              Byte                   storage,
+                              Word                   keyPointer,
+                              uint32_t               eof,
+                              ISectorReadObserver  * observer,
+                              vector<Byte>         & outBytes);
+
+    //  One fork's entry in an extended key block.
+    static void  ReadMiniEntry (const vector<Byte> & volume, Word keyBlock, size_t at, Byte & outStorage, Word & outKey, uint32_t & outEof);
+
     //  A block's two sectors, to the observer if there is one.
     static void  NoteBlockRead (ISectorReadObserver * observer, size_t bufferBytes, int block);
 
@@ -205,6 +246,11 @@ public:
 private:
     //  False when the index block itself is unusable, so the caller reports an
     //  unreadable file instead of gathering garbage.
+    static HRESULT  ReadExtendedForks (const vector<Byte>   & volume,
+                                       Word                   keyBlock,
+                                       ISectorReadObserver  * observer,
+                                       ProDosForks          & outForks);
+
     static bool  AppendIndexedBlocks (const vector<Byte>   & volume,
                                       Word                   indexBlock,
                                       vector<Word>         & dataBlocks,

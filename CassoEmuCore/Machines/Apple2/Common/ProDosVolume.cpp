@@ -323,9 +323,62 @@ bool ProDosVolume::CollectFileBlocks (
         return ok;
     }
 
+    // An extended file's key block has an entry for each fork, and each fork's
+    // blocks are its own seedling, sapling or tree.
+    if (entry.storage == ProDosSkeleton::kStorageExtended)
+    {
+        for (size_t at : { ProDosSkeleton::kExtOffDataFork, ProDosSkeleton::kExtOffResourceFork })
+        {
+            RawEntry  fork;
+            uint32_t  eof = 0;
+
+            ProDosReader::ReadMiniEntry (m_sectors, entry.keyPointer, at, fork.storage, fork.keyPointer, eof);
+
+            ok = ok && CollectFileBlocks (fork, outBlocks, guard);
+        }
+
+        return ok;
+    }
+
     // A directory or an unrecognized storage type: the key block is claimed,
     // but this layer does not walk further into it yet.
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::FillExtendedSizes
+//
+//  An extended file's entry has the key block's length as its EOF, so its
+//  forks' lengths are read from the key block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosVolume::FillExtendedSizes (const RawEntry & entry, FileEntry & inOutListed) const
+{
+    Byte      storage  = 0;
+    Word      key      = 0;
+    uint32_t  dataEof  = 0;
+    uint32_t  forkEof  = 0;
+    bool      keyOk    = entry.keyPointer != 0 && entry.keyPointer < (Word) GetBlockCount();
+
+
+
+    if (entry.storage != ProDosSkeleton::kStorageExtended || !keyOk)
+    {
+        return;
+    }
+
+    ProDosReader::ReadMiniEntry (m_sectors, entry.keyPointer, ProDosSkeleton::kExtOffDataFork,     storage, key, dataEof);
+    ProDosReader::ReadMiniEntry (m_sectors, entry.keyPointer, ProDosSkeleton::kExtOffResourceFork, storage, key, forkEof);
+
+    inOutListed.eofBytes          = dataEof;
+    inOutListed.resourceForkBytes = forkEof;
+    inOutListed.hasResourceFork   = true;
 }
 
 
@@ -488,6 +541,7 @@ HRESULT ProDosVolume::EnumerateDirectory (const FilePath & directory, VolumeList
     for (const RawEntry & entry : entries)
     {
         outListing.entries.push_back (ToFileEntry (entry));
+        FillExtendedSizes (entry, outListing.entries.back());
         outListing.entries.back().catalogIndex = outListing.entries.size() - 1;
     }
 
@@ -546,6 +600,7 @@ HRESULT ProDosVolume::Enumerate (VolumeListing & outListing) const
     for (const RawEntry & entry : entries)
     {
         outListing.entries.push_back (ToFileEntry (entry));
+        FillExtendedSizes (entry, outListing.entries.back());
         outListing.entries.back().catalogIndex = outListing.entries.size() - 1;
     }
 
@@ -587,6 +642,7 @@ HRESULT ProDosVolume::Read (const FilePath & path, FilePayload & outPayload) con
     bool                 parsed      = true;
     bool                 found       = false;
     uint16_t             local       = 0;
+    ProDosForks          forks;
     vector<RawEntry>     entries;
     vector<std::string>  damage;
 
@@ -601,9 +657,14 @@ HRESULT ProDosVolume::Read (const FilePath & path, FilePayload & outPayload) con
 
     outPayload = FilePayload();
 
-    hr = ProDosReader::ExtractFileFromDirectory (m_sectors, dirKeyBlock, path.GetLeaf(), outPayload.bytes,
-                                                 fileType, auxType, m_readObserver);
+    hr = ProDosReader::ExtractForksFromDirectory (m_sectors, dirKeyBlock, path.GetLeaf(), forks,
+                                                  fileType, auxType, m_readObserver);
     CHR (hr);
+
+    outPayload.bytes           = std::move (forks.data);
+    outPayload.resourceFork    = std::move (forks.resource);
+    outPayload.finderInfo      = std::move (forks.finderInfo);
+    outPayload.hasResourceFork = forks.isExtended;
 
     outPayload.type       = fileType;
     outPayload.auxType    = auxType;

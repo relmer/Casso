@@ -8,6 +8,8 @@
 #include "Devices/Disk/ChangePrompt.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Core/AppleSingleCodec.h"
 
 
 
@@ -332,8 +334,11 @@ void ActionsCopy::ExtractDirectory (const std::string & image, VolumeKind kind, 
             continue;
         }
 
-        single      = DragPayload::MakeAppleSingle (entry, kind);
-        single.data = std::move (result.payload);
+        single                 = DragPayload::MakeAppleSingle (entry, kind);
+        single.data            = std::move (result.payload);
+        single.resourceFork    = std::move (result.resourceFork);
+        single.finderInfo      = std::move (result.finderInfo);
+        single.hasResourceFork = result.hasResourceFork;
         AppleSingleCodec::Encode (single, bytes);
 
         hr = m_actions.m_fs.WriteAllText (hostPath, std::string (bytes.begin(), bytes.end()));
@@ -346,6 +351,103 @@ void ActionsCopy::ExtractDirectory (const std::string & image, VolumeKind kind, 
 
         inOutOutcome.written++;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsCopy::GetAppleDoublePath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ActionsCopy::GetAppleDoublePath (const std::wstring & hostPath)
+{
+    std::filesystem::path  path = hostPath;
+
+
+
+    return (path.parent_path() / (L"._" + path.filename().wstring())).wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsCopy::IsAppleDoubleBesideItsFile
+//
+//  `._NAME` with `NAME` beside it, which is put as one file with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ActionsCopy::IsAppleDoubleBesideItsFile (const std::wstring & hostPath) const
+{
+    std::filesystem::path  path = hostPath;
+    std::wstring           leaf = path.filename().wstring();
+
+
+
+    return leaf.size() > 2 && leaf.starts_with (L"._")
+        && m_actions.m_fs.Exists ((path.parent_path() / leaf.substr (2)).wstring());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsCopy::AttachAppleDouble
+//
+//  The resource fork, Finder information and ProDOS type from `._NAME` beside
+//  a file being put, so the file goes in as the extended file it came from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ActionsCopy::AttachAppleDouble (const std::wstring & hostPath, const std::vector<Byte> & bytes, ActionsTypes::PutPlan & inOutPlan) const
+{
+    HRESULT          hr       = S_OK;
+    std::wstring     sidecar  = GetAppleDoublePath (hostPath);
+    bool             isDouble = false;
+    std::string      content;
+    std::string      error;
+    AppleSingleFile  single;
+
+
+
+    if (!m_actions.m_fs.Exists (sidecar))
+    {
+        return;
+    }
+
+    hr = m_actions.m_fs.ReadAllText (sidecar, content);
+    CHR (hr);
+
+    isDouble = AppleSingleCodec::IsAppleDouble (std::span<const Byte> ((const Byte *) content.data(), content.size()));
+    CBR (isDouble);
+
+    hr = AppleSingleCodec::Decode (std::span<const Byte> ((const Byte *) content.data(), content.size()), single, error);
+    CHR (hr);
+
+    if (!inOutPlan.usePayload)
+    {
+        inOutPlan.usePayload         = true;
+        inOutPlan.payload.bytes      = bytes;
+        inOutPlan.payload.type       = single.hasProDosInfo ? (Byte) single.fileType : ProDosVolume::kTypeBinary;
+        inOutPlan.payload.auxType    = (Word) single.auxType;
+        inOutPlan.payload.hasAuxType = single.hasProDosInfo;
+    }
+
+    inOutPlan.payload.resourceFork    = single.resourceFork;
+    inOutPlan.payload.finderInfo      = single.finderInfo;
+    inOutPlan.payload.hasResourceFork = single.hasResourceFork;
+
+Error:
+    return;
 }
 
 
@@ -612,6 +714,12 @@ void ActionsCopy::PutItems (
             continue;
         }
 
+        //  An AppleDouble file goes in with its data fork, not as a file.
+        if (IsAppleDoubleBesideItsFile (hostPath))
+        {
+            continue;
+        }
+
         hr = m_actions.m_fs.ReadAllText (hostPath, content);
 
         if (FAILED (hr))
@@ -623,6 +731,8 @@ void ActionsCopy::PutItems (
         bytes.assign (content.begin(), content.end());
         plan = (conversion == ActionsTypes::Conversion::ByContent) ? CassoExplorerActions::PlanPut (hostPath, bytes, kind)
                                                      : CassoExplorerActions::PlanForced (hostPath, bytes, kind, conversion);
+
+        AttachAppleDouble (hostPath, bytes, plan);
 
         if (!plan.refusal.empty())
         {

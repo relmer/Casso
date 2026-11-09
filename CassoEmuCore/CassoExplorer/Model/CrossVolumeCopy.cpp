@@ -201,12 +201,27 @@ void CrossVolumeCopy::Convert (VolumeKind source, VolumeKind target, const std::
 {
     bool         storesNoAddress = target == VolumeKind::Pascal || target == VolumeKind::Cpm;
     bool         lostAddress     = storesNoAddress && inOutPayload.hasLoadAddress;
+    bool         storesForks     = target == VolumeKind::ProDos;
+    bool         lostFork        = !storesForks && inOutPayload.hasResourceFork;
     Word         address         = inOutPayload.loadAddress;
     std::string  text;
 
 
 
     outNote.clear();
+
+    //  Only ProDOS has a resource fork. Elsewhere the data fork is written
+    //  alone, and the note says so.
+    if (lostFork)
+    {
+        inOutPayload.resourceFork.clear();
+        inOutPayload.finderInfo.clear();
+        inOutPayload.hasResourceFork = false;
+
+        outNote = std::format (L"{}: {} has no resource fork, so only the data fork was copied.",
+                               TextEncoding::NarrowToWide (name),
+                               TextEncoding::NarrowToWide (VolumeImage::GetSystemName (target)));
+    }
 
     if (source == target)
     {
@@ -227,7 +242,7 @@ void CrossVolumeCopy::Convert (VolumeKind source, VolumeKind target, const std::
 
     if (lostAddress)
     {
-        outNote = std::format (L"{}: {} has no load address, so ${:04X} is not on the copy.",
+        outNote += std::format (L"{}: {} has no load address, so ${:04X} is not on the copy.",
                                TextEncoding::NarrowToWide (name),
                                TextEncoding::NarrowToWide (VolumeImage::GetSystemName (target)),
                                address);

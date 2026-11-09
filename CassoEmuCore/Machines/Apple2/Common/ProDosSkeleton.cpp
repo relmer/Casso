@@ -443,6 +443,42 @@ HRESULT ProDosReader::ExtractFileFromDirectory (
     Word                 & outAuxType,
     ISectorReadObserver  * observer)
 {
+    HRESULT      hr = S_OK;
+    ProDosForks  forks;
+
+
+
+    hr = ExtractForksFromDirectory (volume, dirKeyBlock, fileName, forks, outFileType, outAuxType, observer);
+    CHR (hr);
+
+    outBytes = std::move (forks.data);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosReader::ExtractForksFromDirectory
+//
+//  The same search, returning both forks and the Finder information of an
+//  extended file, and the data fork alone of any other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosReader::ExtractForksFromDirectory (
+    const vector<Byte>   & volume,
+    int                    dirKeyBlock,
+    const std::string    & fileName,
+    ProDosForks          & outForks,
+    Byte                 & outFileType,
+    Word                 & outAuxType,
+    ISectorReadObserver  * observer)
+{
     HRESULT         hr          = S_OK;
     size_t          volumeBytes = volume.size();
     bool            sizeOk      = ProDosSkeleton::IsValidVolumeSize (volumeBytes);
@@ -455,9 +491,6 @@ HRESULT ProDosReader::ExtractFileFromDirectory (
     uint32_t        eof         = 0;
     bool            found       = false;
     bool            keyOk       = false;
-    bool            gathered    = true;
-    vector<Byte>    data;
-    vector<Word>    dataBlocks;
     ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::GetBlockCount (volume.size()));
 
 
@@ -526,6 +559,8 @@ HRESULT ProDosReader::ExtractFileFromDirectory (
 
     CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
+    outForks = ProDosForks();
+
     storage = (Byte) (volume[ProDosSkeleton::GetBlockByteOffset (volume.size(), (int) entry, entryOffset)] & 0xF0);
 
     keyPointer = (Word)
@@ -543,11 +578,59 @@ HRESULT ProDosReader::ExtractFileFromDirectory (
         (volume[ProDosSkeleton::GetBlockByteOffset (volume.size(), (int) entry, entryOffset + ProDosSkeleton::kEntOffAuxType)]
        | (volume[ProDosSkeleton::GetBlockByteOffset (volume.size(), (int) entry, entryOffset + ProDosSkeleton::kEntOffAuxType + 1)] << 8));
 
-    // Resolve the data-block list per storage type. A zero block number in
-    // an index is a sparse hole, kept in the list and emitted as zeros.
     // The key pointer is the root of every storage type's block structure, and
     // is followed before anything else validates it.
     keyOk = IsBlockInRange (volume, keyPointer);
+    CBREx (keyOk, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
+
+    if (storage == ProDosSkeleton::kStorageExtended)
+    {
+        hr = ReadExtendedForks (volume, keyPointer, observer, outForks);
+        CHR (hr);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    hr = ReadFork (volume, storage, keyPointer, eof, observer, outForks.data);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosReader::ReadFork
+//
+//  One fork's bytes from its storage type, key block and length. A zero block
+//  number in an index is a sparse hole, kept in the list and returned as
+//  zeros. A fork whose block structure can't be walked is unreadable rather
+//  than short: returning what was gathered would hand back a truncated file
+//  that looks complete.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosReader::ReadFork (
+    const vector<Byte>   & volume,
+    Byte                   storage,
+    Word                   keyPointer,
+    uint32_t               eof,
+    ISectorReadObserver  * observer,
+    vector<Byte>         & outBytes)
+{
+    HRESULT       hr       = S_OK;
+    bool          keyOk    = IsBlockInRange (volume, keyPointer);
+    bool          gathered = true;
+    bool          complete = false;
+    vector<Byte>  data;
+    vector<Word>  dataBlocks;
+
+
+
     CBREx (keyOk, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
 
     switch (storage)
@@ -596,9 +679,6 @@ HRESULT ProDosReader::ExtractFileFromDirectory (
             break;
     }
 
-    // A file whose block structure could not be walked is unreadable, not
-    // short. Returning what was gathered would hand back a truncated file that
-    // looks complete.
     CBREx (gathered, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
 
     for (Word block : dataBlocks)
@@ -611,20 +691,113 @@ HRESULT ProDosReader::ExtractFileFromDirectory (
             NoteBlockRead (observer, volume.size(), block);
         }
 
-        for (i = 0; i < 512 && data.size() < (size_t) eof; i++)
+        for (i = 0; i < (size_t) ProDosSkeleton::kBlockByteSize && data.size() < (size_t) eof; i++)
         {
             data.push_back (readable ? volume[ProDosSkeleton::GetBlockByteOffset (volume.size(), block, i)]
                                      : (Byte) 0);
         }
     }
 
-    {
-        bool  complete = data.size() == (size_t) eof;
-
-        CBREx (complete, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
-    }
+    complete = data.size() == (size_t) eof;
+    CBREx (complete, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
 
     outBytes = std::move (data);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosReader::ReadMiniEntry
+//
+//  One fork's entry in an extended file's key block: its storage type, as a
+//  value from 1 to 3 rather than in the high nibble a directory entry uses,
+//  its key block and its length.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosReader::ReadMiniEntry (const vector<Byte> & volume, Word keyBlock, size_t at, Byte & outStorage, Word & outKey, uint32_t & outEof)
+{
+    size_t  bytes = volume.size();
+
+
+
+    outStorage = (Byte) ((volume[ProDosSkeleton::GetBlockByteOffset (bytes, keyBlock, at)] & 0x0F) << 4);
+    outKey     = (Word) (volume[ProDosSkeleton::GetBlockByteOffset (bytes, keyBlock, at + 1)]
+                      | (volume[ProDosSkeleton::GetBlockByteOffset (bytes, keyBlock, at + 2)] << 8));
+    outEof     = (uint32_t) (volume[ProDosSkeleton::GetBlockByteOffset (bytes, keyBlock, at + 5)]
+                          | (volume[ProDosSkeleton::GetBlockByteOffset (bytes, keyBlock, at + 6)] << 8)
+                          | (volume[ProDosSkeleton::GetBlockByteOffset (bytes, keyBlock, at + 7)] << 16));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosReader::ReadExtendedForks
+//
+//  An extended file's two forks and its Finder information, from its key
+//  block: the data fork's entry at 0, two 18-byte Finder information entries
+//  at 8, each a size, a type and 16 bytes, and the resource fork's entry at
+//  256.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosReader::ReadExtendedForks (
+    const vector<Byte>   & volume,
+    Word                   keyBlock,
+    ISectorReadObserver  * observer,
+    ProDosForks          & outForks)
+{
+    HRESULT   hr       = S_OK;
+    size_t    bytes    = volume.size();
+    Byte      storage  = 0;
+    Word      key      = 0;
+    uint32_t  eof      = 0;
+    size_t    entry    = 0;
+    size_t    i        = 0;
+
+
+
+    NoteBlockRead (observer, bytes, keyBlock);
+
+    outForks.isExtended = true;
+
+    ReadMiniEntry (volume, keyBlock, ProDosSkeleton::kExtOffDataFork, storage, key, eof);
+
+    hr = ReadFork (volume, storage, key, eof, observer, outForks.data);
+    CHR (hr);
+
+    ReadMiniEntry (volume, keyBlock, ProDosSkeleton::kExtOffResourceFork, storage, key, eof);
+
+    hr = ReadFork (volume, storage, key, eof, observer, outForks.resource);
+    CHR (hr);
+
+    for (entry = 0; entry < ProDosSkeleton::kFinderInfoEntries; entry++)
+    {
+        size_t  at   = ProDosSkeleton::kExtOffFinderInfo + entry * ProDosSkeleton::kFinderInfoEntryBytes;
+        Byte    size = volume[ProDosSkeleton::GetBlockByteOffset (bytes, keyBlock, at)];
+
+        if (size != (Byte) ProDosSkeleton::kFinderInfoEntryBytes)
+        {
+            continue;
+        }
+
+        outForks.finderInfo.resize (ProDosSkeleton::kFinderInfoBytes, 0);
+
+        for (i = 0; i < ProDosSkeleton::kFinderInfoBytes / ProDosSkeleton::kFinderInfoEntries; i++)
+        {
+            outForks.finderInfo[entry * (ProDosSkeleton::kFinderInfoBytes / ProDosSkeleton::kFinderInfoEntries) + i] =
+                volume[ProDosSkeleton::GetBlockByteOffset (bytes, keyBlock, at + 2 + i)];
+        }
+    }
 
 Error:
     return hr;

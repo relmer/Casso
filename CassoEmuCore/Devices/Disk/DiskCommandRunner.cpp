@@ -11,6 +11,7 @@
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "DiskImageStore.h"
+#include "Core/AppleSingleCodec.h"
 #include "Devices/Disk/Containers/ImageContainer.h"
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
@@ -1222,11 +1223,21 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     hr = ApplyEncoding (options, payload, result);
     CHR (hr);
 
+    result.resourceFork    = payload.resourceFork;
+    result.finderInfo      = payload.finderInfo;
+    result.hasResourceFork = payload.hasResourceFork;
+
     if (!options.disk.hostFile.empty())
     {
         hr = m_fileIo.WriteAllBytes (options.disk.hostFile, payload.bytes);
 
         CHRF (hr, result.Fail (options.disk.hostFile, "", "could not be written"));
+
+        if (payload.hasResourceFork)
+        {
+            hr = WriteAppleDouble (options.disk.hostFile, payload);
+            CHRF (hr, result.Fail (GetAppleDoublePath (options.disk.hostFile), "", "could not be written"));
+        }
     }
     else
     {
@@ -1259,6 +1270,66 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::GetAppleDoublePath
+//
+//  `._NAME` beside `NAME`, the name AppleDouble's convention gives the file of
+//  a data fork's other entries.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::GetAppleDoublePath (const std::string & hostFile)
+{
+    std::filesystem::path  path = hostFile;
+
+
+
+    return (path.parent_path() / ("._" + path.filename().string())).string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::WriteAppleDouble
+//
+//  The resource fork, the Finder information and the ProDOS type of a file
+//  whose data fork was just written to `hostFile`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::WriteAppleDouble (const std::string & hostFile, const FilePayload & payload)
+{
+    HRESULT          hr = S_OK;
+    AppleSingleFile  single;
+    vector<Byte>     bytes;
+
+
+
+    single.resourceFork    = payload.resourceFork;
+    single.finderInfo      = payload.finderInfo;
+    single.hasResourceFork = true;
+    single.hasProDosInfo   = true;
+    single.access          = payload.access;
+    single.fileType        = payload.type;
+    single.auxType         = payload.auxType;
+
+    AppleSingleCodec::EncodeDouble (single, bytes);
+
+    hr = m_fileIo.WriteAllBytes (GetAppleDoublePath (hostFile), bytes);
+    CHR (hr);
+
+Error:
+    return hr;
 }
 
 

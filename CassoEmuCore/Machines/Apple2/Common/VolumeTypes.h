@@ -109,6 +109,11 @@ struct FileEntry
     Word         modifiedTime   = 0;
     bool         hasDates       = false;
 
+    //  A ProDOS extended file's resource fork length, beside the data fork's
+    //  in eofBytes.
+    uint32_t     resourceForkBytes = 0;
+    bool         hasResourceFork   = false;
+
     //  Where the entry sits in its directory's catalog, from 0. DOS 3.3 names
     //  can repeat, and this distinguishes two entries with the same name.
     size_t       catalogIndex   = 0;
@@ -180,6 +185,14 @@ struct FilePayload
     Word               modifiedDate   = 0;
     Word               modifiedTime   = 0;
     bool               hasDates       = false;
+
+    //  A resource fork and the Finder information beside the data fork in
+    //  bytes, from a ProDOS extended file, AppleSingle or AppleDouble. Finder
+    //  information is the 16 bytes of FInfo then the 16 of FXInfo, and empty
+    //  for none.
+    std::vector<Byte>  resourceFork;
+    std::vector<Byte>  finderInfo;
+    bool               hasResourceFork = false;
 
     //  ProDOS's access bytes for a file unlocked and locked, and the
     //  write-enable bit, which is clear in a locked file.

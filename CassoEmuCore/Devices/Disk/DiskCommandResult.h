@@ -40,7 +40,13 @@ struct DiskCommandResult
     std::string        output;   // stdout, text
     std::string        diagnostics;   // stderr, always
     std::vector<Byte>  payload;   // stdout, binary
-    bool               hasPayload  = false;
+
+    //  A get of a file with a resource fork: the fork and the Finder
+    //  information, beside the data fork in payload or the host file.
+    std::vector<Byte>  resourceFork;
+    std::vector<Byte>  finderInfo;
+    bool               hasResourceFork = false;
+    bool               hasPayload      = false;
 
     //  The failure routine the F-suffixed macros call: the sentence goes
     //  to the diagnostics and the status says nothing was done.

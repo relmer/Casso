@@ -1060,6 +1060,184 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProDosVolumeWriter::AddExtendedFile
+//
+//  A file with a resource fork: a key block, then each fork laid out as a
+//  file of its own is. The key block has each fork's entry, with its storage
+//  type as a value from 1 to 3, its key block, its blocks and its length,
+//  then the Finder information as two 18-byte entries of size, type and 16
+//  bytes. The directory entry's length is the key block's, 512.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolumeWriter::AddExtendedFile (
+    int                   dirKeyBlock,
+    const std::string   & name,
+    Word                  caseFlags,
+    Byte                  fileType,
+    Word                  auxType,
+    const FilePayload   & payload,
+    vector<Byte>        & outBuffer) const
+{
+    constexpr Byte  kFInfoType  = 1;
+    constexpr Byte  kFXInfoType = 2;
+
+
+
+    HRESULT                hr         = S_OK;
+    bool                   slotOk     = false;
+    bool                   rooted     = false;
+    bool                   allocated  = false;
+    int                    slotBlock  = 0;
+    uint32_t               growBlock  = 0;
+    uint32_t               keyBlock   = 0;
+    size_t                 slotOffset = 0;
+    size_t                 dataData   = GetDataBlockCount (payload.bytes.size());
+    size_t                 forkData   = GetDataBlockCount (payload.resourceFork.size());
+    size_t                 dataTotal  = dataData + GetOverheadBlocks (dataData);
+    size_t                 forkTotal  = forkData + GetOverheadBlocks (forkData);
+    size_t                 entry      = 0;
+    size_t                 i          = 0;
+    vector<Byte>           result;
+    vector<uint32_t>       blocks;
+    vector<uint32_t>       dataBlocks;
+    vector<uint32_t>       forkBlocks;
+    VolumeIntegrityReport  report;
+
+
+
+    slotOk = TryFindFreeDirectorySlot (dirKeyBlock, slotBlock, slotOffset);
+    rooted = dirKeyBlock == ProDosSkeleton::kDirKeyBlock;
+    CBREx (slotOk || !rooted, HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE));
+
+    hr = m_volume.BuildIntegrityReport (report);
+    CHRA (hr);
+
+    allocated = TryAllocateBlocks (report, 1 + dataTotal + forkTotal + (slotOk ? 0 : 1), blocks);
+    CBREx (allocated, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
+
+    result = m_volume.m_sectors;
+
+    if (!slotOk)
+    {
+        growBlock = blocks.back();
+        blocks.pop_back();
+
+        ZeroBlocks (result, vector<uint32_t> { growBlock });
+        LinkDirectoryBlock (result, dirKeyBlock, growBlock);
+        SetFreeInBitmap (result, growBlock, false);
+
+        slotBlock  = (int) growBlock;
+        slotOffset = ProDosSkeleton::kOffFirstEntry;
+    }
+
+    ZeroBlocks (result, blocks);
+
+    keyBlock = blocks[0];
+    dataBlocks.assign (blocks.begin() + 1, blocks.begin() + 1 + (ptrdiff_t) dataTotal);
+    forkBlocks.assign (blocks.begin() + 1 + (ptrdiff_t) dataTotal, blocks.end());
+
+    hr = PlaceFile (result, dataBlocks, dataData, payload.bytes);
+    CHRA (hr);
+
+    hr = PlaceFile (result, forkBlocks, forkData, payload.resourceFork);
+    CHRA (hr);
+
+    WriteMiniEntry (result, (int) keyBlock, ProDosSkeleton::kExtOffDataFork,     GetStorageType (dataData), dataBlocks, (uint32_t) payload.bytes.size());
+    WriteMiniEntry (result, (int) keyBlock, ProDosSkeleton::kExtOffResourceFork, GetStorageType (forkData), forkBlocks, (uint32_t) payload.resourceFork.size());
+
+    if (payload.finderInfo.size() == ProDosSkeleton::kFinderInfoBytes)
+    {
+        for (entry = 0; entry < ProDosSkeleton::kFinderInfoEntries; entry++)
+        {
+            size_t  at   = ProDosSkeleton::kExtOffFinderInfo + entry * ProDosSkeleton::kFinderInfoEntryBytes;
+            size_t  half = ProDosSkeleton::kFinderInfoBytes / ProDosSkeleton::kFinderInfoEntries;
+
+            WriteByteAt (result, (int) keyBlock, at,     (Byte) ProDosSkeleton::kFinderInfoEntryBytes);
+            WriteByteAt (result, (int) keyBlock, at + 1, entry == 0 ? kFInfoType : kFXInfoType);
+
+            for (i = 0; i < half; i++)
+            {
+                WriteByteAt (result, (int) keyBlock, at + 2 + i, payload.finderInfo[entry * half + i]);
+            }
+        }
+    }
+
+    for (uint32_t block : blocks)
+    {
+        SetFreeInBitmap (result, block, false);
+    }
+
+    WriteDirectoryEntry (result,
+                         slotBlock,
+                         slotOffset,
+                         name,
+                         ProDosSkeleton::kStorageExtended,
+                         fileType,
+                         (Word) keyBlock,
+                         (Word) blocks.size(),
+                         (uint32_t) ProDosSkeleton::kBlockByteSize,
+                         auxType,
+                         dirKeyBlock,
+                         caseFlags);
+
+    AdjustFileCount (result, dirKeyBlock, 1);
+
+    hr = ProDosVolume::HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolumeWriter::WriteMiniEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosVolumeWriter::WriteMiniEntry (vector<Byte> & buffer, int keyBlock, size_t at, Byte storage, const vector<uint32_t> & forkBlocks, uint32_t eof)
+{
+    WriteByteAt (buffer, keyBlock, at,     (Byte) (storage >> 4));
+    WriteWordAt (buffer, keyBlock, at + 1, (Word) forkBlocks[0]);
+    WriteWordAt (buffer, keyBlock, at + 3, (Word) forkBlocks.size());
+    WriteByteAt (buffer, keyBlock, at + 5, (Byte) (eof & 0xFF));
+    WriteByteAt (buffer, keyBlock, at + 6, (Byte) ((eof >> 8) & 0xFF));
+    WriteByteAt (buffer, keyBlock, at + 7, (Byte) ((eof >> 16) & 0xFF));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolumeWriter::GetDataBlockCount
+//
+//  The data blocks a fork of this many bytes takes. An empty fork still has
+//  its key block, which is what makes it a fork rather than nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t ProDosVolumeWriter::GetDataBlockCount (size_t bytes)
+{
+    size_t  blocks = (bytes + (size_t) ProDosSkeleton::kBlockByteSize - 1) / (size_t) ProDosSkeleton::kBlockByteSize;
+
+
+
+    return std::max (blocks, (size_t) 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProDosVolumeWriter::Write
 //
 //  Adds a file, or replaces one of the same name.
@@ -1139,7 +1317,9 @@ HRESULT ProDosVolumeWriter::Write (
 
     if (!exists)
     {
-        hr = AddFileWithCase (dirKeyBlock, name, caseFlags, payload.type, auxType, payload.bytes, outBuffer);
+        hr = payload.hasResourceFork
+           ? AddExtendedFile (dirKeyBlock, name, caseFlags, payload.type, auxType, payload, outBuffer)
+           : AddFileWithCase (dirKeyBlock, name, caseFlags, payload.type, auxType, payload.bytes, outBuffer);
         CHR (hr);
     }
     else
@@ -1150,7 +1330,9 @@ HRESULT ProDosVolumeWriter::Write (
         hr = m_volume.m_remover.Delete (path, staged, removal);
         CHR (hr);
 
-        hr = stagedVolume.m_writer.AddFileWithCase (dirKeyBlock, name, caseFlags, payload.type, auxType, payload.bytes, outBuffer);
+        hr = payload.hasResourceFork
+           ? stagedVolume.m_writer.AddExtendedFile (dirKeyBlock, name, caseFlags, payload.type, auxType, payload, outBuffer)
+           : stagedVolume.m_writer.AddFileWithCase (dirKeyBlock, name, caseFlags, payload.type, auxType, payload.bytes, outBuffer);
         CHR (hr);
     }
 

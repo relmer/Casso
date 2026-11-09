@@ -99,6 +99,18 @@ private:
                               const vector<Byte>  & bytes,
                               vector<Byte>        & outBuffer) const;
 
+    //  A file with a resource fork and Finder information, as an extended file.
+    HRESULT  AddExtendedFile (int                   dirKeyBlock,
+                              const std::string   & name,
+                              Word                  caseFlags,
+                              Byte                  fileType,
+                              Word                  auxType,
+                              const FilePayload   & payload,
+                              vector<Byte>        & outBuffer) const;
+
+    static void    WriteMiniEntry    (vector<Byte> & buffer, int keyBlock, size_t at, Byte storage, const vector<uint32_t> & forkBlocks, uint32_t eof);
+    static size_t  GetDataBlockCount (size_t bytes);
+
     //  Lays the allocated blocks out in the order the allocator handed them
     //  over: master index first when there is one, then each index block
     //  followed by the data blocks it describes. Fails when the list does not

@@ -309,6 +309,7 @@
     <ClCompile Include="EmuTests\ProDosVolumeTests.cpp" />
     <ClCompile Include="EmuTests\LargeVolumeTests.cpp" />
     <ClCompile Include="EmuTests\BlockStoreTests.cpp" />
+    <ClCompile Include="EmuTests\ResourceForkTests.cpp" />
     <ClCompile Include="EmuTests\WozLoaderTests.cpp" />
     <ClCompile Include="EmuTests\FluxTrackTests.cpp" />
     <ClCompile Include="EmuTests\FluxTestImages.cpp" />

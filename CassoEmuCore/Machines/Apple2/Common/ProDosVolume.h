@@ -231,6 +231,9 @@ private:
     //  One directory record as a listing reports it.
     static FileEntry  ToFileEntry (const RawEntry & entry);
 
+    //  An extended file's data and resource fork lengths, from its key block.
+    void  FillExtendedSizes (const RawEntry & entry, FileEntry & inOutListed) const;
+
     //  Every block one entry occupies, index blocks included. False when the
     //  structure could not be walked, which the caller reports as an
     //  unfollowable chain rather than as a short file.

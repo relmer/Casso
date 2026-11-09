@@ -84,7 +84,11 @@ public:
     //  descriptor's size where it gives one.
     static HRESULT  ReadFileContents (IDataObject * data, LONG index, const FILEDESCRIPTORW & item, std::vector<Byte> & outBytes);
 
-    std::wstring  MakeFreeFolderPath (const std::wstring & parent, const std::wstring & name);
+    std::wstring         MakeFreeFolderPath         (const std::wstring & parent, const std::wstring & name);
+    static std::wstring  GetAppleDoublePath         (const std::wstring & hostPath);
+    bool                 IsAppleDoubleBesideItsFile (const std::wstring & hostPath) const;
+    void                 AttachAppleDouble          (const std::wstring & hostPath, const std::vector<Byte> & bytes, ActionsTypes::PutPlan & inOutPlan) const;
+
     std::wstring  MakeFreeFilePath   (const std::wstring & folder, const std::wstring & name);
     bool          TryGetHostEntry    (const std::wstring & path, FileSystemEntry & outEntry);
     void  PutItems     (const std::string & image, VolumeKind kind, const std::string & directory,
