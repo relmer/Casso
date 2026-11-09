@@ -20,6 +20,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerRename.h"
 #include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
@@ -230,7 +231,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kGroup8:            return m_context.preview.GetHex().IsShowing();
         case CassoExplorerCommands::kNextTab:
         case CassoExplorerCommands::kPreviousTab:       return model.GetTabCount() > 1;
-        case CassoExplorerCommands::kUndo:              return m_context.fileOps.CanUndo();
+        case CassoExplorerCommands::kUndo:              return m_context.undo.CanUndo();
         case CassoExplorerCommands::kCutItems:          return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Cut);
         case CassoExplorerCommands::kCopyItems:         return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Copy) || m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Get) || m_context.browser.AreSelectedRowsSearchMatches();
         case CassoExplorerCommands::kPasteItems:        return (m_context.browser.IsVolumeLocation() || m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
@@ -421,7 +422,7 @@ void ExplorerCommandManager::Dispatch (int id)
 
             break;
 
-        case CassoExplorerCommands::kUndo:         m_context.fileOps.UndoLast();                                   break;
+        case CassoExplorerCommands::kUndo:         m_context.undo.UndoLast();                                   break;
         case CassoExplorerCommands::kCutItems:     RunVerb (CassoExplorerActions::Verb::Cut);    break;
         //  Ctrl+V and the command bar paste into the folder shown, whatever is
         //  selected, as Explorer's do; a folder's own menu pastes into it.
@@ -1042,7 +1043,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
                 //  An Apple drive's writes finish later, over the link, with no undo.
                 if (!m_context.browser.IsAppleDriveLocation())
                 {
-                    m_context.fileOps.PushPutUndo (outcome, m_context.browser.GetLocation().path, m_context.browser.GetLocation().innerPath);
+                    m_context.undo.PushPut (outcome, m_context.browser.GetLocation().path, m_context.browser.GetLocation().innerPath);
                 }
 
                 ReportOutcome (outcome, L"Put");
@@ -1138,7 +1139,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
                 if (SUCCEEDED (hr) && !hostPaths.empty() && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.AreSelectedRowsSearchFiles()))
                 {
-                    m_context.fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::Recycle, Location(), hostPaths });
+                    m_context.undo.Push (ExplorerUndoStep { ExplorerUndoStep::Kind::Recycle, Location(), hostPaths });
                     m_context.manifestSync.NoteDeletes (hostPaths);
                 }
 
@@ -1172,10 +1173,10 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
             if (answer == IDOK)
             {
-                ExplorerFileOps::UndoStep  step           { ExplorerFileOps::UndoStep::Kind::ImageDelete, m_context.browser.GetLocation() };
-                wchar_t                    temp[MAX_PATH] = {};
-                std::vector<int>           selected       = m_context.browser.GetSelectedRows();
-                int                        first          = -1;
+                ExplorerUndoStep  step           { ExplorerUndoStep::Kind::ImageDelete, m_context.browser.GetLocation() };
+                wchar_t           temp[MAX_PATH] = {};
+                std::vector<int>  selected       = m_context.browser.GetSelectedRows();
+                int               first          = -1;
 
                 //  An AppleSingle copy keeps each file's bytes, type and
                 //  address, so a put brings it back as it was. The copy holds
@@ -1202,7 +1203,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
                 if (outcome.Succeeded() && !step.savedDir.empty())
                 {
-                    m_context.fileOps.PushUndo (std::move (step));
+                    m_context.undo.Push (std::move (step));
                 }
 
                 //  The row now in the deleted rows' place is selected, as after
@@ -1284,7 +1285,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
                 if (SUCCEEDED (hr))
                 {
-                    m_context.fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::HostNewFolder, Location(), { (std::filesystem::path (m_context.browser.GetLocation().path) / newName).wstring() } });
+                    m_context.undo.Push (ExplorerUndoStep { ExplorerUndoStep::Kind::HostNewFolder, Location(), { (std::filesystem::path (m_context.browser.GetLocation().path) / newName).wstring() } });
                 }
 
                 m_context.folderSync.RefreshAfterHostChange();
@@ -1295,7 +1296,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
                 if (outcome.Succeeded() && !m_context.browser.IsAppleDriveLocation())
                 {
-                    m_context.fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::ImageNewFolder, m_context.browser.GetLocation(), {}, std::wstring(), newName });
+                    m_context.undo.Push (ExplorerUndoStep { ExplorerUndoStep::Kind::ImageNewFolder, m_context.browser.GetLocation(), {}, std::wstring(), newName });
                 }
 
                 ReportOutcome (outcome, L"New folder");

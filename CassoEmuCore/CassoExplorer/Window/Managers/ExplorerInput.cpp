@@ -13,6 +13,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerRename.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
@@ -685,7 +686,7 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
     //  the box's own, which has the keys before this.
     if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_focus == ExplorerPane::List || m_focus == ExplorerPane::Tree) && !m_context.rename.IsRenaming())
     {
-        m_context.fileOps.UndoLast();
+        m_context.undo.UndoLast();
         return true;
     }
 

@@ -9,6 +9,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "Seams/Win32ShellItemVerbs.h"
@@ -1297,7 +1298,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
 
     if (effect != DROPEFFECT_MOVE)
     {
-        m_context.fileOps.PushPutUndo (outcome, location.path, inner);
+        m_context.undo.PushPut (outcome, location.path, inner);
     }
 
     m_context.commandManager.ReportOutcome (outcome, (effect == DROPEFFECT_MOVE) ? L"Move" : L"Put");
@@ -1532,7 +1533,7 @@ void ExplorerDragDrop::RunDrop (CassoExplorerActions::Conversion conversion)
                                               m_context.fileOps.MakeAddressPrompt(), conversion);
     }
 
-    m_context.fileOps.PushPutUndo    (outcome, drop.location.path, drop.inner);
+    m_context.undo.PushPut    (outcome, drop.location.path, drop.inner);
     m_context.commandManager.ReportOutcome  (outcome, L"Put");
     m_context.folderSync.RefreshAfterHostChange();
 }
@@ -1553,7 +1554,7 @@ void ExplorerDragDrop::HandleDropFile (const std::wstring & path)
 
 
 
-    m_context.fileOps.PushPutUndo   (outcome, m_context.browser.GetLocation().path, m_context.browser.GetLocation().innerPath);
+    m_context.undo.PushPut   (outcome, m_context.browser.GetLocation().path, m_context.browser.GetLocation().innerPath);
     m_context.commandManager.ReportOutcome (outcome, L"Put");
     m_context.listPane.FillList();
 }

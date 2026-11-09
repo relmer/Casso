@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
@@ -296,196 +297,6 @@ void ExplorerFileOps::CopySelectedPaths()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerFileOps::PushUndo
-//
-//  Kept to a few dozen steps, as an image deletion's copy is a folder on disk.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerFileOps::PushUndo (UndoStep step)
-{
-    static constexpr size_t  s_kMaxSteps = 50;
-
-
-
-    m_undo.push_back (std::move (step));
-
-    if (m_undo.size() > s_kMaxSteps)
-    {
-        std::error_code  ignored;
-
-        if (!m_undo.front().savedDir.empty())
-        {
-            std::filesystem::remove_all (m_undo.front().savedDir, ignored);
-        }
-
-        m_undo.erase (m_undo.begin());
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerFileOps::GetUndoLabel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * ExplorerFileOps::GetUndoLabel (UndoStep::Kind kind)
-{
-    switch (kind)
-    {
-        case UndoStep::Kind::Recycle:
-        case UndoStep::Kind::ImageDelete:    return L"&Undo Delete";
-        case UndoStep::Kind::HostRename:
-        case UndoStep::Kind::ImageRename:    return L"&Undo Rename";
-        case UndoStep::Kind::HostNewFolder:
-        case UndoStep::Kind::ImageNewFolder: return L"&Undo New Folder";
-        case UndoStep::Kind::HostNewItem:    return L"&Undo New";
-        case UndoStep::Kind::HostCopy:
-        case UndoStep::Kind::ImagePut:       return L"&Undo Copy";
-        case UndoStep::Kind::HostMove:       return L"&Undo Move";
-        default:                             return L"&Undo";
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerFileOps::UndoLast
-//
-//  An image step goes back to the image it was made in first, since what it
-//  puts back is selected by name in the list.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerFileOps::UndoLast()
-{
-    HRESULT                        hr = S_OK;
-    UndoStep                       step;
-    std::vector<std::wstring>      saved;
-    std::error_code                ignored;
-    CassoExplorerActions::Outcome  restored;
-
-
-
-    if (m_undo.empty())
-    {
-        MessageBeep (MB_OK);
-        return;
-    }
-
-    step = std::move (m_undo.back());
-    m_undo.pop_back();
-
-    switch (step.kind)
-    {
-        case UndoStep::Kind::Recycle:
-            hr = m_context.shellVerbs.RestoreRecycled (m_context.window.GetHwnd(), step.paths);
-            m_context.manifestSync.NoteRestores (step.paths);
-            m_restoreTicks = kRestoreRetries;
-            SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRestore, 1000, nullptr);
-            break;
-
-        case UndoStep::Kind::HostRename:
-            hr = m_context.shellVerbs.RenameItem (m_context.window.GetHwnd(), step.paths[0], step.oldName);
-
-            if (SUCCEEDED (hr))
-            {
-                m_context.manifestSync.NoteRename (step.paths[0], step.oldName);
-            }
-
-            break;
-
-        case UndoStep::Kind::HostNewFolder:
-        case UndoStep::Kind::HostNewItem:
-        case UndoStep::Kind::HostCopy:
-            hr = m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), step.paths);
-            break;
-
-        case UndoStep::Kind::HostMove:
-            hr = m_context.shellVerbs.MoveItemsTo (m_context.window.GetHwnd(), step.paths, step.sources);
-            break;
-
-        default:
-            if (m_context.browser.GetLocation() != step.location)
-            {
-                m_context.browser.NavigateToLocation (step.location);
-                m_context.listPane.FillList();
-            }
-
-            //  A rename and a new folder are undone through the selection, so
-            //  the list has to be where the step was made, with the entry in it;
-            //  otherwise the undo would act on whatever is selected.
-            if (m_context.browser.GetLocation() != step.location
-                || ((step.kind == UndoStep::Kind::ImageRename || step.kind == UndoStep::Kind::ImageNewFolder) && !m_context.listPane.SelectRowNamed (step.newName)))
-            {
-                m_context.window.ShowMessage (L"That could not be undone.", MB_ICONWARNING);
-                return;
-            }
-
-            if (step.kind == UndoStep::Kind::ImageRename)
-            {
-                m_context.commandManager.ReportOutcome (m_context.actions.RenameSelected (step.oldName), L"Undo rename");
-            }
-            else if (step.kind == UndoStep::Kind::ImageNewFolder)
-            {
-                m_context.commandManager.ReportOutcome (m_context.actions.DeleteSelected(), L"Undo new folder");
-            }
-            else if (step.kind == UndoStep::Kind::ImagePut)
-            {
-                m_context.commandManager.ReportOutcome (m_context.actions.DeleteEntries (TextEncoding::WideToNarrow (step.location.path), step.entries), L"Undo copy");
-            }
-            else
-            {
-                for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (step.savedDir, ignored))
-                {
-                    saved.push_back (entry.path().wstring());
-                }
-
-                restored = m_context.actions.PutFiles (saved, MakeAddressPrompt());
-                m_context.commandManager.ReportOutcome (restored, L"Undo delete");
-
-                //  The saved copies are the only ones, so they go only once
-                //  every file is back.
-                if (restored.IsWhole())
-                {
-                    std::filesystem::remove_all (step.savedDir, ignored);
-                }
-                else
-                {
-                    m_undo.push_back (std::move (step));
-                }
-            }
-
-            m_context.listPane.FillList();
-            return;
-    }
-
-    //  Canceled at the shell's prompt, the step can be undone later.
-    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
-    {
-        m_undo.push_back (std::move (step));
-    }
-    else if (FAILED (hr))
-    {
-        m_context.window.ShowMessage (L"That could not be undone.", MB_ICONWARNING);
-    }
-
-    m_context.folderSync.RefreshAfterHostChange();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerFileOps::PasteHere
 //
 //  The clipboard's files into the folder, with an undo that takes back what
@@ -528,13 +339,13 @@ void ExplorerFileOps::PasteHere (const std::wstring & folder)
 
     if (!pasted.created.empty())
     {
-        UndoStep  step;
+        ExplorerUndoStep  step;
 
-        step.kind    = pasted.moved ? UndoStep::Kind::HostMove : UndoStep::Kind::HostCopy;
+        step.kind    = pasted.moved ? ExplorerUndoStep::Kind::HostMove : ExplorerUndoStep::Kind::HostCopy;
         step.paths   = pasted.created;
         step.sources = pasted.sources;
 
-        PushUndo (std::move (step));
+        m_context.undo.Push (std::move (step));
     }
 
     //  What was pasted is selected once it is listed, as in File Explorer.
@@ -608,7 +419,7 @@ void ExplorerFileOps::PasteIntoVolume()
     outcome = source.fromImage ? m_context.actions.CopyEntriesInto (source.image, source.kind, source.catalogPaths, location.path, targetKind, inner)
                                : m_context.actions.PutInto (location.path, targetKind, inner, source.hostPaths, MakeAddressPrompt());
 
-    PushPutUndo (outcome, location.path, inner);
+    m_context.undo.PushPut (outcome, location.path, inner);
     m_context.commandManager.ReportOutcome (outcome, L"Put");
 
     //  Pasted back where it was cut from, nothing moved.
@@ -717,37 +528,6 @@ bool ExplorerFileOps::IsCutFrom (const std::string & inner) const
     size_t               slash = first.find_last_of ('/');
 
     return ((slash == std::string::npos) ? std::string() : first.substr (0, slash)) == inner;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerFileOps::PushPutUndo
-//
-//  A put or a copy into an image is undone by deleting what it made, in the
-//  directory it went into.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerFileOps::PushPutUndo (const CassoExplorerActions::Outcome & outcome, const std::wstring & image, const std::string & inner)
-{
-    UndoStep  step;
-
-
-
-    if (outcome.created.empty())
-    {
-        return;
-    }
-
-    step.kind     = UndoStep::Kind::ImagePut;
-    step.location = inner.empty() ? Location::MakeDiskImage (image) : Location::MakeDiskDirectory (image, inner);
-    step.entries  = outcome.created;
-
-    PushUndo (std::move (step));
 }
 
 

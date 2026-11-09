@@ -89,6 +89,7 @@ ExplorerWindowParts::ExplorerWindowParts (IExplorerWindow             & window,
                  .menus            = menus,
                  .commandManager   = commandManager,
                  .fileOps          = fileOps,
+                 .undo             = undo,
                  .rename           = rename,
                  .manifestSync     = manifestSync,
                  .opener           = opener,
@@ -425,7 +426,7 @@ bool ExplorerWindowParts::HandleTimer (UINT_PTR timerId)
     //  each second for a while after an undo.
     if (timerId == (UINT_PTR) AppTimerId::ExplorerRestore)
     {
-        if (fileOps.CountDownRestore())
+        if (undo.CountDownRestore())
         {
             KillTimer (hwnd, (UINT_PTR) AppTimerId::ExplorerRestore);
         }

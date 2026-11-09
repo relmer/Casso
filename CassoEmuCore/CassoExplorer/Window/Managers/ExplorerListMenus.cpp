@@ -10,6 +10,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
@@ -424,9 +425,9 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     //  Explorer's Undo, with the step it reverses in its label, while there
     //  is one: on the background's menu only, at the head of the group New
     //  and Properties are in, as in File Explorer.
-    if (background && m_context.fileOps.CanUndo())
+    if (background && m_context.undo.CanUndo())
     {
-        m_context.menus.AddMenuCommand (items, ExplorerFileOps::GetUndoLabel (m_context.fileOps.GetLastUndo().kind), [this]() { m_context.fileOps.UndoLast(); }, L"Ctrl+Z");
+        m_context.menus.AddMenuCommand (items, ExplorerUndo::GetLabel (m_context.undo.GetLast().kind), [this]() { m_context.undo.UndoLast(); }, L"Ctrl+Z");
         m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.undo");
         undoRow                                 = items.size();
     }

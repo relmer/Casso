@@ -8,6 +8,7 @@
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
@@ -282,7 +283,7 @@ void ExplorerRename::EndRename (bool commit)
 
             if (SUCCEEDED (hr))
             {
-                m_context.fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::HostRename, Location(), { (std::filesystem::path (path).parent_path() / newName).wstring() }, oldName, newName });
+                m_context.undo.Push (ExplorerUndoStep { ExplorerUndoStep::Kind::HostRename, Location(), { (std::filesystem::path (path).parent_path() / newName).wstring() }, oldName, newName });
             }
 
             m_context.folderSync.RefreshAfterHostChange();
@@ -311,7 +312,7 @@ void ExplorerRename::EndRename (bool commit)
 
             if (SUCCEEDED (hr))
             {
-                m_context.fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::HostRename, Location(), { (std::filesystem::path (path).parent_path() / newName).wstring() }, oldName, newName });
+                m_context.undo.Push (ExplorerUndoStep { ExplorerUndoStep::Kind::HostRename, Location(), { (std::filesystem::path (path).parent_path() / newName).wstring() }, oldName, newName });
                 m_context.manifestSync.NoteRename (path, newName);
             }
         }
@@ -352,7 +353,7 @@ void ExplorerRename::EndRename (bool commit)
 
         if (renamed.Succeeded())
         {
-            m_context.fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::ImageRename, m_context.browser.GetLocation(), {}, oldName, newName });
+            m_context.undo.Push (ExplorerUndoStep { ExplorerUndoStep::Kind::ImageRename, m_context.browser.GetLocation(), {}, oldName, newName });
         }
 
         m_context.commandManager.ReportOutcome (renamed, L"Rename");
