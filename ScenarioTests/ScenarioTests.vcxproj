@@ -181,7 +181,6 @@
     <ClCompile Include="GuestVisibleSharedImageTests.cpp" />
     <ClCompile Include="GuestVisibleFluxTests.cpp" />
     <ClCompile Include="RealPascalCpmDiskTests.cpp" />
-    <ClCompile Include="CassoLinkSessionTests.cpp" />
     <ClCompile Include="CassoLinkSuperSerialTests.cpp" />
     <ClCompile Include="TcpStreamTests.cpp" />
     <ClCompile Include="CassoLinkWin32SeamTests.cpp" />

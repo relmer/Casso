@@ -355,6 +355,7 @@
     <ClCompile Include="CassoLink\AdtProServerSessionTests.cpp" />
     <ClCompile Include="CassoLink\BootDiskTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkFaultTests.cpp" />
+    <ClCompile Include="CassoLink\FakeAppleContractTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSectorTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSessionTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSearchTests.cpp" />
@@ -368,6 +369,7 @@
     <ClCompile Include="CassoLink\ProgramScreenTests.cpp" />
     <ClCompile Include="CassoLink\PromptProbeTests.cpp" />
     <ClCompile Include="CassoLink\SerialLoaderTests.cpp" />
+    <ClCompile Include="CassoLink\SessionDeadlineTests.cpp" />
     <ClCompile Include="CassoLink\ShimTests.cpp" />
     <ClCompile Include="CassoLink\UthernetProgramTests.cpp" />
     <ClCompile Include="EmuTests\AciaBridgeEndpointTests.cpp" />
