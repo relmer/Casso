@@ -9,6 +9,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
 #include "CassoExplorer/Window/Managers/ExplorerDeletion.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
@@ -1214,7 +1215,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
         }
 
         outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
-                                   : m_context.actions.PutFiles (source.hostPaths, m_context.fileOps.MakeAddressPrompt());
+                                   : m_context.actions.PutFiles (source.hostPaths, m_context.prompts.MakeAddressPrompt());
 
         m_context.commandManager.ReportOutcome (outcome, L"Put");
         return;
@@ -1270,7 +1271,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
     }
     else
     {
-        outcome = m_context.actions.PutInto (location.path, targetKind, inner, source.hostPaths, m_context.fileOps.MakeAddressPrompt());
+        outcome = m_context.actions.PutInto (location.path, targetKind, inner, source.hostPaths, m_context.prompts.MakeAddressPrompt());
     }
 
     //  Only a copy that landed whole is taken from where it came: one salvaged
@@ -1531,7 +1532,7 @@ void ExplorerDragDrop::RunDrop (CassoExplorerActions::Conversion conversion)
     else
     {
         outcome = m_context.actions.PutInto (drop.location.path, drop.targetKind, drop.inner, drop.hostPaths,
-                                              m_context.fileOps.MakeAddressPrompt(), conversion);
+                                              m_context.prompts.MakeAddressPrompt(), conversion);
     }
 
     m_context.undo.PushPut    (outcome, drop.location.path, drop.inner);
@@ -1551,7 +1552,7 @@ void ExplorerDragDrop::RunDrop (CassoExplorerActions::Conversion conversion)
 
 void ExplorerDragDrop::HandleDropFile (const std::wstring & path)
 {
-    CassoExplorerActions::Outcome  outcome = m_context.actions.PutFiles ({ path }, m_context.fileOps.MakeAddressPrompt());
+    CassoExplorerActions::Outcome  outcome = m_context.actions.PutFiles ({ path }, m_context.prompts.MakeAddressPrompt());
 
 
 

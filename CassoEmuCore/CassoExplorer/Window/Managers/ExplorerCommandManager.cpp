@@ -20,6 +20,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
 #include "CassoExplorer/Window/Managers/ExplorerDeletion.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerRename.h"
@@ -1028,7 +1029,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
             if (SUCCEEDED (hr) && chosen)
             {
-                ReportOutcome (m_context.actions.GetSelected (picked.wstring(), style, m_context.fileOps.MakeCollisionPrompt()), L"Copy");
+                ReportOutcome (m_context.actions.GetSelected (picked.wstring(), style, m_context.prompts.MakeCollisionPrompt()), L"Copy");
             }
 
             break;
@@ -1038,7 +1039,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
             if (SUCCEEDED (hr) && chosen)
             {
-                outcome = m_context.actions.PutFiles ({ picked.wstring() }, m_context.fileOps.MakeAddressPrompt());
+                outcome = m_context.actions.PutFiles ({ picked.wstring() }, m_context.prompts.MakeAddressPrompt());
 
                 //  An Apple drive's writes finish later, over the link, with no undo.
                 if (!m_context.browser.IsAppleDriveLocation())

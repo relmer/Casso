@@ -13,6 +13,7 @@ class ExplorerAddressBar;
 class ExplorerCommandManager;
 class ExplorerDragDrop;
 class ExplorerFileOps;
+class ExplorerTransferPrompts;
 class ExplorerDeletion;
 class ExplorerUndo;
 class ExplorerRename;
@@ -112,6 +113,7 @@ public:
     ExplorerMenus               & menus;
     ExplorerCommandManager      & commandManager;
     ExplorerFileOps             & fileOps;
+    ExplorerTransferPrompts     & prompts;
     ExplorerDeletion            & deletion;
     ExplorerUndo                & undo;
     ExplorerRename              & rename;

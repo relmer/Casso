@@ -6,6 +6,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
@@ -292,7 +293,7 @@ bool ExplorerUndo::UndoInImage (const ExplorerUndoStep & step)
                 saved.push_back (entry.path().wstring());
             }
 
-            restored = m_context.actions.PutFiles (saved, m_context.fileOps.MakeAddressPrompt());
+            restored = m_context.actions.PutFiles (saved, m_context.prompts.MakeAddressPrompt());
             m_context.commandManager.ReportOutcome (restored, L"Undo delete");
             finished = restored.IsWhole();
 

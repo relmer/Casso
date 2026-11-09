@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
 #include "CassoExplorer/CassoExplorerIcons.h"
@@ -265,7 +266,7 @@ void ExplorerFileOps::PasteHere (const std::wstring & folder)
     //  gives the files a folder they never came from.
     if (SUCCEEDED (hr) && ActionsCopy::IsCassoCopy (data.Get()))
     {
-        CassoExplorerActions::Outcome  outcome = m_context.actions.PasteVirtualFiles (data.Get(), folder, MakeCollisionPrompt(), pasted.created);
+        CassoExplorerActions::Outcome  outcome = m_context.actions.PasteVirtualFiles (data.Get(), folder, m_context.prompts.MakeCollisionPrompt(), pasted.created);
 
         m_context.commandManager.ReportOutcome (outcome, L"Copy");
         pasted.sources.assign (pasted.created.size(), std::wstring());
@@ -349,7 +350,7 @@ void ExplorerFileOps::PasteIntoVolume()
     if (m_context.browser.IsAppleDriveLocation())
     {
         outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
-                                   : m_context.actions.PutFiles (source.hostPaths, MakeAddressPrompt());
+                                   : m_context.actions.PutFiles (source.hostPaths, m_context.prompts.MakeAddressPrompt());
 
         m_context.commandManager.ReportOutcome (outcome, L"Put");
         ReportPasted (data.Get(), outcome);
@@ -365,7 +366,7 @@ void ExplorerFileOps::PasteIntoVolume()
     }
 
     outcome = source.fromImage ? m_context.actions.CopyEntriesInto (source.image, source.kind, source.catalogPaths, location.path, targetKind, inner)
-                               : m_context.actions.PutInto (location.path, targetKind, inner, source.hostPaths, MakeAddressPrompt());
+                               : m_context.actions.PutInto (location.path, targetKind, inner, source.hostPaths, m_context.prompts.MakeAddressPrompt());
 
     m_context.undo.PushPut (outcome, location.path, inner);
     m_context.commandManager.ReportOutcome (outcome, L"Put");
@@ -476,72 +477,4 @@ bool ExplorerFileOps::IsCutFrom (const std::string & inner) const
     size_t               slash = first.find_last_of ('/');
 
     return ((slash == std::string::npos) ? std::string() : first.substr (0, slash)) == inner;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerFileOps::MakeAddressPrompt
-//
-//  Asks for a binary's load address, prefilled with the content's
-//  suggestion, and asks again after an address that does not parse.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-CassoExplorerActions::AddressFn ExplorerFileOps::MakeAddressPrompt()
-{
-    return [this] (const std::wstring & hostName, Word suggested, Word & outAddress)
-    {
-        std::wstring  text = std::format (L"${:04X}", suggested);
-
-        for (;;)
-        {
-            if (!CassoExplorerPromptDialog::Ask (m_context.window.GetHwnd(), m_context.theme, L"Load address",
-                                           hostName + L" is a binary. Load address:", text, 8, text))
-            {
-                return false;
-            }
-
-            if (ActionsGoTo::TryParseAddress (text, outAddress))
-            {
-                return true;
-            }
-
-            m_context.window.ShowMessage (L"Type an address from $0000 to $FFFF.", MB_ICONWARNING);
-        }
-    };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerFileOps::MakeCollisionPrompt
-//
-//  File Explorer's question for a file of the same name in the folder a
-//  copy goes into. Keep both is the default, so Enter or Escape writes over
-//  nothing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-CassoExplorerActions::CollisionFn ExplorerFileOps::MakeCollisionPrompt()
-{
-    return [this] (const std::wstring & hostPath, int index, int count)
-    {
-        std::filesystem::path  path    (hostPath);
-        std::wstring           ofCount = (count > 1) ? std::format (L" ({} of {})", index, count) : std::wstring();
-        std::wstring           text    = std::format (L"{} already has a file called \"{}\".{}\n\nReplace it with the copy, skip this file, or keep both?",
-                                                      path.parent_path().filename().wstring(), path.filename().wstring(), ofCount);
-        int                    choice  = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, text.c_str(), L"Replace or skip files", MB_YESNOCANCEL | MB_DEFBUTTON3,
-                                                         { L"Replace", L"Skip", L"Keep both" });
-
-        return (choice == IDYES) ? CassoExplorerActions::Collision::Replace
-             : (choice == IDNO)  ? CassoExplorerActions::Collision::Skip
-                                 : CassoExplorerActions::Collision::KeepBoth;
-    };
 }

@@ -25,8 +25,6 @@ public:
 
     void                               PasteHere                  (const std::wstring & folder);
     void                               PasteIntoVolume            ();
-    CassoExplorerActions::AddressFn    MakeAddressPrompt          ();
-    CassoExplorerActions::CollisionFn  MakeCollisionPrompt        ();
     std::wstring                       GetPasteFolder             () const;
     void                               CopyEntriesToClipboard     (HostFileNaming::Style style);
 
