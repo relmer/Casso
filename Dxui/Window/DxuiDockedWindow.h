@@ -57,10 +57,10 @@ public:
 
     DxuiDockSite &  GetSite () { return *m_site; }
 
-    void  SetOnContentMouse    (MouseFn fn)  { m_onMouse     = std::move (fn); }
-    void  SetOnContentKey      (KeyFn fn)    { m_onKey       = std::move (fn); }
-    void  SetOnCaptionDrag     (PointFn fn)  { m_onDrag      = std::move (fn); }
-    void  SetOnCaptionDragEnd  (PointFn fn)  { m_onDragEnd   = std::move (fn); }
+    void  SetOnContentMouse      (MouseFn fn)  { m_onMouse     = std::move (fn); }
+    void  SetOnContentKey        (KeyFn fn)    { m_onKey       = std::move (fn); }
+    void  SetOnCaptionDrag       (PointFn fn)  { m_onDrag      = std::move (fn); }
+    void  SetOnCaptionDragEnd    (PointFn fn)  { m_onDragEnd   = std::move (fn); }
     void  SetOnCaptionDragCancel (ClosedFn fn) { m_onDragCancel = std::move (fn); }
     void  SetOnResized           (ClosedFn fn) { m_onResized    = std::move (fn); }
     void  SetOnClosed            (ClosedFn fn) { m_onClosed     = std::move (fn); }
@@ -137,27 +137,27 @@ protected:
     bool  OnMouse       (const DxuiMouseEvent & ev) override;
 
     //  In a window whose presses go to an owner, the owner opens the menu.
-    bool  TryShowTextBoxMenu (POINT clientPx) override { return m_onMouse ? false : DxuiWindow::TryShowTextBoxMenu (clientPx); }
-    bool  OnKey         (const DxuiKeyEvent   & ev) override;
-    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
-    bool  OnMappedCommand (int commandId) override;
-    bool  OnFilesDropped  (const std::vector<std::wstring> & paths) override;
-    void  OnWindowPlaced () override;
-    void  OnDpiChanged   (UINT newDpi) override;
-    void  OnWindowFocusChanged (bool focused) override;
-    bool  HasDragLayer      () const override { return m_site != nullptr && (m_headerFade || m_site->HasDragLayer()); }
-    void  PaintDragLayer    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool     TryShowTextBoxMenu   (POINT clientPx) override { return m_onMouse ? false : DxuiWindow::TryShowTextBoxMenu (clientPx); }
+    bool     OnKey                (const DxuiKeyEvent   & ev) override;
+    LPCWSTR  GetCursorForPoint    (POINT clientPx) const override;
+    bool     OnMappedCommand      (int commandId) override;
+    bool     OnFilesDropped       (const std::vector<std::wstring> & paths) override;
+    void     OnWindowPlaced       () override;
+    void     OnDpiChanged         (UINT newDpi) override;
+    void     OnWindowFocusChanged (bool focused) override;
+    bool     HasDragLayer         () const override { return m_site != nullptr && (m_headerFade || m_site->HasDragLayer()); }
+    void     PaintDragLayer       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
 private:
     static constexpr int    kFadeBands    = 16;
     static constexpr float  kFadeMaxErase = 0.7f;
 
-    void  FinishCreate   ();
-    void  OnMoveLoopTick ();
-    void  Report         (DxuiCaptionDragTracker::Event ev);
-    SIZE  GetScreenSize  () const;
+    void  FinishCreate    ();
+    void  OnMoveLoopTick  ();
+    void  Report          (DxuiCaptionDragTracker::Event ev);
+    SIZE  GetScreenSize   () const;
     void  MoveWithPointer ();
-    void  EndMove        (bool isCanceled);
+    void  EndMove         (bool isCanceled);
 
     DxuiMessageResult  OnNcLButtonDown (LRESULT hitTest, int xScreen, int yScreen) override;
 

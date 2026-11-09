@@ -19,8 +19,8 @@ class IParallelRunner
 public:
     using Job = std::function<void()>;
 
-    virtual      ~IParallelRunner() = default;
-    virtual void  RunAll          (std::span<const Job> jobs) = 0;
+    virtual       ~IParallelRunner () = default;
+    virtual void  RunAll           (std::span<const Job> jobs) = 0;
 };
 
 

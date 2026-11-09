@@ -17,11 +17,11 @@ public:
     explicit DxuiButton  (const std::wstring & label) { m_focusable = true; SetLabel (label); }
     ~DxuiButton() override = default;
 
-    void  Layout            (const RECT & rect) { SetBounds (rect); }
-    void  SetLabel          (const std::wstring & label);
-    wchar_t  GetAccelerator () const { return m_accelerator; }
-    void  SetOnClick      (ClickFn click) { m_click = std::move (click); }
-    bool  HasClickHandler () const { return (bool) m_click; }
+    void     Layout          (const RECT & rect) { SetBounds (rect); }
+    void     SetLabel        (const std::wstring & label);
+    wchar_t  GetAccelerator  () const { return m_accelerator; }
+    void     SetOnClick      (ClickFn click) { m_click = std::move (click); }
+    bool     HasClickHandler () const { return (bool) m_click; }
 
     // Win32 command id (IDOK / IDCANCEL / IDYES / ...). A modal DxuiWindow
     // discovers its buttons by id: the default (Enter) button, the IDCANCEL
@@ -50,23 +50,23 @@ public:
     void  SetElide    (DxuiElide mode)   { m_elide = mode; }
     // Emphasizes a Default button (e.g. a dialog's default action) with a
     // themed accent outline, without promoting it to Primary.
-    void  SetEmphasis (bool on) { m_emphasis = on; }
+    void  SetEmphasis  (bool on) { m_emphasis = on; }
     bool  IsEmphasized () const { return m_emphasis; }
 
     //  The label's face and size in DIPs, for a label that is an icon font's
     //  glyph. Null and 0 keep the body face at 13.
     void  SetGlyphFont (const wchar_t * face, float sizeDip) { m_face = face; m_fontSizeDip = sizeDip; }
-    void  SetMouse    (int x, int y, bool down);
-    void  SetFocused  (bool focused) { m_focused = focused; }
-    bool  IsFocused   () const { return m_focused; }
-    void  SetEnabled  (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
-    bool  IsEnabled   () const { return m_enabled; }
-    void  SetVisible  (bool visible) { IDxuiControl::SetVisible (visible); m_visible = visible; if (!visible) { m_hover = false; m_pressed = false; m_focused = false; } }
-    bool  IsVisible   () const { return m_visible; }
-    bool  HitTest     (int x, int y) const;
-    void  Click       ();
-    bool  OnKey       (WPARAM vk);
-    void  Paint       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    void  SetMouse     (int x, int y, bool down);
+    void  SetFocused   (bool focused) { m_focused = focused; }
+    bool  IsFocused    () const { return m_focused; }
+    void  SetEnabled   (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
+    bool  IsEnabled    () const { return m_enabled; }
+    void  SetVisible   (bool visible) { IDxuiControl::SetVisible (visible); m_visible = visible; if (!visible) { m_hover = false; m_pressed = false; m_focused = false; } }
+    bool  IsVisible    () const { return m_visible; }
+    bool  HitTest      (int x, int y) const;
+    void  Click        ();
+    bool  OnKey        (WPARAM vk);
+    void  Paint        (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     //
     //  IDxuiControl overrides — additive shims so DxuiButton slots

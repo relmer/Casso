@@ -52,8 +52,8 @@ public:
     void                             Sort           (BreakpointColumns::Column column);
 
     //  Whether a bar entry can act, and its step.
-    bool                             IsBarEntryEnabled (int id) const;
-    void                             RunBarEntry    (int id);
+    bool  IsBarEntryEnabled (int id) const;
+    void  RunBarEntry       (int id);
 
     //  A box over a row's Name cell with its name, all of it selected so
     //  typing replaces it; and its end, Enter or a click away committing
@@ -67,23 +67,23 @@ public:
 
     const std::wstring             & GetId          () const override;
     std::wstring                     GetTitle       () const override { return L"Breakpoints"; }
-    void                             CreateControls () override;
-    void                             CreateOverlays () override;
-    std::vector<IDxuiControl *>      GetOverlays    () const override { return { m_nameEditor }; }
-    void                             Configure      () override;
-    void                             AddToDock      (DxuiDockSite & dock) override;
-    IDxuiControl                   * GetContent     () const override;
-    std::vector<IDxuiControl *>      GetControls    () const override;
-    std::vector<DxuiListView *>      GetLists       () const override { return { m_list }; }
-    std::vector<DxuiToolbar *>       GetBars        () const override { return { m_bar.GetBar() }; }
-    std::optional<PaneColorKeySpec>  GetColorKey    () const override;
-    void                             Apply          (const DebuggerViewSnapshot & snapshot) override;
-    void                             PlaceBar       () override { m_bar.Place(); }
-    bool                             RouteEditMouse (const DxuiMouseEvent & ev) override;
-    bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
-    bool                             RouteEditKey   (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
-    bool                             AddMenuItems   (DxuiListView * list, int row, PaneMenuItems & items) override;
-    bool                             AddColumnMenuItems (DxuiListView * list, std::vector<std::shared_ptr<DxuiCommand>> & commands) override;
+    void                               CreateControls     () override;
+    void                               CreateOverlays     () override;
+    std::vector<IDxuiControl *>        GetOverlays        () const override { return { m_nameEditor }; }
+    void                               Configure          () override;
+    void                               AddToDock          (DxuiDockSite & dock) override;
+    IDxuiControl                     * GetContent         () const override;
+    std::vector<IDxuiControl *>        GetControls        () const override;
+    std::vector<DxuiListView *>        GetLists           () const override { return { m_list }; }
+    std::vector<DxuiToolbar *>         GetBars            () const override { return { m_bar.GetBar() }; }
+    std::optional<PaneColorKeySpec>    GetColorKey        () const override;
+    void                               Apply              (const DebuggerViewSnapshot & snapshot) override;
+    void                               PlaceBar           () override { m_bar.Place(); }
+    bool                               RouteEditMouse     (const DxuiMouseEvent & ev) override;
+    bool                               RouteBarMouse      (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
+    bool                               RouteEditKey       (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
+    bool                               AddMenuItems       (DxuiListView * list, int row, PaneMenuItems & items) override;
+    bool                               AddColumnMenuItems (DxuiListView * list, std::vector<std::shared_ptr<DxuiCommand>> & commands) override;
 
 private:
     static constexpr int  kNoId = INT_MIN;     // GetIdOfRow's id for no row; a session stop's id is negative
@@ -95,19 +95,19 @@ private:
         std::wstring  opened;
     };
 
-    void                             SetColumns     ();
-    void                             ApplyRows      ();
-    void                             SetBarMenus    ();
-    void                             NewBreakpoint  (BreakpointDialog::Type type);
-    BreakpointDialog::Validator      MakeValidator  (std::optional<int> editedId);
-    bool                             ConfirmDeleteAll ();
-    std::shared_ptr<DxuiCommand>     MakeTypeCommand (BreakpointDialog::Type type, const wchar_t * label);
-    DebuggerAction                   GetClearAction (const DebuggerViewSnapshot::BreakpointLine & bp) const;
-    void                             RunStep        (BreakpointStep step);
-    std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelected () const;
-    int                              GetIdOfRow     (int row) const;
-    int                              GetRowOfId     (int id) const;
-    std::vector<std::wstring>        GetRowKeys     () const;
+    void                                               SetColumns       ();
+    void                                               ApplyRows        ();
+    void                                               SetBarMenus      ();
+    void                                               NewBreakpoint    (BreakpointDialog::Type type);
+    BreakpointDialog::Validator                        MakeValidator    (std::optional<int> editedId);
+    bool                                               ConfirmDeleteAll ();
+    std::shared_ptr<DxuiCommand>                       MakeTypeCommand  (BreakpointDialog::Type type, const wchar_t * label);
+    DebuggerAction                                     GetClearAction   (const DebuggerViewSnapshot::BreakpointLine & bp) const;
+    void                                               RunStep          (BreakpointStep step);
+    std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelected      () const;
+    int                                                GetIdOfRow       (int row) const;
+    int                                                GetRowOfId       (int id) const;
+    std::vector<std::wstring>                          GetRowKeys       () const;
 
     PaneBarSlot                              m_bar;
     DxuiListView                           * m_list       = nullptr;

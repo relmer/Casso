@@ -42,13 +42,13 @@ public:
     DiagnosticsPane (const DiagnosticsPane &)             = delete;
     DiagnosticsPane & operator= (const DiagnosticsPane &) = delete;
 
-    const std::string            &  GetId       () const { return m_id; }
-    const std::wstring           &  GetTitle    () const { return m_title; }
-    DxuiListView                  * GetList     () const { return m_list; }
-    DiskHeadView                  * GetHead     () const { return m_head; }
-    MemoryMapBar                  * GetMap      () const { return m_map; }
-    SoundBoardView                * GetBoard    () const { return m_board; }
-    DebuggerPaneFrame             * GetFrame    () const { return m_frame.get(); }
+    const std::string   & GetId    () const { return m_id; }
+    const std::wstring  & GetTitle () const { return m_title; }
+    DxuiListView        * GetList  () const { return m_list; }
+    DiskHeadView        * GetHead  () const { return m_head; }
+    MemoryMapBar        * GetMap   () const { return m_map; }
+    SoundBoardView      * GetBoard () const { return m_board; }
+    DebuggerPaneFrame   * GetFrame () const { return m_frame.get(); }
 
     //  The key the info button opens, or none: a memory map's or a disk
     //  head's colors.

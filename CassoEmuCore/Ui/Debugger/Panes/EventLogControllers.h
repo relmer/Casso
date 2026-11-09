@@ -196,9 +196,9 @@ protected:
     void                          SetMenus       () override;
 
 private:
-    void          SetBarEntries   ();
+    void          SetBarEntries    ();
     void          ShowSourceFilter ();
-    std::wstring  GetPairLabel    (int pair) const;
+    std::wstring  GetPairLabel     (int pair) const;
 
     std::unique_ptr<InputLogPane>   m_model;
 };

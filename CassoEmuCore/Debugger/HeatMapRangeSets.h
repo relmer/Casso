@@ -128,9 +128,9 @@ public:
     std::string                     ToText       () const;
     static HeatMapRangeSets         FromText     (const std::string & text);
 
-    HeatMapRangeSet               * FindSet      (const std::string & name);
-    const HeatMapRangeSet         * FindSet      (const std::string & name) const;
-    std::string                     GetNewSetName () const;
+    HeatMapRangeSet        * FindSet       (const std::string & name);
+    const HeatMapRangeSet  * FindSet       (const std::string & name) const;
+    std::string              GetNewSetName () const;
 
     bool  TryAddSet      (const std::string & name, std::string & error);
     bool  TryRenameSet   (const std::string & from, const std::string & to, std::string & error);

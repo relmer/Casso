@@ -78,15 +78,15 @@ private:
         std::vector<TraceHistoryEntry>   entries;      // one for each position of the bounds
     };
 
-    void        GetBounds    (uint64_t from, uint64_t to, std::vector<DebugEventBounds> & outBounds) const;
-    bool        TryGetLive   (DebugEventBounds & outLive) const;
-    bool        IsReadable   () const;
-    Rebuilt   * Find         (const DebugEventBounds & bounds);
-    HRESULT     Rebuild      (const std::vector<DebugEventBounds> & stretches);
-    HRESULT     RequestAhead (const std::vector<DebugEventBounds> & stretches);
-    void        Store        (const DebugEventBounds & bounds, DebugEventStretchResult<Cpu::TraceEntry> && result);
-    bool        IsStopped    () const;
-    bool        TryGetEntries (uint64_t from, uint64_t to, std::vector<TraceHistoryEntry> & outEntries, bool isRebuiltNow);
+    void       GetBounds     (uint64_t from, uint64_t to, std::vector<DebugEventBounds> & outBounds) const;
+    bool       TryGetLive    (DebugEventBounds & outLive) const;
+    bool       IsReadable    () const;
+    Rebuilt  * Find          (const DebugEventBounds & bounds);
+    HRESULT    Rebuild       (const std::vector<DebugEventBounds> & stretches);
+    HRESULT    RequestAhead  (const std::vector<DebugEventBounds> & stretches);
+    void       Store         (const DebugEventBounds & bounds, DebugEventStretchResult<Cpu::TraceEntry> && result);
+    bool       IsStopped     () const;
+    bool       TryGetEntries (uint64_t from, uint64_t to, std::vector<TraceHistoryEntry> & outEntries, bool isRebuiltNow);
 
     MachineHost                                  & m_machine;
     DebugEventHistory                            & m_history;

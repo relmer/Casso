@@ -127,17 +127,17 @@ public:
     int                  GetFirstShown () const { return m_firstShown; }
     Hit                  HitTest       (int x, int y) const;
 
-    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool                OnMouse           (const DxuiMouseEvent & ev) override;
-    bool                OnKey             (const DxuiKeyEvent   & ev) override;
-    void                OnFocusChanged    (bool focused) override;
+    void                Layout                (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint                 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse               (const DxuiMouseEvent & ev) override;
+    bool                OnKey                 (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged        (bool focused) override;
     void                OnWindowActiveChanged (bool active) override { m_input.SetWindowActive (active); }
-    void                Tick              (int64_t nowMs) override;
-    bool                QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override { return m_editing && m_input.QueryCommand (command, outEnabled); }
-    bool                InvokeCommand     (DxuiStandardCommand command) override                      { return m_editing && m_input.InvokeCommand (command); }
-    std::wstring        GetAccessibleName () const override { return m_path; }
-    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TextInput; }
+    void                Tick                  (int64_t nowMs) override;
+    bool                QueryCommand          (DxuiStandardCommand command, bool & outEnabled) const override { return m_editing && m_input.QueryCommand (command, outEnabled); }
+    bool                InvokeCommand         (DxuiStandardCommand command) override                      { return m_editing && m_input.InvokeCommand (command); }
+    std::wstring        GetAccessibleName     () const override { return m_path; }
+    DxuiAccessibleRole  GetAccessibleRole     () const override { return DxuiAccessibleRole::TextInput; }
 
 private:
     static constexpr float  s_kChevronDip       = 12.0f;

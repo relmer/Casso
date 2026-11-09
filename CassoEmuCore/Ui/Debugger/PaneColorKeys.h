@@ -24,12 +24,12 @@ class IColorKeysHost
 public:
     virtual ~IColorKeysHost() = default;
 
-    virtual ColorKeyButton *        CreateColorKeyButton (const std::wstring & pane, ColorLegend::Pane legend) = 0;
-    virtual DxuiWindow *            GetPaneWindow        (const std::wstring & pane) = 0;
-    virtual DxuiDockSite *          FindDockSiteOf       (const std::wstring & pane) const = 0;
-    virtual const DxuiDpiScaler &   GetPaneScaler        () const = 0;
+    virtual ColorKeyButton        * CreateColorKeyButton (const std::wstring & pane, ColorLegend::Pane legend) = 0;
+    virtual DxuiWindow            * GetPaneWindow        (const std::wstring & pane) = 0;
+    virtual DxuiDockSite          * FindDockSiteOf       (const std::wstring & pane) const = 0;
+    virtual const DxuiDpiScaler   & GetPaneScaler        () const = 0;
     virtual bool                    IsBarRouted          (const std::wstring & pane) const = 0;
-    virtual const DxuiTheme *       GetTheme             () const = 0;
+    virtual const DxuiTheme       * GetTheme             () const = 0;
     virtual ColorLegend::Palette    GetColorPalette      () const = 0;
     virtual void                    HideRoutedTip        () = 0;
     virtual void                    Repaint              () = 0;
@@ -61,8 +61,8 @@ public:
     //  which contain the bands.
     void  Create (const std::vector<std::unique_ptr<IDebuggerPane>> & panes);
 
-    ColorKeyButton *       Find     (const std::wstring & pane) const;
-    const ColorKeyPopup &  GetPopup () const { return m_popup; }
+    ColorKeyButton       * Find     (const std::wstring & pane) const;
+    const ColorKeyPopup  & GetPopup () const { return m_popup; }
     bool                   IsShown  () const { return m_popup.IsShown(); }
 
     void  Place       ();

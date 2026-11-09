@@ -42,8 +42,8 @@ public:
     MemoryPane (const MemoryPane &)             = delete;
     MemoryPane & operator= (const MemoryPane &) = delete;
 
-    int            GetId    () const { return m_id; }
-    DxuiHexView *  GetView  () const { return m_view; }
+    int            GetId       () const { return m_id; }
+    DxuiHexView  * GetView     () const { return m_view; }
     int            GetGrouping () const { return m_grouping; }
     int            GetColumns  () const { return m_columns; }
 
@@ -106,10 +106,10 @@ public:
 
     //  Neither writes over a byte that changed since the step; a line with
     //  that byte's address goes to the console instead.
-    bool  Undo    () { return UndoOrRedo (false); }
-    bool  Redo    () { return UndoOrRedo (true); }
-    bool  CanUndo () const { return m_view->IsEditable() && m_model.CanUndo(); }
-    bool  CanRedo () const { return m_view->IsEditable() && m_model.CanRedo(); }
+    bool  Undo         () { return UndoOrRedo (false); }
+    bool  Redo         () { return UndoOrRedo (true); }
+    bool  CanUndo      () const { return m_view->IsEditable() && m_model.CanUndo(); }
+    bool  CanRedo      () const { return m_view->IsEditable() && m_model.CanRedo(); }
     void  ClearHistory () { m_model.ClearHistory(); }
 
     std::string  GetHistoryText () const                       { return m_model.GetHistoryText(); }

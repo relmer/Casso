@@ -218,8 +218,8 @@ public:
 
     // The four registers, each description after owner: a card's name and
     // slot, or a port's title.
-    void         AddRegisterDescriptions (std::vector<DiagnosticsIoRegister> & registers, const std::string & owner) const;
-    void         AddDiagnostics      (DiagnosticsSnapshot & snapshot) const;
+    void  AddRegisterDescriptions (std::vector<DiagnosticsIoRegister> & registers, const std::string & owner) const;
+    void  AddDiagnostics          (DiagnosticsSnapshot & snapshot) const;
 
 private:
     // Fixed point: cycle counts are stored scaled by 2^16 so pacing never

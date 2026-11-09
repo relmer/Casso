@@ -100,13 +100,13 @@ public:
     std::wstring         GetAxisName (int axis) const;
 
 protected:
-    ColumnSpecs  GetColumnSpecs () const override;
+    ColumnSpecs  GetColumnSpecs  () const override;
     void         PrepareView     (const std::vector<Row> & rows, size_t from) override;
     size_t       GetSettledCount (const std::vector<Row> & rows, size_t count) const override;
-    bool         Matches        (const Row & row, size_t index) const override;
-    void         MakeCells      (const Row & row, Cells & out) const override;
-    size_t       GetLabelColumn () const override { return kSource; }
-    size_t       GetTextColumn  () const override { return kMeaning; }
+    bool         Matches         (const Row & row, size_t index) const override;
+    void         MakeCells       (const Row & row, Cells & out) const override;
+    size_t       GetLabelColumn  () const override { return kSource; }
+    size_t       GetTextColumn   () const override { return kMeaning; }
 
 private:
     static constexpr Word     kOpenApple   = 0xC061;

@@ -136,16 +136,16 @@ public:
     FindWidget          & Activate       (const std::wstring & pane);
 
     //  The active widget's state, for the window's tests.
-    bool                 IsOpen         () const { return m_active != nullptr && m_active->isOpen; }
-    bool                 IsOpenIn       (const std::wstring & pane) const;
-    DxuiTextInput      * GetBox         () const { return (m_active != nullptr) ? m_active->box : nullptr; }
-    DxuiTextInput      * GetBoxOf       (const std::wstring & pane) const;
-    DxuiButton         * GetWordButton  () const { return (m_active != nullptr) ? m_active->wordButton : nullptr; }
-    std::wstring         GetStatus      () const { return (m_active != nullptr) ? m_active->statusText : std::wstring(); }
-    bool                 IsInSelection  () const { return m_active != nullptr && m_active->inSelection; }
-    RECT                 GetBounds      () const;
-    std::vector<IDxuiControl *>  GetActiveControls () const;
-    std::vector<std::wstring>  GetHistory (const std::wstring & pane) const;
+    bool                           IsOpen            () const { return m_active != nullptr && m_active->isOpen; }
+    bool                           IsOpenIn          (const std::wstring & pane) const;
+    DxuiTextInput                * GetBox            () const { return (m_active != nullptr) ? m_active->box : nullptr; }
+    DxuiTextInput                * GetBoxOf          (const std::wstring & pane) const;
+    DxuiButton                   * GetWordButton     () const { return (m_active != nullptr) ? m_active->wordButton : nullptr; }
+    std::wstring                   GetStatus         () const { return (m_active != nullptr) ? m_active->statusText : std::wstring(); }
+    bool                           IsInSelection     () const { return m_active != nullptr && m_active->inSelection; }
+    RECT                           GetBounds         () const;
+    std::vector<IDxuiControl *>    GetActiveControls () const;
+    std::vector<std::wstring>      GetHistory        (const std::wstring & pane) const;
 
     //  The pane find opens in: the one with the keys when it is text to
     //  search, and the console otherwise.
@@ -180,15 +180,15 @@ public:
 
     //  The cursor over a widget, none where no widget is; and the pane whose
     //  widget has a control, empty for none.
-    LPCWSTR              GetCursor      (POINT clientPx) const;
-    std::wstring         GetPaneOfControl (const IDxuiControl * control) const;
+    LPCWSTR       GetCursor        (POINT clientPx) const;
+    std::wstring  GetPaneOfControl (const IDxuiControl * control) const;
 
     //  Every widget's controls that take a press, its buttons before its
     //  box; whether a visible widget overlaps a rect or is under a point; and the
     //  controls of each open widget to paint over the page, only the slid
     //  pane's while a pane is slid out.
-    std::vector<IDxuiControl *>  GetPressTargets () const;
-    bool                 Overlaps       (POINT clientPx, const RECT & rect) const;
+    std::vector<IDxuiControl *>  GetPressTargets  () const;
+    bool                         Overlaps         (POINT clientPx, const RECT & rect) const;
     std::vector<IDxuiControl *>  GetLayerControls (const std::wstring & slidPane) const;
 
     //  The options and histories saved with the project, read back and
@@ -213,15 +213,15 @@ private:
     //  Room for "99999 of 99999" on one line.
     static constexpr int     kCountDip        = 112;
 
-    void                 Create         (const std::wstring & pane, FindWidget & widget);
-    void                 ApplySaved     (const std::wstring & pane, FindWidget & widget) const;
-    static void          ShowOptions    (FindWidget & widget);
-    void                 SetVisible     (FindWidget & widget, bool shown);
-    void                 Move           (FindWidget & widget, DxuiWindow * to);
-    void                 PlaceOne       (const std::wstring & pane, FindWidget & widget);
-    void                 RecordHistory  ();
-    void                 SearchAsTyped  ();
-    void                 RefindAfterOptionChange ();
+    void         Create                  (const std::wstring & pane, FindWidget & widget);
+    void         ApplySaved              (const std::wstring & pane, FindWidget & widget) const;
+    static void  ShowOptions             (FindWidget & widget);
+    void         SetVisible              (FindWidget & widget, bool shown);
+    void         Move                    (FindWidget & widget, DxuiWindow * to);
+    void         PlaceOne                (const std::wstring & pane, FindWidget & widget);
+    void         RecordHistory           ();
+    void         SearchAsTyped           ();
+    void         RefindAfterOptionChange ();
 
     static std::wstring  GetStatusText  (DxuiFindResult result, int index, int count);
 

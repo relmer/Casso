@@ -177,9 +177,9 @@ protected:
     bool                           RouteListKey    (const DxuiKeyEvent & ev) override;
 
 private:
-    std::optional<Byte>            GetRegisterByte (const std::string & name) const;
-    void                           CommitRegister  (const std::string & name, Byte typed);
-    void                           AddChangedFlagRanges (uint32_t changedBits, DxuiListView::Cell & flags) const;
+    std::optional<Byte>  GetRegisterByte      (const std::string & name) const;
+    void                 CommitRegister       (const std::string & name, Byte typed);
+    void                 AddChangedFlagRanges (uint32_t changedBits, DxuiListView::Cell & flags) const;
 
     RegisterHistory                                      m_history;
     HistoryBand                                        * m_band = nullptr;

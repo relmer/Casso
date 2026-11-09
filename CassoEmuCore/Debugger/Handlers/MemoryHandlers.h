@@ -55,34 +55,34 @@ private:
 
     static std::string  DescribeListingError (const ApplesoftListingError & error, const char * subject);
 
-    void         Dump         (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  Enter        (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  Move         (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  Compare      (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  Fill         (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  Search       (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  ShowResults  (DebugSession & session, Reply & reply);
-    static void  LoadBinary   (DebugSession & session, const DebugCommand & command, Reply & reply);
+    void                Dump          (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void         Enter         (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void         Move          (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void         Compare       (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void         Fill          (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void         Search        (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void         ShowResults   (DebugSession & session, Reply & reply);
+    static void         LoadBinary    (DebugSession & session, const DebugCommand & command, Reply & reply);
     static std::string  LoadCompanion (DebugSession & session, IFileSystem & files, const std::string & name, Reply & reply);
     static size_t       GetLoadCount  (const DebugCommand & command, const BinaryImage & image, const BinarySegment & segment);
-    static void  SaveBinary   (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  SaveText     (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  LoadBasic    (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void         SaveBinary    (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void         SaveText      (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void         LoadBasic     (DebugSession & session, const DebugCommand & command, Reply & reply);
 
     //  A file BASICLOAD reads as it is rather than tokenizing: an AppleSingle
     //  file, or one whose name has CiderPress's #fc for a BAS file. Its
     //  program, and its listing in `content`, for the lines Loaded counts.
     static bool  IsCiderPressBasic (const std::string & name);
     static bool  TryGetPackedBasic (const std::string & name, std::string & content, std::vector<Byte> & bytes, Reply & reply);
-    static void  SaveBasic    (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  ClearBasic   (DebugSession & session, Reply & reply);
-    static bool  TryPokeWord  (IDebugTarget & target, Word address, Word value, Reply & reply);
-    static bool  TryPeekWord  (IDebugTarget & target, Word address, Word & value, Reply & reply);
-    static void  ReadIo       (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  WriteIo      (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  ShowSwitches (DebugSession & session, Reply & reply);
-    static void  ShowMap      (DebugSession & session, Reply & reply);
-    static void  Patch        (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  SaveBasic         (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  ClearBasic        (DebugSession & session, Reply & reply);
+    static bool  TryPokeWord       (IDebugTarget & target, Word address, Word value, Reply & reply);
+    static bool  TryPeekWord       (IDebugTarget & target, Word address, Word & value, Reply & reply);
+    static void  ReadIo            (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  WriteIo           (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  ShowSwitches      (DebugSession & session, Reply & reply);
+    static void  ShowMap           (DebugSession & session, Reply & reply);
+    static void  Patch             (DebugSession & session, const DebugCommand & command, Reply & reply);
 
     static bool  TryPokeRange (IDebugTarget & target, Word first, std::span<const Byte> bytes, Reply & reply);
     static bool  IsWritable   (const IDebugTarget & target, Word first, size_t count, Reply & reply);

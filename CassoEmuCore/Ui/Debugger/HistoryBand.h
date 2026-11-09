@@ -26,7 +26,7 @@ public:
     HistoryBand() = default;
     ~HistoryBand() override = default;
 
-    void  SetStatus  (const HistoryStatus & status) { m_status = status; }
+    void  SetStatus   (const HistoryStatus & status) { m_status = status; }
     void  SetOnGoLive (std::function<void()> onGoLive) { m_onGoLive = std::move (onGoLive); }
 
     const HistoryStatus &  GetStatus () const { return m_status; }
@@ -45,13 +45,13 @@ public:
 
     //  The band's text: the outcome first, then the distance behind live,
     //  then the disks holding writes not yet saved.
-    static std::wstring  GetText       (const HistoryStatus & status);
-    static std::wstring  GetOutcomeText (ReverseOutcome outcome);
-    static std::wstring  GetShortText  (const HistoryStatus & status);
-    static std::wstring  GetCompactText (const HistoryStatus & status);
+    static std::wstring  GetText         (const HistoryStatus & status);
+    static std::wstring  GetOutcomeText  (ReverseOutcome outcome);
+    static std::wstring  GetShortText    (const HistoryStatus & status);
+    static std::wstring  GetCompactText  (const HistoryStatus & status);
     static std::wstring  GetDistanceText (uint64_t instructions, uint64_t cycles);
-    static std::wstring  GetUnsavedText (int disks);
-    static std::wstring  GroupDigits   (uint64_t value);
+    static std::wstring  GetUnsavedText  (int disks);
+    static std::wstring  GroupDigits     (uint64_t value);
 
     //  Where the link and the text go in a band left to right wide: the link
     //  inset by pad from the right edge, and the longest of the texts, full

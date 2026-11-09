@@ -154,26 +154,26 @@ private:
     //  The end labels, each a button.
     enum class Part { None, Leading, Trailing };
 
-    void  SetHovered       (int index);
-    Part  HitTestPart      (int x, int y) const;
-    bool  IsPartClickable  (Part part) const;
-    void  PaintPartChrome  (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & rc, Part part);
-    void  ShowPreview      ();
-    void  FollowPointer    ();
-    void  PaintHoverLine   (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  SetHovered        (int index);
+    Part  HitTestPart       (int x, int y) const;
+    bool  IsPartClickable   (Part part) const;
+    void  PaintPartChrome   (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & rc, Part part);
+    void  ShowPreview       ();
+    void  FollowPointer     ();
+    void  PaintHoverLine    (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  ShowOutsideLabels (const IDxuiTheme & theme);
-    void  PaintLabelPair   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & top, const std::wstring & bottom, float centerX);
-    void  GetLabelSpan     (IDxuiTextRenderer & text, const std::wstring & label, float centerX, float & outLeft, float & outWidth) const;
-    void  HideOverlap      (IDxuiTextRenderer & text, std::wstring & label, float centerX, const std::wstring & other, float otherX) const;
-    int   GetSideLabelPx   (const std::wstring & label, bool isTrailing) const;
-    void  PaintSideLabel   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, const RECT & rc, bool isTrailing);
-    void  MovePreview      ();
-    void  RenderPreview    (IDxuiPainter & painter, IDxuiTextRenderer & text);
-    void  PaintPlayhead    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float offset, const std::wstring & top, const std::wstring & bottom);
-    void  PaintLabel       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float centerX, float top, float height);
-    void  GetLastCellSpan  (float & outStart, float & outLastPixel) const;
-    int   GetCellAtOffset  (float offset) const;
-    bool  IsOverPlayhead   (int x, int y, float & outLine) const;
+    void  PaintLabelPair    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & top, const std::wstring & bottom, float centerX);
+    void  GetLabelSpan      (IDxuiTextRenderer & text, const std::wstring & label, float centerX, float & outLeft, float & outWidth) const;
+    void  HideOverlap       (IDxuiTextRenderer & text, std::wstring & label, float centerX, const std::wstring & other, float otherX) const;
+    int   GetSideLabelPx    (const std::wstring & label, bool isTrailing) const;
+    void  PaintSideLabel    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, const RECT & rc, bool isTrailing);
+    void  MovePreview       ();
+    void  RenderPreview     (IDxuiPainter & painter, IDxuiTextRenderer & text);
+    void  PaintPlayhead     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float offset, const std::wstring & top, const std::wstring & bottom);
+    void  PaintLabel        (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float centerX, float top, float height);
+    void  GetLastCellSpan   (float & outStart, float & outLastPixel) const;
+    int   GetCellAtOffset   (float offset) const;
+    bool  IsOverPlayhead    (int x, int y, float & outLine) const;
 
     //  A strip standing up: its end labels above and below the pictures,
     //  and its playhead line's labels beside the line, across the strip.

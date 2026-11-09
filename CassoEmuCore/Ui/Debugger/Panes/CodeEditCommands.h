@@ -36,9 +36,9 @@ public:
 
     //  The typed instruction assembled over the line's; every byte of a
     //  range made a NOP; and the last edit undone or redone.
-    void                 EditInstruction (int view, const DebuggerViewSnapshot::CodeLine & line);
-    void                 ReplaceWithNops (int view, std::pair<Word, Word> range);
-    void                 Undo         (bool redo);
+    void  EditInstruction (int view, const DebuggerViewSnapshot::CodeLine & line);
+    void  ReplaceWithNops (int view, std::pair<Word, Word> range);
+    void  Undo            (bool redo);
 
     //  The bytes from first through last, as the view's lines have them;
     //  false where the lines do not cover the range without a gap.

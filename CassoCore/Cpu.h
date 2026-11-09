@@ -110,10 +110,10 @@ public:
     // for a device that reports which instruction touched it.
     const Word * GetInstructionStartPtr () const             { return &m_instructionStart; }
 
-    Byte PeekByte              (Word address) const       { return memory[address]; }
-    void PokeByte                 (Word address, Byte value) { memory[address] = value; }
-    Word PeekWord                 (Word address) const       { return memory[address] | (memory[(Word) (address + 1)] << 8); }
-    const Byte * GetMemory        () const                   { return memory.data (); }
+    Byte          PeekByte  (Word address) const       { return memory[address]; }
+    void          PokeByte  (Word address, Byte value) { memory[address] = value; }
+    Word          PeekWord  (Word address) const       { return memory[address] | (memory[(Word) (address + 1)] << 8); }
+    const Byte  * GetMemory () const                   { return memory.data (); }
 
     // Load a raw binary file into memory at the specified address.
     // E_INVALIDARG if the file cannot be opened, or if the image does not fit
@@ -134,23 +134,23 @@ protected:
         Word operand;
     };
 
-    void PrintSingleStepInfo           (Word initialPC, Byte opcode, const OperandInfo & operandInfo);
-    void PrintOperandAndComment        (Byte opcode, const OperandInfo & operandInfo);
-    void PrintOperandBytes             (Word initialPC, Byte opcode);
-    static bool ReadsTarget            (const Microcode & microcode);
-    void FetchOperand                  (const Microcode & microcode, OperandInfo & operandInfo);
-    void FetchOperandAbsoluteX       (Cpu::OperandInfo & operandInfo);
-    void FetchOperandAbsoluteY         (Cpu::OperandInfo & operandInfo);
-    void FetchOperandZeroPageX         (Cpu::OperandInfo & operandInfo);
-    void FetchOperandZeroPageY         (Cpu::OperandInfo & operandInfo);
-    void FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo);
-    void FetchOperandAbsolute          (Cpu::OperandInfo & operandInfo);
-    void FetchOperandImmediate         (Cpu::OperandInfo & operandInfo);
-    void FetchOperandJumpAbsolute      (Cpu::OperandInfo & operandInfo);
-    void FetchOperandJumpIndirect      (Cpu::OperandInfo & operandInfo);
-    void FetchOperandRelative          (Cpu::OperandInfo & operandInfo);
-    void FetchOperandZeroPage          (Cpu::OperandInfo & operandInfo);
-    void FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo);
+    void         PrintSingleStepInfo           (Word initialPC, Byte opcode, const OperandInfo & operandInfo);
+    void         PrintOperandAndComment        (Byte opcode, const OperandInfo & operandInfo);
+    void         PrintOperandBytes             (Word initialPC, Byte opcode);
+    static bool  ReadsTarget                   (const Microcode & microcode);
+    void         FetchOperand                  (const Microcode & microcode, OperandInfo & operandInfo);
+    void         FetchOperandAbsoluteX         (Cpu::OperandInfo & operandInfo);
+    void         FetchOperandAbsoluteY         (Cpu::OperandInfo & operandInfo);
+    void         FetchOperandZeroPageX         (Cpu::OperandInfo & operandInfo);
+    void         FetchOperandZeroPageY         (Cpu::OperandInfo & operandInfo);
+    void         FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo);
+    void         FetchOperandAbsolute          (Cpu::OperandInfo & operandInfo);
+    void         FetchOperandImmediate         (Cpu::OperandInfo & operandInfo);
+    void         FetchOperandJumpAbsolute      (Cpu::OperandInfo & operandInfo);
+    void         FetchOperandJumpIndirect      (Cpu::OperandInfo & operandInfo);
+    void         FetchOperandRelative          (Cpu::OperandInfo & operandInfo);
+    void         FetchOperandZeroPage          (Cpu::OperandInfo & operandInfo);
+    void         FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo);
 
     // 65C02 addressing-mode fetches. Selected purely by the CMOS instruction
     // table; the NMOS table never references them, so NMOS decode is unchanged.
@@ -199,11 +199,11 @@ protected:
 
     void InitializeInstructionSet ();
 
-    void InitializeGroup00 ();
-    void InitializeGroup01 ();
-    void InitializeGroup10 ();
-    void InitializeMisc ();
-    void InitializeUndocumented ();
+    void  InitializeGroup00      ();
+    void  InitializeGroup01      ();
+    void  InitializeGroup10      ();
+    void  InitializeMisc         ();
+    void  InitializeUndocumented ();
 
     void CreateInstruction (uint32_t                        addressingModeMax, 
                             const char              * const instructionName[], 
@@ -245,9 +245,9 @@ protected:
 protected:
     // Heap-allocated for the same reason as `memory`: keeps the ~10 KB
     // instruction table off the stack of any function holding a Cpu.
-    std::vector<Microcode> instructionSet {std::vector<Microcode> (256)};
-    Byte                  m_lastCycles    = 0;
-    Byte                  m_lastPenalties = 0;
+    std::vector<Microcode>  instructionSet  {std::vector<Microcode> (256)};
+    Byte                    m_lastCycles    = 0;
+    Byte                    m_lastPenalties = 0;
 
     // The address of the last instruction that sent PC somewhere other than
     // the next instruction: a taken branch, a jump, a call, a return or BRK.
@@ -343,8 +343,8 @@ public:
 
     // Empties the ring and starts tracing again into the buffer it has, with no new
     // allocation; nothing when there is no buffer.
-    void     RestartTrace   ()       { m_traceHead = 0; m_traceCount = 0; m_pendingTraceIntr = kTraceIntrNone; m_traceEnabled = m_traceCapacity != 0; UpdateFetchObserved(); }
-    size_t   GetTraceCapacity () const { return m_traceCapacity; }
+    void    RestartTrace     ()       { m_traceHead = 0; m_traceCount = 0; m_pendingTraceIntr = kTraceIntrNone; m_traceEnabled = m_traceCapacity != 0; UpdateFetchObserved(); }
+    size_t  GetTraceCapacity () const { return m_traceCapacity; }
 
     // The opcodes, a 256-entry table, whose fetches the watcher is told of,
     // with the fetch after each; null for none. The table is read in place.
@@ -423,6 +423,6 @@ protected:
 
     // Side-effect-free read for the trace, routed through the same read-page
     // table the fetch uses so operands come from the bank that executed.
-    Byte PeekForTrace (Word address) const;
-    void DumpInstructionTrace (Byte faultOpcode, Word faultPC) const;
+    Byte  PeekForTrace         (Word address) const;
+    void  DumpInstructionTrace (Byte faultOpcode, Word faultPC) const;
 };

@@ -82,9 +82,9 @@ public:
                                 std::optional<uint64_t>      budget,
                                 const ChannelClient        & client,
                                 bool                         overwrite) override;
-    void          RequestPause () override;
+    void          RequestPause    () override;
     bool          IsRunInProgress () const override { return m_driver.IsRunning(); }
-    ChannelHello  GetInstance  () const override;
+    ChannelHello  GetInstance     () const override;
 
     //  Where the console lines for a channel client's host file access go:
     //  the debugger window's console. None by default.
@@ -127,8 +127,8 @@ private:
     DebugHandlerSet        m_handlers;
 
 public:
-    const DebugHandlerSet &  GetHandlers () const { return m_handlers; }
-    DebugHandlerSet &        GetHandlers ()       { return m_handlers; }
+    const DebugHandlerSet  & GetHandlers () const { return m_handlers; }
+    DebugHandlerSet        & GetHandlers ()       { return m_handlers; }
 
 private:
     ReverseStopTest        m_reverseStopTest { m_session };

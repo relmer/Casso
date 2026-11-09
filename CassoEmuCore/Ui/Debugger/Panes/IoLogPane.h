@@ -74,13 +74,13 @@ public:
     std::optional<uint64_t>  GetSince (size_t index) const;
 
 protected:
-    ColumnSpecs  GetColumnSpecs () const override;
-    void         PrepareView    (const std::vector<Row> & rows, size_t from) override;
-    bool         Matches        (const Row & row, size_t index) const override;
-    void         MakeCells      (const Row & row, Cells & out) const override;
-    size_t       GetLabelColumn () const override { return kSource; }
-    size_t       GetTextColumn  () const override { return kEvent; }
-    std::optional<uint64_t>  GetSortNumber (const Row & row, size_t index, size_t column) const override;
+    ColumnSpecs              GetColumnSpecs () const override;
+    void                     PrepareView    (const std::vector<Row> & rows, size_t from) override;
+    bool                     Matches        (const Row & row, size_t index) const override;
+    void                     MakeCells      (const Row & row, Cells & out) const override;
+    size_t                   GetLabelColumn () const override { return kSource; }
+    size_t                   GetTextColumn  () const override { return kEvent; }
+    std::optional<uint64_t>  GetSortNumber  (const Row & row, size_t index, size_t column) const override;
 
 private:
     //  The version of the headings the saved options were written with: 2

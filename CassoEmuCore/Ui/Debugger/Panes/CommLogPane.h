@@ -42,9 +42,9 @@ public:
 
     bool  IsNetwork () const { return m_isNetwork; }
 
-    void  SetLaneShown (size_t lane, bool isShown);
-    bool  IsLaneShown  (size_t lane) const { return lane < m_lanes.size() && m_lanes[lane]; }
-    const std::vector<bool> &  GetLanesShown () const { return m_lanes; }
+    void                       SetLaneShown  (size_t lane, bool isShown);
+    bool                       IsLaneShown   (size_t lane) const { return lane < m_lanes.size() && m_lanes[lane]; }
+    const std::vector<bool>  & GetLanesShown () const { return m_lanes; }
 
     std::string   GetOptionsText () const;
     void          SetOptionsText (const std::string & text);

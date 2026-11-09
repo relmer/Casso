@@ -68,9 +68,9 @@ public:
 
     DxuiListView *  GetList () const { return m_list; }
 
-    void  Configure (int gutterDip);
-    void  SetStyle  (const Style & style) { m_style = style; }
-    const Style & GetStyle () const { return m_style; }
+    void           Configure (int gutterDip);
+    void           SetStyle  (const Style & style) { m_style = style; }
+    const Style  & GetStyle  () const { return m_style; }
 
     //  The gutter row with the gray breakpoint, -1 for none; the rows are
     //  built again when it changes.
@@ -80,7 +80,7 @@ public:
     //  gutter takes it: over a line's first row in the gutter the gray
     //  breakpoint is drawn, and a press there sets or clears the line's
     //  breakpoint, which is true; anything else is the list's.
-    bool  OnGutterMouse (const DxuiMouseEvent & ev);
+    bool  OnGutterMouse  (const DxuiMouseEvent & ev);
     int   GetGutterRowAt (POINT clientPx) const;
 
     //  The heat's levels and colors while Show heat is on: the Heat column,

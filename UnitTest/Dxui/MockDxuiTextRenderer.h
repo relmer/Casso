@@ -60,8 +60,8 @@ public:
     MockDxuiTextRenderer  () = default;
     ~MockDxuiTextRenderer() override = default;
 
-    const std::vector<RecordedTextCall> &  Calls() const { return m_calls; }
-    void  Reset() { m_calls.clear(); m_iconCalls.clear(); }
+    const std::vector<RecordedTextCall>  & Calls () const { return m_calls; }
+    void                                   Reset () { m_calls.clear(); m_iconCalls.clear(); }
 
     //  DrawIconBitmap's destinations, apart from the other calls.
     const std::vector<RecordedTextCall> &  IconCalls() const { return m_iconCalls; }

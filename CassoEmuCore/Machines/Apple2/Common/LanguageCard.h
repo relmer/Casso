@@ -58,19 +58,19 @@ public:
     Byte Read     (Word address) override;
 
     // A switch read returns 0, as Read does; the peek throws no switch.
-    bool TryPeekIo (Word address, Byte & value) override { (void) address; value = 0; return true; }
-    void Write    (Word address, Byte value) override;
-    Word GetStart () const override { return 0xC080; }
-    Word GetEnd   () const override { return 0xC08F; }
-    void Reset    () override;
+    bool  TryPeekIo (Word address, Byte & value) override { (void) address; value = 0; return true; }
+    void  Write     (Word address, Byte value) override;
+    Word  GetStart  () const override { return 0xC080; }
+    Word  GetEnd    () const override { return 0xC08F; }
+    void  Reset     () override;
 
     Byte ReadRam  (Word address);
     void WriteRam (Word address, Byte value);
 
-    bool IsReadRam    () const { return (m_flags & kLcFlagReadRam)  != 0; }
-    bool IsWriteRam   () const { return (m_flags & kLcFlagWriteRam) != 0; }
-    bool IsBank2      () const { return (m_flags & kLcFlagBank2)    != 0; }
-    int  GetPreWriteCount () const { return m_preWriteCount; }
+    bool  IsReadRam        () const { return (m_flags & kLcFlagReadRam)  != 0; }
+    bool  IsWriteRam       () const { return (m_flags & kLcFlagWriteRam) != 0; }
+    bool  IsBank2          () const { return (m_flags & kLcFlagBank2)    != 0; }
+    int   GetPreWriteCount () const { return m_preWriteCount; }
 
     void SetMmu       (IMmu * mmu) { m_mmu = mmu; }
 
@@ -115,10 +115,10 @@ public:
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
-    void ApplySwitch  (Byte switchAddr, bool isWrite);
-    Byte * SelectBank4K (Word address);
-    Byte * SelectMainHigh (Word address);
-    void   MarkAllWritten ();
+    void    ApplySwitch    (Byte switchAddr, bool isWrite);
+    Byte  * SelectBank4K   (Word address);
+    Byte  * SelectMainHigh (Word address);
+    void    MarkAllWritten ();
 
     MemoryBus &    m_bus;
 

@@ -139,21 +139,21 @@ public:
     static double  ComputeTickFraction (TimePoint tickStart, TimePoint requestedAt);
 
 private:
-    void ThreadProc ();
-    void WaitWhilePaused();
-    void DrainCommandQueue ();
-    bool TryPark ();
-    void ParkForExit ();
+    void  ThreadProc        ();
+    void  WaitWhilePaused   ();
+    void  DrainCommandQueue ();
+    bool  TryPark           ();
+    void  ParkForExit       ();
 
 
     std::thread                   m_thread;
 
-    std::atomic<bool>             m_running    { true };
-    std::atomic<bool>             m_paused     { false };
-    std::atomic<bool>             m_isParked   { true };                     // written under m_pauseMutex
-    std::atomic<SpeedMode>        m_speedMode  { SpeedMode::Authentic };
-    std::atomic<SpeedMode>        m_userSpeed  { SpeedMode::Authentic };     // the last speed the user chose
-    std::atomic<bool>             m_maximumOverride { false };
+    std::atomic<bool>       m_running         { true };
+    std::atomic<bool>       m_paused          { false };
+    std::atomic<bool>       m_isParked        { true };   // written under m_pauseMutex
+    std::atomic<SpeedMode>  m_speedMode       { SpeedMode::Authentic };
+    std::atomic<SpeedMode>  m_userSpeed       { SpeedMode::Authentic };   // the last speed the user chose
+    std::atomic<bool>       m_maximumOverride { false };
 
     std::mutex                    m_pauseMutex;
     std::condition_variable       m_pauseCV;

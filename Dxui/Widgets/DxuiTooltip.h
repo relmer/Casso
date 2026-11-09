@@ -171,16 +171,16 @@ public:
     //  tip is about, in `argb` or the text color for 0, moved until its
     //  contrast with the background is kMinTextContrast. The tip is widened
     //  by it, so a mark that comes and goes doesn't add a line. Empty for none.
-    void  SetCornerTag    (std::wstring tag, uint32_t argb)   { m_cornerTag = std::move (tag); m_cornerTagArgb = argb; }
-    static HRESULT  LayOutTable (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table);
+    void            SetCornerTag (std::wstring tag, uint32_t argb)   { m_cornerTag = std::move (tag); m_cornerTagArgb = argb; }
+    static HRESULT  LayOutTable  (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table);
     //  Text wider than this wraps onto more lines instead of growing the
     //  balloon past the window's edge; a fixed-width tip wraps at more than
     //  twice this. A tip of long lines, such as a log's, is given more.
     static constexpr float  kDefaultMaxTextWidthDip = 340.0f;
     void  SetMaxTextWidthDip (float dip) { m_maxTextWidthDip = dip; }
-    void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
-    void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
-    void  SetTheme        (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
+    void  SetDpi             (UINT dpi) { m_scaler.SetDpi (dpi); }
+    void  SetViewportSize    (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
+    void  SetTheme           (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
 
     //  The colors SetTheme took.
     uint32_t  GetBackgroundArgb () const { return m_bgArgb;     }
@@ -226,9 +226,9 @@ public:
     //  Opens at once against the anchor, not the pointer, with no hide time, as
     //  a label that follows a mark. A repeat with new text or a new anchor
     //  moves the balloon that is up rather than opening another.
-    void  ShowAt          (const RECT & anchor, const std::wstring & text);
-    DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
-    DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
+    void              ShowAt         (const RECT & anchor, const std::wstring & text);
+    DxuiHwndSource  * GetPopupHost   () const { return m_popupHost;   }
+    DxuiPopupHost   * GetActivePopup () const { return m_activePopup; }
 
     // A hover tip for `anchor`, raised after the open dwell. It is placed by
     // the pointer where the pointer came to rest, as the system's tips are,
@@ -286,8 +286,8 @@ public:
     const std::wstring & GetText   () const { return m_text;    }
     const RECT         & GetAnchor () const { return m_anchor;  }
 
-    void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    const wchar_t *  GetFace () const { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::GetUiFace(); }
+    void             Paint              (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    const wchar_t  * GetFace            () const { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::GetUiFace(); }
     float            GetMaxTextWidthDip () const;
 
     //

@@ -96,7 +96,7 @@ public:
     //  rect grown toward GetPanelRect by how far open it is.
     bool  Tick              (int64_t nowMs);
     RECT  GetShownPanelRect () const;
-    bool  IsDragging  () const { return m_isDragging; }
+    bool  IsDragging        () const { return m_isDragging; }
 
     //  The pointer over the button opens the panel, unless a press on the
     //  button closed it; then not until the pointer moves off the button.
@@ -109,19 +109,19 @@ public:
 
     //  The cell size the point stands for along the track, the ends taken
     //  past either end.
-    int   GetCellPxAt (POINT point, int maxCellPx) const;
-    float GetPositionAt (POINT point) const;
+    int    GetCellPxAt   (POINT point, int maxCellPx) const;
+    float  GetPositionAt (POINT point) const;
 
     void  Paint      (IDxuiTextRenderer & text, const IDxuiTheme & theme, int cellPx, int startCellPx, int maxCellPx) const;
     void  PaintPanel (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float position) const;
 
 private:
-    static bool  Contains (const RECT & rect, POINT point);
+    static bool  Contains         (const RECT & rect, POINT point);
     RECT         GetFullPanelRect () const;
     RECT         GetResetRectIn   (const RECT & panel) const;
     RECT         GetTrackRectIn   (const RECT & panel) const;
-    static void  PaintBox (IDxuiTextRenderer & text, const RECT & rect, uint32_t fill, uint32_t edge);
-    void         PaintLabel (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label) const;
+    static void  PaintBox         (IDxuiTextRenderer & text, const RECT & rect, uint32_t fill, uint32_t edge);
+    void         PaintLabel       (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label) const;
 
     DxuiDpiScaler  m_scaler;
     RECT           m_button        = {};

@@ -61,10 +61,10 @@ public:
     // that order across components: the menu bar and the drive band's background
     // under the drive row; the frame rate readout after it; the toolbar and
     // the //c switch bar; and last the capture bar and the notices.
-    void  AdoptMenuBar          (DxuiPanel & root);
-    ShellFrameRateReadout &  GetFrameRateReadout () { return m_frameRate; }
-    void  AdoptToolbar          (DxuiPanel & root);
-    void  AdoptBanners          (DxuiPanel & root);
+    void                     AdoptMenuBar        (DxuiPanel & root);
+    ShellFrameRateReadout  & GetFrameRateReadout () { return m_frameRate; }
+    void                     AdoptToolbar        (DxuiPanel & root);
+    void                     AdoptBanners        (DxuiPanel & root);
 
     // The host popup pool for the menu bar's drop-downs and the tooltips, and
     // the tooltips' theme and Visual Studio frame.
@@ -97,18 +97,18 @@ public:
     // The present path's part: the capture bar, the tooltips' dwell timers,
     // the band bounds and drive bar thickness, whether the drive tooltip is
     // up, and the drive band's background.
-    ShellStandInBar &  GetStandInBar () { return m_captureBar; }
-    void  TickTooltips               (int64_t nowMs);
-    RECT  GetSwitchBandBounds        () const { return m_switchBand.GetBounds(); }
-    int   GetDriveBarThicknessDp     () const { return m_driveBarThicknessDp; }
-    bool  IsDriveTooltipVisible      () const { return m_tooltip.IsVisible() && !m_driveTipText.empty() && m_tooltip.GetText() == m_driveTipText; }
-    void  SetDriveBandSurfaceVisible (bool isVisible) { m_driveBandSurface.SetVisible (isVisible); }
-    bool  IsDriveBandSurfaceVisible  () const { return m_driveBandSurface.IsVisible(); }
-    RECT  GetDriveBandSurfaceBounds  () const { return m_driveBandSurface.GetBounds(); }
+    ShellStandInBar  & GetStandInBar              () { return m_captureBar; }
+    void               TickTooltips               (int64_t nowMs);
+    RECT               GetSwitchBandBounds        () const { return m_switchBand.GetBounds(); }
+    int                GetDriveBarThicknessDp     () const { return m_driveBarThicknessDp; }
+    bool               IsDriveTooltipVisible      () const { return m_tooltip.IsVisible() && !m_driveTipText.empty() && m_tooltip.GetText() == m_driveTipText; }
+    void               SetDriveBandSurfaceVisible (bool isVisible) { m_driveBandSurface.SetVisible (isVisible); }
+    bool               IsDriveBandSurfaceVisible  () const { return m_driveBandSurface.IsVisible(); }
+    RECT               GetDriveBandSurfaceBounds  () const { return m_driveBandSurface.GetBounds(); }
 
     // The idle frame loop's timeouts: true while a tooltip, the menu bar or
     // the toolbar animates, and when the next notice appears or expires.
-    bool                    WantsAnimationTick   () const;
+    bool                    WantsAnimationTick    () const;
     std::optional<int64_t>  GetNextNoticeChangeMs () const { return m_notifications.m_notices.GetNextChangeMs(); }
 
     // The left button: a press outside the menu strip closes an open menu,
@@ -131,8 +131,8 @@ public:
 
     // The caption buttons' tooltip and its tip service; the update indicator
     // in the caption has the same tooltip.
-    DxuiTooltip &     GetCaptionTooltip () { return m_captionTooltip; }
-    DxuiTipService &  GetCaptionTips    () { return m_captionTips; }
+    DxuiTooltip     & GetCaptionTooltip () { return m_captionTooltip; }
+    DxuiTipService  & GetCaptionTips    () { return m_captionTips; }
     //  How many bands peel an edge off the client area before the emulator
     //  viewport gets the rest. Named so the two directions that walk them
     //  cannot size their arrays differently.
@@ -235,9 +235,9 @@ public:
     void    ReflowChromeForChangeBand ();
 
 
-    void  ShowNotice   (const std::wstring & text);
-    void  PostNotice   (const std::wstring & text);
-    ShellNotices &  GetNotices () { return m_notifications; }
+    void            ShowNotice (const std::wstring & text);
+    void            PostNotice (const std::wstring & text);
+    ShellNotices  & GetNotices () { return m_notifications; }
 
     // The lowest edge of whatever chrome is docked (or, in fullscreen,
     // revealed) at the top of the client, which is where an overlay that

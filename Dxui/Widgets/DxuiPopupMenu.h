@@ -260,8 +260,8 @@ public:
     void  SetMaxWidthPx  (int px)               { m_maxWidthPx = (px > 0) ? px : 0; }
 
     //  The face the rows are drawn in: the UI face unless one is set.
-    void  SetFace        (const wchar_t * face) { m_face = face; }
-    const wchar_t *  GetFace () const;
+    void             SetFace (const wchar_t * face) { m_face = face; }
+    const wchar_t  * GetFace () const;
 
     //  True for a row whose label is cut off to fit the menu's width.
     bool  IsRowCut       (int index) const;

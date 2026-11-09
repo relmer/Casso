@@ -43,15 +43,15 @@ public:
     void                           BeginEdit      (int row, int column);
     void                           EndEdit        (bool commit);
 
-    void                           Configure      () override;
-    std::vector<IDxuiControl *>    GetControls    () const override;
-    void                           Apply          (const DebuggerViewSnapshot & snapshot) override;
-    bool                           RouteEditKey   (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
-    bool                           RouteContentMouse (const DxuiMouseEvent & ev) override;
-    bool                           AddMenuItems   (DxuiListView * list, int row, PaneMenuItems & items) override;
-    bool                           CanUndo        (bool redo) const override;
-    std::wstring                   GetUndoText    (bool redo) const override;
-    void                           Undo           (bool redo) override;
+    void                         Configure         () override;
+    std::vector<IDxuiControl *>  GetControls       () const override;
+    void                         Apply             (const DebuggerViewSnapshot & snapshot) override;
+    bool                         RouteEditKey      (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
+    bool                         RouteContentMouse (const DxuiMouseEvent & ev) override;
+    bool                         AddMenuItems      (DxuiListView * list, int row, PaneMenuItems & items) override;
+    bool                         CanUndo           (bool redo) const override;
+    std::wstring                 GetUndoText       (bool redo) const override;
+    void                         Undo              (bool redo) override;
 
 protected:
     DxuiListView *                 CreateList     () override;

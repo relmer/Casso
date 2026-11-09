@@ -45,7 +45,7 @@ private:
     static constexpr int  kSectionGapDp  = 18;
     static constexpr int  kSliderWidthDp = 420;
 
-    static RECT  MakeRect (int l, int t, int w, int h);
+    static RECT  MakeRect       (int l, int t, int w, int h);
     void         UpdateEstimate ();
 
     DxuiCheckbox  m_record;

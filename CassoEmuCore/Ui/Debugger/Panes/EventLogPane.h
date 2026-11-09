@@ -455,9 +455,9 @@ public:
 
     //  The rows behind the list, in the list's order: indices into the
     //  pane's rows, kTopRow for the row above the oldest.
-    const std::vector<int>         &  GetView () const { return m_view; }
-    const EventLogRows<T>          &  GetRows () const { return m_rows; }
-    size_t                            GetBuildCount () const { return m_buildCount; }
+    const std::vector<int>  & GetView       () const { return m_view; }
+    const EventLogRows<T>   & GetRows       () const { return m_rows; }
+    size_t                    GetBuildCount () const { return m_buildCount; }
 
     void  ProvideRow (int viewRow, Cells & out) const
     {
@@ -531,12 +531,12 @@ protected:
     //  Looks over the rows from `from` on before the filter runs on them,
     //  the rows before it looked over already. GetSettledCount is the count of
     //  the first `count` rows whose filtering no newer row can change.
-    virtual void         PrepareView     (const std::vector<Row> & rows, size_t from) { (void) rows; (void) from; }
-    virtual size_t       GetSettledCount (const std::vector<Row> & rows, size_t count) const { (void) rows; return count; }
-    virtual bool         Matches        (const Row & row, size_t index) const = 0;
-    virtual void         MakeCells      (const Row & row, Cells & out) const = 0;
-    virtual size_t       GetLabelColumn () const = 0;
-    virtual size_t       GetTextColumn  () const = 0;
+    virtual void    PrepareView     (const std::vector<Row> & rows, size_t from) { (void) rows; (void) from; }
+    virtual size_t  GetSettledCount (const std::vector<Row> & rows, size_t count) const { (void) rows; return count; }
+    virtual bool    Matches         (const Row & row, size_t index) const = 0;
+    virtual void    MakeCells       (const Row & row, Cells & out) const = 0;
+    virtual size_t  GetLabelColumn  () const = 0;
+    virtual size_t  GetTextColumn   () const = 0;
 
     //  The number a row sorts by in a column of numbers, or none to sort it
     //  by its text: "1,300" does not come before "300".

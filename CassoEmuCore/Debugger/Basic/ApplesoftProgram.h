@@ -135,10 +135,10 @@ public:
     //  the stack pointer given: RESTART's call of GETLN, whose return address
     //  is then on the stack. CURLIN has the last line run until a line is
     //  typed, for CONT.
-    bool                 IsAtPrompt (Byte stackPointer) const;
-    void                 GetVariables  (std::vector<BasicVariable> & variables) const;
-    void                 GetArrays     (std::vector<BasicArray> & arrays) const;
-    void                 GetFrames     (std::vector<BasicFrame> & frames) const;
+    bool  IsAtPrompt   (Byte stackPointer) const;
+    void  GetVariables (std::vector<BasicVariable> & variables) const;
+    void  GetArrays    (std::vector<BasicArray> & arrays) const;
+    void  GetFrames    (std::vector<BasicFrame> & frames) const;
 
     //  A variable or array element written as a program writes it; false for
     //  text that is not one.
@@ -159,8 +159,8 @@ public:
     //  variable: the exponent, then the mantissa with the sign in its top bit.
     //  FormatReal approximates PRINT in host arithmetic; a reader with the
     //  machine's ROM runs FOUT itself, for PRINT's own rounding.
-    static std::string               FormatReal (const std::array<Byte, 5> & bytes);
-    std::string                      FormatRealByRom (const std::array<Byte, 5> & bytes) const;
+    static std::string  FormatReal      (const std::array<Byte, 5> & bytes);
+    std::string         FormatRealByRom (const std::array<Byte, 5> & bytes) const;
 
     //  The rows LIST prints for the lines.
     static std::vector<std::string>  GetListRows (const std::vector<BasicLine> & lines);

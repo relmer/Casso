@@ -65,11 +65,11 @@ public:
     void  OnModeChanged    (CommandMode mode) override;
 
 private:
-    void  HandleLine         (ChannelConnectionId connection, const std::string & line);
-    void  HandleRequest      (ChannelConnectionId connection, const ChannelRequest & request);
-    void  Queue              (std::string && record);
-    void  FlushNotifications ();
-    void  Broadcast          (const std::string & record);
+    void  HandleLine          (ChannelConnectionId connection, const std::string & line);
+    void  HandleRequest       (ChannelConnectionId connection, const ChannelRequest & request);
+    void  Queue               (std::string && record);
+    void  FlushNotifications  ();
+    void  Broadcast           (const std::string & record);
     void  ForgetClosedClients ();
 
     IPipeTransport            & m_transport;

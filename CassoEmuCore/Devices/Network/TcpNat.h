@@ -45,9 +45,9 @@ public:
     //  A resume from the past: each segment in history between the guest
     //  and a connection is noted, oldest first, then Rewind returns each
     //  connection to the point and closes the ones opened after it.
-    void    NoteRewindSegment (const TcpSegment & segment, bool isToGuest, bool isAfter);
-    void    Rewind          (uint64_t now);
-    bool    IsActive        () const { return !m_connections.empty(); }
+    void    NoteRewindSegment  (const TcpSegment & segment, bool isToGuest, bool isAfter);
+    void    Rewind             (uint64_t now);
+    bool    IsActive           () const { return !m_connections.empty(); }
     size_t  GetConnectionCount () const { return m_connections.size(); }
 
 private:

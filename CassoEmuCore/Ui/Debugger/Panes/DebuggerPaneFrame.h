@@ -69,11 +69,11 @@ public:
     //  part that fills.
     int   GetMinimumHeightPx (int widthPx, const DxuiDpiScaler & scaler) const;
 
-    void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    void                Layout              (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                Paint               (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     void                OnVisibilityChanged () override;
-    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Panel; }
-    std::wstring        GetAccessibleName () const override { return m_name; }
+    DxuiAccessibleRole  GetAccessibleRole   () const override { return DxuiAccessibleRole::Panel; }
+    std::wstring        GetAccessibleName   () const override { return m_name; }
 
     static constexpr int  kGapDip     = 6;
     static constexpr int  kMinFillDip = 20;

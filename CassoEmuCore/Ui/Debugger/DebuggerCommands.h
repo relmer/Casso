@@ -89,24 +89,24 @@ private:
         bool                 iconOnly   = false;
     };
 
-    static const std::vector<Row> &  GetRows ();
-    static std::wstring              GetTip  (const Row & row, const std::wstring & accelerator);
-    static void  PaintIcon         (int id, IDxuiPainter & painter, const DxuiToolbarIconBox & icon, const IconColors & colors);
-    static void  PaintRun          (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintPause        (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintStepInto     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintStepOver     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintStepOut      (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintRunToCursor  (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t arrow, uint32_t bar);
-    static void  PaintShowNext     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintLoadFile     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t ones, uint32_t zeros);
-    static void  PaintStepBackInto (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintStepBackOver (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintStepBackOut  (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintReverseRun   (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintBackDot      (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintArrowHead    (IDxuiPainter & painter, float tipX, float tipY, float dirX, float dirY, float length, float stroke, uint32_t color);
-    static void  PaintStepDot      (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static const std::vector<Row>  & GetRows           ();
+    static std::wstring              GetTip            (const Row & row, const std::wstring & accelerator);
+    static void                      PaintIcon         (int id, IDxuiPainter & painter, const DxuiToolbarIconBox & icon, const IconColors & colors);
+    static void                      PaintRun          (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void                      PaintPause        (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void                      PaintStepInto     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void                      PaintStepOver     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void                      PaintStepOut      (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void                      PaintRunToCursor  (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t arrow, uint32_t bar);
+    static void                      PaintShowNext     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void                      PaintLoadFile     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t ones, uint32_t zeros);
+    static void                      PaintStepBackInto (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void                      PaintStepBackOver (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void                      PaintStepBackOut  (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void                      PaintReverseRun   (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void                      PaintBackDot      (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+    static void                      PaintArrowHead    (IDxuiPainter & painter, float tipX, float tipY, float dirX, float dirY, float length, float stroke, uint32_t color);
+    static void                      PaintStepDot      (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
 
     //  Whether the bar's one Run or Pause button is Pause: the machine runs,
     //  or replays history.

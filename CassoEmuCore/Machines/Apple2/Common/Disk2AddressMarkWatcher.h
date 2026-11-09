@@ -137,9 +137,9 @@ public:
     // The sector, track and volume of the latest good address field (-1
     // until the first). A data field's events use them when the field
     // follows its address field; the UI formats -1 as "?" (FR-008).
-    int    GetCachedSector() const noexcept { return m_cachedSector; }
-    int    GetCachedTrack()  const noexcept { return m_cachedTrack;  }
-    int    GetCachedVolume() const noexcept { return m_cachedVolume; }
+    int  GetCachedSector () const noexcept { return m_cachedSector; }
+    int  GetCachedTrack  ()  const noexcept { return m_cachedTrack;  }
+    int  GetCachedVolume () const noexcept { return m_cachedVolume; }
 
 private:
     enum class AddrState : uint8_t

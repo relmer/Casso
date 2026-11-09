@@ -81,12 +81,12 @@ public:
     void  Reseed          ();
 
     // IDisk2EventSink
-    void  OnMotorCommandOn() override;
-    void  OnMotorEngaged() override;
-    void  OnMotorCommandOff() override;
-    void  OnMotorDisengaged() override;
-    void  OnHeadStep        (int prevQt, int newQt) override;
-    void  OnHeadBump        (int atQt) override;
+    void  OnMotorCommandOn       () override;
+    void  OnMotorEngaged         () override;
+    void  OnMotorCommandOff      () override;
+    void  OnMotorDisengaged      () override;
+    void  OnHeadStep             (int prevQt, int newQt) override;
+    void  OnHeadBump             (int atQt) override;
     void  OnAddressMark          (int track, int sector, int volume) override;
     void  OnDataMarkRead         (int track, int sector, int volume, std::span<const Byte> bytes) override;
     void  OnDataMarkWrite        (int track, int sector, int volume, std::span<const Byte> bytes) override;
@@ -96,9 +96,9 @@ public:
     void  OnDataFieldCutOff      (int track, int sector, int volume) override;
     void  OnDataWithoutAddress   (std::span<const Byte> bytes) override;
     void  OnWriteProtected       () override;
-    void  OnDriveSelect     (int drive) override;
-    void  OnDiskInserted    (int drive) override;
-    void  OnDiskEjected     (int drive) override;
+    void  OnDriveSelect          (int drive) override;
+    void  OnDiskInserted         (int drive) override;
+    void  OnDiskEjected          (int drive) override;
 
     // IInputEventSink: the History slot reports the guest's reads alone.
     void  OnKbdDataRead    (Word address, Byte value, bool strobeSet) override;

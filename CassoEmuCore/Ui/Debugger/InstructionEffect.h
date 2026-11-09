@@ -44,9 +44,9 @@ public:
     explicit ShadowCpu (const IDebugExpressionContext & memory, const Microcode * instructionSet = nullptr);
 
     //  The byte a read with no peek returns, and whether any read was one.
-    void                       SetUnknownReadValue (Byte value) { m_unknownValue = value; }
-    bool                       HasUnknownRead      () const     { return m_hasUnknownRead; }
-    const std::vector<Write> & GetWrites  () const { return m_writes; }
+    void                        SetUnknownReadValue (Byte value) { m_unknownValue = value; }
+    bool                        HasUnknownRead      () const     { return m_hasUnknownRead; }
+    const std::vector<Write>  & GetWrites           () const { return m_writes; }
 
     //  Every address read, the instruction's own bytes among them: the
     //  caller knows where the instruction sits and drops those itself.

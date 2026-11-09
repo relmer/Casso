@@ -142,9 +142,9 @@ public:
 
     //  The legend's lines, grouped by the pane they are seen in, in the order
     //  the panes are listed; one pane's alone; and a pane's title.
-    static const std::vector<Entry> &  GetEntries    ();
+    static const std::vector<Entry>  & GetEntries    ();
     static std::vector<Entry>          GetEntriesFor (Pane pane);
-    static const wchar_t *             GetPaneTitle  (Pane pane);
+    static const wchar_t             * GetPaneTitle  (Pane pane);
 
     //  The heat map's legend for a view and Blend: only the colors that view
     //  can draw. HeatMap is the All view without Blend; HeatMapBlend adds the

@@ -94,38 +94,38 @@ private:
         uint64_t  startCycles = 0;
     };
 
-    static void  SetProgramCounter (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  CallSubroutine    (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  WriteNop          (DebugSession & session, Reply & reply);
-    void         QueueKeys         (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  BreakOnVideoLine  (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  BreakOnBeam       (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  RunFrame          (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  ShowVideoInfo     (DebugSession & session, Reply & reply);
-    static void  ShowBranchRecord  (DebugSession & session, Reply & reply);
-    void         ToggleTrace       (DebugSession & session, const DebugCommand & command, Reply & reply);
-    void         Profile           (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  SetProgramCounter       (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  CallSubroutine          (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  WriteNop                (DebugSession & session, Reply & reply);
+    void         QueueKeys               (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  BreakOnVideoLine        (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  BreakOnBeam             (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  RunFrame                (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  ShowVideoInfo           (DebugSession & session, Reply & reply);
+    static void  ShowBranchRecord        (DebugSession & session, Reply & reply);
+    void         ToggleTrace             (DebugSession & session, const DebugCommand & command, Reply & reply);
+    void         Profile                 (DebugSession & session, const DebugCommand & command, Reply & reply);
     void         BuildProfileFromHistory (DebugSession & session, const std::string & arguments, Reply & reply);
-    void         Stopwatch         (DebugSession & session, const DebugCommand & command, Reply & reply);
-    void         ShowStopwatch     (Reply & reply) const;
-    void         ShowCycles        (DebugSession & session, const DebugCommand & command, Reply & reply);
-    void         ResetCycles       (DebugSession & session, Reply & reply);
-    static void  RunReverse        (DebugSession & session, const DebugCommand & command, Reply & reply);
+    void         Stopwatch               (DebugSession & session, const DebugCommand & command, Reply & reply);
+    void         ShowStopwatch           (Reply & reply) const;
+    void         ShowCycles              (DebugSession & session, const DebugCommand & command, Reply & reply);
+    void         ResetCycles             (DebugSession & session, Reply & reply);
+    static void  RunReverse              (DebugSession & session, const DebugCommand & command, Reply & reply);
 
     //  The reverse command a reverse verb stands for.
     static ReverseCommand  GetReverseCommand (DebugVerb verb);
 
-    void         RecordProfile     (DebugSession & session, Word pc);
-    void         BillProfile       (DebugSession & session);
-    void         BuildRoutines     (DebugSession & session, ProfileData & data) const;
-    void         BuildTopAddresses (DebugSession & session, ProfileData & data) const;
-    void         SaveProfile       (DebugSession & session, const std::string & name, Reply & reply) const;
-    void         RecordTrace       (DebugSession & session, Word pc);
-    HRESULT      FlushTrace        (DebugSession & session);
-    static HRESULT  ProbeWritable  (IFileSystem & files, const std::wstring & path);
-    void         FeedKeys          (DebugSession & session);
-    static Byte  Peek              (IDebugTarget & target, Word address);
-    static std::string  TrimSpaces (const std::string & text);
+    void                RecordProfile     (DebugSession & session, Word pc);
+    void                BillProfile       (DebugSession & session);
+    void                BuildRoutines     (DebugSession & session, ProfileData & data) const;
+    void                BuildTopAddresses (DebugSession & session, ProfileData & data) const;
+    void                SaveProfile       (DebugSession & session, const std::string & name, Reply & reply) const;
+    void                RecordTrace       (DebugSession & session, Word pc);
+    HRESULT             FlushTrace        (DebugSession & session);
+    static HRESULT      ProbeWritable     (IFileSystem & files, const std::wstring & path);
+    void                FeedKeys          (DebugSession & session);
+    static Byte         Peek              (IDebugTarget & target, Word address);
+    static std::string  TrimSpaces        (const std::string & text);
 
     //  The list for PROFILE LIST's word: none, ADDR, ROUTINES or TREE.
     static bool  TryGetProfileList (const std::string & word, ProfileList & list);

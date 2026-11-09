@@ -21,9 +21,9 @@ public:
     //  at $0300", or the bare verb when there is nothing to quote.
     static std::wstring              GetLabel    (bool redo, const std::wstring & text);
 
-    static std::vector<std::string>  Split       (const std::string & text, char separator);
-    static bool                      TryParseHex (const std::string & text, uint32_t & value);
-    static std::string               FormatBytes (std::span<const Byte> bytes);
+    static std::vector<std::string>  Split         (const std::string & text, char separator);
+    static bool                      TryParseHex   (const std::string & text, uint32_t & value);
+    static std::string               FormatBytes   (std::span<const Byte> bytes);
     static bool                      TryParseBytes (const std::string & text, std::vector<Byte> & bytes);
 
     //  Any text as hex digits, two to a character, so no separator appears

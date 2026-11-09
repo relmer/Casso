@@ -39,7 +39,7 @@ public:
     uint64_t  GetFirst () const { return m_first; }
     uint64_t  GetLast  () const { return m_last; }
 
-    std::optional<uint64_t>  GetCycleAt (POINT point) const;
+    std::optional<uint64_t>  GetCycleAt  (POINT point) const;
     bool                     TryGetTipAt (POINT point, std::wstring & text) const;
 
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
@@ -50,7 +50,7 @@ public:
     static uint32_t     GetStateColor (Byte status);
 
 private:
-    float  GetX (uint64_t cycle) const;
+    float  GetX        (uint64_t cycle) const;
     void   PaintLevels (IDxuiPainter & painter, const CommLane & lane, float top, float bottom, uint32_t color) const;
     void   PaintStates (IDxuiPainter & painter, const CommLane & lane, float top, float bottom, uint32_t tick) const;
 

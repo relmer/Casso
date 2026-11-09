@@ -40,7 +40,7 @@ public:
     //  As Show, on a transparent popup the render draws its own fill into,
     //  for a tip that is not a rectangle.
     void  ShowShaped (const RECT & clientRect, RenderFn render);
-    void  Hide ();
+    void  Hide       ();
 
     bool          IsVisible () const { return m_activePopup != nullptr; }
     const RECT &  GetRect   () const { return m_rect; }

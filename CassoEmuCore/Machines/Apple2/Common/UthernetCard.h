@@ -107,9 +107,9 @@ public:
     // W5100's mode, addresses and interrupt register, and each socket.
     std::string  GetDiagnosticsId    () const override { return "uthernet"; }
     std::string  GetDiagnosticsTitle () const override { return "Uthernet II"; }
-    void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
-    void         AddIoRegisters      (std::vector<DiagnosticsIoRegister> & registers) const override;
-    uint64_t             GetCycles () const { return m_cycles; }
+    void      GetDiagnostics (DiagnosticsSnapshot & snapshot) const override;
+    void      AddIoRegisters (std::vector<DiagnosticsIoRegister> & registers) const override;
+    uint64_t  GetCycles      () const { return m_cycles; }
 
     // IMachineState: the W5100's section, then the pump's count.
     HRESULT  SaveState (StateWriter & writer) const override;

@@ -48,10 +48,10 @@ public:
 
     //  One color per source; None is drawn in the theme's divider color, so it
     //  has no entry of its own.
-    static uint32_t               GetSourceColor (MemorySource source);
-    static const wchar_t *        GetSourceName  (MemorySource source);
-    static const wchar_t *        GetSourceLabel (MemorySource source);
-    static const wchar_t *        GetSourceDescription (MemorySource source);
+    static uint32_t         GetSourceColor       (MemorySource source);
+    static const wchar_t  * GetSourceName        (MemorySource source);
+    static const wchar_t  * GetSourceLabel       (MemorySource source);
+    static const wchar_t  * GetSourceDescription (MemorySource source);
 
     //  The theme's colors in place of the mid-tones, one per source in
     //  MemorySource order; a zero keeps that source's mid-tone.

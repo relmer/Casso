@@ -222,10 +222,10 @@ public:
     //  The modes in the drop-down's order, alphabetical by label; a mode's
     //  label; the command box's prompt in a mode; and a mode's help
     //  command.
-    static const std::vector<ModeChoice> &  GetModeChoices ();
-    static std::wstring  GetModeLabel   (const wchar_t * mode);
-    static std::wstring  GetPromptText  (CommandMode mode);
-    static std::wstring  GetHelpCommand (CommandMode mode);
+    static const std::vector<ModeChoice>  & GetModeChoices ();
+    static std::wstring                     GetModeLabel   (const wchar_t * mode);
+    static std::wstring                     GetPromptText  (CommandMode mode);
+    static std::wstring                     GetHelpCommand (CommandMode mode);
 
 private:
     IDebuggerPaneHost                     & m_host;

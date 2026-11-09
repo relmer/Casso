@@ -47,10 +47,10 @@ public:
 
     // Strategy access — for callers that want to talk to the CPU directly
     // through one of the contracts.
-    ICpu *           GetCpu        () { return m_cpu.get (); }
-    const ICpu *     GetCpu        () const { return m_cpu.get (); }
-    Cpu6502 *        GetCpu6502    () { return m_cpu6502; }
-    const Cpu6502 *  GetCpu6502    () const { return m_cpu6502; }
+    ICpu           * GetCpu     () { return m_cpu.get (); }
+    const ICpu     * GetCpu     () const { return m_cpu.get (); }
+    Cpu6502        * GetCpu6502 () { return m_cpu6502; }
+    const Cpu6502  * GetCpu6502 () const { return m_cpu6502; }
 
     // ICpu surface
     HRESULT          Reset            ()                 { return m_cpu->Reset (); }
@@ -59,13 +59,13 @@ public:
     uint64_t         GetCycleCount    () const           { return m_cpu->GetCycleCount (); }
 
     // Cycle counter pass-through (Cpu6502 hosts the accumulator)
-    uint64_t         GetTotalCycles      () const  { return m_cpu6502->GetCycleCount (); }
-    void             ResetCycles         ()        { m_cpu6502->ResetCycles (); }
-    uint64_t *       GetCycleCounterPtr  ()        { return m_cpu6502->GetCycleCounterPtr (); }
-    uint64_t         GetHistoryCycles    () const  { return m_cpu6502->GetHistoryCycleCount(); }
-    const uint64_t * GetCycleBasePtr     () const  { return m_cpu6502->GetCycleBasePtr(); }
-    uint64_t *       GetBusCyclePtr      ()        { return m_cpu6502->GetBusCyclePtr (); }
-    void             AddCycles           (Byte n);
+    uint64_t          GetTotalCycles     () const  { return m_cpu6502->GetCycleCount (); }
+    void              ResetCycles        ()        { m_cpu6502->ResetCycles (); }
+    uint64_t        * GetCycleCounterPtr ()        { return m_cpu6502->GetCycleCounterPtr (); }
+    uint64_t          GetHistoryCycles   () const  { return m_cpu6502->GetHistoryCycleCount(); }
+    const uint64_t  * GetCycleBasePtr    () const  { return m_cpu6502->GetCycleBasePtr(); }
+    uint64_t        * GetBusCyclePtr     ()        { return m_cpu6502->GetBusCyclePtr (); }
+    void              AddCycles          (Byte n);
 
     // Phase 5 / FR-033. Optional sink ticked once per AddCycles call so
     // the //e video timing model stays phase-locked to CPU progress.

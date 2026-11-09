@@ -114,10 +114,10 @@ private:
 
     using BlockKey = std::tuple<uint64_t, uint64_t, uint64_t, uint64_t>;
 
-    bool      IsStopped    () const;
-    void      CancelAll    ();
-    HRESULT   SubmitBlocks (const std::vector<size_t> & pending, uint64_t fromCycle, uint64_t toCycle);
-    static BlockKey  GetKey (const Block & block);
+    bool                                             IsStopped     () const;
+    void                                             CancelAll     ();
+    HRESULT                                          SubmitBlocks  (const std::vector<size_t> & pending, uint64_t fromCycle, uint64_t toCycle);
+    static BlockKey                                  GetKey        (const Block & block);
     std::map<uint64_t, std::vector<CallStackFrame>>  GetStartCalls (const DebugEventJob & job) const;
 
     MachineHost                           & m_machine;

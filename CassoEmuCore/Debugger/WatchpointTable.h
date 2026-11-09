@@ -85,10 +85,10 @@ class WatchpointTable : public IWatchSink
 public:
     explicit WatchpointTable (int & nextId);
 
-    void   SetTarget        (IDebugTarget * target);
-    void   SetAccessPc      (Word pc);
-    void   SetContext       (const IDebugExpressionContext * context) { m_context = context; }
-    void   SetValueBreakpoints (BreakpointTable * breakpoints);
+    void  SetTarget           (IDebugTarget * target);
+    void  SetAccessPc         (Word pc);
+    void  SetContext          (const IDebugExpressionContext * context) { m_context = context; }
+    void  SetValueBreakpoints (BreakpointTable * breakpoints);
 
     //  Publishes the watched pages again, after the value breakpoints change.
     void   RefreshWatchedPages () { Publish(); }
@@ -105,8 +105,8 @@ public:
     //  The sink is offered every write to the bytes given, and their pages
     //  are watched while there are any. A watch of these bytes is not a
     //  watchpoint: it has no id and no hit count.
-    void   SetVectorWriteSink (VectorWriteSink sink) { m_vectorWriteSink = std::move (sink); }
-    void   SetVectorBytes   (const std::vector<Word> & bytes);
+    void  SetVectorWriteSink (VectorWriteSink sink) { m_vectorWriteSink = std::move (sink); }
+    void  SetVectorBytes     (const std::vector<Word> & bytes);
 
     int    Add              (WatchAccess access, Word first, Word last, WatchMode mode = WatchMode::After, const Expression & condition = {});
     bool   TryClear         (int id);
@@ -124,11 +124,11 @@ public:
 
     const std::vector<Watchpoint> &  GetAll () const { return m_entries; }
 
-    bool   HasEnabled       () const;
-    bool   HasEnabledBefore () const;
-    bool   HasPendingStop   () const { return m_pendingHit.has_value(); }
-    const std::optional<WatchHit> &  GetPendingHit () const { return m_pendingHit; }
-    void   ClearPending     () { m_pendingHit.reset(); }
+    bool                             HasEnabled       () const;
+    bool                             HasEnabledBefore () const;
+    bool                             HasPendingStop   () const { return m_pendingHit.has_value(); }
+    const std::optional<WatchHit>  & GetPendingHit    () const { return m_pendingHit; }
+    void                             ClearPending     () { m_pendingHit.reset(); }
 
     WatchedPages  GetWatchedPages () const;
 
@@ -171,14 +171,14 @@ private:
         Word  last  = 0;
     };
 
-    static bool  IsAccessMatch  (WatchAccess watched, BusAccess actual);
-    static bool  IsTouchMatch   (WatchAccess watched, PredictedAccess predicted);
-    bool         IsSuppressed   (Word address) const;
+    static bool  IsAccessMatch        (WatchAccess watched, BusAccess actual);
+    static bool  IsTouchMatch         (WatchAccess watched, PredictedAccess predicted);
+    bool         IsSuppressed         (Word address) const;
     bool         TryConsumeCpuOwnRead (Word address);
-    bool         ShouldReplace  (Word address, BusAccess access) const;
-    bool         IsConditionMet (const Expression & condition, Word address, std::optional<Byte> value, std::optional<int32_t> & conditionValue) const;
-    void         RecordHit      (const WatchHit & hit, BusAccess access);
-    void         Publish        ();
+    bool         ShouldReplace        (Word address, BusAccess access) const;
+    bool         IsConditionMet       (const Expression & condition, Word address, std::optional<Byte> value, std::optional<int32_t> & conditionValue) const;
+    void         RecordHit            (const WatchHit & hit, BusAccess access);
+    void         Publish              ();
 
     int                              & m_nextId;
     std::vector<Watchpoint>            m_entries;

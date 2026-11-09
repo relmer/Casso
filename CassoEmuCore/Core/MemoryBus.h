@@ -132,12 +132,12 @@ public:
     // sink; the page the MMU last set is kept in the shadow tables and served
     // from there. The shadow tables are also what a side-effect-free debugger
     // peek reads.
-    void   SetWatchedPage     (int pageIndex, bool watched);
-    void   SetWatchSink       (IWatchSink * sink)       { m_watchSink = sink; }
-    IWatchSink * GetWatchSink () const                  { return m_watchSink; }
-    bool   IsPageWatched      (int pageIndex) const     { return pageIndex >= 0 && pageIndex < 0x100 && m_debugWatched[pageIndex]; }
-    Byte * GetShadowReadPage  (Word address) const      { return m_shadowReadPage[address >> 8]; }
-    Byte * GetShadowWritePage (Word address) const      { return m_shadowWritePage[address >> 8]; }
+    void          SetWatchedPage     (int pageIndex, bool watched);
+    void          SetWatchSink       (IWatchSink * sink)       { m_watchSink = sink; }
+    IWatchSink  * GetWatchSink       () const                  { return m_watchSink; }
+    bool          IsPageWatched      (int pageIndex) const     { return pageIndex >= 0 && pageIndex < 0x100 && m_debugWatched[pageIndex]; }
+    Byte        * GetShadowReadPage  (Word address) const      { return m_shadowReadPage[address >> 8]; }
+    Byte        * GetShadowWritePage (Word address) const      { return m_shadowWritePage[address >> 8]; }
 
     Byte * const * GetShadowReadPageTable () const      { return m_shadowReadPage; }
 
@@ -155,16 +155,16 @@ public:
     // every access reaches the trace sink as well as the watch sink's pages;
     // off, the watch mask alone is published again. The watched page count
     // is the pages that take the watched path now.
-    void   SetTraceAllPages   (bool on);
-    void   SetTraceSink       (IWatchSink * sink)       { m_traceSink = sink; }
-    IWatchSink * GetTraceSink () const                  { return m_traceSink; }
-    bool   IsTracingAllPages  () const                  { return m_traceAllPages; }
+    void          SetTraceAllPages  (bool on);
+    void          SetTraceSink      (IWatchSink * sink)       { m_traceSink = sink; }
+    IWatchSink  * GetTraceSink      () const                  { return m_traceSink; }
+    bool          IsTracingAllPages () const                  { return m_traceAllPages; }
 
     // A listener on the I/O space for each observer slot: each access a
     // device at $C000-$CFFF decodes at an address its filter includes,
     // after the device acts on it.
-    void   SetIoAccessSink    (ObserverSlot slot, IIoAccessSink * sink, const IoAccessFilter & filter);
-    int    GetWatchedPageCount () const;
+    void  SetIoAccessSink     (ObserverSlot slot, IIoAccessSink * sink, const IoAccessFilter & filter);
+    int   GetWatchedPageCount () const;
 
     // The access heat map: while on, every page takes the watched path, so the
     // CPU reaches the bus, and can report, for every read; off publishes the

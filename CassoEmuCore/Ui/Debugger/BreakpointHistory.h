@@ -105,11 +105,11 @@ private:
     std::optional<int>   GetLiveId    (DebugSession & session, int handle, const BreakpointInfo & expected) const;
     bool                 IsDefined    (DebugSession & session, const BreakpointInfo & info) const;
 
-    static std::map<int, BreakpointInfo>  ListById    (DebugSession & session);
-    static std::map<int, Saved>           SaveAll     (DebugSession & session);
-    static std::vector<std::string>       Describe    (const std::vector<Outcome> & outcomes);
+    static std::map<int, BreakpointInfo>  ListById     (DebugSession & session);
+    static std::map<int, Saved>           SaveAll      (DebugSession & session);
+    static std::vector<std::string>       Describe     (const std::vector<Outcome> & outcomes);
     static std::wstring                   DescribeStep (const Step & step);
-    static bool                           IsSame      (const BreakpointInfo & left, const BreakpointInfo & right);
+    static bool                           IsSame       (const BreakpointInfo & left, const BreakpointInfo & right);
     static bool                           HasSameFlags (const BreakpointInfo & left, const BreakpointInfo & right);
     static std::string                    FormatSide   (const std::optional<BreakpointInfo> & info);
     static bool                           TryParseSide (DebugSession & session, const std::string & text,

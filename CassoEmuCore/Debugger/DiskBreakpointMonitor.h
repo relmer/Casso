@@ -116,14 +116,14 @@ private:
         uint16_t  anyMask  = 0;
     };
 
-    void  Queue          (Event event);
-    void  FindBlockedWrites (const Disk2NibbleRecord & record);
-    bool  IsMatch        (const Breakpoint & entry, const Candidate & candidate) const;
-    bool  IsFieldMatch   (const DiskBreakSpec & spec, const Candidate & candidate) const;
-    void  NoteVisit      (Candidate & candidate);
-    bool  IsEventMatch   (const DiskBreakSpec & spec, const Event & event) const;
-    void  MakeReport     (int id, const Candidate & candidate, const DebugDiskState & state);
-    size_t  FindMarkSet  (const DiskBreakSpec & spec) const;
+    void    Queue             (Event event);
+    void    FindBlockedWrites (const Disk2NibbleRecord & record);
+    bool    IsMatch           (const Breakpoint & entry, const Candidate & candidate) const;
+    bool    IsFieldMatch      (const DiskBreakSpec & spec, const Candidate & candidate) const;
+    void    NoteVisit         (Candidate & candidate);
+    bool    IsEventMatch      (const DiskBreakSpec & spec, const Event & event) const;
+    void    MakeReport        (int id, const Candidate & candidate, const DebugDiskState & state);
+    size_t  FindMarkSet       (const DiskBreakSpec & spec) const;
 
     static DiskFieldTracker::Marks  GetMarks     (const DiskBreakSpec & spec);
     static bool                     IsDrive      (const DiskBreakSpec & spec, int drive);

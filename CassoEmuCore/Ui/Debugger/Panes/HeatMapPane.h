@@ -54,11 +54,11 @@ public:
 
     //  A set renamed: the set left out of the reads before written follows
     //  the new name when it was that set.
-    void                                 RenameIgnoreSet (const std::string & from, const std::string & to);
-    void                                 RunBarEntry  (int id);
-    bool                                 IsBarEnabled (int id) const;
-    bool                                 IsBarChecked (int id) const;
-    std::wstring                         GetBarLabel  (int id) const;
+    void          RenameIgnoreSet (const std::string & from, const std::string & to);
+    void          RunBarEntry     (int id);
+    bool          IsBarEnabled    (int id) const;
+    bool          IsBarChecked    (int id) const;
+    std::wstring  GetBarLabel     (int id) const;
 
     //  The rows a menu on a byte or a cell gets for its last write and read:
     //  show each in the disassembly, or go back to it.

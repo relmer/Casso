@@ -59,8 +59,8 @@ public:
 
     std::vector<const IDiagnosticsProvider *>  diagnosticsProviders;
 
-    Cpu6502Registers GetRegisters() const override                         { return registers; }
-    void             SetRegisters (const Cpu6502Registers & value) override { registers = value; }
+    Cpu6502Registers  GetRegisters () const override                         { return registers; }
+    void              SetRegisters (const Cpu6502Registers & value) override { registers = value; }
 
     bool TryPeek (Word address, Byte & value) const override
     {
@@ -110,28 +110,28 @@ public:
     Byte ReadIo  (Word address) override             { ioReads.push_back (address); return 0; }
     void WriteIo (Word address, Byte) override       { ioWrites.push_back (address); }
 
-    void GetSoftSwitches (std::vector<SoftSwitch> & switches) const override { switches = softSwitches; }
-    bool TryGetExpansionRomSlot (int & slot) const override { slot = expansionRomSlot; return expansionRomSlot >= 0; }
+    void  GetSoftSwitches        (std::vector<SoftSwitch> & switches) const override { switches = softSwitches; }
+    bool  TryGetExpansionRomSlot (int & slot) const override { slot = expansionRomSlot; return expansionRomSlot >= 0; }
 
-    void    SetRunObserver   (IRunObserver * value) override         { observer = value; }
-    HRESULT StartRun         (const RunRequest & request) override   { runs.push_back (request); return startRunResult; }
-    void    RequestPause     () override                             { ++pauseRequests; }
-    void    SetHookInstalled (bool installed) override               { hookInstalled = installed; ++hookChanges; }
-    void    SetOpcodeWatch   (const bool * opcodes, IOpcodeWatcher *) override { watchedOpcodes = opcodes; }
-    void    SetStopConditions (DebugHook * conditions) override      { stopConditions = conditions; }
-    void    SetWatchedPages  (const WatchedPages & pages) override   { watchedPages = pages; ++maskChanges; }
-    void    SetWatchSink     (IWatchSink * sink) override            { watchSink = sink; }
+    void     SetRunObserver    (IRunObserver * value) override         { observer = value; }
+    HRESULT  StartRun          (const RunRequest & request) override   { runs.push_back (request); return startRunResult; }
+    void     RequestPause      () override                             { ++pauseRequests; }
+    void     SetHookInstalled  (bool installed) override               { hookInstalled = installed; ++hookChanges; }
+    void     SetOpcodeWatch    (const bool * opcodes, IOpcodeWatcher *) override { watchedOpcodes = opcodes; }
+    void     SetStopConditions (DebugHook * conditions) override      { stopConditions = conditions; }
+    void     SetWatchedPages   (const WatchedPages & pages) override   { watchedPages = pages; ++maskChanges; }
+    void     SetWatchSink      (IWatchSink * sink) override            { watchSink = sink; }
 
-    VideoPosition     GetVideoPosition  () const override    { return videoPosition; }
-    uint64_t          GetCycleCount     () const override    { return cycleCount; }
-    Byte              GetLastPenalties  () const override    { return lastPenalties; }
-    bool              TryGetLastBranch  (Word & from) const override { from = lastBranch.value_or (0); return lastBranch.has_value(); }
-    bool              TryGetLastBranchTarget (Word & to) const override { to = lastBranchTo.value_or (0); return lastBranchTo.has_value(); }
-    DebugCpuKind      GetCpuKind        () const override    { return cpuKind; }
-    const Microcode * GetInstructionSet () const override    { return instructionSet; }
-    DebugMachineInfo  GetMachineInfo    () const override    { return machineInfo; }
-    void              InjectKey         (Byte key) override  { injectedKeys.push_back (key); keyPending = true; }
-    bool              IsKeyPending      () const override    { return keyPending; }
+    VideoPosition       GetVideoPosition       () const override    { return videoPosition; }
+    uint64_t            GetCycleCount          () const override    { return cycleCount; }
+    Byte                GetLastPenalties       () const override    { return lastPenalties; }
+    bool                TryGetLastBranch       (Word & from) const override { from = lastBranch.value_or (0); return lastBranch.has_value(); }
+    bool                TryGetLastBranchTarget (Word & to) const override { to = lastBranchTo.value_or (0); return lastBranchTo.has_value(); }
+    DebugCpuKind        GetCpuKind             () const override    { return cpuKind; }
+    const Microcode   * GetInstructionSet      () const override    { return instructionSet; }
+    DebugMachineInfo    GetMachineInfo         () const override    { return machineInfo; }
+    void                InjectKey              (Byte key) override  { injectedKeys.push_back (key); keyPending = true; }
+    bool                IsKeyPending           () const override    { return keyPending; }
 
     void              SetTraceOn        (bool on) override   { traceOn = on; }
     bool              IsTraceOn         () const override    { return traceOn; }

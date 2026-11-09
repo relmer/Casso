@@ -74,11 +74,11 @@ public:
     RECT  GetRect () const;
 
 private:
-    HRESULT  Raise       (HWND owner, const RECT & screen);
-    SIZE     MeasureDip  (UINT dpi) const;
-    void     Render      (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    HRESULT  Raise              (HWND owner, const RECT & screen);
+    SIZE     MeasureDip         (UINT dpi) const;
+    void     Render             (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     float    GetSwatchColumnDip () const;
-    void     PaintRamp   (IDxuiPainter & painter, const Row & row, float left, float top, float width, float height) const;
+    void     PaintRamp          (IDxuiPainter & painter, const Row & row, float left, float top, float width, float height) const;
 
     DxuiHwndSource     * m_host       = nullptr;
     DxuiPopupHost      * m_popup      = nullptr;

@@ -64,7 +64,7 @@ public:
     //  and the view row's.
     std::vector<DxuiToolbar::Entry>  BuildEntries        (bool isCumulative) const;
     std::vector<DxuiToolbar::Entry>  BuildViewRowEntries () const;
-    std::shared_ptr<DxuiCommand>     Find         (int id) const;
+    std::shared_ptr<DxuiCommand>     Find                (int id) const;
 
     //  A fade time as the drop-down lists it, "10 s", and as the entry shows
     //  the one in force while fading, "Fade (10 s)".

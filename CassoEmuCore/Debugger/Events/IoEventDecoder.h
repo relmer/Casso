@@ -76,8 +76,8 @@ private:
     static constexpr Byte  kAyWrite     = 0x02;
     static constexpr Byte  kAyResetLow  = 0x04;
 
-    size_t  DecodeOther (MachineHost & machine, Word address, Byte value, bool isWrite, Events & outEvents);
-    size_t  DecodeBoard (MachineHost & machine, Word address, Byte value, uint64_t cycle, Events & outEvents);
+    size_t  DecodeOther   (MachineHost & machine, Word address, Byte value, bool isWrite, Events & outEvents);
+    size_t  DecodeBoard   (MachineHost & machine, Word address, Byte value, uint64_t cycle, Events & outEvents);
     bool    DecodeAyWrite (MockingboardCard & card, int chip, uint64_t cycle, IoEvent & outEvent);
 
     const uint64_t                 m_noCycles    = 0;

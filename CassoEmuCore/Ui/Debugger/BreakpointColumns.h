@@ -87,11 +87,11 @@ public:
 
     using Cells = std::array<std::string, kCount>;
 
-    static std::wstring         GetHeading  (Column column);
-    static Cells                GetCells    (const DebuggerViewSnapshot & snapshot, const DebuggerViewSnapshot::BreakpointLine & bp);
-    static RowKind              GetRowKind     (const BreakpointInfo & info);
-    static std::string          GetKindText    (RowKind kind);
-    static std::string          GetTriggerText (RowKind kind);
+    static std::wstring  GetHeading     (Column column);
+    static Cells         GetCells       (const DebuggerViewSnapshot & snapshot, const DebuggerViewSnapshot::BreakpointLine & bp);
+    static RowKind       GetRowKind     (const BreakpointInfo & info);
+    static std::string   GetKindText    (RowKind kind);
+    static std::string   GetTriggerText (RowKind kind);
 
     //  The snapshot's breakpoint indexes in the order the column sorts them,
     //  ties kept in the engine's order.

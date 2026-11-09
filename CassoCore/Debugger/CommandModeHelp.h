@@ -139,18 +139,18 @@ private:
         std::string   description;
     };
 
-    static bool         TryDescribeOtherModesWord (CommandMode mode, const std::string & word, std::string & line);
-    static bool         IsCoveredByMode   (CommandMode mode, const std::string & cassoName);
-    static std::string  GetCoveringForms  (CommandMode mode, const std::string & cassoName);
-    static bool         IsWordOfMode      (CommandMode mode, const std::string & name);
-    static bool         IsHexWord         (const std::string & name);
-    static std::string  GetShownSyntax    (CommandMode mode, const CassoCommandReference::Entry & entry);
-    static std::string  GetModesThatRun   (const std::string & name);
-    static std::vector<std::string>  BuildListing (CommandMode mode, const std::function<bool (const Row &)> & keep);
-    static const char * GetSectionWord    (HelpCategory category);
-    static void         AppendSection     (const std::string & heading, std::vector<Row> rows, size_t width, std::vector<std::string> & lines);
-    static void         AppendRow         (const std::string & syntax, const std::string & description, size_t width, std::vector<std::string> & lines);
-    static std::string  ToUpper           (const std::string & text);
+    static bool                        TryDescribeOtherModesWord (CommandMode mode, const std::string & word, std::string & line);
+    static bool                        IsCoveredByMode           (CommandMode mode, const std::string & cassoName);
+    static std::string                 GetCoveringForms          (CommandMode mode, const std::string & cassoName);
+    static bool                        IsWordOfMode              (CommandMode mode, const std::string & name);
+    static bool                        IsHexWord                 (const std::string & name);
+    static std::string                 GetShownSyntax            (CommandMode mode, const CassoCommandReference::Entry & entry);
+    static std::string                 GetModesThatRun           (const std::string & name);
+    static std::vector<std::string>    BuildListing              (CommandMode mode, const std::function<bool (const Row &)> & keep);
+    static const char                * GetSectionWord            (HelpCategory category);
+    static void                        AppendSection             (const std::string & heading, std::vector<Row> rows, size_t width, std::vector<std::string> & lines);
+    static void                        AppendRow                 (const std::string & syntax, const std::string & description, size_t width, std::vector<std::string> & lines);
+    static std::string                 ToUpper                   (const std::string & text);
 
     static constexpr size_t  kRowIndent = 4;
     static constexpr size_t  kRowGap    = 2;

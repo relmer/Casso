@@ -110,7 +110,7 @@ struct DebugProject
     void  ApplyEngine   (DebugSession & session, std::vector<std::string> & failures) const;
 
 private:
-    bool  IsOtherDebugFile (const DebugSession & session, const std::wstring & path) const;
+    bool  IsOtherDebugFile     (const DebugSession & session, const std::wstring & path) const;
     void  RestoreBreakpointIds (DebugSession & session) const;
     static void  RunScriptLine (DebugSession & session, const std::string & line, std::vector<int> & created,
                                 const std::function<void (const std::string &)> & run);

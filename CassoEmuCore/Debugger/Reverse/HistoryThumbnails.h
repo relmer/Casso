@@ -131,26 +131,26 @@ public:
     uint64_t           GetVersion   () const         { return m_version.load (std::memory_order_acquire); }
     void               GetCells     (std::vector<HistoryThumbnailCell> & outCells) const;
 
-    void               SetCellLayout   (int count, SIZE cellPx) override;
-    Image              GetCellImage    (int index) override;
-    Image              GetPreviewImage (int index) override;
-    void               OnCellClicked   (int index) override;
-    int                GetMarkedCell   () override;
-    void               SetHoveredCell  (int index) override;
-    bool               TryGetCellLabels (int index, std::wstring & outTop, std::wstring & outBottom) override;
-    bool               TryGetLabelsAt  (int index, float offset, std::wstring & outTop, std::wstring & outBottom) override;
-    void               OnStripClicked  (int index, float offset) override;
-    bool               TryGetPlayhead  (float & outOffset, std::wstring & outTop, std::wstring & outBottom) override;
-    void               OnPlayheadDragged (float offset, bool isFinal) override;
-    std::wstring       GetLeadingLabel () override;
-    std::wstring       GetLeadingTip            () override;
-    void               OnLeadingLabelClicked    () override { OnCellClicked (0); }
-    std::wstring       GetTrailingLabel         () override { return GetModeText (false); }
-    bool               IsTrailingLabelAccented  () override { return !IsBehindLive(); }
-    bool               IsTrailingLabelClickable () override { return IsBehindLive(); }
-    std::wstring       GetTrailingTip           () override;
-    void               OnTrailingLabelClicked   () override;
-    bool               IsBehindLive    () const      { return m_isBehindLive.load (std::memory_order_acquire); }
+    void          SetCellLayout            (int count, SIZE cellPx) override;
+    Image         GetCellImage             (int index) override;
+    Image         GetPreviewImage          (int index) override;
+    void          OnCellClicked            (int index) override;
+    int           GetMarkedCell            () override;
+    void          SetHoveredCell           (int index) override;
+    bool          TryGetCellLabels         (int index, std::wstring & outTop, std::wstring & outBottom) override;
+    bool          TryGetLabelsAt           (int index, float offset, std::wstring & outTop, std::wstring & outBottom) override;
+    void          OnStripClicked           (int index, float offset) override;
+    bool          TryGetPlayhead           (float & outOffset, std::wstring & outTop, std::wstring & outBottom) override;
+    void          OnPlayheadDragged        (float offset, bool isFinal) override;
+    std::wstring  GetLeadingLabel          () override;
+    std::wstring  GetLeadingTip            () override;
+    void          OnLeadingLabelClicked    () override { OnCellClicked (0); }
+    std::wstring  GetTrailingLabel         () override { return GetModeText (false); }
+    bool          IsTrailingLabelAccented  () override { return !IsBehindLive(); }
+    bool          IsTrailingLabelClickable () override { return IsBehindLive(); }
+    std::wstring  GetTrailingTip           () override;
+    void          OnTrailingLabelClicked   () override;
+    bool          IsBehindLive             () const      { return m_isBehindLive.load (std::memory_order_acquire); }
 
     //  Machine thread.
     void               SetPlayhead  (uint64_t position, bool isBehindLive);
@@ -162,9 +162,9 @@ public:
 
     //  A seek to `cycle` the timeline asked for has run, and SetPlayheadTime
     //  already gives where it landed.
-    void               NoteSeekLanded  (uint64_t cycle);
-    HRESULT            Service      (KeyframeStore & keyframes);
-    void               Clear        ();
+    void     NoteSeekLanded (uint64_t cycle);
+    HRESULT  Service        (KeyframeStore & keyframes);
+    void     Clear          ();
 
     //  The store whose drops the pictures follow: a keyframe dropped from
     //  the new end removes the pictures at its position, so a new keyframe
@@ -184,11 +184,11 @@ public:
     //  one part in kWorkShare of the time.
     static bool        IsRenderDue   (double nowMs, double lastSubmitMs, double lastWorkMs);
 
-    static void        PlanCells     (const KeyframeStore & keyframes, int count, uint64_t & ioStep, std::vector<HistoryThumbnailCell> & outCells);
-    static uint64_t    ChooseStep    (uint64_t span, int count, uint64_t step);
-    static uint64_t    GetGridTop    (uint64_t newest, uint64_t step);
-    static bool        DoesGridFit   (const KeyframeStore & keyframes, int count, uint64_t step, uint64_t top);
-    static bool        TryFindAtOrBefore (const KeyframeStore & keyframes, uint64_t position, size_t & outIndex);
+    static void      PlanCells         (const KeyframeStore & keyframes, int count, uint64_t & ioStep, std::vector<HistoryThumbnailCell> & outCells);
+    static uint64_t  ChooseStep        (uint64_t span, int count, uint64_t step);
+    static uint64_t  GetGridTop        (uint64_t newest, uint64_t step);
+    static bool      DoesGridFit       (const KeyframeStore & keyframes, int count, uint64_t step, uint64_t top);
+    static bool      TryFindAtOrBefore (const KeyframeStore & keyframes, uint64_t position, size_t & outIndex);
 
     //  The cell that marks where the machine stands, and what the timeline
     //  calls the state it is in.
@@ -231,23 +231,23 @@ private:
         bool                     isPreview = false;   // asked for at full size, not only as a thumbnail
     };
 
-    static void        RunJob        (void * context);
-    void               Draw          (Job & job);
-    void               LayOutCells   (const KeyframeStore & keyframes);
-    bool               TryPickWanted (uint64_t & outPosition, bool & outIsPreview);
-    bool               TryPickFull   (uint64_t & outPosition);
-    bool               HasPicture    (uint64_t position) const;
-    bool               IsWanted      (uint64_t position) const;
-    Image              ScaleBase     (uint64_t position);
-    ShownPicture       ResolveShown  (size_t index);
-    bool               TryGetPointAt (float offset, HistoryThumbnailCell & outPoint);
-    bool               IsHoldingDrop ();
-    void               PrunePoints   ();
-    void               ForgetPoint   (uint64_t position);
-    void               OnKeyframeDrop (KeyframeDrop drop);
-    void               ForgetPictures (uint64_t from);
-    double             GetNowMs      () const;
-    void               Bump          ()              { m_version.fetch_add (1, std::memory_order_acq_rel); }
+    static void   RunJob         (void * context);
+    void          Draw           (Job & job);
+    void          LayOutCells    (const KeyframeStore & keyframes);
+    bool          TryPickWanted  (uint64_t & outPosition, bool & outIsPreview);
+    bool          TryPickFull    (uint64_t & outPosition);
+    bool          HasPicture     (uint64_t position) const;
+    bool          IsWanted       (uint64_t position) const;
+    Image         ScaleBase      (uint64_t position);
+    ShownPicture  ResolveShown   (size_t index);
+    bool          TryGetPointAt  (float offset, HistoryThumbnailCell & outPoint);
+    bool          IsHoldingDrop  ();
+    void          PrunePoints    ();
+    void          ForgetPoint    (uint64_t position);
+    void          OnKeyframeDrop (KeyframeDrop drop);
+    void          ForgetPictures (uint64_t from);
+    double        GetNowMs       () const;
+    void          Bump           ()              { m_version.fetch_add (1, std::memory_order_acq_rel); }
 
     IHistoryFrameRenderer           & m_renderer;
     ThreadPoolWorkQueue               m_ownQueue;

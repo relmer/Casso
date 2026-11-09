@@ -124,7 +124,7 @@ public:
 
     // The accelerator table, loaded once the window exists, and a message
     // translated through it; false when it is not an accelerator.
-    HRESULT  LoadAcceleratorTable       (HINSTANCE hInstance);
+    HRESULT  LoadAcceleratorTable        (HINSTANCE hInstance);
     bool     TranslateAcceleratorMessage (MSG & msg);
 
     // The shell's window message handlers for a move, the OS drag loop, the

@@ -66,8 +66,8 @@ public:
     DxuiListView *  GetList       () const { return m_list; }
 
     //  The rows in the list, the BASIC frames first.
-    const std::vector<Row> &  GetShownRows () const { return m_rows; }
-    DxuiButton *    GetModeButton () const { return m_modeButton; }
+    const std::vector<Row>  & GetShownRows  () const { return m_rows; }
+    DxuiButton              * GetModeButton () const { return m_modeButton; }
 
     void  Configure ();
     void  Apply     (const CallStackData & data, const std::vector<BasicFrame> & basicFrames);

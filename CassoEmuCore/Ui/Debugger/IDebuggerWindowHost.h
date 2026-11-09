@@ -75,7 +75,7 @@ public:
 
     //  Whether the heat map pane is shown; the machine records its accesses
     //  only while it is. A host with no machine, as a test's is, records none.
-    virtual void  SetDebuggerHeatMapShown (bool shown)                     { (void) shown; }
+    virtual void  SetDebuggerHeatMapShown     (bool shown)                     { (void) shown; }
     virtual void  SetDebuggerHeatColumnsShown (bool shown)                 { (void) shown; }
 
     //  Whether the trace pane is on screen, so its rows are read for it.
@@ -213,7 +213,7 @@ public:
     //  The Disk II panel's choice of drives, saved as the other options are.
     virtual std::string  GetDebuggerDiskDrives ()                          { return {}; }
     virtual void         SetDebuggerDiskDrives (const std::string &)       {}
-    virtual void         ResetDebuggerHeatMap      ()                      {}
+    virtual void         ResetDebuggerHeatMap  ()                      {}
 
     //  The profiler's period, as its HISTORY argument.
     virtual std::string  GetDebuggerProfilerPeriod ()                      { return {}; }

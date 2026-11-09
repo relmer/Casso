@@ -44,12 +44,12 @@ class Apple2eKeyboard : public AppleKeyboard
 public:
     Apple2eKeyboard (MemoryBus * bus = nullptr);
 
-    Byte Read    (Word address) override;
-    void Write   (Word address, Byte value) override;
-    bool TryPeekIo (Word address, Byte & value) override;
-    Word GetEnd  () const override { return 0xC063; }
-    void Reset   () override;
-    void SoftReset () override;
+    Byte  Read      (Word address) override;
+    void  Write     (Word address, Byte value) override;
+    bool  TryPeekIo (Word address, Byte & value) override;
+    Word  GetEnd    () const override { return 0xC063; }
+    void  Reset     () override;
+    void  SoftReset () override;
 
     // Modifier-key state (set from UI thread via HostShell key events).
     // Open Apple <-> left Alt, Closed Apple <-> right Alt, Shift <-> Shift
@@ -104,8 +104,8 @@ public:
 
     // The game-port adapter, asked first for every $C061-$C063 read. Null on
     // the //c, which has no annunciators to drive one.
-    void SetJoyport (const class SiriusJoyport * joyport) { m_joyport = joyport; }
-    void SetCassettePort (class CassettePort * port) { m_cassettePort = port; }
+    void  SetJoyport      (const class SiriusJoyport * joyport) { m_joyport = joyport; }
+    void  SetCassettePort (class CassettePort * port) { m_cassettePort = port; }
 
     // Apple //c case switches (two latching pushbuttons on the top of the
     // case). SetApple2cMode enables the //c-only behaviors below; on the //e
@@ -211,23 +211,23 @@ protected:
 
     bool  m_observedLine[kObservedLineCount] = {};
 
-    MemoryBus *                    m_bus               = nullptr;
-    const class SiriusJoyport *    m_joyport           = nullptr;
-    class Apple2eSoftSwitchBank *  m_softSwitchSibling = nullptr;
-    AppleSpeaker *                 m_speakerSibling    = nullptr;
-    class Apple2eMmu *             m_mmu               = nullptr;
-    class LanguageCard *           m_lc                = nullptr;
-    class IVideoTiming *           m_videoTiming       = nullptr;
-    class AppleMouse *             m_mouse             = nullptr;
-    class CassettePort *           m_cassettePort      = nullptr;
-    atomic<bool>                   m_openApple   {false};
-    atomic<bool>                   m_closedApple {false};
+    MemoryBus                    * m_bus               = nullptr;
+    const class SiriusJoyport    * m_joyport           = nullptr;
+    class Apple2eSoftSwitchBank  * m_softSwitchSibling = nullptr;
+    AppleSpeaker                 * m_speakerSibling    = nullptr;
+    class Apple2eMmu             * m_mmu               = nullptr;
+    class LanguageCard           * m_lc                = nullptr;
+    class IVideoTiming           * m_videoTiming       = nullptr;
+    class AppleMouse             * m_mouse             = nullptr;
+    class CassettePort           * m_cassettePort      = nullptr;
+    atomic<bool>                   m_openApple         {false};
+    atomic<bool>                   m_closedApple       {false};
 
     // The keys captured for a reset, read as down while the hold has cycles left.
-    atomic<bool>                   m_holdOpenApple   {false};
-    atomic<bool>                   m_holdClosedApple {false};
-    atomic<uint32_t>               m_resetHoldCycles {0};
-    atomic<bool>                   m_shift       {false};
+    atomic<bool>      m_holdOpenApple   {false};
+    atomic<bool>      m_holdClosedApple {false};
+    atomic<uint32_t>  m_resetHoldCycles {0};
+    atomic<bool>      m_shift           {false};
 
     // Apple //c case-switch state. m_apple2cMode gates the //c-only behaviors
     // (the //e leaves these dormant). See the setters above.

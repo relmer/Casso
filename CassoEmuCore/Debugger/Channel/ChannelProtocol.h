@@ -141,7 +141,7 @@ public:
     //  A client's hello request, with the folders and scripts setting for
     //  its commands. No allowPaths member is written for no folders.
     static std::string  WriteHelloRequest (int64_t id, const ChannelClient & client);
-    static std::string  WriteError      (const std::string & label, const std::string & detail);
+    static std::string  WriteError        (const std::string & label, const std::string & detail);
 
     static const char * GetRequestTypeName (ChannelRequestType type);
 
@@ -155,8 +155,8 @@ private:
     //  A member that must be a whole number from low to high. Absent is
     //  reported as absent; present but anything else is an error.
     enum class Member { Absent, Valid, Invalid };
-    static Member       GetWholeNumber (const JsonValue & root, const std::string & key, double low, double high, int64_t & value);
-    static Member       GetFlag        (const JsonValue & root, const std::string & key, bool & value);
-    static Member       GetFolders     (const JsonValue & root, std::vector<std::wstring> & folders);
-    static void         SetError   (ReplyError & error, const std::string & label, const std::string & detail);
+    static Member  GetWholeNumber (const JsonValue & root, const std::string & key, double low, double high, int64_t & value);
+    static Member  GetFlag        (const JsonValue & root, const std::string & key, bool & value);
+    static Member  GetFolders     (const JsonValue & root, std::vector<std::wstring> & folders);
+    static void    SetError       (ReplyError & error, const std::string & label, const std::string & detail);
 };

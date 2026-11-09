@@ -26,12 +26,12 @@ class SlotRomPage : public MemoryDevice
 public:
     SlotRomPage (int slot, IExpansionRomCard & card);
 
-    Byte Read     (Word address) override;
-    void Write    (Word address, Byte value) override;
-    bool TryPeekIo (Word address, Byte & value) override;
-    Word GetStart () const override { return m_start; }
-    Word GetEnd   () const override { return m_end; }
-    void Reset    () override {}
+    Byte  Read      (Word address) override;
+    void  Write     (Word address, Byte value) override;
+    bool  TryPeekIo (Word address, Byte & value) override;
+    Word  GetStart  () const override { return m_start; }
+    Word  GetEnd    () const override { return m_end; }
+    void  Reset     () override {}
 
 private:
     IExpansionRomCard &  m_card;

@@ -102,7 +102,7 @@ public:
     void  SetOnChanged (ChangedFn fn)                 { m_onChanged = std::move (fn); }
 
     //  A + on the tab groups `shown` picks, running `add` when pressed.
-    void  SetNewTab    (DxuiTabGroup::NewTabShownFn shown, DxuiTabGroup::NewTabFn add);
+    void  SetNewTab           (DxuiTabGroup::NewTabShownFn shown, DxuiTabGroup::NewTabFn add);
     void  SetOnFloatRequested (FloatFn fn)            { m_onFloat   = std::move (fn); }
 
     //  A pane's tab dragged off its strip, or a lone pane's title bar dragged,
@@ -201,7 +201,7 @@ public:
     //  A mark ahead of a pane's tab title (see DxuiTabGroup::LeadingMark), and
     //  a tip for its tab. Both stay with the pane as it moves between groups.
     void  SetLeadingMark (const std::wstring & pane, const DxuiTabGroup::LeadingMark & mark);
-    void  SetTabTip     (const std::wstring & pane, const std::wstring & tip);
+    void  SetTabTip      (const std::wstring & pane, const std::wstring & tip);
 
     //  Room a pane keeps in its tool window's title bar for a control of its
     //  own (see DxuiTabGroup::SetTitleExtra), and where that room is now:
@@ -266,9 +266,9 @@ public:
     void                        SetEdgeShare   (DxuiDockSide edge, long thickness, long start, long end);
     void                        ClearEdgeShare ();
 
-    bool                        IsDragging    () const { return !m_dragPane.empty(); }
-    const std::wstring &        GetDraggedPane () const { return m_dragPane; }
-    const DxuiDockDropZone *    GetHoveredZone () const;
+    bool                      IsDragging     () const { return !m_dragPane.empty(); }
+    const std::wstring      & GetDraggedPane () const { return m_dragPane; }
+    const DxuiDockDropZone  * GetHoveredZone () const;
 
     //  What a drag shows, in site pixels, top to bottom. A window whose
     //  floating windows would cover the site draws these in an overlay above
@@ -387,40 +387,40 @@ private:
         RECT          rect = {};
     };
 
-    void          Arrange       ();
-    RECT          GetDockedArea () const;
-    RECT          GetPaneArea   () const;
-    void          ArrangeEdges  (const RECT & dockedArea, const RECT & paneArea);
+    void          Arrange        ();
+    RECT          GetDockedArea  () const;
+    RECT          GetPaneArea    () const;
+    void          ArrangeEdges   (const RECT & dockedArea, const RECT & paneArea);
     int           HitTestEdgeTab (POINT pointDip) const;
-    void          PaintEdges    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    void          NotifyChanged ();
-    int           HitTestSash   (POINT pointDip) const;
-    RECT          GetSashRect   (const DxuiPaneLayout::SplitRect & split) const;
-    void          PaintGaps     (IDxuiPainter & painter, const IDxuiTheme & theme) const;
-    std::wstring  GetTitle      (const std::wstring & pane) const;
+    void          PaintEdges     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void          NotifyChanged  ();
+    int           HitTestSash    (POINT pointDip) const;
+    RECT          GetSashRect    (const DxuiPaneLayout::SplitRect & split) const;
+    void          PaintGaps      (IDxuiPainter & painter, const IDxuiTheme & theme) const;
+    std::wstring  GetTitle       (const std::wstring & pane) const;
     static constexpr wchar_t  kAutoHideLabel[] = L"Auto hide";
 
-    void          WireGroup     (DxuiTabGroup * group);
-    bool          TearOff       (DxuiTabGroup * group, const std::wstring & pane, POINT pointDip, bool fromTab);
-    bool          TearOffGroup  (DxuiTabGroup * group, const std::vector<std::wstring> & panes, const std::wstring & active, POINT pointDip);
-    void          UpdateStripTarget (POINT pointDip);
-    void          ClearStripTarget  ();
-    bool          DropOnStrip   (int group, int index);
-    bool          DropOnZone    (const DxuiDockDropZone & zone, DxuiPaneLayout & layout) const;
-    void          SetDropPreview    (DxuiDockDropZone & zone) const;
-    void          SetTabDropPreview (DxuiDockDropZone & zone) const;
-    void          OnTitleButton (DxuiTabGroup::TitleButton button, const std::wstring & pane, POINT pointDip);
-    bool          PinPane       (const std::wstring & pane, DxuiDockSide edge);
-    bool          UnpinPane     (const std::wstring & pane);
-    void          StartMorph    (const RECT & from, const RECT & to);
-    RECT          GetPaneTabRect (const std::wstring & pane) const;
-    bool          IsDocumentGroup (const std::vector<std::wstring> & panes) const;
-    DxuiTabGroup * FindGroupOf  (const std::wstring & pane) const;
-    void          UpdateCompass (POINT pointDip);
-    void          TrackDrag     (POINT pointDip);
-    void          ClearDragTarget ();
-    int           HitTestShown  (POINT pointDip) const;
-    bool          TryGetCompass (int group, DxuiDockGuideKind & kind, POINT & origin) const;
+    void            WireGroup         (DxuiTabGroup * group);
+    bool            TearOff           (DxuiTabGroup * group, const std::wstring & pane, POINT pointDip, bool fromTab);
+    bool            TearOffGroup      (DxuiTabGroup * group, const std::vector<std::wstring> & panes, const std::wstring & active, POINT pointDip);
+    void            UpdateStripTarget (POINT pointDip);
+    void            ClearStripTarget  ();
+    bool            DropOnStrip       (int group, int index);
+    bool            DropOnZone        (const DxuiDockDropZone & zone, DxuiPaneLayout & layout) const;
+    void            SetDropPreview    (DxuiDockDropZone & zone) const;
+    void            SetTabDropPreview (DxuiDockDropZone & zone) const;
+    void            OnTitleButton     (DxuiTabGroup::TitleButton button, const std::wstring & pane, POINT pointDip);
+    bool            PinPane           (const std::wstring & pane, DxuiDockSide edge);
+    bool            UnpinPane         (const std::wstring & pane);
+    void            StartMorph        (const RECT & from, const RECT & to);
+    RECT            GetPaneTabRect    (const std::wstring & pane) const;
+    bool            IsDocumentGroup   (const std::vector<std::wstring> & panes) const;
+    DxuiTabGroup  * FindGroupOf       (const std::wstring & pane) const;
+    void            UpdateCompass     (POINT pointDip);
+    void            TrackDrag         (POINT pointDip);
+    void            ClearDragTarget   ();
+    int             HitTestShown      (POINT pointDip) const;
+    bool            TryGetCompass     (int group, DxuiDockGuideKind & kind, POINT & origin) const;
 
     //  A guide's picture, kept so every frame draws the same buffer, with the
     //  drop's shade laid over it within `shades`, given from its top left.

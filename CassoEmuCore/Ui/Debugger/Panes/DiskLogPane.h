@@ -125,7 +125,7 @@ protected:
     size_t       GetTextColumn  () const override { return kDetail; }
 
 private:
-    static std::wstring  ListRejected (const std::wstring & text, const TrackSectorPredicate & predicate);
+    static std::wstring  ListRejected    (const std::wstring & text, const TrackSectorPredicate & predicate);
     static std::wstring  CleanForOptions (const std::wstring & text);
 
     void  ParseTrack ();

@@ -46,8 +46,8 @@ struct SourcePosition
 class LineTable
 {
 public:
-    void  Build (const DebugFile & file);
-    void  Clear ();
+    void  Build   (const DebugFile & file);
+    void  Clear   ();
     bool  IsEmpty () const { return m_byLine.empty(); }
 
     const std::vector<SourcePosition> &  GetPositionsAt (Word address) const;

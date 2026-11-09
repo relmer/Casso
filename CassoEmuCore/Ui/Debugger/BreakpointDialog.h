@@ -164,9 +164,9 @@ public:
 
     //  By the event's index into DiskBreakSpecText::GetEventWords. The
     //  arguments are what BPDISK takes after the event word.
-    static DiskFieldSet    GetDiskFieldSet       (int event);
-    static std::string  MakeDiskArguments  (int event, const DiskFields & fields);
-    static DiskFields   ParseDiskArguments (int event, const std::string & arguments);
+    static DiskFieldSet  GetDiskFieldSet    (int event);
+    static std::string   MakeDiskArguments  (int event, const DiskFields & fields);
+    static DiskFields    ParseDiskArguments (int event, const std::string & arguments);
 
     //  The definition for a type and its fields, as BPEDIT takes it.
     static std::string  MakeDefinition (const Fields & fields);
@@ -209,15 +209,15 @@ protected:
     bool  TryGetMaxClientSizePx (SIZE & outSizePx) const override;
 
 private:
-    void        ShowFieldsForType ();
-    void        ShowDiskFields    (bool isDisk);
-    void        Resize            ();
-    void        Confirm           ();
-    std::string MakeEditedDefinition () const;
-    Fields      GetEditedFields      () const;
-    void        CheckFields       ();
-    Type        GetSelectedType   () const;
-    DiskFields  ReadDiskFields    () const;
+    void         ShowFieldsForType    ();
+    void         ShowDiskFields       (bool isDisk);
+    void         Resize               ();
+    void         Confirm              ();
+    std::string  MakeEditedDefinition () const;
+    Fields       GetEditedFields      () const;
+    void         CheckFields          ();
+    Type         GetSelectedType      () const;
+    DiskFields   ReadDiskFields       () const;
 
     static std::string  ToDecimal (const std::string & hex);
     static std::string  ToHex     (const std::string & decimal);

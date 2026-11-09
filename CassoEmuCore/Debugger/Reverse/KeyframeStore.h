@@ -287,17 +287,17 @@ private:
     HRESULT   Place             (const std::vector<Byte> & packed, const std::vector<Byte> & side, size_t & outOffset);
     void      NotifyDrop        (KeyframeDrop drop);
 
-    const Job      & GetPendingJob  (size_t pendingIndex) const;
-    static size_t    GetPackedBytes (const KeyframeInfo & info) { return info.storedBytes - info.sideBytes; }
-    bool      TryFindRoom       (size_t size, size_t & outOffset) const;
-    void      Pack              (Job & job);
-    HRESULT   ReloadLatestWhole ();
-    HRESULT   DropNewerThan     (bool isByPosition, uint64_t limit);
-    size_t    FindGroupStart    (size_t index) const;
-    bool      TryDropOldestGroup(uint64_t keepPosition = UINT64_MAX);
-    void      DropOldestGroups  ();
-    void      PopOldest         ();
-    void      ScheduleAfter     (uint64_t cycle);
+    const Job      & GetPendingJob      (size_t pendingIndex) const;
+    static size_t    GetPackedBytes     (const KeyframeInfo & info) { return info.storedBytes - info.sideBytes; }
+    bool             TryFindRoom        (size_t size, size_t & outOffset) const;
+    void             Pack               (Job & job);
+    HRESULT          ReloadLatestWhole  ();
+    HRESULT          DropNewerThan      (bool isByPosition, uint64_t limit);
+    size_t           FindGroupStart     (size_t index) const;
+    bool             TryDropOldestGroup (uint64_t keepPosition = UINT64_MAX);
+    void             DropOldestGroups   ();
+    void             PopOldest          ();
+    void             ScheduleAfter      (uint64_t cycle);
 
     static uint64_t  ReadWallClock ();
     static void      RunJob        (void * context);

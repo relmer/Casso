@@ -170,9 +170,9 @@ public:
 
     //  An instruction's length in bytes from its opcode's form ("LDA ....",
     //  3), and its text with the operand bytes filled in.
-    static int           GetInstructionLength (const std::string & form);
-    std::wstring         GetInstructionText   (const std::string & form, Word cpu, const std::vector<Byte> & operands) const;
-    static uint32_t      GetDetailTextColor (uint32_t cell, uint32_t foreground, uint32_t background);
+    static int       GetInstructionLength (const std::string & form);
+    std::wstring     GetInstructionText   (const std::string & form, Word cpu, const std::vector<Byte> & operands) const;
+    static uint32_t  GetDetailTextColor   (uint32_t cell, uint32_t foreground, uint32_t background);
 
     //  An instruction's text and bytes for each piece of a cell that wraps to
     //  the next row, by the number of cells in each piece: a first piece of
@@ -234,11 +234,11 @@ public:
     //  The same for the reads before written and the writes that changed
     //  their byte, drawn by the next SetLevels; and a mark for each byte the
     //  debugger edited, which the tip says.
-    void   SetChannelLevels (const std::vector<Byte> & unwritten, const std::vector<Byte> & changed, const std::vector<Byte> & edited = {});
-    void   SetTop     (double top) { m_top = top; }
-    void   SetPalette (const Palette & palette);
-    void   SetMode    (Mode mode);
-    Mode   GetMode    () const { return m_options.view; }
+    void  SetChannelLevels (const std::vector<Byte> & unwritten, const std::vector<Byte> & changed, const std::vector<Byte> & edited = {});
+    void  SetTop           (double top) { m_top = top; }
+    void  SetPalette       (const Palette & palette);
+    void  SetMode          (Mode mode);
+    Mode  GetMode          () const { return m_options.view; }
 
     //  While the heat is rebuilt after a move through history, the bar says
     //  so.
@@ -450,7 +450,7 @@ public:
     //  An address's color with the reads before written and the changes
     //  drawn as the mode shows them, from its color without them.
     static uint32_t      GetChannelColor (Mode mode, Byte unwritten, Byte changed, uint32_t color, const Palette & palette);
-    static std::wstring  GetModeLabel (Mode mode);
+    static std::wstring  GetModeLabel    (Mode mode);
 
     //  The map's area within the pane: the part of the rows in view, without
     //  the scrollbar; and an address's cell within the pane, as scrolled.
@@ -459,8 +459,8 @@ public:
     //  The row of views, where the window puts the strip that picks the
     //  view, Blend, the set of ranges and the bank shown; empty while it has
     //  no room.
-    RECT                 GetViewRowFreeRect () const;
-    RECT                 GetCellRect (Word address) const;
+    RECT  GetViewRowFreeRect () const;
+    RECT  GetCellRect        (Word address) const;
 
     //  The address under a point in the map, a street counting as the cell
     //  before it; the address the mouse picks there, which may be a busier one
@@ -517,14 +517,14 @@ public:
     //  The scale a cell's color is from, faintest to full, as the legend's
     //  Ramp swatch draws it, and where on it the cell's level lies, 0 to 1;
     //  false for an untouched cell and a Blend mix, which have no one scale.
-    bool                 TryGetCellScale (Word address, std::vector<uint32_t> & gradient, float & mark) const;
-    std::vector<uint32_t>  GetScaleStops (CellKind kind) const;
+    bool                   TryGetCellScale (Word address, std::vector<uint32_t> & gradient, float & mark) const;
+    std::vector<uint32_t>  GetScaleStops   (CellKind kind) const;
 
     //  Whether the tip for a point is whole: the last writer and reader of
     //  the cell it picks are in, or nothing looks them up. A tip shown before
     //  them gains two lines when they arrive.
-    bool                 IsTipComplete (POINT point) const;
-    std::wstring         GetTipText   (Word address) const;
+    bool          IsTipComplete (POINT point) const;
+    std::wstring  GetTipText    (Word address) const;
 
     //  The widening of a scrollbar under the mouse, carried out over frames.
     bool                 TickScrollbars (int64_t nowMs);

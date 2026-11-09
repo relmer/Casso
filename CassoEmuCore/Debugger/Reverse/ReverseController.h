@@ -164,15 +164,15 @@ public:
     HRESULT   SeekToCycle         (uint64_t cycle, ReverseResult & result);
     HRESULT   SeekToPosition      (uint64_t position, ReverseResult & result);
 
-    bool      IsInHistory         () const;
-    uint64_t  GetOldestPosition   () const;
-    uint64_t  GetLiveEndPosition  () const;
-    uint64_t  GetRecordedEnd      () const;
-    uint64_t  GetLiveEndCycle     () const { return m_liveEndCycle; }
-    uint64_t  GetWallTimeAt       (uint64_t cycle) const;
+    bool      IsInHistory           () const;
+    uint64_t  GetOldestPosition     () const;
+    uint64_t  GetLiveEndPosition    () const;
+    uint64_t  GetRecordedEnd        () const;
+    uint64_t  GetLiveEndCycle       () const { return m_liveEndCycle; }
+    uint64_t  GetWallTimeAt         (uint64_t cycle) const;
     uint64_t  GetWallTimeAtPosition (uint64_t position, uint64_t cycle) const;
-    size_t    GetTableBuildCount  () const { return m_tableBuilds; }
-    bool      HasStepTable        () const { return m_hasSteps; }
+    size_t    GetTableBuildCount    () const { return m_tableBuilds; }
+    bool      HasStepTable          () const { return m_hasSteps; }
 
     HRESULT   PrepareRecentSteps  (ReverseResult & result);
     void      GetRecentSteps      (size_t count, std::vector<ReplayStep> & outSteps) const;

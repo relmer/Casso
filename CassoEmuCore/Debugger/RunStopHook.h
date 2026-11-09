@@ -87,15 +87,15 @@ private:
 
     void        UseIdleFilter    ();
 
-    bool        IsRunComplete    (Word pc, Byte sp) const;
-    bool        IsSourceStepComplete (Word pc, Byte sp) const;
-    void        TrackCall        (Word pc, Byte sp);
-    static bool IsTransfer       (Byte opcode);
-    Byte        PeekOpcode       (Word pc) const;
-    bool        IsInterruptDue   () const;
-    bool        IsRunThroughInterrupts () const;
-    bool        HasLeftInterrupt (Byte sp) const;
-    bool        IsBreakpointHit  (Word pc, bool isInterrupted);
+    bool         IsRunComplete          (Word pc, Byte sp) const;
+    bool         IsSourceStepComplete   (Word pc, Byte sp) const;
+    void         TrackCall              (Word pc, Byte sp);
+    static bool  IsTransfer             (Byte opcode);
+    Byte         PeekOpcode             (Word pc) const;
+    bool         IsInterruptDue         () const;
+    bool         IsRunThroughInterrupts () const;
+    bool         HasLeftInterrupt       (Byte sp) const;
+    bool         IsBreakpointHit        (Word pc, bool isInterrupted);
 
     //  The line at an address that a source step compares: the innermost for
     //  a step into, the outermost otherwise. Absent where no line produced

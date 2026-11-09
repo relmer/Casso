@@ -119,7 +119,7 @@ public:
     //  oldest do, with others perhaps at the end: the selection, the find
     //  highlights and the find scope move up with the text.
     void                      SetRowsDroppingFront (std::vector<Row> rows, int dropped);
-    const std::vector<Row> &  GetRows  () const { return m_rows; }
+    const std::vector<Row>  & GetRows              () const { return m_rows; }
 
     //  One character cell, in the same coordinates as the bounds.
     void  SetCellSize      (int widthPx, int heightPx);
@@ -210,12 +210,12 @@ public:
     //  With it on, the last cell is one line, not wrapped, and a bar along the
     //  bottom, or Shift with the wheel, scrolls the text sideways. Off by
     //  default.
-    void   SetNoWrap       (bool noWrap);
-    bool   IsNoWrap        () const               { return m_noWrap; }
-    int    GetLeftColumn   () const               { return m_leftColumn; }
-    void   SetLeftColumn   (int column);
-    void   ScrollColumns   (int delta)            { SetLeftColumn (m_leftColumn + delta); }
-    bool   IsHorzScrollbarVisible () const;
+    void  SetNoWrap              (bool noWrap);
+    bool  IsNoWrap               () const               { return m_noWrap; }
+    int   GetLeftColumn          () const               { return m_leftColumn; }
+    void  SetLeftColumn          (int column);
+    void  ScrollColumns          (int delta)            { SetLeftColumn (m_leftColumn + delta); }
+    bool  IsHorzScrollbarVisible () const;
 
     //  Cells in this column and after it are cut off at the view's right
     //  edge and don't count toward the sideways scroll, which ends with the
@@ -237,10 +237,10 @@ public:
 
     //  How many characters fit across the text with a scroll bar beside it.
     int   GetVisibleColumns () const { return GetTextColumns (true); }
-    int   GetLineCap   () const;
-    int   GetTopLine   () const { return m_topLine; }
-    void  SetTopLine   (int line);
-    void  ScrollLines  (int delta) { SetTopLine (m_topLine + delta); }
+    int   GetLineCap        () const;
+    int   GetTopLine        () const { return m_topLine; }
+    void  SetTopLine        (int line);
+    void  ScrollLines       (int delta) { SetTopLine (m_topLine + delta); }
 
     //  A view that follows its end, as a console does: at the bottom, it stays
     //  there through new rows and a layout; scrolled up, new rows keep its place.
@@ -337,11 +337,11 @@ public:
     //  keeps the theme's fill above for it.
     void      SetFindColors  (uint32_t matchArgb, uint32_t currentArgb) override { m_findMatchArgb = matchArgb; m_findCurrentArgb = currentArgb; }
 
-    IDxuiControl * GetFindControl () override { return this; }
-    RECT      GetFindBounds  () const override { return GetBounds(); }
-    bool      IsFindVisible  () const override { return IsVisible(); }
-    bool      IsCurrentMatch (const FindMatch & match) const;
-    uint32_t  GetFindFillOf  (const FindMatch & match, const IDxuiTheme & theme) const;
+    IDxuiControl  * GetFindControl () override { return this; }
+    RECT            GetFindBounds  () const override { return GetBounds(); }
+    bool            IsFindVisible  () const override { return IsVisible(); }
+    bool            IsCurrentMatch (const FindMatch & match) const;
+    uint32_t        GetFindFillOf  (const FindMatch & match, const IDxuiTheme & theme) const;
 
     //  Every match in the rows, in order. False when the needle is not a valid
     //  regular expression.
@@ -430,7 +430,7 @@ private:
     //  How far from the text's left the character `index` places into a
     //  part of a cell drawn on a line, starting at `cellFrom` in the cell,
     //  is drawn: a wrapped line of the last cell starts at its wrap indent.
-    float         GetPartPx              (int row, int cell, int cellFrom, int index) const;
+    float         GetPartPx         (int row, int cell, int cellFrom, int index) const;
     int           GetCellStart      (const Row & row, int cell) const;
     int           GetLineColumn     (const Row & row, const Line & line) const;
     int           GetCellBase       (const Row & row, int cell) const;
@@ -486,8 +486,8 @@ private:
     //  The character under a point, not the nearest edge as HitTest takes:
     //  its line, its place in the row's text and its column. False between
     //  characters, past a line's end and off the lines.
-    bool          TryGetCharAt      (POINT point, int & outLine, int & outFlat, int & outColumn) const;
-    void          PaintLinkUnderline (IDxuiPainter & painter, const IDxuiTheme & theme, int lineIndex, int y) const;
+    bool  TryGetCharAt       (POINT point, int & outLine, int & outFlat, int & outColumn) const;
+    void  PaintLinkUnderline (IDxuiPainter & painter, const IDxuiTheme & theme, int lineIndex, int y) const;
 
     std::vector<Row>   m_rows;
     std::vector<Line>  m_lines;

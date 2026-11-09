@@ -205,7 +205,7 @@ namespace DebuggerTests
         {
             Rig               rig;
             TestCpu           cpu;
-            DebugSession      copy { rig.target, rig.sink, RunState::Paused };
+            DebugSession      copy   { rig.target, rig.sink, RunState::Paused };
             DebugSessionView  view;
             DataBlockEntry    block;
             DataOrigin        origin = DataOrigin::None;

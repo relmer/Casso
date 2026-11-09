@@ -64,10 +64,10 @@ public:
     DxuiEditableGrid();
     ~DxuiEditableGrid() override = default;
 
-    void  SetGridColumns (std::vector<GridColumn> columns);
-    void  SetGridRows    (std::vector<GridRow> rows);
-    void  SetAddRowText  (const std::wstring & text)  { m_addRowText = text; RebuildRows(); }
-    void  SetEditorHwnd  (HWND hwnd)                  { m_editor.SetHwnd (hwnd); }
+    void  SetGridColumns     (std::vector<GridColumn> columns);
+    void  SetGridRows        (std::vector<GridRow> rows);
+    void  SetAddRowText      (const std::wstring & text)  { m_addRowText = text; RebuildRows(); }
+    void  SetEditorHwnd      (HWND hwnd)                  { m_editor.SetHwnd (hwnd); }
     void  SetEditorMaxLength (size_t maxLength)       { m_editor.SetMaxLength (maxLength); }
 
     //  Whether rows have grippers and can be dragged to another place; on by
@@ -117,11 +117,11 @@ public:
     //  false, the box stays open and this returns false.
     bool  EndEdit         (bool commit);
 
-    bool             IsEditing      () const { return m_editRow >= 0; }
-    int              GetEditRow     () const { return m_editRow; }
-    int              GetEditColumn  () const { return m_editColumn; }
-    DxuiTextInput  & GetEditor      ()       { return m_editor; }
-    const std::vector<std::wstring> & GetPendingTexts() const { return m_pending; }
+    bool                               IsEditing       () const { return m_editRow >= 0; }
+    int                                GetEditRow      () const { return m_editRow; }
+    int                                GetEditColumn   () const { return m_editColumn; }
+    DxuiTextInput                    & GetEditor       ()       { return m_editor; }
+    const std::vector<std::wstring>  & GetPendingTexts () const { return m_pending; }
 
     //  The hint row's required columns left empty when its edit ended with
     //  something typed, each outlined in the error color until the row is
@@ -148,24 +148,24 @@ public:
     using DxuiListView::Paint;
 
 private:
-    void  RebuildRows      ();
-    bool  CommitEdit       ();
-    bool  CommitAddRow     (const std::wstring & text, int next, bool isMove = false);
-    void  ShowAddedRow     ();
-    bool  MoveEdit         (int step);
-    bool  MoveEditRow      (int step);
-    void  FindNextCell     (int row, int column, int step, int & outRow, int & outColumn) const;
-    int   GetNextEditColumn (int column, int step) const;
-    int   GetNextEmptyColumn (int column) const;
-    bool  IsColumnEditable (int column) const;
-    void  ReportError      (const std::wstring & error);
-    bool  RouteEditorMouse (const DxuiMouseEvent & ev);
-    void  PaintGrippers    (IDxuiPainter & painter, const IDxuiTheme & theme) const;
-    void  PaintDropLine    (IDxuiPainter & painter, const IDxuiTheme & theme) const;
-    void  PaintMissing     (IDxuiPainter & painter, const IDxuiTheme & theme) const;
-    std::wstring  MarkMissing ();
-    std::wstring  GetEditText (int row, int column) const;
-    bool          TryGetEditorRect (int row, int column, RECT & outRect) const;
+    void          RebuildRows        ();
+    bool          CommitEdit         ();
+    bool          CommitAddRow       (const std::wstring & text, int next, bool isMove = false);
+    void          ShowAddedRow       ();
+    bool          MoveEdit           (int step);
+    bool          MoveEditRow        (int step);
+    void          FindNextCell       (int row, int column, int step, int & outRow, int & outColumn) const;
+    int           GetNextEditColumn  (int column, int step) const;
+    int           GetNextEmptyColumn (int column) const;
+    bool          IsColumnEditable   (int column) const;
+    void          ReportError        (const std::wstring & error);
+    bool          RouteEditorMouse   (const DxuiMouseEvent & ev);
+    void          PaintGrippers      (IDxuiPainter & painter, const IDxuiTheme & theme) const;
+    void          PaintDropLine      (IDxuiPainter & painter, const IDxuiTheme & theme) const;
+    void          PaintMissing       (IDxuiPainter & painter, const IDxuiTheme & theme) const;
+    std::wstring  MarkMissing        ();
+    std::wstring  GetEditText        (int row, int column) const;
+    bool          TryGetEditorRect   (int row, int column, RECT & outRect) const;
 
     std::vector<GridColumn>    m_columns;
     std::vector<GridRow>       m_rows;

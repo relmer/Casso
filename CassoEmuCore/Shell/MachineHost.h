@@ -392,7 +392,7 @@ public:
     //  The emulator's panels take the Panel slot; the debugger's event
     //  cache, or a rebuild's probe on a machine replaying history, the
     //  History slot (ObserverSlot).
-    void  AttachObservers (const MachineObservers & observers, ObserverSlot slot = ObserverSlot::Panel);
+    void  AttachObservers     (const MachineObservers & observers, ObserverSlot slot = ObserverSlot::Panel);
     void  AttachCommEventSink (ICommEventSink * sink);
 
 
@@ -481,9 +481,9 @@ public:
     //  itself.
     std::string  GetDiagnosticsId    () const override { return "clock"; }
     std::string  GetDiagnosticsTitle () const override { return "Clock"; }
-    void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
-    void         SetSpeedMode        (SpeedMode mode) noexcept { m_speedMode = mode; }
-    void  SetAssetBaseDir       (const std::wstring & dir)  { m_assetBaseDir = dir; }
+    void  GetDiagnostics  (DiagnosticsSnapshot & snapshot) const override;
+    void  SetSpeedMode    (SpeedMode mode) noexcept { m_speedMode = mode; }
+    void  SetAssetBaseDir (const std::wstring & dir)  { m_assetBaseDir = dir; }
 
 private:
 
@@ -599,9 +599,9 @@ private:
     // The recorder plugged into the cassette jacks. It is the owner's, not the
     // machine's, so it outlives every rebuild; each new cassette port is
     // connected to it.
-    std::unique_ptr<TapeDeck>        m_tapeDeck;
-    CassetteDiagnostics              m_cassetteDiagnostics { *this };
-    std::atomic<uint32_t>            m_tapeResetCount { 0 };
+    std::unique_ptr<TapeDeck>  m_tapeDeck;
+    CassetteDiagnostics        m_cassetteDiagnostics { *this };
+    std::atomic<uint32_t>      m_tapeResetCount      { 0 };
 
     // The ImageWriter II's input, fed by whichever connector it is attached
     // to. The host's, not a device's: the printer's drain thread reads it,

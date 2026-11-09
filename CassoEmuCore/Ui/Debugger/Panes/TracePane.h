@@ -68,8 +68,8 @@ public:
 
     //  A row's address, bytes, label and instruction in the disassembly's
     //  colors; the cycles in the muted one.
-    static void  AddColors (std::vector<DxuiListView::Cell> & row, const DebuggerTextColors::Set & colors);
-    bool  IsShowingBytes () const { return m_showBytes; }
+    static void  AddColors      (std::vector<DxuiListView::Cell> & row, const DebuggerTextColors::Set & colors);
+    bool         IsShowingBytes () const { return m_showBytes; }
 
     void  Configure    ();
     void  Apply        (const DebuggerViewSnapshot::TraceState & trace);

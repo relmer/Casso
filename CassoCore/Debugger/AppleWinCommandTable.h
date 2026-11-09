@@ -84,8 +84,8 @@ class AppleWinCommandTable
 {
 public:
     //  Null when the name is not an AppleWin-mode command. Case is ignored.
-    static const AppleWinCommand *        Find   (const std::string & name);
-    static std::span<const AppleWinCommand> GetAll ();
+    static const AppleWinCommand             * Find   (const std::string & name);
+    static std::span<const AppleWinCommand>    GetAll ();
 
     //  Whether the name is one of Casso's engine commands, the Engine family:
     //  Casso's own additions to AppleWin's set, which every mode reaches

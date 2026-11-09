@@ -175,34 +175,34 @@ private:
     void  PutDown         () override;
     void  Restore         () override;
 
-    bool  BeginLayout      (const RECT & area, const RECT & hostClient, const DxuiDpiScaler & scaler);
-    void  PlaceDocked      (const RECT & bar, const RECT & band);
-    void  BeginCarry       (POINT clientPx);
-    void  BeginFloatDrag   (POINT screenPx);
-    void  BeginDrag        ();
-    bool  OnDragKey        (WPARAM vk);
-    void  OnMouseLost      (UINT message);
-    void  Feed             (UINT message, POINT screenPx, bool buttonDown, WPARAM key);
-    void  OnFloatDpi       (UINT newDpi, RECT & inOutRectPx);
-    void  MoveAcrossBands  (POINT clientPx, DxuiToolbarDock & dock);
-    bool  TryPickDropAt    (POINT clientPx, POINT grab, DxuiToolbarDock & outDock, bool & outNewBand);
-    void  TakeDrop         (const DxuiToolbarDock & dock, bool isNewBand);
-    bool  Float            (const RECT & rectPx);
-    void  DockBack         ();
-    void  RunMoveLoopFrame ();
-    void  UpdateLift       ();
-    void  FitFloatWindow   ();
-    int   AdoptFloatLength (const RECT & window, UINT dpi);
-    int   GetKeptLengthDip () const;
-    void  Save             ();
-    RECT  GetFloatingRect  (POINT topLeftPx);
-    HWND  GetOwnerHwnd     () const;
-    bool  IsOwnerShowing   () const;
-    POINT ToScreen         (POINT clientPx) const;
-    POINT ToClient         (POINT screenPx) const;
-    void  ShowMoveCursor   () const;
+    bool         BeginLayout      (const RECT & area, const RECT & hostClient, const DxuiDpiScaler & scaler);
+    void         PlaceDocked      (const RECT & bar, const RECT & band);
+    void         BeginCarry       (POINT clientPx);
+    void         BeginFloatDrag   (POINT screenPx);
+    void         BeginDrag        ();
+    bool         OnDragKey        (WPARAM vk);
+    void         OnMouseLost      (UINT message);
+    void         Feed             (UINT message, POINT screenPx, bool buttonDown, WPARAM key);
+    void         OnFloatDpi       (UINT newDpi, RECT & inOutRectPx);
+    void         MoveAcrossBands  (POINT clientPx, DxuiToolbarDock & dock);
+    bool         TryPickDropAt    (POINT clientPx, POINT grab, DxuiToolbarDock & outDock, bool & outNewBand);
+    void         TakeDrop         (const DxuiToolbarDock & dock, bool isNewBand);
+    bool         Float            (const RECT & rectPx);
+    void         DockBack         ();
+    void         RunMoveLoopFrame ();
+    void         UpdateLift       ();
+    void         FitFloatWindow   ();
+    int          AdoptFloatLength (const RECT & window, UINT dpi);
+    int          GetKeptLengthDip () const;
+    void         Save             ();
+    RECT         GetFloatingRect  (POINT topLeftPx);
+    HWND         GetOwnerHwnd     () const;
+    bool         IsOwnerShowing   () const;
+    POINT        ToScreen         (POINT clientPx) const;
+    POINT        ToClient         (POINT screenPx) const;
+    void         ShowMoveCursor   () const;
     static bool  IsLeftButtonDown ();
-    int   GetBandDipOfBar  () const { return (m_toolbar != nullptr) ? m_toolbar->GetBandDp() : DxuiToolbar::GetBandDip(); }
+    int          GetBandDipOfBar  () const { return (m_toolbar != nullptr) ? m_toolbar->GetBandDp() : DxuiToolbar::GetBandDip(); }
 
     DxuiWindow                          * m_owner     = nullptr;
     DxuiToolbar                         * m_toolbar   = nullptr;
@@ -221,9 +221,9 @@ private:
 
     //  The drag, from press to release, and what it puts back when it is
     //  canceled: every place in the group, and the floating window.
-    DxuiToolbarDragSession                m_session { *this };
-    std::vector<DxuiToolbarDock>          m_startDocks;
-    RECT                                  m_startFloatRect = {};
+    DxuiToolbarDragSession        m_session        { *this };
+    std::vector<DxuiToolbarDock>  m_startDocks;
+    RECT                          m_startFloatRect = {};
 
     //  Where a release would dock a floating toolbar, shown in the owner.
     DxuiToolbarDropPreview                m_preview;

@@ -98,8 +98,8 @@ public:
     DxuiKeyMap () = default;
     DxuiKeyMap (std::wstring name, std::span<const DxuiKeyChord> chords);
 
-    const std::wstring &                GetName   () const { return m_name; }
-    const std::vector<DxuiKeyChord> &  GetChords () const { return m_chords; }
+    const std::wstring               & GetName   () const { return m_name; }
+    const std::vector<DxuiKeyChord>  & GetChords () const { return m_chords; }
 
     //  The command a one-key chord stands for. The first chord that matches
     //  wins, and the modifiers must match exactly: Shift+F11 is not F11.

@@ -89,12 +89,12 @@ public:
     //  Whether the machine is stopped, which holds the changed marks.
     void  SetPaused   (bool isPaused) { m_isPaused = isPaused; }
 
-    uint64_t  GetByteCount  () const override { return kAddressSpace; }
-    void      ReadBytes     (uint64_t offset, std::span<uint8_t> out) const override;
-    void      ReadMarks     (uint64_t offset, std::span<uint8_t> out) const override;
-    bool      WriteBytes    (uint64_t offset, std::span<const uint8_t> bytes) const override;
-    bool      TryGetByteTip (uint64_t offset, std::wstring & tip) const override;
-    void      ReadRegions   (uint64_t offset, std::span<uint16_t> out) const override;
+    uint64_t  GetByteCount      () const override { return kAddressSpace; }
+    void      ReadBytes         (uint64_t offset, std::span<uint8_t> out) const override;
+    void      ReadMarks         (uint64_t offset, std::span<uint8_t> out) const override;
+    bool      WriteBytes        (uint64_t offset, std::span<const uint8_t> bytes) const override;
+    bool      TryGetByteTip     (uint64_t offset, std::wstring & tip) const override;
+    void      ReadRegions       (uint64_t offset, std::span<uint16_t> out) const override;
     bool      TryGetRegionStyle (uint16_t region, uint32_t & outArgb, std::wstring & outLabel) const override;
 
     //  Where the view's rows start relative to a row boundary, less than a

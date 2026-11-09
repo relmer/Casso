@@ -55,8 +55,8 @@ public:
     void          OnWatchedAccess  (Word address, Byte value, BusAccess access, std::optional<Byte> previous) override;
 
 private:
-    bool          TryConsumeCpuOwnRead (Word address);
-    void          ResolveRoutines  ();
+    bool  TryConsumeCpuOwnRead (Word address);
+    void  ResolveRoutines      ();
 
     DebugSession         & m_session;
     bool                   m_isPending   = false;

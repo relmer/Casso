@@ -93,10 +93,10 @@ public:
     static HRESULT  SetBodyFace               (const void * pFontBytes,
                                                size_t       byteCount,
                                                float        sizeScale)   { return SetBodyFace (s_typography, pFontBytes, byteCount, sizeScale); }
-    static void     ClearBodyFace             ()                         { ClearBodyFace (s_typography); }
-    static void     SetTextGlow               (uint8_t alpha, float radiusEm) { SetTextGlow (s_typography, alpha, radiusEm); }
-    static void     SetMonochromeGlyphsForced (bool forced)              { SetMonochromeGlyphsForced (s_typography, forced); }
-    static Typography &  GetDefaultTypography ()                         { return s_typography; }
+    static void          ClearBodyFace             ()                         { ClearBodyFace (s_typography); }
+    static void          SetTextGlow               (uint8_t alpha, float radiusEm) { SetTextGlow (s_typography, alpha, radiusEm); }
+    static void          SetMonochromeGlyphsForced (bool forced)              { SetMonochromeGlyphsForced (s_typography, forced); }
+    static Typography  & GetDefaultTypography      ()                         { return s_typography; }
 
     static HRESULT  SetBodyFace               (Typography & typography,
                                                const void * pFontBytes,

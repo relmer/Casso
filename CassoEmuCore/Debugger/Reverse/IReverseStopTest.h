@@ -33,8 +33,8 @@ class IReverseStopTest
 public:
     virtual               ~IReverseStopTest() = default;
 
-    virtual bool          ShouldStopBefore (MachineHost & machine, Word pc) = 0;
-    virtual bool          TakePendingStop  ()                               = 0;
-    virtual IWatchSink  * GetWatchSink     ()                               { return nullptr; }
-    virtual IDisk2EventSink * GetDiskSink  ()                               { return nullptr; }
+    virtual bool               ShouldStopBefore (MachineHost & machine, Word pc) = 0;
+    virtual bool               TakePendingStop  ()                               = 0;
+    virtual IWatchSink       * GetWatchSink     ()                               { return nullptr; }
+    virtual IDisk2EventSink  * GetDiskSink      ()                               { return nullptr; }
 };

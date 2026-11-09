@@ -31,14 +31,14 @@ public:
     HeatRangesPane (IDebuggerPaneHost & host, HeatMapPane & heatMap);
     ~HeatRangesPane() override;
 
-    const HeatMapRangeSets &   GetSets          () const { return m_sets; }
-    const HeatMapSymbols &     GetSymbols       () const;
-    const std::string &        GetEditedSetName () const { return m_editedSet; }
-    DxuiEditableGrid *         GetList          () const { return m_list; }
-    DxuiToolbar *              GetBar           () const { return m_bar.GetBar(); }
-    DxuiTextInput *            GetEditor        () const;
-    std::wstring               GetError         () const;
-    bool                       IsEditing        () const;
+    const HeatMapRangeSets  & GetSets          () const { return m_sets; }
+    const HeatMapSymbols    & GetSymbols       () const;
+    const std::string       & GetEditedSetName () const { return m_editedSet; }
+    DxuiEditableGrid        * GetList          () const { return m_list; }
+    DxuiToolbar             * GetBar           () const { return m_bar.GetBar(); }
+    DxuiTextInput           * GetEditor        () const;
+    std::wstring              GetError         () const;
+    bool                      IsEditing        () const;
 
     //  The set on the map and the set the pane edits, the bar's entries,
     //  an edit in place over a cell or the set's name, and a range's check.
@@ -90,20 +90,20 @@ private:
     static constexpr int  kErrorDip         = 20;
     static constexpr int  kFirstFieldColumn = 1;      // the Include column comes before the range's fields
 
-    void                     LoadSets        ();
-    std::wstring             GetBarLabel     (int id) const;
-    void                     ApplyRows       ();
-    void                     Save            ();
-    void                     SetError        (const std::string & error);
+    void                     LoadSets         ();
+    std::wstring             GetBarLabel      (int id) const;
+    void                     ApplyRows        ();
+    void                     Save             ();
+    void                     SetError         (const std::string & error);
     void                     BeginSetNameEdit (bool isNew);
-    void                     MoveRange       (int delta);
-    void                     MoveRow         (int row, int to);
-    bool                     AddRange        (const std::vector<std::wstring> & texts, std::wstring & outError);
-    bool                     CommitCell      (int row, int column, const std::wstring & text, std::wstring & outError);
-    void                     RemoveRange     (int row);
+    void                     MoveRange        (int delta);
+    void                     MoveRow          (int row, int to);
+    bool                     AddRange         (const std::vector<std::wstring> & texts, std::wstring & outError);
+    bool                     CommitCell       (int row, int column, const std::wstring & text, std::wstring & outError);
+    void                     RemoveRange      (int row);
     bool                     ConfirmDeleteSet ();
-    HeatMapRangeSet *        GetEditedSet    ();
-    const HeatMapRangeSet *  GetEditedSet    () const;
+    HeatMapRangeSet        * GetEditedSet     ();
+    const HeatMapRangeSet  * GetEditedSet     () const;
     std::optional<size_t>    GetSelectedRange () const;
 
     HeatMapPane                                & m_heatMap;

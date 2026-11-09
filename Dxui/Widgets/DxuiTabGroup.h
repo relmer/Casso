@@ -95,7 +95,7 @@ public:
     //  Room a tab's pane keeps in a tool window's title bar, ahead of the
     //  menu button, for a control of its own; zero keeps none. Only the
     //  active tab's room is kept, and the title stops short of it.
-    void  SetTitleExtra    (IDxuiControl * content, int widthDip);
+    void  SetTitleExtra     (IDxuiControl * content, int widthDip);
     RECT  GetTitleExtraRect () const;
 
     //  A mark ahead of a tab's title: a mark of the tab's own state, not a
@@ -121,12 +121,12 @@ public:
     void  SetFocusedLook (bool focused) { m_focusedLook = focused; m_strip.SetFocusedLook (focused); }
     bool  HasFocusedLook () const       { return m_focusedLook; }
 
-    size_t          GetTabCount   () const { return m_tabs.size(); }
-    int             GetActive     () const { return m_active; }
-    IDxuiControl *  GetContent    (int index) const;
-    IDxuiControl *  GetActiveContent () const { return GetContent (m_active); }
-    bool            HasIndicator  (int index) const;
-    int             IndexOf       (IDxuiControl * content) const;
+    size_t          GetTabCount      () const { return m_tabs.size(); }
+    int             GetActive        () const { return m_active; }
+    IDxuiControl  * GetContent       (int index) const;
+    IDxuiControl  * GetActiveContent () const { return GetContent (m_active); }
+    bool            HasIndicator     (int index) const;
+    int             IndexOf          (IDxuiControl * content) const;
 
     //  Shows the tab's control and clears its indicator.
     void  SetActive    (int index);
@@ -149,7 +149,7 @@ public:
 
     //  Forgets a press on the title bar or its buttons, for a drag another
     //  window took over: that window gets the button's release, not this one.
-    void  CancelPress () { m_titlePressed = false; m_titleDragged = false; m_pressButton = -1; }
+    void  CancelPress    () { m_titlePressed = false; m_titleDragged = false; m_pressButton = -1; }
     bool  IsTitlePressed () const { return m_titlePressed; }
 
     //  Where the last press of a tab (`tab`) or of the title bar fell, from
@@ -179,11 +179,11 @@ public:
     RECT  GetNewTabRect  () const;
 
     //  The tab under a point in the bounds' coordinates, or -1.
-    int   HitTestTab   (POINT pointDip) const;
-    RECT  GetTabRect   (int index) const;
-    RECT  GetBodyRect  () const;
-    RECT  GetTitleRect () const;
-    RECT  GetStripRect () const;
+    int   HitTestTab         (POINT pointDip) const;
+    RECT  GetTabRect         (int index) const;
+    RECT  GetBodyRect        () const;
+    RECT  GetTitleRect       () const;
+    RECT  GetStripRect       () const;
     RECT  GetTitleButtonRect (TitleButton button) const;
 
     //  Whether a point is on the group's own chrome -- its title bar or its
@@ -240,14 +240,14 @@ private:
         int             titleExtraDip = 0;
     };
 
-    void  LayoutContent ();
-    void  LayoutStrip   ();
-    void  SyncStrip     ();
-    bool  HasStrip      () const;
-    bool  IsCloseShown  () const;
+    void  LayoutContent    ();
+    void  LayoutStrip      ();
+    void  SyncStrip        ();
+    bool  HasStrip         () const;
+    bool  IsCloseShown     () const;
     int   GetTitleButtonAt (POINT pointDip) const;
-    void  PaintTitle    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void  RunPending    ();
+    void  PaintTitle       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void  RunPending       ();
 
     DxuiPaneFrameSpec    GetFrameSpec   () const;
     DxuiPaneFrameColors  GetFrameColors (const IDxuiTheme & theme) const;

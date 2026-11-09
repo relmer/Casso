@@ -269,10 +269,10 @@ private:
     DxuiMessageResult  OnActivateApp   (bool active) override;
     DxuiMessageResult  OnKillFocus     () override;
 
-    DxuiMessageResult  OnCancelMode    () override;
-    DxuiMessageResult  OnMove          (int x, int y) override;
-    void               OnEnterSizeMove () override;
-    void               OnExitSizeMove  () override;
+    DxuiMessageResult  OnCancelMode             () override;
+    DxuiMessageResult  OnMove                   (int x, int y) override;
+    void               OnEnterSizeMove          () override;
+    void               OnExitSizeMove           () override;
     void               OnUserWindowStateCommand () override;
     DxuiMessageResult  OnNotify                 (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnSize                   (UINT widthPx, UINT heightPx) override;
@@ -367,9 +367,9 @@ private:
     // Engages or releases the fast-load override from the tape governor.
     void ApplyTapeTurbo ();
 
-    void OnCpuThreadStart();
-    void OnCpuThreadStop();
-    void WaitForFrameOrMessage();
+    void  OnCpuThreadStart      ();
+    void  OnCpuThreadStop       ();
+    void  WaitForFrameOrMessage ();
 
     // Initialization helpers
     HRESULT CreateEmulatorWindow (HINSTANCE hInstance);
@@ -816,9 +816,9 @@ private:
     // user's choice in the prompt that protects the earlier automatic state,
     // whether the switch in progress is loading a state file, and the folder
     // and exit report a test sets.
-    bool                m_isCommandLineMediaSession = false;
-    std::atomic<bool>   m_isAutoStateReplaceApproved { false };
-    bool                   m_isLoadingStateSwitch = false;
+    bool                   m_isCommandLineMediaSession  = false;
+    std::atomic<bool>      m_isAutoStateReplaceApproved { false };
+    bool                   m_isLoadingStateSwitch       = false;
     std::filesystem::path  m_stateFolder;
     ExitReport             m_exitReport;
 

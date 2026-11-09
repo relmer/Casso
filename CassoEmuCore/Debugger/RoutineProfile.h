@@ -110,9 +110,9 @@ public:
     //  call tree, joined by each node's chain of callers, and its frames.
     void  Merge       (const RoutineProfile & later);
 
-    const std::vector<Routine> &  GetRoutines () const { return m_routines; }
-    const std::vector<Node> &     GetNodes    () const { return m_nodes; }
-    const std::deque<Frame> &     GetFrames   () const { return m_frames; }
+    const std::vector<Routine>  & GetRoutines () const { return m_routines; }
+    const std::vector<Node>     & GetNodes    () const { return m_nodes; }
+    const std::deque<Frame>     & GetFrames   () const { return m_frames; }
 
     //  The cycles at each address while no call is running, which is Top
     //  level's self.

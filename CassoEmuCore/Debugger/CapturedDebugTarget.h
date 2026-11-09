@@ -49,16 +49,16 @@ public:
     void                SetWatchedPages   (const WatchedPages &) override {}
     void                SetWatchSink      (IWatchSink *) override {}
 
-    VideoPosition       GetVideoPosition  () const override { return m_capture->video; }
-    uint64_t            GetCycleCount     () const override { return m_capture->cycleCount; }
-    Byte                GetLastPenalties  () const override { return m_capture->lastPenalties; }
-    bool                TryGetLastBranch  (Word & from) const override;
-    bool                TryGetLastBranchTarget (Word & to) const override;
-    DebugCpuKind        GetCpuKind        () const override { return m_capture->cpuKind; }
-    const Microcode   * GetInstructionSet () const override { return m_capture->instructionSet; }
+    VideoPosition      GetVideoPosition       () const override { return m_capture->video; }
+    uint64_t           GetCycleCount          () const override { return m_capture->cycleCount; }
+    Byte               GetLastPenalties       () const override { return m_capture->lastPenalties; }
+    bool               TryGetLastBranch       (Word & from) const override;
+    bool               TryGetLastBranchTarget (Word & to) const override;
+    DebugCpuKind       GetCpuKind             () const override { return m_capture->cpuKind; }
+    const Microcode  * GetInstructionSet      () const override { return m_capture->instructionSet; }
 
     std::shared_ptr<const std::vector<Microcode>>  GetInstructionTable () const override { return m_capture->instructionTable; }
-    DebugMachineInfo    GetMachineInfo    () const override { return m_capture->machineInfo; }
+    DebugMachineInfo                               GetMachineInfo      () const override { return m_capture->machineInfo; }
 
     void                InjectKey         (Byte) override {}
     bool                IsKeyPending      () const override { return m_capture->isKeyPending; }

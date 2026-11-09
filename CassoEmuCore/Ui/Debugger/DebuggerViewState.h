@@ -643,7 +643,7 @@ public:
     //  stays where it was.
     void  SetFollowView    (int view);
     int   GetFollowView    () const { return m_follow; }
-    Word                 GetMemoryAddress () const { return m_memoryAddress; }
+    Word  GetMemoryAddress () const { return m_memoryAddress; }
 
     //  Windows 2 to 4 open at an address or close; window 1 is the memory pane
     //  above and moves with SetMemoryAddress. Other ids are ignored.
@@ -931,7 +931,7 @@ private:
     void  MoveCodePane   (DebugSession & session, const std::string & name, Reply & reply);
 
     static DebuggerViewSnapshot::MemoryWindow  ReadMemoryWindow (DebugSession & session, int id, Word address);
-    void  MoveMemoryPane (DebugSession & session, const std::string & name, const std::string & argument, Reply & reply);
+    void                                       MoveMemoryPane   (DebugSession & session, const std::string & name, const std::string & argument, Reply & reply);
 
     struct GoToOperand
     {
@@ -946,9 +946,9 @@ private:
     static size_t       FindClosingParen        (const std::string & text);
     static bool         IsWrittenAbsolute       (const std::string & core);
     static bool         TryReadGoToPointer      (const GoToOperand & operand, Word value, Word index, bool isZeroPage, const GoToPeek & peek, Word & address, std::string & error);
-    void  GoToMemory     (int window, Word address);
-    void  ShowWindowPane (DebugSession & session, const std::string & name, Reply & reply);
-    void  ImportBreakpoints (DebugSession & session, const std::string & path, const BreakpointImport::LineRunner & run, std::vector<std::string> & lines);
+    void                GoToMemory              (int window, Word address);
+    void                ShowWindowPane          (DebugSession & session, const std::string & name, Reply & reply);
+    void                ImportBreakpoints       (DebugSession & session, const std::string & path, const BreakpointImport::LineRunner & run, std::vector<std::string> & lines);
 
     void  BuildCodeViews   (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildMemoryPanes (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
@@ -960,9 +960,9 @@ private:
     void  ReadHeatMap      (DebugSession & session, const AccessHeatMap & map, DebuggerViewSnapshot::HeatMapState & state) const;
 
     std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>  ReadHeatColumns (const AccessHeatMap & map) const;
-    static HeatAccessInfo  GetHeatAccess (DebugSession & session, HeatSpace space, bool isWrite, Word address);
-    static void            ReadHeatValues (IDebugTarget & target, const AccessHeatMap & map, HeatMapOptions::Bank bank, std::vector<int16_t> & values, std::vector<uint16_t> & regions);
-    static void            FindHeatMarks  (IDebugTarget & target, const AccessHeatMap & map, DebuggerViewSnapshot::HeatMapState & state);
+    static HeatAccessInfo                                          GetHeatAccess   (DebugSession & session, HeatSpace space, bool isWrite, Word address);
+    static void                                                    ReadHeatValues  (IDebugTarget & target, const AccessHeatMap & map, HeatMapOptions::Bank bank, std::vector<int16_t> & values, std::vector<uint16_t> & regions);
+    static void                                                    FindHeatMarks   (IDebugTarget & target, const AccessHeatMap & map, DebuggerViewSnapshot::HeatMapState & state);
 
     //  Every opcode's form for the instruction set, made again only when the
     //  machine brings another.
@@ -972,9 +972,9 @@ private:
     //  have changed since the last.
     std::shared_ptr<const HeatMapSymbols>  GetHeatMapSymbols (const SymbolTable & symbols) const;
 
-    Reply  ExecutePanelLine (DebugSession & session, const std::string & text, const std::string & line, CommandMode mode);
-    Reply  ExecuteSessionLine (DebugSession & session, const std::string & line, CommandMode mode);
-    void   RunPanelCommand  (DebugSession & session, const DebugCommand & command, Reply & reply);
+    Reply  ExecutePanelLine     (DebugSession & session, const std::string & text, const std::string & line, CommandMode mode);
+    Reply  ExecuteSessionLine   (DebugSession & session, const std::string & line, CommandMode mode);
+    void   RunPanelCommand      (DebugSession & session, const DebugCommand & command, Reply & reply);
     Reply  ExecuteActionCommand (DebugSession & session, const DebuggerAction & action);
     void   AddActionLines       (DebugSession & session, const DebuggerAction & action, const Reply & reply, std::vector<std::string> & lines);
 
@@ -1002,9 +1002,9 @@ private:
     //  Where the code pane starts this build: the pinned address, the anchor
     //  it already had while the PC is among the lines it produced, or a new
     //  anchor that puts the PC in the middle.
-    Word         ChooseCodeStart (DebugSession & session, Word pc, int view, bool isRunning) const;
-    std::vector<DebuggerViewSnapshot::CodeLine>  BuildCode (DebugSession & session, const DebuggerViewSnapshot & snapshot, int view) const;
-    void         UpdateLastStop   (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+    Word                                         ChooseCodeStart (DebugSession & session, Word pc, int view, bool isRunning) const;
+    std::vector<DebuggerViewSnapshot::CodeLine>  BuildCode       (DebugSession & session, const DebuggerViewSnapshot & snapshot, int view) const;
+    void                                         UpdateLastStop  (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
 
     static void  AddSessionStops  (DebugSession & session, DebuggerViewSnapshot & snapshot);
     void         BuildAutoWatches (DebugSession & session, DebuggerViewSnapshot & snapshot) const;

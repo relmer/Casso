@@ -117,9 +117,9 @@ public:
     static bool  IsMachineWrite  (DebugVerb verb);
 
     //  A step forward, refused while the machine runs.
-    static bool  IsStepVerb      (DebugVerb verb);
-    void   FormatReply           (Reply & reply) const;
-    void   FormatReply           (Reply & reply, CommandMode mode) const;
+    static bool  IsStepVerb  (DebugVerb verb);
+    void         FormatReply (Reply & reply) const;
+    void         FormatReply (Reply & reply, CommandMode mode) const;
 
     // A reply's text in a given output format, whatever the session's is.
     static void  RenderReply     (Reply & reply, OutputFormat format);
@@ -128,8 +128,8 @@ public:
     void   SetBudget             (std::optional<uint64_t> budget) { m_budget = budget; }
 
     // Called by command handlers after they change a table.
-    void   OnStopConditionsChanged ();
-    void   ClearAllBreakpoints   ();
+    void  OnStopConditionsChanged ();
+    void  ClearAllBreakpoints     ();
 
     // Machine events the host reports.
     void   OnMachineChanged      (const std::string & machineName, bool isPaused = true);
@@ -160,44 +160,44 @@ public:
 
     // The mode of the line being run, which a pipe request sets for itself;
     // the session's mode outside a line.
-    CommandMode             GetLineMode    () const { return m_lineMode.value_or (m_mode); }
-    OutputFormat            GetOutputFormat () const { return m_outputFormat; }
-    void                    SetOutputFormat (OutputFormat format) { m_outputFormat = format; }
-    std::optional<uint64_t> GetBudget      () const { return m_budget; }
-    LogLevel                GetLogLevel    () const { return m_logLevel; }
-    void                    SetLogLevel    (LogLevel level) { m_logLevel = level; }
-    IDebugTarget          & GetTarget      ()       { return m_target; }
-    BreakpointTable       & GetBreakpoints ()       { return m_breakpoints; }
-    WatchpointTable       & GetWatchpoints ()       { return m_watchpoints; }
-    WatchTable            & GetWatches     ()       { return m_watches; }
-    WatchTable            & GetZeroPage    ()       { return m_zeroPage; }
-    WatchTable            & GetBookmarks   ()       { return m_bookmarks; }
-    DataBlockTable        & GetDataBlocks  ()       { return m_dataBlocks; }
+    CommandMode                GetLineMode     () const { return m_lineMode.value_or (m_mode); }
+    OutputFormat               GetOutputFormat () const { return m_outputFormat; }
+    void                       SetOutputFormat (OutputFormat format) { m_outputFormat = format; }
+    std::optional<uint64_t>    GetBudget       () const { return m_budget; }
+    LogLevel                   GetLogLevel     () const { return m_logLevel; }
+    void                       SetLogLevel     (LogLevel level) { m_logLevel = level; }
+    IDebugTarget             & GetTarget       ()       { return m_target; }
+    BreakpointTable          & GetBreakpoints  ()       { return m_breakpoints; }
+    WatchpointTable          & GetWatchpoints  ()       { return m_watchpoints; }
+    WatchTable               & GetWatches      ()       { return m_watches; }
+    WatchTable               & GetZeroPage     ()       { return m_zeroPage; }
+    WatchTable               & GetBookmarks    ()       { return m_bookmarks; }
+    DataBlockTable           & GetDataBlocks   ()       { return m_dataBlocks; }
 
     //  The blocks the debug file's data directives laid down. They are data
     //  while the file matches memory and no data directive covers them; after
     //  X over one, its bytes are disassembled as code until the file loads
     //  again.
-    void                  SetDebugFileData (std::vector<DataBlockEntry> blocks);
-    bool                  TryFindData      (Word address, DataBlockEntry & block, DataOrigin & origin) const;
-    void                  RemoveData       (Word first, Word last);
-    SymbolTable           & GetSymbols     ()       { return m_symbols; }
-    const SymbolTable     & GetSymbols     () const { return m_symbols; }
+    void                 SetDebugFileData (std::vector<DataBlockEntry> blocks);
+    bool                 TryFindData      (Word address, DataBlockEntry & block, DataOrigin & origin) const;
+    void                 RemoveData       (Word first, Word last);
+    SymbolTable        & GetSymbols       ()       { return m_symbols; }
+    const SymbolTable  & GetSymbols       () const { return m_symbols; }
 
     // The program's debug file, loaded by SYM LOAD, and its lines indexed both
     // ways. The path is where it was read from, so its sources are looked for
     // beside it.
-    void                  SetDebugFile   (DebugFile file, const std::wstring & path, const std::string & key = {});
-    void                  ClearDebugFile ();
-    bool                  HasDebugFile   () const { return !m_debugFilePath.empty(); }
-    const DebugFile     & GetDebugFile   () const { return m_debugFile; }
+    void                  SetDebugFile     (DebugFile file, const std::wstring & path, const std::string & key = {});
+    void                  ClearDebugFile   ();
+    bool                  HasDebugFile     () const { return !m_debugFilePath.empty(); }
+    const DebugFile     & GetDebugFile     () const { return m_debugFile; }
     const std::wstring  & GetDebugFilePath () const { return m_debugFilePath; }
     const std::string   & GetDebugFileKey  () const { return m_debugFileKey; }
-    const LineTable     & GetLineTable   () const { return m_lineTable; }
+    const LineTable     & GetLineTable     () const { return m_lineTable; }
 
     // The symbol table the debug file's symbols went into. Clearing that
     // table unloads the file as well.
-    void                  SetDebugFileTable (SymbolTableId table) { m_debugFileTable = table; m_filesRevision++; }
+    void                          SetDebugFileTable (SymbolTableId table) { m_debugFileTable = table; m_filesRevision++; }
     std::optional<SymbolTableId>  GetDebugFileTable () const { return m_debugFileTable; }
 
     // Whether the program in memory is the one each loaded file was made for
@@ -265,11 +265,11 @@ public:
     //  The binary BLOAD last loaded, as its content's SHA-1 and its address,
     //  and its file's name and full path; a debug project's key while no
     //  debug file is loaded (FR-167).
-    void                  NoteBinaryLoad (const std::string & hash, Word address, const std::string & name, const std::wstring & path);
+    void                  NoteBinaryLoad   (const std::string & hash, Word address, const std::string & name, const std::wstring & path);
     void                  ForgetBinaryLoad ();
-    const std::string   & GetBinaryKey   () const { return m_binaryKey; }
-    const std::string   & GetBinaryName  () const { return m_binaryName; }
-    const std::wstring  & GetBinaryPath  () const { return m_binaryPath; }
+    const std::string   & GetBinaryKey     () const { return m_binaryKey; }
+    const std::string   & GetBinaryName    () const { return m_binaryName; }
+    const std::wstring  & GetBinaryPath    () const { return m_binaryPath; }
 
     // The call-stack record (FR-068), kept only while the debugger is attached:
     // while the window or the channel is open, and for a batch run. Turning it
@@ -385,15 +385,15 @@ public:
     std::string           GetFullPath          (const std::string & path) const;
 
     // The last S or SH results, reachable as @1, @2 and so on.
-    const std::vector<Word> & GetSearchResults () const                          { return m_searchResults; }
-    void                  SetSearchResults     (std::vector<Word> results)        { m_searchResults = std::move (results); m_searchSerial++; }
-    uint64_t              GetSearchSerial      () const                           { return m_searchSerial; }
+    const std::vector<Word>  & GetSearchResults () const                          { return m_searchResults; }
+    void                       SetSearchResults (std::vector<Word> results)        { m_searchResults = std::move (results); m_searchSerial++; }
+    uint64_t                   GetSearchSerial  () const                           { return m_searchSerial; }
 
     //  The last MC's differences, numbered as the searches are, for a Memory
     //  pane's comparison.
-    const std::vector<CompareDifference> & GetCompareResults () const              { return m_compareResults; }
-    void                  SetCompareResults    (std::vector<CompareDifference> differences) { m_compareResults = std::move (differences); m_compareSerial++; }
-    uint64_t              GetCompareSerial     () const                           { return m_compareSerial; }
+    const std::vector<CompareDifference>  & GetCompareResults () const              { return m_compareResults; }
+    void                                    SetCompareResults (std::vector<CompareDifference> differences) { m_compareResults = std::move (differences); m_compareSerial++; }
+    uint64_t                                GetCompareSerial  () const                           { return m_compareSerial; }
 
     // Line-assembly mode: each following line is assembled at the address,
     // and a blank line ends it.
@@ -487,8 +487,8 @@ public:
     void   GetCpuOwnReads        (Word pc, Word & length, std::optional<Word> & storeTarget) const;
 
     // IRunObserver
-    void   OnStopped            (const StopEvent & stop) override;
-    void   OnFreeRunSlice        () override;
+    void  OnStopped      (const StopEvent & stop) override;
+    void  OnFreeRunSlice () override;
 
     // IOpcodeWatcher: the call record's instructions, from the CPU.
     void   OnWatchedFetch        (Word pc, Byte sp, Byte opcode) override;
@@ -522,48 +522,48 @@ private:
     static constexpr Word  kMonitorReentry = 0xFF69;
 
     bool   TryExecuteEngineCommand (const DebugCommand & command, Reply & reply);
-    void   ExecuteRun            (const DebugCommand & command, Reply & reply);
-    bool   TryStartNextStep      ();
-    void   SetStepOutFrame       (RunRequest & request, Reply & reply);
-    void   ExecuteSource         (const DebugCommand & command, Reply & reply);
-    void   ExecuteStepFilter     (const DebugCommand & command, Reply & reply);
-    void   ExecuteAssemblyLine   (const std::string & line, Reply & reply);
-    Reply  ExecuteMonitorLine    (const std::string & text, CommandMode mode);
-    void   KeepRegisterEditArmed (const DebugCommand & command, const Reply & reply);
-    Reply  ExecuteAppleWinLine   (const std::string & text);
-    Reply  ExecuteGSSquaredLine  (const std::string & text, CommandMode mode);
-    Reply  ExecuteWinDbgLine     (const std::string & text);
-    bool   TryResolveIdOrAddress (DebugCommand & command, Reply & reply);
-    void   PushMonitorReturn     ();
-    void   UpdateHookInstalled   ();
-    void   RefreshHookFilter     ();
-    void   SettleCallRecord      ();
-    Byte   PeekByte              (Word address) const;
-    Word   FindStoreInProgress   () const;
-    bool   HasStopConditions     () const;
-    bool   IsProfiling           () const;
+    void   ExecuteRun              (const DebugCommand & command, Reply & reply);
+    bool   TryStartNextStep        ();
+    void   SetStepOutFrame         (RunRequest & request, Reply & reply);
+    void   ExecuteSource           (const DebugCommand & command, Reply & reply);
+    void   ExecuteStepFilter       (const DebugCommand & command, Reply & reply);
+    void   ExecuteAssemblyLine     (const std::string & line, Reply & reply);
+    Reply  ExecuteMonitorLine      (const std::string & text, CommandMode mode);
+    void   KeepRegisterEditArmed   (const DebugCommand & command, const Reply & reply);
+    Reply  ExecuteAppleWinLine     (const std::string & text);
+    Reply  ExecuteGSSquaredLine    (const std::string & text, CommandMode mode);
+    Reply  ExecuteWinDbgLine       (const std::string & text);
+    bool   TryResolveIdOrAddress   (DebugCommand & command, Reply & reply);
+    void   PushMonitorReturn       ();
+    void   UpdateHookInstalled     ();
+    void   RefreshHookFilter       ();
+    void   SettleCallRecord        ();
+    Byte   PeekByte                (Word address) const;
+    Word   FindStoreInProgress     () const;
+    bool   HasStopConditions       () const;
+    bool   IsProfiling             () const;
 
     //  A read before written's stop is reported under this id, which no
     //  breakpoint or watchpoint has.
     static constexpr int  kUnwrittenHitId = -1;
 
-    std::optional<WatchHit>  GetUnwrittenHit () const;
-    bool   TryMatchBeforeWatchpoint (Word pc);
-    void   NoteCpuOwnReads       (Word pc);
-    bool   HasEnteredVideoBreak  ();
-    bool   HasReachedBeamBreak   (std::optional<BeamBreak> & beamBreak);
-    uint32_t  GetBeamCycle       () const;
-    void   AttachDiskReport      (StopEvent & event);
-    void   AttachDiskCallReport  (StopEvent & event);
-    void   AttachBasicReport     (StopEvent & event);
-    void   ExecuteBasicStep      (const DebugCommand & command, Reply & reply);
-    void   ClearTemporary        (const StopEvent & stop);
-    void   AttachCondition       (StopEvent & event) const;
+    std::optional<WatchHit>  GetUnwrittenHit          () const;
+    bool                     TryMatchBeforeWatchpoint (Word pc);
+    void                     NoteCpuOwnReads          (Word pc);
+    bool                     HasEnteredVideoBreak     ();
+    bool                     HasReachedBeamBreak      (std::optional<BeamBreak> & beamBreak);
+    uint32_t                 GetBeamCycle             () const;
+    void                     AttachDiskReport         (StopEvent & event);
+    void                     AttachDiskCallReport     (StopEvent & event);
+    void                     AttachBasicReport        (StopEvent & event);
+    void                     ExecuteBasicStep         (const DebugCommand & command, Reply & reply);
+    void                     ClearTemporary           (const StopEvent & stop);
+    void                     AttachCondition          (StopEvent & event) const;
 
-    static bool         TryGetRunKind  (DebugVerb verb, RunKind & kind);
-    static bool         TryGetFlagMask (const std::string & name, Byte & mask);
-    static void         SetError       (Reply & reply, CommandStatus status, const std::string & label, const std::string & detail);
-    static std::string  Trim           (const std::string & text);
+    static bool         TryGetRunKind          (DebugVerb verb, RunKind & kind);
+    static bool         TryGetFlagMask         (const std::string & name, Byte & mask);
+    static void         SetError               (Reply & reply, CommandStatus status, const std::string & label, const std::string & detail);
+    static std::string  Trim                   (const std::string & text);
     void                ApplyHostAccessFailure (uint64_t failuresBefore, Reply & reply) const;
 
     IDebugTarget                        & m_target;

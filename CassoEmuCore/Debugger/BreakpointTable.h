@@ -115,7 +115,7 @@ public:
     const std::vector<Breakpoint> &  GetAll () const { return m_entries; }
 
     bool  HasEnabledStopCondition () const;
-    bool  IsAddressHit     (Word pc) const { return m_addressBits[pc]; }
+    bool  IsAddressHit            (Word pc) const { return m_addressBits[pc]; }
 
     //  True when an enabled entry stops before the instruction at pc, whose
     //  opcode is given, or absent when it cannot be read (no opcode or BRK
@@ -178,7 +178,7 @@ private:
     static constexpr size_t  kAddressCount = 0x10000;
     static constexpr Byte    kBrkOpcode    = 0x00;
 
-    int   Add              (Breakpoint entry);
+    int   Add                (Breakpoint entry);
     void  RebuildAddressBits ();
     bool  TryMatchEntry    (const Breakpoint & entry, std::optional<Word> routine, Word pc, std::optional<Byte> opcode,
                             const IDebugExpressionContext & context, std::optional<int32_t> & conditionValue) const;

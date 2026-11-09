@@ -77,8 +77,8 @@ public:
     void                                ShowPeriod (size_t period);
 
     //  Builds the profile of the period the user chose, and saves the choice for the next session.
-    void                                ChoosePeriod (size_t period);
-    bool                                IsBuilding () const { return m_isBuilding; }
+    void  ChoosePeriod (size_t period);
+    bool  IsBuilding   () const { return m_isBuilding; }
 
     //  The bar's commands, as last built.
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetCommands () const { return m_commands; }

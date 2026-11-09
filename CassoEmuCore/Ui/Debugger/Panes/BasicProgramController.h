@@ -42,30 +42,30 @@ public:
 
     const std::wstring            & GetId          () const override;
     std::wstring                     GetTitle       () const override { return L"BASIC program"; }
-    void                             CreateControls () override;
-    void                             Configure      () override;
-    void                             AddToDock      (DxuiDockSite & dock) override;
-    IDxuiControl                   * GetContent     () const override;
-    std::vector<IDxuiControl *>      GetControls    () const override { return { m_list }; }
-    int                              GetStopFocusRank () const override { return m_isStop ? 2 : 0; }
-    std::vector<DxuiListView *>      GetLists       () const override { return { m_list }; }
-    bool                             HasTextLists   () const override { return false; }   // monospace, as LIST prints
-    std::vector<DxuiToolbar *>       GetBars        () const override { return { m_bar.GetBar() }; }
-    void                             PlaceBar       () override { m_bar.Place(); }
-    bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
-    void                             Apply          (const DebuggerViewSnapshot & snapshot) override;
-    bool                             Tick           (int64_t nowMs) override;
-    bool                             OnMappedAction (DebuggerKeySchemes::Action action, IDxuiControl * focused) override;
-    bool                             AddMenuItems   (DxuiListView * list, int row, PaneMenuItems & items) override;
-    bool                             RouteEarlyMouse (const DxuiMouseEvent & ev) override;
+    void                           CreateControls   () override;
+    void                           Configure        () override;
+    void                           AddToDock        (DxuiDockSite & dock) override;
+    IDxuiControl                 * GetContent       () const override;
+    std::vector<IDxuiControl *>    GetControls      () const override { return { m_list }; }
+    int                            GetStopFocusRank () const override { return m_isStop ? 2 : 0; }
+    std::vector<DxuiListView *>    GetLists         () const override { return { m_list }; }
+    bool                           HasTextLists     () const override { return false; }   // monospace, as LIST prints
+    std::vector<DxuiToolbar *>     GetBars          () const override { return { m_bar.GetBar() }; }
+    void                           PlaceBar         () override { m_bar.Place(); }
+    bool                           RouteBarMouse    (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
+    void                           Apply            (const DebuggerViewSnapshot & snapshot) override;
+    bool                           Tick             (int64_t nowMs) override;
+    bool                           OnMappedAction   (DebuggerKeySchemes::Action action, IDxuiControl * focused) override;
+    bool                           AddMenuItems     (DxuiListView * list, int row, PaneMenuItems & items) override;
+    bool                           RouteEarlyMouse  (const DxuiMouseEvent & ev) override;
 
 private:
-    void                             Follow         (const DebuggerViewSnapshot & snapshot);
-    static bool                      IsMachineStop  (const DebuggerViewSnapshot & snapshot);
-    void                             ApplyRows      (const DebuggerViewSnapshot & snapshot);
-    bool                             UpdateWrap     ();
-    void                             ToggleBreakpoint (Word line);
-    std::optional<int>               FindBreakpoint   (Word line) const;
+    void                Follow           (const DebuggerViewSnapshot & snapshot);
+    static bool         IsMachineStop    (const DebuggerViewSnapshot & snapshot);
+    void                ApplyRows        (const DebuggerViewSnapshot & snapshot);
+    bool                UpdateWrap       ();
+    void                ToggleBreakpoint (Word line);
+    std::optional<int>  FindBreakpoint   (Word line) const;
 
     std::vector<DxuiToolbar::Entry>      MakeBarEntries () const;
 

@@ -150,9 +150,9 @@ public:
     //  A layout of one pane, the start of every default.
     static DxuiPaneLayout  MakeSingle (const std::wstring & pane);
 
-    const DxuiPaneLayoutNode *       GetRoot       () const { return m_root.get(); }
-    const std::vector<Floating> &    GetFloating   () const { return m_floating; }
-    const std::vector<AutoHidden> &  GetAutoHidden () const { return m_autoHidden; }
+    const DxuiPaneLayoutNode       * GetRoot       () const { return m_root.get(); }
+    const std::vector<Floating>    & GetFloating   () const { return m_floating; }
+    const std::vector<AutoHidden>  & GetAutoHidden () const { return m_autoHidden; }
 
     bool  IsDocked     (const std::wstring & pane) const;
     bool  IsFloating   (const std::wstring & pane) const;
@@ -181,8 +181,8 @@ public:
     bool  DockBesideWell (const std::wstring & pane, const std::wstring & target, DxuiDockSide side,
                           const GroupFn & isDocument);
 
-    bool  TabWith    (const std::wstring & pane, const std::wstring & target);
-    bool  TabWithAt   (const std::wstring & pane, const std::wstring & target, int index);
+    bool  TabWith   (const std::wstring & pane, const std::wstring & target);
+    bool  TabWithAt (const std::wstring & pane, const std::wstring & target, int index);
     //  Into a window of its own; a pane floating with others leaves their
     //  window for one of its own, and a pane floating alone moves.
     bool  Float       (const std::wstring & pane, const std::wstring & monitorKey, const RECT & rectDip);
@@ -196,10 +196,10 @@ public:
     //  shown, as the window reports them; false when nothing changed.
     bool  SetFloatingRect (const std::wstring & window, const std::wstring & monitorKey, const RECT & rectDip);
     bool  SetFloatingTabs (const std::wstring & window, const std::vector<std::wstring> & panes, const std::wstring & active);
-    bool  AutoHide    (const std::wstring & pane, DxuiDockSide edge);
-    bool  DockBack    (const std::wstring & pane);
-    bool  Activate    (const std::wstring & pane);
-    bool  Close       (const std::wstring & pane);
+    bool  AutoHide        (const std::wstring & pane, DxuiDockSide edge);
+    bool  DockBack        (const std::wstring & pane);
+    bool  Activate        (const std::wstring & pane);
+    bool  Close           (const std::wstring & pane);
 
     //  A new pane, tabbed with `target` when it is docked, else at the right
     //  edge.
@@ -228,7 +228,7 @@ public:
     void  DropUnknown     (const std::function<bool (const std::wstring & pane)> & isKnown);
     void  PlaceOnMonitors (const std::vector<Monitor> & monitors);
 
-    std::wstring  ToText () const;
+    std::wstring  ToText   () const;
     static bool   TryParse (const std::wstring & text, DxuiPaneLayout & out);
 
 private:
@@ -236,17 +236,17 @@ private:
 
     void   CopyFrom (const DxuiPaneLayout & other);
 
-    static std::unique_ptr<Node>  CloneNode    (const Node * node);
-    static std::unique_ptr<Node>  MakeTabs     (const std::wstring & pane);
-    static Node *                 FindGroup    (Node * node, const std::wstring & pane);
-    static Node *                 FindParent   (Node * node, const Node * child);
-    static Node *                 FindSubtree  (Node * node, const std::wstring & pane, const std::vector<std::wstring> & panes);
-    static void                   CollectPanes (const Node * node, std::vector<std::wstring> & out);
-    static int                    CountDocumentGroups (const Node * node, const GroupFn & isDocument);
-    static Node *                 FindWell     (Node * node, const GroupFn & isDocument, int count);
-    static bool                   RemoveFrom   (std::unique_ptr<Node> & slot, const std::wstring & pane);
-    static bool                   HasShown     (const Node * node, const ShownFn & shown);
-    static SIZE                   GetMinimum   (const Node * node, const ShownFn & shown, const MinSizeFn & minSize);
+    static std::unique_ptr<Node>    CloneNode           (const Node * node);
+    static std::unique_ptr<Node>    MakeTabs            (const std::wstring & pane);
+    static Node                   * FindGroup           (Node * node, const std::wstring & pane);
+    static Node                   * FindParent          (Node * node, const Node * child);
+    static Node                   * FindSubtree         (Node * node, const std::wstring & pane, const std::vector<std::wstring> & panes);
+    static void                     CollectPanes        (const Node * node, std::vector<std::wstring> & out);
+    static int                      CountDocumentGroups (const Node * node, const GroupFn & isDocument);
+    static Node                   * FindWell            (Node * node, const GroupFn & isDocument, int count);
+    static bool                     RemoveFrom          (std::unique_ptr<Node> & slot, const std::wstring & pane);
+    static bool                     HasShown            (const Node * node, const ShownFn & shown);
+    static SIZE                     GetMinimum          (const Node * node, const ShownFn & shown, const MinSizeFn & minSize);
     static void                   ArrangeNode  (const Node * node, const RECT & area, const ShownFn & shown,
                                                 const MinSizeFn & minSize, std::vector<GroupRect> & out);
     static void                   ArrangeSplitsIn (const Node * node, const RECT & area, const ShownFn & shown,
@@ -256,18 +256,18 @@ private:
                                                     const MinSizeFn & minSize);
     static void                   DropUnknownIn (std::unique_ptr<Node> & slot,
                                                  const std::function<bool (const std::wstring & pane)> & isKnown);
-    static void                   WriteNode    (const Node * node, std::wstring & out);
-    static std::unique_ptr<Node>  ReadNode     (const std::vector<std::wstring> & tokens, size_t & at);
-    static std::vector<std::wstring>  Tokenize (const std::wstring & text);
-    static const wchar_t *        GetSideName  (DxuiDockSide side);
-    static bool                   TryGetSide   (const std::wstring & name, DxuiDockSide & side);
+    static void                         WriteNode   (const Node * node, std::wstring & out);
+    static std::unique_ptr<Node>        ReadNode    (const std::vector<std::wstring> & tokens, size_t & at);
+    static std::vector<std::wstring>    Tokenize    (const std::wstring & text);
+    static const wchar_t              * GetSideName (DxuiDockSide side);
+    static bool                         TryGetSide  (const std::wstring & name, DxuiDockSide & side);
 
-    bool   Detach       (const std::wstring & pane);
-    void   Split        (Node & group, std::unique_ptr<Node> added, DxuiDockSide side);
-    std::wstring  GetNeighbor (const std::wstring & pane) const;
+    bool          Detach             (const std::wstring & pane);
+    void          Split              (Node & group, std::unique_ptr<Node> added, DxuiDockSide side);
+    std::wstring  GetNeighbor        (const std::wstring & pane) const;
     std::wstring  GetNeighborOutside (const std::vector<std::wstring> & panes) const;
-    std::wstring  MakeWindowKey (const std::wstring & preferred) const;
-    void   FixActiveTabs ();
+    std::wstring  MakeWindowKey      (const std::wstring & preferred) const;
+    void          FixActiveTabs      ();
 
     std::unique_ptr<Node>    m_root;
     std::vector<Floating>    m_floating;

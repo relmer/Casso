@@ -116,12 +116,12 @@ public:
     //  An Applesoft listing the user picks, loaded as the program in memory,
     //  the program saved to a file the user picks, and the program cleared,
     //  as NEW clears it, once the user confirms.
-    virtual void                   OpenBasicProgram () = 0;
-    virtual void                   SaveBasicProgram () = 0;
-    virtual void                   ClearBasicProgram () = 0;
-    virtual void                   PasteBasicProgram () = 0;
-    virtual void                   ShowMemoryAddress (Word address) = 0;
-    virtual void                   GoToMemory       (Word address) = 0;
+    virtual void  OpenBasicProgram  () = 0;
+    virtual void  SaveBasicProgram  () = 0;
+    virtual void  ClearBasicProgram () = 0;
+    virtual void  PasteBasicProgram () = 0;
+    virtual void  ShowMemoryAddress (Word address) = 0;
+    virtual void  GoToMemory        (Word address) = 0;
 
     //  The rows a menu gets to show an address or a Go to text in each open
     //  memory window.
@@ -160,9 +160,9 @@ public:
     virtual const DxuiDpiScaler  & GetPaneScaler    () const = 0;
 
     //  The theme in force, the text colors and the heat map's colors in it.
-    virtual const DxuiTheme      * GetTheme         () const = 0;
-    virtual DebuggerTextColors::Set  GetTextColors  () const = 0;
-    virtual HeatMapView::Palette   GetHeatPalette   () const = 0;
+    virtual const DxuiTheme          * GetTheme       () const = 0;
+    virtual DebuggerTextColors::Set    GetTextColors  () const = 0;
+    virtual HeatMapView::Palette       GetHeatPalette () const = 0;
 
     //  The rows a menu on a byte gets for its last write and read in a bank:
     //  show each in the disassembly, or go back to it.
@@ -170,7 +170,7 @@ public:
 
     //  The breakpoints' color in the theme, and the code views' gutter mark
     //  for one on or off.
-    virtual uint32_t               GetBreakpointArgb () const = 0;
+    virtual uint32_t                              GetBreakpointArgb () const = 0;
     virtual std::shared_ptr<const DxuiIconImage>  GetBreakpointIcon (bool enabled) = 0;
 
     //  Opens a source file's document at a line and brings it forward; and
@@ -189,9 +189,9 @@ public:
 
     //  The PC's arrow, over a gutter mark when the line has one, and its
     //  row's color in the theme; and the source views' syntax colors.
-    virtual std::shared_ptr<const DxuiIconImage>  GetPcMarker (const std::shared_ptr<const DxuiIconImage> & dot) = 0;
-    virtual uint32_t               GetPcRowArgb     () const = 0;
-    virtual SourceSyntax::Colors   GetSyntaxColors  () const = 0;
+    virtual std::shared_ptr<const DxuiIconImage>  GetPcMarker     (const std::shared_ptr<const DxuiIconImage> & dot) = 0;
+    virtual uint32_t                              GetPcRowArgb    () const = 0;
+    virtual SourceSyntax::Colors                  GetSyntaxColors () const = 0;
 
     //  Whether the disassembly views' heat column is on, which the other
     //  listings match.
@@ -203,11 +203,11 @@ public:
     virtual uint32_t               GetPcMarkerArgb  () const = 0;
 
     //  The PC's marker on a tab, which the tabs' band and fills are behind.
-    virtual uint32_t               GetPcTabMarkArgb () const { return GetPcMarkerArgb(); }
-    virtual uint32_t               GetResultArgb    () const = 0;
+    virtual uint32_t                              GetPcTabMarkArgb       () const { return GetPcMarkerArgb(); }
+    virtual uint32_t                              GetResultArgb          () const = 0;
     virtual std::shared_ptr<const DxuiIconImage>  GetHoverBreakpointIcon () = 0;
-    virtual uint32_t               GetNavigatedRowArgb () const = 0;
-    virtual uint32_t               GetTargetRowArgb () const = 0;
+    virtual uint32_t                              GetNavigatedRowArgb    () const = 0;
+    virtual uint32_t                              GetTargetRowArgb       () const = 0;
 
     //  The column of a list at a point, counted from the list's pane lead;
     //  and a register's value now, none before the first snapshot.
@@ -234,8 +234,8 @@ public:
     //  Builds the window's menus again, after what they list changes; a
     //  menu of rows at a point in the window; and a pane's tab marked for
     //  new output while the pane is out of sight.
-    virtual void                   UpdateWindowMenus () = 0;
-    virtual void                   ShowPopupMenu    (const PaneMenuItems & items, POINT clientPx) = 0;
+    virtual void  UpdateWindowMenus () = 0;
+    virtual void  ShowPopupMenu     (const PaneMenuItems & items, POINT clientPx) = 0;
 
     //  A list of rows over a control, at exactly its width, rising from its
     //  top edge in the look given.
@@ -252,8 +252,8 @@ public:
 
     //  Runs a key scheme's action, as its key does, true when it acted; and a
     //  command bar entry, as a click on it does.
-    virtual bool                   RunKeyAction     (DebuggerKeySchemes::Action action) = 0;
-    virtual void                   RunCommandBarEntry (int id) = 0;
+    virtual bool  RunKeyAction       (DebuggerKeySchemes::Action action) = 0;
+    virtual void  RunCommandBarEntry (int id) = 0;
 
     //  Opens a pane and brings it forward, as its row on the View menu does.
     virtual void                   OpenPane         (const std::wstring & pane) = 0;
@@ -304,8 +304,8 @@ public:
     //  The control with the keyboard focus, the floating window's focused
     //  control while an event from it is routed, and the step that moves it
     //  to the command line, for a pane whose focused control is hidden.
-    virtual IDxuiControl         * GetFocusedControl () const = 0;
-    virtual void                   FocusDefault     () = 0;
+    virtual IDxuiControl  * GetFocusedControl () const = 0;
+    virtual void            FocusDefault      () = 0;
 
     //  Writes lines to the console; and the line the user types in a dialog,
     //  none when canceled, which a test supplies instead.
@@ -362,8 +362,8 @@ public:
 class IDebuggerPane
 {
 public:
-    explicit IDebuggerPane (IDebuggerPaneHost & host) : m_host (host) {}
-    virtual ~IDebuggerPane() = default;
+    explicit  IDebuggerPane  (IDebuggerPaneHost & host) : m_host (host) {}
+    virtual   ~IDebuggerPane () = default;
 
     IDebuggerPane (const IDebuggerPane &)             = delete;
     IDebuggerPane & operator= (const IDebuggerPane &) = delete;
@@ -441,8 +441,8 @@ public:
 
     //  The pane's controls a press is offered to ahead of the lists, and its
     //  text boxes, which follow the pointer and type the characters typed.
-    virtual std::vector<IDxuiControl *>  GetPressTargets () const { return {}; }
-    virtual std::vector<DxuiTextInput *> GetTextBoxes   () const { return {}; }
+    virtual std::vector<IDxuiControl *>   GetPressTargets () const { return {}; }
+    virtual std::vector<DxuiTextInput *>  GetTextBoxes    () const { return {}; }
 
     //  The pane a control several panes share is in now, such as the memory
     //  windows' bar; empty for a control not the pane's.
@@ -454,8 +454,8 @@ public:
     //  Whether the pane saves its lists' column widths in its own settings,
     //  in place of the debug project's; and whether its lists are in the
     //  proportional face, as every list but a disassembly's is.
-    virtual bool                         HasOwnColumnWidths () const { return false; }
-    virtual bool                         HasTextLists   () const { return true; }
+    virtual bool  HasOwnColumnWidths () const { return false; }
+    virtual bool  HasTextLists       () const { return true; }
 
     //  The pane's info button, none for a pane without one.
     virtual std::optional<PaneColorKeySpec>  GetColorKey () const { return std::nullopt; }
@@ -473,8 +473,8 @@ public:
 
     //  Reads the pane's settings again after another debug project opens,
     //  and saves what it has to as the window closes.
-    virtual void                         OnProjectSwitched () {}
-    virtual void                         OnWindowClose  () {}
+    virtual void  OnProjectSwitched () {}
+    virtual void  OnWindowClose     () {}
 
     //  The machine's log events sent since the last frame, each frame.
     virtual void                         ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWindowVisible) { (void) deltas; (void) isWindowVisible; }

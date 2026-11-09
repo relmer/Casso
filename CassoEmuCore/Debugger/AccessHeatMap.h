@@ -155,8 +155,8 @@ public:
 
     //  Where each access lands, beside the address the CPU used; cleared,
     //  every access counts in the Cpu space alone.
-    HeatBankMap &        GetBankMap ()       { return m_bankMap; }
-    const HeatBankMap &  GetBankMap () const { return m_bankMap; }
+    HeatBankMap        & GetBankMap ()       { return m_bankMap; }
+    const HeatBankMap  & GetBankMap () const { return m_bankMap; }
 
     //  The counts since the last fold, faded heat plus counts after it, and
     //  added to the totals.

@@ -38,8 +38,8 @@ class DebugHandlerSet
 public:
     void  Attach (DebugSession & session);
 
-    const ExecutionHandlers &  GetExecution () const { return m_execution; }
-    ExecutionHandlers &        GetExecution ()       { return m_execution; }
+    const ExecutionHandlers  & GetExecution () const { return m_execution; }
+    ExecutionHandlers        & GetExecution ()       { return m_execution; }
 
 private:
     RegisterHandlers       m_registers;

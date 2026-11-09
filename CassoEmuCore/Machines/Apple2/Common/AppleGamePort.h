@@ -120,18 +120,18 @@ protected:
     // to the position. Matches the //e game-port full-scale read (~2.82 ms).
     static constexpr uint64_t s_knPaddleCyclesPerUnit = 11;
 
-    Byte ReadButton         (Word address);
-    Byte ReadPaddle         (Word address);
-    Byte PeekButton         (Word address) const;
-    Byte PeekPaddle         (Word address) const;
-    void ObserveButton      (int index, bool pressed);
-    void ObservePaddle      (int axis, Byte position);
-    void SyncObservedInputs ();
-    void EmitHostPaddle    (int axis, Byte value);
-    void EmitHostButton    (int index, bool pressed);
-    void EmitButtonRead    (Word address, Byte value);
-    void EmitPaddleTrigger ();
-    void EmitPaddleRead    (Word address, Byte value);
+    Byte  ReadButton         (Word address);
+    Byte  ReadPaddle         (Word address);
+    Byte  PeekButton         (Word address) const;
+    Byte  PeekPaddle         (Word address) const;
+    void  ObserveButton      (int index, bool pressed);
+    void  ObservePaddle      (int axis, Byte position);
+    void  SyncObservedInputs ();
+    void  EmitHostPaddle     (int axis, Byte value);
+    void  EmitHostButton     (int index, bool pressed);
+    void  EmitButtonRead     (Word address, Byte value);
+    void  EmitPaddleTrigger  ();
+    void  EmitPaddleRead     (Word address, Byte value);
 
     // Bit 7 of a paddle read whose one-shot is still timing: what an input
     // with no potentiometer connected reads forever.

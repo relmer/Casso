@@ -207,8 +207,8 @@ public:
     //  its fields, apart at dots, with any text among them as hex digits. The
     //  text of an action of another kind is empty, and TryFromText returns
     //  false for text that does not parse.
-    static std::string     ToText      (const DebuggerAction & action);
-    static bool            TryFromText (const std::string & text, DebuggerAction & action);
+    static std::string     ToText              (const DebuggerAction & action);
+    static bool            TryFromText         (const std::string & text, DebuggerAction & action);
     static DebuggerAction  GetLoadSymbols      (const std::string & path, CommandMode mode);
     static DebuggerAction  GetLoadBasic        (const std::string & path, CommandMode mode);
     static DebuggerAction  GetSaveBasic        (const std::string & path, CommandMode mode);

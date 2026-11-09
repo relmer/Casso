@@ -182,21 +182,21 @@ private:
         uint64_t  cycle  = 0;    // the cycle count the instruction began at
     };
 
-    void    Apply           (const Pending & held, Word pc, Byte sp);
-    bool    TryApplyInterrupt (const Pending & held, Word pc, Byte sp);
-    void    Push            (CallFrameKind kind, const Pending & held, Word target);
-    void    Return          (const Pending & held, Word pc, Byte sp);
-    void    Jump            (const Pending & held, Byte sp);
-    void    Pull            (const Pending & held, Byte sp);
-    void    ReloadStack     (const Pending & held, Byte sp);
-    void    PopFrame        ();
-    void    MarkRisenFrames (Byte sp);
-    void    AddBreak        (CallBreakKind kind, const Pending & held);
-    Word    PeekWord        (Word address) const;
+    void  Apply             (const Pending & held, Word pc, Byte sp);
+    bool  TryApplyInterrupt (const Pending & held, Word pc, Byte sp);
+    void  Push              (CallFrameKind kind, const Pending & held, Word target);
+    void  Return            (const Pending & held, Word pc, Byte sp);
+    void  Jump              (const Pending & held, Byte sp);
+    void  Pull              (const Pending & held, Byte sp);
+    void  ReloadStack       (const Pending & held, Byte sp);
+    void  PopFrame          ();
+    void  MarkRisenFrames   (Byte sp);
+    void  AddBreak          (CallBreakKind kind, const Pending & held);
+    Word  PeekWord          (Word address) const;
 
-    static int   GetStackDelta (Byte opcode);
+    static int   GetStackDelta     (Byte opcode);
     static Word  GetExpectedReturn (const CallStackFrame & frame);
-    static bool  IsBottom (CallBreakKind kind);
+    static bool  IsBottom          (CallBreakKind kind);
 
     CallStackPeek                  m_peek;
     std::function<Word ()>         m_locateWriter;

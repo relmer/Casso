@@ -59,9 +59,9 @@ public:
     //  in view selected, or the first after the top of the view.
     virtual DxuiFindResult  SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount) = 0;
 
-    virtual void            SetFindScopeToSelection () = 0;
-    virtual void            ClearFindScope   () = 0;
-    virtual void            ClearFindHighlights () = 0;
+    virtual void  SetFindScopeToSelection () = 0;
+    virtual void  ClearFindScope          () = 0;
+    virtual void  ClearFindHighlights     () = 0;
 
     //  The fills under the matches and under the selected one.
     virtual void            SetFindColors    (uint32_t matchArgb, uint32_t currentArgb) = 0;

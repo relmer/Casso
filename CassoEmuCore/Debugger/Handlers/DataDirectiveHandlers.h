@@ -54,17 +54,17 @@ private:
     static constexpr Byte  kFirstPrint     = 0x20;
     static constexpr Byte  kDelete         = 0x7F;
 
-    void         Define        (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  Remove        (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  ListBlocks    (DebugSession & session, Reply & reply);
-    void         List          (DebugSession & session, const DebugCommand & command, Reply & reply);
+    void         Define         (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  Remove         (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  ListBlocks     (DebugSession & session, Reply & reply);
+    void         List           (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  EnterAssembler (DebugSession & session, const DebugCommand & command, Reply & reply);
 
-    static void  MakeDataLine  (DebugSession & session, const DataBlockEntry & block, Word address, DisassemblyLine & line);
-    static std::string  FormatItems (const DataBlockEntry & block, std::span<const Byte> bytes);
-    static bool         IsControl   (Byte b);
-    static double       DecodeFloat (std::span<const Byte> bytes);
-    static Byte         Peek        (IDebugTarget & target, Word address);
+    static void         MakeDataLine (DebugSession & session, const DataBlockEntry & block, Word address, DisassemblyLine & line);
+    static std::string  FormatItems  (const DataBlockEntry & block, std::span<const Byte> bytes);
+    static bool         IsControl    (Byte b);
+    static double       DecodeFloat  (std::span<const Byte> bytes);
+    static Byte         Peek         (IDebugTarget & target, Word address);
 
     Word  m_nextList = 0;
 };

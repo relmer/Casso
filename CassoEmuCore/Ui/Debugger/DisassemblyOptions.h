@@ -87,10 +87,10 @@ public:
     std::string                 ToText   () const;
     static DisassemblyOptions   FromText (const std::string & text);
 
-    static const wchar_t      * GetLabel (Option option);
-    static const char         * GetKey   (Option option);
-    static const wchar_t      * GetDimLabel (Dim dim);
-    static const char         * GetDimKey   (Dim dim);
+    static const wchar_t  * GetLabel    (Option option);
+    static const char     * GetKey      (Option option);
+    static const wchar_t  * GetDimLabel (Dim dim);
+    static const char     * GetDimKey   (Dim dim);
 
     //  The tips of the source, line number and symbol names check boxes: how
     //  to get source or line numbers while there are none, and each source of

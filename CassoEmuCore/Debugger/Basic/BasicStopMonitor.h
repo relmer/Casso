@@ -100,8 +100,8 @@ public:
     //  the newest GOSUB returns; false, with the reason, where Applesoft is
     //  not in memory or no GOSUB is active.
     bool  TryBeginStep (BasicStepKind kind, const IDebugExpressionContext & context, std::string & error);
-    void  EndStep    ()       { m_step.reset(); }
-    bool  IsStepping () const { return m_step.has_value(); }
+    void  EndStep      ()       { m_step.reset(); }
+    bool  IsStepping   () const { return m_step.has_value(); }
 
     //  Clears the values the variable entries compare against, for a reset
     //  or a different machine: the next boundary takes them again.

@@ -31,8 +31,8 @@ public:
     void            SetColors         (uint32_t matchArgb, uint32_t currentArgb) { m_matchArgb = matchArgb; m_currentArgb = currentArgb; }
 
     //  Every match of the last search, in row, column and character order.
-    std::vector<DxuiListViewTypes::FindSpot>          GetSpots   () const;
-    const std::optional<DxuiListViewTypes::FindSpot> & GetCurrent () const { return m_current; }
+    std::vector<DxuiListViewTypes::FindSpot>            GetSpots   () const;
+    const std::optional<DxuiListViewTypes::FindSpot>  & GetCurrent () const { return m_current; }
 
     //  A cell's highlight bands, each a range and its fill: the matches set
     //  on the cell, in the list's color, then the find's.

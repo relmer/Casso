@@ -129,10 +129,10 @@ private:
     HRESULT  CopyPrintoutToClipboard (const class PrintRaster & raster);
 
     // Print-path helpers.
-    static HRESULT  HrFromSpoolResult (int ret, const wchar_t * call, int pageIx);
+    static HRESULT  HrFromSpoolResult         (int ret, const wchar_t * call, int pageIx);
     static void     PrimeDefaultPrinterDriver ();
-    static HDC      CreateDcFromDevNames (const PRINTDLGW & pd);
-    static HRESULT  BlitRgbaToDc (HDC hdc, const struct RgbaImage & img, int pageW, int pageH, int outputDpi);
+    static HDC      CreateDcFromDevNames      (const PRINTDLGW & pd);
+    static HRESULT  BlitRgbaToDc              (HDC hdc, const struct RgbaImage & img, int pageW, int pageH, int outputDpi);
     EmulatorShell                 & m_shell;
 
     // The toolbar's printer button carries this status light.

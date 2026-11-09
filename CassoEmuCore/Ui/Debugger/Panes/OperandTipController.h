@@ -198,9 +198,9 @@ private:
                                                  IDxuiTextRenderer & text);
     static void          AddTextSegments        (const DxuiTextView & view, int row, const OperandTipParts & parts, uint32_t ink,
                                                  IDxuiTextRenderer & text, OperandResultTip::Placement & placement);
-    static std::vector<uint32_t>  GetCellColors (const DxuiListView::Cell & cell, uint32_t ink);
-    static RECT          GetRowWorkArea         (const RECT & row, const std::vector<RECT> & workAreas);
-    static BOOL CALLBACK CollectWindowOver      (HWND hwnd, LPARAM param);
+    static std::vector<uint32_t>  GetCellColors     (const DxuiListView::Cell & cell, uint32_t ink);
+    static RECT                   GetRowWorkArea    (const RECT & row, const std::vector<RECT> & workAreas);
+    static BOOL CALLBACK          CollectWindowOver (HWND hwnd, LPARAM param);
 
     IOperandTipHost           & m_host;
     DxuiInPlaceTip              m_tip;

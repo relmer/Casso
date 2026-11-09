@@ -80,19 +80,19 @@ public:
 
     explicit Disk2Controller (int slot);
 
-    Byte Read (Word address) override;
-    void Write (Word address, Byte value) override;
-    Word GetStart() const override { return m_ioStart; }
-    Word GetEnd() const override { return m_ioEnd; }
-    void Reset() override;
-    void SoftReset() override;
-    void PowerCycle (Prng & prng) override;
+    Byte  Read       (Word address) override;
+    void  Write      (Word address, Byte value) override;
+    Word  GetStart   () const override { return m_ioStart; }
+    Word  GetEnd     () const override { return m_ioEnd; }
+    void  Reset      () override;
+    void  SoftReset  () override;
+    void  PowerCycle (Prng & prng) override;
 
-    HRESULT       MountDisk (int drive, const string & path);
-    void          EjectDisk (int drive);
-    DiskImage *   GetDisk (int drive);
-    void          SetExternalDisk (int drive, DiskImage * external);
-    bool          HasExternalDisk (int drive) const;
+    HRESULT      MountDisk       (int drive, const string & path);
+    void         EjectDisk       (int drive);
+    DiskImage  * GetDisk         (int drive);
+    void         SetExternalDisk (int drive, DiskImage * external);
+    bool         HasExternalDisk (int drive) const;
 
     // Spec-006 bug 14b. When EmulatorShell drives mount/eject through
     // DiskImageStore + SetExternalDisk (bypassing this class's own
@@ -100,15 +100,15 @@ public:
     // runs and the IDisk2EventSink never sees the user-facing
     // insert/eject. These notify-only entrypoints let the shell fire
     // those events without re-routing the actual image bytes.
-    void          NotifyDiskInserted (int drive);
-    void          NotifyDiskEjected (int drive);
+    void  NotifyDiskInserted (int drive);
+    void  NotifyDiskEjected  (int drive);
 
     // Audio sink wiring (spec 005-disk-ii-audio FR-001..FR-004).
     // Caller-owned; controller never deletes it. Single sink covers
     // both drives (per-drive routing happens at the source-mixer
     // level via separate IDriveAudioSource instances).
-    void          SetAudioSink (IDriveAudioSink * sink) { m_audioSink = sink; }
-    IDriveAudioSink * GetAudioSink() const                 { return m_audioSink; }
+    void               SetAudioSink (IDriveAudioSink * sink) { m_audioSink = sink; }
+    IDriveAudioSink  * GetAudioSink () const                 { return m_audioSink; }
 
     // Spec-006 debug-window event sink wiring. Caller-owned;
     // controller never deletes it. Pass nullptr to detach (the
@@ -117,9 +117,9 @@ public:
     // path, FR-007 / FR-020 / SC-007). Propagated to the embedded
     // Disk2AddressMarkWatcher so the watcher fires its own
     // address-mark / data-mark events through the same sink.
-    void          SetEventSink (IDisk2EventSink * sink) noexcept { SetEventSink (ObserverSlot::Panel, sink); }
-    void          SetEventSink (ObserverSlot slot, IDisk2EventSink * sink) noexcept;
-    IDisk2EventSink * GetEventSink (ObserverSlot slot) const noexcept { return m_eventSinks.Get (slot); }
+    void               SetEventSink (IDisk2EventSink * sink) noexcept { SetEventSink (ObserverSlot::Panel, sink); }
+    void               SetEventSink (ObserverSlot slot, IDisk2EventSink * sink) noexcept;
+    IDisk2EventSink  * GetEventSink (ObserverSlot slot) const noexcept { return m_eventSinks.Get (slot); }
 
     // Apple //c IWM mode. The //c's built-in drive is an Integrated Woz
     // Machine, not a Disk II card, so it adds a write-only MODE register and a
@@ -188,25 +188,25 @@ public:
     const Disk2NibbleRecord &  GetNibbleRecord() const { return m_nibbleRecord; }
 
     // Inspectors used by Phase 9 tests.
-    int    GetSlot() const { return m_slot; }
-    int    GetActiveDrive() const { return m_activeDrive; }
-    bool   IsMotorOn() const { return m_motorOn; }
-    bool   IsMotorAtSpeed() const { return m_motorOn && m_motorSpinupRemaining == 0; }
-    uint32_t  GetMotorSpinupRemaining() const { return m_motorSpinupRemaining; }
+    int       GetSlot                 () const { return m_slot; }
+    int       GetActiveDrive          () const { return m_activeDrive; }
+    bool      IsMotorOn               () const { return m_motorOn; }
+    bool      IsMotorAtSpeed          () const { return m_motorOn && m_motorSpinupRemaining == 0; }
+    uint32_t  GetMotorSpinupRemaining () const { return m_motorSpinupRemaining; }
     // The selected drive's head, or a given drive's: each drive has a
     // stepper of its own.
-    int    GetQuarterTrack() const          { return m_quarterTrack[m_activeDrive]; }
-    int    GetQuarterTrack (int drive) const { return m_quarterTrack[drive]; }
-    int    GetCurrentTrack() const          { return GetQuarterTrack() / 4; }
-    bool   IsQ6() const { return m_q6; }
-    bool   IsQ7() const { return m_q7; }
-    uint8_t  GetPhases() const { return m_phases; }
+    int      GetQuarterTrack () const          { return m_quarterTrack[m_activeDrive]; }
+    int      GetQuarterTrack (int drive) const { return m_quarterTrack[drive]; }
+    int      GetCurrentTrack () const          { return GetQuarterTrack() / 4; }
+    bool     IsQ6            () const { return m_q6; }
+    bool     IsQ7            () const { return m_q7; }
+    uint8_t  GetPhases       () const { return m_phases; }
 
     // The Disk II panel: drive, motor, head, phase magnets and the read state.
     std::string  GetDiagnosticsId    () const override { return "disk"; }
     std::string  GetDiagnosticsTitle () const override { return "Disk II"; }
-    void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
-    Disk2NibbleEngine &  GetEngine (int drive)  { return m_engine[drive]; }
+    void                 GetDiagnostics (DiagnosticsSnapshot & snapshot) const override;
+    Disk2NibbleEngine  & GetEngine      (int drive)  { return m_engine[drive]; }
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
@@ -228,14 +228,14 @@ public:
     static constexpr uint16_t  kNibbleRecordStateVersion = 3;   // the first with the recent nibbles
 
 private:
-    void   HandleSwitch (int offset);
-    void   HandlePhase (int phase, bool on);
-    void   MoveHeadToPull ();
-    void   MoveHeadIfEnabled ();
-    void   UpdateEngineSelection();
-    void   UpdateEngineWriteMode();
-    Byte   HandleReadDispatch();
-    void   CatchUpToCpu();
+    void  HandleSwitch          (int offset);
+    void  HandlePhase           (int phase, bool on);
+    void  MoveHeadToPull        ();
+    void  MoveHeadIfEnabled     ();
+    void  UpdateEngineSelection ();
+    void  UpdateEngineWriteMode ();
+    Byte  HandleReadDispatch    ();
+    void  CatchUpToCpu          ();
 
     // Offers the idle callback a turn, at most once per emulated frame.
     void   PumpIdleCallback (uint32_t cpuCycles);

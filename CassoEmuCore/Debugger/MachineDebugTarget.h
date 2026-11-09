@@ -36,17 +36,17 @@ public:
     Cpu6502Registers    GetRegisters      () const override;
     void                SetRegisters      (const Cpu6502Registers & registers) override;
 
-    bool                TryPeek           (Word address, Byte & value) const override;
-    bool                TryPeekIo         (Word address, Byte & value) const override;
-    bool                TryPeekRom        (Word address, Byte & value) const override;
-    bool                TryPoke           (Word address, Byte value) override;
-    bool                TryPatch          (Word address, Byte value) override;
-    MemoryRegion        GetRegion         (Word address) const override;
-    void                TakeMemoryImage   (DebugMemoryImage & image) const override;
-    Byte                ReadIo            (Word address) override;
-    void                WriteIo           (Word address, Byte value) override;
-    void                GetSoftSwitches   (std::vector<SoftSwitch> & switches) const override;
-    bool                TryGetExpansionRomSlot (int & slot) const override;
+    bool          TryPeek                (Word address, Byte & value) const override;
+    bool          TryPeekIo              (Word address, Byte & value) const override;
+    bool          TryPeekRom             (Word address, Byte & value) const override;
+    bool          TryPoke                (Word address, Byte value) override;
+    bool          TryPatch               (Word address, Byte value) override;
+    MemoryRegion  GetRegion              (Word address) const override;
+    void          TakeMemoryImage        (DebugMemoryImage & image) const override;
+    Byte          ReadIo                 (Word address) override;
+    void          WriteIo                (Word address, Byte value) override;
+    void          GetSoftSwitches        (std::vector<SoftSwitch> & switches) const override;
+    bool          TryGetExpansionRomSlot (int & slot) const override;
 
     void                SetRunObserver    (IRunObserver * observer) override;
     HRESULT             StartRun          (const RunRequest & request) override;
@@ -58,31 +58,31 @@ public:
     void                SetWatchedPages   (const WatchedPages & pages) override;
     void                SetWatchSink      (IWatchSink * sink) override;
 
-    VideoPosition       GetVideoPosition  () const override;
-    uint64_t            GetCycleCount     () const override;
-    uint64_t            GetHistoryCycleCount () const override;
-    Byte                GetLastPenalties  () const override;
-    bool                TryGetLastBranch  (Word & from) const override;
+    VideoPosition       GetVideoPosition       () const override;
+    uint64_t            GetCycleCount          () const override;
+    uint64_t            GetHistoryCycleCount   () const override;
+    Byte                GetLastPenalties       () const override;
+    bool                TryGetLastBranch       (Word & from) const override;
     bool                TryGetLastBranchTarget (Word & to) const override;
-    DebugCpuKind        GetCpuKind        () const override;
-    const Microcode   * GetInstructionSet () const override;
-    DebugMachineInfo    GetMachineInfo    () const override;
-    void                InjectKey         (Byte key) override;
-    bool                IsKeyPending      () const override;
-    void                SetTraceOn        (bool on) override;
-    bool                IsTraceOn         () const override { return m_trace.IsOn(); }
-    void                ClearTrace        () override       { m_trace.Clear(); }
-    TapeDeck          * GetTapeDeck       () override;
+    DebugCpuKind        GetCpuKind             () const override;
+    const Microcode   * GetInstructionSet      () const override;
+    DebugMachineInfo    GetMachineInfo         () const override;
+    void                InjectKey              (Byte key) override;
+    bool                IsKeyPending           () const override;
+    void                SetTraceOn             (bool on) override;
+    bool                IsTraceOn              () const override { return m_trace.IsOn(); }
+    void                ClearTrace             () override       { m_trace.Clear(); }
+    TapeDeck          * GetTapeDeck            () override;
 
-    void                        SetDiskEventSink        (IDisk2EventSink * sink) override;
-    bool                        TryGetDiskState         (DebugDiskState & state) const override;
-    const Disk2NibbleRecord   * GetDiskRecord           () const override;
-    bool                        PeekDiskNibbles         (int drive, int count, std::vector<Byte> & nibbles, bool & isRandom) const override;
-    Word                        GetInstructionAddress   () const override;
-    uint64_t            GetBusCycle       () const override;
-    size_t              GetTraceSize      () const override { return m_trace.GetSize(); }
-    bool                TryFindTraceCycle (uint64_t cycle, size_t & outIndex) const override { return m_trace.TryFindCycle (cycle, outIndex); }
-    void                GetTraceWindow    (size_t first, size_t count, std::vector<TraceRecord> & entries) const override;
+    void                       SetDiskEventSink      (IDisk2EventSink * sink) override;
+    bool                       TryGetDiskState       (DebugDiskState & state) const override;
+    const Disk2NibbleRecord  * GetDiskRecord         () const override;
+    bool                       PeekDiskNibbles       (int drive, int count, std::vector<Byte> & nibbles, bool & isRandom) const override;
+    Word                       GetInstructionAddress () const override;
+    uint64_t                   GetBusCycle           () const override;
+    size_t                     GetTraceSize          () const override { return m_trace.GetSize(); }
+    bool                       TryFindTraceCycle     (uint64_t cycle, size_t & outIndex) const override { return m_trace.TryFindCycle (cycle, outIndex); }
+    void                       GetTraceWindow        (size_t first, size_t count, std::vector<TraceRecord> & entries) const override;
 
     TraceController   & GetTrace          () { return m_trace; }
 

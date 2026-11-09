@@ -103,7 +103,7 @@ public:
 private:
 
     static std::string  GetShippedId (const std::string & machineId);
-    void         BuildFrom  (const std::string & machineId, const MachineConfig & config);
+    void                BuildFrom    (const std::string & machineId, const MachineConfig & config);
 
     static MachineBuildServices  MakeServices (const std::string & machineId, const Customize & customize);
 

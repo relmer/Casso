@@ -51,9 +51,9 @@ public:
     void  SetOnZoom     (ZoomFn zoom)         { m_onZoom   = std::move (zoom); }
     void  SetZoom       (size_t node);
 
-    size_t                    GetZoom () const { return m_zoom; }
+    size_t                    GetZoom     () const { return m_zoom; }
     std::optional<size_t>     GetSelected () const { return m_selected; }
-    const std::vector<Bar> &  GetBars () const { return m_bars; }
+    const std::vector<Bar>  & GetBars     () const { return m_bars; }
 
     //  The bars over a width: the zoomed node's callers full width, one row
     //  each, then the zoomed node, then its callees by their share of its
@@ -68,7 +68,7 @@ public:
     //  The routine of the bar at a point, an index in the profile's
     //  routines, or none.
     std::optional<size_t>  FindRoutineAt (POINT point) const;
-    bool                   TryGetTipAt (POINT point, std::wstring & text) const;
+    bool                   TryGetTipAt   (POINT point, std::wstring & text) const;
 
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -92,9 +92,9 @@ private:
 
     void   Relayout   ();
 
-    static std::vector<uint64_t>  GetPath  (const std::vector<ProfileTreeEntry> & tree, const std::vector<ProfileRoutineEntry> & routines, size_t node);
-    static std::optional<size_t>  FindPath (const std::vector<ProfileTreeEntry> & tree, const std::vector<ProfileRoutineEntry> & routines, const std::vector<uint64_t> & path);
-    float  GetRowTop  (int row) const;
+    static std::vector<uint64_t>  GetPath   (const std::vector<ProfileTreeEntry> & tree, const std::vector<ProfileRoutineEntry> & routines, size_t node);
+    static std::optional<size_t>  FindPath  (const std::vector<ProfileTreeEntry> & tree, const std::vector<ProfileRoutineEntry> & routines, const std::vector<uint64_t> & path);
+    float                         GetRowTop (int row) const;
 
     std::vector<ProfileTreeEntry>     m_tree;
     std::vector<ProfileRoutineEntry>  m_routines;

@@ -66,10 +66,10 @@ public:
     //  The BASIC program pane and the tool panes stay closed until each is
     //  first opened; the open-views text has " open=" and the pane once it
     //  is.
-    static bool         IsBasicPane       (const std::wstring & pane);
-    static bool         IsOpenedLater     (const std::wstring & pane);
-    static std::string  FormatBasicOpened (const std::set<std::wstring> & opened);
-    static std::set<std::wstring>  ParseBasicOpened (const std::string & text);
+    static bool                    IsBasicPane       (const std::wstring & pane);
+    static bool                    IsOpenedLater     (const std::wstring & pane);
+    static std::string             FormatBasicOpened (const std::set<std::wstring> & opened);
+    static std::set<std::wstring>  ParseBasicOpened  (const std::string & text);
 
     //  Memory windows are "memory1" to "memory4".
     static std::wstring    GetMemoryPaneId (int window);
@@ -91,10 +91,10 @@ public:
         const wchar_t  * title;
     };
 
-    static std::span<const DiagnosticsPanel>  GetDiagnosticsPanels   ();
-    static std::wstring                       GetDiagnosticsPaneId   (const std::string & id);
-    static bool                               TryGetDiagnosticsId    (const std::wstring & pane, std::string & id);
-    static DxuiPaneLayout  MakeDefault ();
+    static std::span<const DiagnosticsPanel>  GetDiagnosticsPanels ();
+    static std::wstring                       GetDiagnosticsPaneId (const std::string & id);
+    static bool                               TryGetDiagnosticsId  (const std::wstring & pane, std::string & id);
+    static DxuiPaneLayout                     MakeDefault          ();
 
     //  A saved arrangement: panes this version does not have are dropped and
     //  panes it has that the text lacks are added, so a layout saved by an

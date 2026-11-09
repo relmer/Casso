@@ -64,21 +64,21 @@ private:
     static constexpr size_t  kFitPercent        = 90;   // of the lines that aren't blank or comments that a line form must fit
     static constexpr size_t  kMaxNameChars      = 64;
 
-    static void  SplitLines        (const std::string & content, std::vector<std::string> & lines);
-    static bool  IsCassoLine       (const std::string & line);
-    static bool  IsAppleWinLine    (const std::string & line);
-    static bool  IsViceLine        (const std::string & line);
-    static bool  IsSymbolName      (const std::string & name);
-    static bool  IsMostOf          (size_t fitting, size_t counted);
-    static bool  HasMerlinHeading  (const std::string & line);
-    static bool  TryParseHex       (const std::string & text, Word & value);
-    static bool  TryParseViceAddress (const std::string & text, uint32_t & value, bool & isComputer);
-    static void  Add               (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address, bool isConstant = false, Word size = 0);
-    static void  DropDuplicates    (std::vector<SymbolFileEntry> & symbols);
-    static void  ReadCasso         (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);
-    static void  ReadCc65          (const DebugFile & file, std::vector<SymbolFileEntry> & symbols);
-    static void  ReadMerlinListing (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);
-    static void  ReadAppleWin      (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);
-    static void  ReadVice          (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);
-    static std::string  Trim       (const std::string & text);
+    static void         SplitLines          (const std::string & content, std::vector<std::string> & lines);
+    static bool         IsCassoLine         (const std::string & line);
+    static bool         IsAppleWinLine      (const std::string & line);
+    static bool         IsViceLine          (const std::string & line);
+    static bool         IsSymbolName        (const std::string & name);
+    static bool         IsMostOf            (size_t fitting, size_t counted);
+    static bool         HasMerlinHeading    (const std::string & line);
+    static bool         TryParseHex         (const std::string & text, Word & value);
+    static bool         TryParseViceAddress (const std::string & text, uint32_t & value, bool & isComputer);
+    static void         Add                 (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address, bool isConstant = false, Word size = 0);
+    static void         DropDuplicates      (std::vector<SymbolFileEntry> & symbols);
+    static void         ReadCasso           (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);
+    static void         ReadCc65            (const DebugFile & file, std::vector<SymbolFileEntry> & symbols);
+    static void         ReadMerlinListing   (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);
+    static void         ReadAppleWin        (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);
+    static void         ReadVice            (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);
+    static std::string  Trim                (const std::string & text);
 };

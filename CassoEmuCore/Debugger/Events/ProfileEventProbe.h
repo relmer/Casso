@@ -64,8 +64,8 @@ public:
     //  The calls open at the start of each stretch to replay, outermost first,
     //  by the history cycle the stretch starts at; a stretch without any
     //  starts at Top level.
-    void     SetStartCalls (std::map<uint64_t, std::vector<CallStackFrame>> calls) { m_startCalls = std::move (calls); }
-    double   GetProgress () const { return m_progress.load (std::memory_order_relaxed); }
+    void    SetStartCalls (std::map<uint64_t, std::vector<CallStackFrame>> calls) { m_startCalls = std::move (calls); }
+    double  GetProgress   () const { return m_progress.load (std::memory_order_relaxed); }
 
     HRESULT  Attach (MachineHost & machine, std::vector<DebugEventEntry<ProfileCountsPtr>> & entries) override;
     void     Detach (MachineHost & machine) override;
