@@ -8,6 +8,7 @@
 #include "CassoExplorer/Window/Panes/Preview/PreviewHexView.h"
 #include "CassoExplorer/Window/Panes/Preview/PreviewListingView.h"
 #include "CassoExplorer/Window/Panes/Preview/PreviewPictureView.h"
+#include "CassoExplorer/Window/Panes/Preview/PreviewDiskThumbnail.h"
 #include "CassoExplorer/Window/Panes/Preview/PreviewShellView.h"
 #include "CassoExplorer/Window/Panes/Preview/PreviewTextView.h"
 
@@ -44,6 +45,7 @@ public:
     void                              Layout                 (const RECT & rect);
     void                              Hide                   ();
     void                              FillPreview            ();
+    void                              TakeThumbnail          ();
     void                              SetPinned              (bool pinned);
     static bool                       IsKnownPreview         (const PreviewContent & preview);
     void                              PaintBackground        (IDxuiPainter & painter, const IDxuiTheme & theme) const;
@@ -93,6 +95,7 @@ private:
     PreviewTextView                 m_text        { *this, m_context };
     PreviewShellView                m_shell       { *this, m_context };
     PreviewFindBar                  m_find        { *this, m_context };
+    PreviewDiskThumbnail            m_thumbnail   { m_context };
     std::array<PreviewView *, 5>    m_views       { &m_listing, &m_picture, &m_hex, &m_text, &m_shell };   // in creation order, which is drawing order
     DxuiSelectableText            * m_message     = nullptr;
     DxuiTextView                  * m_summary     = nullptr;   // a WOZ image's details, above its catalog

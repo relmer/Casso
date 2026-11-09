@@ -2,6 +2,9 @@
 #include "Core/AppTimerIds.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "CassoExplorer/InspectorWindowSet.h"
+#include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
+#include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Model/PreviewText.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
@@ -57,6 +60,7 @@ void ExplorerPreviewManager::Create()
     m_summary->SetVisible      (false);
 
     m_find.Create();
+    m_thumbnail.Create();
 }
 
 
@@ -139,6 +143,17 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         content.top += barPx;
     }
 
+    //  A disk image's small platter and chips, under the toolbar (FR-072).
+    if (m_thumbnail.IsShown())
+    {
+        m_thumbnail.Layout (RECT { content.left, content.top, content.right, content.top + m_thumbnail.GetHeightPx() });
+        content.top += m_thumbnail.GetHeightPx();
+    }
+    else
+    {
+        m_thumbnail.Hide();
+    }
+
     //  A WOZ image's details, between the toolbar and the catalog, as tall as
     //  their lines at the pane's width, up to a share of the pane.
     if (m_summary->IsVisible())
@@ -188,6 +203,7 @@ void ExplorerPreviewManager::Hide()
     m_message->SetVisible (false);
     m_summary->SetVisible (false);
     m_toolbar->SetVisible (false);
+    m_thumbnail.Hide();
 }
 
 
@@ -245,6 +261,21 @@ void ExplorerPreviewManager::FillPreview()
     }
 
     m_lastKind = preview.kind;
+
+    //  The thumbnail of an image selected alone in a folder, in a format the
+    //  inspector reads; none for one that fails to open (FR-072).
+    {
+        bool          wasShown = m_thumbnail.IsShown();
+        bool          isImage  = visible && !error && m_context.browser.AreSelectedRowsImages() && m_context.browser.GetSelectedRows().size() == 1;
+        std::wstring  path     = isImage ? m_context.cassoTarget.GetSelectedImagePath() : std::wstring();
+
+        m_thumbnail.SetPath (InspectorWindowSet::CanInspect (path) ? path : std::wstring());
+
+        if (m_thumbnail.IsShown() != wasShown || m_thumbnail.IsShown())
+        {
+            m_context.layout.RecomputeLayout();
+        }
+    }
 
     m_shell.Update   (preview, m_content);
     m_picture.Fill   (preview, picture, shell && m_shell.IsPicture());
@@ -305,6 +336,26 @@ void ExplorerPreviewManager::FillPreview()
         FillPreview();
     }
 
+    m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::TakeThumbnail
+//
+//  A built thumbnail, on the UI thread; the pane is laid out again around
+//  it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::TakeThumbnail()
+{
+    m_thumbnail.TakeResult();
+    m_context.layout.RecomputeLayout();
     m_context.window.Invalidate();
 }
 
@@ -610,6 +661,17 @@ bool ExplorerPreviewManager::HandleMessageMouse (const DxuiMouseEvent & ev)
 
 bool ExplorerPreviewManager::HandleMouse (const DxuiMouseEvent & ev)
 {
+    //  A click on the small platter opens the inspector (FR-072).
+    if (m_thumbnail.IsOverPlatter (ev.positionDip))
+    {
+        if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Left)
+        {
+            m_context.commandManager.InspectDiskImages ({ m_thumbnail.GetPath() });
+        }
+
+        return true;
+    }
+
     if (m_listing.IsArchive() && m_listing.GetArchive().HandleMouse (ev, ev.positionDip))
     {
         m_context.window.Invalidate();

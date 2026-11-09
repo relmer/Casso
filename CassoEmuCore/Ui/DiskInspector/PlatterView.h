@@ -53,6 +53,9 @@ public:
     bool  GetHeadPoint      (POINT & outPointPx) const;
     void  SetAlignmentShown (bool isShown) { m_isAlignmentShown = isShown; }
 
+    //  Whether the selected ring is outlined; off for the preview's thumbnail.
+    void  SetSelectionShown (bool isShown) { m_isSelectionShown = isShown; }
+
 private:
     friend class PlatterOverlays;
 
@@ -103,6 +106,7 @@ private:
     PlatterRenderer                   m_renderer;
     bool                              m_isRendererReady  = false;
     bool                              m_isAlignmentShown = false;
+    bool                              m_isSelectionShown = true;
     bool                              m_isPressed        = false;
     bool                              m_isPanning        = false;
     PlatterPlacement                  m_indexView;

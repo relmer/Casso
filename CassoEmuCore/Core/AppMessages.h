@@ -51,4 +51,5 @@ enum class AppMessage : UINT
     ShellPreviewLoad       = WM_APP + 0x44,   // to the shell preview's thread
     ExplorerUpdateStart    = WM_APP + 0x46,   // the automatic update check, posted to the updater's message window
     ExplorerCutPasted      = WM_APP + 0x45,   // a target pasted the files a cut put on the clipboard
+    ExplorerThumbnail      = WM_APP + 0x47,   // a disk image's thumbnail is built, posted to the Explorer window
 };
