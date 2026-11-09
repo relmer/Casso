@@ -2293,9 +2293,14 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1407 Console lines for every channel host file access and failure. **Done:** `HostAccessGuard` adds `<client> read|write|delete|run <path>`, the path linked with `ConsoleLinks::MakeLink`, and `Failed: <reason>`. `ShellDebugger` passes `AddConsoleLines` to `DebuggerController::SetConsoleSink` for them.
 - [X] T1408 `docs/DebuggerForAgents.md` and the usage text: the allowed folders, the flags and the failures. **Done:** the Host files section, `CassoCli mcp --help` and the usage line.
 
-## Phase 68: Owner review, 2026-11-08 (FR-400 to FR-402)
+## Phase 68: Owner review, 2026-11-08 (FR-400 to FR-407)
 
 - [X] T1409 Heat map sections (FR-400): `HeatMapView::GetSectionStarts`, `SplitAtSections`, `PaintSections`, labels from `MemoryRegionKeys` and `HeatMapView::GetRamLabel`, the //c's ports from `MemoryRegionKeys::GetBuiltInIo` and `GetBuiltInRom`. Tests: `HeatMapOverlayTests`, `MemoryRegionOutlineTests`.
 - [X] T1410 Symbols in cells and side-effect-free I/O reads (FR-401): `TryPeekIo` on the bus devices and cards, `DebuggerViewState::ReadHeatValues`. Tests: `DebuggerViewStateTests::IoBytesAreReadWithoutTheirEffects`, `SuperSerialCardTests`, `MmuTests`.
 - [X] T1411 The tip's contents line, frame, tag and contrast (FR-401): `HeatMapView::GetContentsLine`, `GetTipFrame`, `GetTipTag`; `DxuiTooltip::SetFrame`, `SetCornerTag`. Tests: `HeatMapOverlayTests`, `DxuiTooltipTests`.
 - [X] T1412 Memory window labels (FR-402): `MemoryEditModel::ReadRegions`, `TryGetRegionStyle`. Test: `MemoryRegionOutlineTests::AWindowOutlinesEachPartOfTheRom`.
+- [X] T1413 The tip at once (FR-403): `HeatMapView::GetTipText` placeholders, `HeatMapPane::TryGetTipAt`. Tests: `HeatMapViewTests::TheWriterAndReaderLinesAreFilledInWhenTheyArrive`, `HeatMapPaneWindowTests`.
+- [X] T1414 Range sets in boxes (FR-404): `HeatMapView::SplitAtSections`, `Band::isTitled`, `GetBandTitle`. Test: `HeatMapOverlayTests::RangesAreCutAtTheSectionStarts`.
+- [X] T1415 All to new window floats a group (FR-405): `DxuiDockSite::SetOnFloatGroupRequested`, `FloatingPanes::RequestFloatGroup`. Test: `DxuiDockSitePaneMenuTests::AllToNewWindowFloatsTheWholeGroup`.
+- [X] T1416 Typography by window (FR-406): `DxuiTextRenderer::Typography`, `AttachTypography`, `FindTypography`; `DebuggerWindow::ApplyTypography`; Phosphor in the debugger's Theme menu; tab marks in the system face. Tests: `DxuiTextRendererTypographyTests`, `DebuggerWindowThemeTests::TheWindowsTypographyIsItsThemes`.
+- [X] T1417 The boot disk after a build (FR-407): `ShellDebugger::NotifyDebugDisksMounted`. Test: `ProjectShellTests::TheDiskMountedAfterABuildsPowerCycleIsTheBootDisk`.

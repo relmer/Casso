@@ -366,6 +366,11 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: How are the heat map's ranges labeled? -> A: Zoomed or not, the CPU's bank is cut into boxed sections, each starting a row under its label: the built-in RAM ranges (zero page, the stack, the text and hi-res pages, and the RAM between them), the I/O, each slot's I/O and ROM page by its card ("Slot 2: Super Serial Card", "Slot 3: empty"), the expansion ROM, and each part of the system ROM ("ROM: Applesoft BASIC", "ROM: Monitor"). The owner: "label the regions correctly regardless" of the ranges turned on. The //c's slot ranges are its built-in ports. Each part is labeled by what it is, not by its ROM file, at the owner's request (FR-400).
 - Q: What is in a heat map cell and its tip? -> A: A cell with a symbol has its name above its value, and I/O is read without side effects. The tip's first line is the cell's contents ("LOOP: BIT RD80COL  (2C 1F C0)", "KBD: C1", "Value: 42"), the tip is framed and labeled with the cell's range, PC and SP are a tag at the end of the first line, and the contrast of text and lines is at least WCAG's (FR-401).
 - Q: Does the memory window label its outlines the same way? -> A: Yes: by card, and the system ROM is outlined in its parts (FR-402).
+- Q: When does the heat map's tip appear? -> A: As soon as the pointer is on a cell. The last writer and reader lines end in an ellipsis until the machine's lookup arrives, then are filled in, without waiting for the pointer to rest (FR-403).
+- Q: How are a range set's ranges drawn? -> A: In the same boxes as the sections, the range's title and span in the top border, not under separate headings (FR-404).
+- Q: What does All to new window do on a group of several tabs? -> A: Floats the whole group in one window, and the tab selected in the group is selected in the window. A floating window has tab groups, at the owner's request (FR-405).
+- Q: Which font does the debugger draw in? -> A: The debugger's theme's. With Same as Casso it follows the emulator's theme; a Casso theme chosen for the debugger draws in that theme's face and glow; the system themes draw in the system face. A tab's mark is drawn in the system face, which no theme replaces (FR-406).
+- Q: Which project does a launch open with a disk in drive 1? -> A: The boot disk's, as a restart does. The machine is power cycled before its disks are mounted, so the disk mounted after that power cycle is the boot disk (FR-407).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -4043,6 +4048,17 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   and lines MUST have at least WCAG's contrast (4.5:1 and 3:1).
 - **FR-402**: A memory window MUST label a slot's outlines by its card, and
   outline and label each part of the system ROM apart.
+- **FR-403**: The heat map's tip MUST appear as soon as the pointer is on a
+  cell, with placeholders for the last writer and reader that are filled in
+  when the machine's lookup arrives.
+- **FR-404**: In a range set, each range MUST be drawn as a boxed section
+  labeled with its title and span.
+- **FR-405**: All to new window on a group of several tabs MUST float the whole
+  group in one window, keeping its selected tab.
+- **FR-406**: Each window MUST draw its text in its theme's typography; the
+  debugger following the emulator's theme draws in the emulator's.
+- **FR-407**: The disk in drive 1 once a machine is built and its disks are
+  mounted MUST be its boot disk for the debug project's scope.
 
 ### Key Entities
 
