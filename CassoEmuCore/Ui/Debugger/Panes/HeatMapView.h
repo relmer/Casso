@@ -324,7 +324,8 @@ public:
         std::wstring  title;
         Word          first     = 0;
         int           count     = 0;
-        bool          isSection = false;   // a piece cut at GetSectionStarts, labeled by its region
+        bool          isSection = false;   // drawn in a box, labeled by its region unless isTitled
+        bool          isTitled  = false;   // a whole range of a set, labeled by its title and span
 
         bool operator== (const Band & other) const = default;
     };
@@ -349,6 +350,9 @@ public:
     //  A section of RAM's label: the built-in range at an address, "Zero
     //  page", "Hi-res page 1", or "RAM" for none.
     static std::wstring       GetRamLabel     (Word address);
+
+    //  A range's title and span, "Zero page  $0000-$00FF".
+    static std::wstring       GetBandTitle    (const Band & band);
 
     //  The ranges cut at GetSectionStarts, each piece a section. A range no
     //  start cuts is left whole, and a section only where `isAllMemory`.

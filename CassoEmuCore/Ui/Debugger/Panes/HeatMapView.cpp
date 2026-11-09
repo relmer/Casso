@@ -238,6 +238,21 @@ std::wstring HeatMapView::GetRamLabel (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::GetBandTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HeatMapView::GetBandTitle (const Band & band)
+{
+    return std::format (L"{}  ${:04X}-${:04X}", band.title, band.first, (Word) (band.first + std::max (1, band.count) - 1));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::SplitAtSections
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -268,7 +283,8 @@ std::vector<HeatMapView::Band> HeatMapView::SplitAtSections (const std::vector<B
 
         if (cuts.empty())
         {
-            whole.isSection = isAllMemory;
+            whole.isSection = true;
+            whole.isTitled  = !isAllMemory;
             bands.push_back (whole);
             continue;
         }
@@ -3094,8 +3110,7 @@ void HeatMapView::PaintHeaders (IDxuiTextRenderer & text, const IDxuiTheme & the
             continue;
         }
 
-        title = std::format (L"{}  ${:04X}-${:04X}", m_bands[band].title, m_bands[band].first,
-                             (Word) (m_bands[band].first + std::max (1, m_bands[band].count) - 1));
+        title = GetBandTitle (m_bands[band]);
 
         hr = text.DrawString (title.c_str(), left, (float) header.top, width, (float) (header.bottom - header.top), theme.Foreground(),
                               size, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
@@ -3601,7 +3616,8 @@ void HeatMapView::PaintRegions (IDxuiTextRenderer & text) const
 //  kSectionPadDip from the cells on every side, with its label on the top edge from
 //  the left, past the corner's curve, in the header's room above the cells,
 //  over a patch of the page that breaks the line there. A section of main
-//  RAM, which has no range color, is in the muted text color.
+//  RAM, which has no range color, is in the muted text color. A whole range
+//  of a set is labeled by its title and span, as "Zero page  $0000-$00FF".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3632,7 +3648,9 @@ void HeatMapView::PaintSections (IDxuiTextRenderer & text, const IDxuiTheme & th
         const Placed            & placed    = m_placed[i];
         bool                      isRam     = band.first < kSectionStarts.front();
         uint16_t                  key       = isRam ? (uint16_t) 0 : GetRegionAt (band.first);
-        std::wstring              label     = isRam ? GetRamLabel (band.first) : MemoryRegionKeys::GetRangeLabel (key, band.first, band.count, m_slotCards, m_machineId);
+        std::wstring              label     = band.isTitled ? GetBandTitle (band)
+                                            : isRam         ? GetRamLabel (band.first)
+                                                            : MemoryRegionKeys::GetRangeLabel (key, band.first, band.count, m_slotCards, m_machineId);
         uint32_t                  color     = isRam ? theme.ForegroundMuted() : MemoryRegionKeys::GetColor (key, m_regionColors);
         float                     top       = (float) (m_map.top + placed.rowsTop - m_scrollTop);
         float                     left      = (float) m_map.left - street - inside;

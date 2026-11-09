@@ -747,7 +747,9 @@ namespace DebuggerTests
 
             bands = HeatMapView::SplitAtSections ({ HeatMapView::Band { L"Text", 0x0400, 0x0400 } }, false);
             Assert::AreEqual ((size_t) 1, bands.size());
-            Assert::IsFalse  (bands[0].isSection, L"a range no start is inside has a header of the set's");
+            Assert::IsTrue   (bands[0].isSection && bands[0].isTitled, L"a range no start is inside is boxed under the set's title");
+            Assert::IsFalse  (HeatMapView::SplitAtSections ({ HeatMapView::Band { L"Mixed", 0xBF00, 0x0190 } }, false)[0].isTitled, L"a cut piece is labeled by its region");
+            Assert::AreEqual (std::wstring (L"Text  $0400-$07FF"), HeatMapView::GetBandTitle (bands[0]));
 
             bands = HeatMapView::SplitAtSections ({ HeatMapView::Band { {}, 0, HeatMapView::kAddressCount } }, true, "Apple2eEnhanced");
             Assert::AreEqual ((int) 0xF800, (int) bands.back().first, L"the Monitor, a separate section");
