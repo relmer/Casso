@@ -458,6 +458,7 @@
     <ClCompile Include="FileTypes\MerlinSource.cpp" />
     <ClCompile Include="FileTypes\ScAssemblerSource.cpp" />
     <ClCompile Include="FileTypes\PackBytes.cpp" />
+    <ClCompile Include="FileTypes\AppleWorks.cpp" />
     <ClCompile Include="FileTypes\SuperHiRes.cpp" />
     <ClCompile Include="FileTypes\HiResFormats.cpp" />
     <ClCompile Include="FileTypes\SuperHiRes3200.cpp" />
@@ -1189,6 +1190,7 @@
     <ClInclude Include="FileTypes\MerlinSource.h" />
     <ClInclude Include="FileTypes\ScAssemblerSource.h" />
     <ClInclude Include="FileTypes\PackBytes.h" />
+    <ClInclude Include="FileTypes\AppleWorks.h" />
     <ClInclude Include="FileTypes\SuperHiRes.h" />
     <ClInclude Include="FileTypes\HiResFormats.h" />
     <ClInclude Include="Devices\Disk\Archives\ZipAppleDouble.h" />
