@@ -465,6 +465,7 @@
     <ClCompile Include="FileTypes\VisiCalcSheet.cpp" />
     <ClCompile Include="FileTypes\MagicWindowDocument.cpp" />
     <ClCompile Include="FileTypes\BusinessBasic.cpp" />
+    <ClCompile Include="FileTypes\LisaSource.cpp" />
     <ClCompile Include="FileTypes\TeachDocument.cpp" />
     <ClCompile Include="FileTypes\SuperHiRes.cpp" />
     <ClCompile Include="FileTypes\HiResFormats.cpp" />
@@ -1204,6 +1205,7 @@
     <ClInclude Include="FileTypes\VisiCalcSheet.h" />
     <ClInclude Include="FileTypes\MagicWindowDocument.h" />
     <ClInclude Include="FileTypes\BusinessBasic.h" />
+    <ClInclude Include="FileTypes\LisaSource.h" />
     <ClInclude Include="FileTypes\TeachDocument.h" />
     <ClInclude Include="FileTypes\SuperHiRes.h" />
     <ClInclude Include="FileTypes\HiResFormats.h" />

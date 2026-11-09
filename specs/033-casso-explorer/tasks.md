@@ -1698,7 +1698,7 @@ Session 2026-11-08. Plan's Phase 32, research R35, contract `contracts/file-type
 - [X] T488 [P] [US18] `RandomText`: decode records at the record length, from the aux type on ProDOS and from the spacing of the entries on DOS 3.3, one row per record and one field per carriage return, and a DOS 3.3 file with one record as sequential text (FR-160)
 - [X] T489 [P] [US18] `MerlinSource`: decode into label, opcode, operand and comment fields as Merlin stores them, and encode back to the same bytes, failing with the line number for a line longer than Merlin accepts; a ProDOS file is a TXT file ending `.S`, a DOS 3.3 file is a binary file starting `T.` (FR-162). Tests include a round trip on every fixture
 - [X] T490 [P] [US18] `ScAssemblerSource`: decode S-C Assembler's line numbers and compressed spaces into a listing, and fail its check on an Integer BASIC file of the same DOS type (FR-163)
-- [ ] T491 [P] [US18] `LisaSource`: decode LISA's tokens in each version, v2, v3 and v4-5, picked by the version the file has (FR-163)
+- [X] T491 [P] [US18] `LisaSource`: decode LISA's tokens in each version, v2, v3 and v4-5, picked by the version the file has (FR-163)
 - [X] T492 [P] [US18] `BusinessBasic`: detokenize Apple /// Business BASIC, ProDOS type $09, into a listing (FR-163)
 
 **Code files**

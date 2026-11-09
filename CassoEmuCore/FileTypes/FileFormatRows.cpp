@@ -5,6 +5,7 @@
 #include "FileTypes/BusinessBasic.h"
 #include "FileTypes/HiResFormats.h"
 #include "FileTypes/IigsFormats.h"
+#include "FileTypes/LisaSource.h"
 #include "FileTypes/MagicWindowDocument.h"
 #include "FileTypes/MerlinSource.h"
 #include "FileTypes/OmfFile.h"
@@ -37,6 +38,7 @@ std::vector<FileFormatTable::Row> FileFormatRows::Make()
         Row { FileFormat::PascalText,     &PascalText::Matches,          &PascalText::Decode,          &PascalText::Import,   L".Pascal text.txt",      false },
         Row { FileFormat::RandomText,     &RandomText::Matches,          &RandomText::Decode,          nullptr,               L".Random text.csv",      false },
         Row { FileFormat::ScAssembler,    &ScAssemblerSource::Matches,   &ScAssemblerSource::Decode,   nullptr,               L".S-C Assembler.txt",    false },
+        Row { FileFormat::Lisa,           &LisaSource::Matches,          &LisaSource::Decode,          nullptr,               L".LISA.txt",             false },
         Row { FileFormat::AppleWorksWp,   &AppleWorksWp::Matches,        &AppleWorksWp::Decode,        nullptr,               L".AppleWorks WP.rtf",    false },
         Row { FileFormat::AppleWorksDb,   &AppleWorksDb::Matches,        &AppleWorksDb::Decode,        nullptr,               L".AppleWorks DB.csv",    false },
         Row { FileFormat::AppleWorksSs,   &AppleWorksSs::Matches,        &AppleWorksSs::Decode,        nullptr,               L".AppleWorks SS.csv",    false },

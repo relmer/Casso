@@ -3,6 +3,7 @@
 #include "Core/TextEncoding.h"
 #include "FileTypes/BusinessBasic.h"
 #include "FileTypes/FileFormatTable.h"
+#include "FileTypes/LisaSource.h"
 #include "FileTypes/MagicWindowDocument.h"
 #include "FileTypes/MerlinSource.h"
 #include "FileTypes/PascalText.h"
@@ -20,7 +21,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  PascalTextTests, RandomTextTests, MerlinSourceTests,
 //  ScAssemblerSourceTests, FileFormatTableTests, MagicWindowDocumentTests
-//  and BusinessBasicTests
+//  BusinessBasicTests and LisaSourceTests
 //
 //  Files built in each test, identified by the table, decoded, and for the
 //  import rows encoded back.
@@ -269,6 +270,60 @@ public:
         AssertSucceeded (BusinessBasic::Decode (bytes, FileFacts(), DecodeOptions(), file, error));
 
         Assert::IsTrue (file.lines == std::vector<std::wstring> { L"10 GOTO 10", L"20" });
+        Assert::IsTrue (file.notes.empty());
+    }
+};
+
+
+TEST_CLASS (LisaSourceTests)
+{
+public:
+
+    TEST_METHOD (Decode_Version2LabelMnemonicAndOperand)
+    {
+        std::vector<Byte>  bytes = { 0x00, 0x18, 17, 0, 11, 'L', 'O', 'O', 'P', 0xCA, 0x01, 'L', 'O', 'O', 'P', 0x0D, 0xFF };
+        FileFacts          facts;
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        facts.volume = VolumeKind::Dos33;
+        facts.type   = 0x40;
+
+        Assert::IsTrue (LisaSource::Matches (facts, bytes));
+        AssertSucceeded (LisaSource::Decode (bytes, facts, DecodeOptions(), file, error));
+
+        Assert::IsTrue (file.lines == std::vector<std::wstring> { L"LOOP     JMP LOOP" });
+    }
+
+
+    TEST_METHOD (Decode_Version4SymbolsAndOperands)
+    {
+        std::vector<Byte>  bytes (16, 0);
+        FileFacts          facts;
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        bytes[4] = 1;
+        bytes[6] = 9;
+        bytes[7] = 18;
+        bytes[8] = 40;
+        bytes.insert (bytes.end(), { 7, 'S', 'T', 'A', 'R', 'T', 0 });
+        bytes[2] = (Byte) bytes.size();
+        bytes.insert (bytes.end(), { 0xFA, 0x00, 0x00, 5, 0x06, 0x00, 0x1C, 0x10, 0xBD, 0x00 });
+
+        facts.volume     = VolumeKind::ProDos;
+        facts.type       = 0xFA;
+        facts.auxType    = 0x50E1;
+        facts.hasAuxType = true;
+
+        Assert::IsTrue (LisaSource::Matches (facts, bytes));
+        AssertSucceeded (LisaSource::Decode (bytes, facts, DecodeOptions(), file, error));
+
+        Assert::IsTrue (file.lines == std::vector<std::wstring> { L"start", L"         lda      $10", L"         rts" });
         Assert::IsTrue (file.notes.empty());
     }
 };
