@@ -36,6 +36,28 @@ void CommandCompletion::SetMode (CommandMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandCompletion::SetSymbols
+//
+//  Sorted without regard to case, as the commands are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandCompletion::SetSymbols (std::vector<std::wstring> names)
+{
+    std::ranges::sort (names, [] (const std::wstring & a, const std::wstring & b) { return ToLower (a) < ToLower (b); });
+    names.erase (std::unique (names.begin(), names.end()), names.end());
+
+    m_symbols = std::move (names);
+    m_matches.clear();
+    m_lastCompletion.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandCompletion::OfferSuggestion
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +78,8 @@ void CommandCompletion::OfferSuggestion (const std::wstring & suggestion, const 
 //
 //  The reply's suggestion comes first: the rest of it past what is typed, or
 //  all of it in an empty box. Otherwise the rest of the newest earlier line
-//  that starts with the typed text.
+//  that starts with the typed text, or else of the first symbol the word
+//  being typed after the command word starts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,7 +105,7 @@ std::wstring CommandCompletion::GetGhost (const std::wstring & text, bool caretA
     }
 
     match = FindHistoryMatch (text, history);
-    return match.empty() ? std::wstring() : match.substr (text.size());
+    return match.empty() ? FindSymbolRest (text) : match.substr (text.size());
 }
 
 
@@ -133,7 +156,8 @@ bool CommandCompletion::TryAcceptHistory (const std::wstring & text, const std::
 
     if (match.empty())
     {
-        return false;
+        result = text + FindSymbolRest (text);
+        return result != text;
     }
 
     result = text + match.substr (text.size());
@@ -148,7 +172,8 @@ bool CommandCompletion::TryAcceptHistory (const std::wstring & text, const std::
 //
 //  CommandCompletion::TryComplete
 //
-//  Only the command word completes; what follows it is kept. A box that still
+//  The command word completes, keeping what follows it, and a word after it
+//  completes as a symbol. A box that still
 //  holds the last completion steps to the next match, so repeated presses
 //  cycle. A word typed in lowercase completes in lowercase.
 //
@@ -157,21 +182,23 @@ bool CommandCompletion::TryAcceptHistory (const std::wstring & text, const std::
 bool CommandCompletion::TryComplete (const std::wstring & text, bool forward, std::wstring & result)
 {
     size_t        start   = text.find_first_not_of (L" \t");
-    size_t        end     = 0;
+    size_t        end      = 0;
     std::wstring  prefix;
-    bool          isLower = false;
+    bool          isLower  = false;
+    size_t        argument = 0;
 
 
 
     if (!m_matches.empty() && text == m_lastCompletion)
     {
         m_matchIndex = forward ? (m_matchIndex + 1) % m_matches.size() : (m_matchIndex + m_matches.size() - 1) % m_matches.size();
-        result           = m_matches[m_matchIndex] + m_matchRest;
+        result           = m_matchHead + m_matches[m_matchIndex] + m_matchRest;
         m_lastCompletion = result;
         return true;
     }
 
     m_matches.clear();
+    m_matchHead.clear();
 
     //  Before the first snapshot gives a mode, the words are the default mode's.
     if (m_names.empty())
@@ -182,6 +209,33 @@ bool CommandCompletion::TryComplete (const std::wstring & text, bool forward, st
     if (start == std::wstring::npos)
     {
         return false;
+    }
+
+    //  A word after the command word that starts a symbol completes as the
+    //  symbol; one that starts none leaves Tab to the command word.
+    argument = FindArgumentStart (text);
+
+    if (argument != std::wstring::npos)
+    {
+        prefix = text.substr (argument);
+
+        for (const std::wstring & symbol : m_symbols)
+        {
+            if (!prefix.empty() && StartsWithNoCase (symbol, prefix))
+            {
+                m_matches.push_back (symbol);
+            }
+        }
+
+        if (!m_matches.empty())
+        {
+            m_matchHead      = text.substr (0, argument);
+            m_matchRest.clear();
+            m_matchIndex     = forward ? 0 : m_matches.size() - 1;
+            result           = m_matchHead + m_matches[m_matchIndex];
+            m_lastCompletion = result;
+            return true;
+        }
     }
 
     end    = text.find_first_of (L" \t", start);
@@ -331,6 +385,62 @@ std::wstring CommandCompletion::FindHistoryMatch (const std::wstring & text, con
         if (it->size() > text.size() && it->starts_with (text))
         {
             return *it;
+        }
+    }
+
+    return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandCompletion::FindArgumentStart
+//
+//  The word at the end starts after the last space or operator, and is an
+//  argument when a command word comes before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CommandCompletion::FindArgumentStart (const std::wstring & text)
+{
+    size_t  command = text.find_first_not_of (L" \t");
+    size_t  last    = text.find_last_of (L" \t,()+-*/<>#=&|^!:[]");
+
+
+
+    if (command == std::wstring::npos || last == std::wstring::npos || last < command)
+    {
+        return std::wstring::npos;
+    }
+
+    return last + 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandCompletion::FindSymbolRest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CommandCompletion::FindSymbolRest (const std::wstring & text) const
+{
+    size_t        argument = FindArgumentStart (text);
+    std::wstring  prefix   = (argument == std::wstring::npos) ? std::wstring() : text.substr (argument);
+
+
+
+    for (const std::wstring & symbol : prefix.empty() ? std::vector<std::wstring>() : m_symbols)
+    {
+        if (symbol.size() > prefix.size() && StartsWithNoCase (symbol, prefix))
+        {
+            return symbol.substr (prefix.size());
         }
     }
 

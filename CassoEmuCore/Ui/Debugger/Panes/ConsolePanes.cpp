@@ -759,6 +759,23 @@ void CommandLine::Apply (const DebuggerViewSnapshot & snapshot)
 
     m_completion.SetMode (snapshot.mode);
 
+    //  The symbols are taken again only when they change.
+    if (snapshot.symbols != nullptr && snapshot.symbols != m_completionSymbols)
+    {
+        std::vector<std::wstring>  names;
+
+
+
+        m_completionSymbols = snapshot.symbols;
+
+        for (const SymbolInfo & symbol : snapshot.symbols->symbols)
+        {
+            names.push_back (TextEncoding::NarrowToWide (symbol.name));
+        }
+
+        m_completion.SetSymbols (std::move (names));
+    }
+
     if (snapshot.suggestionSerial != m_offeredSuggestion)
     {
         m_offeredSuggestion = snapshot.suggestionSerial;

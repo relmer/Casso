@@ -172,12 +172,13 @@ public:
 private:
     void                 ShowHistoryList ();
 
-    IDebuggerPaneHost    & m_host;
-    ConsoleOutput        & m_output;
-    DxuiTextInput        * m_box                = nullptr;
-    ConsoleHistory         m_history;
-    CommandCompletion      m_completion;
-    uint32_t               m_offeredSuggestion  = 0;
+    IDebuggerPaneHost                                          & m_host;
+    ConsoleOutput                                              & m_output;
+    DxuiTextInput                                              * m_box                = nullptr;
+    ConsoleHistory                                               m_history;
+    CommandCompletion                                            m_completion;
+    std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>    m_completionSymbols;
+    uint32_t                                                     m_offeredSuggestion  = 0;
 };
 
 
