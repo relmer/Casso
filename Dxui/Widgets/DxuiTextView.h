@@ -51,20 +51,28 @@ class DxuiTextView : public IDxuiControl
 {
 public:
     //  A run of a cell's characters drawn in a color of their own.
+    //  A stretch of a cell's text in a color, zero for the text color, and
+    //  bold, italic or underlined.
     struct Span
     {
-        int       cell   = 0;
-        int       start  = 0;
-        int       length = 0;
-        uint32_t  argb   = 0;
+        int       cell      = 0;
+        int       start     = 0;
+        int       length    = 0;
+        uint32_t  argb      = 0;
+        bool      bold      = false;
+        bool      italic    = false;
+        bool      underline = false;
     };
 
+    //  A row of cells. A row of one cell is aligned in the text's width on
+    //  each line it wraps onto; Justify draws as Left.
     struct Row
     {
         std::vector<std::wstring>  cells;
-        bool                       warning = false;
-        bool                       heading = false;   // drawn in the accent color
+        bool                       warning   = false;
+        bool                       heading   = false;   // drawn in the accent color
         std::vector<Span>          spans;
+        DxuiTextHAlign             alignment = DxuiTextHAlign::Left;
     };
 
     //  A character in a row's text, its cells joined by tabs.
@@ -199,6 +207,17 @@ private:
                                      int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo,
                                      const std::vector<uint32_t> & colors) const;
     std::vector<uint32_t>  GetRowColors (const Row & row) const;
+    std::vector<uint8_t>      GetRowStyles (const Row & row) const;
+    float                  GetLineShift (int lineIndex) const;
+
+    //  The line being painted: its shift for its row's alignment, each
+    //  character's style bits, and the painter an underline is drawn with.
+    static constexpr uint8_t  kStyleBold      = 0x01;
+    static constexpr uint8_t  kStyleItalic    = 0x02;
+    static constexpr uint8_t  kStyleUnderline = 0x04;
+    float                  m_paintShift    = 0.0f;
+    std::vector<uint8_t>      m_paintStyles;
+    IDxuiPainter         * m_paintPainter  = nullptr;
 
     std::vector<Row>   m_rows;
     std::vector<Line>  m_lines;

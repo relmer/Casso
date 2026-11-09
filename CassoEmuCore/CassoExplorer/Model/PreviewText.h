@@ -40,6 +40,7 @@ public:
     //  and a disassembly have their syntax colored.
     static std::vector<DxuiTextView::Row>  BuildTextRows      (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors = {});
     static std::vector<DxuiTextView::Row>  BuildDetailRows    (const std::vector<std::pair<std::wstring, std::wstring>> & details);
+    static std::vector<DxuiTextView::Row>  BuildDocumentRows  (const std::vector<Paragraph> & paragraphs);
 
     //  Visual Studio's code colors for the theme's background, dark or light,
     //  as Casso's debugger colors its source.

@@ -90,6 +90,54 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDetailRows (const std::vector<s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewText::BuildDocumentRows
+//
+//  A row for each paragraph, aligned as it is, a span for each styled run.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector<Paragraph> & paragraphs)
+{
+    std::vector<DxuiTextView::Row>  rows;
+
+
+
+    for (const Paragraph & paragraph : paragraphs)
+    {
+        DxuiTextView::Row  row { { std::wstring() } };
+
+        row.alignment = (paragraph.alignment == Alignment::Center) ? DxuiTextHAlign::Center
+                      : (paragraph.alignment == Alignment::Right)  ? DxuiTextHAlign::Right
+                                                                   : DxuiTextHAlign::Left;
+
+        for (const Run & run : paragraph.runs)
+        {
+            if (run.bold || run.italic || run.underline)
+            {
+                DxuiTextView::Span  span;
+
+                span.start     = (int) row.cells[0].size();
+                span.length    = (int) run.text.size();
+                span.bold      = run.bold;
+                span.italic    = run.italic;
+                span.underline = run.underline;
+                row.spans.push_back (span);
+            }
+
+            row.cells[0] += run.text;
+        }
+
+        rows.push_back (std::move (row));
+    }
+
+    return rows;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewText::BuildTextRows
 //
 //  A listing that is not a valid program ends with a blank row and the
@@ -134,6 +182,10 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
             AddBasicSpans (row, colors);
             rows.push_back (std::move (row));
         }
+    }
+    else if (preview.kind == PreviewContent::Kind::Document)
+    {
+        rows = BuildDocumentRows (preview.paragraphs);
     }
     else if (preview.kind == PreviewContent::Kind::Details)
     {

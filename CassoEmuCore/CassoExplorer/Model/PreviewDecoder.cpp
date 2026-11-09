@@ -20,6 +20,7 @@
 #include "Devices/Disk/DiskImageSession.h"
 #include "Debugger/RomSymbols.h"
 #include "Ui/Debugger/SourceSyntax.h"
+#include "FileTypes/FileFormatTable.h"
 
 
 
@@ -809,6 +810,105 @@ void PreviewDecoder::RenderCatalog (const VolumeListing & listing, VolumeKind ki
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT PreviewDecoder::Render (
+    const FileEntry    & entry,
+    VolumeKind           kind,
+    const FilePayload  & payload,
+    HexForm              hexForm,
+    MemoryBus          & bus,
+    PreviewContent     & outContent,
+    PicturePreview::Monitor  monitor,
+    uint32_t                 customArgb,
+    const DecodeOptions    & options)
+{
+    HRESULT       hr     = S_OK;
+    FileFormat    format = FileFormatTable::Identify (entry, kind, payload.bytes);
+    DecodedFile   decoded;
+    std::wstring  error;
+
+
+
+    if (format != FileFormat::None)
+    {
+        hr = FileFormatTable::Decode (format, payload.bytes, FileFacts::From (entry, kind), options, decoded, error);
+
+        if (SUCCEEDED (hr))
+        {
+            FromDecoded (decoded, outContent);
+            return S_OK;
+        }
+    }
+
+    hr = RenderByType (entry, kind, payload, hexForm, bus, outContent, monitor, customArgb);
+
+    if (!error.empty())
+    {
+        outContent.warning = error;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::FromDecoded
+//
+//  Lines as text and a picture as a picture; a decoder's notes follow as
+//  the warning.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDecoder::FromDecoded (const DecodedFile & decoded, PreviewContent & outContent)
+{
+    outContent = PreviewContent();
+
+    switch (decoded.kind)
+    {
+        case DecodedFile::Kind::Document:
+            outContent.kind       = PreviewContent::Kind::Document;
+            outContent.paragraphs = decoded.paragraphs;
+            break;
+
+        case DecodedFile::Kind::Grid:
+            outContent.kind = PreviewContent::Kind::Grid;
+            outContent.grid = decoded.grid;
+            break;
+
+        case DecodedFile::Kind::Picture:
+            outContent.kind   = PreviewContent::Kind::Picture;
+            outContent.bgra   = decoded.bgra;
+            outContent.width  = decoded.width;
+            outContent.height = decoded.height;
+            break;
+
+        default:
+            outContent.kind  = PreviewContent::Kind::Text;
+            outContent.lines = decoded.lines;
+            break;
+    }
+
+    for (const std::wstring & note : decoded.notes)
+    {
+        outContent.warning += (outContent.warning.empty() ? L"" : L" ") + note;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::RenderByType
+//
+//  The preview a file's type and contents choose, with no format decoded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PreviewDecoder::RenderByType (
     const FileEntry    & entry,
     VolumeKind           kind,
     const FilePayload  & payload,

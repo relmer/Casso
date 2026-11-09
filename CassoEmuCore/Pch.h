@@ -50,6 +50,7 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <numeric>
 #include <array>
 #include <atomic>
 #include <bitset>

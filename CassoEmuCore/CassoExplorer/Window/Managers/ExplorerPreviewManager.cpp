@@ -219,7 +219,7 @@ void ExplorerPreviewManager::FillPreview()
     bool                    hex      = preview.kind == PreviewContent::Kind::Hex && (!preview.bytes.empty() || opened);
     bool                    disasm   = preview.kind == PreviewContent::Kind::Hex && preview.disassembly;
     bool                    vars     = preview.kind == PreviewContent::Kind::Variables;
-    bool                    columns  = (preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty()) || vars;
+    bool                    columns  = (preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty()) || vars || preview.kind == PreviewContent::Kind::Grid;
     bool                    program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
     bool                    forms    = picture && m_context.browser.CanTogglePictureColor();
     bool                    shell    = preview.kind == PreviewContent::Kind::Shell;
@@ -329,6 +329,7 @@ bool ExplorerPreviewManager::IsKnownPreview (const PreviewContent & preview)
 
     return preview.kind == Kind::Listing || preview.kind == Kind::Text    || preview.kind == Kind::Catalog
         || preview.kind == Kind::Details || preview.kind == Kind::Shell   || preview.kind == Kind::Variables || preview.executable
+        || preview.kind == Kind::Document || preview.kind == Kind::Grid
         || (preview.kind == Kind::Picture && !preview.bgra.empty());
 }
 

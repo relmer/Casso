@@ -124,3 +124,45 @@ static constexpr LPCWSTR s_kpszClosedApple   = L"\xE001";       // U+E001 closed
 // would steal them.
 static constexpr uint32_t s_kSymbolFontFirst = 0xE000;
 static constexpr uint32_t s_kSymbolFontLast  = 0xE001;
+
+
+
+//  MouseText's 32 characters, $40 to $5F in the alternate set, as Unicode:
+//  the Symbols for Legacy Computing block where Unicode 13 added them, and
+//  the nearest earlier character elsewhere. The two apples are U+1F34E and
+//  U+1F34F, since the block doesn't have them.
+static constexpr const wchar_t *  s_kpszMouseText[] =
+{
+    L"\xD83C\xDF4E",
+    L"\xD83C\xDF4F",
+    L"\xD83E\xDFB0",
+    L"\x231B",
+    L"\x2713",
+    L"\xD83E\xDFB1",
+    L"\xD83E\xDFB4",
+    L"\xD83E\xDF81",
+    L"\x2190",
+    L"\x2026",
+    L"\x2193",
+    L"\x2191",
+    L"\x2594",
+    L"\x21B2",
+    L"\x2589",
+    L"\xD83E\xDFB5",
+    L"\xD83E\xDFB6",
+    L"\xD83E\xDFB7",
+    L"\xD83E\xDFB8",
+    L"\x2500",
+    L"\xD83E\xDF7C",
+    L"\x2192",
+    L"\x2592",
+    L"\xD83E\xDF90",
+    L"\xD83E\xDFB9",
+    L"\xD83E\xDFBA",
+    L"\x2595",
+    L"\x25C6",
+    L"\xD83E\xDF80",
+    L"\xD83E\xDFBB",
+    L"\xD83E\xDFBC",
+    L"\x258F",
+};

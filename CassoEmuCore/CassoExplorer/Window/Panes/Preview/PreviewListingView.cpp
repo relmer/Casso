@@ -201,6 +201,46 @@ void PreviewListingView::Fill (const PreviewContent & preview, bool columns)
     m_list->SetGroups        ({});
     m_list->SetSortIndicator (-1, false);
 
+    //  A decoded grid: its headings, and each row's cells as they are.
+    if (columns && preview.kind == PreviewContent::Kind::Grid)
+    {
+        std::vector<DxuiListView::Column>  headings;
+
+        for (const std::wstring & heading : preview.grid.columns)
+        {
+            headings.push_back (DxuiListView::Column { heading, 0, false, DxuiTextHAlign::Left });
+        }
+
+        for (const std::vector<std::wstring> & row : preview.grid.rows)
+        {
+            std::vector<DxuiListView::Cell>  cells;
+
+            for (size_t at = 0; at < headings.size(); at++)
+            {
+                cells.push_back (DxuiListView::Cell { (at < row.size()) ? row[at] : std::wstring(), false });
+            }
+
+            rows.push_back (std::move (cells));
+        }
+
+        m_list->SetShowHeader          (true);
+        m_list->SetMonospace           (true);
+        m_list->SetExplorerDetails     (false);
+        m_list->SetKeyboardColumnNav   (false);
+        m_list->SetIconColumn          (-1);
+        ExplorerTextStyles::Apply (*m_list, ExplorerTextStyles::kListing);
+        m_list->SetRowHeightDip        (kRowHeightDip);
+        m_list->SetRowHeightPxFn       (nullptr);
+        m_list->SetColumns             (headings);
+        m_list->SetTextSelectionColors (true);
+        m_isArchive = false;
+        m_list->SetRows (std::move (rows));
+        m_list->ResetAutoFit();
+        m_list->UpdateAutoFitFromRows();
+        m_list->SetTopRow (0);
+        return;
+    }
+
     if (columns)
     {
         m_list->SetShowHeader      (true);

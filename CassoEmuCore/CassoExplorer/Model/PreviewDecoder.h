@@ -4,6 +4,7 @@
 
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/PicturePreview.h"
+#include "FileTypes/DecodedFile.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
 
@@ -94,7 +95,9 @@ struct PreviewContent
 {
     //  Shell is Windows' own preview of a host file, which the window hosts.
     //  Variables is a VAR file's Applesoft variables.
-    enum class Kind { Listing, Text, Picture, Hex, Catalog, Details, Error, Shell, Variables };
+    //  Document is styled paragraphs, and Grid headings and rows, from a
+    //  format FileFormatTable decodes.
+    enum class Kind { Listing, Text, Picture, Hex, Catalog, Details, Error, Shell, Variables, Document, Grid };
 
     Kind                       kind   = Kind::Hex;
     std::vector<std::wstring>  lines;
@@ -110,6 +113,8 @@ struct PreviewContent
     int                        width  = 0;
     int                        height = 0;
     std::vector<CatalogRow>    rows;
+    std::vector<Paragraph>     paragraphs;
+    Grid                       grid;
 
     //  The rows are what an archive holds, shown as the file list shows a
     //  folder rather than as a catalog.
@@ -214,6 +219,8 @@ public:
 
     //  The whole preview for one file's payload. `bus` is handed to the video
     //  modes and never read; a test proves it with a bus that fails on read.
+    //  A format FileFormatTable identifies is decoded first; one that fails
+    //  to decode is rendered by its type, with the reason as the warning.
     static HRESULT  Render (const FileEntry    & entry,
                             VolumeKind           kind,
                             const FilePayload  & payload,
@@ -221,7 +228,20 @@ public:
                             MemoryBus          & bus,
                             PreviewContent     & outContent,
                             PicturePreview::Monitor  monitor    = PicturePreview::Monitor::Color,
-                            uint32_t                 customArgb = PicturePreview::kDefaultCustomArgb);
+                            uint32_t                 customArgb = PicturePreview::kDefaultCustomArgb,
+                            const DecodeOptions    & options    = DecodeOptions());
+
+    static HRESULT  RenderByType (const FileEntry    & entry,
+                                  VolumeKind           kind,
+                                  const FilePayload  & payload,
+                                  HexForm              hexForm,
+                                  MemoryBus          & bus,
+                                  PreviewContent     & outContent,
+                                  PicturePreview::Monitor  monitor,
+                                  uint32_t                 customArgb);
+
+    //  A decoded file as a preview.
+    static void  FromDecoded (const DecodedFile & decoded, PreviewContent & outContent);
 
     //  A disk image's catalog, for an image selected in the file list.
     static void  RenderCatalog (const VolumeListing & listing, VolumeKind kind, PreviewContent & outContent);
