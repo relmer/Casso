@@ -243,58 +243,66 @@ public:
 
 
     //  The machine stopped at points through a krunch, as by a power cut.
-    //  The sector being written when it stops can be torn, as on a real
-    //  drive, so the image is salvaged and at most one sector is lost. Unless
-    //  that sector is the directory's, every file reads as it did, except at
-    //  most the one being moved.
+    //  Stopping the CPU doesn't change the disk, so the disk at each point of
+    //  one krunch is the disk after a stop there. Drive 1's image is copied at
+    //  each point, and each copy is checked after the krunch. The sector being
+    //  written at a point can be torn, as on a real drive, so the copy is
+    //  salvaged and at most one sector is lost. Unless that sector is the
+    //  directory's, every file reads as it did, except at most the one being
+    //  moved.
     TEST_METHOD (Krunch_StoppedAtAnyPoint_LeavesEveryOtherFileWhole)
     {
-        static constexpr int  kStops = 10;
+        static constexpr uint64_t  kStopCycles = 50'000;   // between the points copied
 
-        std::vector<Byte>                         disk   = BuildSmallDisk();
-        std::map<std::string, std::vector<Byte>>  before = ReadFiles (disk);
+        std::vector<Byte>                         disk     = BuildSmallDisk();
+        std::map<std::string, std::vector<Byte>>  before   = ReadFiles (disk);
         std::vector<PascalKrunchMove>             moves;
-        Word                                      crc    = DirectoryCrc (disk, moves);
-        uint64_t                                  start  = 0;
-        uint64_t                                  end    = 0;
-        int                                       whole  = 0;
+        Word                                      crc      = DirectoryCrc (disk, moves);
+        Rig                                       rig (disk);
+        CassoLinkStatus                           status;
+        std::vector<DiskImage>                    copies;
+        std::vector<uint64_t>                     points;
+        uint64_t                                  next     = 0;
+        int                                       whole    = 0;
 
 
 
+        rig.stream->SetStepHook ([&] ()
         {
-            Rig              rig (disk);
-            CassoLinkStatus  status;
+            if (next != 0 && rig.stream->GetCycles() >= next)
+            {
+                copies.push_back (*rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0));
+                points.push_back (rig.stream->GetCycles());
+                next += kStopCycles;
+            }
+        });
 
-            AssertSucceeded (rig.host->Krunch (kDrive, crc, [&] (Byte, Byte) { start = (start == 0) ? rig.stream->GetCycles() : start; }, status));
-            end = rig.stream->GetCycles();
-            Assert::IsTrue (start > 0 && end > start, L"the krunch's progress arrived");
-        }
+        AssertSucceeded (rig.host->Krunch (kDrive, crc, [&] (Byte, Byte) { next = (next == 0) ? rig.stream->GetCycles() : next; }, status));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error);
+        Assert::IsTrue (copies.size() > 20, std::format (L"{} points copied", copies.size()).c_str());
 
-        for (int i = 0; i < kStops; i++)
+        for (size_t i = 0; i < copies.size(); i++)
         {
-            Rig                                       rig (disk);
-            CassoLinkStatus                           status;
-            DenibblizeReport                          report;
-            std::vector<Byte>                         file;
-            std::vector<Byte>                         sectors;
-            SectorDecodeReport                        decode;
-            VolumeListing                             listing;
-            uint64_t                                  stopAt  = start + (end - start) * (uint64_t) i / kStops;
-            int                                       changed = 0;
-            std::wstring                              where   = std::format (L"stopped at {} cycles", stopAt);
+            DenibblizeReport    report;
+            std::vector<Byte>   file;
+            std::vector<Byte>   sectors;
+            SectorDecodeReport  decode;
+            VolumeListing       listing;
+            int                 changed = 0;
+            std::wstring        where   = std::format (L"stopped at {} cycles", points[i]);
 
 
 
-            rig.stream->CloseAfter (stopAt);
-            Assert::IsTrue (FAILED (rig.host->Krunch (kDrive, crc, nullptr, status)), (where + L": the line closed before the krunch ended").c_str());
-
-            AssertSucceeded (NibblizationLayer::SalvageSectors (*rig.machine.GetDiskStore().GetImage (6, 0), DiskFormat::Dsk, file, report));
+            AssertSucceeded (NibblizationLayer::SalvageSectors (copies[i], DiskFormat::Dsk, file, report));
             Assert::IsTrue (report.sectorsLost + report.sectorsRecovered <= 1, (where + std::format (L": {} sectors damaged", report.sectorsLost + report.sectorsRecovered)).c_str());
             AssertSucceeded (VolumeImage::Load (file, "d.dsk", sectors, decode));
 
-            if (FAILED (PascalVolume (sectors).Enumerate (listing)))
+            //  A torn directory sector can fail to parse, or parse with a name
+            //  no file had.
+            if (FAILED (PascalVolume (sectors).Enumerate (listing)) ||
+                std::any_of (listing.entries.begin(), listing.entries.end(), [&] (const FileEntry & e) { return !before.contains (e.name); }))
             {
-                Assert::AreEqual (1, report.sectorsLost + report.sectorsRecovered, (where + L": the directory doesn't parse with no sector damaged").c_str());
+                Assert::AreEqual (1, report.sectorsLost + report.sectorsRecovered, (where + L": the directory is damaged with no sector damaged").c_str());
                 continue;
             }
 
@@ -310,7 +318,7 @@ public:
             whole++;
         }
 
-        Assert::IsTrue (whole > kStops / 2, L"most stops left a directory to read");
+        Assert::IsTrue (whole > (int) copies.size() / 2, L"most points left a directory to read");
     }
 
 
