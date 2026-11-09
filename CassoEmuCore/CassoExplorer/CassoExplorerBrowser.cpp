@@ -863,7 +863,7 @@ void CassoExplorerBrowser::SortByColumn (int column)
 
 
 
-    if (!m_model.HasTabs() || column < 0 || (column > (int) CatalogModel::Column::Folder && requested != CatalogModel::kRelevance && !IsPropertyColumn (column)))
+    if (!m_model.HasTabs() || column < 0 || (column >= (int) CatalogModel::kColumnCount && requested != CatalogModel::kRelevance && !IsPropertyColumn (column)))
     {
         return;
     }

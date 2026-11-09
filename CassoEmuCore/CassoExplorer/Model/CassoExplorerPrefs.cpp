@@ -473,10 +473,16 @@ JsonValue CassoExplorerPrefs::ToJson() const
             fields.emplace_back ("columnOrder", MakeIntArray (entry.columnOrder));
         }
 
+        if (!entry.addedColumnWidthsDip.empty())
+        {
+            fields.emplace_back ("addedColumnWidths", MakeIntArray (entry.addedColumnWidthsDip));
+        }
+
         //  Present, even empty, only for a folder with a choice of its own.
         if (entry.columnsChosen)
         {
             fields.emplace_back ("hiddenColumns", MakeIntArray (entry.hiddenColumns));
+            fields.emplace_back ("shownColumns",  MakeIntArray (entry.shownColumns));
         }
 
         viewValues.push_back (JsonValue (std::move (fields)));
@@ -574,6 +580,8 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("listColumnWidths", JsonValue (std::move (widthValues)));
     root.emplace_back ("listColumnOrder",  JsonValue (std::move (orderValues)));
     root.emplace_back ("listHiddenColumns", MakeIntArray (hiddenColumns));
+    root.emplace_back ("listShownColumns", MakeIntArray (shownColumns));
+    root.emplace_back ("listAddedColumnWidths", MakeIntArray (addedColumnWidthsDip));
     root.emplace_back ("listPropertyColumns", JsonValue (std::move (propertyValues)));
     root.emplace_back ("folderViews",      JsonValue (std::move (viewValues)));
     root.emplace_back ("links",            JsonValue (std::move (linkValues)));
@@ -919,6 +927,9 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
         hiddenColumns = ReadIntArray (root, "listHiddenColumns");
     }
 
+    shownColumns         = ReadIntArray (root, "listShownColumns");
+    addedColumnWidthsDip = ReadIntArray (root, "listAddedColumnWidths");
+
     if (root.HasArray ("listPropertyColumns", typedArray))
     {
         propertyColumns.clear();
@@ -974,6 +985,9 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
                 entry.columnOrder   = ReadIntArray (value, "columnOrder");
                 entry.columnsChosen = value.HasArray ("hiddenColumns", widths);
                 entry.hiddenColumns = ReadIntArray (value, "hiddenColumns");
+                entry.shownColumns  = ReadIntArray (value, "shownColumns");
+
+                entry.addedColumnWidthsDip = ReadIntArray (value, "addedColumnWidths");
 
                 entries.push_back (entry);
             }

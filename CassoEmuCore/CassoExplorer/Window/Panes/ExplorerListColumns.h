@@ -37,9 +37,17 @@ public:
     void         ChooseAll                  (size_t count) { m_chosen.assign (count, true); }
     void         SetChosen                  (size_t column, bool chosen);
     void         ApplyStoredColumnWidths    ();
-    void         ApplyColumnWidths          (const std::vector<int> & widthsDip);
+    void         ApplyColumnWidths          (const std::vector<int> & widthsDip, const std::vector<int> & addedWidthsDip);
     void         RememberFolderColumnWidths (int column, int widthDip);
     void         RememberFolderColumns      ();
+
+    //  The chosen columns as the preferences store them: the ids of those
+    //  hidden, and of those hidden until chosen that are visible.
+    void         GetChoiceIds               (std::vector<int> & outHidden, std::vector<int> & outShown) const;
+    void         ApplyChoiceIds             (const std::vector<int> & hidden, const std::vector<int> & shown);
+
+    static std::vector<int>  ToColumnIds    (const std::vector<size_t> & columns);
+    static void              SetColumnWidth (std::vector<int> & widthsDip, std::vector<int> & addedWidthsDip, size_t column, int widthDip);
 
     //  The list's columns: the fixed ones, then the shell properties added
     //  from Choose Details. LoadPropertyColumns sets them on the list.
@@ -73,7 +81,7 @@ private:
     ExplorerListPane                   & m_pane;
     ExplorerContext                    & m_context;
     std::vector<bool>                    m_chosen;   // the columns the user chose
-    std::vector<int>                     m_folderOrder;   // the column order the folder on display uses
+    std::vector<int>                     m_folderOrder;   // the column order the folder on display uses, as column ids
     DxuiListView::View                   m_view        = DxuiListView::View::Details;
     int                                  m_iconDip     = 0;   // the view's icon size; 0 is its default
     std::wstring                         m_viewKey;   // the folder the view was chosen for: a new folder opens in its view

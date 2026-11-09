@@ -236,6 +236,19 @@ CatalogRow CatalogModel::FromFileEntry (const FileEntry & entry, VolumeKind kind
 
     row.modifiedIsWallClock = true;
 
+    if (entry.hasAccess && !entry.isDirectory)
+    {
+        row.hasForks          = true;
+        row.dataForkBytes     = row.sizeBytes;
+        row.resourceForkBytes = entry.resourceForkBytes;
+        row.hasResourceFork   = entry.hasResourceFork;
+    }
+
+    if (entry.hasAccess)
+    {
+        row.accessText = FormatAccess (entry.access);
+    }
+
     //  A directory's auxiliary field holds nothing a reader would call an
     //  address.
     if (entry.isDirectory)
@@ -499,6 +512,23 @@ bool CatalogModel::IsBefore (const CatalogRow & a, const CatalogRow & b, Column 
             if (a.deletedUnix != b.deletedUnix) { return a.deletedUnix < b.deletedUnix; }
             break;
 
+        case Column::DataFork:
+            if (a.dataForkBytes != b.dataForkBytes) { return a.dataForkBytes < b.dataForkBytes; }
+            break;
+
+        case Column::ResourceFork:
+            if (a.hasResourceFork != b.hasResourceFork) { return !a.hasResourceFork; }
+            if (a.resourceForkBytes != b.resourceForkBytes) { return a.resourceForkBytes < b.resourceForkBytes; }
+            break;
+
+        case Column::TotalSize:
+            if (a.dataForkBytes + a.resourceForkBytes != b.dataForkBytes + b.resourceForkBytes) { return a.dataForkBytes + a.resourceForkBytes < b.dataForkBytes + b.resourceForkBytes; }
+            break;
+
+        case Column::Access:
+            if (a.accessText != b.accessText) { return a.accessText < b.accessText; }
+            break;
+
         case Column::Folder:
         {
             std::wstring  folderA = GetFolderColumnText (a.folderPath);
@@ -736,4 +766,132 @@ std::wstring CatalogModel::GetDiskImageTypeName (const std::wstring & name)
     }
 
     return std::wstring();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::GetColumnId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CatalogModel::GetColumnId (size_t column)
+{
+    if (column < kOriginalColumnCount)
+    {
+        return (int) column;
+    }
+
+    if (column < kColumnCount)
+    {
+        return kFirstAddedColumnId + (int) (column - kOriginalColumnCount);
+    }
+
+    return (int) (kOriginalColumnCount + (column - kColumnCount));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::TryGetColumn
+//
+//  False for a negative id, and for an id in the added range with no column,
+//  as a later build's may be.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CatalogModel::TryGetColumn (int id, size_t & outColumn)
+{
+    constexpr size_t  kAddedCount = kColumnCount - kOriginalColumnCount;
+
+
+
+    outColumn = 0;
+
+    if (id < 0)
+    {
+        return false;
+    }
+
+    if (id >= kFirstAddedColumnId)
+    {
+        outColumn = kOriginalColumnCount + (size_t) (id - kFirstAddedColumnId);
+        return (size_t) (id - kFirstAddedColumnId) < kAddedCount;
+    }
+
+    outColumn = ((size_t) id < kOriginalColumnCount) ? (size_t) id : kColumnCount + ((size_t) id - kOriginalColumnCount);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::IsHiddenUntilChosen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CatalogModel::IsHiddenUntilChosen (size_t column)
+{
+    return column >= kOriginalColumnCount && column < kColumnCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::GetDefaultOrder
+//
+//  The fork lengths and the total follow Size, and the access flags follow
+//  them, ahead of the catalog's Address and Locked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<CatalogModel::Column> & CatalogModel::GetDefaultOrder()
+{
+    static const std::vector<Column>  s_order = { Column::Name, Column::Modified, Column::Type, Column::Size,
+                                                  Column::DataFork, Column::ResourceFork, Column::TotalSize, Column::Access,
+                                                  Column::Address, Column::Locked, Column::OriginalLocation, Column::DateDeleted, Column::Folder };
+
+
+
+    return s_order;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::FormatAccess
+//
+//  ProDOS's six access flags, destroy, rename, backup, invisible, write and
+//  read, as their letters, each a dash when clear.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CatalogModel::FormatAccess (Byte access)
+{
+    static constexpr std::pair<Byte, wchar_t>  kFlags[] = { { 0x80, L'D' }, { 0x40, L'N' }, { 0x20, L'B' }, { 0x04, L'I' }, { 0x02, L'W' }, { 0x01, L'R' } };
+
+    std::wstring  text;
+
+
+
+    for (const auto & [mask, letter] : kFlags)
+    {
+        text += (access & mask) ? letter : L'-';
+    }
+
+    return text;
 }

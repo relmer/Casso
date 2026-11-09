@@ -28,6 +28,15 @@ struct CatalogRow
     std::wstring  typeText;
     std::wstring  addressText;
     uint64_t      sizeBytes    = 0;
+
+    //  A file on a ProDOS volume: each fork's length, both together, and the
+    //  access flags as DNBIWR, a dash for each one clear. hasForks is false
+    //  for a file on a volume with no forks or access flags.
+    uint64_t      dataForkBytes     = 0;
+    uint64_t      resourceForkBytes = 0;
+    bool          hasResourceFork   = false;
+    bool          hasForks          = false;
+    std::wstring  accessText;
     int64_t       modifiedUnix = 0;
     bool          hasModified  = false;
 
@@ -154,7 +163,7 @@ public:
     //  In File Explorer's order: Name, Date modified, Type, Size, then the
     //  two only a disk catalog has.
     //  The last two are the Recycle Bin's, shown only there.
-    enum class Column { Name, Modified, Type, Size, Address, Locked, OriginalLocation, DateDeleted, Folder };
+    enum class Column { Name, Modified, Type, Size, Address, Locked, OriginalLocation, DateDeleted, Folder, DataFork, ResourceFork, TotalSize, Access };
 
     static CatalogRow  FromFileEntry (const FileEntry & entry, VolumeKind kind, size_t sourceIndex);
     static CatalogRow  FromHostEntry (const FileSystemEntry & entry, bool isDiskImage, size_t sourceIndex);
@@ -173,7 +182,28 @@ public:
     static void  Sort (std::vector<CatalogRow> & rows, Column column, bool descending);
 
     //  The count of fixed columns; a column after them is a shell property's.
-    static constexpr size_t  kColumnCount = (size_t) Column::Folder + 1;
+    static constexpr size_t  kColumnCount = (size_t) Column::Access + 1;
+
+    //  A column's id, which the preferences and the session store. Through
+    //  Folder, a column's id is its position, and a shell property's is its
+    //  position less the added columns, the ids both had before the columns
+    //  from DataFork on existed. Those have ids from kFirstAddedColumnId,
+    //  above every property's id, so adding a column doesn't change an id,
+    //  and an id doesn't indicate a position.
+    static constexpr size_t  kOriginalColumnCount = (size_t) Column::Folder + 1;
+    static constexpr int     kFirstAddedColumnId  = 10000;
+
+    static int   GetColumnId  (size_t column);
+    static bool  TryGetColumn (int id, size_t & outColumn);
+
+    //  The columns the header's menu offers that are hidden until chosen.
+    static bool  IsHiddenUntilChosen (size_t column);
+
+    //  The columns in their order when none was dragged: each added column
+    //  beside the ones it is like.
+    static const std::vector<Column> &  GetDefaultOrder ();
+
+    static std::wstring  FormatAccess (Byte access);
 
     //  A search's results by the index's relevance, which is no column.
     static constexpr Column  kRelevance   = (Column) 1000;

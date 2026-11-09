@@ -136,13 +136,22 @@ struct CassoExplorerPrefs
     //  columnWidths key held another column order and is not read.
     std::vector<int>           columnWidthsDip;
 
+    //  The widths of the columns from CatalogModel::kFirstAddedColumnId on,
+    //  from that id. Stored as listAddedColumnWidths, apart from
+    //  listColumnWidths, whose positions are column ids an older build reads.
+    std::vector<int>           addedColumnWidthsDip;
+
     //  The order the list's columns were dragged into, left to right, as
-    //  column indexes; empty for their own order.
+    //  column ids; empty for the default order.
     std::vector<int>           columnOrder;
 
     //  The columns last hidden from the header's menu, which a folder with no
     //  choice of its own follows. Stored as listHiddenColumns.
     std::vector<int>           hiddenColumns;
+
+    //  The columns hidden until they are chosen, which the user chose. Stored
+    //  as listShownColumns.
+    std::vector<int>           shownColumns;
 
     //  The shell properties added as columns from Choose Details, each by its
     //  canonical name, as System.Author. Each is a column after the fixed

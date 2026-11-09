@@ -184,6 +184,13 @@ bool ExplorerListColumns::IsListColumnShown (size_t column, bool chosen, Locatio
         return true;
     }
 
+    //  The fork lengths, the total and the access flags, inside a disk image
+    //  or on a linked drive, once chosen.
+    if (CatalogModel::IsHiddenUntilChosen (column))
+    {
+        return chosen && insideImage;
+    }
+
     //  A shell property, for the items of a folder on the PC.
     if (column >= CatalogModel::kColumnCount)
     {
@@ -244,6 +251,10 @@ void ExplorerListColumns::ApplyColumnOrder()
 
 
 
+    const std::vector<Column> &  defaults = CatalogModel::GetDefaultOrder();
+
+
+
     if (m_context.browser.GetLocation().kind == Location::Kind::RecycleBin)
     {
         for (Column column : { Column::Name, Column::OriginalLocation, Column::DateDeleted, Column::Size, Column::Type, Column::Modified, Column::Address, Column::Locked, Column::Folder })
@@ -253,13 +264,41 @@ void ExplorerListColumns::ApplyColumnOrder()
     }
     else
     {
-        for (int column : m_folderOrder)
+        for (int id : m_folderOrder)
         {
-            if (column >= 0 && (size_t) column < count && std::find (order.begin(), order.end(), (size_t) column) == order.end())
+            size_t  column = 0;
+
+            if (CatalogModel::TryGetColumn (id, column) && column < count && std::find (order.begin(), order.end(), column) == order.end())
             {
-                order.push_back ((size_t) column);
+                order.push_back (column);
             }
         }
+    }
+
+    //  A fixed column the order predates goes after the one before it in the
+    //  default order, so one added later lands beside the columns it's like.
+    for (size_t at = 0; at < defaults.size(); at++)
+    {
+        size_t  column = (size_t) defaults[at];
+        auto    after  = order.begin();
+
+        if (std::find (order.begin(), order.end(), column) != order.end())
+        {
+            continue;
+        }
+
+        for (size_t before = at; before > 0; before--)
+        {
+            auto  found = std::find (order.begin(), order.end(), (size_t) defaults[before - 1]);
+
+            if (found != order.end())
+            {
+                after = found + 1;
+                break;
+            }
+        }
+
+        order.insert (after, column);
     }
 
     for (size_t column = 0; column < count; column++)
@@ -355,7 +394,8 @@ void ExplorerListColumns::ApplyFolderView()
 {
     FolderViews::FolderType  type      = FolderViews::FolderType::Generic;
     std::wstring             key       = GetFolderViewKey (nullptr);
-    bool                     searching = SearchQuery::IsId (m_context.browser.GetLocation().path);
+    bool                     searching  = SearchQuery::IsId (m_context.browser.GetLocation().path);
+    size_t                   sortColumn = 0;
     FolderViewEntry          entry;
 
 
@@ -399,10 +439,13 @@ void ExplorerListColumns::ApplyFolderView()
     //  never given either opens by name and ungrouped.
     entry = m_context.prefs.folderViews.GetEntry (key, type);
 
-    if (entry.sortColumn > (int) CatalogModel::Column::Folder && !m_context.browser.IsPropertyColumn (entry.sortColumn)
-        && !(searching && entry.sortColumn == (int) CatalogModel::kRelevance))
+    if (searching && entry.sortColumn == (int) CatalogModel::kRelevance)
     {
-        entry.sortColumn = 0;
+        sortColumn = (size_t) CatalogModel::kRelevance;
+    }
+    else if (!CatalogModel::TryGetColumn (entry.sortColumn, sortColumn) || (sortColumn >= CatalogModel::kColumnCount && !m_context.browser.IsPropertyColumn ((int) sortColumn)))
+    {
+        sortColumn = 0;
     }
 
     //  The groupings File Explorer opens these with, until the user chooses
@@ -427,14 +470,14 @@ void ExplorerListColumns::ApplyFolderView()
         else if (searching)
         {
             //  Search results open by relevance, as File Explorer's do.
-            entry.sortColumn     = (int) CatalogModel::kRelevance;
+            sortColumn           = (size_t) CatalogModel::kRelevance;
             entry.sortDescending = true;
         }
         else if (IsDownloadsFolder() || (m_context.browser.GetLocation().kind == Location::Kind::HostFolder && m_context.browser.GetTreeModel().IsLinkFolder (m_context.browser.GetLocation().path)))
         {
             entry.groupBy         = (int) RowGrouping::Field::DateModified;
             entry.groupDescending = true;
-            entry.sortColumn      = (int) CatalogModel::Column::Modified;
+            sortColumn            = (size_t) CatalogModel::Column::Modified;
             entry.sortDescending  = true;
         }
     }
@@ -444,22 +487,154 @@ void ExplorerListColumns::ApplyFolderView()
         entry.groupBy = 0;
     }
 
-    m_context.browser.SetSortAndGroup ((CatalogModel::Column) entry.sortColumn, entry.sortDescending,
+    m_context.browser.SetSortAndGroup ((CatalogModel::Column) sortColumn, entry.sortDescending,
                                         (RowGrouping::Field) entry.groupBy, entry.groupDescending);
 
-    ApplyColumnWidths (entry.columnWidthsDip.empty() ? m_context.prefs.columnWidthsDip : entry.columnWidthsDip);
+    if (entry.columnWidthsDip.empty() && entry.addedColumnWidthsDip.empty())
+    {
+        ApplyColumnWidths (m_context.prefs.columnWidthsDip, m_context.prefs.addedColumnWidthsDip);
+    }
+    else
+    {
+        ApplyColumnWidths (entry.columnWidthsDip, entry.addedColumnWidthsDip);
+    }
 
     //  Its own column order and choice of columns, or the latest ones.
     m_folderOrder = entry.columnOrder.empty() ? m_context.prefs.columnOrder : entry.columnOrder;
-    m_chosen.assign (m_listColumns.size(), true);
 
-    for (int hidden : (entry.columnsChosen ? entry.hiddenColumns : m_context.prefs.hiddenColumns))
+    if (entry.columnsChosen)
     {
-        if (hidden > (int) CatalogModel::Column::Name && (size_t) hidden < m_chosen.size())
+        ApplyChoiceIds (entry.hiddenColumns, entry.shownColumns);
+    }
+    else
+    {
+        ApplyChoiceIds (m_context.prefs.hiddenColumns, m_context.prefs.shownColumns);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::GetChoiceIds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListColumns::GetChoiceIds (std::vector<int> & outHidden, std::vector<int> & outShown) const
+{
+    outHidden.clear();
+    outShown.clear();
+
+    for (size_t column = 0; column < m_chosen.size(); column++)
+    {
+        if (!m_chosen[column])
         {
-            m_chosen[(size_t) hidden] = false;
+            outHidden.push_back (CatalogModel::GetColumnId (column));
+        }
+        else if (CatalogModel::IsHiddenUntilChosen (column))
+        {
+            outShown.push_back (CatalogModel::GetColumnId (column));
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::ApplyChoiceIds
+//
+//  Every column is chosen except those in the first list, and those hidden
+//  until chosen whose ids aren't in the second. Name can't be hidden.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListColumns::ApplyChoiceIds (const std::vector<int> & hidden, const std::vector<int> & shown)
+{
+    size_t  column = 0;
+
+
+
+    m_chosen.assign (m_listColumns.size(), true);
+
+    for (size_t at = 0; at < m_chosen.size(); at++)
+    {
+        m_chosen[at] = !CatalogModel::IsHiddenUntilChosen (at);
+    }
+
+    for (int id : shown)
+    {
+        if (CatalogModel::TryGetColumn (id, column) && column < m_chosen.size())
+        {
+            m_chosen[column] = true;
+        }
+    }
+
+    for (int id : hidden)
+    {
+        if (CatalogModel::TryGetColumn (id, column) && column > (size_t) CatalogModel::Column::Name && column < m_chosen.size())
+        {
+            m_chosen[column] = false;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::ToColumnIds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> ExplorerListColumns::ToColumnIds (const std::vector<size_t> & columns)
+{
+    std::vector<int>  ids;
+
+
+
+    for (size_t column : columns)
+    {
+        ids.push_back (CatalogModel::GetColumnId (column));
+    }
+
+    return ids;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::SetColumnWidth
+//
+//  A width at its column's id, in the added widths from
+//  CatalogModel::kFirstAddedColumnId on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListColumns::SetColumnWidth (std::vector<int> & widthsDip, std::vector<int> & addedWidthsDip, size_t column, int widthDip)
+{
+    int                 id     = CatalogModel::GetColumnId (column);
+    bool                added  = id >= CatalogModel::kFirstAddedColumnId;
+    std::vector<int>  & widths = added ? addedWidthsDip : widthsDip;
+    size_t              at     = (size_t) (added ? id - CatalogModel::kFirstAddedColumnId : id);
+
+
+
+    if (at >= widths.size())
+    {
+        widths.resize (at + 1, 0);
+    }
+
+    widths[at] = widthDip;
 }
 
 
@@ -497,7 +672,18 @@ bool ExplorerListColumns::IsFolderViewSaved (const std::wstring & key) const
 
 bool ExplorerListColumns::HasFolderColumnWidths() const
 {
-    return !m_viewKey.empty() && !m_context.prefs.folderViews.GetEntry (m_viewKey, FolderViews::FolderType::Generic).columnWidthsDip.empty();
+    FolderViewEntry  entry;
+
+
+
+    if (m_viewKey.empty())
+    {
+        return false;
+    }
+
+    entry = m_context.prefs.folderViews.GetEntry (m_viewKey, FolderViews::FolderType::Generic);
+
+    return !entry.columnWidthsDip.empty() || !entry.addedColumnWidthsDip.empty();
 }
 
 
@@ -528,7 +714,7 @@ void ExplorerListColumns::RememberFolderSort()
 
     entry                 = m_context.prefs.folderViews.GetEntry (m_viewKey, FolderViews::FolderType::Generic);
     entry.view            = m_view;
-    entry.sortColumn      = (int) tab.sortColumn;
+    entry.sortColumn      = (tab.sortColumn == CatalogModel::kRelevance) ? (int) CatalogModel::kRelevance : CatalogModel::GetColumnId ((size_t) tab.sortColumn);
     entry.sortDescending  = tab.sortDescending;
     entry.groupBy         = (int) tab.groupBy;
     entry.groupDescending = tab.groupDescending;
@@ -591,7 +777,7 @@ bool ExplorerListColumns::ReadFolderOptions()
 
 void ExplorerListColumns::ApplyStoredColumnWidths()
 {
-    ApplyColumnWidths (m_context.prefs.columnWidthsDip);
+    ApplyColumnWidths (m_context.prefs.columnWidthsDip, m_context.prefs.addedColumnWidthsDip);
 }
 
 
@@ -607,7 +793,7 @@ void ExplorerListColumns::ApplyStoredColumnWidths()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerListColumns::ApplyColumnWidths (const std::vector<int> & widthsDip)
+void ExplorerListColumns::ApplyColumnWidths (const std::vector<int> & widthsDip, const std::vector<int> & addedWidthsDip)
 {
     size_t  c = 0;
 
@@ -615,7 +801,11 @@ void ExplorerListColumns::ApplyColumnWidths (const std::vector<int> & widthsDip)
 
     for (c = 0; c < m_pane.GetListView()->GetColumnCount(); c++)
     {
-        int  dip = (c < widthsDip.size()) ? widthsDip[c] : 0;
+        int                       id     = CatalogModel::GetColumnId (c);
+        bool                      added  = id >= CatalogModel::kFirstAddedColumnId;
+        const std::vector<int>  & widths = added ? addedWidthsDip : widthsDip;
+        size_t                    at     = (size_t) (added ? id - CatalogModel::kFirstAddedColumnId : id);
+        int                       dip    = (at < widths.size()) ? widths[at] : 0;
 
         //  At the DPI the list holds now, which it rescales from when its
         //  DPI changes; the window's may not have caught up yet.
@@ -650,15 +840,8 @@ void ExplorerListColumns::RememberFolderColumns()
     entry.view          = m_view;
     entry.columnOrder   = m_folderOrder;
     entry.columnsChosen = true;
-    entry.hiddenColumns.clear();
 
-    for (size_t column = 0; column < m_chosen.size(); column++)
-    {
-        if (!m_chosen[column])
-        {
-            entry.hiddenColumns.push_back ((int) column);
-        }
-    }
+    GetChoiceIds (entry.hiddenColumns, entry.shownColumns);
 
     m_context.prefs.folderViews.Remember (entry);
 }
@@ -690,17 +873,13 @@ void ExplorerListColumns::RememberFolderColumnWidths (int column, int widthDip)
     entry      = m_context.prefs.folderViews.GetEntry (m_viewKey, FolderViews::FolderType::Generic);
     entry.view = m_view;
 
-    if (entry.columnWidthsDip.empty())
+    if (entry.columnWidthsDip.empty() && entry.addedColumnWidthsDip.empty())
     {
-        entry.columnWidthsDip = m_context.prefs.columnWidthsDip;
+        entry.columnWidthsDip      = m_context.prefs.columnWidthsDip;
+        entry.addedColumnWidthsDip = m_context.prefs.addedColumnWidthsDip;
     }
 
-    if ((size_t) column >= entry.columnWidthsDip.size())
-    {
-        entry.columnWidthsDip.resize ((size_t) column + 1, 0);
-    }
-
-    entry.columnWidthsDip[(size_t) column] = widthDip;
+    SetColumnWidth (entry.columnWidthsDip, entry.addedColumnWidthsDip, (size_t) column, widthDip);
 
     m_context.prefs.folderViews.Remember (entry);
 }
@@ -820,12 +999,12 @@ RowGrouping::Field ExplorerListColumns::GetPropertyField (const std::wstring & c
     {
         if (entry.columnsChosen)
         {
-            entry.hiddenColumns.push_back ((int) column);
+            entry.hiddenColumns.push_back (CatalogModel::GetColumnId (column));
         }
     }
 
     m_context.prefs.folderViews.SetEntries (std::move (entries));
-    m_context.prefs.hiddenColumns.push_back ((int) column);
+    m_context.prefs.hiddenColumns.push_back (CatalogModel::GetColumnId (column));
 
     names.push_back (canonicalName);
     LoadPropertyColumns();
@@ -998,7 +1177,7 @@ void ExplorerListColumns::ChooseDetails()
         {
             for (size_t added = 0; entry.columnsChosen && entry.key != m_viewKey && added < result.added.size(); added++)
             {
-                entry.hiddenColumns.push_back ((int) (first + added));
+                entry.hiddenColumns.push_back (CatalogModel::GetColumnId (first + added));
             }
         }
 
@@ -1009,17 +1188,16 @@ void ExplorerListColumns::ChooseDetails()
 
     //  This folder's choice, and the default for folders without a saved one.
     m_chosen      = result.chosen;
-    m_folderOrder = result.order;
-    m_context.prefs.columnOrder = result.order;
-    m_context.prefs.hiddenColumns.clear();
+    m_folderOrder.clear();
 
-    for (size_t column = 0; column < m_chosen.size(); column++)
+    for (int column : result.order)
     {
-        if (!m_chosen[column])
-        {
-            m_context.prefs.hiddenColumns.push_back ((int) column);
-        }
+        m_folderOrder.push_back (CatalogModel::GetColumnId ((size_t) column));
     }
+
+    m_context.prefs.columnOrder = m_folderOrder;
+
+    GetChoiceIds (m_context.prefs.hiddenColumns, m_context.prefs.shownColumns);
 
     RememberFolderColumns();
 

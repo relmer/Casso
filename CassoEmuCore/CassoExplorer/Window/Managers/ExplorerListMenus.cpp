@@ -82,11 +82,12 @@ void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 
-    for (size_t c = 0; c < columns.size() && c < m_pane.GetColumns().GetChosen().size(); c++)
+    //  In the order on screen, as File Explorer lists them.
+    for (size_t c : m_pane.GetListView()->GetColumnOrder())
     {
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
 
-        if (!ExplorerListColumns::IsListColumnOffered (c, location.kind, searching))
+        if (c >= columns.size() || c >= m_pane.GetColumns().GetChosen().size() || !ExplorerListColumns::IsListColumnOffered (c, location.kind, searching))
         {
             continue;
         }
@@ -99,15 +100,7 @@ void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
             m_pane.GetColumns().GetChosen()[c] = !m_pane.GetColumns().GetChosen()[c];
 
             //  This folder's choice, and the one others without their own follow.
-            m_context.prefs.hiddenColumns.clear();
-
-            for (size_t each = 0; each < m_pane.GetColumns().GetChosen().size(); each++)
-            {
-                if (!m_pane.GetColumns().GetChosen()[each])
-                {
-                    m_context.prefs.hiddenColumns.push_back ((int) each);
-                }
-            }
+            m_pane.GetColumns().GetChoiceIds (m_context.prefs.hiddenColumns, m_context.prefs.shownColumns);
 
             m_pane.GetColumns().RememberFolderColumns();
             m_pane.FillList();

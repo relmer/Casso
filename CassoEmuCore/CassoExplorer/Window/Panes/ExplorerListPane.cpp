@@ -122,12 +122,7 @@ void ExplorerListPane::Configure()
             return;
         }
 
-        m_context.prefs.columnOrder.clear();
-
-        for (size_t column : order)
-        {
-            m_context.prefs.columnOrder.push_back ((int) column);
-        }
+        m_context.prefs.columnOrder = ExplorerListColumns::ToColumnIds (order);
 
         //  The folder keeps its own, and the latest is what others follow.
         m_columns.SetFolderOrder (m_context.prefs.columnOrder);
@@ -193,21 +188,20 @@ void ExplorerListPane::Configure()
     //  to fit it, is kept for the next run.
     m_list->SetOnColumnResized ([this] (int column, int widthPx)
     {
+        int  widthDip = 0;
+
         if (column < 0)
         {
             return;
         }
 
-        if ((size_t) column >= m_context.prefs.columnWidthsDip.size())
-        {
-            m_context.prefs.columnWidthsDip.resize ((size_t) column + 1, 0);
-        }
-
         //  Rounded up, so the width read back is never narrower than the one
         //  the text was fitted to. The latest is the default for folders with
         //  none of their own, and this folder keeps its own, as Explorer's do.
-        m_context.prefs.columnWidthsDip[(size_t) column] = (widthPx * (int) DxuiDpiScaler::kBaseDpi + (int) m_list->GetDpi() - 1) / (int) m_list->GetDpi();
-        m_columns.RememberFolderColumnWidths (column, m_context.prefs.columnWidthsDip[(size_t) column]);
+        widthDip = (widthPx * (int) DxuiDpiScaler::kBaseDpi + (int) m_list->GetDpi() - 1) / (int) m_list->GetDpi();
+
+        ExplorerListColumns::SetColumnWidth (m_context.prefs.columnWidthsDip, m_context.prefs.addedColumnWidthsDip, (size_t) column, widthDip);
+        m_columns.RememberFolderColumnWidths (column, widthDip);
     });
 
     m_list->SetOnActivateRow ([this] (int row)

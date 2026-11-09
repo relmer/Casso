@@ -215,6 +215,10 @@ std::vector<DxuiListView::Column> BrowserCells::GetColumns()
     columns.push_back (DxuiListView::Column { L"Original location", kOriginalColumnDip, false, DxuiTextHAlign::Left });
     columns.push_back (DxuiListView::Column { L"Date deleted",  kDeletedColumnDip,  false, DxuiTextHAlign::Left  });
     columns.push_back (DxuiListView::Column { L"Folder",        kOriginalColumnDip, false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Data fork",     kForkColumnDip,     false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"Resource fork", kForkColumnDip,     false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"Total size",    kForkColumnDip,     false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"Access",        kAccessColumnDip,   false, DxuiTextHAlign::Left  });
 
     return columns;
 }
@@ -354,6 +358,10 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
     cells.push_back (DxuiListView::Cell { row.originalFolder, false });
     cells.push_back (DxuiListView::Cell { row.hasDeleted ? FormatModified (row.deletedUnix, false) : std::wstring(), false });
     cells.push_back (DxuiListView::Cell { CatalogModel::GetFolderColumnText (row.folderShown.empty() ? row.folderPath : row.folderShown), false });
+    cells.push_back (DxuiListView::Cell { row.hasForks ? FormatSizeColumn (row.dataForkBytes) : std::wstring(), false });
+    cells.push_back (DxuiListView::Cell { row.hasResourceFork ? FormatSizeColumn (row.resourceForkBytes) : std::wstring(), false });
+    cells.push_back (DxuiListView::Cell { row.hasForks ? FormatSizeColumn (row.dataForkBytes + row.resourceForkBytes) : std::wstring(), false });
+    cells.push_back (DxuiListView::Cell { row.accessText, false });
 
     if (icons != nullptr && !cells.empty())
     {

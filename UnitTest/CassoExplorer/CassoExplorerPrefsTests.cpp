@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
+#include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Config/GlobalUserPrefs.h"
 
@@ -228,6 +229,39 @@ public:
 
     //  A folder's column order and choice of columns come back with it, an
     //  empty choice included; a folder that made none follows the latest.
+    //  The added columns' widths and the visible columns that are hidden
+    //  until chosen are stored under separate keys, which an older build
+    //  ignores.
+    TEST_METHOD (FolderViews_KeepAddedColumnWidthsAndShownColumns)
+    {
+        InMemoryFileSystem  fs;
+        CassoExplorerPrefs  saved;
+        CassoExplorerPrefs  loaded;
+        FolderViewEntry     entry;
+
+
+
+        entry                      = saved.folderViews.GetEntry (L"C:\\Disks", FolderViews::FolderType::Generic);
+        entry.columnsChosen        = true;
+        entry.shownColumns         = { CatalogModel::kFirstAddedColumnId + 3 };
+        entry.addedColumnWidthsDip = { 0, 90 };
+        saved.folderViews.Remember (entry);
+
+        saved.shownColumns         = { CatalogModel::kFirstAddedColumnId };
+        saved.addedColumnWidthsDip = { 70 };
+
+        AssertSucceeded (saved.Save (kBase, fs));
+        AssertSucceeded (loaded.Load (kBase, fs));
+
+        entry = loaded.folderViews.GetEntry (L"C:\\Disks", FolderViews::FolderType::Generic);
+        Assert::IsTrue (entry.shownColumns == std::vector<int> ({ CatalogModel::kFirstAddedColumnId + 3 }));
+        Assert::IsTrue (entry.addedColumnWidthsDip == std::vector<int> ({ 0, 90 }));
+        Assert::IsTrue (loaded.shownColumns == std::vector<int> ({ CatalogModel::kFirstAddedColumnId }));
+        Assert::IsTrue (loaded.addedColumnWidthsDip == std::vector<int> ({ 70 }));
+    }
+
+
+
     TEST_METHOD (FolderViews_KeepColumnOrderAndChoicePerFolder)
     {
         InMemoryFileSystem  fs;

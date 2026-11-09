@@ -21,20 +21,27 @@ struct FolderViewEntry
     std::wstring        key;
     DxuiListView::View  view            = DxuiListView::View::Details;
     int                 iconDip         = 0;          // the view's icon size, from Ctrl with the wheel; 0 is its default
-    int                 sortColumn      = 0;
+    int                 sortColumn      = 0;          // a column id, CatalogModel::GetColumnId's
     bool                sortDescending  = false;
     int                 groupBy         = 0;          // a RowGrouping::Field
     bool                groupDescending = false;
 
     //  The list's column widths in dips, set by the user in this folder;
     //  empty follows the default widths, and a zero a column that fits itself.
+    //  Each width is at its column's id; the columns from
+    //  CatalogModel::kFirstAddedColumnId on are in addedColumnWidthsDip, from
+    //  that id, so an older build reads the first array as it always has.
     std::vector<int>    columnWidthsDip;
+    std::vector<int>    addedColumnWidthsDip;
 
     //  The order the user dragged this folder's columns into, and the
     //  columns hidden from its header's menu, as Explorer keeps both for
-    //  each folder; empty, and not chosen, follow the latest choices.
+    //  each folder; empty, and not chosen, follow the latest choices. Each
+    //  is a column id. A column hidden until chosen is visible only when its
+    //  id is in shownColumns.
     std::vector<int>    columnOrder;
     std::vector<int>    hiddenColumns;
+    std::vector<int>    shownColumns;
     bool                columnsChosen   = false;
 };
 

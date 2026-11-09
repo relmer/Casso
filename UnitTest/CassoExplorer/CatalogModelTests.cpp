@@ -148,6 +148,82 @@ public:
 
 
 
+    //  The columns from Data fork on have ids above every shell property's
+    //  id, and every other column's id is its position before they existed.
+    TEST_METHOD (ColumnIds_LeaveTheOriginalIdsAndPropertiesAlone)
+    {
+        using Column = CatalogModel::Column;
+
+        size_t  column = 0;
+
+
+
+        Assert::AreEqual (3, CatalogModel::GetColumnId ((size_t) Column::Size));
+        Assert::AreEqual (8, CatalogModel::GetColumnId ((size_t) Column::Folder));
+        Assert::AreEqual (CatalogModel::kFirstAddedColumnId,     CatalogModel::GetColumnId ((size_t) Column::DataFork));
+        Assert::AreEqual (CatalogModel::kFirstAddedColumnId + 3, CatalogModel::GetColumnId ((size_t) Column::Access));
+        Assert::AreEqual (9,  CatalogModel::GetColumnId (CatalogModel::kColumnCount),     L"The first property's id is unchanged");
+        Assert::AreEqual (11, CatalogModel::GetColumnId (CatalogModel::kColumnCount + 2));
+
+        for (size_t at = 0; at < CatalogModel::kColumnCount + 5; at++)
+        {
+            Assert::IsTrue   (CatalogModel::TryGetColumn (CatalogModel::GetColumnId (at), column));
+            Assert::AreEqual (at, column);
+        }
+
+        Assert::IsFalse (CatalogModel::TryGetColumn (CatalogModel::kFirstAddedColumnId + 4, column), L"An id from a later build");
+        Assert::IsFalse (CatalogModel::TryGetColumn (-1, column));
+        Assert::IsTrue  (CatalogModel::IsHiddenUntilChosen ((size_t) Column::ResourceFork));
+        Assert::IsFalse (CatalogModel::IsHiddenUntilChosen ((size_t) Column::Size));
+    }
+
+
+
+    //  The default order puts the fork lengths, the total and the access
+    //  flags after Size, ahead of Address.
+    TEST_METHOD (DefaultOrder_PutsTheForkColumnsAfterSize)
+    {
+        using Column = CatalogModel::Column;
+
+        const std::vector<Column> &  order = CatalogModel::GetDefaultOrder();
+        auto                         size  = std::find (order.begin(), order.end(), Column::Size);
+
+
+
+        Assert::AreEqual (CatalogModel::kColumnCount, order.size());
+        Assert::IsTrue (*(size + 1) == Column::DataFork);
+        Assert::IsTrue (*(size + 4) == Column::Access);
+        Assert::IsTrue (*(size + 5) == Column::Address);
+    }
+
+
+
+    TEST_METHOD (ExtendedFile_FillsTheForkAndAccessColumns)
+    {
+        FileEntry   entry;
+        CatalogRow  row;
+
+
+
+        entry.name              = "TEACH.DOC";
+        entry.eofBytes          = 1200;
+        entry.hasEofBytes       = true;
+        entry.resourceForkBytes = 300;
+        entry.hasResourceFork   = true;
+        entry.access            = 0xC3;
+        entry.hasAccess         = true;
+
+        row = CatalogModel::FromFileEntry (entry, VolumeKind::ProDos, 0);
+
+        Assert::IsTrue   (row.hasForks);
+        Assert::AreEqual ((uint64_t) 1200, row.dataForkBytes);
+        Assert::AreEqual ((uint64_t) 300,  row.resourceForkBytes);
+        Assert::AreEqual (std::wstring (L"DN--WR"), row.accessText);
+        Assert::AreEqual (std::wstring (L"---I--"), CatalogModel::FormatAccess (0x04));
+    }
+
+
+
     //  The address of a CMD or SYS file is where it runs, whatever its
     //  auxiliary type is. It is blank for a file whose auxiliary type is not
     //  an address.
