@@ -254,7 +254,27 @@ Byte Dos33Volume::ReadByte (int track, int sector, size_t offset) const
         return 0;
     }
 
-    return m_sectors[at];
+    return AccessSector (track, sector)[at];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::AccessSector
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const vector<Byte> & Dos33Volume::AccessSector (int track, int sector) const
+{
+    if (m_readObserver != nullptr)
+    {
+        m_readObserver->OnSectorRead ((size_t) ToUnit (track, sector));
+    }
+
+    return m_sectors;
 }
 
 
@@ -619,7 +639,7 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
     {
         for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
         {
-            bool  isFree = IsFreeInBitmap (m_sectors, track, sector);
+            bool  isFree = IsFreeInBitmap (AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
 
             freeUnits += isFree ? 1u : 0u;
         }
@@ -677,9 +697,11 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
 
     CBREx (walked, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
 
-    outPayload          = FilePayload();
-    outPayload.type     = (Byte) (entries[owner].typeByte & ~kLockedBit);
-    outPayload.encoding = PayloadEncoding::Verbatim;
+    outPayload           = FilePayload();
+    outPayload.type      = (Byte) (entries[owner].typeByte & ~kLockedBit);
+    outPayload.encoding  = PayloadEncoding::Verbatim;
+    outPayload.access    = (entries[owner].typeByte & kLockedBit) != 0 ? FilePayload::kAccessLocked : FilePayload::kAccessUnlocked;
+    outPayload.hasAccess = true;
 
     for (uint32_t unit : units)
     {
@@ -812,7 +834,7 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
     {
         for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
         {
-            bool  isFree = IsFreeInBitmap (m_sectors, track, sector);
+            bool  isFree = IsFreeInBitmap (AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
 
             outReport.SetAllocatedInFreeMap (ToUnit (track, sector), !isFree);
         }
@@ -1155,7 +1177,7 @@ bool Dos33Volume::TryAllocateUnits (
         for (sector = NibblizationLayer::kSectorsPerTrack - 1; sector >= 0 && taken < count; sector--)
         {
             uint32_t  unit    = ToUnit (track, sector);
-            bool      isFree  = IsFreeInBitmap (m_sectors, track, sector);
+            bool      isFree  = IsFreeInBitmap (AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
             bool      claimed = report.IsClaimed (unit);
 
             if (isFree && !claimed)
@@ -1483,7 +1505,7 @@ HRESULT Dos33Volume::Write (
     bool                 ambiguous   = false;
     bool                 isLocked    = false;
     bool                 fullyParsed = true;
-    Byte                 typeByte    = (Byte) (payload.type & ~kLockedBit);
+    Byte                 typeByte    = (Byte) ((payload.type & ~kLockedBit) | (payload.IsLocked() ? kLockedBit : 0));
     uint16_t             owner       = 0;
     vector<Byte>         nameBytes;
     vector<Byte>         stored;
@@ -1946,6 +1968,89 @@ HRESULT Dos33Volume::Rename (
     // The same self-check every other mutating call runs over its own output.
     // A rename moves nothing, so a disagreement would mean the name landed
     // outside the entry it was meant for.
+    hr = HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::SetAttributes
+//
+//  The type byte has both the type and the lock bit. A binary's load address
+//  is the first two bytes of its first data sector, found through the first
+//  pair of its track/sector list. DOS 3.3 doesn't store dates.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dos33Volume::SetAttributes (
+    const FilePath        & path,
+    const FileAttributes  & attributes,
+    vector<Byte>          & outBuffer) const
+{
+    HRESULT                hr          = S_OK;
+    bool                   single      = path.IsSingleComponent();
+    bool                   dated       = attributes.hasCreated || attributes.hasModified;
+    bool                   whole       = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   listed      = false;
+    bool                   inImage     = false;
+    bool                   fullyParsed = true;
+    bool                   locked      = false;
+    uint16_t               owner       = 0;
+    Byte                   typeByte    = 0;
+    size_t                 pair        = 0;
+    size_t                 data        = 0;
+    vector<RawEntry>       entries;
+    vector<std::string>    damage;
+    vector<Byte>           result;
+    VolumeIntegrityReport  report;
+
+
+
+    CBREx (whole, E_INVALIDARG);
+    CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+    CBREx (!dated, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+    CBREx (!attributes.hasType || (attributes.type & kLockedBit) == 0, HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER));
+
+    CollectEntries (entries, damage, fullyParsed);
+
+    hr = FindEntry (entries, path, owner);
+    CHR (hr);
+
+    typeByte = attributes.hasType ? (Byte) ((entries[owner].typeByte & kLockedBit) | attributes.type) : entries[owner].typeByte;
+    locked   = attributes.hasAccess ? (attributes.access & FilePayload::kAccessWriteEnable) == 0 : (typeByte & kLockedBit) != 0;
+    typeByte = locked ? (Byte) (typeByte | kLockedBit) : (Byte) (typeByte & ~kLockedBit);
+
+    hr = BuildIntegrityReport (report);
+    CHRA (hr);
+
+    result = m_sectors;
+
+    WriteByteAt (result, entries[owner].catalogTrack, entries[owner].catalogSector, entries[owner].entryOffset + kEntOffType, typeByte);
+
+    //  Only a binary has a load address, and an empty one has no data sector for it.
+    if (attributes.hasAuxType)
+    {
+        CBREx ((typeByte & ~kLockedBit) == kTypeBinary, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+        pair   = Dos33Skeleton::GetSectorOffset (entries[owner].tsListTrack, entries[owner].tsListSector) + kTsOffFirstPair;
+        listed = pair + 1 < result.size() && result[pair] != 0;
+        CBREx (listed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        data    = Dos33Skeleton::GetSectorOffset (result[pair], result[pair + 1]);
+        inImage = data + 1 < result.size();
+        CBREx (inImage, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        result[data]     = (Byte) attributes.auxType;
+        result[data + 1] = (Byte) (attributes.auxType >> 8);
+    }
+
     hr = HandBackVerifiedResult (report, result, outBuffer);
     CHRA (hr);
 

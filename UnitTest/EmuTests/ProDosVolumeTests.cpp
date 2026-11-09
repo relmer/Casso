@@ -1094,7 +1094,7 @@ public:
 
 
     //  The directory stores upper case, which is what the guest can type, and
-    //  the GS/OS case word beside it carries what was typed, so the listing
+    //  the GS/OS case word beside it records what was typed, so the listing
     //  reads back the way the name was written.
     TEST_METHOD (Volume_Write_LowerCaseName_IsStoredUpperCaseAndListsAsTyped)
     {
@@ -1596,7 +1596,7 @@ public:
 
 
     //  GS/OS Technical Note #8: the name is stored upper case and the two bytes
-    //  ProDOS 8 called version and min_version carry its case, bit 15 marking
+    //  ProDOS 8 called version and min_version record its case, bit 15 marking
     //  the word as describing the name at all.
     TEST_METHOD (Volume_Write_MixedCaseName_StoresUpperCaseAndTheCaseWord)
     {
@@ -1637,7 +1637,7 @@ public:
     }
 
 
-    //  An entry written by ProDOS 8 carries zero there, which describes no
+    //  An entry written by ProDOS 8 has zero there, which describes no
     //  case at all, and its name reads back as the directory holds it.
     TEST_METHOD (Volume_Enumerate_AnEntryWithNoCaseWord_ReadsAsUpperCase)
     {
@@ -1968,7 +1968,8 @@ public:
 
 
     //  The volume directory is blocks 2 through 5, room for 51 entries. A
-    //  52nd fails with disk full instead of linking another block onto it.
+    //  52nd fails as one that can't be made, instead of linking another
+    //  block onto it.
     TEST_METHOD (Volume_AFullVolumeDirectoryIsNotGrown)
     {
         constexpr int  kVolumeRecords = 51;
@@ -1986,10 +1987,10 @@ public:
         {
             ProDosVolume  volume (vol);
 
-            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DISK_FULL), volume.Write (FilePath::Parse ("NEXT"), payload, result));
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE), volume.Write (FilePath::Parse ("NEXT"), payload, result));
             Assert::AreEqual (size_t (0), result.size(), L"nothing is written");
 
-            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DISK_FULL), volume.CreateDirectory (FilePath::Parse ("SUB"), result));
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE), volume.CreateDirectory (FilePath::Parse ("SUB"), result));
         }
     }
 
@@ -2264,7 +2265,7 @@ public:
             }
         }
 
-        Assert::IsFalse (directory.empty(), L"this disk must carry a subdirectory");
+        Assert::IsFalse (directory.empty(), L"this disk must have a subdirectory");
 
         AssertSucceeded  (volume.EnumerateDirectory (FilePath::Parse (directory), inside));
         Assert::IsFalse  (inside.entries.empty(), L"The subdirectory lists what it holds");
@@ -2749,5 +2750,39 @@ public:
 
         Assert::AreEqual (before.entries.size() + 1, listed.entries.size(),
             L"with every entry the disk shipped with still on it");
+    }
+
+
+    //  The volume directory is its four blocks, 51 entries, as ProDOS 8 has
+    //  it; a subdirectory takes another block when full.
+    TEST_METHOD (Volume_AFullVolumeDirectory_TakesNoMore_AndASubdirectoryGrows)
+    {
+        vector<Byte>   disk    = MakeVolume();
+        vector<Byte>   next;
+        FilePayload    payload = MakeBinaryPayload (10, 0x6000);
+        VolumeListing  listed;
+        int            i       = 0;
+
+        for (i = 0; i < 51; i++)
+        {
+            AssertSucceeded (ProDosVolume (disk).Write (FilePath::Parse (std::format ("F{}", i)), payload, next));
+            disk = next;
+        }
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE), ProDosVolume (disk).Write (FilePath::Parse ("ONEMORE"), payload, next));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE), ProDosVolume (disk).CreateDirectory (FilePath::Parse ("DIR"), next));
+
+        disk = MakeVolume();
+        AssertSucceeded (ProDosVolume (disk).CreateDirectory (FilePath::Parse ("SUB"), next));
+        disk = next;
+
+        for (i = 0; i < 20; i++)
+        {
+            AssertSucceeded (ProDosVolume (disk).Write (FilePath::Parse (std::format ("SUB/F{}", i)), payload, next));
+            disk = next;
+        }
+
+        AssertSucceeded (ProDosVolume (disk).EnumerateDirectory (FilePath::Parse ("SUB"), listed));
+        Assert::AreEqual ((size_t) 20, listed.entries.size(), L"past the subdirectory's first block");
     }
 };

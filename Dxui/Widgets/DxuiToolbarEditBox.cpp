@@ -24,7 +24,7 @@ DxuiToolbarEditBox::DxuiToolbarEditBox()
 {
     m_input.SetChromeless        (true);
     m_input.SetPlaceholderItalic (true);
-    m_input.SetFont              (DxuiTheme::kBodyFace, kFontDip);
+    m_input.SetFont              (DxuiTheme::GetUiFace(), kFontDip);
 }
 
 
@@ -147,6 +147,24 @@ int DxuiToolbarEditBox::GetWidthPx (bool labeled, const DxuiDpiScaler & scaler, 
     (void) text;
 
     return scaler.ToPx (m_widthDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbarEditBox::GetMinWidthPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiToolbarEditBox::GetMinWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const
+{
+    (void) labeled;
+    (void) text;
+
+    return scaler.ToPx ((std::min) (m_minWidthDip, m_widthDip));
 }
 
 

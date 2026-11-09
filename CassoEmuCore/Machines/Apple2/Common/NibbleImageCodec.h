@@ -33,6 +33,9 @@ public:
     //  Track size a file's total length implies; ERROR_BAD_LENGTH for any other.
     static HRESULT  ResolveGeometry (size_t imageByteSize, size_t & outTrackSize);
 
+    //  The track size a new image gets from its name.
+    static size_t  GetTrackSizeForPath (const std::string & path);
+
     //  Whether the bytes yield a nibble anywhere. Deliberately weak: the
     //  format carries nothing else to check against.
     static bool     HasAnyNibble    (const vector<Byte> & raw);

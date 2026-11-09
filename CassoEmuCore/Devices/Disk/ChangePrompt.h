@@ -82,8 +82,9 @@ enum class SaveFailureCause
 enum class ChangeAuthor
 {
     //  The write stated what it was for, over the channel nothing else sends
-    //  on.
+    //  on: from the command line, or from Casso Explorer.
     CassoCli,
+    CassoExplorer,
 
     //  Anything else. The watcher saw the file change and that is all it saw.
     AnotherProgram,

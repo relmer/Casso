@@ -107,7 +107,7 @@ public:
         lastEnteredForward = forward;
     }
 
-    void  OnThemeChanged() override                              { themeChangedCount++; }
+    void  OnThemeChanged () override                              { themeChangedCount++; }
     void  Tick           (int64_t /*nowMs*/) override             { tickCount++; }
     bool  UsesLocalPoints() const override                       { return usesLocalPoints; }
 };

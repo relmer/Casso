@@ -2,6 +2,8 @@
 
 #include "Seams/Win32DiskFileIo.h"
 
+#pragma comment(lib, "cldapi.lib")
+
 
 
 
@@ -37,6 +39,9 @@ HRESULT Win32DiskFileIo::ReadAllBytes (const std::string & path, std::vector<Byt
                         nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     CWR (file != INVALID_HANDLE_VALUE);
 
+    hr = HydrateIfPlaceholder (file);
+    CHR (hr);
+
     ok = GetFileSizeEx (file, &size);
     CWR (ok);
 
@@ -62,6 +67,42 @@ Error:
         CloseHandle (file);
     }
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32DiskFileIo::HydrateIfPlaceholder
+//
+//  A read of a file that is not on this PC downloads it implicitly, but some
+//  failures of that download come back from ReadFile as bytes never filled
+//  in. An explicit download returns the provider's error instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32DiskFileIo::HydrateIfPlaceholder (HANDLE file)
+{
+    HRESULT                     hr      = S_OK;
+    FILE_ATTRIBUTE_TAG_INFO     info    = {};
+    BOOL                        ok      = GetFileInformationByHandleEx (file, FileAttributeTagInfo, &info, sizeof (info));
+    bool                        partial = ok && (info.FileAttributes & (FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS | FILE_ATTRIBUTE_OFFLINE)) != 0;
+    LARGE_INTEGER               start   = {};
+    LARGE_INTEGER               length  = {};
+
+
+
+    BAIL_OUT_IF (!partial, S_OK);
+
+    length.QuadPart = -1;
+
+    hr = CfHydratePlaceholder (file, start, length, CF_HYDRATE_FLAG_NONE, nullptr);
+    CHR (hr);
+
+Error:
     return hr;
 }
 
@@ -128,6 +169,66 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32DiskFileIo::WriteAt
+//
+//  OPEN_EXISTING, so a path that is not there is an error rather than a new
+//  file, and a write past the end fails rather than growing the file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32DiskFileIo::WriteAt (const std::string & path, uint64_t offset, std::span<const Byte> bytes)
+{
+    HRESULT        hr       = S_OK;
+    std::wstring   widePath = std::filesystem::path (path).wstring();
+    HANDLE         file     = INVALID_HANDLE_VALUE;
+    LARGE_INTEGER  size     = {};
+    LARGE_INTEGER  at       = {};
+    DWORD          written  = 0;
+    size_t         count    = bytes.size();
+    BOOL           ok       = FALSE;
+    bool           fits     = false;
+
+
+
+    CBRAEx (count <= MAXDWORD, E_INVALIDARG);
+
+    file = CreateFileW (widePath.c_str(), GENERIC_WRITE | GENERIC_READ, FILE_SHARE_READ,
+                        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    CWR (file != INVALID_HANDLE_VALUE);
+
+    ok = GetFileSizeEx (file, &size);
+    CWR (ok);
+
+    fits = offset + count <= (uint64_t) size.QuadPart;
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
+
+    at.QuadPart = (LONGLONG) offset;
+
+    ok = SetFilePointerEx (file, at, nullptr, FILE_BEGIN);
+    CWR (ok);
+
+    if (!bytes.empty())
+    {
+        ok = WriteFile (file, bytes.data(), (DWORD) count, &written, nullptr);
+        CWR (ok);
+        CBREx (written == (DWORD) count, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
+    }
+
+Error:
+    if (file != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle (file);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32DiskFileIo::Stat
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -175,6 +276,39 @@ bool Win32DiskFileIo::Exists (const std::string & path)
 
 
     return std::filesystem::exists (std::filesystem::path (path), ec);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32DiskFileIo::ListFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32DiskFileIo::ListFiles (const std::string & folder, std::vector<std::string> & outNames)
+{
+    HRESULT          hr = S_OK;
+    std::error_code  ec;
+
+
+
+    outNames.clear();
+
+    for (std::filesystem::directory_iterator it (std::filesystem::path (folder), ec), end; !ec && it != end; it.increment (ec))
+    {
+        if (it->is_regular_file (ec))
+        {
+            outNames.push_back (it->path().filename().string());
+        }
+    }
+
+    CBREx (!ec, HRESULT_FROM_WIN32 ((DWORD) ec.value()));
+
+Error:
+    return hr;
 }
 
 

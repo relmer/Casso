@@ -35,11 +35,12 @@ public:
     UpdateRuntime             (const UpdateRuntime &) = delete;
     UpdateRuntime & operator= (const UpdateRuntime &) = delete;
 
-    UpdateService & GetService() { return *m_service; }
-    bool            IsUsingLocalFeed() const { return m_localFeed != nullptr; }
+    UpdateService  & GetService             () { return *m_service; }
+    bool             IsUsingLocalFeed       () const { return m_localFeed != nullptr; }
+    bool             IsOtherInstanceRunning () { return m_host.IsOtherInstanceRunning(); }
 
-    static std::int64_t  GetUtcNow();
-    static ReleaseArch   GetRunningArch();
+    static std::int64_t  GetUtcNow      ();
+    static ReleaseArch   GetRunningArch ();
 
 private:
     static std::wstring  ReadVariable (LPCWSTR name);

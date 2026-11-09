@@ -219,8 +219,9 @@ namespace DebuggerControllerTests
         //  session's mode would change it for every other client.
         TEST_METHOD (ARequestModeDoesNotSwitchTheSession)
         {
-            Rig    rig (true);
-            Reply  reply;
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig> (true);   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            Reply                   reply;
 
 
 
@@ -244,8 +245,9 @@ namespace DebuggerControllerTests
         //  session's own budget comes back afterwards.
         TEST_METHOD (ARequestBudgetIsPutBackAfterTheLine)
         {
-            Rig    rig (true);
-            Reply  reply;
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig> (true);   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            Reply                   reply;
 
 
 
@@ -281,7 +283,8 @@ namespace DebuggerControllerTests
         //  A blank line ends an A block and is otherwise nothing.
         TEST_METHOD (ABlankLineEndsAnAssemblyBlockAndIsOtherwiseNothing)
         {
-            Rig    rig (true);
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig> (true);   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
             Reply  reply = rig.controller.RunLine ("", {}, {}, {}, false);
 
 
@@ -341,8 +344,9 @@ namespace DebuggerControllerTests
         //  with, as it does in batch mode.
         TEST_METHOD (FileCommandsUseTheFileSystemItWasGiven)
         {
-            Rig    rig (true);
-            Reply  reply;
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig> (true);   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            Reply                   reply;
 
 
 

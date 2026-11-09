@@ -27,48 +27,61 @@ namespace PrinterCardTests
     {
     public:
 
-        //  A path in CASSO_PRINTER_TEXT makes the card keep a text copy of what
-    //  the guest printed, which is how a program's printed output is read
-    //  back: the high bit goes, a carriage return ends the line, and the line
-    //  feed a driver adds after it is left out.
-    TEST_METHOD (TheTextCopyHoldsWhatTheGuestPrinted)
-    {
-        std::filesystem::path  path = std::filesystem::temp_directory_path() / "casso-printer-text-test.txt";
-        std::string            text;
-        std::ifstream          in;
-
-
-
-        std::filesystem::remove (path);
-        _putenv_s (PrinterCard::kTextPathVariable, path.string().c_str());
-
+        //  A slot 1 card with the printer attached to `ring`.
+        static std::unique_ptr<PrinterCard> MakeAttachedCard (PrinterByteRing & ring)
         {
-            auto  card = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
+            auto  card = std::make_unique<PrinterCard> (1);
 
-            for (Byte value : { (Byte) 0xC8, (Byte) 0xE9, (Byte) 0x8D, (Byte) 0x0A, (Byte) 0xA1 })
-            {
-                card->Write (PrinterCard::kSlotIoBase + 0x10, value);
-            }
+            card->SetByteRing (&ring);
+
+            return card;
         }
 
-        _putenv_s (PrinterCard::kTextPathVariable, "");
 
-        in.open (path, std::ios::binary);
-        std::getline (in, text);
-
-        Assert::AreEqual (std::string ("Hi"), text, L"the high bit is dropped");
-
-        std::getline (in, text);
-
-        Assert::AreEqual (std::string ("!"), text, L"the carriage return ended the line, and the line feed added none");
-
-        in.close();
-        std::filesystem::remove (path);
-    }
-
-    TEST_METHOD (Slot1ClaimsC090Window)
+        //  A path in CASSO_PRINTER_TEXT makes the card keep a text copy of what
+        //  the guest printed, which is how a program's printed output is read
+        //  back: the high bit goes, a carriage return ends the line, and the
+        //  line feed a driver adds after it is left out.
+        TEST_METHOD (TheTextCopyHoldsWhatTheGuestPrinted)
         {
-            auto   card = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
+            std::filesystem::path  path = std::filesystem::temp_directory_path() / "casso-printer-text-test.txt";
+            std::string            text;
+            std::ifstream          in;
+            auto                   ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+
+
+
+            std::filesystem::remove (path);
+            _putenv_s (PrinterCard::kTextPathVariable, path.string().c_str());
+
+            {
+                auto  card = MakeAttachedCard (*ring);
+
+                for (Byte value : { (Byte) 0xC8, (Byte) 0xE9, (Byte) 0x8D, (Byte) 0x0A, (Byte) 0xA1 })
+                {
+                    card->Write (PrinterCard::kSlotIoBase + 0x10, value);
+                }
+            }
+
+            _putenv_s (PrinterCard::kTextPathVariable, "");
+
+            in.open (path, std::ios::binary);
+            std::getline (in, text);
+
+            Assert::AreEqual (std::string ("Hi"), text, L"the high bit is dropped");
+
+            std::getline (in, text);
+
+            Assert::AreEqual (std::string ("!"), text, L"the carriage return ended the line, and the line feed added none");
+
+            in.close();
+            std::filesystem::remove (path);
+        }
+
+
+        TEST_METHOD (Slot1ClaimsC090Window)
+        {
+            auto   card = std::make_unique<PrinterCard> (1);
 
             Assert::AreEqual ((Word) 0xC090, card->GetStart());
             Assert::AreEqual ((Word) 0xC09F, card->GetEnd());
@@ -77,7 +90,7 @@ namespace PrinterCardTests
 
         TEST_METHOD (Slot2ClaimsC0A0Window)
         {
-            auto   card = std::make_unique<PrinterCard> (2);   // heap: embeds the 64KB ring (C6262)
+            auto   card = std::make_unique<PrinterCard> (2);
 
             Assert::AreEqual ((Word) 0xC0A0, card->GetStart());
             Assert::AreEqual ((Word) 0xC0AF, card->GetEnd());
@@ -86,7 +99,8 @@ namespace PrinterCardTests
 
         TEST_METHOD (DataWritesReachRingInOrder)
         {
-            auto  card     = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
+            auto  ring     = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            auto  card     = MakeAttachedCard (*ring);
             Word  dataAddr = (Word) (card->GetStart() + PrinterCard::kDataOffset);
             Byte  out      = 0;
 
@@ -94,20 +108,21 @@ namespace PrinterCardTests
             card->Write (dataAddr, 'B');
             card->Write (dataAddr, 'C');
 
-            Assert::AreEqual ((uint32_t) 3, card->GetByteRing().GetApproxSize());
+            Assert::AreEqual ((uint32_t) 3, ring->GetApproxSize());
 
-            Assert::IsTrue (card->GetByteRing().TryPop (out));
+            Assert::IsTrue (ring->TryPop (out));
             Assert::AreEqual ((Byte) 'A', out);
-            Assert::IsTrue (card->GetByteRing().TryPop (out));
+            Assert::IsTrue (ring->TryPop (out));
             Assert::AreEqual ((Byte) 'B', out);
-            Assert::IsTrue (card->GetByteRing().TryPop (out));
+            Assert::IsTrue (ring->TryPop (out));
             Assert::AreEqual ((Byte) 'C', out);
         }
 
 
         TEST_METHOD (NonDataOffsetWritesIgnored)
         {
-            auto  card = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
+            auto  ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            auto  card = MakeAttachedCard (*ring);
             Word  i    = 0;
 
             // Every offset above the data latch is inert.
@@ -116,13 +131,14 @@ namespace PrinterCardTests
                 card->Write ((Word) (card->GetStart() + i), 0x55);
             }
 
-            Assert::AreEqual ((uint32_t) 0, card->GetByteRing().GetApproxSize());
+            Assert::AreEqual ((uint32_t) 0, ring->GetApproxSize());
         }
 
 
         TEST_METHOD (AllOffsetsReadStatusReadyWhenIdle)
         {
-            auto  card = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
+            auto  ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            auto  card = MakeAttachedCard (*ring);
             Word  i    = 0;
 
             for (i = 0; i < PrinterCard::kSlotIoSize; i++)
@@ -141,7 +157,8 @@ namespace PrinterCardTests
             // low -- and our firmware plus the Apple II Parallel driver
             // poll bit 7 set. Both must hold at once or Print Shop shows
             // "PRINTER TEST FAILED" without writing a byte.
-            auto  card   = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
+            auto  ring   = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            auto  card   = MakeAttachedCard (*ring);
             Byte  status = card->Read ((Word) (card->GetStart() + PrinterCard::kStatusOffset));
 
             Assert::AreEqual ((Byte) 0x03, (Byte) (status & 0x07));
@@ -156,7 +173,8 @@ namespace PrinterCardTests
 
         TEST_METHOD (StatusGoesBusyAtHighWater)
         {
-            auto      card       = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
+            auto      ring       = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            auto      card       = MakeAttachedCard (*ring);
             Word      dataAddr   = (Word) (card->GetStart() + PrinterCard::kDataOffset);
             Word      statusAddr = (Word) (card->GetStart() + PrinterCard::kStatusOffset);
             uint32_t  toFill     = PrinterByteRing::kByteRingCapacity - PrinterCard::kReadyHighWater;
@@ -178,7 +196,8 @@ namespace PrinterCardTests
 
         TEST_METHOD (FirstTouchFlagArmsOnDataWriteAndResets)
         {
-            auto  card     = std::make_unique<PrinterCard> (1);   // heap: embeds the 64KB ring (C6262)
+            auto  ring     = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            auto  card     = MakeAttachedCard (*ring);
             Word  dataAddr = (Word) (card->GetStart() + PrinterCard::kDataOffset);
 
             Assert::IsFalse (card->HasBeenTouched());
@@ -188,6 +207,21 @@ namespace PrinterCardTests
 
             card->Reset();
             Assert::IsFalse (card->HasBeenTouched());
+        }
+
+
+        TEST_METHOD (AnEmptyConnector_ReadsBusyAndDropsWrites)
+        {
+            auto  card = std::make_unique<PrinterCard> (1);
+            Word  i    = 0;
+
+            for (i = 0; i < PrinterCard::kSlotIoSize; i++)
+            {
+                Assert::AreEqual (PrinterCard::kStatusBusy, card->Read ((Word) (card->GetStart() + i)), L"no printer: every guest waits");
+            }
+
+            card->Write ((Word) (card->GetStart() + PrinterCard::kDataOffset), 'A');
+            Assert::IsFalse (card->HasBeenTouched(), L"a byte with nowhere to go");
         }
 
 

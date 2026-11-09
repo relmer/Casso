@@ -12,7 +12,7 @@ class CodeEditCommands;
 class DebuggerPaneFrame;
 class DisassemblyGroup;
 class DisassemblyGutter;
-class DxuiActionBanner;
+class DxuiInfoBanner;
 class HistoryBand;
 class SourceDocumentGroup;
 class SourcePane;
@@ -44,44 +44,44 @@ public:
     DebuggerPaneFrame              * GetFrame       () const { return m_frame.get(); }
 
     //  The view's rows, each a code line or a source line above it.
-    const std::vector<DisassemblyOptions::Row> &  GetRows () const { return m_rows; }
-    void                             SetRows        (std::vector<DisassemblyOptions::Row> rows) { m_rows = std::move (rows); }
+    const std::vector<DisassemblyOptions::Row>  & GetRows () const { return m_rows; }
+    void                                          SetRows (std::vector<DisassemblyOptions::Row> rows) { m_rows = std::move (rows); }
 
     //  Where each row's parts are in its cells, as its source row was filled;
     //  the default for an instruction's row.
-    const std::vector<DisassemblyCells::SourceParts> &  GetSourceParts () const { return m_sourceParts; }
-    void                             SetSourceParts (std::vector<DisassemblyCells::SourceParts> parts) { m_sourceParts = std::move (parts); }
+    const std::vector<DisassemblyCells::SourceParts>  & GetSourceParts () const { return m_sourceParts; }
+    void                                                SetSourceParts (std::vector<DisassemblyCells::SourceParts> parts) { m_sourceParts = std::move (parts); }
 
     //  The banner over the lines while a loaded file's program isn't in
     //  memory: its text, or empty for none.
-    void                             SetStaleText   (const std::wstring & text);
-    DxuiActionBanner               * GetBanner      () const { return m_banner; }
-    bool                             IsBannerShown  () const { return m_isBannerShown; }
+    void              SetStaleText  (const std::wstring & text);
+    DxuiInfoBanner  * GetBanner     () const { return m_banner; }
+    bool              IsBannerShown () const { return m_isBannerShown; }
 
     //  What the banner reads for the files whose program isn't in memory,
     //  the debug file first when isDebugFileStale is set; empty for none.
     static std::wstring              GetStaleText   (const std::vector<std::string> & names, bool isDebugFileStale);
 
-    const std::wstring             & GetId          () const override;
-    std::wstring                     GetTitle       () const override;
-    std::wstring                     GetTabTitle    () const override;
-    int                              GetStopFocusRank () const override;
-    void                             CreateControls () override;
-    void                             Configure      () override;
-    bool                             TryGetOpened   (bool & isOpened) const override;
-    bool                             RequestOpen    () override;
-    bool                             RequestClose   () override;
-    bool                             IsFixed        () const override { return m_view == 0; }
-    void                             AddToDock      (DxuiDockSite & dock) override;
-    IDxuiControl                   * GetContent     () const override;
-    std::vector<IDxuiControl *>      GetControls    () const override;
-    std::vector<DxuiListView *>      GetLists       () const override { return { m_list }; }
-    std::vector<DxuiToolbar *>       GetBars        () const override { return { m_bar.GetBar() }; }
-    bool                             HasTextLists   () const override { return false; }
-    std::optional<PaneColorKeySpec>  GetColorKey    () const override;
-    void                             PlaceBar       () override { m_bar.Place(); }
-    bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override;
-    bool                             AddMenuItems   (DxuiListView * list, int row, PaneMenuItems & items) override;
+    const std::wstring               & GetId            () const override;
+    std::wstring                       GetTitle         () const override;
+    std::wstring                       GetTabTitle      () const override;
+    int                                GetStopFocusRank () const override;
+    void                               CreateControls   () override;
+    void                               Configure        () override;
+    bool                               TryGetOpened     (bool & isOpened) const override;
+    bool                               RequestOpen      () override;
+    bool                               RequestClose     () override;
+    bool                               IsFixed          () const override { return m_view == 0; }
+    void                               AddToDock        (DxuiDockSite & dock) override;
+    IDxuiControl                     * GetContent       () const override;
+    std::vector<IDxuiControl *>        GetControls      () const override;
+    std::vector<DxuiListView *>        GetLists         () const override { return { m_list }; }
+    std::vector<DxuiToolbar *>         GetBars          () const override { return { m_bar.GetBar() }; }
+    bool                               HasTextLists     () const override { return false; }
+    std::optional<PaneColorKeySpec>    GetColorKey      () const override;
+    void                               PlaceBar         () override { m_bar.Place(); }
+    bool                               RouteBarMouse    (const DxuiMouseEvent & ev) override;
+    bool                               AddMenuItems     (DxuiListView * list, int row, PaneMenuItems & items) override;
 
 private:
     DisassemblyGroup                            & m_group;
@@ -90,7 +90,7 @@ private:
     PaneBarSlot                                   m_bar;
     DxuiListView                                * m_list          = nullptr;
     HistoryBand                                 * m_historyBand   = nullptr;
-    DxuiActionBanner                            * m_banner        = nullptr;
+    DxuiInfoBanner                              * m_banner        = nullptr;
     bool                                          m_isBannerShown = false;
     std::unique_ptr<DebuggerPaneFrame>            m_frame;
     std::vector<DisassemblyOptions::Row>          m_rows;
@@ -134,9 +134,9 @@ public:
     DisassemblyGutter              & GetGutter      () const { return m_gutter; }
 
     //  ICodeViews.
-    const std::vector<DebuggerViewSnapshot::CodeLine> &  GetCodeLines (int view) const override;
-    DxuiListView *                                       GetCodeList  (int view) const override;
-    int                                                  GetCodeLineOfRow (int view, int row) const override;
+    const std::vector<DebuggerViewSnapshot::CodeLine>  & GetCodeLines       (int view) const override;
+    DxuiListView                                       * GetCodeList        (int view) const override;
+    int                                                  GetCodeLineOfRow   (int view, int row) const override;
     int                                                  GetGutterLineOfRow (int view, int row) const override;
 
     //  The view a list is, or -1; and how many views are open.
@@ -152,11 +152,11 @@ public:
     //  does; each check box's entries for a view's bar, a check box switched,
     //  every view drawn again with it and the choice saved; and whether an
     //  option can be switched now.
-    const DisassemblyOptions       & GetOptions     () const { return m_options; }
-    void                             SetOptions     (const DisassemblyOptions & options) { m_options = options; }
-    std::vector<DxuiToolbar::Entry>  BuildBarEntries ();
-    void                             ToggleOption   (DisassemblyOptions::Option option);
-    bool                             IsOptionEnabled (DisassemblyOptions::Option option) const;
+    const DisassemblyOptions         & GetOptions      () const { return m_options; }
+    void                               SetOptions      (const DisassemblyOptions & options) { m_options = options; }
+    std::vector<DxuiToolbar::Entry>    BuildBarEntries ();
+    void                               ToggleOption    (DisassemblyOptions::Option option);
+    bool                               IsOptionEnabled (DisassemblyOptions::Option option) const;
 
     //  Each view's open state and rows from the snapshot; one view's rows;
     //  and the first view's history band.
@@ -184,10 +184,10 @@ public:
     //  The PC's branch arrow in a view, a view past the code views being a
     //  source document's; drawn, clicked to go where it points and back, and
     //  its tip.
-    bool                             GetBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom = false) const;
-    void                             PaintBranchArrow (IDxuiPainter & painter, int view);
-    bool                             ClickBranchArrow (POINT pointPx);
-    bool                             TryGetBranchTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
+    bool  GetBranchArrow   (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom = false) const;
+    void  PaintBranchArrow (IDxuiPainter & painter, int view);
+    bool  ClickBranchArrow (POINT pointPx);
+    bool  TryGetBranchTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
 
     //  Whether a point is on a code view's glyph margin or the lanes its
     //  branch arrows run in, left of the code, in a view or a source
@@ -196,9 +196,9 @@ public:
 
     //  Over a name in a view -- a line's label, or the symbol an operand is
     //  written with -- its address and what it is.
-    bool                             TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
-    bool                             TryGetSourceSymbolTip (const DxuiListView & list, POINT clientPx, RECT & anchor, std::wstring & text) const;
-    bool                             TryGetSymbolAt   (POINT clientPx, std::string & name, Word & address) const;
+    bool  TryGetSymbolTip       (POINT clientPx, RECT & anchor, std::wstring & text) const;
+    bool  TryGetSourceSymbolTip (const DxuiListView & list, POINT clientPx, RECT & anchor, std::wstring & text) const;
+    bool  TryGetSymbolAt        (POINT clientPx, std::string & name, Word & address) const;
 
     //  The symbol a row's operand is written with, as "name = $value": an
     //  instruction's, or the first a source row's code has after its
@@ -218,22 +218,22 @@ public:
     static int                       FindPcSourceRow     (const std::vector<DebuggerViewSnapshot::CodeLine> & lines, const std::vector<DisassemblyOptions::Row> & built);
 
 private:
-    void                             UpdateChanges  (const DebuggerViewSnapshot & snapshot);
-    void                             FitLabels      (const DebuggerViewSnapshot & snapshot);
-    void                             SendShownLines (int view, const std::vector<DisassemblyOptions::Row> & built);
-    void                             SetAddressScroll (int view, const std::vector<DebuggerViewSnapshot::CodeLine> & lines, const std::vector<DisassemblyOptions::Row> & built);
-    void                             ClickSourceArrow (SourcePane & document);
-    DxuiListView                   * FindCodeListAt (POINT clientPx, int & view) const;
-    static void                      GetLineSymbol  (const DebuggerViewSnapshot::CodeLine & line, int column, std::string & name, Word & address);
-    static void                      AddOperandSymbol (DxuiListView::Cell & cell, const DebuggerViewSnapshot::CodeLine & line, uint32_t symbolArgb);
-    static int                       GetCodeEnd     (const DisassemblyCells::SourceParts & parts);
+    void            UpdateChanges    (const DebuggerViewSnapshot & snapshot);
+    void            FitLabels        (const DebuggerViewSnapshot & snapshot);
+    void            SendShownLines   (int view, const std::vector<DisassemblyOptions::Row> & built);
+    void            SetAddressScroll (int view, const std::vector<DebuggerViewSnapshot::CodeLine> & lines, const std::vector<DisassemblyOptions::Row> & built);
+    void            ClickSourceArrow (SourcePane & document);
+    DxuiListView  * FindCodeListAt   (POINT clientPx, int & view) const;
+    static void     GetLineSymbol    (const DebuggerViewSnapshot::CodeLine & line, int column, std::string & name, Word & address);
+    static void     AddOperandSymbol (DxuiListView::Cell & cell, const DebuggerViewSnapshot::CodeLine & line, uint32_t symbolArgb);
+    static int      GetCodeEnd       (const DisassemblyCells::SourceParts & parts);
     void                             MarkRow        (int view, int row, const DebuggerViewSnapshot::CodeLine & line, std::optional<Word> target, bool isMarked,
                                                      std::vector<DxuiListView::Cell> & cells, uint32_t & fill, std::wstring & rowTip);
     bool                             SelectScrolledEdge (int view, const std::vector<DisassemblyOptions::Row> & built);
     void                             SelectAsked        (int view, const DebuggerViewSnapshot & snapshot, const std::vector<DebuggerViewSnapshot::CodeLine> & lines,
                                                          const std::vector<DisassemblyOptions::Row> & built);
-    bool                             GetOneBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const;
-    bool                             TryGetSourceText (int fileId, int line, std::wstring & text);
+    bool  GetOneBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const;
+    bool  TryGetSourceText  (int fileId, int line, std::wstring & text);
 
     IDebuggerPaneHost                                   & m_host;
     DisassemblyGutter                                   & m_gutter;

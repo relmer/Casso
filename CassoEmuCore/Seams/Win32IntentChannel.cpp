@@ -122,7 +122,7 @@ std::vector<Byte> Win32IntentChannel::EncodeReply (const Reply & reply)
 //
 //  The same suspicion as Decode: the bytes came from another process. A kind
 //  this build does not know is refused, a description without its drive
-//  count is refused, and a count past what a Disk ][ card can carry is
+//  count is refused, and a count past what a Disk ][ card can have is
 //  refused rather than believed.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -306,7 +306,7 @@ bool Win32IntentChannel::Decode (const Byte * bytes, size_t byteCount, Payload &
         break;
 
     case ExternalChangeIntent::DescribeMachine:
-        //  The one intent that carries no path, and so the one exactly one
+        //  The one intent that has no path, and so the one exactly one
         //  byte long.
         if (byteCount != 1)
         {

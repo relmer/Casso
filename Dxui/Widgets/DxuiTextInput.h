@@ -51,8 +51,15 @@ public:
     ~DxuiTextInput() override = default;
 
     void  SetRect       (const RECT & rect)           { SetBounds (rect); }
-    void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); m_undoBase = { m_text, m_caret, m_anchor }; m_lastTyping = false; m_undo.clear(); m_redo.clear(); }
+    //  New text is a new start: what came before it cannot be undone into.
+    void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); m_undo.clear(); m_redo.clear(); m_lastEdit = EditKind::None; }
     void  SetMaxLength  (size_t maxLen)               { m_maxLen = maxLen; }
+
+    //  The clipboard's text is pasted through this. Line breaks and tabs
+    //  become spaces, unless SetPasteKeepsBreaks (true) was called; then they
+    //  are inserted as pasted, for the owner to report.
+    void  PasteText           (std::wstring ins);
+    void  SetPasteKeepsBreaks (bool keeps)            { m_pasteKeepsBreaks = keeps; }
 
     //  Selects every character, so a default value is replaced by the first
     //  keystroke.
@@ -65,13 +72,13 @@ public:
 
     //  Whether the window holding the field is the active one. The caret
     //  shows only while it is, so nothing blinks behind another window.
-    void  SetWindowActive (bool active)               { m_windowActive = active; ResetBlink(); }
+    void  SetWindowActive       (bool active)               { m_windowActive = active; ResetBlink(); }
     void  OnWindowActiveChanged (bool active) override { SetWindowActive (active); }
-    void  SetEnabled    (bool enabled)                { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_focused = false; m_hover = false; m_dragging = false; m_anchor = m_caret; } }
-    void  SetDpi        (UINT dpi)                    { m_scaler.SetDpi (dpi); }
-    void  SetTheme      (const IDxuiTheme * theme)    { m_theme = theme; }
-    void  SetOnChange   (ChangeFn fn)                 { m_change = std::move (fn); }
-    void  SetHwnd       (HWND hwnd)                   { m_hwnd = hwnd; }
+    void  SetEnabled            (bool enabled)                { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_focused = false; m_hover = false; m_dragging = false; m_anchor = m_caret; } }
+    void  SetDpi                (UINT dpi)                    { m_scaler.SetDpi (dpi); }
+    void  SetTheme              (const IDxuiTheme * theme)    { m_theme = theme; }
+    void  SetOnChange           (ChangeFn fn)                 { m_change = std::move (fn); }
+    void  SetHwnd               (HWND hwnd)                   { m_hwnd = hwnd; }
 
     //  Called when the focus moves off the field.
     void  SetOnFocusLost (std::function<void()> fn)   { m_focusLost = std::move (fn); }
@@ -86,6 +93,17 @@ public:
     // input inside it. The text, selection, caret, and placeholder still
     // paint normally.
     void  SetChromeless (bool chromeless)             { m_chromeless = chromeless; }
+
+    //  Draws the field as Explorer's address row draws its boxes.
+    void  SetExplorerChrome (bool on)                 { m_explorerChrome = on; }
+
+    //  A glyph drawn at the field's right end, in an icon face.
+    void  SetTrailingGlyph (const wchar_t * glyph, const wchar_t * face) { m_trailGlyph = glyph; m_trailFace = face; }
+
+    //  An X left of the trailing glyph while the field holds text, which
+    //  empties it, as Explorer's search box has. In the trailing glyph's face.
+    void  SetClearGlyph    (const wchar_t * glyph)       { m_clearGlyph = glyph; }
+    bool  IsClearHovered   () const                      { return m_clearHover; }
 
     //  The field lies over another control's text, as a rename in place lies
     //  over a list row, and must hide it.
@@ -102,12 +120,12 @@ public:
     //  From the field's left to where the typed text starts, past the prompt,
     //  as last painted, in pixels.
     int   GetTypedTextLeftPx () const { return m_scaler.ToPx (kPadLeftDip) + (int) std::lround (m_promptPx); }
-    void  SetGhostText   (const std::wstring & text)  { m_ghost = text; }
+    void  SetGhostText       (const std::wstring & text)  { m_ghost = text; }
 
     //  Whether the placeholder is drawn in italics and the disabled color, as
     //  File Explorer's search box draws its hint. On by default.
     void  SetPlaceholderItalic (bool italic)          { m_placeholderItalic = italic; }
-    void  SetFont       (const wchar_t * face, float sizeDip) { m_face = face; m_fontDip = sizeDip; }
+    void  SetFont              (const wchar_t * face, float sizeDip) { m_face = face; m_fontDip = sizeDip; }
 
     // Double-click seam. The clock supplies milliseconds for click timing
     // (GetTickCount64 when unset); the metrics override the system
@@ -138,11 +156,16 @@ public:
     void  SetMouseHover (int x, int y);
     bool  OnLButtonDown (int x, int y);
     bool  OnLButtonUp   (int x, int y);
-    void  OnMouseMove   (int x, int y);
-    bool  OnKey         (WPARAM vk);
-    bool  OnChar        (wchar_t ch);
+
+    //  The edit menu every text box has, as Windows' do: Undo, Cut, Copy,
+    //  Paste, Delete and Select all, each enabled when it would do something.
+    bool  ShowContextMenu (int x, int y);
+    void  OnMouseMove     (int x, int y);
+    bool  OnKey           (WPARAM vk);
+    bool  OnChar          (wchar_t ch);
 
     void  Paint         (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    bool  IsCaretOn     () const;
 
     //
     //  IDxuiControl overrides — additive shims for DxuiPanel trees.
@@ -159,10 +182,11 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TextInput; }
 
 private:
-    void   ClampCaret ();
-    size_t CaretFromX (IDxuiTextRenderer & text, int xPx) const;
-    float  MeasurePrompt (IDxuiTextRenderer & text, float fontPx) const;
-    size_t GetWordBoundary (size_t from, bool forward) const;
+    void             ClampCaret      ();
+    size_t           CaretFromX      (IDxuiTextRenderer & text, int xPx) const;
+    float            MeasurePrompt   (IDxuiTextRenderer & text, float fontPx) const;
+    size_t           GetWordBoundary (size_t from, bool forward) const;
+    bool             IsInFront       () const;
 
     enum class CharClass
     {
@@ -179,59 +203,88 @@ private:
     void   SelectWordAt        (size_t charIndex);
     void   ExtendWordSelection (size_t charIndex);
 
-    static bool      IsWordChar   (wchar_t c) { return iswalnum (c) != 0 || c == L'_'; }
-    static CharClass GetCharClass (wchar_t c);
-    void   DeleteSelection ();
-    void   InsertText      (const std::wstring & ins);
-    void   CopyToClipboard () const;
-    void   PasteFromClipboard ();
-    void   FireChange ();
-    void   Undo       ();
-    void   Redo       ();
-    bool   OnKeyWithModifiers (WPARAM vk, bool shift, bool ctrl, bool alt);
-    void   ResetBlink () const { m_blinkAnchorMs = 0; }
+    static bool       IsWordChar         (wchar_t c) { return iswalnum (c) != 0 || c == L'_'; }
+    static CharClass  GetCharClass       (wchar_t c);
+    void              DeleteSelection    ();
+    void              InsertText         (const std::wstring & ins);
+    void              CopyToClipboard    () const;
+    void              PasteFromClipboard ();
+    void              FireChange         ();
+    bool              OnKeyWithModifiers (WPARAM vk, bool shift, bool ctrl, bool alt);
+    void              ResetBlink         () const { m_blinkAnchorMs = 0; }
 
     static bool IsShiftKeyDown   () { return DxuiInputState::IsKeyDown (VK_SHIFT); }
     static bool IsControlKeyDown () { return DxuiInputState::IsKeyDown (VK_CONTROL); }
     static bool IsAltKeyDown     () { return DxuiInputState::IsKeyDown (VK_MENU); }
-    std::wstring         m_text;
-    std::wstring         m_placeholder;
-    std::wstring         m_prompt;
-    std::wstring         m_ghost;
-    mutable float        m_promptPx          = 0.0f;
-    size_t               m_maxLen            = 64;
-    size_t               m_caret             = 0;
-    size_t               m_anchor            = 0;
-    bool                 m_focused           = false;
-    bool                 m_enabled           = true;
-    bool                 m_hover             = false;
-    bool                 m_dragging          = false;
-    bool                 m_chromeless        = false;
-    bool                 m_overText          = false;
-    bool                 m_placeholderItalic = true;
-    const wchar_t      * m_face              = nullptr;   // null: the theme's body face
-    float                m_fontDip           = 13.0f;
-    const IDxuiTheme   * m_theme             = nullptr;
-    HWND                 m_hwnd              = nullptr;
-    IDxuiTextRenderer  * m_renderer          = nullptr;   // non-owning
-    ChangeFn             m_change;
-    std::function<void()>  m_focusLost;
-    DxuiDpiScaler        m_scaler;
+    std::wstring   m_text;
+    std::wstring   m_placeholder;
+    std::wstring   m_prompt;
+    std::wstring   m_ghost;
+    mutable float  m_promptPx         = 0.0f;
+    bool           m_pasteKeepsBreaks = false;
+    size_t         m_maxLen           = 64;
+    size_t         m_caret            = 0;
 
-    // The text and selection before each edit, for undo, and the ones undo
-    // took back, for redo. A run of typed characters is one step.
-    struct UndoState
+    //  Undo and redo, as an edit box has them: each step the text and the
+    //  selection before it. A run of typing is one step, and so is a run of
+    //  Backspace or Delete, as long as the caret has not moved away from where
+    //  the run left it; anything else is a step of its own.
+    enum class EditKind { None, Typing, Deleting, Other };
+
+    struct EditState
     {
         std::wstring  text;
-        size_t        caret  = 0;
         size_t        anchor = 0;
+        size_t        caret  = 0;
     };
 
-    std::vector<UndoState>  m_undo;
-    std::vector<UndoState>  m_redo;
-    UndoState               m_undoBase;
-    bool                    m_typing     = false;
-    bool                    m_lastTyping = false;
+    void  RecordEdit (EditKind kind);
+    void  Restore    (std::vector<EditState> & from, std::vector<EditState> & to);
+
+    static constexpr size_t  kMaxUndo = 100;
+
+    std::vector<EditState>    m_undo;
+    std::vector<EditState>    m_redo;
+    EditKind                  m_lastEdit          = EditKind::None;
+    size_t                    m_runCaret          = 0;
+    size_t                    m_anchor            = 0;
+    bool                      m_focused           = false;
+    bool                      m_enabled           = true;
+    bool                      m_hover             = false;
+    bool                      m_dragging          = false;
+    bool                      m_chromeless        = false;
+    bool                      m_explorerChrome    = false;
+    const wchar_t           * m_trailGlyph        = nullptr;
+    const wchar_t           * m_trailFace         = nullptr;
+    const wchar_t           * m_clearGlyph        = nullptr;
+    bool                      m_clearHover        = false;
+
+    //  Explorer's clear X, measured at 150%: its middle 36.67 dip left of
+    //  the magnifier's.
+    static constexpr float  s_kClearGlyphDip      = 10.0f;
+    static constexpr float  s_kClearCenterDip     = 55.0f;
+    static constexpr float  s_kClearHoverInsetDip = 4.0f;
+
+    bool   IsClearShown   () const { return m_clearGlyph != nullptr && m_trailFace != nullptr && !m_text.empty(); }
+    RECT   GetClearRect   () const;
+    bool   IsOverClear    (POINT pointDip) const { RECT clear = GetClearRect(); return IsClearShown() && PtInRect (&clear, pointDip) != FALSE; }
+    float  GetRightPadPx  () const;
+
+    //  Explorer's search magnifier, measured at 150%: 16 pixels of ink, its
+    //  middle 18.33 dip from the box's right edge.
+    static constexpr float    s_kTrailGlyphDip    = 11.0f;
+    static constexpr float    s_kTrailCenterDip   = 18.33f;
+    static constexpr float    s_kTrailBoxDip      = 20.0f;
+    bool                      m_overText          = false;
+    bool                      m_placeholderItalic = true;
+    const wchar_t           * m_face              = nullptr;   // null: the theme's body face
+    float                     m_fontDip           = 13.0f;
+    const IDxuiTheme        * m_theme             = nullptr;
+    HWND                      m_hwnd              = nullptr;
+    IDxuiTextRenderer       * m_renderer          = nullptr;   // non-owning
+    ChangeFn                  m_change;
+    std::function<void()>     m_focusLost;
+    DxuiDpiScaler             m_scaler;
 
     // Click counting and word-drag state. The word anchor is the span of the
     // double-clicked word, which a word drag always keeps selected.
@@ -252,6 +305,10 @@ private:
     // land on the character under the cursor regardless of scroll.
     // Mutable because Paint() is const but owns the auto-scroll math.
     mutable float         m_scrollPx   = 0.0f;
+
+    // The caret's distance in pixels from the field's left edge at the
+    // last paint, where the menu key opens the edit menu.
+    mutable float         m_caretLeftPx = 0.0f;
 
     // Caret-blink phase anchor (ms, GetTickCount64 base). Seeded on the
     // first paint after focus and reset to 0 on every edit / caret move

@@ -81,7 +81,7 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (0xFFE5E5E5u,               light.Border(),             L"the light outline");
+            Assert::AreEqual (0xFFD6D6D6u,               light.Border(),             L"the light outline");
             Assert::AreEqual (light.ContentBackground(), light.TextViewBackground(), L"text views on the content color");
             Assert::AreEqual (light.Accent(),            light.FocusAccent(),        L"the accent marks focus");
         }

@@ -329,7 +329,7 @@ public:
 
             header    = FindText (insetText, L"Name");
             cell      = FindText (insetText, L"ABCD");
-            selected  = FindFill (insetPainter, RecordedPaintKind::FillRoundedRect, theme.ContentSelection());
+            selected  = FindFill (insetPainter, RecordedPaintKind::FillRect, theme.ContentSelection());
             plainFill = FindFill (plainPainter, RecordedPaintKind::FillRect, kCellFill);
             insetFill = FindFill (insetPainter, RecordedPaintKind::FillRect, kCellFill);
 

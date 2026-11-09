@@ -3810,11 +3810,11 @@ namespace DebuggerViewStateTests
         {
             std::unique_ptr<MachineRig>  rig = std::make_unique<MachineRig>();
 
-            DxuiTextView          view;
-            DxuiActionBanner      banner;
-            int                   finds    = 0;
-            bool                  toggled  = false;
-            std::string           ran;
+            DxuiTextView    view;
+            DxuiInfoBanner  banner;
+            int             finds   = 0;
+            bool            toggled = false;
+            std::string     ran;
             SourcePane            pane (&view, &banner,
                                         [&] (const DebugSourceFile & record, const std::wstring &, const std::string &)
                                         {
@@ -3860,10 +3860,10 @@ namespace DebuggerViewStateTests
 
         TEST_METHOD (ADroppedFileThatMatchesNothingIsPlainText)
         {
-            MachineRig            rig;
-            DxuiTextView          view;
-            DxuiActionBanner      banner;
-            SourceLookup          dropped;
+            MachineRig      rig;
+            DxuiTextView    view;
+            DxuiInfoBanner  banner;
+            SourceLookup    dropped;
             SourcePane            pane (&view, &banner,
                                         [] (const DebugSourceFile &, const std::wstring &, const std::string &) { return SourceLookup(); },
                                         [] (const DebuggerActionBuilder &) {});

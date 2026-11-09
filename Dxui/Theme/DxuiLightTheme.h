@@ -13,7 +13,7 @@
 //  DxuiLightTheme
 //
 //  The Windows 11 light palette, for an application that follows the system
-//  rather than carrying a look of its own.
+//  rather than having a look of its own.
 //
 //  The surfaces and text come from the Fluent solid-fill and text-fill
 //  tokens, flattened to opaque colors over the base fill, since Dxui paints

@@ -62,19 +62,27 @@ public:
                           int                       activeIndex);
     void  SetOnMachineSelected (MachineSelectFn fn) { m_onMachineSelected = std::move (fn); }
 
+    // Reports a change a card turned off made on another tab, such as the
+    // ImageWriter II disconnected from it.
+    void  SetOnNotice          (std::function<void (const std::wstring &)> fn) { m_onNotice = std::move (fn); }
+
+    // The PC's COM ports, offered for a //c serial port to connect to.
+    void                               SetComPorts (std::vector<std::wstring> ports) { m_comPorts = std::move (ports); }
+    const std::vector<std::wstring>  & GetComPorts () const { return m_comPorts; }
+
     // Routes the machine + speed dropdown menus through the supplied host's
     // popup pool so the menu HWND escapes the page's clipping bounds.
     void  SetPopupHost (DxuiHwndSource * host);
 
     void  Rebuild    ();
 
-    DxuiComboBox       & GetMachineDropdown ()       { return m_machineDropdown; }
-    DxuiComboBox       & GetSpeedDropdown   ()       { return m_speed; }
-    const DxuiComboBox & GetSpeedDropdown   () const { return m_speed; }
-    DxuiTreeView       & GetTree ()       { return m_tree; }
-    const DxuiTreeView & GetTree () const { return m_tree; }
-    const std::vector<std::string> & GetMachines () const { return m_machines; }
-    int  GetActiveMachineIndex () const { return m_activeMachineIndex; }
+    DxuiComboBox                    & GetMachineDropdown    ()       { return m_machineDropdown; }
+    DxuiComboBox                    & GetSpeedDropdown      ()       { return m_speed; }
+    const DxuiComboBox              & GetSpeedDropdown      () const { return m_speed; }
+    DxuiTreeView                    & GetTree               ()       { return m_tree; }
+    const DxuiTreeView              & GetTree               () const { return m_tree; }
+    const std::vector<std::string>  & GetMachines           () const { return m_machines; }
+    int                               GetActiveMachineIndex () const { return m_activeMachineIndex; }
 
     // Friendly display name of the machine the dropdown currently shows
     // (e.g. "Apple ][") for the FR-131 restart notice. Empty if none.
@@ -96,10 +104,31 @@ public:
                                                   bool supportsMouse  = false,
                                                   bool mouseConnected = true);
 
+    // Pure helper: what a //c serial port can connect to -- nothing, the
+    // ImageWriter II, its own TCP port on this PC, or one of the PC's COM
+    // ports -- as labels and the
+    // device each writes, with the current device selected. A device that
+    // is none of those, typed into the machine's configuration, is listed
+    // as it is so a visit to the page does not change it. Exposed for unit
+    // tests.
+    static void  BuildSerialChoices (int port, const std::vector<std::wstring> & comPorts, const std::string & current,
+                                     std::vector<std::wstring> & outLabels, std::vector<std::string> & outDevices, int & outSelected);
+
+    // A serial device in words, "TCP port 6600 on this PC" for "tcp:6600";
+    // one that does not parse is shown as it is. The Serial card page uses
+    // it too, for a connector set outside its list.
+    static std::wstring  DescribeSerialDevice (const std::string & device);
+
+    // The TCP port a //c serial port offers on this PC: 6501 for port 1,
+    // 6502 for port 2.
+    static constexpr uint16_t  kSerialTcpBasePort = 6500;
+    static constexpr int       kSerialPortCount   = 2;
+
 private:
-    static RECT                    MakeRect (int l, int t, int w, int h);
-    static DxuiTreeCapabilityFlag  MapFlag  (CapabilityFlag flag);
-    static std::wstring            Widen    (const std::string & narrow);
+    static RECT                    MakeRect           (int l, int t, int w, int h);
+    static DxuiTreeCapabilityFlag  MapFlag            (CapabilityFlag flag);
+    static std::wstring            Widen              (const std::string & narrow);
+    void                           RebuildSerialPorts (SettingsPanelState & state);
 
     // The spec block is CPU / Clock / Memory-header (3 fixed rows) + N dynamic
     // memory-region rows (one per region). The machine identity is shown by the
@@ -113,6 +142,7 @@ private:
     std::vector<std::string>             m_machines;
     int                                  m_activeMachineIndex = -1;
     MachineSelectFn                      m_onMachineSelected;
+    std::function<void (const std::wstring &)>  m_onNotice;
 
     DxuiLabel                            m_machineLabel;
     DxuiLabel                            m_speedLabel;
@@ -129,4 +159,10 @@ private:
     RECT                                  m_baseRect        = {};
     DxuiDpiScaler                         m_scaler;
     DxuiTreeView                          m_tree;
+
+    std::array<DxuiLabel, kSerialPortCount>                  m_serialLabels;
+    std::array<DxuiComboBox, kSerialPortCount>               m_serialDropdowns;
+    std::array<std::vector<std::string>, kSerialPortCount>   m_serialDevices;
+    std::vector<std::wstring>                                m_comPorts;
+    bool                                                     m_showSerial = false;
 };

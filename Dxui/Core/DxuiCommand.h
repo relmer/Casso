@@ -61,6 +61,11 @@ struct DxuiLabelFit
 
 
 
+struct DxuiVectorIcon;
+struct DxuiIconImage;
+
+
+
 struct DxuiCommand
 {
     int                            id           = 0;
@@ -83,6 +88,36 @@ struct DxuiCommand
     //  for a row whose effect is shown before it is chosen. Unlike the four
     //  functors above it acts, and it runs only on that move, never on paint.
     std::function<void()>          preview;
+    //  Drawn beside the label in a menu, as Explorer's View menu draws each
+    //  view's icon. Absent for most rows, and then no column is kept for it.
+    const DxuiVectorIcon         * vectorIcon   = nullptr;
+
+    //  An icon font glyph drawn beside the label in a menu, as Explorer's
+    //  context menu draws its rows' icons, for a row with no vector icon.
+    //  Separate from `glyph`, which a toolbar draws, so a command a toolbar
+    //  shows does not gain an icon in every menu too.
+    const wchar_t                * menuGlyph    = nullptr;
+
+    //  An SVG icon drawn in that place instead, when the renderer can draw
+    //  one; the glyph stands in when it cannot. The text is the host's, and
+    //  must outlive the command.
+    const std::string            * menuSvg      = nullptr;
+
+    //  A full-color image drawn there in place of either, as Explorer draws
+    //  the icon of the program that opens an item beside its Open row.
+    std::shared_ptr<const DxuiIconImage>  menuImage;
+
+    //  One of a group where one is chosen, as Explorer's Sort menu's rows are:
+    //  checked, it is marked with a dot rather than a check.
+    bool                           radio        = false;
+
+    //  A check row that toggles without closing its menu, as a filter's
+    //  choices do in File Explorer.
+    bool                           keepsMenuOpen = false;
+
+    //  Drawn as a check box, empty or checked, rather than a check mark, as
+    //  File Explorer draws its filter choices.
+    bool                           checkBox      = false;
 
     //  Absent means the label is drawn at its full width.
     std::optional<DxuiLabelFit>    labelFit;

@@ -243,6 +243,14 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
             targets.tape.ControlTape (TapeCommand::FastForward);
             break;
 
+        case IDM_SERIAL_CONNECT:
+            DispatchSerialConnect (cmd.payload, targets.machine);
+            break;
+
+        case IDM_PRINTER_PARALLEL:
+            DispatchParallelPrinter (cmd.payload, targets.machine);
+            break;
+
         default:
             break;
     }
@@ -682,6 +690,37 @@ void CpuCommandDispatcher::SetHeatMapIgnore (const std::string & where, IDebugCo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DispatchSerialConnect
+//
+//  "port:device", the device as the machine's configuration has it, which
+//  may itself contain colons ("2:tcp:6502"), then optionally a tab and a
+//  host file's path. Only a port from 1 to 7 is passed on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchSerialConnect (const std::string & payload, ICpuMachineCommands & machine)
+{
+    HRESULT      hr     = S_OK;
+    bool         valid  = payload.size() >= 2 && payload[0] >= '1' && payload[0] <= '7' && payload[1] == ':';
+    size_t       tab    = payload.find ('\t');
+    std::string  device = valid ? payload.substr (2, (tab == std::string::npos) ? std::string::npos : tab - 2) : std::string();
+    std::string  path   = (valid && tab != std::string::npos) ? payload.substr (tab + 1) : std::string();
+
+
+
+    if (valid)
+    {
+        hr = machine.ConnectSerialPort (payload[0] - '0', device, path);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DispatchDebugView
 //
 //  "code <hex>", "code pc", "memory <hex>" for the first memory window, and
@@ -977,6 +1016,32 @@ void CpuCommandDispatcher::DispatchReverse (const std::string & payload, IDebugC
     if (TryParseReversePayload (payload, command, argument))
     {
         target.RunReverseCommand (command, argument);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchParallelPrinter
+//
+//  "slot:1" attaches the printer and "slot:0" takes it off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchParallelPrinter (const std::string & payload, ICpuMachineCommands & machine)
+{
+    HRESULT  hr    = S_OK;
+    bool     valid = payload.size() == 3 && payload[0] >= '1' && payload[0] <= '7' && payload[1] == ':' && (payload[2] == '0' || payload[2] == '1');
+
+
+
+    if (valid)
+    {
+        hr = machine.ConnectParallelPrinter (payload[0] - '0', payload[2] == '1');
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 

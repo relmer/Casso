@@ -2782,7 +2782,7 @@ void DiskImageStore::EmitBayChange (int slot, int drive, BayChange change)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::NoteExternalChange (const string & path, ExternalChangeIntent intent)
+void DiskImageStore::NoteExternalChange (const string & path, ExternalChangeIntent intent, bool fromCassoExplorer)
 {
     std::lock_guard<std::mutex>  held (m_pendingMutex);
     int64_t  now   = GetNowMs();
@@ -2799,7 +2799,7 @@ void DiskImageStore::NoteExternalChange (const string & path, ExternalChangeInte
 
             if (entry.mounted && MountedImageState::IsSamePath (entry.path, path))
             {
-                entry.sharedState.NoteChange (now, intent);
+                entry.sharedState.NoteChange (now, intent, fromCassoExplorer);
             }
         }
     }
@@ -2911,6 +2911,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     bool                               unchanged = false;
     bool                               preserved = false;
     ExternalChangeIntent               intent    = ExternalChangeIntent::Unstated;
+    bool                               explorer  = false;
     ChangeAuthor                       author    = ChangeAuthor::AnotherProgram;
     ChangeAction                       action    = ChangeAction::Ignore;
     ImageIdentity                      current;
@@ -2927,7 +2928,8 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
         settled = entry.mounted
                && entry.image != nullptr
                && entry.sharedState.IsSettled (GetNowMs());
-        intent  = entry.sharedState.GetPending().intent;
+        intent   = entry.sharedState.GetPending().intent;
+        explorer = entry.sharedState.GetPending().fromCassoExplorer;
     }
 
     if (!settled)
@@ -3135,6 +3137,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     //  every later write -- a read taken now would credit this reload to
     //  whoever wrote most recently rather than to whoever asked for it.
     author = (intent == ExternalChangeIntent::Unstated) ? ChangeAuthor::AnotherProgram
+           : explorer                                   ? ChangeAuthor::CassoExplorer
                                                         : ChangeAuthor::CassoCli;
 
     CarryOutChangeAction (slot, drive, action, bytes, author);

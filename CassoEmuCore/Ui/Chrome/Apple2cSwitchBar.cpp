@@ -50,6 +50,14 @@ void Apple2cSwitchBar::ShearFill (
 //  Stack ShearFill strips top-to-bottom with an interpolated color for a
 //  top-lit gradient along the slant.
 //
+//  The boundaries between strips are rounded to whole pixels. Each strip is
+//  anti-aliased separately, so when a boundary falls partway through a pixel
+//  row, the two strips each cover only part of that row, and together they
+//  cover less than all of it. The fill underneath was visible there as a thin
+//  dark line between every pair of strips. With each boundary on a pixel
+//  edge, every row is covered by exactly one strip. The outer top and bottom
+//  edges are not rounded.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Apple2cSwitchBar::ShearGrad (
@@ -64,13 +72,29 @@ void Apple2cSwitchBar::ShearGrad (
     uint32_t        bot,
     int             strips)
 {
+    float  yStart = yTop;
+    float  yBot   = yTop + h;
+
+
+
     for (int i = 0; i < strips; i++)
     {
-        float  t0 = (float) i       / (float) strips;
-        float  t1 = (float) (i + 1) / (float) strips;
+        float  t0   = (float) i       / (float) strips;
+        float  t1   = (float) (i + 1) / (float) strips;
+        bool   last = (i == strips - 1);
+        float  yEnd = last ? yBot : std::round (yTop + h * t1);
 
-        ShearFill (p, xL, yTop + h * t0, w, h * (t1 - t0),
+        // A strip that rounds to nothing is skipped, and the next one
+        // starts where this one would have.
+        if (yEnd <= yStart)
+        {
+            continue;
+        }
+
+        ShearFill (p, xL, yStart, w, yEnd - yStart,
                    tan, refBottom, DxuiColor::Lerp (top, bot, (t0 + t1) * 0.5f));
+
+        yStart = yEnd;
     }
 }
 

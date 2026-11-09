@@ -37,6 +37,12 @@ public:
         //  a field that has to line up with an edge elsewhere in the window.
         int           widthPx  = -1;
 
+        //  Placed right after the flowing field before it, as wide as its
+        //  text, with a short divider after it: File Explorer's item count
+        //  and selection. Flowing fields come first; an empty one takes no
+        //  room and draws no divider. Its own rectangle is not used.
+        bool          flow     = false;
+
         //  A meter along the field's right end, meterWidthDip wide, filled
         //  to meter (0 to 1) in meterArgb; the text takes the rest. A
         //  negative meter draws none.
@@ -84,6 +90,12 @@ public:
     //  The field under a point in the bounds' pixels, or -1.
     int   FindFieldAt (POINT point) const;
 
+    //  The line along the top and the lines between fields; on by default.
+    void  SetDividers (bool dividers) { m_dividers = dividers; }
+
+    //  How far the flowing fields start from the band's left edge.
+    void  SetLeadDip  (float dip)     { m_leadDip  = dip; }
+
     size_t               GetFieldCount () const             { return m_fields.size(); }
     const Field &        GetField      (size_t index) const { return m_fields[index]; }
 
@@ -101,6 +113,8 @@ public:
     std::wstring        GetAccessibleName () const override;
 
     static constexpr int       kFieldPadDip    = 8;
+    static constexpr float     kFlowGapDip     = 10.0f;   // text to divider, divider to the next field
+    static constexpr float     kFlowRuleDip    = 12.0f;   // the divider's height
     static constexpr float     kFontDip        = 12.0f;
     static constexpr int       kMeterHeightDip = 8;
     static constexpr int       kShadowReachDip = 3;
@@ -115,4 +129,6 @@ private:
     std::vector<Field>  m_fields;
     std::vector<RECT>   m_fieldRects;
     DxuiDpiScaler       m_scaler;
+    bool                m_dividers = true;
+    float               m_leadDip  = (float) kFieldPadDip;
 };

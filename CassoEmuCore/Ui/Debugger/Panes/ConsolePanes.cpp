@@ -1084,7 +1084,7 @@ void ConsoleModeBar::Configure()
 
     label.command       = m_label->GetCommand();
     label.custom        = m_label.get();
-    label.neverOverflow = true;
+    label.pinned        = true;
 
     m_dialect        = std::make_shared<DxuiCommand>();
     m_dialect->id    = kDialectEntry;
@@ -1093,7 +1093,7 @@ void ConsoleModeBar::Configure()
 
     dialect.command       = m_dialect;
     dialect.kind          = DxuiToolbar::Kind::DropDown;
-    dialect.neverOverflow = true;
+    dialect.pinned        = true;
 
     m_bar.Configure();
     m_bar.GetBar()->SetEntries ({ label, dialect, m_host.GetFindEntry (DebuggerLayout::kConsole) });

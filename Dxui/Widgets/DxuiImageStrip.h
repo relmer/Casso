@@ -122,7 +122,7 @@ public:
     static int   HitTestCell   (const RECT & rc, int count, int cellPx, bool vertical, int x, int y);
 
     int              GetWidthPx    (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const override;
-    int              GetMinWidthPx (const DxuiDpiScaler & scaler) const override;
+    int              GetMinWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const override;
     void             Layout        (const RECT & rc, bool labeled, const DxuiDpiScaler & scaler) override;
     void             Paint         (IDxuiPainter      & painter,
                                     IDxuiTextRenderer & text,

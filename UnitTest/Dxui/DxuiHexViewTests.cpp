@@ -539,6 +539,25 @@ public:
     }
 
 
+    TEST_METHOD (Selection_WithTheValuesHiddenCopiesTheText)
+    {
+        CountingHexSource  source (256);
+        DxuiHexView        view;
+
+
+        view.SetSource (&source);
+        view.SetShowValues (false);
+        LayOut (view);
+
+        view.OnFocusEntered (true);
+        view.SelectByte (0x41, DxuiHexView::Column::Hex);
+        view.ExtendSelectionTo (0x42);
+
+        Assert::AreEqual (std::wstring (L"AB"), view.GetSelectionText(),
+            L"With the hex column hidden, a copy is the text, not hex digits");
+    }
+
+
     TEST_METHOD (Mouse_DragSelectsFromPressToRelease)
     {
         CountingHexSource  source (256);
@@ -606,7 +625,7 @@ public:
         Assert::AreEqual (uint64_t (1), view.GetCaret(), L"and up is a row back");
 
         Assert::AreEqual (uint64_t (1), view.GetSelectionCount(),
-            L"Walking without Shift carries a one-byte selection along");
+            L"Walking without Shift moves a one-byte selection along");
     }
 
 
@@ -927,6 +946,33 @@ public:
     }
 
 
+    TEST_METHOD (Text_DosAndWindowsDecodeTheUpperHalfThroughTheirCodePages)
+    {
+        CountingHexSource  source (256);
+        DxuiHexView        view;
+
+
+        view.SetSource (&source);
+        LayOut (view);
+
+        view.SetTextEncoding (DxuiHexView::TextEncoding::Dos);
+        Assert::AreEqual (std::wstring (L"\x2500\x253C"), view.GetTextFor (0xC4, 2),
+            L"DOS text draws its box characters");
+        Assert::AreEqual (std::wstring (L"AB"), view.GetTextFor (0x41, 2),
+            L"and ASCII as itself");
+        Assert::AreEqual (std::wstring (L"\x25BA"), view.GetTextFor (0x10, 1),
+            L"and a control code as the symbol DOS draws for it");
+        Assert::AreEqual (std::wstring (L" "), view.GetTextFor (0x0C, 1),
+            L"but a page break as a blank");
+
+        view.SetTextEncoding (DxuiHexView::TextEncoding::Windows);
+        Assert::AreEqual (std::wstring (L"\x00E9\x00EA"), view.GetTextFor (0xE9, 2),
+            L"Windows text draws its accented letters");
+        Assert::AreEqual (std::wstring (L"."), view.GetTextFor (0x81, 1),
+            L"and a byte the code page leaves undefined as a period");
+    }
+
+
     TEST_METHOD (Hex_CopiesTheDigitsWithoutTheSpacingBetweenBytes)
     {
         CountingHexSource  source (256);
@@ -1052,6 +1098,63 @@ public:
     }
 
 
+    TEST_METHOD (ContextMenu_IsTheViewsChoicesThenTheHostsItems)
+    {
+        CountingHexSource               source (256);
+        DxuiHexView                     view;
+        std::vector<DxuiPopupMenuItem>  items;
+        std::shared_ptr<DxuiCommand>    goTo = std::make_shared<DxuiCommand>();
+        const DxuiPopupMenuItem *       columns = nullptr;
+
+
+        goTo->label = L"&Go to...";
+        view.SetSource (&source);
+        view.SetOnBuildContextMenu ([&goTo] (std::vector<DxuiPopupMenuItem> & menu) { menu.push_back (DxuiPopupMenuItem::ForCommand (goTo)); });
+
+        view.BuildContextMenu (items);
+
+        for (const DxuiPopupMenuItem & item : items)
+        {
+            columns = (item.kind == DxuiPopupMenuItem::Kind::Submenu) ? &item : columns;
+        }
+
+        Assert::IsFalse  (items.empty());
+        Assert::AreEqual (std::wstring (L"Show &text only"), items.front().command->label, L"The view's own choices come first");
+        Assert::AreEqual (std::wstring (L"&Go to..."),       items.back().command->label,  L"and the host's items after them");
+        Assert::IsNotNull (columns);
+        Assert::AreEqual ((size_t) 6, columns->children.size(), L"Columns offers Auto, 1, 2, 4, 8 and 16");
+    }
+
+
+    TEST_METHOD (ContextMenu_AChoiceAppliesAndTellsTheHost)
+    {
+        CountingHexSource               source (256);
+        DxuiHexView                     view;
+        std::vector<DxuiPopupMenuItem>  items;
+        int                             reports = 0;
+        bool                            found   = false;
+
+
+        view.SetSource (&source);
+        view.SetOnSettingsChanged ([&reports]() { reports++; });
+        view.BuildContextMenu (items);
+
+        for (const DxuiPopupMenuItem & item : items)
+        {
+            if (!found && item.command != nullptr && item.command->label == L"&2-byte integer")
+            {
+                item.command->dispatch();
+                found = true;
+            }
+        }
+
+        Assert::IsTrue   (found);
+        Assert::AreEqual (2, view.GetGrouping(), L"Choosing 2-byte integers groups the bytes in pairs");
+        Assert::IsTrue   (view.IsShowingValues(), L"and shows values");
+        Assert::AreEqual (1, reports, L"and the host hears of it once, to keep it");
+    }
+
+
     TEST_METHOD (GoToOffset_PutsTheCaretThereAndScrollsToIt)
     {
         CountingHexSource  source (16 * 100);
@@ -1093,7 +1196,7 @@ public:
             L"and it moves to the characters");
 
         Assert::IsFalse (view.OnKey (MakeKey (VK_TAB)),
-            L"A second Tab is declined, so the walk carries on out of the view");
+            L"A second Tab is declined, so the walk continues out of the view");
         Assert::IsTrue (view.GetActiveColumn() == DxuiHexView::Column::Text,
             L"leaving the column where the user left it");
     }

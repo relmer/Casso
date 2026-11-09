@@ -74,9 +74,9 @@ namespace DebuggerTests
         //  in another search folder: its text is shown, and the banner says so.
         TEST_METHOD (ACopyInAnotherFolder_IsSaidToBeACopy)
         {
-            ControllerRig         rig;
-            DxuiTextView          view;
-            DxuiActionBanner      banner;
+            ControllerRig   rig;
+            DxuiTextView    view;
+            DxuiInfoBanner  banner;
             SourcePane            pane (&view, &banner,
                                         [] (const DebugSourceFile &, const std::wstring &, const std::string &)
                                         {
@@ -101,9 +101,9 @@ namespace DebuggerTests
 
         TEST_METHOD (APaneWithNoFile_ShowsNoBanner)
         {
-            ControllerRig     rig;
-            DxuiTextView      view;
-            DxuiActionBanner  banner;
+            ControllerRig   rig;
+            DxuiTextView    view;
+            DxuiInfoBanner  banner;
             SourcePane        pane (&view, &banner,
                                     [] (const DebugSourceFile &, const std::wstring &, const std::string &) { return SourceLookup(); },
                                     [] (const DebuggerActionBuilder &) {});
@@ -120,9 +120,9 @@ namespace DebuggerTests
         {
             std::unique_ptr<ControllerRig>  rig = std::make_unique<ControllerRig>();
 
-            DxuiTextView          view;
-            DxuiActionBanner      banner;
-            bool                  onDisk   = true;
+            DxuiTextView    view;
+            DxuiInfoBanner  banner;
+            bool            onDisk = true;
             SourcePane            pane (&view, &banner,
                                         [&] (const DebugSourceFile &, const std::wstring &, const std::string &)
                                         {

@@ -5,7 +5,10 @@
 #include "AppleTextCodec.h"
 #include "CommandLineParser.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NativeListing.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "DiskImageStore.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
@@ -17,6 +20,10 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
+#include "CassoExplorer/Model/CatalogModel.h"
+#include "CassoExplorer/Model/FilesystemChoices.h"
+#include "CassoExplorer/Model/HostFileNaming.h"
+#include "IntegerBasicDetokenizer.h"
 #include "Utils.h"
 #include "ApplesoftTokenizer.h"
 
@@ -53,6 +60,27 @@ DiskCommandRunner::DiskCommandRunner (IDiskFileIo & fileIo)
     : m_fileIo  (fileIo)
     , m_session (fileIo)
 {
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::GetLocalDate
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SYSTEMTIME DiskCommandRunner::GetLocalDate()
+{
+    SYSTEMTIME  now = {};
+
+
+
+    GetLocalTime (&now);
+
+    return now;
 }
 
 
@@ -390,6 +418,36 @@ std::string DiskCommandRunner::DescribeListingRefusal (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::DescribeDamage
+//
+//  Both volumes return ERROR_HANDLE_EOF for a file whose sectors cannot be
+//  gathered: DOS 3.3 from its track/sector list, ProDOS from its index
+//  block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::DescribeDamage (HRESULT hr, VolumeKind kind)
+{
+    std::string  damage;
+
+
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF))
+    {
+        damage = (kind == VolumeKind::ProDos) ? "the index block is damaged"
+               : (kind == VolumeKind::Dos33)  ? "the track/sector list is damaged"
+                                              : "the directory entry is damaged";
+    }
+
+    return damage;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::DescribeVolumeRefusal
 //
 //  A verdict from the filesystem layer, in words.
@@ -406,53 +464,84 @@ std::string DiskCommandRunner::DescribeListingRefusal (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
+std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr, VolumeKind kind)
 {
     //  A lookup rather than a ladder: eleven ifs were a table wearing
     //  control flow, and every row added was another early return.
     static constexpr struct { HRESULT code; const char * sentence; }  kSentences[] =
     {
         { HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED),
-          "is locked on this volume. Unlock it on the disk before writing over it" },
+          "it is locked. Unlock it on the disk first" },
         { HRESULT_FROM_WIN32 (ERROR_DISK_FULL),
-          "does not fit. The volume has no room for the file's contents or "
-          "for another catalog entry" },
+          "the volume has no room for the file's contents or for another "
+          "catalog entry" },
+        { HRESULT_FROM_WIN32 (ERROR_DISK_TOO_FRAGMENTED),
+          "the volume has enough free blocks, but in pieces, and an Apple Pascal "
+          "file has to be contiguous. Run 'disk krunch' to combine the free space" },
+        { HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE),
+          "the volume directory is full. ProDOS has room for 51 entries "
+          "there, so put it in a subdirectory" },
         { HRESULT_FROM_WIN32 (ERROR_INVALID_NAME),
-          "is not a valid name for this filesystem. It must be a single "
+          "the name is not valid on this file system. It must be a single "
           "component starting with a letter, short enough for the catalog, "
           "and free of commas and control characters" },
         { HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND),
-          "is not on this volume" },
+          "it is not on this volume" },
         { HRESULT_FROM_WIN32 (ERROR_DUP_NAME),
-          "does not identify a specific file because the name is not unique. Use 'disk list' to show "
-          "indexes, then specify both <name> and --index to select that file" },
+          "the name is not unique. Run 'disk list' for the indexes, then "
+          "specify both <name> and --index to select that file" },
         { HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE),
-          "is larger than this filesystem can record for one file" },
+          "it is larger than this file system can record for one file" },
         { HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER),
-          "is a binary and requires a load address. Use %Lload $XXXX" },
+          "it is a binary file and requires a load address. Use %Lload $XXXX" },
         { HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED),
-          "is a directory, and delete takes files only. Use rmdir, which removes "
-          "a directory and, with --recurse, everything below it" },
-        { HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF),
-          "has a sector chain that cannot be followed to its end" },
+          "it is a directory, and delete accepts files only. Use rmdir, which "
+          "removes a directory and, with --recurse, everything below it" },
         { HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
-          "cannot be the volume's startup program. The image has no operating "
-          "system on the boot tracks" },
+          "the image has no operating system on the boot tracks" },
         { HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE),
-          "is not a program this volume's boot path launches. On ProDOS that "
-          "requires a file of type SYS, not the kernel itself" },
+          "ProDOS starts only a file of type SYS, and not the kernel itself" },
     };
-    const char *  sentence = "could not be written to this volume";
+    std::string  sentence = DescribeDamage (hr, kind);
+    bool         noBoot   = hr == HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED) && kind != VolumeKind::Dos33 && kind != VolumeKind::ProDos;
 
 
+
+    if (noBoot)
+    {
+        sentence = (kind == VolumeKind::Pascal) ? "Apple Pascal has no setting for this. It runs a code file with the name SYSTEM.STARTUP"
+                 : (kind == VolumeKind::Cpm)    ? "CP/M has no setting for this. Its command processor runs what is typed at it"
+                                                : "this file system has no setting for a startup program";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_NAME) && kind == VolumeKind::Pascal)
+    {
+        sentence = "the name is not valid on this file system. Apple Pascal names are 1 to 15 characters, "
+                   "with no spaces or any of $ = ? , : [ ]";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_NAME) && kind == VolumeKind::Cpm)
+    {
+        sentence = "the name is not valid on this file system. CP/M names are 1 to 8 characters, an optional "
+                   "period and up to 3 more, with no spaces or any of < > , ; : = ? * [ ], in a user of 0 to 15";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND) && (kind == VolumeKind::Pascal || kind == VolumeKind::Cpm))
+    {
+        sentence = std::string (VolumeImage::GetSystemName (kind)) + " has no directories";
+    }
 
     for (const auto & row : kSentences)
     {
-        if (row.code == hr)
+        if (sentence.empty() && row.code == hr)
         {
             sentence = row.sentence;
-            break;
         }
+    }
+
+    if (sentence.empty())
+    {
+        sentence = "the operation is not possible on this volume";
     }
 
     return sentence;
@@ -481,24 +570,37 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
     VolumeListing                  listing;
     std::string                    directory;
     char                           summary[128] = {};
+    bool                           isFlat       = false;
 
 
 
     hr = m_session.OpenImage (options.disk.imagePath, opened, result);
     CHR (hr);
 
+    isFlat = opened.kind == VolumeKind::Pascal || opened.kind == VolumeKind::Cpm;
+
     {
-        Dos33Volume   dos (opened.sectors);
-        ProDosVolume  pro (opened.sectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
 
 
 
-        hr = volume.Enumerate (listing);
+        hr = volume->Enumerate (listing);
 
         CHRF (hr, result.Fail (options.disk.imagePath, "", "catalog could not be read"));
+
+        result.output += std::string (VolumeImage::GetSystemName (opened.kind)) + " disk\n\n";
+
+        //  The whole volume's listing, as the Filer or STAT prints it, since
+        //  neither file system has anything below the volume directory.
+        if (isFlat)
+        {
+            hr = AppendNativeListing (options, opened, *volume, listing, result);
+            CHR (hr);
+
+            ReportListingDamage (options, opened, listing, result);
+
+            BAIL_OUT_IF (true, S_OK);
+        }
 
         if (listing.hasVolumeName)
         {
@@ -517,10 +619,10 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
         hr = ResolveVolumePath (options, opened, options.disk.path, directory, result);
         CHR (hr);
 
-        hr = AppendDirectoryRows (volume, opened.kind, directory, options.disk.recurse, result);
+        hr = AppendDirectoryRows (*volume, opened.kind, directory, options.disk.recurse, result);
 
-        CHRF (hr, result.Fail (options.disk.imagePath, options.disk.path,
-                        ApplyPrefix (DescribeVolumeRefusal (hr))));
+        CHRF (hr, result.FailAction (options.disk.imagePath, "list " + options.disk.path,
+                              ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
         snprintf (summary, sizeof (summary), "\n%u %s free of %u\n",
                   (unsigned) listing.freeUnits,
@@ -535,25 +637,111 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
         // to 2; a ProDOS disk from the PRODOS file its block 0 loader loads.
         if (opened.kind == VolumeKind::Dos33)
         {
-            if (!dos.HasDosImage())
+            if (!Dos33Volume (opened.sectors).HasDosImage())
             {
                 result.output += "\nNot bootable: no DOS on tracks 0 to 2\n";
             }
         }
-        else if (!HasProDosSystemFile (listing))
+        else if (opened.kind == VolumeKind::ProDos && !HasProDosSystemFile (listing))
         {
             result.output += "\nNot bootable: no PRODOS file on the volume\n";
         }
     }
 
-    // Damage from the catalog walk, and from the track layer beneath it.
-    //
-    // Each message must say the LISTING IS INCOMPLETE, not merely that the disk
-    // is damaged. A pipeline that treats status 1 as a warning and carries on
-    // will otherwise consume a truncated listing that reads as whole, and its
-    // log will describe a disk problem rather than a missing-entries problem.
-    // The status carries the distinction for a script; the wording has to carry
-    // it for whoever reads the log afterwards.
+    ReportListingDamage (options, opened, listing, result);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::AppendNativeListing
+//
+//  A directory typed for a file system with none is turned down, as it is on
+//  DOS 3.3.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::AppendNativeListing (
+    const CommandLineOptions             & options,
+    const DiskImageSession::OpenedImage  & opened,
+    const IVolume                        & volume,
+    const VolumeListing                  & listing,
+    DiskCommandResult                    & result)
+{
+    HRESULT                   hr = S_OK;
+    VolumeListing             below;
+    std::vector<std::string>  lines;
+    std::string               missing;
+
+
+
+    hr = volume.EnumerateDirectory (FilePath::Parse (options.disk.path), below);
+
+    CHRF (hr, result.FailAction (options.disk.imagePath, "list " + options.disk.path,
+                                 ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
+
+    if (opened.kind == VolumeKind::Pascal)
+    {
+        NativeListing::FormatPascal (listing, lines);
+    }
+    else
+    {
+        NativeListing::FormatCpm (listing, lines);
+    }
+
+    for (const std::string & line : lines)
+    {
+        result.output += line + "\n";
+    }
+
+    //  As DOS 3.3 and ProDOS listings report it.
+    missing = (opened.kind == VolumeKind::Pascal) ? PascalVolume::DescribeMissingSystem (opened.sectors)
+            : CpmVolume::HasSystemTracks (opened.sectors) ? std::string() : std::string ("it has no system on tracks 0 to 2");
+
+    if (!missing.empty())
+    {
+        result.output += "\nNot bootable: " + missing + "\n";
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ReportListingDamage
+//
+//  Damage from the catalog walk, and from the track layer beneath it.
+//
+//  Each message must say the LISTING IS INCOMPLETE, not merely that the disk
+//  is damaged. A pipeline that treats status 1 as a warning and continues
+//  will otherwise consume a truncated listing that reads as whole, and its
+//  log will describe a disk problem rather than a missing-entries problem.
+//  The status carries the distinction for a script; the wording has to carry
+//  it for whoever reads the log afterwards.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::ReportListingDamage (
+    const CommandLineOptions             & options,
+    const DiskImageSession::OpenedImage  & opened,
+    const VolumeListing                  & listing,
+    DiskCommandResult                    & result)
+{
+    char  summary[128] = {};
+
+
+
     for (const std::string & note : listing.damage)
     {
         result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, "",
@@ -573,9 +761,6 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
         result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, "", summary) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
-
-Error:
-    return;
 }
 
 
@@ -586,7 +771,7 @@ Error:
 //
 //  DiskCommandRunner::AppendDirectoryRows
 //
-//  A RECURSIVE ROW CARRIES ITS FULL PATH, because a listing that reaches
+//  A RECURSIVE ROW GIVES ITS FULL PATH, because a listing that reaches
 //  several directories has rows whose names repeat: two files called NOTES in
 //  different directories are two rows reading NOTES, and nothing in the output
 //  says which is which. The row is formatted from a copy whose name is the
@@ -625,9 +810,7 @@ HRESULT DiskCommandRunner::AppendDirectoryRows (
             shown.name = directory + "/" + entry.name;
         }
 
-        result.output += (kind == VolumeKind::Dos33)
-                       ? FormatDos33Entry (shown)
-                       : FormatProDosEntry (shown);
+        result.output += (kind == VolumeKind::Dos33) ? FormatDos33Entry (shown) : FormatProDosEntry (shown);
 
         //  A name that several entries share cannot select one of them, so
         //  each such entry is listed with its index. A unique name has none.
@@ -695,8 +878,8 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
     isProDos = opened.kind == VolumeKind::ProDos;
 
     CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
-            result.Fail (options.disk.imagePath, options.disk.path,
-                  "cannot hold directories: this volume is DOS 3.3, which has none"));
+            result.FailAction (options.disk.imagePath, "create " + options.disk.path,
+                               std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (opened.kind))));
 
     hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
     CHR (hr);
@@ -729,15 +912,15 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
 
         hr = step.CreateDirectory (FilePath::Parse (prefix), next);
 
-        CHRF (hr, result.Fail (options.disk.imagePath, prefix,
-                        ApplyPrefix (DescribeVolumeRefusal (hr))));
+        CHRF (hr, result.FailAction (options.disk.imagePath, "create " + prefix,
+                              ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
         staged  = next;
         madeAny = true;
     }
 
     CBRFEx (madeAny, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS),
-            result.Fail (options.disk.imagePath, options.disk.path, "is already on this volume"));
+            result.FailAction (options.disk.imagePath, "create " + options.disk.path, "it is already on this volume"));
 
     hr = m_session.SaveAndCommit (opened, staged, result);
     CHR (hr);
@@ -792,8 +975,8 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
     isProDos = opened.kind == VolumeKind::ProDos;
 
     CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
-            result.Fail (options.disk.imagePath, options.disk.path,
-                  "holds no directories: this volume is DOS 3.3, which has none"));
+            result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
+                               std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (opened.kind))));
 
     hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
     CHR (hr);
@@ -806,15 +989,15 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
         hr = volume.BuildRemovalPlan (path, plan);
     }
 
-    CHRF (hr, result.Fail (options.disk.imagePath, options.disk.path,
-                    ApplyPrefix (DescribeVolumeRefusal (hr))));
+    CHRF (hr, result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
+                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
     holdsThings = plan.entries.size() > 1;
     permitted   = !holdsThings || options.disk.recurse;
 
     CBRFEx (permitted, HRESULT_FROM_WIN32 (ERROR_DIR_NOT_EMPTY),
-            result.Fail (options.disk.imagePath, options.disk.path,
-                  ApplyPrefix ("is not empty. Use --recurse to remove it and everything in it")));
+            result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
+                               ApplyPrefix ("it is not empty, and --recurse removes its entries with it")));
 
     if (holdsThings)
     {
@@ -849,8 +1032,8 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
         hr = volume.RemoveDirectory (path, options.disk.force, edited, outcome);
     }
 
-    CHRF (hr, result.Fail (options.disk.imagePath, options.disk.path,
-                    ApplyPrefix (DescribeVolumeRefusal (hr))));
+    CHRF (hr, result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
+                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
     hr = m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);
@@ -889,9 +1072,13 @@ HRESULT DiskCommandRunner::ApplyEncoding (
     FilePayload              &  payload,
     DiskCommandResult        &  result)
 {
-    HRESULT                hr = S_OK;
-    std::string            hostText;
-    ApplesoftListingError  listingError;
+    static constexpr Byte     s_kProDosIntegerType = 0xFA;
+    HRESULT                   hr                   = S_OK;
+    std::string               hostText;
+    ApplesoftListingError     listingError;
+    IntegerBasicListingError  integerError;
+    char                      note[200]            = {};
+    bool                      integer              = payload.type == Dos33Volume::kTypeInteger || payload.type == s_kProDosIntegerType;
 
 
 
@@ -910,13 +1097,52 @@ HRESULT DiskCommandRunner::ApplyEncoding (
             // fixture volumes carry TXT files that are predominantly high-bit
             // with $8D terminators, not the plain seven-bit form usually
             // assumed for that filesystem.
-            AppleTextCodec::Decode (payload.bytes, AppleTextConvention::HighAscii, hostText);
+            if (payload.textForm == PayloadTextForm::PascalPages)
+            {
+                PascalVolume::DecodeText (payload.bytes, hostText);
+            }
+            else if (payload.textForm == PayloadTextForm::CpmRecords)
+            {
+                CpmVolume::DecodeText (payload.bytes, hostText);
+            }
+            else
+            {
+                AppleTextCodec::Decode (payload.bytes, AppleTextConvention::HighAscii, hostText);
+            }
 
             payload.bytes.assign (hostText.begin(), hostText.end());
             payload.encoding = PayloadEncoding::HostText;
             break;
 
         case CommandLineOptions::DiskOptions::Encoding::Basic:
+            if (payload.textForm != PayloadTextForm::AppleHighAscii)
+            {
+                result.diagnostics += DiskHelpPage::ApplyPrefixes ("%Lbasic means nothing on this volume: it has no BASIC programs\n", options.flagPrefix);
+                result.exitStatus   = DiskCommandResult::kNoOutput;
+                hr                  = HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
+                break;
+            }
+
+            //  An Integer BASIC program lists through its own tokens, as its
+            //  preview does.
+            if (integer)
+            {
+                hr = IntegerBasicDetokenizer::Detokenize (payload.bytes, hostText, integerError);
+
+                if (FAILED (hr))
+                {
+                    snprintf (note, sizeof (note), "byte %u: %s\n", (unsigned) integerError.offset, integerError.reason.c_str());
+
+                    result.diagnostics += DiskHelpPage::ApplyPrefixes ("%Lbasic cannot read this file as an Integer BASIC program: ", options.flagPrefix) + note;
+                    result.exitStatus   = DiskCommandResult::kNoOutput;
+                    break;
+                }
+
+                payload.bytes.assign (hostText.begin(), hostText.end());
+                payload.encoding = PayloadEncoding::HostText;
+                break;
+            }
+
             hr = ApplesoftTokenizer::Detokenize (payload.bytes, hostText, listingError);
 
             if (FAILED (hr))
@@ -980,20 +1206,15 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     CHR (hr);
 
     {
-        Dos33Volume   dos (opened.sectors);
-        ProDosVolume  pro (opened.sectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
 
-        hr = volume.Read (path, payload);
+        hr = volume->Read (path, payload);
     }
 
-    //  For a name that several entries share, the message explains how to
-    //  select one. Any other read failure keeps the generic message.
-    CHRF (hr, result.Fail (options.disk.imagePath, name,
-                    (hr == HRESULT_FROM_WIN32 (ERROR_DUP_NAME)) ? ApplyPrefix (DescribeVolumeRefusal (hr))
-                                                                : std::string ("could not be read from this volume")));
+    result.failure = hr;
+
+    CHRF (hr, result.FailAction (options.disk.imagePath, "read " + name,
+                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
     hr = ApplyEncoding (options, payload, result);
     CHR (hr);
@@ -1268,8 +1489,30 @@ HRESULT DiskCommandRunner::ResolveFileType (
     bool         recognized = true;
     size_t       i          = 0;
     std::string  form       = options.disk.typeName;
+    bool         isReadOnly = false;
+    bool         isSystem   = false;
 
 
+
+    if (kind == VolumeKind::Pascal)
+    {
+        hr = ResolvePascalKind (options, outType, result);
+        BAIL_OUT_IF (true, hr);
+    }
+
+    if (kind == VolumeKind::Cpm)
+    {
+        outType = 0;
+
+        //  The attributes are read from the same word in BuildPutPayload.
+        recognized = !named || ParseCpmAttributes (options.disk.typeName, isReadOnly, isSystem);
+
+        CBRFEx (recognized, E_NOTIMPL,
+                (result.diagnostics += DiskHelpPage::ApplyPrefixes ("%Ltype means nothing on this volume: CP/M has no file types, only the attributes RO and SYS\n", options.flagPrefix),
+                 result.exitStatus   = DiskCommandResult::kNoOutput));
+
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     if (isBasic)
     {
@@ -1342,6 +1585,108 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::ParseCpmAttributes
+//
+//  RO, R/O or SYS, or two of them with a comma, from what STAT accepts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::ParseCpmAttributes (const std::string & text, bool & outReadOnly, bool & outSystem)
+{
+    size_t  start = 0;
+
+
+
+    outReadOnly = false;
+    outSystem   = false;
+
+    while (start <= text.size())
+    {
+        size_t       comma = text.find (',', start);
+        std::string  word  = text.substr (start, (comma == std::string::npos) ? std::string::npos : comma - start);
+
+        if (_stricmp (word.c_str(), "RO") == 0 || _stricmp (word.c_str(), "R/O") == 0)
+        {
+            outReadOnly = true;
+        }
+        else if (_stricmp (word.c_str(), "SYS") == 0)
+        {
+            outSystem = true;
+        }
+        else
+        {
+            return false;
+        }
+
+        if (comma == std::string::npos)
+        {
+            break;
+        }
+
+        start = comma + 1;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ResolvePascalKind
+//
+//  The kind --type selects. With no --type, text is TEXT, and anything else
+//  takes its kind from the name in the volume, as Pascal's Filer does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ResolvePascalKind (const CommandLineOptions & options, Byte & outType, DiskCommandResult & result)
+{
+    static constexpr struct { const char * form; Byte kind; }  kForms[] =
+    {
+        { "BAD",  PascalVolume::kKindBad  },
+        { "CODE", PascalVolume::kKindCode },
+        { "TEXT", PascalVolume::kKindText },
+        { "INFO", PascalVolume::kKindInfo },
+        { "DATA", PascalVolume::kKindData },
+        { "GRAF", PascalVolume::kKindGraf },
+        { "FOTO", PascalVolume::kKindFoto },
+    };
+    HRESULT  hr         = S_OK;
+    bool     recognized = options.disk.typeName.empty();
+
+
+
+    outType = (options.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Text) ? PascalVolume::kKindText : PascalVolume::kKindNone;
+
+    for (const auto & row : kForms)
+    {
+        if (_stricmp (options.disk.typeName.c_str(), row.form) == 0)
+        {
+            outType    = row.kind;
+            recognized = true;
+        }
+    }
+
+    if (!recognized)
+    {
+        result.diagnostics += DiskHelpPage::ApplyPrefixes ("%Ltype ", options.flagPrefix) + options.disk.typeName
+                            + " means nothing on this volume: Apple Pascal takes BAD, CODE, TEXT, INFO, DATA, GRAF or FOTO\n";
+        result.exitStatus   = DiskCommandResult::kNoOutput;
+        hr                  = E_NOTIMPL;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::BuildPutPayload
 //
 //  What a file from the host becomes on the disk.
@@ -1367,14 +1712,21 @@ HRESULT DiskCommandRunner::BuildPutPayload (
     FilePayload               & outPayload,
     DiskCommandResult         & result)
 {
-    HRESULT                hr        = S_OK;
-    Byte                   type      = 0;
-    size_t                 badOffset = 0;
-    char                   note[160] = {};
+    HRESULT                hr           = S_OK;
+    Byte                   type         = 0;
+    size_t                 badOffset    = 0;
+    char                   note[160]    = {};
     std::string            hostText;
     ApplesoftListingError  listingError;
+    bool                   hasAddresses = kind == VolumeKind::Dos33 || kind == VolumeKind::ProDos;
+    bool                   isReadOnly   = false;
+    bool                   allowed      = hasAddresses || (!options.disk.hasLoadAddress && options.disk.encoding != CommandLineOptions::DiskOptions::Encoding::Basic);
 
 
+
+    CBRFEx (allowed, HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER),
+            (result.diagnostics += DiskHelpPage::ApplyPrefixes ("%Lload and %Lbasic mean nothing on this volume: it has no load addresses or BASIC programs\n", options.flagPrefix),
+             result.exitStatus   = DiskCommandResult::kNoOutput));
 
     hr = ResolveFileType (options, kind, hostBytes, type, result);
     CHR (hr);
@@ -1382,6 +1734,12 @@ HRESULT DiskCommandRunner::BuildPutPayload (
     outPayload.type           = type;
     outPayload.loadAddress    = options.disk.loadAddress;
     outPayload.hasLoadAddress = options.disk.hasLoadAddress;
+
+    if (kind == VolumeKind::Cpm && !options.disk.typeName.empty() && ParseCpmAttributes (options.disk.typeName, isReadOnly, outPayload.isSystem) && isReadOnly)
+    {
+        outPayload.access    = FilePayload::kAccessLocked;
+        outPayload.hasAccess = true;
+    }
 
     switch (options.disk.encoding)
     {
@@ -1393,8 +1751,15 @@ HRESULT DiskCommandRunner::BuildPutPayload (
         case CommandLineOptions::DiskOptions::Encoding::Text:
             hostText.assign (hostBytes.begin(), hostBytes.end());
 
-            hr = AppleTextCodec::Encode (hostText, AppleTextConvention::HighAscii,
-                                         outPayload.bytes, badOffset);
+            if (kind == VolumeKind::Cpm)
+            {
+                CpmVolume::EncodeText (hostText, outPayload.bytes);
+            }
+            else
+            {
+                hr = (kind == VolumeKind::Pascal) ? PascalVolume::EncodeText (hostText, outPayload.bytes, badOffset)
+                                                  : AppleTextCodec::Encode (hostText, AppleTextConvention::HighAscii, outPayload.bytes, badOffset);
+            }
 
             if (FAILED (hr))
             {
@@ -1471,6 +1836,97 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::ApplyHostFileName
+//
+//  Read a host name in one of the forms Casso Explorer writes on Copy or a
+//  drag: `NAME.Applesoft BASIC.txt`, `NAME#062000`, `NAME.Binary.$2000.bin`
+//  and the rest. With no --as, the entry takes NAME, and a listing's form
+//  selects its conversion when the command line selects none. Any other host
+//  name is left as it is: `PROG.BIN` goes in as PROG.BIN.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::ApplyHostFileName (CommandLineOptions & inOutOptions, ParsedHostName & outParsed)
+{
+    size_t        lastSeparator = inOutOptions.disk.hostFile.find_last_of ("/\\");
+    std::string   leaf          = (lastSeparator == std::string::npos) ? inOutOptions.disk.hostFile
+                                                                       : inOutOptions.disk.hostFile.substr (lastSeparator + 1);
+    bool          unconverted   = inOutOptions.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim
+                               && inOutOptions.disk.typeName.empty();
+
+
+
+    if (!inOutOptions.disk.path.empty() || !HostFileNaming::Parse (TextEncoding::NarrowToWide (leaf), outParsed) || outParsed.catalogName.empty())
+    {
+        return false;
+    }
+
+    inOutOptions.disk.path = outParsed.catalogName;
+
+    if (unconverted && outParsed.converted == ParsedHostName::ConvertedKind::ApplesoftListing)
+    {
+        inOutOptions.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+    }
+    else if (unconverted && outParsed.converted != ParsedHostName::ConvertedKind::None)
+    {
+        inOutOptions.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ApplyHostFileType
+//
+//  The ProDOS type in a host name, mapped to DOS 3.3's on a DOS 3.3 image,
+//  with the aux type as the load address of a binary file, as Casso Explorer
+//  puts the same file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ApplyHostFileType (const ParsedHostName & parsed, VolumeKind kind, FilePayload & inOutPayload)
+{
+    HRESULT  hr      = S_OK;
+    bool     isDos   = kind == VolumeKind::Dos33;
+    Byte     dosType = 0;
+    bool     mapped  = false;
+
+
+
+    if (kind == VolumeKind::Pascal || kind == VolumeKind::Cpm)
+    {
+        inOutPayload.type = (kind == VolumeKind::Pascal) ? HostFileNaming::MapProDosToPascalKind (parsed.type) : (Byte) 0;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    mapped = !isDos || HostFileNaming::TryMapProDosToDos33 (parsed.type, dosType);
+    CBREx (mapped, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    inOutPayload.type = isDos ? dosType : parsed.type;
+
+    if (parsed.hasAux)
+    {
+        inOutPayload.hasAuxType     = !isDos;
+        inOutPayload.auxType        = parsed.aux;
+        inOutPayload.hasLoadAddress = inOutPayload.type == (isDos ? Dos33Volume::kTypeBinary : ProDosVolume::kTypeBinary);
+        inOutPayload.loadAddress    = parsed.aux;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::RunPut
 //
 //  Placing a file from the host on the disk: read it, convert it if asked, let the
@@ -1489,7 +1945,10 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
 {
     HRESULT                        hr        = S_OK;
     bool                           named     = !options.disk.hostFile.empty();
-    std::string                    diskName  = GetOnDiskName (options);
+    CommandLineOptions             effective = options;
+    ParsedHostName                 parsed;
+    bool                           hostForm  = false;
+    std::string                    diskName;
     DiskImageSession::OpenedImage  opened;
     FilePayload                    payload;
     FilePath                       path;
@@ -1500,30 +1959,41 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
 
     CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<file>", result));
 
+    hostForm = ApplyHostFileName (effective, parsed);
+    diskName = GetOnDiskName (effective);
+
     hr = m_session.OpenImage (options.disk.imagePath, opened, result);
+    CHR (hr);
+
+    hr = ApplyUser (options, opened.kind, diskName, result);
     CHR (hr);
 
     hr = m_fileIo.ReadAllBytes (options.disk.hostFile, hostBytes);
 
     CHRF (hr, result.Fail (options.disk.hostFile, "", "cannot be read"));
 
-    hr = BuildPutPayload (options, opened.kind, hostBytes, payload, result);
+    hr = BuildPutPayload (effective, opened.kind, hostBytes, payload, result);
     CHR (hr);
+
+    //  The type and address in a name Casso Explorer wrote, unless the command
+    //  line has --type, --load, --text or --basic.
+    if (hostForm && parsed.hasType && effective.disk.typeName.empty() && !effective.disk.hasLoadAddress
+        && effective.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim)
+    {
+        hr = ApplyHostFileType (parsed, opened.kind, payload);
+        CHRF (hr, result.FailAction (options.disk.imagePath, "write " + diskName, "it has a ProDOS type that DOS 3.3 has no file type for"));
+    }
 
     path = FilePath::Parse (diskName);
 
     {
-        Dos33Volume   dos (opened.sectors);
-        ProDosVolume  pro (opened.sectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
 
-        hr = volume.Write (path, payload, edited);
+        hr = volume->Write (path, payload, edited);
     }
 
-    CHRF (hr, result.Fail (options.disk.imagePath, diskName,
-                    ApplyPrefix (DescribeVolumeRefusal (hr))));
+    CHRF (hr, result.FailAction (options.disk.imagePath, "write " + diskName,
+                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
     hr = m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);
@@ -1573,19 +2043,15 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
     CHR (hr);
 
     {
-        Dos33Volume   dos (opened.sectors);
-        ProDosVolume  pro (opened.sectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
 
 
 
-        hr = volume.Delete (path, edited, outcome);
+        hr = volume->Delete (path, edited, outcome);
     }
 
-    CHRF (hr, result.Fail (options.disk.imagePath, name,
-                    ApplyPrefix (DescribeVolumeRefusal (hr))));
+    CHRF (hr, result.FailAction (options.disk.imagePath, "delete " + name,
+                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
     hr = m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);
@@ -1595,6 +2061,55 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
         result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, name, warning) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::RunKrunch
+//
+//  All or nothing: the moved files and the new directory reach the image in one
+//  commit, or the image stays as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunKrunch (const CommandLineOptions & options, DiskCommandResult & result)
+{
+    HRESULT                        hr       = S_OK;
+    bool                           isPascal = false;
+    int                            moved    = 0;
+    DiskImageSession::OpenedImage  opened;
+    vector<Byte>                   edited;
+
+
+
+    hr = m_session.OpenImage (options.disk.imagePath, opened, result);
+    CHR (hr);
+
+    isPascal = opened.kind == VolumeKind::Pascal;
+
+    CBRFEx (isPascal, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
+            result.FailAction (options.disk.imagePath, "krunch the disk", "krunch applies to Apple Pascal disks, the only file system here that needs its free space combined"));
+
+    hr = PascalVolume (opened.sectors).Krunch (edited, moved);
+
+    CHRF (hr, result.FailAction (options.disk.imagePath, "krunch the disk",
+                                 (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA)) ? std::string ("the directory is damaged, so moving files could overwrite one")
+                                                                                 : DescribeVolumeRefusal (hr, opened.kind)));
+
+    if (moved > 0)
+    {
+        hr = m_session.SaveAndCommit (opened, edited, result);
+        CHR (hr);
+    }
+
+    result.output += std::format ("{}: {} {} moved\n", options.disk.imagePath, moved, Utils::GetSingularOrPluralForm (moved, "file", "files"));
 
 Error:
     return;
@@ -1629,7 +2144,7 @@ HRESULT DiskCommandRunner::ResolveVolumePath (
 {
     HRESULT        hr        = S_OK;
     FilePath       path      = FilePath::Parse (typed);
-    bool           plain     = !path.IsRooted() || opened.kind == VolumeKind::Dos33;
+    bool           plain     = !path.IsRooted() || opened.kind != VolumeKind::ProDos;
     bool           mine      = false;
     size_t         i         = 0;
     VolumeListing  listing;
@@ -1663,6 +2178,39 @@ HRESULT DiskCommandRunner::ResolveVolumePath (
     }
 
     outPath = rest;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ApplyUser
+//
+//  --user as the volume layer's U:NAME form, on CP/M alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ApplyUser (const CommandLineOptions & options, VolumeKind kind, std::string & inOutName, DiskCommandResult & result)
+{
+    HRESULT  hr    = S_OK;
+    bool     isCpm = kind == VolumeKind::Cpm;
+
+
+
+    BAIL_OUT_IF (!options.disk.hasUser, S_OK);
+
+    CBRFEx (isCpm, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
+            result.Fail (options.disk.imagePath, "", ApplyPrefix ("%Luser means nothing on this volume: only CP/M has user numbers")));
+
+    if (options.disk.user != 0)
+    {
+        inOutName = std::format ("{}:{}", options.disk.user, inOutName);
+    }
 
 Error:
     return hr;
@@ -1709,6 +2257,9 @@ HRESULT DiskCommandRunner::ResolveEntryPath (
 
 
     hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
+    CHR (hr);
+
+    hr = ApplyUser (options, opened.kind, typed, result);
     CHR (hr);
 
     outName = typed;
@@ -1813,27 +2364,23 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
     CHR (hr);
 
     {
-        Dos33Volume   dos (opened.sectors);
-        ProDosVolume  pro (opened.sectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
 
 
 
-        hr = volume.SetStartupProgram (path, edited);
+        hr = volume->SetStartupProgram (path, edited);
 
         if (SUCCEEDED (hr) && opened.kind == VolumeKind::Dos33)
         {
-            listHr = volume.Enumerate (listing);
+            listHr = volume->Enumerate (listing);
             IGNORE_RETURN_VALUE (listHr, S_OK);
 
             runnable = IsRunnableAsDos33Greeting (listing, name);
         }
     }
 
-    CHRF (hr, result.Fail (options.disk.imagePath, name,
-                    ApplyPrefix (DescribeVolumeRefusal (hr))));
+    CHRF (hr, result.FailAction (options.disk.imagePath, "make " + name + " the startup program",
+                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
     //  REFUSED BEFORE ANYTHING IS WRITTEN, not reported after.
     //
@@ -1845,10 +2392,10 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
     //  start a program that cannot start -- which is what ProDOS refuses
     //  outright, two screens away in the same command.
     CBRFEx (runnable, HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE),
-            result.Fail (options.disk.imagePath, name,
-                  "is not a program a booting DOS 3.3 can run. Its greeting is RUN, "
-                  "which starts an Applesoft BASIC or Integer BASIC program, and "
-                  "this file is neither"));
+            result.FailAction (options.disk.imagePath, "make " + name + " the startup program",
+                               "a booting DOS 3.3 runs its greeting program with RUN, which "
+                               "starts an Applesoft BASIC or Integer BASIC program, and this "
+                               "file is neither"));
 
     hr = m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);
@@ -1942,6 +2489,8 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
     std::vector<std::string>  missing;
     bool                      refused          = options.parseVerdict == CommandLineOptions::ParseVerdict::Refused;
     bool                      allOperandsGiven = false;
+    bool                      known            = false;
+    VolumeKind                chosen           = VolumeKind::Unknown;
 
 
 
@@ -1956,6 +2505,14 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
     missing          = FindMissingParameters (options);
     allOperandsGiven = missing.empty();
     CBRF (allOperandsGiven, ReportMissingParameters (missing, result));
+
+    chosen = FilesystemChoices::FromWord (options.disk.filesystem);
+    known  = options.disk.filesystem.empty() || chosen != VolumeKind::Unknown;
+
+    CBRF (known, (result.diagnostics += "Error: unknown file system: " + options.disk.filesystem + "\n",
+                  result.exitStatus   = DiskCommandResult::kNoOutput));
+
+    m_session.SetChosenKind (chosen);
 
     switch (options.disk.command)
     {
@@ -1993,6 +2550,10 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
 
         case CommandLineOptions::DiskOptions::Command::BlockWrite:
             RunBlockWrite (options, result);
+            break;
+
+        case CommandLineOptions::DiskOptions::Command::Krunch:
+            RunKrunch (options, result);
             break;
 
         case CommandLineOptions::DiskOptions::Command::SectorRead:
@@ -2182,7 +2743,7 @@ std::string DiskCommandRunner::DescribeSpecRefusal (const BlankDiskSpec & spec)
         case BlankDiskVerdict::ContentsNotInContainer:
             text = "Error: illegal container and filesystem combination\n"
                    "       .dsk and .do hold DOS 3.3, .po holds ProDOS, and .woz and\n"
-                   "       .nib hold either.\n";
+                   "       .nib hold either. Apple Pascal and CP/M go in any of them.\n";
             break;
 
         case BlankDiskVerdict::FluxNeedsWoz:
@@ -2192,13 +2753,19 @@ std::string DiskCommandRunner::DescribeSpecRefusal (const BlankDiskSpec & spec)
 
         case BlankDiskVerdict::BootableNeedsFilesystem:            text = "Error: cannot make an unformatted disk bootable\n"
                    "       There is no filesystem to copy an operating system into.\n"
-                   "       Format the disk as dos33 or prodos.\n";
+                   "       Format the disk as dos33, prodos, pascal, or cpm.\n";
             break;
 
         case BlankDiskVerdict::ProDosNameUnusable:
             text = "Error: illegal volume name\n"
                    "       ProDOS volume names are 1-15 characters, starting with a\n"
                    "       letter, and can include letters, digits, and periods.\n";
+            break;
+
+        case BlankDiskVerdict::PascalNameUnusable:
+            text = "Error: illegal volume name\n"
+                   "       Apple Pascal volume names are 1-7 characters, with no spaces\n"
+                   "       or any of $ = ? , : [ ].\n";
             break;
 
         default:
@@ -2333,6 +2900,14 @@ HRESULT DiskCommandRunner::ResolveContents (const CommandLineOptions & options,
     {
         outContents = BlankDiskContents::ProDos;
     }
+    else if (asked == "pascal")
+    {
+        outContents = BlankDiskContents::Pascal;
+    }
+    else if (asked == "cpm" || asked == "cp/m")
+    {
+        outContents = BlankDiskContents::Cpm;
+    }
     else if (asked == "none" || asked == "raw" || asked == "unformatted")
     {
         outContents = BlankDiskContents::Unformatted;
@@ -2344,7 +2919,7 @@ HRESULT DiskCommandRunner::ResolveContents (const CommandLineOptions & options,
 
     CBRFEx (recognized, E_INVALIDARG,
             (result.diagnostics    += "Error: unknown format: " + options.disk.formatName + "\n"
-                                      "       Valid formats are dos33, prodos, and none.\n",
+                                      "       Valid formats are dos33, prodos, pascal, cpm, and none.\n",
              result.exitStatus      = DiskCommandResult::kNoOutput,
              result.badCommandLine  = true));
 
@@ -2385,6 +2960,12 @@ HRESULT DiskCommandRunner::ResolveVolume (const CommandLineOptions & options,
     //  failure of anything.
     BAIL_OUT_IF (!named, S_OK);
 
+    CBRFEx (inOutSpec.contents != BlankDiskContents::Cpm, E_INVALIDARG,
+            (result.diagnostics    += ApplyPrefix ("Error: CP/M has no volume name or number\n"
+                                                   "       Leave out %Lvolume for a CP/M disk.\n"),
+             result.exitStatus      = DiskCommandResult::kNoOutput,
+             result.badCommandLine  = true));
+
     //  UPPERCASED HERE, WHERE IT IS ACCEPTED, and not only where it is
     //  written. ProDOS holds a volume name in upper case and compares without
     //  regard to case, so `--volume mydisk` is a perfectly good way to ask for
@@ -2392,7 +2973,7 @@ HRESULT DiskCommandRunner::ResolveVolume (const CommandLineOptions & options,
     //  was tell the spec, so the line confirming the disk read back the name
     //  that was typed while `disk list` read back the name that is there, and
     //  the two disagreed over a disk that was right all along.
-    if (inOutSpec.contents == BlankDiskContents::ProDos)
+    if (inOutSpec.contents == BlankDiskContents::ProDos || inOutSpec.contents == BlankDiskContents::Pascal)
     {
         inOutSpec.volumeName = asked;
 
@@ -2462,9 +3043,11 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
 {
     HRESULT                hr       = S_OK;
     bool                   isProDos = inOutSpec.contents == BlankDiskContents::ProDos;
+    bool                   isFlat   = inOutSpec.contents == BlankDiskContents::Pascal || inOutSpec.contents == BlankDiskContents::Cpm;
     StockBootDisks::Which  which    = isProDos ? StockBootDisks::Which::ProDosUsersDisk
                                                : StockBootDisks::Which::Dos33Master;
     std::string   master        = options.disk.bootableFrom;
+    bool          stock         = false;
     bool          bothWaysAsked = false;
     bool          cached        = false;
     vector<Byte>  osBytes;
@@ -2484,6 +3067,34 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
 
     //  Not asked for at all is the ordinary case, not a failure.
     BAIL_OUT_IF (!options.disk.bootable, S_OK);
+
+    //  A stock Apple Pascal or CP/M disk comes from the same cache, and neither
+    //  goes in the repository. The choice between CP/M's two is a word in place
+    //  of the image's path.
+    if (isFlat)
+    {
+        stock = StockBootDisks::TryGetStockDisk (options.disk.formatName, master, which);
+
+        if (stock)
+        {
+            cached = StockBootDisks::IsCached (which);
+            CBRFEx (cached, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND),
+                    (result.diagnostics    += "Error: the " + TextEncoding::WideToNarrow (StockBootDisks::GetLabel (which))
+                                            + " boot disk has not been downloaded\n"
+                                            + ApplyPrefix ("       Select Bootable in Casso Explorer's New disk image to download it,\n"
+                                                           "       or supply a boot disk image with %Lbootable <image>.\n"),
+                     result.exitStatus      = DiskCommandResult::kNoOutput,
+                     result.badCommandLine  = true));
+
+            master = StockBootDisks::GetPath (which);
+        }
+
+        hr = LoadSystemSource (master, inOutSpec.contents, outPayload, result);
+        CHR (hr);
+
+        inOutSpec.bootable = true;
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     //  A BARE --bootable MEANS THE ONE THE EMULATOR DOWNLOADED. Which of the
     //  two that is follows the format being written, because a ProDOS disk
@@ -2530,6 +3141,66 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::LoadSystemSource
+//
+//  The image a bootable Apple Pascal or CP/M disk is copied from, in any
+//  container, checked for what the copy needs before anything is built.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::LoadSystemSource (const std::string   & path,
+                                             BlankDiskContents     contents,
+                                             BootPayload         & outPayload,
+                                             DiskCommandResult   & result)
+{
+    HRESULT             hr       = S_OK;
+    bool                isPascal = contents == BlankDiskContents::Pascal;
+    VolumeKind          wanted   = isPascal ? VolumeKind::Pascal : VolumeKind::Cpm;
+    bool                matches  = false;
+    bool                complete = false;
+    vector<Byte>        fileBytes;
+    vector<Byte>        sectors;
+    SectorDecodeReport  report;
+    std::string         missing;
+
+
+
+    hr = m_fileIo.ReadAllBytes (path, fileBytes);
+    CHRF (hr, result.Fail (path, "", "cannot be read, so there is no operating system to copy"));
+
+    hr = VolumeImage::Load (fileBytes, path, sectors, report);
+    CHRF (hr, result.Fail (path, "", "is not a disk image this tool can read"));
+
+    matches = VolumeImage::DetectFilesystem (sectors) == wanted;
+    CBRFEx (matches, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT),
+            result.Fail (path, "", std::string ("is not ") + (isPascal ? "an Apple Pascal disk" : "a CP/M disk") + ", so it can't supply the system"));
+
+    missing  = isPascal ? PascalVolume::DescribeMissingSystem (sectors)
+             : CpmVolume::HasSystemTracks (sectors) ? std::string() : std::string ("it has no system on tracks 0 to 2");
+    complete = missing.empty();
+
+    CBRFEx (complete, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT),
+            result.Fail (path, "", "can't make a disk bootable: " + missing));
+
+    if (isPascal)
+    {
+        outPayload.pascalSystem = std::move (sectors);
+    }
+    else
+    {
+        outPayload.cpmSystem = std::move (sectors);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::DescribeNewDisk
 //
 //  What was just written, in the words the flags used to ask for it.
@@ -2546,6 +3217,8 @@ std::string DiskCommandRunner::DescribeNewDisk (const BlankDiskSpec & spec)
     {
         case BlankDiskContents::Dos33:       text = "DOS 3.3";      break;
         case BlankDiskContents::ProDos:      text = "ProDOS";       break;
+        case BlankDiskContents::Pascal:      text = "Apple Pascal"; break;
+        case BlankDiskContents::Cpm:         text = "CP/M";         break;
         default:                             text = "unformatted";  break;
     }
 
@@ -2553,7 +3226,7 @@ std::string DiskCommandRunner::DescribeNewDisk (const BlankDiskSpec & spec)
     {
         text += ", volume " + std::to_string ((int) spec.volumeNumber);
     }
-    else if (spec.contents == BlankDiskContents::ProDos)
+    else if (spec.contents == BlankDiskContents::ProDos || spec.contents == BlankDiskContents::Pascal)
     {
         text += ", volume " + spec.volumeName;
     }
@@ -2616,6 +3289,7 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
     DiskImageSession::OpenedImage  target;
     std::string                    refusal;
     bool                           pairingHolds = false;
+    SYSTEMTIME                     now          = {};
 
 
 
@@ -2627,6 +3301,9 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
 
     hr = ResolveVolume (options, spec, result);
     CHR (hr);
+
+    now             = m_clock();
+    spec.pascalDate = PascalVolume::MakeDate (now.wYear, now.wMonth, now.wDay);
 
     hr = ResolveBoot (options, spec, payload, result);
     CHR (hr);
@@ -3797,7 +4474,8 @@ bool DiskCommandRunner::WritesTheImage (CommandLineOptions::DiskOptions::Command
         || command == Command::Create
         || command == Command::Init
         || command == Command::SectorWrite
-        || command == Command::BlockWrite;
+        || command == Command::BlockWrite
+        || command == Command::Krunch;
 }
 
 

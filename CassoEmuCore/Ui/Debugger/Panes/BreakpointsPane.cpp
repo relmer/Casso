@@ -164,6 +164,7 @@ void BreakpointsPane::Configure()
         }
     });
 
+    m_list->SetSelectOnCheckPress (false);
     m_list->SetOnCheckToggled ([this] (int row, size_t, bool checked)
     {
         const DebuggerViewSnapshot::BreakpointLine  * bp = GetBreakpointOfRow (row);
@@ -1137,8 +1138,7 @@ void BreakpointsPane::ApplyRows()
             row.push_back (cell);
         }
 
-        row[(size_t) BreakpointColumns::Column::Name].check           = bp.enabled;
-        row[(size_t) BreakpointColumns::Column::Name].isCheckDisabled = bp.isAbsent;
+        row[(size_t) BreakpointColumns::Column::Name].check = DxuiListView::Cell::GetCheck (bp.enabled, bp.isAbsent);
         row[(size_t) BreakpointColumns::Column::Name].icon            = m_host.GetBreakpointIcon (bp.enabled && !bp.isAbsent);
         rows.push_back (std::move (row));
     }

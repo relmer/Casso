@@ -68,14 +68,14 @@ public:
     void  HandleCommand        (WORD commandId);
     bool  OnCommand            (HWND hwnd, int id);
 
-    void  OnFileCommand        (int id);
-    void  OnEditCommand        (int id);
-    void  OnMachineCommand     (int id);
-    void  OnViewCommand        (int id);
-    void  OnDiskCommand        (int id);
-    void  OpenCassque          ();
-    void  OnPrinterCommand     (int id);
-    void  OnHelpCommand        (int id);
+    void  OnFileCommand          (int id);
+    void  OnEditCommand          (int id);
+    void  OnMachineCommand       (int id);
+    void  OnViewCommand          (int id);
+    void  OnDiskCommand          (int id);
+    void  OpenCassoExplorer      ();
+    void  OnPrinterCommand       (int id);
+    void  OnHelpCommand          (int id);
     void  OnExternalDriveCommand (int id);
     void  OnMouseConnectCommand  (int id);
 
@@ -96,7 +96,7 @@ public:
 
     // The create-a-blank-disk flow behind the picker's <Create new disk...>
     // row: dialog -> BlankDiskBuilder -> atomic write -> Mount.
-    HRESULT  CreateBlankDiskForDrive (int drive, bool & outMountStarted);
+    HRESULT  CreateBlankDiskForDrive (int drive, const RECT * placeAtPx, bool & outMountStarted);
 
 private:
     EmulatorShell &  m_shell;

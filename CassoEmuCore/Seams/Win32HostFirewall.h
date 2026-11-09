@@ -1,0 +1,54 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "Net/FirewallCheck.h"
+#include "Seams/IHostFirewall.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32HostFirewall
+//
+//  IHostFirewall over INetFwPolicy2, on a thread with COM initialized. A
+//  rule for a protocol other than TCP or UDP is left out, since no Casso
+//  socket uses one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class Win32HostFirewall : public IHostFirewall
+{
+public:
+    HRESULT  Read               (FirewallSnapshot & outSnapshot) override;
+    HRESULT  ReadActiveProfiles (FirewallProfile & outActive) override;
+
+    //  This process as the firewall's rules identify it.
+    static HRESULT  GetThisProgram (FirewallProgram & outProgram);
+
+    //  A package's SID, as S-1-15-2-..., from its family name.
+    static HRESULT  MakePackageSid (const std::wstring & familyName, std::wstring & outSid);
+
+    //  The same, or an empty program when it cannot be read, whose verdicts
+    //  then match only the rules for every program.
+    static FirewallProgram  ReadThisProgram ();
+
+    //  One rule, with outInbound false for an outbound rule or one for a
+    //  protocol other than TCP or UDP; outRule is then incomplete.
+    static HRESULT  ReadRule       (INetFwRule * rule, bool & outInbound, FirewallRule & outRule);
+
+    //  The profile of a network in a category: an authenticated domain
+    //  network the domain profile, a private one the private profile, and
+    //  any other the public profile.
+    static FirewallProfile  GetCategoryProfile (NLM_NETWORK_CATEGORY category);
+
+private:
+    static std::wstring  TakeString     (BSTR text);
+    static HRESULT       ReadAnyAddress (INetFwRule * rule, bool & outAny);
+
+    //  The profiles of the networks the PC is connected to, with the
+    //  firewall's current profiles in their place when there are none.
+    static HRESULT  ReadConnectedProfiles (INetFwPolicy2 * policy, FirewallProfile & outActive);
+};

@@ -1,0 +1,394 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "CassoLink/CassoLinkSession.h"
+#include "CassoLink/CassoLinkSettings.h"
+#include "CassoLink/LinkAnnouncement.h"
+#include "CassoLink/LinkProgram.h"
+#include "CassoLink/RunningCassoRegistry.h"
+#include "CassoExplorer/Model/CassoLinkLogFile.h"
+#include "CassoExplorer/Model/TreeModel.h"
+#include "Net/FirewallMonitor.h"
+#include "Net/FirewallRemedy.h"
+#include "Net/ListenGate.h"
+
+class FirewallMonitor;
+class ICassoLinkFolder;
+class IByteStreamFactory;
+class IDiskFileIo;
+class ILinkAnnouncements;
+
+struct NetworkAdapter;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections
+//
+//  Casso Explorer's CassoLink connections: a session for each link the user has
+//  started, and what they returned. A request for a drive's listing or a
+//  file queues the operation and returns at once; when the session finishes
+//  it, a message is posted to the window, and the same request then returns
+//  the result. Nothing here waits on a line.
+//
+//  A link's port is open only while it is started: the first
+//  request starts it, and Stop, or the link's removal, closes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class CassoLinkConnections
+{
+public:
+    CassoLinkConnections (IByteStreamFactory & factory, ICassoLinkFolder & folder, IDiskFileIo & fileIo);
+    ~CassoLinkConnections ();
+
+    //  Where a Full Send started from an Apple writes: the folder, made by
+    //  makeFolder when the session starts, and the extension with its period,
+    //  empty for .po on ProDOS and .dsk otherwise.
+    using MakeFolderFn = std::function<HRESULT (const std::string & folder)>;
+
+    void  SetFullSendTarget (const std::string & folder, const std::string & extension, MakeFolderFn makeFolder);
+
+    //  Verified transfers for every connection that doesn't override them.
+    void  SetVerifyDefaults (bool reads, bool writes, bool autoReads);
+
+    //  The folder of the daily log files of every connection's activity and
+    //  packets. With none, nothing is written to a file.
+    void  SetLogFolder (const std::filesystem::path & folder) { m_logFile.SetFolder (folder); }
+
+    //  An activity row under a name other than a connection's, such as an
+    //  injected fault's.
+    void  AppendLogRow (const std::string & name, const std::string & text) { m_logFile.Append (name, CassoLinkLogFile::kActivity, text); }
+
+    //  Where a finished operation or a change of state is posted.
+    void  SetTarget (HWND hwnd, UINT message) { m_hwnd = hwnd; m_message = message; }
+
+    //  Makes the folder an ADTPro-compatible server serves, for each one
+    //  started. With none set, every link is served the folder given at
+    //  construction.
+    using FolderMaker = std::function<std::unique_ptr<ICassoLinkFolder> (const std::wstring & path)>;
+    void  SetFolderMaker (FolderMaker maker) { m_makeFolder = std::move (maker); }
+
+    //  The announcement listener, opened while a saved Uthernet II has no
+    //  address and closed otherwise, so no announcement port is bound for a
+    //  user who links to no Apple over the network.
+    void                                    SetAnnouncements (ILinkAnnouncements * announcements) { m_announcements = announcements; }
+
+    //  The firewall's verdicts, for the tree's entries: a connection that other
+    //  computers connect or send to, and that the firewall blocks, has the
+    //  cause in its entry. A port the firewall does not admit is not opened,
+    //  so no Windows Firewall prompt appears for it: the announcement
+    //  listener stays closed and a Wi-Fi modem does not listen until the
+    //  entry's Allow admits the port.
+    void                                    SetFirewall (FirewallMonitor * firewall) { m_firewall = firewall; }
+
+    //  The verdicts read again, applied to the listeners: the manager calls
+    //  it when the firewall's version changes.
+    void                                    ApplyFirewall ();
+
+    //  The port other computers send to for a connection: an Uthernet II with no
+    //  address receives announcements on UDP 6510, and a Wi-Fi modem dials in
+    //  on TCP 6400. False for every other connection, which dials out or is
+    //  on a cable.
+    static bool                             GetInboundPort (const CassoLinkSettings & settings, FirewallPort & outPort);
+
+    //  The program in the firewall's words.
+    static constexpr const wchar_t *        kFirewallTitle = L"Casso Explorer";
+
+    //  The links, as the preferences have them. A link removed or changed is
+    //  stopped.
+    void                                    SetLinks (const std::vector<CassoLinkSettings> & links);
+
+    //  The running Cassos with a serial port on TCP, each an Emulated link
+    //  with its machine and port as its name, never saved. One whose
+    //  address a saved link has is left out, and one on port 1 is listed with
+    //  the reason it cannot connect. A Casso that exits stops its link.
+    void                                    SetRunning (const std::vector<RunningCasso> & running);
+
+    //  The Apples of universal boot disks' announcements, each an Uthernet
+    //  II link at its announcement's address, never saved. One whose address
+    //  a saved link has is left out, and all of them while no saved Uthernet
+    //  II is without an address. Each one listed is connected to unless the
+    //  user disconnected it.
+    void                                    SetAnnounced (const std::vector<LinkAnnouncement> & announced);
+
+    //  Every link: the saved ones, then the running Cassos, then the Apples
+    //  of the announcements.
+    const std::vector<CassoLinkSettings> &  GetLinks () const { return m_links; }
+
+    //  Whether a link is a running Casso's or an announcement's rather than
+    //  a saved one.
+    bool                                    IsDiscovered (const std::string & name) const;
+
+    //  A running Casso's root name: its machine and TCP port.
+    static std::string                      MakeRunningName (const RunningCasso & running);
+
+    //  A search starts a serial link by searching the COM ports for the
+    //  Apple, as a link with no port set does.
+    HRESULT  Start     (const std::string & name, bool search = false);
+
+    //  For a start the user didn't ask for, at launch or on opening a list. A
+    //  port another connection has is left with it, and this one is disconnected
+    //  with the reason.
+    HRESULT  StartIfFree (const std::string & name);
+
+    //  Whether two connections would open one COM port. An any-port connection
+    //  opens a PC's only COM port, so with several it conflicts with no other.
+    static bool  SharesPort (const CassoLinkSettings & a, const CassoLinkSettings & b, size_t comPortCount);
+
+    //  The COM port a started connection opened, or empty.
+    std::wstring  GetOpenPort (const std::string & name) const;
+
+    //  Marks a connection disconnected with no session to stop, as at launch.
+    void     Hold       (const std::string & name);
+
+    //  Whether the user disconnected it, rather than another connection taking
+    //  its port.
+    bool     IsHeldByUser (const std::string & name) const;
+
+    //  Starts a link on an Apple with no link program, typing the loader in
+    //  first. The completion runs when the program is running or the
+    //  Apple does not answer.
+    HRESULT  Bootstrap (const std::string & name, std::function<std::wstring (const LinkOperation & operation)> completion);
+    void     Stop      (const std::string & name);
+    bool     IsStarted (const std::string & name) const;
+
+    //  Stops a link the user disconnected; it stays stopped until Start or
+    //  Bootstrap. Opening its root or a listing request does not start it
+    //  again, and its root has that it is disconnected.
+    void     Disconnect (const std::string & name);
+    bool     IsHeld     (const std::string & name) const;
+
+    //  The link each window has as its location, empty for none, so one
+    //  window going elsewhere does not stop a link that is another window's location.
+    void     SetViewing (const void * viewer, const std::string & name);
+    bool     IsViewed   (const std::string & name) const;
+
+    //  The session of a started link, or null.
+    CassoLinkSession *  GetSession (const std::string & name);
+
+    //  The tree's entries for the links: a started link's drives, and for
+    //  any other its state and the reason. A drive is listed once its
+    //  catalog has been read, so no drive is drawn, selected or opened before
+    //  anything is known about its disk.
+    std::vector<LinkTreeEntry>  BuildTreeEntries () const;
+
+    //  Each connected Apple's drives read as soon as it replies: a catalog
+    //  read is queued for each drive that has none.
+    void  ProbeDrives ();
+
+    //  A directory's listing on a drive, or a file's contents, once read:
+    //  false while it is being read, starting the read, and the link with it,
+    //  on the first request. A failed read arrives as its result
+    //  and message.
+    bool  TryGetListing (const std::string & name, int drive, const std::string & directory,
+                         VolumeListing & outListing, VolumeKind & outKind, HRESULT & outResult, std::string & outMessage,
+                         bool * outKept = nullptr);
+    bool  TryGetFile    (const std::string & name, int drive, const std::string & path,
+                         FilePayload & outPayload, HRESULT & outResult, std::string & outMessage);
+
+    //  An operation queued on a link, the link started first if it was not,
+    //  and what to do with its result on the window's thread. A completion
+    //  returns the message for the user, or empty for none.
+    using Queuer     = std::function<std::shared_ptr<LinkOperation> (CassoLinkSession & session)>;
+    using Completion = std::function<std::wstring (const LinkOperation & operation)>;
+
+    HRESULT  Submit (const std::string & name, const Queuer & queue, Completion completion);
+
+    //  The completions of the operations that finished, run on the window's
+    //  thread; their messages are returned.
+    std::vector<std::wstring>  RunCompletions ();
+
+    //  Operations submitted and not yet finished, in the order they run.
+    std::vector<std::shared_ptr<LinkOperation>>  GetPendingJobs () const;
+
+    //  The activity log: each connection's connects and drops, its finished
+    //  operations, and ADTPro's requests, oldest first, the latest kLogLength.
+    struct Activity
+    {
+        SYSTEMTIME    time      = {};
+        SYSTEMTIME    started   = {};      // an operation's start; time is its end
+        bool          operation = false;
+        std::wstring  connection;
+        std::wstring  text;
+    };
+
+    std::vector<Activity>  GetActivity () const;
+
+    static constexpr size_t  kLogLength = 500;
+
+    //  Whether any connection is in a transfer.
+    bool  IsAnyTransferring () const;
+
+    //  Whether an image is being written to a drive, or waits to be.
+    bool  IsWritingDisk (const std::string & name, int drive) const;
+
+    //  A file's contents, waiting up to timeoutMs for them. Only for a drop,
+    //  where the target requests the bytes and cannot finish without them.
+    //  pause is called between checks, so the window can paint meanwhile.
+    HRESULT  WaitForFile (const std::string & name, int drive, const std::string & path, DWORD timeoutMs, const std::function<void (DWORD)> & pause,
+                          FilePayload & outPayload);
+
+    //  The text for an operation that failed.
+    static std::wstring  DescribeFailure (const LinkOperation & operation);
+
+    //  The status bar's text for the pending operations: the first one's
+    //  progress, and how many follow it. Empty for none.
+    static std::wstring  DescribeJobs (const std::vector<std::shared_ptr<LinkOperation>> & jobs);
+
+    //  Drops what was read from a drive, so it is read again; each listing as
+    //  last read is listed until the new one arrives, with TryGetListing's
+    //  outKept set. RemoveListed takes an entry deleted from the drive out
+    //  of that listing.
+    void  Invalidate   (const std::string & name, int drive);
+
+    //  The file system of a drive's disk when detection doesn't recognize it.
+    void        SetChosenKind (const std::string & name, int drive, VolumeKind kind);
+    VolumeKind  GetChosenKind (const std::string & name, int drive) const;
+    void        RemoveListed  (const std::string & name, int drive, const std::string & directory, const std::string & entry);
+
+    //  Whether anything arrived since the last call.
+    bool  TakeChanged ();
+
+    //  The text under a link's root in place of its drives.
+    static std::wstring  DescribeState (LinkState state, const CassoLinkSettings & settings, const std::wstring & pcName);
+
+    //  A speed with its thousands separated, as 115,200.
+    static std::wstring  FormatBaud    (DWORD baud);
+
+    //  Whether a link's name already says its address's port, as a name
+    //  made from the settings does, so a sentence need not repeat it.
+    static bool  NamesItsPort (const std::wstring & name, const std::wstring & address);
+
+    //  The command a Wi-Fi modem dials for a link: ATDT, this PC's name with
+    //  .local, and the link's TCP port.
+    static std::wstring  DescribeDial  (const std::wstring & pcName, const CassoLinkSettings & settings);
+
+    //  The dial command itself, as the shim on a boot disk sends it to the
+    //  modem; empty for any transport but the Wi-Fi modem.
+    static std::string   MakeDialCommand (const std::wstring & pcName, const CassoLinkSettings & settings);
+
+    //  What is written into the shim on a link's boot disk: the link's speed,
+    //  slot and dial command, or for an Uthernet II, the W5100 build, with the
+    //  network for the link's address and the PC's adapters.
+    static LinkShimOptions  MakeShimOptions (const std::wstring & pcName, const CassoLinkSettings & settings);
+
+    //  An Uthernet II's network for a link's address: the address and port;
+    //  the mask and gateway of the PC's adapter on its subnet, or
+    //  255.255.255.0 and the subnet's .1; and a locally administered MAC
+    //  address ending in the address's last byte. Fails for a host that is
+    //  not an IPv4 address.
+    static HRESULT  MakeNetworkConfig (const CassoLinkSettings & settings, const std::vector<NetworkAdapter> & adapters, LinkNetworkConfig & outConfig);
+
+    //  The slot the Uthernet II ships in, which a W5100 shim is built for.
+    static constexpr int  kUthernetSlot = 3;
+
+    //  This PC's DNS host name.
+    static std::wstring  GetPcName ();
+
+    //  The PC's COM ports, for the connection dialog.
+    HRESULT  ListComPorts (std::vector<std::wstring> & outPorts);
+
+    static constexpr DWORD  kWaitPollMs = 20;
+
+private:
+    class Sink : public ICassoLinkSessionSink
+    {
+    public:
+        Sink (CassoLinkConnections & owner, std::string name) : m_owner (owner), m_name (std::move (name)) {}
+
+        void  OnStateChanged       (LinkState state) override;
+        void  OnProgress           (const std::shared_ptr<LinkOperation> & operation) override;
+        void  OnDone               (const std::shared_ptr<LinkOperation> & operation) override;
+        bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override;
+        void  OnOperationQueued    (const std::shared_ptr<LinkOperation> & operation) override;
+        void  OnActivity           (const std::string & text) override;
+        void  OnTrace              (bool sent, const std::string & text) override;
+        void  OnFinished           (const LinkOperation & operation, const std::string & text) override;
+
+        //  Whether a transfer reported progress lately. A Full Send waiting for
+        //  disks doesn't report progress, so it isn't transferring.
+        bool  IsTransferring       (bool serving) const;
+        bool  IsFullSending        () const;
+
+    private:
+        void  Log (Activity entry, const std::string & text);
+
+        static constexpr ULONGLONG  kTransferWindowMs = 10000;
+
+        CassoLinkConnections    & m_owner;
+        std::string               m_name;
+        std::atomic<ULONGLONG>    m_lastProgress { 0 };
+        std::atomic<ULONGLONG>    m_lastActivity { 0 };
+        std::atomic<bool>         m_fullSending  { false };
+    };
+
+    struct Link
+    {
+        CassoLinkSettings                                          settings;
+        std::unique_ptr<ICassoLinkFolder>                          folder;      // an ADTPro server's, before the session that serves it
+        std::unique_ptr<Sink>                                      sink;
+        std::unique_ptr<CassoLinkSession>                          session;
+        std::map<std::string, std::shared_ptr<LinkOperation>>      requests;
+        std::map<std::string, std::shared_ptr<LinkOperation>>      shown;       // each listing as last read, listed while it is read again
+        bool                                                       connected = false;   // as ProbeDrives last found it
+    };
+
+    static std::string  MakeKey (int drive, const std::string & path, bool file);
+
+    Link        * FindLink (const std::string & name);
+    const Link  * FindLink (const std::string & name) const;
+    bool          TryGetResult (const std::string & name, int drive, const std::string & key, LinkOperationKind kind,
+                                const std::string & path, std::shared_ptr<LinkOperation> & outOperation);
+    void                      Notify             ();
+    HRESULT                   StartLink          (const std::string & name, bool search, std::shared_ptr<LinkOperation> * outBootstrap);
+    HRESULT                   TakePort           (const std::string & name);
+    void                      ApplyVerify        (Link & link) const;
+    std::vector<std::string>  GetPortRivals      (const std::string & name);
+    void                      Merge              ();
+    bool                      IsSearching        () const;
+    bool                      IsAnnounceAdmitted () const;
+    void                      ApplyListening     ();
+    void                      AddFirewall        (const CassoLinkSettings & settings, LinkTreeEntry & entry) const;
+
+    IByteStreamFactory                 & m_factory;
+    ICassoLinkFolder                   & m_folder;
+    FolderMaker                          m_makeFolder;
+    IDiskFileIo                        & m_fileIo;
+    ILinkAnnouncements                 * m_announcements = nullptr;
+    FirewallMonitor                    * m_firewall      = nullptr;
+    ListenGate                           m_gate;          // the verdicts, for the sessions' threads
+    std::vector<CassoLinkSettings>       m_saved;
+    std::vector<RunningCasso>            m_running;
+    std::vector<LinkAnnouncement>        m_announced;
+    std::vector<CassoLinkSettings>       m_links;
+    std::set<std::string>                m_held;
+    std::map<std::string, std::string>   m_heldFor;   // a connection disconnected for another that took its port
+    std::map<const void *, std::string>  m_viewing;
+    std::vector<std::unique_ptr<Link>>   m_started;
+
+    struct Job
+    {
+        std::string                     link;
+        std::shared_ptr<LinkOperation>  operation;
+        Completion                      completion;
+    };
+
+    std::string           m_fullSendFolder;
+    std::string           m_fullSendExtension;
+    bool                  m_verifyReads        = false;
+    bool                  m_verifyWrites       = false;
+    bool                  m_autoVerify         = true;
+    MakeFolderFn          m_makeFullSendFolder;
+    std::vector<Job>      m_jobs;
+    std::deque<Activity>  m_activity;
+    CassoLinkLogFile      m_logFile;
+    mutable std::mutex    m_lock;
+    std::atomic<bool>     m_changed            { false };
+    HWND                  m_hwnd               = nullptr;
+    UINT                  m_message            = 0;
+};

@@ -12,15 +12,11 @@
 
 
 
-static constexpr float     s_kPadXDip         = 8.0f;
-static constexpr float     s_kPadYDip         = 4.0f;
-static constexpr float     s_kBorderDip       = 1.0f;
-
-//
-//  Text wider than this wraps onto additional lines instead of growing the
-//  balloon past the window edge.
-//
-static constexpr float     s_kMaxTextWidthDip = 340.0f;
+static constexpr float     s_kPadXDip            = 8.0f;
+static constexpr float     s_kPadYDip            = 4.0f;
+static constexpr float     s_kBorderDip          = 1.0f;
+static constexpr int       s_kPointerGapDip      = 26;   // above the pointer, as Explorer places its tips
+static constexpr int       s_kPointerBelowGapDip = 4;    // below the pointer's arrow, when there is no room above
 
 //
 //  A fixed-width tip's lines are columns, broken where the caller broke
@@ -486,6 +482,21 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
         // sixty times a second and the tip never dismissed itself -- the
         // lifetime existed and could not once be reached. A move to a
         // DIFFERENT control is a new tip and starts its own clock.
+        //  A tip that follows the pointer is placed where the pointer is when
+        //  it shows, so a move to another control takes the old one down and
+        //  shows the new one after the full delay again, as File Explorer's do.
+        if (changed && m_followPointer)
+        {
+            ReleaseActivePopup();
+
+            m_visible       = false;
+            m_pendingAnchor = anchor;
+            m_pendingText   = text;
+            m_pending       = true;
+            m_showAtMs      = nowMs + (int64_t) m_dwellOpenMs;
+            return;
+        }
+
         //  A balloon already up takes the new anchor and text in place: sized
         //  and drawn again only for new text or colors, and only moved for a
         //  new anchor, so a pointer crossing from part to part of a view does
@@ -508,6 +519,15 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
             ShowPopup();
         }
 
+        return;
+    }
+
+    //  A move over the same control keeps the clock it started, as Windows'
+    //  tips do: restarting it on every move held the tip back until the
+    //  pointer had stopped for the whole dwell.
+    if (m_pending && text == m_pendingText)
+    {
+        m_pendingAnchor = anchor;
         return;
     }
 
@@ -962,6 +982,27 @@ void DxuiTooltip::ShowPopup()
         showParams.ownerHwnd        = owner;
         showParams.anchorRectScreen = GetScreenAnchor();
         showParams.placement        = m_placement;
+
+        //  An anchor as wide as the tip, centered on the pointer and spanning
+        //  the pointer's own height, so above it the tip clears the pointer's
+        //  tip and below it clears the arrow. The host keeps it on the monitor.
+        if (m_followPointer)
+        {
+            POINT  pointer = {};
+            int    gap     = m_scaler.ToPx (s_kPointerGapDip);
+            int    below   = DxuiSystemSettings::Instance().GetCursorHeightPx() / 2;
+            int    boxW    = 0;
+            BOOL   got     = DxuiInputState::GetCursorPos (&pointer);
+
+            IGNORE_RETURN_VALUE (got, TRUE);
+
+            MeasureBoxPx (widthPx, heightPx);
+            boxW = (int) std::ceil (widthPx);
+
+            showParams.anchorRectScreen = { pointer.x - boxW / 2, pointer.y - gap, pointer.x - boxW / 2 + boxW, pointer.y + below + m_scaler.ToPx (s_kPointerBelowGapDip) };
+            showParams.placement        = DxuiPopupPlacement::Above;
+        }
+
         showParams.flipIfOffscreen  = true;
         showParams.dismiss          = DxuiPopupDismiss::Manual;
         showParams.input            = DxuiPopupInput::PassThrough;
@@ -1017,7 +1058,12 @@ void DxuiTooltip::ShowPopup()
 
 float DxuiTooltip::GetMaxTextWidthDip() const
 {
-    return m_monospace ? s_kMaxMonoWidthDip : s_kMaxTextWidthDip;
+    if (m_maxTextWidthDip > 0.0f)
+    {
+        return m_maxTextWidthDip;
+    }
+
+    return m_monospace ? s_kMaxMonoWidthDip : kDefaultMaxTextWidthDip;
 }
 
 
@@ -1621,8 +1667,12 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
     width  = (float) (placed.right  - placed.left);
     height = (float) (placed.bottom - placed.top);
 
-    painter.OutlineRoundedRect (0.0f, 0.0f, width, height, GetCornerRadiusPx(), borderPx,
-                                m_shownFrameLabel.empty() ? m_borderArgb : (DxuiColor::Mix (m_bgArgb, m_borderArgb, kFramedEdgeMix) | 0xFF000000u));
+    //  A tip that follows the pointer is a card with a shadow and no border.
+    if (!m_followPointer)
+    {
+        painter.OutlineRoundedRect (0.0f, 0.0f, width, height, GetCornerRadiusPx(), borderPx,
+                                    m_shownFrameLabel.empty() ? m_borderArgb : (DxuiColor::Mix (m_bgArgb, m_borderArgb, kFramedEdgeMix) | 0xFF000000u));
+    }
 
     if (!m_shownFrameLabel.empty())
     {

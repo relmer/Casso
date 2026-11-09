@@ -20,7 +20,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SourcePane::SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run) :
+SourcePane::SourcePane (DxuiTextView * view, DxuiInfoBanner * banner, FindFn find, RunFn run) :
     m_view   (view),
     m_banner (banner),
     m_find   (std::move (find)),

@@ -291,6 +291,11 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     float    padPx   = m_scaler.ToPxf ((float) kFieldPadDip);
     float    fontPx  = m_scaler.ToPxf (kFontDip);
     float    lineW   = (float) (std::max) (1L, std::lround (m_scaler.ToPxf (1.0f)));
+    float    flowX   = (float) m_boundsDip.left + m_scaler.ToPxf (m_leadDip);
+    float    gapPx   = m_scaler.ToPxf (kFlowGapDip);
+    float    ruleH   = m_scaler.ToPxf (kFlowRuleDip);
+    float    textW   = 0.0f;
+    float    textH   = 0.0f;
     size_t   i       = 0;
     HRESULT  hr      = S_OK;
 
@@ -300,16 +305,25 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
                       (float) (m_boundsDip.right - m_boundsDip.left),
                       (float) (m_boundsDip.bottom - m_boundsDip.top), theme.StatusBackground());
 
-    painter.FillRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
-                      (float) (m_boundsDip.right - m_boundsDip.left), lineW, theme.Divider());
+    if (m_dividers)
+    {
+        painter.FillRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
+                          (float) (m_boundsDip.right - m_boundsDip.left), lineW, theme.Divider());
+    }
 
     for (i = 0; i < m_fields.size() && i < m_fieldRects.size(); i++)
     {
         const RECT &  r      = m_fieldRects[i];
-        float         boxW   = (float) (r.right - r.left) - 2.0f * padPx;
+        float         left   = (float) r.left + padPx;
+        float         boxW   = 0.0f;
         std::wstring  shown;
 
-        if (i > 0)
+        //  A field after flowing ones starts past their text, which is as
+        //  wide as it is rather than as wide as their rectangles.
+        left = (i > 0 && m_fields[i - 1].flow) ? (std::max) (left, flowX) : left;
+        boxW = (float) r.right - padPx - left;
+
+        if (i > 0 && m_dividers)
         {
             painter.FillRect ((float) r.left, (float) r.top + lineW * 4.0f, lineW,
                               (float) (r.bottom - r.top) - lineW * 8.0f, theme.Divider());
@@ -334,25 +348,53 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
             PaintBar (painter, m_fields[i], r);
         }
 
-        if (boxW <= 0.0f || m_fields[i].text.empty())
+        if (m_fields[i].text.empty())
         {
             continue;
         }
 
-        shown = DxuiTextElide::ToWidth (text, m_fields[i].text, fontPx, DxuiTheme::kBodyFace, boxW, DxuiElide::Tail);
+        //  A flowing field follows the one before it, as wide as its text.
+        if (m_fields[i].flow)
+        {
+            hr = text.MeasureString (m_fields[i].text.c_str(), fontPx, DxuiTheme::GetUiFace(), textW, textH);
+
+            if (FAILED (hr))
+            {
+                continue;
+            }
+
+            hr = text.DrawString (m_fields[i].text.c_str(), flowX, (float) r.top, textW + 1.0f,
+                                  (float) (r.bottom - r.top), theme.ForegroundMuted(), fontPx,
+                                  DxuiTheme::GetUiFace(), DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
+                                  DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            flowX += std::ceil (textW) + gapPx;
+            painter.FillRect (std::floor (flowX), (float) r.top + ((float) (r.bottom - r.top) - ruleH) * 0.5f,
+                              lineW, ruleH, theme.ForegroundMuted());
+            flowX += lineW + gapPx;
+            continue;
+        }
+
+        if (boxW <= 0.0f)
+        {
+            continue;
+        }
+
+        shown = DxuiTextElide::ToWidth (text, m_fields[i].text, fontPx, DxuiTheme::GetUiFace(), boxW, DxuiElide::Tail);
 
         if (m_fields[i].fill >= 0.0f)
         {
-            DxuiShadowedText::PaintShadowed (text, shown.c_str(), (float) r.left + padPx, (float) r.top, boxW,
+            DxuiShadowedText::PaintShadowed (text, shown.c_str(), left, (float) r.top, boxW,
                                              (float) (r.bottom - r.top), kFillTextArgb, fontPx,
-                                             DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
+                                             DxuiTheme::GetUiFace(), DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
                                              (std::max) (1, m_scaler.ToPx (kShadowReachDip)));
             continue;
         }
 
-        hr = text.DrawString (shown.c_str(), (float) r.left + padPx, (float) r.top, boxW,
+        hr = text.DrawString (shown.c_str(), left, (float) r.top, boxW,
                               (float) (r.bottom - r.top), theme.ForegroundMuted(), fontPx,
-                              DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
+                              DxuiTheme::GetUiFace(), DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
                               DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }

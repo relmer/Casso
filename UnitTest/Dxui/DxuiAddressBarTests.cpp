@@ -103,7 +103,7 @@ public:
         Assert::AreEqual (0,  opened, L"The separator after C: opens C:'s menu");
         Assert::AreEqual (-1, clicked, L"and navigates nowhere itself");
         Assert::AreEqual (34L, anchor.left);
-        Assert::AreEqual (62L, anchor.right);
+        Assert::AreEqual (59L, anchor.right);
         Assert::AreEqual (30L, anchor.bottom, L"The menu hangs from the bottom of the bar");
     }
 
@@ -122,7 +122,7 @@ public:
         for (const RecordedPaintCall & call : painter.Calls())
         {
             found = found || (call.kind == RecordedPaintKind::FillRoundedRect
-                              && call.x == 62.0f && call.width == 51.0f
+                              && call.x == 59.0f && call.width == 51.0f
                               && call.y == 4.0f  && call.height == 22.0f);
         }
 

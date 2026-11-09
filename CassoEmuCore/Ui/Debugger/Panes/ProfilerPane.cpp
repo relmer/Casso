@@ -879,7 +879,7 @@ void ProfilerPane::SetBarEntries()
 
         label.command       = m_showLabel->GetCommand();
         label.custom        = m_showLabel.get();
-        label.neverOverflow = true;
+        label.pinned        = true;
         entries.push_back (std::move (label));
     }
 

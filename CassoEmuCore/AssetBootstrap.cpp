@@ -170,6 +170,7 @@ struct BootDiskSpec
     size_t       expectedSize;       // exact byte count for integrity check
     string_view  shortLabel;         // text on the choice button
     string_view  description;        // longer text in the dialog body
+    LPCWSTR      host = nullptr;     // the Asimov mirror when none is given
 };
 
 
@@ -195,6 +196,39 @@ static constexpr BootDiskSpec s_kProDOSDisk =
     "ProDOS",
     "Apple ProDOS Users Disk (680-0224-C). Boots ProDOS 8 with the BASIC.SYSTEM "
     "shell."
+};
+
+static constexpr LPCWSTR  s_kpszBootDiskMirrorHost = L"mirrors.apple2.org.za";
+
+static constexpr BootDiskSpec s_kPascalDisk =
+{
+    StockBootDisks::kpszPascalBootDiskFile,
+    L"/Apple%20II%20Diskware/Pascal/Apple%20II%20Pascal%201.3%20APPLE1%3A%20680-0283-A.dsk",
+    143360,
+    "Apple Pascal",
+    "Apple Pascal 1.3, APPLE1: boot disk (680-0283-A).",
+    s_kpszBootDiskMirrorHost
+};
+
+//  The default for CP/M: it runs on Applied Engineering's Z-RAM.
+static constexpr BootDiskSpec s_kCpamDisk =
+{
+    StockBootDisks::kpszCpamBootDiskFile,
+    L"/ftp.apple.asimov.net/images/cpm/os/CPAM51A.dsk",
+    143360,
+    "CP/AM 5.1",
+    "Applied Engineering CP/AM 5.1, for the Z-RAM.",
+    s_kpszBootDiskMirrorHost
+};
+
+static constexpr BootDiskSpec s_kSoftCardDisk =
+{
+    StockBootDisks::kpszSoftCardBootDiskFile,
+    L"/ftp.apple.asimov.net/images/cpm/os/CPM2.23%2860k%29.dsk",
+    143360,
+    "CP/M 2.23",
+    "CP/M 2.23, for a Microsoft SoftCard.",
+    s_kpszBootDiskMirrorHost
 };
 
 
@@ -358,6 +392,15 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
     { "Apple2Plus",      "5fd41292fb955256277ba6a4864b43e12c60ff7a8561974fc05fc74a8c0a8737" },
     { "Apple2e",         "3b5caa6968292ef27d89fa078781e7a477f9d842d95d31f27bf8f5144c921f9f" },
     { "Apple2eEnhanced", "30e5f9b9bf8352d9495e40f08241724d8eeacbd09feefc711c77eee42629de2f" },
+
+    // All five at the crystal divided by 14 (1,022,727 Hz), before the
+    // clock became the scanline average: Apple2 v12, Apple2Plus v15,
+    // Apple2e v14, Apple2eEnhanced v9, Apple2c v5.
+    { "Apple2",          "3c2b7e071afcf540a4f7bbe1ae7b7c33840131c78240246a22a6306c205c4d68" },
+    { "Apple2Plus",      "b2995b59e6d5826dd620e0f5930a98f892eb29fd7eadde2100632c44583091b0" },
+    { "Apple2e",         "3c7b492ad67ad8fd325a82a8f3c6080fdb07b9716368ce20922e941a30be0983" },
+    { "Apple2eEnhanced", "bf6b8311abb1354116cd44e461f5a19a6eb14ab092637e466a0c3122d0df62a9" },
+    { "Apple2c",         "001b5e57036ad0a34ff50418be0e794052c27b2746934eb6222736246319d93b" },
 };
 
 
@@ -864,9 +907,6 @@ struct EmbeddedTheme
 static constexpr EmbeddedThemeFile s_kSkeuomorphicFiles[] =
 {
     { IDR_THEME_SKEUO_THEME_JSON,         "theme.json"          },
-    { IDR_THEME_SKEUO_FONT_TTF,           "fonts/Inter-Regular.ttf" },
-    { IDR_THEME_SKEUO_FONT_OFL,           "fonts/OFL.txt"       },
-    { IDR_THEME_SKEUO_FONT_TODO,          "fonts/TODO_FONTS.md" },
 };
 
 
@@ -875,9 +915,6 @@ static constexpr EmbeddedThemeFile s_kSkeuomorphicFiles[] =
 static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
 {
     { IDR_THEME_DARK_THEME_JSON,         "theme.json"          },
-    { IDR_THEME_DARK_FONT_TTF,           "fonts/Inter-Regular.ttf" },
-    { IDR_THEME_DARK_FONT_OFL,           "fonts/OFL.txt"       },
-    { IDR_THEME_DARK_FONT_TODO,          "fonts/TODO_FONTS.md" },
 };
 
 
@@ -886,9 +923,6 @@ static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
 static constexpr EmbeddedThemeFile s_kRetroTerminalFiles[] =
 {
     { IDR_THEME_RETRO_THEME_JSON,         "theme.json"          },
-    { IDR_THEME_RETRO_FONT_TTF,           "fonts/VT323-Regular.ttf" },
-    { IDR_THEME_RETRO_FONT_OFL,           "fonts/OFL.txt"       },
-    { IDR_THEME_RETRO_FONT_TODO,          "fonts/TODO_FONTS.md" },
 };
 
 
@@ -2000,7 +2034,7 @@ static HRESULT DownloadStockBootDisk (
           outError = "Cannot initialize WinHTTP session");
 
     hr = DownloadHttp (hSession,
-                       s_kpszAsimovHost,
+                       (spec.host != nullptr) ? spec.host : s_kpszAsimovHost,
                        spec.asimovUrlPath,
                        spec.expectedSize,
                        spec.shortLabel,
@@ -2083,19 +2117,35 @@ static void ReportStockDiskDownloadFailure (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetStockBootDiskSpec
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static const BootDiskSpec & GetStockBootDiskSpec (AssetBootstrap::StockBootDisk disk)
+{
+    switch (disk)
+    {
+        case AssetBootstrap::StockBootDisk::ProDosUsersDisk:  return s_kProDOSDisk;
+        case AssetBootstrap::StockBootDisk::PascalBootDisk:   return s_kPascalDisk;
+        case AssetBootstrap::StockBootDisk::CpamBootDisk:     return s_kCpamDisk;
+        case AssetBootstrap::StockBootDisk::SoftCardBootDisk: return s_kSoftCardDisk;
+        default:                                              return s_kDos33Disk;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetStockBootDiskPath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 fs::path AssetBootstrap::GetStockBootDiskPath (StockBootDisk disk)
 {
-    const BootDiskSpec &  spec = (disk == StockBootDisk::Dos33Master)
-                               ? s_kDos33Disk
-                               : s_kProDOSDisk;
-
-
-
-    return GetDiskDirectory() / spec.cassoName;
+    return GetDiskDirectory() / GetStockBootDiskSpec (disk).cassoName;
 }
 
 
@@ -2136,13 +2186,7 @@ HRESULT AssetBootstrap::EnsureStockBootDisk (
     wstring       & outDiskPath,
     string        & outError)
 {
-    const BootDiskSpec &  spec = (disk == StockBootDisk::Dos33Master)
-                               ? s_kDos33Disk
-                               : s_kProDOSDisk;
-
-
-
-    return DownloadStockBootDisk (spec, GetDiskDirectory(), outDiskPath, outError);
+    return DownloadStockBootDisk (GetStockBootDiskSpec (disk), GetDiskDirectory(), outDiskPath, outError);
 }
 
 
@@ -2358,7 +2402,15 @@ public:
         // immune to the search filter -- the picker's <Create new disk...>
         // action row.
         bool          pinnedFirst = false;
+
+        //  The row for a path typed or pasted into the search box, above
+        //  every other row.
+        bool          typedPath   = false;
     };
+
+    //  The result of the row for a typed path, below the dialog's row
+    //  result offset; GetTypedPath has the path.
+    static constexpr int  kTypedPathResult = 99999;
 
     DiskMruPickerSession (HINSTANCE hInstance, HWND hwndParent, std::string_view themeName)
         : m_hInstance (hInstance), m_hwndParent (hwndParent), m_themeName (themeName) {}
@@ -2371,7 +2423,16 @@ public:
     void  SetAnchorRect     (const RECT & anchorRectPx)                             { m_anchorRectPx = anchorRectPx; m_hasAnchor = true; }
     int   Run               ();
 
+    const std::wstring  & GetTypedPath() const { return m_typedPath; }
+
+    //  Where the picker's window was when it closed, in screen pixels.
+    const RECT          & GetClosedRectPx() const { return m_closedRectPx; }
+
     static std::int64_t  FileMtimeUnix (const fs::path & path);
+
+    //  The search text as the path of an existing file: trimmed, without
+    //  surrounding quotes, and absolute. Empty when it isn't one.
+    static std::wstring  ResolveTypedPath (const std::wstring & text);
 
 private:
     void                ConfigureWidgets   ();
@@ -2402,6 +2463,9 @@ private:
     static constexpr UINT   s_kTickIntervalMs        = 30;
     static constexpr float  s_kIconSizeDip           = 64.0f;
 
+    //  Room in the search box for a pasted path as long as Windows allows.
+    static constexpr size_t  s_kSearchMaxChars = 32767;
+
     static constexpr std::uint64_t  s_kFiletimeTicksPerSec = 10000000ULL;
     static constexpr std::uint64_t  s_kUnixEpochFiletime   = 116444736000000000ULL;
 
@@ -2420,6 +2484,8 @@ private:
     DxuiSearchBox              m_search;
     std::vector<int>           m_view;
     std::wstring               m_filter;
+    std::wstring               m_typedPath;
+    RECT                       m_closedRectPx    = {};
     int                        m_sortColumn      = s_kColLastLoaded;
     bool                       m_sortDescending  = true;
     int                        m_focusStop       = -1;
@@ -2526,6 +2592,49 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskMruPickerSession::ResolveTypedPath
+//
+//  A path pasted from File Explorer's Copy as path has quotes around it. A
+//  relative name is a search, not a path, so it is left to the filter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskMruPickerSession::ResolveTypedPath (const std::wstring & text)
+{
+    HRESULT          hr     = S_OK;
+    std::wstring     result;
+    std::wstring     trimmed;
+    fs::path         path;
+    std::error_code  ec;
+    size_t           first  = text.find_first_not_of (L" \t");
+    size_t           last   = text.find_last_not_of (L" \t");
+
+
+
+    BAIL_OUT_IF (first == std::wstring::npos, S_OK);
+
+    trimmed = text.substr (first, last - first + 1);
+
+    if (trimmed.size() >= 2 && trimmed.front() == L'"' && trimmed.back() == L'"')
+    {
+        trimmed = trimmed.substr (1, trimmed.size() - 2);
+    }
+
+    path = fs::path (trimmed);
+    BAIL_OUT_IF (!path.is_absolute() || !fs::is_regular_file (path, ec), S_OK);
+
+    result = path.wstring();
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskMruPickerSession::ConfigureWidgets
 //
 //  One-time configuration of the search box and list view (DPI, columns,
@@ -2542,6 +2651,7 @@ void DiskMruPickerSession::ConfigureWidgets()
 
     m_search.SetDpi         (m_dpi);
     m_search.SetPlaceholder (L"Search");
+    m_search.SetMaxLength   (s_kSearchMaxChars);
     m_search.SetOnChange    ([this] (const std::wstring & value) { m_filter = value; RebuildView(); });
 
     cols.push_back ({ L"Last loaded", 0, false, DxuiTextRenderer::HAlign::Left });
@@ -2673,6 +2783,11 @@ void DiskMruPickerSession::RebuildView()
         const ModelRow &  b   = m_model[(size_t) rhs];
         int               cmp = 0;
 
+        if (a.typedPath != b.typedPath)
+        {
+            return a.typedPath;
+        }
+
         // Pinned action rows order first for EVERY column and direction.
         if (a.pinnedFirst != b.pinnedFirst)
         {
@@ -2697,6 +2812,25 @@ void DiskMruPickerSession::RebuildView()
 
 
 
+    //  A path typed or pasted into the search box gets a row, which the
+    //  search box's Enter chooses.
+    std::erase_if (m_model, [] (const ModelRow & row) { return row.typedPath; });
+
+    m_typedPath = ResolveTypedPath (m_filter);
+
+    if (!m_typedPath.empty())
+    {
+        ModelRow  typed;
+
+        typed.name        = fs::path (m_typedPath).filename().wstring();
+        typed.location    = fs::path (m_typedPath).parent_path().wstring();
+        typed.resultCode  = kTypedPathResult;
+        typed.dimLocation = true;
+        typed.pinnedFirst = true;
+        typed.typedPath   = true;
+        m_model.push_back (std::move (typed));
+    }
+
     m_view.clear();
     m_view.reserve (m_model.size());
 
@@ -2717,6 +2851,14 @@ void DiskMruPickerSession::RebuildView()
         const ModelRow &  row  = m_model[(size_t) idx];
         std::wstring      date = FormatLastLoaded (row.loadedUnix);
 
+        //  The typed path's row is the search text itself, so nothing in it
+        //  is highlighted.
+        if (row.typedPath)
+        {
+            rows.push_back ({ { date, true }, { row.name, false }, { row.location, row.dimLocation } });
+            continue;
+        }
+
         rows.push_back ({ { date,         true,            matchesIn (date) },
                           { row.name,     false,           matchesIn (row.name) },
                           { row.location, row.dimLocation, matchesIn (row.location) } });
@@ -2726,7 +2868,11 @@ void DiskMruPickerSession::RebuildView()
     m_list.UpdateAutoFitFromRows();
 
     selected = m_list.GetSelectedRow();
-    if (selected >= (int) m_view.size())
+    if (!m_typedPath.empty())
+    {
+        m_list.SetSelectedRow (0);
+    }
+    else if (selected >= (int) m_view.size())
     {
         m_list.SetSelectedRow ((int) m_view.size() - 1);
     }
@@ -2845,6 +2991,18 @@ int DiskMruPickerSession::Run()
         }
     });
 
+    m_search.SetOnSubmit ([&dlg, this]() -> bool
+    {
+        bool  submitted = !m_typedPath.empty();
+
+        if (submitted)
+        {
+            dlg.EndDialog (PickerDialog::kRowResultBase + kTypedPathResult);
+        }
+
+        return submitted;
+    });
+
     content->Init (&m_search, &m_list, s_kSearchHeightDip, s_kSearchListGapDip);
 
     dlg.ConfigurePicker (std::move (content), &m_search, m_buttons, m_closeBoxResult.value_or (-1));
@@ -2877,6 +3035,9 @@ int DiskMruPickerSession::Run()
 
     raw    = dlg.ShowModalDialog (dlg.GetDefaultCommandId());
     chosen = dlg.MapResult (raw);
+
+    //  The window is hidden, not destroyed, so its last place can be read.
+    GetWindowRect (dlg.GetHwnd(), &m_closedRectPx);
 
 Error:
     return chosen;
@@ -2939,6 +3100,7 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     std::vector<DiskMruPickerSession::ModelRow>  models;
     CassoTheme                                   theme          = CassoTheme::MakeByName (std::string (themeName));
     int                                          chosen         = s_kSkipResult;
+    wstring                                      typedPath;
     int                                          mruCount       = (int) mruEntries.size();
     int                                          downloadCount  = 0;
     int                                          rowCount       = 0;
@@ -3055,7 +3217,8 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
         session.AddButton        ({ L"Skip", s_kSkipResult, true, true });
         session.SetCloseBoxResult (s_kCloseBoxResult);
 
-        chosen = session.Run();
+        chosen    = session.Run();
+        typedPath = session.GetTypedPath();
 
         //  The close box, Skip, and the MRU rows all end the picker.
         if (chosen < mruCount || chosen >= rowCount)
@@ -3082,6 +3245,10 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     if (chosen == s_kCloseBoxResult)
     {
         outUserClosed = true;
+    }
+    else if (chosen == DiskMruPickerSession::kTypedPathResult)
+    {
+        outDiskPath = typedPath;
     }
     else if (chosen >= 0 && chosen < mruCount)
     {
@@ -3178,6 +3345,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     wstring                      & outDiskPath,
     bool                         & outBrowse,
     bool                         & outCreateNew,
+    RECT                         & outPickerRectPx,
     string                       & outError)
 {
     struct DownloadRow { const BootDiskSpec * spec; wstring label; };
@@ -3199,6 +3367,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     std::vector<DiskMruPickerSession::ModelRow>  models;
     CassoTheme                                   theme          = CassoTheme::MakeByName (std::string (themeName));
     int                                          chosen         = s_kCancelResult;
+    wstring                                      typedPath;
     int                                          mruCount       = (int) mruEntries.size();
     int                                          downloadCount  = 0;
     int                                          rowCount       = 0;
@@ -3207,8 +3376,9 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
 
     outDiskPath.clear();
-    outBrowse    = false;
-    outCreateNew = false;
+    outBrowse       = false;
+    outCreateNew    = false;
+    outPickerRectPx = {};
 
     mruLabels.assign ((size_t) mruCount, nullptr);
 
@@ -3319,7 +3489,9 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
             session.SetAnchorRect (*anchorRectPx);
         }
 
-        chosen = session.Run();
+        chosen          = session.Run();
+        typedPath       = session.GetTypedPath();
+        outPickerRectPx = session.GetClosedRectPx();
 
         //  Browse..., Cancel, the close box, the MRU rows, and the pinned
         //  create-new row all end the picker.
@@ -3346,6 +3518,10 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     if (chosen == s_kBrowseResult)
     {
         outBrowse = true;
+    }
+    else if (chosen == DiskMruPickerSession::kTypedPathResult)
+    {
+        outDiskPath = typedPath;
     }
     else if (chosen >= 0 && chosen < mruCount)
     {
@@ -3918,12 +4094,12 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
                 for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
                 {
-                    fs::path       mechDir  = devicesDir / string (spec.mechanism);
-                    fs::path       wavPath  = mechDir / string (spec.wavBasename);
-                    vector<float>  pcm;
-                    wstring        urlPath;
-                    bool           fAborted = false;
-                    std::atomic<std::uint64_t>   perFileBytes{0};
+                    fs::path                    mechDir      = devicesDir / string (spec.mechanism);
+                    fs::path                    wavPath      = mechDir / string (spec.wavBasename);
+                    vector<float>               pcm;
+                    wstring                     urlPath;
+                    bool                        fAborted     = false;
+                    std::atomic<std::uint64_t>  perFileBytes {0};
 
                     if (spec.mechanism != mechStr)
                     {

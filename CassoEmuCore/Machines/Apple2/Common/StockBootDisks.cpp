@@ -21,7 +21,86 @@
 
 const wchar_t * StockBootDisks::GetFileName (Which disk)
 {
-    return (disk == Which::Dos33Master) ? kpszDos33MasterFile : kpszProDosUsersDiskFile;
+    switch (disk)
+    {
+        case Which::Dos33Master:      return kpszDos33MasterFile;
+        case Which::ProDosUsersDisk:  return kpszProDosUsersDiskFile;
+        case Which::PascalBootDisk:   return kpszPascalBootDiskFile;
+        case Which::CpamBootDisk:     return kpszCpamBootDiskFile;
+        case Which::SoftCardBootDisk: return kpszSoftCardBootDiskFile;
+    }
+
+    return L"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StockBootDisks::GetLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * StockBootDisks::GetLabel (Which disk)
+{
+    switch (disk)
+    {
+        case Which::Dos33Master:      return L"DOS 3.3";
+        case Which::ProDosUsersDisk:  return L"ProDOS";
+        case Which::PascalBootDisk:   return L"Apple Pascal";
+        case Which::CpamBootDisk:     return L"CP/AM 5.1";
+        case Which::SoftCardBootDisk: return L"CP/M 2.23";
+    }
+
+    return L"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StockBootDisks::TryGetStockDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool StockBootDisks::TryGetStockDisk (const std::string & format, const std::string & source, Which & outDisk)
+{
+    bool  isCpm      = _stricmp (format.c_str(), "cpm") == 0 || _stricmp (format.c_str(), "cp/m") == 0;
+    bool  isSoftCard = isCpm && _stricmp (source.c_str(), kpszSoftCardWord) == 0;
+
+
+
+    if (!source.empty() && !isSoftCard)
+    {
+        return false;
+    }
+
+    if (isCpm)
+    {
+        outDisk = isSoftCard ? Which::SoftCardBootDisk : Which::CpamBootDisk;
+    }
+    else if (_stricmp (format.c_str(), "pascal") == 0)
+    {
+        outDisk = Which::PascalBootDisk;
+    }
+    else if (_stricmp (format.c_str(), "prodos") == 0)
+    {
+        outDisk = Which::ProDosUsersDisk;
+    }
+    else if (format.empty() || _strnicmp (format.c_str(), "dos", strlen ("dos")) == 0)
+    {
+        outDisk = Which::Dos33Master;
+    }
+    else
+    {
+        return false;
+    }
+
+    return true;
 }
 
 

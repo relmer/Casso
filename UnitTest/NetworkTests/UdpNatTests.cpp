@@ -2,6 +2,7 @@
 
 #include "Devices/Network/UdpNat.h"
 #include "Devices/Network/VirtualSubnet.h"
+#include "Net/ListenGate.h"
 
 #include "FakeHostNetwork.h"
 #include "RecordingPacketSink.h"
@@ -65,6 +66,35 @@ namespace UdpNatTests
             nat.SendFromGuest (kAdtPro, kLanPeer, kAdtPro, s_kPayload, 0);
 
             Assert::IsNotNull (host.FindBound (HostSocketKind::Udp, FakeHostNetwork::kFirstEphemeralPort).get());
+        }
+
+
+        //  A port the firewall doesn't admit isn't bound explicitly, which would
+        //  raise a Windows Firewall prompt; the send binds a temporary port,
+        //  and broadcasts are permitted on it.
+        TEST_METHOD (AFlowTheGateRefuses_SendsFromAnUnboundSocket)
+        {
+            RecordingPacketSink  sink;
+            FakeHostNetwork      host;
+            UdpNat               nat (sink);
+            ListenGate           gate;
+            FirewallSnapshot     snapshot;
+            FirewallProgram      program;
+
+            snapshot.active = FirewallProfile::Private;
+            program.path    = L"C:\\Casso\\Casso.exe";
+            gate.Set (snapshot, program);
+
+            nat.SetHostNetwork (&host);
+            nat.SetListenGate (&gate);
+            nat.SendFromGuest (kAdtPro, kLanPeer, kAdtPro, s_kPayload, 0);
+
+            auto  socket = host.FindBound (HostSocketKind::Udp, FakeHostNetwork::kFirstEphemeralPort);
+
+            Assert::IsNull    (host.FindBound (HostSocketKind::Udp, kAdtPro).get(), L"the guest's port is not bound");
+            Assert::IsNotNull (socket.get(), L"the send binds a temporary port");
+            Assert::AreEqual  ((size_t) 1, socket->sentDatagrams.size());
+            Assert::IsTrue    (socket->allowBroadcast);
         }
 
 

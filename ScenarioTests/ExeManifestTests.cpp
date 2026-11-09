@@ -104,4 +104,22 @@ public:
     {
         AssertUtf8CodePage (L"CassoCli.exe");
     }
+
+    TEST_METHOD (CassoExplorer_DeclaresTheUtf8CodePage)
+    {
+        AssertUtf8CodePage (L"CassoExplorer.exe");
+    }
+
+    //  Windows creates a layered child window, which the Preview pane hosts
+    //  other programs' preview handlers in, only for an executable that
+    //  declares Windows 8 or later.
+    TEST_METHOD (CassoExplorer_DeclaresWindows10)
+    {
+        std::string  manifest = LoadManifest (L"CassoExplorer.exe");
+
+
+
+        Assert::IsTrue (manifest.find ("{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}") != std::string::npos,
+                        L"CassoExplorer.exe declares Windows 10 and 11 as supported");
+    }
 };

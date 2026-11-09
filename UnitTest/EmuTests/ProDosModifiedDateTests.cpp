@@ -18,7 +18,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  ProDosModifiedDateTests
 //
-//  The modification stamp a ProDOS directory record carries, surfaced on
+//  The modification stamp in a ProDOS directory record, surfaced on
 //  every listed entry; and its absence on DOS 3.3, which records none.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,8 +27,8 @@ TEST_CLASS (ProDosModifiedDateTests)
 {
 public:
 
-    static constexpr const char *  kDos33Fixture  = "Cassque/dos33.dsk";
-    static constexpr const char *  kProDosFixture = "Cassque/prodos.po";
+    static constexpr const char *  kDos33Fixture  = "CassoExplorer/dos33.dsk";
+    static constexpr const char *  kProDosFixture = "CassoExplorer/prodos.po";
 
     //  1984-08-17 12:34, the stamp the fixture script writes on every entry.
     static constexpr int64_t  kFixtureStampUnix = 461594040;

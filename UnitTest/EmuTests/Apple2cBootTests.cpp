@@ -2,7 +2,15 @@
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "FixtureProvider.h"
+#include "Devices/Acia6551.h"
+#include "Devices/AciaEndpoints.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Seams/InProcessByteStream.h"
+#include "Seams/IByteStreamFactory.h"
+#include "Seams/IProcessProbe.h"
+#include "CassoLink/RunningCassoRegistry.h"
+#include "../EhmTestHelper.h"
+#include "../UiTests/InMemoryFileSystem.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "HResultAssert.h"
@@ -53,6 +61,7 @@ public:
 
     static constexpr size_t  kRomSize      = 0x8000;   // 32K, two 16K banks
     static constexpr Word    kMonitorReset = 0xFA62;   // ROM 4 RESET vector target
+    static constexpr Byte    kCommandOn    = Acia6551::kCommandDtr | Acia6551::kCommandRxIrqDisable | Acia6551::kCommandTicTxIrqOff;   // $0B
 
     // The //c cold-boots its firmware end-to-end. With no disk inserted it
     // clears the screen, prints the "Apple //c" banner, probes the built-in IWM
@@ -394,6 +403,178 @@ public:
         }
     }
 
+
+    // A stream attached to port 2 replaces its loopback with a line that runs
+    // on the machine's clock: what the guest writes arrives at the other end of
+    // the stream once the CPU has run a character time, and what that end
+    // sends arrives at the guest's receiver the same way.
+    TEST_METHOD (SerialPortBridgedToAStreamExchangesBytesAtLineSpeed)
+    {
+        TestMachine                           machine ("Apple2c");
+        std::shared_ptr<InProcessByteStream>  machineEnd;
+        std::shared_ptr<InProcessByteStream>  pcEnd;
+        AciaBridgeEndpoint                  * bridge  = nullptr;
+        const Word                            data    = 0xC0A8;
+        const Word                            status  = static_cast<Word> (data + Acia6551::kRegStatus);
+        const Word                            command = static_cast<Word> (data + Acia6551::kRegCommand);
+        const Byte                            fromPc  = 0xA5;
+        Byte                                  got[4]  = {};
+        size_t                                count   = 0;
+
+
+
+        machine.PowerCycle();
+        machine.RunCycles (20000);
+
+        InProcessByteStream::CreatePair (machineEnd, pcEnd);
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd, &bridge));
+        Assert::IsNotNull (bridge);
+
+        //  DTR on and the transmitter on, as a program using the port sets them.
+        machine.GetMemoryBus().WriteByte (command, kCommandOn);
+        machine.GetMemoryBus().WriteByte (data, 0x5A);
+        Assert::AreEqual<size_t> (0, pcEnd->GetReadableCount(), L"nothing is sent before a character time");
+
+        machine.RunCycles (20000);
+        Assert::AreEqual (S_OK, pcEnd->Read (got, std::size (got), 0, count));
+        Assert::AreEqual<size_t> (1, count);
+        Assert::AreEqual<Byte> (0x5A, got[0]);
+
+        Assert::AreEqual (S_OK, pcEnd->Write (&fromPc, 1));
+        machine.RunCycles (20000);
+
+        Assert::IsTrue ((machine.GetMemoryBus().ReadByte (status) & Acia6551::kStatusRxFull) != 0, L"the byte arrived at the receiver");
+        Assert::AreEqual<Byte> (fromPc, machine.GetMemoryBus().ReadByte (data));
+    }
+
+
+    // A port's device changes while the machine runs, as a cable is unplugged
+    // and another plugged in: the old stream is closed, an empty device loops
+    // the port back, and a new stream takes its place, all without a reset.
+    TEST_METHOD (SerialPortDeviceChangesWhileTheMachineRuns)
+    {
+        TestMachine                           machine ("Apple2c");
+        std::shared_ptr<InProcessByteStream>  firstMachineEnd;
+        std::shared_ptr<InProcessByteStream>  firstPcEnd;
+        std::shared_ptr<InProcessByteStream>  secondMachineEnd;
+        std::shared_ptr<InProcessByteStream>  secondPcEnd;
+        HRESULT                               hr      = S_OK;
+        const Word                            data    = 0xC0A8;
+        const Word                            status  = static_cast<Word> (data + Acia6551::kRegStatus);
+        const Word                            command = static_cast<Word> (data + Acia6551::kRegCommand);
+        Byte                                  got[4]  = {};
+        size_t                                count   = 0;
+
+
+
+        machine.PowerCycle();
+        machine.RunCycles (20000);
+
+        InProcessByteStream::CreatePair (firstMachineEnd, firstPcEnd);
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, firstMachineEnd));
+
+        Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, "", nullptr, nullptr));
+        Assert::IsTrue (firstPcEnd->IsClosed(), L"the old device's stream is closed");
+
+        //  DTR on and the transmitter on, as a program using the port sets them.
+        machine.GetMemoryBus().WriteByte (command, kCommandOn);
+        machine.GetMemoryBus().WriteByte (data, 0x3C);
+        machine.RunCycles (20000);
+        Assert::IsTrue ((machine.GetMemoryBus().ReadByte (status) & Acia6551::kStatusRxFull) != 0, L"an empty device loops back");
+        Assert::AreEqual<Byte> (0x3C, machine.GetMemoryBus().ReadByte (data));
+
+        InProcessByteStream::CreatePair (secondMachineEnd, secondPcEnd);
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, secondMachineEnd));
+
+        machine.GetMemoryBus().WriteByte (data, 0x7E);
+        machine.RunCycles (20000);
+        Assert::AreEqual (S_OK, secondPcEnd->Read (got, std::size (got), 0, count));
+        Assert::AreEqual<size_t> (1, count);
+        Assert::AreEqual<Byte> (0x7E, got[0]);
+
+        hr = machine.ConnectSerialPort (2, "tcp:6502", nullptr, nullptr);
+        Assert::IsTrue (FAILED (hr), L"no stream factory, no TCP port");
+        machine.GetMemoryBus().WriteByte (data, 0x11);
+        machine.RunCycles (20000);
+        Assert::AreEqual<Byte> (0x11, machine.GetMemoryBus().ReadByte (data), L"a device that fails to open is replaced by loopback");
+    }
+
+    //  A port on TCP is written where Casso Explorer finds it, and deleted
+    //  when the port is connected elsewhere and when the machine's ports are
+    //  detached.
+    TEST_METHOD (APortOnTcp_IsRecordedForCassoExplorer_UntilItIsNot)
+    {
+        struct Handle : IByteStream
+        {
+            std::shared_ptr<InProcessByteStream>  end;
+
+            explicit Handle (std::shared_ptr<InProcessByteStream> e) : end (std::move (e)) {}
+
+            HRESULT  Write            (const Byte * bytes, size_t count) override                                  { return end->Write (bytes, count); }
+            HRESULT  Read             (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override { return end->Read (buffer, capacity, timeoutMs, outRead); }
+            size_t   GetReadableCount() override                                                                  { return end->GetReadableCount(); }
+            bool     IsClosed() const override                                                                    { return end->IsClosed(); }
+            void     Close() override                                                                             { end->Close(); }
+        };
+
+        struct Listener : IByteStreamFactory
+        {
+            std::vector<std::shared_ptr<InProcessByteStream>>  ends;
+
+            HRESULT  ListComPorts (std::vector<std::wstring> & outPorts) override                                      { outPorts.clear(); return S_OK; }
+            HRESULT  OpenComPort  (const std::wstring &, const ComSettings &, std::unique_ptr<IByteStream> &) override { return E_NOTIMPL; }
+            HRESULT  ConnectTcp   (const std::string &, uint16_t, std::unique_ptr<IByteStream> &) override             { return E_NOTIMPL; }
+
+            HRESULT  ListenTcp (uint16_t, LinkTransport, std::unique_ptr<IByteStream> & outStream) override
+            {
+                std::shared_ptr<InProcessByteStream>  machineEnd;
+                std::shared_ptr<InProcessByteStream>  pcEnd;
+
+                InProcessByteStream::CreatePair (machineEnd, pcEnd);
+                ends.push_back (pcEnd);
+                outStream = std::make_unique<Handle> (machineEnd);
+                return S_OK;
+            }
+        };
+
+        struct Probe : IProcessProbe
+        {
+            bool  TryGetStartTime (DWORD, uint64_t & outStarted) override { outStarted = 77; return true; }
+        };
+
+        TestMachine                machine ("Apple2c");
+        InMemoryFileSystem         fs;
+        Probe                      probe;
+        Listener                   factory;
+        RunningCassoRegistry       registry (fs, probe, L"C:\\Links");
+        std::vector<RunningCasso>  running;
+
+
+
+        machine.PowerCycle();
+        machine.SetRunningRegistry (&registry);
+
+        Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, "tcp:6502", &factory, nullptr));
+        AssertSucceeded (registry.Enumerate (running));
+        Assert::AreEqual ((size_t) 1, running.size());
+        Assert::AreEqual (2, running[0].serialPort);
+        Assert::AreEqual (std::string ("127.0.0.1:6502"), running[0].address);
+        Assert::AreEqual (machine.GetConfig().name, running[0].machine);
+        Assert::AreEqual (2, machine.GetSerialPortOnTcp (6502), L"port 2 has TCP port 6502");
+        Assert::IsFalse  (machine.IsSerialPortOnCard (2), L"a //c's built-in port");
+
+        Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, "", &factory, nullptr));
+        AssertSucceeded (registry.Enumerate (running));
+        Assert::IsTrue (running.empty(), L"connected elsewhere");
+        Assert::AreEqual (0, machine.GetSerialPortOnTcp (6502), L"and no port has TCP port 6502");
+
+        Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, "tcp:6502", &factory, nullptr));
+        machine.DetachSerialPorts();
+        AssertSucceeded (registry.Enumerate (running));
+        Assert::IsTrue (running.empty(), L"detached");
+
+        machine.SetRunningRegistry (nullptr);
+    }
 
     // The //c 80/40 case switch is a SOFTWARE-read switch: it only sets bit 7
     // of $C060 (RD80SW); a booting disk (PR#3) or an app reads it to pick the

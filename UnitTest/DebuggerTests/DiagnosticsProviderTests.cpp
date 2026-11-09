@@ -8,6 +8,7 @@
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/Ssi263AudioSource.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
+#include "Devices/Printer/PrinterByteRing.h"
 #include "Machines/Apple2/Common/SuperSerialCard.h"
 #include "Machines/Apple2/Common/UthernetCard.h"
 #include "Core/MachineConfig.h"
@@ -974,11 +975,16 @@ namespace DebuggerTests
 
         TEST_METHOD (ThePrinterPanelShowsTheStatusTheGuestReads)
         {
-            //  The card holds its print buffer, too large for the stack.
-            std::unique_ptr<PrinterCard>  card     = std::make_unique<PrinterCard> (1);
-            DiagnosticsSnapshot           snapshot = Snapshot (*card);
+            //  The printer's ring, too large for the stack, is the machine's, and
+            //  the card reads ready with one attached.
+            std::unique_ptr<PrinterCard>      card     = std::make_unique<PrinterCard> (1);
+            std::unique_ptr<PrinterByteRing>  ring     = std::make_unique<PrinterByteRing>();
+            DiagnosticsSnapshot               snapshot;
 
 
+
+            card->SetByteRing (ring.get());
+            snapshot = Snapshot (*card);
 
             Assert::AreEqual (std::format ("${:02X}", PrinterCard::kStatusReady), FindRow (snapshot, "Status").value);
             Assert::IsTrue   (IsBitSet (FindRow (snapshot, "Status"), "READY"));

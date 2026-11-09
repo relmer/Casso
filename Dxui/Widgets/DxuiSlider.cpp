@@ -664,7 +664,7 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     constexpr int              s_kValueGapDip      = 8;
     constexpr int              s_kValueFontDip     = 13;
     constexpr int              s_kValueWidthDip    = 56;
-    constexpr const wchar_t  * s_kFont             = DxuiTheme::kBodyFace;
+    const wchar_t            * s_kFont             = DxuiTheme::GetUiFace();
 
     HRESULT  hr            = S_OK;
     bool     showValue     = m_explicitShowValue ? m_showValue : !m_suffix.empty();
@@ -851,7 +851,7 @@ void DxuiSlider::PaintVerticalInternal (IDxuiPainter & painter, IDxuiTextRendere
     constexpr int              s_kValueGapDip      = 6;
     constexpr int              s_kValueHeightDip   = 18;
     constexpr int              s_kValueFontDip     = 13;
-    constexpr const wchar_t  * s_kFont             = DxuiTheme::kBodyFace;
+    const wchar_t            * s_kFont             = DxuiTheme::GetUiFace();
 
     HRESULT   hr          = S_OK;
     bool      showValue   = m_explicitShowValue ? m_showValue : !m_suffix.empty();

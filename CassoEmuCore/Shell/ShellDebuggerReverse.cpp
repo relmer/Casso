@@ -3,6 +3,7 @@
 #include "Shell/IDebuggerHost.h"
 #include "Shell/ShellDebugger.h"
 #include "Config/DebuggerSettings.h"
+#include "Core/AppTimerIds.h"
 #include "Shell/CpuManager.h"
 #include "Shell/HeldHostInputs.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -398,16 +399,29 @@ bool ShellDebugger::AllowCommand (
 //  AskToDiverge
 //
 //  UI thread. Whether the user agrees to discard the recorded history after
-//  where the machine stands.
+//  where the machine stands. The message box's loop runs the window's input,
+//  so a change made while the question is up would raise it again over the
+//  first; that change is dropped instead, as a no drops it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ShellDebugger::AskToDiverge()
 {
-    int  choice = DxuiMessageBox (m_host.GetMainWindow(), &m_host.GetChromeTheme(), DivergenceGate::kpszQuestion, DivergenceGate::kpszTitle,
-                                  MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
+    int  choice = IDNO;
 
 
+
+    if (m_isAskingToDiverge)
+    {
+        return false;
+    }
+
+    m_isAskingToDiverge = true;
+
+    choice = DxuiMessageBox (m_host.GetMainWindow(), &m_host.GetChromeTheme(), DivergenceGate::kpszQuestion, DivergenceGate::kpszTitle,
+                             MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
+
+    m_isAskingToDiverge = false;
 
     return choice == IDYES;
 }
@@ -840,7 +854,7 @@ void ShellDebugger::PressGuestMouseHeldBehindLive()
 
     if (!isHostDown)
     {
-        hr = m_host.SetUiTimer (kClickReleaseTimerId, kClickHoldMs);
+        hr = m_host.SetUiTimer ((UINT_PTR) AppTimerId::ShellClickRelease, kClickHoldMs);
         CHRA (hr);
     }
 
@@ -871,7 +885,7 @@ void ShellDebugger::ReleaseGuestMouseAfterClick()
 
 
 
-    hr = m_host.KillUiTimer (kClickReleaseTimerId);
+    hr = m_host.KillUiTimer ((UINT_PTR) AppTimerId::ShellClickRelease);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     BAIL_OUT_IF (isHostDown || !lifetime.owns_lock() || m_machine.GetMouse() == nullptr, S_OK);

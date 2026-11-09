@@ -29,6 +29,8 @@
 //
 //  Contents pairing: Dsk and Do carry DOS 3.3 or unformatted; Po carries
 //  ProDOS or unformatted; Woz carries anything (order-agnostic bit stream).
+//  Apple Pascal and CP/M go in any container, since the volume layer reads each
+//  from the DOS-ordered buffer whichever order the file has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,6 +39,8 @@ enum class BlankDiskContents
     Unformatted,
     Dos33,
     ProDos,
+    Pascal,
+    Cpm,
 };
 
 
@@ -59,6 +63,7 @@ enum class BlankDiskVerdict
     FluxNeedsWoz,
     BootableNeedsFilesystem,
     ProDosNameUnusable,
+    PascalNameUnusable,
 };
 
 
@@ -73,7 +78,8 @@ struct BlankDiskSpec
     BlankDiskContents  contents     = BlankDiskContents::Dos33;
     bool               bootable     = false;
     Byte               volumeNumber = NibblizationLayer::kDefaultVolume;
-    std::string        volumeName   = "NEWDISK";   // ProDOS only
+    std::string        volumeName   = "NEWDISK";   // ProDOS and Apple Pascal
+    Word               pascalDate   = 0;           // Apple Pascal's date word
 
     //  Nibble containers only, and zero everywhere else. A new image has no
     //  file to measure, so the size its NAME implies is carried here from the
@@ -97,6 +103,10 @@ struct BootPayload
 {
     vector<Byte>  dosMasterSectors;
     vector<Byte>  proDosUsersDisk;
+
+    //  In DOS logical order, whatever container each came from.
+    vector<Byte>  pascalSystem;
+    vector<Byte>  cpmSystem;
 };
 
 

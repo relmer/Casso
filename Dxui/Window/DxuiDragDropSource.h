@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Core/DxuiIconImage.h"
+
 
 
 
@@ -11,7 +13,7 @@
 //  DxuiDragDropSource
 //
 //  The drag half beside DxuiDragDropTarget: an IDropSource and the IDataObject
-//  it carries, over a list of formats rendered on demand.
+//  it offers, over a list of formats rendered on demand.
 //
 //  NOTHING IS RENDERED UNTIL A TARGET ASKS. A drag of twenty files out of a
 //  disk image offers twenty file contents, and a drop on a folder pulls each
@@ -22,7 +24,15 @@
 //  FILECONTENTS is; a format with a count of one ignores it.
 //
 //  Begin blocks in DoDragDrop on the calling thread, as OLE requires, and
-//  Escape cancels.
+//  Escape cancels. The shell draws the drag image, and a target that sets a
+//  drop description -- "Move to Disks" -- has it drawn under the image.
+//
+//  A TARGET OR THE SHELL MAY STORE FORMATS OF ITS OWN on the object: the drag
+//  image, the drop description, the effect it performed. Each is kept, and
+//  read back as if the source had offered it, since the drag image cannot be
+//  drawn without them. The drag helper sets some in global memory and some as
+//  a stream, so both are accepted; refusing the stream fails the helper's
+//  whole setup, and the drag has no image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,9 +49,29 @@ public:
     //  A source over `formats`, with one reference the caller releases.
     static HRESULT  Create (std::vector<Format> formats, DxuiDragDropSource ** outSource);
 
-    //  Builds a source and runs the drag. `resultEffect` is what the target
-    //  accepted, DROPEFFECT_NONE on a cancel.
-    static HRESULT  Begin (std::vector<Format> formats, DWORD allowedEffects, DWORD & resultEffect);
+    //  Builds a source and runs the drag from `startScreen`. `resultEffect` is
+    //  what the target accepted, DROPEFFECT_NONE on a cancel. A target that
+    //  moved the items itself -- an optimized move -- returns none and says so
+    //  in `outLogicalEffect`, which is then DROPEFFECT_MOVE. With `dragImage`,
+    //  that image is drawn under the pointer in place of one the shell builds.
+    static HRESULT  Begin (std::vector<Format> formats, DWORD allowedEffects, POINT startScreen,
+                           DWORD & resultEffect, DWORD * outLogicalEffect = nullptr, const DxuiIconImage * dragImage = nullptr);
+
+    //  Sets `image` as the drag image of `data`, above the pointer as File
+    //  Explorer draws a dragged file's icon. The shell builds an image only
+    //  from files it can read, so a drag of virtual files has none without
+    //  this, and a file type with no icon registered has a blank page.
+    static HRESULT  SetDragImage (IDataObject * data, const DxuiIconImage & image);
+
+    //  A DWORD a target stored under the registered format, or `fallback`.
+    DWORD  GetStoredDword (const wchar_t * formatName, DWORD fallback) const;
+
+    //  Called with each format a target stores and its first DWORD, as a
+    //  paste of a cut stores CFSTR_PASTESUCCEEDED. Called on the thread the
+    //  object lives on, during the target's call.
+    using StoredFn = std::function<void (CLIPFORMAT format, DWORD value)>;
+
+    void  SetOnStored (StoredFn onStored) { m_onStored = std::move (onStored); }
 
     //  How many times each item was rendered, for a test to count.
     int  GetRenderCount (CLIPFORMAT format, int index) const;
@@ -66,16 +96,30 @@ public:
     STDMETHODIMP  EnumDAdvise           (IEnumSTATDATA ** outEnum) override;
 
 private:
-    explicit DxuiDragDropSource (std::vector<Format> formats);
-    virtual ~DxuiDragDropSource() = default;
+    explicit  DxuiDragDropSource  (std::vector<Format> formats);
+    virtual   ~DxuiDragDropSource () = default;
 
     const Format *  FindFormat (CLIPFORMAT format) const;
 
     //  The rendered bytes for one item, rendering them the first time.
     HRESULT  GetRendered (const Format & format, int index, const std::vector<uint8_t> *& outBytes);
 
-    std::atomic<ULONG>                                          m_refCount = 1;
+    static HRESULT  ReadStream (IStream * stream, std::vector<uint8_t> & outBytes);
+
+    //  Gives the drop description the type that matches `effect` when the
+    //  target left it to the source, and has the drag window redraw.
+    void  DescribeEffect (DWORD effect);
+
+    //  DDWM_UPDATEWINDOW, which the SDK does not declare: the shell's drag
+    //  window rereads the drop description on it.
+    static constexpr UINT  s_kUpdateDragWindowMessage = WM_USER + 3;
+
+    std::atomic<ULONG>                                         m_refCount = 1;
     std::vector<Format>                                         m_formats;
     std::map<std::pair<CLIPFORMAT, int>, std::vector<uint8_t>>  m_rendered;
     std::map<std::pair<CLIPFORMAT, int>, int>                   m_renderCounts;
+    std::map<CLIPFORMAT, std::vector<uint8_t>>                  m_stored;
+    std::map<CLIPFORMAT, DWORD>                                 m_storedTymed;               // the medium each was set in, read back in it
+    bool                                                        m_describesEffect = false;   // the stored description's type is one GiveFeedback set
+    StoredFn                                                    m_onStored;
 };

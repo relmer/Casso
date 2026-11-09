@@ -51,8 +51,8 @@ enum class StartupDownloadDialog::EntryStatus
 
 struct StartupDownloadDialog::EntryRuntime
 {
-    std::atomic<std::uint64_t>  bytesDone{0};
-    std::atomic<int>            status{(int) EntryStatus::Pending};
+    std::atomic<std::uint64_t>  bytesDone    {0};
+    std::atomic<int>            status       {(int) EntryStatus::Pending};
     std::string                 errorMsg;
     bool                        startedWrite = false;
 };
@@ -61,20 +61,20 @@ struct StartupDownloadDialog::EntryRuntime
 
 struct StartupDownloadDialog::DialogState
 {
-    StartupDownloadSet         * set        = nullptr;
+    StartupDownloadSet         * set             = nullptr;
     std::vector<EntryRuntime>    runtime;
     std::vector<DxuiCheckbox>    checkboxes;   // parallel to entries
     std::vector<std::thread>     workers;
-    std::atomic<bool>            cancelFlag{false};
-    std::atomic<int>             workersInFlight{0};
-    std::atomic<bool>            anyFailed  {false};
-    bool                         downloading    = false;
-    bool                         finished       = false;
-    bool                         showStatus     = false;  // gates per-row status text
-    UINT                         dpi            = 96;
-    int                          bodyOriginXPx  = 0;
-    int                          bodyOriginYPx  = 0;
-    StartupDownloadResult        result         = StartupDownloadResult::Skipped;
+    std::atomic<bool>            cancelFlag      {false};
+    std::atomic<int>             workersInFlight {0};
+    std::atomic<bool>            anyFailed       {false};
+    bool                         downloading     = false;
+    bool                         finished        = false;
+    bool                         showStatus      = false;   // gates per-row status text
+    UINT                         dpi             = 96;
+    int                          bodyOriginXPx   = 0;
+    int                          bodyOriginYPx   = 0;
+    StartupDownloadResult        result          = StartupDownloadResult::Skipped;
 };
 
 
@@ -384,12 +384,12 @@ float StartupDownloadDialog::MeasureSourceColumnPx (
     {
         // A measurement that fails leaves w at zero, which simply loses to
         // the floor below.
-        hr = ctx.text->MeasureString (entry.source.c_str(), fontPx, DxuiTheme::kBodyFace, w, h);
+        hr = ctx.text->MeasureString (entry.source.c_str(), fontPx, DxuiTheme::GetUiFace(), w, h);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         sourcePx = std::max (sourcePx, std::ceil (w) + kGutterDp * ctx.dpiScale);
 
-        hr = ctx.text->MeasureString (entry.displayName.c_str(), fontPx, DxuiTheme::kBodyFace, w, h);
+        hr = ctx.text->MeasureString (entry.displayName.c_str(), fontPx, DxuiTheme::GetUiFace(), w, h);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         namePx = std::max (namePx, std::ceil (w) + (kLabelInsetDp + kGutterDp) * ctx.dpiScale);
@@ -687,7 +687,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
 
     // Nothing missing: never put a dialog on screen just to say so. The
-    // caller reads NothingToDo as "carry on booting".
+    // caller reads NothingToDo as "go on booting".
     if (set.IsEmpty())
     {
         state.result = StartupDownloadResult::NothingToDo;

@@ -145,6 +145,7 @@ void HeatRangesPane::Configure()
     m_list->SetAlwaysShowSelection (true);
     m_list->SetEditorHwnd          (m_host.GetOwnerHwnd());
     m_list->SetEditorMaxLength     (kEditMaxChars);
+    m_list->SetSelectOnCheckPress (false);
     m_list->SetOnCheckToggled ([this] (int row, size_t, bool checked) { ToggleRange (row, checked); });
     m_list->SetOnCommitCell   ([this] (int row, int column, const std::wstring & text, std::wstring & outError) { return CommitCell (row, column, text, outError); });
     m_list->SetOnAddRow       ([this] (const std::vector<std::wstring> & texts, std::wstring & outError) { return AddRange (texts, outError); });
@@ -1058,7 +1059,7 @@ void HeatRangesPane::ApplyRows()
 
         isRead = HeatMapRangeSets::TryResolve (range, symbols, first, last, reason);
 
-        cells[0].check = range.included;
+        cells[0].check = DxuiListView::Cell::GetCheck (range.included);
         cells[1].text  = TextEncoding::Utf8ToWide (HeatMapRangeSets::GetName (range));
         cells[1].dim   = !HeatMapRangeSets::IsBuiltIn (range) && range.name.empty();
         cells[5].text  = HeatMapRangeSets::IsBuiltIn (range) ? L"Yes" : L"";

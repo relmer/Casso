@@ -25,6 +25,10 @@ class MemoryBus;
 //  byte with the ready convention asserted. Reads are tolerant across the
 //  window (drivers poke different offsets); writes above +$0 are ignored.
 //
+//  The ring is the machine's, set when the ImageWriter II is attached to
+//  this card. With none set the connector is empty: the card reads busy and
+//  drops what is written, as a card with no printer cable does.
+//
 //  The ready bit de-asserts within a high-water margin of the ring capacity
 //  so a guest honoring the handshake stalls rather than overflowing when the
 //  UI-thread drain is delayed (FR-002). In normal operation the drain keeps
@@ -66,15 +70,17 @@ public:
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
-    Byte Read (Word address) override;
-    bool TryPeekIo (Word address, Byte & value) override { (void) address; value = ReadStatus(); return true; }
-    void Write (Word address, Byte value) override;
-    Word GetStart() const override { return m_ioStart; }
-    Word GetEnd() const override { return m_ioEnd; }
-    void Reset() override;
+    Byte  Read      (Word address) override;
+    bool  TryPeekIo (Word address, Byte & value) override { (void) address; value = ReadStatus(); return true; }
+    void  Write     (Word address, Byte value) override;
+    Word  GetStart  () const override { return m_ioStart; }
+    Word  GetEnd    () const override { return m_ioEnd; }
+    void  Reset     () override;
 
-    // Host (presenter) drains bytes the guest has written.
-    PrinterByteRing & GetByteRing() { return m_ring; }
+    // The ring the printer drains, or null for an empty connector. Caller
+    // owned; it outlives the card.
+    void              SetByteRing (PrinterByteRing * ring) { m_ring = ring; }
+    PrinterByteRing * GetByteRing () const                 { return m_ring; }
 
     // FR-020: true once the guest first writes a data byte. The host reveals
     // the panel on the rising edge.
@@ -111,7 +117,7 @@ private:
 
     bool              m_everTouched = false;
     bool              m_isMuted     = false;
-    PrinterByteRing   m_ring;
+    PrinterByteRing * m_ring        = nullptr;
     std::string       m_textPath;
     std::ofstream     m_text;
 };

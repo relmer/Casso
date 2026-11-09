@@ -75,6 +75,8 @@ public:
         bool              insetContentBelowCaption = false;
         DxuiCaptionStyle  captionStyle             = DxuiCaptionStyle::Standard;
         bool              composited               = false;   // composited-transparent window (enables SetComposedOpacity)
+        bool              micaBackdrop             = false;   // framed window drawn over Mica, which shows where nothing paints
+        bool              micaAlt                  = false;   // with micaBackdrop, Mica Alt, the tabbed-window backdrop
         LPCWSTR           classNameOverride        = nullptr;
         HICON             appIconBig               = nullptr;
         HICON             appIconSmall             = nullptr;
@@ -85,6 +87,11 @@ public:
         // per frame (DWM still composes at vsync, so windowed flip-model
         // presents do not tear).
         UINT                presentSyncInterval = 1;
+
+        // Queue one frame at most and draw each just after the one before it
+        // leaves the queue, so an animation that reads the clock as it draws
+        // moves evenly on screen. See DxuiHwndSource::CreateParams.
+        bool                paceFrames          = false;
 
         // Create the window without stealing activation (CreateWindowEx
         // activates a new top-level window even while it is hidden, yanking
@@ -141,13 +148,13 @@ public:
     // windows that pop up on their own and must not steal keystrokes).
     void     Show        (bool activate = true);
     // Maximized, with or without taking the foreground and the focus.
-    void     ShowMaximized (bool activate);
-    void     Hide        ();
+    void  ShowMaximized (bool activate);
+    void  Hide          ();
 
     //  Whether files dragged from the shell may be dropped here; each drop
     //  arrives at OnFilesDropped.
-    void     SetAcceptsDroppedFiles (bool accepts);
-    void     Close        ();
+    void  SetAcceptsDroppedFiles (bool accepts);
+    void  Close                  ();
 
     //
     //  Modal show. Displays the window, disables its owner, and runs a
@@ -178,8 +185,8 @@ public:
     //  call did not block). Use for a live overlay whose backdrop must
     //  keep animating (e.g. Settings over the running emulator).
     //
-    void     ShowModelessDialog (int defaultButtonId);
-    void     EndDialog   (int result);
+    void  ShowModelessDialog (int defaultButtonId);
+    void  EndDialog          (int result);
 
     //
     //  Window-level translucency for a composited window (CreateParams::
@@ -312,11 +319,11 @@ public:
     //
     void     Invalidate ();
 
-    void     SetTheme   (const IDxuiTheme * theme);
-    const IDxuiTheme *  GetTheme () const { return m_theme; }
-    void     SetTitle   (const std::wstring & title);
-    int      GetCaptionHeightPx () const { return m_source != nullptr ? m_source->GetCaptionHeightPx() : 0; }
-    UINT     GetDpi         () const { return m_source != nullptr ? m_source->GetScaler().GetDpi() : USER_DEFAULT_SCREEN_DPI; }
+    void                SetTheme           (const IDxuiTheme * theme);
+    const IDxuiTheme  * GetTheme           () const { return m_theme; }
+    void                SetTitle           (const std::wstring & title);
+    int                 GetCaptionHeightPx () const { return m_source != nullptr ? m_source->GetCaptionHeightPx() : 0; }
+    UINT                GetDpi             () const { return m_source != nullptr ? m_source->GetScaler().GetDpi() : USER_DEFAULT_SCREEN_DPI; }
 
     //
     //  Popup backend for DxuiPopupMenu / DxuiTooltip owned by content
@@ -337,6 +344,15 @@ protected:
     //  a point outside every control, so hover, tips and previews end.
     //  Not while the left button is down, since a drag goes on outside.
     void  SendMouseLeave ();
+
+    //  The controls under the pointer, outermost first. Each control the
+    //  pointer moves off, and each on the path when the pointer moves out of
+    //  the window, is sent a move to kNowherePx and a
+    //  DxuiMouseEventKind::Leave event, so a hover can't outlast the pointer,
+    //  however the window routes its input.
+    static constexpr int  kNowherePx = -32768;
+
+    void  UpdatePointerPath (POINT clientPx, bool leftWindow);
 
     //
     //  THE TAB ORDER IS A SNAPSHOT of the visible, enabled subtree, taken when
@@ -430,6 +446,12 @@ protected:
     virtual bool  TryGetMaxClientSizePx (SIZE & outSizePx) const { UNREFERENCED_PARAMETER (outSizePx); return false; }
 
     //
+    //  The drag limit, when it differs from the size the window opens at.
+    //  Default TryGetMaxClientSizePx.
+    //
+    virtual bool  TryGetMaxTrackSizePx (SIZE & outSizePx) const { return TryGetMaxClientSizePx (outSizePx); }
+
+    //
     //  Modal in-content overlay (e.g. the Settings color picker). While
     //  HasModalOverlay() returns true the window paints PaintModalOverlay on
     //  top of the whole page every frame and routes ALL mouse / char / key
@@ -473,9 +495,6 @@ protected:
     //
     static constexpr UINT  kDefaultDialogTickMs = 250;
 
-    //  The point of a Leave event: left of and above every control.
-    static constexpr int   kOutsidePx = -32768;
-
     void  SetDialogTickIntervalMs (UINT ms);
 
     //
@@ -492,31 +511,32 @@ protected:
 
 
 private:
-    void               AttachSource  ();
-    DxuiMessageResult  OnLButtonDown (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnLButtonUp   (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnRButtonDown (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnXButtonUp   (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnMouseMove   (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnMouseWheel  (WPARAM wParam, LPARAM lParam, bool horizontal) override;
-    DxuiMessageResult  OnMouseLeave  () override;
-    DxuiMessageResult  OnKeyDown     (WPARAM vk, LPARAM lParam) override;
-    DxuiMessageResult  OnChar        (WPARAM ch, LPARAM lParam) override;
-    DxuiMessageResult  OnSetCursor   (WORD hitTest) override;
-    DxuiMessageResult  OnSetFocus    () override;
-    DxuiMessageResult  OnKillFocus   () override;
-    DxuiMessageResult  OnCancelMode  () override;
+    void               AttachSource     ();
+    DxuiMessageResult  OnLButtonDown    (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnLButtonUp      (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnRButtonDown    (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnRButtonUp      (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnXButtonUp      (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnMouseMove      (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnMouseWheel     (WPARAM wParam, LPARAM lParam, bool horizontal) override;
+    DxuiMessageResult  OnMouseLeave     () override;
+    DxuiMessageResult  OnKeyDown        (WPARAM vk, LPARAM lParam) override;
+    DxuiMessageResult  OnChar           (WPARAM ch, LPARAM lParam) override;
+    DxuiMessageResult  OnSetCursor      (WORD hitTest) override;
+    DxuiMessageResult  OnSetFocus       () override;
+    DxuiMessageResult  OnKillFocus      () override;
+    DxuiMessageResult  OnCancelMode     () override;
     DxuiMessageResult  OnCaptureChanged (HWND newCapture) override;
-    DxuiMessageResult  OnGetMinMax   (MINMAXINFO * info) override;
-    DxuiMessageResult  OnTimer       (UINT_PTR timerId) override;
-    void               OnModalLoopTick () override;
-    DxuiMessageResult  OnSize        (UINT widthPx, UINT heightPx) override;
-    DxuiMessageResult  OnMove        (int x, int y) override;
-    void  OnEnterSizeMove   () override;
-    void  OnExitSizeMove    () override;
-    DxuiMessageResult  OnClose       () override;
-    DxuiMessageResult  OnDropFiles   (HDROP drop) override;
-    void               OnDestroy     () override;
+    DxuiMessageResult  OnGetMinMax      (MINMAXINFO * info) override;
+    DxuiMessageResult  OnTimer          (UINT_PTR timerId) override;
+    void               OnModalLoopTick  () override;
+    DxuiMessageResult  OnSize           (UINT widthPx, UINT heightPx) override;
+    DxuiMessageResult  OnMove           (int x, int y) override;
+    void               OnEnterSizeMove  () override;
+    void               OnExitSizeMove   () override;
+    DxuiMessageResult  OnClose          () override;
+    DxuiMessageResult  OnDropFiles      (HDROP drop) override;
+    void               OnDestroy        () override;
 
     DxuiMessageResult  DispatchMouse (DxuiMouseEventKind kind,
                                       DxuiMouseButton    button,
@@ -524,12 +544,18 @@ private:
                                       int                y,
                                       float              wheelDelta,
                                       bool               wheelHorizontal = false);
-    DxuiMessageResult  DispatchKey   (DxuiKeyEventKind kind, WPARAM code);
-    bool               RunMouseFilters (const DxuiMouseEvent & ev);
-    bool               RunKeyFilters   (WPARAM vk);
-    void               RunMouseLost    (UINT message);
+    DxuiMessageResult  DispatchKey       (DxuiKeyEventKind kind, WPARAM code);
+    bool               RunMouseFilters   (const DxuiMouseEvent & ev);
+    bool               RunKeyFilters     (WPARAM vk);
+    void               RunMouseLost      (UINT message);
     DxuiMessageResult  DispatchDialogKey (WPARAM vk);
     void               ResizeToMaxSize   (bool growOnly);
+
+    static bool        ShowScrollbarMenuIn (IDxuiControl & control, HWND hwnd, POINT clientPx);
+
+    static void  CollectPathAt     (const IDxuiControl & control, POINT clientPx, std::vector<IDxuiControl *> & outPath);
+    static bool  IsInTree          (const IDxuiControl & root, const IDxuiControl * control);
+    static void  SendPointerAway   (IDxuiControl & control);
 
     //
     //  Dialog support: enter dialog mode (wire buttons, attach/rebuild
@@ -538,12 +564,12 @@ private:
     //  recursive over the panel tree so buttons may live in a nested
     //  button-row panel.
     //
-    void          BeginDialogMode  (int defaultButtonId, bool modal);
-    void          WireDialogButtons   ();
-    bool          RouteKeyToFocused   (WPARAM vk, bool shift);
-    bool          IsTriggerButtonById (int commandId);
-    static DxuiButton *  FindButtonById   (IDxuiControl * node, int commandId);
-    static void          ForEachButton    (IDxuiControl * node, const std::function<void (DxuiButton *)> & fn);
+    void                 BeginDialogMode           (int defaultButtonId, bool modal);
+    void                 WireDialogButtons         ();
+    bool                 RouteKeyToFocused         (WPARAM vk, bool shift);
+    bool                 IsTriggerButtonById       (int commandId);
+    static DxuiButton  * FindButtonById            (IDxuiControl * node, int commandId);
+    static void          ForEachButton             (IDxuiControl * node, const std::function<void (DxuiButton *)> & fn);
     static void          SetTextInputsWindowActive (IDxuiControl * node, bool active);
 
 
@@ -563,10 +589,12 @@ private:
     bool                               m_dialogActive    = false;   // dialog behaviors on (modal or modeless)
     bool                               m_modal           = false;   // blocking-modal (owner disabled + private loop)
     bool                               m_modalDone       = false;
+    bool                               m_wheelCtrl       = false;   // Ctrl, by the flags of the wheel message being dispatched
     int                                m_modalResult     = 0;
     int                                m_defaultButtonId = 0;
     UINT                               m_dialogTickMs    = kDefaultDialogTickMs;   // dialog repaint / tick cadence (caret-blink default)
     std::function<void (int)>        m_onDialogEnd;            // modeless close callback
     std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick
-    std::vector<std::pair<const void *, InputFilter>>    m_inputFilters;
+    std::vector<std::pair<const void *, InputFilter>>  m_inputFilters;
+    std::vector<IDxuiControl *>                        m_pointerPath;   // the controls under the pointer, outermost first
 };

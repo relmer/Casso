@@ -55,7 +55,17 @@
 #define IDM_DISK_SALVAGE2           40071
 
 // Start the disk browser beside this executable.
-#define IDM_DISK_OPEN_CASSQUE       40089
+#define IDM_DISK_OPEN_CASSO_EXPLORER       40089
+
+// Connect a serial port, a //c's port or a Super Serial Card's slot, to its
+// device while the machine runs. Payload: "<port>:<device>", such as
+// "2:tcp:6502", then a tab and the host file for a card's file attachment.
+// An empty device loops back a //c's port and empties a card's connector.
+#define IDM_SERIAL_CONNECT                 40193
+
+// Attach the ImageWriter II to the parallel card in a slot, or take it off,
+// while the machine runs. Payload: "<slot>:1" or "<slot>:0".
+#define IDM_PRINTER_PARALLEL               40401
 
 //  Answering the question raised when a mounted image changed outside Casso.
 //  The answer is chosen on the UI thread and carried out on the thread that
@@ -209,13 +219,17 @@
 #define IDI_CASSO_FLAT_COLOR_HEAD   105
 #define IDI_CASSO_PHOTOREAL         106
 #define IDI_CASSO                   IDI_CASSO_SILHOUETTE
-// Cassque, the disk-image browser: its application icon, the lowest icon id
+// CassoExplorer, the disk-image browser: its application icon, the lowest icon id
 // in its own module, and the cassowary picture its About box shows.
-#define IDI_CASSQUE                 107
-#define IDR_CASSQUE_PICTURE_PNG     600
-#define IDR_CASSQUE_CASK_PNG        601
-#define IDR_CASSQUE_CASSO_PNG       602
-#define IDR_CASSQUE_CASSOWARY_PNG   603
+#define IDI_CASSO_EXPLORER                 107
+#define IDR_CASSO_EXPLORER_PICTURE_PNG     600
+// A disk image's icon in File Explorer, once the user registers Casso for it.
+#define IDI_DISK_IMAGE                     108
+// An Applesoft BASIC file's icon inside a disk image: an Apple II monitor.
+#define IDI_APPLESOFT_FILE                 109
+#define IDI_APPLE_MACHINE                  110
+#define IDI_APPLE_MACHINE_OFFLINE          111
+#define IDR_CASSO_EXPLORER_CASSOWARY_PNG   603
 
 // Embedded default machine configs (RCDATA) — extracted to disk on
 // first run when the user has no Machines/ folder.
@@ -236,19 +250,10 @@
 //   RetroTerminal:  340..359
 //   Phosphor:       370..389
 #define IDR_THEME_SKEUO_THEME_JSON          300
-#define IDR_THEME_SKEUO_FONT_TTF            310
-#define IDR_THEME_SKEUO_FONT_OFL            311
-#define IDR_THEME_SKEUO_FONT_TODO           312
 
 #define IDR_THEME_DARK_THEME_JSON           320
-#define IDR_THEME_DARK_FONT_TTF             330
-#define IDR_THEME_DARK_FONT_OFL             331
-#define IDR_THEME_DARK_FONT_TODO            332
 
 #define IDR_THEME_RETRO_THEME_JSON          340
-#define IDR_THEME_RETRO_FONT_TTF            350
-#define IDR_THEME_RETRO_FONT_OFL            351
-#define IDR_THEME_RETRO_FONT_TODO           352
 
 #define IDR_THEME_PHOSPHOR_THEME_JSON       370
 #define IDR_THEME_PHOSPHOR_FONT_TTF         380

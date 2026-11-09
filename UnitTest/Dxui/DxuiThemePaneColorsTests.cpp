@@ -91,7 +91,7 @@ public:
         AssertGapAndBand (CassoTheme::MakeDarkModern(),    0xFF151619u, 0xFF1C1E22u, L"dark modern");
         AssertGapAndBand (CassoTheme::MakeRetroTerminal(), 0xFF091A0Cu, 0xFF0D2411u, L"retro terminal");
         AssertGapAndBand (dark,                            0xFF111111u, 0xFF171717u, L"system dark");
-        AssertGapAndBand (light,                           0xFFEFEFEFu, 0xFFF8F8F8u, L"system light");
+        AssertGapAndBand (light,                           0xFFF3F3F3u, 0xFFFCFCFCu, L"system light");
     }
 
 

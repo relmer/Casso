@@ -120,7 +120,7 @@ void MountedImageState::ReleaseUnwrittenReservation()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MountedImageState::NoteChange (int64_t nowMs, ExternalChangeIntent intent)
+void MountedImageState::NoteChange (int64_t nowMs, ExternalChangeIntent intent, bool fromCassoExplorer)
 {
     m_pending.seen       = true;
     m_pending.lastSeenMs = nowMs;
@@ -128,7 +128,8 @@ void MountedImageState::NoteChange (int64_t nowMs, ExternalChangeIntent intent)
     //  A stated intent replaces whatever stood before, including replacing a
     //  stated one with Unstated: the last writer is the one whose bytes are on
     //  the disk, and a stale intent describes contents that are gone.
-    m_pending.intent = intent;
+    m_pending.intent            = intent;
+    m_pending.fromCassoExplorer = fromCassoExplorer;
 
     return;
 }

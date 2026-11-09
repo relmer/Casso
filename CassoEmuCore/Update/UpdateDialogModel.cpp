@@ -666,7 +666,7 @@ std::wstring UpdateDialogModel::DescribeFailure (UpdateFailure failure)
             break;
 
         case UpdateFailure::OtherInstanceRunning:
-            text = L"Another copy of Casso is open. Close it, then try the update again.";
+            text = L"Another copy of Casso or Casso Explorer is open. Close it, then try the update again.";
             break;
 
         case UpdateFailure::InstallFailed:

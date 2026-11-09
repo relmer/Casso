@@ -173,6 +173,11 @@ public:
     //  by it, so a mark that comes and goes doesn't add a line. Empty for none.
     void  SetCornerTag    (std::wstring tag, uint32_t argb)   { m_cornerTag = std::move (tag); m_cornerTagArgb = argb; }
     static HRESULT  LayOutTable (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table);
+    //  Text wider than this wraps onto more lines instead of growing the
+    //  balloon past the window's edge; a fixed-width tip wraps at more than
+    //  twice this. A tip of long lines, such as a log's, is given more.
+    static constexpr float  kDefaultMaxTextWidthDip = 340.0f;
+    void  SetMaxTextWidthDip (float dip) { m_maxTextWidthDip = dip; }
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
     void  SetTheme        (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
@@ -207,6 +212,14 @@ public:
     //
     void  SetPopupHost    (DxuiHwndSource * host) { m_popupHost = host; }
 
+    //  Explorer's tips: centered on the pointer and just above it, or just
+    //  below where there is no room above on its monitor, rather than on the
+    //  anchor; and a card with a shadow and no border.
+    void  SetFollowPointer (bool follow) { m_followPointer = follow; }
+
+    //  The same switch as SetHasLifetime, for a tip such as an info tip's
+    //  that is up until RequestHide or HideImmediate takes it down.
+    void  SetExpires      (bool expires) { m_hasLifetime = expires; }
     //  Which side of its anchor a balloon opens on; below unless set.
     void  SetPlacement    (DxuiPopupPlacement placement) { m_placement = placement; }
 
@@ -274,7 +287,7 @@ public:
     const RECT         & GetAnchor () const { return m_anchor;  }
 
     void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    const wchar_t *  GetFace () const { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace; }
+    const wchar_t *  GetFace () const { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::GetUiFace(); }
     float            GetMaxTextWidthDip () const;
 
     //
@@ -340,9 +353,13 @@ private:
     void     DrawCornerTag     (IDxuiTextRenderer & text, float right, float top, float lineHeight) const;
     void     DrawFrame         (IDxuiPainter & painter, IDxuiTextRenderer & text, float width, float height) const;
 
+
     //  The system's tip lifetime: ten double-click times, as Windows sets
     //  a tooltip control's auto-pop delay.
     static int  GetSystemVisibleMs ();
+
+    //  The time a tip opened at nowMs closes by itself, or 0 for never.
+    int64_t     GetLifetimeEnd (int64_t nowMs) const;
 
     //
     //  Acquire + size + show the popup balloon for the current
@@ -410,6 +427,8 @@ private:
     int                                   m_dwellCloseMs       = 100;
     float                                 m_fontDip            = 12.0f;
     bool                                  m_monospace          = false;
+    float                                 m_maxTextWidthDip    = 0.0f;   // 0 for the default
+    bool                                  m_followPointer      = false;
     uint32_t                              m_bgArgb             = 0xFF2D2D2D;
     uint32_t                              m_borderArgb         = 0xFF606060;
     uint32_t                              m_textArgb           = 0xFFE8EEF4;

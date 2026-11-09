@@ -137,6 +137,11 @@ public:
         // rather than floating as a card.
         bool                            squareCorners      = false;
 
+        // A blurred view of what is behind the popup under its card, as
+        // Explorer's menus have; the card's background, given translucent,
+        // tints it. Needs a shadow margin and IsAcrylicAvailable.
+        bool                            acrylic            = false;
+
         // When true (the default) a popup whose dismiss policy is
         // OnClick* grabs the mouse via SetCapture so off-popup clicks
         // route to its WndProc. Consumers that need the OWNER window to
@@ -293,10 +298,19 @@ public:
     //  closes the popup once `AdvanceReveal` reports it is finished. A
     //  tooltip that vanished on the frame its time ran out looked like a
     //  glitch rather than a dismissal.
-    void     BeginFadeOut  (int durationMs);
-    bool     AdvanceReveal (int64_t nowMs);
-    void     ApplyReveal    (float t);
-    bool     IsRevealing   () const { return m_revealing; }
+    void  BeginFadeOut         (int durationMs);
+    bool  AdvanceReveal        (int64_t nowMs);
+    void  ApplyReveal          (float t);
+    void  StartCompositorSlide (int fullW, int fullH);
+    void  SetSlideCloaked      (bool cloaked);
+    void  SetSlide             (float offsetY, const D2D1_RECT_F * clip);
+    static constexpr float  kSlideFraction = 0.5f;
+
+    //  Whether a popup that asks for acrylic gets it: the system's
+    //  transparency effects are on and the window manager can show what is
+    //  behind a window. Otherwise its card is filled opaque.
+    static bool  IsAcrylicAvailable ();
+    bool         IsRevealing        () const { return m_revealing; }
 
     //  A reveal in progress for a test, whose popup has no window to reveal;
     //  the next AdvanceReveal ends it.
@@ -432,9 +446,14 @@ private:
     //
     DxuiPopupHost *          FindAncestorAt  (POINT clientPx, POINT & outCardPx) const;
 
-    HRESULT  EnsureWindowClass               ();
-    HRESULT  CreateHwndAndComposition        (const RECT & placedRectScreenPx);
-    void     DestroyHwndAndComposition       ();
+    HRESULT      EnsureWindowClass         ();
+    HRESULT      CreateHwndAndComposition  (const RECT & placedRectScreenPx);
+    HRESULT      CreateComposition         (int widthPx, int heightPx);
+    void         SetCompositionSize        (int widthPx, int heightPx);
+    void         ApplyAcrylic              ();
+    HRESULT      PaintAcrylicShadow        ();
+    static void  EnsureDispatcherQueue     ();
+    void         DestroyHwndAndComposition ();
 
     //
     //  Back-buffer render-target management. CreateBackBufferRtv binds
@@ -459,13 +478,16 @@ private:
     std::wstring                            m_className;
 
     ComPtr<IDXGISwapChain1>                 m_swapChain;
-    ComPtr<IDCompositionDevice>             m_compDevice;
-    ComPtr<IDCompositionTarget>             m_compTarget;
-    ComPtr<IDCompositionVisual>             m_compVisual;
     ComPtr<ID3D11RenderTargetView>          m_rtv;
 
+    //  The window's Windows.UI.Composition tree: the swap chain's content and,
+    //  under it, the acrylic backdrop, moved together by the slide. Defined in
+    //  the .cpp so no consumer needs the WinRT headers.
+    struct                        Composition;
+    std::unique_ptr<Composition>  m_comp;
+
     // Per-popup render facades bound to the popup's own back buffer. The
-    // surface composites with premultiplied alpha (DComp); RenderNow clears
+    // surface composites with premultiplied alpha; RenderNow clears
     // it transparent, draws the shadow and the rounded card, and offsets
     // the content hook onto the card.
     DxuiPainter                             m_painter;
@@ -479,6 +501,7 @@ private:
 
     //  The drawn shadow and the rounded card it sits under.
     void  PaintShadowAndCard   ();
+    void  RepostPressBelow     (POINT screen, UINT msg, WPARAM keys);
 
     //  The card's size in pixels at `dpi`: ShowParams::sizePx when set,
     //  else sizeDip scaled.
@@ -496,6 +519,7 @@ private:
     bool        m_revealFade         = false;
     bool        m_revealOut          = false;
     bool        m_revealUpward       = false;
+    bool        m_slideCloaked       = false;   // hidden from DWM until the slide's first frame has landed
     int         m_revealDurationMs   = 0;
     int64_t     m_revealStartMs      = 0;
     float       m_revealAlpha        = 1.0f;

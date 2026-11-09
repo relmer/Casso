@@ -240,7 +240,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
             linkColor = (linkColor & s_kDisabledMask);
         }
 
-        std::wstring   drawn = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::kBodyFace,
+        std::wstring   drawn = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::GetUiFace(),
                                                        (float) (m_boundsDip.right - m_boundsDip.left),
                                                        m_elide);
 
@@ -251,7 +251,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                               (float) (m_boundsDip.bottom - m_boundsDip.top),
                               linkColor,
                               fontDip,
-                              DxuiTheme::kBodyFace,
+                              DxuiTheme::GetUiFace(),
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -265,7 +265,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
         //
         if (m_focused && m_focusCueVisible)
         {
-            DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::kBodyFace,
+            DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::GetUiFace(),
                                       (float) m_boundsDip.left,
                                       (float) m_boundsDip.left,
                                       (float) m_boundsDip.top,
@@ -338,7 +338,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
     }
 
     {
-        const wchar_t * face  = (m_face != nullptr) ? m_face : DxuiTheme::kBodyFace;
+        const wchar_t * face  = (m_face != nullptr) ? m_face : DxuiTheme::GetUiFace();
         float           size  = (m_fontSizeDip > 0.0f) ? m_scaler.ToPxf (m_fontSizeDip) : fontDip;
         std::wstring    drawn = DxuiTextElide::ToWidth (text, m_label, size, face,
                                                         (float) (m_boundsDip.right - m_boundsDip.left),

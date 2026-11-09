@@ -40,6 +40,17 @@ struct FileSystemEntry
     bool          isFolder     = false;
     uint64_t      sizeBytes    = 0;
     int64_t       modifiedUnix = 0;
+
+    //  Set only by EnumerateAllEntries; EnumerateEntries lists no hidden or
+    //  system entries to begin with.
+    bool          isHidden     = false;
+    bool          isSystem     = false;
+    bool          isCompressed = false;
+    bool          isEncrypted  = false;
+
+    //  A folder marked read-only or system may have a desktop.ini with a
+    //  name to show in place of its own, as Explorer shows "Camera Roll".
+    bool          isReadOnly   = false;
 };
 
 
@@ -64,6 +75,13 @@ public:
     // True iff `path` exists and is a regular file.
     virtual bool    Exists               (const std::wstring & path) = 0;
 
+    // True iff `path` exists and is a directory.
+    virtual bool    DirectoryExists      (const std::wstring & path) = 0;
+
+    // Creates the directory `path`, whose parent exists. S_OK when it is
+    // there already.
+    virtual HRESULT MakeDirectory        (const std::wstring & path) = 0;
+
     // Deletes `path` if it exists.
     virtual HRESULT Delete               (const std::wstring & path) = 0;
 
@@ -81,6 +99,15 @@ public:
     virtual HRESULT EnumerateEntries     (const std::wstring           & directory,
                                           std::vector<FileSystemEntry> & outEntries) = 0;
 
+    // The same listing with hidden and system entries included, and each
+    // entry's attributes set. A file system with no such attributes has no
+    // such entries, so the default is the plain listing.
+    virtual HRESULT EnumerateAllEntries  (const std::wstring           & directory,
+                                          std::vector<FileSystemEntry> & outEntries)
+    {
+        return EnumerateEntries (directory, outEntries);
+    }
+
     // The file's read-only attribute (drives the write-protect toggle for
     // sector-image formats).
     // Get fails if the file does not exist; Set preserves every other
@@ -89,4 +116,15 @@ public:
                                           bool               & outReadOnly) = 0;
     virtual HRESULT SetReadOnlyAttribute (const std::wstring & path,
                                           bool                 readOnly) = 0;
+
+    // The full path `path` is at once every junction and symbolic link in it
+    // is followed. A file system with neither returns the path as it is.
+    // Fails for a path that does not exist.
+    virtual HRESULT ResolveFinalPath     (const std::wstring & path,
+                                          std::wstring       & outPath)
+    {
+        outPath = path;
+
+        return S_OK;
+    }
 };

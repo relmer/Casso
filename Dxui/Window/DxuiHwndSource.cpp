@@ -2,6 +2,8 @@
 
 #include "DxuiHwndSource.h"
 #include "DxuiCaptionBar.h"
+#include "Widgets/DxuiInfoTip.h"
+#include "Widgets/DxuiTooltip.h"
 #include "DxuiPopupHost.h"
 #include "Widgets/DxuiPopupMenu.h"
 #include "Core/DxuiSystemSettings.h"
@@ -28,6 +30,11 @@
 // (WM_ENTERSIZEMOVE..WM_EXITSIZEMOVE) to drive IDxuiHostClient::OnModalLoopTick.
 // Distinct from any client SetTimer id, which route to OnTimer instead.
 static constexpr UINT_PTR  s_kModalLoopTimerId = 0xDCE1;
+
+// Host-owned WM_TIMER id that runs the caption title's tooltip while it opens
+// or fades. Armed only while the tooltip has something to animate.
+static constexpr UINT_PTR  s_kCaptionTipTimerId = 0xDCE2;
+static constexpr UINT      s_kCaptionTipTickMs  = 16;
 
 
 
@@ -617,7 +624,7 @@ DWORD DxuiHwndSource::GetExtendedStyle (const CreateParams & params)
         exStyle |= WS_EX_NOACTIVATE;   // stripped right after creation (see CreateParams)
     }
 
-    if (params.composited)
+    if (params.composited || params.drawOverBackdrop)
     {
         exStyle |= WS_EX_NOREDIRECTIONBITMAP;
     }
@@ -646,6 +653,8 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
 {
     HRESULT      hr               = S_OK;
     WNDCLASSEXW  wc               = { sizeof (wc) };
+    WNDCLASSEXW  existing         = { sizeof (existing) };
+    bool         classExists      = false;
     DWORD        style            = 0;
     DWORD        exStyle          = 0;
     HINSTANCE    hInstance        = nullptr;
@@ -673,10 +682,11 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     CBRA (m_hwnd == nullptr);
     CBRA (!m_synthetic);
 
-    m_params    = params;
-    hInstance   = (params.hInstance != nullptr) ? params.hInstance
-                                                : GetModuleHandleW (nullptr);
-    m_hInstance = hInstance;
+    m_params           = params;
+    m_clearTransparent = params.drawOverBackdrop;
+    hInstance          = (params.hInstance != nullptr) ? params.hInstance
+                                                       : GetModuleHandleW (nullptr);
+    m_hInstance        = hInstance;
 
     if (params.classNameOverride != nullptr)
     {
@@ -699,10 +709,19 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     wc.hbrBackground = nullptr;
     wc.lpszClassName = m_className.c_str();
 
-    classAtom = RegisterClassExW (&wc);
-    CWRA (classAtom);
+    //  A stable class name is shared by every window of the app that passes
+    //  it, so the second window finds the class the first registered. The
+    //  window that registered it unregisters it, which fails harmlessly while
+    //  another window of the class is open.
+    classExists = params.classNameOverride != nullptr && GetClassInfoExW (hInstance, m_className.c_str(), &existing) != FALSE;
 
-    m_classRegistered = true;
+    if (!classExists)
+    {
+        classAtom = RegisterClassExW (&wc);
+        CWRA (classAtom);
+
+        m_classRegistered = true;
+    }
 
     style   = params.borderless ? (WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN)
                                 : WS_OVERLAPPEDWINDOW;
@@ -1446,6 +1465,12 @@ void DxuiHwndSource::Destroy()
 
     ReleaseRenderResources();
 
+    if (m_frameWait != nullptr)
+    {
+        CloseHandle (m_frameWait);
+        m_frameWait = nullptr;
+    }
+
     m_rtv.Reset();
     m_swapChain.Reset();
     m_compVisual.Reset();
@@ -1471,6 +1496,8 @@ void DxuiHwndSource::Destroy()
 
     if (m_classRegistered && m_hInstance != nullptr)
     {
+        //  Fails while another window of a shared class is open; the class then
+        //  stays registered for that window.
         UnregisterClassW (m_className.c_str(), m_hInstance);
         m_classRegistered = false;
     }
@@ -2291,8 +2318,10 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
     scd.BufferCount      = 2;
     scd.Scaling          = DXGI_SCALING_STRETCH;
     scd.SwapEffect       = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    scd.Flags            = m_params.paceFrames ? (UINT) DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT : 0u;
+    m_swapChainFlags     = scd.Flags;
 
-    if (m_params.composited)
+    if (m_params.composited || m_params.drawOverBackdrop)
     {
         ComPtr<IDCompositionDesktopDevice>  desktopDevice;
         ComPtr<IDCompositionVisual2>        compVisual2;
@@ -2329,7 +2358,10 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
         hr = desktopDevice.As (&m_compDevice);
         CHRA (hr);
 
-        hr = desktopDevice->CreateTargetForHwnd (m_hwnd, TRUE, m_compTarget.GetAddressOf());
+        //  Behind the window's children, so a child window a host places over
+        //  the content, such as a file's preview from another program, is
+        //  drawn on top of it.
+        hr = desktopDevice->CreateTargetForHwnd (m_hwnd, FALSE, m_compTarget.GetAddressOf());
         CHRA (hr);
 
         hr = desktopDevice->CreateVisual (compVisual2.GetAddressOf());
@@ -2379,9 +2411,77 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
         CHRA (hr);
     }
 
+    hr = CreateFrameWait();
+    CHRA (hr);
+
 Error:
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateFrameWait
+//
+//  With CreateParams::paceFrames, one frame queued at most, and the handle
+//  WaitForFrameSlot waits on for it to leave the queue.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiHwndSource::CreateFrameWait()
+{
+    HRESULT                  hr         = S_OK;
+    ComPtr<IDXGISwapChain2>  swapChain2;
+
+
+
+    BAIL_OUT_IF (!m_params.paceFrames || m_swapChain == nullptr, S_OK);
+
+    hr = m_swapChain.As (&swapChain2);
+    CHRA (hr);
+
+    hr = swapChain2->SetMaximumFrameLatency (1);
+    CHRA (hr);
+
+    m_frameWait = swapChain2->GetFrameLatencyWaitableObject();
+    CBRA (m_frameWait != nullptr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WaitForFrameSlot
+//
+//  Holds a paint until the frame before it has left the queue, so it draws
+//  just after a vsync, as every frame then does, and is seen two vsyncs
+//  later. Bounded, so a frame the compositor does not take, as for a window
+//  on no display, costs a paint no more than a few frames.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::WaitForFrameSlot()
+{
+    DWORD  waited = WAIT_OBJECT_0;
+
+
+
+    if (m_frameWait == nullptr)
+    {
+        return;
+    }
+
+    waited = WaitForSingleObjectEx (m_frameWait, s_kFrameWaitMs, FALSE);
+    IGNORE_RETURN_VALUE (waited, WAIT_OBJECT_0);
 }
 
 
@@ -2952,13 +3052,15 @@ Error:
 //  WM_PAINT body for full-ownership mode. Delegates the frame orchestration to
 //  DxuiRenderTarget::RenderFrame (clear -> before-present hook -> PaintContent
 //  -> after-paint / compose -> PresentFrame), which bails cleanly if the
-//  painter / text renderer / RTV / swap chain are missing.
+//  painter / text renderer / RTV / swap chain are missing. A window that paces
+//  its frames first waits for the last one to leave the queue.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiHwndSource::PaintPump()
 {
     DXUI_ASSERT_UI_THREAD();
+    WaitForFrameSlot();
     RenderFrame (m_theme);
 }
 
@@ -2987,13 +3089,13 @@ void DxuiHwndSource::ApplyDwmConfiguration()
         return;
     }
 
-    wantMica = (m_params.backdrop == DxuiHwndSourceBackdrop::Mica);
+    wantMica = (m_params.backdrop == DxuiHwndSourceBackdrop::Mica || m_params.backdrop == DxuiHwndSourceBackdrop::MicaAlt);
 
     // Extend the frame first — Mica is invisible without it, and the
     // OS drop-shadow also depends on this even when backdrop is None.
-    DxuiDwm::ExtendFrameIntoClientArea (m_hwnd, s_kExtendFrameInsetPx);
+    DxuiDwm::ExtendFrameIntoClientArea (m_hwnd, m_params.drawOverBackdrop ? -1 : s_kExtendFrameInsetPx);
     DxuiDwm::ApplyRoundedCorners       (m_hwnd, m_params.roundedCorners);
-    DxuiDwm::ApplyMicaBackdrop         (m_hwnd, wantMica);
+    DxuiDwm::ApplyMicaBackdrop         (m_hwnd, wantMica, m_params.backdrop == DxuiHwndSourceBackdrop::MicaAlt);
     DxuiDwm::ApplyImmersiveDarkMode    (m_hwnd, m_params.darkMode);
 
 #ifdef _DEBUG
@@ -3005,6 +3107,29 @@ void DxuiHwndSource::ApplyDwmConfiguration()
     m_dwmSeam.roundedRequested      = m_params.roundedCorners;
     m_dwmSeam.darkRequested         = m_params.darkMode;
 #endif
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FromHwnd
+//
+//  Trusted only for a window whose procedure is this class's, since another
+//  class may keep something else in its user data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiHwndSource * DxuiHwndSource::FromHwnd (HWND hwnd)
+{
+    if (hwnd == nullptr || (WNDPROC) GetWindowLongPtr (hwnd, GWLP_WNDPROC) != &DxuiHwndSource::s_WndProcThunk)
+    {
+        return nullptr;
+    }
+
+    return reinterpret_cast<DxuiHwndSource *> (GetWindowLongPtr (hwnd, GWLP_USERDATA));
 }
 
 
@@ -3091,6 +3216,7 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
     {
         result = DefaultProc (msg, wp, lp);
     }
+
 
     return result;
 }
@@ -3329,6 +3455,11 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
 
                 result = 0;
             }
+            else if (wp == s_kCaptionTipTimerId)
+            {
+                TickCaptionTip();
+                result = 0;
+            }
             else
             {
                 isHandled = false;
@@ -3446,6 +3577,15 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         return IsClaimed (m_client->OnAppMessage (msg, wp, lp), RepaintOnClaim::No);
     }
 
+    //  A pinned info tip closes when focus moves from its window to another
+    //  window of this program or another program, as it does on a click
+    //  elsewhere. Here rather than in DxuiWindow, so a window that overrides
+    //  OnKillFocus closes it too.
+    if (msg == WM_KILLFOCUS)
+    {
+        DxuiInfoTip::CloseOpen();
+    }
+
     switch (msg)
     {
         // -- claim-or-fall-through, no repaint --
@@ -3466,6 +3606,8 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         case WM_CAPTURECHANGED:
             isHandled = IsClaimed (m_client->OnCaptureChanged (reinterpret_cast<HWND> (lp)), RepaintOnClaim::No);
             break;
+
+        case WM_ENDSESSION:    isHandled = IsClaimed (m_client->OnEndSession (wp != 0), RepaintOnClaim::No); break;
         case WM_COPYDATA:      isHandled = IsClaimed (m_client->OnCopyData (wp, lp), RepaintOnClaim::No); break;
         case WM_DROPFILES:     isHandled = IsClaimed (m_client->OnDropFiles (reinterpret_cast<HDROP> (wp)), RepaintOnClaim::Yes); break;
         case WM_NOTIFY:        isHandled = IsClaimed (m_client->OnNotify (wp, lp), RepaintOnClaim::No); break;
@@ -3507,15 +3649,17 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         case WM_CHAR:          isHandled = IsClaimed (m_client->OnChar (wp, lp),    RepaintOnClaim::Yes); break;
         case WM_KEYDOWN:
         case WM_SYSKEYDOWN:
-            isHandled           = IsClaimed (m_client->OnKeyDown (wp, lp), RepaintOnClaim::Yes);
-            m_sysKeyDownClaimed = isHandled && msg == WM_SYSKEYDOWN;
+            isHandled         = IsClaimed (m_client->OnKeyDown (wp, lp), RepaintOnClaim::Yes);
+            m_sysKeyClaimed   = msg == WM_SYSKEYDOWN && isHandled;
             break;
 
-        //  The character TranslateMessage makes from a claimed Alt+key. Left
-        //  to DefWindowProc it asks for a Win32 menu this window does not
-        //  have, and Windows beeps. An unclaimed Alt+key, such as Alt+Space
-        //  for the window menu, still reaches DefWindowProc.
-        case WM_SYSCHAR:       isHandled = m_sysKeyDownClaimed; break;
+        //  An Alt shortcut the client took on its key-down is not a menu
+        //  mnemonic as well: DefWindowProc would look for one, find none, and
+        //  beep.
+        case WM_SYSCHAR:
+            isHandled         = m_sysKeyClaimed;
+            m_sysKeyClaimed   = false;
+            break;
         case WM_TIMER:         isHandled = IsClaimed (m_client->OnTimer (static_cast<UINT_PTR> (wp)),
                                                       RepaintOnClaim::Yes); break;
 
@@ -3856,6 +4000,8 @@ LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 
 
 
+    UpdateCaptionTip (msg, wp, lp);
+
     if (msg == WM_NCMOUSELEAVE && m_lastHoveredNcControl != nullptr)
     {
         ev.kind = DxuiMouseEventKind::Leave;
@@ -3973,6 +4119,103 @@ LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 
 Error:
     return toDefault ? DefaultProc (msg, wp, lp) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::UpdateCaptionTip
+//
+//  Windows' own title bar shows the full title in a tooltip when it is cut
+//  short. The pointer over the title, and the title cut, opens it; anywhere
+//  else, or leaving the caption, closes it, and a press closes it at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::UpdateCaptionTip (UINT msg, WPARAM wp, LPARAM lp)
+{
+    POINT            pointPx  = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
+    RECT             anchorPx = {};
+    RECT             clientPx = {};
+    const wchar_t *  tip      = nullptr;
+    int64_t          nowMs    = (int64_t) GetTickCount64();
+    TRACKMOUSEEVENT  tme      = { sizeof (tme) };
+
+
+
+    if (m_caption == nullptr || !m_captionVisible || m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    if (m_captionTip == nullptr)
+    {
+        m_captionTip = std::make_unique<DxuiTooltip>();
+        m_captionTip->SetPopupHost (this);
+    }
+
+    if (msg == WM_NCMOUSEMOVE && wp == (WPARAM) HTCAPTION && ScreenToClient (m_hwnd, &pointPx))
+    {
+        tip = m_caption->GetTooltipAt (pointPx, anchorPx);
+    }
+
+    if (tip != nullptr)
+    {
+        GetClientRect (m_hwnd, &clientPx);
+        m_captionTip->SetDpi (m_scaler.GetDpi());
+        m_captionTip->SetViewportSize (clientPx.right - clientPx.left, clientPx.bottom - clientPx.top);
+
+        if (m_theme != nullptr)
+        {
+            m_captionTip->SetTheme (*m_theme);
+        }
+
+        m_captionTip->RequestShow (anchorPx, tip, nowMs);
+
+        //  The leave that closes it only arrives when asked for.
+        tme.dwFlags   = TME_NONCLIENT | TME_LEAVE;
+        tme.hwndTrack = m_hwnd;
+        TrackMouseEventHost (&tme);
+    }
+    else if (msg == WM_NCLBUTTONDOWN)
+    {
+        m_captionTip->HideImmediate();
+    }
+    else
+    {
+        m_captionTip->RequestHide (nowMs);
+    }
+
+    if (m_captionTip->WantsTick())
+    {
+        ::SetTimer (m_hwnd, s_kCaptionTipTimerId, s_kCaptionTipTickMs, nullptr);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::TickCaptionTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::TickCaptionTip()
+{
+    if (m_captionTip != nullptr)
+    {
+        m_captionTip->Tick ((int64_t) GetTickCount64());
+    }
+
+    if (m_captionTip == nullptr || !m_captionTip->WantsTick())
+    {
+        ::KillTimer (m_hwnd, s_kCaptionTipTimerId);
+    }
 }
 
 
@@ -4225,7 +4468,7 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
         if (IsBufferResizeDue (have, widthPx, heightPx))
         {
             ReleaseBackBufferRtv();
-            (void) m_swapChain->ResizeBuffers (0, GetBufferExtent (widthPx), GetBufferExtent (heightPx), DXGI_FORMAT_UNKNOWN, 0);
+            (void) m_swapChain->ResizeBuffers (0, GetBufferExtent (widthPx), GetBufferExtent (heightPx), DXGI_FORMAT_UNKNOWN, m_swapChainFlags);
 
             hr = CreateBackBufferRtv();
             IGNORE_RETURN_VALUE (hr, S_OK);
@@ -4244,6 +4487,7 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
     // client repaints through its own OnSize.
     if (m_ownsPaintPump)
     {
+        WaitForFrameSlot();
         RenderFrame (m_theme);
     }
 

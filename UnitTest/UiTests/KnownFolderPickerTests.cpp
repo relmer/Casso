@@ -1,10 +1,10 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "InMemoryFileSystem.h"
-#include "Cassque/Model/KnownFolderStore.h"
-#include "Cassque/Model/LaunchCommand.h"
+#include "CassoExplorer/Model/KnownFolderStore.h"
+#include "CassoExplorer/Model/LaunchCommand.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
-#include "../Cassque/FakeProcessLauncher.h"
+#include "../CassoExplorer/FakeProcessLauncher.h"
 #include "HResultAssert.h"
 #include "Ui/Dialogs/DialogDefinition.h"
 
@@ -20,7 +20,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  What the emulator's side of the browser decides: which folders its disk
 //  picker scans, how it starts the browser, and the picture a dialog can
-//  carry.
+//  show.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,8 +60,27 @@ public:
 
         Assert::AreEqual ((size_t) 3, folders.size());
         Assert::AreEqual (std::wstring (L"E:\\Known"),  folders[0].wstring());
-        Assert::AreEqual (std::wstring (L"d:\\shared"), folders[1].wstring(), L"a folder in both lists appears once, where the known list put it");
+        Assert::AreEqual (std::wstring (L"D:\\shared"), folders[1].wstring(), L"a folder in both lists appears once, where the known list put it, its drive letter in capitals");
         Assert::AreEqual (std::wstring (L"C:\\Recent"), folders[2].wstring());
+    }
+
+
+
+    //  Casso's disk paths can be relative to its base folder, and so can the
+    //  folder it records for one; the list holds where that really is.
+    TEST_METHOD (Store_RelativeFolderIsUnderTheBase_AndListedOnce)
+    {
+        InMemoryFileSystem                    fs;
+        KnownFolderStore                      store (fs, kBase, false);
+        std::vector<KnownFolderStore::Entry>  known;
+
+        AssertSucceeded (store.Append (L"Apple2\\Demos", 1));
+        AssertSucceeded (store.Append (std::wstring (kBase) + L"\\Apple2\\Demos", 2));
+        AssertSucceeded (store.Load (known));
+
+        Assert::AreEqual ((size_t) 1, known.size());
+        Assert::AreEqual (std::wstring (kBase) + L"\\Apple2\\Demos", known[0].path);
+        Assert::AreEqual ((int64_t) 2, known[0].lastUsedUnix);
     }
 
 
@@ -77,18 +96,18 @@ public:
 
 
 
-    TEST_METHOD (Launch_CassqueBesideTheModuleWithItsOwner)
+    TEST_METHOD (Launch_CassoExplorerBesideTheModuleWithItsOwner)
     {
         FakeProcessLauncher     launcher;
         LaunchCommand::Outcome  outcome = LaunchCommand::Outcome::Failed;
 
-        launcher.present.push_back (L"C:\\Casso\\x64\\Release\\Cassque.exe");
+        launcher.present.push_back (L"C:\\Casso\\x64\\Release\\CassoExplorer.exe");
 
-        outcome = LaunchCommand::LaunchCassque (launcher, L"C:\\Casso\\x64\\Release", reinterpret_cast<HWND> (0x1234), L"my worktree");
+        outcome = LaunchCommand::LaunchCassoExplorer (launcher, L"C:\\Casso\\x64\\Release", reinterpret_cast<HWND> (0x1234), L"my worktree");
 
         Assert::IsTrue   (outcome == LaunchCommand::Outcome::Launched);
         Assert::AreEqual ((size_t) 1, launcher.launched.size());
-        Assert::AreEqual (std::wstring (L"C:\\Casso\\x64\\Release\\Cassque.exe"), launcher.launched[0].exePath);
+        Assert::AreEqual (std::wstring (L"C:\\Casso\\x64\\Release\\CassoExplorer.exe"), launcher.launched[0].exePath);
         Assert::AreEqual (std::wstring (L"--owner 4660 --title \"my worktree\""), launcher.launched[0].arguments);
     }
 
@@ -97,11 +116,11 @@ public:
     TEST_METHOD (Launch_AMissingBrowserIsReportedAndNothingStarts)
     {
         FakeProcessLauncher     launcher;
-        LaunchCommand::Outcome  outcome = LaunchCommand::LaunchCassque (launcher, L"C:\\Casso", nullptr, L"");
+        LaunchCommand::Outcome  outcome = LaunchCommand::LaunchCassoExplorer (launcher, L"C:\\Casso", nullptr, L"");
 
         Assert::IsTrue   (outcome == LaunchCommand::Outcome::Missing);
         Assert::IsTrue   (launcher.launched.empty());
-        Assert::IsTrue   (LaunchCommand::DescribeMissing (L"C:\\Casso\\Cassque.exe").find (L"C:\\Casso\\Cassque.exe") != std::wstring::npos);
+        Assert::IsTrue   (LaunchCommand::DescribeMissing (L"C:\\Casso\\CassoExplorer.exe").find (L"C:\\Casso\\CassoExplorer.exe") != std::wstring::npos);
     }
 
 
@@ -255,13 +274,13 @@ public:
         DialogTextRun      heading;
         DialogTextRun      below;
 
-        heading.text = L"Cassque";
+        heading.text = L"CassoExplorer";
         below.text   = L"What's with the name?";
 
         content.SetImagePlacement (DialogBodyContent::ImagePlacement::TrailingBeside);
         Assert::IsTrue (content.SetImage (picture));
 
-        //  Eight lines carry the runs past the 128-high picture.
+        //  Eight lines push the runs past the 128-high picture.
         content.SetRuns ({ heading, {}, {}, {}, {}, {}, {}, {}, below });
         content.Layout  ({ 0, 0, 400, 1000 }, MakeScaler96());
 

@@ -545,7 +545,7 @@ void DiskLogController::SetBarEntries()
 
         box.custom        = entry;
         box.group         = 1;
-        box.neverOverflow = true;
+        box.pinned        = true;
 
         entries.push_back (std::move (box));
     }

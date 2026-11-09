@@ -13,6 +13,9 @@
 #include "Devices/Acia6551.h"
 #include "Devices/AciaByteSourceEndpoint.h"
 #include "Devices/AciaEndpoints.h"
+#include "Devices/SerialPortDevice.h"
+#include "Devices/SerialTrafficLog.h"
+#include "Seams/IByteStreamFactory.h"
 #include "Devices/Printer/PrintRaster.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
@@ -445,11 +448,9 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
             {
                 MemoryDevice *  raw = device.get();
 
-                // Cache the printer card so the background drain worker can
-                // reach its ring once the machine is built.
-                if (slot.device == "parallel-printer")
+                if (slot.device == kpszParallelPrinterDevice)
                 {
-                    m_host.GetRefs().printerCard = static_cast<PrinterCard *> (device.get());
+                    WireParallelPrinter (slot, *static_cast<PrinterCard *> (raw));
                 }
 
                 m_host.GetMemoryBus().AddDevice (device.get());
@@ -465,7 +466,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         // The parallel printer card ships embedded firmware (no rom file), so
         // its slot ROM is installed here from the checked-in byte array rather
         // than loaded from disk.
-        if (slot.device == "parallel-printer")
+        if (slot.device == kpszParallelPrinterDevice)
         {
             std::vector<Byte>  firmware (s_kParallelFirmwareBytes,
                                          s_kParallelFirmwareBytes + sizeof (s_kParallelFirmwareBytes));
@@ -610,15 +611,14 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         // ($C098) = printer, port 2 ($C0A8) = modem. Built in like the IWM
         // (the //c has no config slots) -- the serial firmware is part of the
         // internal //c ROM. Each raises IRQs through the shared interrupt
-        // controller. Each has a loopback plug attached (comms self-test); the
-        // serial printer-endpoint bridge and an endpoint selector for the //c
-        // are downstream work. Both are ticked with the CPU so their character
-        // timing follows its clock.
+        // controller. AttachSerialDevices connects each to the device on its
+        // back-panel port, a TCP port or a COM port, or loops it back
+        // (comms self-test) when there is none. Both are ticked with the CPU
+        // so their character timing follows its clock.
         for (int slot = 1; slot <= 2; ++slot)
         {
-            HRESULT                                hrIc     = S_OK;
-            std::unique_ptr<Acia6551>              acia;
-            std::unique_ptr<AciaLoopbackEndpoint>  loopback;
+            HRESULT                    hrIc = S_OK;
+            std::unique_ptr<Acia6551>  acia;
 
             Word  base = static_cast<Word> (Acia6551::kSlotIoBase
                                             + slot * Acia6551::kSlotIoStride
@@ -632,14 +632,13 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
             acia->SetDiagnosticsName (std::format ("serial-port-{}", slot), std::format ("Serial port {}", slot));
             acia->SetCommPort        ((Byte) (Acia6551::kCommPortBuiltIn | slot));
 
-            loopback = std::make_unique<AciaLoopbackEndpoint> (acia.get());
-            acia->SetEndpoint (loopback.get());
-
             m_host.GetRefs().serialChips.push_back (acia.get());
             m_host.GetMemoryBus().AddDevice (acia.get());
-            m_host.GetOwnedAciaEndpoints().push_back (std::move (loopback));
+            m_host.SetSerialPort (slot, acia.get());
             m_host.GetOwnedDevices().push_back (std::move (acia));
         }
+
+        AttachSerialDevices (config);
     }
 
     // Cache Disk2Controller pointer for the status-bar drive activity
@@ -730,35 +729,16 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         }
     }
 
-    // Start the background printer drain once the card exists, seeding it with
-    // this machine's persisted pending strip if one exists (FR-026). A missing
-    // or corrupt sidecar falls back to empty paper. Symmetric save is in
-    // SwitchMachine teardown and OnDestroy.
-    if (m_host.GetRefs().printerCard != nullptr && m_services.printerWorker != nullptr)
+    // Bytes from the last machine that were never drained are not this
+    // machine's to print. The teardown before a build stops the drain.
+    if (m_services.printerWorker == nullptr || !m_services.printerWorker->IsRunning())
     {
-        PrintRaster   pending;
-        HRESULT       hrLoad = PrintJobStore::Load (m_host.GetPendingPrintDir(), pending);
+        m_host.GetPrinterRing().Clear();
+    }
 
-        m_services.printerWorker->Start (
-            m_host.GetRefs().printerCard->GetByteRing(),
-            SUCCEEDED (hrLoad) ? std::move (pending) : PrintRaster());
-
-        // Pace the drain off the guest clock so the card applies real
-        // backpressure -- the guest prints at ImageWriter speed (faster at max
-        // perf), never racing ahead of the preview. The cycle pointer is stable
-        // for this machine's CPU, so setting it once covers later restarts.
-        if (m_host.GetCpu() != nullptr)
-        {
-            m_services.printerWorker->SetCycleClock (m_host.GetCpu()->GetCycleCounterPtr());
-        }
-
-        // Prime the live-preview auto-open baseline to the worker's current
-        // activity so a page carried over from a previous session does not read as
-        // a fresh print and auto-open the preview on boot -- only new printing does.
-        if (m_services.printerAutoOpenActivity != nullptr)
-        {
-            *m_services.printerAutoOpenActivity = m_services.printerWorker->GetActivityCount();
-        }
+    if (m_host.GetRefs().printerRing != nullptr)
+    {
+        StartPrinterDrain (m_host, m_services.printerWorker, m_services.printerAutoOpenActivity);
     }
 
     // Mockingboard wiring. Cache the card (if the active config installs
@@ -880,6 +860,7 @@ HRESULT MachineBuilder::WireUthernet (const MachineConfig & config)
     hr = card->AttachInterruptController (&m_host.GetInterruptController());
     CHR (hr);
 
+    card->SetListenGate (m_services.listenGate);
     card->AttachNetwork (m_services.hostNetwork, *settings);
     m_host.GetRefs().uthernet = card;
 
@@ -1044,6 +1025,55 @@ void MachineBuilder::WireLanguageCard()
         // Seed the $D000-$FFFF read-page mapping now that the ROM image and MMU are
         // wired. Thereafter it re-points on LC switches, reset, and ALTZP flips.
         lc->RebindWindow();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartPrinterDrain
+//
+//  Starts the background printer drain on the host's ring, seeding it with
+//  this machine's persisted pending strip if one exists. A missing
+//  or corrupt sidecar falls back to empty paper. Symmetric save is in
+//  SwitchMachine teardown and OnDestroy. A drain already running is left
+//  as it is, so the printer can move between connectors mid-page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::StartPrinterDrain (MachineHost & host, PrinterWorker * worker, uint64_t * autoOpenActivity)
+{
+    PrintRaster  pending;
+    HRESULT      hrLoad   = S_OK;
+    bool         starting = worker != nullptr && !worker->IsRunning();
+
+
+
+    if (starting)
+    {
+        hrLoad = PrintJobStore::Load (host.GetPendingPrintDir(), pending);
+
+        worker->Start (host.GetPrinterRing(), SUCCEEDED (hrLoad) ? std::move (pending) : PrintRaster());
+
+        // Pace the drain off the guest clock so the card applies real
+        // backpressure -- the guest prints at ImageWriter speed (faster at max
+        // perf), never racing ahead of the preview. The cycle pointer is stable
+        // for this machine's CPU, so setting it once covers later restarts.
+        if (host.GetCpu() != nullptr)
+        {
+            worker->SetCycleClock (host.GetCpu()->GetCycleCounterPtr());
+        }
+
+        // Prime the live-preview auto-open baseline to the worker's current
+        // activity, so a page restored from a previous session does not count
+        // as a fresh print and open the preview on boot. Only new printing does.
+        if (autoOpenActivity != nullptr)
+        {
+            *autoOpenActivity = worker->GetActivityCount();
+        }
     }
 }
 
@@ -1821,6 +1851,44 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineBuilder::AttachSerialDevices
+//
+//  Both ports are connected, so a port with no device in the configuration
+//  loops back. A port whose device cannot be read or opened -- a COM port
+//  open in another program, a TCP port already in use -- is left on
+//  loopback, so the machine starts; the device is opened again at the next
+//  build or when the setting is applied.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::AttachSerialDevices (const MachineConfig & config)
+{
+    static constexpr const char *  kpszPortNames[] = { "serial1", "serial2" };
+    SerialTrafficLog             * log             = (m_services.serialLog != nullptr) ? m_services.serialLog->get() : nullptr;
+
+
+
+    for (int number = 1; number <= (int) std::size (kpszPortNames); number++)
+    {
+        std::string  device;
+        HRESULT      hr = S_OK;
+
+        for (const PortConfig & port : config.ports)
+        {
+            device = (port.name == kpszPortNames[number - 1]) ? port.device : device;
+        }
+
+        hr = m_host.ConnectSerialPort (number, device, m_services.streamFactory, log);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WireCassettePort
 //
 //  Connects the cassette jacks to the recorder the host owns, times them off
@@ -1980,6 +2048,37 @@ void MachineBuilder::SelectVideoMode()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WireParallelPrinter
+//
+//  Attaches the ImageWriter II to a parallel card whose connector lists it,
+//  or lists nothing, unless an earlier connector already has it. Otherwise
+//  the card's connector is empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireParallelPrinter (const SlotConfig & slot, PrinterCard & card)
+{
+    HRESULT        hr     = S_OK;
+    MachineRefs  & refs   = m_host.GetRefs();
+    bool           wanted = slot.ports.empty() || slot.ports.front().device == kpszImageWriterDevice;
+
+
+
+    m_host.SetParallelCard (slot.slot, &card);
+
+    if (wanted && refs.printerRing == nullptr)
+    {
+        hr = m_host.ConnectParallelPrinter (slot.slot, true);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WireSuperSerialCard
 //
 //  Connects a Super Serial Card the registry just created: its firmware, its
@@ -2074,6 +2173,7 @@ void MachineBuilder::WireSuperSerialCard (const SlotConfig & slot, SuperSerialCa
         refs.superSerialCard = &card;
     }
 
+    m_host.SetSerialPort (slot.slot, &card.GetAcia(), true);
     AttachSerialEndpoint (slot, card);
 }
 
@@ -2086,22 +2186,18 @@ void MachineBuilder::WireSuperSerialCard (const SlotConfig & slot, SuperSerialCa
 //  AttachSerialEndpoint
 //
 //  Plugs the attachment the slot's first port specifies into the card's
-//  serial connector: nothing, a loopback plug, a file that receives what the
-//  card sends, or a file whose bytes are sent into the card. A file that
-//  cannot be opened or read results in an empty connector, and the problem is
-//  stored on the card for the shell to report.
+//  serial connector (MachineHost::ConnectSerialPort). A file, TCP port or
+//  COM port that cannot be opened, or a printer attached elsewhere, results
+//  in an empty connector, and the problem is stored on the card for the
+//  shell to report.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineBuilder::AttachSerialEndpoint (const SlotConfig & slot, SuperSerialCard & card)
 {
-    HRESULT                                   hr       = S_OK;
-    string                                    device;
-    string                                    path;
-    std::unique_ptr<IAciaEndpoint>            endpoint;
-    std::unique_ptr<AciaFileEndpoint>         fileOut;
-    std::unique_ptr<AciaByteSourceEndpoint>   fileIn;
-    vector<Byte>                              bytes;
+    HRESULT  hr     = S_OK;
+    string   device;
+    string   path;
 
 
 
@@ -2111,50 +2207,11 @@ void MachineBuilder::AttachSerialEndpoint (const SlotConfig & slot, SuperSerialC
         path   = slot.ports.front().path;
     }
 
-    if (device == kpszSerialLoopback)
+    hr = m_host.ConnectSerialPort (slot.slot, device, m_services.streamFactory,
+                                   (m_services.serialLog != nullptr) ? m_services.serialLog->get() : nullptr, path);
+
+    if (FAILED (hr))
     {
-        endpoint = std::make_unique<AciaLoopbackEndpoint> (&card.GetAcia());
+        card.SetAttachmentProblem (MachineHost::DescribeAttachmentFailure (device, path));
     }
-    else if (device == kpszSerialFileOut)
-    {
-        fileOut = std::make_unique<AciaFileEndpoint>();
-        hr      = fileOut->Open (path);
-
-        if (SUCCEEDED (hr))
-        {
-            endpoint = std::move (fileOut);
-        }
-        else
-        {
-            card.SetAttachmentProblem ("Cannot open " + path + " for the serial connector.");
-        }
-    }
-    else if (device == kpszSerialFileIn)
-    {
-        hr = ReadRomFileBytes (path, bytes);
-
-        if (SUCCEEDED (hr))
-        {
-            fileIn   = std::make_unique<AciaByteSourceEndpoint> (&card.GetAcia(), move (bytes));
-            endpoint = std::move (fileIn);
-        }
-        else
-        {
-            card.SetAttachmentProblem ("Cannot read " + path + " for the serial connector.");
-        }
-    }
-
-    BAIL_OUT_IF (endpoint == nullptr, S_OK);
-
-    card.GetAcia().SetEndpoint (endpoint.get());
-
-    if (device == kpszSerialFileIn)
-    {
-        static_cast<AciaByteSourceEndpoint *> (endpoint.get())->Start();
-    }
-
-    m_host.GetOwnedAciaEndpoints().push_back (std::move (endpoint));
-
-Error:
-    return;
 }

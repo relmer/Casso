@@ -1664,7 +1664,7 @@ void ShellDeskScene::SetStripLabelMarquee (DxuiShadowedText & label, int cell, c
 
     if (text != nullptr && !name.empty())
     {
-        hr = text->MeasureString (name.c_str(), fontPx, DxuiTheme::kBodyFace, textW, textH);
+        hr = text->MeasureString (name.c_str(), fontPx, DxuiTheme::GetUiFace(), textW, textH);
     }
 
     if (SUCCEEDED (hr) && textW > (float) (rc.right - rc.left) - 2.0f * DxuiShadowedText::kGlowReachPx)
@@ -2765,7 +2765,7 @@ bool ShellDeskScene::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kS
         // does an info icon, whose cell is its own width.
         if (!names[i].empty() && i != s_kSceneCassetteCell && i < kSceneInfoIconCell)
         {
-            hrMeasure = text->MeasureString (names[i].c_str(), fontPx, DxuiTheme::kBodyFace, textW, textH);
+            hrMeasure = text->MeasureString (names[i].c_str(), fontPx, DxuiTheme::GetUiFace(), textW, textH);
         }
 
         if (SUCCEEDED (hrMeasure) && textW > (float) GetSceneLabelCellWidthPx (i, cellPx) - 2.0f * DxuiShadowedText::kGlowReachPx)
@@ -2811,7 +2811,7 @@ bool ShellDeskScene::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kS
                                              0.0f, (float) GetSceneLabelCellTopPx (i, cellPx),
                                              (float) GetSceneLabelCellWidthPx (i, cellPx), (float) cellPx.cy,
                                              kLabelArgb, fontPx,
-                                             (i >= kSceneInfoIconCell) ? DriveWidget::kInfoIconFamily : DxuiTheme::kBodyFace,
+                                             (i >= kSceneInfoIconCell) ? DriveWidget::kInfoIconFamily : DxuiTheme::GetUiFace(),
                                              DxuiTextHAlign::Center, DxuiTextVAlign::Center,
                                              DxuiShadowedText::kGlowReachPx);
             continue;
@@ -2822,7 +2822,7 @@ bool ShellDeskScene::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kS
             DxuiShadowedText::PaintShadowed (*text, names[i].c_str(),
                                              x, (float) GetSceneLabelCellTopPx (i, cellPx),
                                              period, (float) cellPx.cy,
-                                             kLabelArgb, fontPx, DxuiTheme::kBodyFace,
+                                             kLabelArgb, fontPx, DxuiTheme::GetUiFace(),
                                              DxuiTextHAlign::Left, DxuiTextVAlign::Center,
                                              DxuiShadowedText::kGlowReachPx);
         }
@@ -2920,7 +2920,7 @@ void ShellDeskScene::PlaceSceneNameAndIcon (
     outIcon       = {};
     outIconTarget = {};
 
-    hr = text.MeasureString (name.c_str(), fontPx, DxuiTheme::kBodyFace, textW, textH);
+    hr = text.MeasureString (name.c_str(), fontPx, DxuiTheme::GetUiFace(), textW, textH);
     CHR (hr);
 
     hrGlyph = text.MeasureString (s_kpszMdl2Info, fontPx, DriveWidget::kInfoIconFamily, glyphW, glyphH);

@@ -44,7 +44,7 @@ public:
                                     bool                labeled) override;
     const wchar_t *  GetTooltipAt  (int x, int y, RECT & anchor) const override;
     bool             OnClick       (int x, int y) override;
-    int              GetMinWidthPx (const DxuiDpiScaler & scaler) const override { return scaler.ToPx (kGapDip + m_labelWidthDip + m_boxWidthDip); }
+    int              GetMinWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const override { (void) labeled; (void) text; return scaler.ToPx (kGapDip + m_labelWidthDip + m_boxWidthDip); }
 
     static constexpr float  kLabelFontDip = 12.0f;
 

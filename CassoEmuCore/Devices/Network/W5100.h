@@ -82,6 +82,13 @@ public:
     // does not move and nothing is cleared.
     Byte  PeekCommon         (Word address) const { return ReadCommon (address); }
 
+    //  Reads of a socket's received size that found nothing received: the
+    //  guest polling for data that has not arrived. A test that runs the
+    //  guest faster than real time slows it to real time while this count
+    //  rises, so the guest's timeouts, counted in cycles, measure real time
+    //  while it waits on the PC.
+    uint64_t  GetEmptyReceivePolls () const { return m_emptyReceivePolls; }
+
     // Internal space, with the register side effects of an IDM_DR access.
     Byte  ReadInternal       (Word address);
     void  WriteInternal      (Word address, Byte value);
@@ -155,10 +162,11 @@ private:
     static void      AppendLogValue (std::string & log, uint64_t value);
     static uint64_t  ReadLogValue   (std::string_view log, size_t offset);
 
-    std::vector<Byte>                        m_mem         = std::vector<Byte> (kMemorySize);
-    std::array<SocketState, kSocketCount>    m_sockets     = {};
-    Word                                     m_pointer     = 0;
-    IW5100Backend                          * m_backend     = nullptr;
-    std::string                            * m_changeLog   = nullptr;
+    std::vector<Byte>                        m_mem               = std::vector<Byte> (kMemorySize);
+    std::array<SocketState, kSocketCount>    m_sockets           = {};
+    Word                                     m_pointer           = 0;
+    uint64_t                                 m_emptyReceivePolls = 0;
+    IW5100Backend                          * m_backend           = nullptr;
+    std::string                            * m_changeLog         = nullptr;
     NullW5100Backend                         m_nullBackend;
 };

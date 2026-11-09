@@ -21,7 +21,7 @@ public:
     StretchyEntry (int widthPx, int minPx) : m_widthPx (widthPx), m_minPx (minPx) {}
 
     int              GetWidthPx    (bool, const DxuiDpiScaler &, IDxuiTextRenderer *) const override { return m_widthPx; }
-    int              GetMinWidthPx (const DxuiDpiScaler &) const                             override { return m_minPx; }
+    int              GetMinWidthPx (bool, const DxuiDpiScaler &, IDxuiTextRenderer *) const override { return m_minPx; }
     void             Layout        (const RECT & rc, bool, const DxuiDpiScaler &)           override { laidOut = rc; }
     void             Paint         (IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &, bool, bool, bool) override {}
     const wchar_t *  GetTooltipAt  (int, int, RECT &) const                                 override { return nullptr; }
@@ -69,7 +69,7 @@ public:
 
         entries[0].command       = command;
         entries[0].custom        = &custom;
-        entries[0].neverOverflow = true;
+        entries[0].pinned        = true;
         entries[0].fill          = fill;
 
         bar.SetGrabHandle (true);

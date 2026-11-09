@@ -380,5 +380,80 @@ public:
         list.SetSelectedRow (-3);
         Assert::AreEqual (-1, list.GetSelectedRow());
     }
+
+    ////////////////////////////////////////////////////////////////////////
+    //  Row source: the host's own cells, read in place
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Paint_rowSource_readsOnlyVisibleWindow)
+    {
+        DxuiListView                                  list;
+        MockDxuiPainter                               painter;
+        MockDxuiTextRenderer                          text;
+        MockDxuiTheme                                 theme;
+        std::vector<int>                              requested;
+        std::vector<std::vector<DxuiListView::Cell>>  rows = MakeRows (1000);
+
+        ConfigureList (list);
+        list.SetRowSource (1000, [&] (int row) -> const std::vector<DxuiListView::Cell> &
+        {
+            requested.push_back (row);
+            return rows[(size_t) row];
+        });
+
+        list.SetTopRow (500);
+        requested.clear();
+        static_cast<IDxuiControl &> (list).Paint (painter, text, theme);
+
+        Assert::IsTrue   (list.IsVirtual());
+        Assert::AreEqual (size_t (10), requested.size());
+        Assert::AreEqual (500, requested.front());
+        Assert::AreEqual (509, requested.back());
+    }
+
+
+    //
+    //  A grouped item view places every item to find the ones on screen, but
+    //  asks for the cells of those alone.
+    //
+    TEST_METHOD (Paint_rowSource_groupedItems_readsOnlyItemsOnScreen)
+    {
+        DxuiListView                                  list;
+        MockDxuiPainter                               painter;
+        MockDxuiTextRenderer                          text;
+        MockDxuiTheme                                 theme;
+        std::vector<int>                              requested;
+        std::vector<std::vector<DxuiListView::Cell>>  rows = MakeRows (5000);
+
+        ConfigureList (list);
+        list.SetView      (DxuiListView::View::MediumIcons);
+        list.SetRowSource (5000, [&] (int row) -> const std::vector<DxuiListView::Cell> &
+        {
+            requested.push_back (row);
+            return rows[(size_t) row];
+        });
+        list.SetGroups    ({ { L"A", 0 }, { L"B", 2500 } });
+
+        requested.clear();
+        static_cast<IDxuiControl &> (list).Paint (painter, text, theme);
+
+        Assert::IsFalse (requested.empty());
+        Assert::IsTrue  (requested.size() < 100, L"Only the items on screen");
+        Assert::AreEqual (0, requested.front());
+    }
+
+
+    TEST_METHOD (SetRows_afterRowSource_leavesVirtualMode)
+    {
+        DxuiListView                                  list;
+        std::vector<std::vector<DxuiListView::Cell>>  rows = MakeRows (3);
+
+        ConfigureList (list);
+        list.SetRowSource (3, [&] (int row) -> const std::vector<DxuiListView::Cell> & { return rows[(size_t) row]; });
+        list.SetRows      (MakeRows (5));
+
+        Assert::IsFalse  (list.IsVirtual());
+        Assert::AreEqual (5, list.GetRowCount());
+    }
 };
 

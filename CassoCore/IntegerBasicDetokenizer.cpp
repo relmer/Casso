@@ -109,7 +109,7 @@ bool IntegerBasicDetokenizer::IsHighLetter (Byte value)
 //  terminator, as the text a LIST would show.
 //
 //  SPACING IS PUT THERE BY THIS ROUTINE, as the ROM's LIST puts it there: the
-//  stored form carries none. A word token gets a space on each side, a symbol
+//  stored form holds none. A word token gets a space on each side, a symbol
 //  none, and the last space on a line is dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////

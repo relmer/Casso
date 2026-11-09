@@ -14,6 +14,7 @@
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellSerialCard.h"
+#include "Shell/Components/ShellNetworkCard.h"
 #include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
@@ -74,6 +75,7 @@
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 #include "Devices/Disk/WriteProtectChange.h"
+#include "Core/AppTimerIds.h"
 #include "Shell/DiskManager.h"
 
 
@@ -420,6 +422,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_chrome->AdoptToolbar (m_host->GetRoot());
     m_host->GetRoot().Adopt (m_disks->GetChangeBanner());
     m_host->GetRoot().Adopt (m_serialCard->GetBanner());
+    m_host->GetRoot().Adopt (m_networkCard->GetBanner());
     m_chrome->AdoptBanners (m_host->GetRoot());
 
     // Give the host the chrome theme so its paint pump renders the
@@ -580,12 +583,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             {
                 bool  isC = m_machine.GetConfig().systemRom.romBankSize != 0;
 
-                if (m_disks->ShouldShowExternalDrive())
-                {
-                    return isC ? std::wstring (L"Detach &external drive") : std::wstring (L"Detach &drive 2");
-                }
-
-                return isC ? std::wstring (L"Attach &external drive") : std::wstring (L"Attach &drive 2");
+                return EmulatorCommands::GetDrive2Label (isC, m_disks->ShouldShowExternalDrive());
             }
 
             case IDM_STORAGE_RECORDER:
@@ -1365,26 +1363,26 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 
 
 
-    if (timerId == ShellDebugger::kClickReleaseTimerId)
+    if (timerId == (UINT_PTR) AppTimerId::ShellClickRelease)
     {
         m_debugger->ReleaseGuestMouseAfterClick();
         return DxuiMessageResult::Handled;
     }
 
-    if (timerId == ShellUpdater::kSharedCheckTimerId)
+    if (timerId == (UINT_PTR) AppTimerId::ShellSharedCheck)
     {
         m_updater->PollSharedCheckRecord();
         return DxuiMessageResult::Handled;
     }
 
-    if (timerId != ShellSettings::kPrefsSaveTimerId)
+    if (timerId != (UINT_PTR) AppTimerId::ShellPrefsSave)
     {
         return DxuiMessageResult::NotHandled;
     }
 
     if (m_hwnd != nullptr && m_host != nullptr)
     {
-        hr = m_host->KillTimer (ShellSettings::kPrefsSaveTimerId);
+        hr = m_host->KillTimer ((UINT_PTR) AppTimerId::ShellPrefsSave);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
@@ -1776,11 +1774,11 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // tool's own send.
     if (msg == (UINT) AppMessage::ShellIntentReply)
     {
-        IntentReplyPost *  carried = reinterpret_cast<IntentReplyPost *> (lParam);
+        ShellDisks::IntentReplyPost *  carried = reinterpret_cast<ShellDisks::IntentReplyPost *> (lParam);
 
         if (carried != nullptr)
         {
-            SendIntentReply (carried->target, carried->reply);
+            m_disks->SendIntentReply (carried->target, carried->reply);
             delete carried;
         }
 
@@ -1857,6 +1855,7 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
     Win32IntentChannel::Payload  payload;
     Win32IntentChannel::Reply    reply;
     std::wstring                 widePath;
+    HRESULT                      hr         = S_OK;
 
 
 
@@ -1883,8 +1882,9 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
             //  waits for the mount to finish on the CPU thread.
             widePath = fs::path (std::u8string (payload.imagePath.begin(), payload.imagePath.end())).wstring();
 
-            m_intentReplies.NoteInsert (payload.drive - 1, fs::path (widePath).string(), replyTo);
-            m_disks->Mount (6, payload.drive - 1, widePath);
+            m_disks->GetIntentReplies().NoteInsert (payload.drive - 1, fs::path (widePath).string(), replyTo);
+            hr = m_disks->Mount (6, payload.drive - 1, widePath);
+            IGNORE_RETURN_VALUE (hr, S_OK);
             break;
 
         case ExternalChangeIntent::DescribeMachine:
@@ -1894,7 +1894,7 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
 
             //  Answered after this handler returns: the sender is still inside
             //  its own send, and a send back to it now would wait on itself.
-            PostIntentReply (replyTo, reply);
+            m_disks->PostIntentReply (replyTo, reply);
             break;
 
         default:
@@ -1902,10 +1902,10 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
             //  change; one that did not is the command line, and hears nothing.
             if (replyTo != nullptr)
             {
-                m_intentReplies.NoteReload (payload.imagePath, replyTo);
+                m_disks->GetIntentReplies().NoteReload (payload.imagePath, replyTo);
             }
 
-            m_machine.GetDiskStore().NoteExternalChange (payload.imagePath, payload.intent);
+            m_machine.GetDiskStore().NoteExternalChange (payload.imagePath, payload.intent, replyTo != nullptr);
             break;
     }
 

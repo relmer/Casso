@@ -62,6 +62,20 @@ enum class PayloadEncoding
 
 
 //
+//  How a text file's bytes are laid out on its file system, which selects the
+//  conversion to and from host text. It follows the payload, so a caller that
+//  has only a payload converts it correctly.
+//
+enum class PayloadTextForm
+{
+    AppleHighAscii,     // DOS 3.3 and ProDOS: high-bit characters, $8D line ends
+    PascalPages,        // Apple Pascal: a header, then pages of indent-coded lines
+    CpmRecords,         // CP/M: CR LF line ends, ended by $1A in the last record
+};
+
+
+
+//
 //  One catalog record. `sizeUnits` counts whatever the filesystem allocates in
 //  -- sectors for DOS 3.3, blocks for ProDOS -- because the two are not
 //  interchangeable and pretending otherwise invites an off-by-eight.
@@ -85,9 +99,30 @@ struct FileEntry
     int64_t      modifiedUnix   = 0;
     bool         hasModified    = false;
 
+    //  ProDOS's access byte and its date and time words as stored, for an
+    //  editor that writes back the values it read. DOS 3.3 doesn't store them.
+    Byte         access         = 0;
+    bool         hasAccess      = false;
+    Word         createdDate    = 0;
+    Word         createdTime    = 0;
+    Word         modifiedDate   = 0;
+    Word         modifiedTime   = 0;
+    bool         hasDates       = false;
+
     //  Where the entry sits in its directory's catalog, from 0. DOS 3.3 names
     //  can repeat, and this distinguishes two entries with the same name.
     size_t       catalogIndex   = 0;
+
+    //  Apple Pascal's first block and bytes in the last block.
+    int          firstBlock     = 0;
+    Word         lastBlockBytes = 0;
+
+    //  CP/M's 128-byte records, directory entries, user number and attributes.
+    uint32_t     records        = 0;
+    uint32_t     extents        = 0;
+    int          user           = 0;
+    bool         isReadOnly     = false;
+    bool         isSystem       = false;
 };
 
 
@@ -107,6 +142,9 @@ struct VolumeListing
     uint32_t                  freeUnits       = 0;
     std::vector<FileEntry>    entries;
     std::vector<std::string>  damage;   // empty means a clean read
+
+    //  Apple Pascal: the file count its directory records, valid entries or not.
+    uint32_t                  directoryFiles  = 0;
 };
 
 
@@ -130,6 +168,53 @@ struct FilePayload
     bool               hasLoadAddress = false;
     bool               hasAuxType     = false;
     PayloadEncoding    encoding       = PayloadEncoding::Verbatim;
+    PayloadTextForm    textForm       = PayloadTextForm::AppleHighAscii;
+
+    //  The access byte and dates the file had where it was read, so a copy
+    //  to another disk is locked, and dated, as the original is. ProDOS's
+    //  access byte, whose write-enable bit is a DOS 3.3 lock.
+    Byte               access         = 0;
+    bool               hasAccess      = false;
+    Word               createdDate    = 0;
+    Word               createdTime    = 0;
+    Word               modifiedDate   = 0;
+    Word               modifiedTime   = 0;
+    bool               hasDates       = false;
+
+    //  ProDOS's access bytes for a file unlocked and locked, and the
+    //  write-enable bit, which is clear in a locked file.
+    static constexpr Byte  kAccessUnlocked    = 0xC3;
+    static constexpr Byte  kAccessLocked      = 0x01;
+    static constexpr Byte  kAccessWriteEnable = 0x02;
+
+    //  CP/M's SYS attribute.
+    bool               isSystem       = false;
+
+    bool  IsLocked() const { return hasAccess && (access & kAccessWriteEnable) == 0; }
+};
+
+
+
+//
+//  The catalog fields IVolume::SetAttributes changes, each only when its has
+//  flag is set. The access byte is ProDOS's; on DOS 3.3 a clear write-enable
+//  bit locks the file. The aux type is a DOS 3.3 binary's load address, which
+//  lives in the file's first two bytes. Dates are ProDOS's date and time words.
+//
+struct FileAttributes
+{
+    Byte  type         = 0;
+    Word  auxType      = 0;
+    Byte  access       = 0;
+    Word  createdDate  = 0;
+    Word  createdTime  = 0;
+    Word  modifiedDate = 0;
+    Word  modifiedTime = 0;
+    bool  hasType      = false;
+    bool  hasAuxType   = false;
+    bool  hasAccess    = false;
+    bool  hasCreated   = false;
+    bool  hasModified  = false;
 };
 
 

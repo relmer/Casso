@@ -83,6 +83,28 @@ public:
     bool                 IsDragAcceptedType () const { return m_fDragHasSupportedFile;  }
     int                  GetHoveredTag      () const { return m_lastHitTag;             }
 
+    //  Which buttons the drag is holding, as OLE last reported them. A host
+    //  reads it in its drop handler to tell a right-drag, which Windows ends
+    //  with a menu rather than the drop itself.
+    DWORD                GetDragKeyState    () const { return m_dragKeys;               }
+    bool                 IsRightDrag        () const { return (m_dragKeys & MK_RBUTTON) != 0; }
+
+    //  The effects the drag's source allows, as OLE last reported them.
+    DWORD                GetAllowedEffects  () const { return m_allowed;                }
+
+    //  Called from the drop handler, the effect the source is told of instead
+    //  of the one the drop was judged at. A host that carried out a whole move
+    //  itself reports a copy, so the source deletes nothing a second time.
+    void                 SetDropResult      (DWORD effect) { m_dropResult = effect; m_hasDropResult = true; }
+
+    //  The words the shell draws under the drag image: "Move to %1", with the
+    //  place in `insert`. DROPIMAGE_INVALID takes them down. A source that
+    //  keeps no formats of a target's refuses it, and the drag goes on without.
+    static HRESULT       SetDropDescription (IDataObject    * data,
+                                             DROPIMAGETYPE    type,
+                                             const wchar_t  * message,
+                                             const wchar_t  * insert);
+
     // Drop completion sets a one-shot flag so the next WM_LBUTTONUP
     // posted by the OS (the synthetic release at the end of an OLE drag)
     // doesn't get treated as a real click. Consume returns the flag and
@@ -95,8 +117,8 @@ public:
     }
 
 private:
-    int                  PickAtScreen           (POINTL pt) const;
-    void                 RevokeAllRegistrations();
+    int   PickAtScreen           (POINTL pt) const;
+    void  RevokeAllRegistrations ();
 
     std::atomic<ULONG>   m_refCount              { 1 };
     HWND                 m_hwnd                  = nullptr;
@@ -106,6 +128,7 @@ private:
     DropFn               m_drop;
     FilterFn             m_filter;
     int                  m_lastHitTag            = -1;
+    DWORD                m_dragKeys              = 0;
     bool                 m_fDragActive           = false;
     bool                 m_fDragHasSupportedFile = false;
     bool                 m_fSuppressNextClick    = false;
@@ -114,4 +137,12 @@ private:
     DataDropFn           m_dataDrop;
     LeaveFn              m_leave;
     IDataObject        * m_data                  = nullptr;
+    DWORD                m_allowed               = DROPEFFECT_NONE;
+    DWORD                m_dropResult            = DROPEFFECT_NONE;
+    bool                 m_hasDropResult         = false;
+
+    //  The shell's helper, which draws the source's drag image and its drop
+    //  description over this window. Only a host that judges the whole drag
+    //  uses it.
+    ComPtr<IDropTargetHelper>  m_helper;
 };

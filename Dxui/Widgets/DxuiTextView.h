@@ -41,6 +41,12 @@ struct DxuiIconImage;
 //  theme's fixed-width face, so layout and selection can be tested without a
 //  device.
 //
+//  PROPORTIONAL TEXT, such as an image's details, is drawn in the theme's
+//  body face, with every cell but a row's last in the muted color. Each
+//  character's place is measured once a paint has the renderer, and the
+//  columns, wrapping and selection are laid out by those places instead of
+//  by cells. Proportional text always wraps.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DxuiTextView : public IDxuiControl, public IDxuiFindTarget
@@ -63,6 +69,7 @@ public:
     {
         std::vector<std::wstring>              cells;
         bool                                   warning    = false;
+        bool                                   heading    = false;   // drawn in the accent color
         uint32_t                               background = 0;
         std::shared_ptr<const DxuiIconImage>   icon;
         std::vector<Span>                      spans;
@@ -116,6 +123,8 @@ public:
 
     //  One character cell, in the same coordinates as the bounds.
     void  SetCellSize      (int widthPx, int heightPx);
+    void  SetProportional  (bool proportional);
+    bool  IsProportional   () const               { return m_proportional; }
     void  SetIconFace      (const wchar_t * face) { m_iconFace = face; }
     void  SetOwnerWindow   (HWND hwnd)            { m_hwnd = hwnd; }
     void  SetOnContextMenu (ContextMenuFn fn)     { m_onContextMenu = std::move (fn); }
@@ -205,6 +214,7 @@ public:
     bool   IsNoWrap        () const               { return m_noWrap; }
     int    GetLeftColumn   () const               { return m_leftColumn; }
     void   SetLeftColumn   (int column);
+    void   ScrollColumns   (int delta)            { SetLeftColumn (m_leftColumn + delta); }
     bool   IsHorzScrollbarVisible () const;
 
     //  Cells in this column and after it are cut off at the view's right
@@ -219,6 +229,11 @@ public:
     int    GetTextTopPx    () const               { return m_textTopPx; }
 
     int   GetLineCount () const { return (int) m_lines.size(); }
+
+    //  The text measured and laid out at its bounds' width before it is drawn,
+    //  and the height its lines take there, for a view sized to its text.
+    void  Measure            (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    int   GetContentHeightPx () const;
 
     //  How many characters fit across the text with a scroll bar beside it.
     int   GetVisibleColumns () const { return GetTextColumns (true); }
@@ -361,6 +376,11 @@ public:
     bool  SetScrollbarHover (POINT pt)                { bool  vert = m_vertScroll.SetHover (IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y), pt); return m_horzScroll.SetHover (IsHorzScrollbarVisible() && m_horzScroll.HitTest (pt.x, pt.y), pt) || vert; }
     bool  TickScrollbars    (int64_t nowMs)           { bool  vert = m_vertScroll.Tick (nowMs); return m_horzScroll.Tick (nowMs) || vert; }
 
+    //  Windows' scrollbar menu when the point is on one of the bars, in the
+    //  coordinates OnMouse takes; empty elsewhere. Its rows scroll the view.
+    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu  (POINT pt);
+    bool                            ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, GetScrollbarMenu (pt)); }
+
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
@@ -394,6 +414,23 @@ private:
     void          Rebuild           ();
     void          BuildLines        (int columns);
     int           GetTextColumns    (bool scrollbar) const;
+    float         GetTextWidthPx    (bool scrollbar) const;
+
+    //  Proportional text: the lines wrapped by the measured characters, each
+    //  cell's characters measured, where a cell begins on its line, how wide
+    //  a cell's characters from one place to another are drawn, and the
+    //  boundary nearest a point. In the fixed-width face each is the cell
+    //  arithmetic.
+    void          BuildProportionalLines (float widthPx);
+    void          MeasureCharacters      (IDxuiTextRenderer & text, const DxuiFontHandle & font);
+    float         GetCellX               (const Row & row, int cell) const;
+    float         GetCharsPx             (int row, int cell, int from, int to) const;
+    int           GetNearestChar         (int row, int cell, int from, int to, float x) const;
+
+    //  How far from the text's left the character `index` places into a
+    //  part of a cell drawn on a line, starting at `cellFrom` in the cell,
+    //  is drawn: a wrapped line of the last cell starts at its wrap indent.
+    float         GetPartPx              (int row, int cell, int cellFrom, int index) const;
     int           GetCellStart      (const Row & row, int cell) const;
     int           GetLineColumn     (const Row & row, const Line & line) const;
     int           GetCellBase       (const Row & row, int cell) const;
@@ -410,7 +447,7 @@ private:
     static bool   IsWholeWordAt     (const std::wstring & text, size_t at, size_t length);
     bool          GetScopedMatches  (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, std::vector<FindMatch> & outMatches) const;
     void          KeepUserSelection ();
-    void          FillHighlights    (IDxuiPainter & painter, const IDxuiTheme & theme, int y, int column, int flatStart, int count, int row, uint32_t edge) const;
+    void          FillHighlights    (IDxuiPainter & painter, const IDxuiTheme & theme, int y, int row, int cell, int cellFrom, int flatStart, int count, uint32_t edge) const;
 
     //  A copy in lower case, one character for one.
     static std::wstring  GetLowered (const std::wstring & text);
@@ -419,8 +456,8 @@ private:
     //  what a double-click selects.
     static int    GetCharClass      (wchar_t ch) { return (ch == L'\t') ? 2 : (ch == L' ') ? 1 : 0; }
     void          PaintLine         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex, const DxuiFontHandle & font);
-    void          FillSelectedRange (IDxuiPainter & painter, int y, int column, int flatStart, int count, int trailCells, int selFrom, int selTo, uint32_t argb) const;
-    void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int column,
+    void          FillSelectedRange (IDxuiPainter & painter, int y, int row, int cell, int cellFrom, int flatStart, int count, float trailPx, int selFrom, int selTo, uint32_t argb) const;
+    void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int row, int cell, int cellFrom,
                                      int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo,
                                      const std::vector<uint32_t> & colors, const std::vector<bool> & lit, uint32_t litArgb) const;
     int           GetTextLeft       () const;
@@ -442,9 +479,9 @@ private:
     std::vector<uint32_t>  GetRowColors (const Row & row, const IDxuiTheme & theme) const;
 
     //  The part of a cell drawn on a line: where it starts in the row's text,
-    //  its length and the column it is drawn from. False when none of the
+    //  its length and where it starts in the cell. False when none of the
     //  cell is on the line, as a wrapped line has only the last cell's text.
-    bool          GetLinePart       (const Row & row, const Line & line, int cell, int & outFlat, int & outLength, int & outColumn) const;
+    bool          GetLinePart       (const Row & row, const Line & line, int cell, int & outFlat, int & outLength, int & outCellFrom) const;
 
     //  The character under a point, not the nearest edge as HitTest takes:
     //  its line, its place in the row's text and its column. False between
@@ -456,6 +493,13 @@ private:
     std::vector<Line>  m_lines;
     std::vector<int>   m_columnCells;
     int                m_cellWidthPx   = 0;
+
+    //  Proportional text: each row's cells' character places, the width of
+    //  the characters before each, and each column's widest cell, in pixels.
+    //  Empty until a paint measures them.
+    bool                                          m_proportional = false;
+    std::vector<std::vector<std::vector<float>>>  m_charX;
+    std::vector<float>                            m_columnPx;
 
     //  The face's advance, which is rarely a whole number of pixels. Columns
     //  are placed by it rather than by the rounded cell width, so a line split
@@ -489,6 +533,9 @@ private:
     uint32_t                m_findCurrentArgb = 0;
     Position                m_lastClick;
     int64_t                 m_lastClickMs     = 0;
+    int                     m_clicks          = 0;      // the clicks in a row on one spot, each within the double-click time
+    float                   m_wheelLines      = 0.0f;   // a touchpad's part notches, until they make a line
+    float                   m_wheelColumns    = 0.0f;   // and until they make a column
     bool                    m_dragging        = false;
     bool                    m_wordDrag        = false;
     Position                m_wordFirst;

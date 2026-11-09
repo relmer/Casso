@@ -7,6 +7,8 @@
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Core/DxuiEvents.h"
+#include "Widgets/DxuiContextMenu.h"
+#include "Window/DxuiHwndSource.h"
 
 
 static constexpr float     s_kPadRightDip         = 6.0f;
@@ -314,8 +316,7 @@ bool DxuiTextInput::OnKeyWithModifiers (WPARAM vk, bool shift, bool ctrl, bool a
 
     if (standard != DxuiStandardCommand::None)
     {
-        consumed     = InvokeCommand (standard);
-        m_lastTyping = m_lastTyping && !consumed;
+        consumed = InvokeCommand (standard);
 
         BAIL_OUT_IF (consumed, S_OK);
     }
@@ -381,10 +382,12 @@ bool DxuiTextInput::OnKeyWithModifiers (WPARAM vk, bool shift, bool ctrl, bool a
         case VK_BACK:
             if (m_caret != m_anchor)
             {
+                RecordEdit (EditKind::Other);
                 DeleteSelection();
             }
             else if (m_caret > 0)
             {
+                RecordEdit (EditKind::Deleting);
                 m_text.erase (m_caret - 1, 1);
                 m_caret--;
                 m_anchor = m_caret;
@@ -397,10 +400,12 @@ bool DxuiTextInput::OnKeyWithModifiers (WPARAM vk, bool shift, bool ctrl, bool a
         case VK_DELETE:
             if (m_caret != m_anchor)
             {
+                RecordEdit (EditKind::Other);
                 DeleteSelection();
             }
             else if (m_caret < m_text.size())
             {
+                RecordEdit (EditKind::Deleting);
                 m_text.erase (m_caret, 1);
                 FireChange();
             }
@@ -415,11 +420,9 @@ bool DxuiTextInput::OnKeyWithModifiers (WPARAM vk, bool shift, bool ctrl, bool a
             break;
     }
 
-    //  A key that acts between typed characters ends their undo step.
     if (consumed)
     {
         ResetBlink();
-        m_lastTyping = false;
     }
 
 Error:
@@ -446,11 +449,11 @@ bool DxuiTextInput::OnChar (wchar_t ch)
 
     if (isTypable)
     {
+        //  Typing over a selection starts a run of typing, so the replacement
+        //  and the characters typed after it are taken back as one step.
         ins.assign (1, ch);
-        m_lastTyping = m_lastTyping && m_caret == m_anchor;
-        m_typing     = true;
+        RecordEdit (EditKind::Typing);
         InsertText (ins);
-        m_typing     = false;
         ResetBlink();
     }
 
@@ -507,7 +510,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     float        h         = (float) (m_boundsDip.bottom - m_boundsDip.top);
     float        fontPx    = m_scaler.ToPxf (m_fontDip);
     float        padL      = (float) m_scaler.ToPx (kPadLeftDip) + MeasurePrompt (text, fontPx);
-    float        padR      = m_scaler.ToPxf (s_kPadRightDip);
+    float        padR      = GetRightPadPx();
     // Floored at zero: a control laid out against a window with no client
     // area yet is zero DIPs wide, and the padding inset would otherwise take
     // that below zero -- a width no clip rect or text box can mean.
@@ -559,10 +562,55 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         text.FillRect (x + radius, y + 1.0f,   w - 2.0f * radius, h - 2.0f,          bgArgb);
     }
 
-    if (!m_chromeless)
+    //  Explorer's address row: the control fill and no edge at rest; focused,
+    //  the darker fill, a hairline edge and the accent along the bottom.
+    if (!m_chromeless && m_explorerChrome && m_theme != nullptr)
+    {
+        float  radius = m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip);
+        float  accent = (float) m_scaler.ToPx (2);
+
+        painter.FillRoundedRect (x, y, w, h, radius, m_focused ? m_theme->ContentBackground() : m_theme->ControlBackground());
+
+        if (m_focused)
+        {
+            painter.OutlineRoundedRect (x, y, w, h, radius, 1.0f, (fgArgb & 0x00FFFFFFu) | 0x40000000u);
+            painter.FillRect (x + radius, y + h - accent, w - radius * 2.0f, accent, m_theme->Accent());
+        }
+    }
+    else if (!m_chromeless)
     {
         painter.FillRoundedRect    (x, y, w, h, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), bgArgb);
         painter.OutlineRoundedRect (x, y, w, h, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), 1.0f, m_focused ? focusArgb : edgeArgb);
+    }
+
+    //  A glyph at the field's right end, as Explorer's search box has its
+    //  magnifier there.
+    if (m_trailGlyph != nullptr && m_trailFace != nullptr)
+    {
+        float  boxW = m_scaler.ToPxf (s_kTrailBoxDip);
+
+        hr = text.DrawString (m_trailGlyph, x + w - m_scaler.ToPxf (s_kTrailCenterDip) - boxW * 0.5f, y, boxW, h,
+                              (fgArgb & 0x00FFFFFFu) | 0xC8000000u, m_scaler.ToPxf (s_kTrailGlyphDip), m_trailFace,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (IsClearShown())
+    {
+        RECT   clear = GetClearRect();
+        float  inset = m_scaler.ToPxf (s_kClearHoverInsetDip);
+
+        //  A faint wash under the X while the pointer is on it, as Explorer's.
+        if (m_clearHover)
+        {
+            painter.FillRoundedRect ((float) clear.left, (float) clear.top + inset, (float) (clear.right - clear.left), (float) (clear.bottom - clear.top) - inset * 2.0f,
+                                     m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), (fgArgb & 0x00FFFFFFu) | 0x18000000u);
+        }
+
+        hr = text.DrawString (m_clearGlyph, (float) clear.left, (float) clear.top, (float) (clear.right - clear.left), (float) (clear.bottom - clear.top),
+                              (fgArgb & 0x00FFFFFFu) | 0xC8000000u, m_scaler.ToPxf (s_kClearGlyphDip), m_trailFace,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
     caretPrefix.assign (m_text, 0, m_caret);
@@ -670,29 +718,18 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    m_caretLeftPx = padL + caretX - m_scrollPx;
+
     if (m_focused && m_windowActive)
     {
         constexpr float    s_kEmptyCaretFactor = 1.3f;
-        constexpr int64_t  s_kFallbackBlinkMs  = 530;   // only if the OS reports an invalid (zero) blink time
-
-        int64_t  now     = (int64_t) GetTickCount64();
-        UINT     blinkMs = DxuiSystemSettings::Instance().GetCaretBlinkMs();
-        bool     caretOn = true;
 
         if (m_blinkAnchorMs == 0)
         {
-            m_blinkAnchorMs = now;
+            m_blinkAnchorMs = (int64_t) GetTickCount64();
         }
 
-        // INFINITE means the user disabled caret blinking -- keep it solid.
-        if (blinkMs != INFINITE)
-        {
-            int64_t  halfMs = (blinkMs == 0) ? s_kFallbackBlinkMs : (int64_t) blinkMs;
-
-            caretOn = (((now - m_blinkAnchorMs) / halfMs) % 2) == 0;
-        }
-
-        if (caretOn)
+        if (IsCaretOn())
         {
             float  caretH   = (textMeasH > 1.0f) ? textMeasH : fontPx * s_kEmptyCaretFactor;
             float  caretTop = y + (h - caretH) * 0.5f;
@@ -865,7 +902,7 @@ size_t DxuiTextInput::GetCharIndexFromX (IDxuiTextRenderer & text, int xPx) cons
     for (size_t i = 1; i <= m_text.size(); i++)
     {
         prefix.assign (m_text, 0, i);
-        hr = text.MeasureString (prefix.c_str(), fontPx, DxuiTheme::kBodyFace, w, h);
+        hr = text.MeasureString (prefix.c_str(), fontPx, DxuiTheme::GetUiFace(), w, h);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         if (w > target)
@@ -1125,6 +1162,7 @@ bool DxuiTextInput::InvokeCommand (DxuiStandardCommand command)
 
     case DxuiStandardCommand::Cut:
         CopyToClipboard();
+        RecordEdit (EditKind::Other);
         DeleteSelection();
         break;
 
@@ -1133,6 +1171,7 @@ bool DxuiTextInput::InvokeCommand (DxuiStandardCommand command)
         break;
 
     case DxuiStandardCommand::Delete:
+        RecordEdit (EditKind::Other);
         DeleteSelection();
         break;
 
@@ -1142,11 +1181,11 @@ bool DxuiTextInput::InvokeCommand (DxuiStandardCommand command)
         break;
 
     case DxuiStandardCommand::Undo:
-        Undo();
+        Restore (m_undo, m_redo);
         break;
 
     case DxuiStandardCommand::Redo:
-        Redo();
+        Restore (m_redo, m_undo);
         break;
 
     default:
@@ -1213,16 +1252,152 @@ void DxuiTextInput::PasteFromClipboard()
         return;
     }
 
-    // Strip newlines for single-line input, which has no place to put them.
+    PasteText (ins);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextInput::PasteText
+//
+//  Text pasted as one edit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextInput::PasteText (std::wstring ins)
+{
     for (auto & c : ins)
     {
-        if (c == L'\r' || c == L'\n' || c == L'\t')
+        if (!m_pasteKeepsBreaks && (c == L'\r' || c == L'\n' || c == L'\t'))
         {
             c = L' ';
         }
     }
 
+    RecordEdit (EditKind::Other);
     InsertText (ins);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecordEdit
+//
+//  Called before the text changes. A key that carries on a run -- typing
+//  after typing, or deleting after deleting, with the caret where the run
+//  left it and nothing selected -- adds nothing; anything else saves the
+//  text as it is. A new edit leaves nothing to redo.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextInput::RecordEdit (EditKind kind)
+{
+    bool  continues = kind != EditKind::Other && kind == m_lastEdit && m_caret == m_anchor && m_caret == m_runCaret;
+
+
+
+    if (!continues)
+    {
+        m_undo.push_back (EditState { m_text, m_anchor, m_caret });
+
+        if (m_undo.size() > kMaxUndo)
+        {
+            m_undo.erase (m_undo.begin());
+        }
+    }
+
+    m_redo.clear();
+    m_lastEdit = kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Restore
+//
+//  Takes the last state off one stack, putting the present one on the other,
+//  so undo and redo mirror each other. The next edit starts a run of its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextInput::Restore (std::vector<EditState> & from, std::vector<EditState> & to)
+{
+    if (from.empty())
+    {
+        return;
+    }
+
+    to.push_back (EditState { m_text, m_anchor, m_caret });
+
+    m_text     = from.back().text;
+    m_anchor   = from.back().anchor;
+    m_caret    = from.back().caret;
+    m_lastEdit = EditKind::None;
+    from.pop_back();
+
+    ClampCaret();
+    FireChange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetClearRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiTextInput::GetClearRect() const
+{
+    int  center = m_boundsDip.right - (int) std::lround (m_scaler.ToPxf (s_kClearCenterDip));
+    int  half   = (int) std::lround (m_scaler.ToPxf (s_kTrailBoxDip) * 0.5f);
+
+
+
+    return RECT { center - half, m_boundsDip.top, center + half, m_boundsDip.bottom };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRightPadPx
+//
+//  Room at the right end for the trailing glyph and the clear X, so the text
+//  never runs under them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTextInput::GetRightPadPx() const
+{
+    float  pad = m_scaler.ToPxf (s_kPadRightDip);
+
+
+
+    if (m_trailGlyph != nullptr && m_trailFace != nullptr)
+    {
+        pad = (std::max) (pad, m_scaler.ToPxf (s_kTrailCenterDip + s_kTrailBoxDip * 0.5f));
+    }
+
+    if (IsClearShown())
+    {
+        pad = (std::max) (pad, m_scaler.ToPxf (s_kClearCenterDip + s_kTrailBoxDip * 0.5f));
+    }
+
+    return pad;
 }
 
 
@@ -1237,86 +1412,9 @@ void DxuiTextInput::PasteFromClipboard()
 
 void DxuiTextInput::FireChange()
 {
-    if (m_text != m_undoBase.text)
-    {
-        if (!(m_typing && m_lastTyping))
-        {
-            m_undo.push_back (m_undoBase);
-        }
-
-        m_redo.clear();
-        m_lastTyping = m_typing;
-        m_undoBase   = { m_text, m_caret, m_anchor };
-    }
-
-    if (m_change)
-    {
-        m_change (m_text);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Undo
-//
-//  Puts back the text and selection from before the last edit. The change
-//  is reported as any edit is, and is not itself an edit undo takes back.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTextInput::Undo()
-{
-    if (m_undo.empty())
-    {
-        return;
-    }
-
-    m_redo.push_back ({ m_text, m_caret, m_anchor });
-    m_undoBase = m_undo.back();
-    m_undo.pop_back();
-
-    m_text       = m_undoBase.text;
-    m_caret      = m_undoBase.caret;
-    m_anchor     = m_undoBase.anchor;
-    m_lastTyping = false;
-    ClampCaret();
-
-    if (m_change)
-    {
-        m_change (m_text);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Redo
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTextInput::Redo()
-{
-    if (m_redo.empty())
-    {
-        return;
-    }
-
-    m_undo.push_back ({ m_text, m_caret, m_anchor });
-    m_undoBase = m_redo.back();
-    m_redo.pop_back();
-
-    m_text       = m_undoBase.text;
-    m_caret      = m_undoBase.caret;
-    m_anchor     = m_undoBase.anchor;
-    m_lastTyping = false;
-    ClampCaret();
+    //  Where a run of typing or deleting has left the caret, so the next key
+    //  there joins the run.
+    m_runCaret = m_caret;
 
     if (m_change)
     {
@@ -1346,6 +1444,80 @@ void DxuiTextInput::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextInput::IsCaretOn
+//
+//  Whether the blinking caret shows now, so a host that repaints on a timer
+//  can repaint only when it turns on or off. The caret is off while its
+//  window is inactive, as an edit control's is; the window sets that as it
+//  is activated and deactivated.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextInput::IsCaretOn() const
+{
+    constexpr int64_t  s_kFallbackBlinkMs = 530;   // only if the OS reports an invalid (zero) blink time
+    UINT               blinkMs            = GetCaretBlinkTime();
+    int64_t            halfMs             = (blinkMs == 0) ? s_kFallbackBlinkMs : (int64_t) blinkMs;
+
+
+
+    if (!m_windowActive)
+    {
+        return false;
+    }
+
+    // INFINITE means the user disabled caret blinking -- keep it solid.
+    if (blinkMs == INFINITE || m_blinkAnchorMs == 0)
+    {
+        return true;
+    }
+
+    return ((((int64_t) GetTickCount64() - m_blinkAnchorMs) / halfMs) % 2) == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextInput::IsInFront
+//
+//  Whether the field's window, or a window it owns such as its edit menu, is
+//  the foreground window. Without a window handle, any window of this
+//  process counts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextInput::IsInFront() const
+{
+    HWND   front   = GetForegroundWindow();
+    HWND   root    = (m_hwnd != nullptr) ? GetAncestor (m_hwnd, GA_ROOT) : nullptr;
+    DWORD  process = 0;
+    bool   inFront = false;
+
+
+
+    if (root == nullptr)
+    {
+        GetWindowThreadProcessId (front, &process);
+        inFront = (process == GetCurrentProcessId());
+    }
+
+    for (HWND window = front; root != nullptr && window != nullptr && !inFront; window = GetWindow (window, GW_OWNER))
+    {
+        inFront = (window == root);
+    }
+
+    return inFront;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextInput::Paint  (IDxuiControl override)
 //
 //  The legacy Paint takes (painter, text); the theme parameter mirrors
@@ -1362,6 +1534,72 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     m_theme = &theme;
 
     static_cast<const DxuiTextInput *> (this)->Paint (painter, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextInput::ShowContextMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextInput::ShowContextMenu (int x, int y)
+{
+    struct Entry
+    {
+        const wchar_t        * label;
+        const wchar_t        * keys;
+        DxuiStandardCommand    command;   // None: a separator
+    };
+
+    static constexpr Entry  s_kEntries[] =
+    {
+        { L"&Undo",       L"Ctrl+Z", DxuiStandardCommand::Undo      },
+        { nullptr,        nullptr,   DxuiStandardCommand::None      },
+        { L"Cu&t",        L"Ctrl+X", DxuiStandardCommand::Cut       },
+        { L"&Copy",       L"Ctrl+C", DxuiStandardCommand::Copy      },
+        { L"&Paste",      L"Ctrl+V", DxuiStandardCommand::Paste     },
+        { L"&Delete",     L"Del",    DxuiStandardCommand::Delete    },
+        { nullptr,        nullptr,   DxuiStandardCommand::None      },
+        { L"Select &all", L"Ctrl+A", DxuiStandardCommand::SelectAll },
+    };
+
+    DxuiHwndSource *                host = DxuiHwndSource::FromHwnd (m_hwnd != nullptr ? m_hwnd : GetActiveWindow());
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    if (host == nullptr)
+    {
+        return false;
+    }
+
+    for (const Entry & entry : s_kEntries)
+    {
+        std::shared_ptr<DxuiCommand>  command;
+        DxuiStandardCommand           which = entry.command;
+
+        if (which == DxuiStandardCommand::None)
+        {
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+            continue;
+        }
+
+        command              = std::make_shared<DxuiCommand>();
+        command->label       = entry.label;
+        command->accelerator = entry.keys;
+        command->isEnabled   = [this, which]() { bool  enabled = false; return QueryCommand (which, enabled) && enabled; };
+        command->dispatch    = [this, which]() { InvokeCommand (which); };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
+    }
+
+    DxuiContextMenu::Show (*host, x, y, std::move (items));
+
+    return true;
 }
 
 
@@ -1403,13 +1641,27 @@ bool DxuiTextInput::OnMouse (const DxuiMouseEvent & ev)
         else
         {
             SetMouseHover (ev.positionDip.x, ev.positionDip.y);
+            m_clearHover = IsOverClear (ev.positionDip);
         }
 
         break;
     case DxuiMouseEventKind::Down:
-        if (ev.button == DxuiMouseButton::Left)
+        if (ev.button == DxuiMouseButton::Left && IsOverClear (ev.positionDip))
+        {
+            //  The X empties the field and tells the host, as typing would.
+            m_text.clear();
+            m_caret  = 0;
+            m_anchor = 0;
+            FireChange();
+            handled = true;
+        }
+        else if (ev.button == DxuiMouseButton::Left)
         {
             handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+        }
+        else if (ev.button == DxuiMouseButton::Right && m_enabled && HitTest (ev.positionDip.x, ev.positionDip.y))
+        {
+            handled = ShowContextMenu (ev.positionDip.x, ev.positionDip.y);
         }
 
         break;
@@ -1462,19 +1714,25 @@ LPCWSTR DxuiTextInput::GetCursorForPoint (POINT clientPx) const
 //
 //  DxuiTextInput::OnKey  (IDxuiControl override)
 //
-//  Down events dispatch to OnKey(vk); Char events dispatch to OnChar.
+//  Down events dispatch to OnKey(vk); Char events dispatch to OnChar. The
+//  menu key and Shift+F10 open the edit menu under the caret.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTextInput::OnKey (const DxuiKeyEvent & ev)
 {
-    bool  handled = false;
+    bool  handled  = false;
+    bool  menuKey  = ev.vk == VK_APPS || (ev.vk == VK_F10 && ev.shift);
 
 
 
     if (ev.kind == DxuiKeyEventKind::Char)
     {
         handled = OnChar ((wchar_t) ev.vk);
+    }
+    else if (ev.kind == DxuiKeyEventKind::Down && menuKey && m_focused && m_enabled)
+    {
+        handled = ShowContextMenu (m_boundsDip.left + (int) m_caretLeftPx, m_boundsDip.bottom);
     }
     else if (ev.kind == DxuiKeyEventKind::Down)
     {
@@ -1498,5 +1756,5 @@ bool DxuiTextInput::OnKey (const DxuiKeyEvent & ev)
 
 const wchar_t * DxuiTextInput::GetFace() const
 {
-    return (m_face != nullptr) ? m_face : DxuiTheme::kBodyFace;
+    return (m_face != nullptr) ? m_face : DxuiTheme::GetUiFace();
 }

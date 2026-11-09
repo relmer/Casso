@@ -40,7 +40,7 @@ enum class DxuiFontWeight : int
     SemiBold = 600,
     Bold     = 700,
 
-    //  Regular weight in the italic style. The bit above the weights carries
+    //  Regular weight in the italic style. The bit above the weights marks
     //  the style, so one parameter holds both.
     Italic   = 0x10000 | 400,
 };
@@ -161,6 +161,36 @@ public:
     // The outline Explorer draws around a selected row while the list has
     // focus. Zero, the default, draws none.
     virtual uint32_t  ContentSelectionEdge () const { return 0; }
+
+    // A selected row while its pane does not have focus, and a selected row
+    // other than the one the keyboard is on in a multiple selection, with the
+    // outline that one takes. See DxuiRowLook.
+    virtual uint32_t  ContentSelectionInactive  () const { return ContentSelection(); }
+    virtual uint32_t  ContentSelectionMulti     () const { return ContentSelection(); }
+    virtual uint32_t  ContentSelectionMultiEdge () const { return Accent(); }
+
+    // The outline on a selected row whose pane does not have focus; none by
+    // default.
+    virtual uint32_t  ContentSelectionInactiveEdge () const { return 0; }
+
+    // The lines between a list header's columns.
+    virtual uint32_t  ContentHeaderDivider () const { return ContentEdge(); }
+
+    // The line between a menu's groups.
+    virtual uint32_t  MenuSeparator () const { return Divider(); }
+
+    // The fill under a menu item the pointer is over.
+    virtual uint32_t  MenuHover () const { return HoverBackground(); }
+
+    // The label and accelerator text on that fill. A theme with a bright
+    // MenuHover, such as an inverse-video highlight, overrides both with a
+    // dark color.
+    virtual uint32_t  MenuHoverForeground      () const { return Foreground();      }
+    virtual uint32_t  MenuHoverForegroundMuted () const { return ForegroundMuted(); }
+
+    // The line along the bottom of a tab strip, broken under the selected tab
+    // where it joins the row below; none by default.
+    virtual uint32_t  TabStripEdge () const { return 0; }
 
     virtual uint32_t  PressedBackground   () const = 0;  // pressed-state fill
     virtual uint32_t  SelectionBackground () const = 0;  // selected text / row highlight

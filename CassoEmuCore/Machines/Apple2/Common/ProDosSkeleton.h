@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorReadObserver.h"
 
 
 
@@ -43,11 +44,13 @@ public:
 
     static constexpr int     kBlockByteSize   = 512;
 
-private:
-    static constexpr int     kBlocksPerTrack  = 8;
+    //  The volume directory's blocks and the volume bitmap's.
     static constexpr int     kDirKeyBlock     = 2;
     static constexpr int     kDirLastBlock    = 5;
     static constexpr int     kBitmapBlock     = 6;
+
+private:
+    static constexpr int     kBlocksPerTrack  = 8;
 
     static constexpr Byte    kStorageVolumeDir = 0xF0;
     static constexpr Byte    kAccessDefault    = 0xC3;
@@ -78,6 +81,7 @@ private:
     static constexpr size_t  kEntOffKeyPointer    = 0x11;
     static constexpr size_t  kEntOffBlocksUsed    = 0x13;
     static constexpr size_t  kEntOffEof           = 0x15;
+    static constexpr size_t  kEntOffCreated       = 0x18;   // date word, then time word
     static constexpr size_t  kEntOffAccess        = 0x1E;
     static constexpr size_t  kEntOffAuxType       = 0x1F;
     static constexpr size_t  kEntOffModified      = 0x21;   // date word, then time word
@@ -105,7 +109,7 @@ private:
     static constexpr Byte    kStorageSubdir   = 0xD0;
 
     //  The first record of a subdirectory's key block is its own header, which
-    //  carries this storage nibble rather than the 0xD0 of the record that
+    //  has this storage nibble rather than the 0xD0 of the record that
     //  points at it from the parent.
     static constexpr Byte    kStorageSubdirHdr = 0xE0;
 
@@ -130,6 +134,8 @@ private:
     friend class ProDosReader;
     friend class ProDosFileWriter;
     friend class ProDosVolume;
+    friend class ProDosVolumeWriter;
+    friend class ProDosVolumeRemover;
 
     //  ProDOS block half -> DOS 3.3 logical sector within the track. Derived
     //  from the standard 2:1 ProDOS physical interleave composed with the
@@ -169,12 +175,16 @@ public:
 
     //  The same, for a file in the directory whose key block is given, which
     //  may be a subdirectory's.
-    static HRESULT  ExtractFileFromDirectory (const vector<Byte> & volume,
-                                              int                  dirKeyBlock,
-                                              const std::string  & fileName,
-                                              vector<Byte>       & outBytes,
-                                              Byte               & outFileType,
-                                              Word               & outAuxType);
+    static HRESULT  ExtractFileFromDirectory (const vector<Byte>   & volume,
+                                              int                    dirKeyBlock,
+                                              const std::string    & fileName,
+                                              vector<Byte>         & outBytes,
+                                              Byte                 & outFileType,
+                                              Word                 & outAuxType,
+                                              ISectorReadObserver  * observer = nullptr);
+
+    //  A block's two sectors, to the observer if there is one.
+    static void  NoteBlockRead (ISectorReadObserver * observer, int block);
 
     //  A block number the volume could actually hold. Every pointer walked here
     //  comes off the disk, so none of them may be trusted: block numbers index
@@ -185,9 +195,10 @@ public:
 private:
     //  False when the index block itself is unusable, so the caller reports an
     //  unreadable file instead of gathering garbage.
-    static bool  AppendIndexedBlocks (const vector<Byte> & volume,
-                                      Word                 indexBlock,
-                                      vector<Word>       & dataBlocks);
+    static bool  AppendIndexedBlocks (const vector<Byte>   & volume,
+                                      Word                   indexBlock,
+                                      vector<Word>         & dataBlocks,
+                                      ISectorReadObserver  * observer);
 };
 
 

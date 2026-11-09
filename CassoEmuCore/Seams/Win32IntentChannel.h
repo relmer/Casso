@@ -49,7 +49,7 @@ public:
     //  WINDOW MESSAGE and cannot see this, so it is checked in the handler.
     static ULONG_PTR  GetMessageId();
 
-    //  What an answer from the emulator carries in its `dwData`.
+    //  What an answer from the emulator sets in its `dwData`.
     static ULONG_PTR  GetReplyMessageId();
 
     //  The window class every Casso emulator window is registered under.
@@ -131,7 +131,7 @@ public:
     //  it; null, the default, asks for no answer.
     void  SetSender (HWND sender) { m_sender = sender; }
 
-    //  One message to one window, carrying `sender` as its `wParam`. False when
+    //  One message to one window, with `sender` as its `wParam`. False when
     //  the window did not take it within the timeout.
     static bool  SendTo (HWND target, HWND sender, ULONG_PTR messageId, const std::vector<Byte> & bytes);
 

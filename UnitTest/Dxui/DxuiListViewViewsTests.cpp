@@ -1,4 +1,7 @@
 #include "Pch.h"
+#include "MockDxuiPainter.h"
+#include "MockDxuiTextRenderer.h"
+#include "MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -76,9 +79,36 @@ public:
     //  Items to a row for a view that runs along rows.
     static int  PerRow (View view)
     {
-        DxuiListView::ItemMetrics  m = DxuiListView::GetItemMetrics (view);
+        DxuiListView::ItemMetrics  m = DxuiListItemLayout::GetItemMetrics (view);
 
-        return (m.cellWDip > 0) ? (std::max) (1, (s_kWidth - s_kBarPx) / m.cellWDip) : 1;
+        return (m.cellWDip > 0) ? (std::max) (1, (s_kWidth - s_kBarPx - Left (view)) / m.cellWDip) : 1;
+    }
+
+
+
+    //  Where the first item starts: the item views set theirs in.
+    static int  Left (View view)
+    {
+        return (int) DxuiListView::GetItemsLeftDip (view);
+    }
+
+
+
+    //  How many items share the first row: the run whose tops match the first's.
+    static int  CountFirstRow (const DxuiListView & list)
+    {
+        RECT  first = {};
+        RECT  next  = {};
+        int   count = 1;
+
+        list.GetItemRectPx (0, first);
+
+        while (count < s_kRows && list.GetItemRectPx (count, next) && next.top == first.top)
+        {
+            count++;
+        }
+
+        return count;
     }
 
 
@@ -87,19 +117,21 @@ public:
     {
         for (View view : { View::ExtraLargeIcons, View::LargeIcons, View::MediumIcons, View::SmallIcons, View::Tiles, View::Content })
         {
-            Fixture                    f (view);
-            DxuiListView::ItemMetrics  m      = DxuiListView::GetItemMetrics (view);
-            int                        perRow = PerRow (view);
-            int                        cellW  = (m.cellWDip > 0) ? m.cellWDip : s_kWidth - s_kBarPx;
+            Fixture  f (view);
+            int      perRow = CountFirstRow (f.list);
+            RECT     first  = {};
+            RECT     below  = {};
+            RECT     beside = {};
 
-            Assert::AreEqual (0, f.list.HitTestRow (2, 2), L"The first item is at the top left");
+            Assert::IsTrue (f.list.GetItemRectPx (0, first) && f.list.GetItemRectPx (perRow, below));
 
-            //  The middle of the second row's first cell.
-            Assert::AreEqual (perRow, f.list.HitTestRow (cellW / 2, m.cellHDip + m.cellHDip / 2));
+            Assert::AreEqual (0, f.list.HitTestRow (first.left + 2, first.top + 2), L"The first item is at the top left");
+            Assert::AreEqual (perRow, f.list.HitTestRow ((below.left + below.right) / 2, (below.top + below.bottom) / 2), L"and the second row under it");
 
             if (perRow > 1)
             {
-                Assert::AreEqual (1, f.list.HitTestRow (cellW + cellW / 2, m.cellHDip / 2), L"and the second beside it");
+                Assert::IsTrue   (f.list.GetItemRectPx (1, beside));
+                Assert::AreEqual (1, f.list.HitTestRow ((beside.left + beside.right) / 2, (beside.top + beside.bottom) / 2), L"and the second beside it");
             }
         }
     }
@@ -109,7 +141,7 @@ public:
     TEST_METHOD (List_RunsItemsDownColumns)
     {
         Fixture                    f (View::List);
-        DxuiListView::ItemMetrics  m      = DxuiListView::GetItemMetrics (View::List);
+        DxuiListView::ItemMetrics  m      = DxuiListItemLayout::GetItemMetrics (View::List);
         int                        perCol = (s_kHeight - s_kBarPx) / m.cellHDip;
 
         Assert::AreEqual (1,      f.list.HitTestRow (m.cellWDip / 2, m.cellHDip + m.cellHDip / 2), L"Under the first item is the second");
@@ -142,7 +174,7 @@ public:
     TEST_METHOD (ListArrows_MoveDownAndAcrossColumns)
     {
         Fixture                    f (View::List);
-        DxuiListView::ItemMetrics  m      = DxuiListView::GetItemMetrics (View::List);
+        DxuiListView::ItemMetrics  m      = DxuiListItemLayout::GetItemMetrics (View::List);
         int                        perCol = (s_kHeight - s_kBarPx) / m.cellHDip;
 
         f.Key (VK_DOWN);
@@ -157,7 +189,7 @@ public:
     TEST_METHOD (MovingPastTheBottom_ScrollsARowOfItems)
     {
         Fixture                    f (View::LargeIcons);
-        DxuiListView::ItemMetrics  m       = DxuiListView::GetItemMetrics (View::LargeIcons);
+        DxuiListView::ItemMetrics  m       = DxuiListItemLayout::GetItemMetrics (View::LargeIcons);
         int                        perRow  = PerRow (View::LargeIcons);
         int                        visible = s_kHeight / m.cellHDip;
         int                        i       = 0;
@@ -167,8 +199,47 @@ public:
             f.Key (VK_DOWN);
         }
 
-        Assert::AreEqual (perRow, f.list.GetTopRow(), L"The top is now the second row of items");
-        Assert::AreEqual (0, f.list.GetTopRow() % perRow);
+        //  An item view scrolls by rows of items, which may differ in height,
+        //  so its top is a row rather than an item.
+        Assert::IsTrue   (perRow > 1);
+        Assert::AreEqual (1, f.list.GetTopRow(), L"The top is now the second row of items");
+    }
+
+
+
+    //  A name that wraps past the one line a cell has room for makes its row
+    //  taller once it has been drawn, as Explorer's does, and the next row
+    //  moves down to make room.
+    TEST_METHOD (MediumIcons_ARowGrowsForALongName)
+    {
+        Fixture                                       f (View::MediumIcons);
+        int                                           perRow = 0;
+        RECT                                          first  = {};
+        RECT                                          second = {};
+        RECT                                          grown  = {};
+        std::vector<std::vector<DxuiListView::Cell>>  rows;
+        MockDxuiPainter                               painter;
+        MockDxuiTextRenderer                          text;
+        MockDxuiTheme                                 theme;
+        int                                           i      = 0;
+
+        for (i = 0; i < s_kRows; i++)
+        {
+            rows.push_back ({ DxuiListView::Cell { (i == 0) ? L"a name long enough to wrap to four lines" : L"item", false } });
+        }
+
+        f.list.SetRows (std::move (rows));
+
+        perRow = CountFirstRow (f.list);
+        Assert::IsTrue   (f.list.GetItemRectPx (0, first) && f.list.GetItemRectPx (perRow, second));
+        Assert::AreEqual (perRow, f.list.HitTestRow (second.left + 2, second.top + 2), L"Before it is drawn, the name takes one line");
+
+        f.list.Paint (painter, text, theme);
+
+        Assert::IsTrue   (f.list.GetItemRectPx (perRow, grown));
+        Assert::AreEqual (0,      f.list.HitTestRow ((first.left + first.right) / 2, second.top + 2), L"The long name's cell runs on down");
+        Assert::IsTrue   (grown.top > second.top, L"and the second row starts lower");
+        Assert::AreEqual (perRow, f.list.HitTestRow (grown.left + 2, grown.top + 2));
     }
 
 
@@ -204,14 +275,17 @@ public:
 
     TEST_METHOD (ARubberBand_SelectsEveryItemItTouches)
     {
-        Fixture                    f (View::MediumIcons);
-        DxuiListView::ItemMetrics  m      = DxuiListView::GetItemMetrics (View::MediumIcons);
-        int                        perRow = PerRow (View::MediumIcons);
-        int                        empty  = perRow * m.cellWDip + 5;   // right of the last item in a row
+        Fixture  f (View::MediumIcons);
+        int      perRow = CountFirstRow (f.list);
+        RECT     first  = {};
+        RECT     last   = {};
+        RECT     below  = {};
+
+        Assert::IsTrue (f.list.GetItemRectPx (0, first) && f.list.GetItemRectPx (perRow - 1, last) && f.list.GetItemRectPx (perRow, below));
 
         //  From the empty space right of the first row, down and left across
         //  two rows of items.
-        Drag (f.list, POINT { empty, 5 }, POINT { 10, m.cellHDip + 5 });
+        Drag (f.list, POINT { last.right + 2, first.top + 5 }, POINT { first.left + 10, below.top + 5 });
 
         Assert::AreEqual (2 * perRow, (int) f.list.GetSelectedRows().size());
         Assert::IsTrue   (f.list.IsRowSelected (0) && f.list.IsRowSelected (2 * perRow - 1));
@@ -222,14 +296,14 @@ public:
     TEST_METHOD (ACtrlRubberBand_AddsToTheSelection)
     {
         Fixture                    f (View::MediumIcons);
-        DxuiListView::ItemMetrics  m      = DxuiListView::GetItemMetrics (View::MediumIcons);
+        DxuiListView::ItemMetrics  m      = DxuiListItemLayout::GetItemMetrics (View::MediumIcons);
         int                        perRow = PerRow (View::MediumIcons);
-        int                        empty  = perRow * m.cellWDip + 5;
+        int                        empty  = Left (View::MediumIcons) + perRow * m.cellWDip + 5;
         int                        third  = 2 * perRow;   // first item of the third row
 
         f.list.SetSelectedRows ({ third }, third);
 
-        Drag (f.list, POINT { empty, 5 }, POINT { 10, 10 }, true);
+        Drag (f.list, POINT { empty, 5 }, POINT { Left (View::MediumIcons) + 10, 10 }, true);
 
         Assert::AreEqual (perRow + 1, (int) f.list.GetSelectedRows().size(), L"The first row, and the item kept");
         Assert::IsTrue   (f.list.IsRowSelected (third));
@@ -239,7 +313,7 @@ public:
     TEST_METHOD (CtrlAndShiftClicks_WorkInAnItemView)
     {
         Fixture                    f (View::LargeIcons);
-        DxuiListView::ItemMetrics  m = DxuiListView::GetItemMetrics (View::LargeIcons);
+        DxuiListView::ItemMetrics  m = DxuiListItemLayout::GetItemMetrics (View::LargeIcons);
         DxuiMouseEvent             ev;
 
         ev.button = DxuiMouseButton::Left;

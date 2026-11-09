@@ -34,6 +34,19 @@
 
 #include <wrl/client.h>
 
+// C++/WinRT, for the popups' Windows.UI.Composition tree. winbase.h's
+// GetCurrentTime macro collides with a WinRT method of that name.
+#undef GetCurrentTime
+#include <DispatcherQueue.h>
+#include <windows.ui.composition.interop.h>
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.Foundation.Numerics.h>
+#include <winrt/Windows.System.h>
+#include <winrt/Windows.UI.h>
+#include <winrt/Windows.UI.Composition.h>
+#include <winrt/Windows.UI.Composition.Desktop.h>
+#include <winrt/Windows.UI.ViewManagement.h>
+
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -60,9 +73,22 @@
 #include "../Ehm/Ehm.h"
 #include "Core/DxuiInputState.h"
 #include "Core/DxuiDisplay.h"
+#include "Core/DxuiThread.h"
 
 #ifndef DXUI_COMPTR_ALIAS_DEFINED
 #define DXUI_COMPTR_ALIAS_DEFINED
 template <typename T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;
 #endif
+
+#include "Core/DxuiAnimation.h"
+#include "Core/DxuiDpiScaler.h"
+#include "Core/DxuiHitTester.h"
+#include "Core/DxuiInput.h"
+#include "Core/DxuiEvents.h"
+#include "Render/DxuiPainter.h"
+#include "Render/DxuiTextRenderer.h"
+#include "Theme/DxuiDwm.h"
+#include "Theme/DxuiWindowsThemeColors.h"
+#include "Theme/IDxuiTheme.h"
+#include "Window/DxuiDragDropTarget.h"

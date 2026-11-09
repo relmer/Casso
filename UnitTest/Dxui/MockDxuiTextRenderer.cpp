@@ -35,11 +35,11 @@ HRESULT MockDxuiTextRenderer::DrawString (
     float                heightDip,
     uint32_t             argbColor,
     float                fontSizeDip,
-    const wchar_t      * /*fontFamily*/,
+    const wchar_t      * fontFamily,
     DxuiTextHAlign       hAlign,
     DxuiTextVAlign       vAlign,
     DxuiFontWeight       weight,
-    bool                 /*wrap*/)
+    bool                 wrap)
 {
     RecordedTextCall  call;
 
@@ -53,9 +53,11 @@ HRESULT MockDxuiTextRenderer::DrawString (
     call.height      = heightDip;
     call.argb        = argbColor;
     call.fontSizeDip = fontSizeDip;
+    call.fontFamily  = (fontFamily != nullptr) ? fontFamily : L"";
     call.hAlign      = hAlign;
     call.vAlign      = vAlign;
     call.weight      = weight;
+    call.wrap        = wrap;
     m_calls.push_back (call);
 
     return S_OK;
@@ -175,13 +177,14 @@ HRESULT MockDxuiTextRenderer::DrawLine (float x0Dip, float y0Dip, float x1Dip, f
 //
 //  Returns the canned size if the caller registered one for the
 //  exact text; otherwise width = text.size() * 7.0f, height = 16.0f.
+//  Records the face of the last call.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MockDxuiTextRenderer::MeasureString (
     const wchar_t * text,
     float           /*fontSizeDip*/,
-    const wchar_t * /*fontFamily*/,
+    const wchar_t * fontFamily,
     float         & outWidthDip,
     float         & outHeightDip)
 {
@@ -191,6 +194,8 @@ HRESULT MockDxuiTextRenderer::MeasureString (
     auto             it                       = m_cannedMetrics.find (key);
 
 
+
+    m_lastMeasureFamily = (fontFamily != nullptr) ? fontFamily : L"";
 
     if (m_measureReturnsZero)
     {

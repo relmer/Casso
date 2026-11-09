@@ -69,8 +69,7 @@ public:
     // A guest mouse press that asked behind live and was let go of before
     // the machine was live is held down this long once live, so the guest
     // sees a click rather than nothing. The timer is on the emulator's window.
-    static constexpr UINT_PTR  kClickReleaseTimerId = 0xCA56;
-    static constexpr UINT      kClickHoldMs         = 100;
+    static constexpr UINT  kClickHoldMs = 100;
 
     // Attaches the driver the slice loop reports to, or detaches it with null.
     // The caller owns it and must detach before destroying it.
@@ -432,6 +431,7 @@ private:
     std::atomic<bool>             m_isResumeOwedAfterHeldRead = false;     // a replay stopped at a held read was running
     size_t                        m_pasteLengthBeforeHold     = 0;         // the paste buffer before a paste held behind live
     bool                          m_isJoyportSyncOwed         = false;     // a players' change made behind live, for the Joyport once live
+    bool                          m_isAskingToDiverge         = false;     // the question is up; a change made under it is dropped
     DeferredHistoryEdits          m_deferredEdits;
     std::mutex                    m_replayCaptionMutex;
     std::wstring                  m_replayCaption;                 // " [Replaying @ ...]" behind live, else empty

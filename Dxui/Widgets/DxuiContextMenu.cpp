@@ -47,6 +47,10 @@ void DxuiContextMenu::Show (DxuiHwndSource & host, int x, int y, std::vector<Dxu
     ClearListLook      (menu);
     menu.ShowAt        (x, y, std::move (items), *text, client);
 
+    //  The menu captures the mouse, and a window with capture gets no WM_SETCURSOR,
+    //  so the pointer becomes the arrow here.
+    SetCursor (LoadCursorW (nullptr, IDC_ARROW));
+
 Error:
     return;
 }
@@ -114,6 +118,10 @@ void DxuiContextMenu::ShowBelow (DxuiHwndSource & host, const RECT & anchor, std
     menu.SetMinWidthPx (minWidthPx);
     ClearListLook      (menu);
     menu.ShowUnder     (anchor, std::move (items), *text, client);
+
+    //  The menu captures the mouse, and a window with capture gets no WM_SETCURSOR,
+    //  so the pointer becomes the arrow here.
+    SetCursor (LoadCursorW (nullptr, IDC_ARROW));
 
 Error:
     return;

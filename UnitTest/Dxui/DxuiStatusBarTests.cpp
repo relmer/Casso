@@ -113,4 +113,38 @@ public:
 
         Assert::AreEqual (2, strings);
     }
+
+
+    //  The flowing item count has a rectangle of no width, so the field after
+    //  it starts where the count's text and its rule end, not on top of them.
+    TEST_METHOD (Paint_AFieldAfterAFlowingOne_StartsPastItsText)
+    {
+        DxuiStatusBar         bar;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        float                 countEnd = 0.0f;
+        float                 nextX    = -1.0f;
+
+        bar.SetFields ({ { L"12 items", 0, false, -1, true }, { L"Activity", 0, true } });
+        LayOut (bar);
+
+        bar.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            if (call.kind == RecordedTextKind::DrawString && call.text == L"12 items")
+            {
+                countEnd = call.x + call.width;
+            }
+
+            if (call.kind == RecordedTextKind::DrawString && call.text == L"Activity")
+            {
+                nextX = call.x;
+            }
+        }
+
+        Assert::IsTrue (countEnd > 0.0f);
+        Assert::IsTrue (nextX >= countEnd, L"the field's text starts past the count's");
+    }
 };

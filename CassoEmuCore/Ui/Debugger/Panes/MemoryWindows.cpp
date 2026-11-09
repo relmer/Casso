@@ -1681,7 +1681,7 @@ void MemoryWindowGroup::SetBarEntries()
     count.command       = m_findCount->GetCommand();
     count.custom        = m_findCount.get();
     count.trailing      = true;
-    count.neverOverflow = true;
+    count.pinned        = true;
     entries.push_back (std::move (count));
 
     m_bar->SetEntries (std::move (entries));

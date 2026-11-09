@@ -28,6 +28,12 @@ struct FileDialogSpec
     std::wstring                   defaultExtension;   // "png", without the dot
     std::wstring                   defaultFileName;    // seeds the name field
     std::filesystem::path          initialFolder;      // best effort: the dialog may open elsewhere
+    std::wstring                   title;              // empty: Windows' own
+    bool                           askToReplace = true;  // off: the caller asks, in its own theme
+
+    //  Windows keeps the last folder and the names typed in a picker under
+    //  this, apart from every other picker; none shares the common history.
+    GUID                           clientGuid   = GUID_NULL;
 };
 
 

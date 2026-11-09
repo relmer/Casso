@@ -40,13 +40,14 @@
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/Chrome/DriveWidget.h"
+#include "Ui/Dialogs/AttributionsText.h"
 #include "Ui/Dialogs/CreateDiskDialog.h"
 #include "Ui/FileBrowseModel.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineManager.h"
-#include "Cassque/Model/KnownFolderStore.h"
-#include "Cassque/Model/LaunchCommand.h"
+#include "CassoExplorer/Model/KnownFolderStore.h"
+#include "CassoExplorer/Model/LaunchCommand.h"
 #include "Config/Win32FileSystem.h"
 #include "Core/PathResolver.h"
 #include "Seams/Win32ProcessLauncher.h"
@@ -190,7 +191,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { route = WindowCommandRoute::Machine; }
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_SALVAGE1  || id == IDM_DISK_SALVAGE2)           { route = WindowCommandRoute::Disk; }
-    else if (id == IDM_DISK_OPEN_CASSQUE)                                  { route = WindowCommandRoute::Disk; }
+    else if (id == IDM_DISK_OPEN_CASSO_EXPLORER)                            { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_TAPE_INSERT    && id <= IDM_TAPE_FASTFORWARD)        { route = WindowCommandRoute::Disk; }
     else if (id == IDM_STORAGE_DRIVE2 || id == IDM_STORAGE_RECORDER)        { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { route = WindowCommandRoute::View; }
@@ -954,7 +955,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMountStarted)
+HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, const RECT * placeAtPx, bool & outMountStarted)
 {
     HRESULT                    hr        = S_OK;
     int                        choice    = IDYES;
@@ -1031,6 +1032,15 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
 
     hr = dialog.Create (params);
     CHRA (hr);
+
+    //  Opened from the picker, it takes the picker's place, so it reads as
+    //  the same window moving on to its next step.
+    if (placeAtPx != nullptr && placeAtPx->right > placeAtPx->left)
+    {
+        SetWindowPos (dialog.GetHwnd(), nullptr, placeAtPx->left, placeAtPx->top,
+                      placeAtPx->right - placeAtPx->left, placeAtPx->bottom - placeAtPx->top,
+                      SWP_NOZORDER | SWP_NOACTIVATE);
+    }
 
     dialog.SetTheme (&m_shell.m_chrome->GetTheme());
     dialog.ShowModalDialog (IDOK);
@@ -1170,24 +1180,27 @@ Error:
 //  GetRecentMedia
 //
 //  The picker's list for one kind of media: the recent entries of that kind
-//  that still exist, then the files of that kind in the folders of every
-//  recent entry, then the bundled demos. Disks and tapes share the recent list
-//  and the folders; the filter is the only difference.
+//  that still exist, then the files of that kind in the shared known-folder
+//  list and in the folders of every recent entry, then the bundled demos.
+//  Disks and tapes share the recent list and the folders; the filter is the
+//  only difference.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WindowCommandManager::GetRecentMedia (MediaFilter isWanted, std::vector<DiskMru::Entry> & entries)
 {
-    DiskMru                      mru      = DiskMru::FromUtf8 (m_shell.m_settings->GetPrefs().recentDisks,
-                                                               m_shell.m_settings->GetPrefs().recentDiskLoadedAt);
-    std::vector<DiskMru::Entry>  existing = mru.Prune ([] (const std::filesystem::path & p)
-                                                       {
-                                                           return std::filesystem::exists (p)
-                                                                  && !AssetBootstrap::IsForeignCheckoutDisk (p);
-                                                       });
-    Win32FileSystem              fs;
-    int64_t                      nowUnix  = (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
-                                                std::chrono::system_clock::now().time_since_epoch()).count();
+    DiskMru                      mru        = DiskMru::FromUtf8 (m_shell.m_settings->GetPrefs().recentDisks,
+                                                                 m_shell.m_settings->GetPrefs().recentDiskLoadedAt);
+    std::vector<DiskMru::Entry>  existing   = mru.Prune ([] (const std::filesystem::path & p)
+                                                         {
+                                                             std::error_code  ignore;
+
+                                                             return std::filesystem::exists (p, ignore)
+                                                                    && !AssetBootstrap::IsForeignCheckoutDisk (p);
+                                                         });
+    Win32FileSystem              fileSystem;
+    int64_t                      nowUnix    = (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
+                                                  std::chrono::system_clock::now().time_since_epoch()).count();
 
 
 
@@ -1201,10 +1214,12 @@ void WindowCommandManager::GetRecentMedia (MediaFilter isWanted, std::vector<Dis
         }
     }
 
-    AssetBootstrap::AppendSiblingDisksFromFolders (
-        KnownFolderStore::LoadPickerFolders (fs, AssetBootstrap::GetAssetBaseDirectory().wstring(), existing, nowUnix),
-        entries,
-        isWanted);
+    AssetBootstrap::AppendSiblingDisksFromFolders (KnownFolderStore::LoadPickerFolders (fileSystem,
+                                                                                        AssetBootstrap::GetAssetBaseDirectory().wstring(),
+                                                                                        existing,
+                                                                                        nowUnix),
+                                                   entries,
+                                                   isWanted);
     AssetBootstrap::AppendSiblingDisksFromMruFolders (entries, existing, isWanted);
     AssetBootstrap::AppendBundledDemoDisks (entries, isWanted);
 }
@@ -1231,6 +1246,7 @@ HRESULT WindowCommandManager::PromptInsertTapeMru (const RECT * anchorRectPx)
     std::string                  error;
     bool                         userBrowsed   = false;
     bool                         userCreateNew = false;
+    RECT                         pickerRectPx  = {};
 
 
 
@@ -1246,6 +1262,7 @@ HRESULT WindowCommandManager::PromptInsertTapeMru (const RECT * anchorRectPx)
                                               chosenPath,
                                               userBrowsed,
                                               userCreateNew,
+                                              pickerRectPx,
                                               error);
     CHR (hr);
 
@@ -1292,6 +1309,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * ancho
     std::string                  error;
     bool                         userBrowsed   = false;
     bool                         userCreateNew = false;
+    RECT                         pickerRectPx  = {};
 
 
 
@@ -1312,6 +1330,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * ancho
                                               chosenPath,
                                               userBrowsed,
                                               userCreateNew,
+                                              pickerRectPx,
                                               error);
     CHR (hr);
 
@@ -1322,7 +1341,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * ancho
     }
     else if (userCreateNew)
     {
-        hr = CreateBlankDiskForDrive (drive, outMountStarted);
+        hr = CreateBlankDiskForDrive (drive, &pickerRectPx, outMountStarted);
         CHR (hr);
     }
     else if (!chosenPath.empty())
@@ -1397,9 +1416,9 @@ void WindowCommandManager::OnDiskCommand (int id)
             break;
         }
 
-        case IDM_DISK_OPEN_CASSQUE:
+        case IDM_DISK_OPEN_CASSO_EXPLORER:
         {
-            OpenCassque();
+            OpenCassoExplorer();
             break;
         }
 
@@ -1425,7 +1444,7 @@ void WindowCommandManager::OnDiskCommand (int id)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OpenCassque
+//  OpenCassoExplorer
 //
 //  Starts the disk browser beside this executable, telling it which emulator
 //  launched it. A browser this emulator already launched fronts itself and
@@ -1433,7 +1452,7 @@ void WindowCommandManager::OnDiskCommand (int id)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void WindowCommandManager::OpenCassque()
+void WindowCommandManager::OpenCassoExplorer()
 {
     Win32ProcessLauncher     launcher;
     std::wstring             moduleDir = PathResolver::GetExecutableDirectory().wstring();
@@ -1442,17 +1461,17 @@ void WindowCommandManager::OpenCassque()
 
 
 
-    outcome = LaunchCommand::LaunchCassque (launcher, moduleDir, m_shell.m_hwnd, m_shell.m_window->GetWindowTitlePrefix());
+    outcome = LaunchCommand::LaunchCassoExplorer (launcher, moduleDir, m_shell.m_hwnd, m_shell.m_window->GetWindowTitlePrefix());
 
     if (outcome == LaunchCommand::Outcome::Missing)
     {
-        message = LaunchCommand::DescribeMissing (LaunchCommand::GetSiblingPath (moduleDir, LaunchCommand::kCassqueExe));
+        message = LaunchCommand::DescribeMissing (LaunchCommand::GetSiblingPath (moduleDir, LaunchCommand::kCassoExplorerExe));
         EhmNotifyUser (message.c_str());
     }
     else if (outcome == LaunchCommand::Outcome::Failed)
     {
-        message = L"Cassque could not be started\nWindows could not start "
-                + LaunchCommand::GetSiblingPath (moduleDir, LaunchCommand::kCassqueExe) + L".";
+        message = L"Casso Explorer could not be started\nWindows could not start "
+                + LaunchCommand::GetSiblingPath (moduleDir, LaunchCommand::kCassoExplorerExe) + L".";
         EhmNotifyUser (message.c_str());
     }
 }
@@ -1517,6 +1536,8 @@ void WindowCommandManager::OnHelpCommand (int id)
 
         case IDM_HELP_ABOUT:
         {
+            static constexpr int  kAttributionsResult = 100;
+
             DialogDefinition def = {};
             def.title = L"About Casso";
             def.icon  = DialogIcon::AppPhotoreal;
@@ -1524,7 +1545,7 @@ void WindowCommandManager::OnHelpCommand (int id)
             def.body.push_back ({ L"Casso emulator\nCopyright (C) by Robert Elmer"
                                   L"\n\nVersion " _CRT_WIDE (VERSION_STRING)
                                   L"\nBuilt " _CRT_WIDE (VERSION_BUILD_TIMESTAMP)
-                                  L"\n\nAn Apple 2 family emulator.",
+                                  L"\n\nAn Apple II family emulator.",
                                   false, L"" });
 
             // Body runs flow at the body line height with no inter-run gap, so
@@ -1544,10 +1565,21 @@ void WindowCommandManager::OnHelpCommand (int id)
             def.body.push_back ({ L"", false, L"" });
             def.body.push_back ({ L"MIT License",
                                   true, L"https://github.com/relmer/Casso/blob/master/LICENSE" });
-            def.body.push_back ({ L"ImageWriter II sounds by Scott Lawrence (CC BY 4.0)",
-                                  true, L"https://github.com/BleuLlama/ImageWriterIISimulator" });
+            def.buttons.push_back ({ L"Attributions", kAttributionsResult, false, false, true });
             def.buttons.push_back ({ L"OK", 0, true, true });
-            (void) m_shell.ShowModalDialog (def);
+
+            //  The works under someone else's license, one dialog deeper, so
+            //  the About box stays about Casso.
+            if (m_shell.ShowModalDialog (def) == kAttributionsResult)
+            {
+                DialogDefinition  credits = {};
+
+                credits.title = L"Attributions";
+                credits.body  = AttributionsText::BuildBody();
+                credits.buttons.push_back ({ L"OK", 0, true, true });
+                (void) m_shell.ShowModalDialog (credits);
+            }
+
             break;
         }
     }

@@ -86,7 +86,7 @@
       <AdditionalIncludeDirectories>.;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;windowsapp.lib;CoreMessaging.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -103,7 +103,7 @@
       <AdditionalIncludeDirectories>.;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;windowsapp.lib;CoreMessaging.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
@@ -118,7 +118,7 @@
       <AdditionalIncludeDirectories>.;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;windowsapp.lib;CoreMessaging.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
@@ -135,7 +135,7 @@
       <AdditionalIncludeDirectories>.;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;windowsapp.lib;CoreMessaging.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -179,12 +179,18 @@
     <ClCompile Include="Render\DxuiPainter.cpp" />
     <ClCompile Include="Render\DxuiShadow.cpp" />
     <ClCompile Include="Render\DxuiRoundedOutline.cpp" />
+    <ClCompile Include="Render\DxuiSvgPath.cpp" />
+    <ClCompile Include="Render\DxuiGdiText.cpp" />
+    <ClCompile Include="Render\DxuiRenderIcons.cpp" />
+    <ClCompile Include="Render\DxuiRenderTargets.cpp" />
     <ClCompile Include="Render\DxuiTextRenderer.cpp" />
     <ClCompile Include="Theme\DxuiDwm.cpp" />
     <ClCompile Include="Theme\DxuiMenuMetrics.cpp" />
     <ClCompile Include="Theme\DxuiWindowsThemeColors.cpp" />
+    <ClCompile Include="Theme\DxuiVisualStyleCheckBox.cpp" />
     <ClCompile Include="Widgets\DxuiButton.cpp" />
     <ClCompile Include="Widgets\DxuiCheckbox.cpp" />
+    <ClCompile Include="Widgets\DxuiCalendar.cpp" />
     <ClCompile Include="Widgets\DxuiComboBox.cpp" />
     <ClCompile Include="Widgets\DxuiContextMenu.cpp" />
     <ClCompile Include="Widgets\DxuiToolbar.cpp" />
@@ -193,17 +199,32 @@
     <ClCompile Include="Widgets\DxuiOrbitControl.cpp" />
     <ClCompile Include="Widgets\DxuiIconButton.cpp" />
     <ClCompile Include="Widgets\DxuiInfoBanner.cpp" />
-    <ClCompile Include="Widgets\DxuiActionBanner.cpp" />
     <ClCompile Include="Widgets\DxuiTimedInfoBanner.cpp" />
     <ClCompile Include="Widgets\DxuiNoticeStack.cpp" />
     <ClCompile Include="Widgets\DxuiWarningBadge.cpp" />
     <ClCompile Include="Widgets\DxuiLabel.cpp" />
     <ClCompile Include="Widgets\DxuiEditableGrid.cpp" />
     <ClCompile Include="Widgets\DxuiListView.cpp" />
-    <ClCompile Include="Widgets\DxuiListViewItems.cpp" />
+    <ClCompile Include="Widgets\ListView\DxuiListBand.cpp" />
+    <ClCompile Include="Widgets\ListView\DxuiListColumns.cpp" />
+    <ClCompile Include="Widgets\ListView\DxuiListFlowLayout.cpp" />
+    <ClCompile Include="Widgets\ListView\DxuiListGroups.cpp" />
+    <ClCompile Include="Widgets\ListView\DxuiListIcons.cpp" />
+    <ClCompile Include="Widgets\ListView\DxuiListHeader.cpp" />
+    <ClCompile Include="Widgets\ListView\DxuiListItemKeys.cpp" />
+    <ClCompile Include="Widgets\ListView\DxuiListItemLayout.cpp" />
+    <ClCompile Include="Widgets\ListView\DxuiListItemPainter.cpp" />
+    <ClCompile Include="Widgets\ListView\DxuiListKeyboard.cpp" />
+    <ClCompile Include="Widgets\ListView\DxuiListRows.cpp" />
+    <ClCompile Include="Widgets\ListView\DxuiListScrollbars.cpp" />
+    <ClCompile Include="Widgets\ListView\DxuiListTextSelect.cpp" />
+    <ClCompile Include="Widgets\ListView\DxuiListFind.cpp" />
+    <ClCompile Include="Widgets\ListView\DxuiListTips.cpp" />
     <ClCompile Include="Widgets\DxuiMenuBar.cpp" />
     <ClCompile Include="Widgets\DxuiModalScrim.cpp" />
     <ClCompile Include="Widgets\DxuiPopupMenu.cpp" />
+    <ClCompile Include="Widgets\DxuiPopupMenuLayout.cpp" />
+    <ClCompile Include="Widgets\DxuiPopupMenuPainter.cpp" />
     <ClCompile Include="Widgets\DxuiRadio.cpp" />
     <ClCompile Include="Widgets\DxuiScrollbar.cpp" />
     <ClCompile Include="Widgets\DxuiScrollPanel.cpp" />
@@ -214,13 +235,20 @@
     <ClCompile Include="Widgets\DxuiToolbarEditBox.cpp" />
     <ClCompile Include="Widgets\DxuiImageStrip.cpp" />
     <ClCompile Include="Widgets\DxuiShimmer.cpp" />
+    <ClCompile Include="Widgets\DxuiTabDragModel.cpp" />
+    <ClCompile Include="Widgets\DxuiTabDragVisual.cpp" />
+    <ClCompile Include="Widgets\DxuiTabSlides.cpp" />
     <ClCompile Include="Widgets\DxuiTabStrip.cpp" />
+    <ClCompile Include="Widgets\DxuiTabStripPainter.cpp" />
     <ClCompile Include="Widgets\DxuiTextInput.cpp" />
     <ClCompile Include="Widgets\DxuiToggle.cpp" />
     <ClCompile Include="Widgets\DxuiInPlaceTip.cpp" />
     <ClCompile Include="Widgets\DxuiMarquee.cpp" />
     <ClCompile Include="Widgets\DxuiTextFind.cpp" />
     <ClCompile Include="Widgets\DxuiTipService.cpp" />
+    <ClCompile Include="Theme\DxuiTheme.cpp" />
+    <ClCompile Include="Widgets\DxuiSelectableText.cpp" />
+    <ClCompile Include="Widgets\DxuiSuggestionList.cpp" />
     <ClCompile Include="Widgets\DxuiTooltip.cpp" />
     <ClCompile Include="Widgets\DxuiFieldError.cpp" />
     <ClCompile Include="Widgets\DxuiTreeView.cpp" />
@@ -240,6 +268,11 @@
     <ClCompile Include="Widgets\DxuiStatusBar.cpp" />
     <ClCompile Include="Widgets\DxuiFramebufferView.cpp" />
     <ClCompile Include="Widgets\DxuiHexView.cpp" />
+    <ClCompile Include="Widgets\HexView\DxuiHexLayout.cpp" />
+    <ClCompile Include="Widgets\HexView\DxuiHexPainter.cpp" />
+    <ClCompile Include="Widgets\HexView\DxuiHexRegions.cpp" />
+    <ClCompile Include="Widgets\HexView\DxuiHexScroll.cpp" />
+    <ClCompile Include="Widgets\HexView\DxuiHexSelection.cpp" />
     <ClCompile Include="Core\DxuiClipboard.cpp" />
     <ClCompile Include="Core\DxuiStandardCommand.cpp" />
     <ClCompile Include="Core\DxuiIconImage.cpp" />
@@ -306,17 +339,25 @@
     <ClInclude Include="Render\DxuiPainter.h" />
     <ClInclude Include="Render\DxuiShadow.h" />
     <ClInclude Include="Render\DxuiRoundedOutline.h" />
+    <ClInclude Include="Render\DxuiSvgPath.h" />
+    <ClInclude Include="Render\DxuiGdiText.h" />
+    <ClInclude Include="Render\DxuiRenderIcons.h" />
+    <ClInclude Include="Render\DxuiRenderTargets.h" />
     <ClInclude Include="Render\DxuiTextRenderer.h" />
+    <ClInclude Include="Render\DxuiVectorIcon.h" />
     <ClInclude Include="Render\IDxuiPainter.h" />
     <ClInclude Include="Render\IDxuiTextRenderer.h" />
     <ClInclude Include="Theme\DxuiDwm.h" />
     <ClInclude Include="Theme\DxuiMenuMetrics.h" />
     <ClInclude Include="Theme\DxuiWindowsThemeColors.h" />
+    <ClInclude Include="Theme\DxuiVisualStyleCheckBox.h" />
     <ClInclude Include="Theme\DxuiColor.h" />
     <ClInclude Include="Theme\DxuiTheme.h" />
+    <ClInclude Include="Theme\DxuiRowLook.h" />
     <ClInclude Include="Theme\IDxuiTheme.h" />
     <ClInclude Include="Widgets\DxuiButton.h" />
     <ClInclude Include="Widgets\DxuiCheckbox.h" />
+    <ClInclude Include="Widgets\DxuiCalendar.h" />
     <ClInclude Include="Widgets\DxuiComboBox.h" />
     <ClInclude Include="Widgets\DxuiContextMenu.h" />
     <ClInclude Include="Widgets\DxuiToolbar.h" />
@@ -327,15 +368,33 @@
     <ClInclude Include="Widgets\DxuiOrbitControl.h" />
     <ClInclude Include="Widgets\DxuiIconButton.h" />
     <ClInclude Include="Widgets\DxuiInfoBanner.h" />
-    <ClInclude Include="Widgets\DxuiActionBanner.h" />
     <ClInclude Include="Widgets\DxuiTimedInfoBanner.h" />
     <ClInclude Include="Widgets\DxuiNoticeStack.h" />
     <ClInclude Include="Widgets\DxuiWarningBadge.h" />
     <ClInclude Include="Widgets\DxuiEditableGrid.h" />
     <ClInclude Include="Widgets\DxuiListView.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListBand.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListColumns.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListFlowLayout.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListGroups.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListIcons.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListHeader.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListItemKeys.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListItemLayout.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListItemPainter.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListKeyboard.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListRows.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListScrollbars.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListTextSelect.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListFind.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListTips.h" />
+    <ClInclude Include="Widgets\ListView\DxuiListViewTypes.h" />
     <ClInclude Include="Widgets\DxuiMenuBar.h" />
     <ClInclude Include="Widgets\DxuiModalScrim.h" />
     <ClInclude Include="Widgets\DxuiPopupMenu.h" />
+    <ClInclude Include="Widgets\DxuiPopupMenuLayout.h" />
+    <ClInclude Include="Widgets\DxuiPopupMenuPainter.h" />
+    <ClInclude Include="Widgets\DxuiPopupMenuTypes.h" />
     <ClInclude Include="Widgets\DxuiRadio.h" />
     <ClInclude Include="Widgets\DxuiScrollbar.h" />
     <ClInclude Include="Widgets\DxuiScrollPanel.h" />
@@ -348,7 +407,11 @@
     <ClInclude Include="Widgets\DxuiImageStrip.h" />
     <ClInclude Include="Widgets\IDxuiImageStripSource.h" />
     <ClInclude Include="Widgets\DxuiShimmer.h" />
+    <ClInclude Include="Widgets\DxuiTabDragModel.h" />
+    <ClInclude Include="Widgets\DxuiTabDragVisual.h" />
+    <ClInclude Include="Widgets\DxuiTabSlides.h" />
     <ClInclude Include="Widgets\DxuiTabStrip.h" />
+    <ClInclude Include="Widgets\DxuiTabStripPainter.h" />
     <ClInclude Include="Widgets\DxuiTextInput.h" />
     <ClInclude Include="Widgets\DxuiToggle.h" />
     <ClInclude Include="Widgets\DxuiInPlaceTip.h" />
@@ -356,6 +419,8 @@
     <ClInclude Include="Widgets\IDxuiFindTarget.h" />
     <ClInclude Include="Widgets\DxuiTextFind.h" />
     <ClInclude Include="Widgets\DxuiTipService.h" />
+    <ClInclude Include="Widgets\DxuiSelectableText.h" />
+    <ClInclude Include="Widgets\DxuiSuggestionList.h" />
     <ClInclude Include="Widgets\DxuiTooltip.h" />
     <ClInclude Include="Widgets\DxuiFieldError.h" />
     <ClInclude Include="Render\DxuiStroke.h" />
@@ -377,6 +442,12 @@
     <ClInclude Include="Widgets\DxuiStatusBar.h" />
     <ClInclude Include="Widgets\DxuiFramebufferView.h" />
     <ClInclude Include="Widgets\DxuiHexView.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexLayout.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexPainter.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexRegions.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexScroll.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexSelection.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexViewTypes.h" />
     <ClInclude Include="Core\DxuiClipboard.h" />
     <ClInclude Include="Core\DxuiStandardCommand.h" />
     <ClInclude Include="Core\DxuiIconImage.h" />

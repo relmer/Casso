@@ -31,9 +31,11 @@ class Win32DiskFileIo : public IDiskFileIo
 public:
     HRESULT  ReadAllBytes  (const std::string & path, std::vector<Byte> & outBytes) override;
     HRESULT  WriteAllBytes (const std::string & path, const std::vector<Byte> & bytes) override;
+    HRESULT  WriteAt       (const std::string & path, uint64_t offset, std::span<const Byte> bytes) override;
     HRESULT  Stat          (const std::string & path, FileStamp & outStamp) override;
 
     bool     Exists        (const std::string & path) override;
+    HRESULT  ListFiles     (const std::string & folder, std::vector<std::string> & outNames) override;
     HRESULT  Remove        (const std::string & path) override;
 
     HRESULT  ReplaceAtomically (const std::string & tempPath,
@@ -45,6 +47,12 @@ public:
     bool     IsHeldByAnotherProcess (const std::string & path) override;
 
     HRESULT  WritePayloadToStandardOutput (const std::vector<Byte> & bytes) override;
+
+    //  Downloads the whole of a cloud file that is only partly or not at all
+    //  on this PC, such as a OneDrive file that is online only, before it is
+    //  read. A file that is all here is left as it is. Its error is the cloud
+    //  provider's, such as ERROR_CLOUD_FILE_PROVIDER_NOT_RUNNING.
+    static HRESULT  HydrateIfPlaceholder (HANDLE file);
 
     //  THE INTERRUPTION SWITCH FOR THE COMMIT PATH, AND IT IS NOT IN THIS
     //  BINARY.

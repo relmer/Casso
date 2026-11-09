@@ -16,7 +16,7 @@
 #include "Ui/Debugger/FlagsDialog.h"
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Debugger/SymbolDescriptions.h"
-#include "Cassque/CassquePromptDialog.h"
+#include "CassoExplorer/CassoExplorerPromptDialog.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/Panes/TracePaneController.h"
 #include "Ui/Debugger/MemoryBarCommands.h"

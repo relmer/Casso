@@ -170,9 +170,9 @@ private:
     };
 
 
-    HRESULT CreateShaders    ();
-    HRESULT CreatePipelineState ();
-    HRESULT EnsureVertexBuffer  (size_t requiredVerts);
+    HRESULT  CreateShaders       ();
+    HRESULT  CreatePipelineState ();
+    HRESULT  EnsureVertexBuffer  (size_t requiredVerts);
     void    PushQuad         (float xPx,
                               float yPx,
                               float widthPx,

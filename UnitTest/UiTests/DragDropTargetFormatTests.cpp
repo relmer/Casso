@@ -453,7 +453,7 @@ public:
 //
 //  DragDropTargetDataHandlerTests
 //
-//  A host that judges the whole drag -- Cassque, which takes files and other
+//  A host that judges the whole drag -- CassoExplorer, which takes files and other
 //  images' entries onto a row or tree node -- sets data handlers instead of
 //  the path callbacks. These pin what that host relies on: it is asked with
 //  the drag's own data object wherever the pointer is over a widget that
@@ -579,6 +579,26 @@ public:
         Assert::AreEqual (1, calls.leave);
         Assert::AreEqual (0, calls.drop);
     }
+
+    TEST_METHOD (RightDrag_IsReportedToTheHost)
+    {
+        DxuiDragDropTarget   target;
+        Calls                calls;
+        DWORD                effect = DROPEFFECT_COPY;
+        MockHDropDataObject  obj (L"C:\\Files\\HELLO.TXT");
+
+        Wire (target, calls, DROPEFFECT_COPY, true);
+
+        (void) target.DragEnter (&obj, MK_LBUTTON, POINTL { 1, 1 }, &effect);
+        Assert::IsFalse (target.IsRightDrag(), L"A left drag is not a right one");
+
+        (void) target.DragOver (MK_RBUTTON, POINTL { 2, 2 }, &effect);
+        Assert::IsTrue  (target.IsRightDrag(), L"The host asks this to know a drop needs a menu");
+
+        (void) target.DragLeave();
+        Assert::IsFalse (target.IsRightDrag(), L"The drag is over");
+    }
+
 
     TEST_METHOD (ExtractHDropPaths_ReturnsTheDraggedFile)
     {

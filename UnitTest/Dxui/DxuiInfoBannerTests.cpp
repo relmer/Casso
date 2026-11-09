@@ -37,6 +37,177 @@ namespace DxuiInfoBannerTests
     {
     public:
 
+        TEST_METHOD (ABannerWithNoActionsHasNone)
+        {
+            DxuiInfoBanner  banner;
+
+            banner.SetText (L"A disk changed.");
+
+            Assert::AreEqual ((size_t) 0, banner.GetActionCount());
+            Assert::IsNull (banner.GetAction (0));
+            Assert::IsFalse (banner.IsDismissible());
+            Assert::AreEqual (0.0f, banner.GetControlColumnPx (Scaler96()), L"a plain strip reserves nothing");
+        }
+
+
+        TEST_METHOD (SettingActionsReplacesThemRatherThanAddingToThem)
+        {
+            DxuiInfoBanner  banner;
+
+            banner.SetActions ({ L"Restart" });
+            Assert::AreEqual ((size_t) 1, banner.GetActionCount());
+
+            //  A standing report absorbs later changes instead of stacking, so
+            //  re-wording it must result in one Restart button and not three.
+            banner.SetActions ({ L"Restart" });
+            banner.SetActions ({ L"Restart" });
+
+            Assert::AreEqual ((size_t) 1, banner.GetActionCount());
+        }
+
+
+        TEST_METHOD (TheActionReportsWhichOneWasInvoked)
+        {
+            DxuiInfoBanner  banner;
+            int             invoked = -1;
+
+            banner.SetActions ({ L"Take it up", L"Restart" });
+            banner.SetOnAction ([&invoked] (size_t index) { invoked = (int) index; });
+
+            banner.GetAction (1)->Click();
+            Assert::AreEqual (1, invoked, L"the index identifies the answer, and the answer's meaning came from core with its label");
+
+            banner.GetAction (0)->Click();
+            Assert::AreEqual (0, invoked);
+        }
+
+
+        TEST_METHOD (TheActionsLandInsideTheBannerAgainstItsTrailingEdge)
+        {
+            DxuiInfoBanner  banner;
+            DxuiDpiScaler   scaler = Scaler96();
+            RECT            bounds = { 0, 0, 600, 60 };
+            RECT            first  = {};
+            RECT            second = {};
+
+            banner.SetText    (L"Loader.dsk changed and the new contents were reloaded.");
+            banner.SetActions ({ L"Take it up", L"Restart" });
+            banner.Layout     (bounds, scaler);
+
+            first  = banner.GetAction (0)->GetBounds();
+            second = banner.GetAction (1)->GetBounds();
+
+            Assert::IsTrue (second.right <= bounds.right, L"inside the strip");
+            Assert::IsTrue (first.right  <= second.left,  L"laid out in the order given");
+            Assert::IsTrue (first.left   >  bounds.left,  L"against the trailing edge, not over the message");
+            Assert::IsTrue (first.top    >= bounds.top);
+            Assert::IsTrue (first.bottom <= bounds.bottom);
+        }
+
+
+        TEST_METHOD (AnActionIsNeverClippedByAShortMessage)
+        {
+            DxuiInfoBanner  banner;
+
+            //  One short line of text fits in less height than a button's, and a
+            //  report whose action is clipped offers nothing.
+            banner.SetText    (L"Ok.");
+            banner.SetActions ({ L"Restart" });
+
+            Assert::IsTrue (banner.GetPreferredHeightPx (600.0f, Scaler96()) >= 26.0f, L"at least as tall as its action");
+        }
+
+
+        TEST_METHOD (TheControlColumnComesOutOfTheWidthBeforeTheTextWraps)
+        {
+            DxuiInfoBanner   bare;
+            DxuiInfoBanner   withAction;
+            DxuiInfoBanner   closable;
+            DxuiDpiScaler    scaler = Scaler96();
+            const wchar_t *  text   = L"Loader.dsk was changed by something else while it was mounted, and the "
+                                      L"new contents have been reloaded. The machine is running.";
+
+            bare.SetText       (text);
+            withAction.SetText (text);
+            closable.SetText   (text);
+            withAction.SetActions  ({ L"Restart" });
+            closable.SetDismissible (true);
+
+            //  Measuring the text across the full width and then putting a
+            //  button over it is how a notice ends up with its message
+            //  underneath its action.
+            Assert::IsTrue (withAction.GetPreferredHeightPx (400.0f, scaler) > bare.GetPreferredHeightPx (400.0f, scaler),
+                            L"less room for the text means more lines of it");
+            Assert::IsTrue (closable.GetControlColumnPx (scaler) > 0.0f, L"the close box has a column too");
+        }
+
+
+        TEST_METHOD (TheCloseBoxSitsAtTheTrailingEdgeAfterTheActions)
+        {
+            DxuiInfoBanner  banner;
+            DxuiDpiScaler   scaler = Scaler96();
+            RECT            bounds = { 0, 0, 600, 60 };
+            RECT            close  = {};
+            RECT            action = {};
+
+            banner.SetText        (L"The Uthernet II cannot listen on TCP port 6502.");
+            banner.SetActions     ({ L"Settings" });
+            banner.SetDismissible (true);
+            banner.Layout         (bounds, scaler);
+
+            close  = banner.GetDismissBounds();
+            action = banner.GetAction (0)->GetBounds();
+
+            Assert::IsTrue (close.right <= bounds.right && close.right > bounds.right - 20, L"against the trailing edge");
+            Assert::IsTrue (close.top >= bounds.top && close.bottom <= bounds.bottom, L"inside the strip");
+            Assert::IsTrue (action.right <= close.left, L"the actions before it");
+            Assert::IsTrue (banner.GetPreferredHeightPx (600.0f, scaler) >= 26.0f, L"never shorter than the close box");
+        }
+
+
+        TEST_METHOD (AReleaseOnTheCloseBoxAfterAPressOnItDismisses)
+        {
+            DxuiInfoBanner  banner;
+            RECT            close     = {};
+            int             dismissed = 0;
+            DxuiMouseEvent  ev        = {};
+            POINT           inside    = {};
+            POINT           outside   = { 5, 5 };
+
+            banner.SetDismissible (true);
+            banner.SetOnDismiss   ([&dismissed] () { dismissed++; });
+            banner.Layout         (RECT { 0, 0, 600, 60 }, Scaler96());
+
+            close  = banner.GetDismissBounds();
+            inside = POINT { (close.left + close.right) / 2, (close.top + close.bottom) / 2 };
+
+            ev.kind = DxuiMouseEventKind::Down; ev.positionDip = inside;
+            Assert::IsTrue (banner.OnMouse (ev), L"the press is the close box's");
+            ev.kind = DxuiMouseEventKind::Up;
+            banner.OnMouse (ev);
+            Assert::AreEqual (1, dismissed, L"a click on the X closes the notice");
+
+            ev.kind = DxuiMouseEventKind::Down; ev.positionDip = inside;
+            banner.OnMouse (ev);
+            ev.kind = DxuiMouseEventKind::Up;   ev.positionDip = outside;
+            banner.OnMouse (ev);
+            Assert::AreEqual (1, dismissed, L"a press dragged off the X before the release does not");
+
+            ev.kind = DxuiMouseEventKind::Down; ev.positionDip = outside;
+            Assert::IsFalse (banner.OnMouse (ev), L"the strip itself takes nothing");
+        }
+
+
+        TEST_METHOD (ABannerReportsItsTextAsItsAccessibleName)
+        {
+            DxuiInfoBanner  banner;
+
+            banner.SetText (L"Loader.dsk changed.");
+
+            Assert::IsTrue (banner.GetAccessibleName() == std::wstring (L"Loader.dsk changed."));
+            Assert::IsTrue (banner.GetAccessibleRole() == DxuiAccessibleRole::Label);
+        }
+
         TEST_METHOD (LongerTextWrapsTaller)
         {
             DxuiDpiScaler  scaler = Scaler96();

@@ -11,8 +11,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DxuiToolbarOverflowTests
 //
-//  Every toolbar overflows: entries that do not fit even as icons move into
-//  a "..." See more menu, whether or not its host asked for one.
+//  Every toolbar overflows: entries that do not fit move into a "..." See
+//  more menu, whether or not its host asked for one. The entries here are
+//  icons alone, so their widths do not depend on a label's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +30,6 @@ public:
             auto  command = std::make_shared<DxuiCommand>();
 
             command->id    = i + 1;
-            command->label = L"Command";
             command->glyph = L"x";
 
             entries[(size_t) i].command = command;

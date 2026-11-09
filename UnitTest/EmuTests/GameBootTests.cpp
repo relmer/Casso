@@ -18,7 +18,7 @@ namespace fs = std::filesystem;
 //  GameBootTests
 //
 //  Phase D deliverable for #67 (Disk II copy-protection fidelity).
-//  Mounts real WOZ images from Apple2/Demos/ and verifies the slot 6
+//  Mounts real WOZ images from the Casso Disks folder and verifies the slot 6
 //  boot ROM is able to drive the controller far enough that the head
 //  actually visits multiple tracks. A copy-protection failure (wrong
 //  spin-up, broken bit timing, missing non-standard sync handling)
@@ -54,7 +54,6 @@ TEST_CLASS (GameBootTests)
 {
 public:
 
-    static constexpr int        kMaxAncestorWalk = 10;
     static constexpr int        kSlot6           = 6;
     static constexpr int        kDrive1          = 0;
     static constexpr Word       kBootRomEntry    = 0xC600;
@@ -71,40 +70,26 @@ public:
 
     ////////////////////////////////////////////////////////////////////////
     //
-    //  Walk up from cwd looking for a repo-relative file. Returns empty
-    //  path if not found.
+    //  The game image in the Casso Disks folder under Documents. Returns an
+    //  empty path if it isn't there.
     //
     ////////////////////////////////////////////////////////////////////////
 
-    fs::path FindRepoFile (const std::string & relPath)
+    fs::path FindGameFile (const std::string & name)
     {
-        std::error_code   ec;
-        fs::path          cursor = fs::current_path (ec);
-        int               i      = 0;
+        PWSTR            documents = nullptr;
+        fs::path         found;
+        std::error_code  ec;
+        HRESULT          hr        = SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &documents);
 
-        if (ec)
+        if (SUCCEEDED (hr) && fs::exists (fs::path (documents) / L"Casso Disks" / name, ec))
         {
-            return fs::path();
+            found = fs::path (documents) / L"Casso Disks" / name;
         }
 
-        for (i = 0; i < kMaxAncestorWalk; i++)
-        {
-            fs::path   candidate = cursor / relPath;
+        CoTaskMemFree (documents);
 
-            if (fs::exists (candidate, ec))
-            {
-                return candidate;
-            }
-
-            if (!cursor.has_parent_path() || cursor == cursor.parent_path())
-            {
-                break;
-            }
-
-            cursor = cursor.parent_path();
-        }
-
-        return fs::path();
+        return found;
     }
 
 
@@ -171,7 +156,7 @@ public:
         int                   minTracks,
         const char         *  machineId = "Apple2c")
     {
-        fs::path             wozPath       = FindRepoFile (relPath);
+        fs::path             wozPath       = FindGameFile (relPath);
         std::vector<Byte>    bytes;
         TestMachine         machine (machineId);
         HRESULT              hr            = S_OK;
@@ -252,7 +237,7 @@ public:
     {
         // The //c ROM is a committed fixture now, so only the game image can
         // be absent: those are large and deliberately not in the repo.
-        fs::path   wozPath  = FindRepoFile (relPath);
+        fs::path   wozPath  = FindGameFile (relPath);
         bool       runnable = !wozPath.empty();
 
         if (!runnable)
@@ -322,7 +307,7 @@ public:
         //  question about the //c rather than about this disk. Karateka and
         //  Lode Runner keep the //c covered, and both are the more
         //  aggressively protected titles.
-        AssertGameBoots ("Apple2/Demos/Choplifter.woz", L"Choplifter", 20, "Apple2e");
+        AssertGameBoots ("Choplifter.woz", L"Choplifter", 20, "Apple2e");
     }
 
 
@@ -339,7 +324,7 @@ public:
 
     TEST_METHOD (Karateka_WozBoot_HeadVisitsContentTracks)
     {
-        AssertGameBoots ("Apple2/Demos/Karateka.woz", L"Karateka", 10);
+        AssertGameBoots ("Karateka.woz", L"Karateka", 10);
     }
 
 
@@ -354,7 +339,7 @@ public:
 
     TEST_METHOD (LodeRunner_WozBoot_HeadVisitsContentTracks)
     {
-        AssertGameBoots ("Apple2/Demos/LodeRunner.woz", L"Lode Runner", 15);
+        AssertGameBoots ("LodeRunner.woz", L"Lode Runner", 15);
     }
 
 
@@ -371,7 +356,7 @@ public:
 
     TEST_METHOD (Choplifter_WozBoot_OnApple2c_HeadVisitsContentTracks)
     {
-        AssertApple2cGameBoots ("Apple2/Demos/Choplifter.woz", L"Choplifter (//c)", 10);
+        AssertApple2cGameBoots ("Choplifter.woz", L"Choplifter (//c)", 10);
     }
 };
 

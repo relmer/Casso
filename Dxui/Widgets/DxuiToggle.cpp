@@ -356,7 +356,7 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
                               (float) (m_boundsDip.bottom - m_boundsDip.top),
                               textColor,
                               fontDip,
-                              DxuiTheme::kBodyFace,
+                              DxuiTheme::GetUiFace(),
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -366,7 +366,7 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
         //  toggle narrates its own state, so there is always a run to ring.
         if (m_focused && m_focusCueVisible)
         {
-            DxuiFocusRing::AroundRun (painter, text, shown, fontDip, DxuiTheme::kBodyFace,
+            DxuiFocusRing::AroundRun (painter, text, shown, fontDip, DxuiTheme::GetUiFace(),
                                       pillLeft,
                                       pillLeft + trackW + labelGap,
                                       (float) m_boundsDip.top,

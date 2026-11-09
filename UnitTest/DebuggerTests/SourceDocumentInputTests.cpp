@@ -195,13 +195,13 @@ namespace SourceDocumentInputTests
         //  document configures it, with every action it runs echoed.
         struct PaneRig
         {
-            DxuiTextView                         view;
-            DxuiActionBanner                     banner;
-            std::vector<std::string>             echoes;
-            std::shared_ptr<DxuiIconImage>       enabled  = MakeIcon (0xFFFF0000u);
-            std::shared_ptr<DxuiIconImage>       disabled = MakeIcon (0xFF800000u);
-            std::shared_ptr<DxuiIconImage>       hover    = MakeIcon (0xFF808080u);
-            SourcePane                           pane;
+            DxuiTextView                    view;
+            DxuiInfoBanner                  banner;
+            std::vector<std::string>        echoes;
+            std::shared_ptr<DxuiIconImage>  enabled  = MakeIcon (0xFFFF0000u);
+            std::shared_ptr<DxuiIconImage>  disabled = MakeIcon (0xFF800000u);
+            std::shared_ptr<DxuiIconImage>  hover    = MakeIcon (0xFF808080u);
+            SourcePane                      pane;
 
             PaneRig() :
                 pane (&view, &banner,

@@ -16,7 +16,8 @@ enum class HostAccess;
 //  The session's file system while a debug channel client's line runs: each
 //  call is checked by the client's HostAccessGuard first. One that fails
 //  returns ERROR_ACCESS_DENIED, and the file system under it isn't called.
-//  Exists returns false for a path the client may not read.
+//  Exists and DirectoryExists return false for a path the client may not
+//  read, and a directory is made only with write access.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +33,8 @@ public:
     HRESULT AppendAllText        (const std::wstring & path,
                                   const std::string  & content) override;
     bool    Exists               (const std::wstring & path) override;
+    bool    DirectoryExists      (const std::wstring & path) override;
+    HRESULT MakeDirectory        (const std::wstring & path) override;
     HRESULT Delete               (const std::wstring & path) override;
     HRESULT EnumerateFiles       (const std::wstring        & directory,
                                   std::vector<std::wstring> & outFilenames) override;

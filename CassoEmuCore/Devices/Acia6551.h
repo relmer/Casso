@@ -114,7 +114,7 @@ public:
     // Timing bases. The CPU clock defaults to the NTSC Apple II's and is set
     // from the machine config by the builder.
     static constexpr uint32_t  kCrystalHz         = 1843200;
-    static constexpr uint32_t  kDefaultCpuClockHz = 1022727;
+    static constexpr uint32_t  kDefaultCpuClockHz = 1020484;
 
     explicit                 Acia6551 (Word baseAddress);
 
@@ -179,13 +179,13 @@ public:
     Byte    GetCommPort      () const    { return m_commPort; }
 
     // Inspectors for tests and board wiring.
-    Byte    GetStatus  () const { return m_status; }
-    Byte    GetCommand () const { return m_command; }
-    Byte    GetControl () const { return m_control; }
-    int     GetWordLengthBits () const;
-    bool    IsCtsTrue  () const { return m_cts; }
-    bool    IsDtrOn    () const { return (m_command & kCommandDtr) != 0; }
-    bool    IsRtsOn    () const;
+    Byte  GetStatus         () const { return m_status; }
+    Byte  GetCommand        () const { return m_command; }
+    Byte  GetControl        () const { return m_control; }
+    int   GetWordLengthBits () const;
+    bool  IsCtsTrue         () const { return m_cts; }
+    bool  IsDtrOn           () const { return (m_command & kCommandDtr) != 0; }
+    bool  IsRtsOn           () const;
 
     // Character time in CPU cycles for the transmitter's current format.
     double  GetTransmitCharacterCycles () const;
@@ -226,28 +226,28 @@ private:
     // accumulates rounding.
     static constexpr int     kFixedShift = 16;
 
-    void    ResetState             (bool hardware);
-    Byte    ReadData               ();
-    Byte    ReadStatus             ();
-    void    WriteData              (Byte value);
-    void    WriteCommand           (Byte value);
-    void    RaiseIrq               ();
-    void    LowerIrq               ();
-    bool    IsRxIrqEnabled         () const;
-    bool    IsTxIrqEnabled         () const;
-    bool    CanLoadTransmitter     () const;
-    void    TryLoadTransmitter     ();
-    void    AdvanceTransmitter     (int64_t fixedCycles);
-    void    TakeHostBytes          (uint32_t cycles);
-    void    AdvanceReceiver        (int64_t fixedCycles);
-    void    LandReceivedByte       (Byte value);
-    void    ApplyPendingModemInputs();
-    void    NotifyModemControl     ();
-    int64_t GetCharacterFixedCycles (double baud) const;
-    double  GetReceiveBaud         () const;
-    Byte    GetLineBits            () const;
-    void    NoteLines              ();
-    void    EmitComm               (IoEventKind kind, Byte value);
+    void     ResetState              (bool hardware);
+    Byte     ReadData                ();
+    Byte     ReadStatus              ();
+    void     WriteData               (Byte value);
+    void     WriteCommand            (Byte value);
+    void     RaiseIrq                ();
+    void     LowerIrq                ();
+    bool     IsRxIrqEnabled          () const;
+    bool     IsTxIrqEnabled          () const;
+    bool     CanLoadTransmitter      () const;
+    void     TryLoadTransmitter      ();
+    void     AdvanceTransmitter      (int64_t fixedCycles);
+    void     TakeHostBytes           (uint32_t cycles);
+    void     AdvanceReceiver         (int64_t fixedCycles);
+    void     LandReceivedByte        (Byte value);
+    void     ApplyPendingModemInputs ();
+    void     NotifyModemControl      ();
+    int64_t  GetCharacterFixedCycles (double baud) const;
+    double   GetReceiveBaud          () const;
+    Byte     GetLineBits             () const;
+    void     NoteLines               ();
+    void     EmitComm                (IoEventKind kind, Byte value);
 
     Word                     m_baseAddress = 0;
     Word                     m_ioEnd       = 0;

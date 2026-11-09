@@ -322,7 +322,7 @@ public:
         //  A sweep of the parser's own table rather than a list retyped here:
         //  a command added to the grammar and left out of the help is a capability
         //  the user cannot find, and only this direction notices.
-        Assert::AreEqual (size_t (25), commands.size(), L"thirteen commands and twelve aliases");
+        Assert::AreEqual (size_t (26), commands.size(), L"fourteen commands and twelve aliases");
 
         for (const auto & command : commands)
         {

@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Render/DxuiSvgPath.h"
 #include "DxuiTextRenderer.h"
 #include "Core/DxuiThread.h"
 #include "Theme/DxuiTheme.h"
@@ -560,7 +561,8 @@ void DxuiTextRenderer::SetTypographyWindow (HWND hwnd)
 //  IsBodyFaceRequest
 //
 //  Whether a family argument specifies the body face. A null family is the
-//  body face, as it is everywhere else in this renderer.
+//  body face, as it is everywhere else in this renderer. So is the UI face,
+//  DxuiTheme::kVariableFace, so a theme's face replaces both.
 //
 //  DxuiTheme::kSystemFace has the same text as kBodyFace and is compared by
 //  address, so text that specifies it is drawn in the system face under any
@@ -575,7 +577,7 @@ bool DxuiTextRenderer::IsBodyFaceRequest (const wchar_t * family)
 
 
     return !isSystemFace
-           && ((family == nullptr) || (wcscmp (family, DxuiTheme::kBodyFace) == 0));
+           && ((family == nullptr) || (wcscmp (family, DxuiTheme::kBodyFace) == 0) || (wcscmp (family, DxuiTheme::kVariableFace) == 0));
 }
 
 
@@ -693,13 +695,8 @@ void DxuiTextRenderer::Shutdown()
 
     UnbindBackBuffer();
 
-    m_offscreen.Reset();
-    m_offscreenW = 0;
-    m_offscreenH = 0;
-    m_framebufferBitmap.Reset();
-    m_framebufferBitmapW = 0;
-    m_framebufferBitmapH = 0;
-    m_iconBitmaps.clear();
+    m_targets.ReleaseOffscreen();
+    m_icons.ReleaseBitmaps();
     m_brushCache.clear();
     m_layoutCache.clear();
     m_oldLayoutCache.clear();
@@ -957,461 +954,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BeginDrawToTexture
-//
-//  Points the D2D context at an off-screen D3D texture so the usual DrawString
-//  lands in something a shader can sample.
-//
-//  THE TEXTURE IS KEPT AND GROWN, never shrunk, because a label is rendered
-//  only when its text changes and the sizes involved are a few hundred pixels.
-//  Reallocating to fit exactly would churn a D3D resource to save nothing.
-//
-//  96 DPI DELIBERATELY. The caller has already resolved its font to pixels;
-//  binding the bitmap at the display DPI would scale it a second time.
-//
-//  The previously bound target is saved and restored by EndDrawToTexture, so
-//  this can run between frames without disturbing the back buffer binding.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DxuiTextRenderer::BeginDrawToTexture (UINT widthPx, UINT heightPx)
-{
-    HRESULT                  hr    = S_OK;
-    D2D1_BITMAP_PROPERTIES1  props = {};
-    D3D11_TEXTURE2D_DESC     desc  = {};
-    ComPtr<IDXGISurface>     surface;
-    bool                     sized = false;
-
-
-
-    DXUI_ASSERT_UI_THREAD();
-
-    CBRA (m_d2dContext);
-    CBRA (m_d3dDevice);
-    CBRAEx (widthPx > 0 && heightPx > 0, E_INVALIDARG);
-    CBRA (!m_drawing);
-
-    sized = m_textureTarget != nullptr && m_textureW >= widthPx && m_textureH >= heightPx;
-
-    if (!sized)
-    {
-        m_textureBitmap.Reset();
-        m_textureSrv.Reset();
-        m_textureTarget.Reset();
-
-        desc.Width            = widthPx;
-        desc.Height           = heightPx;
-        desc.MipLevels        = 1;
-        desc.ArraySize        = 1;
-        desc.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
-        desc.SampleDesc.Count = 1;
-        desc.Usage            = D3D11_USAGE_DEFAULT;
-        desc.BindFlags        = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-
-        hr = m_d3dDevice->CreateTexture2D (&desc, nullptr, m_textureTarget.GetAddressOf());
-        CHRA (hr);
-
-        hr = m_d3dDevice->CreateShaderResourceView (m_textureTarget.Get(), nullptr,
-                                                 m_textureSrv.GetAddressOf());
-        CHRA (hr);
-
-        hr = m_textureTarget.As (&surface);
-        CHRA (hr);
-
-        props.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
-        props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
-        props.dpiX                  = 96.0f;
-        props.dpiY                  = 96.0f;
-        props.bitmapOptions         = D2D1_BITMAP_OPTIONS_TARGET;
-
-        hr = m_d2dContext->CreateBitmapFromDxgiSurface (surface.Get(), &props,
-                                                        m_textureBitmap.GetAddressOf());
-        CHRA (hr);
-
-        m_textureW = widthPx;
-        m_textureH = heightPx;
-    }
-
-    m_d2dContext->GetTarget (m_savedTarget.ReleaseAndGetAddressOf());
-    m_d2dContext->SetTarget (m_textureBitmap.Get());
-    m_d2dContext->BeginDraw();
-    m_d2dContext->Clear (D2D1::ColorF (0.0f, 0.0f, 0.0f, 0.0f));
-    m_drawing = true;
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EndDrawToTexture
-//
-//  Closes the off-screen draw, restores the previous target, and hands back the
-//  view. The view belongs to the renderer and is replaced by the next
-//  BeginDrawToTexture, so a caller that keeps one keeps a reference.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DxuiTextRenderer::EndDrawToTexture (ID3D11ShaderResourceView ** outSrv)
-{
-    HRESULT   hr = S_OK;
-
-
-
-    DXUI_ASSERT_UI_THREAD();
-
-    CBRAEx (outSrv, E_INVALIDARG);
-
-    *outSrv = nullptr;
-
-    CBRA (m_d2dContext);
-    CBRA (m_drawing);
-
-    hr = m_d2dContext->EndDraw();
-    m_drawing = false;
-
-    m_d2dContext->SetTarget (m_savedTarget.Get());
-    m_savedTarget.Reset();
-
-    CHRA (hr);
-
-    *outSrv = m_textureSrv.Get();
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDrawToTextureSize
-//
-//  Reports the off-screen target's real dimensions, which is what a caller
-//  needs to map texture coordinates over the part of it that was drawn. The
-//  texture is grown and never shrunk, so this is >= whatever the last
-//  BeginDrawToTexture asked for, and the difference is uninitialized surface
-//  a 0..1 mapping would sample.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTextRenderer::GetDrawToTextureSize (UINT & outWidthPx, UINT & outHeightPx) const
-{
-    outWidthPx  = (m_textureTarget != nullptr) ? m_textureW : 0;
-    outHeightPx = (m_textureTarget != nullptr) ? m_textureH : 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BeginDrawDeferred
-//
-//  Points the context at a fresh command list, so everything this pass draws
-//  is RECORDED rather than rasterized. EndDrawDeferred replays it.
-//
-//  This is what the interleaved page pass needs. Direct2D flushes a batch
-//  whenever it likes, so text aimed straight at the back buffer can land
-//  before the painter's fills and be covered by them. A command list holds no
-//  pixels, so an early flush has nowhere to put anything and the recording
-//  simply continues.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DxuiTextRenderer::BeginDrawDeferred()
-{
-    HRESULT  hr = S_OK;
-
-
-
-    DXUI_ASSERT_UI_THREAD();
-
-    CBRA (m_d2dContext);
-    CBRA (m_targetBound);
-
-    // A closed list cannot be reopened, so the pass gets its own.
-    m_cmdList.Reset();
-
-    hr = m_d2dContext->CreateCommandList (m_cmdList.GetAddressOf());
-    CHRA (hr);
-
-    m_d2dContext->SetTarget (m_cmdList.Get());
-    m_d2dContext->BeginDraw();
-    m_drawing = true;
-
-Error:
-    if (FAILED (hr))
-    {
-        m_cmdList.Reset();
-    }
-
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EndDrawDeferred
-//
-//  Closes the recording, puts the back buffer back, and draws the recording
-//  onto it. Replay happens AFTER the caller has flushed its own geometry,
-//  which is the whole point: the text lands on top no matter how much of it
-//  there was.
-//
-//  Calling this without a matching BeginDrawDeferred is a no-op, matching
-//  EndDraw, so an early-out paint path need not track whether it began.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DxuiTextRenderer::EndDrawDeferred()
-{
-    HRESULT  hr           = S_OK;
-    HRESULT  hrEnd        = S_OK;
-    bool     isTargetLost = false;
-
-
-
-    DXUI_ASSERT_UI_THREAD();
-
-    CBRA (m_d2dContext);
-    BAIL_OUT_IF (!m_drawing, S_OK);
-
-    hrEnd        = m_d2dContext->EndDraw();
-    m_drawing    = false;
-    isTargetLost = (hrEnd == D2DERR_RECREATE_TARGET);
-
-    // The target goes back FIRST and unconditionally. Leaving the context
-    // aimed at a command list would strand every later pass on a recording
-    // nothing replays.
-    m_d2dContext->SetTarget (m_target.Get());
-
-    if (isTargetLost)
-    {
-        UnbindBackBuffer();
-    }
-
-    // The recording is dropped rather than replayed when the pass that made
-    // it failed: half a frame's text over a frame the caller may not have
-    // finished is worse than none of it.
-    BAIL_OUT_IF (isTargetLost, S_OK);
-
-    hr = hrEnd;
-    CHRA (hr);
-
-    CBRA (m_cmdList);
-
-    hr = m_cmdList->Close();
-    CHRA (hr);
-
-    m_d2dContext->BeginDraw();
-    m_d2dContext->DrawImage (m_cmdList.Get());
-    hrEnd        = m_d2dContext->EndDraw();
-    isTargetLost = (hrEnd == D2DERR_RECREATE_TARGET);
-
-    if (isTargetLost)
-    {
-        UnbindBackBuffer();
-    }
-
-    BAIL_OUT_IF (isTargetLost, S_OK);
-
-    hr = hrEnd;
-    CHRA (hr);
-
-Error:
-    m_cmdList.Reset();
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BeginDrawOffscreen
-//
-//  Drop-in alternative to BeginDraw that targets a private offscreen
-//  bitmap instead of the swap-chain back-buffer surface. Paired with
-//  EndDrawComposite, which flushes the offscreen bitmap and then blits
-//  it onto the bound back buffer in a single DrawBitmap.
-//
-//  Why this exists, and why the page pass uses it rather than BeginDraw:
-//
-//  Direct2D does not hold a batch until EndDraw. Past a few hundred draws it
-//  flushes on its own, and when the target IS the back buffer everything
-//  recorded before that flush is already on it. That breaks a caller who
-//  interleaves -- one panel-tree walk emits D2D text and D3D fills together,
-//  and the fills only end up underneath because the painter flushes first.
-//  Text caught by an early flush lands before them and is covered: the menu
-//  bar, first to paint and sitting on a filled strip, vanished outright once
-//  four glowing labels pushed the frame past the threshold.
-//
-//  The same mechanism accounts for the middle band Direct2D was seen dropping
-//  on ARM64 with a large flip-model surface.
-//
-//  Against a private bitmap an early flush is harmless -- it lands in the
-//  layer -- and the layer composites once, after the fills.
-//
-//  The offscreen bitmap is cached and only recreated when the target
-//  pixel size changes. It is cleared transparent so the composite
-//  alpha-blends cleanly over whatever D3D geometry was drawn earlier
-//  in the frame.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DxuiTextRenderer::BeginDrawOffscreen()
-{
-    HRESULT                  hr    = S_OK;
-    D2D1_SIZE_U              size  = {};
-    D2D1_BITMAP_PROPERTIES1  props = {};
-    float                    dpiX  = 96.0f;
-    float                    dpiY  = 96.0f;
-
-
-
-    DXUI_ASSERT_UI_THREAD();
-
-    CBRA (m_d2dContext);
-    CBRA (m_targetBound);
-
-    size = m_target->GetPixelSize();
-
-    // THE LAYER TAKES THE TARGET'S DPI, not 96. Callers pass DIPs, and the
-    // back buffer has the display's DPI baked in by BindBackBuffer, so a layer
-    // fixed at 96 would put every glyph at 96/dpi of its position and size --
-    // invisible on a 96-dpi display, half-scale chrome on a 200% one.
-    m_d2dContext->GetDpi (&dpiX, &dpiY);
-
-    if (m_offscreen == nullptr || m_offscreenW != size.width || m_offscreenH != size.height)
-    {
-        m_offscreen.Reset();
-
-        props.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
-        props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
-        props.dpiX                  = (dpiX > 0.0f) ? dpiX : 96.0f;
-        props.dpiY                  = (dpiY > 0.0f) ? dpiY : 96.0f;
-        props.bitmapOptions         = D2D1_BITMAP_OPTIONS_TARGET;
-
-        hr = m_d2dContext->CreateBitmap (size, nullptr, 0, &props, &m_offscreen);
-        CHRA (hr);
-
-        m_offscreenW = size.width;
-        m_offscreenH = size.height;
-    }
-
-    m_d2dContext->SetTarget (m_offscreen.Get());
-    m_d2dContext->BeginDraw();
-    m_d2dContext->Clear (D2D1::ColorF (0.0f, 0.0f, 0.0f, 0.0f));
-    m_drawing = true;
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EndDrawComposite
-//
-//  Flushes the offscreen bitmap started by BeginDrawOffscreen, then
-//  rebinds the back-buffer target and draws the offscreen bitmap onto
-//  it 1:1 (nearest-neighbor, no scaling). On D2DERR_RECREATE_TARGET
-//  the target is dropped so the next BindBackBuffer rebuilds it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DxuiTextRenderer::EndDrawComposite()
-{
-    HRESULT      hr           = S_OK;
-    HRESULT      hrEnd        = S_OK;
-    D2D1_SIZE_U  size         = {};
-    D2D1_RECT_F  dest         = {};
-    float        dpiX         = 96.0f;
-    float        dpiY         = 96.0f;
-    bool         isTargetLost = false;
-
-
-
-    DXUI_ASSERT_UI_THREAD();
-
-    CBRA (m_d2dContext);
-    BAIL_OUT_IF (!m_drawing, S_OK);
-
-    hrEnd        = m_d2dContext->EndDraw();
-    m_drawing    = false;
-    isTargetLost = (hrEnd == D2DERR_RECREATE_TARGET);
-
-    if (isTargetLost)
-    {
-        UnbindBackBuffer();
-        m_offscreen.Reset();
-        m_offscreenW = 0;
-        m_offscreenH = 0;
-    }
-
-    BAIL_OUT_IF (isTargetLost, S_OK);
-
-    hr = hrEnd;
-    CHRA (hr);
-
-    size = m_target->GetPixelSize();
-
-    // DIPS, NOT PIXELS. Both rects are read in DIPs -- the source in the
-    // layer's, the destination in the back buffer's -- and the two agree
-    // because BeginDrawOffscreen gives the layer the target's DPI. Passing the
-    // pixel size drew a region dpi/96 times too large from a source that small,
-    // which is a 1:1 blit only on a 96-dpi display.
-    m_d2dContext->GetDpi (&dpiX, &dpiY);
-
-    dest = D2D1::RectF (0.0f, 0.0f,
-                        (float) size.width  * 96.0f / ((dpiX > 0.0f) ? dpiX : 96.0f),
-                        (float) size.height * 96.0f / ((dpiY > 0.0f) ? dpiY : 96.0f));
-
-    m_d2dContext->SetTarget (m_target.Get());
-    m_d2dContext->BeginDraw();
-    m_d2dContext->DrawBitmap (m_offscreen.Get(),
-                              &dest,
-                              1.0f,
-                              D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR,
-                              &dest);
-    hrEnd        = m_d2dContext->EndDraw();
-    isTargetLost = (hrEnd == D2DERR_RECREATE_TARGET);
-
-    if (isTargetLost)
-    {
-        UnbindBackBuffer();
-    }
-
-    BAIL_OUT_IF (isTargetLost, S_OK);
-
-    hr = hrEnd;
-    CHRA (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  EnsureTextFormat
 //
 //  Returns a cached IDWriteTextFormat for a (family, size, weight) triple,
@@ -1636,6 +1178,7 @@ HRESULT DxuiTextRenderer::EnsureLayout (
     key.wrap    = wrap;
     key.maxW    = maxWidthDip;
     key.maxH    = maxHeightDip;
+    key.gdi     = m_gdiClassic;
 
     {
         auto  it  = m_layoutCache.find (key);
@@ -1664,12 +1207,28 @@ HRESULT DxuiTextRenderer::EnsureLayout (
     CHRA (hr);
     format.Attach (rawFmt);
 
-    hr = m_dwriteFactory->CreateTextLayout (text,
-                                            (UINT32) wcslen (text),
-                                            format.Get(),
-                                            maxWidthDip,
-                                            maxHeightDip,
-                                            &layout);
+    if (m_gdiClassic)
+    {
+        hr = m_dwriteFactory->CreateGdiCompatibleTextLayout (text,
+                                                             (UINT32) wcslen (text),
+                                                             format.Get(),
+                                                             maxWidthDip,
+                                                             maxHeightDip,
+                                                             1.0f,
+                                                             nullptr,
+                                                             FALSE,
+                                                             &layout);
+    }
+    else
+    {
+        hr = m_dwriteFactory->CreateTextLayout (text,
+                                                (UINT32) wcslen (text),
+                                                format.Get(),
+                                                maxWidthDip,
+                                                maxHeightDip,
+                                                &layout);
+    }
+
     CHRA (hr);
 
     switch (hAlign)
@@ -2516,6 +2075,47 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EraseRoundedRect
+//
+//  Clears a rounded rect of the target to transparent, edges antialiased:
+//  a copy, not a blend, so what was drawn there is gone rather than covered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::EraseRoundedRect (float xDip, float yDip, float widthDip, float heightDip, float radiusDip)
+{
+    HRESULT                        hr      = S_OK;
+    ComPtr<ID2D1SolidColorBrush>   brush;
+    D2D1_ROUNDED_RECT              rounded = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_d2dContext);
+    CBRA (m_drawing);
+
+    hr = m_d2dContext->CreateSolidColorBrush (D2D1::ColorF (0.0f, 0.0f, 0.0f, 0.0f), &brush);
+    CHRA (hr);
+
+    rounded.rect    = D2D1::RectF (xDip, yDip, xDip + widthDip, yDip + heightDip);
+    rounded.radiusX = radiusDip;
+    rounded.radiusY = radiusDip;
+
+    m_d2dContext->SetPrimitiveBlend    (D2D1_PRIMITIVE_BLEND_COPY);
+    m_d2dContext->FillRoundedRectangle (&rounded, brush.Get());
+    m_d2dContext->SetPrimitiveBlend    (D2D1_PRIMITIVE_BLEND_SOURCE_OVER);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PushClipRect / PopClipRect
 //
 //  Forwards directly to ID2D1DeviceContext's clip stack. All drawing
@@ -2690,247 +2290,6 @@ void DxuiTextRenderer::PopTextRotation()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DrawFramebuffer
-//
-//  Uploads a BGRA8 CPU pixel buffer into a cached ID2D1Bitmap and
-//  draws it into the destination DIP rect with linear interpolation.
-//  The bitmap is created lazily and recreated when the source
-//  dimensions change; otherwise CopyFromMemory rewrites the pixels
-//  in place each call. Used by the Settings → Theme preview to show
-//  the live emulator framebuffer inside the mock window.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DxuiTextRenderer::DrawFramebuffer (
-    const uint32_t * srcBgraPixels,
-    int              srcWidthPx,
-    int              srcHeightPx,
-    float            destXDip,
-    float            destYDip,
-    float            destWidthDip,
-    float            destHeightDip)
-{
-    HRESULT       hr     = S_OK;
-    D2D1_RECT_F   dest   = {};
-
-
-
-    DXUI_ASSERT_UI_THREAD();
-
-    CBRA (m_d2dContext);
-    CBRA (m_drawing);
-    CBRA (srcBgraPixels);
-    CBRA (srcWidthPx > 0 && srcHeightPx > 0);
-
-    if (m_framebufferBitmap == nullptr ||
-        m_framebufferBitmapW != srcWidthPx ||
-        m_framebufferBitmapH != srcHeightPx)
-    {
-        D2D1_BITMAP_PROPERTIES  props = {};
-
-        props.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
-        props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_IGNORE;
-        props.dpiX                  = 96.0f;
-        props.dpiY                  = 96.0f;
-
-        m_framebufferBitmap.Reset();
-        hr = m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) srcWidthPx, (UINT32) srcHeightPx),
-                                         nullptr, 0, &props, &m_framebufferBitmap);
-        CHRA (hr);
-        m_framebufferBitmapW = srcWidthPx;
-        m_framebufferBitmapH = srcHeightPx;
-    }
-
-    {
-        D2D1_RECT_U  srcRect = D2D1::RectU (0, 0, (UINT32) srcWidthPx, (UINT32) srcHeightPx);
-
-        hr = m_framebufferBitmap->CopyFromMemory (&srcRect, srcBgraPixels,
-                                                  (UINT32) (srcWidthPx * sizeof (uint32_t)));
-        CHRA (hr);
-    }
-
-    dest.left   = destXDip;
-    dest.top    = destYDip;
-    dest.right  = destXDip + destWidthDip;
-    dest.bottom = destYDip + destHeightDip;
-
-    m_d2dContext->DrawBitmap (m_framebufferBitmap.Get(),
-                              &dest, m_globalAlpha,
-                              D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-                              nullptr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DrawIconBitmap
-//
-//  Same upload-and-blit logic as DrawFramebuffer, over a cache of its own so
-//  the title-bar app icon and the emulator framebuffer (560x384) don't
-//  ping-pong recreating one cache slot every frame. The cache holds one
-//  bitmap per distinct picture, because D2D batches a frame's draws: pixels
-//  uploaded into a bitmap that has already been drawn change that earlier
-//  draw too, which showed every picture of one size as the last one uploaded.
-//  Source pixels are interpreted as premultiplied BGRA8 so the alpha channel
-//  composites correctly.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DxuiTextRenderer::DrawIconBitmap (
-    const uint32_t * srcBgraPremul,
-    int              srcWidthPx,
-    int              srcHeightPx,
-    float            destXDip,
-    float            destYDip,
-    float            destWidthDip,
-    float            destHeightDip)
-{
-    HRESULT        hr     = S_OK;
-    uint64_t       key    = 0;
-    ID2D1Bitmap *  bitmap = nullptr;
-    D2D1_RECT_F    dest   = {};
-
-
-
-    DXUI_ASSERT_UI_THREAD();
-
-    CBRA (m_d2dContext);
-    CBRA (m_drawing);
-    CBRA (srcBgraPremul);
-    CBRA (srcWidthPx > 0 && srcHeightPx > 0);
-
-    key = HashPixels (srcBgraPremul, (size_t) srcWidthPx * (size_t) srcHeightPx);
-
-    for (const IconBitmap & cached : m_iconBitmaps)
-    {
-        if (cached.key == key && cached.width == srcWidthPx && cached.height == srcHeightPx)
-        {
-            bitmap = cached.bitmap.Get();
-            break;
-        }
-    }
-
-    if (bitmap == nullptr)
-    {
-        hr = AddIconBitmap (srcBgraPremul, srcWidthPx, srcHeightPx, key, bitmap);
-        CHR (hr);
-    }
-
-    dest.left   = destXDip;
-    dest.top    = destYDip;
-    dest.right  = destXDip + destWidthDip;
-    dest.bottom = destYDip + destHeightDip;
-
-    m_d2dContext->DrawBitmap (bitmap,
-                              &dest, m_globalAlpha,
-                              D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-                              nullptr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AddIconBitmap
-//
-//  The oldest entry goes when the cache is full. D2D holds its own reference
-//  to a bitmap it has been given to draw, so dropping ours mid-frame is safe;
-//  what a batched frame cannot survive is a bitmap's pixels changing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DxuiTextRenderer::AddIconBitmap (
-    const uint32_t  * srcBgraPremul,
-    int               srcWidthPx,
-    int               srcHeightPx,
-    uint64_t          key,
-    ID2D1Bitmap    * & outBitmap)
-{
-    HRESULT                 hr      = S_OK;
-    IconBitmap              entry;
-    D2D1_BITMAP_PROPERTIES  props   = {};
-    D2D1_RECT_U             srcRect = D2D1::RectU (0, 0, (UINT32) srcWidthPx, (UINT32) srcHeightPx);
-
-
-
-    props.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
-    props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
-    props.dpiX                  = 96.0f;
-    props.dpiY                  = 96.0f;
-
-    hr = m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) srcWidthPx, (UINT32) srcHeightPx),
-                                     nullptr, 0, &props, &entry.bitmap);
-    CHRA (hr);
-
-    hr = entry.bitmap->CopyFromMemory (&srcRect, srcBgraPremul,
-                                       (UINT32) (srcWidthPx * sizeof (uint32_t)));
-    CHRA (hr);
-
-    entry.key    = key;
-    entry.width  = srcWidthPx;
-    entry.height = srcHeightPx;
-    outBitmap    = entry.bitmap.Get();
-
-    if (m_iconBitmaps.size() >= s_kMaxIconBitmaps)
-    {
-        m_iconBitmaps.erase (m_iconBitmaps.begin());
-    }
-
-    m_iconBitmaps.push_back (std::move (entry));
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HashPixels
-//
-//  FNV-1a over the picture's pixels.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint64_t DxuiTextRenderer::HashPixels (const uint32_t * pixels, size_t count)
-{
-    constexpr uint64_t  kOffsetBasis = 14695981039346656037ULL;
-    constexpr uint64_t  kPrime       = 1099511628211ULL;
-
-
-
-    uint64_t  hash = kOffsetBasis;
-    size_t    i    = 0;
-
-
-
-    for (i = 0; i < count; i++)
-    {
-        hash = (hash ^ (uint64_t) pixels[i]) * kPrime;
-    }
-
-    return hash;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  MeasureString
 //
 //  Returns the natural pixel extent of `text` in the requested font.
@@ -3009,6 +2368,124 @@ HRESULT DxuiTextRenderer::MeasureStringWeighted (
 
     outWidthDip  = metrics.widthIncludingTrailingWhitespace;
     outHeightDip = metrics.height;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HitTestText
+//
+//  The same cached, shaped layout a wrapping DrawString of this box uses, so
+//  a point lands on the character drawn under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::HitTestText (
+    const wchar_t  * text,
+    float            fontSizeDip,
+    const wchar_t  * fontFamily,
+    float            widthDip,
+    float            heightDip,
+    DxuiTextHAlign   hAlign,
+    DxuiTextVAlign   vAlign,
+    float            xDip,
+    float            yDip,
+    size_t         & outIndex)
+{
+    HRESULT                    hr        = S_OK;
+    ComPtr<IDWriteTextLayout>  layout;
+    IDWriteTextLayout        * rawLayout = nullptr;
+    BOOL                       trailing  = FALSE;
+    BOOL                       inside    = FALSE;
+    DWRITE_HIT_TEST_METRICS    metrics   = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    outIndex = 0;
+
+    CBRAEx (text, E_INVALIDARG);
+    CBR (m_dwriteFactory);
+
+    hr = EnsureLayout (text, fontFamily, fontSizeDip, DxuiFontWeight::Normal, hAlign, vAlign, true,
+                       widthDip, heightDip, &rawLayout);
+    CHRA (hr);
+
+    layout.Attach (rawLayout);
+
+    hr = layout->HitTestPoint (xDip, yDip, &trailing, &inside, &metrics);
+    CHRA (hr);
+
+    outIndex = (size_t) metrics.textPosition + (trailing ? metrics.length : 0);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTextRangeRects
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::GetTextRangeRects (
+    const wchar_t                * text,
+    float                          fontSizeDip,
+    const wchar_t                * fontFamily,
+    float                          widthDip,
+    float                          heightDip,
+    DxuiTextHAlign                 hAlign,
+    DxuiTextVAlign                 vAlign,
+    size_t                         start,
+    size_t                         length,
+    std::vector<TextRangeRect>   & outRects)
+{
+    HRESULT                               hr        = S_OK;
+    ComPtr<IDWriteTextLayout>             layout;
+    IDWriteTextLayout                   * rawLayout = nullptr;
+    UINT32                                count     = 0;
+    std::vector<DWRITE_HIT_TEST_METRICS>  metrics;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    outRects.clear();
+
+    CBRAEx (text, E_INVALIDARG);
+    CBR (m_dwriteFactory);
+    BAIL_OUT_IF (length == 0, S_OK);
+
+    hr = EnsureLayout (text, fontFamily, fontSizeDip, DxuiFontWeight::Normal, hAlign, vAlign, true,
+                       widthDip, heightDip, &rawLayout);
+    CHRA (hr);
+
+    layout.Attach (rawLayout);
+
+    //  Asked once for the count, then for the boxes.
+    hr = layout->HitTestTextRange ((UINT32) start, (UINT32) length, 0.0f, 0.0f, nullptr, 0, &count);
+    BAIL_OUT_IF (hr != E_NOT_SUFFICIENT_BUFFER && FAILED (hr), hr);
+
+    metrics.resize (count);
+
+    hr = layout->HitTestTextRange ((UINT32) start, (UINT32) length, 0.0f, 0.0f, metrics.data(), count, &count);
+    CHRA (hr);
+
+    for (UINT32 i = 0; i < count; i++)
+    {
+        outRects.push_back (TextRangeRect { metrics[i].left, metrics[i].top, metrics[i].width, metrics[i].height });
+    }
 
 Error:
     return hr;
@@ -3142,4 +2619,56 @@ bool DxuiTextRenderer::IsFontFamilyInstalled (const wchar_t * family)
 
 Error:
     return SUCCEEDED (hr) && found != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextRenderer::MeasureWrappedDip
+//
+//  Through a shared factory of its own, as IsFontFamilyInstalled is. Without
+//  the symbol fallback a private-use glyph measures as the system's missing
+//  glyph, which is no taller than a line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::MeasureWrappedDip (const wchar_t * text, float fontSizeDip, const wchar_t * fontFamily, DxuiFontWeight weight,
+                                             float widthDip, float & outHeightDip)
+{
+    HRESULT                     hr      = S_OK;
+    ComPtr<IDWriteFactory>      factory;
+    ComPtr<IDWriteTextFormat>   format;
+    ComPtr<IDWriteTextLayout>   layout;
+    DWRITE_TEXT_METRICS         metrics = {};
+
+
+
+    outHeightDip = 0.0f;
+
+    CBRAEx (text != nullptr && fontFamily != nullptr, E_INVALIDARG);
+    CBRAEx (widthDip > 0.0f, E_INVALIDARG);
+
+    hr = DWriteCreateFactory (DWRITE_FACTORY_TYPE_SHARED, __uuidof (IDWriteFactory),
+                              reinterpret_cast<IUnknown **> (factory.GetAddressOf()));
+    CHR (hr);
+
+    hr = factory->CreateTextFormat (fontFamily, nullptr,
+                                    static_cast<DWRITE_FONT_WEIGHT> ((int) weight & 0xFFFF),
+                                    (((int) weight & 0x10000) != 0) ? DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL,
+                                    DWRITE_FONT_STRETCH_NORMAL, fontSizeDip, L"en-us", &format);
+    CHR (hr);
+
+    hr = factory->CreateTextLayout (text, (UINT32) wcslen (text), format.Get(), widthDip, 1.0e6f, &layout);
+    CHR (hr);
+
+    hr = layout->GetMetrics (&metrics);
+    CHR (hr);
+
+    outHeightDip = metrics.height;
+
+Error:
+    return hr;
 }

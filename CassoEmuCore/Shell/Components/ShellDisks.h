@@ -4,6 +4,8 @@
 
 #include "Devices/Disk/ChangePrompt.h"
 #include "Devices/Disk/MountDiagnosis.h"
+#include "Seams/IntentReplyTracker.h"
+#include "Seams/Win32IntentChannel.h"
 #include "Shell/CpuCommandTargets.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/DriveWidgetController.h"
@@ -62,7 +64,7 @@ public:
     void  InstallChangeReporting ();
 
     // Null before Initialize.
-    DiskManager *                      GetManager          () const { return m_diskManager.get(); }
+    DiskManager                      * GetManager          () const { return m_diskManager.get(); }
     std::array<DriveWidget, 2>       & GetDriveChrome      ()       { return m_driveChrome; }
     std::array<DriveWidgetState, 2>  & GetDriveWidgetState ()       { return m_driveWidgetState; }
     DriveWidgetController            & GetDriveWidgets     ()       { return m_driveWidgets; }
@@ -132,9 +134,9 @@ public:
     // to plug one. The //c's external drive is an optional add-on, shown only
     // while connected; everywhere else the second drive is whatever is on the
     // Disk ][ card's second connector.
-    bool  ShouldShowExternalDrive  () const;
-    bool  IsSecondDriveOffered     () const;
-    bool  IsExternalDriveConnected () const         { return m_externalDriveConnected; }
+    bool  ShouldShowExternalDrive   () const;
+    bool  IsSecondDriveOffered      () const;
+    bool  IsExternalDriveConnected  () const         { return m_externalDriveConnected; }
     void  SetExternalDriveConnected (bool connected) { m_externalDriveConnected = connected; }
 
     // Whether the machine's drive is soldered in rather than plugged into a
@@ -175,6 +177,31 @@ public:
     // Initialize, before the message loop that would service it is running.
     void  HandleMountCompletion (const MountCompletion & completion);
 
+    // An answer to a tool that asked, posted to the UI thread when the
+    // outcome was known on another one.
+    struct IntentReplyPost
+    {
+        HWND                       target = nullptr;
+        Win32IntentChannel::Reply  reply;
+    };
+
+    // Sends one answer, from the UI thread. A tool that has gone away is
+    // not an error: the send simply finds no window.
+    void  SendIntentReply (HWND target, const Win32IntentChannel::Reply & reply);
+
+    // Posts one answer to the UI thread from whichever thread knows it.
+    void  PostIntentReply (HWND target, const Win32IntentChannel::Reply & reply);
+
+    // Records a mounted disk's folder in the known-folder list Casso
+    // Explorer and the picker share.
+    void  RecordKnownFolder (const std::string & imagePath);
+
+    // Wires the store's decision report to the tools waiting on a reload.
+    void  InstallIntentReplies ();
+
+    // Tools waiting on an insert or a reload.
+    IntentReplyTracker &  GetIntentReplies () { return m_intentReplies; }
+
     // What one bay's external change wants said, carried from the thread that
     // owns disk writes to the one that owns the screen.
     struct ChangeNotice
@@ -196,7 +223,7 @@ public:
     // oversight: the action it carries is the restart, which is what the user
     // reaches for once the program starts misbehaving, and a notice that faded
     // would take that action with it.
-    DxuiActionBanner &  GetChangeBanner () { return m_changeBanner; }
+    DxuiInfoBanner &  GetChangeBanner () { return m_changeBanner; }
 
     // How tall the notice's band is right now: zero when nothing is being
     // reported, and the height its wrapped text needs when something is.
@@ -267,7 +294,7 @@ private:
     // fixed hardware (they have no banked ROM, so the gate is always open).
     bool                               m_externalDriveConnected = false;
 
-    DxuiActionBanner                   m_changeBanner;
+    DxuiInfoBanner                     m_changeBanner;
 
     //  When the change band closes itself, and the frame that last looked.
     //  Zero means it stands until dismissed. Hovering does not extend the
@@ -278,4 +305,7 @@ private:
     int64_t                            m_changeBannerTickMs   = 0;
 
     std::unique_ptr<DiskManager>       m_diskManager;
+
+    // Tools waiting on an insert or a reload.
+    IntentReplyTracker                 m_intentReplies;
 };

@@ -23,7 +23,9 @@
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellSerialCard.h"
+#include "Shell/Components/ShellNetworkCard.h"
 #include "Shell/Components/ShellTapeDeck.h"
+#include "Shell/Components/EmulatorUpdaterHost.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -87,6 +89,11 @@
 #include "Shell/MachineGamePortSink.h"
 #include "Seams/Win32ControllerBackend.h"
 #include "Seams/Win32DiskFileIo.h"
+#include "Seams/Win32ByteStreamFactory.h"
+#include "Seams/IProcessProbe.h"
+#include "CassoLink/RunningCassoRegistry.h"
+#include "Config/Win32FileSystem.h"
+#include "Devices/SerialTrafficLog.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -124,7 +131,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-EmulatorShell::EmulatorShell()
+EmulatorShell::EmulatorShell() :
+    m_firewall (m_hostFirewall, &m_networkChanges, Win32HostFirewall::ReadThisProgram())
 {
     // / FR-035. The Prng is the deterministic stand-in for
     // indeterminate //e DRAM at power-on, shared across every device that
@@ -142,12 +150,14 @@ EmulatorShell::EmulatorShell()
 
     m_settings      = std::make_unique<ShellSettings> (*this);
     m_window        = std::make_unique<ShellWindow> (*this);
-    m_updater       = std::make_unique<ShellUpdater> (*this);
+    m_updaterHost   = std::make_unique<EmulatorUpdaterHost> (*this);
+    m_updater       = std::make_unique<ShellUpdater> (*m_updaterHost);
     m_audio         = std::make_unique<ShellAudio>();
     m_tapeDeck      = std::make_unique<ShellTapeDeck> (*this);
     m_printer       = std::make_unique<ShellPrinter> (*this);
     m_disks         = std::make_unique<ShellDisks> (*this);
     m_serialCard    = std::make_unique<ShellSerialCard> (*this);
+    m_networkCard   = std::make_unique<ShellNetworkCard> (*this);
     m_scene         = std::make_unique<ShellDeskScene> (*this);
     m_chrome        = std::make_unique<ShellChrome> (*this);
     m_chrome->SetDriveTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetDriveTip (clientPx, tip); });
@@ -183,13 +193,23 @@ EmulatorShell::EmulatorShell()
 
     MachineBuildServices  services;
 
+    m_streamFactory = std::make_unique<Win32ByteStreamFactory>();
+
+    m_linkFileSystem  = std::make_unique<Win32FileSystem>();
+    m_processProbe    = std::make_unique<Win32ProcessProbe>();
+    m_runningRegistry = std::make_unique<RunningCassoRegistry> (*m_linkFileSystem, *m_processProbe, RunningCassoRegistry::GetDefaultFolder());
+    m_machine.SetRunningRegistry (m_runningRegistry.get());
+
     m_audio->BindBuildServices (services);
 
     m_printer->BindBuildServices (services);
 
     services.hostNetwork            = &m_hostNetwork;
+    services.listenGate             = &m_listenGate;
     services.traceCapacity          = &m_traceCapacity;
     services.imageWatchDisabled     = &m_imageWatchDisabled;
+    services.streamFactory          = m_streamFactory.get();
+    services.serialLog              = &m_serialLog;
     services.requestPowerCycle      = [this] () { m_machineManager->PowerCycle(); };
 
     m_machineBuilder = std::make_unique<MachineBuilder> (m_machine, services);
@@ -302,6 +322,11 @@ EmulatorShell::~EmulatorShell()
     }
 
     m_renderer->GetD3D().Shutdown();
+
+    //  This Casso's ports are no longer for Casso Explorer to find, and the
+    //  registry goes before the machine does.
+    m_machine.WithdrawSerialPorts();
+    m_machine.SetRunningRegistry (nullptr);
 
     m_window->UninitializeOle();
 }
@@ -469,6 +494,68 @@ void EmulatorShell::SetStartupShowCommand (int nCmdShow)
 void EmulatorShell::SetWindowTitlePrefix (const wstring & prefix)
 {
     m_window->SetWindowTitlePrefix (prefix);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OpenSerialLog
+//
+//  A folder in the path that does not exist is created. Each piece is
+//  flushed as it is written, so a capture that ends in a crash or a killed
+//  process has every byte up to that point.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::OpenSerialLog (const std::filesystem::path & path)
+{
+    HRESULT                         hr     = S_OK;
+    std::error_code                 ec;
+    std::shared_ptr<std::ofstream>  file;
+    bool                            opened = false;
+
+
+
+    if (path.has_parent_path())
+    {
+        std::filesystem::create_directories (path.parent_path(), ec);
+    }
+
+    file   = std::make_shared<std::ofstream> (path, std::ios::binary | std::ios::trunc);
+    opened = file->is_open();
+    CBREx (opened, HRESULT_FROM_WIN32 (ERROR_OPEN_FAILED));
+
+    m_serialLog = std::make_unique<SerialTrafficLog> ([file] (std::string_view text)
+    {
+        file->write (text.data(), (std::streamsize) text.size());
+        file->flush();
+    });
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDefaultSerialLogPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::filesystem::path EmulatorShell::GetDefaultSerialLogPath (const std::filesystem::path & dataDir, const SYSTEMTIME & now)
+{
+    std::wstring  name = format (L"serial-{:04}{:02}{:02}-{:02}{:02}{:02}.txt",
+                                 now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond);
+
+
+
+    return dataDir / L"SerialLogs" / name;
 }
 
 
@@ -720,6 +807,9 @@ HRESULT EmulatorShell::Initialize (
     // model -- a startup-ordering bug on our side, so assert.
     hr = m_window->InitializeOle();
     CHR (hr);
+
+    //  The firewall's verdicts, before the guest can listen on a port.
+    m_networkCard->ReadFirewall (true);
 
     m_renderer->AllocateFramebuffers();
 
@@ -1207,7 +1297,7 @@ HRESULT EmulatorShell::FinishUiShellLayout()
     }
 
     m_disks->InstallChangeReporting();
-    InstallIntentReplies();
+    m_disks->InstallIntentReplies();
     m_window->InstallIntentMessageFilter();
 
 Error:

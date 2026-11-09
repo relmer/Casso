@@ -84,6 +84,10 @@ public:
     using  RestoreFn         = std::function<void ()>;
     using  TextColorFn       = std::function<void (int textColorModeIndex)>;
     using  TextColorCommitFn = std::function<void (int textColorModeIndex)>;
+    using  CustomColorFn     = std::function<void ()>;
+
+    // The custom monitor's place in the Picture list, after Casso's.
+    static constexpr int  kCustomMonitorIndex = 4;
 
     // Control ids used by SetOnPreview to identify which control is
     // being interacted with. Match the SettingsPreviewController::Focus
@@ -104,6 +108,10 @@ public:
     static const wchar_t *  LabelForSource (CrtSource source);
 
     void  SetState              (SettingsPanelState * state);
+
+    //  The selected monitor, for a host with no panel state; Rebuild then wires
+    //  the page with the host's callbacks alone.
+    void  SetMonitorIndex       (int index) { m_monitorIndex = index; }
     void  SetInitialCrt         (const struct GlobalUserPrefsCrtSnapshot & snap);
     void  SetDefaultsHint       (const struct DisplayDefaultsHint        & hint);
 
@@ -112,26 +120,39 @@ public:
     // Color; the swatch shows the resolved color.
     void  SetTextColor          (ColorMonitorTextMode mode, uint32_t customArgb);
 
+    // For a host with a custom monochrome monitor, as Casso Explorer has for
+    // its picture previews: the monitor is listed after Casso's, and a
+    // swatch of its color replaces Text color's row, as that host draws no
+    // text. Choosing the monitor, or a click on the swatch while it is
+    // chosen, calls the custom color handler. Set before the page is laid
+    // out; set again to change the swatch's color.
+    void  SetCustomMonitor      (uint32_t argb) { m_customMonitor = true; m_customArgb = argb; }
+
+    // A host's note above the first row, in muted text; none when empty.
+    // Set before the page is laid out.
+    void  SetIntro              (std::wstring text) { m_introText = std::move (text); }
+
     // Routes the owned dropdown's popup menu through the host's
     // popup-host pool so the menu HWND escapes the page's clipping
     // bounds. Pass nullptr to revert to the in-panel PaintMenu path.
-    void  SetPopupHost          (DxuiHwndSource * host) { m_monitor.SetPopupHost (host); m_textColor.SetPopupHost (host); }
-    void  SetOnBrightnessChange     (BrightnessFn    fn) { m_onBrightness    = std::move (fn); }
-    void  SetOnContrastChange       (ContrastFn      fn) { m_onContrast      = std::move (fn); }
-    void  SetOnGammaChange          (GammaFn         fn) { m_onGamma         = std::move (fn); }
-    void  SetOnPersistenceChange    (PersistenceFn   fn) { m_onPersistence   = std::move (fn); }
-    void  SetOnMonitorChange        (MonitorFn       fn) { m_onMonitor       = std::move (fn); }
-    void  SetOnScanlinesEnChange    (ScanlinesEnFn   fn) { m_onScanlinesEn   = std::move (fn); }
-    void  SetOnScanlinesIntChange   (ScanlinesIntFn  fn) { m_onScanlinesInt  = std::move (fn); }
-    void  SetOnBloomEnChange        (BloomEnFn       fn) { m_onBloomEn       = std::move (fn); }
-    void  SetOnBloomRadiusChange    (BloomRadiusFn   fn) { m_onBloomRadius   = std::move (fn); }
-    void  SetOnBloomStrengthChange  (BloomStrengthFn fn) { m_onBloomStrength = std::move (fn); }
-    void  SetOnColorBleedEnChange   (ColorBleedEnFn  fn) { m_onColorBleedEn  = std::move (fn); }
-    void  SetOnColorBleedWChange    (ColorBleedWFn   fn) { m_onColorBleedW   = std::move (fn); }
-    void  SetOnPreview              (PreviewFn       fn) { m_onPreview       = std::move (fn); }
-    void  SetOnRestoreDefaults      (RestoreFn       fn) { m_onRestore       = std::move (fn); }
-    void  SetOnTextColorChange      (TextColorFn       fn) { m_onTextColor       = std::move (fn); }
-    void  SetOnTextColorCommit      (TextColorCommitFn fn) { m_onTextColorCommit = std::move (fn); }
+    void  SetPopupHost             (DxuiHwndSource * host) { m_monitor.SetPopupHost (host); m_textColor.SetPopupHost (host); }
+    void  SetOnBrightnessChange    (BrightnessFn    fn) { m_onBrightness    = std::move (fn); }
+    void  SetOnContrastChange      (ContrastFn      fn) { m_onContrast      = std::move (fn); }
+    void  SetOnGammaChange         (GammaFn         fn) { m_onGamma         = std::move (fn); }
+    void  SetOnPersistenceChange   (PersistenceFn   fn) { m_onPersistence   = std::move (fn); }
+    void  SetOnMonitorChange       (MonitorFn       fn) { m_onMonitor       = std::move (fn); }
+    void  SetOnScanlinesEnChange   (ScanlinesEnFn   fn) { m_onScanlinesEn   = std::move (fn); }
+    void  SetOnScanlinesIntChange  (ScanlinesIntFn  fn) { m_onScanlinesInt  = std::move (fn); }
+    void  SetOnBloomEnChange       (BloomEnFn       fn) { m_onBloomEn       = std::move (fn); }
+    void  SetOnBloomRadiusChange   (BloomRadiusFn   fn) { m_onBloomRadius   = std::move (fn); }
+    void  SetOnBloomStrengthChange (BloomStrengthFn fn) { m_onBloomStrength = std::move (fn); }
+    void  SetOnColorBleedEnChange  (ColorBleedEnFn  fn) { m_onColorBleedEn  = std::move (fn); }
+    void  SetOnColorBleedWChange   (ColorBleedWFn   fn) { m_onColorBleedW   = std::move (fn); }
+    void  SetOnPreview             (PreviewFn       fn) { m_onPreview       = std::move (fn); }
+    void  SetOnRestoreDefaults     (RestoreFn       fn) { m_onRestore       = std::move (fn); }
+    void  SetOnTextColorChange     (TextColorFn       fn) { m_onTextColor       = std::move (fn); }
+    void  SetOnTextColorCommit     (TextColorCommitFn fn) { m_onTextColorCommit = std::move (fn); }
+    void  SetOnCustomColor         (CustomColorFn     fn) { m_onCustomColor     = std::move (fn); }
 
     void  Layout    (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild   ();
@@ -191,9 +212,10 @@ private:
     static RECT  MakeRect (int l, int t, int w, int h);
 
     void  RefreshTextColorEnabled ();
-    bool  IsTextColorActive () const;
+    bool  IsTextColorActive       () const;
 
     SettingsPanelState   * m_state             = nullptr;
+    int                    m_monitorIndex      = 0;
     DisplayDefaultsHint    m_hint              = {};
     DxuiDpiScaler          m_scaler;
     BrightnessFn           m_onBrightness;
@@ -212,7 +234,9 @@ private:
     RestoreFn              m_onRestore;
     TextColorFn            m_onTextColor;
     TextColorCommitFn      m_onTextColorCommit;
+    CustomColorFn          m_onCustomColor;
 
+    DxuiLabel                 m_intro;
     DxuiLabel                 m_monitorLabel;
     DxuiLabel                 m_textColorLabel;
     DxuiLabel                 m_brightnessLabel;
@@ -264,6 +288,11 @@ private:
     // Seeded Text-color state (global pref) the dropdown + swatch reflect.
     ColorMonitorTextMode  m_textColorMode        = ColorMonitorTextMode::White;
     uint32_t              m_textColorCustomArgb  = ColorUtil::kWhiteArgb;
+
+    // A host's custom monochrome monitor, listed when set, and its color.
+    bool                  m_customMonitor        = false;
+    uint32_t              m_customArgb           = ColorUtil::kWhiteArgb;
+    std::wstring          m_introText;
 
     // Live-preview fade state plumbed in by SettingsPanel::SetFadeState
     // ahead of each Paint. m_fadeFocusedId == -1 disables the fade and

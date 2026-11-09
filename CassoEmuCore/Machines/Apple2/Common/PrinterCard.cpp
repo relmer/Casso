@@ -88,9 +88,12 @@ Byte PrinterCard::Read (Word address)
 //  Write
 //
 //  A write to +$0 latches the byte into the ring and arms the first-touch
-//  flag; writes to any other offset are ignored. A failed push means the
-//  guest wrote past the high-water guard it was told to honor -- a
-//  programming error, caught in debug.
+//  flag; writes to any other offset are ignored, as are all writes with no
+//  printer attached.
+//
+//  A full ring drops the byte. A guest that ignores the busy status gets
+//  there, and so would one honoring it if the drain stalled; neither is an
+//  emulator fault to stop on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,7 +104,7 @@ void PrinterCard::Write (Word address, Byte value)
 
 
 
-    if (offset != kDataOffset)
+    if (offset != kDataOffset || m_ring == nullptr)
     {
         return;
     }
@@ -113,8 +116,8 @@ void PrinterCard::Write (Word address, Byte value)
         return;
     }
 
-    pushed       = m_ring.TryPush (value);
-    ASSERT (pushed);
+    pushed        = m_ring->TryPush (value);
+    IGNORE_RETURN_VALUE (pushed, false);
     WriteTextCopy (value);
 }
 
@@ -208,13 +211,18 @@ void PrinterCard::Reset()
 //  ReadStatus
 //
 //  Ready while the ring has comfortable headroom; busy within the high-water
-//  margin so a handshake-honoring guest waits instead of overflowing.
+//  margin so a handshake-honoring guest waits instead of overflowing, and
+//  busy with no printer attached.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte PrinterCard::ReadStatus() const
 {
-    return (m_ring.GetFreeBytes() > kReadyHighWater) ? kStatusReady : kStatusBusy;
+    bool  ready = m_ring != nullptr && m_ring->GetFreeBytes() > kReadyHighWater;
+
+
+
+    return ready ? kStatusReady : kStatusBusy;
 }
 
 
@@ -239,8 +247,12 @@ void PrinterCard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
     group.rows.push_back (MakeTextRow ("Slot",          std::format ("{}", m_slot)));
     group.rows.push_back (MakeByteRow ("Status",        ReadStatus(), { "READY", "", "", "", "", "PAPER OUT", "FAULT#", "SELECT" }));
     group.rows.push_back (MakeFlagRow ("Used",          m_everTouched));
-    group.rows.push_back (MakeTextRow ("Bytes waiting", std::format ("{}", m_ring.GetApproxSize())));
-    group.rows.push_back (MakeTextRow ("Space left",    std::format ("{}", m_ring.GetFreeBytes())));
+    //  An empty connector has no ring, and nothing waiting.
+    if (m_ring != nullptr)
+    {
+        group.rows.push_back (MakeTextRow ("Bytes waiting", std::format ("{}", m_ring->GetApproxSize())));
+        group.rows.push_back (MakeTextRow ("Space left",    std::format ("{}", m_ring->GetFreeBytes())));
+    }
 
     snapshot.groups.push_back (std::move (group));
 }

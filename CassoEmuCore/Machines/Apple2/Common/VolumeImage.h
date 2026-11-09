@@ -9,6 +9,9 @@ class MountDiagnosis;
 class SectorDecodeReport;
 #include "Devices/Disk/SectorWrite.h"
 
+class ISectorReadObserver;
+class IVolume;
+
 
 
 
@@ -29,6 +32,8 @@ enum class VolumeKind
     Unknown,
     Dos33,
     ProDos,
+    Pascal,
+    Cpm,
 };
 
 
@@ -60,6 +65,10 @@ enum class VolumeKind
 class VolumeImage
 {
 public:
+    //  The file system's name as a listing's heading uses it, and an empty
+    //  string for Unknown.
+    static const char * GetSystemName (VolumeKind kind);
+
     //  Any mountable image file to a DOS-logical sector buffer. The report
     //  describes what the track layer could recover, and is empty of meaning
     //  for a sector-order file, which has no tracks to decode.
@@ -107,6 +116,11 @@ public:
 
     //  Which filesystem the DOS-logical buffer carries.
     static VolumeKind  DetectFilesystem (const vector<Byte> & sectors);
+
+    //  The volume of `kind` over the buffer, which must outlive it. Each read
+    //  of a sector is reported to the observer, when there is one. An Unknown
+    //  kind has a NullVolume, whose operations all fail.
+    static std::unique_ptr<IVolume>  CreateVolume (VolumeKind kind, const vector<Byte> & sectors, ISectorReadObserver * observer = nullptr);
 
 private:
     //  The bit-stream half of Save: decode, judge, re-encode only what changed.

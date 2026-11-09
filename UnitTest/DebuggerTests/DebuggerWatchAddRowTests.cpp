@@ -386,12 +386,12 @@ namespace DebuggerWatchAddRowTests
             window.TakeSnapshot (snapshot);
 
             Assert::AreEqual (4, window.GetWatchesPane().GetList()->GetRowCount(), L"the watch, the pointers' heading, the pointer, the add row");
-            Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (0)[1].check.has_value(), L"no check box on the watch");
+            Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (0)[1].check != DxuiListView::Cell::Check::None, L"no check box on the watch");
             Assert::AreEqual (std::wstring (L"0"),   window.GetWatchesPane().GetList()->GetCellsOfRow (0)[1].text, L"the watch's number is its ID");
             Assert::AreEqual (std::wstring (L"ZP1"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].text);
             Assert::AreEqual (std::wstring (L"$06"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[2].text);
             Assert::AreEqual (std::wstring (L"$0300: A9 41 8D 00"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[3].text);
-            Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].check.has_value(), L"nor on the pointer");
+            Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].check != DxuiListView::Cell::Check::None, L"nor on the pointer");
         }
     };
 

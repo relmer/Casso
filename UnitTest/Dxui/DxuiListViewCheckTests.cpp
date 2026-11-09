@@ -48,7 +48,7 @@ public:
             DxuiListView::Cell  cell;
 
             cell.text  = L"breakpoint";
-            cell.check = (i == rows - 1) ? std::optional<bool>() : std::optional<bool> ((i % 2) == 1);
+            cell.check = (i == rows - 1) ? DxuiListView::Cell::Check::None : DxuiListView::Cell::GetCheck ((i % 2) == 1);
 
             data.push_back ({ cell, DxuiListView::Cell { L"1", false } });
         }
@@ -57,6 +57,7 @@ public:
         list.SetRows              (std::move (data));
         list.SetMultiSelect       (true);
         list.SetKeyboardColumnNav (true);
+        list.SetSelectOnCheckPress (false);
         list.Layout               (RECT { 0, 0, 400, 300 }, scaler);
     }
 
@@ -259,7 +260,7 @@ public:
 
         for (const RecordedTextCall & call : text.Calls())
         {
-            marks += (call.text == s_kpszMdl2Accept) ? 1 : 0;
+            marks += (call.text == s_kpszCheckMark) ? 1 : 0;
         }
 
         Assert::AreEqual ((size_t) 2, marks, L"rows 1 and 3 are checked");

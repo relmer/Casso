@@ -602,7 +602,7 @@ void UpdateDialogContent::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     {
         float    width  = 0.0f;
         float    height = 0.0f;
-        HRESULT  hr     = text.MeasureStringWeighted (words.c_str(), sizePx, DxuiTheme::kBodyFace, DxuiFontWeight::Normal, width, height);
+        HRESULT  hr     = text.MeasureStringWeighted (words.c_str(), sizePx, DxuiTheme::GetUiFace(), DxuiFontWeight::Normal, width, height);
 
         IGNORE_RETURN_VALUE (hr, S_OK);
         return width;

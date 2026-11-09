@@ -80,6 +80,45 @@ public:
     }
 
 
+    static DxuiMouseEvent  MakeMouse (DxuiMouseEventKind kind, const DxuiListView & list, int row)
+    {
+        DxuiMouseEvent  ev;
+        int             y = 0;
+
+        while (y < 300 && list.HitTestRow (40, y) != row)
+        {
+            y++;
+        }
+
+        ev.kind        = kind;
+        ev.button      = DxuiMouseButton::Left;
+        ev.positionDip = POINT { 40, y };
+
+        return ev;
+    }
+
+
+    TEST_METHOD (PressOnASelectedRow_KeepsTheSelectionUntilRelease)
+    {
+        DxuiListView  list;
+        int           changes = 0;
+
+        ConfigureList (list, 10);
+
+        list.ClickRow (2, false, false);
+        list.ClickRow (5, true,  false);
+        list.SetOnSelectionChanged ([&changes] (int) { changes++; });
+
+        list.OnMouse (MakeMouse (DxuiMouseEventKind::Down, list, 5));
+
+        Assert::IsTrue (list.GetSelectedRows() == Rows ({ 2, 5 }), L"a drag starting here takes both rows");
+
+        list.OnMouse (MakeMouse (DxuiMouseEventKind::Up, list, 5));
+
+        Assert::IsTrue (list.GetSelectedRows() == Rows ({ 5 }), L"a click without a drag selects only its row");
+        Assert::AreEqual (1, changes, L"and the release raises the selection change");
+    }
+
     TEST_METHOD (CtrlClick_TogglesOneRow)
     {
         DxuiListView  list;

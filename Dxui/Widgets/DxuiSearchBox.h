@@ -36,6 +36,10 @@ class DxuiSearchBox : public IDxuiControl
 public:
     using ChangeFn = std::function<void (const std::wstring &)>;
 
+    //  Enter in the field; returns true when the host acted on it, so the
+    //  dialog's default button doesn't.
+    using SubmitFn = std::function<bool ()>;
+
     DxuiSearchBox ();
     ~DxuiSearchBox() override = default;
 
@@ -44,7 +48,9 @@ public:
     void  SetRect        (const RECT & rect);
     void  SetHwnd        (HWND hwnd)                    { m_input.SetHwnd (hwnd); }
     void  SetPlaceholder (const std::wstring & text)    { m_input.SetPlaceholder (text); }
+    void  SetMaxLength   (size_t maxLen)                { m_input.SetMaxLength (maxLen); }
     void  SetOnChange    (ChangeFn fn)                  { m_change = std::move (fn); }
+    void  SetOnSubmit    (SubmitFn fn)                  { m_submit = std::move (fn); }
 
     const std::wstring & GetText   () const              { return m_input.GetText(); }
     void                 SetText   (const std::wstring & text);
@@ -87,6 +93,7 @@ private:
     DxuiTextInput       m_input;
     const IDxuiTheme  * m_theme        = nullptr;
     ChangeFn            m_change;
+    SubmitFn            m_submit;
     DxuiDpiScaler       m_scaler;
     bool                m_focused      = false;
     bool                m_clearHover   = false;

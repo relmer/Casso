@@ -70,10 +70,10 @@ public:
 private:
     //  The bounds' extent along the axis the sash moves, in DIPs; zero before
     //  the first layout.
-    int   GetExtentDip () const;
+    int   GetExtentDip     () const;
     int   ClampPositionDip (int dip) const;
-    bool  IsOverSash (POINT px) const;
-    void  MoveTo (int dip);
+    bool  IsOverSash       (POINT px) const;
+    void  MoveTo           (int dip);
 
     Orientation    m_orientation   = Orientation::Vertical;
     int            m_positionDip   = 0;

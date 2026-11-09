@@ -392,7 +392,7 @@ public:
     //  CALLED FROM ANY THREAD and does no work beyond recording: the watcher
     //  runs on its own thread and the message channel on the UI thread, while
     //  acting on a change belongs to the thread that owns disk writes.
-    void          NoteExternalChange (const string & path, ExternalChangeIntent intent);
+    void          NoteExternalChange (const string & path, ExternalChangeIntent intent, bool fromCassoExplorer = false);
 
     //  Act on whatever has settled. Called on the CPU thread at a moment with
     //  no disk operation in flight.
@@ -406,8 +406,8 @@ public:
     //  the watch wiring, the banner, the prompt -- asks these questions of a
     //  bay, and a dozen forwarding accessors would put one piece of state
     //  behind two names.
-    MountedImageState *        GetSharedState (int slot, int drive);
-    const MountedImageState *  GetSharedState (int slot, int drive) const;
+    MountedImageState        * GetSharedState (int slot, int drive);
+    const MountedImageState  * GetSharedState (int slot, int drive) const;
 
     static HRESULT  GetSourceFormatByExtension (const string & path, DiskFormat & outFmt);
 
@@ -489,7 +489,7 @@ private:
 
         //  Which bay this is.
         //
-        //  CARRIED ON THE ENTRY BECAUSE FlushEntry NEEDS IT AND HAS ONLY THIS.
+        //  KEPT ON THE ENTRY BECAUSE FlushEntry NEEDS IT AND HAS ONLY THIS.
         //  Every message about a disk names the drive it is in, and threading
         //  a pair of ints through five call sites to reach one function is a
         //  worse answer than the entry knowing where it lives.
@@ -548,10 +548,10 @@ private:
         ShuttingDown,
     };
 
-    Entry &       GetEntry          (int slot, int drive);
-    const Entry & GetEntry          (int slot, int drive) const;
-    HRESULT       FlushEntry        (Entry & entry, FlushMoment moment);
-    HRESULT       FlushEveryBay     (FlushMoment moment);
+    Entry        & GetEntry      (int slot, int drive);
+    const Entry  & GetEntry      (int slot, int drive) const;
+    HRESULT        FlushEntry    (Entry & entry, FlushMoment moment);
+    HRESULT        FlushEveryBay (FlushMoment moment);
 
     //  Tells the user the guest's version could not be written beside the
     //  file that displaced it -- as a question where one can still be

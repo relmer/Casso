@@ -1,4 +1,5 @@
-# Realigns misaligned local-declaration blocks: name columns equal, ptr
+# Realigns misaligned declaration blocks, and function declaration runs in
+# headers (see below), in the tree or under -Paths: name columns equal, ptr
 # column reserved when any line has one, `=` columns equal. Only rewrites
 # runs that are actually misaligned; already-aligned runs keep whatever
 # gap convention they use. Runs containing a line the parser can't handle
@@ -6,15 +7,16 @@
 #
 # Byte-safe: ASCII passthrough / CP1252, exact newline preservation.
 
-param([switch] $Apply)
+param([switch] $Apply, [string[]] $Paths = @())
 
 $wt = Split-Path $PSScriptRoot -Parent   # scripts/ -> repo root
 Push-Location $wt
 $files = git ls-files '*.cpp' '*.h' | Where-Object { $_ -notmatch 'External/' }
+if ($Paths.Count -gt 0) { $files = $files | Where-Object { $f = $_; @($Paths | Where-Object { $f -like "$_*" }).Count -gt 0 } }
 Pop-Location
 
 $cp1252    = [System.Text.Encoding]::GetEncoding(1252)
-$declRegex = '^\s*(?:const\s+|constexpr\s+|static\s+)*[A-Za-z_][A-Za-z0-9_:<>,\s\*&\[\]]*\s+[\*&]?\s*[A-Za-z_]\w*(\s*\[[^\]]*\])?\s*(=[^;]*)?;\s*(//.*)?$'
+$declRegex = '^\s*(?:const\s+|constexpr\s+|static\s+)*[A-Za-z_][A-Za-z0-9_:<>,\s\*&\[\]]*\s+[\*&]?\s*[A-Za-z_]\w*(\s*\[[^\]]*\])?\s*(=[^;]*|\{[^;]*\})?;\s*(//.*)?$'
 $declExcl  = '\breturn\b|\bdelete\b|\bgoto\b|\bthrow\b|\+\+|--|^\s*(else|do)\b|\boperator\b|^\s*[A-Za-z_]\w*\s*(<<|>>)'
 
 $rewritten = 0
@@ -38,11 +40,19 @@ function Parse-Decl
     $indent = ($body -replace '^(\s*).*$', '$1')
     $body   = $body.Trim()
 
-    # Split off the initializer at the first top-level ' = '.
+    # Split off a brace initializer, or the initializer at the first ' = '.
     $init  = $null
+    $brace = $false
     $lhs   = $body
+    $bm    = [regex]::Match($body, '^([^{=]*?[\w\]])\s*(\{.*\})$')
     $eqPos = $body.IndexOf(' = ')
-    if ($eqPos -ge 0)
+    if ($bm.Success)
+    {
+        $lhs   = $bm.Groups[1].Value
+        $init  = $bm.Groups[2].Value
+        $brace = $true
+    }
+    elseif ($eqPos -ge 0)
     {
         $lhs  = $body.Substring(0, $eqPos).TrimEnd()
         $init = $body.Substring($eqPos + 3).Trim()
@@ -76,6 +86,7 @@ function Parse-Decl
         Ptr     = $ptr
         Decl    = $decl
         Init    = $init
+        Brace   = $brace
         Comment = $comment
     }
 }
@@ -134,10 +145,9 @@ foreach ($rel in $files)
                 foreach ($r in $run)
                 {
                     $ln = $lines[$r].TrimEnd("`r")
-                    $mm = [regex]::Match($ln, '^\s*(?:const\s+|constexpr\s+|static\s+)*.*?([A-Za-z_]\w*(\[[^\]]*\])?)\s*(=|;)')
+                    $mm = [regex]::Match($ln, '^\s*(?:const\s+|constexpr\s+|static\s+)*.*?([A-Za-z_]\w*(\[[^\]]*\])?)\s*(=|;|\{)')
                     $nameCols += $mm.Groups[1].Index
-                    $pe = $ln.IndexOf(' = ')
-                    if ($pe -ge 0) { $eqCols += $pe + 1 }
+                    if ($mm.Groups[3].Value -ne ';') { $eqCols += $mm.Groups[3].Index }
                 }
 
                 $misName = (@($nameCols | Sort-Object -Unique)).Count -gt 1
@@ -160,7 +170,7 @@ foreach ($rel in $files)
 
                         if ($null -ne $p.Init)
                         {
-                            $s += $p.Decl.PadRight($maxDecl) + ' = ' + $p.Init + ';'
+                            $s += $p.Decl.PadRight($maxDecl) + $(if ($p.Brace) { ' ' } else { ' = ' }) + $p.Init + ';'
                         }
                         else
                         {
@@ -196,6 +206,109 @@ foreach ($rel in $files)
     }
 }
 
+# Function declarations in headers: a run of 2+ consecutive same-indent
+# declarations aligns its names, the `*` or `&` before a name, and the `(` of
+# each argument list. Constructors and destructors written without a return
+# type end a run, as a blank or comment line does.
+$fnExcl = '^\s*(return|if|while|for|switch|else|case|delete|new|throw|using|typedef|friend|template|goto|do|static_assert)\b|\boperator\b|"|^\s*#|^\s*//'
+
+function Parse-FnDecl
+{
+    param([string] $Line)
+
+    $code = ($Line -replace '\s*//.*$', '').TrimEnd()
+    if ($code -match $fnExcl -or $code -notmatch '^\s+\S') { return $null }
+    if (-not ($code.EndsWith(';') -or $code.EndsWith('}')))  { return $null }
+
+    $paren = $code.IndexOf('(')
+    if ($paren -lt 0) { return $null }
+
+    $pre = $code.Substring(0, $paren)
+    if ($pre -match '=|\{|\}|\.|->|\(|\)') { return $null }
+
+    $trim   = $pre.TrimEnd()
+    $tokens = @($trim.Trim() -split '\s+')
+    if ($tokens.Count -lt 2) { return $null }
+
+    $name = $tokens[-1]
+    if ($name -notmatch '^~?[A-Za-z_]\w*$') { return $null }
+
+    $ptr = ''
+    if ($tokens.Count -ge 3 -and ($tokens[-2] -eq '*' -or $tokens[-2] -eq '&')) { $ptr = $tokens[-2] }
+    $typeEnd = if ($ptr -ne '') { $tokens.Count - 3 } else { $tokens.Count - 2 }
+    $type    = $tokens[0..$typeEnd] -join ' '
+    if ($type -match '[\*&]$' -and $ptr -eq '') { return $null }   # a `*` glued to the type
+
+    $nameCol = $trim.Length - $name.Length
+
+    return [pscustomobject]@{
+        Indent   = ($code -replace '^(\s*).*$', '$1')
+        Type     = $type
+        Ptr      = $ptr
+        Name     = $name
+        NameCol  = $nameCol
+        PtrCol   = $(if ($ptr -ne '') { $trim.LastIndexOf($ptr, $nameCol) } else { -1 })
+        ParenCol = $paren
+        Rest     = $Line.Substring($paren)
+    }
+}
+
+$fnRewritten = 0
+foreach ($rel in ($files | Where-Object { $_ -like '*.h' }))
+{
+    $full = Join-Path $wt $rel
+    if (-not (Test-Path $full)) { continue }
+
+    $bytes   = [IO.File]::ReadAllBytes($full)
+    $isAscii = $true
+    foreach ($b in $bytes) { if ($b -gt 0x7F) { $isAscii = $false; break } }
+    $enc     = if ($isAscii) { [System.Text.Encoding]::ASCII } else { $cp1252 }
+    $lines   = [System.Collections.Generic.List[string]]::new()
+    foreach ($piece in $enc.GetString($bytes).Split("`n")) { $lines.Add($piece) }
+
+    $changed = $false
+    $run     = [System.Collections.Generic.List[object]]::new()
+
+    for ($i = 0; $i -le $lines.Count; $i++)
+    {
+        $p = if ($i -lt $lines.Count) { Parse-FnDecl ($lines[$i].TrimEnd("`r")) } else { $null }
+        if ($null -ne $p) { $p | Add-Member Index $i }
+
+        if ($null -ne $p -and ($run.Count -eq 0 -or $run[0].Indent -eq $p.Indent)) { $run.Add($p); continue }
+
+        if ($run.Count -ge 2)
+        {
+            $ptrCols = @($run | Where-Object { $_.PtrCol -ge 0 } | ForEach-Object { $_.PtrCol } | Sort-Object -Unique)
+            $bad     = (@($run | ForEach-Object { $_.NameCol }  | Sort-Object -Unique).Count -gt 1) -or
+                       (@($run | ForEach-Object { $_.ParenCol } | Sort-Object -Unique).Count -gt 1) -or
+                       ($ptrCols.Count -gt 1)
+
+            if ($bad)
+            {
+                if (-not $Apply) { Write-Host ("FN  {0}:{1}" -f $rel, ($run[0].Index + 1)) }
+                $maxType = ($run | ForEach-Object { $_.Type.Length } | Measure-Object -Maximum).Maximum
+                $maxName = ($run | ForEach-Object { $_.Name.Length } | Measure-Object -Maximum).Maximum
+                $hasPtr  = @($run | Where-Object { $_.Ptr -ne '' }).Count -gt 0
+
+                foreach ($r in $run)
+                {
+                    $cr = if ($lines[$r.Index].EndsWith("`r")) { "`r" } else { '' }
+                    $s  = $r.Indent + $r.Type.PadRight($maxType) + '  '
+                    if ($hasPtr) { $s += $(if ($r.Ptr -ne '') { $r.Ptr } else { ' ' }) + ' ' }
+                    $lines[$r.Index] = $s + $r.Name.PadRight($maxName) + ' ' + $r.Rest.TrimEnd("`r") + $cr
+                }
+
+                $fnRewritten++
+                $changed = $true
+            }
+        }
+
+        $run.Clear()
+        if ($null -ne $p) { $run.Add($p) }
+    }
+
+    if ($changed -and $Apply) { [IO.File]::WriteAllBytes($full, $enc.GetBytes(($lines -join "`n"))) }
+}
 $mode = if ($Apply) { 'REWROTE' } else { 'WOULD rewrite' }
-"$mode $rewritten run(s) across $filesHit file(s); $($skipped.Count) run(s) skipped (unparseable)."
+"$mode $rewritten declaration run(s) across $filesHit file(s) and $fnRewritten function declaration run(s); $($skipped.Count) run(s) skipped (unparseable)."
 foreach ($s in $skipped) { Write-Warning "unparseable run: $s" }

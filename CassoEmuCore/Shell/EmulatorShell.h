@@ -4,9 +4,11 @@
 
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
-#include "Seams/IntentReplyTracker.h"
-#include "Seams/Win32IntentChannel.h"
 #include "Seams/Win32HostNetwork.h"
+#include "Seams/Win32HostFirewall.h"
+#include "Seams/Win32NetworkChanges.h"
+#include "Net/FirewallMonitor.h"
+#include "Net/ListenGate.h"
 #include "Shell/Input/CapsLockTracker.h"
 #include "Shell/Input/ShellKeyRouting.h"
 #include "Shell/CpuCommandDispatcher.h"
@@ -35,7 +37,9 @@ class ShellDisks;
 class ShellPrinter;
 class ShellSettings;
 class ShellSerialCard;
+class ShellNetworkCard;
 class ShellTapeDeck;
+class EmulatorUpdaterHost;
 class ShellUpdater;
 struct MonitorSpec;
 struct ScreenshotFacts;
@@ -102,11 +106,16 @@ public:
 
     int RunMessageLoop();
 
+    //  For the Network settings page: the firewall's verdicts, and the PC
+    //  ports the running Uthernet II's guest has open, empty with no card.
+    FirewallMonitor &          GetFirewall          () { return m_firewall; }
+    std::vector<FirewallPort>  GetGuestInboundPorts ();
+
     void HandleCommand (WORD commandId);
 
     // State
-    bool IsRunning() const { return m_cpuManager.IsRunning(); }
-    bool IsPaused() const { return m_cpuManager.IsPaused(); }
+    bool  IsRunning () const { return m_cpuManager.IsRunning(); }
+    bool  IsPaused  () const { return m_cpuManager.IsPaused(); }
 
     // The emulated machine. Everything about the hardware -- bus, CPU,
     // devices, video modes, which machine this is -- is reached through
@@ -147,12 +156,21 @@ public:
     // Runs with change notification deliberately broken, so the check made
     // before every write can be measured on its own. Undocumented; set from
     // --no-image-watch and read by the two places that install notification.
-    void SetImageWatchDisabled (bool disabled) { m_imageWatchDisabled = disabled; }
+    void                        SetImageWatchDisabled (bool disabled) { m_imageWatchDisabled = disabled; }
+    bool                        IsImageWatchDisabled  () const        { return m_imageWatchDisabled; }
+    class IByteStreamFactory  * GetStreamFactory      () const { return m_streamFactory.get(); }
 
     // --debugger: open the debug channel as the CPU thread starts. The machine
     // is not paused, so a client can attach to a program already running.
     void SetOpenDebuggerAtStart (bool open)   { m_openDebuggerAtStart = open; }
-    bool IsImageWatchDisabled  () const        { return m_imageWatchDisabled; }
+
+    // --serial-log: every byte on a bridged serial port is written to the file,
+    // for protocol captures. Called before Initialize builds the machine.
+    HRESULT OpenSerialLog (const std::filesystem::path & path);
+
+    // The file a bare --serial-log writes: SerialLogs\serial-<local time>.txt
+    // under Casso's data directory, a new one for each launch.
+    static std::filesystem::path GetDefaultSerialLogPath (const std::filesystem::path & dataDir, const SYSTEMTIME & now);
 
     // Update notification and self-update, including the launch-by-update
     // flags and the Settings > General update toggles.
@@ -166,8 +184,9 @@ public:
     ShellAudio &  GetAudio();
 
     // The printer drain, print preview, status light and print dialog.
-    ShellPrinter &  GetPrinter();
-    ShellSerialCard &  GetSerialCard() { return *m_serialCard; }
+    ShellPrinter      & GetPrinter     ();
+    ShellSerialCard   & GetSerialCard  () { return *m_serialCard; }
+    ShellNetworkCard  & GetNetworkCard () { return *m_networkCard; }
 
     // The Disk II drives: the DiskManager, the drive widgets and their state,
     // the recent-disks list, salvage and the external-change notice.
@@ -203,18 +222,18 @@ public:
     // config store, the theme catalog and the Settings sheet.
     ShellSettings &  GetSettings();
 
-    bool IsTracing        () const { return m_traceCapacity > 0; }
-    void    DumpTrace        (const wstring & reason);
-    HRESULT WriteTrace       (const wstring & reason, std::wstring & path);
-    static std::wstring GetTraceFolder();
+    bool                 IsTracing      () const { return m_traceCapacity > 0; }
+    void                 DumpTrace      (const wstring & reason);
+    HRESULT              WriteTrace     (const wstring & reason, std::wstring & path);
+    static std::wstring  GetTraceFolder ();
 
     // / FR-034 / FR-035: split-reset entry points exposed for the
     // menu commands (IDM_MACHINE_RESET / IDM_MACHINE_POWERCYCLE) and any
     // future programmatic callers. SoftReset preserves user RAM and
     // re-runs the 6502 /RESET sequence. PowerCycle re-seeds every DRAM-
     // owning device from the shared Prng before SoftReset (audit S10).
-    void SoftReset();
-    void PowerCycle();
+    void  SoftReset  ();
+    void  PowerCycle ();
 
 private:
 
@@ -232,8 +251,8 @@ private:
     // arrive). The chrome / settings / meta pre-checks run in OnKeyDown /
     // OnChar before the event reaches the viewport, so these apply the
     // keystroke straight to the Apple ][ keyboard + game port.
-    bool  OnViewportKey   (const DxuiKeyEvent   & ev) override;
-    bool  OnViewportMouse (const DxuiMouseEvent & ev) override;
+    bool               OnViewportKey   (const DxuiKeyEvent   & ev) override;
+    bool               OnViewportMouse (const DxuiMouseEvent & ev) override;
     DxuiMessageResult  OnMouseWheel    (WPARAM wParam, LPARAM lParam, bool horizontal) override;
     DxuiMessageResult  OnGesture       (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseMove     (WPARAM wParam, LPARAM lParam) override;
@@ -255,17 +274,17 @@ private:
     void               OnEnterSizeMove () override;
     void               OnExitSizeMove  () override;
     void               OnUserWindowStateCommand () override;
-    DxuiMessageResult  OnNotify        (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnSize          (UINT widthPx, UINT heightPx) override;
-    DxuiMessageResult  OnGetMinMax     (MINMAXINFO * info) override;
-    DxuiMessageResult  OnTimer         (UINT_PTR timerId) override;
-    void               OnModalLoopTick () override;
-    DxuiMessageResult  OnInitMenuPopup (HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
-    DxuiMessageResult  OnNcMouseMove   (LRESULT hitTest, int xScreen, int yScreen) override;
-    DxuiMessageResult  OnNcMouseLeave() override;
-    DxuiMessageResult  OnNcLButtonDown (LRESULT hitTest, int xScreen, int yScreen) override;
-    DxuiMessageResult  OnNcLButtonUp   (LRESULT hitTest, int xScreen, int yScreen) override;
-    LRESULT            OnDrawItem      (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnNotify                 (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnSize                   (UINT widthPx, UINT heightPx) override;
+    DxuiMessageResult  OnGetMinMax              (MINMAXINFO * info) override;
+    DxuiMessageResult  OnTimer                  (UINT_PTR timerId) override;
+    void               OnModalLoopTick          () override;
+    DxuiMessageResult  OnInitMenuPopup          (HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
+    DxuiMessageResult  OnNcMouseMove            (LRESULT hitTest, int xScreen, int yScreen) override;
+    DxuiMessageResult  OnNcMouseLeave           () override;
+    DxuiMessageResult  OnNcLButtonDown          (LRESULT hitTest, int xScreen, int yScreen) override;
+    DxuiMessageResult  OnNcLButtonUp            (LRESULT hitTest, int xScreen, int yScreen) override;
+    LRESULT            OnDrawItem               (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override;
 
     // A writing tool stating what its change to a mounted image meant.
     DxuiMessageResult  OnCopyData      (WPARAM sender, LPARAM data) override;
@@ -274,9 +293,10 @@ private:
     void               OnDpiChanged    (UINT newDpi) override;
 
     // CPU thread entry point and helpers
-    void RunOneFrame();
-    void RunCpuThreadFrame();
-    void ExecuteCpuSlices();
+    void  RunOneFrame                  ();
+    void  RunCpuThreadFrame            ();
+    void  ExecuteCpuSlices             ();
+    void  ReportUthernetListenFailures ();
 
     // One slice of a frame, watching input held back behind live.
     uint32_t  RunWatchedSlice (uint32_t sliceTarget, const DebuggerSliceHooks & hooks);
@@ -291,6 +311,8 @@ private:
     void     SaveTrace                 () override;
     void     ConfigureNetworkCard      (const NetworkCardSettings & settings) override;
     void     HoldAppleKeysThroughReset (bool openApple, bool closedApple) override;
+    HRESULT  ConnectSerialPort         (int port, const std::string & device, const std::string & path) override;
+    HRESULT  ConnectParallelPrinter    (int slot, bool attached) override;
     void     SetSerialCardSwitches     (const std::string & sw1, const std::string & sw2) override;
 
     // Posts a reset with the Apple keys as they are at this moment, read on
@@ -441,9 +463,9 @@ private:
     // Machine switching delegated to MachineManager. Kept as a
     // public delegator so the existing IDM_FILE_OPEN command-queue
     // path can call the shell without learning the manager.
-    HRESULT SwitchMachine (const std::wstring & machineName);
-    void    ShowMachinePicker();
-    const std::wstring &  GetCurrentMachineName () const { return m_machine.GetCurrentMachineName(); }
+    HRESULT               SwitchMachine         (const std::wstring & machineName);
+    void                  ShowMachinePicker     ();
+    const std::wstring  & GetCurrentMachineName () const { return m_machine.GetCurrentMachineName(); }
 
 
     // //e/c auxiliary 64 KiB RAM bank (nullptr on ][/][+). Used by the clipboard
@@ -522,16 +544,16 @@ private:
     // HandleChromeFocusKey owns all keydown handling while the ring is active
     // (returns true when the key was consumed); UpdateChromeFocusVisuals
     // pushes the current index into the MainMenu / button / drive widgets.
-    void    SetChromeFocusIndex   (int index);
-    void    UpdateChromeFocusVisuals ();
-    bool    HandleChromeFocusKey  (WPARAM vk);
+    void  SetChromeFocusIndex      (int index);
+    void  UpdateChromeFocusVisuals ();
+    bool  HandleChromeFocusKey     (WPARAM vk);
 
     // The chrome state a keydown's owner is decided over, and the hand-off to
     // whichever part of the chrome that owner names. Keeping the decision in
     // ShellKeyRouting is what lets OnChar suppress exactly what OnKeyDown
     // claimed without asking the same question a second time.
     ShellKeyRouting::State  GetKeyRoutingState () const;
-    void                  DispatchShellKey (ShellKeyOwner owner, WPARAM vk);
+    void                    DispatchShellKey   (ShellKeyOwner owner, WPARAM vk);
 
 public:
 
@@ -564,28 +586,6 @@ private:
     // shown via ShowModalDialog). Returns the resultCode of the chosen button,
     // or -1 on close-gesture.
     int     ShowModalDialog      (const DialogDefinition & def);
-
-    // An answer to a tool that asked, carried to the UI thread when the
-    // outcome was known on another one.
-    struct IntentReplyPost
-    {
-        HWND                       target = nullptr;
-        Win32IntentChannel::Reply  reply;
-    };
-
-    // Sends one answer, from the UI thread. A tool that has gone away is
-    // not an error: the send simply finds no window.
-    void    SendIntentReply (HWND target, const Win32IntentChannel::Reply & reply);
-
-    // Posts one answer to the UI thread from whichever thread knows it.
-    void    PostIntentReply (HWND target, const Win32IntentChannel::Reply & reply);
-
-    // Records the folder a handed-off disk lives in, in the known-folder
-    // list the disk browser and the picker share.
-    void    RecordKnownFolder (const std::string & imagePath);
-
-    // Wires the store's decision report to the tools waiting on a reload.
-    void    InstallIntentReplies ();
 
     // The EHM user-notification sink, installed with SetNotifyFunction so
     // every CHRN / CBRN in the tree reports through Casso's own themed
@@ -624,7 +624,8 @@ private:
 
     // The shell's components, each owned here and reached through its
     // getter. Held by pointer so this header needs only their names.
-    std::unique_ptr<ShellUpdater>    m_updater;
+    std::unique_ptr<EmulatorUpdaterHost>  m_updaterHost;
+    std::unique_ptr<ShellUpdater>         m_updater;
 
     // MachineManager, WindowCommandManager and the shell's components touch
     // enough shell state during construction and command dispatch that
@@ -642,8 +643,9 @@ private:
     friend class ShellPrinter;
     friend class ShellSettings;
     friend class ShellSerialCard;
+    friend class ShellNetworkCard;
     friend class ShellTapeDeck;
-    friend class ShellUpdater;
+    friend class EmulatorUpdaterHost;
     friend class MachineManager;
     friend class WindowCommandManager;
     friend class SettingsSheet;
@@ -664,6 +666,13 @@ private:
     //  destroyed after it: the card's host sockets close before WSACleanup.
     Win32HostNetwork        m_hostNetwork;
 
+    //  Windows Firewall's verdicts for this program, for the Network
+    //  settings page. Read on the UI thread, which is OLE initialized.
+    Win32NetworkChanges     m_networkChanges;
+    Win32HostFirewall       m_hostFirewall;
+    FirewallMonitor         m_firewall;
+    ListenGate              m_listenGate;   // the firewall's verdicts, for the Uthernet II's CPU-thread listens
+
     //  Notices raised before the window exists, displayed once it does.
     std::vector<std::wstring>  m_pendingNotices;
 
@@ -676,8 +685,16 @@ private:
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
     uint64_t               m_prngSeed      = 0;       // power-on DRAM seed; --seed overrides
     bool                   m_imageWatchDisabled = false;  // --no-image-watch (undocumented)
-    bool                   m_openDebuggerAtStart = false; // --debugger
-    std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
+    bool                                         m_openDebuggerAtStart = false; // --debugger
+    std::unique_ptr<class IByteStreamFactory>  m_streamFactory;   // opens the stream for each serial port's device
+    std::unique_ptr<class SerialTrafficLog>    m_serialLog;       // --serial-log; null without it
+
+    //  The files through which Casso Explorer finds this Casso's serial ports
+    //  on TCP.
+    std::unique_ptr<class IFileSystem>           m_linkFileSystem;
+    std::unique_ptr<class IProcessProbe>         m_processProbe;
+    std::unique_ptr<class RunningCassoRegistry>  m_runningRegistry;
+    std::atomic<bool>                            m_traceDumped     { false };   // one-shot guard for DumpTrace
    
 
     // The host audio output and every source mixed into it.
@@ -732,9 +749,9 @@ protected:
     // The flat drive band's row, for the band layout tests: lay the row out
     // in a client of the given size with no band below it, and read back
     // where the drives and the recorder landed.
-    void  LayoutDriveRowForTest   (int clientW, int clientH, UINT dpi, int visibleCount);
-    RECT  GetDriveRectForTest     (size_t drive) const;
-    RECT  GetTapeAnchorForTest    () const;
+    void  LayoutDriveRowForTest      (int clientW, int clientH, UINT dpi, int visibleCount);
+    RECT  GetDriveRectForTest        (size_t drive) const;
+    RECT  GetTapeAnchorForTest       () const;
     void  SetRecorderAttachedForTest (bool attached);
 
 private:
@@ -759,10 +776,6 @@ private:
 
     RECT                             m_viewportBoundsPx  = {};
 
-
-    // Tools waiting on an insert or a reload, and hand-offs whose folder is
-    // recorded once the mount succeeds.
-    IntentReplyTracker     m_intentReplies;
 
     // Native UI shell. Owns the painter, text renderer, hit-tester,
     // focus manager, animation broker, and input translator. Wired
@@ -828,6 +841,8 @@ private:
     std::unique_ptr<ShellDisks>               m_disks;
     std::unique_ptr<ShellTapeDeck>            m_tapeDeck;
     std::unique_ptr<ShellSerialCard>          m_serialCard;
+    std::unique_ptr<ShellNetworkCard>         m_networkCard;
+    std::wstring                              m_lastListenProblem;   // CPU thread: the sentence last passed to m_networkCard
     std::unique_ptr<MachineBuilder>           m_machineBuilder;
     std::unique_ptr<MachineManager>           m_machineManager;
     std::unique_ptr<WindowCommandManager>     m_windowCommandManager;

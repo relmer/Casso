@@ -2,7 +2,7 @@
 
 #include "EmuTests/ReverseSessionRig.h"
 #include "Devices/Printer/PrinterByteRing.h"
-#include "Machines/Apple2/Common/PrinterCard.h"
+#include "Devices/Printer/PrinterByteRing.h"
 #include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -55,7 +55,7 @@ public:
         machine.RunCycles (s_kGateLiveCycles);
 
         Assert::IsFalse (machine.GetRefs().speaker->GetToggleTimestamps().empty(), L"live, the speaker clicks");
-        Assert::AreNotEqual<uint32_t> (0, machine.GetRefs().printerCard->GetByteRing().GetApproxSize(), L"and the printer gets bytes");
+        Assert::AreNotEqual<uint32_t> (0, machine.GetRefs().printerRing->GetApproxSize(), L"and the printer gets bytes");
 
         oldest = controller.GetOldestPosition();
         live   = machine.GetPosition();
@@ -84,7 +84,7 @@ public:
         machine.RunCycles (s_kGateAfterCycles);
         Assert::IsTrue   (controller.IsInHistory(), L"still behind live");
         Assert::IsFalse  (machine.GetRefs().speaker->GetToggleTimestamps().empty(), L"running on behind live, the speaker clicks");
-        Assert::AreEqual<uint32_t> (0, machine.GetRefs().printerCard->GetByteRing().GetApproxSize(), L"but the printer gets nothing");
+        Assert::AreEqual<uint32_t> (0, machine.GetRefs().printerRing->GetApproxSize(), L"but the printer gets nothing");
         Drain (machine);
 
         while (controller.IsInHistory())
@@ -96,7 +96,7 @@ public:
         machine.RunCycles (s_kGateAfterCycles);
 
         Assert::IsFalse (machine.GetRefs().speaker->GetToggleTimestamps().empty(), L"live again, the speaker clicks again");
-        Assert::AreNotEqual<uint32_t> (0, machine.GetRefs().printerCard->GetByteRing().GetApproxSize(), L"and the printer gets bytes again");
+        Assert::AreNotEqual<uint32_t> (0, machine.GetRefs().printerRing->GetApproxSize(), L"and the printer gets bytes again");
     }
 
 
@@ -137,7 +137,7 @@ public:
         Drain (machine);
         machine.RunCycles (s_kGateAfterCycles);
 
-        Assert::AreNotEqual<uint32_t> (0, machine.GetRefs().printerCard->GetByteRing().GetApproxSize(), L"the printer gets bytes again");
+        Assert::AreNotEqual<uint32_t> (0, machine.GetRefs().printerRing->GetApproxSize(), L"the printer gets bytes again");
     }
 
 
@@ -160,7 +160,7 @@ private:
         machine.PowerCycle();
 
         Assert::IsNotNull (machine.GetRefs().speaker,     L"the //e has a speaker");
-        Assert::IsNotNull (machine.GetRefs().printerCard, L"and a printer card in slot 1");
+        Assert::IsNotNull (machine.GetRefs().printerRing, L"and a printer on the card in slot 1");
 
         for (i = 0; i < sizeof (kProgram); i++)
         {
@@ -181,7 +181,7 @@ private:
         machine.GetRefs().speaker->ClearTimestamps();
         machine.GetRefs().speaker->BeginFrame();
 
-        while (machine.GetRefs().printerCard->GetByteRing().TryPop (value))
+        while (machine.GetRefs().printerRing->TryPop (value))
         {
         }
     }
@@ -190,7 +190,7 @@ private:
     static void AssertSilent (TestMachine & machine, const wchar_t * what)
     {
         Assert::AreEqual<size_t>   (0, machine.GetRefs().speaker->GetToggleTimestamps().size(),            (std::wstring (what) + L" left speaker clicks").c_str());
-        Assert::AreEqual<uint32_t> (0, machine.GetRefs().printerCard->GetByteRing().GetApproxSize(),      (std::wstring (what) + L" left printer bytes").c_str());
+        Assert::AreEqual<uint32_t> (0, machine.GetRefs().printerRing->GetApproxSize(),      (std::wstring (what) + L" left printer bytes").c_str());
 
         Drain (machine);
     }

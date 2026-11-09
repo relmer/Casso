@@ -454,6 +454,10 @@ void DebuggerWindow::ApplyColumnWidths()
             continue;
         }
 
+        //  The list scales a width it has when its DPI changes, so it takes the
+        //  window's DPI first, and the widths in pixels at that DPI.
+        list->SetDpi (m_scaler.GetDpi());
+
         for (size_t c = 0; c < widths->second.size() && c < list->GetColumnCount(); c++)
         {
             bool  isFitted = c == DisassemblyCells::kLabelColumn || c == DisassemblyCells::kGutterColumn || c == DisassemblyCells::kHeatColumn ||

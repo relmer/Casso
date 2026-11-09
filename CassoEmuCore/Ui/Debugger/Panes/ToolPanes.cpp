@@ -242,6 +242,7 @@ void SymbolsPane::Configure()
         }
     });
 
+    m_list->SetSelectOnCheckPress (false);
     m_list->SetOnCheckToggled ([this] (int row, size_t, bool checked)
     {
         const Row  * each = GetRow (row);
@@ -591,7 +592,7 @@ std::vector<std::vector<DxuiListView::Cell>> SymbolsPane::GetCells (const Debugg
 
 
 
-            name.check = table->enabled;
+            name.check = DxuiListView::Cell::GetCheck (table->enabled);
             name.tip   = file.empty()          ? std::wstring()
                        : table->path.empty()   ? std::format (L"In the {} table", TextEncoding::NarrowToWide (row.table))
                        :                         std::format (L"{}\nIn the {} table", table->path, TextEncoding::NarrowToWide (row.table));

@@ -133,7 +133,7 @@ void DisassemblyViewPane::CreateControls()
 
 
     m_list   = parent.CreateChild<DxuiListView>();
-    m_banner = parent.CreateChild<DxuiActionBanner>();
+    m_banner = parent.CreateChild<DxuiInfoBanner>();
     m_bar.Create();
 
     m_banner->SetSeverity (DxuiInfoBanner::Severity::Info);

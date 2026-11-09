@@ -91,6 +91,40 @@ public:
             L"Hide before the show dwell fires must abort the pending show.");
     }
 
+    TEST_METHOD (Request_MovesOverTheSameControlKeepTheDwell)
+    {
+        DxuiTooltip  t;
+        t.SetDwellOpenMs (500);
+
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
+        t.RequestShow (MakeRect (2, 0, 52, 20), L"x", 300);
+        t.RequestShow (MakeRect (4, 0, 54, 20), L"x", 450);
+        t.Tick (500);
+
+        Assert::IsTrue (t.IsVisible(),
+            L"The dwell runs from the first request, not the last move, as Windows' tips do.");
+        Assert::AreEqual ((LONG) 4, t.GetAnchor().left, L"and the tip shows at the latest anchor");
+    }
+
+    TEST_METHOD (FollowPointer_MoveToAnotherControlWaitsTheFullDelay)
+    {
+        DxuiTooltip  t;
+        t.SetDwellOpenMs   (500);
+        t.SetFollowPointer (true);
+
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"Cut", 0);
+        t.Tick (500);
+        Assert::IsTrue (t.IsVisible());
+
+        t.RequestShow (MakeRect (60, 0, 110, 20), L"Copy", 1000);
+        t.Tick (1400);
+        Assert::IsFalse (t.IsVisible(), L"The next control's tip waits the whole delay again, as File Explorer's do");
+
+        t.Tick (1500);
+        Assert::IsTrue   (t.IsVisible());
+        Assert::AreEqual (std::wstring (L"Copy"), t.GetText());
+    }
+
     TEST_METHOD (Request_SwapAnchorWhileVisible)
     {
         DxuiTooltip  t;

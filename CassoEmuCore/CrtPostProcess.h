@@ -65,10 +65,18 @@ struct CrtParams
     // a color tube and a phosphor tube want different ones.
     float    bloomThreshold     = 0.0f;
 
+    // The picture's top left corner in the target, in pixels, which the
+    // final pass counts its dither from, so a picture is grained the same
+    // wherever it lands. `CrtPostProcess::Process` fills them in.
+    float    pictureX           = 0.0f;
+    float    pictureY           = 0.0f;
+
     // D3D11 requires a constant buffer size that is a multiple of 16
-    // bytes; the 15 fields above pack to 60, so pad to 64. No shader
-    // declares this one.
+    // bytes; the 17 fields above pack to 68, so pad to 80. No shader
+    // declares these.
     float    _pad0              = 0.0f;
+    float    _pad1              = 0.0f;
+    float    _pad2              = 0.0f;
 };
 
 

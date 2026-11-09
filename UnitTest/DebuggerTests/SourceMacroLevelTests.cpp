@@ -84,7 +84,7 @@ namespace DebuggerTests
         {
             DebuggerViewSnapshot  snapshot = MakeNested();
             DxuiTextView          view;
-            DxuiActionBanner      banner;
+            DxuiInfoBanner        banner;
             SourcePane            pane (&view, &banner,
                                         [] (const DebugSourceFile &, const std::wstring &, const std::string &)
                                         {

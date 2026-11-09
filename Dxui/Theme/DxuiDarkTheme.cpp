@@ -25,7 +25,9 @@
 //  Measured the same way on 2026-09-14.
 //
 //  In the list, a row under the pointer is #4D4D4D and a selected row #505050,
-//  outlined in #C3C3C3 while the list has focus. Measured on 2026-09-15.
+//  outlined in #C3C3C3 while the list has focus. Measured on 2026-09-15. A
+//  selected row in a pane without focus is #333333, and the other rows of a
+//  multiple selection #626262, outlined in the accent. Measured 2026-09-25.
 //
 //  A tooltip is File Explorer's: #2C2C2C bordered in #4A4A4A, with white text.
 //
@@ -54,7 +56,7 @@ DxuiDarkTheme::DxuiDarkTheme()
     navStrip                 = 0xFF2C2C2C;
     navHover                 = 0xFF194A6B;
     navItemText              = 0xFFFFFFFF;
-    dropdownBg               = 0xFF2C2C2C;
+    dropdownBg               = 0xFF2B2B2B;   // Explorer's menu cards, seen at 150%
     dropdownItemText         = 0xFFFFFFFF;
     dropdownAccel            = 0xFFC5C5C5;
     dropdownHover            = 0xFF383838;
@@ -70,6 +72,10 @@ DxuiDarkTheme::DxuiDarkTheme()
     contentHover             = 0xFF4D4D4D;
     contentSelection         = 0xFF505050;
     contentSelectionEdge     = 0xFFC3C3C3;
+    contentSelectionInactive = 0xFF333333;
+    contentSelectionMulti    = 0xFF626262;
+    contentHeaderDivider     = 0xFF474747;   // Explorer's column header dividers, seen at 150%
+    menuSeparator            = 0xFF3C3C3C;   // Explorer's menu separators, seen at 150%
     panelEdge                = 0xFF3A3A3A;
     buttonIdle               = 0xFF2D2D2D;
     buttonHover              = 0xFF323232;

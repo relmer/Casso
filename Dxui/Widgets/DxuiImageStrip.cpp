@@ -209,11 +209,9 @@ int DxuiImageStrip::GetWidthPx (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiImageStrip::GetMinWidthPx (const DxuiDpiScaler & scaler) const
+int DxuiImageStrip::GetMinWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const
 {
-    UNREFERENCED_PARAMETER (scaler);
-
-    return (m_idealPx > 0) ? m_idealPx : -1;
+    return (m_idealPx > 0) ? m_idealPx : GetWidthPx (labeled, scaler, text);
 }
 
 

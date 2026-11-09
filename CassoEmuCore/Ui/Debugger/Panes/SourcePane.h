@@ -112,13 +112,13 @@ public:
     static int   FindOperandSymbol       (const std::wstring & line, int codeAt, const std::vector<SymbolInfo> & symbols);
     static bool  IsOperandSymbolAt       (const std::wstring & line, int codeAt, int ch, const std::vector<SymbolInfo> & symbols);
 
-    SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run);
+    SourcePane (DxuiTextView * view, DxuiInfoBanner * banner, FindFn find, RunFn run);
 
     SourcePane (const SourcePane &)             = delete;
     SourcePane & operator= (const SourcePane &) = delete;
 
-    DxuiTextView      * GetView   () const { return m_view; }
-    DxuiActionBanner  * GetBanner () const { return m_banner; }
+    DxuiTextView    * GetView   () const { return m_view; }
+    DxuiInfoBanner  * GetBanner () const { return m_banner; }
 
     //  Whether a debug file is loaded and the document has a file, which is
     //  when it is shown.
@@ -150,7 +150,7 @@ public:
     void                     SetAssembler       (SourceSyntax::Assembler assembler);
     SourceSyntax::Assembler  GetAssemblerChoice () const { return m_assemblerChoice; }
     SourceSyntax::Assembler  GetAssembler       () const;
-    void  Apply         (const DebuggerViewSnapshot & snapshot);
+    void                     Apply              (const DebuggerViewSnapshot & snapshot);
 
     //  The file this document shows, or -1 for none; a new file is found
     //  through the host the next time the document is applied.
@@ -174,7 +174,7 @@ public:
     void  SetTopSourceLine (int line);
 
     //  A code row was selected: scroll to its line when it is in this file.
-    void  ShowLine      (int fileId, int line);
+    void  ShowLine         (int fileId, int line);
     void  FollowMarkedLine ();
 
     //  Scrolls to the line the PC's branch goes to, and returns false when
@@ -198,7 +198,7 @@ public:
     //  The line under a point when it has code, and its breakpoint, if it has
     //  one; false off every line with code. The breakpoint is set, switched
     //  on or off, or cleared by the actions that follow.
-    bool  TryGetLineBreakpoint (POINT atDip, int & line, std::optional<LineBreakpoint> & breakpoint) const;
+    bool                           TryGetLineBreakpoint   (POINT atDip, int & line, std::optional<LineBreakpoint> & breakpoint) const;
     std::optional<DebuggerAction>  GetSetBreakpointAction (int line, CommandMode mode) const;
 
     //  The tip of the heat strip under a point, and where to put it: by the
@@ -211,8 +211,8 @@ public:
     //  A file with no debug file record, shown as text with no line mapping,
     //  with or without a debug file loaded. A source says it has no symbols
     //  and offers Load symbols, which goes to the window.
-    void  ShowLoose     (const std::wstring & path, const std::string & text, bool isSource);
-    bool  IsLoose       () const { return m_isLoose; }
+    void  ShowLoose        (const std::wstring & path, const std::string & text, bool isSource);
+    bool  IsLoose          () const { return m_isLoose; }
     void  SetOnLoadSymbols (std::function<void ()> fn) { m_onLoadSymbols = std::move (fn); }
 
     //  What a source with no debug file record says, and its button.
@@ -238,9 +238,9 @@ public:
 
     //  Over a word of the source text, the symbol it is, and whether it is
     //  the symbol its line's operand is written with.
-    bool  TryGetSymbolTip (POINT atDip, const std::vector<SymbolInfo> & symbols, std::wstring & text, RECT & anchor) const;
-    const SymbolInfo *  FindSymbolAt (POINT atDip, const std::vector<SymbolInfo> & symbols) const;
-    bool  IsOperandSymbolAt (POINT atDip, const std::vector<SymbolInfo> & symbols) const;
+    bool                TryGetSymbolTip   (POINT atDip, const std::vector<SymbolInfo> & symbols, std::wstring & text, RECT & anchor) const;
+    const SymbolInfo  * FindSymbolAt      (POINT atDip, const std::vector<SymbolInfo> & symbols) const;
+    bool                IsOperandSymbolAt (POINT atDip, const std::vector<SymbolInfo> & symbols) const;
 
     //  The line the PC's branch goes to in a file, if a line there starts at
     //  it, and whether it lies below the marked line; false for no branch.
@@ -267,7 +267,7 @@ public:
 
     //  The command a double click on a line sends: clearing the breakpoint
     //  already on it, or setting one.
-    static std::string  GetToggleLine (const DebuggerViewSnapshot::SourceState & state, int fileId, int line);
+    static std::string                    GetToggleLine   (const DebuggerViewSnapshot::SourceState & state, int fileId, int line);
     static std::optional<DebuggerAction>  GetToggleAction (const DebuggerViewSnapshot::SourceState & state, int fileId, int line, CommandMode mode);
 
     static std::wstring  GetBannerText (SourceMatch match, const std::string & fileName, bool hasText,
@@ -300,19 +300,19 @@ public:
 private:
     static constexpr int  kTabWidth = 4;
 
-    void  LoadFile   (int fileId);
-    void  Rebuild    ();
-    void  ShowLooseBanner ();
-    void  ScrollTo   (int line);
-    std::optional<int>  GetLineAt (POINT atDip) const;
-    int   GetRowOfLine (int line) const;
-    bool  HasCode      (int line) const;
-    std::string  GetFileName (int fileId) const;
+    void                LoadFile        (int fileId);
+    void                Rebuild         ();
+    void                ShowLooseBanner ();
+    void                ScrollTo        (int line);
+    std::optional<int>  GetLineAt       (POINT atDip) const;
+    int                 GetRowOfLine    (int line) const;
+    bool                HasCode         (int line) const;
+    std::string         GetFileName     (int fileId) const;
 
-    DxuiTextView                                     * m_view    = nullptr;
-    DxuiActionBanner                                 * m_banner  = nullptr;
-    FindFn                                             m_find;
-    RunFn                                              m_run;
+    DxuiTextView    * m_view   = nullptr;
+    DxuiInfoBanner  * m_banner = nullptr;
+    FindFn            m_find;
+    RunFn             m_run;
 
     std::function<void ()>                            m_onToggleBody;
     std::function<void ()>                            m_onLoadSymbols;

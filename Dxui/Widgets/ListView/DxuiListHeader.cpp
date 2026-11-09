@@ -1,0 +1,1454 @@
+#include "Pch.h"
+
+#include "Widgets/ListView/DxuiListHeader.h"
+#include "Theme/DxuiColor.h"
+#include "Widgets/DxuiListView.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::DxuiListHeader
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListHeader::DxuiListHeader (DxuiListView & list)
+    : m_list (list)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HitTestColumnResize
+//
+//  Returns the index of a column whose right-edge separator the point
+//  is hovering, suitable for starting a column-resize drag, or -1 if
+//  the point is outside the header strip or not near a resize handle.
+//  tolerancePx is the half-width of the hit zone straddling the
+//  separator. The last visible column has no right separator and is
+//  excluded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListHeader::HitTestColumnResize (int xPx, int yPx, int tolerancePx) const
+{
+    HRESULT           hr      = S_OK;
+    int               result  = -1;
+    int               headerH = m_list.m_showHeader ? m_list.GetHeaderBarPx() : 0;
+    int               cap     = m_list.m_scrollbars.GetVisibleRowCapacity();
+    bool              needBar = (m_list.m_grouping.GetLineCount() > cap) && (cap > 0);
+    int               fullW   = (m_list.m_boundsDip.right - m_list.m_boundsDip.left) - (needBar ? m_list.GetScrollbarWidthPx() : 0);
+    int               xAdj    = m_list.m_hScrollEnabled ? (xPx + m_list.m_leftPx) : xPx;
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    BAIL_OUT_IF (!m_list.m_showHeader || headerH <= 0, S_OK);
+    BAIL_OUT_IF (yPx < 0 || yPx >= headerH, S_OK);
+    BAIL_OUT_IF (xPx < 0 || xPx >= fullW, S_OK);
+
+    m_list.m_columnSizing.ComputeColumnLayout ((float) fullW, colXPx, colWPx);
+
+    for (size_t c = 0; c < m_list.m_columns.size(); ++c)
+    {
+        int  rightEdge = 0;
+
+        if (!m_list.m_columns[c].visible || colWPx[c] <= 0)
+        {
+            continue;
+        }
+
+        //  EVERY COLUMN'S EDGE CAN BE GRABBED, a stretch column's included. A
+        //  stretch column absorbs the spare width by default, but that is no
+        //  reason it cannot be given a width of its own: the layout keeps a
+        //  width dragged onto one. Excluding it made the file browser's Name
+        //  column, the one most wanted wider, impossible to resize.
+        rightEdge = colXPx[c] + colWPx[c];
+
+        if (xAdj >= rightEdge - tolerancePx && xAdj <= rightEdge + tolerancePx)
+        {
+            result = (int) c;
+            break;
+        }
+    }
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HitTestHeaderColumn
+//
+//  xPx/yPx are relative to the list's rect.left/top. Returns the column
+//  index of the header cell under the point (visible columns only), or
+//  -1 if the point is not inside the header strip. Use this to
+//  implement per-column sort on click.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListHeader::HitTestHeaderColumn (int xPx, int yPx) const
+{
+    HRESULT          hr      = S_OK;
+    int              result  = -1;
+    int              headerH = m_list.m_showHeader ? m_list.GetHeaderBarPx() : 0;
+    int              cap     = m_list.m_scrollbars.GetVisibleRowCapacity();
+    bool             needBar = (m_list.m_grouping.GetLineCount() > cap) && (cap > 0);
+    int              fullW   = (m_list.m_boundsDip.right - m_list.m_boundsDip.left) - (needBar ? m_list.GetScrollbarWidthPx() : 0);
+    int              xAdj    = m_list.m_hScrollEnabled ? (xPx + m_list.m_leftPx) : xPx;
+    std::vector<int> colXPx;
+    std::vector<int> colWPx;
+
+
+
+    BAIL_OUT_IF (!m_list.m_showHeader || headerH <= 0, S_OK);
+    BAIL_OUT_IF (yPx < 0 || yPx >= headerH, S_OK);
+    BAIL_OUT_IF (xPx < 0 || xPx >= fullW, S_OK);
+
+    m_list.m_columnSizing.ComputeColumnLayout ((float) fullW, colXPx, colWPx);
+
+    for (size_t c = 0; c < m_list.m_columns.size(); ++c)
+    {
+        if (!m_list.m_columns[c].visible || colWPx[c] <= 0)
+        {
+            continue;
+        }
+
+        if (xAdj >= colXPx[c] && xAdj < colXPx[c] + colWPx[c])
+        {
+            result = (int) c;
+            break;
+        }
+    }
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HitTestFilterChevron
+//
+//  The chevron is the right end of the header cell, inside the divider's
+//  grab zone, so a press there opens the filter rather than sorting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListHeader::HitTestFilterChevron (int xPx, int yPx, RECT & outChevron) const
+{
+    int               column  = HitTestHeaderColumn (xPx, yPx);
+    int               cap     = m_list.m_scrollbars.GetVisibleRowCapacity();
+    bool              needBar = (m_list.m_grouping.GetLineCount() > cap) && (cap > 0);
+    int               fullW   = (m_list.m_boundsDip.right - m_list.m_boundsDip.left) - (needBar ? m_list.GetScrollbarWidthPx() : 0);
+    int               shift   = m_list.m_hScrollEnabled ? -m_list.m_leftPx : 0;
+    int               width   = m_list.m_scaler.ToPx (s_kChevronDip);
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    if (column < 0 || !m_list.m_columns[(size_t) column].filterable)
+    {
+        return -1;
+    }
+
+    m_list.m_columnSizing.ComputeColumnLayout ((float) fullW, colXPx, colWPx);
+
+    outChevron = RECT { colXPx[(size_t) column] + colWPx[(size_t) column] - width + shift, 0,
+                        colXPx[(size_t) column] + colWPx[(size_t) column] + shift, m_list.GetHeaderBarPx() };
+
+    return (xPx >= outChevron.left && xPx < outChevron.right) ? column : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintHeader
+//
+//  Paints the header background, the column titles, the active sort
+//  glyph, the bottom border, and the faint vertical column separators.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListHeader::PaintHeader (
+    IDxuiPainter           & painter,
+    IDxuiTextRenderer    & text,
+    const DxuiListViewTypes::Palette          & pal,
+    float                    x,
+    float                    y,
+    float                    layoutW,
+    const std::vector<int> & colXPx,
+    const std::vector<int> & colWPx) const
+{
+    HRESULT  hr          = S_OK;
+    float    headerH     = (float) m_list.GetHeaderBarPx();
+    float    cellPadR    = (float) m_list.m_columnSizing.GetCellPadRightPx();
+    bool     sortAbove   = IsSortAboveTitle();
+    float    hdrFontPx   = (float) m_list.m_scaler.ToPxf (m_list.m_fontDip);
+    float    colOff      = m_list.m_hScrollEnabled ? -(float) m_list.m_leftPx : 0.0f;
+    //  Explorer sets its titles and dividers in a band shorter than the bar.
+    float    titleH      = m_list.m_explorerDetails ? (std::min) (headerH, m_list.m_scaler.ToPxf (s_kExplorerTitleBandDip)) : headerH;
+    int      rowCount    = m_list.GetRowCount();
+    bool     allSelected = rowCount > 0 && (int) m_list.m_selectedRows.size() == rowCount;
+
+
+
+    painter.FillRect (x, y, layoutW, headerH, pal.bgHeader);
+
+    //  The dragged header goes last, over the others; it follows the pointer
+    //  along the header row and nowhere else.
+    for (size_t n = 0; n <= m_list.m_columns.size(); ++n)
+    {
+        bool     dragged     = n == m_list.m_columns.size();
+        size_t   c           = dragged ? (size_t) (std::max) (m_headerPressCol, 0) : n;
+        bool     hasSort     = ((int) c == m_sortColumn) && m_list.m_columns[c].visible && (colWPx[c] > 0);
+        float    filterW     = HasFunnel (c) ? m_list.m_scaler.ToPxf (s_kFilterGlyphDip) : 0.0f;
+        float    sortW       = (hasSort && !sortAbove) ? m_list.m_scaler.ToPxf (s_kSortGlyphDip) : 0.0f;
+        float    titlePad    = (float) m_list.m_columnSizing.GetHeaderTitlePadPx (c);
+        float    titleW      = (float) colWPx[c] - titlePad - cellPadR - filterW - sortW;
+        float    shift       = 0.0f;
+
+        if (dragged && !(m_headerDragging && m_headerPressCol >= 0))
+        {
+            continue;
+        }
+
+        if (!dragged && m_headerDragging && (int) c == m_headerPressCol)
+        {
+            continue;
+        }
+
+        if (!m_list.m_columns[c].visible || colWPx[c] <= 0)
+        {
+            continue;
+        }
+
+        if (dragged)
+        {
+            shift = std::clamp ((float) (m_headerDragXPx - m_headerPressXPx), -(float) colXPx[c], layoutW - (float) (colXPx[c] + colWPx[c]) - colOff);
+
+            painter.FillRect (x + colOff + (float) colXPx[c] + shift, y, (float) colWPx[c], titleH, pal.bgHover);
+        }
+        else
+        {
+            shift = GetHeaderSlidePx (c, m_list.GetClockMs());
+
+            //  The header under the pointer, or pressed, is highlighted as
+            //  Explorer's is, over the title band alone.
+            if ((int) c == m_hoverCol || (int) c == m_headerPressCol)
+            {
+                painter.FillRect (x + colOff + (float) colXPx[c] + shift, y, (float) colWPx[c], titleH, pal.bgHover);
+            }
+        }
+
+        if (titleW < 0.0f)
+        {
+            titleW = 0.0f;
+        }
+
+        hr = text.DrawString (m_list.m_columns[c].title.c_str(),
+                              x + colOff + (float) colXPx[c] + shift + titlePad,
+                              y,
+                              titleW,
+                              titleH,
+                              pal.hdrFg, hdrFontPx, DxuiTheme::kBodyFace,
+                              m_list.m_explorerDetails ? DxuiTextHAlign::Left : m_list.m_columns[c].align,
+                              DxuiTextVAlign::Center,
+                              DxuiFontWeight::Normal,
+                              false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        if ((int) c == m_list.m_iconColumn && HasSelectAllBox())
+        {
+            RECT  box = GetSelectAllBoxPx (colXPx[c]);
+
+            m_list.m_rows.PaintCheckBox (painter, text, allSelected ? DxuiListViewTypes::Cell::Check::On : DxuiListViewTypes::Cell::Check::Off,
+                                         x + colOff + shift + (float) box.left, y + (float) box.top, (float) (box.bottom - box.top), true);
+        }
+
+        //  File Explorer's filter button, at the cell's right end while the
+        //  header is hovered, and always while the column is filtered: a
+        //  hairline at its left edge while hovered, and a small chevron.
+        if (m_list.m_columns[c].filterable && ((int) c == m_hoverCol || m_list.m_columns[c].filtered) && !dragged)
+        {
+            float     chevronW = (float) m_list.m_scaler.ToPxf ((float) s_kChevronDip);
+            float     left     = x + colOff + (float) (colXPx[c] + colWPx[c]) + shift - chevronW;
+            float     cx       = std::round (left + chevronW / 2.0f);
+            float     cy       = std::round (y + titleH / 2.0f);
+            float     halfW    = (float) m_list.m_scaler.ToPxf (3.0f);
+            float     halfH    = (float) m_list.m_scaler.ToPxf (1.5f);
+            float     thick    = (float) m_list.m_scaler.ToPxf (0.75f);
+            uint32_t  ink      = (m_list.m_columns[c].filtered && pal.edgeSel != 0) ? pal.edgeSel : DxuiColor::ScaleAlpha (pal.hdrFg, 0.9f);
+
+            if ((int) c == m_hoverCol)
+            {
+                painter.FillRect (std::floor (left), y, 1.0f, titleH, DxuiColor::ScaleAlpha (pal.hdrFg, 0.1f));
+            }
+
+            painter.DrawLine (cx - halfW, cy - halfH, cx, cy + halfH, thick, ink);
+            painter.DrawLine (cx, cy + halfH, cx + halfW, cy - halfH, thick, ink);
+        }
+
+        //  File Explorer's sort indicator: a small chevron centered over the
+        //  column title, pointing up for ascending and down for descending.
+        //  A heading too short for it above the title has it at the right
+        //  end instead, left of any funnel.
+        if (hasSort)
+        {
+            float  halfW = (float) m_list.m_scaler.ToPxf (3.0f);
+            float  halfH = (float) m_list.m_scaler.ToPxf (1.5f);
+            float  thick = (float) m_list.m_scaler.ToPxf (0.75f);
+            float  right = x + colOff + (float) (colXPx[c] + colWPx[c]) + shift - cellPadR - filterW;
+            float  cx    = sortAbove ? x + colOff + (float) colXPx[c] + shift + (float) colWPx[c] / 2.0f : right - sortW / 2.0f;
+            float  cy    = sortAbove ? y + (float) m_list.m_scaler.ToPxf (6.0f) : y + titleH / 2.0f;
+            float  tipY  = m_sortDescending ? (cy + halfH) : (cy - halfH);
+            float  endY  = m_sortDescending ? (cy - halfH) : (cy + halfH);
+
+            painter.DrawLine (cx - halfW, endY, cx, tipY, thick, DxuiColor::ScaleAlpha (pal.hdrFg, 0.7f));
+            painter.DrawLine (cx, tipY, cx + halfW, endY, thick, DxuiColor::ScaleAlpha (pal.hdrFg, 0.7f));
+        }
+
+        //  A funnel at the right end of the heading, right of the title: a
+        //  wide top narrowing to a short stem.
+        if (HasFunnel (c))
+        {
+            float  thick = m_list.m_scaler.ToPxf (1.0f);
+            float  halfW = m_list.m_scaler.ToPxf (4.0f);
+            float  stemW = m_list.m_scaler.ToPxf (1.0f);
+            float  right = x + colOff + (float) (colXPx[c] + colWPx[c]) + shift - cellPadR;
+            float  cx    = right - halfW;
+            float  top   = y + titleH / 2.0f - m_list.m_scaler.ToPxf (4.0f);
+            float  mid   = top + m_list.m_scaler.ToPxf (4.0f);
+            float  foot  = top + m_list.m_scaler.ToPxf (8.0f);
+
+            painter.DrawLine (cx - halfW, top, cx + halfW, top, thick, pal.hdrFg);
+            painter.DrawLine (cx - halfW, top, cx - stemW, mid, thick, pal.hdrFg);
+            painter.DrawLine (cx + halfW, top, cx + stemW, mid, thick, pal.hdrFg);
+            painter.DrawLine (cx - stemW, mid, cx - stemW, foot, thick, pal.hdrFg);
+            painter.DrawLine (cx + stemW, mid, cx + stemW, foot, thick, pal.hdrFg);
+        }
+    }
+
+    // Faint vertical separators between header columns so the user
+    // can see where each column ends (and where the resize handle
+    // lives). The separators scroll with the columns, so CPU-clip any
+    // that fall outside the content viewport (IDxuiPainter has no clip).
+    //  An untitled column -- a gutter, a marker -- has no heading to set off,
+    //  so it draws none, and the header does not show an empty box over it.
+    for (size_t c = 0; c < m_list.m_columns.size(); ++c)
+    {
+        float  sepX = 0.0f;
+
+        if (!m_list.m_columns[c].visible || colWPx[c] <= 0 || m_list.m_columns[c].title.empty())
+        {
+            continue;
+        }
+
+        sepX = x + colOff + (float) colXPx[c] + (float) colWPx[c] - 1.0f + GetHeaderSlidePx (c, m_list.GetClockMs());
+
+        if (m_headerDragging && (int) c == m_headerPressCol)
+        {
+            continue;
+        }
+
+        if (sepX < x || sepX >= x + layoutW)
+        {
+            continue;
+        }
+
+        if (m_list.m_explorerDetails)
+        {
+            painter.FillRect (sepX, y, 1.0f, titleH, DxuiColor::ScaleAlpha (pal.fg, s_kExplorerDividerAlpha));
+        }
+        else
+        {
+            painter.FillRect (sepX, y + 2.0f, 1.0f, headerH - 4.0f, pal.border);
+        }
+    }
+
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasSelectAllBox
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::HasSelectAllBox() const
+{
+    return m_list.m_explorerCheckBoxes && m_list.m_itemCheckBoxes && m_list.m_explorerDetails && m_list.m_multiSelect
+           && m_list.m_iconColumn >= 0 && (size_t) m_list.m_iconColumn < m_list.m_columns.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSelectAllBoxPx
+//
+//  The box Explorer puts ahead of the name column's title, centered in the
+//  title band.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiListHeader::GetSelectAllBoxPx (int colLeftPx) const
+{
+    int    boxPx  = m_list.GetCheckBoxPx();
+    float  titleH = (std::min) ((float) m_list.GetHeaderBarPx(), m_list.m_scaler.ToPxf (s_kExplorerTitleBandDip));
+    int    left   = colLeftPx + (int) std::lround (m_list.m_scaler.ToPxf (s_kExplorerSelectAllLeftDip));
+    int    top    = (int) std::floor ((titleH - (float) boxPx) * 0.5f);
+
+
+
+    return RECT { left, top, left + boxPx, top + boxPx };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSelectAllPress
+//
+//  A press on the header's box selects every row, or none when every row is
+//  selected already, as Explorer's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::OnSelectAllPress (int lx, int ly)
+{
+    int               cap     = m_list.m_scrollbars.GetVisibleRowCapacity();
+    bool              needBar = (m_list.m_grouping.GetLineCount() > cap) && (cap > 0);
+    int               fullW   = (m_list.m_boundsDip.right - m_list.m_boundsDip.left) - (needBar ? m_list.GetScrollbarWidthPx() : 0);
+    int               xAdj    = m_list.m_hScrollEnabled ? (lx + m_list.m_leftPx) : lx;
+    int               count   = m_list.GetRowCount();
+    RECT              box     = {};
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    if (!HasSelectAllBox() || !m_list.m_showHeader)
+    {
+        return false;
+    }
+
+    m_list.m_columnSizing.ComputeColumnLayout ((float) fullW, colXPx, colWPx);
+    box = GetSelectAllBoxPx (colXPx[(size_t) m_list.m_iconColumn]);
+
+    if (xAdj < box.left || xAdj >= box.right || ly < box.top || ly >= box.bottom)
+    {
+        return false;
+    }
+
+    if (count > 0 && (int) m_list.m_selectedRows.size() == count)
+    {
+        m_list.ClearSelection();
+    }
+    else
+    {
+        m_list.SelectAllRows();
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateHeaderSlides
+//
+//  Where each column would sit if the dragged one landed at the pointer: the
+//  ones between where it was and where it would go move over by its width.
+//  A column whose place changes starts easing toward it from where it is now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListHeader::UpdateHeaderSlides()
+{
+    int               pos     = GetColumnDropPosition (m_headerDragXPx);
+    int64_t           now     = m_list.GetClockMs();
+    int               cap     = m_list.m_scrollbars.GetVisibleRowCapacity();
+    bool              needBar = (m_list.m_grouping.GetLineCount() > cap) && (cap > 0);
+    int               fullW   = (m_list.m_boundsDip.right - m_list.m_boundsDip.left) - (needBar ? m_list.GetScrollbarWidthPx() : 0);
+    size_t            from    = 0;
+    float             width   = 0.0f;
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    if (pos == m_headerDropPos || m_headerPressCol < 0)
+    {
+        return;
+    }
+
+    m_headerDropPos = pos;
+    m_headerSlides.resize (m_list.m_columns.size());
+
+    m_list.m_columnSizing.ComputeColumnLayout ((float) fullW, colXPx, colWPx);
+
+    from  = (size_t) (std::find (m_columnOrder.begin(), m_columnOrder.end(), (size_t) m_headerPressCol) - m_columnOrder.begin());
+    width = (float) colWPx[(size_t) m_headerPressCol];
+
+    for (size_t n = 0; n < m_columnOrder.size(); n++)
+    {
+        size_t  c      = m_columnOrder[n];
+        float   target = 0.0f;
+
+        if ((int) c == m_headerPressCol)
+        {
+            continue;
+        }
+
+        if ((size_t) pos > from + 1 && n > from && n < (size_t) pos)
+        {
+            target = -width;
+        }
+        else if ((size_t) pos < from && n >= (size_t) pos && n < from)
+        {
+            target = width;
+        }
+
+        if (target != m_headerSlides[c].toPx)
+        {
+            m_headerSlides[c].fromPx  = GetHeaderSlidePx (c, now);
+            m_headerSlides[c].toPx    = target;
+            m_headerSlides[c].startMs = now;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHeaderSlidePx
+//
+//  How far a column's header has slid at this moment, eased out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiListHeader::GetHeaderSlidePx (size_t column, int64_t nowMs) const
+{
+    float  t = 0.0f;
+
+
+
+    if (!m_headerDragging || column >= m_headerSlides.size())
+    {
+        return 0.0f;
+    }
+
+    const HeaderSlide & slide = m_headerSlides[column];
+
+    t = std::clamp ((float) (nowMs - slide.startMs) / (float) s_kHeaderSlideMs, 0.0f, 1.0f);
+    t = 1.0f - (1.0f - t) * (1.0f - t);
+
+    return slide.fromPx + (slide.toPx - slide.fromPx) * t;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsHeaderSliding
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::IsHeaderSliding (int64_t nowMs) const
+{
+    if (!m_headerDragging)
+    {
+        return false;
+    }
+
+    return std::any_of (m_headerSlides.begin(), m_headerSlides.end(), [nowMs] (const HeaderSlide & slide)
+    {
+        return slide.fromPx != slide.toPx && nowMs - slide.startMs < s_kHeaderSlideMs;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintHeaderFocusMarkers
+//
+//  Overlays the keyboard-focus markers: a 1px rectangle around the
+//  header that Space will sort on, and a brighter 2px bar on the
+//  column divider that Left/Right will resize.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListHeader::PaintHeaderFocusMarkers (
+    IDxuiPainter           & painter,
+    const DxuiListViewTypes::Palette          & pal,
+    float                    x,
+    float                    y,
+    const std::vector<int> & colXPx,
+    const std::vector<int> & colWPx) const
+{
+    float     headerH   = (float) m_list.GetHeaderBarPx();
+    uint32_t  focusArgb = (pal.fg & 0x00FFFFFFu) | 0xC0000000u;
+    float     colOff    = m_list.m_hScrollEnabled ? -(float) m_list.m_leftPx : 0.0f;
+    float     clipR     = x + (float) m_list.m_scrollbars.ComputeScrollLayout().viewportW;
+
+
+
+    if (m_focusedHeaderCol >= 0 
+        && (size_t) m_focusedHeaderCol < m_list.m_columns.size()
+        && m_list.m_columns[(size_t) m_focusedHeaderCol].visible
+        && colWPx[(size_t) m_focusedHeaderCol] > 0)
+    {
+        float  fx    = x + colOff + (float) colXPx[(size_t) m_focusedHeaderCol];
+        float  fw    = (float) colWPx[(size_t) m_focusedHeaderCol];
+        float  left  = std::max (fx, x);
+        float  right = std::min (fx + fw, clipR);
+
+        if (right > left)
+        {
+            painter.FillRect (left, y,               right - left, 1.0f,    focusArgb);
+            painter.FillRect (left, y + headerH - 1, right - left, 1.0f,    focusArgb);
+
+            if (fx >= x && fx < clipR)
+            {
+                painter.FillRect (fx, y, 1.0f, headerH, focusArgb);
+            }
+
+            if (fx + fw - 1.0f >= x && fx + fw - 1.0f < clipR)
+            {
+                painter.FillRect (fx + fw - 1.0f, y, 1.0f, headerH, focusArgb);
+            }
+        }
+    }
+
+    if (m_focusedDividerCol >= 0 && (size_t) m_focusedDividerCol < m_list.m_columns.size()
+        && m_list.m_columns[(size_t) m_focusedDividerCol].visible
+        && colWPx[(size_t) m_focusedDividerCol] > 0)
+    {
+        float  dx = x + colOff + (float) colXPx[(size_t) m_focusedDividerCol]
+                      + (float) colWPx[(size_t) m_focusedDividerCol] - 2.0f;
+
+        if (dx >= x && dx < clipR)
+        {
+            painter.FillRect (dx, y + 1.0f, 2.0f, headerH - 2.0f, focusArgb);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetColumnOrder
+//
+//  Taken only when it names every column once, so a stored order from a
+//  build with other columns falls back to their own order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListHeader::SetColumnOrder (const std::vector<size_t> & order)
+{
+    std::vector<bool>  seen (m_list.m_columns.size(), false);
+
+
+
+    if (order.size() != m_list.m_columns.size())
+    {
+        return;
+    }
+
+    for (size_t c : order)
+    {
+        if (c >= seen.size() || seen[c])
+        {
+            return;
+        }
+
+        seen[c] = true;
+    }
+
+    m_columnOrder = order;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetColumnDropPosition
+//
+//  The position in the order before the first shown column whose middle is
+//  right of the point, or the end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListHeader::GetColumnDropPosition (int xPx) const
+{
+    int               cap     = m_list.m_scrollbars.GetVisibleRowCapacity();
+    bool              needBar = (m_list.m_grouping.GetLineCount() > cap) && (cap > 0);
+    int               fullW   = (m_list.m_boundsDip.right - m_list.m_boundsDip.left) - (needBar ? m_list.GetScrollbarWidthPx() : 0);
+    int               xAdj    = m_list.m_hScrollEnabled ? (xPx + m_list.m_leftPx) : xPx;
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    m_list.m_columnSizing.ComputeColumnLayout ((float) fullW, colXPx, colWPx);
+
+    for (size_t n = 0; n < m_columnOrder.size(); n++)
+    {
+        size_t  c = m_columnOrder[n];
+
+        if (m_list.m_columns[c].visible && colWPx[c] > 0 && xAdj < colXPx[c] + colWPx[c] / 2)
+        {
+            return (int) n;
+        }
+    }
+
+    return (int) m_columnOrder.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndHeaderPress
+//
+//  A release on the header pressed sorts by it; a release after a drag
+//  moves the pressed column to where it was dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListHeader::EndHeaderPress (int lx, int ly)
+{
+    int     pressed = m_headerPressCol;
+    bool    dragged = m_headerDragging;
+    int     target  = 0;
+    size_t  from    = 0;
+
+
+
+    m_headerPressCol = -1;
+    m_headerDragging = false;
+    m_headerDropPos         = -1;
+    m_headerSlides.clear();
+
+    if (!dragged)
+    {
+        if (HitTestHeaderColumn (lx, ly) == pressed && m_onSortColumn)
+        {
+            m_onSortColumn (pressed);
+        }
+
+        return;
+    }
+
+    target = GetColumnDropPosition (lx);
+    from   = (size_t) (std::find (m_columnOrder.begin(), m_columnOrder.end(), (size_t) pressed) - m_columnOrder.begin());
+
+    if (from >= m_columnOrder.size())
+    {
+        return;
+    }
+
+    //  Dropped on either side of itself, it stays where it is.
+    if ((size_t) target == from || (size_t) target == from + 1)
+    {
+        return;
+    }
+
+    m_columnOrder.erase (m_columnOrder.begin() + (ptrdiff_t) from);
+
+    if ((size_t) target > from)
+    {
+        target--;
+    }
+
+    m_columnOrder.insert (m_columnOrder.begin() + target, (size_t) pressed);
+
+    if (m_onColumnsReordered)
+    {
+        m_onColumnsReordered (m_columnOrder);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::OnPress
+//
+//  A press on a column's divider starts its resize, and a second press on
+//  the same divider inside the double-click time fits the column to its
+//  content instead, as it does in Explorer. The pair is consumed so a third
+//  press counts afresh. A press on a header sorts on the release rather than
+//  here, since the press may instead start a drag that moves the column.
+//  Returns whether the press was on the header.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::OnPress (int lx, int ly)
+{
+    int  grabTol   = m_list.m_scaler.ToPx (DxuiListView::s_kResizeGrabDip);
+    int  resizeCol = HitTestColumnResize (lx, ly, grabTol);
+    int  headerCol = -1;
+
+
+
+    if (resizeCol >= 0)
+    {
+        int64_t  nowMs = (int64_t) GetTickCount64();
+        bool     fit   = (resizeCol == m_lastDividerCol)
+                         && (nowMs - m_lastDividerMs) <= (int64_t) GetDoubleClickTime();
+
+        m_lastDividerCol = fit ? -1 : resizeCol;
+        m_lastDividerMs  = nowMs;
+
+        if (fit)
+        {
+            m_list.m_columnSizing.FitColumnToContent ((size_t) resizeCol);
+            return true;
+        }
+
+        m_resizeColumn   = resizeCol;
+        m_resizeStartXPx = lx;
+        m_resizeStartWPx = m_list.m_columnSizing.GetColumnEffectiveWidthPx ((size_t) resizeCol);
+        return true;
+    }
+
+    //  A filterable header's chevron opens its filter, ahead of sorting.
+    {
+        RECT  chevron = {};
+        int   filter  = HitTestFilterChevron (lx, ly, chevron);
+
+        if (filter >= 0 && m_onFilter)
+        {
+            m_onFilter (filter, chevron);
+            return true;
+        }
+    }
+
+    if (OnSelectAllPress (lx, ly))
+    {
+        return true;
+    }
+
+    headerCol = HitTestHeaderColumn (lx, ly);
+
+    if (headerCol < 0)
+    {
+        return false;
+    }
+
+    m_headerPressCol = headerCol;
+    m_headerPressXPx = lx;
+    m_headerDragXPx  = lx;
+    m_headerDragging = false;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::OnDrag
+//
+//  A divider being dragged sets its column's width; a pressed header becomes
+//  a drag once the pointer has moved far enough, and the other headers slide
+//  aside for it. Returns whether either was in progress.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::OnDrag (int lx)
+{
+    int  minColW = m_list.m_scaler.ToPx (DxuiListView::s_kMinColWidthDip);
+
+
+
+    if (m_resizeColumn >= 0)
+    {
+        m_list.m_columnSizing.SetColumnOverrideWidthPx ((size_t) m_resizeColumn, std::max (minColW, m_resizeStartWPx + (lx - m_resizeStartXPx)));
+        return true;
+    }
+
+    if (m_headerPressCol < 0)
+    {
+        return false;
+    }
+
+    m_headerDragXPx  = lx;
+    m_headerDragging = m_headerDragging || std::abs (lx - m_headerPressXPx) >= m_list.m_scaler.ToPx (s_kHeaderDragDip);
+
+    if (m_headerDragging)
+    {
+        UpdateHeaderSlides();
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::OnHover
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListHeader::OnHover (int lx, int ly, bool inside)
+{
+    int  grabTol = m_list.m_scaler.ToPx (DxuiListView::s_kResizeGrabDip);
+
+
+
+    m_hoverCol = (inside && HitTestColumnResize (lx, ly, grabTol) < 0) ? HitTestHeaderColumn (lx, ly) : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::OnRelease
+//
+//  Ends a header press, which sorts or moves its column, or a divider drag,
+//  which reports the column's new width. Returns whether either was in
+//  progress.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::OnRelease (int lx, int ly)
+{
+    int  resizedCol   = m_resizeColumn;
+    int  resizedWidth = 0;
+
+
+
+    if (m_headerPressCol >= 0)
+    {
+        EndHeaderPress (lx, ly);
+        return true;
+    }
+
+    if (resizedCol < 0)
+    {
+        return false;
+    }
+
+    resizedWidth   = m_list.m_columnSizing.GetColumnEffectiveWidthPx ((size_t) resizedCol);
+    m_resizeColumn = -1;
+
+    if (m_list.m_onColumnResized)
+    {
+        m_list.m_onColumnResized (resizedCol, resizedWidth);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::MatchColumnCount
+//
+//  A column order with a different count than the columns starts over in
+//  the columns' order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListHeader::MatchColumnCount (size_t count)
+{
+    if (m_columnOrder.size() == count)
+    {
+        return;
+    }
+
+    m_columnOrder.resize (count);
+
+    for (size_t c = 0; c < m_columnOrder.size(); c++)
+    {
+        m_columnOrder[c] = c;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::ClearColumnFocusMarkers
+//
+//  Drops the header and divider focus markers without disturbing which
+//  sub-stop the keyboard is on. Used where the sub-stop is the list body,
+//  which has no marker of its own -- the selected row is its focus cue.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListHeader::ClearColumnFocusMarkers()
+{
+    m_list.SetFocusedHeaderColumn (-1);
+    m_list.SetFocusedDividerColumn (-1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::ReleaseKeyboardColumnFocus
+//
+//  Leaves keyboard column navigation entirely: no sub-stop, no markers.
+//  Called when focus leaves the list and when Tab walks off either end of
+//  the sub-stop ring. The two must move together, or a marker keeps
+//  painting a focus cue for a control that no longer has focus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListHeader::ReleaseKeyboardColumnFocus()
+{
+    m_kbColFocus = -1;
+    ClearColumnFocusMarkers();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::ApplyKeyboardColumnFocus
+//
+//  Reflects the current keyboard sub-stop (m_kbColFocus) into the header /
+//  divider focus markers the widget paints. Even sub-stops select a
+//  header column, odd sub-stops select the divider trailing a column, and
+//  the final sub-stop is the list body (no header / divider marker).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListHeader::ApplyKeyboardColumnFocus()
+{
+    int  n    = m_list.m_columnSizing.GetVisibleColumnCount();
+    int  body = (2 * n) - 1;
+    int  col  = -1;
+
+
+
+    if (m_kbColFocus < 0 || m_kbColFocus == body)
+    {
+        // No sub-stop, or the body -- neither paints a header or divider cue.
+        ClearColumnFocusMarkers();
+    }
+    else if ((m_kbColFocus % 2) == 0)
+    {
+        col = m_list.m_columnSizing.GetNthVisibleColumnIndex (m_kbColFocus / 2);
+        m_list.SetFocusedHeaderColumn (col);
+        m_list.SetFocusedDividerColumn (-1);
+    }
+    else
+    {
+        col = m_list.m_columnSizing.GetNthVisibleColumnIndex ((m_kbColFocus - 1) / 2);
+        m_list.SetFocusedDividerColumn (col);
+        m_list.SetFocusedHeaderColumn (-1);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::HandleKeyboardColumnKey
+//
+//  Acts on a header or divider keyboard sub-stop. A header sub-stop sorts
+//  its column on Enter / Space; a divider sub-stop nudges the width of the
+//  column it trails left / right by a fixed step, clamped to the minimum
+//  column width, and reports the new width through m_onColumnResized.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::HandleKeyboardColumnKey (WPARAM vk)
+{
+    bool  isHeaderStop = ((m_kbColFocus % 2) == 0);
+    bool  handled      = false;
+    int   col          = -1;
+    int   stepPx       = 0;
+    int   minPx        = 0;
+    int   cur          = 0;
+    int   next         = 0;
+
+
+
+    if (isHeaderStop && (vk == VK_RETURN || vk == VK_SPACE))
+    {
+        col = m_list.m_columnSizing.GetNthVisibleColumnIndex (m_kbColFocus / 2);
+
+        if (col >= 0 && m_onSortColumn)
+        {
+            m_onSortColumn (col);
+        }
+
+        // Claimed even with no column or no callback: the sub-stop is a
+        // header, and Enter on a header is a header's key to eat.
+        handled = true;
+    }
+    else if (!isHeaderStop && (vk == VK_LEFT || vk == VK_RIGHT))
+    {
+        col = m_list.m_columnSizing.GetNthVisibleColumnIndex ((m_kbColFocus - 1) / 2);
+
+        // Unlike the header stop, a divider with no column has nothing to
+        // resize, so the key falls through instead.
+        if (col >= 0)
+        {
+            stepPx = m_list.m_scaler.ToPx (s_kKbResizeStepDip);
+            minPx  = m_list.m_scaler.ToPx (DxuiListView::s_kMinColWidthDip);
+            cur    = m_list.m_columnSizing.GetColumnEffectiveWidthPx ((size_t) col);
+            next   = cur + ((vk == VK_LEFT) ? -stepPx : stepPx);
+
+            if (next < minPx)
+            {
+                next = minPx;
+            }
+
+            m_list.m_columnSizing.SetColumnOverrideWidthPx ((size_t) col, next);
+
+            if (m_list.m_onColumnResized)
+            {
+                m_list.m_onColumnResized (col, next);
+            }
+
+            handled = true;
+        }
+    }
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::OnKeyColumnResizeNav
+//
+//  Column/divider model (opt-in via SetKeyboardColumnResize). Tab walks 2N
+//  sub-stops for N visible columns -- header0, divider0, header1, divider1,
+//  ..., header(N-1), body -- and Shift+Tab walks back. Tabbing past either end
+//  releases the sub-focus and returns false so the host focus manager advances.
+//  At a sub-stop, keys act on it: sort a header, resize a divider, or move rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::OnKeyColumnResizeNav (const DxuiKeyEvent & ev)
+{
+    int   n       = m_list.m_columnSizing.GetVisibleColumnCount();
+    int   stops   = 2 * n;
+    int   body    = stops - 1;
+    bool  handled = false;
+
+
+
+    if (n <= 0)
+    {
+        // No visible columns means no sub-stops to walk.
+    }
+    else if (ev.vk == VK_TAB)
+    {
+        // -1 is the neutral entry: the first Tab picks a direction into the
+        // ring rather than resuming wherever the sub-focus last was.
+        m_kbColFocus = ev.shift ? ((m_kbColFocus == -1) ? body : (m_kbColFocus - 1))
+                                : ((m_kbColFocus == -1) ? 0    : (m_kbColFocus + 1));
+
+        // Walking off either end releases the sub-focus and leaves the key
+        // unhandled, so the host focus manager moves to the next control.
+        if (m_kbColFocus < 0 || m_kbColFocus >= stops)
+        {
+            ReleaseKeyboardColumnFocus();
+        }
+        else
+        {
+            ApplyKeyboardColumnFocus();
+            handled = true;
+        }
+    }
+    else if (m_kbColFocus == body)
+    {
+        handled = m_list.m_keyboard.HandleKeyboardBodyRowNav (ev.vk, ev.shift, ev.ctrl);
+    }
+    else if (m_kbColFocus != -1)
+    {
+        handled = HandleKeyboardColumnKey (ev.vk);
+    }
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::OnKeyBodyHeaderNav
+//
+//  Default model (File-Explorer details view). Two sub-stops: body then
+//  header. Tab: body -> header -> release; Shift+Tab reverses. Body: arrows /
+//  Home / End / Page move the selection, Space/Enter activate the selected row.
+//  Header: Left/Right cycle the focused column, Space/Enter sort it. No
+//  column-resize sub-stops (see OnKeyColumnResizeNav).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::OnKeyBodyHeaderNav (const DxuiKeyEvent & ev)
+{
+    static constexpr int  kBody   = 0;
+    static constexpr int  kHeader = 1;
+    static constexpr int  kStops  = 2;
+
+
+
+    //  Space selects in a list that selects several, as Explorer's does;
+    //  Enter opens.
+    bool  isActivate = (ev.vk == VK_RETURN || (ev.vk == VK_SPACE && !m_list.m_multiSelect));
+    bool  handled    = false;
+
+    if (ev.vk == VK_TAB)
+    {
+        m_kbColFocus = ev.shift ? ((m_kbColFocus < 0) ? (kStops - 1) : (m_kbColFocus - 1))
+                                : ((m_kbColFocus < 0) ? kBody        : (m_kbColFocus + 1));
+
+        // Off either end: release and let the host focus manager take over.
+        if (m_kbColFocus < 0 || m_kbColFocus >= kStops)
+        {
+            ReleaseKeyboardColumnFocus();
+        }
+        else
+        {
+            ApplyBodyHeaderFocus();
+            handled = true;
+        }
+    }
+    else if (m_kbColFocus == kBody)
+    {
+        if (isActivate)
+        {
+            // Only claim Enter/Space when there is a row AND somewhere to
+            // report it; otherwise the dialog's default button should get it.
+            handled = (m_list.GetSelectedRow() >= 0 && m_list.m_onActivateRow);
+
+            if (handled)
+            {
+                m_list.m_onActivateRow (m_list.GetSelectedRow());
+            }
+        }
+        else if (DxuiCommandRouter::TranslateKey (ev.vk, ev.ctrl, ev.alt, ev.shift) != DxuiStandardCommand::None)
+        {
+            handled = m_list.InvokeCommand (DxuiCommandRouter::TranslateKey (ev.vk, ev.ctrl, ev.alt, ev.shift));
+        }
+        else
+        {
+            handled = m_list.m_keyboard.HandleKeyboardBodyRowNav (ev.vk, ev.shift, ev.ctrl);
+        }
+    }
+    else if (m_kbColFocus == kHeader)
+    {
+        if (ev.vk == VK_LEFT || ev.vk == VK_RIGHT)
+        {
+            MoveHeaderFocus ((ev.vk == VK_RIGHT) ? 1 : -1);
+            handled = true;
+        }
+        else if ((ev.vk == VK_RETURN || ev.vk == VK_SPACE) && m_focusedHeaderCol >= 0 && m_onSortColumn)
+        {
+            //  On a heading, Space sorts as Enter does, as a header button's
+            //  press does.
+            m_onSortColumn (m_focusedHeaderCol);
+            handled = true;
+        }
+    }
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::ApplyBodyHeaderFocus
+//
+//  Reflects the body/header sub-stop into the paint markers. Body clears the
+//  header marker (the selected row is the focus cue) and selects a row if none
+//  is; header selects the focused column, defaulting to the first visible one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListHeader::ApplyBodyHeaderFocus()
+{
+    m_list.SetFocusedDividerColumn (-1);
+
+    if (m_kbColFocus == 1)          // header
+    {
+        bool  valid = (m_focusedHeaderCol >= 0)
+                      && (m_list.m_columnSizing.GetVisibleIndexOfColumn ((size_t) m_focusedHeaderCol) >= 0);
+
+        if (!valid)
+        {
+            m_list.SetFocusedHeaderColumn (m_list.m_columnSizing.GetNthVisibleColumnIndex (0));
+        }
+
+        return;
+    }
+
+    m_list.SetFocusedHeaderColumn (-1);    // body
+
+    if (m_list.GetSelectedRow() < 0 && m_list.GetRowCount() > 0)
+    {
+        m_list.SetSelectedRow (0);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::MoveHeaderFocus
+//
+//  Steps the focused header column one visible column left / right, clamped to
+//  the ends (no wrap).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListHeader::MoveHeaderFocus (int dir)
+{
+    int  n    = m_list.m_columnSizing.GetVisibleColumnCount();
+    int  ord  = 0;
+    int  next = 0;
+
+
+
+    if (n <= 0)
+    {
+        return;
+    }
+
+    ord = (m_focusedHeaderCol >= 0) ? m_list.m_columnSizing.GetVisibleIndexOfColumn ((size_t) m_focusedHeaderCol) : 0;
+    if (ord < 0)
+    {
+        ord = 0;
+    }
+
+    next = ord + dir;
+    if (next < 0)
+    {
+        next = 0;
+    }
+
+    if (next > n - 1)
+    {
+        next = n - 1;
+    }
+
+    m_list.SetFocusedHeaderColumn (m_list.m_columnSizing.GetNthVisibleColumnIndex (next));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasFunnel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::HasFunnel (size_t column) const
+{
+    return column < m_list.m_columns.size() && m_list.m_columns[column].filtered && !m_list.m_columns[column].filterable;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsSortAboveTitle
+//
+//  A header of the default height, or taller, has the chevron above the
+//  titles, as File Explorer's does. A shorter one has it there only while
+//  the space above a centered title is enough for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::IsSortAboveTitle() const
+{
+    float  headerPx = (float) m_list.GetHeaderBarPx();
+    float  lineH    = m_list.m_scaler.ToPxf (m_list.m_fontDip) * s_kTitleLineEm;
+
+
+
+    if (m_list.m_explorerDetails || m_list.m_headerHeightDip >= DxuiListView::s_kHeaderHeightDip)
+    {
+        return true;
+    }
+
+    return (headerPx - lineH) / 2.0f >= m_list.m_scaler.ToPxf (s_kSortAboveDip);
+}

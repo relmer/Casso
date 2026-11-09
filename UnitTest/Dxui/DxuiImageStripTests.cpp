@@ -266,7 +266,7 @@ public:
         Assert::AreEqual (5,  source.cells,         L"standing up: 100 / 22 is nearest five");
         Assert::AreEqual (32, (int) source.size.cx, L"as wide as the strip");
         Assert::AreEqual (20, (int) source.size.cy, L"the strip's share of its length");
-        Assert::AreEqual (22, strip.GetMinWidthPx (scaler), L"it can shrink to one cell");
+        Assert::AreEqual (22, strip.GetMinWidthPx (false, scaler, nullptr), L"it can shrink to one cell");
     }
 
 

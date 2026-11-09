@@ -74,14 +74,13 @@ const std::wstring & SourceDocumentPane::GetId() const
 
 void SourceDocumentPane::CreateControls()
 {
-    constexpr float kBannerMarginDip = 4.0f;
-    constexpr float kBannerPadDip    = 5.0f;
-    DxuiPanel     & parent           = m_host.GetControlParent();
+    constexpr float kBannerPadDip = 5.0f;
+    DxuiPanel     & parent        = m_host.GetControlParent();
 
 
 
     m_view   = parent.CreateChild<DxuiTextView>();
-    m_banner = parent.CreateChild<DxuiActionBanner>();
+    m_banner = parent.CreateChild<DxuiInfoBanner>();
     m_bar.Create();
 
     m_model = std::make_unique<SourcePane> (
@@ -98,7 +97,6 @@ void SourceDocumentPane::CreateControls()
     m_model->SetOnLoadSymbols  ([this] { m_group.LoadSymbolsFor (m_slot); });
     m_view->SetVisible         (false);
     m_banner->SetVisible       (false);
-    m_banner->SetMarginDip     (kBannerMarginDip);
     m_banner->SetVerticalPaddingDip (kBannerPadDip);
 }
 
@@ -931,7 +929,7 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
     bool                  onBanner = false;
     SourceDocumentPane  * document = nullptr;
     DxuiTextView        * view     = nullptr;
-    DxuiActionBanner    * banner   = nullptr;
+    DxuiInfoBanner      * banner   = nullptr;
 
 
 

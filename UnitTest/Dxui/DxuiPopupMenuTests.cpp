@@ -230,6 +230,41 @@ public:
 
 
     //
+    //  A row with its own icon, in a menu with no check column, sits its
+    //  icon as Explorer does, and the labels move to start past it.
+    //
+    TEST_METHOD (Width_RowWithIcon_OpensTheIconColumn)
+    {
+        static constexpr DxuiVectorIconLayer  kLayers[] = { { 0x1u, false, 0.0f, 0.0f } };
+        static constexpr DxuiVectorIcon       kIcon     = { L"M0 0H20V20H0Z", 20.0f, kLayers, std::size (kLayers) };
+
+        Fixture               f;
+        DxuiPopupMenu         menu;
+        MockDxuiTextRenderer  text;
+        int                   bare     = 0;
+        int                   withIcon = 0;
+        uint64_t              now      = 0;
+
+
+        menu.SetClock ([&] () { return now; });
+        menu.SetDpi (96);
+
+        menu.ShowAt (0, 0, f.FlatList(), text, MakeHost (800, 600));
+        bare = menu.GetRect().right - menu.GetRect().left;
+
+        f.gamma->vectorIcon = &kIcon;
+        menu.Hide();
+        now += 1000;
+        menu.ShowAt (0, 0, f.FlatList(), text, MakeHost (800, 600));
+        withIcon = menu.GetRect().right - menu.GetRect().left;
+
+        Assert::AreEqual (bare - menu.GetMetrics().leftPadPx - menu.GetMetrics().gutterGapPx
+                              + DxuiPopupMenu::s_kRowIconLeftDip + DxuiPopupMenu::s_kRowIconDip + DxuiPopupMenu::s_kRowIconGapDip,
+                          withIcon);
+    }
+
+
+    //
     //  The defect the two-column measurement exists for: sizing the menu to
     //  the widest label-plus-accelerator row leaves an accelerator-less row
     //  with a LONGER label free to run under the accelerators above it.
@@ -469,6 +504,47 @@ public:
         menu.OnMouseMove (r.left + 5, r.top + 5);                   // back to alpha
         Assert::IsFalse  (menu.HasOpenChild());
         Assert::IsTrue   (menu.IsVisible());
+    }
+
+
+    TEST_METHOD (HostedPopupOpenedUnderThePointer_OpensNoSubmenu_UntilThePointerMoves)
+    {
+        Fixture               f;
+        DxuiPopupMenu         menu;
+        MockDxuiTextRenderer  text;
+        POINT                 onSub = {};
+
+
+        menu.SetSubmenuDelayMs (0);
+        menu.ShowAt (0, 0, f.NestedList(), text, MakeHost (800, 600));
+        onSub = { 5, RowPx (menu) + 5 };
+
+        menu.MovePopupPointerForTest (onSub);
+        Assert::AreEqual (1, menu.GetHighlight());
+        Assert::IsFalse  (menu.HasOpenChild(), L"the move at the spot the menu opened under");
+
+        menu.MovePopupPointerForTest (onSub);
+        Assert::IsFalse  (menu.HasOpenChild(), L"a repeat of that move");
+
+        menu.MovePopupPointerForTest (POINT { onSub.x + 1, onSub.y });
+        Assert::IsTrue   (menu.HasOpenChild(), L"the pointer's first real move");
+    }
+
+
+    TEST_METHOD (HostedPopupShownUnderAnAnchor_OpensASubmenuOnContact)
+    {
+        Fixture               f;
+        DxuiPopupMenu         menu;
+        MockDxuiTextRenderer  text;
+
+
+        menu.SetSubmenuDelayMs (0);
+        menu.ShowAt (0, 0, f.NestedList(), text, MakeHost (800, 600));
+        menu.Hide();
+        menu.ShowUnder (RECT { 0, 0, 40, 20 }, f.NestedList(), text, MakeHost (800, 600));
+
+        menu.MovePopupPointerForTest (POINT { 5, RowPx (menu) + 5 });
+        Assert::IsTrue (menu.HasOpenChild());
     }
 
 
@@ -847,6 +923,48 @@ public:
         Assert::AreEqual (kHoverText,  gammaArgb,      L"the hovered label takes the hover text color");
         Assert::AreEqual (kHoverAccel, gammaAccelArgb, L"the hovered accelerator takes the hover accelerator color");
         Assert::AreEqual (kText,       alphaArgb,      L"a row that is not hovered is drawn in the item text color");
+    }
+
+
+    TEST_METHOD (Paint_HoveredRow_WithoutColors_TakesTheThemeMenuHoverText)
+    {
+        constexpr uint32_t  kMenuHover      = 0xFF5CE07A;
+        constexpr uint32_t  kMenuHoverText  = 0xFF050605;
+        constexpr uint32_t  kMenuHoverAccel = 0xFF0A0B0A;
+        constexpr int       kGammaRow       = 3;
+
+        Fixture               f;
+        DxuiPopupMenu         menu;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        DxuiTheme             theme          = DxuiTheme::Dark();
+        uint32_t              gammaArgb      = 0;
+        uint32_t              gammaAccelArgb = 0;
+
+
+
+        // An inverse-video highlight: the fill is as bright as the text, so
+        // the hovered row has to switch to the dark hover text.
+        theme.dropdownHover      = kMenuHover;
+        theme.dropdownHoverText  = kMenuHoverText;
+        theme.dropdownHoverAccel = kMenuHoverAccel;
+
+        f.gamma->accelerator = L"Ctrl+G";
+
+        menu.SetTheme     (&theme);
+        menu.ShowAt       (0, 0, f.FlatList(), text, MakeHost (800, 600));
+        menu.SetHighlight (kGammaRow);
+        menu.Paint        (painter, text);
+
+        for (const RecordedTextCall & c : text.Calls())
+        {
+            if (c.kind != RecordedTextKind::DrawString)  { continue; }
+            if (c.text == L"Gamma")                      { gammaArgb      = c.argb; }
+            if (c.text == L"Ctrl+G")                     { gammaAccelArgb = c.argb; }
+        }
+
+        Assert::AreEqual (kMenuHoverText,  gammaArgb,      L"the hovered label takes the theme's menu hover text");
+        Assert::AreEqual (kMenuHoverAccel, gammaAccelArgb, L"the hovered accelerator takes the theme's menu hover accelerator color");
     }
 
 

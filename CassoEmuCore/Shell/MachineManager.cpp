@@ -169,8 +169,8 @@ void MachineManager::ShowMachinePicker()
 //    debug panels    hold raw pointers into the OLD CPU's cycle counter
 //    event sinks     keyboard, //e soft switches, and game port all point at
 //                    panels that outlive the devices
-//    printer worker  its drain thread holds a reference into the card's ring,
-//                    which clearing the owned devices is about to free
+//    printer worker  its drain thread paces off the OLD CPU's cycle counter,
+//                    and the build clears the ring it drains
 //    audio mixer     borrows PSG sources owned by the Mockingboard card
 //    IRQ tokens      reclaimed before their holders are destroyed
 //    //c ROM bank    references the language card and the MMU
@@ -463,10 +463,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // it must be explicitly reset here or it'll keep its stale
     // RamDevice pointer alive across a //e -> ][ switch.
     //
-    // Stop the printer drain thread first: its job holds a reference into the
-    // card's ring, which clearing the owned devices is about to free.
+    // Stop the printer drain thread first: it paces off the outgoing CPU's
+    // cycle counter, and the build clears the ring it drains.
     //
-    // Persist the outgoing machine's pending strip before its card is freed.
+    // Persist the outgoing machine's pending strip before it goes.
     m_shell.m_printer->StopAndSavePendingStrip();
 
     {
@@ -494,6 +494,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         // The //c ROM-bank coordinator holds references into the language card
         // (owned) + MMU; drop it before those owners are torn down.
         m_shell.m_machine.SetApple2cRomBank (nullptr);
+        m_shell.m_machine.DetachSerialPorts();
         m_shell.m_machine.GetOwnedDevices().clear();
         m_shell.m_machine.GetVideoModes().clear();
         m_shell.m_machine.GetMemoryBus() = MemoryBus();

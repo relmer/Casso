@@ -434,7 +434,7 @@ namespace HeatMapRangesPaneTests
 
             Assert::IsTrue   (row >= 0);
             Assert::AreEqual (std::wstring (L"Yes"), GetCell (window, row, 4));
-            Assert::IsFalse  (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check.value_or (true), L"left out to start");
+            Assert::IsTrue   (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check == DxuiListView::Cell::Check::Off, L"left out to start");
 
             window.GetHeatRangesPane().GetList()->SetSelectedRow (row);
             Assert::IsFalse  (window.GetHeatRangesPane().IsBarEnabled (HeatMapRangeBarCommands::kRemove), L"no Remove");
@@ -447,7 +447,7 @@ namespace HeatMapRangesPaneTests
             Assert::AreEqual (row, FindRow (window, L"Hi-res page 1"), L"still there");
 
             window.GetHeatRangesPane().ToggleRange (row, true);
-            Assert::IsTrue   (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check.value_or (false), L"checked in");
+            Assert::IsTrue   (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check == DxuiListView::Cell::Check::On, L"checked in");
             Assert::IsTrue   (host.ranges.find ("preset hires1 on") != std::string::npos);
 
             window.GetHeatRangesPane().RunBarEntry (HeatMapRangeBarCommands::kUp);
@@ -683,7 +683,7 @@ namespace HeatMapRangesPaneTests
             Assert::AreEqual (std::string ("Default"), window.GetHeatRangesPane().GetEditedSetName());
             row = FindRow (window, L"Hi-res page 1");
             Assert::IsTrue   (row >= 0);
-            Assert::IsTrue   (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check.value_or (false), L"included");
+            Assert::IsTrue   (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check == DxuiListView::Cell::Check::On, L"included");
             Assert::IsTrue   (window.GetHeatRangesPane().GetList()->IsAddRow (window.GetHeatRangesPane().GetList()->GetDataRowCount()));
             Assert::AreEqual (std::wstring (L"Add new range"), window.GetHeatRangesPane().GetList()->GetCellsOfRow (window.GetHeatRangesPane().GetList()->GetDataRowCount())[2].text);
 

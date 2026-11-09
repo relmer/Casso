@@ -122,6 +122,28 @@ public:
         return S_OK;
     }
 
+    //  In place, as the platform's does: the file must be there and long
+    //  enough, or nothing changes.
+    HRESULT  WriteAt (const std::string & path, uint64_t offset, std::span<const Byte> bytes) override
+    {
+        auto  found = files.find (path);
+
+        writeCount++;
+
+        if (found == files.end())
+        {
+            return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+        }
+
+        if (offset + bytes.size() > found->second.size())
+        {
+            return HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF);
+        }
+
+        std::copy (bytes.begin(), bytes.end(), found->second.begin() + (ptrdiff_t) offset);
+        return S_OK;
+    }
+
     HRESULT  Stat (const std::string & path, FileStamp & outStamp) override
     {
         auto  found = stamps.find (path);
@@ -145,6 +167,26 @@ public:
     bool  Exists (const std::string & path) override
     {
         return files.find (path) != files.end();
+    }
+
+    HRESULT  ListFiles (const std::string & folder, std::vector<std::string> & outNames) override
+    {
+        std::string  prefix = folder + "\\";
+
+
+
+        outNames.clear();
+
+        for (const auto & [path, bytes] : files)
+        {
+            if (path.starts_with (prefix) && path.find ('\\', prefix.size()) == std::string::npos)
+            {
+                outNames.push_back (path.substr (prefix.size()));
+            }
+        }
+
+        std::sort (outNames.begin(), outNames.end());
+        return S_OK;
     }
 
     HRESULT  Remove (const std::string & path) override

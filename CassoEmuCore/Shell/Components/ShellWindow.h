@@ -43,8 +43,8 @@ public:
     // can be told from the others at a glance. Undocumented; set from --title
     // and read by UpdateWindowTitle. Set before the window exists, so it does
     // not refresh the caption itself.
-    void SetWindowTitlePrefix (const wstring & prefix) { m_titlePrefix = prefix; }
-    const wstring & GetWindowTitlePrefix () const       { return m_titlePrefix; }
+    void            SetWindowTitlePrefix (const wstring & prefix) { m_titlePrefix = prefix; }
+    const wstring & GetWindowTitlePrefix () const                 { return m_titlePrefix; }
 
     void UpdateWindowTitle();
 

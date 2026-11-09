@@ -11,7 +11,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  DxuiListViewBrowserShapeTests
 //
 //  A list configured the way the file browser configures its own: a stretch
-//  Name column carrying an icon, five auto-fit columns after it, precise
+//  Name column with an icon, five auto-fit columns after it, precise
 //  auto-fit, and horizontal scrolling.
 //
 //  The plain list already keeps its place and reports the row under the
@@ -42,7 +42,7 @@ public:
 
         scaler.SetDpi (96);
 
-        //  CassqueBrowser::GetColumns.
+        //  BrowserCells::GetColumns.
         cols.push_back (DxuiListView::Column { L"Name",     200, true,  DxuiTextHAlign::Left  });
         cols.push_back (DxuiListView::Column { L"Type",     0,   false, DxuiTextHAlign::Left  });
         cols.push_back (DxuiListView::Column { L"Size",     0,   false, DxuiTextHAlign::Right });

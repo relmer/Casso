@@ -70,7 +70,12 @@ struct DialogTextRun
 {
     std::wstring  text;
     bool          isHyperlink   = false;
-    std::wstring  hyperlinkUrl;   // ignored unless isHyperlink == true
+    std::wstring  hyperlinkUrl;   // the link's target, for isHyperlink or linkText
+
+    // When set, the run is one line of prose with this part of `text` linked
+    // to hyperlinkUrl, the rest of the line plain around it. The line does not
+    // wrap.
+    std::wstring  linkText;
 
     // When set, the run is an aligned three-column row rather than a line of
     // prose: `text`, an arrow, then `rightText`. Every column row in one body
@@ -120,14 +125,14 @@ struct DialogPaintContext
 
 struct DialogInputEvent
 {
-    enum class Kind { MouseMove, LeftButtonDown, LeftButtonUp, KeyDown, Char, Wheel };
-    Kind     kind       = Kind::MouseMove;
-    int      xPx        = 0;
-    int      yPx        = 0;
-    int      vkCode     = 0;     // valid for KeyDown
-    wchar_t  ch         = 0;     // valid for Char
-    int      wheelDelta = 0;     // valid for Wheel (WHEEL_DELTA multiples, +up / -down)
-    bool     wheelHorz  = false; // Wheel: true = horizontal (WM_MOUSEHWHEEL), false = vertical
+    enum class  Kind       { MouseMove, LeftButtonDown, LeftButtonUp, KeyDown, Char, Wheel };
+    Kind        kind       = Kind::MouseMove;
+    int         xPx        = 0;
+    int         yPx        = 0;
+    int         vkCode     = 0;   // valid for KeyDown
+    wchar_t     ch         = 0;   // valid for Char
+    int         wheelDelta = 0;   // valid for Wheel (WHEEL_DELTA multiples, +up / -down)
+    bool        wheelHorz  = false;   // Wheel: true = horizontal (WM_MOUSEHWHEEL), false = vertical
 };
 
 

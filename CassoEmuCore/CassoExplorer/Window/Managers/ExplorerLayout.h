@@ -1,0 +1,104 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "CassoExplorer/CassoExplorerCommands.h"
+
+struct ExplorerContext;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerLayout
+//
+//  The window's widgets and their arrangement: each widget set up and
+//  wired to its handlers, the panes and splitters laid out, the command
+//  bar refilled, the status bar's fields, and the theme chosen and applied.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class ExplorerLayout
+{
+public:
+    //  The strip a pointer event goes to: the command bar over its band, the
+    //  navigation toolbar anywhere else.
+    //  The panes' widths in a body this wide, from the widths the user left
+    //  them at. The list gives up width first, down to its minimum; then the
+    //  preview, down to its own; then the tree. Past all three minimums the
+    //  three shrink together. A preview width of zero is a hidden preview.
+    struct PaneWidths
+    {
+        int  tree    = 0;
+        int  list    = 0;
+        int  preview = 0;
+    };
+
+    explicit ExplorerLayout (ExplorerContext & context);
+
+    //  Explorer's tabs are 33 dip tall. Its strip is 9 dip taller because it is
+    //  also the window's caption; this window has a caption bar of its own, so
+    //  the strip keeps only a small gap above the tabs.
+    static constexpr int       kTabHeightDip       = 37;
+
+    //  Explorer's two strips, measured at 100, 125, 150 and 200%: the command
+    //  bar is 47 dip rounded down, its line included; the address bar's strip
+    //  is 48 dip rounded down with its line added. The address box is 32 dip
+    //  tall, and the command bar starts 4 dip in.
+    static constexpr float  kCommandBarDip        = 47.0f;
+    static constexpr float  kNavStripFillDip      = 48.0f;
+    static constexpr UINT   kListRowHalfDip       = 14;
+    static constexpr UINT   kCompactRowHalfDip    = 11;
+    static constexpr int    kMinTreeWidthDip      = 140;
+    static constexpr int    kMinListWidthDip      = 220;
+    static constexpr int    kMinPreviewWidthDip   = 280;   // wide enough for the hex view's toolbar
+
+    //  The widest a pane's message runs before it wraps.
+    static constexpr int     kMessageWidthDip = 400;
+
+    static PaneWidths        FitPanes           (int bodyDip, int treeDip, int previewDip);
+    static int               GetListRowHeightPx (UINT dpi);
+    static int               GetCompactRowPx    (UINT dpi);
+    void                     ConfigureWidgets   ();
+    void                     RecomputeLayout    ();
+    void                     UpdateCommandBar   ();
+    RECT                     GetMessageRect     (const RECT & pane) const;
+    static bool              Contains           (const RECT & rect, POINT point);
+    static DxuiMouseEvent    ToLocal            (const DxuiMouseEvent & ev, const RECT & bounds);
+    void                     DockBands          ();
+    void                     SetSplitters       (DxuiSplitter * treeSplitter, DxuiSplitter * previewSplitter);
+    void                     SetClient          (const RECT & client) { m_client = client; }
+    DxuiSplitter           * GetTreeSplitter    () const { return m_treeSplitter; }
+    DxuiSplitter           * GetPreviewSplitter () const { return m_previewSplitter; }
+    const RECT             & GetClient          () const { return m_client; }
+    DxuiDockLayout         & GetDock            ()       { return m_dock; }
+    DxuiLayoutBand         & GetTabBand         ()       { return m_tabBand; }
+    DxuiLayoutBand         & GetMenuBand        ()       { return m_menuBand; }
+    DxuiLayoutBand         & GetToolbarBand     ()       { return m_toolbarBand; }
+    DxuiLayoutBand         & GetStatusBand      ()       { return m_statusBand; }
+    DxuiLayoutBand         & GetBodyBand        ()       { return m_bodyBand; }
+    DxuiHitTester          & GetDropHits        ()       { return m_dropHits; }
+
+private:
+    ExplorerContext  & m_context;
+    DxuiHitTester      m_dropHits;
+    DxuiSplitter     * m_treeSplitter    = nullptr;
+    DxuiSplitter     * m_previewSplitter = nullptr;
+    RECT               m_client          = {};
+
+    //  The window's edges, docked. Each band is stamped with the thickness
+    //  its widget needs and comes back with the rect that widget is laid
+    //  into; the body band takes what the edges leave, and the panes and
+    //  their splitters divide it.
+    DxuiDockLayout                            m_dock;
+    DxuiLayoutBand                            m_tabBand;
+    DxuiLayoutBand                            m_menuBand;
+    DxuiLayoutBand                            m_toolbarBand;
+    DxuiLayoutBand                            m_statusBand;
+    DxuiLayoutBand                            m_bodyBand;
+
+    //  The location's buttons on the command bar, if any.
+    CassoExplorerCommands::CommandBarExtra  m_commandBarExtra = CassoExplorerCommands::CommandBarExtra::None;
+};

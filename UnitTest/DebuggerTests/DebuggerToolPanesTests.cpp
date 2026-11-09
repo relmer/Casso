@@ -202,7 +202,7 @@ namespace DebuggerToolPanesTests
             Assert::AreEqual (std::string ("main"), machine[0].table);
             Assert::IsTrue   (user[0].isHeading);
             Assert::AreEqual (std::format (L"{} user (2)", s_kpszTriangleDown), cells[0][0].text);
-            Assert::IsFalse  (cells[0][0].check.value_or (true), L"user is off");
+            Assert::IsTrue   (cells[0][0].check == DxuiListView::Cell::Check::Off, L"user is off");
             Assert::AreEqual (std::wstring (L"$0300"), cells[1][1].text);
             Assert::AreEqual (std::wstring (L"0028 (constant)"), cells[2][1].text, L"a constant is not an address");
         }

@@ -1,6 +1,6 @@
 #include "Pch.h"
 #include "AssetBootstrap.h"
-#include "Cassque/Model/KnownFolderStore.h"
+#include "CassoExplorer/Model/KnownFolderStore.h"
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellChrome.h"
@@ -75,7 +75,7 @@ void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
         //  A drop is a hand-off like an insert from another tool: its folder
         //  joins the known-folder list once the mount succeeds, with nobody to
         //  answer.
-        m_intentReplies.NoteInsert (tag, fs::path (path).string(), nullptr);
+        m_disks->GetIntentReplies().NoteInsert (tag, fs::path (path).string(), nullptr);
         m_disks->Mount (6, tag, path);
         break;
 
@@ -394,120 +394,4 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
     }
 
     DxuiContextMenu::Show (*m_host, x, y, std::move (items));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::SendIntentReply
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SendIntentReply (HWND target, const Win32IntentChannel::Reply & reply)
-{
-    bool  delivered = Win32IntentChannel::SendTo (target, m_hwnd, Win32IntentChannel::GetReplyMessageId(),
-                                                  Win32IntentChannel::EncodeReply (reply));
-
-
-
-    IGNORE_RETURN_VALUE (delivered, false);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::PostIntentReply
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PostIntentReply (HWND target, const Win32IntentChannel::Reply & reply)
-{
-    IntentReplyPost *  carried = new (std::nothrow) IntentReplyPost();
-
-
-
-    if (carried == nullptr)
-    {
-        return;
-    }
-
-    carried->target = target;
-    carried->reply  = reply;
-
-    if (m_hwnd == nullptr || !PostMessageW (m_hwnd, (UINT) AppMessage::ShellIntentReply, 0, (LPARAM) carried))
-    {
-        delete carried;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::RecordKnownFolder
-//
-//  Best effort: a hand-off that mounted is not undone because the list could
-//  not be written.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RecordKnownFolder (const std::string & imagePath)
-{
-    Win32FileSystem   fsKnown;
-    KnownFolderStore  store (fsKnown, AssetBootstrap::GetAssetBaseDirectory().wstring());
-    std::wstring      folder  = fs::path (imagePath).parent_path().wstring();
-    int64_t           nowUnix = (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
-                                    std::chrono::system_clock::now().time_since_epoch()).count();
-    HRESULT           hr      = S_OK;
-
-
-
-    BAIL_OUT_IF (folder.empty(), S_OK);
-
-    hr = store.Append (folder, nowUnix);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::InstallIntentReplies
-//
-//  A reload a tool asked for is decided on the thread that owns disk writes;
-//  the answer is composed there and carried to the UI thread to be sent.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::InstallIntentReplies()
-{
-    m_machine.GetDiskStore().SetDecisionSink ([this] (const std::string & path, ChangeAction action,
-                                                      bool guestCopyPreserved, const std::string & preservedPath)
-    {
-        HWND                       replyTo = nullptr;
-        Win32IntentChannel::Reply  reply;
-
-        if (!m_intentReplies.TryTakeReload (path, replyTo) || replyTo == nullptr)
-        {
-            return;
-        }
-
-        if (IntentReplyTracker::TryMakeReloadReply (action, guestCopyPreserved, preservedPath, reply))
-        {
-            PostIntentReply (replyTo, reply);
-        }
-    });
 }

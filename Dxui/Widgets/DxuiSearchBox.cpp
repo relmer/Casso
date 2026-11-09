@@ -214,9 +214,19 @@ void DxuiSearchBox::OnMouseMove (int x, int y)
 bool DxuiSearchBox::OnKey (WPARAM vk)
 {
     std::wstring  before   = m_input.GetText();
-    bool          consumed = m_input.OnKey (vk);
+    bool          consumed = false;
 
 
+
+    if (vk == VK_RETURN && m_submit)
+    {
+        consumed = m_submit();
+    }
+
+    if (!consumed)
+    {
+        consumed = m_input.OnKey (vk);
+    }
 
     if (m_input.GetText() != before)
     {

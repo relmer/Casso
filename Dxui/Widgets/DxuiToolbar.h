@@ -72,6 +72,11 @@ public:
     virtual ~IDxuiToolbarCustomEntry() = default;
 
     virtual int              GetWidthPx    (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const = 0;
+
+    //  The narrowest the entry can be drawn, which the strip shrinks it toward
+    //  once nothing else on the strip can move, as a text box can. Its width
+    //  by default, so it keeps its full width.
+    virtual int              GetMinWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const { return GetWidthPx (labeled, scaler, text); }
     virtual void             Layout        (const RECT & rc, bool labeled, const DxuiDpiScaler & scaler)                = 0;
     virtual void             Paint         (IDxuiPainter      & painter,
                                             IDxuiTextRenderer & text,
@@ -83,11 +88,6 @@ public:
     virtual bool             OnClick       (int x, int y)                                                               = 0;
 
     virtual bool             OnMouseMove   (int x, int y)                                                               { (void) x; (void) y; return false; }
-
-    //  The narrowest the entry can be drawn. An entry that can shrink, as a
-    //  text box can, gives up width down to this once nothing else on the
-    //  strip can move; -1, the default, keeps it at its full width.
-    virtual int              GetMinWidthPx (const DxuiDpiScaler & scaler) const                                           { (void) scaler; return -1; }
 
     //  From the entry's left to its first ink, so a strip that lines its
     //  first entry up with a pane's text can place that ink; -1, the
@@ -116,8 +116,9 @@ public:
 //  DxuiToolbar
 //
 //  A strip of commands: icon-plus-label buttons that are frameless until
-//  hovered or pressed, collapsing their labels ONE AT A TIME FROM THE RIGHT
-//  when the strip runs out of room, so the leftmost keep their names longest
+//  hovered or pressed. When the strip runs out of room, WHOLE ENTRIES move
+//  into a See more button, ONE AT A TIME FROM THE RIGHT, as File Explorer's
+//  command bar does: labels never drop, the leftmost entries stay longest,
 //  and no entry ever falls off the end.
 //
 //  Every entry shares ownership of its command and reads its label, glyph, tip,
@@ -172,9 +173,26 @@ public:
         DecorationFn                         decoration;
         IDxuiToolbarCustomEntry            * custom     = nullptr;
 
+        //  Drawn in place of the command's glyph when set: an outline in the
+        //  entry's ink with its accent part in the theme's accent, as File
+        //  Explorer draws its command bar. Constant data; not owned.
+        const DxuiVectorIcon               * vectorIcon = nullptr;
+
         //  Never labeled, regardless of available width, like Explorer's Back,
         //  Forward, Up and Refresh buttons. The tooltip text is unchanged.
         bool  iconOnly = false;
+
+        //  The vector icon of an unlabeled entry is drawn over the whole
+        //  button less a thin margin, for an icon of text too small to read
+        //  at the glyph size.
+        bool  fillsButton = false;
+
+        //  An unlabeled entry's face drawn as lines of text, split at '\n',
+        //  in `faceFont`, as large as the button allows less a thin margin.
+        //  For a button whose icon is text, such as code or hex digits. The
+        //  strings are constant data; not owned.
+        const wchar_t  * faceText = nullptr;
+        const wchar_t  * faceFont = nullptr;
 
         //  Sits at the strip's trailing end rather than after the entry
         //  before it, like Explorer's Details button. Trailing entries come
@@ -186,8 +204,9 @@ public:
         bool  seeMoreOnly = false;
 
         //  Stays on the strip however little room is left, where every other
-        //  entry, custom ones included, moves into the See more menu.
-        bool  neverOverflow = false;
+        //  entry, custom ones included, moves into the See more menu. Custom
+        //  entries shrink toward their minimum widths to make room for it.
+        bool  pinned = false;
 
         //  A custom entry that takes whatever length the strip has to spare,
         //  so it runs to the strip's far end, as a row of pictures does.
@@ -199,16 +218,20 @@ public:
 
     void  SetEntries       (std::vector<Entry> entries);
 
-    //  Ends the leading entries in a See more button, as Explorer's command
-    //  bar ends: entries that no longer fit even as icons move into its menu
-    //  from the right as the strip narrows and come back as it widens, and
-    //  entries marked seeMoreOnly are always there. The button shows only
-    //  when its menu has something in it. Every strip has one, with the "..."
-    //  glyph; call this before SetEntries for another glyph or tip.
-    void  EnableSeeMore    (const wchar_t * glyph, const wchar_t * tip);
+    //  Every toolbar ends its leading entries in a See more button: entries
+    //  that no longer fit move into its menu from the right as the strip
+    //  narrows and come back as it widens, and entries marked seeMoreOnly
+    //  are always there. The button shows only when its menu has something
+    //  in it. This replaces the button's glyph, tip and icon; call it before
+    //  SetEntries.
+    void  EnableSeeMore    (const wchar_t * glyph, const wchar_t * tip, const DxuiVectorIcon * icon = nullptr);
     bool  IsInSeeMore      (int commandId) const;
 
-    //  The id the See more button's command carries.
+    //  Rows the host adds to the See more menu each time it opens, between the
+    //  entries that no longer fit and those marked seeMoreOnly.
+    void  SetSeeMoreRows   (std::function<std::vector<DxuiPopupMenuItem>()> rows) { m_seeMoreRows = std::move (rows); }
+
+    //  The id on the See more button's command.
     static constexpr int  kSeeMoreId = -2;
     void  SetIconFace      (const wchar_t * face)        { m_iconFace = face; }
     void  SetIconDip       (float dip)                   { m_iconDip = dip; }
@@ -322,6 +345,27 @@ public:
     //  hover pill.
     static constexpr int  GetBandDip () { return kBandDp; }
 
+    //  Whether a drop-down that shows an icon also shows the chevron that
+    //  says it opens a menu. One without an icon always shows it. File
+    //  Explorer draws it on both, so a toolbar following Explorer sets this;
+    //  the emulator's own chrome does not.
+    void  SetChevronOnIcons (bool on)                    { m_chevronOnIcons = on; }
+
+    //  Whether a line divides one group of buttons from the next, as File
+    //  Explorer's command bar has. Off for the emulator's own chrome.
+    void  SetGroupSeparators (bool on)                   { m_groupSeparators = on; }
+
+    //  The space inside a button around what it shows, and the size of its
+    //  label as a share of the system's chrome font. The emulator's chrome
+    //  keeps the defaults; a bar following File Explorer widens the one and
+    //  shrinks the other to Explorer's measure.
+    void  SetButtonPadDip   (float dip)                  { m_buttonPadDip = dip; }
+    void  SetLabeledLeadDip (float dip)                  { m_labeledLeadDip = dip; }   // a labeled button's pad before its icon; the button pad when unset
+    void  SetContentDropDip (float dip)                  { m_contentDropDip = dip; }   // moves the buttons down within the bar
+    void  SetChevronGapDip  (float dip)                  { m_chevronGapDip = dip; }   // a drop-down's label to its chevron
+    void  SetIconGapDip     (float dip)                  { m_iconGapDip    = dip; }   // a button's icon to its label
+    void  SetLabelScale     (float scale)                { m_labelScale   = scale; }
+
     //  The two icon fonts for the glyphs in UnicodeSymbols.h. They use the same
     //  code points; Windows 11 uses Fluent for its own chrome, which draws some
     //  glyphs differently (Refresh most visibly) and is not in Windows 10.
@@ -335,9 +379,26 @@ public:
     void  SetStripColors   (uint32_t stripArgb, uint32_t textArgb);
     void  ClearStripColors ()                            { m_stripColorsSet = false; }
 
-    //  Decides how many entries can still afford their label at this width
-    //  and returns the band thickness (dp) the strip needs. Call BEFORE
-    //  docking the chrome bands.
+    //  The line along the bottom edge; zero, the default, is the theme's
+    //  content edge.
+    void  SetEdgeColor     (uint32_t edgeArgb)           { m_edgeOverride = edgeArgb; }
+
+    //  The line along the bottom edge is 1 dip rounded, never less than a
+    //  pixel: 2 at 150%, as Explorer draws its own.
+    static int  GetEdgePx (const DxuiDpiScaler & scaler) { return (std::max) (1, (int) std::lround (scaler.ToPxf (1.0f))); }
+
+    //  The strip's padding at each end; the default is kBarPadXDp.
+    void  SetBarPadDp      (int barPadDp)                { m_barPadDp = barPadDp; }
+
+    //  The space between groups; the default is kGroupGapDp.
+    void  SetGroupGapDp    (int groupGapDp)              { m_groupGapDp = groupGapDp; }
+
+    //  The labels' font size; zero, the default, is the chrome font.
+    void  SetLabelFontDip  (float fontDip)               { m_labelFontDip = fontDip; }
+
+    //  Decides which entries still fit on the strip at this width and
+    //  returns the band thickness (dp) the strip needs. Call BEFORE docking
+    //  the chrome bands.
     int   PlanForWidth     (int clientWidthPx, const DxuiDpiScaler & scaler);
     int   GetBandDp        () const;
 
@@ -347,6 +408,10 @@ public:
     bool  IsLabeled        (int commandId) const;
     bool  TryGetEntryRect  (int commandId, RECT & outRect) const;
 
+    //  Changes the icon an entry draws, as Explorer's View button shows the
+    //  current view's.
+    void  SetEntryVectorIcon (int commandId, const DxuiVectorIcon * icon);
+
     //  The span between the last leading entry and the first trailing one, a
     //  group gap from each, for a host control such as an address bar. Empty
     //  when there is no room.
@@ -354,14 +419,24 @@ public:
 
     //  As the menu bar's: the open picker's submenu delay needs a heartbeat.
     bool  WantsTick () const { return m_dropdown.WantsTick(); }
-    void  TickMenus (int64_t nowMs) { m_dropdown.Tick (nowMs); }
+
+    //  Explorer's command bar look: a button shows only a faint fill on hover
+    //  and press, with no border, and its text dims while pressed. Its menus
+    //  leave the mouse with the window, so the bar keeps its hover and tips
+    //  while one is open; the host closes an open menu with CloseMenu on a
+    //  press anywhere else.
+    void  SetFlatStyle (bool flat) { m_flat = flat; m_dropdown.SetGrabsCapture (!flat); m_dropdown.SetCompactRows (flat); }
+    void  CloseMenu    ()          { m_dropdown.Hide(); }
+    void  TickMenus    (int64_t nowMs) { m_dropdown.Tick (nowMs); }
 
     void  Layout           (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  Paint            (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnMouse          (const DxuiMouseEvent & ev) override;
 
     //  Host-forwarded pointer input, client coordinates. True when consumed.
     bool             OnToolbarMouseMove   (int x, int y);
     void             OnToolbarMouseLeave  ();
+    void             ClearHover           ();
     bool             OnToolbarLButtonDown (int x, int y);
     bool             OnToolbarLButtonUp   (int x, int y);
     const wchar_t *  GetTooltipAt         (int x, int y, RECT & anchor) const;
@@ -380,12 +455,12 @@ public:
     //  entry there is on the strip rather than in See more's menu.
     int   GetEntryCommandId (int index) const            { return (index >= 0 && index < (int) m_slots.size() && m_slots[(size_t) index].entry.command != nullptr) ? m_slots[(size_t) index].entry.command->id : 0; }
     bool  IsEntryShown      (int index) const            { return index >= 0 && index < (int) m_slots.size() && !m_slots[(size_t) index].hidden; }
-    void  SetFocusIndex    (int index);
-    int   GetFocusIndex    () const                      { return m_focusIndex; }
-    void  ActivateFocused  ();
-    bool  IsMenuOpen       () const;
-    bool  OwnsKeyboard     () const;
-    bool  HandleKey        (WPARAM vk);
+    void  SetFocusIndex     (int index);
+    int   GetFocusIndex     () const                      { return m_focusIndex; }
+    void  ActivateFocused   ();
+    bool  IsMenuOpen        () const;
+    bool  OwnsKeyboard      () const;
+    bool  HandleKey         (WPARAM vk);
 
     //  A drop-down's rows are commands too, typically with `isChecked`
     //  reading the application's current choice. Preview fires as the
@@ -425,13 +500,21 @@ private:
     static constexpr int       kFlyoutPadDp      = 8;
     static constexpr int       kFlyoutDropDp     = 2;    // gap under the bar
     static constexpr float     kIconDip          = 15.0f;
+    static constexpr float     kFillMarginDip    = 2.0f;   // around an icon that fills its button
+    static constexpr float     kFaceReferencePx  = 100.0f; // face text is measured at this size, then scaled
+
+    //  Face text's font when the entry doesn't set one: monospaced, as code and
+    //  hex are.
+    static constexpr const wchar_t *  kFaceFont = L"Consolas";
     static constexpr float     kFallbackFontDip  = 13.0f;  // size the char estimate was taken at
     static constexpr float     kFallbackCharPx   = 7.5f;
 
     //  The label font: the theme's body size, the one a pane's title and
     //  tabs use, so a pane's toolbar reads at the same size as the tab over
-    //  it. Dxui decides it; no consumer sets it.
+    //  it, unless the host sets a size or a scale.
     float  GetChromeFontPx () const;
+    int    GetButtonPadPx  () const { return m_compact ? m_scaler.ToPx (GetSpacingDp (Spacing::BtnPadX)) : (int) std::lround (m_scaler.ToPxf (m_buttonPadDip)); }
+    int    GetLeadPadPx    (bool labeled) const { return (labeled && m_labeledLeadDip >= 0.0f) ? (int) std::lround (m_scaler.ToPxf (m_labeledLeadDip)) : GetButtonPadPx(); }
     void   RefreshMetrics  ();
 
     //  Runtime state the strip keeps per entry.
@@ -443,7 +526,7 @@ private:
         bool   pressed  = false;
         bool   labeled  = true;
         bool   hidden   = false;   // in the See more menu rather than on the strip
-        int    shrunkPx = 0;   // width a shrinkable custom entry gives up to fit
+        int    shrinkPx = 0;       // a custom entry's width less this, to fit; negative for one that fills
     };
 
     struct Picker
@@ -460,16 +543,29 @@ private:
 
     //  An entry without a glyph is its label alone: it spends no room on an
     //  icon, never collapses to one, and as a drop-down shows a chevron.
-    //  An icon of either kind: a glyph from the icon font, or a drawn one.
-    //  Layout reserves the icon's room from this, so a drawn icon that did
-    //  not count would be painted over its own label.
+    //  An icon of any kind: a glyph from the icon font, a drawn one, a vector
+    //  icon, face text, or one its decoration draws. Layout reserves the
+    //  icon's room from this, so a drawn icon that did not count would be
+    //  painted over its own label.
     static bool  HasGlyph (const Slot & slot)
     {
-        return static_cast<bool> (slot.entry.icon) ||
+        return static_cast<bool> (slot.entry.icon) || slot.entry.vectorIcon != nullptr || slot.entry.faceText != nullptr ||
+               static_cast<bool> (slot.entry.decoration) ||
                (slot.entry.command != nullptr && slot.entry.command->glyph != nullptr && slot.entry.command->glyph[0] != 0);
     }
 
-    static constexpr int  kChevronDp = 8;
+    static constexpr int    kChevronDp      = 8;
+    static constexpr float  kChevronFontDip = 6.67f;   // its glyph: 8 pixels of ink at 150%, as File Explorer's
+
+    //  How much of the label's ink the chevron takes: File Explorer draws its
+    //  chevron #B7B7B7 beside a #FFFFFF label, which is this share.
+    static constexpr uint32_t  kChevronAlphaPercent = 72;
+
+    //  How far a group separator stops short of the bar's top and bottom.
+    static constexpr float  kSeparatorTopDip    = 8.0f;
+    static constexpr float  kSeparatorBottomDip = 7.0f;
+
+    void  PaintGroupSeparators (IDxuiPainter & painter, const IDxuiTheme & theme);
 
     std::wstring  GetFittedButtonText  (const DxuiCommand & cmd, IDxuiTextRenderer * text, float fontPx) const;
     const Slot *  FindSlot             (int commandId) const;
@@ -492,7 +588,8 @@ private:
     static bool   TryOpenDropDownAt    (POINT screenPx, const DxuiToolbar * closing, int closedId);
     void          OpenSeeMore          ();
     void          PlanSeeMore          (int clientWidthPx);
-    void          ShrinkToFit          (int clientWidthPx);
+    void          ShrinkCustomEntries  (int clientWidthPx);
+    int           GetCustomRoomPx      (const Slot & slot) const;
     void          GrowToFill           (int clientWidthPx);
 
     std::function<void (POINT)>  m_onDropDownClickOutside;
@@ -500,21 +597,28 @@ private:
     void          ForwardToFlyout      (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, bool & handled);
 
     void  PaintSlot      (Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    void  PaintEntryIcon (const Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink);
+    void  PaintEntryIcon (const Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink, uint32_t accent);
+    void  PaintFaceText  (const Slot & slot, IDxuiTextRenderer & text, float left, float top, float width, float height, uint32_t ink);
 
     //  A translucent ink as the opaque color it looks like over `behind`.
-    static uint32_t  Flatten (uint32_t ink, uint32_t behind);
-    void  PaintFlyout    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    static uint32_t  Flatten     (uint32_t ink, uint32_t behind);
+    void             PaintFlyout (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
 
-    std::vector<Slot>        m_slots;
-    std::map<int, Picker>    m_pickers;
-    DxuiPopupMenu            m_dropdown;
+    std::vector<Slot>      m_slots;
+    std::map<int, Picker>  m_pickers;
+    std::function<std::vector<DxuiPopupMenuItem>()>  m_seeMoreRows;
+    DxuiPopupMenu          m_dropdown;
 
     //  Every strip alive, UI thread only, so a press that dismisses one
     //  strip's drop-down can open another's (TryOpenDropDownAt).
     static inline std::vector<DxuiToolbar *>  s_toolbars;
     int                                       m_openPicker = -1;
+    bool                                      m_flat       = false;
+
+    //  WinUI's TextFillColorSecondary alphas, on dark ink and on light.
+    static constexpr uint32_t  kPressedInkAlphaDark  = 0xC5000000u;
+    static constexpr uint32_t  kPressedInkAlphaLight = 0x9E000000u;
 
     IDxuiControl           * m_flyoutControl  = nullptr;
     SIZE                     m_flyoutPanelDp  = {};
@@ -526,17 +630,26 @@ private:
     int                      m_focusIndex     = -1;
     mutable std::wstring     m_tipText;                  // backs the pointer GetTooltipAt returns
 
-    IDxuiTextRenderer             * m_textRenderer = nullptr;
-    const wchar_t                 * m_iconFace     = kMdl2IconFace;
-    float                           m_iconDip      = kIconDip;
-    RECT                            m_barRect      = {};
-    RECT                            m_freeRect     = {};
-    RECT                            m_hostClient   = {};
+    IDxuiTextRenderer             * m_textRenderer    = nullptr;
+    const wchar_t                 * m_iconFace        = kMdl2IconFace;
+    float                           m_iconDip         = kIconDip;
+    bool                            m_chevronOnIcons  = false;
+    bool                            m_groupSeparators = false;
+    float                           m_buttonPadDip    = (float) kBtnPadXDp;
+    float                           m_labeledLeadDip  = -1.0f;
+    float                           m_contentDropDip  = 0.0f;
+    float                           m_chevronGapDip   = (float) kIconGapDp;
+    float                           m_iconGapDip      = (float) kIconGapDp;
+    float                           m_labelScale      = 1.0f;
+    RECT                            m_barRect         = {};
+    RECT                            m_freeRect        = {};
+    RECT                            m_hostClient      = {};
     DxuiDpiScaler                   m_scaler;
     DxuiMenuMetrics                 m_metrics;
-    UINT                            m_metricsDpi   = 0;     // the DPI m_metrics was read at
-    int                             m_labeledCount = 0;
+    UINT                            m_metricsDpi      = 0;     // the DPI m_metrics was read at
+    int                             m_labeledCount    = 0;
     std::shared_ptr<DxuiCommand>    m_seeMore;
+    const DxuiVectorIcon          * m_seeMoreIcon     = nullptr;
 
     bool                     m_compact        = false;
     bool                     m_paneTextInset  = false;
@@ -553,4 +666,9 @@ private:
     bool                     m_stripColorsSet = false;
     uint32_t                 m_stripOverride  = 0;
     uint32_t                 m_textOverride   = 0;
+    uint32_t                 m_edgeOverride   = 0;
+    int                      m_groupGapDp     = kGroupGapDp;
+    int                      m_barPadDp       = kBarPadXDp;
+    bool                     m_overflowed     = false;
+    float                    m_labelFontDip   = 0.0f;
 };

@@ -24,3 +24,5 @@
 #include <winioctl.h>
 
 #include <CppUnitTest.h>
+
+#include "../UnitTest/HResultAssert.h"

@@ -48,7 +48,7 @@ namespace DebuggerControllerTests
             CpuManager                cpuManager;
             InMemoryPipeTransport     transport;
             InMemoryFileSystem        files;
-            FakeHostPathResolver      resolver { &files };
+            FakeHostPathResolver      resolver   { &files };
             DebuggerController        controller;
             std::vector<std::string>  console;
             std::vector<std::string>  linked;
@@ -273,9 +273,10 @@ namespace DebuggerControllerTests
 
         TEST_METHOD (AWriteOverAnExistingFile_FailsWithoutTheOverwriteOption)
         {
-            Rig          rig;
-            JsonValue    reply;
-            std::string  content;
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig>();   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            JsonValue               reply;
+            std::string             content;
             HRESULT      hr = rig.files.WriteAllText (L"C:\\Work\\x.bin", "old");
 
 
@@ -341,8 +342,9 @@ namespace DebuggerControllerTests
         //  write over a file without the option, and add no lines.
         TEST_METHOD (ConsoleCommands_AreUnaffected)
         {
-            Rig      rig;
-            Reply    reply;
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig>();   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            Reply                   reply;
             HRESULT  hr = rig.files.WriteAllText (L"C:\\Elsewhere\\s.txt", "BSAVE C:\\Elsewhere\\y.bin 300,10\n");
 
 
@@ -416,9 +418,10 @@ namespace DebuggerControllerTests
         //  and the directory is left as it was.
         TEST_METHOD (CdOutsideTheAllowedFolders_Fails)
         {
-            Rig           rig;
-            JsonValue     reply;
-            std::wstring  before = rig.controller.GetSession().GetCurrentDirectory();
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig>();   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            JsonValue               reply;
+            std::wstring            before   = rig.controller.GetSession().GetCurrentDirectory();
 
 
 

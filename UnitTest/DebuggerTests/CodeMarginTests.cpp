@@ -76,9 +76,9 @@ namespace DebuggerTests
         static void  PaintSource (DxuiTextView & view, int dpi, MockDxuiPainter & painter, MockDxuiTextRenderer & text,
                                   std::shared_ptr<const DxuiIconImage> icon = nullptr)
         {
-            CassoTheme             theme  = CassoTheme::MakeSkeuomorphic();
-            DxuiDpiScaler          scaler;
-            DxuiActionBanner       banner;
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            DxuiDpiScaler   scaler;
+            DxuiInfoBanner  banner;
             SourcePane             pane (&view, &banner,
                                          [] (const DebugSourceFile &, const std::wstring &, const std::string &) { return SourceLookup(); },
                                          [] (const DebuggerActionBuilder &) {});
