@@ -11,6 +11,7 @@
 #include "FileTypes/ScAssemblerSource.h"
 #include "FileTypes/SuperHiRes.h"
 #include "FileTypes/TeachDocument.h"
+#include "FileTypes/VisiCalcSheet.h"
 
 
 
@@ -40,6 +41,7 @@ std::vector<FileFormatTable::Row> FileFormatRows::Make()
         Row { FileFormat::AppleWorksGsWp, &AppleWorksGsWp::Matches,    &AppleWorksGsWp::Decode,    nullptr,               L".AppleWorks GS WP.rtf", true },
         Row { FileFormat::Teach,          &TeachDocument::Matches,     &TeachDocument::Decode,     nullptr,               L".Teach.rtf",            true },
         Row { FileFormat::Omf,            &OmfFile::Matches,           &OmfFile::Decode,           nullptr,               L".OMF.txt",              true },
+        Row { FileFormat::VisiCalc,       &VisiCalcSheet::Matches,     &VisiCalcSheet::Decode,     nullptr,               L".VisiCalc.csv",         false },
 
         Row { FileFormat::SuperHiRes,         &SuperHiRes::MatchesScreen,          &SuperHiRes::DecodeScreen,          nullptr, L".Super Hi-Res.png", true },
         Row { FileFormat::PackedSuperHiRes,   &SuperHiRes::MatchesPacked,          &SuperHiRes::DecodePacked,          nullptr, L".Super Hi-Res.png", true },
