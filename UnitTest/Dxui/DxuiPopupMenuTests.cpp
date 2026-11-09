@@ -924,6 +924,48 @@ public:
     }
 
 
+    TEST_METHOD (Paint_HoveredRow_WithoutColors_TakesTheThemeMenuHoverText)
+    {
+        constexpr uint32_t  kMenuHover      = 0xFF5CE07A;
+        constexpr uint32_t  kMenuHoverText  = 0xFF050605;
+        constexpr uint32_t  kMenuHoverAccel = 0xFF0A0B0A;
+        constexpr int       kGammaRow       = 3;
+
+        Fixture               f;
+        DxuiPopupMenu         menu;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        DxuiTheme             theme          = DxuiTheme::Dark();
+        uint32_t              gammaArgb      = 0;
+        uint32_t              gammaAccelArgb = 0;
+
+
+
+        // An inverse-video highlight: the fill is as bright as the text, so
+        // the hovered row has to switch to the dark hover text.
+        theme.dropdownHover      = kMenuHover;
+        theme.dropdownHoverText  = kMenuHoverText;
+        theme.dropdownHoverAccel = kMenuHoverAccel;
+
+        f.gamma->accelerator = L"Ctrl+G";
+
+        menu.SetTheme     (&theme);
+        menu.ShowAt       (0, 0, f.FlatList(), text, MakeHost (800, 600));
+        menu.SetHighlight (kGammaRow);
+        menu.Paint        (painter, text);
+
+        for (const RecordedTextCall & c : text.Calls())
+        {
+            if (c.kind != RecordedTextKind::DrawString)  { continue; }
+            if (c.text == L"Gamma")                      { gammaArgb      = c.argb; }
+            if (c.text == L"Ctrl+G")                     { gammaAccelArgb = c.argb; }
+        }
+
+        Assert::AreEqual (kMenuHoverText,  gammaArgb,      L"the hovered label takes the theme's menu hover text");
+        Assert::AreEqual (kMenuHoverAccel, gammaAccelArgb, L"the hovered accelerator takes the theme's menu hover accelerator color");
+    }
+
+
     TEST_METHOD (LegacyItems_BecomeCheckableRows_AndSelectReportsIndex)
     {
         DxuiPopupMenu                    menu;
