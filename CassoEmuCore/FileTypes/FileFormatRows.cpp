@@ -2,6 +2,7 @@
 
 #include "FileTypes/FileFormatRows.h"
 #include "FileTypes/AppleWorks.h"
+#include "FileTypes/BusinessBasic.h"
 #include "FileTypes/HiResFormats.h"
 #include "FileTypes/IigsFormats.h"
 #include "FileTypes/MagicWindowDocument.h"
@@ -44,6 +45,7 @@ std::vector<FileFormatTable::Row> FileFormatRows::Make()
         Row { FileFormat::Omf,            &OmfFile::Matches,             &OmfFile::Decode,             nullptr,               L".OMF.txt",              true },
         Row { FileFormat::VisiCalc,       &VisiCalcSheet::Matches,       &VisiCalcSheet::Decode,       nullptr,               L".VisiCalc.csv",         false },
         Row { FileFormat::MagicWindow,    &MagicWindowDocument::Matches, &MagicWindowDocument::Decode, nullptr,               L".Magic Window.txt",     false },
+        Row { FileFormat::BusinessBasic,  &BusinessBasic::Matches,       &BusinessBasic::Decode,       nullptr,               L".Business BASIC.txt",   false },
 
         Row { FileFormat::SuperHiRes,         &SuperHiRes::MatchesScreen,          &SuperHiRes::DecodeScreen,          nullptr, L".Super Hi-Res.png", true },
         Row { FileFormat::PackedSuperHiRes,   &SuperHiRes::MatchesPacked,          &SuperHiRes::DecodePacked,          nullptr, L".Super Hi-Res.png", true },

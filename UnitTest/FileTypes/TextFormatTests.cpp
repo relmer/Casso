@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "Core/TextEncoding.h"
+#include "FileTypes/BusinessBasic.h"
 #include "FileTypes/FileFormatTable.h"
 #include "FileTypes/MagicWindowDocument.h"
 #include "FileTypes/MerlinSource.h"
@@ -18,7 +19,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PascalTextTests, RandomTextTests, MerlinSourceTests,
-//  ScAssemblerSourceTests, FileFormatTableTests and MagicWindowDocumentTests
+//  ScAssemblerSourceTests, FileFormatTableTests, MagicWindowDocumentTests
+//  and BusinessBasicTests
 //
 //  Files built in each test, identified by the table, decoded, and for the
 //  import rows encoded back.
@@ -239,5 +241,34 @@ public:
 
         facts.name = "LETTER";
         Assert::IsFalse (MagicWindowDocument::Matches (facts, bytes));
+    }
+};
+
+
+TEST_CLASS (BusinessBasicTests)
+{
+public:
+
+    TEST_METHOD (ListLine_KeywordsStringsAndRemarks)
+    {
+        Assert::AreEqual (std::wstring (L"PRINT \"HI\":REM X"),  BusinessBasic::ListLine (std::vector<Byte> { 0xD9, '"', 'H', 'I', '"', ':', 0xC0, ' ', 'X' }));
+        Assert::AreEqual (std::wstring (L"LET A=LEN(B$)"),       BusinessBasic::ListLine (std::vector<Byte> { 0xB9, 'A', '=', 0xFF, 0xC6, 'B', '$', ')' }));
+        Assert::AreEqual (std::wstring (L"GOTO 10"),             BusinessBasic::ListLine (std::vector<Byte> { 0xBA, '1', '0' }));
+        Assert::AreEqual (std::wstring (L"{$8A}"),               BusinessBasic::ListLine (std::vector<Byte> { 0x8A }));
+    }
+
+
+    TEST_METHOD (Decode_LinesToTheZeroLength)
+    {
+        std::vector<Byte>  bytes = { 0, 0, 7, 10, 0, 0xBA, '1', '0', 0, 4, 20, 0, 0, 0 };
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        AssertSucceeded (BusinessBasic::Decode (bytes, FileFacts(), DecodeOptions(), file, error));
+
+        Assert::IsTrue (file.lines == std::vector<std::wstring> { L"10 GOTO 10", L"20" });
+        Assert::IsTrue (file.notes.empty());
     }
 };
