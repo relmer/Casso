@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Seams/Win32HostFirewall.h"
+#include "Update/Sha256Digest.h"
 
 #pragma comment(lib, "userenv.lib")
 
@@ -413,58 +414,91 @@ FirewallProgram Win32HostFirewall::ReadThisProgram()
 //
 //  Win32HostFirewall::GetThisProgram
 //
-//  A packaged process's rules are written for its package's SID, which is
-//  derived from its family name. An unpackaged process has none.
+//  A packaged process's capability rules are written for its package's SID,
+//  which is derived from its family name. An unpackaged process doesn't have one.
+//  The path is returned even when the SID can't be made: the rules a
+//  package declares for its programs are written for their paths, and with
+//  no path every port reads as blocked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32HostFirewall::GetThisProgram (FirewallProgram & outProgram)
 {
-    HRESULT          hr                                         = S_OK;
-    wchar_t          path[MAX_PATH]                             = {};
-    wchar_t          family[PACKAGE_FAMILY_NAME_MAX_LENGTH + 1] = {};
-    UINT32           familyLength                               = ARRAYSIZE (family);
-    DWORD            length                                     = 0;
-    bool             fits                                       = false;
-    LONG             packaged                                  = ERROR_SUCCESS;
-    PSID             sid                                        = nullptr;
-    LPWSTR           sidText                                    = nullptr;
-    BOOL             converted                                  = FALSE;
-    FirewallProgram  program;
+    HRESULT  hr                                         = S_OK;
+    wchar_t  path[MAX_PATH]                             = {};
+    wchar_t  family[PACKAGE_FAMILY_NAME_MAX_LENGTH + 1] = {};
+    UINT32   familyLength                               = ARRAYSIZE (family);
+    DWORD    length                                     = 0;
+    bool     fits                                       = false;
+    LONG     packaged                                   = ERROR_SUCCESS;
 
 
+
+    outProgram = FirewallProgram();
 
     length = GetModuleFileNameW (nullptr, path, ARRAYSIZE (path));
     fits   = length > 0 && length < ARRAYSIZE (path);
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INSUFFICIENT_BUFFER));
 
-    program.path = path;
+    outProgram.path = path;
 
     packaged = GetCurrentPackageFamilyName (&familyLength, family);
+    BAIL_OUT_IF (packaged != ERROR_SUCCESS, S_OK);
 
-    if (packaged == ERROR_SUCCESS)
-    {
-        hr = DeriveAppContainerSidFromAppContainerName (family, &sid);
-        CHR (hr);
 
-        converted = ConvertSidToStringSidW (sid, &sidText);
-        CWR (converted);
-
-        program.package = sidText;
-    }
-
-    outProgram = std::move (program);
+    hr = MakePackageSid (family, outProgram.package);
+    CHR (hr);
 
 Error:
-    if (sidText != nullptr)
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32HostFirewall::MakePackageSid
+//
+//  S-1-15-2 and the first seven 32-bit values, little-endian, of the
+//  SHA-256 of the lowercase name in UTF-16LE: the SID
+//  DeriveAppContainerSidFromAppContainerName derives. In a packaged process
+//  that call returns a SID for which IsValidSid returns FALSE, so the SID is
+//  computed here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32HostFirewall::MakePackageSid (const std::wstring & familyName, std::wstring & outSid)
+{
+    static constexpr size_t  kParts = 7;
+    HRESULT                  hr     = S_OK;
+    std::vector<Byte>        bytes;
+    std::vector<Byte>        digest;
+    std::wstring             sid    = L"S-1-15-2";
+
+
+
+    for (wchar_t ch : familyName)
     {
-        LocalFree (sidText);
+        wchar_t  lower = (wchar_t) towlower (ch);
+
+        bytes.push_back ((Byte) (lower & 0xFF));
+        bytes.push_back ((Byte) (lower >> 8));
     }
 
-    if (sid != nullptr)
+    hr = Sha256Digest::Compute (bytes, digest);
+    CHR (hr);
+
+    for (size_t part = 0; part < kParts; part++)
     {
-        FreeSid (sid);
+        uint32_t  value = (uint32_t) digest[part * 4] | ((uint32_t) digest[part * 4 + 1] << 8) | ((uint32_t) digest[part * 4 + 2] << 16) | ((uint32_t) digest[part * 4 + 3] << 24);
+
+        sid += std::format (L"-{}", value);
     }
 
+    outSid = std::move (sid);
+
+Error:
     return hr;
 }

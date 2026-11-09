@@ -28,6 +28,9 @@ public:
     //  This process as the firewall's rules identify it.
     static HRESULT  GetThisProgram (FirewallProgram & outProgram);
 
+    //  A package's SID, as S-1-15-2-..., from its family name.
+    static HRESULT  MakePackageSid (const std::wstring & familyName, std::wstring & outSid);
+
     //  The same, or an empty program when it cannot be read, whose verdicts
     //  then match only the rules for every program.
     static FirewallProgram  ReadThisProgram ();

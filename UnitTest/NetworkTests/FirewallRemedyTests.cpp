@@ -104,6 +104,19 @@ public:
     }
 
 
+    //  The SID Windows derives for the package, as the registry's app
+    //  container mapping lists it, whatever the name's case.
+    TEST_METHOD (APackagesSid_IsDerivedFromItsFamilyName)
+    {
+        std::wstring  sid;
+
+        AssertSucceeded (Win32HostFirewall::MakePackageSid (L"relmer.Casso_cbzq8vn69t5ht", sid));
+        Assert::AreEqual (std::wstring (L"S-1-15-2-1177269836-2719658770-807730967-1408826242-2906321382-2626586712-2281129914"), sid);
+
+        AssertSucceeded (Win32HostFirewall::MakePackageSid (L"RELMER.CASSO_CBZQ8VN69T5HT", sid));
+        Assert::AreEqual (std::wstring (L"S-1-15-2-1177269836-2719658770-807730967-1408826242-2906321382-2626586712-2281129914"), sid);
+    }
+
     TEST_METHOD (MarkingPrivate_AdmitsOnPrivateInstead)
     {
         FirewallSnapshot  snapshot;

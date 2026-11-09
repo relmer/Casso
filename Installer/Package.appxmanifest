@@ -245,6 +245,10 @@
                      announcements. The address translation drops a datagram
                      from a sender the guest has not sent to. -->
                 <desktop2:Rule Direction="in" IPProtocol="UDP" Profile="all" LocalPortMin="6511" LocalPortMax="6511" />
+                <!-- The CassoLink disk's listener on the emulated Uthernet II,
+                     and the ports after it that a second Casso on the PC moves
+                     the listener to when 6502 is in use. -->
+                <desktop2:Rule Direction="in" IPProtocol="TCP" Profile="all" LocalPortMin="6502" LocalPortMax="6509" />
             </desktop2:FirewallRules>
         </desktop2:Extension>
     </Extensions>
