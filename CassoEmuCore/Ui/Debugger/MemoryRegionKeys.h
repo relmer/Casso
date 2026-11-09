@@ -42,7 +42,7 @@ public:
         L"SmartPort firmware", L"disk port firmware", L"mouse firmware",
     };
 
-    //  The //c's built-in ports at the slot numbers its firmware gives them:
+    //  The //c's built-in ports at their slot numbers in its firmware:
     //  each slot's I/O and its ROM page's part. Empty on any other machine.
     static std::wstring  GetBuiltInIo  (const std::string & machineId, int slot);
     static std::wstring  GetBuiltInRom (const std::string & machineId, int slot);

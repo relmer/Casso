@@ -186,9 +186,9 @@ std::wstring MemoryRegionKeys::GetRomArea (const std::string & machineId, Word a
 //
 //  MemoryRegionKeys::GetBuiltInIo
 //
-//  The //c's firmware (ROM 3 and 4) gives serial port 1 slot 1, serial port
-//  2 slot 2, the memory expansion slot 4 and the disk port slot 6; slots 3,
-//  5 and 7 have no I/O.
+//  In the //c's firmware (ROM 3 and 4), serial port 1 is slot 1, serial
+//  port 2 slot 2, the memory expansion slot 4 and the disk port slot 6;
+//  slots 3, 5 and 7 have no I/O.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
