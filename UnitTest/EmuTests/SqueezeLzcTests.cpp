@@ -380,6 +380,7 @@ public:
         {
             std::vector<Byte>  packed (text.size() + text.size() / 100 + 600);
             unsigned int       size = (unsigned int) packed.size();
+            HRESULT            hr   = S_OK;
 
             Assert::AreEqual (BZ_OK, BZ2_bzBuffToBuffCompress ((char *) packed.data(), &size, (char *) text.data(), (unsigned int) text.size(), 9, 0, 0));
             packed.resize (size);
@@ -391,7 +392,8 @@ public:
 
             packed[packed.size() / 2] ^= 0x55;
             thread.stored = packed;
-            Assert::IsTrue (FAILED (NuFxArchive::ExpandThread (record, thread, unpacked, error)));
+            hr = NuFxArchive::ExpandThread (record, thread, unpacked, error);
+            Assert::IsTrue (FAILED (hr));
         }
 
         thread.format = NuFxThread::kFormatSqueeze;
