@@ -1545,8 +1545,9 @@ void DisassemblyGroup::SelectEdgeAfterScroll (int view, bool isTop)
 //  DisassemblyGroup::SelectAsked
 //
 //  Selects the instruction a snapshot specifies (codeSelect), once per
-//  request (codeSelectSerial). The view's tab is brought to the front and the
-//  view is focused, so the row is drawn in the focused selection color. A
+//  request (codeSelectSerial). Its source line is selected in its document,
+//  and the view's tab is brought to the front and the view is focused, so the
+//  row is drawn in the focused selection color. A
 //  request whose line is not in the view yet is applied from a later
 //  snapshot that contains it.
 //
@@ -1575,6 +1576,7 @@ void DisassemblyGroup::SelectAsked (
             m_askedSerial[(size_t) view] = serial;
             m_selected[(size_t) view]    = *asked;
             GetCodeList (view)->SetSelectedRow (DisassemblyOptions::GetRowOfLine (built, (int) i));
+            m_sources.ShowLine (lines[i].sourceFileId, lines[i].sourceLine);
             m_host.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
             m_host.FocusControl (GetCodeList (view));
             return;

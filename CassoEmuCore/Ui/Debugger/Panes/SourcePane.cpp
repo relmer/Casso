@@ -628,9 +628,29 @@ void SourcePane::FollowMarkedLine()
 
 void SourcePane::ShowLine (int fileId, int line)
 {
-    if (fileId == m_fileId && line > 0)
+    int  row   = -1;
+    int  start = 0;
+
+
+
+    if (fileId != m_fileId || line <= 0)
     {
-        ScrollTo (line);
+        return;
+    }
+
+    ScrollTo (line);
+
+    //  The line's text is selected, after the marker and number cells.
+    row = GetRowOfLine (line);
+
+    if (row >= 0 && row < (int) m_view->GetRows().size() && m_view->GetRows()[(size_t) row].cells.size() > (size_t) kTextCell)
+    {
+        const DxuiTextView::Row  & each = m_view->GetRows()[(size_t) row];
+
+
+
+        start = (int) (each.cells[0].size() + 1 + each.cells[1].size() + 1);
+        m_view->Select ({ row, start }, { row, start + (int) each.cells[(size_t) kTextCell].size() });
     }
 }
 

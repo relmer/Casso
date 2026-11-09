@@ -831,8 +831,11 @@ void SourceDocumentGroup::ShowLine (int fileId, int line)
         return;
     }
 
+    //  The snapshot's debug file is taken first, since a change of debug file
+    //  closes the documents open for the last one, this one among them.
     if (slot < 0)
     {
+        Apply();
         Open (fileId, 0, false);
         Apply();
         slot = m_files.Find (fileId);

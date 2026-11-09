@@ -427,5 +427,34 @@ namespace DebuggerPaneMenuTests
             Assert::AreEqual (0, window.GetSourceGroup().GetDocument (0).GetModel().GetFile(), L"main.a65");
             Assert::IsTrue   (host.addresses.empty(), L"the disassembly isn't moved");
         }
+
+
+        //  An instruction selected for the window, as a Ctrl+click on the heat
+        //  map asks, has its source line selected in its file's document, which
+        //  opens for it, even in the frame that brings the debug file.
+        TEST_METHOD (ARequestedInstructionsSourceLineIsSelectedInItsDocument)
+        {
+            CassoTheme                             theme    = CassoTheme::MakeSkeuomorphic();
+            MenuHost                               host;
+            MenuWindow                             window (theme, host);
+            std::shared_ptr<DebuggerViewSnapshot>  snapshot = MakeSnapshot (true);
+
+
+
+            snapshot->codeViews[0][1].sourceFileId = 0;
+            snapshot->codeViews[0][1].sourceLine   = 6;
+            snapshot->code                         = snapshot->codeViews[0];
+            snapshot->codeSelect[0]                = 0x0313;
+            snapshot->codeSelectSerial[0]          = 1;
+
+            window.TakeSnapshot (snapshot);
+            window.Relayout();
+            window.TakeSnapshot (snapshot);
+            window.Relayout();
+
+            Assert::AreEqual (2, window.GetCodeList (0)->GetSelectedRow(), L"the LDA's row, under its source row");
+            Assert::IsTrue   (window.GetSourceGroup().IsOpen (0), L"main.a65's document opens");
+            Assert::AreEqual (std::wstring (L"        rts"), window.GetSourceGroup().GetDocument (0).GetView()->GetSelectionText(), L"with line 6 selected");
+        }
     };
 }

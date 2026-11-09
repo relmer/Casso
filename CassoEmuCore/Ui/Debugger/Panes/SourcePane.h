@@ -179,7 +179,8 @@ public:
     int   GetTopSourceLine () const;
     void  SetTopSourceLine (int line);
 
-    //  A code row was selected: scroll to its line when it is in this file.
+    //  A code row was selected: its line is scrolled to and selected when it
+    //  is in this file.
     void  ShowLine         (int fileId, int line);
     void  FollowMarkedLine ();
 
