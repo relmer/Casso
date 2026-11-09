@@ -8,6 +8,7 @@
 #include "FileTypes/RandomText.h"
 #include "FileTypes/ScAssemblerSource.h"
 #include "FileTypes/SuperHiRes.h"
+#include "FileTypes/TeachDocument.h"
 
 
 
@@ -35,6 +36,7 @@ std::vector<FileFormatTable::Row> FileFormatRows::Make()
         Row { FileFormat::AppleWorksDb,   &AppleWorksDb::Matches,      &AppleWorksDb::Decode,      nullptr,               L".AppleWorks DB.csv",    false },
         Row { FileFormat::AppleWorksSs,   &AppleWorksSs::Matches,      &AppleWorksSs::Decode,      nullptr,               L".AppleWorks SS.csv",    false },
         Row { FileFormat::AppleWorksGsWp, &AppleWorksGsWp::Matches,    &AppleWorksGsWp::Decode,    nullptr,               L".AppleWorks GS WP.rtf", true },
+        Row { FileFormat::Teach,          &TeachDocument::Matches,     &TeachDocument::Decode,     nullptr,               L".Teach.rtf",            true },
 
         Row { FileFormat::SuperHiRes,         &SuperHiRes::MatchesScreen,          &SuperHiRes::DecodeScreen,          nullptr, L".Super Hi-Res.png", true },
         Row { FileFormat::PackedSuperHiRes,   &SuperHiRes::MatchesPacked,          &SuperHiRes::DecodePacked,          nullptr, L".Super Hi-Res.png", true },

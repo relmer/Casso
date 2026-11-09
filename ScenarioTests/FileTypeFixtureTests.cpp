@@ -79,6 +79,7 @@ public:
             FilePayload   payload;
             DecodedFile   decoded;
             FileFormat    format = FileFormat::None;
+            FileFacts     facts;
             std::wstring  error;
             ULONGLONG     start  = 0;
             ULONGLONG     took   = 0;
@@ -103,8 +104,11 @@ public:
                 continue;
             }
 
+            facts              = FileFacts::From (entry, kind);
+            facts.resourceFork = payload.resourceFork;
+
             start = GetTickCount64();
-            hr    = FileFormatTable::Decode (format, payload.bytes, FileFacts::From (entry, kind), DecodeOptions(), decoded, error);
+            hr    = FileFormatTable::Decode (format, payload.bytes, facts, DecodeOptions(), decoded, error);
             took  = GetTickCount64() - start;
 
             outLog += std::format ("{} -> {} {}\n", path, (int) format, SUCCEEDED (hr) ? "ok" : TextEncoding::WideToUtf8 (error));

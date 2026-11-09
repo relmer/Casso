@@ -319,6 +319,7 @@
     <ClCompile Include="FileTypes\TextFormatTests.cpp" />
     <ClCompile Include="FileTypes\PictureFormatTests.cpp" />
     <ClCompile Include="FileTypes\AppleWorksTests.cpp" />
+    <ClCompile Include="FileTypes\TeachDocumentTests.cpp" />
     <ClCompile Include="EmuTests\NuFxArchiveTests.cpp" />
     <ClCompile Include="EmuTests\ArchiveWrapperTests.cpp" />
     <ClCompile Include="EmuTests\ArchiveVolumeTests.cpp" />

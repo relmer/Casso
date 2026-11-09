@@ -17,19 +17,21 @@ enum class VolumeKind;
 //
 //  What a catalog entry has that a format's row matches on: the volume
 //  kind, the type in that file system's numbering, the aux type or load
-//  address, and the name.
+//  address, and the name; and the resource fork, when the caller has it,
+//  for a format whose styles are in it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct FileFacts
 {
-    VolumeKind   volume         = {};
-    Byte         type           = 0;
-    Word         auxType        = 0;
-    bool         hasAuxType     = false;
-    Word         loadAddress    = 0;
-    bool         hasLoadAddress = false;
-    std::string  name;
+    VolumeKind             volume         = {};
+    Byte                   type           = 0;
+    Word                   auxType        = 0;
+    bool                   hasAuxType     = false;
+    Word                   loadAddress    = 0;
+    bool                   hasLoadAddress = false;
+    std::string            name;
+    std::span<const Byte>  resourceFork;
 
     static FileFacts  From (const FileEntry & entry, VolumeKind volume);
 

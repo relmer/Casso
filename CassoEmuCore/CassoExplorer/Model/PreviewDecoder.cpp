@@ -856,7 +856,10 @@ HRESULT PreviewDecoder::Render (
 
     if (format != FileFormat::None)
     {
-        hr = FileFormatTable::Decode (format, payload.bytes, FileFacts::From (entry, kind), options, decoded, error);
+        FileFacts  facts = FileFacts::From (entry, kind);
+
+        facts.resourceFork = payload.resourceFork;
+        hr                 = FileFormatTable::Decode (format, payload.bytes, facts, options, decoded, error);
 
         if (SUCCEEDED (hr))
         {

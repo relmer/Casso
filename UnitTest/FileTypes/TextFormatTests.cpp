@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "Core/TextEncoding.h"
 #include "FileTypes/FileFormatTable.h"
 #include "FileTypes/MerlinSource.h"
 #include "FileTypes/PascalText.h"
@@ -138,7 +139,7 @@ public:
 
         for (const std::wstring & line : file.lines)
         {
-            decoded.push_back (std::string (line.begin(), line.end()));
+            decoded.push_back (TextEncoding::WideToNarrow (line));
         }
 
         AssertSucceeded (MerlinSource::Encode (decoded, again, error));
