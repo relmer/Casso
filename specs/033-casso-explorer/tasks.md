@@ -1674,3 +1674,73 @@ Session 2026-11-04. T079 and T082 follow.
 - [X] T474 Return a packaged process's path even when its package SID can't be read, and compute the SID from the family name, since in a packaged process DeriveAppContainerSidFromAppContainerName returns a SID for which IsValidSid returns FALSE; and declare TCP 6502-6509 for Casso in the package. Found 2026-11-08 walking T256: the registered package's Casso Explorer read UDP 6510 as blocked with an allow rule for it in place
 - [X] T475 Split ExplorerFileOps, which was over the size limit, by what each part does: ExplorerProperties, ExplorerCassoTarget, ExplorerOpen, ExplorerManifestSync, ExplorerRename, ExplorerUndo with ExplorerUndoStep, ExplorerDeletion with the Delete command's body from ExplorerCommandManager, ExplorerTransferPrompts, and ExplorerClipboard for what remained; the shell-ID selection query moves to CassoExplorerBrowser. The owner's request, 2026-11-08
 - [X] T476 Send the guest's outgoing UDP from an unbound socket when the firewall doesn't admit its port or the PC has the port in use, in the address translation and in an Uthernet II socket with LAN access off, rather than binding the any-address (FR-152). Checked 2026-11-08 with a probe program that had no rule: an explicit bind raised the Windows Firewall prompt, and an unbound send didn't
+
+## Phase 35: File types (User Story 18)
+
+Session 2026-11-08. Plan's Phase 32, research R35, contract `contracts/file-types.md`, FR-156 to FR-171. A Gutenberg volume is read-only; writes are in `feedback-backlog.md`. Decoder tests run on bytes built in the test; tests on real files go in `ScenarioTests`. Every decoder class is in `CassoEmuCore/FileTypes/` with static `Check`, `Decode` and, for import rows, `Encode`, and its tests are in `UnitTest/FileTypes/<Class>Tests.cpp`.
+
+**Foundation**
+
+- [ ] T477 [US18] Fill each *notes* cell of `specs/033-casso-explorer/contracts/file-types.md` from CiderPress II's format notes and the File Type Notes they cite: S-C Assembler's and LISA's types on both file systems, Magic Window's, the Print Shop graphic's and font's, and the Apple II hi-res font's note
+- [ ] T478 [US18] Collect a fixture of each contract row in `ScenarioTests/Fixtures/FileTypes/`, saved by its program run in Casso where the owner has the program, or taken from a disk image the owner has, and list the rows with no fixture for the owner
+- [ ] T479 [US18] Add `FileFormat` and `FileFormatTable::Identify` in `CassoEmuCore/FileTypes/FileFormatTable.h/.cpp`, matching the contract's rows by volume kind, ProDOS type and aux type, DOS 3.3 type, name prefix or suffix, and size, then the row's `Check` (FR-157). Tests in `UnitTest/FileTypes/FileFormatTableTests.cpp`, one per row and one per near miss
+- [ ] T480 [P] [US18] Add `DecodedFile`, `Paragraph`, `Run` and `Grid` in `CassoEmuCore/FileTypes/DecodedFile.h` as `data-model.md` defines them: "a `DecodedFile` is never partial, except for the lines its `notes` list"
+- [ ] T481 [P] [US18] Add `RtfWriter` in `CassoEmuCore/FileTypes/RtfWriter.h/.cpp`, writing RTF 1.5 with only `\b`, `\i`, `\ul`, `\ql`, `\qc`, `\qr`, `\qj`, `\tab` and `\par`, and non-ASCII characters as `\u` escapes. Tests in `UnitTest/FileTypes/RtfWriterTests.cpp`
+- [ ] T482 [P] [US18] Add `CsvWriter` in `CassoEmuCore/FileTypes/CsvWriter.h/.cpp`, in UTF-8 with a byte order mark, quoted as RFC 4180 specifies: a field with a comma, a quote or a line break is quoted, and a quote inside it is doubled. Tests in `UnitTest/FileTypes/CsvWriterTests.cpp`
+- [ ] T483 [P] [US18] Add `GlyphSheet` in `CassoEmuCore/FileTypes/GlyphSheet.h/.cpp`, drawing each glyph sixteen to a row into a BGRA picture under the font's name, family, style and size, with a missing glyph left blank. Tests in `UnitTest/FileTypes/GlyphSheetTests.cpp`
+- [ ] T484 [P] [US18] Map MouseText and the IIgs's Mac-style characters to Unicode in one table in `CassoEmuCore/Core/UnicodeSymbols.h`, used by every text decoder
+- [ ] T485 [US18] Add bold, italic and underline to `DxuiTextView::Span` and an alignment to `DxuiTextView::Row` in `Dxui/Widgets/DxuiTextView.h/.cpp`, drawn with the theme's monospaced face's weights. Tests in `UnitTest/UiTests/DxuiTextViewTests.cpp`
+- [ ] T486 [US18] Add `PreviewContent::Kind::Document` and `Kind::Grid` in `CassoEmuCore/CassoExplorer/Model/PreviewDecoder.h`, call `FileFormatTable::Identify` first in `PreviewDecoder::Decide`, draw documents in `DxuiTextView` and grids in a `DxuiListView` in Details in the preview pane, and draw a decode failure's reason above the file's bytes (FR-169). Tests in `UnitTest/CassoExplorer/PreviewDecoderTests.cpp`
+
+**Text and code**
+
+- [ ] T487 [P] [US18] `PascalText`: decode a textfile, skipping its two header blocks, with each DLE indentation code expanded to spaces and the NULs that pad each 1024-byte page dropped; encode text into pages, with no line split across pages and leading spaces written as DLE codes (FR-161)
+- [ ] T488 [P] [US18] `RandomText`: decode records at the record length, from the aux type on ProDOS and from the spacing of the entries on DOS 3.3, one row per record and one field per carriage return, and a DOS 3.3 file with one record as sequential text (FR-160)
+- [ ] T489 [P] [US18] `MerlinSource`: decode into label, opcode, operand and comment fields as Merlin stores them, and encode back to the same bytes, failing with the line number for a line longer than Merlin accepts; a ProDOS file is a TXT file ending `.S`, a DOS 3.3 file is a binary file starting `T.` (FR-162). Tests include a round trip on every fixture
+- [ ] T490 [P] [US18] `ScAssemblerSource`: decode S-C Assembler's line numbers and compressed spaces into a listing, and fail its check on an Integer BASIC file of the same DOS type (FR-163)
+- [ ] T491 [P] [US18] `LisaSource`: decode LISA's tokens in each version, v2, v3 and v4-5, picked by the version the file has (FR-163)
+- [ ] T492 [P] [US18] `BusinessBasic`: detokenize Apple /// Business BASIC, ProDOS type $09, into a listing (FR-163)
+
+**Code files**
+
+- [ ] T493 [US18] Add `PCodeDisassembler` in `CassoCore/PCodeDisassembler.h/.cpp` beside `Disassembler`, with one opcode table for the p-code version Apple Pascal 1.1 to 1.3 compile, from the Apple Pascal Operating System Reference Manual. Tests in `UnitTest/CassoCore/PCodeDisassemblerTests.cpp`
+- [ ] T494 [US18] `PascalCodefile`: list the segment dictionary, each segment's name, kind, size and machine type, and each segment's procedure dictionary; disassemble p-code procedures with `PCodeDisassembler` and 6502 segments with `Disassembler`, and list a segment of another p-code version in hex with its version reported (FR-164)
+- [ ] T495 [P] [US18] `OmfFile`: list each segment's header, its name, load name, kind, sizes, alignment and bank, in OMF versions 1, 2.0 and 2.1, and each record by its opcode, with code and data bytes in hex (FR-165)
+
+**Business**
+
+- [ ] T496 [P] [US18] `AppleWorksWp`: decode paragraphs, tabs, bold, italic, underline and alignment from AppleWorks 3.0's format, and list a later version's features in `notes` (FR-158)
+- [ ] T497 [P] [US18] `AppleWorksDb`: decode the categories as headings and each record as a row (FR-159)
+- [ ] T498 [P] [US18] `AppleWorksSs`: decode each cell's stored value, or its formula as entered when the file has no value, with column letters as headings and the row number first in each row (FR-159)
+- [ ] T499 [P] [US18] `AppleWorksGsWp`: decode paragraphs, tabs, styles and alignment from the AppleWorks GS word processor's format, $50/$8010 (FR-158)
+- [ ] T500 [P] [US18] `TeachDocument`: decode the text and its style runs, $50/$5445, with the styles FR-158 lists (FR-158)
+- [ ] T501 [P] [US18] `VisiCalcSheet`: decode the saved entries by the storage chapter of the 1982 VisiCalc User's Guide, each coordinate and its contents, with formulas as entered (FR-159)
+- [ ] T502 [P] [US18] `MagicWindowDocument`: decode the text with Magic Window's formatting commands removed (FR-158)
+- [ ] T503 [US18] Add a read-only `GutenbergVolume` behind `IVolume` in `CassoEmuCore/Machines/Apple2/Common/GutenbergVolume.h/.cpp` and `VolumeKind::Gutenberg`, from CiderPress II's Gutenberg notes: the `DIR` chain from track 17, sector 7, each file's chain followed by its forward links alone, track and sector 0 read as $40, and a write failing with the read-only error a locked disk returns. Tests in `UnitTest/EmuTests/GutenbergVolumeTests.cpp`, including a damaged chain and a link into the boot tracks
+- [ ] T504 [US18] List a Gutenberg disk in the tree, catalog and Properties as the other volume kinds are, and add `GutenbergDocument`, a document ending at its first $00 with its formatting commands removed (FR-158)
+
+**Pictures and fonts**
+
+- [ ] T505 [P] [US18] `SuperHiRes`: decode $C1/$0000, PackBytes $C0/$0001 and Apple Preferred $C0/$0002 to BGRA, with each line's palette and 320 or 640 mode bit, colors from IIgs TN #63, and a short or truncated picture drawn black below its last line with the missing count in `notes` (FR-166)
+- [ ] T506 [P] [US18] `SuperHiRes3200`: decode $C1/$0002 with a palette for each line (FR-166)
+- [ ] T507 [P] [US18] `Lz4fh`: decompress $08/$8066 to an 8 KB hi-res page and draw it through `PicturePreview`, so the Display page's monitor applies (FR-166)
+- [ ] T508 [P] [US18] `PrintShopGraphic`: decode a Print Shop graphic, drawn black on white (FR-166)
+- [ ] T509 [P] [US18] `IigsIcons`: decode a $CA file, each icon drawn with its mask beside its name (FR-166)
+- [ ] T510 [P] [US18] `HiResFont`: decode a 768-byte Apple II hi-res font onto a `GlyphSheet` (FR-167)
+- [ ] T511 [P] [US18] `PrintShopFont`: decode a Print Shop font onto a `GlyphSheet` (FR-167)
+- [ ] T512 [P] [US18] `IigsBitmapFont`: decode a $C8 QuickDraw II font onto a `GlyphSheet`, with its family, style and size (FR-167)
+
+**Copy out and put**
+
+- [ ] T513 [US18] Replace `HostFileNaming::ConvertedKind` with `FileFormat` plus the BASIC and text kinds in `CassoEmuCore/CassoExplorer/Model/HostFileNaming.h/.cpp`, so `Make` and `Parse` cover every suffix in the contract, and add the rows to `contracts/host-file-names.md`. Tests in `UnitTest/CassoExplorer/HostFileNamingTests.cpp`
+- [ ] T514 [US18] Write each format's conversion on a drag or Get out, by `FileFormatTable::Export`, in `CassoEmuCore/CassoExplorer/CassoExplorerActions.cpp`, with a file that fails to decode skipped and its reason reported while the rest complete (FR-168, FR-169). Tests in `UnitTest/CassoExplorer/CassoExplorerActionsTests.cpp`
+- [ ] T515 [US18] Offer the conversion and a raw copy on the right-drag menu and in the Get dialog, with a raw copy's name following FR-017 and FR-017a (FR-168)
+- [ ] T516 [US18] Put a host file with an import row's suffix as that format with no dialog, the suffix stripped from the catalog name, and add the import rows the destination has to the put dialog's type choice: Pascal text on Pascal volumes and ProDOS, Merlin source on ProDOS and DOS 3.3 (FR-161, FR-162)
+- [ ] T517 [US18] Apply the same conversions in `DiskCommandRunner`'s get and put in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp` (FR-170). Tests in `UnitTest/EmuTests/DiskCommandRunnerTests.cpp`
+
+**Validation**
+
+- [ ] T518 [US18] Scenario tests in `ScenarioTests/FileTypeFixtureTests.cpp`: each fixture from T478 decodes, converts and, for import rows, round-trips, and each previews within half a second at up to 64 KB (SC-047, SC-049)
+- [ ] T519 [US18] Put a Merlin source file back onto DOS 3.3 and ProDOS images and load it in Merlin in Casso; put a text file on a Pascal volume and open it in Apple Pascal's editor in Casso (SC-048)
+- [ ] T520 [US18] Walk quickstart §7d on Debug and Release, and write the results to `specs/033-casso-explorer/validation.md`
+- [ ] T521 Run `scripts/CheckStyle.ps1 -Mode Tree`, the code-analysis rebuild, and the unit and scenario suites in Debug and Release before the master merge
