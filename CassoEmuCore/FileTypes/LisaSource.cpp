@@ -367,6 +367,8 @@ void LisaSource::DecodeVersion2Line (Context & context, size_t offset, size_t le
         "ICLENDLSTNLSHEXBYTHBYPAUDFSDCI...PAGINVBLKDBYTTLSBC___LET.IF.EL.FI=  PHS"
         "DPH.DAGENNOGUSR_________";
 
+
+
     size_t  start = offset;
     char    c     = (char) context.At (offset);
     Byte    index = 0;
@@ -708,6 +710,8 @@ void LisaSource::ConvertOperand3 (Context & context, Byte mnemonic, size_t & off
 {
     static constexpr char  kOperator1[] = "+-*/&|^=<>%<><";
     static constexpr char  kOperator2[] = "\0\0\0\0\0\0\0\0\0\0\0==>";
+
+
 
     int   mode         = 0;
     bool  wantOperator = false;
@@ -1248,6 +1252,8 @@ void LisaSource::ConvertOperand4 (Context & context, Byte mnemonic, size_t & off
         "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0";
     static constexpr char         kOpen[16]   = { 0, 0, 0, 0, 0, 0, 0, 0, 0, '(', '(', '(', '(', '[', '[', 0 };
     static constexpr const char * kClose[16]  = { nullptr, nullptr, nullptr, ",X", ",X", ",X", nullptr, ",S", ",Y", "),Y", ",X)", ")", ",S),Y", "]", "],Y", nullptr };
+
+
 
     int   mode         = 0;
     bool  wantOperator = false;
