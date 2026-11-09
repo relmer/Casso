@@ -462,6 +462,9 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
 
     m_params = std::move (params);
 
+    // A popup's text is drawn in its owner's typography.
+    m_textRenderer.SetTypographyWindow (m_params.ownerHwnd);
+
     // Convert DIPs -> Px at the owner's DPI (fall back to 96 if no
     // owner HWND was supplied — typical in tests).
     if (m_params.ownerHwnd != nullptr)

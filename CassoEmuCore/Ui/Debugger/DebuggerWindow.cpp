@@ -109,8 +109,10 @@ DebuggerWindow::DebuggerWindow() :
 
 DebuggerWindow::~DebuggerWindow()
 {
-    //  The operand tip's popup goes back to its window before the window goes.
+    //  The operand tip's popup goes back to its window before the window goes,
+    //  and the window's typography is detached before it is destroyed.
     m_operandTips->Hide();
+    DxuiTextRenderer::AttachTypography (GetHwnd(), nullptr);
     DestroyBackend();
 }
 

@@ -2403,6 +2403,10 @@ HRESULT DxuiHwndSource::CreateRenderResources()
     m_painter      = std::make_unique<DxuiPainter>();
     m_textRenderer = std::make_unique<DxuiTextRenderer>();
 
+    // The window's text is drawn in its theme's typography, or the nearest
+    // owner's.
+    m_textRenderer->SetTypographyWindow (m_hwnd);
+
     hr = m_painter->Initialize (m_device.Get(), m_context.Get());
     CHRA (hr);
 

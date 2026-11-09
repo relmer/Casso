@@ -62,15 +62,53 @@ public:
     //  fonts checks first.
     static bool  IsFontFamilyInstalled (const wchar_t * family);
 
-    // Process-wide typography, set from the active theme. Static for the same
-    // reason as AddSymbolFont: each window creates a separate renderer, and a
-    // theme applies to all of them.
+    // A theme's typography: the face drawn for DxuiTheme::kBodyFace and the
+    // scale it is drawn at, the text glow, and whether color glyphs are drawn
+    // in the text color. Changed only through the setters below, which assign
+    // each change a generation no other change has, so a renderer drops its
+    // caches when the typography it uses changes.
+    struct Typography
+    {
+        ComPtr<IDWriteFontCollection1>  bodyFaceFonts;
+        std::wstring                    bodyFaceFamily;
+        const void                    * bodyFaceSource   = nullptr;
+        float                           bodyFaceScale    = 1.0f;
+        uint8_t                         glowAlpha        = 0;
+        float                           glowRadiusEm     = 0.0f;
+        bool                            monochromeGlyphs = false;
+        uint32_t                        generation       = 0;
+    };
+
+    // The process default typography, set from the emulator's theme. A
+    // window with a different theme attaches a typography (AttachTypography),
+    // and every renderer drawing for that window or a window it owns uses it.
     static HRESULT  SetBodyFace               (const void * pFontBytes,
                                                size_t       byteCount,
+                                               float        sizeScale)   { return SetBodyFace (s_typography, pFontBytes, byteCount, sizeScale); }
+    static void     ClearBodyFace             ()                         { ClearBodyFace (s_typography); }
+    static void     SetTextGlow               (uint8_t alpha, float radiusEm) { SetTextGlow (s_typography, alpha, radiusEm); }
+    static void     SetMonochromeGlyphsForced (bool forced)              { SetMonochromeGlyphsForced (s_typography, forced); }
+    static Typography &  GetDefaultTypography ()                         { return s_typography; }
+
+    static HRESULT  SetBodyFace               (Typography & typography,
+                                               const void * pFontBytes,
+                                               size_t       byteCount,
                                                float        sizeScale);
-    static void     ClearBodyFace             ();
-    static void     SetTextGlow               (uint8_t alpha, float radiusEm);
-    static void     SetMonochromeGlyphsForced (bool forced) { s_monochromeGlyphsForced = forced; }
+    static void     ClearBodyFace             (Typography & typography);
+    static void     SetTextGlow               (Typography & typography, uint8_t alpha, float radiusEm);
+    static void     SetMonochromeGlyphsForced (Typography & typography, bool forced);
+
+    // A window's typography, for the window and every window it owns. Null
+    // returns them to the process default. The typography must outlive the
+    // attachment, so a window detaches it before it is destroyed.
+    static void     AttachTypography          (HWND hwnd, const Typography * typography);
+
+    // The typography attached to a window or the nearest window that owns
+    // it, or the process default.
+    static const Typography &  FindTypography (HWND hwnd);
+
+    // The window this renderer draws for, whose typography it uses.
+    void     SetTypographyWindow (HWND hwnd);
 
     HRESULT  BindBackBuffer   (IDXGISurface * pBackBufferSurface,
                                UINT           dpiX,
@@ -406,22 +444,21 @@ private:
     // call would accumulate one per theme switch.
     static inline ComPtr<IDWriteInMemoryFontFileLoader>  s_memoryFontLoader;
 
-    // Set by SetBodyFace. s_bodyFaceSource is the caller's buffer, compared
-    // only to make a repeat of the same face a no-op. Every change bumps
-    // s_typographyGeneration, and a renderer whose caches predate the current
-    // generation drops them before building a format.
-    static inline ComPtr<IDWriteFontCollection1>  s_bodyFaceFonts;
-    static inline std::wstring                    s_bodyFaceFamily;
-    static inline const void                    * s_bodyFaceSource       = nullptr;
-    static inline float                           s_bodyFaceScale        = 1.0f;
+    // The process default typography. s_typographyGeneration counts changes
+    // to every typography, so no two changes have the same generation, and
+    // s_attachGeneration counts attachments, so a renderer looks its window's
+    // typography up again only after one.
+    static constexpr const wchar_t              * s_kpszTypographyProp   = L"DxuiTypography";
+    static inline Typography                      s_typography;
     static inline uint32_t                        s_typographyGeneration = 0;
-    static inline uint8_t                         s_glowAlpha            = 0;
-    static inline float                           s_glowRadiusEm         = 0.0f;
+    static inline uint32_t                        s_attachGeneration     = 0;
 
-    // Set by SetMonochromeGlyphsForced: every renderer draws as though
-    // PushMonochromeGlyphs were in effect, so an emoji takes the text color.
-    static inline bool                            s_monochromeGlyphsForced = false;
-
+    // The typography this renderer draws in, the window it was found from,
+    // the attachment it was found at, and the generation the caches were
+    // built for.
+    const Typography                            * m_typography           = &s_typography;
+    HWND                                          m_typographyHwnd       = nullptr;
+    uint32_t                                      m_attachGeneration     = 0;
     uint32_t                                      m_typographyGeneration = 0;
 
     void     SyncTypography ();

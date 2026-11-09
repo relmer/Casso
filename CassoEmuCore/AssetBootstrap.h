@@ -94,10 +94,11 @@ public:
     // key rather than showing a missing-glyph box that says nothing.
     static HRESULT  RegisterSymbolFont    (HINSTANCE hInstance);
 
-    // Apply a theme's body face and text glow to every text renderer in the
-    // process. Best-effort: when the face's font is missing from the module
-    // image, the system face is used.
+    // Apply a theme's body face and text glow to the process default
+    // typography, or to a window's. Best-effort: when the face's font is
+    // missing from the module image, the system face is used.
     static HRESULT  ApplyThemeTypography  (HINSTANCE hInstance, const CassoTheme & theme);
+    static HRESULT  ApplyThemeTypography  (HINSTANCE hInstance, const CassoTheme & theme, DxuiTextRenderer::Typography & typography);
 
     // Returns the install root that contains (or should contain) the
     // per-machine `Machines/` and per-device `Devices/` subtrees. The

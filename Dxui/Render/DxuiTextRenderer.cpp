@@ -350,8 +350,8 @@ Error:
 //
 //  SetBodyFace
 //
-//  Replaces the body face with an in-memory font in every renderer in the
-//  process. A request for DxuiTheme::kBodyFace, or for no family at all,
+//  Replaces a typography's body face with an in-memory font. A request for
+//  DxuiTheme::kBodyFace, or for no family at all,
 //  is drawn in the replacement at sizeScale times the requested size. Every
 //  other family, such as the monospace and icon faces, is drawn in the
 //  requested family.
@@ -365,6 +365,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiTextRenderer::SetBodyFace (
+    Typography  & typography,
     const void  * pFontBytes,
     size_t        byteCount,
     float         sizeScale)
@@ -380,19 +381,19 @@ HRESULT DxuiTextRenderer::SetBodyFace (
 
     CBRAEx (sizeScale > 0.0f, E_INVALIDARG);
 
-    isCurrent = (s_bodyFaceFonts != nullptr)
-                && (pFontBytes == s_bodyFaceSource)
-                && (sizeScale  == s_bodyFaceScale);
+    isCurrent = (typography.bodyFaceFonts != nullptr)
+                && (pFontBytes == typography.bodyFaceSource)
+                && (sizeScale  == typography.bodyFaceScale);
     BAIL_OUT_IF (isCurrent, S_OK);
 
     hr = CreateMemoryFontCollection (pFontBytes, byteCount, collection, familyName);
     CHRA (hr);
 
-    s_bodyFaceFonts  = collection;
-    s_bodyFaceFamily = familyName;
-    s_bodyFaceSource = pFontBytes;
-    s_bodyFaceScale  = sizeScale;
-    s_typographyGeneration++;
+    typography.bodyFaceFonts  = collection;
+    typography.bodyFaceFamily = familyName;
+    typography.bodyFaceSource = pFontBytes;
+    typography.bodyFaceScale  = sizeScale;
+    typography.generation     = ++s_typographyGeneration;
 
 Error:
     return hr;
@@ -406,21 +407,22 @@ Error:
 //
 //  ClearBodyFace
 //
-//  Returns the body face to the system face at the requested size.
+//  Returns a typography's body face to the system face at the requested
+//  size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextRenderer::ClearBodyFace()
+void DxuiTextRenderer::ClearBodyFace (Typography & typography)
 {
     DXUI_ASSERT_UI_THREAD();
 
-    if (s_bodyFaceFonts != nullptr)
+    if (typography.bodyFaceFonts != nullptr)
     {
-        s_bodyFaceFonts.Reset();
-        s_bodyFaceFamily.clear();
-        s_bodyFaceSource = nullptr;
-        s_bodyFaceScale  = 1.0f;
-        s_typographyGeneration++;
+        typography.bodyFaceFonts.Reset();
+        typography.bodyFaceFamily.clear();
+        typography.bodyFaceSource = nullptr;
+        typography.bodyFaceScale  = 1.0f;
+        typography.generation     = ++s_typographyGeneration;
     }
 }
 
@@ -438,12 +440,115 @@ void DxuiTextRenderer::ClearBodyFace()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextRenderer::SetTextGlow (uint8_t alpha, float radiusEm)
+void DxuiTextRenderer::SetTextGlow (Typography & typography, uint8_t alpha, float radiusEm)
 {
     DXUI_ASSERT_UI_THREAD();
 
-    s_glowAlpha    = alpha;
-    s_glowRadiusEm = (radiusEm < 0.0f) ? 0.0f : radiusEm;
+    typography.glowAlpha    = alpha;
+    typography.glowRadiusEm = (radiusEm < 0.0f) ? 0.0f : radiusEm;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMonochromeGlyphsForced
+//
+//  Draws every string as though PushMonochromeGlyphs were in effect, so an
+//  emoji takes the text color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextRenderer::SetMonochromeGlyphsForced (Typography & typography, bool forced)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    typography.monochromeGlyphs = forced;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AttachTypography
+//
+//  A window property has the typography, so a popup or a window owned by
+//  this one finds it by walking up its owners, whatever kind of window
+//  each one is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextRenderer::AttachTypography (HWND hwnd, const Typography * typography)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (hwnd == nullptr)
+    {
+        return;
+    }
+
+    if (typography != nullptr)
+    {
+        (void) SetPropW (hwnd, s_kpszTypographyProp, (HANDLE) typography);
+    }
+    else
+    {
+        (void) RemovePropW (hwnd, s_kpszTypographyProp);
+    }
+
+    s_attachGeneration++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindTypography
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DxuiTextRenderer::Typography & DxuiTextRenderer::FindTypography (HWND hwnd)
+{
+    const Typography  * found = nullptr;
+
+
+
+    for (HWND at = hwnd; at != nullptr && found == nullptr; at = GetWindow (at, GW_OWNER))
+    {
+        found = reinterpret_cast<const Typography *> (GetPropW (at, s_kpszTypographyProp));
+    }
+
+    return (found != nullptr) ? *found : s_typography;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTypographyWindow
+//
+//  The typography is found at the next format this renderer builds. With no
+//  window, the renderer draws in the process default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextRenderer::SetTypographyWindow (HWND hwnd)
+{
+    m_typographyHwnd   = hwnd;
+    m_attachGeneration = s_attachGeneration - 1;
+
+    if (hwnd == nullptr)
+    {
+        m_typography = &s_typography;
+    }
 }
 
 
@@ -481,22 +586,28 @@ bool DxuiTextRenderer::IsBodyFaceRequest (const wchar_t * family)
 //
 //  SyncTypography
 //
-//  Drops this renderer's formats, layouts and cap-height measurements when
-//  the process-wide body face changed since they were built. The caches are
-//  keyed on the family and size a caller requested, not on the face that
-//  was drawn, so without this the old face would be drawn after a theme
-//  switch.
+//  Finds the window's typography again after an attachment, and drops this
+//  renderer's formats, layouts and cap-height measurements when the
+//  typography changed since they were built. The caches are keyed on the
+//  family and size a caller requested, not on the face that was drawn, so
+//  without this the old face would be drawn after a theme switch.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTextRenderer::SyncTypography()
 {
-    if (m_typographyGeneration != s_typographyGeneration)
+    if (m_typographyHwnd != nullptr && m_attachGeneration != s_attachGeneration)
+    {
+        m_typography       = &FindTypography (m_typographyHwnd);
+        m_attachGeneration = s_attachGeneration;
+    }
+
+    if (m_typographyGeneration != m_typography->generation)
     {
         m_formatCache.clear();
         m_capMidCache.clear();
         m_layoutCache.clear();
-        m_typographyGeneration = s_typographyGeneration;
+        m_typographyGeneration = m_typography->generation;
     }
 }
 
@@ -535,9 +646,9 @@ HRESULT DxuiTextRenderer::DrawGlow (
     ComPtr<ID2D1SolidColorBrush>    brush;
     ID2D1SolidColorBrush          * rawBrush         = nullptr;
     uint32_t                        textAlpha        = argbColor >> 24;
-    uint32_t                        glowAlpha        = ((uint32_t) s_glowAlpha * textAlpha) / kAlphaMax;
+    uint32_t                        glowAlpha        = ((uint32_t) m_typography->glowAlpha * textAlpha) / kAlphaMax;
     uint32_t                        glowArgb         = (glowAlpha << 24) | (argbColor & 0x00FFFFFFu);
-    float                           radius           = fontSizeDip * s_glowRadiusEm;
+    float                           radius           = fontSizeDip * m_typography->glowRadiusEm;
     D2D1_DRAW_TEXT_OPTIONS          tapOpts          = options & ~D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT;
 
 
@@ -1346,16 +1457,16 @@ HRESULT DxuiTextRenderer::EnsureTextFormat (
 
     SyncTypography();
 
-    // A replacement body face is created from s_bodyFaceFonts at
-    // s_bodyFaceScale, but cached under the family and size the caller
+    // A replacement body face is created from the typography's fonts at its
+    // scale, but cached under the family and size the caller
     // requested.
-    isSubstitute = (s_bodyFaceFonts != nullptr) && IsBodyFaceRequest (family);
+    isSubstitute = (m_typography->bodyFaceFonts != nullptr) && IsBodyFaceRequest (family);
 
     if (isSubstitute)
     {
-        createFamily = s_bodyFaceFamily.c_str();
-        collection   = s_bodyFaceFonts.Get();
-        createSize   = fontSizeDip * s_bodyFaceScale;
+        createFamily = m_typography->bodyFaceFamily.c_str();
+        collection   = m_typography->bodyFaceFonts.Get();
+        createSize   = fontSizeDip * m_typography->bodyFaceScale;
     }
 
     key.family  = useFamily;
@@ -1874,7 +1985,7 @@ HRESULT DxuiTextRenderer::DrawString (
         // legacy unclipped behavior. The layout owns the box (widthDip x
         // heightDip); the origin carries any cap-height vertical shift applied
         // to layoutRect above.
-        bool                    isMono = m_monochromeGlyphs || s_monochromeGlyphsForced;
+        bool                    isMono = m_monochromeGlyphs || m_typography->monochromeGlyphs;
         D2D1_DRAW_TEXT_OPTIONS  opts   = isMono ? D2D1_DRAW_TEXT_OPTIONS_NONE
                                                 : D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT;
 
@@ -1885,7 +1996,7 @@ HRESULT DxuiTextRenderer::DrawString (
 
         // No halo on kSystemFace text, which is drawn as print on hardware
         // rather than as screen text.
-        if (s_glowAlpha > 0 && fontFamily != DxuiTheme::kSystemFace)
+        if (m_typography->glowAlpha > 0 && fontFamily != DxuiTheme::kSystemFace)
         {
             hr = DrawGlow (layout.Get(),
                            D2D1::Point2F (layoutRect.left, layoutRect.top),

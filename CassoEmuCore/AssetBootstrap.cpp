@@ -1157,7 +1157,25 @@ Error:
 //
 //  ApplyThemeTypography
 //
-//  Sets the process-wide body face and text glow from a theme. The face is
+//  The emulator's theme sets the process default typography, which every
+//  window without a separate theme draws in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::ApplyThemeTypography (HINSTANCE hInstance, const CassoTheme & theme)
+{
+    return ApplyThemeTypography (hInstance, theme, DxuiTextRenderer::GetDefaultTypography());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyThemeTypography
+//
+//  Sets a typography's body face and text glow from a theme. The face is
 //  read from the module image rather than from the extracted theme folder,
 //  for the same reason as RegisterSymbolFont: chrome text has to draw
 //  whatever became of the asset directory.
@@ -1168,7 +1186,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssetBootstrap::ApplyThemeTypography (HINSTANCE hInstance, const CassoTheme & theme)
+HRESULT AssetBootstrap::ApplyThemeTypography (HINSTANCE hInstance, const CassoTheme & theme, DxuiTextRenderer::Typography & typography)
 {
     HRESULT           hr           = S_OK;
     span<const Byte>  bytes;
@@ -1177,27 +1195,32 @@ HRESULT AssetBootstrap::ApplyThemeTypography (HINSTANCE hInstance, const CassoTh
 
 
 
-    DxuiTextRenderer::SetTextGlow               (theme.textGlowAlpha, theme.textGlowRadiusEm);
-    DxuiTextRenderer::SetMonochromeGlyphsForced (theme.monochromeGlyphs);
+    DxuiTextRenderer::SetTextGlow               (typography, theme.textGlowAlpha, theme.textGlowRadiusEm);
+    DxuiTextRenderer::SetMonochromeGlyphsForced (typography, theme.monochromeGlyphs);
 
     if (isSystemFace)
     {
-        DxuiTextRenderer::ClearBodyFace();
+        DxuiTextRenderer::ClearBodyFace (typography);
     }
 
     BAIL_OUT_IF (isSystemFace, S_OK);
+
+    //  Looked for first, without the assertion ExtractResource has for a
+    //  missing resource, since a test host has no resources.
+    embedded = FindResourceW (hInstance, MAKEINTRESOURCEW (IDR_THEME_PHOSPHOR_FONT_TTF), RT_RCDATA) != nullptr;
+    CBR (embedded);
 
     bytes    = ExtractResource (hInstance, IDR_THEME_PHOSPHOR_FONT_TTF);
     embedded = !bytes.empty();
     CBR (embedded);
 
-    hr = DxuiTextRenderer::SetBodyFace (bytes.data(), bytes.size(), theme.bodyFaceScale);
+    hr = DxuiTextRenderer::SetBodyFace (typography, bytes.data(), bytes.size(), theme.bodyFaceScale);
     CHR (hr);
 
 Error:
     if (FAILED (hr))
     {
-        DxuiTextRenderer::ClearBodyFace();
+        DxuiTextRenderer::ClearBodyFace (typography);
     }
 
     return hr;

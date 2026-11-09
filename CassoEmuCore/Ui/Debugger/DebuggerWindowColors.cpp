@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "AssetBootstrap.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DroppedFiles.h"
 #include "Ui/Debugger/BranchArrow.h"
@@ -58,6 +59,47 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ApplyTypography
+//
+//  Attached to the window, so its floating windows, menus and tips draw in
+//  it too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyTypography()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_theme == m_emulatorTheme)
+    {
+        m_typographyInForce = &DxuiTextRenderer::GetDefaultTypography();
+        DxuiTextRenderer::AttachTypography (GetHwnd(), nullptr);
+        return;
+    }
+
+    if (m_theme == &m_ownTheme)
+    {
+        hr = AssetBootstrap::ApplyThemeTypography (m_hInstance, m_ownTheme, m_typography);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+    else
+    {
+        DxuiTextRenderer::ClearBodyFace             (m_typography);
+        DxuiTextRenderer::SetTextGlow               (m_typography, 0, 0.0f);
+        DxuiTextRenderer::SetMonochromeGlyphsForced (m_typography, false);
+    }
+
+    m_typographyInForce = &m_typography;
+    DxuiTextRenderer::AttachTypography (GetHwnd(), &m_typography);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ApplyTheme
 //
 //  The window's own theme, or the emulator's for the empty name. The system
@@ -65,6 +107,10 @@
 //  Explorer's do, and then the debugger's own tooltip and pane colors. A
 //  test gives the system colors in place of Windows', so nothing is read
 //  from the machine. The Theme drop-down is rebuilt for the check it holds.
+//
+//  The window's text is drawn in its theme's typography: the emulator's,
+//  which is the process default, when it follows the emulator, and the
+//  window's otherwise. The system themes draw in the system face.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,6 +132,8 @@ void DebuggerWindow::ApplyTheme (const std::string & name)
     {
         m_theme = &DebuggerThemes::Choose (name, *m_emulatorTheme, m_lightTheme, m_darkTheme, m_ownTheme);
     }
+
+    ApplyTypography();
 
     SetTheme            (m_theme);
     m_focusMgr.SetTheme (m_theme);

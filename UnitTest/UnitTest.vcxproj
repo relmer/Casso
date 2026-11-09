@@ -884,6 +884,7 @@
     <ClCompile Include="Dxui\DxuiPanZoomTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupHostTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupMenuTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTextRendererTypographyTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupMenuScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupMenuIconRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarOverflowTests.cpp" />

@@ -195,6 +195,10 @@ protected:
     void             ApplyTheme      (const std::string & name);
     const std::string &  GetThemeName () const { return m_themeName; }
 
+    //  The typography the window's text is drawn in, for a test. The
+    //  emulator's theme is the process default.
+    const DxuiTextRenderer::Typography &  GetTypography () const { return *m_typographyInForce; }
+
     //  The colors the system themes take, given by a test in place of the
     //  ones Windows holds.
     void             SetSystemColorsForTest (const DxuiWindowsThemeColors::SystemColors & colors) { m_systemColorsForTest = colors; }
@@ -326,6 +330,7 @@ protected:
     static constexpr int  kFindEntry    = 2;
 
     void                                  SetWindowMenus     ();
+    void                                  ApplyTypography    ();
     void                                  Detach             ();
     const std::vector<DxuiMenuBarItem> &  GetMenuBarItems    () const { return m_menuBarItems; }
     DxuiToolbar *                         GetCommandBar      () const { return m_commandBar; }
@@ -725,6 +730,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::string                             m_themeName;
     std::optional<std::string>              m_themeBeforePreview;
     CassoTheme                              m_ownTheme;
+    DxuiTextRenderer::Typography            m_typography;
+    const DxuiTextRenderer::Typography    * m_typographyInForce  = &DxuiTextRenderer::GetDefaultTypography();
     DxuiLightTheme                          m_lightTheme;
     DxuiDarkTheme                           m_darkTheme;
 

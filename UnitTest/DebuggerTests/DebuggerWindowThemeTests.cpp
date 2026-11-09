@@ -130,6 +130,7 @@ namespace DebuggerWindowThemeTests
         using DebuggerWindow::ApplyTheme;
         using DebuggerWindow::GetMenuCommands;
         using DebuggerWindow::GetThemeName;
+    using DebuggerWindow::GetTypography;
         using DebuggerWindow::GetTooltip;
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::GetCodeList;
@@ -250,6 +251,41 @@ namespace DebuggerWindowThemeTests
 
             Assert::AreEqual (std::string(), host.saved);
             Assert::IsTrue   (window.GetTheme() == &theme, L"back on the emulator's theme");
+        }
+
+
+        //  The window's text is drawn in its theme's typography: the
+        //  emulator's, the process default, when it follows the emulator,
+        //  and the window's otherwise, so Phosphor's glow and monochrome glyphs
+        //  are the debugger's only when the debugger chooses Phosphor.
+        TEST_METHOD (TheWindowsTypographyIsItsThemes)
+        {
+            CassoTheme   theme    = CassoTheme::MakeSkeuomorphic();
+            CassoTheme   phosphor = CassoTheme::MakePhosphor();
+            ThemeHost    host;
+            ThemeWindow  window (theme, host);
+
+
+
+            window.OnCreate();
+
+            Assert::IsTrue (window.FindRow (L"Casso Phosphor") != nullptr, L"the Theme drop-down lists Phosphor");
+
+            window.ApplyTheme ("Phosphor");
+
+            Assert::IsTrue   (&window.GetTypography() != &DxuiTextRenderer::GetDefaultTypography(), L"a typography attached to the window");
+            Assert::AreEqual (phosphor.textGlowAlpha, window.GetTypography().glowAlpha,         L"Phosphor's glow");
+            Assert::IsTrue   (window.GetTypography().monochromeGlyphs,                         L"and its monochrome glyphs");
+
+            window.ApplyTheme ("SystemDark");
+
+            Assert::AreEqual ((uint8_t) 0, window.GetTypography().glowAlpha, L"the system themes have no glow");
+            Assert::IsFalse  (window.GetTypography().monochromeGlyphs);
+            Assert::IsTrue   (window.GetTypography().bodyFaceFonts == nullptr, L"and are drawn in the system face");
+
+            window.ApplyTheme ("");
+
+            Assert::IsTrue (&window.GetTypography() == &DxuiTextRenderer::GetDefaultTypography(), L"following the emulator, its typography is the process default");
         }
 
 
