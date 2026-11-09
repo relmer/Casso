@@ -187,7 +187,6 @@
     <ClCompile Include="TcpStreamTests.cpp" />
     <ClCompile Include="CassoLinkWin32SeamTests.cpp" />
     <ClCompile Include="HostFirewallTests.cpp" />
-    <ClCompile Include="CassoLinkBootstrapTests.cpp" />
     <ClCompile Include="GuestVisibleApple2cSerialTests.cpp" />
     <ClCompile Include="GuestVisibleSuperSerialCardTests.cpp" />
     <ClCompile Include="GuestVisibleKermitTests.cpp" />
