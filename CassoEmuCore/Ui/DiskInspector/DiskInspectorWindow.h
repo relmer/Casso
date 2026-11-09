@@ -123,6 +123,7 @@ protected:
     DxuiMessageResult  OnSysCommand (UINT command) override;
     DxuiMessageResult  OnKeyUp      (WPARAM vk, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonUp  (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnCopyData   (WPARAM sender, LPARAM data) override;
 
 private:
     //  IInspectorComponentHost, through which the components call the window.

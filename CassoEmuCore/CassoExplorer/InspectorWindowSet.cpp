@@ -3,6 +3,7 @@
 #include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/ExplorerInspectorHost.h"
 #include "CassoExplorer/ExplorerInspectorWindow.h"
+#include "Seams/Win32IntentChannel.h"
 
 
 
@@ -40,6 +41,22 @@ InspectorWindowSet::InspectorWindowSet (IImageWatcher & watcher, DiskInspectorPr
     if (!m_seams.nowMs)
     {
         m_seams.nowMs = [] () { return GetTickCount64(); };
+    }
+
+    if (!m_seams.makeIntents)
+    {
+        m_seams.makeIntents = [] (HWND sender)
+        {
+            auto  intents = std::make_unique<Win32IntentChannel>();
+
+            intents->SetSender (sender);
+            return std::unique_ptr<IIntentChannel> (std::move (intents));
+        };
+    }
+
+    if (m_seams.fileIo == nullptr)
+    {
+        m_seams.fileIo = &m_fileIo;
     }
 }
 
@@ -142,11 +159,14 @@ HRESULT InspectorWindowSet::Open (HINSTANCE hInstance, HWND anchor, const std::w
     entry         = std::make_unique<Entry>();
     entry->key    = key;
     entry->folder = fs::path (path).parent_path().wstring();
-    entry->host   = std::make_unique<ExplorerInspectorHost> (path);
+    entry->host   = std::make_unique<ExplorerInspectorHost> (path, *m_seams.fileIo);
     entry->window = m_seams.makeWindow();
 
     hr = entry->window->Create (hInstance, anchor, m_theme, entry->host.get());
     CHR (hr);
+
+    entry->intents = m_seams.makeIntents (entry->window->GetHwnd());
+    entry->host->SetIntents (entry->intents.get());
 
     entry->host->SetOnClosed ([this, raw = entry.get()] ()
     {
@@ -470,6 +490,10 @@ void InspectorWindowSet::TakeChanges()
 //
 //  InspectorWindowSet::ReloadChanged
 //
+//  A file whose size and time match the window's last read or save is not
+//  read again, so a save from the window does not clear its applied-edit
+//  history (FR-107).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InspectorWindowSet::ReloadChanged()
@@ -487,14 +511,14 @@ void InspectorWindowSet::ReloadChanged()
 
         entry->isChanged = false;
 
-        if (m_seams.fileExists (entry->host->GetPath()))
+        if (!m_seams.fileExists (entry->host->GetPath()))
+        {
+            entry->window->NoteFileGone();
+        }
+        else if (!entry->host->IsFileCurrent())
         {
             entry->host->Reload();
             entry->window->ReloadDisk();
-        }
-        else
-        {
-            entry->window->NoteFileGone();
         }
     }
 }

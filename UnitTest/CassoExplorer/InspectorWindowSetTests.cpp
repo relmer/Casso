@@ -1,6 +1,8 @@
 #include "Pch.h"
 
+#include "../EmuTests/FakeDiskFileIo.h"
 #include "CassoExplorer/InspectorWindowSet.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Ui/DiskInspector/IDiskInspectorHost.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -16,8 +18,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  Casso Explorer's inspector windows (FR-073 to FR-075, FR-078, FR-080):
 //  one window per image, a second open bringing it to the front, a window
 //  for each of several images, a changed file read again once its changes
-//  settle, the note for a file that is gone, a window's state saved as it
-//  closes, every window closed with the app, and the theme the windows get.
+//  settle, a file the window saved itself not read again, the note for a
+//  file that is gone, a window's state saved as it closes, every window
+//  closed with the app, and the theme the windows get.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +58,7 @@ public:
     void     ReloadDisk() override { m_log.reloads++; }
     void     NoteFileGone() override { m_log.goneNotes++; }
     void     ChangeTheme (const DxuiTheme * theme) override { m_log.theme = theme; }
+    HWND     GetHwnd() const override { return nullptr; }
 
     static constexpr int  kSavedX = 321;
 
@@ -96,6 +100,7 @@ public:
         vector<std::unique_ptr<FakeInspectorWindowLog>>   logs;
         ULONGLONG                                         nowMs = 1000;
         std::set<std::wstring>                            missing;
+        FakeDiskFileIo                                    fileIo;
         std::unique_ptr<InspectorWindowSet>               set;
         DxuiDarkTheme                                     dark;
 
@@ -110,6 +115,7 @@ public:
             };
             seams.fileExists = [this] (const std::wstring & path) { return missing.count (path) == 0; };
             seams.nowMs      = [this] () { return nowMs; };
+            seams.fileIo     = &fileIo;
 
             set = std::make_unique<InspectorWindowSet> (watcher, prefs, std::move (seams));
         }
@@ -195,6 +201,35 @@ public:
         rig.set->Tick();
         Assert::AreEqual (1, rig.logs[0]->reloads, L"a burst of changes is read once");
         Assert::AreEqual (0, rig.logs[0]->goneNotes);
+    }
+
+
+
+    TEST_METHOD (AFileAsTheWindowReadItIsNotReadAgain)
+    {
+        Rig          rig;
+        std::string  path = "C:\\Disks\\mist.dsk";
+
+
+
+        rig.fileIo.files[path]  = vector<Byte> (NibblizationLayer::kImageByteSize, 0x11);
+        rig.fileIo.stamps[path] = FileStamp { NibblizationLayer::kImageByteSize, 1 };
+
+        Assert::AreEqual (S_OK, rig.Open (kMist));
+        (void) rig.logs[0]->host->PostInspectorRequest ({ InspectorRequestKind::CopyDisk, 0, 0, {}, -1 });
+
+        rig.set->NoteChange (path);
+        rig.set->Tick();
+        rig.nowMs += InspectorWindowSet::kSettleMs;
+        rig.set->Tick();
+        Assert::AreEqual (0, rig.logs[0]->reloads, L"the file has the size and time of the window's read");
+
+        rig.fileIo.stamps[path].modifiedUnix = 7;
+        rig.set->NoteChange (path);
+        rig.set->Tick();
+        rig.nowMs += InspectorWindowSet::kSettleMs;
+        rig.set->Tick();
+        Assert::AreEqual (1, rig.logs[0]->reloads, L"a change from outside the window is read");
     }
 
 

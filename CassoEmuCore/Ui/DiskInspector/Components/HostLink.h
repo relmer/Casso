@@ -35,6 +35,7 @@ public:
     void  ApplyPrefs (const DiskInspectorPrefs & prefs) override;
 
     void  RequestCopy       ();
+    void  RequestReread     ()       { m_isReread = true; RequestCopy(); }
     void  TakeReplies       ();
     void  StartDisk         (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason);
     void  TakeResults       ();
@@ -57,6 +58,7 @@ private:
     IInspectorComponentHost  & m_host;
     FollowHead                 m_followHead;
     bool                       m_isHeadSelecting  = false;
+    bool                       m_isReread         = false;
     uint64_t                   m_countsGeneration = 0;
     uint64_t                   m_trackRequest     = 0;
     int64_t                    m_trackRequestMs   = 0;

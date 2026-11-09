@@ -41,6 +41,12 @@ public:
     //  slot other than 6 has drives outside the inspector (FR-060).
     virtual bool  IsDriveAttached        (int drive) const { (void) drive; return true; }
     virtual bool  HasOtherDiskController () const          { return false; }
+
+    //  UI thread: a WM_COPYDATA sent to the window, which a host can answer,
+    //  and a note for the window's status band once it arrives, such as a
+    //  running Casso's reply to a saved edit (FR-105).
+    virtual bool          HandleCopyData (const COPYDATASTRUCT & data) { (void) data; return false; }
+    virtual std::wstring  TakeHostNote   ()                            { return {}; }
 };
 
 

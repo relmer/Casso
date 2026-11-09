@@ -13,13 +13,16 @@ class InspectorSession;
 
 
 //  What changes when the window starts on a disk: whether there is one,
-//  whether it is another disk than before, and whether it is the same file
-//  mounted again, as Reset, Power Cycle and a machine change do.
+//  whether it is another disk than before, whether it is the same file
+//  mounted again, as Reset, Power Cycle and a machine change do, and
+//  whether it is the window's file read again after it changed outside the
+//  window (FR-074).
 struct DiskChange
 {
     bool      hasDisk     = false;
     bool      isNewDisk   = false;
     bool      isReload    = false;
+    bool      isReread    = false;
     uint64_t  lastMediaId = 0;
 };
 

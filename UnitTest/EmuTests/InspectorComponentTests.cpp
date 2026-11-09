@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Ui/DiskInspector/Components/EditingPart.h"
 #include "Ui/DiskInspector/Components/InspectorMenus.h"
 #include "Ui/DiskInspector/Components/InspectorMetrics.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
@@ -221,6 +222,29 @@ public:
         toolbar.Create();
 
         Assert::IsFalse (toolbar.IsDriveShown(), L"Casso Explorer's window has an image file, not a drive (FR-001)");
+    }
+
+
+
+    TEST_METHOD (AnImageFileHasItsWriteProtectCausesBesideApply)
+    {
+        InspectorSession           session;
+        FakeDrivelessHost          drives;
+        std::shared_ptr<DiskCopy>  copy = std::make_shared<DiskCopy>();
+
+
+
+        session.host = &drives;
+        Assert::AreEqual (std::wstring (L"Only the image this window opened can be changed"), EditingPart::GetApplyBlock (session));
+
+        session.analysis.copy = copy;
+        Assert::IsTrue (EditingPart::GetApplyBlock (session).empty(), L"a writable file can be changed");
+
+        copy->writeProtect.readOnlyFile     = true;
+        copy->writeProtect.noPermission     = true;
+        copy->writeProtect.checksumMismatch = true;
+        Assert::AreEqual (std::wstring (L"Write-protected: the file is read-only; Casso Explorer cannot write the file; the image's checksum does not match its contents"),
+                          EditingPart::GetApplyBlock (session), L"each cause in FR-102 for Casso Explorer");
     }
 
 

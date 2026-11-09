@@ -209,3 +209,18 @@ void ExplorerInspectorWindow::ChangeTheme (const DxuiTheme * theme)
 {
     m_window->ChangeTheme (theme);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerInspectorWindow::GetHwnd
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HWND ExplorerInspectorWindow::GetHwnd() const
+{
+    return m_window->GetHwnd();
+}

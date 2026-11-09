@@ -35,6 +35,7 @@ public:
     void     ReloadDisk      () override;
     void     NoteFileGone    () override;
     void     ChangeTheme     (const DxuiTheme * theme) override;
+    HWND     GetHwnd         () const override;
 
 private:
     std::unique_ptr<DiskInspectorWindow>  m_window;

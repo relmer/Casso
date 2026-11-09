@@ -318,7 +318,7 @@ void DiskInspectorWindow::ReloadDisk()
         SetStatusNote (std::wstring());
     }
 
-    m_hostLink->RequestCopy();
+    m_hostLink->RequestReread();
 }
 
 
@@ -972,6 +972,30 @@ DxuiMessageResult DiskInspectorWindow::OnSysCommand (UINT command)
 
 Error:
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::OnCopyData
+//
+//  A WM_COPYDATA for the host, such as Casso's reply to an edit Casso
+//  Explorer saved (FR-105).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DiskInspectorWindow::OnCopyData (WPARAM sender, LPARAM data)
+{
+    const COPYDATASTRUCT  * copy = reinterpret_cast<const COPYDATASTRUCT *> (data);
+
+
+
+    (void) sender;
+
+    return (copy != nullptr && m_session.host->HandleCopyData (*copy)) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 }
 
 

@@ -4,10 +4,12 @@
 
 #include "Config/DiskInspectorPrefs.h"
 #include "Devices/Disk/IImageWatcher.h"
+#include "Seams/Win32DiskFileIo.h"
 #include "Ui/Chrome/CassoTheme.h"
 
 class ExplorerInspectorHost;
 class IDiskInspectorHost;
+class IIntentChannel;
 
 
 
@@ -24,7 +26,9 @@ class IDiskInspectorHost;
 //  last analysis stays, with a note. The windows outlast the Explorer window
 //  they were opened from and close with the app, so the set has a copy of
 //  the theme rather than a pointer to an Explorer window's. A thread timer
-//  drives their frames, since Explorer has no frame loop.
+//  drives their frames, since Explorer has no frame loop. A file a window
+//  saved is not read again. Each window has a separate intent channel, so
+//  Casso's reply to a save is sent to that window (FR-105).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,15 +56,19 @@ public:
         virtual void     ReloadDisk      ()                                    = 0;
         virtual void     NoteFileGone    ()                                    = 0;
         virtual void     ChangeTheme     (const DxuiTheme * theme)             = 0;
+        virtual HWND     GetHwnd         () const                              = 0;
     };
 
-    //  The functions for the window, the file check and the clock. Each one
-    //  left empty is the real one.
+    //  The functions for the window, the file check, the clock and the
+    //  channel to Casso, and the file access the windows read and save
+    //  through. Each one left empty is the real one.
     struct Seams
     {
-        std::function<std::unique_ptr<Window> ()>     makeWindow;
-        std::function<bool (const std::wstring &)>    fileExists;
-        std::function<ULONGLONG ()>                   nowMs;
+        std::function<std::unique_ptr<Window> ()>                  makeWindow;
+        std::function<bool (const std::wstring &)>                 fileExists;
+        std::function<ULONGLONG ()>                                nowMs;
+        std::function<std::unique_ptr<IIntentChannel> (HWND)>      makeIntents;
+        IDiskFileIo                                              * fileIo = nullptr;
     };
 
     InspectorWindowSet (IImageWatcher & watcher, DiskInspectorPrefs & prefs, Seams seams = {});
@@ -95,6 +103,7 @@ private:
         std::wstring                            folder;
         std::unique_ptr<ExplorerInspectorHost>  host;
         std::unique_ptr<Window>                 window;
+        std::unique_ptr<IIntentChannel>         intents;
         ULONGLONG                               changedMs = 0;
         bool                                    isChanged = false;
         bool                                    isClosed  = false;
@@ -114,6 +123,7 @@ private:
     IImageWatcher                        & m_watcher;
     DiskInspectorPrefs                   & m_prefs;
     Seams                                  m_seams;
+    Win32DiskFileIo                        m_fileIo;
     vector<std::unique_ptr<Entry>>         m_entries;
     std::map<std::wstring, int>            m_folders;
     std::mutex                             m_changeLock;
