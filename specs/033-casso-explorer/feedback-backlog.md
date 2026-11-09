@@ -239,6 +239,14 @@ Explorer, CE is Casso Explorer, LV the list view.
 - Copy to folder is gone from the menus (FE has none); recent destinations
   for it are moot.
 
+## Open: from 2026-11-08
+
+- Gutenberg writes. The volume is read-only for now. Work out the free-space
+  map at track 17, sector 6 by saving and deleting documents of known sizes
+  in Gutenberg run in Casso and comparing the sector each time. Then write
+  documents, following only forward links. A write to a disk whose chains
+  don't check out fails.
+
 ## Open: from 2026-10-01 (owner's answers and the Recycle Bin review)
 
 - Content, still different: FE leaves the type line off some files (a

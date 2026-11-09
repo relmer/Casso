@@ -582,6 +582,7 @@ hardware.
 - Q: Are the file type conversions a separate feature? -> A: No. They are User Story 18 of this feature, on the same branch, after Casso Explorer's merge to master.
 - Q: Are the IIgs formats in scope? -> A: Yes: AppleWorks GS, OMF, super hi-res in each form, IIgs icons and IIgs bitmap fonts. A 65816 disassembly is not.
 - Q: Is a Pascal codefile's p-code disassembled? -> A: Yes, into p-code mnemonics with their operands, beside the segment and procedure dictionaries.
+- Q: Are Gutenberg disks written? -> A: Not yet. A Gutenberg volume is read-only, as in CiderPress II, since its free-space map's format is undocumented. Writing is a later item, after the map is worked out from disks Gutenberg saves in Casso.
 
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -2299,8 +2300,8 @@ editor and in Merlin, run in Casso.
   Pascal textfiles; random-access text; Merlin source; S-C Assembler source;
   LISA source, in each version of its tokens; Business BASIC; Pascal
   codefiles; OMF; AppleWorks word processor, database and spreadsheet
-  files; AppleWorks GS word processor files; VisiCalc; Teach; Gutenberg;
-  Magic Window; super hi-res, packed super hi-res and 3200-color pictures;
+  files; AppleWorks GS word processor files; VisiCalc; Teach; Gutenberg, from a
+  read-only Gutenberg volume; Magic Window; super hi-res, packed super hi-res and 3200-color pictures;
   LZ4FH pictures; Print Shop graphics; IIgs icons; Apple II hi-res fonts;
   Print Shop fonts; IIgs bitmap fonts. A 65816 disassembly is out of scope.
 - **FR-157**: A format MUST be identified by its ProDOS file type and aux
