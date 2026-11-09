@@ -590,6 +590,10 @@ hardware.
 
 - Q: Is the rest of the Roadmap specified now? -> A: Yes. Every item not yet a story is specified as Stories 22 to 38, before planning starts. Language servers are cut, as editor support rather than disk management. The emulator work in the Roadmap's Elsewhere list is part of other specs.
 - Q: Are CassoLink virtual drives in this spec now? -> A: Yes, as Story 25, which replaces the Session 2026-10-23 answer that left them out.
+- Q: When the link drops partway through a block device's read or write, does it resume? -> A: Yes. The partial image and the last verified block are saved beside it, and the next read or write of that device offers to continue from that block.
+- Q: Where do Disk list's and Find duplicates' results appear? -> A: In a tab, as a results folder: a row for each disk or file, duplicates grouped by set, with the usual context menu. Save as CSV is on its toolbar.
+- Q: Do the collection tools look inside archives? -> A: Yes, at any depth Story 21 opens, with the archive and the image inside it in the row's path.
+- Q: How long may a raw capture of a 5.25" disk take on a //c at 115,200 baud? -> A: Under 5 minutes, so a quarter track with no data is read once, and a repeated read is sent only where it differs from the first.
 
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -1862,8 +1866,8 @@ list.
 
 1. **Given** a folder, **When** Disk list is chosen, **Then** every disk
    image in its subtree is listed with its container, file system, volume
-   name, file count, free space, CRC-32 and SHA-256, and the list is saved
-   as CSV.
+   name, file count, free space, CRC-32 and SHA-256, in a results tab that
+   saves as CSV.
 2. **Given** a folder, **When** Find duplicates is chosen, **Then** disks
    with the same volume data are grouped, whatever their containers, and
    files with the same data and type across different disks are grouped.
@@ -2103,6 +2107,8 @@ interpreter's.
   message.
 - **A SmartPort unit that is a printer or a modem**: it isn't listed as a
   drive.
+- **A resumed transfer whose device has changed**: when the device's volume directory blocks differ from the partial image's, the
+  offer to continue is withdrawn and the transfer starts over.
 - **A capture of an unprotected disk**: it is written as WOZ as any capture
   is, and its report doesn't list a differing track.
 - **A track with no sync bytes at all**: it is written as it read, and the
@@ -3161,8 +3167,11 @@ interpreter's.
 - **FR-192**: Every operation of Story 14 MUST work on a block device: a
   ProDOS volume of any size FR-175 allows is browsed and changed, Read disk
   to image writes `.po`, `.hdv` or 2IMG, and Write image to disk writes and
-  reads back every block. Verified reads and writes MUST apply to blocks as
-  they apply to sectors.
+  reads back every block. Verified reads and writes MUST apply to blocks as they apply to sectors.
+  When the link drops during either, the partial image and the last
+  verified block MUST be saved beside it, in `NAME.partial`, and the next
+  read or write of the same device, matched by its slot, unit, size and
+  volume, MUST offer to continue from that block.
 - **FR-193**: A device error MUST be reported in words: no disk, write
   protected, device offline and I/O error, with the block number.
 - **FR-194**: Block devices MUST be tested in scenario tests on Casso's
@@ -3177,8 +3186,9 @@ interpreter's.
   written with their extra zero bits. The capture MUST be written as a WOZ 2 image with a bit stream for each quarter track that has data, and its TMAP MUST map each quarter track to the stream read there.
 - **FR-196**: Each track MUST be read at least three times. A region that
   differs between reads MUST be written as a run of zero bits that WOZ
-  readers read as random bits, and the capture's report MUST list each such
-  track.
+  readers read as random bits, and the capture's report MUST list each such track. A quarter track with
+  no data on its first read MUST NOT be read again, and a later read MUST
+  be sent only where it differs from the first.
 - **FR-197**: Options MUST offer Capture raw on protected disks for Full
   Send. With it on, a disk assessed as likely copy-protected MUST be
   captured raw, and its manifest row MUST indicate a raw capture.
@@ -3331,11 +3341,18 @@ interpreter's.
 **Collection tools**
 
 - **FR-232**: Disk list MUST list each disk image in a folder's subtree with
-  its container, file system, volume name, file count, free space, CRC-32
-  and SHA-256, and MUST save the list as CSV.
+  its path, container, file system, volume name, file count, free space,
+  CRC-32 and SHA-256. Images inside ZIP, gzip, NuFX and Binary II files
+  and inside other images MUST be listed too, at any depth FR-187 opens,
+  with the archive and the image inside it in the path. Find duplicates
+  MUST search the same set.
 - **FR-233**: Find duplicates MUST group disks whose volume data is the same,
   whatever their containers, and files whose data and type are the same
   across different disks.
+- **FR-233a**: Both tools MUST open their results in a tab as a results
+  folder, as a search does: a row for each disk or file, each duplicate set
+  a group, and the context menu a row has in any folder. The results
+  toolbar MUST offer Save as CSV.
 - **FR-234**: A search with File contents on MUST search each file inside a
   disk image as its conversion writes it: BASIC detokenized, Apple text as
   text, and binary files not at all.
@@ -3588,7 +3605,7 @@ interpreter's.
   file put through the link opens on the Apple.
 - **SC-055**: A raw capture of Archon on the owner's //c boots in Casso, and
   a capture of each protected test image in an emulated //c boots as its
-  source does.
+  source does. A capture on a //c at 115,200 baud takes under 5 minutes.
 - **SC-056**: A file saved on a CassoLink virtual drive from BASIC.SYSTEM is
   in the image on the PC when the save returns, on an emulated //c and on
   the owner's //c.
