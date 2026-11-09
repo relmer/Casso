@@ -1313,13 +1313,21 @@ void DxuiPopupMenu::Tick (int64_t nowMs)
 //  Opening the row that is already open only moves its highlight, so a
 //  repeated hover or Right does not flicker the child.
 //
+//  A hosted menu is anchored to where its popup window actually is. The
+//  bounds ShowCore computes are clamped inside the owner's client rect, but
+//  the popup host places the window at the true anchor, past the owner's edge
+//  when there is room on screen. Anchoring the child to the clamped bounds
+//  put it on top of the parent whenever the parent extended past the owner,
+//  as a menu under a button near a narrow window's right edge does.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPopupMenu::OpenChild (int index, bool highlightFirst)
 {
-    const DxuiPopupMenuItem *  row     = nullptr;
-    RECT                       rowRect = {};
-    int                        rowTop  = 0;
+    const DxuiPopupMenuItem *  row        = nullptr;
+    RECT                       rowRect    = {};
+    RECT                       parentRect = m_boundsDip;
+    int                        rowTop     = 0;
 
 
 
@@ -1362,13 +1370,18 @@ void DxuiPopupMenu::OpenChild (int index, bool highlightFirst)
     m_child->m_clock        = m_clock;
     m_child->m_scaler.SetDpi (m_scaler.GetDpi());
 
+    if (m_activePopup != nullptr && m_popupHost != nullptr)
+    {
+        parentRect = GetPlacedRectInOwner();
+    }
+
     rowTop         = m_layout.GetRowTopPx (index) - m_layout.GetScrollPx();
-    rowRect.left   = m_boundsDip.left;
-    rowRect.top    = m_boundsDip.top + rowTop;
-    rowRect.right  = m_boundsDip.right;
+    rowRect.left   = parentRect.left;
+    rowRect.top    = parentRect.top + rowTop;
+    rowRect.right  = parentRect.right;
     rowRect.bottom = rowRect.top + m_layout.GetRowHeightPx (index);
 
-    m_child->ShowCore (m_boundsDip.right, rowRect.top, rowRect, Anchoring::Beside,
+    m_child->ShowCore (parentRect.right, rowRect.top, rowRect, Anchoring::Beside,
                        row->children, *m_text, m_hostClient);
 
     m_childRow = index;
@@ -1382,6 +1395,34 @@ void DxuiPopupMenu::OpenChild (int index, bool highlightFirst)
     {
         m_activePopup->MarkDirty();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::GetPlacedRectInOwner
+//
+//  The hosted popup's card, in the owner window's client pixels, which are
+//  the coordinates every anchor passed to ShowCore uses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiPopupMenu::GetPlacedRectInOwner() const
+{
+    RECT   placed   = m_activePopup->GetPlacedRectScreenPx();
+    HWND   owner    = m_popupHost->GetHwnd();
+    POINT  topLeft  = { placed.left,  placed.top    };
+    POINT  botRight = { placed.right, placed.bottom };
+
+
+
+    ScreenToClient (owner, &topLeft);
+    ScreenToClient (owner, &botRight);
+
+    return RECT { topLeft.x, topLeft.y, botRight.x, botRight.y };
 }
 
 

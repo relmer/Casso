@@ -409,14 +409,15 @@ private:
                               std::vector<DxuiPopupMenuItem>   items,
                               IDxuiTextRenderer              & text,
                               const RECT                     & hostClient);
-    void             AcquirePopup (const RECT & anchor, Anchoring anchoring);
-    void             SetHover     (int index);
-    void             ArmChild     (int index);
-    void             DisarmChild  ();
-    void             OpenChild    (int index, bool highlightFirst);
-    void             CloseChild   ();
-    void             Commit       (int index);
-    DxuiPopupMenu  * GetRoot      ();
+    void             AcquirePopup         (const RECT & anchor, Anchoring anchoring);
+    void             SetHover             (int index);
+    void             ArmChild             (int index);
+    void             DisarmChild          ();
+    void             OpenChild            (int index, bool highlightFirst);
+    RECT             GetPlacedRectInOwner () const;
+    void             CloseChild           ();
+    void             Commit               (int index);
+    DxuiPopupMenu  * GetRoot              ();
 
     void     RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     void     OnPopupMove     (POINT localPx);
