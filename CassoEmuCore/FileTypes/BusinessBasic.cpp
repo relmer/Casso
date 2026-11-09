@@ -237,6 +237,7 @@ HRESULT BusinessBasic::Decode (std::span<const Byte> bytes, const FileFacts & fa
 
             outFile.lines.push_back (std::to_wstring (AppleWorks::ReadWord (bytes, at + 1)) + (text.empty() ? L"" : L" " + text));
         }
+
         at += length;
     }
 
