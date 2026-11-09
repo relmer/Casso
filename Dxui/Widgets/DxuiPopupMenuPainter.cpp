@@ -194,26 +194,27 @@ void DxuiPopupMenuPainter::PaintRow (
     float                width,
     float                fontDip) const
 {
-    constexpr float            kTextContrast = 4.5f;   // WCAG AA for text
-    HRESULT                    hr            = S_OK;
-    const DxuiPopupMenuItem  & row           = m_menu.m_rows[(size_t) index];
-    int                        rowTopPx      = m_menu.m_layout.GetRowTopPx (index);
-    int                        rowH          = m_menu.m_layout.GetRowHeightPx (index);
-    int                        pad           = m_menu.m_metrics.leftPadPx;
-    int                        gutter        = m_menu.m_metrics.checkGutterPx;
-    int                        inset         = m_menu.m_metrics.separatorInsetPx;
-    int                        labelLeft     = m_menu.m_layout.m_labelLeftPx;
-    int                        padTop        = (rowH - m_menu.m_metrics.lineHeightPx) / 2;
-    float                      y             = top + (float) (rowTopPx - m_menu.m_layout.GetScrollPx());
-    float                      labelW        = (float) (m_menu.m_layout.m_accelLeftPx - labelLeft);
-    float                      accelW        = width - (float) m_menu.m_layout.m_accelLeftPx - (float) m_menu.m_metrics.rightPadPx;
+    constexpr float            kTextContrast     = 4.5f;   // WCAG AA for text
+    constexpr float            kDisabledContrast = 3.0f;   // readable, and dimmer than enabled text
+    HRESULT                    hr                = S_OK;
+    const DxuiPopupMenuItem  & row               = m_menu.m_rows[(size_t) index];
+    int                        rowTopPx          = m_menu.m_layout.GetRowTopPx (index);
+    int                        rowH              = m_menu.m_layout.GetRowHeightPx (index);
+    int                        pad               = m_menu.m_metrics.leftPadPx;
+    int                        gutter            = m_menu.m_metrics.checkGutterPx;
+    int                        inset             = m_menu.m_metrics.separatorInsetPx;
+    int                        labelLeft         = m_menu.m_layout.m_labelLeftPx;
+    int                        padTop            = (rowH - m_menu.m_metrics.lineHeightPx) / 2;
+    float                      y                 = top + (float) (rowTopPx - m_menu.m_layout.GetScrollPx());
+    float                      labelW            = (float) (m_menu.m_layout.m_accelLeftPx - labelLeft);
+    float                      accelW            = width - (float) m_menu.m_layout.m_accelLeftPx - (float) m_menu.m_metrics.rightPadPx;
     std::wstring               stripped;
-    int                        mnIdx         = -1;
-    wchar_t                    mnCh          = 0;
-    bool                       enabled       = false;
-    bool                       hovered       = false;
-    uint32_t                   labelArgb     = 0;
-    uint32_t                   accelArgb     = 0;
+    int                        mnIdx             = -1;
+    wchar_t                    mnCh              = 0;
+    bool                       enabled           = false;
+    bool                       hovered           = false;
+    uint32_t                   labelArgb         = 0;
+    uint32_t                   accelArgb         = 0;
 
 
 
@@ -278,13 +279,23 @@ void DxuiPopupMenuPainter::PaintRow (
     }
 
     //  An enabled row's text reads on whatever is behind it, the hover fill
-    //  among them. Disabled text is left as the theme has it.
+    //  among them. Disabled text is left as the theme has it, except on the
+    //  hover fill, which can be the disabled color's own hue: there it is
+    //  moved only as far as it must to be read, and stays dimmer than the
+    //  enabled text.
     if (enabled)
     {
         uint32_t  under = hovered ? DxuiColor::Composite (pal.hover, pal.bg) : pal.bg;
 
         labelArgb = DxuiColor::ComputeInkForContrast (labelArgb, under, kTextContrast);
         accelArgb = DxuiColor::ComputeInkForContrast (accelArgb, under, kTextContrast);
+    }
+    else if (hovered)
+    {
+        uint32_t  under = DxuiColor::Composite (pal.hover, pal.bg);
+
+        labelArgb = DxuiColor::ComputeInkForContrast (labelArgb, under, kDisabledContrast);
+        accelArgb = labelArgb;
     }
 
     if (m_menu.IsRowCut (index))
