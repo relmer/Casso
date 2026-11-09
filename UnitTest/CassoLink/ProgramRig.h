@@ -41,9 +41,9 @@ struct ProgramRig
     InMemoryCassoLinkFolder               folder;
     std::unique_ptr<CassoLinkHost>        host;
 
-    //  `drive1` and `drive2` as DOS-ordered images. For an empty image, no
-    //  disk is mounted in that drive.
-    explicit ProgramRig (const std::vector<Byte> & drive1, const std::vector<Byte> & drive2 = {})
+    //  `drive1` and `drive2` as DOS-ordered images, and the shim built for
+    //  `shimBaud`. For an empty image, no disk is mounted in that drive.
+    explicit ProgramRig (const std::vector<Byte> & drive1, const std::vector<Byte> & drive2 = {}, DWORD shimBaud = kLinkBaud)
     {
         std::vector<Byte>  shim;
         Word               at = LinkProgram::kShimAddress;
@@ -70,7 +70,7 @@ struct ProgramRig
         stream = std::make_shared<SteppedByteStream> (machine, pcEnd);
         host   = std::make_unique<CassoLinkHost> (stream, folder, [] () { return std::array<Byte, 4> {}; });
 
-        AssertSucceeded (LinkProgram::BuildShim (kLinkBaud, shim));
+        AssertSucceeded (LinkProgram::BuildShim (shimBaud, shim));
 
         for (Byte b : shim)
         {

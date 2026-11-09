@@ -197,50 +197,6 @@ public:
             return operation;
         }
 
-        //  The bytes the machine has sent the PC, after stepping it until
-        //  there are some or the budget is spent.
-        std::vector<Byte>  Receive()
-        {
-            std::vector<Byte>  bytes (4096);
-            uint64_t           spent = 0;
-            size_t             read  = 0;
-
-
-
-            while (factory.pcEnd->GetReadableCount() == 0 && spent < kBudget)
-            {
-                machine.RunCycles (kFrame);
-                spent += kFrame;
-            }
-
-            AssertSucceeded (factory.pcEnd->Read (bytes.data(), bytes.size(), 0, read));
-            bytes.resize (read);
-            return bytes;
-        }
-
-        //  Steps the machine until it has sent a whole packet with this
-        //  command, and drops every byte received with it.
-        void  AwaitPacket (Byte command)
-        {
-            std::vector<Byte>  received;
-            CassoLinkPacket    packet;
-            size_t             consumed = 0;
-            bool               complete = false;
-
-
-
-            for (int tries = 0; tries < 200 && !(complete && packet.command == command); tries++)
-            {
-                std::vector<Byte>  more = Receive();
-
-                received.insert (received.end(), more.begin(), more.end());
-                AssertSucceeded (CassoLinkCodec::Decode (received, consumed, packet, complete));
-                received.erase (received.begin(), received.begin() + (std::ptrdiff_t) consumed);
-            }
-
-            Assert::IsTrue (complete && packet.command == command, L"the packet arrives");
-        }
-
         //  A drive's disk, as DOS-logical sectors.
         std::vector<Byte>  Sectors (int drive)
         {
@@ -512,72 +468,6 @@ public:
     }
 
 
-    //  A program of another version is sent Load program and goes back to
-    //  the shim. The shim waits at the speed port 2 is at, the link's, and
-    //  not at the 9,600 it was typed in at, where the host is not.
-    TEST_METHOD (AnOlderProgram_ReloadsAtTheLinksSpeed)
-    {
-        Rig                   rig (true, 9600);
-        std::vector<Byte>     header = { 0xC1, 0x0B, 0x00, CassoLinkCodec::kReady };
-        Word                  ready  = 0;
-        bool                  seen   = false;
-        uint64_t              spent  = 0;
-
-        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
-        rig.session->Stop();
-
-        //  The Ready packet's version, and its check with it, as an older
-        //  program's.
-        for (Word at = LinkProgram::kProgramAddress; at < LinkProgram::kZeroPageSave && ready == 0; at++)
-        {
-            bool  match = true;
-
-            for (size_t i = 0; i < header.size(); i++)
-            {
-                match = match && rig.machine.GetCpu()->ReadByte ((Word) (at + i)) == header[i];
-            }
-
-            ready = match ? at : 0;
-        }
-
-        Assert::AreNotEqual ((Word) 0, ready, L"the program's Ready packet");
-
-        Byte  version = rig.machine.GetCpu()->ReadByte ((Word) (ready + 5));
-
-        rig.machine.GetCpu()->WriteByte ((Word) (ready + 5), (Byte) (version - 1));
-        rig.machine.GetCpu()->WriteByte ((Word) (ready + 16), (Byte) (rig.machine.GetCpu()->ReadByte ((Word) (ready + 16)) ^ version ^ (Byte) (version - 1)));
-
-        //  Stop closed the line; the next start has a new one.
-        InProcessByteStream::CreatePair (rig.machineEnd, rig.factory.pcEnd);
-        Assert::AreEqual (S_OK, rig.machine.AttachSerialStream (2, rig.machineEnd));
-
-        rig.Start();
-
-        auto  list = rig.session->Enumerate (1, FilePath());
-
-        while (!rig.sink.IsDone (list) && spent < kBudget)
-        {
-            rig.machine.RunCycles (kFrame);
-            spent += kFrame;
-            seen   = seen || rig.Row (kRow4) == "SERIAL PORT 2, 115200";
-        }
-
-        Assert::IsTrue  (rig.sink.IsDone (list));
-        AssertSucceeded (list->result);
-        Assert::IsTrue  (seen, L"the shim waited at the link's speed");
-    }
-
-
-
-    TEST_METHOD (AShimAtTheLinksSpeed_Connects)
-    {
-        Rig  rig (true, 115200);
-
-        AssertSucceeded (rig.Finish (rig.session->Enumerate (2, FilePath()))->result);
-        Assert::AreEqual (std::string ("CASSOLINK: CONNECTED"), rig.Row (kRow0));
-    }
-
-
 
     //  The bar has a cell for each track, so a listing's reads don't fill it.
     TEST_METHOD (AListing_LeavesTheDrivesBarEmpty)
@@ -586,52 +476,6 @@ public:
 
         AssertSucceeded (rig.Finish (rig.session->Enumerate (2, FilePath()))->result);
         Assert::AreEqual (std::string (""), rig.Row (kRowBar2));
-    }
-
-
-
-    //  A program page numbered past the program's last page gets a NAK and is
-    //  not stored, and the shim then takes page 0.
-    TEST_METHOD (TheShim_NaksAPagePastTheProgram)
-    {
-        Rig                rig (false, 115200);
-        std::vector<Byte>  page (CassoLinkCodec::kPageSize, 0xEE);
-        std::vector<Byte>  before (CassoLinkCodec::kPageSize);
-        std::vector<Byte>  after (CassoLinkCodec::kPageSize);
-        std::vector<Byte>  wire;
-        std::vector<Byte>  reply;
-        Byte               count = 1;
-
-
-
-        for (size_t i = 0; i < before.size(); i++)
-        {
-            before[i] = rig.machine.GetCpu()->ReadByte ((Word) (LinkProgram::kProgramAddress + 0x100 + i));
-        }
-
-        rig.AwaitPacket (CassoLinkCodec::kReady);
-        AssertSucceeded (CassoLinkCodec::Encode (CassoLinkCodec::kLoadProgram, std::span<const Byte> (&count, 1), wire));
-        AssertSucceeded (CassoLinkCodec::EncodeSectorData (1, 0, page, wire));
-        AssertSucceeded (rig.factory.pcEnd->Write (wire.data(), wire.size()));
-
-        reply = rig.Receive();
-        Assert::IsFalse (reply.empty());
-        Assert::AreEqual<int> (CassoLinkCodec::kNak, reply[0]);
-
-        for (size_t i = 0; i < after.size(); i++)
-        {
-            after[i] = rig.machine.GetCpu()->ReadByte ((Word) (LinkProgram::kProgramAddress + 0x100 + i));
-        }
-
-        Assert::IsTrue (before == after, L"the page past the program is not stored");
-
-        wire.clear();
-        AssertSucceeded (CassoLinkCodec::EncodeSectorData (0, 0, page, wire));
-        AssertSucceeded (rig.factory.pcEnd->Write (wire.data(), wire.size()));
-
-        reply = rig.Receive();
-        Assert::IsFalse (reply.empty());
-        Assert::AreEqual<int> (CassoLinkCodec::kAck, reply[0]);
     }
 
 
