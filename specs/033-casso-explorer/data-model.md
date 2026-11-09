@@ -244,5 +244,6 @@ never stored in `links`.
 - **Paragraph**: `alignment` (left, center, right, justified), `runs`.
 - **Run**: `text`, `bold`, `italic`, `underline`. A tab is a character of the text.
 - **Grid**: `columns`, a heading for each column, and `rows`, each a vector of cell strings. A database's categories are the headings. A spreadsheet's headings are column letters and its first cell in each row is the row number.
+- **DecodeOptions**: `recordLength`, 0 for the one found; `charset`, one of AppleText, MacOsRoman or Iso8859_1, defaulting to MacOsRoman for a IIgs format and AppleText otherwise. One per file while its tab is open, not saved.
 - **GlyphSheet**: `name`, `family`, `style`, `size`, and each glyph's bitmap and advance; drawn sixteen glyphs to a row into a Picture.
 - **Validation**: `Decode` fails with `ERROR_INVALID_DATA` and a reason for bytes that fail a format's check; a `DecodedFile` is never partial, except for the lines its `notes` list.

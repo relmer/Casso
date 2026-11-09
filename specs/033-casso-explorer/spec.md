@@ -582,6 +582,7 @@ hardware.
 - Q: Are the file type conversions a separate feature? -> A: No. They are User Story 18 of this feature, on the same branch, after Casso Explorer's merge to master.
 - Q: Are the IIgs formats in scope? -> A: Yes: AppleWorks GS, OMF, super hi-res in each form, IIgs icons and IIgs bitmap fonts. A 65816 disassembly is not.
 - Q: Is a Pascal codefile's p-code disassembled? -> A: Yes, into p-code mnemonics with their operands, beside the segment and procedure dictionaries.
+- Q: Does the list go past the owner's first one? -> A: Yes, to every converter CiderPress II has except the Macintosh formats: Applesoft shape tables, Paintworks, DreamGrafix and `.3201` pictures, IIgs animation files, Fontrix fonts, Apple /// hi-res fonts, Print Shop GS clip art in color, a record length chosen in the preview, and text character sets.
 - Q: Are Gutenberg disks written? -> A: Not yet. A Gutenberg volume is read-only, as in CiderPress II, since its free-space map's format is undocumented. Writing is a later item, after the map is worked out from disks Gutenberg saves in Casso.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -1289,12 +1290,12 @@ editor and in Merlin, run in Casso.
 8. **Given** a Pascal codefile or an OMF file, **When** it is selected or
    dragged out, **Then** its segments are listed with their headers and
    contents.
-9. **Given** a super hi-res, packed super hi-res, 3200-color, LZ4FH or Print
-   Shop picture, or a IIgs icon file, **When** it is selected, **Then** the
+9. **Given** a super hi-res, 3200-color, IIgs animation, LZ4FH or Print
+   Shop picture, a IIgs icon file or an Applesoft shape table, **When** it is selected, **Then** the
    picture or each icon is drawn; **When** it is dragged out, **Then** it is
    written as PNG.
-10. **Given** an Apple II hi-res font, a Print Shop font or a IIgs bitmap
-    font, **When** it is selected, **Then** every character it has is drawn
+10. **Given** an Apple II or Apple /// hi-res font, a Fontrix font, a Print
+    Shop font or a IIgs bitmap font, **When** it is selected, **Then** every character it has is drawn
     on a sheet with the font's name and size; **When** it is dragged out,
     **Then** the sheet is written as PNG.
 11. **Given** any of these files, **When** the user right-drags it out,
@@ -1467,7 +1468,12 @@ editor and in Merlin, run in Casso.
   left blank on the sheet.
 - **A random-access text file on DOS 3.3**: the record length isn't stored,
   so it is taken from the spacing of its entries; a file with one record is
-  drawn as sequential text.
+  drawn as sequential text. A length found wrongly is replaced in the
+  preview.
+- **An animation file**: only its first frame is drawn, and the preview
+  reports the number of frames.
+- **A shape table with a shape of no vectors**: its cell is left blank,
+  with its number.
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -2301,9 +2307,13 @@ editor and in Merlin, run in Casso.
   LISA source, in each version of its tokens; Business BASIC; Pascal
   codefiles; OMF; AppleWorks word processor, database and spreadsheet
   files; AppleWorks GS word processor files; VisiCalc; Teach; Gutenberg, from a
-  read-only Gutenberg volume; Magic Window; super hi-res, packed super hi-res and 3200-color pictures;
-  LZ4FH pictures; Print Shop graphics; IIgs icons; Apple II hi-res fonts;
-  Print Shop fonts; IIgs bitmap fonts. A 65816 disassembly is out of scope.
+  read-only Gutenberg volume; Magic Window; super hi-res pictures, plain,
+  packed, Apple Preferred and Paintworks; 3200-color pictures, plain,
+  DreamGrafix and `.3201`; the first frame of IIgs animation files; LZ4FH
+  pictures; Print Shop and Print Shop GS clip art, in color and monochrome;
+  Applesoft shape tables; IIgs icons; Apple II and Apple /// hi-res fonts;
+  Fontrix fonts; Print Shop fonts; IIgs bitmap fonts. A 65816 disassembly and
+  the Macintosh formats are out of scope.
 - **FR-157**: A format MUST be identified by its ProDOS file type and aux
   type where it has them, and on DOS 3.3 and Pascal volumes by the file
   type, name prefix and size it is saved with. The contents MUST pass the
@@ -2326,7 +2336,8 @@ editor and in Merlin, run in Casso.
   CSV, `NAME.Random text.csv`, one record on each row and one field of the
   record, split at its carriage returns, in each column. The record length
   MUST come from the aux type on ProDOS and from the spacing of its entries
-  on DOS 3.3.
+  on DOS 3.3. The preview MUST offer a record length to replace the one
+  found, which then applies to the preview and to a copy out of that file.
 - **FR-161**: A Pascal textfile MUST be drawn and written as text,
   `NAME.Pascal text.txt`, with each indentation code expanded to spaces. A
   text file put onto a Pascal volume MUST be written as a textfile Apple
@@ -2354,19 +2365,33 @@ editor and in Merlin, run in Casso.
   name, kind, sizes, alignment and bank. Each record MUST be listed by its
   opcode, with code and data bytes in hex. A copy out MUST write the
   listing, `NAME.OMF.txt`.
-- **FR-166**: Super hi-res, packed super hi-res, 3200-color and LZ4FH
-  pictures, Print Shop graphics and IIgs icons MUST be drawn, and a copy out
-  MUST write PNG: `NAME.Super Hi-Res.png`, `NAME.3200 Color.png`,
-  `NAME.LZ4FH.png`, `NAME.Print Shop.png` or `NAME.IIgs Icons.png`. A super
+- **FR-166**: Super hi-res pictures in each form in FR-156, 3200-color
+  pictures in each form, the first frame of an animation file, LZ4FH
+  pictures, Print Shop and Print Shop GS clip art and IIgs icons MUST be
+  drawn, and a copy out MUST write PNG: `NAME.Super Hi-Res.png`,
+  `NAME.3200 Color.png`, `NAME.Animation.png`, `NAME.LZ4FH.png`,
+  `NAME.Print Shop.png` or `NAME.IIgs Icons.png`. Color clip art MUST be
+  drawn in its colors, and monochrome clip art black on white. A super
   hi-res picture MUST be drawn in the colors of its palettes, at 320 or 640
   pixels as each line's mode sets, and MUST NOT take the Display page's
   monitor, since a IIgs's monitor is RGB. An LZ4FH picture is a hi-res
   picture and MUST be drawn as US9 draws one. An icon file MUST be drawn
   with each icon and its mask beside its name.
-- **FR-167**: Apple II hi-res fonts, Print Shop fonts and IIgs bitmap fonts
-  MUST be drawn as a sheet of every character the font has, in rows of
+- **FR-167**: Apple II and Apple /// hi-res fonts, of 96 or 128
+  characters, Fontrix fonts, Print Shop fonts and IIgs bitmap fonts MUST be
+  drawn as a sheet of every character the font has, in rows of
   sixteen, with the font's name, family, style and size where the format
   stores them. A copy out MUST write the sheet as PNG, `NAME.Font.png`.
+- **FR-172**: An Applesoft shape table MUST be drawn as a sheet of its
+  shapes, in rows of eight, each at scale 1 and rotation 0 with its number
+  under it, and a copy out MUST write the sheet as PNG,
+  `NAME.Shape table.png`. A shape whose vectors extend past the sheet's cell MUST
+  be clipped to the cell.
+- **FR-173**: The preview of text, and a text copy out, MUST offer the
+  character set the bytes are read in: Apple text, in which high and low
+  ASCII are one character set, Mac OS Roman, or ISO 8859-1. The default MUST
+  be Mac OS Roman for a IIgs format's text and Apple text otherwise. The
+  choice MUST apply to that file's preview and copy out.
 - **FR-168**: Each of these conversions MUST be the default for a drag or
   Get out, as the BASIC and text conversions are. A right-drag out MUST
   offer the conversion and a raw copy, and Get MUST offer the same choice.

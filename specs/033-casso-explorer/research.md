@@ -977,9 +977,9 @@ files as they are fails SC-037.
 - **Identification**: one table of formats, matched on the volume kind, ProDOS type and aux type, DOS 3.3 type, name prefix or suffix and size, followed by each format's content check. This is the table in [contracts/file-types.md](contracts/file-types.md).
 - **P-code**: Apple Pascal's p-machine opcodes, from the Apple Pascal Operating System Reference Manual and the p-System's published instruction set, for the p-code version a codefile's segment dictionary has. A segment of another version is listed with its bytes in hex and the version reported.
 - **OMF**: versions 1, 2.0 and 2.1, from the Apple IIgs Programmer's Workshop Reference and its OMF appendix.
-- **Super hi-res**: $C1/0000 unpacked, $C0/0001 PackBytes, $C0/0002 Apple Preferred, and $C1/0002 3200-color, drawn with each line's palette and 320 or 640 mode bit, and IIgs TN #63's color values.
+- **Super hi-res**: $C1/0000 unpacked, $C0/0001 PackBytes, $C0/0002 Apple Preferred, $C0/0000 Paintworks, and 3200-color as $C1/0002, DreamGrafix $C0/8005 and `.3201`, drawn with each line's palette and 320 or 640 mode bit, and IIgs TN #63's color values.
 - **Outputs**: RTF 1.5 with only `\b`, `\i`, `\ul`, `\ql`, `\qc`, `\qr`, `\qj`, `\tab` and `\par`, which Word and WordPad both open; CSV as RFC 4180 specifies, in UTF-8 with a byte order mark so Excel reads it as UTF-8; PNG through `PngCodec`.
-- **Text characters**: MouseText and the IIgs's Mac-style characters are mapped to Unicode by one table in `UnicodeSymbols.h`.
+- **Character sets**: Apple text, Mac OS Roman and ISO 8859-1, as CiderPress II offers. A IIgs format defaults to Mac OS Roman, the IIgs's character set. and the IIgs's Mac-style characters are mapped to Unicode by one table in `UnicodeSymbols.h`.
 
 **Rationale**: with one table of formats, identification is in one place and tested alone, and the decoders are pure functions over bytes, as `PreviewDecoder`'s are. RTF is the smallest styled format both PC programs read.
 

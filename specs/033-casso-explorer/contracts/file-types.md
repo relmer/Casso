@@ -29,12 +29,20 @@ phase. The table is the test list for `FileFormatTableTests`.
 | Gutenberg | Gutenberg volume | Gutenberg volume | text | `NAME.Gutenberg.txt` | no | Gutenberg, GutenbergWP |
 | Magic Window | *notes* | *notes* | text | `NAME.Magic Window.txt` | no | MagicWindow |
 | Super hi-res | $C1/$0000 | none | picture | `NAME.Super Hi-Res.png` | no | SuperHiRes |
-| Packed super hi-res | $C0/$0001, $C0/$0002 | none | picture | `NAME.Super Hi-Res.png` | no | SuperHiRes |
+| Packed super hi-res | $C0/$0001, $C0/$0002 (Apple Preferred) | none | picture | `NAME.Super Hi-Res.png` | no | SuperHiRes |
+| Paintworks | $C0/$0000 | none | picture | `NAME.Super Hi-Res.png` | no | SuperHiRes |
 | 3200-color | $C1/$0002 | none | picture | `NAME.3200 Color.png` | no | SuperHiRes |
+| DreamGrafix | $C0/$8005 | none | picture | `NAME.3200 Color.png` | no | SuperHiRes |
+| 3201 | name ending `.3201`, *notes* | none | picture | `NAME.3200 Color.png` | no | SuperHiRes |
+| IIgs animation | $C2/$0000 | none | picture, first frame | `NAME.Animation.png` | no | PaintworksAnim |
 | LZ4FH | $08/$8066 | none | picture | `NAME.LZ4FH.png` | no | HiRes, fhpack |
 | Print Shop graphic | *notes* | B, *notes* | picture | `NAME.Print Shop.png` | no | PrintShop |
+| Print Shop GS clip art | *notes* | none | picture, color | `NAME.Print Shop.png` | no | PrintShop |
+| Applesoft shape table | $06 BIN, content check | B, content check | sheet | `NAME.Shape table.png` | no | ShapeTable |
 | IIgs icons | $CA | none | picture | `NAME.IIgs Icons.png` | no | GSFinderIcon |
 | Apple II hi-res font | none | B, 768 bytes | sheet | `NAME.Font.png` | no | *notes* |
+| Apple /// hi-res font | $07, *notes* | none | sheet, 128 glyphs | `NAME.Font.png` | no | *notes* |
+| Fontrix font | *notes* | B, *notes* | sheet | `NAME.Font.png` | no | Fontrix |
 | Print Shop font | *notes* | B, *notes* | sheet | `NAME.Font.png` | no | PrintShop |
 | IIgs bitmap font | $C8 | none | sheet | `NAME.Font.png` | no | BitmapFont |
 
@@ -59,20 +67,24 @@ choice lists the import rows the destination file system has.
 enum class FileFormat { None, PascalText, RandomText, Merlin, ScAssembler, Lisa,
                         BusinessBasic, PascalCode, Omf, AppleWorksWp, AppleWorksDb,
                         AppleWorksSs, AppleWorksGsWp, Teach, VisiCalc, Gutenberg,
-                        MagicWindow, SuperHiRes, PackedSuperHiRes, SuperHiRes3200,
-                        Lz4fh, PrintShopGraphic, IigsIcons, HiResFont, PrintShopFont,
+                        MagicWindow, SuperHiRes, PackedSuperHiRes, Paintworks,
+                        SuperHiRes3200, DreamGrafix, SuperHiRes3201, IigsAnimation,
+                        Lz4fh, PrintShopGraphic, PrintShopGsClipArt, ShapeTable,
+                        IigsIcons, HiResFont, Apple3Font, FontrixFont, PrintShopFont,
                         IigsFont };
 
 class FileFormatTable
 {
 public:
     static FileFormat  Identify  (const FileEntry & entry, VolumeKind volume, std::span<const Byte> bytes);
-    static HRESULT     Decode    (FileFormat format, std::span<const Byte> bytes, DecodedFile & outFile, std::wstring & outError);
+    static HRESULT     Decode    (FileFormat format, std::span<const Byte> bytes, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError);
     static HRESULT     Export    (const DecodedFile & file, std::vector<Byte> & outBytes);
     static HRESULT     Import    (FileFormat format, VolumeKind volume, std::span<const Byte> hostBytes, FilePayload & outPayload, std::wstring & outError);
     static const wchar_t *  GetSuffix (FileFormat format);
 };
 ```
+
+`Decode` takes a `DecodeOptions`: the record length that replaces the one found (FR-160) and the character set text is read in (FR-173).
 
 `Decode` fails with `ERROR_INVALID_DATA` and a reason in words for a file
 that fails its check, which FR-169's preview and copy report. `Export`

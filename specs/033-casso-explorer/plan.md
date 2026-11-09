@@ -535,7 +535,7 @@ Story 18, as in Design's File types. Order, each step with its tests:
 3. Text and code: Pascal textfile both ways, random-access text, Merlin both ways, S-C Assembler, LISA in each version, Business BASIC.
 4. Code files: `PCodeDisassembler` and Pascal codefiles; OMF.
 5. Business: AppleWorks WP, DB and SS, AppleWorks GS WP, Teach, VisiCalc, Magic Window; `GutenbergVolume` and Gutenberg documents.
-6. Pictures and fonts: super hi-res in its four forms, LZ4FH, Print Shop graphics and fonts, IIgs icons, Apple II hi-res fonts, IIgs bitmap fonts.
+6. Pictures and fonts: super hi-res plain, packed, Apple Preferred and Paintworks; 3200-color plain, DreamGrafix and `.3201`; IIgs animation first frames; LZ4FH; Print Shop and Print Shop GS clip art; Applesoft shape tables; IIgs icons; Apple II, Apple /// and Fontrix fonts; Print Shop fonts; IIgs bitmap fonts. Then the record length and character set choices in the preview (FR-160, FR-173).
 7. Copy out and put: `HostFileNaming`'s suffixes, the drag, Get and right-drag paths, the put dialog's type choice, `DiskCommandRunner`'s get and put.
 8. Validation: quickstart §7d, SC-047 to SC-049 in validation.md.
 

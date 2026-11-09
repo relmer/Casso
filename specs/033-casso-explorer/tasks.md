@@ -1684,7 +1684,7 @@ Session 2026-11-08. Plan's Phase 32, research R35, contract `contracts/file-type
 - [ ] T477 [US18] Fill each *notes* cell of `specs/033-casso-explorer/contracts/file-types.md` from CiderPress II's format notes and the File Type Notes they cite: S-C Assembler's and LISA's types on both file systems, Magic Window's, the Print Shop graphic's and font's, and the Apple II hi-res font's note
 - [ ] T478 [US18] Collect a fixture of each contract row in `ScenarioTests/Fixtures/FileTypes/`, saved by its program run in Casso where the owner has the program, or taken from a disk image the owner has, and list the rows with no fixture for the owner
 - [ ] T479 [US18] Add `FileFormat` and `FileFormatTable::Identify` in `CassoEmuCore/FileTypes/FileFormatTable.h/.cpp`, matching the contract's rows by volume kind, ProDOS type and aux type, DOS 3.3 type, name prefix or suffix, and size, then the row's `Check` (FR-157). Tests in `UnitTest/FileTypes/FileFormatTableTests.cpp`, one per row and one per near miss
-- [ ] T480 [P] [US18] Add `DecodedFile`, `Paragraph`, `Run` and `Grid` in `CassoEmuCore/FileTypes/DecodedFile.h` as `data-model.md` defines them: "a `DecodedFile` is never partial, except for the lines its `notes` list"
+- [ ] T480 [P] [US18] Add `DecodedFile`, `Paragraph`, `Run` and `Grid` in `CassoEmuCore/FileTypes/DecodedFile.h` and `DecodeOptions` in `CassoEmuCore/FileTypes/DecodeOptions.h`, as `data-model.md` defines them: "a `DecodedFile` is never partial, except for the lines its `notes` list", and `charset` defaults to "MacOsRoman for a IIgs format and AppleText otherwise"
 - [ ] T481 [P] [US18] Add `RtfWriter` in `CassoEmuCore/FileTypes/RtfWriter.h/.cpp`, writing RTF 1.5 with only `\b`, `\i`, `\ul`, `\ql`, `\qc`, `\qr`, `\qj`, `\tab` and `\par`, and non-ASCII characters as `\u` escapes. Tests in `UnitTest/FileTypes/RtfWriterTests.cpp`
 - [ ] T482 [P] [US18] Add `CsvWriter` in `CassoEmuCore/FileTypes/CsvWriter.h/.cpp`, in UTF-8 with a byte order mark, quoted as RFC 4180 specifies: a field with a comma, a quote or a line break is quoted, and a quote inside it is doubled. Tests in `UnitTest/FileTypes/CsvWriterTests.cpp`
 - [ ] T483 [P] [US18] Add `GlyphSheet` in `CassoEmuCore/FileTypes/GlyphSheet.h/.cpp`, drawing each glyph sixteen to a row into a BGRA picture under the font's name, family, style and size, with a missing glyph left blank. Tests in `UnitTest/FileTypes/GlyphSheetTests.cpp`
@@ -1721,26 +1721,32 @@ Session 2026-11-08. Plan's Phase 32, research R35, contract `contracts/file-type
 
 **Pictures and fonts**
 
-- [ ] T505 [P] [US18] `SuperHiRes`: decode $C1/$0000, PackBytes $C0/$0001 and Apple Preferred $C0/$0002 to BGRA, with each line's palette and 320 or 640 mode bit, colors from IIgs TN #63, and a short or truncated picture drawn black below its last line with the missing count in `notes` (FR-166)
-- [ ] T506 [P] [US18] `SuperHiRes3200`: decode $C1/$0002 with a palette for each line (FR-166)
+- [ ] T505 [P] [US18] `SuperHiRes`: decode $C1/$0000, PackBytes $C0/$0001, Apple Preferred $C0/$0002 and Paintworks $C0/$0000 to BGRA, with each line's palette and 320 or 640 mode bit, colors from IIgs TN #63, and a short or truncated picture drawn black below its last line with the missing count in `notes` (FR-166)
+- [ ] T506 [P] [US18] `SuperHiRes3200`: decode $C1/$0002, DreamGrafix $C0/$8005 and `.3201` files, each with a palette for each line (FR-166)
 - [ ] T507 [P] [US18] `Lz4fh`: decompress $08/$8066 to an 8 KB hi-res page and draw it through `PicturePreview`, so the Display page's monitor applies (FR-166)
-- [ ] T508 [P] [US18] `PrintShopGraphic`: decode a Print Shop graphic, drawn black on white (FR-166)
+- [ ] T508 [P] [US18] `PrintShopGraphic`: decode Print Shop and Print Shop GS clip art, color clip art in its colors and monochrome clip art black on white (FR-166)
 - [ ] T509 [P] [US18] `IigsIcons`: decode a $CA file, each icon drawn with its mask beside its name (FR-166)
-- [ ] T510 [P] [US18] `HiResFont`: decode a 768-byte Apple II hi-res font onto a `GlyphSheet` (FR-167)
+- [ ] T510 [P] [US18] `HiResFont`: decode an Apple II hi-res font of 96 characters and an Apple /// font of 128 onto a `GlyphSheet` (FR-167)
 - [ ] T511 [P] [US18] `PrintShopFont`: decode a Print Shop font onto a `GlyphSheet` (FR-167)
 - [ ] T512 [P] [US18] `IigsBitmapFont`: decode a $C8 QuickDraw II font onto a `GlyphSheet`, with its family, style and size (FR-167)
 
+- [ ] T513 [P] [US18] `IigsAnimation`: decode the first frame of a $C2/$0000 animation file to BGRA, with the frame count in `notes` (FR-166)
+- [ ] T514 [P] [US18] `ShapeTable`: draw each shape of an Applesoft shape table at scale 1 and rotation 0, eight to a row with its number under it, clipped to its cell, and an empty shape as a blank cell (FR-172)
+- [ ] T515 [P] [US18] `FontrixFont`: decode a Fontrix font onto a `GlyphSheet` (FR-167)
+- [ ] T516 [US18] Offer a record length in a random-access text file's preview that replaces the one found, applied to the preview and to a copy out of that file, while its tab is open (FR-160)
+- [ ] T517 [US18] Offer Apple text, Mac OS Roman and ISO 8859-1 as the character set of a text preview and a text copy out, with Mac OS Roman the default for a IIgs format, while its tab is open, in every text decoder through `DecodeOptions::charset` (FR-173). Tests in `UnitTest/FileTypes/CharsetTests.cpp`
+
 **Copy out and put**
 
-- [ ] T513 [US18] Replace `HostFileNaming::ConvertedKind` with `FileFormat` plus the BASIC and text kinds in `CassoEmuCore/CassoExplorer/Model/HostFileNaming.h/.cpp`, so `Make` and `Parse` cover every suffix in the contract, and add the rows to `contracts/host-file-names.md`. Tests in `UnitTest/CassoExplorer/HostFileNamingTests.cpp`
-- [ ] T514 [US18] Write each format's conversion on a drag or Get out, by `FileFormatTable::Export`, in `CassoEmuCore/CassoExplorer/CassoExplorerActions.cpp`, with a file that fails to decode skipped and its reason reported while the rest complete (FR-168, FR-169). Tests in `UnitTest/CassoExplorer/CassoExplorerActionsTests.cpp`
-- [ ] T515 [US18] Offer the conversion and a raw copy on the right-drag menu and in the Get dialog, with a raw copy's name following FR-017 and FR-017a (FR-168)
-- [ ] T516 [US18] Put a host file with an import row's suffix as that format with no dialog, the suffix stripped from the catalog name, and add the import rows the destination has to the put dialog's type choice: Pascal text on Pascal volumes and ProDOS, Merlin source on ProDOS and DOS 3.3 (FR-161, FR-162)
-- [ ] T517 [US18] Apply the same conversions in `DiskCommandRunner`'s get and put in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp` (FR-170). Tests in `UnitTest/EmuTests/DiskCommandRunnerTests.cpp`
+- [ ] T518 [US18] Replace `HostFileNaming::ConvertedKind` with `FileFormat` plus the BASIC and text kinds in `CassoEmuCore/CassoExplorer/Model/HostFileNaming.h/.cpp`, so `Make` and `Parse` cover every suffix in the contract, and add the rows to `contracts/host-file-names.md`. Tests in `UnitTest/CassoExplorer/HostFileNamingTests.cpp`
+- [ ] T519 [US18] Write each format's conversion on a drag or Get out, by `FileFormatTable::Export`, in `CassoEmuCore/CassoExplorer/CassoExplorerActions.cpp`, with a file that fails to decode skipped and its reason reported while the rest complete (FR-168, FR-169). Tests in `UnitTest/CassoExplorer/CassoExplorerActionsTests.cpp`
+- [ ] T520 [US18] Offer the conversion and a raw copy on the right-drag menu and in the Get dialog, with a raw copy's name following FR-017 and FR-017a (FR-168)
+- [ ] T521 [US18] Put a host file with an import row's suffix as that format with no dialog, the suffix stripped from the catalog name, and add the import rows the destination has to the put dialog's type choice: Pascal text on Pascal volumes and ProDOS, Merlin source on ProDOS and DOS 3.3 (FR-161, FR-162)
+- [ ] T522 [US18] Apply the same conversions in `DiskCommandRunner`'s get and put in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp` (FR-170). Tests in `UnitTest/EmuTests/DiskCommandRunnerTests.cpp`
 
 **Validation**
 
-- [ ] T518 [US18] Scenario tests in `ScenarioTests/FileTypeFixtureTests.cpp`: each fixture from T478 decodes, converts and, for import rows, round-trips, and each previews within half a second at up to 64 KB (SC-047, SC-049)
-- [ ] T519 [US18] Put a Merlin source file back onto DOS 3.3 and ProDOS images and load it in Merlin in Casso; put a text file on a Pascal volume and open it in Apple Pascal's editor in Casso (SC-048)
-- [ ] T520 [US18] Walk quickstart §7d on Debug and Release, and write the results to `specs/033-casso-explorer/validation.md`
-- [ ] T521 Run `scripts/CheckStyle.ps1 -Mode Tree`, the code-analysis rebuild, and the unit and scenario suites in Debug and Release before the master merge
+- [ ] T523 [US18] Scenario tests in `ScenarioTests/FileTypeFixtureTests.cpp`: each fixture from T478 decodes, converts and, for import rows, round-trips, and each previews within half a second at up to 64 KB (SC-047, SC-049)
+- [ ] T524 [US18] Put a Merlin source file back onto DOS 3.3 and ProDOS images and load it in Merlin in Casso; put a text file on a Pascal volume and open it in Apple Pascal's editor in Casso (SC-048)
+- [ ] T525 [US18] Walk quickstart §7d on Debug and Release, and write the results to `specs/033-casso-explorer/validation.md`
+- [ ] T526 Run `scripts/CheckStyle.ps1 -Mode Tree`, the code-analysis rebuild, and the unit and scenario suites in Debug and Release before the master merge

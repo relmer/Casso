@@ -47,3 +47,5 @@
 - 2026-10-30: User Story 17 (Full Send), FR-107 to FR-116, SC-038, SC-039 and one key entity added. Reviewed against every item above: testable, no clarification markers. The fingerprint and Disk II references are required behavior, not a design choice.
 
 - 2026-11-08: User Story 18 (every common Apple II file type), FR-156 to FR-171, SC-047 to SC-049 and edge cases added. Reviewed against every item above: testable and bounded by the list in FR-156. The formats, RTF, CSV and PNG come from the owner's request, not design choices. The one clarification marker, whether p-code is disassembled, is resolved: it is.
+
+- 2026-11-08: FR-156 extended to CiderPress II's converters other than the Macintosh formats, and FR-172 (shape tables) and FR-173 (character sets) added. Rechecked against every item above; all pass.
