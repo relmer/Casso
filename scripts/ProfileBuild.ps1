@@ -41,7 +41,7 @@
 
 .PARAMETER Property
     Extra MSBuild properties, each as Name=Value, passed through to Build.ps1.
-    They are recorded in summary.txt.
+    summary.txt lists them.
 
 .PARAMETER NoTrace
     Skip the vcperf trace and write only the binary log.
