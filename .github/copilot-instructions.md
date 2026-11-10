@@ -28,6 +28,12 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
 - Every `.cpp` file MUST include `"Pch.h"` as its **first** `#include`
 - **NEVER** use angle-bracket includes (`<header>`) anywhere except `Pch.h` or a library project's umbrella header (currently only `Dxui.h`)
 - All system headers and STL headers belong in `Pch.h`
+- **One exception: `Dxui/Window/DxuiWinRt.h` has the C++/WinRT headers.** They
+  take about four seconds to parse and one `.cpp` uses them. In `Dxui/Pch.h`
+  that cost was paid in four precompiled headers, because Dxui headers include
+  `Pch.h` and `Dxui.h` is in the other three. Add another exception
+  only on the same grounds: a measured parse cost in seconds and a handful of
+  users.
 - **The only project headers a `Pch.h` may include are `Ehm.h` and `Dxui.h`.**
   A change to any header in a precompiled header rebuilds every file in its
   project, and project headers change constantly. These two are exempt

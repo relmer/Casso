@@ -398,6 +398,7 @@
     <ClInclude Include="Window\DxuiWindow.h" />
     <ClInclude Include="Window\IDxuiHostClient.h" />
     <ClInclude Include="Window\DxuiPopupHost.h" />
+    <ClInclude Include="Window\DxuiWinRt.h" />
   </ItemGroup>
   <!--
     The desk scene's shaders, compiled to BYTECODE at build time.
