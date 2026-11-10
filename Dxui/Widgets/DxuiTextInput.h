@@ -100,6 +100,10 @@ public:
     //  A glyph drawn at the field's right end, in an icon face.
     void  SetTrailingGlyph (const wchar_t * glyph, const wchar_t * face) { m_trailGlyph = glyph; m_trailFace = face; }
 
+    //  Room at the field's right end for controls laid over it, in pixels.
+    //  The text and the placeholder end short of it.
+    void  SetRightInsetPx  (float px)                    { m_rightInsetPx = px; }
+
     //  An X left of the trailing glyph while the field holds text, which
     //  empties it, as Explorer's search box has. In the trailing glyph's face.
     void  SetClearGlyph    (const wchar_t * glyph)       { m_clearGlyph = glyph; }
@@ -258,6 +262,7 @@ private:
     const wchar_t           * m_trailFace         = nullptr;
     const wchar_t           * m_clearGlyph        = nullptr;
     bool                      m_clearHover        = false;
+    float                     m_rightInsetPx      = 0.0f;
 
     //  Explorer's clear X, measured at 150%: its middle 36.67 dip left of
     //  the magnifier's.

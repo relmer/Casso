@@ -1397,7 +1397,7 @@ float DxuiTextInput::GetRightPadPx() const
         pad = (std::max) (pad, m_scaler.ToPxf (s_kClearCenterDip + s_kTrailBoxDip * 0.5f));
     }
 
-    return pad;
+    return pad + m_rightInsetPx;
 }
 
 

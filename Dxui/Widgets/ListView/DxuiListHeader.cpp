@@ -223,7 +223,9 @@ void DxuiListHeader::PaintHeader (
         float    filterW     = HasFunnel (c) ? m_list.m_scaler.ToPxf (s_kFilterGlyphDip) : 0.0f;
         float    sortW       = (hasSort && !sortAbove) ? m_list.m_scaler.ToPxf (s_kSortGlyphDip) : 0.0f;
         float    titlePad    = (float) m_list.m_columnSizing.GetHeaderTitlePadPx (c);
-        float    titleW      = (float) colWPx[c] - titlePad - cellPadR - filterW - sortW;
+        //  A sort arrow at the right end is left of the filter button.
+        float    endPad      = (hasSort && !sortAbove && m_list.m_columns[c].filterable) ? (std::max) (cellPadR, m_list.m_scaler.ToPxf ((float) s_kChevronDip)) : cellPadR + filterW;
+        float    titleW      = (float) colWPx[c] - titlePad - endPad - sortW;
         float    shift       = 0.0f;
 
         if (dragged && !(m_headerDragging && m_headerPressCol >= 0))
@@ -310,13 +312,13 @@ void DxuiListHeader::PaintHeader (
         //  File Explorer's sort indicator: a small chevron centered over the
         //  column title, pointing up for ascending and down for descending.
         //  A heading too short for it above the title has it at the right
-        //  end instead, left of any funnel.
+        //  end instead, left of any funnel or filter button.
         if (hasSort)
         {
             float  halfW = (float) m_list.m_scaler.ToPxf (3.0f);
             float  halfH = (float) m_list.m_scaler.ToPxf (1.5f);
             float  thick = (float) m_list.m_scaler.ToPxf (0.75f);
-            float  right = x + colOff + (float) (colXPx[c] + colWPx[c]) + shift - cellPadR - filterW;
+            float  right = x + colOff + (float) (colXPx[c] + colWPx[c]) + shift - endPad;
             float  cx    = sortAbove ? x + colOff + (float) colXPx[c] + shift + (float) colWPx[c] / 2.0f : right - sortW / 2.0f;
             float  cy    = sortAbove ? y + (float) m_list.m_scaler.ToPxf (6.0f) : y + titleH / 2.0f;
             float  tipY  = m_sortDescending ? (cy + halfH) : (cy - halfH);

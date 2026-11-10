@@ -114,7 +114,7 @@ std::wstring FindWidgetSet::GetPlaceholder (const std::wstring & pane)
         return L"Find in the program";
     }
 
-    return (pane.starts_with (L"source")) ? L"Find in the source" : L"Find in the pane";
+    return (pane.starts_with (L"source")) ? L"Find in the source" : L"Find";
 }
 
 
@@ -564,6 +564,7 @@ void FindWidgetSet::PlaceOne (const std::wstring & pane, FindWidget & widget)
     //  The box measures its text to place the caret under a click and to drag
     //  a selection, which requires the window's renderer, made after the box.
     widget.box->SetTextRenderer (m_host.GetPaneTextRenderer());
+    widget.box->SetRightInsetPx ((float) (button * 3));
 
     widget.box->Layout         (RECT { x, top, boxRight, bottom }, scaler);
     widget.regexButton->Layout (RECT { boxRight - px (2) - button,     top + px (2), boxRight - px (2),              bottom - px (2) }, scaler);

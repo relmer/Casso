@@ -361,6 +361,12 @@ int DxuiListColumns::GetTitleExtraPx (size_t column, int padPx) const
     if (!m_list.m_header.IsSortAboveTitle())
     {
         extra += (int) std::ceil (m_list.m_scaler.ToPxf (DxuiListHeader::s_kSortGlyphDip));
+
+        //  The arrow is left of a filter button, which is wider than the pad.
+        if (column < m_list.m_columns.size() && m_list.m_columns[column].filterable)
+        {
+            extra += (std::max) (0, m_list.m_scaler.ToPx (DxuiListHeader::s_kChevronDip) - GetCellPadRightPx());
+        }
     }
 
     return extra;

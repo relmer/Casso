@@ -427,6 +427,46 @@ public:
     }
 
 
+    //  A short header has the sort arrow at a heading's right end, which is
+    //  where a filter button is too: the arrow is drawn left of the button.
+    TEST_METHOD (ASortArrowAtTheRightEndIsLeftOfTheFilterButton)
+    {
+        MockDxuiPainter                 painter;
+        MockDxuiTextRenderer            text;
+        MockDxuiTheme                   theme;
+        DxuiListView                    list;
+        DxuiDpiScaler                   scaler;
+        std::vector<RecordedPaintCall>  lines;
+
+
+
+        scaler.SetDpi (96);
+
+        list.SetColumns         ({ DxuiListView::Column { L"Name", 200 }, DxuiListView::Column { L"Kind", 100 } });
+        list.SetShowHeader      (true);
+        list.SetHeaderHeightDip (20);
+        list.SetRows            ({ { DxuiListView::Cell { L"a", false }, DxuiListView::Cell { L"Memory", false } } });
+        list.SetColumnFilter    (1, true, true);
+        list.SetSortIndicator   (1, false);
+        list.Layout             (RECT { 0, 0, 600, 400 }, scaler);
+        list.Paint              (painter, text, theme);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            if (call.kind == RecordedPaintKind::DrawLine)
+            {
+                lines.push_back (call);
+            }
+        }
+
+        //  The filter button's two strokes, then the arrow's two.
+        Assert::AreEqual ((size_t) 4, lines.size());
+        Assert::AreEqual (lines[0].y, lines[2].y, L"the arrow is beside the button, not above the title");
+        Assert::IsTrue   (lines[2].x + lines[2].width <= lines[0].x, L"the arrow's first stroke ends left of the button");
+        Assert::IsTrue   (lines[3].x + lines[3].width <= lines[0].x, L"and its second");
+    }
+
+
     //  A column fitted by counting characters makes room for an icon ahead
     //  of a cell's text, as the trace's "next" row has the PC's marker, when
     //  that row comes after the column was first fitted.

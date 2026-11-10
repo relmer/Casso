@@ -121,4 +121,38 @@ public:
         Assert::IsTrue (sawPlaceholder);
         AssertNoNegativeExtents (text);
     }
+
+    // Controls laid over the field's right end have the inset to themselves.
+    TEST_METHOD (RightInset_PlaceholderAndClipEndShortOfIt)
+    {
+        DxuiTextInput          input;
+        MockDxuiPainter        painter;
+        MockDxuiTextRenderer   text;
+        bool                   sawPlaceholder = false;
+        bool                   sawClip        = false;
+
+        input.SetRect (MakeRect (0, 0, 200, 38));
+        input.SetPlaceholder (L"Search");
+        input.SetRightInsetPx (72.0f);
+
+        input.Paint (painter, text);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            if (call.kind == RecordedTextKind::DrawString && call.text == L"Search")
+            {
+                sawPlaceholder = true;
+                Assert::IsTrue (call.x + call.width <= 128.0f, L"the placeholder runs into the inset");
+            }
+
+            if (call.kind == RecordedTextKind::PushClipRect)
+            {
+                sawClip = true;
+                Assert::IsTrue (call.x + call.width <= 128.0f, L"the text's clip runs into the inset");
+            }
+        }
+
+        Assert::IsTrue (sawPlaceholder);
+        Assert::IsTrue (sawClip);
+    }
 };
