@@ -133,6 +133,8 @@ jobs:
           path: |
             x64/Release/Casso.exe
             x64/Release/CassoCli.exe
+            x64/Release/CassoExplorer.exe
+            x64/Release/CassoStorageCardProxy.exe
           retention-days: 1
 
   build-arm64:
@@ -163,6 +165,8 @@ jobs:
           path: |
             ARM64/Release/Casso.exe
             ARM64/Release/CassoCli.exe
+            ARM64/Release/CassoExplorer.exe
+            ARM64/Release/CassoStorageCardProxy.exe
           retention-days: 1
 
   release:
