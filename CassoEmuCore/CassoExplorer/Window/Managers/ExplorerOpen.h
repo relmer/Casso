@@ -38,6 +38,8 @@ public:
     void  InitializeCard        (const std::wstring & cardPath);
 
 private:
+    static constexpr uint64_t  kSliceBytes = 32ull * 1024 * 1024;
+
     static void  BuildInitializeChoices (uint64_t bytes, int maxVolumes, std::vector<InitializeCardChoice> & outChoices);
 
     ExplorerContext  & m_context;

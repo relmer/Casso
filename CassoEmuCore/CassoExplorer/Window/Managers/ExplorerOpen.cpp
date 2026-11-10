@@ -311,6 +311,8 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
 void ExplorerOpen::BuildInitializeChoices (uint64_t bytes, int maxVolumes, std::vector<InitializeCardChoice> & outChoices)
 {
     std::vector<int>  counts;
+    uint64_t          unused = 0;
+    uint64_t          fit    = std::min<uint64_t> (bytes / kSliceBytes, RawDeviceServer::kInitialVolumes);
 
 
 
@@ -337,6 +339,14 @@ void ExplorerOpen::BuildInitializeChoices (uint64_t bytes, int maxVolumes, std::
                            : count == maxVolumes                       ? L"As many as fit on the card."
                                                                        : L"";
         choice.description += std::wstring (choice.description.empty() ? L"" : L" ") + L"Also read by a CFFA3000 in its raw CF mode.";
+
+        //  The space of the card outside the volumes. A CFFA volume is at most
+        //  32 MB, so the rest of a large card is unusable from the Apple.
+        unused              = bytes > (uint64_t) count * kSliceBytes ? bytes - (uint64_t) count * kSliceBytes : 0;
+        choice.description += fit == 0 ? std::wstring (L"\r\n\r\nThe card is smaller than 32 MB, so it is one volume.")
+                                       : std::format (L"\r\n\r\n{} volume{} of 32 MB fit on this card, and a CFFA 2.0 maps up to 13.", fit, fit == 1 ? L"" : L"s");
+        choice.description += unused > 0 ? std::format (L" {} of the card is unused and unavailable to the Apple.", TextEncoding::NarrowToWide (PartitionAccess::FormatSize (unused)))
+                                         : std::wstring (L" The whole card is used.");
 
         outChoices.push_back (std::move (choice));
     }

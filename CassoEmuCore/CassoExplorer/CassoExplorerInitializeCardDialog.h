@@ -31,33 +31,39 @@ struct InitializeCardChoice
 //
 //  CassoExplorerInitializeCardPanel
 //
-//  The question, the configurations, the card's partitions and the warning,
-//  stacked, each as tall as its text wraps.
+//  The question, the configurations in a dropdown with the chosen one's
+//  description under it, the card's partitions and the warning, stacked,
+//  each as tall as its text wraps. The description has the height of the
+//  longest, so a new choice moves nothing below it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class CassoExplorerInitializeCardPanel : public DxuiPanel, public IDxuiMeasuredContent
 {
 public:
-    void  Init (DxuiLabel & question, DxuiRadioGroup & choices, DxuiLabel & contents, DxuiLabel & warning);
+    void  Init (DxuiLabel & question, DxuiComboBox & choices, DxuiLabel & description, const std::vector<std::wstring> & descriptions, DxuiLabel & contents, DxuiLabel & warning);
 
     void  Layout             (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse            (const DxuiMouseEvent & ev) override;
     bool  TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxuiTheme & theme, int widthPx, int & heightPx) override;
 
 private:
-    static constexpr int  kOptionGapDip  = 6;
+    static constexpr int  kGapDip        = 6;
     static constexpr int  kSectionGapDip = 12;
 
     static int  GetLabelHeightPx (const DxuiLabel & label, int widthPx, const DxuiDpiScaler & scaler);
 
+    int  GetDescriptionHeightPx (int widthPx, const DxuiDpiScaler & scaler);
+
     int  Arrange (const RECT & bounds, const DxuiDpiScaler & scaler, bool place);
 
-    DxuiLabel       * m_question = nullptr;
-    DxuiRadioGroup  * m_choices  = nullptr;
-    DxuiLabel       * m_contents = nullptr;
-    DxuiLabel       * m_warning  = nullptr;
-    DxuiDpiScaler     m_scaler;
+    DxuiLabel                  * m_question     = nullptr;
+    DxuiComboBox               * m_choices      = nullptr;
+    DxuiLabel                  * m_description  = nullptr;
+    std::vector<std::wstring>    m_descriptions;
+    DxuiLabel                  * m_contents     = nullptr;
+    DxuiLabel                  * m_warning      = nullptr;
+    DxuiDpiScaler                m_scaler;
 };
 
 
@@ -98,7 +104,8 @@ private:
     bool                                 m_confirmed = false;
     uint64_t                             m_layout    = 0;
     DxuiLabel                            m_question;
-    DxuiRadioGroup                       m_choices;
+    DxuiComboBox                         m_choices;
+    DxuiLabel                            m_description;
     DxuiLabel                            m_contents;
     DxuiLabel                            m_warning;
     CassoExplorerInitializeCardPanel   * m_body      = nullptr;

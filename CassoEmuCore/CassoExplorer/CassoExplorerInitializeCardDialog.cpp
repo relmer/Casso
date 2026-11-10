@@ -14,15 +14,18 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerInitializeCardPanel::Init (DxuiLabel & question, DxuiRadioGroup & choices, DxuiLabel & contents, DxuiLabel & warning)
+void CassoExplorerInitializeCardPanel::Init (DxuiLabel & question, DxuiComboBox & choices, DxuiLabel & description, const std::vector<std::wstring> & descriptions, DxuiLabel & contents, DxuiLabel & warning)
 {
-    m_question = &question;
-    m_choices  = &choices;
-    m_contents = &contents;
-    m_warning  = &warning;
+    m_question     = &question;
+    m_choices      = &choices;
+    m_description  = &description;
+    m_descriptions = descriptions;
+    m_contents     = &contents;
+    m_warning      = &warning;
 
     Adopt (question);
     Adopt (choices);
+    Adopt (description);
     Adopt (contents);
     Adopt (warning);
 }
@@ -120,6 +123,36 @@ int CassoExplorerInitializeCardPanel::GetLabelHeightPx (const DxuiLabel & label,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerInitializeCardPanel::GetDescriptionHeightPx
+//
+//  The tallest of the descriptions, measured with the label each in turn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoExplorerInitializeCardPanel::GetDescriptionHeightPx (int widthPx, const DxuiDpiScaler & scaler)
+{
+    std::wstring  current  = m_description->GetText();
+    int           heightPx = 0;
+
+
+
+    for (const std::wstring & text : m_descriptions)
+    {
+        m_description->SetText (text);
+        heightPx = std::max (heightPx, GetLabelHeightPx (*m_description, widthPx, scaler));
+    }
+
+    m_description->SetText (current);
+
+    return heightPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerInitializeCardPanel::Arrange
 //
 //  Returns the height of the stack. Each configuration is as tall as its
@@ -129,54 +162,34 @@ int CassoExplorerInitializeCardPanel::GetLabelHeightPx (const DxuiLabel & label,
 
 int CassoExplorerInitializeCardPanel::Arrange (const RECT & bounds, const DxuiDpiScaler & scaler, bool place)
 {
-    int                           width    = bounds.right - bounds.left;
-    int                           gap      = scaler.ToPx (kSectionGapDip);
-    int                           top      = bounds.top;
-    int                           question = GetLabelHeightPx (*m_question, width, scaler);
-    int                           contents = GetLabelHeightPx (*m_contents, width, scaler);
-    int                           warning  = GetLabelHeightPx (*m_warning,  width, scaler);
-    int                           choices  = 0;
-    std::vector<DxuiRadioOption>  options  = m_choices->GetOptions();
+    int  width       = bounds.right - bounds.left;
+    int  gap         = scaler.ToPx (kSectionGapDip);
+    int  nearGap     = scaler.ToPx (kGapDip);
+    int  top         = bounds.top;
+    int  question    = GetLabelHeightPx (*m_question, width, scaler);
+    int  field       = scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  description = GetDescriptionHeightPx (width, scaler);
+    int  contents    = GetLabelHeightPx (*m_contents, width, scaler);
+    int  warning     = GetLabelHeightPx (*m_warning,  width, scaler);
 
 
 
     if (place)
     {
-        m_question->Layout (RECT { bounds.left, top, bounds.right, top + question }, scaler);
+        m_question->Layout    (RECT { bounds.left, top, bounds.right, top + question }, scaler);
+        m_choices->Layout     (RECT { bounds.left, top + question + gap, bounds.right, top + question + gap + field }, scaler);
+        m_description->Layout (RECT { bounds.left, top + question + gap + field + nearGap, bounds.right, top + question + gap + field + nearGap + description }, scaler);
     }
 
-    top += question + gap;
-    choices = top;
-
-    for (DxuiRadioOption & option : options)
-    {
-        int  optionH = DxuiRadioGroup::MeasureOptionHeightPx (option, width, scaler) + scaler.ToPx (kOptionGapDip);
-
-        option.rect = RECT { bounds.left, top, bounds.right, top + optionH };
-        top        += optionH;
-    }
-
-    if (place)
-    {
-        m_choices->SetOptions (std::move (options));
-        m_choices->Layout (RECT { bounds.left, choices, bounds.right, top }, scaler);
-    }
-
-    top += gap;
+    top += question + gap + field + nearGap + description + gap;
 
     if (place)
     {
         m_contents->Layout (RECT { bounds.left, top, bounds.right, top + contents }, scaler);
+        m_warning->Layout  (RECT { bounds.left, top + contents + gap, bounds.right, top + contents + gap + warning }, scaler);
     }
 
-    top += contents + gap;
-
-    if (place)
-    {
-        m_warning->Layout (RECT { bounds.left, top, bounds.right, top + warning }, scaler);
-    }
-
-    top += warning;
+    top += contents + gap + warning;
 
     return top - bounds.top;
 }
@@ -195,9 +208,10 @@ int CassoExplorerInitializeCardPanel::Arrange (const RECT & bounds, const DxuiDp
 
 void CassoExplorerInitializeCardDialog::OnCreate()
 {
-    DxuiButton                    * erase  = nullptr;
-    DxuiButton                    * cancel = nullptr;
-    std::vector<DxuiRadioOption>    options;
+    DxuiButton                 * erase  = nullptr;
+    DxuiButton                 * cancel = nullptr;
+    std::vector<std::wstring>    labels;
+    std::vector<std::wstring>    descriptions;
 
 
 
@@ -207,11 +221,24 @@ void CassoExplorerInitializeCardDialog::OnCreate()
 
     for (const InitializeCardChoice & choice : m_choiceList)
     {
-        options.push_back (DxuiRadioOption { {}, choice.label, choice.description, {} });
+        labels.push_back (choice.label);
+        descriptions.push_back (choice.description);
     }
 
-    m_choices.SetOptions (std::move (options));
+    m_choices.SetPopupHost (GetPopupHost());
+    m_choices.SetItems (labels);
     m_choices.SetSelected ((int) m_default);
+    m_choices.SetSelect ([this] (int index)
+    {
+        if (index >= 0 && (size_t) index < m_choiceList.size())
+        {
+            m_description.SetText (m_choiceList[(size_t) index].description);
+            Invalidate();
+        }
+    });
+
+    m_description.SetText (m_choiceList[m_default].description);
+    ExplorerTextStyles::Apply (m_description, ExplorerTextStyles::kFormNote);
 
     m_contents.SetText (m_contentsText);
     ExplorerTextStyles::Apply (m_contents, ExplorerTextStyles::kFormLabel);
@@ -221,7 +248,7 @@ void CassoExplorerInitializeCardDialog::OnCreate()
     m_warning.SetFontWeight (DxuiFontWeight::SemiBold);
 
     m_body = CreateDialogContent<CassoExplorerInitializeCardPanel>();
-    m_body->Init (m_question, m_choices, m_contents, m_warning);
+    m_body->Init (m_question, m_choices, m_description, descriptions, m_contents, m_warning);
 
     erase  = AddDialogButton (L"Erase and initialize", IDOK);
     cancel = AddDialogButton (L"Cancel", IDCANCEL);
@@ -229,7 +256,7 @@ void CassoExplorerInitializeCardDialog::OnCreate()
     erase->SetVariant (DxuiButton::Variant::Danger);
     erase->SetOnClick ([this]()
     {
-        int  selected = m_choices.GetSelected();
+        int  selected = m_choices.GetSelectedIndex();
 
         if (selected >= 0 && (size_t) selected < m_choiceList.size())
         {
