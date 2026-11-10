@@ -543,6 +543,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("autoVerify", JsonValue (autoVerify));
 
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
+    root.emplace_back ("cffaAdapter",    JsonValue ((double) cffaAdapter));
     root.emplace_back ("lineAddresses",  JsonValue (lineAddresses));
     root.emplace_back ("hexColumns",     JsonValue ((double) hexColumns));
     root.emplace_back ("hexShowValues",  JsonValue (hexShowValues));
@@ -708,6 +709,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     std::string        text;
     size_t             i            = 0;
     int                grouping     = kDefaultHexGrouping;
+    int                adapter      = 0;
     int                columns      = 0;
     int                zoom         = kDefaultPreviewZoom;
     int                view         = 0;
@@ -808,6 +810,11 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     if (root.HasInt ("hexGrouping", grouping) && IsKnownHexGrouping (grouping))
     {
         hexGrouping = grouping;
+    }
+
+    if (root.HasInt ("cffaAdapter", adapter) && adapter >= 0 && adapter < kCffaAdapterCount)
+    {
+        cffaAdapter = adapter;
     }
 
     if (root.HasObject ("placement", placed))

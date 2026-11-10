@@ -91,6 +91,51 @@ public:
     }
 
 
+    TEST_METHOD (Choices_OfferFat32FirstForACffa3000Only)
+    {
+        CardLayoutModel   model (kCard, 13, true);
+        std::vector<int>  positions;
+
+        model.GetChoices (CardLayoutModel::Adapter::Cffa3000, positions);
+        Assert::AreEqual ((size_t) 14, positions.size());
+        Assert::IsTrue (model.IsFat32 (positions[0]));
+        Assert::AreEqual (positions[0], model.GetRecommendedPosition (CardLayoutModel::Adapter::Cffa3000));
+
+        model.GetChoices (CardLayoutModel::Adapter::Cffa2Enhanced, positions);
+        Assert::AreEqual ((size_t) 13, positions.size());
+        Assert::AreEqual (1, positions[0]);
+    }
+
+
+    TEST_METHOD (Recommended_FitsEachAdapter)
+    {
+        CardLayoutModel  model (kCard, 13, true);
+
+        Assert::AreEqual (4,  model.GetRecommendedPosition (CardLayoutModel::Adapter::Unsure));
+        Assert::AreEqual (4,  model.GetRecommendedPosition (CardLayoutModel::Adapter::Cffa1Gsos));
+        Assert::AreEqual (8,  model.GetRecommendedPosition (CardLayoutModel::Adapter::Cffa12EightDrive));
+        Assert::AreEqual (13, model.GetRecommendedPosition (CardLayoutModel::Adapter::Cffa2Enhanced));
+        Assert::AreEqual (2,  model.GetRecommendedPosition (CardLayoutModel::Adapter::Cffa2Original));
+    }
+
+
+    TEST_METHOD (Rows_ShowOnlyTheChosenAdapter)
+    {
+        CardLayoutModel                    model (kCard, 13, true);
+        std::vector<CardLayoutModel::Row>  rows;
+
+        model.GetRows (13, CardLayoutModel::Adapter::Cffa2Enhanced, rows);
+        Assert::AreEqual ((size_t) 1, rows.size());
+        Assert::IsTrue (rows[0].support == CardLayoutModel::Support::Step);
+
+        model.GetRows (6, CardLayoutModel::Adapter::Cffa1Gsos, rows);
+        Assert::AreEqual ((size_t) 2, rows.size());
+
+        model.GetRows (6, CardLayoutModel::Adapter::Unsure, rows);
+        Assert::AreEqual ((size_t) 6, rows.size());
+    }
+
+
     TEST_METHOD (Rows_Fat32WorksOnlyOnTheCffa3000)
     {
         CardLayoutModel                    model (kCard, 13, true);

@@ -31,6 +31,10 @@ public:
     static constexpr int       kUniversalVolumes = 4;
 
     enum class Segment { Universal, NeedsSetup, Unused, Unavailable, Fat32 };
+
+    //  The adapter the card is for. Saved in the preferences by its value, so
+    //  new values go at the end.
+    enum class Adapter { Unsure, Cffa1ProDos, Cffa1Gsos, Cffa12EightDrive, Cffa2Enhanced, Cffa2Original, Cffa3000, Count };
     enum class Support { Works, Step, Fails, Unknown };
 
     struct Row
@@ -60,9 +64,25 @@ public:
     //  The space past the last slot the CFFA layout maps.
     uint64_t  GetUnavailableBytes () const;
 
+    //  The text of an adapter in the dropdown.
+    static std::wstring  GetAdapterLabel (Adapter adapter);
+
+    //  The layout an adapter is best served by: as many volumes as it maps
+    //  without a step, or as fit for a CFFA 2.0 on an enhanced Apple, and
+    //  FAT32 for a CFFA3000.
+    int   GetRecommendedPosition (Adapter adapter) const;
+
+    //  The positions the layout dropdown offers for an adapter, in its order:
+    //  FAT32 first for a CFFA3000 and never for another, then each volume
+    //  count.
+    void  GetChoices (Adapter adapter, std::vector<int> & outPositions) const;
+
     std::wstring  DescribePosition (int position) const;
     std::wstring  DescribeSpace    (int position) const;
     void          GetRows          (int position, std::vector<Row> & outRows) const;
+
+    //  The rows for one adapter; every row for Adapter::Unsure.
+    void          GetRows          (int position, Adapter adapter, std::vector<Row> & outRows) const;
 
 private:
     static std::wstring  FormatRange (int first, int last, bool capitalized);

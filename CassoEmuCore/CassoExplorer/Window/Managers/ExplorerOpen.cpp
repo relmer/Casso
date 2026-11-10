@@ -206,6 +206,8 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
     std::wstring                       contents;
     uint64_t                           layout    = 0;
     std::unique_ptr<CardLayoutModel>   model;
+    CardLayoutModel::Adapter           adapter   = CardLayoutModel::Adapter::Unsure;
+    bool                               confirmed = false;
     std::vector<PhysicalDrive>         drives;
     std::vector<WindowsVolume>         volumes;
     std::vector<PartitionEntry>        apple;
@@ -275,7 +277,12 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
         contents += L"\r\n    None that Windows or Casso recognizes";
     }
 
-    if (!CassoExplorerInitializeCardDialog::Confirm (m_context.window.GetHwnd(), m_context.theme, question, *model, contents, layout))
+    adapter   = (CardLayoutModel::Adapter) m_context.prefs.cffaAdapter;
+    confirmed = CassoExplorerInitializeCardDialog::Confirm (m_context.window.GetHwnd(), m_context.theme, question, *model, contents, adapter, layout);
+
+    m_context.prefs.cffaAdapter = (int) adapter;
+
+    if (!confirmed)
     {
         return;
     }

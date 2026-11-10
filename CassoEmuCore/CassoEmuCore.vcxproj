@@ -349,7 +349,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerLinkDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerProperties.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerRawDialog.cpp" />
-    <ClCompile Include="CassoExplorer\CardLayoutBar.cpp" />
+    <ClCompile Include="CassoExplorer\CardCompatibilityGrid.cpp" />
     <ClCompile Include="CassoExplorer\Model\CardLayoutModel.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerInitializeCardDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPromptDialog.cpp" />
@@ -1103,7 +1103,7 @@
     <ClInclude Include="CassoExplorer\CassoExplorerProperties.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerRawDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerShellListings.h" />
-    <ClInclude Include="CassoExplorer\CardLayoutBar.h" />
+    <ClInclude Include="CassoExplorer\CardCompatibilityGrid.h" />
     <ClInclude Include="CassoExplorer\Model\CardLayoutModel.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerInitializeCardDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerPromptDialog.h" />

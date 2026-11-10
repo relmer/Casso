@@ -14,17 +14,18 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerInitializeCardPanel::Init (DxuiLabel & question, CardLayoutBar & bar, DxuiLabel & contents, DxuiLabel & warning)
+void CassoExplorerInitializeCardPanel::Init (const Parts & parts)
 {
-    m_question = &question;
-    m_bar      = &bar;
-    m_contents = &contents;
-    m_warning  = &warning;
+    m_parts = parts;
 
-    Adopt (question);
-    Adopt (bar);
-    Adopt (contents);
-    Adopt (warning);
+    Adopt (*parts.question);
+    Adopt (*parts.adapterLabel);
+    Adopt (*parts.adapter);
+    Adopt (*parts.layoutLabel);
+    Adopt (*parts.layout);
+    Adopt (*parts.grid);
+    Adopt (*parts.contents);
+    Adopt (*parts.warning);
 }
 
 
@@ -58,7 +59,7 @@ void CassoExplorerInitializeCardPanel::Layout (const RECT & boundsDip, const Dxu
 
 bool CassoExplorerInitializeCardPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_bar->OnMouse (ev);
+    return m_parts.adapter->OnMouse (ev) || m_parts.layout->OnMouse (ev);
 }
 
 
@@ -122,7 +123,7 @@ int CassoExplorerInitializeCardPanel::GetLabelHeightPx (const DxuiLabel & label,
 //
 //  CassoExplorerInitializeCardPanel::Arrange
 //
-//  Returns the height of the stack.
+//  Returns the height of the stack. Each dropdown's label is to its left.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,37 +131,38 @@ int CassoExplorerInitializeCardPanel::Arrange (const RECT & bounds, const DxuiDp
 {
     int  width    = bounds.right - bounds.left;
     int  gap      = scaler.ToPx (kSectionGapDip);
+    int  nearGap  = scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    int  field    = scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  labelW   = width * 2 / 5;
     int  top      = bounds.top;
-    int  question = GetLabelHeightPx (*m_question, width, scaler);
-    int  bar      = 0;
-    int  contents = GetLabelHeightPx (*m_contents, width, scaler);
-    int  warning  = GetLabelHeightPx (*m_warning,  width, scaler);
+    int  question = GetLabelHeightPx (*m_parts.question, width, scaler);
+    int  grid     = m_parts.grid->MeasureHeightPx (width, scaler);
+    int  contents = GetLabelHeightPx (*m_parts.contents, width, scaler);
+    int  warning  = GetLabelHeightPx (*m_parts.warning,  width, scaler);
 
 
 
     if (place)
     {
-        m_question->Layout (RECT { bounds.left, top, bounds.right, top + question }, scaler);
+        m_parts.question->Layout     (RECT { bounds.left, top, bounds.right, top + question }, scaler);
+        top += question + gap;
+        m_parts.adapterLabel->Layout (RECT { bounds.left, top, bounds.left + labelW, top + field }, scaler);
+        m_parts.adapter->Layout      (RECT { bounds.left + labelW, top, bounds.right, top + field }, scaler);
+        top += field + nearGap;
+        m_parts.layoutLabel->Layout  (RECT { bounds.left, top, bounds.left + labelW, top + field }, scaler);
+        m_parts.layout->Layout       (RECT { bounds.left + labelW, top, bounds.right, top + field }, scaler);
+        top += field + gap;
+        m_parts.grid->Layout         (RECT { bounds.left, top, bounds.right, top + grid }, scaler);
+        top += grid + gap;
+        m_parts.contents->Layout     (RECT { bounds.left, top, bounds.right, top + contents }, scaler);
+        top += contents + gap;
+        m_parts.warning->Layout      (RECT { bounds.left, top, bounds.right, top + warning }, scaler);
+        top += warning;
     }
-
-    top += question + gap;
-
-    bar = m_bar->MeasureHeightPx (width, scaler);
-
-    if (place)
+    else
     {
-        m_bar->Layout (RECT { bounds.left, top, bounds.right, top + bar }, scaler);
+        top += question + gap + field + nearGap + field + gap + grid + gap + contents + gap + warning;
     }
-
-    top += bar + gap;
-
-    if (place)
-    {
-        m_contents->Layout (RECT { bounds.left, top, bounds.right, top + contents }, scaler);
-        m_warning->Layout  (RECT { bounds.left, top + contents + gap, bounds.right, top + contents + gap + warning }, scaler);
-    }
-
-    top += contents + gap + warning;
 
     return top - bounds.top;
 }
@@ -173,14 +175,16 @@ int CassoExplorerInitializeCardPanel::Arrange (const RECT & bounds, const DxuiDp
 //
 //  CassoExplorerInitializeCardDialog::OnCreate
 //
-//  The erase button reads the chosen position before the dialog ends.
+//  The erase button reads the chosen layout before the dialog ends.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerInitializeCardDialog::OnCreate()
 {
-    DxuiButton  * erase  = nullptr;
-    DxuiButton  * cancel = nullptr;
+    DxuiButton                               * erase  = nullptr;
+    DxuiButton                               * cancel = nullptr;
+    std::vector<std::wstring>                  adapters;
+    CassoExplorerInitializeCardPanel::Parts    parts;
 
 
 
@@ -188,8 +192,27 @@ void CassoExplorerInitializeCardDialog::OnCreate()
     ExplorerTextStyles::Apply (m_question, ExplorerTextStyles::kFormLabel);
     m_question.SetFontWeight (DxuiFontWeight::SemiBold);
 
-    m_bar.SetPosition (m_model.GetDefaultPosition());
-    m_bar.SetOnChange ([this] (int) { Invalidate(); });
+    for (DxuiLabel * label : { &m_adapterLabel, &m_layoutLabel })
+    {
+        ExplorerTextStyles::Apply (*label, ExplorerTextStyles::kFormLabel);
+        label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+    }
+
+    m_adapterLabel.SetText (L"Which CFFA adapter do you have?");
+    m_layoutLabel.SetText (L"Layout:");
+
+    for (int index = 0; index < (int) CardLayoutModel::Adapter::Count; index++)
+    {
+        adapters.push_back (CardLayoutModel::GetAdapterLabel ((CardLayoutModel::Adapter) index));
+    }
+
+    m_adapterBox.SetPopupHost (GetPopupHost());
+    m_adapterBox.SetItems (adapters);
+    m_adapterBox.SetSelected ((int) m_adapter);
+    m_adapterBox.SetSelect ([this] (int index) { ChooseAdapter ((CardLayoutModel::Adapter) index); });
+
+    m_layoutBox.SetPopupHost (GetPopupHost());
+    m_layoutBox.SetSelect ([this] (int index) { ChooseLayout (index); });
 
     m_contents.SetText (m_contentsText);
     ExplorerTextStyles::Apply (m_contents, ExplorerTextStyles::kFormLabel);
@@ -198,8 +221,12 @@ void CassoExplorerInitializeCardDialog::OnCreate()
     m_warning.SetTextRole (DxuiTextRole::Error);
     m_warning.SetFontWeight (DxuiFontWeight::SemiBold);
 
+    ChooseAdapter (m_adapter);
+
+    parts = { &m_question, &m_adapterLabel, &m_adapterBox, &m_layoutLabel, &m_layoutBox, &m_grid, &m_contents, &m_warning };
+
     m_body = CreateDialogContent<CassoExplorerInitializeCardPanel>();
-    m_body->Init (m_question, m_bar, m_contents, m_warning);
+    m_body->Init (parts);
 
     erase  = AddDialogButton (L"Erase and initialize", IDOK);
     cancel = AddDialogButton (L"Cancel", IDCANCEL);
@@ -207,7 +234,7 @@ void CassoExplorerInitializeCardDialog::OnCreate()
     erase->SetVariant (DxuiButton::Variant::Danger);
     erase->SetOnClick ([this]()
     {
-        m_layout    = m_model.GetLayout (m_bar.GetPosition());
+        m_layout    = m_model.GetLayout (m_position);
         m_confirmed = true;
 
         EndDialog (IDOK);
@@ -222,16 +249,63 @@ void CassoExplorerInitializeCardDialog::OnCreate()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerInitializeCardDialog::OnDialogTick
+//  CassoExplorerInitializeCardDialog::ChooseAdapter
 //
-//  The FAT32 slot grows or shrinks a step each tick, and the window is drawn
-//  again while it does.
+//  The layouts the adapter is offered, its recommended one chosen and
+//  marked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerInitializeCardDialog::OnDialogTick()
+void CassoExplorerInitializeCardDialog::ChooseAdapter (CardLayoutModel::Adapter adapter)
 {
-    if (m_bar.AdvanceAnimation ((int64_t) GetTickCount64()))
+    int                        recommended = m_model.GetRecommendedPosition (adapter);
+    int                        selected    = 0;
+    std::vector<std::wstring>  labels;
+
+
+
+    m_adapter = adapter;
+    m_model.GetChoices (adapter, m_positions);
+
+    for (size_t index = 0; index < m_positions.size(); index++)
+    {
+        std::wstring  label = m_model.DescribePosition (m_positions[index]);
+
+        if (m_positions[index] == recommended)
+        {
+            label   += L" (recommended)";
+            selected = (int) index;
+        }
+
+        labels.push_back (std::move (label));
+    }
+
+    m_layoutBox.SetItems (labels);
+    m_layoutBox.SetSelected (selected);
+
+    ChooseLayout (selected);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerInitializeCardDialog::ChooseLayout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerInitializeCardDialog::ChooseLayout (int index)
+{
+    if (index >= 0 && (size_t) index < m_positions.size())
+    {
+        m_position = m_positions[(size_t) index];
+    }
+
+    m_grid.SetChoice (m_position, m_adapter);
+
+    if (GetHwnd() != nullptr)
     {
         Invalidate();
     }
@@ -247,12 +321,13 @@ void CassoExplorerInitializeCardDialog::OnDialogTick()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoExplorerInitializeCardDialog::Confirm (HWND                       owner,
-                                                 const IDxuiTheme         * theme,
-                                                 const std::wstring       & question,
-                                                 const CardLayoutModel    & model,
-                                                 const std::wstring       & contents,
-                                                 uint64_t                 & outLayout)
+bool CassoExplorerInitializeCardDialog::Confirm (HWND                         owner,
+                                                 const IDxuiTheme           * theme,
+                                                 const std::wstring         & question,
+                                                 const CardLayoutModel      & model,
+                                                 const std::wstring         & contents,
+                                                 CardLayoutModel::Adapter   & ioAdapter,
+                                                 uint64_t                   & outLayout)
 {
     HRESULT                            hr = S_OK;
     CassoExplorerInitializeCardDialog  dialog (model);
@@ -269,11 +344,12 @@ bool CassoExplorerInitializeCardDialog::Confirm (HWND                       owne
 
     dialog.m_questionText = question;
     dialog.m_contentsText = contents;
+    dialog.m_adapter      = ioAdapter < CardLayoutModel::Adapter::Count ? ioAdapter : CardLayoutModel::Adapter::Unsure;
 
     params.title                    = L"Initialize card for Apple";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
-    params.initialSizeDip           = { 600, 560 };
+    params.initialSizeDip           = { 600, 520 };
     params.minSizeDip               = { 480, 400 };
     params.resizable                = false;
     params.insetContentBelowCaption = true;
@@ -290,6 +366,7 @@ bool CassoExplorerInitializeCardDialog::Confirm (HWND                       owne
     dialog.SetTheme (theme);
     dialog.ShowModalDialog (IDCANCEL);
 
+    ioAdapter = dialog.m_adapter;
     outLayout = dialog.m_layout;
 
     return dialog.m_confirmed;

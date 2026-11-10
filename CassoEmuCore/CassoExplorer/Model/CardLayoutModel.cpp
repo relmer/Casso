@@ -211,3 +211,139 @@ std::wstring CardLayoutModel::FormatRange (int first, int last, bool capitalized
 
     return text;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CardLayoutModel::GetAdapterLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CardLayoutModel::GetAdapterLabel (Adapter adapter)
+{
+    switch (adapter)
+    {
+        case Adapter::Cffa1ProDos:      return L"CFFA 1.x, ProDOS 8 only";
+        case Adapter::Cffa1Gsos:        return L"CFFA 1.x, with GS/OS";
+        case Adapter::Cffa12EightDrive: return L"CFFA 1.2 with the 8-drive firmware";
+        case Adapter::Cffa2Enhanced:    return L"CFFA 2.0 on an enhanced IIe or a IIgs";
+        case Adapter::Cffa2Original:    return L"CFFA 2.0 on a II, II+ or unenhanced IIe";
+        case Adapter::Cffa3000:         return L"CFFA3000";
+        default:                        return L"I'm not sure";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CardLayoutModel::GetRecommendedPosition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CardLayoutModel::GetRecommendedPosition (Adapter adapter) const
+{
+    int  most = 0;
+
+
+
+    switch (adapter)
+    {
+        case Adapter::Cffa12EightDrive: most = 8;                break;
+        case Adapter::Cffa2Enhanced:    most = kMaxVolumes;      break;
+        case Adapter::Cffa2Original:    most = 2;                break;
+        default:                        most = kUniversalVolumes; break;
+    }
+
+    if (adapter == Adapter::Cffa3000 && m_canFat32)
+    {
+        return m_volumeLimit + 1;
+    }
+
+    return std::clamp (most, 1, std::max (m_volumeLimit, 1));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CardLayoutModel::GetChoices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CardLayoutModel::GetChoices (Adapter adapter, std::vector<int> & outPositions) const
+{
+    outPositions.clear();
+
+    if (adapter == Adapter::Cffa3000 && m_canFat32)
+    {
+        outPositions.push_back (m_volumeLimit + 1);
+    }
+
+    for (int count = 1; count <= m_volumeLimit; count++)
+    {
+        outPositions.push_back (count);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CardLayoutModel::GetRows
+//
+//  The rows of GetRows (position, outRows) that are about the adapter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CardLayoutModel::GetRows (int position, Adapter adapter, std::vector<Row> & outRows) const
+{
+    std::vector<Row>  all;
+    std::vector<int>  selectedRows;
+
+
+
+    GetRows (position, all);
+
+    outRows.clear();
+
+    if (adapter == Adapter::Unsure)
+    {
+        outRows = std::move (all);
+        return;
+    }
+
+    if (IsFat32 (position))
+    {
+        selectedRows = adapter == Adapter::Cffa3000 ? std::vector<int> { 2 } : adapter == Adapter::Cffa2Enhanced || adapter == Adapter::Cffa2Original ? std::vector<int> { 1 } : std::vector<int> { 0 };
+    }
+    else
+    {
+        switch (adapter)
+        {
+            case Adapter::Cffa1ProDos:      selectedRows = { 0 };    break;
+            case Adapter::Cffa1Gsos:        selectedRows = { 0, 2 }; break;
+            case Adapter::Cffa12EightDrive: selectedRows = { 1, 2 }; break;
+            case Adapter::Cffa2Enhanced:    selectedRows = { 3 };    break;
+            case Adapter::Cffa2Original:    selectedRows = { 4 };    break;
+            default:                        selectedRows = { 5 };    break;
+        }
+    }
+
+    for (int index : selectedRows)
+    {
+        if ((size_t) index < all.size())
+        {
+            outRows.push_back (all[(size_t) index]);
+        }
+    }
+}
