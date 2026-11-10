@@ -296,7 +296,7 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
 
     if (FAILED (hr))
     {
-        m_context.window.ShowMessage (std::format (L"Unable to initialize {}.", PhysicalCards::FormatDrive (found)), MB_ICONWARNING);
+        m_context.window.ShowMessage (std::format (L"Unable to initialize {} (error 0x{:08X}).", PhysicalCards::FormatDrive (found), (uint32_t) hr), MB_ICONWARNING);
         return;
     }
 

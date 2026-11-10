@@ -127,7 +127,7 @@ void CardCompatibilityGrid::PaintIcon (IDxuiPainter & painter, IDxuiTextRenderer
             break;
 
         case CardLayoutModel::Support::Fails:
-            painter.FillCircle (cx, cy, r, s_kFailsArgb);
+            painter.FillCircle (cx, cy, r, DxuiColor::ComputeAccentForWhiteContrast (theme.ErrorForeground(), kWhiteContrast));
             painter.DrawLine (cx - r * 0.45f, cy - r * 0.45f, cx + r * 0.45f, cy + r * 0.45f, 2.0f, 0xFFFFFFFF);
             painter.DrawLine (cx - r * 0.45f, cy + r * 0.45f, cx + r * 0.45f, cy - r * 0.45f, 2.0f, 0xFFFFFFFF);
             break;

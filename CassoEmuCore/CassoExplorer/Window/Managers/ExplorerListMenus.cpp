@@ -442,6 +442,13 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         items.push_back (DxuiPopupMenuItem::ForSeparator());
     }
 
+    //  The list's background on a drive letter's root offers the drive's
+    //  card, as the drive's row in This PC does.
+    if (m_context.browser.GetSelectedRows().empty() && m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
+    {
+        m_context.opener.AddInitializeRow (items, m_context.browser.GetLocation().path);
+    }
+
     //  A folder or a disk image opens in a new tab, as Explorer's items do.
     if (m_context.browser.GetSelectedRows().size() == 1 && m_context.browser.TryGetRowLocation (m_context.browser.GetSelectedRows()[0], location))
     {

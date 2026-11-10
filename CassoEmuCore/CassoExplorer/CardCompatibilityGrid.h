@@ -46,8 +46,9 @@ private:
     static constexpr uint32_t  s_kStepArgb        = 0xFFFFB900;   // Windows' warning yellow
     static constexpr uint32_t  s_kWarningMarkArgb = 0xFF000000;
 
-    //  Dark enough for the white cross, in light and dark themes.
-    static constexpr uint32_t  s_kFailsArgb       = 0xFFA32D2D;
+    //  The error color darkened for the white cross, as the erase button's
+    //  fill is, so the two reds match.
+    static constexpr float     kWhiteContrast     = 4.5f;
 
     void  PaintIcon (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, CardLayoutModel::Support support, float cx, float cy);
 

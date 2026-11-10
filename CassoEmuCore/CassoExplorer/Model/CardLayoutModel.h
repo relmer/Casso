@@ -19,7 +19,9 @@
 //  maps four volumes, or eight with the 8-drive version of firmware 1.2, and
 //  its GS/OS driver reads the space after the fourth as 1 GB drives. CFFA
 //  2.0 maps up to 13 with its 65C02 firmware once its partition count is
-//  set, and two, or four in slot 5, with its 6502 firmware.
+//  set, and two, or four in slot 5, with its 6502 firmware. A CFFA3000 reads
+//  the same layout with no MBR, as many partitions as its menu's # 32MB
+//  partitions setting, 4 in its v1.3 manual.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

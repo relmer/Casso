@@ -811,8 +811,20 @@ HRESULT Win32RawDevice::LockVolumes()
         {
             m_volumes.push_back (volume);
 
+            //  A volume with a file open, as by File Explorer or the search
+            //  indexer, fails to lock. Dismounting it anyway closes those
+            //  files, after the confirmation of the erase, and the lock then
+            //  succeeds.
             ok = DeviceIoControl (volume, FSCTL_LOCK_VOLUME, nullptr, 0, nullptr, 0, &returned, nullptr);
-            CWR (ok);
+
+            if (!ok)
+            {
+                ok = DeviceIoControl (volume, FSCTL_DISMOUNT_VOLUME, nullptr, 0, nullptr, 0, &returned, nullptr);
+                CWR (ok);
+
+                ok = DeviceIoControl (volume, FSCTL_LOCK_VOLUME, nullptr, 0, nullptr, 0, &returned, nullptr);
+                CWR (ok);
+            }
 
             ok = DeviceIoControl (volume, FSCTL_DISMOUNT_VOLUME, nullptr, 0, nullptr, 0, &returned, nullptr);
             CWR (ok);

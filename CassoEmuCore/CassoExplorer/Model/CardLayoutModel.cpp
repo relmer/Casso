@@ -185,7 +185,8 @@ void CardLayoutModel::GetRows (int position, std::vector<Row> & outRows) const
     outRows.push_back (Row { L"CFFA 2.0, 65C02 firmware",    n <= 4 ? Support::Works : Support::Step,
                              n <= 4 ? std::wstring() : std::format (L"Set its partition count to {} in its configuration menu. The factory setting is 4", n) });
     outRows.push_back (Row { L"CFFA 2.0, 6502 firmware",     n <= 2 ? Support::Works : Support::Step,  n <= 2 ? L"" : L"Reads volumes 1 to 2 only, or 1 to 4 in slot 5" });
-    outRows.push_back (Row { L"CFFA3000, raw CF mode",       Support::Unknown, L"Not confirmed from its manual" });
+    outRows.push_back (Row { L"CFFA3000, raw CF mode",       n <= 4 ? Support::Works : Support::Step,
+                             n <= 4 ? std::wstring() : std::format (L"Set # 32MB partitions to {} in Other Settings, Raw CF Card Settings. Its manual's example has 4", n) });
 }
 
 
