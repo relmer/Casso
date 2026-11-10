@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerDragOut.h"
+#include "CassoExplorer/Model/CopyOutConversion.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/TextEncoding.h"
@@ -771,6 +772,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
     std::vector<CassoExplorerBrowser::SearchMatch>           matches;
     std::shared_ptr<std::vector<std::string>>                images;
     std::shared_ptr<std::vector<VolumeKind>>                 kinds;
+    std::shared_ptr<std::vector<DecodeOptions>>              options     = std::make_shared<std::vector<DecodeOptions>>();
 
 
 
@@ -797,7 +799,16 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 
                                        return browser.GetOperations().List (image, directory, outListing, listed).hr;
                                    },
-                                   {}, browser.GetLocation().innerPath);
+                                   {}, browser.GetLocation().innerPath,
+                                   [&browser, image, kind = browser.GetVolumeKind()] (const std::string & catalogPath, const FileEntry & entry)
+                                   {
+                                       return CopyOutConversion::Find (browser.GetOperations(), image, catalogPath, entry, kind);
+                                   });
+
+        for (const DragPayload::Descriptor & descriptor : plan.descriptors)
+        {
+            options->push_back (browser.GetDecodeOptions (browser.GetLocation().path, descriptor.catalogPath));
+        }
 
         descriptors = std::make_shared<std::vector<DragPayload::Descriptor>> (plan.descriptors);
         group       = std::make_shared<std::vector<uint8_t>> (MakeFileGroupDescriptor (plan.descriptors));
@@ -813,10 +824,11 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                              [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
 
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILECONTENTS), (int) descriptors->size(),
-                             [&browser, image, kind = browser.GetVolumeKind(), descriptors, log] (int index, std::vector<uint8_t> & out)
+                             [&browser, image, kind = browser.GetVolumeKind(), descriptors, options, log] (int index, std::vector<uint8_t> & out)
                              {
                                  const DragPayload::Descriptor &  descriptor = (*descriptors)[(size_t) index];
                                  DiskOperations::Result           result;
+                                 std::wstring                     decodeFailure;
 
                                  out.clear();
 
@@ -825,7 +837,8 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                                      return S_OK;
                                  }
 
-                                 result = browser.GetOperations().Get (image, descriptor.catalogPath, GetEncoding (descriptor), "", descriptor.catalogIndex);
+                                 result = CopyOutConversion::Get (browser.GetOperations(), (*options)[(size_t) index], image, descriptor.catalogPath, descriptor.entry, kind,
+                                                                  descriptor.format, GetEncoding (descriptor), decodeFailure);
 
                                  if (result.Succeeded() && descriptor.appleSingle)
                                  {
@@ -848,7 +861,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 
                                  if (log && FAILED (result.hr))
                                  {
-                                     log->SetFailure (DescribeReadFailure (descriptor, result.hr, kind));
+                                     log->SetFailure (decodeFailure.empty() ? DescribeReadFailure (descriptor, result.hr, kind) : decodeFailure);
                                  }
 
                                  return GetDropError (result.hr);
@@ -890,10 +903,15 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 
                                            return browser.GetOperations().List (from, directory, outListing, listed).hr;
                                        },
-                                       {}, matches[first].directory);
+                                       {}, matches[first].directory,
+                                       [&browser, from, kind = matches[first].kind] (const std::string & catalogPath, const FileEntry & entry)
+                                       {
+                                           return CopyOutConversion::Find (browser.GetOperations(), from, catalogPath, entry, kind);
+                                       });
 
             for (DragPayload::Descriptor & descriptor : plan.descriptors)
             {
+                options->push_back (browser.GetDecodeOptions (matches[first].imagePath, descriptor.catalogPath));
                 descriptors->push_back (descriptor);
                 images->push_back (from);
                 kinds->push_back (matches[first].kind);
@@ -909,10 +927,11 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                              [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
 
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILECONTENTS), (int) descriptors->size(),
-                             [&browser, images, kinds, descriptors, log] (int index, std::vector<uint8_t> & out)
+                             [&browser, images, kinds, descriptors, options, log] (int index, std::vector<uint8_t> & out)
                              {
                                  const DragPayload::Descriptor &  descriptor = (*descriptors)[(size_t) index];
                                  DiskOperations::Result           result;
+                                 std::wstring                     decodeFailure;
 
                                  out.clear();
 
@@ -921,7 +940,8 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                                      return S_OK;
                                  }
 
-                                 result = browser.GetOperations().Get ((*images)[(size_t) index], descriptor.catalogPath, GetEncoding (descriptor), "", descriptor.catalogIndex);
+                                 result = CopyOutConversion::Get (browser.GetOperations(), (*options)[(size_t) index], (*images)[(size_t) index], descriptor.catalogPath, descriptor.entry,
+                                                                  (*kinds)[(size_t) index], descriptor.format, GetEncoding (descriptor), decodeFailure);
 
                                  if (result.Succeeded() && descriptor.appleSingle)
                                  {
@@ -937,7 +957,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 
                                  if (log && FAILED (result.hr))
                                  {
-                                     log->SetFailure (DescribeReadFailure (descriptor, result.hr, (*kinds)[(size_t) index]));
+                                     log->SetFailure (decodeFailure.empty() ? DescribeReadFailure (descriptor, result.hr, (*kinds)[(size_t) index]) : decodeFailure);
                                  }
 
                                  return GetDropError (result.hr);

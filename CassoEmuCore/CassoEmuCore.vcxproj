@@ -398,6 +398,7 @@
     <ClCompile Include="CassoExplorer\Model\ContentSniffer.cpp" />
     <ClCompile Include="CassoExplorer\Model\CrossVolumeCopy.cpp" />
     <ClCompile Include="CassoExplorer\Model\DiskOperations.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CopyOutConversion.cpp" />
     <ClCompile Include="CassoExplorer\Model\DragPayload.cpp" />
     <ClCompile Include="CassoExplorer\Model\HostFileNaming.cpp" />
     <ClCompile Include="CassoExplorer\Model\KnownFolderStore.cpp" />
@@ -1130,6 +1131,7 @@
     <ClInclude Include="CassoExplorer\Model\ContentSniffer.h" />
     <ClInclude Include="CassoExplorer\Model\CrossVolumeCopy.h" />
     <ClInclude Include="CassoExplorer\Model\DiskOperations.h" />
+    <ClInclude Include="CassoExplorer\Model\CopyOutConversion.h" />
     <ClInclude Include="CassoExplorer\Model\DragPayload.h" />
     <ClInclude Include="CassoExplorer\Model\HostFileNaming.h" />
     <ClInclude Include="CassoExplorer\Model\KnownFolderStore.h" />

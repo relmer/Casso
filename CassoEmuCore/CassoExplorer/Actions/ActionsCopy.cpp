@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "CassoExplorer/Model/CopyOutConversion.h"
 #include "CassoExplorer/Model/CrossVolumeCopy.h"
 
 #include "CassoExplorer/Actions/ActionsCopy.h"
@@ -295,8 +296,9 @@ void ActionsCopy::ExtractDirectory (const std::string & image, VolumeKind kind, 
         std::string             catalogPath = directory.empty() ? entry.name : directory + "/" + entry.name;
         bool                    altered     = false;
         bool                    appleSingle = style == HostFileNaming::Style::AppleSingle;
+        FileFormat              format      = appleSingle ? FileFormat::None : CopyOutConversion::Find (m_actions.m_browser.GetOperations(), image, catalogPath, entry, kind);
         std::wstring            hostName    = entry.isDirectory ? HostFileNaming::MakeHostFolderName (entry.name, altered)
-                                                                : DragPayload::GetHostName (entry, kind, style, altered);
+                                                                : DragPayload::GetHostName (entry, kind, style, altered, format);
         std::wstring            hostPath    = entry.isDirectory ? CassoExplorerBrowser::JoinPath (hostFolder, hostName) : MakeFreeFilePath (hostFolder, hostName);
         DiskOperations::Result  result;
         AppleSingleFile         single;
@@ -322,7 +324,9 @@ void ActionsCopy::ExtractDirectory (const std::string & image, VolumeKind kind, 
         //  Written where a Copy writes it, through the same get.
         if (!appleSingle)
         {
-            CassoExplorerActions::Append (inOutOutcome, m_actions.m_browser.GetOperations().Get (image, catalogPath, CassoExplorerActions::GetEncoding (entry, kind), TextEncoding::WideToNarrow (hostPath), entry.catalogIndex));
+            CassoExplorerActions::Append (inOutOutcome, CopyOutConversion::GetToFile (m_actions.m_browser.GetOperations(), m_actions.m_fs,
+                                                                                      m_actions.m_browser.GetDecodeOptions (TextEncoding::NarrowToWide (image), catalogPath),
+                                                                                      image, catalogPath, entry, kind, format, CassoExplorerActions::GetEncoding (entry, kind), hostPath));
             continue;
         }
 

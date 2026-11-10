@@ -4,6 +4,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/HostFileNaming.h"
+#include "FileTypes/FileFormatTable.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
 
@@ -49,6 +50,8 @@ public:
         bool          isDirectory  = false;
         bool          converted    = false;   // rendered through a listing or text conversion
         size_t        catalogIndex = 0;       // catalog position, for a name several entries share
+        FileFormat    format       = FileFormat::None;   // the conversion the file is written as
+        FileEntry     entry;                  // the catalog entry, for the decoder
 
         //  In the AppleSingle style a file leaves wrapped: this is the
         //  container's name, type, aux type and dates, its data to come.
@@ -67,6 +70,10 @@ public:
     //  Lists one directory inside the source image, for the recursion.
     using DirectoryLister = std::function<HRESULT (const std::string & directoryPath, VolumeListing & outListing)>;
 
+    //  The format of one file in the source image, None for a file that is
+    //  copied by its type.
+    using FormatFinder = std::function<FileFormat (const std::string & catalogPath, const FileEntry & entry)>;
+
     //  Catalog entries are in catalogFolder, the directory inside the image
     //  they are listed in, empty for the volume's top; each descriptor and the
     //  private format address an entry by its path from the top.
@@ -77,7 +84,8 @@ public:
                         HostFileNaming::Style             style,
                         const DirectoryLister           & listDirectory,
                         const std::vector<std::wstring> & hostPaths,
-                        const std::string               & catalogFolder = std::string());
+                        const std::string               & catalogFolder = std::string(),
+                        const FormatFinder              & findFormat    = FormatFinder());
 
     //  The private format's bytes: the image path, the file system, and one
     //  catalog path per line. Text, so a receiver in another process reads
@@ -104,7 +112,10 @@ public:
     //  its load address as the aux type -- and the date it was last written.
     static AppleSingleFile  MakeAppleSingle (const FileEntry & entry, VolumeKind kind);
 
-    static std::wstring  GetHostName (const FileEntry & entry, VolumeKind kind, HostFileNaming::Style style, bool & outConverted);
+    //  A file in a format gets that format's conversion name, except in the
+    //  AppleSingle style.
+    static std::wstring  GetHostName (const FileEntry & entry, VolumeKind kind, HostFileNaming::Style style, bool & outConverted,
+                                      FileFormat format = FileFormat::None);
 
     static constexpr const char *  kPrivateFormatName = "CassoExplorerCatalogEntries";
 
@@ -115,6 +126,7 @@ private:
                               const std::wstring           & relativeFolder,
                               const std::string            & catalogFolder,
                               const DirectoryLister        & listDirectory,
+                              const FormatFinder           & findFormat,
                               int                            depth,
                               std::vector<Descriptor>      & inOutDescriptors);
 

@@ -6,6 +6,7 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
+#include "CassoExplorer/Model/CopyOutConversion.h"
 #include "Core/AppleSingleCodec.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
@@ -703,6 +704,104 @@ public:
             Assert::AreEqual (choice == Collision::Replace,  host.io.files.count (kMineN) == 1, L"written over only on Replace");
             Assert::AreEqual (choice == Collision::KeepBoth, host.io.files.count ("C:\\Out\\HELLO (2).Applesoft BASIC.txt") == 1, L"numbered only on Keep both");
         }
+    }
+
+
+    //  A file in a format of the table is written as that format's
+    //  conversion, under the conversion's name.
+    TEST_METHOD (Get_WritesAFormatsConversion)
+    {
+        Host         host;
+        std::string  text;
+
+        host.SeedBytes (Bytes ("START LDA #$00 ;zero\n RTS\n"), L"C:\\In\\DEMO.S.Merlin.txt");
+        host.OpenImage();
+
+        Assert::IsTrue      (host.actions.PutFiles ({ L"C:\\In\\DEMO.S.Merlin.txt" }).Succeeded());
+        Assert::AreNotEqual (-1, host.Find (L"T.DEMO"));
+        host.browser.SetSelectedRows ({ host.Find (L"T.DEMO") });
+
+        CassoExplorerActions::Outcome  outcome = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive);
+
+        Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
+        Assert::AreEqual (1, outcome.written);
+        AssertSucceeded  (host.fs.ReadAllText (L"C:\\Out\\T.DEMO.Merlin.txt", text));
+        Assert::AreEqual (std::string ("\xEF\xBB\xBF"), text.substr (0, 3));
+        Assert::IsTrue   (text.find ("LDA") != std::string::npos);
+        Assert::IsTrue   (text.find ("\r\n") != std::string::npos);
+    }
+
+
+    //  The AppleSingle style is a raw copy: the file's bytes, wrapped.
+    TEST_METHOD (Get_InTheAppleSingleStyle_HasNoConversion)
+    {
+        Host  host;
+        bool  converted = true;
+
+        host.SeedBytes (Bytes ("START LDA #$00 ;zero\n RTS\n"), L"C:\\In\\DEMO.S.Merlin.txt");
+        host.OpenImage();
+
+        Assert::IsTrue (host.actions.PutFiles ({ L"C:\\In\\DEMO.S.Merlin.txt" }).Succeeded());
+        host.browser.SetSelectedRows ({ host.Find (L"T.DEMO") });
+
+        std::vector<FileEntry>  entries;
+
+        host.browser.GetSelectedEntries (entries);
+
+        std::wstring  name = DragPayload::GetHostName (entries[0], VolumeKind::Dos33, HostFileNaming::Style::AppleSingle, converted, FileFormat::Merlin);
+
+        Assert::IsFalse (converted);
+        Assert::IsTrue  (name.find (L"Merlin") == std::wstring::npos);
+    }
+
+
+    //  A file that matches a format and fails to decode is skipped with the
+    //  decoder's reason, and the files after it are written.
+    TEST_METHOD (Get_SkipsAFileThatFailsToDecode)
+    {
+        Host                       host;
+        std::vector<DxuiTreeNode>  roots;
+        std::vector<Byte>          broken (64, 0xFF);
+
+        broken[0] = 0x66;
+
+        host.SeedFixture ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        host.SeedBytes   (broken, L"C:\\In\\BAD#088066");
+        host.SeedBytes   (Bytes ("START LDA #$00 ;zero\n RTS\n"), L"C:\\In\\DEMO.S.Merlin.txt");
+
+        host.browser.GetTreeRoots (roots);
+        AssertSucceeded (host.browser.SelectTreeNode (host.browser.GetTreeChildren (roots[1].id)[0].id));
+        Assert::IsTrue  (host.browser.OpenRow (host.Find (L"prodos.po")));
+        Assert::IsTrue  (host.actions.PutFiles ({ L"C:\\In\\BAD#088066", L"C:\\In\\DEMO.S.Merlin.txt" }).Succeeded());
+
+        host.browser.SetSelectedRows ({ host.Find (L"BAD"), host.Find (L"DEMO.S") });
+
+        CassoExplorerActions::Outcome  outcome = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive);
+
+        Assert::IsFalse  (outcome.Succeeded());
+        Assert::IsTrue   (outcome.message.find (L"Unable to copy BAD: ") != std::wstring::npos, outcome.message.c_str());
+        Assert::AreEqual (1, outcome.written);
+        Assert::IsTrue   (host.fs.Exists (L"C:\\Out\\DEMO.S.Merlin.txt"));
+        Assert::IsFalse  (host.fs.Exists (L"C:\\Out\\BAD.LZ4FH.png"));
+    }
+
+
+    //  Apple text with a chosen character set is decoded in that set and
+    //  written as UTF-8; in Apple text it is read by its type.
+    TEST_METHOD (CopyOutConversion_AppliesToTextInAChosenCharset)
+    {
+        DecodeOptions  options;
+
+        Assert::IsFalse (CopyOutConversion::Applies (FileFormat::None, DiskOperations::Encoding::Text, options));
+        Assert::IsTrue  (CopyOutConversion::Applies (FileFormat::Merlin, DiskOperations::Encoding::Verbatim, options));
+
+        options.charset = Charset::Iso8859_1;
+        Assert::IsTrue  (CopyOutConversion::Applies (FileFormat::None, DiskOperations::Encoding::Text, options));
+        Assert::IsFalse (CopyOutConversion::Applies (FileFormat::None, DiskOperations::Encoding::Verbatim, options));
+        Assert::IsFalse (CopyOutConversion::Applies (FileFormat::None, DiskOperations::Encoding::Basic, options));
+
+        options.charset = Charset::AppleText;
+        Assert::IsFalse (CopyOutConversion::Applies (FileFormat::None, DiskOperations::Encoding::Text, options));
     }
 
 

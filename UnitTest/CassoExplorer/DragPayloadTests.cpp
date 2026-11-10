@@ -53,6 +53,35 @@ public:
 
 
 
+    //  A file with a format from the finder has that format's conversion name;
+    //  the finder isn't called for a folder or in the AppleSingle style.
+    TEST_METHOD (CatalogEntries_WithAFormat_HaveTheConversionName)
+    {
+        std::vector<FileEntry>     entries = { MakeEntry ("DEMO.S", ProDosVolume::kTypeText),
+                                               MakeEntry ("PIC", ProDosVolume::kTypeBinary, false, true, 0x2000) };
+        int                        calls   = 0;
+        DragPayload::FormatFinder  finder  = [&calls] (const std::string & catalogPath, const FileEntry &)
+        {
+            calls++;
+
+            return catalogPath == "SRC/DEMO.S" ? FileFormat::Merlin : FileFormat::None;
+        };
+        DragPayload::Plan          plan    = DragPayload::Build (Source::CatalogEntries, "C:\\a.po", VolumeKind::ProDos,
+                                                                 entries, Style::Descriptive, nullptr, {}, "SRC", finder);
+
+        Assert::AreEqual (2, calls);
+        Assert::AreEqual (std::wstring (L"DEMO.S.Merlin.txt"), plan.descriptors[0].relativePath);
+        Assert::IsTrue   (plan.descriptors[0].format == FileFormat::Merlin && plan.descriptors[0].converted);
+        Assert::AreEqual (std::string ("DEMO.S"), plan.descriptors[0].entry.name);
+        Assert::IsTrue   (plan.descriptors[1].format == FileFormat::None && !plan.descriptors[1].converted);
+
+        plan = DragPayload::Build (Source::CatalogEntries, "C:\\a.po", VolumeKind::ProDos, entries, Style::AppleSingle, nullptr, {}, "SRC", finder);
+
+        Assert::AreEqual (2, calls);
+        Assert::IsTrue   (plan.descriptors[0].format == FileFormat::None);
+    }
+
+
     TEST_METHOD (CatalogEntries_OfferThePrivateFormatAndDescriptors_NotHDrop)
     {
         std::vector<FileEntry>  entries = { MakeEntry ("HELLO", ProDosVolume::kTypeBasic),

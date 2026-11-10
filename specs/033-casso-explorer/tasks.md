@@ -1738,10 +1738,10 @@ Session 2026-11-08. Plan's Phase 32, research R35, contract `contracts/file-type
 
 **Copy out and put**
 
-- [ ] T518 [US18] Replace `HostFileNaming::ConvertedKind` with `FileFormat` plus the BASIC and text kinds in `CassoEmuCore/CassoExplorer/Model/HostFileNaming.h/.cpp`, so `Make` and `Parse` cover every suffix in the contract, and add the rows to `contracts/host-file-names.md`. Tests in `UnitTest/CassoExplorer/HostFileNamingTests.cpp`
-- [ ] T519 [US18] Write each format's conversion on a drag or Get out, by `FileFormatTable::Export`, in `CassoEmuCore/CassoExplorer/CassoExplorerActions.cpp`, with a file that fails to decode skipped and its reason reported while the rest complete (FR-168, FR-169). Tests in `UnitTest/CassoExplorer/CassoExplorerActionsTests.cpp`
+- [X] T518 [US18] Replace `HostFileNaming::ConvertedKind` with `FileFormat` plus the BASIC and text kinds in `CassoEmuCore/CassoExplorer/Model/HostFileNaming.h/.cpp`, so `Make` and `Parse` cover every suffix in the contract, and add the rows to `contracts/host-file-names.md`. Tests in `UnitTest/CassoExplorer/HostFileNamingTests.cpp`
+- [X] T519 [US18] Write each format's conversion on a drag or Get out, by `FileFormatTable::Export`, in `CassoEmuCore/CassoExplorer/CassoExplorerActions.cpp`, with a file that fails to decode skipped and its reason reported while the rest complete (FR-168, FR-169). Tests in `UnitTest/CassoExplorer/CassoExplorerActionsTests.cpp`
 - [ ] T520 [US18] Offer the conversion and a raw copy on the right-drag menu and in the Get dialog, with a raw copy's name following FR-017 and FR-017a (FR-168)
-- [ ] T521 [US18] Put a host file with an import row's suffix as that format with no dialog, the suffix stripped from the catalog name, and add the import rows the destination has to the put dialog's type choice: Pascal text on Pascal volumes and ProDOS, Merlin source on ProDOS and DOS 3.3 (FR-161, FR-162)
+- [X] T521 [US18] Put a host file with an import row's suffix as that format with no dialog, the suffix stripped from the catalog name, and add the import rows the destination has to the put dialog's type choice: Pascal text on Pascal volumes and ProDOS, Merlin source on ProDOS and DOS 3.3 (FR-161, FR-162)
 - [ ] T522 [US18] Apply the same conversions in `DiskCommandRunner`'s get and put in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp` (FR-170). Tests in `UnitTest/EmuTests/DiskCommandRunnerTests.cpp`
 
 **Validation**

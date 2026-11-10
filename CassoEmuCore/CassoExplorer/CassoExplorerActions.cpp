@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "CassoExplorer/Model/BasicConversion.h"
 #include "CassoExplorer/Model/ContentSniffer.h"
+#include "CassoExplorer/Model/CopyOutConversion.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Core/TextEncoding.h"
@@ -1258,7 +1259,9 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
     Outcome                    outcome;
     std::vector<FileEntry>     entries;
     std::vector<std::wstring>  hostNames;
+    std::vector<FileFormat>    formats;
     std::string                image     = TextEncoding::WideToNarrow (m_browser.GetLocation().path);
+    VolumeKind                 kind      = m_browser.GetVolumeKind();
     bool                       converted = false;
     int                        index     = 0;
     int                        count     = 0;
@@ -1275,7 +1278,9 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
 
     for (const FileEntry & entry : entries)
     {
-        hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, m_browser.GetVolumeKind(), style, converted));
+        formats.push_back (style == HostFileNaming::Style::AppleSingle ? FileFormat::None
+                                                                       : CopyOutConversion::Find (m_browser.GetOperations(), image, m_browser.GetEntryPath (entry), entry, kind));
+        hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, kind, style, converted, formats.back()));
     }
 
     count = m_copier.CountCollisions (hostFolder, hostNames);
@@ -1304,8 +1309,8 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
             continue;
         }
 
-        Append (outcome, m_browser.GetOperations().Get (image, m_browser.GetEntryPath (entry), GetEncoding (entry, m_browser.GetVolumeKind()),
-                                                        TextEncoding::WideToNarrow (hostPath), entry.catalogIndex));
+        Append (outcome, CopyOutConversion::GetToFile (m_browser.GetOperations(), m_fs, m_browser.GetDecodeOptions (m_browser.GetLocation().path, m_browser.GetEntryPath (entry)),
+                                                       image, m_browser.GetEntryPath (entry), entry, kind, formats[at], GetEncoding (entry, kind), hostPath));
     }
 
     return outcome;
