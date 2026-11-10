@@ -59,9 +59,9 @@ private:
 
     static constexpr char  s_kBitLockerSignature[] = "-FVE-FS-";
 
-    static std::wstring  MakeDrivePath      (int number);
-    static HRESULT       QueryDrive         (HANDLE drive, int number, const std::set<DWORD> & systemDrives, PhysicalDrive & outDrive, DWORD & outSectorBytes);
-    static std::string   ReadDescriptorText (const std::vector<Byte> & descriptor, DWORD offset);
+    static std::wstring  MakeDrivePath       (int number);
+    static HRESULT       QueryDrive          (HANDLE drive, int number, const std::set<DWORD> & systemDrives, PhysicalDrive & outDrive, DWORD & outSectorBytes);
+    static std::string   ReadDescriptorText  (const std::vector<Byte> & descriptor, DWORD offset);
     static void          FindProtectedDrives (std::set<DWORD> & outDrives);
     static bool          IsProtectedVolume   (const std::wstring & root);
     static bool          TryGetVolumeDrives  (HANDLE volume, std::set<DWORD> & outDrives);
