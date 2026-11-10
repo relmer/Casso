@@ -12,15 +12,23 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void StopChanges::Update (bool isPaused, Values values)
+void StopChanges::Update (bool isPaused, uint64_t cycles, Values values)
 {
     m_isPaused = isPaused;
 
-    if (isPaused && values != m_stop)
+    if (!isPaused)
     {
-        m_previous = std::move (m_stop);
-        m_stop     = std::move (values);
+        return;
     }
+
+    if (!m_hasStop || cycles != m_stopCycles)
+    {
+        m_previous   = std::move (m_stop);
+        m_hasStop    = true;
+        m_stopCycles = cycles;
+    }
+
+    m_stop = std::move (values);
 }
 
 

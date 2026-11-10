@@ -1886,7 +1886,7 @@ void DebuggerWindow::UpdateChanges()
         values[std::format ("S:{:04X}", entry.address)] = std::format ("{:02X}", entry.value);
     }
 
-    m_stopChanges.Update (m_snapshot->isPaused, std::move (values));
+    m_stopChanges.Update (m_snapshot->isPaused, m_snapshot->cycles, std::move (values));
 }
 
 

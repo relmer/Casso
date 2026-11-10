@@ -1454,23 +1454,52 @@ namespace DebuggerViewStateTests
 
 
 
-            changes.Update (true, { { "R:A", "00" }, { "R:X", "01" } });
+            changes.Update (true, 100, { { "R:A", "00" }, { "R:X", "01" } });
             Assert::IsFalse (changes.IsChanged ("R:A"), L"the first stop has nothing to compare with");
 
-            changes.Update (true, { { "R:A", "05" }, { "R:X", "01" } });
+            changes.Update (true, 102, { { "R:A", "05" }, { "R:X", "01" } });
             Assert::IsTrue  (changes.IsChanged ("R:A"), L"a step that changed A");
             Assert::IsFalse (changes.IsChanged ("R:X"));
 
-            changes.Update (true, { { "R:A", "05" }, { "R:X", "01" } });
+            changes.Update (true, 102, { { "R:A", "05" }, { "R:X", "01" } });
             Assert::IsTrue  (changes.IsChanged ("R:A"), L"a repeated snapshot of the same stop keeps the mark");
 
-            changes.Update (false, { { "R:A", "77" }, { "R:X", "02" } });
+            changes.Update (false, 5000, { { "R:A", "77" }, { "R:X", "02" } });
             Assert::IsFalse (changes.IsChanged ("R:A"), L"nothing is marked while running");
 
-            changes.Update (true, { { "R:A", "05" }, { "R:X", "09" } });
+            changes.Update (true, 9000, { { "R:A", "05" }, { "R:X", "09" } });
             Assert::IsFalse (changes.IsChanged ("R:A"), L"against the previous stop, not the running values");
             Assert::IsTrue  (changes.IsChanged ("R:X"));
             Assert::IsFalse (changes.IsChanged ("W:1"), L"a key never shown is not changed");
+        }
+
+
+
+        //  An edit at a stop doesn't move the CPU's cycles, so it isn't a
+        //  stop: the values are compared with the stop before, and the marks
+        //  of the stop stay.
+        TEST_METHOD (AnEditAtAStopKeepsTheStopsMarks)
+        {
+            StopChanges  changes;
+
+
+
+            changes.Update (true, 100, { { "R:PC", "0300" }, { "R:Y", "00" } });
+            changes.Update (true, 102, { { "R:PC", "0302" }, { "R:Y", "00" } });
+            Assert::IsTrue  (changes.IsChanged ("R:PC"), L"the step moved PC");
+            Assert::IsFalse (changes.IsChanged ("R:Y"));
+
+            changes.Update (true, 102, { { "R:PC", "0302" }, { "R:Y", "07" } });
+            Assert::IsTrue  (changes.IsChanged ("R:PC"), L"PC's mark stays after Y is edited");
+            Assert::IsTrue  (changes.IsChanged ("R:Y"),  L"the edited Y differs from the stop before");
+
+            changes.Update (true, 102, { { "R:PC", "0302" }, { "R:Y", "00" } });
+            Assert::IsFalse (changes.IsChanged ("R:Y"),  L"Y edited back to its value at the stop before");
+            Assert::IsTrue  (changes.IsChanged ("R:PC"));
+
+            changes.Update (true, 104, { { "R:PC", "0304" }, { "R:Y", "00" } });
+            Assert::IsTrue  (changes.IsChanged ("R:PC"), L"the next step compares with the edited stop");
+            Assert::IsFalse (changes.IsChanged ("R:Y"));
         }
 
 
@@ -1483,19 +1512,19 @@ namespace DebuggerViewStateTests
 
 
 
-            changes.Update (true, { { "R:Cycles", "1000" } });
+            changes.Update (true, 1000, { { "R:Cycles", "1000" } });
             Assert::AreEqual (std::string(), changes.GetDelta ("R:Cycles"), L"the first stop has nothing to compare with");
 
-            changes.Update (true, { { "R:Cycles", "1006" } });
+            changes.Update (true, 1006, { { "R:Cycles", "1006" } });
             Assert::AreEqual (std::string ("+6"), changes.GetDelta ("R:Cycles"), L"a step");
 
-            changes.Update (false, { { "R:Cycles", "90000" } });
+            changes.Update (false, 90000, { { "R:Cycles", "90000" } });
             Assert::AreEqual (std::string(), changes.GetDelta ("R:Cycles"), L"nothing while running");
 
-            changes.Update (true, { { "R:Cycles", "123456" } });
+            changes.Update (true, 123456, { { "R:Cycles", "123456" } });
             Assert::AreEqual (std::string ("+122450"), changes.GetDelta ("R:Cycles"), L"a run stopped at a breakpoint");
 
-            changes.Update (true, { { "R:Cycles", "123450" } });
+            changes.Update (true, 123450, { { "R:Cycles", "123450" } });
             Assert::AreEqual (std::string ("-6"), changes.GetDelta ("R:Cycles"), L"a step back");
 
             Assert::AreEqual (std::string(), changes.GetDelta ("R:A"), L"a key never shown");
@@ -1510,16 +1539,16 @@ namespace DebuggerViewStateTests
 
 
 
-            changes.Update (true, { { "R:P", "24" } });
+            changes.Update (true, 100, { { "R:P", "24" } });
             Assert::AreEqual (0u, changes.GetChangedBits ("R:P"), L"the first stop has nothing to compare with");
 
-            changes.Update (true, { { "R:P", "26" } });
+            changes.Update (true, 102, { { "R:P", "26" } });
             Assert::AreEqual (0x02u, changes.GetChangedBits ("R:P"), L"DEX to zero sets Z alone");
 
-            changes.Update (true, { { "R:P", "A5" } });
+            changes.Update (true, 104, { { "R:P", "A5" } });
             Assert::AreEqual (0x83u, changes.GetChangedBits ("R:P"), L"N and C set, Z clear");
 
-            changes.Update (false, { { "R:P", "00" } });
+            changes.Update (false, 900, { { "R:P", "00" } });
             Assert::AreEqual (0u, changes.GetChangedBits ("R:P"), L"nothing while running");
         }
 

@@ -13,10 +13,12 @@
 //  hold until the next one. While the machine runs nothing is marked, since
 //  everything would be.
 //
-//  A paused machine keeps sending snapshots, so a stop is recognized by its
-//  values differing from the last paused ones, not by the snapshot arriving.
-//  A step, a register write and a run that ends at a breakpoint all read as
-//  one.
+//  Snapshots arrive while the machine is paused too, so a stop is recognized
+//  by the CPU's cycles differing from the last paused snapshot's, not by the
+//  snapshot arriving. A step, a run that ends at a breakpoint and a seek
+//  through history each move the cycles. An edit at a stop, to a register or
+//  to memory, doesn't: its values replace the stop's, and are compared with
+//  the stop before it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +28,7 @@ public:
     //  Values by key, as "R:A" or "W:3", from one snapshot.
     using Values = std::map<std::string, std::string>;
 
-    void         Update    (bool isPaused, Values values);
+    void         Update    (bool isPaused, uint64_t cycles, Values values);
     bool         IsChanged (const std::string & key) const;
 
     //  How far a whole-number value moved since the previous stop, as "+6"
@@ -38,7 +40,9 @@ public:
     uint32_t     GetChangedBits (const std::string & key) const;
 
 private:
-    Values  m_stop;
-    Values  m_previous;
-    bool    m_isPaused = false;
+    Values    m_stop;
+    Values    m_previous;
+    bool      m_isPaused   = false;
+    bool      m_hasStop    = false;
+    uint64_t  m_stopCycles = 0;
 };
