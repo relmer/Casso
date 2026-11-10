@@ -4,6 +4,7 @@
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/RdosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 
@@ -143,6 +144,7 @@ AppleSingleFile DragPayload::MakeAppleSingle (const FileEntry & entry, VolumeKin
     file.access        = entry.isLocked ? 0x01 : 0xC3;
     file.fileType      = isDos                                                      ? HostFileNaming::MapDos33ToProDosType (entry.type)
                        : (kind == VolumeKind::Pascal)                               ? HostFileNaming::MapPascalToProDosType (entry.type)
+                       : (kind == VolumeKind::Rdos)                                 ? RdosVolume::GetProDosType (entry.type)
                        : (kind == VolumeKind::Cpm || kind == VolumeKind::Gutenberg) ? (Byte) 0
                                                                                     : entry.type;
     file.auxType       = entry.hasLoadAddress ? entry.loadAddress : entry.auxType;
@@ -176,7 +178,7 @@ std::string DragPayload::EncodeCatalogEntries (
 
     bytes += sourceImage;
     bytes += '\n';
-    bytes += (kind == VolumeKind::Dos33) ? "dos33" : (kind == VolumeKind::Pascal) ? "pascal" : (kind == VolumeKind::Cpm) ? "cpm" : (kind == VolumeKind::Gutenberg) ? "gutenberg" : "prodos";
+    bytes += (kind == VolumeKind::Dos33) ? "dos33" : (kind == VolumeKind::Pascal) ? "pascal" : (kind == VolumeKind::Cpm) ? "cpm" : (kind == VolumeKind::Gutenberg) ? "gutenberg" : (kind == VolumeKind::Rdos) ? "rdos" : "prodos";
     bytes += '\n';
 
     for (const std::string & path : catalogPaths)
@@ -232,6 +234,7 @@ bool DragPayload::DecodeCatalogEntries (
     else if (lines[1] == "pascal")    { outKind = VolumeKind::Pascal; }
     else if (lines[1] == "cpm")       { outKind = VolumeKind::Cpm; }
     else if (lines[1] == "gutenberg") { outKind = VolumeKind::Gutenberg; }
+    else if (lines[1] == "rdos")      { outKind = VolumeKind::Rdos; }
     else                              { return false; }
 
     outCatalogPaths.assign (lines.begin() + 2, lines.end());

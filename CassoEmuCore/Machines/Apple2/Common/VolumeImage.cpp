@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/RdosVolume.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/TrackWritability.h"
@@ -728,6 +729,7 @@ const char * VolumeImage::GetSystemName (VolumeKind kind)
         case VolumeKind::Cpm:    return "CP/M";
         case VolumeKind::Archive: return "Archive";
         case VolumeKind::Gutenberg: return "Gutenberg";
+        case VolumeKind::Rdos:   return "RDOS";
         default:                 return "";
     }
 }
@@ -782,6 +784,11 @@ VolumeKind VolumeImage::DetectFilesystem (const vector<Byte> & sectors)
     if (GutenbergVolume::IsFound (sectors))
     {
         return VolumeKind::Gutenberg;
+    }
+
+    if (RdosVolume::IsFound (sectors))
+    {
+        return VolumeKind::Rdos;
     }
 
     //  Last, as the only one with no signature.
@@ -859,6 +866,15 @@ std::unique_ptr<IVolume> VolumeImage::CreateVolume (VolumeKind kind, const vecto
 
             gutenberg->SetReadObserver (observer);
             volume = std::move (gutenberg);
+            break;
+        }
+
+        case VolumeKind::Rdos:
+        {
+            auto  rdos = std::make_unique<RdosVolume> (sectors);
+
+            rdos->SetReadObserver (observer);
+            volume = std::move (rdos);
             break;
         }
 

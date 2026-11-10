@@ -39,6 +39,9 @@ enum class VolumeKind
 
     //  A Gutenberg word processor disk, which is read-only.
     Gutenberg,
+
+    //  A Strategic Simulations RDOS disk, which is read-only.
+    Rdos,
 };
 
 

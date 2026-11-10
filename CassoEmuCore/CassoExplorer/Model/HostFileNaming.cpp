@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/RdosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Ui/FileBrowseModel.h"
 
@@ -205,6 +206,7 @@ void HostFileNaming::ConvertPayloadType (VolumeKind source, VolumeKind target, F
 
     proDos = (source == VolumeKind::Dos33)                                  ? MapDos33ToProDosType (inOutPayload.type)
            : (source == VolumeKind::Pascal)                                 ? MapPascalToProDosType (inOutPayload.type)
+           : (source == VolumeKind::Rdos)                                   ? RdosVolume::GetProDosType (inOutPayload.type)
            : (source == VolumeKind::Cpm || source == VolumeKind::Gutenberg) ? (Byte) 0
                                                                             : inOutPayload.type;
 
@@ -658,6 +660,7 @@ std::wstring HostFileNaming::ForRaw (
     bool          isFlatNamed = kind == VolumeKind::Pascal || kind == VolumeKind::Cpm;
     Byte          proDosType  = isDos ? MapDos33ToProDosType (type)
                               : (kind == VolumeKind::Pascal) ? MapPascalToProDosType (type)
+                              : (kind == VolumeKind::Rdos) ? RdosVolume::GetProDosType (type)
                               : (kind == VolumeKind::Cpm || kind == VolumeKind::Gutenberg) ? (Byte) 0 : type;
     Word          aux         = hasAddress ? address : 0;
     std::wstring  name        = MakeHostLegal (catalogName, substituted);

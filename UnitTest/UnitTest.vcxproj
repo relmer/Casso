@@ -291,6 +291,7 @@
     <ClCompile Include="EmuTests\PascalVolumeTests.cpp" />
     <ClCompile Include="EmuTests\CpmVolumeTests.cpp" />
     <ClCompile Include="EmuTests\GutenbergVolumeTests.cpp" />
+    <ClCompile Include="EmuTests\RdosVolumeTests.cpp" />
     <ClCompile Include="EmuTests\CrossVolumeCopyTests.cpp" />
     <ClCompile Include="EmuTests\NewPascalCpmDiskTests.cpp" />
     <ClCompile Include="EmuTests\NativeListingTests.cpp" />

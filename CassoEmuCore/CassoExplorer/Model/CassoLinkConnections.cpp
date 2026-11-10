@@ -1019,6 +1019,7 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
                 row.volume = (catalog->second->volumeKind == VolumeKind::Pascal)    ? TextEncoding::NarrowToWide (listing.volumeName) + L":"
                            : (catalog->second->volumeKind == VolumeKind::Cpm)       ? std::wstring (L"CP/M")
                            : (catalog->second->volumeKind == VolumeKind::Gutenberg) ? TextEncoding::NarrowToWide (listing.volumeName)
+                           : (catalog->second->volumeKind == VolumeKind::Rdos)      ? std::wstring (L"RDOS")
                            : listing.hasVolumeName                                  ? L"/" + TextEncoding::NarrowToWide (listing.volumeName)
                            : listing.hasVolumeNumber                                ? std::format (L"DOS 3.3 volume {}", listing.volumeNumber)
                                                                                     : std::wstring();

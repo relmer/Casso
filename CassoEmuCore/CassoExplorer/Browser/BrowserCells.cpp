@@ -190,6 +190,10 @@ void BrowserCells::DescribeVolumeSpace (const std::wstring & imagePath, const Vo
     {
         outStatus.freeSpaceTip += L", Gutenberg volume " + TextEncoding::NarrowToWide (listing.volumeName);
     }
+    else if (kind == VolumeKind::Rdos)
+    {
+        outStatus.freeSpaceTip += L", RDOS volume";
+    }
 }
 
 
