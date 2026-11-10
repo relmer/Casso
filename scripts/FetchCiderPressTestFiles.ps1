@@ -20,8 +20,9 @@
 
 .PARAMETER Extract
     After fetching, have CiderPress II's cp2.exe extract test-files.sdk into
-    UnitTest/Fixtures/CiderPress/extracted/test-files/, for the scenario test
-    that compares Casso's reads with it. Each fork's file name is in NAPS
+    UnitTest/Fixtures/CiderPress/extracted/test-files/ and each RDOS save disk
+    into a folder beside it, for the scenario tests that compare Casso's reads
+    with them. Each fork's file name is in NAPS
     form, with the type and aux type after '#'. cp2.exe is looked for in
     %LOCALAPPDATA%\Programs\CiderPress2 unless its path is passed in -Cp2.
 
@@ -66,6 +67,9 @@ $files = @(
     @{ Path = 'gzip/hello__.as.gz';          Size = 117     },
     @{ Path = 'gzip/multi-member.gz';        Size = 90      },
     @{ Path = 'gzip/no-filename.gz';         Size = 52      },
+    @{ Path = 'rdos/rdos3-rss-save.woz';     Size = 234745  },
+    @{ Path = 'rdos/rdos32-shiloh-save.woz'; Size = 234731  },
+    @{ Path = 'rdos/rdos33-rw2000-save.woz'; Size = 234727  },
     @{ Path = 'turducken/MultiPart.hdv';     Size = 1640448 },
     @{ Path = 'turducken/Shrunk.zip.gz';     Size = 21596   },
     @{ Path = 'turducken/WrappedSDK.zip';    Size = 475     },
@@ -171,4 +175,29 @@ if ($Extract) {
     }
 
     Write-Host "Extracted test-files.sdk to UnitTest/Fixtures/CiderPress/extracted/test-files"
-}
+
+    #  The RDOS save disks. Track 0 of the RDOS 3 disk has no sector
+    #  CiderPress II can read, so its first file is left out.
+    $rdosDisks = @(
+        @{ Image = 'rdos/rdos33-rw2000-save.woz'; Files = @() },
+        @{ Image = 'rdos/rdos3-rss-save.woz';     Files = @('FIGHTMENU', 'DISKCHECK') }
+    )
+
+    foreach ($disk in $rdosDisks) {
+        $stem      = [IO.Path]::GetFileNameWithoutExtension($disk.Image)
+        $extracted = Join-Path $destRoot "extracted/$stem"
+
+        if (Test-Path -LiteralPath $extracted) {
+            Remove-Item -LiteralPath $extracted -Recurse -Force
+        }
+
+        New-Item -ItemType Directory -Path $extracted -Force | Out-Null
+        & $Cp2 extract --raw --preserve=naps "--exdir=$extracted" (Join-Path $destRoot $disk.Image) @($disk.Files) | Out-Null
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "cp2.exe failed to extract $($disk.Image)" -ForegroundColor Red
+            exit 1
+        }
+
+        Write-Host "Extracted $($disk.Image) to UnitTest/Fixtures/CiderPress/extracted/$stem"
+    }}
