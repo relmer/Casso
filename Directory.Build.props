@@ -76,6 +76,18 @@
   </PropertyGroup>
 
   <!--
+    MSB8027 is an error.
+      Two sources with the same file name in one project compile to the same
+      .obj, and the second overwrites the first. The build succeeds and the
+      first file's code is missing from the binary. UnitTest had two
+      BootDiskTests.cpp files, and the tests in one of them were never run.
+      Rename one of the files, or set a per-file ObjectFileName.
+  -->
+  <PropertyGroup>
+    <MSBuildWarningsAsErrors>$(MSBuildWarningsAsErrors);MSB8027</MSBuildWarningsAsErrors>
+  </PropertyGroup>
+
+  <!--
     Debug STL: bounds checks WITHOUT the iterator-tracking machinery.
 
     _ITERATOR_DEBUG_LEVEL defaults to 2 whenever _DEBUG is defined. Level 2
