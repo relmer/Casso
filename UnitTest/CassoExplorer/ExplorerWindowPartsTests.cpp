@@ -618,6 +618,64 @@ public:
     }
 
 
+    //  The disk inspector's buttons are on the command bar while disk images
+    //  are selected or one is open: Inspect, and Compare for two images.
+    TEST_METHOD (CommandBar_HasInspectForDiskImages_AndCompareForTwo)
+    {
+        Rig   rig;
+        auto  isShown = [&rig] (int id)
+        {
+            DxuiToolbar &  bar = rig.parts->toolbars.GetCommandBar();
+
+            for (int i = 0; i < bar.GetEntryCount(); i++)
+            {
+                if (bar.GetEntryCommandId (i) == id)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+        auto  isEnabled = [&rig] (int id) { return rig.parts->commands.Find (id)->IsEnabled(); };
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\a.dsk");
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\b.dsk");
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Disks\\readme.txt", "hello"));
+
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        rig.parts->listPane.FillList();
+
+        Assert::IsFalse (isShown (CassoExplorerCommands::kInspectDiskImage), L"nothing selected");
+        Assert::IsFalse (isEnabled (CassoExplorerCommands::kInspectDiskImage));
+
+        Assert::IsTrue  (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
+        Assert::IsTrue  (isShown (CassoExplorerCommands::kInspectDiskImage), L"one image");
+        Assert::IsFalse (isShown (CassoExplorerCommands::kCompareDiskImages));
+        Assert::IsTrue  (isEnabled (CassoExplorerCommands::kInspectDiskImage));
+        Assert::IsFalse (isEnabled (CassoExplorerCommands::kCompareDiskImages));
+
+        Assert::IsTrue  (rig.parts->listPane.SelectRowNamed (L"readme.txt"));
+        Assert::IsFalse (isShown (CassoExplorerCommands::kInspectDiskImage), L"a text file");
+
+        Assert::IsTrue  (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
+        rig.browser.SetSelectedRows ({ rig.browser.GetSelectedRows()[0], rig.browser.GetSelectedRows()[0] + 1 });
+        rig.parts->toolbars.UpdateCommandBar();
+        Assert::AreEqual (std::wstring (L"b.dsk"), rig.browser.GetRows()[(size_t) rig.browser.GetSelectedRows()[1]].name);
+        Assert::IsTrue  (isShown (CassoExplorerCommands::kInspectDiskImage), L"two images");
+        Assert::IsTrue  (isShown (CassoExplorerCommands::kCompareDiskImages));
+        Assert::IsTrue  (isEnabled (CassoExplorerCommands::kCompareDiskImages));
+
+        Assert::IsTrue  (rig.browser.NavigateToAddress (L"C:\\Disks\\a.dsk"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue  (isShown (CassoExplorerCommands::kInspectDiskImage), L"inside an image");
+        Assert::IsFalse (isShown (CassoExplorerCommands::kCompareDiskImages));
+    }
+
+
     TEST_METHOD (CreateImage_FromADrivesMenu_LeavesTheListWhereItIs)
     {
         Rig                 rig;

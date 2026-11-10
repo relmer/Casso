@@ -418,6 +418,42 @@ public:
     }
 
 
+    TEST_METHOD (CanInspectAndCanCompare_FollowTheSelectionAndTheOpenImage)
+    {
+        Host  host;
+
+
+
+        host.SeedFixture ("CassoExplorer/dos33.dsk", L"C:\\Disks\\second.dsk");
+        host.SeedBytes   (Bytes ("hello"), L"C:\\Disks\\readme.txt");
+        host.OpenImage();
+        host.browser.GoUp();
+
+        host.browser.SetSelectedRows ({});
+        Assert::IsFalse (host.actions.CanInspect(), L"nothing selected");
+        Assert::IsFalse (host.actions.CanCompare());
+
+        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk") });
+        Assert::IsTrue  (host.actions.CanInspect(), L"one image");
+        Assert::IsFalse (host.actions.CanCompare());
+
+        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"second.dsk") });
+        Assert::IsTrue  (host.actions.CanInspect(), L"two images");
+        Assert::IsTrue  (host.actions.CanCompare());
+
+        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"readme.txt") });
+        Assert::IsFalse (host.actions.CanInspect(), L"an image and a text file");
+        Assert::IsFalse (host.actions.CanCompare());
+
+        host.browser.OpenRow (host.Find (L"dos33.dsk"));
+        Assert::IsTrue  (host.actions.CanInspect(), L"the open image, with no selection");
+        Assert::IsFalse (host.actions.CanCompare());
+
+        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+        Assert::IsTrue  (host.actions.CanInspect(), L"the open image, with a file selected");
+    }
+
+
     TEST_METHOD (AHostFile_OpensInItsOwnProgram_AndEveryHostItemHasTheShellsMenu)
     {
         Host                                     host;

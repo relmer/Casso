@@ -152,6 +152,21 @@ public:
         Assert::AreEqual ((int) CassoExplorerCommands::kReadDiskToImage,     bar[10].command->id);
         Assert::AreEqual ((int) CassoExplorerCommands::kWriteImageToDisk,    bar[11].command->id);
         Assert::AreEqual ((int) CassoExplorerCommands::kCancelLinkOperation, bar[12].command->id);
+
+        //  The disk inspector's Inspect after View, and Compare after it for
+        //  two images.
+        bar = commands.BuildCommandBarEntries (CassoExplorerCommands::CommandBarExtra::DiskImage);
+
+        Assert::AreEqual ((int) CassoExplorerCommands::kInspectDiskImage, bar[9].command->id);
+        Assert::IsFalse  (bar[9].iconOnly);
+        Assert::IsTrue   (bar[9].vectorIcon != nullptr);
+        Assert::IsTrue   (bar[10].seeMoreOnly, L"no Compare for one image");
+
+        bar = commands.BuildCommandBarEntries (CassoExplorerCommands::CommandBarExtra::DiskImagePair);
+
+        Assert::AreEqual ((int) CassoExplorerCommands::kInspectDiskImage,  bar[9].command->id);
+        Assert::AreEqual ((int) CassoExplorerCommands::kCompareDiskImages, bar[10].command->id);
+        Assert::IsTrue   (bar[10].vectorIcon != nullptr);
     }
 
 

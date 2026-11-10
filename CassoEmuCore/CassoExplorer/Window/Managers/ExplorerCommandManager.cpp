@@ -292,6 +292,8 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kRenameItem:        return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Rename);
         case CassoExplorerCommands::kShareItems:        return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Share);
         case CassoExplorerCommands::kExtractAll:        return !m_context.browser.GetExtractTarget().empty();
+        case CassoExplorerCommands::kInspectDiskImage:  return m_context.actions.CanInspect();
+        case CassoExplorerCommands::kCompareDiskImages: return m_context.actions.CanCompare();
         case CassoExplorerCommands::kReadDiskToImage:
         case CassoExplorerCommands::kWriteImageToDisk:  return m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive);
         case CassoExplorerCommands::kCancelLinkOperation: return (m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive)) && m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
@@ -494,6 +496,8 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kRenameItem:   RunVerb (CassoExplorerActions::Verb::Rename); break;
         case CassoExplorerCommands::kShareItems:   RunVerb (CassoExplorerActions::Verb::Share);  break;
         case CassoExplorerCommands::kExtractAll:   ExtractAll();                                  break;
+        case CassoExplorerCommands::kInspectDiskImage:  RunVerb (CassoExplorerActions::Verb::InspectDiskImage);  break;
+        case CassoExplorerCommands::kCompareDiskImages: RunVerb (CassoExplorerActions::Verb::CompareDiskImages); break;
         case CassoExplorerCommands::kReadDiskToImage:     m_context.cassoLinkManager.ReadDiskToImage();                   break;
         case CassoExplorerCommands::kWriteImageToDisk:    m_context.cassoLinkManager.WriteImageToDisk();                  break;
         case CassoExplorerCommands::kCancelLinkOperation: m_context.actions.CancelLinkOperation();     break;

@@ -413,6 +413,8 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildCommandBarEntries (C
         case CommandBarExtra::Archive:    added = BuildEntries (kArchiveRows);    break;
         case CommandBarExtra::AppleDrive: added = BuildEntries (kAppleDriveRows); break;
         case CommandBarExtra::Search:     added = BuildEntries (kSearchRows);     break;
+        case CommandBarExtra::DiskImage:     added = BuildEntries (kDiskImageRows);     break;
+        case CommandBarExtra::DiskImagePair: added = BuildEntries (kDiskImagePairRows); break;
         default:                                                                  break;
     }
 
@@ -467,6 +469,8 @@ const DxuiVectorIcon * CassoExplorerCommands::GetCommandBarIcon (int id)
         case kView:          return &CassoExplorerIcons::s_kView;
         case kTogglePreview: return &CassoExplorerIcons::s_kPreview;
         case kTheme:         return &CassoExplorerIcons::s_kTheme;
+        case kInspectDiskImage:  return &CassoExplorerIcons::s_kInspect;
+        case kCompareDiskImages: return &CassoExplorerIcons::s_kCompare;
         default:             return nullptr;
     }
 }

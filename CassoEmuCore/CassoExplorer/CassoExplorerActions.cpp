@@ -327,6 +327,41 @@ bool CassoExplorerActions::CanInspectSelected() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerActions::CanInspect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::CanInspect() const
+{
+    if (m_browser.IsImageLocation())
+    {
+        return InspectorWindowSet::CanInspect (m_browser.GetLocation().path);
+    }
+
+    return !m_browser.IsAppleDriveLocation() && m_browser.AreSelectedRowsImages() && CanInspectSelected();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::CanCompare
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::CanCompare() const
+{
+    return !m_browser.IsImageLocation() && m_browser.GetSelectedRows().size() == 2 && CanInspect();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerActions::AddFilesystemVerbs
 //
 //  Read as CP/M, on an image or a drive's disk that detection doesn't recognize,

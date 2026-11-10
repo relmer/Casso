@@ -117,6 +117,34 @@ def bars_path(count, left, right, pitch, thickness):
     return ''.join(rounded_rect(left, first + i * pitch - thickness / 2.0, right, first + i * pitch + thickness / 2.0, thickness / 2.0, True) for i in range(count))
 
 
+def circle(cx, cy, r, clockwise):
+    """One closed circle. A ring is an outer circle one way round and its
+    hole the other."""
+    n = lambda v: f'{v:g}'
+    sweep = 1 if clockwise else 0
+
+    return (f'M{n(cx - r)} {n(cy)}A{n(r)} {n(r)} 0 1 {sweep} {n(cx + r)} {n(cy)}'
+            f'A{n(r)} {n(r)} 0 1 {sweep} {n(cx - r)} {n(cy)}Z')
+
+
+def ring(cx, cy, r, thickness):
+    return circle(cx, cy, r, True) + circle(cx, cy, r - thickness, False)
+
+
+def floppy_path(left, top, size, hub):
+    """A 5.25 inch disk: the jacket's outline, the hub and the head slot
+    under it. `hub` is the hub's radius; a hub of over 2 units is a ring."""
+    cx = left + size / 2.0
+    cy = top + size * 0.43
+    slot = max(0.5, hub / 3.0)
+    slot_top = cy + hub + size * 0.09
+
+    return (rounded_rect(left, top, left + size, top + size, size / 9.0, True)
+            + rounded_rect(left + 1, top + 1, left + size - 1, top + size - 1, max(size / 9.0 - 1.0, 0.25), False)
+            + (ring(cx, cy, hub, 1.0) if hub > 2.0 else circle(cx, cy, hub, True))
+            + rounded_rect(cx - slot, slot_top, cx + slot, top + size - 1.75, slot, True))
+
+
 def path_of(name):
     svg = (SOURCE / f'ic_fluent_{name}.svg').read_text(encoding='utf-8')
     paths = re.findall(r'<path[^>]*\sd="([^"]+)"', svg)
@@ -197,7 +225,8 @@ def main():
     out('//')
     out("//  The command bar's and the View menu's icons: Microsoft's Fluent UI")
     out('//  System Icons, MIT licensed, in the two tones File Explorer gives them,')
-    out("//  and the three icon views' frames, which the script draws itself.")
+    out("//  and the three icon views' frames and the disk inspector's disks,")
+    out('//  which the script draws itself.')
     out('//')
     out(B)
     out('')
@@ -216,6 +245,12 @@ def main():
     #  and the right pane's outline. Fluent's outline is one path, so it is
     #  split here at the divider, each half closed along it.
     entries += [('Preview', 'panel_right_20_regular, split at the divider', PREVIEW_PATH, [([0, 1], False, 0, 0), ([2, 3], True, 0, 0)])]
+
+    #  The disk inspector's buttons. Fluent has no 5.25 inch disk, so both are
+    #  drawn here: one disk with the hub and the head slot in the accent, and
+    #  two disks side by side with the second in the accent.
+    entries += [('Inspect', 'drawn by this script', floppy_path(3.0, 3.0, 14.0, 2.25), [([0, 1], False, 0, 0), ([2, 3, 4], True, 0, 0)])]
+    entries += [('Compare', 'drawn by this script', floppy_path(0.5, 5.5, 9.0, 1.25) + floppy_path(10.5, 5.5, 9.0, 1.25), [([0, 1, 2, 3], False, 0, 0), ([4, 5, 6, 7], True, 0, 0)])]
 
     for name, svg, d, layers in entries:
         if layers == ALL:

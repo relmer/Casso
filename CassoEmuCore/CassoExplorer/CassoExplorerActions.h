@@ -149,6 +149,12 @@ public:
     //  Whether every selected image is one the disk inspector opens.
     bool  CanInspectSelected () const;
 
+    //  Whether the disk inspector opens what the list is on: the selected
+    //  disk images in a folder, or the image whose contents are listed. And
+    //  whether the selection is two images the inspector compares.
+    bool  CanInspect () const;
+    bool  CanCompare () const;
+
     //  A new directory in the ProDOS location the list shows. The name is the
     //  volume's to accept, so an illegal one comes back as a refusal.
     Outcome  CreateFolder (const std::wstring & name);
