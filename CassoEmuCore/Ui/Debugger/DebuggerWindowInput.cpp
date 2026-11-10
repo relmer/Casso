@@ -774,9 +774,17 @@ void DebuggerWindow::RouteFindPlateMouse (const DxuiMouseEvent & ev)
 
     for (IDxuiControl * control : m_finds->GetPressTargets())
     {
-        if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
+        //  Only the box takes the focus. The focus stays in the box when a
+        //  button is pressed, as in Visual Studio Code's find widget; given to
+        //  the button for the press and back to the box at the release, it
+        //  blinked the box's focus border.
+        if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && dynamic_cast<DxuiTextInput *> (control) != nullptr)
         {
             OfferPress (control, ev, handled);
+        }
+        else if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
+        {
+            handled = handled || (IsRoutable (control) && control->IsVisible() && control->OnMouse (ev));
         }
         else if (ev.kind == DxuiMouseEventKind::Up && IsRoutable (control) && control->IsVisible())
         {

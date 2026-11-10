@@ -2802,6 +2802,13 @@ HRESULT DxuiPopupHost::PlaceAndRender (RECT anchorRectScreen)
     hr = ResizeSwapChain (windowRect.right - windowRect.left, windowRect.bottom - windowRect.top);
     CHRA (hr);
 
+    //  The visual that composites the swap chain, and the acrylic behind the
+    //  card, take the new size too. Left at the size the popup opened at, they
+    //  cut off whatever a larger card drew past it: a tip whose text grew, or
+    //  one that reused a smaller tip's window, lost its right edge.
+    SetCompositionSize (windowRect.right - windowRect.left, windowRect.bottom - windowRect.top);
+    ApplyAcrylic();
+
     RenderNow();
 
     SetWindowPos (m_hwnd,

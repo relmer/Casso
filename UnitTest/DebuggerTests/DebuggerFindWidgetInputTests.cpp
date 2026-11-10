@@ -86,6 +86,7 @@ namespace DebuggerFindWidgetInputTests
         using DebuggerWindow::GetFindWidgets;
         using DebuggerWindow::GetFocused;
         using DebuggerWindow::FindPaneForTest;
+        using DebuggerWindow::OnMouse;
         using DebuggerWindow::AppendConsole;
 
         //  A left press and its release at a point.
@@ -271,7 +272,17 @@ namespace DebuggerFindWidgetInputTests
 
             for (size_t toggle = 1; toggle <= 3; toggle++)
             {
-                window.Click (window.GetFindControl (toggle));
+                DxuiMouseEvent  ev = {};
+
+                ev.positionDip = InputWindow::GetCenter (window.GetFindControl (toggle));
+                ev.button      = DxuiMouseButton::Left;
+                ev.kind        = DxuiMouseEventKind::Down;
+                (void) window.OnMouse (ev);
+
+                Assert::IsTrue (window.GetFocused() == window.GetFindWidgets().GetBox(), std::format (L"while toggle {} is pressed", toggle).c_str());
+
+                ev.kind = DxuiMouseEventKind::Up;
+                (void) window.OnMouse (ev);
 
                 Assert::IsTrue (window.GetFocused() == window.GetFindWidgets().GetBox(), std::format (L"after toggle {}", toggle).c_str());
             }
