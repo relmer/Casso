@@ -1211,7 +1211,6 @@ bool DxuiTooltip::MeasureBoxPx (
     float    textHPx    = 0.0f;
     bool     isMeasured = true;
     Margins  margins;
-
     auto     measure    = [this, text] (const wchar_t * what, float sizePx, float wrapPx, float & w, float & h) -> HRESULT
     {
         if (text != nullptr)
