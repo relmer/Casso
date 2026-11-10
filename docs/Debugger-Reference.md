@@ -249,6 +249,11 @@ lists the earlier lines to pick from, above the command line with the newest
 at the bottom. A line too long for the list ends in an ellipsis and is drawn
 whole while it is highlighted.
 
+`CLS`, or `CLEAR`, clears the console's output, in every command mode and
+with or without the mode's prefix, as does Ctrl+L in the command box or
+**Clear** on the output's context menu. The command box and its earlier lines
+are left as they are.
+
 Every command that changes breakpoints, watches, memory, registers, flags,
 symbols, disks or settings prints one line about what changed, such as
 "Removed breakpoint 3 (exec C000)" or "Removed watch 0 (0400)".

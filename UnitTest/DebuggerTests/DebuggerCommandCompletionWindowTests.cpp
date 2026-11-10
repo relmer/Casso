@@ -27,7 +27,7 @@ namespace DebuggerCompletionWindowTests
     class CompletionHost : public IDebuggerWindowHost
     {
     public:
-        void  RunDebuggerCommand      (const std::string &)                      override {}
+        void  RunDebuggerCommand      (const std::string & line)                 override { lines.push_back (line); }
         void  PauseDebugger           ()                                         override {}
         void  SetDebuggerCodeLines    (int, int)                                 override {}
         void  SetDebuggerCodeAddress  (std::optional<Word>, int)                 override {}
@@ -56,6 +56,8 @@ namespace DebuggerCompletionWindowTests
 
         SourceLookup  FindDebuggerSource         (const DebugSourceFile &, const std::wstring &, const std::string &)                     override { return {}; }
         SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
+
+        std::vector<std::string>  lines;   // the lines run
 
     private:
         FakeHostDialogs  m_dialogs;
@@ -89,6 +91,7 @@ namespace DebuggerCompletionWindowTests
         using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetPaneOfFocus;
         using DebuggerWindow::OnKey;
+        using DebuggerWindow::AppendConsole;
 
         void  Press (WPARAM vk, bool shift = false)
         {
@@ -200,6 +203,56 @@ namespace DebuggerCompletionWindowTests
             Assert::AreEqual (30, ConsoleOutput::GetWrapIndent ("                              a description alone"), L"under a description on a row by itself");
             Assert::AreEqual (15, ConsoleOutput::GetWrapIndent ("0300: A9 00    LDA #$00"), L"under a listing's last column");
             Assert::AreEqual (0,  ConsoleOutput::GetWrapIndent ("plain text with single spaces"), L"no gap, no indent");
+        }
+
+        //  CLS and CLEAR, in either case and with a mode's prefix, clear the
+        //  output here and are not run as commands; the line is in the history.
+        TEST_METHOD (ClsClearsTheOutputAndIsNotRun)
+        {
+            for (const wchar_t * typed : { L"cls", L"CLEAR", L"  /cls ", L"!Clear" })
+            {
+                CassoTheme        theme = CassoTheme::MakeSkeuomorphic();
+                CompletionHost    host;
+                CompletionWindow  window (theme, host);
+
+
+
+                DebuggerCommandCompletionWindowTests::Open (window);
+                window.AppendConsole ({ "LDA #$00", "STA $C030" });
+                Assert::IsFalse (window.GetConsolePane().GetOutput().FormatSaved().empty(), (std::wstring (L"output before ") + typed).c_str());
+
+                window.GetConsolePane().GetCommandLine().GetBox()->SetText (typed);
+                window.Press (VK_RETURN);
+
+                Assert::IsTrue (window.GetConsolePane().GetOutput().FormatSaved().empty(), (std::wstring (L"output after ") + typed).c_str());
+                Assert::IsTrue   (host.lines.empty(), (std::wstring (L"not run ") + typed).c_str());
+                Assert::AreEqual (std::wstring(), window.GetConsolePane().GetCommandLine().GetBox()->GetText(), typed);
+            }
+        }
+
+
+
+        //  Ctrl+L clears the output; the line being typed is as it was.
+        TEST_METHOD (CtrlLClearsTheOutput)
+        {
+            CassoTheme        theme = CassoTheme::MakeSkeuomorphic();
+            CompletionHost    host;
+            CompletionWindow  window (theme, host);
+            DxuiKeyEvent      ev    = {};
+
+
+
+            DebuggerCommandCompletionWindowTests::Open (window);
+            window.AppendConsole ({ "LDA #$00" });
+            window.GetConsolePane().GetCommandLine().GetBox()->SetText (L"bp 300");
+
+            ev.kind = DxuiKeyEventKind::Down;
+            ev.vk   = 'L';
+            ev.ctrl = true;
+            (void) window.OnKey (ev);
+
+            Assert::IsTrue   (window.GetConsolePane().GetOutput().FormatSaved().empty());
+            Assert::AreEqual (std::wstring (L"bp 300"), window.GetConsolePane().GetCommandLine().GetBox()->GetText());
         }
     };
 }

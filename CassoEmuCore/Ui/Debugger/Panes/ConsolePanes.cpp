@@ -835,6 +835,15 @@ void CommandLine::Submit()
     m_history.Add (typed);
     SaveHistory();
 
+    //  CLS clears the output here, in every command mode, as the output's
+    //  menu does; it isn't a command for the machine.
+    if (IsClearCommand (line))
+    {
+        m_output.Clear();
+        m_box->SetText (L"");
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     m_output.ScrollToEnd();
 
     host->RunDebuggerCommand (line);
@@ -842,6 +851,44 @@ void CommandLine::Submit()
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::IsClearCommand
+//
+//  CLS or CLEAR, in either case, alone on the line, with or without a mode's
+//  prefix (/ for Monitor mode, ! for WinDbg mode).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLine::IsClearCommand (const std::string & line)
+{
+    size_t       first = line.find_first_not_of (" \t");
+    size_t       last  = line.find_last_not_of (" \t");
+    std::string  word;
+
+
+
+    if (first == std::string::npos)
+    {
+        return false;
+    }
+
+    word = line.substr (first, last - first + 1);
+
+    if (!word.empty() && (word[0] == '/' || word[0] == '!'))
+    {
+        word.erase (0, 1);
+    }
+
+    std::ranges::transform (word, word.begin(), [] (char c) { return (char) toupper ((unsigned char) c); });
+
+    return word == "CLS" || word == "CLEAR";
 }
 
 
@@ -1465,8 +1512,8 @@ bool ConsolePane::Tick (int64_t nowMs)
 //
 //  The command line's own keys: Ctrl+C with nothing selected in it copies
 //  what is selected in the text above, since a click in the text puts the
-//  focus in the command line; the completion keys; and Up and Down, which
-//  walk the lines run before.
+//  focus in the command line; Ctrl+L, which clears the output; the
+//  completion keys; and Up and Down, which walk the lines run before.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1485,6 +1532,13 @@ bool ConsolePane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused)
     if (ev.ctrl && ev.vk == 'C' && box->GetSelectionStart() == box->GetSelectionEnd() && view->HasSelection())
     {
         view->CopySelection();
+        return true;
+    }
+
+    //  Ctrl+L clears the output, as CLS does.
+    if (ev.ctrl && !ev.shift && ev.vk == 'L')
+    {
+        m_output.Clear();
         return true;
     }
 

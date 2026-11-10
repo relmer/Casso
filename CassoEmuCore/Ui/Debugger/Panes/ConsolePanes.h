@@ -150,6 +150,9 @@ public:
     //  unrun.
     void                 Submit         ();
 
+    //  Whether a line is CLS or CLEAR, which clears the output.
+    static bool          IsClearCommand (const std::string & line);
+
     //  The completion keys: Tab takes the gray suggestion, or completes the
     //  command word and cycles through the matches, Shift+Tab backward;
     //  Right arrow at the end of the line takes the gray earlier line; F8
