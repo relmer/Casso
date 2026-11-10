@@ -1201,10 +1201,22 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     // Paint below (the per-paint palette), so this is safe.
     m_theme = &theme;
 
+    //  With grow-to-visible-rows on, new rows or a new scroll position grow
+    //  the fitted columns to the rows on screen, measured as they are drawn.
+    if (m_growToVisible && (m_rowsVersion != m_grownRowsVersion || GetRowCount() != m_grownRowCount || m_topRow != m_grownTopRow))
+    {
+        m_grownRowsVersion = m_rowsVersion;
+        m_grownRowCount    = GetRowCount();
+        m_grownTopRow      = m_topRow;
+
+        m_columnSizing.QueueGrowsToVisibleRows();
+    }
+
     //  Before the pass below, so the frame draws the width a fit asked for.
     //  Here rather than inside that pass because a width is real state, and
     //  measuring needs the renderer only the paint holds.
     m_columnSizing.ApplyPendingFit (text);
+    m_columnSizing.ApplyAutoGrows  (text);
 
     //  Small icons and List size their columns to the names, so the names
     //  are measured before the pass lays anything out.

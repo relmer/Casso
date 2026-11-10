@@ -203,6 +203,11 @@ public:
     // re-measure on every refill.
     void  SetRefitOnSetRows         (bool enabled)       { m_refitOnSetRows = enabled; }
 
+    //  Each fitted column grows to the rows on screen when the rows or the
+    //  scroll position change (DxuiListColumns::QueueGrowsToVisibleRows).
+    //  Off by default, as Explorer's columns are sized once for a view.
+    void  SetGrowColumnsToVisibleRows (bool enabled)     { m_growToVisible = enabled; }
+
     // Column / row queries.
     size_t         GetColumnCount () const                 { return m_columns.size(); }
     const Column & GetColumnAt    (size_t idx) const       { return m_columns[idx]; }
@@ -827,6 +832,10 @@ private:
     int    m_cellPadRightDip    = s_kCellPadRightDip;
     bool   m_paneTextInset      = false;
     bool   m_refitOnSetRows     = false;
+    bool   m_growToVisible      = false;
+    int    m_grownRowsVersion   = -1;   // the row set, row count and top row the last grow was queued for
+    int    m_grownRowCount      = -1;
+    int    m_grownTopRow        = -1;
     bool   m_textViewSurface    = false;
     float  m_glyphCenterDip     = 0.0f;
     bool   m_isMonospaceTips    = false;

@@ -354,6 +354,10 @@ void DebuggerWindow::ConfigureWidgets()
     //  project; the event logs' are in their own options.
     for (DxuiListView * list : GetLists())
     {
+        //  Every pane's fitted columns widen to the rows on screen as they
+        //  change, so no cell is cut off.
+        list->SetGrowColumnsToVisibleRows (true);
+
         if (!HasOwnColumnWidths (list))
         {
             list->SetOnColumnResized ([this, list] (int, int)

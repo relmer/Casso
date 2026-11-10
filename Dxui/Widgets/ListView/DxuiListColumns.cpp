@@ -386,6 +386,7 @@ void DxuiListColumns::ResetAutoFit()
 {
     m_autoMaxChars.clear();
     m_measuredWPx.clear();
+    m_grownWPx.clear();
     m_measureDirty = true;
 
     RequeueFitTexts();
@@ -596,6 +597,12 @@ int DxuiListColumns::GetColumnNaturalWidthPx (size_t c) const
             // dominated column that gained wider rows later grows via
             // autoFitPx instead of clipping.
             wpx = m_preciseAutoFit ? measuredPx : std::max (measuredPx, autoFitPx);
+
+            //  A grow to the rows on screen raises it to what they measured.
+            if (c < m_grownWPx.size())
+            {
+                wpx = std::max (wpx, m_grownWPx[c]);
+            }
         }
     }
 
@@ -875,6 +882,71 @@ void DxuiListColumns::ApplyPendingFit (IDxuiTextRenderer & text)
             m_list.m_onColumnResized ((int) idx, GetColumnOverrideWidthPx (idx));
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  QueueGrowsToVisibleRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListColumns::QueueGrowsToVisibleRows()
+{
+    bool  isUserSized = false;
+
+
+
+    for (size_t c = 0; c < m_list.m_columns.size(); c++)
+    {
+        isUserSized = c < m_overrideWPx.size() && m_overrideWPx[c] >= 0;
+
+        if (m_list.m_columns[c].visible && m_list.m_columns[c].widthDip == 0 && !m_list.m_columns[c].stretch && !isUserSized &&
+            std::find (m_pendingAutoGrows.begin(), m_pendingAutoGrows.end(), c) == m_pendingAutoGrows.end())
+        {
+            m_pendingAutoGrows.push_back (c);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyAutoGrows
+//
+//  Each queued column's rows on screen measured, and its grown width raised
+//  to them; never lowered, so a column doesn't narrow as the list scrolls.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListColumns::ApplyAutoGrows (IDxuiTextRenderer & text)
+{
+    int  topRow    = m_list.GetTopRow();
+    int  contentPx = 0;
+
+
+
+    if (m_grownWPx.size() != m_list.m_columns.size())
+    {
+        m_grownWPx.assign (m_list.m_columns.size(), 0);
+    }
+
+    for (size_t idx : m_pendingAutoGrows)
+    {
+        if (idx < m_grownWPx.size())
+        {
+            contentPx       = GetColumnContentWidthPx (text, idx, topRow, topRow + m_list.GetVisibleRowCapacity() + 1);
+            m_grownWPx[idx] = (std::max) (m_grownWPx[idx], contentPx);
+        }
+    }
+
+    m_pendingAutoGrows.clear();
 }
 
 

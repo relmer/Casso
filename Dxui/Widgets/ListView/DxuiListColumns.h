@@ -104,6 +104,14 @@ public:
 
     //  Applies a width a fit asked for, once the paint pass has measured it.
     void  ApplyPendingFit     (IDxuiTextRenderer & text);
+
+    //  With grow-to-visible-rows on, every fitted column is grown to the rows
+    //  on screen at a paint whose rows or scroll position changed: a column
+    //  without a set width, not stretched, and not sized by the user.
+    //  The grown width only raises the fitted width (m_grownWPx); it is not
+    //  an override, which stays the user's.
+    void  QueueGrowsToVisibleRows ();
+    void  ApplyAutoGrows          (IDxuiTextRenderer & text);
     void  ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vector<int> & ws) const;
 
 private:
@@ -134,6 +142,8 @@ private:
     std::vector<size_t>       m_pendingVisibleFits;
     std::vector<size_t>       m_pendingVisibleGrows;
     std::vector<size_t>       m_pendingGrows;
+    std::vector<size_t>       m_pendingAutoGrows;   // QueueGrowsToVisibleRows' columns, measured at the next paint
+    std::vector<int>          m_grownWPx;           // each column's widest visible rows, as measured
 
     //  For each column, the longest printable-ASCII text in the monospaced
     //  face measured at each lead, at the font size in pixels it was

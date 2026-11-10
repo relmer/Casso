@@ -503,4 +503,69 @@ public:
 
         Assert::IsTrue (after > before, L"wider by the icon and its gap");
     }
+
+    //  With grow-to-visible-rows on, a row set after the first paint whose
+    //  text measures wider than the column grows it at the next paint: the
+    //  width is the text as measured, not a count of its characters.
+    TEST_METHOD (GrowToVisibleRows_WidensAFittedColumnForRowsSetLater)
+    {
+        DxuiListView                                  list;
+        std::vector<std::vector<DxuiListView::Cell>>  rows;
+        DxuiDpiScaler                                 scaler;
+        MockDxuiPainter                               painter;
+        MockDxuiTextRenderer                          text;
+        MockDxuiTheme                                 theme;
+        int                                           before = 0;
+
+
+
+        scaler.SetDpi (96);
+        list.SetColumns                  ({ DxuiListView::Column { L"Origin", 0, false } });
+        list.SetGrowColumnsToVisibleRows (true);
+        list.SetRows                     ({ { DxuiListView::Cell { L"ab", false } } });
+        list.Layout                      (RECT { 0, 0, 600, 300 }, scaler);
+        list.Paint                       (painter, text, theme);
+
+        before = list.GetColumnEffectiveWidthPx (0);
+
+        text.SetCannedMetrics (L"WWWW", SIZE { 400, 16 });
+        rows.push_back ({ DxuiListView::Cell { L"WWWW", false } });
+        list.SetRows (std::move (rows));
+        list.Paint   (painter, text, theme);
+        list.Paint   (painter, text, theme);
+
+        Assert::IsTrue (before < 400,                              L"the column started narrower than the new text");
+        Assert::IsTrue (list.GetColumnEffectiveWidthPx (0) >= 400, L"and grew to the text as measured");
+    }
+
+
+    //  A column the user dragged isn't grown, however wide the rows set
+    //  after it.
+    TEST_METHOD (GrowToVisibleRows_LeavesAColumnTheUserSized)
+    {
+        DxuiListView                                  list;
+        std::vector<std::vector<DxuiListView::Cell>>  rows;
+        DxuiDpiScaler                                 scaler;
+        MockDxuiPainter                               painter;
+        MockDxuiTextRenderer                          text;
+        MockDxuiTheme                                 theme;
+
+
+
+        scaler.SetDpi (96);
+        list.SetColumns                  ({ DxuiListView::Column { L"Origin", 0, false } });
+        list.SetGrowColumnsToVisibleRows (true);
+        list.SetRows                     ({ { DxuiListView::Cell { L"ab", false } } });
+        list.Layout                      (RECT { 0, 0, 600, 300 }, scaler);
+        list.Paint                       (painter, text, theme);
+        list.SetColumnOverrideWidthPx    (0, 90);
+
+        text.SetCannedMetrics (L"WWWW", SIZE { 400, 16 });
+        rows.push_back ({ DxuiListView::Cell { L"WWWW", false } });
+        list.SetRows (std::move (rows));
+        list.Paint   (painter, text, theme);
+        list.Paint   (painter, text, theme);
+
+        Assert::AreEqual (90, list.GetColumnEffectiveWidthPx (0), L"the width the user set");
+    }
 };
