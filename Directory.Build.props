@@ -65,6 +65,17 @@
   </ItemDefinitionGroup>
 
   <!--
+    MultiProcFXC
+      ON. By default MSBuild runs fxc on one shader at a time. CassoEmuCore,
+      UnitTest and Dxui each compile their shaders before their precompiled
+      header can start, about two seconds per project, and two of those are
+      on the build's critical path.
+  -->
+  <PropertyGroup>
+    <MultiProcFXC>true</MultiProcFXC>
+  </PropertyGroup>
+
+  <!--
     Debug STL: bounds checks WITHOUT the iterator-tracking machinery.
 
     _ITERATOR_DEBUG_LEVEL defaults to 2 whenever _DEBUG is defined. Level 2
