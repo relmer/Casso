@@ -307,6 +307,32 @@ public:
 
 
 
+    TEST_METHOD (AFileInASubdirectoryIsPairedByItsPath)
+    {
+        vector<Byte>    imageA = FileMapTestImages::MakeProDos();
+        vector<Byte>    imageB = imageA;
+        DiskAnalysis    a;
+        DiskAnalysis    b;
+        DiskComparison  c;
+
+
+
+        //  One byte of DEEP, two subdirectories down, changed in B.
+        FileMapTestImages::GetBlock (imageB, 22)[0] ^= 0x01;
+        FileMapTestImages::Analyze (imageA, true, a);
+        FileMapTestImages::Analyze (imageB, true, b);
+        c = DiskComparer::Compare (a, b);
+
+        auto  changed = std::find_if (c.differences.begin(), c.differences.end(), [] (const Difference & d) { return d.kind == DifferenceKind::FileContents; });
+
+        Assert::AreEqual (1, CountKind (c.differences, DifferenceKind::FileContents));
+        Assert::AreEqual (std::wstring (L"DIR1/DIR2/DEEP"), changed->path, L"paired by its full path (FR-087, FR-120)");
+        Assert::AreEqual (0, CountKind (c.differences, DifferenceKind::FileOnlyInA));
+        Assert::AreEqual (0, CountKind (c.differences, DifferenceKind::FileOnlyInB));
+    }
+
+
+
     TEST_METHOD (AFileOnlyInOneImage)
     {
         vector<Byte>    imageA = FileMapTestImages::MakeDos33();

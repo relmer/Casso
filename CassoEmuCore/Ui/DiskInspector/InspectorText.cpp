@@ -676,7 +676,7 @@ std::wstring InspectorText::FormatSelection (const TrackAnalysis & track, int fi
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring InspectorText::FormatWriteProtect (const WriteProtectInfo & info)
+std::wstring InspectorText::FormatWriteProtect (const WriteProtectInfo & info, const std::wstring & program)
 {
     std::wstring  causes;
 
@@ -687,7 +687,7 @@ std::wstring InspectorText::FormatWriteProtect (const WriteProtectInfo & info)
     add (info.imageFlag,        L"the image's write-protect flag is set");
     add (info.userSetting,      L"write protection is on for this drive");
     add (info.readOnlyFile,     L"the file is read-only");
-    add (info.noPermission,     L"Casso cannot write the file");
+    add (info.noPermission,     (program + L" cannot write the file").c_str());
     add (info.checksumMismatch, L"the image's checksum does not match its contents");
     add (info.damagedTracks,    L"the image has damaged track records");
 

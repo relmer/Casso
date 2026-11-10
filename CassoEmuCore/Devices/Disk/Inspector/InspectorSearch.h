@@ -10,7 +10,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SearchKind / SearchItem / SearchQuery / SearchHit
+//  SearchKind / SearchItem / DiskSearchQuery / SearchHit
 //
 //  What Find looks for (FR-056): a hex nibble pattern, hex bytes in decoded
 //  sector data, or text in sector data. A pattern is a run of items, each a
@@ -37,7 +37,7 @@ struct SearchItem
 };
 
 
-struct SearchQuery
+struct DiskSearchQuery
 {
     SearchKind    kind           = SearchKind::Nibbles;
     std::wstring  text;
@@ -78,8 +78,8 @@ class InspectorSearch
 {
 public:
     static bool               ParsePattern (const std::wstring & text, SearchKind kind, vector<SearchItem> & outItems);
-    static vector<SearchHit>  Find         (const DiskAnalysis & analysis, int quarterTrack, const SearchQuery & query);
-    static void               FindInTrack  (const TrackAnalysis & track, int quarterTrack, const vector<SearchItem> & items, const SearchQuery & query,
+    static vector<SearchHit>  Find         (const DiskAnalysis & analysis, int quarterTrack, const DiskSearchQuery & query);
+    static void               FindInTrack  (const TrackAnalysis & track, int quarterTrack, const vector<SearchItem> & items, const DiskSearchQuery & query,
                                             vector<SearchHit> & inOutHits);
 
     //  A hit's place, as "Track 17.25, nibble $1A3" or "Track 3, sector $5

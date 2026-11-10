@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
@@ -912,6 +913,12 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InsertDrive1),   [this, image]() { m_context.cassoTarget.InsertIntoDrive (image, 1); });
         m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InsertDrive2),   [this, image]() { m_context.cassoTarget.InsertIntoDrive (image, 2); });
         m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::OpenInNewCasso), [this, image]() { m_context.cassoTarget.OpenInNewCasso (image); });
+
+        if (InspectorWindowSet::CanInspect (image))
+        {
+            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InspectDiskImage), [this, image]() { m_context.commandManager.InspectDiskImages ({ image }); });
+        }
+
         m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::ExtractFiles),   [this, image]() { m_context.commandManager.ExtractImageFiles (image); });
         m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.compressedfile.extract");
 

@@ -135,7 +135,7 @@ public:
 
     using Levels = std::array<std::shared_ptr<const PlatterRenderer::Levels>, DiskImage::kQuarterTrackCount>;
 
-    const CassoTheme                       * theme             = nullptr;
+    const DxuiTheme                        * theme             = nullptr;
     IDiskInspectorHost                     * host              = nullptr;
     NullDiskInspectorHost                    nullHost;
     int                                      drive             = 0;

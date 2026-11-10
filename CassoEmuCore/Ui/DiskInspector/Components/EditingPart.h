@@ -52,6 +52,9 @@ public:
 
     const EditBarState & GetState () const { return m_state; }
 
+    //  Why the disk cannot be changed now, or empty (FR-102).
+    static std::wstring  GetApplyBlock (const InspectorSession & session);
+
 private:
     //  One apply's tracks before and after, the guest write counts it left,
     //  and those an undo of it left (FR-107).
@@ -68,7 +71,6 @@ private:
     void          UpdateEditBar     ();
     void          OnEjected         ();
     void          PasteIntoEdit     ();
-    std::wstring  GetApplyBlock     () const;
     bool          IsHistoryCurrent  (const vector<RecordWriteCount> & counts) const;
     void          PostApply         (const InspectorRequest & request);
     void          PauseApply        ();

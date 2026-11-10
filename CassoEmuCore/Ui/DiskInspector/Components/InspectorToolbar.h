@@ -45,10 +45,9 @@ public:
     bool  CanStepRange  (int delta) const;
     void  SetTimingMode (bool isTiming);
     bool  HasTiming     () const;
+    bool  IsDriveShown  () const;
 
 private:
-    bool  IsDriveShown () const;
-
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;
     const InspectorCommands  & m_commands;

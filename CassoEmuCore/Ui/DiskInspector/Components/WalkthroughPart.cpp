@@ -118,6 +118,7 @@ void WalkthroughPart::Paint (IDxuiTextRenderer & text, const IDxuiTheme & theme,
 {
     if (m_walkthrough.IsOpen())
     {
+        m_walkthrough.SetHasDrives (m_session.host->GetDriveCount() > 0);
         m_walkthrough.Paint (text, theme, m_session.scaler, boundsPx, GetWalkthroughArea (m_walkthrough.GetArea()));
     }
 }

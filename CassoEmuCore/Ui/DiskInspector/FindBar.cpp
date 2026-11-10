@@ -99,7 +99,7 @@ void FindBar::Init (HWND hwnd, IDxuiTextRenderer * text, DxuiHwndSource * popupH
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FindBar::SetQuery (const SearchQuery & query)
+void FindBar::SetQuery (const DiskSearchQuery & query)
 {
     m_input->SetText       (query.text);
     m_kind->SetSelected    (static_cast<int> (query.kind));
@@ -119,9 +119,9 @@ void FindBar::SetQuery (const SearchQuery & query)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SearchQuery FindBar::GetQuery() const
+DiskSearchQuery FindBar::GetQuery() const
 {
-    SearchQuery  query;
+    DiskSearchQuery  query;
 
 
 
@@ -294,7 +294,7 @@ std::wstring FindBar::GetPatternError (SearchKind kind, const std::wstring & tex
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool FindBar::IsSame (const SearchQuery & a, const SearchQuery & b)
+bool FindBar::IsSame (const DiskSearchQuery & a, const DiskSearchQuery & b)
 {
     return a.kind == b.kind && a.text == b.text && a.isWholeDisk == b.isWholeDisk && a.isAnyBitOffset == b.isAnyBitOffset;
 }
@@ -315,8 +315,8 @@ bool FindBar::IsSame (const SearchQuery & a, const SearchQuery & b)
 
 void FindBar::Submit (int step)
 {
-    SearchQuery  query     = GetQuery();
-    bool         isChanged = !m_hasSearched || !IsSame (query, m_searched);
+    DiskSearchQuery  query     = GetQuery();
+    bool             isChanged = !m_hasSearched || !IsSame (query, m_searched);
 
 
 

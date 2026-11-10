@@ -166,6 +166,11 @@ void ExplorerThemes::Apply()
     }
 
     m_context.window.Invalidate();
+
+    if (m_context.app.host != nullptr)
+    {
+        m_context.app.host->SetInspectorTheme (*m_context.theme);
+    }
 }
 
 

@@ -531,6 +531,8 @@ bool ExplorerToolbars::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouse
 //  The Recycle Bin, and an archive selected or open, have buttons of their
 //  own on the command bar, after View, as Explorer's.
 //
+//  Disk images selected or open add the disk inspector's buttons there.
+//
 //  The location's buttons, the drop-downs and the View button's icon.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -558,6 +560,14 @@ void ExplorerToolbars::UpdateCommandBar()
     else if (!m_context.browser.GetExtractTarget().empty())
     {
         extra = Extra::Archive;
+    }
+    else if (m_context.actions.CanCompare())
+    {
+        extra = Extra::DiskImagePair;
+    }
+    else if (m_context.actions.CanInspect())
+    {
+        extra = Extra::DiskImage;
     }
 
     if (extra == m_commandBarExtra)

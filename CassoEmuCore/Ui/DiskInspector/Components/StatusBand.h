@@ -18,7 +18,10 @@ class InspectorSession;
 //  The band along the window's bottom, at the window's scale rather than
 //  its zoom: the summary chips at its left end, the hint for the view under
 //  the pointer or the latest note, the "?" button that opens the
-//  walkthrough, and the window's zoom (FR-007, FR-153, FR-154).
+//  walkthrough, and the window's zoom (FR-007, FR-153, FR-154). The band is
+//  a DxuiStatusBar: the hint is the text of the bar's stretch field, and the
+//  chips, the selection, the "?" button and the zoom are drawn over the
+//  bar's other fields.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,14 +44,44 @@ public:
     bool  IsOverZoom     (POINT p) const { return m_zoomControl != nullptr && m_zoomControl->IsOverControls (p); }
 
 private:
-    void          PaintChips       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float right, float & inOutX);
-    void          PaintHelp        (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void          PaintSelection   (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & line, float & inOutX) const;
-    std::wstring  GetSelectionLine () const;
+    enum Field : size_t
+    {
+        kFieldLead,
+        kFieldHint,
+        kFieldHelp,
+        kFieldZoom
+    };
+
+    enum class LeadKind
+    {
+        Result,
+        Chip,
+        BadChip,
+        Analyzing,
+        Selection
+    };
+
+    //  One thing drawn at the band's left end, and where it goes.
+    struct LeadItem
+    {
+        std::wstring  text;
+        LeadKind      kind     = LeadKind::Chip;
+        float         x        = 0;
+        float         w        = 0;
+        bool          isPlaced = false;
+    };
+
+    void                   LayOutBar        (int leadPx);
+    std::vector<LeadItem>  BuildLead        () const;
+    float                  PlaceLead        (IDxuiTextRenderer & text, std::vector<LeadItem> & inOutItems) const;
+    void                   PaintLead        (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::vector<LeadItem> & items) const;
+    void                   PaintHelp        (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    std::wstring           GetSelectionLine () const;
 
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;
     DxuiZoomControl          * m_zoomControl = nullptr;
+    DxuiStatusBar              m_bar;
     DxuiDpiScaler              m_scaler;
     RECT                       m_bandPx      = {};
     RECT                       m_helpPx      = {};

@@ -64,6 +64,57 @@ ExplorerCommandManager::ExplorerCommandManager (ExplorerContext & context)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerCommandManager::InspectDiskImages
+//
+//  With no app, as in a test, no inspector is opened.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::InspectDiskImages (const std::vector<std::wstring> & paths)
+{
+    if (m_context.app.host != nullptr && m_context.theme != nullptr && !paths.empty())
+    {
+        m_context.app.host->InspectDiskImages (m_context.window.GetHwnd(), paths, *m_context.theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerCommandManager::CompareSelectedDiskImages
+//
+//  A is the focused image, which is the one the menu was opened on, and B is
+//  the other selected image (FR-117).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::CompareSelectedDiskImages()
+{
+    const std::vector<int>     & rows  = m_context.browser.GetSelectedRows();
+    std::vector<std::wstring>    paths;
+    size_t                       a     = 0;
+
+
+
+    m_context.browser.GetSelectedHostPaths (paths);
+
+    if (m_context.app.host != nullptr && m_context.theme != nullptr && paths.size() == 2 && rows.size() == 2)
+    {
+        a = (rows[1] == m_context.listPane.GetFocusedRow()) ? 1 : 0;
+
+        m_context.app.host->CompareDiskImages (m_context.window.GetHwnd(), paths[a], paths[1 - a], *m_context.theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerCommandManager::ExtractImageFiles
 //
 //  The image's files go into a folder beside it, which is then selected in
@@ -406,6 +457,8 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kRenameItem:        return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Rename);
         case CassoExplorerCommands::kShareItems:        return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Share);
         case CassoExplorerCommands::kExtractAll:        return !m_context.browser.GetExtractTarget().empty();
+        case CassoExplorerCommands::kInspectDiskImage:  return m_context.actions.CanInspect();
+        case CassoExplorerCommands::kCompareDiskImages: return m_context.actions.CanCompare();
         case CassoExplorerCommands::kReadDiskToImage:
         case CassoExplorerCommands::kWriteImageToDisk:  return m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive);
         case CassoExplorerCommands::kCancelLinkOperation: return (m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive)) && m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
@@ -614,6 +667,8 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kRenameItem:   RunVerb (CassoExplorerActions::Verb::Rename); break;
         case CassoExplorerCommands::kShareItems:   RunVerb (CassoExplorerActions::Verb::Share);  break;
         case CassoExplorerCommands::kExtractAll:   ExtractAll();                                  break;
+        case CassoExplorerCommands::kInspectDiskImage:  RunVerb (CassoExplorerActions::Verb::InspectDiskImage);  break;
+        case CassoExplorerCommands::kCompareDiskImages: RunVerb (CassoExplorerActions::Verb::CompareDiskImages); break;
         case CassoExplorerCommands::kReadDiskToImage:     m_context.cassoLinkManager.ReadDiskToImage();                   break;
         case CassoExplorerCommands::kWriteImageToDisk:    m_context.cassoLinkManager.WriteImageToDisk();                  break;
         case CassoExplorerCommands::kCancelLinkOperation: m_context.actions.CancelLinkOperation();     break;
@@ -1386,6 +1441,27 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
         case CassoExplorerActions::Verb::ExtractFiles:
             ExtractImageFiles (m_context.cassoTarget.GetSelectedImagePath());
+            break;
+
+        case CassoExplorerActions::Verb::InspectDiskImage:
+        {
+            std::vector<std::wstring>  paths;
+
+            if (m_context.browser.IsImageLocation())
+            {
+                paths.push_back (m_context.browser.GetLocation().path);
+            }
+            else
+            {
+                m_context.browser.GetSelectedHostPaths (paths);
+            }
+
+            InspectDiskImages (paths);
+            break;
+        }
+
+        case CassoExplorerActions::Verb::CompareDiskImages:
+            CompareSelectedDiskImages();
             break;
 
         case CassoExplorerActions::Verb::Paste:

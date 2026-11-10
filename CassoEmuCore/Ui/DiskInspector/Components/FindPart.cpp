@@ -46,7 +46,7 @@ void FindPart::Create()
     m_findResults->SetOnSelect ([this] (const TableRow & row) { if (m_session.find.Choose (row.finding)) { SelectHit (m_session.find.GetHits()[row.finding]); m_findBar->SetResult (row.finding, m_session.find.GetCount()); } });
     m_findBar     = parent.CreateChild<FindBar>();
     m_findBar->Init            (m_host.GetOwnerHwnd(), m_host.GetTextRenderer(), m_host.GetPopupHost(), m_session.theme);
-    m_findBar->SetOnSearch     ([this] (const SearchQuery & query) { RunFind (query); });
+    m_findBar->SetOnSearch     ([this] (const DiskSearchQuery & query) { RunFind (query); });
     m_findBar->SetOnStep       ([this] (int step) { StepFind (step); });
     m_findBar->SetOnList       ([this] () { m_host.ShowDiskTab (kTabFindResults); });
     m_findBar->SetOnClose      ([this] () { CloseFindBar(); });
@@ -304,7 +304,7 @@ void FindPart::CloseFindBar()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FindPart::RunFind (const SearchQuery & query)
+void FindPart::RunFind (const DiskSearchQuery & query)
 {
     bool  isRead = m_session.find.Run (m_session.analysis, m_session.model.GetQuarterTrack(), query, m_session.scheduler->HasPending());
 

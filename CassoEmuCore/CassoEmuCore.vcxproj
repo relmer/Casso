@@ -372,6 +372,7 @@
     <ClCompile Include="CassoExplorer\Window\Panes\Preview\PreviewTextView.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\Preview\PreviewHexView.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\Preview\PreviewPictureView.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Panes\Preview\PreviewDiskThumbnail.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\Preview\PreviewShellView.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\Preview\PreviewFindBar.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\Preview\PreviewHexSources.cpp" />
@@ -433,6 +434,7 @@
     <ClCompile Include="CassoExplorer\Model\ArchiveProbe.cpp" />
     <ClCompile Include="CassoExplorer\Model\PicturePreview.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewDecoder.cpp" />
+    <ClCompile Include="CassoExplorer\Model\DiskThumbnailWorker.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewText.cpp" />
     <ClCompile Include="CassoExplorer\Model\ApplesoftVariables.cpp" />
     <ClCompile Include="CassoExplorer\Model\TreeModel.cpp" />
@@ -677,6 +679,7 @@
     <ClCompile Include="Config\GlobalUserPrefs.cpp" />
     <ClCompile Include="Config\MachineInputPrefs.cpp" />
     <ClCompile Include="Config\CrtResolver.cpp" />
+    <ClCompile Include="Config\DiskInspectorPrefs.cpp" />
     <ClCompile Include="Ui\ThemeLoader.cpp" />
     <ClCompile Include="Ui\ColorUtil.cpp" />
     <ClCompile Include="Machines\MachineDefinitions.cpp" />
@@ -857,6 +860,9 @@
     <ClCompile Include="Shell\Components\EmulatorUpdaterHost.cpp" />
     <ClCompile Include="Shell\Components\ShellUpdater.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerUpdaterHost.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerInspectorHost.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerInspectorWindow.cpp" />
+    <ClCompile Include="CassoExplorer\InspectorWindowSet.cpp" />
     <ClCompile Include="Shell\Components\ShellPrinter.cpp" />
     <ClCompile Include="Shell\Components\ShellNetworkCard.cpp" />
     <ClCompile Include="Shell\Components\ShellSerialCard.cpp" />
@@ -1118,6 +1124,7 @@
     <ClInclude Include="CassoExplorer\Window\Panes\Preview\PreviewTextView.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\Preview\PreviewHexView.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\Preview\PreviewPictureView.h" />
+    <ClInclude Include="CassoExplorer\Window\Panes\Preview\PreviewDiskThumbnail.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\Preview\PreviewShellView.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\Preview\PreviewView.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\Preview\PreviewFindBar.h" />
@@ -1190,6 +1197,7 @@
     <ClInclude Include="CassoExplorer\Model\ArchiveProbe.h" />
     <ClInclude Include="CassoExplorer\Model\PicturePreview.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewDecoder.h" />
+    <ClInclude Include="CassoExplorer\Model\DiskThumbnailWorker.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewText.h" />
     <ClInclude Include="CassoExplorer\Model\ApplesoftVariables.h" />
     <ClInclude Include="CassoExplorer\Model\TreeModel.h" />
@@ -1664,6 +1672,9 @@
     <ClInclude Include="Shell\Components\EmulatorUpdaterHost.h" />
     <ClInclude Include="Shell\Components\ShellUpdater.h" />
     <ClInclude Include="CassoExplorer\ExplorerUpdaterHost.h" />
+    <ClInclude Include="CassoExplorer\ExplorerInspectorHost.h" />
+    <ClInclude Include="CassoExplorer\ExplorerInspectorWindow.h" />
+    <ClInclude Include="CassoExplorer\InspectorWindowSet.h" />
     <ClInclude Include="Update\IUpdaterHost.h" />
     <ClInclude Include="WasapiAudio.h" />
     <ClInclude Include="EmbeddedMachineConfigs.h" />

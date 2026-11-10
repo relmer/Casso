@@ -462,7 +462,8 @@ InspectorReply InspectorRequestQueue::Answer (uint64_t id, const InspectorReques
 
     if (image == nullptr)
     {
-        reply.status = InspectorReplyStatus::NoDisk;
+        reply.reason = source.GetOpenError (request.drive);
+        reply.status = reply.reason.empty() ? InspectorReplyStatus::NoDisk : InspectorReplyStatus::Unopenable;
     }
     else if (request.mediaId != 0 && request.mediaId != identity.mediaId)
     {
@@ -474,8 +475,13 @@ InspectorReply InspectorRequestQueue::Answer (uint64_t id, const InspectorReques
     }
     else if (request.kind == InspectorRequestKind::CopyAsInserted)
     {
-        reply.sourceBytes = std::make_shared<const vector<Byte>> (image->GetSourceBytes());
+        reply.sourceBytes = source.GetAsInsertedBytes (request.drive);
         reply.fileName    = identity.fileName;
+
+        if (reply.sourceBytes == nullptr)
+        {
+            reply.sourceBytes = std::make_shared<const vector<Byte>> (image->GetSourceBytes());
+        }
     }
     else if (request.kind == InspectorRequestKind::CopyTracks)
     {

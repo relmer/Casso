@@ -96,14 +96,22 @@ void HostLink::RequestCopy()
 //
 //  Only the reply to the latest request counts. Its disk starts the view
 //  over unless it is the same disk; every record waits for its analysis.
+//  A note from the host, such as Casso's reply to an edit Explorer saved,
+//  goes to the status band (FR-105).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HostLink::TakeReplies()
 {
     vector<InspectorReply>  replies;
+    std::wstring            note    = m_session.host->TakeHostNote();
 
 
+
+    if (!note.empty())
+    {
+        m_host.SetStatusNote (note);
+    }
 
     m_session.host->TakeInspectorReplies (replies);
 
@@ -158,7 +166,9 @@ void HostLink::StartDisk (std::shared_ptr<const DiskCopy> copy, const std::wstri
     change.hasDisk     = copy != nullptr;
     change.isNewDisk   = copy == nullptr || copy->mediaId != lastMedia;
     change.isReload    = isReload;
+    change.isReread    = m_isReread;
     change.lastMediaId = lastMedia;
+    m_isReread         = false;
 
     if (copy != nullptr && copy->mediaId != lastMedia)
     {

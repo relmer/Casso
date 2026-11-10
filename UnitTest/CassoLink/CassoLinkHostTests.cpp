@@ -3,6 +3,7 @@
 #include "CassoLinkCaptures.h"
 #include "InMemoryCassoLinkFolder.h"
 #include "../EmuTests/FakeDiskFileIo.h"
+#include "../EmuTests/FixtureProvider.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoLink/CassoLinkFolder.h"
 #include "Core/TextEncoding.h"
@@ -98,7 +99,34 @@ public:
     static void  Replay (const std::string & fixture, ICassoLinkFolder & folder, CassoLinkHost::ClockFn clock = nullptr)
     {
         Session  session (folder, clock);
-        size_t   index = 0;
+
+
+
+        ReplayInto (session, fixture);
+    }
+
+    //  A capture that ends while the host waits for the client: the host's
+    //  operation timeout is short, so its wait ends soon after the capture
+    //  does.
+    static void  ReplayCut (const std::string & fixture, ICassoLinkFolder & folder)
+    {
+        static constexpr DWORD  kShortTimeoutMs = 200;
+
+        Session  session (folder);
+
+
+
+        session.host->SetOperationTimeout (kShortTimeoutMs);
+        ReplayInto (session, fixture);
+    }
+
+    //  A capture's client bytes sent to `session`, and each of its host's
+    //  replies compared with the capture's.
+    static void  ReplayInto (Session & session, const std::string & fixture)
+    {
+        size_t  index = 0;
+
+
 
         for (const CassoLinkRun & run : CassoLinkCaptures::LoadRuns (fixture))
         {
@@ -177,6 +205,122 @@ public:
         Replay ("adtpro-receive-disk.txt", folder);
 
         Assert::AreEqual (0, folder.writes);
+    }
+
+
+
+    //  The captures below are of ADTPro's client against this host, in an
+    //  emulated //c, each in a state its client accepted. A host change that
+    //  sends other replies fails here; make a new capture with the client
+    //  for it.
+
+    //  DIR, then Z for the second page.
+    TEST_METHOD (ADirectorysSecondPage_MatchesTheClientsCapture)
+    {
+        InMemoryCassoLinkFolder  folder;
+
+
+
+        folder.path = "C:\\DISKS\\";
+
+        for (int i = 0; i < 20; i++)
+        {
+            folder.files[std::format ("A{:02}.DSK", i)] = std::vector<Byte> (512, 0);
+        }
+
+        Replay ("adtpro-directory-pages.txt", folder);
+    }
+
+
+
+    //  DIR with *.PO typed as its filespec.
+    TEST_METHOD (ADirectorysFilespec_MatchesTheClientsCapture)
+    {
+        InMemoryCassoLinkFolder  folder;
+
+
+
+        folder.files["A.DSK"] = std::vector<Byte> (512, 0);
+        folder.files["B.PO"]  = std::vector<Byte> (512, 0);
+        folder.files["C.PO"]  = std::vector<Byte> (512, 0);
+
+        Replay ("adtpro-filespec.txt", folder);
+    }
+
+
+
+    //  Receive with the chooser: Return on the fourth row of the second page
+    //  sends that page and row, and the host sends that file. The capture ends
+    //  partway through the file.
+    TEST_METHOD (TheChoosersPageAndRow_MatchTheClientsCapture)
+    {
+        InMemoryCassoLinkFolder  folder;
+
+
+
+        for (int i = 0; i < 19; i++)
+        {
+            folder.files[std::format ("A{:02}.DSK", i)] = std::vector<Byte> (512, 0);
+        }
+
+        CassoLinkAdtProServer::ToFileOrder ("VDRIVE-2.1.0.DSK", CassoLinkCaptures::RebuildImage ("adtpro-receive-disk.txt", '<', 280), folder.files["VDRIVE-2.1.0.DSK"]);
+
+        ReplayCut ("adtpro-receive-chooser.txt", folder);
+    }
+
+
+
+    //  A nibble send of drive 1, from the client's first packets. The capture
+    //  ends partway through the disk.
+    TEST_METHOD (ANibbleSend_MatchesTheClientsCapture)
+    {
+        InMemoryCassoLinkFolder  folder;
+
+
+
+        ReplayCut ("adtpro-nibble-send.txt", folder);
+    }
+
+
+
+    //  A batch with the prefix DISK, where DISK0001.dsk is taken: the client's
+    //  disk is written as DISK0002.dsk.
+    TEST_METHOD (ABatchSend_MatchesTheClientsCapture_AndTakesTheNextNumber)
+    {
+        InMemoryCassoLinkFolder  folder;
+        FixtureProvider          fixtures;
+        std::vector<uint8_t>     source;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoLink/ADTPRO-2.1.0.DSK", source));
+        folder.files["DISK0001.dsk"] = std::vector<Byte> (512, 0);
+
+        ReplayCut ("adtpro-batch-send.txt", folder);
+
+        Assert::IsTrue (folder.files["DISK0002.dsk"] == std::vector<Byte> (source.begin(), source.end()), L"DISK0001 is taken, so DISK0002");
+    }
+
+
+
+    //  A send that fails with no folder open, the client's Home, and its next
+    //  request, a DIR, served once the folder is open.
+    TEST_METHOD (AFailedSendsHome_LeavesTheNextRequestServed)
+    {
+        InMemoryCassoLinkFolder  folder;
+
+
+
+        folder.files["A.DSK"] = std::vector<Byte> (512, 0);
+        folder.open           = false;
+
+        {
+            Session  session (folder);
+
+            ReplayInto (session, "adtpro-home-closed.txt");
+            folder.open = true;
+            ReplayInto (session, "adtpro-home-open.txt");
+        }
     }
 
 

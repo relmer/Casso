@@ -43,6 +43,27 @@ public:
 
 
 
+    TEST_METHOD (AWindowWithNoDrivesHasTextWithoutTheDriveParts)
+    {
+        bool  hasFileBody = false;
+
+
+
+        for (const InspectorWalkthrough::Step & step : InspectorWalkthrough::GetSteps())
+        {
+            const wchar_t *  body = (step.fileBody != nullptr) ? step.fileBody : step.body;
+
+            hasFileBody = hasFileBody || step.fileBody != nullptr;
+
+            Assert::IsNull (wcsstr (body, L"Drive 1"),     step.title);
+            Assert::IsNull (wcsstr (body, L"Follow head"), step.title);
+        }
+
+        Assert::IsTrue (hasFileBody, L"the toolbar step has a text for Casso Explorer (FR-001)");
+    }
+
+
+
     TEST_METHOD (BackAndNextStepThroughAndTheLastNextCloses)
     {
         InspectorWalkthrough  walkthrough;

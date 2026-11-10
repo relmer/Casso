@@ -6,6 +6,7 @@
 #include "Core/TextEncoding.h"
 #include "Core/PathResolver.h"
 #include "CassoExplorer/ExplorerUpdaterHost.h"
+#include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
 #include "Seams/Win32FolderWatcher.h"
@@ -801,6 +802,7 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
     m_instance    = instance;
     m_showCommand = showCommand;
     m_baseDir     = AssetBootstrap::GetAssetBaseDirectory().wstring();
+    m_inspectors  = std::make_unique<InspectorWindowSet> (m_imageWatcher, m_prefs.diskInspector);
 
 #if defined (_DEBUG)
     StartLinkFaults();
@@ -1454,6 +1456,76 @@ void CassoExplorerShell::CheckForUpdates (HWND hwnd)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerShell::InspectDiskImages
+//
+//  A window that cannot be created is reported, and the windows for the
+//  other images are opened after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::InspectDiskImages (HWND hwnd, const std::vector<std::wstring> & paths, const DxuiTheme & theme)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    for (const std::wstring & path : paths)
+    {
+        hr = (m_inspectors != nullptr) ? m_inspectors->Open (m_instance, hwnd, path, theme) : E_UNEXPECTED;
+
+        if (FAILED (hr))
+        {
+            MessageBoxW (hwnd, std::format (L"The disk inspector could not open {} (0x{:08X}).", fs::path (path).filename().wstring(), (uint32_t) hr).c_str(), kAppName, MB_ICONWARNING);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::CompareDiskImages
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::CompareDiskImages (HWND hwnd, const std::wstring & pathA, const std::wstring & pathB, const DxuiTheme & theme)
+{
+    HRESULT  hr = (m_inspectors != nullptr) ? m_inspectors->Compare (m_instance, hwnd, pathA, pathB, theme) : E_UNEXPECTED;
+
+
+
+    if (FAILED (hr))
+    {
+        MessageBoxW (hwnd, std::format (L"The disk inspector could not open {} (0x{:08X}).", fs::path (pathA).filename().wstring(), (uint32_t) hr).c_str(), kAppName, MB_ICONWARNING);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::SetInspectorTheme
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::SetInspectorTheme (const DxuiTheme & theme)
+{
+    if (m_inspectors != nullptr)
+    {
+        m_inspectors->SetTheme (theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerShell::OfferMouseToUpdater
 //
 //  Only the window with the indicator passes it mouse events.
@@ -1561,6 +1633,13 @@ int CassoExplorerShell::RunMessageLoop()
     }
 
     ReleaseClosedWindows();
+
+    //  The inspector windows close with the app and are not reopened
+    //  (FR-075); their state is saved with the rest.
+    if (m_inspectors != nullptr)
+    {
+        m_inspectors->CloseAll();
+    }
 
     hr = m_prefs.Save (m_baseDir, m_fs);
     IGNORE_RETURN_VALUE (hr, S_OK);

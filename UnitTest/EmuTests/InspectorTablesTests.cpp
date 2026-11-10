@@ -251,7 +251,7 @@ public:
     TEST_METHOD (FindResultsListEachHitWithItsSectorAndField)
     {
         DiskAnalysis       analysis;
-        SearchQuery        query;
+        DiskSearchQuery    query;
         vector<SearchHit>  hits;
         vector<TableRow>   rows;
 
@@ -330,12 +330,12 @@ public:
     TEST_METHOD (FindMarksCountHitsAndPlaceSectorBytes)
     {
         DiskAnalysis           analysis;
-        SearchQuery            query;
+        DiskSearchQuery        query;
         FindMarks              marks;
         SearchHit              hit;
-        const TrackAnalysis *  track = nullptr;
-        int                    first = 0;
-        int                    count = 0;
+        const TrackAnalysis  * track    = nullptr;
+        int                    first    = 0;
+        int                    count    = 0;
 
 
 
@@ -381,8 +381,8 @@ public:
 
     TEST_METHOD (FindBarQueriesDifferInEveryField)
     {
-        SearchQuery  a;
-        SearchQuery  b;
+        DiskSearchQuery  a;
+        DiskSearchQuery  b;
 
 
 
@@ -417,9 +417,9 @@ public:
 
     TEST_METHOD (AFindSessionStepsAroundItsHits)
     {
-        DiskAnalysis  analysis;
-        FindSession   find;
-        SearchQuery   query;
+        DiskAnalysis     analysis;
+        FindSession      find;
+        DiskSearchQuery  query;
 
 
 
@@ -450,10 +450,10 @@ public:
 
     TEST_METHOD (AFindSessionRepeatsAPartialSearchAndDropsOutOfDateHits)
     {
-        DiskAnalysis  analysis;
-        FindSession   find;
-        SearchQuery   query;
-        int           slot = 0;
+        DiskAnalysis     analysis;
+        FindSession      find;
+        DiskSearchQuery  query;
+        int              slot     = 0;
 
 
 

@@ -11,7 +11,6 @@
 
 
 
-static constexpr int      s_kBandDip       = 28;
 static constexpr float    s_kChipPadDip    = 8.0f;
 static constexpr float    s_kChipGapDip    = 6.0f;
 static constexpr float    s_kChipHeightDip = 20.0f;
@@ -90,7 +89,7 @@ void StatusBand::Tick (int64_t nowMs)
 
 int StatusBand::GetHeightPx (const DxuiDpiScaler & scaler) const
 {
-    return scaler.ToPx (s_kBandDip);
+    return scaler.ToPx (DxuiStatusBar::GetBandDp());
 }
 
 
@@ -101,24 +100,58 @@ int StatusBand::GetHeightPx (const DxuiDpiScaler & scaler) const
 //
 //  StatusBand::Layout
 //
-//  The zoom at the right end, the "?" button before it, and the chips and
-//  the hint in the rest.
+//  The zoom over the bar's last field, the "?" button in the field before
+//  it, and the chips, the selection and the hint in the rest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void StatusBand::Layout (const RECT & area, const DxuiDpiScaler & scaler)
 {
-    int  pad   = scaler.ToPx (InspectorMetrics::kMarginDip);
-    int  zoomW = scaler.ToPx (DxuiZoomControl::kWidthDip);
-    int  helpW = (area.bottom - area.top) - 6;
+    int   pad   = scaler.ToPx (InspectorMetrics::kMarginDip);
+    RECT  help  = {};
+    RECT  zoom  = {};
 
 
 
-    m_scaler  = scaler;
-    m_bandPx  = area;
-    m_helpPx  = { area.right - zoomW - 2 * pad - helpW, area.top + 3, area.right - zoomW - 2 * pad, area.bottom - 3 };
-    m_chipsPx = { area.left + pad, area.top, m_helpPx.left - pad, area.bottom };
-    m_zoomControl->Layout ({ area.right - zoomW - pad, area.top + 1, area.right - pad, area.bottom - 1 }, scaler);
+    m_scaler = scaler;
+    m_bandPx = area;
+
+    m_bar.SetDividers (false);
+    m_bar.Layout      (area, scaler);
+    LayOutBar         (0);
+
+    help = m_bar.GetFieldRect (kFieldHelp);
+    zoom = m_bar.GetFieldRect (kFieldZoom);
+
+    m_helpPx  = { help.left + pad, area.top + 3, help.right - pad, area.bottom - 3 };
+    m_chipsPx = { area.left + pad, area.top, help.left, area.bottom };
+    m_zoomControl->Layout ({ zoom.left + pad, area.top + 1, zoom.right - pad, area.bottom - 1 }, scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StatusBand::LayOutBar
+//
+//  The bar's fields: the room the chips and the selection take, the hint in
+//  the stretch field, the "?" button's field, and the zoom's field.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StatusBand::LayOutBar (int leadPx)
+{
+    int  pad   = m_scaler.ToPx (InspectorMetrics::kMarginDip);
+    int  helpW = (m_bandPx.bottom - m_bandPx.top) - 6;
+
+
+
+    m_bar.SetFields ({ { L"", 0, false, leadPx },
+                       { m_hint, 0, true },
+                       { L"", 0, false, helpW + 2 * pad },
+                       { L"", DxuiZoomControl::kWidthDip + 2 * InspectorMetrics::kMarginDip, false } });
 }
 
 
@@ -144,38 +177,27 @@ void StatusBand::SetZoom (double zoom)
 //
 //  StatusBand::PaintUnder
 //
-//  The band's surface with a divider along its top, the chips, what is
-//  selected, the hint in the room after them, and the "?" button.
+//  The bar with the hint in the room after the chips and the selection, a
+//  divider along the band's top, then the chips, the selection and the "?"
+//  button over the bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void StatusBand::PaintUnder (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    float         x         = static_cast<float> (m_chipsPx.left);
-    float         w         = 0;
-    float         h         = 0;
-    std::wstring  selection = GetSelectionLine();
+    vector<LeadItem>  items = BuildLead();
+    float             x     = PlaceLead (text, items);
+    int               lead  = (x > m_chipsPx.left) ? static_cast<int> (std::ceil (x)) - m_bandPx.left : 0;
 
 
 
-    painter.FillRect (static_cast<float> (m_bandPx.left), static_cast<float> (m_bandPx.top), static_cast<float> (m_bandPx.right - m_bandPx.left),
-                      static_cast<float> (m_bandPx.bottom - m_bandPx.top), theme.BackgroundElevated());
+    LayOutBar   (std::min (lead, static_cast<int> (m_chipsPx.right - m_bandPx.left)));
+    m_bar.Paint (painter, text, theme);
+
     painter.FillRect (static_cast<float> (m_bandPx.left), static_cast<float> (m_bandPx.top), static_cast<float> (m_bandPx.right - m_bandPx.left), 1.0f,
                       theme.Divider());
 
-    //  Room for the selection is set aside first; chips that would crowd it
-    //  are left out.
-    text.MeasureString (selection.c_str(), m_scaler.ToPxf (s_kHintTextDip), DxuiTheme::kBodyFace, w, h);
-    PaintChips     (painter, text, theme, static_cast<float> (m_chipsPx.right) - w, x);
-    PaintSelection (text, theme, selection, x);
-
-    if (x < m_chipsPx.right)
-    {
-        text.DrawString (m_hint.c_str(), x, static_cast<float> (m_chipsPx.top), static_cast<float> (m_chipsPx.right) - x,
-                         static_cast<float> (m_chipsPx.bottom - m_chipsPx.top), theme.ForegroundMuted(), m_scaler.ToPxf (s_kHintTextDip),
-                         DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    }
-
+    PaintLead (painter, text, theme, items);
     PaintHelp (text, theme);
 }
 
@@ -185,25 +207,18 @@ void StatusBand::PaintUnder (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  StatusBand::PaintChips
+//  StatusBand::BuildLead
 //
-//  The summary chips that fit (FR-018), the comparison's result first while
-//  comparing (FR-121), a chip for custom decode settings, and "Analyzing"
-//  while records are not yet analyzed. Moves inOutX past what it drew.
+//  The band's left end in order: the comparison's result while comparing
+//  (FR-121), the summary chips (FR-018), a chip for custom decode settings,
+//  "Analyzing" while analysis is pending, and the selection.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void StatusBand::PaintChips (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float right, float & inOutX)
+vector<StatusBand::LeadItem> StatusBand::BuildLead() const
 {
-    float                pad    = m_scaler.ToPxf (s_kChipPadDip);
-    float                gap    = m_scaler.ToPxf (s_kChipGapDip);
-    float                chipH  = m_scaler.ToPxf (s_kChipHeightDip);
-    float                textPx = m_scaler.ToPxf (s_kChipTextDip);
-    float                y      = (m_chipsPx.top + m_chipsPx.bottom - chipH) / 2.0f;
-    float                w      = 0;
-    float                h      = 0;
-    bool                 isFull = false;
-    vector<SummaryChip>  chips;
+    vector<LeadItem>  items;
+    std::wstring      selection = GetSelectionLine();
 
 
 
@@ -211,52 +226,33 @@ void StatusBand::PaintChips (IDxuiPainter & painter, IDxuiTextRenderer & text, c
     {
         if (m_session.comparison.IsComparing())
         {
-            std::wstring  result = (m_session.comparison.IsBusy() || !m_session.comparison.HasResult()) ? std::wstring (L"Comparing")
-                                                                                                       : ComparisonText::FormatResult (m_session.comparison.GetResult());
-
-            text.MeasureString (result.c_str(), textPx, DxuiTheme::kBodyFace, w, h);
-            painter.FillRoundedRect (inOutX, y, w + 2 * pad, chipH, chipH / 2, theme.SelectionBackground());
-            text.DrawString (result.c_str(), inOutX, y, w + 2 * pad, chipH, theme.Foreground(), textPx, DxuiTheme::kBodyFace,
-                             DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
-            inOutX += w + 2 * pad + gap;
+            items.push_back ({ (m_session.comparison.IsBusy() || !m_session.comparison.HasResult()) ? std::wstring (L"Comparing")
+                                                                                                   : ComparisonText::FormatResult (m_session.comparison.GetResult()),
+                               LeadKind::Result });
         }
 
-        chips = InspectorText::BuildChips (m_session.analysis.summary);
+        for (const SummaryChip & chip : InspectorText::BuildChips (m_session.analysis.summary))
+        {
+            items.push_back ({ chip.text, chip.isBad ? LeadKind::BadChip : LeadKind::Chip });
+        }
 
         if (!m_session.analysis.settings.IsStandard())
         {
-            SummaryChip  custom;
-
-            custom.text = L"Custom decode settings";
-            chips.push_back (custom);
-        }
-
-        for (const SummaryChip & chip : chips)
-        {
-            text.MeasureString (chip.text.c_str(), textPx, DxuiTheme::kBodyFace, w, h);
-            isFull = isFull || inOutX + w + 2 * pad > right;
-
-            if (!isFull)
-            {
-                painter.FillRoundedRect    (inOutX, y, w + 2 * pad, chipH, chipH / 2, theme.ButtonIdle());
-                painter.OutlineRoundedRect (inOutX, y, w + 2 * pad, chipH, chipH / 2, m_scaler.ToPxf (1.0f),
-                                            chip.isBad ? m_session.context.palette.colors.sectorBad : theme.ButtonBorder());
-                text.DrawString (chip.text.c_str(), inOutX, y, w + 2 * pad, chipH, chip.isBad ? m_session.context.palette.colors.sectorBad : theme.Foreground(),
-                                 textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-                inOutX += w + 2 * pad + gap;
-            }
+            items.push_back ({ L"Custom decode settings", LeadKind::Chip });
         }
     }
 
     if (m_session.pendingRequest != 0 || m_session.scheduler->HasPending())
     {
-        text.MeasureString (s_kpszAnalyzing, textPx, DxuiTheme::kBodyFace, w, h);
-        text.DrawString (s_kpszAnalyzing, inOutX, y, w + gap, chipH, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace,
-                         DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        inOutX += w + 2 * gap;
+        items.push_back ({ s_kpszAnalyzing, LeadKind::Analyzing });
     }
 
-    inOutX += (inOutX > m_chipsPx.left) ? gap : 0.0f;
+    if (!selection.empty())
+    {
+        items.push_back ({ selection, LeadKind::Selection });
+    }
+
+    return items;
 }
 
 
@@ -265,28 +261,113 @@ void StatusBand::PaintChips (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  StatusBand::PaintSelection
+//  StatusBand::PlaceLead
 //
-//  What is selected, after the chips where it fits. Moves inOutX past what
-//  it drew.
+//  Where each item goes, and where the hint's room starts. Room for the
+//  selection is set aside first; summary chips that would crowd it are left
+//  out, and so is a selection wider than the room.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void StatusBand::PaintSelection (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & line, float & inOutX) const
+float StatusBand::PlaceLead (IDxuiTextRenderer & text, vector<LeadItem> & inOutItems) const
 {
-    float  textPx = m_scaler.ToPxf (s_kHintTextDip);
-    float  w      = 0;
-    float  h      = 0;
+    float  pad        = m_scaler.ToPxf (s_kChipPadDip);
+    float  gap        = m_scaler.ToPxf (s_kChipGapDip);
+    float  x          = static_cast<float> (m_chipsPx.left);
+    float  right      = static_cast<float> (m_chipsPx.right);
+    float  selectionW = 0;
+    float  h          = 0;
+    bool   isFull     = false;
 
 
 
-    text.MeasureString (line.c_str(), textPx, DxuiTheme::kBodyFace, w, h);
-
-    if (inOutX + w <= m_chipsPx.right)
+    for (LeadItem & item : inOutItems)
     {
-        text.DrawString (line.c_str(), inOutX, static_cast<float> (m_chipsPx.top), w + 1.0f, static_cast<float> (m_chipsPx.bottom - m_chipsPx.top), theme.Foreground(),
-                         textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        inOutX += w + m_scaler.ToPxf (s_kChipGapDip) * 3;
+        bool  isChip = item.kind == LeadKind::Chip || item.kind == LeadKind::BadChip;
+
+        text.MeasureString (item.text.c_str(), m_scaler.ToPxf (item.kind == LeadKind::Selection ? s_kHintTextDip : s_kChipTextDip),
+                            item.kind == LeadKind::Selection ? DxuiTheme::GetUiFace() : DxuiTheme::kBodyFace, item.w, h);
+
+        item.w     += (isChip || item.kind == LeadKind::Result) ? 2 * pad : 0.0f;
+        selectionW  = (item.kind == LeadKind::Selection) ? item.w : selectionW;
+    }
+
+    for (LeadItem & item : inOutItems)
+    {
+        bool  isChip = item.kind == LeadKind::Chip || item.kind == LeadKind::BadChip;
+
+        if (item.kind == LeadKind::Selection)
+        {
+            x += (x > m_chipsPx.left) ? gap : 0.0f;
+        }
+
+        isFull        = isFull || (isChip && x + item.w > right - selectionW);
+        item.isPlaced = isChip ? !isFull : (item.kind != LeadKind::Selection || x + item.w <= right);
+        item.x        = x;
+
+        if (item.isPlaced)
+        {
+            x += item.w + gap * (isChip || item.kind == LeadKind::Result ? 1.0f : 2.0f);
+        }
+    }
+
+    return x;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StatusBand::PaintLead
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StatusBand::PaintLead (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const vector<LeadItem> & items) const
+{
+    float     chipH  = m_scaler.ToPxf (s_kChipHeightDip);
+    float     textPx = m_scaler.ToPxf (s_kChipTextDip);
+    float     y      = (m_chipsPx.top + m_chipsPx.bottom - chipH) / 2.0f;
+    uint32_t  bad    = m_session.context.palette.colors.sectorBad;
+
+
+
+    for (const LeadItem & item : items)
+    {
+        if (!item.isPlaced)
+        {
+            continue;
+        }
+
+        switch (item.kind)
+        {
+            case LeadKind::Result:
+                painter.FillRoundedRect (item.x, y, item.w, chipH, chipH / 2, theme.SelectionBackground());
+                text.DrawString (item.text.c_str(), item.x, y, item.w, chipH, theme.Foreground(), textPx, DxuiTheme::kBodyFace,
+                                 DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+                break;
+
+            case LeadKind::Chip:
+            case LeadKind::BadChip:
+                painter.FillRoundedRect    (item.x, y, item.w, chipH, chipH / 2, theme.ButtonIdle());
+                painter.OutlineRoundedRect (item.x, y, item.w, chipH, chipH / 2, m_scaler.ToPxf (1.0f),
+                                            item.kind == LeadKind::BadChip ? bad : theme.ButtonBorder());
+                text.DrawString (item.text.c_str(), item.x, y, item.w, chipH, item.kind == LeadKind::BadChip ? bad : theme.Foreground(), textPx,
+                                 DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+                break;
+
+            case LeadKind::Analyzing:
+                text.DrawString (item.text.c_str(), item.x, y, item.w + 1.0f, chipH, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace,
+                                 DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+                break;
+
+            case LeadKind::Selection:
+                text.DrawString (item.text.c_str(), item.x, static_cast<float> (m_chipsPx.top), item.w + 1.0f, static_cast<float> (m_chipsPx.bottom - m_chipsPx.top),
+                                 theme.Foreground(), m_scaler.ToPxf (s_kHintTextDip), DxuiTheme::GetUiFace(), DxuiTextHAlign::Left,
+                                 DxuiTextVAlign::CenterOnCapHeight, DxuiFontWeight::Normal, false);
+                break;
+        }
     }
 }
 

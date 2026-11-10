@@ -263,6 +263,12 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
+    if (msg == (UINT) AppMessage::ExplorerThumbnail)
+    {
+        preview.TakeThumbnail();
+        return true;
+    }
+
     //  The bin's changes come in bursts, as a folder's do, and matter only
     //  while it is shown.
     if (msg == (UINT) AppMessage::ExplorerRecycleBin)

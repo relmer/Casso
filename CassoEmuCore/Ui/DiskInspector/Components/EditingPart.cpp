@@ -193,7 +193,8 @@ bool EditingPart::TakeReply (const InspectorReply & reply)
 //  Pending edits are discarded with the disk they were made on, or when the
 //  disk is ejected. A remount of the same file, as Reset, Power Cycle and a
 //  machine change do, is a reload: the edits follow their fields once each
-//  track is analyzed again (FR-108). A new disk clears the apply history.
+//  track is analyzed again (FR-108). A new disk, or a file read again after
+//  it changed outside the window, clears the apply history (FR-107).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -219,11 +220,17 @@ void EditingPart::OnDiskStarted (const DiskChange & change)
         m_sectorsView.SetEditing (false);
     }
 
-    if (change.hasDisk && isNewDisk)
+    if (change.hasDisk && (isNewDisk || change.isReread))
     {
         m_history.clear();
         m_historyAt = 0;
         m_session.appliedSlots.clear();
+    }
+
+    //  The result of an apply, undo or redo is about the file as it was.
+    if (change.isReread)
+    {
+        m_session.editNote.clear();
     }
 }
 
@@ -480,7 +487,7 @@ void EditingPart::UpdateEditBar()
     state.isChecksumLocked = m_session.IsSectorImage();
     state.bytes            = counts.bytes;
     state.sectors          = counts.sectors;
-    state.applyBlocked     = GetApplyBlock();
+    state.applyBlocked     = GetApplyBlock (m_session);
     state.canApply         = state.applyBlocked.empty() && m_applyRequest == 0;
     state.isWaiting        = m_isApplyWaiting;
     state.isMachinePaused  = m_isApplyPaused;
@@ -508,24 +515,27 @@ void EditingPart::UpdateEditBar()
 //
 //  Why "Apply", "Undo applied edit" and "Redo applied edit" cannot change
 //  the disk now, with every write-protect cause listed, or empty
-//  (FR-102).
+//  (FR-102). In a host with no drives, the disk is the window's file, and
+//  the causes are the file's as it was read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring EditingPart::GetApplyBlock() const
+std::wstring EditingPart::GetApplyBlock (const InspectorSession & session)
 {
-    const DriveHeadState *  state  = m_session.headState.get();
+    const DriveHeadState  * state  = session.headState.get();
+    const DiskCopy        * copy   = session.analysis.copy.get();
+    bool                    isFile = session.host->GetDriveCount() == 0;
     std::wstring            causes;
 
 
 
-    if (!m_session.IsWindowDiskA() || state == nullptr || !state->hasDisk)
+    if (!session.IsWindowDiskA() || (isFile && copy == nullptr) || (!isFile && (state == nullptr || !state->hasDisk)))
     {
-        causes = L"Only the disk in the drive can be changed";
+        causes = isFile ? L"Only the image this window opened can be changed" : L"Only the disk in the drive can be changed";
     }
     else
     {
-        causes = InspectorText::FormatWriteProtect (state->writeProtect);
+        causes = isFile ? InspectorText::FormatWriteProtect (copy->writeProtect, L"Casso Explorer") : InspectorText::FormatWriteProtect (state->writeProtect);
         causes = causes.empty() ? causes : L"Write-protected: " + causes;
     }
 
@@ -629,7 +639,8 @@ void EditingPart::ApplyEdits()
         lines.push_back (L"This disk is a WOZ 1 image. Casso saves it as WOZ 2.");
     }
 
-    if (!m_isFirstApplyDone)
+    //  Only a disk in a drive is read by a running DOS or ProDOS (FR-103).
+    if (!m_isFirstApplyDone && m_session.host->GetDriveCount() > 0)
     {
         lines.push_back (L"DOS or ProDOS may have one of these sectors in memory and write its own copy back over the edit.");
     }

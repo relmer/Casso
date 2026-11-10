@@ -13,7 +13,8 @@
 //
 //  The command bar's and the View menu's icons: Microsoft's Fluent UI
 //  System Icons, MIT licensed, in the two tones File Explorer gives them,
-//  and the three icon views' frames, which the script draws itself.
+//  and the three icon views' frames and the disk inspector's platters,
+//  which the script draws itself.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -427,5 +428,41 @@ namespace CassoExplorerIcons
         L"14.1046 3 13V6C3 4.89543 3.89543 4 5 4H11.5ZM11.5 16H15C16.6569 16 18 14.6569 18 13V6C18 4.34315 "
         L"16.6569 3 15 3H11.5V16ZM12.5 4H15C16.1046 4 17 4.89543 17 6V13C17 14.1046 16.1046 15 15 15H12.5V4Z",
         20.0f, s_kPreviewLayers, std::size (s_kPreviewLayers)
+    };
+
+    //  drawn by this script
+    static constexpr DxuiVectorIconLayer  s_kInspectLayers[] =
+    {
+        { 0x1E3u, false, 0.0f, 0.0f },
+        { 0x1Cu, true , 0.0f, 0.0f },
+    };
+
+    static constexpr DxuiVectorIcon  s_kInspect =
+    {
+        L"M1.5 10A8.5 8.5 0 1 1 18.5 10A8.5 8.5 0 1 1 1.5 10ZM2.5 10A7.5 7.5 0 1 0 17.5 10A7.5 7.5 0 1 0 2.5 "
+        L"10ZM3.469 7.623A6.95 6.95 0 0 1 12.38 3.469A0.45 0.45 0 0 1 12.07 4.315A6.05 6.05 0 0 0 4.315 "
+        L"7.931A0.45 0.45 0 0 1 3.469 7.623ZM16.53 12.38A6.95 6.95 0 0 1 13.48 16.02A0.45 0.45 0 0 1 13.03 "
+        L"15.24A6.05 6.05 0 0 0 15.69 12.07A0.45 0.45 0 0 1 16.53 12.38ZM10.89 15.07A5.15 5.15 0 0 1 4.928 "
+        L"9.106A0.45 0.45 0 0 1 5.815 9.262A4.25 4.25 0 0 0 10.74 14.19A0.45 0.45 0 0 1 10.89 15.07ZM8.239 "
+        L"5.161A5.15 5.15 0 0 1 14.46 7.425A0.45 0.45 0 0 1 13.68 7.875A4.25 4.25 0 0 0 8.546 6.006A0.45 0.45 "
+        L"0 0 1 8.239 5.161ZM7.4 10A2.6 2.6 0 1 1 12.6 10A2.6 2.6 0 1 1 7.4 10ZM8.4 10A1.6 1.6 0 1 0 11.6 "
+        L"10A1.6 1.6 0 1 0 8.4 10ZM8.9 10A1.1 1.1 0 1 1 11.1 10A1.1 1.1 0 1 1 8.9 10Z",
+        20.0f, s_kInspectLayers, std::size (s_kInspectLayers)
+    };
+
+    //  drawn by this script
+    static constexpr DxuiVectorIconLayer  s_kCompareLayers[] =
+    {
+        { 0x07u, false, 0.0f, 0.0f },
+        { 0x38u, true , 0.0f, 0.0f },
+    };
+
+    static constexpr DxuiVectorIcon  s_kCompare =
+    {
+        L"M0.5 10A4.5 4.5 0 1 1 9.5 10A4.5 4.5 0 1 1 0.5 10ZM1.5 10A3.5 3.5 0 1 0 8.5 10A3.5 3.5 0 1 0 1.5 "
+        L"10ZM3.75 10A1.25 1.25 0 1 1 6.25 10A1.25 1.25 0 1 1 3.75 10ZM10.5 10A4.5 4.5 0 1 1 19.5 10A4.5 4.5 0 "
+        L"1 1 10.5 10ZM11.5 10A3.5 3.5 0 1 0 18.5 10A3.5 3.5 0 1 0 11.5 10ZM13.75 10A1.25 1.25 0 1 1 16.25 "
+        L"10A1.25 1.25 0 1 1 13.75 10Z",
+        20.0f, s_kCompareLayers, std::size (s_kCompareLayers)
     };
 }

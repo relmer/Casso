@@ -82,15 +82,18 @@ public:
     //  "3 bytes in 1 sector changed", or empty with no changes.
     static std::wstring  FormatCount (int bytes, int sectors);
 
-    //  One row when every visible control fits the width, else two, with the
-    //  disk's controls on the second.
+    //  The controls' rows, then the note's rows when it does not fit beside
+    //  them.
     int   GetRowCount (int widthPx, const DxuiDpiScaler & scaler) const;
     int   GetHeightPx (int widthPx, const DxuiDpiScaler & scaler) const;
 
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
 
 private:
-    int   GetGroupWidthPx (bool isLeft, const DxuiDpiScaler & scaler) const;
+    int   GetGroupWidthPx     (bool isLeft, const DxuiDpiScaler & scaler) const;
+    int   GetControlRowCount  (int widthPx, const DxuiDpiScaler & scaler) const;
+    int   GetNoteRowCount     (int widthPx, const DxuiDpiScaler & scaler) const;
+    bool  HasControls         (const DxuiDpiScaler & scaler) const;
 
 private:
     DxuiButton    * m_edit          = nullptr;

@@ -3,6 +3,7 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/Model/BasicConversion.h"
 #include "CassoExplorer/Model/ContentSniffer.h"
 #include "CassoExplorer/Model/CopyOutConversion.h"
@@ -125,6 +126,13 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
             verbs.push_back (Verb::Put);
         }
 
+        //  On the list's background, Inspect opens the image whose contents
+        //  are listed, at any depth (FR-073).
+        if (entries.empty() && InspectorWindowSet::CanInspect (location.path))
+        {
+            verbs.push_back (Verb::InspectDiskImage);
+        }
+
         //  Formatting takes the whole disk, which is not what a subdirectory
         //  shows.
         if (!nested && writable && !isPartition)
@@ -171,6 +179,12 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         verbs.push_back (Verb::InsertDrive1);
         verbs.push_back (Verb::InsertDrive2);
         verbs.push_back (Verb::OpenInNewCasso);
+
+        if (CanInspectSelected())
+        {
+            verbs.push_back (Verb::InspectDiskImage);
+        }
+
         verbs.push_back (Verb::ExtractFiles);
         verbs.push_back (Verb::Format);
 
@@ -187,6 +201,15 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         }
 
         verbs.push_back (Verb::Test);
+    }
+    else if (m_browser.AreSelectedRowsImages() && CanInspectSelected())
+    {
+        verbs.push_back (Verb::InspectDiskImage);
+
+        if (selected == 2)
+        {
+            verbs.push_back (Verb::CompareDiskImages);
+        }
     }
 
     AddFilesystemVerbs (verbs);
@@ -319,6 +342,62 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     verbs.push_back (Verb::Refresh);
 
     return verbs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::CanInspectSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::CanInspectSelected() const
+{
+    std::vector<std::wstring>  paths;
+
+
+
+    m_browser.GetSelectedHostPaths (paths);
+
+    return !paths.empty() && std::all_of (paths.begin(), paths.end(), [] (const std::wstring & path) { return InspectorWindowSet::CanInspect (path); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::CanInspect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::CanInspect() const
+{
+    if (m_browser.IsImageLocation())
+    {
+        return InspectorWindowSet::CanInspect (m_browser.GetLocation().path);
+    }
+
+    return !m_browser.IsAppleDriveLocation() && m_browser.AreSelectedRowsImages() && CanInspectSelected();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::CanCompare
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::CanCompare() const
+{
+    return !m_browser.IsImageLocation() && m_browser.GetSelectedRows().size() == 2 && CanInspect();
 }
 
 

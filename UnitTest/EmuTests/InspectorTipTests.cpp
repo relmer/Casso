@@ -116,13 +116,13 @@ public:
 
     TEST_METHOD (AFindHitUnderThePointerHasALineWithItsSwatch)
     {
-        DiskAnalysis           analysis;
-        InspectorViewContext   context;
-        FindMarks              marks;
-        SearchQuery            query;
-        const TrackAnalysis *  track = nullptr;
-        InspectorTip           tip;
-        int                    mark  = 0;
+        DiskAnalysis            analysis;
+        InspectorViewContext    context;
+        FindMarks               marks;
+        DiskSearchQuery         query;
+        const TrackAnalysis   * track    = nullptr;
+        InspectorTip            tip;
+        int                     mark     = 0;
 
 
 
@@ -278,22 +278,22 @@ public:
 
     TEST_METHOD (TheSectorRowAndSectorDataTipsHaveTheirFindHits)
     {
-        DiskAnalysis           analysis;
-        InspectorViewModel     model;
-        InspectorViewContext   context;
-        FindMarks              marks;
-        SearchQuery            query;
-        vector<SearchHit>      hits;
-        SearchHit              hit;
-        const TrackAnalysis *  track  = nullptr;
-        DxuiTheme              theme  = DxuiTheme::Dark();
-        DxuiDpiScaler          scaler;
-        MockDxuiPainter        painter;
-        MockDxuiTextRenderer   text;
-        std::wstring           tip;
-        std::wstring           byteTip;
-        RECT                   anchor = {};
-        int                    three  = -1;
+        DiskAnalysis            analysis;
+        InspectorViewModel      model;
+        InspectorViewContext    context;
+        FindMarks               marks;
+        DiskSearchQuery         query;
+        vector<SearchHit>       hits;
+        SearchHit               hit;
+        const TrackAnalysis   * track    = nullptr;
+        DxuiTheme               theme    = DxuiTheme::Dark();
+        DxuiDpiScaler           scaler;
+        MockDxuiPainter         painter;
+        MockDxuiTextRenderer    text;
+        std::wstring            tip;
+        std::wstring            byteTip;
+        RECT                    anchor   = {};
+        int                     three    = -1;
 
 
 

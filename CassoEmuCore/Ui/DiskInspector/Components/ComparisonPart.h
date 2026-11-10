@@ -10,6 +10,7 @@ class FilesView;
 class IInspectorComponentHost;
 class InspectorSession;
 class TrackStripView;
+struct ComparisonSource;
 struct TrackAnalysis;
 
 
@@ -41,6 +42,7 @@ public:
     void  TakeComparison   ();
     void  SyncSideB        ();
     void  OpenCompare      ();
+    void  CompareWithFile  (const std::wstring & path);
     void  StopComparing    ();
     void  EndComparison    (const std::wstring & why);
     void  StepDifference   (int step);
@@ -49,6 +51,7 @@ public:
 
 private:
     void  CheckComparedSources ();
+    void  StartComparison      (const ComparisonSource & a, const ComparisonSource & b);
     void  SelectDifference     (const Difference & difference);
     void  PaintComparisonBar   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 

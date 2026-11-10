@@ -56,22 +56,27 @@ class InspectorWalkthrough
 public:
     struct Step
     {
-        WalkthroughArea  area  = WalkthroughArea::None;
-        LPCWSTR          title = L"";
-        LPCWSTR          body  = L"";
+        WalkthroughArea  area     = WalkthroughArea::None;
+        LPCWSTR          title    = L"";
+        LPCWSTR          body     = L"";
+
+        //  The text for a window on an image file, which has no drives,
+        //  where it differs from `body` (FR-001).
+        LPCWSTR          fileBody = nullptr;
     };
 
     static constexpr float  kCardWidthDip = 420.0f;
 
     static std::span<const Step>  GetSteps ();
 
-    void             Open    ();
-    void             Close   () { m_isOpen = false; }
-    void             Back    ();
-    void             Next    ();
-    bool             IsOpen  () const { return m_isOpen; }
-    int              GetStep () const { return m_step; }
-    WalkthroughArea  GetArea () const;
+    void             Open         ();
+    void             Close        () { m_isOpen = false; }
+    void             SetHasDrives (bool hasDrives) { m_hasDrives = hasDrives; }
+    void             Back         ();
+    void             Next         ();
+    bool             IsOpen       () const { return m_isOpen; }
+    int              GetStep      () const { return m_step; }
+    WalkthroughArea  GetArea      () const;
 
     //  The card and the dimming around `areaPx`, which is empty for a step
     //  on disk facts. HitTest uses the buttons' rectangles from the last Paint.
@@ -83,9 +88,10 @@ public:
     static RECT  PlaceCard (const RECT & windowPx, const RECT & areaPx, int widthPx, int heightPx, int gapPx);
 
 private:
-    bool  m_isOpen  = false;
-    int   m_step    = 0;
-    RECT  m_backPx  = {};
-    RECT  m_nextPx  = {};
-    RECT  m_closePx = {};
+    bool  m_isOpen    = false;
+    bool  m_hasDrives = true;
+    int   m_step      = 0;
+    RECT  m_backPx    = {};
+    RECT  m_nextPx    = {};
+    RECT  m_closePx   = {};
 };

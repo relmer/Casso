@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Ui/DiskInspector/Components/EditingPart.h"
+#include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/Components/InspectorMenus.h"
 #include "Ui/DiskInspector/Components/InspectorMetrics.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
@@ -199,6 +201,83 @@ public:
         Assert::AreEqual (0, back);
         Assert::AreEqual (1, forward);
         Assert::AreEqual (3, goTo, L"after a separator");
+    }
+
+
+
+    TEST_METHOD (AHostWithNoDrivesHasNoDriveSelector)
+    {
+        InspectorSession    session;
+        FakeInspectorHost   host;
+        FakeDrivelessHost   drives;
+        InspectorCommands   commands;
+
+
+
+        commands.goTo = MakeCommand (L"&Go to...");
+        commands.find = MakeCommand (L"&Find...");
+        session.host  = &drives;
+
+        InspectorToolbar  toolbar (session, host, commands);
+
+        toolbar.Create();
+
+        Assert::IsFalse (toolbar.IsDriveShown(), L"Casso Explorer's window has an image file, not a drive (FR-001)");
+    }
+
+
+
+    TEST_METHOD (AnImageFileHasItsWriteProtectCausesBesideApply)
+    {
+        InspectorSession           session;
+        FakeDrivelessHost          drives;
+        std::shared_ptr<DiskCopy>  copy = std::make_shared<DiskCopy>();
+
+
+
+        session.host = &drives;
+        Assert::AreEqual (std::wstring (L"Only the image this window opened can be changed"), EditingPart::GetApplyBlock (session));
+
+        session.analysis.copy = copy;
+        Assert::IsTrue (EditingPart::GetApplyBlock (session).empty(), L"a writable file can be changed");
+
+        copy->writeProtect.readOnlyFile     = true;
+        copy->writeProtect.noPermission     = true;
+        copy->writeProtect.checksumMismatch = true;
+        Assert::AreEqual (std::wstring (L"Write-protected: the file is read-only; Casso Explorer cannot write the file; the image's checksum does not match its contents"),
+                          EditingPart::GetApplyBlock (session), L"each cause in FR-102 for Casso Explorer");
+    }
+
+
+
+    TEST_METHOD (ALongNoteHasRowsBelowTheEditControls)
+    {
+        EditBar        bar;
+        EditBarState   state;
+        DxuiDpiScaler  scaler;
+        int            widthPx = 800;
+        int            rowPx   = scaler.ToPx (EditBar::kRowDip);
+        int            rows    = 0;
+
+
+
+        state.isEditing     = true;
+        state.hasSectorEdit = true;
+        state.bytes         = 1;
+        state.sectors       = 1;
+        bar.SetState (state);
+        rows = bar.GetRowCount (widthPx, scaler);
+
+        state.note = L"Not applied: the file could not be saved. mist.dsk is write-protected. Clear its read-only attribute. Nothing was written.";
+        bar.SetState (state);
+        bar.Layout ({ 0, 0, widthPx, bar.GetHeightPx (widthPx, scaler) }, scaler);
+
+        Assert::IsTrue   (bar.GetRowCount (widthPx, scaler) > rows, L"the note is placed below the controls");
+        Assert::AreEqual (bar.GetRowCount (widthPx, scaler) * rowPx, bar.GetHeightPx (widthPx, scaler));
+
+        state.note = L"Applying...";
+        bar.SetState (state);
+        Assert::AreEqual (rows, bar.GetRowCount (widthPx, scaler), L"a short note fits beside the controls");
     }
 
 

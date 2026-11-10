@@ -7,6 +7,7 @@
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/LinkBootstrap.h"
 #include "CassoLink/LinkProgram.h"
+#include "CassoLink/Session/CassoLinkConnector.h"
 #include "Seams/IByteStreamFactory.h"
 #include "Seams/InProcessByteStream.h"
 
@@ -84,6 +85,13 @@ public:
     //  the shim running.
     std::atomic<bool>                 typedLoader    { false };
     std::vector<Byte>                 loadedShim;
+
+    //  As Applesoft's prompt, where the loader returns when the shim's XOR
+    //  fails: silent until the host's prompt probe arrives, then the ready
+    //  byte is sent and the serial loader is typed in again. The Apple stays
+    //  at the prompt across connections.
+    std::atomic<bool>                 atPrompt       { false };
+    std::atomic<int>                  loaderXorFails { 0 };
     //  A Full Send: each Session screen's payload, the keys to answer Wait for
     //  key with, the Waits for key received, and Q to press before the next
     //  Ready. With no key left, a wait goes on until the host sends a byte.
@@ -188,14 +196,55 @@ private:
         return false;
     }
 
+    //  Skips what the host types until its prompt probe, as Applesoft takes
+    //  the lines in, then sends the ready byte. The serial loader is typed in
+    //  next, so the state changes before the ready byte is sent.
+    bool  AwaitPromptProbe (std::stop_token stop, Line & line)
+    {
+        const std::string_view  probe = CassoLinkConnector::kPromptProbe[0];
+        Byte                    chunk[4096];
+        size_t                  got   = 0;
+        auto                    found = line.buffer.end();
+
+
+
+        while (!stop.stop_requested() && !line.stream.IsClosed())
+        {
+            found = std::search (line.buffer.begin(), line.buffer.end(), probe.begin(), probe.end());
+
+            if (found != line.buffer.end())
+            {
+                break;
+            }
+
+            line.stream.Read (chunk, sizeof (chunk), 20, got);
+            line.buffer.insert (line.buffer.end(), chunk, chunk + got);
+        }
+
+        if (found == line.buffer.end())
+        {
+            return false;
+        }
+
+        line.buffer.erase (line.buffer.begin(), found + (ptrdiff_t) probe.size());
+
+        atPrompt    = false;
+        typedLoader = true;
+
+        Send (line, std::array<Byte, 1> { LinkBootstrap::kLoaderReady });
+        return true;
+    }
+
     //  Skips the typed lines through the command that runs the loader, then
-    //  reads the page count, the pages and their XOR.
+    //  reads the page count, the pages and their XOR. A wrong XOR returns to
+    //  Applesoft's prompt, as the loader does.
     bool  RunLoader (std::stop_token stop, Line & line)
     {
         static constexpr std::string_view  kRun = "3A50G\r";
         Byte                               chunk[4096];
         size_t                             got  = 0;
         size_t                             need = 0;
+        Byte                               sum  = 0;
         auto                               run  = line.buffer.end();
 
         while (!stop.stop_requested() && !line.stream.IsClosed())
@@ -237,6 +286,20 @@ private:
             return false;
         }
 
+        for (size_t i = 1; i + 1 < need; i++)
+        {
+            sum ^= line.buffer[i];
+        }
+
+        if (sum != line.buffer[need - 1])
+        {
+            line.buffer.erase (line.buffer.begin(), line.buffer.begin() + (ptrdiff_t) need);
+            loaderXorFails++;
+            typedLoader = false;
+            atPrompt    = true;
+            return false;
+        }
+
         {
             std::lock_guard<std::mutex>  guard (lock);
 
@@ -259,10 +322,26 @@ private:
         CassoLinkPacket  packet;
         bool             silent  = readySentEarly;
 
-        if (typedLoader && !RunLoader (stop, line))
+        //  After a loader whose XOR fails, the Apple is at the prompt, where
+        //  the probe starts the bootstrap again.
+        while (atPrompt || typedLoader)
         {
-            return;
+            if (atPrompt && !AwaitPromptProbe (stop, line))
+            {
+                return;
+            }
+
+            if (RunLoader (stop, line))
+            {
+                break;
+            }
+
+            if (!atPrompt)
+            {
+                return;
+            }
         }
+
         while (!stop.stop_requested() && !stream.IsClosed())
         {
             if (quitPending.exchange (false))

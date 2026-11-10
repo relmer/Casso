@@ -7,6 +7,7 @@
 
 
 class CassoExplorerWindow;
+struct DxuiTheme;
 
 
 
@@ -80,4 +81,17 @@ public:
 
     //  True when the update indicator in the window `hwnd` took the event.
     virtual bool  OfferMouseToUpdater (HWND hwnd, const DxuiMouseEvent & ev) = 0;
+
+    //  A disk inspector window for each image, opened over the window `hwnd`
+    //  in `theme`, or an image's window already open brought to the front
+    //  (FR-073).
+    virtual void  InspectDiskImages (HWND hwnd, const std::vector<std::wstring> & paths, const DxuiTheme & theme) { (void) hwnd; (void) paths; (void) theme; }
+
+    //  One disk inspector window comparing image A with image B: A's window
+    //  when it is open, a new one otherwise (FR-117).
+    virtual void  CompareDiskImages (HWND hwnd, const std::wstring & pathA, const std::wstring & pathB, const DxuiTheme & theme) { (void) hwnd; (void) pathA; (void) pathB; (void) theme; }
+
+    //  The theme the windows changed to, which the inspector windows follow
+    //  (FR-078).
+    virtual void  SetInspectorTheme (const DxuiTheme & theme) { (void) theme; }
 };

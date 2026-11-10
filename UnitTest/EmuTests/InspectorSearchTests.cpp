@@ -74,7 +74,7 @@ public:
     {
         vector<SearchItem>  items;
         vector<SearchHit>   hits;
-        SearchQuery         query;
+        DiskSearchQuery     query;
 
 
 

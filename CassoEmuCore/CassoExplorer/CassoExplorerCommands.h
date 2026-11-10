@@ -163,6 +163,12 @@ public:
         //  A BASIC program's cross-reference in place of its listing.
         kCrossReference,
 
+        //  The disk inspector on the selected disk images or the open one,
+        //  and two selected images compared in it. On the File menu, and on
+        //  the command bar while they apply.
+        kInspectDiskImage,
+        kCompareDiskImages,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -197,7 +203,7 @@ public:
     //  preview pane's toggle.
     std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
     //  The buttons a location adds to the command bar, after View.
-    enum class CommandBarExtra { None, RecycleBin, Archive, AppleDrive, Search };
+    enum class CommandBarExtra { None, RecycleBin, Archive, AppleDrive, Search, DiskImage, DiskImagePair };
 
     std::vector<DxuiToolbar::Entry>  BuildCommandBarEntries (CommandBarExtra extra = CommandBarExtra::None) const;
 
@@ -310,6 +316,9 @@ private:
     {
         { kNewTab,            Menu::File, L"&New tab",            L"Ctrl+T",   false },
         { kCloseTab,          Menu::File, L"&Close tab",          L"Ctrl+W",   false },
+        { kSeparator,         Menu::File, nullptr,                nullptr,     false },
+        { kInspectDiskImage,  Menu::File, L"&Inspect disk image", nullptr,     false },
+        { kCompareDiskImages, Menu::File, L"Co&mpare disk images", nullptr,    false },
         { kSeparator,         Menu::File, nullptr,                nullptr,     false },
         { kExit,              Menu::File, L"E&xit",               nullptr,     false },
         { kUndo,              Menu::Edit, L"&Undo",                L"Ctrl+Z",  false },
@@ -480,6 +489,19 @@ private:
     static constexpr ToolbarRow  kArchiveRows[] =
     {
         { kExtractAll, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Download, L"Extract all", L"Extract all" },
+    };
+
+    //  The disk inspector's buttons, after View while disk images are
+    //  selected or one is open. Compare is there for two selected images.
+    static constexpr ToolbarRow  kDiskImageRows[] =
+    {
+        { kInspectDiskImage, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Search, L"Inspect", L"Inspect disk image" },
+    };
+
+    static constexpr ToolbarRow  kDiskImagePairRows[] =
+    {
+        { kInspectDiskImage,  DxuiToolbar::Kind::Command, 5, s_kpszMdl2Search, L"Inspect", L"Inspect disk image"  },
+        { kCompareDiskImages, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Copy,   L"Compare", L"Compare disk images" },
     };
 
     //  A linked Apple's buttons, after View while the list is on the machine or

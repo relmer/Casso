@@ -45,6 +45,8 @@ public:
             { L"Dark modern",    DiskInspectorPalette::Resolve (CassoTheme::MakeDarkModern())    },
             { L"Retro terminal", DiskInspectorPalette::Resolve (CassoTheme::MakeRetroTerminal()) },
             { L"Phosphor",       DiskInspectorPalette::Resolve (CassoTheme::MakePhosphor())      },
+            { L"Explorer dark",  DiskInspectorPalette::Resolve (DxuiDarkTheme())                 },
+            { L"Explorer light", DiskInspectorPalette::Resolve (DxuiLightTheme())                },
             { L"Dxui dark",      DiskInspectorPalette::Resolve (DxuiTheme::Dark())               },
             { L"Dxui light",     DiskInspectorPalette::Resolve (DxuiTheme::Light())              },
             { L"Fallback dark",  DiskInspectorPalette::MakeFallback (true)                       },
