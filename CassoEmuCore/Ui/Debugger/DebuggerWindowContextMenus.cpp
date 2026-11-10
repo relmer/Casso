@@ -187,7 +187,7 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
 
 
-    if (m_snapshot == nullptr || GetMenuHost() == nullptr)
+    if (m_snapshot == nullptr)
     {
         return false;
     }
@@ -236,6 +236,14 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
             list->SetSelectedRow (row);
         }
 
+        //  And the list takes the focus, as Explorer's does, so the row the
+        //  menu acts on is drawn selected rather than in the faint color of a
+        //  selection in a list without the focus.
+        if (row >= 0)
+        {
+            SetFocusedControl (list);
+        }
+
         AddListMenuItems (list, row, GetColumnAt (list, clientPx.x - bounds.left), items);
     }
 
@@ -246,9 +254,10 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
     AddGoToDefinition (clientPx, items);
 
-    if (items.empty())
+    //  The row and the focus are taken above whether or not a menu can open.
+    if (items.empty() || GetMenuHost() == nullptr)
     {
-        return false;
+        return !items.empty();
     }
 
     m_menuCommands.clear();
@@ -727,7 +736,10 @@ void DebuggerWindow::ShowEditMenu (IDxuiControl * control, POINT clientPx, std::
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
-    DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
+    if (GetMenuHost() != nullptr)
+    {
+        DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
+    }
 }
 
 

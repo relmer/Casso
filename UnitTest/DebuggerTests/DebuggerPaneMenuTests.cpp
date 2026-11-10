@@ -90,6 +90,8 @@ namespace DebuggerPaneMenuTests
         using DebuggerWindow::GetSourceGroup;
         using DebuggerWindow::AddGoToDefinition;
         using DebuggerWindow::OnMouse;
+        using DebuggerWindow::GetFocused;
+        using DebuggerWindow::FindPaneForTest;
 
         std::vector<std::wstring>  dockMenus;
     };
@@ -240,6 +242,35 @@ namespace DebuggerPaneMenuTests
             RightClick (window, middle);
             Assert::AreEqual ((size_t) 1, window.dockMenus.size(), L"the edge tab's Dock to menu");
             Assert::AreEqual (std::wstring (DebuggerLayout::kCode), window.dockMenus.back());
+        }
+
+        //  A right-click on a row of a pane without the focus selects that
+        //  row and moves the focus to the list, so the row the menu acts on is
+        //  drawn selected.
+        TEST_METHOD (ARightClickOnARowSelectsItAndFocusesItsList)
+        {
+            CassoTheme                              theme    = CassoTheme::MakeSkeuomorphic();
+            MenuHost                                host;
+            MenuWindow                              window   (theme, host);
+            std::shared_ptr<DebuggerViewSnapshot>   snapshot = MakeSnapshot();
+            DxuiListView                          * list     = nullptr;
+            RECT                                    rows     = {};
+            int                                     rowH     = 0;
+
+
+
+            snapshot->registers = { { "A", "00" }, { "X", "05" }, { "Y", "0A" } };
+            window.TakeSnapshot (snapshot);
+
+            list = window.FindPaneForTest (DebuggerLayout::kRegisters)->GetLists()[0];
+            Assert::IsTrue (window.GetFocused() != list, L"the Registers list doesn't have the focus");
+
+            rows = list->GetBounds();
+            rowH = list->GetRowHeightDip();
+            RightClick (window, POINT { rows.left + 20, rows.top + list->GetHeaderHeightPx() + rowH + rowH / 2 });
+
+            Assert::IsTrue (list->IsRowSelected (1),   L"the row clicked is selected");
+            Assert::IsTrue (window.GetFocused() == list, L"and its list has the focus");
         }
     };
 
