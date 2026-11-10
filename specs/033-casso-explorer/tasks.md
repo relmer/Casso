@@ -1733,14 +1733,14 @@ Session 2026-11-08. Plan's Phase 32, research R35, contract `contracts/file-type
 - [X] T513 [P] [US18] `IigsAnimation`: decode the first frame of a $C2/$0000 animation file to BGRA, with the frame count in `notes` (FR-166)
 - [X] T514 [P] [US18] `ShapeTable`: draw each shape of an Applesoft shape table at scale 1 and rotation 0, eight to a row with its number under it, clipped to its cell, and an empty shape as a blank cell (FR-172)
 - [X] T515 [P] [US18] `FontrixFont`: decode a Fontrix font onto a `GlyphSheet` (FR-167)
-- [ ] T516 [US18] Offer a record length in a random-access text file's preview that replaces the one found, applied to the preview and to a copy out of that file, while its tab is open (FR-160)
-- [ ] T517 [US18] Offer Apple text, Mac OS Roman and ISO 8859-1 as the character set of a text preview and a text copy out, with Mac OS Roman the default for a IIgs format, while its tab is open, in every text decoder through `DecodeOptions::charset` (FR-173). Tests in `UnitTest/FileTypes/CharsetTests.cpp`
+- [X] T516 [US18] Offer a record length in a random-access text file's preview that replaces the one found, applied to the preview and to a copy out of that file, while its tab is open (FR-160)
+- [X] T517 [US18] Offer Apple text, Mac OS Roman and ISO 8859-1 as the character set of a text preview and a text copy out, with Mac OS Roman the default for a IIgs format, while its tab is open, in every text decoder through `DecodeOptions::charset` (FR-173). Tests in `UnitTest/FileTypes/CharsetTests.cpp`
 
 **Copy out and put**
 
 - [X] T518 [US18] Replace `HostFileNaming::ConvertedKind` with `FileFormat` plus the BASIC and text kinds in `CassoEmuCore/CassoExplorer/Model/HostFileNaming.h/.cpp`, so `Make` and `Parse` cover every suffix in the contract, and add the rows to `contracts/host-file-names.md`. Tests in `UnitTest/CassoExplorer/HostFileNamingTests.cpp`
 - [X] T519 [US18] Write each format's conversion on a drag or Get out, by `FileFormatTable::Export`, in `CassoEmuCore/CassoExplorer/CassoExplorerActions.cpp`, with a file that fails to decode skipped and its reason reported while the rest complete (FR-168, FR-169). Tests in `UnitTest/CassoExplorer/CassoExplorerActionsTests.cpp`
-- [ ] T520 [US18] Offer the conversion and a raw copy on the right-drag menu and in the Get dialog, with a raw copy's name following FR-017 and FR-017a (FR-168)
+- [X] T520 [US18] Offer the conversion and a raw copy on the right-drag menu and in the Get dialog, with a raw copy's name following FR-017 and FR-017a (FR-168)
 - [X] T521 [US18] Put a host file with an import row's suffix as that format with no dialog, the suffix stripped from the catalog name, and add the import rows the destination has to the put dialog's type choice: Pascal text on Pascal volumes and ProDOS, Merlin source on ProDOS and DOS 3.3 (FR-161, FR-162)
 - [ ] T522 [US18] Apply the same conversions in `DiskCommandRunner`'s get and put in `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp` (FR-170). Tests in `UnitTest/EmuTests/DiskCommandRunnerTests.cpp`
 

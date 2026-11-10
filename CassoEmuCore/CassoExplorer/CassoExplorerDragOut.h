@@ -58,7 +58,7 @@ public:
     //  nothing to drag. `log`, when given, is set with which files the drop read
     //  whole, so a move deletes only originals the target got intact.
     static std::vector<DxuiDragDropSource::Format>  BuildFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style,
-                                                                  std::shared_ptr<RenderLog> log = nullptr);
+                                                                  std::shared_ptr<RenderLog> log = nullptr, bool raw = false);
 
     //  The same formats on the clipboard, for a paste into Explorer. A drag
     //  reads each file when the target asks, while it still holds the
@@ -71,7 +71,7 @@ public:
     //  source's to delete. It is called during the target's call to the
     //  clipboard's object, so it should only schedule the deletion.
     static HRESULT  CopyToClipboard (CassoExplorerBrowser & browser, HostFileNaming::Style style, std::wstring & outFailure,
-                                     bool cut = false, std::function<void()> onMovePasted = nullptr);
+                                     bool cut = false, std::function<void()> onMovePasted = nullptr, bool raw = false);
 
     //  Why CopyToClipboard failed, as the end of a sentence: the clipboard
     //  in use, the Apple gone while its files were read, or the system's

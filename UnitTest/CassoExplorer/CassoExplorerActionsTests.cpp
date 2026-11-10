@@ -732,6 +732,36 @@ public:
     }
 
 
+    //  A raw Get writes the file's bytes under its raw name.
+    TEST_METHOD (Get_OfARawCopy_HasNoConversion)
+    {
+        Host  host;
+
+        host.SeedBytes (Bytes ("START LDA #$00 ;zero\n RTS\n"), L"C:\\In\\DEMO.S.Merlin.txt");
+        host.OpenImage();
+
+        Assert::IsTrue (host.actions.PutFiles ({ L"C:\\In\\DEMO.S.Merlin.txt" }).Succeeded());
+        host.browser.SetSelectedRows ({ host.Find (L"T.DEMO") });
+
+        std::vector<FileEntry>  entries;
+
+        host.browser.GetSelectedEntries (entries);
+
+        bool                           converted = true;
+        std::wstring                   name      = DragPayload::GetHostName (entries[0], VolumeKind::Dos33, HostFileNaming::Style::Descriptive, converted, FileFormat::Merlin, true);
+        CassoExplorerActions::Outcome  outcome   = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive, nullptr, true);
+        std::string                    path      = "C:\\Out\\" + TextEncoding::WideToNarrow (name);
+
+        Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
+        Assert::AreEqual (1, outcome.written);
+        Assert::IsFalse  (host.fs.Exists (L"C:\\Out\\T.DEMO.Merlin.txt"));
+        Assert::IsFalse  (converted);
+        Assert::IsTrue   (name.find (L"Merlin") == std::wstring::npos);
+        Assert::AreEqual ((size_t) 1, host.io.files.count (path), TextEncoding::NarrowToWide (path).c_str());
+        Assert::IsTrue   (std::find (host.io.files[path].begin(), host.io.files[path].end(), (Byte) 0x8D) != host.io.files[path].end(), L"the volume's carriage returns");
+    }
+
+
     //  The AppleSingle style is a raw copy: the file's bytes, wrapped.
     TEST_METHOD (Get_InTheAppleSingleStyle_HasNoConversion)
     {

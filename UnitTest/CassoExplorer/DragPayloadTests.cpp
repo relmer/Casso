@@ -82,6 +82,33 @@ public:
     }
 
 
+    //  A raw copy has no conversion: the finder isn't called, and a BASIC
+    //  program has its raw name.
+    TEST_METHOD (CatalogEntries_OfARawCopy_HaveNoConversion)
+    {
+        std::vector<FileEntry>     entries   = { MakeEntry ("HELLO", ProDosVolume::kTypeBasic),
+                                                 MakeEntry ("DEMO.S", ProDosVolume::kTypeText) };
+        int                        calls     = 0;
+        DragPayload::FormatFinder  finder    = [&calls] (const std::string &, const FileEntry &)
+        {
+            calls++;
+
+            return FileFormat::Merlin;
+        };
+        DragPayload::Plan          plan      = DragPayload::Build (Source::CatalogEntries, "C:\\a.po", VolumeKind::ProDos,
+                                                                   entries, Style::Descriptive, nullptr, {}, "", finder, true);
+        bool                       converted = true;
+
+        Assert::AreEqual (0, calls);
+        Assert::IsFalse  (plan.descriptors[0].converted);
+        Assert::IsFalse  (plan.descriptors[1].converted);
+        Assert::IsTrue   (plan.descriptors[1].format == FileFormat::None);
+        Assert::AreEqual (HostFileNaming::ForRaw ("HELLO", VolumeKind::ProDos, ProDosVolume::kTypeBasic, false, 0, Style::Descriptive), plan.descriptors[0].relativePath);
+        Assert::AreEqual (plan.descriptors[1].relativePath, DragPayload::GetHostName (entries[1], VolumeKind::ProDos, Style::Descriptive, converted, FileFormat::Merlin, true));
+        Assert::IsTrue   (plan.descriptors[1].relativePath.find (L"Merlin") == std::wstring::npos);
+    }
+
+
     TEST_METHOD (CatalogEntries_OfferThePrivateFormatAndDescriptors_NotHDrop)
     {
         std::vector<FileEntry>  entries = { MakeEntry ("HELLO", ProDosVolume::kTypeBasic),

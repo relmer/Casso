@@ -76,7 +76,8 @@ public:
 
     //  Catalog entries are in catalogFolder, the directory inside the image
     //  they are listed in, empty for the volume's top; each descriptor and the
-    //  private format address an entry by its path from the top.
+    //  private format address an entry by its path from the top. A raw copy
+    //  has every file's bytes as they are on the volume, under its raw name.
     static Plan  Build (SourceKind                        source,
                         const std::string               & sourceImage,
                         VolumeKind                        kind,
@@ -85,7 +86,8 @@ public:
                         const DirectoryLister           & listDirectory,
                         const std::vector<std::wstring> & hostPaths,
                         const std::string               & catalogFolder = std::string(),
-                        const FormatFinder              & findFormat    = FormatFinder());
+                        const FormatFinder              & findFormat    = FormatFinder(),
+                        bool                              raw           = false);
 
     //  The private format's bytes: the image path, the file system, and one
     //  catalog path per line. Text, so a receiver in another process reads
@@ -113,9 +115,9 @@ public:
     static AppleSingleFile  MakeAppleSingle (const FileEntry & entry, VolumeKind kind);
 
     //  A file in a format gets that format's conversion name, except in the
-    //  AppleSingle style.
+    //  AppleSingle style. A raw copy's name is the raw name for every type.
     static std::wstring  GetHostName (const FileEntry & entry, VolumeKind kind, HostFileNaming::Style style, bool & outConverted,
-                                      FileFormat format = FileFormat::None);
+                                      FileFormat format = FileFormat::None, bool raw = false);
 
     static constexpr const char *  kPrivateFormatName = "CassoExplorerCatalogEntries";
 
@@ -127,6 +129,7 @@ private:
                               const std::string            & catalogFolder,
                               const DirectoryLister        & listDirectory,
                               const FormatFinder           & findFormat,
+                              bool                           raw,
                               int                            depth,
                               std::vector<Descriptor>      & inOutDescriptors);
 

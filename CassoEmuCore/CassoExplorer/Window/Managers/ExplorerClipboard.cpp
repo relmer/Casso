@@ -69,10 +69,10 @@ std::wstring ExplorerClipboard::GetPasteFolder() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerClipboard::CopyEntriesToClipboard (HostFileNaming::Style style)
+void ExplorerClipboard::CopyEntriesToClipboard (HostFileNaming::Style style, bool raw)
 {
     std::wstring  failure;
-    HRESULT       hr      = CassoExplorerDragOut::CopyToClipboard (m_context.browser, style, failure);
+    HRESULT       hr      = CassoExplorerDragOut::CopyToClipboard (m_context.browser, style, failure, false, nullptr, raw);
 
 
 

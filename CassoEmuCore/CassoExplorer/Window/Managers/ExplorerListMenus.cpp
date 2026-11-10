@@ -1882,7 +1882,8 @@ void ExplorerListMenus::AddViewMenus (std::vector<DxuiPopupMenuItem> & items)
 //
 //  The button row's Copy puts the selected files on the clipboard as real
 //  files, in the style the Options dialog sets, and Copy as offers each style
-//  for this copy alone. A paste into Explorer then writes them.
+//  for this copy alone. A paste into Explorer then writes them. Raw bytes is
+//  a copy with no conversion, in the Options dialog's style.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1896,6 +1897,7 @@ void ExplorerListMenus::AddCopyAsMenu (std::vector<DxuiPopupMenuItem> & items)
     };
     std::vector<DxuiPopupMenuItem>  choices;
     std::shared_ptr<DxuiCommand>    parent = std::make_shared<DxuiCommand>();
+    std::shared_ptr<DxuiCommand>    raw    = std::make_shared<DxuiCommand>();
 
 
 
@@ -1910,6 +1912,13 @@ void ExplorerListMenus::AddCopyAsMenu (std::vector<DxuiPopupMenuItem> & items)
         choices.push_back (DxuiPopupMenuItem::ForCommand (child));
         m_context.menus.GetMenuCommands().push_back (std::move (child));
     }
+
+    raw->label    = L"&Raw bytes";
+    raw->dispatch = [this]() { m_context.clipboard.CopyEntriesToClipboard (m_context.commandManager.GetNamingStyle(), true); };
+
+    choices.push_back (DxuiPopupMenuItem::ForSeparator());
+    choices.push_back (DxuiPopupMenuItem::ForCommand (raw));
+    m_context.menus.GetMenuCommands().push_back (std::move (raw));
 
     parent->label = L"Cop&y as";
     parent->menuGlyph = s_kpszMdl2Copy;

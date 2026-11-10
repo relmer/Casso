@@ -156,11 +156,11 @@ DiskOperations::Encoding CassoExplorerDragOut::GetEncoding (const DragPayload::D
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoExplorerDragOut::CopyToClipboard (CassoExplorerBrowser & browser, HostFileNaming::Style style, std::wstring & outFailure,
-                                               bool cut, std::function<void()> onMovePasted)
+                                               bool cut, std::function<void()> onMovePasted, bool raw)
 {
     HRESULT                                  hr      = S_OK;
     std::shared_ptr<RenderLog>               log     = std::make_shared<RenderLog>();
-    std::vector<DxuiDragDropSource::Format>  formats = BuildFormats (browser, style, log);
+    std::vector<DxuiDragDropSource::Format>  formats = BuildFormats (browser, style, log, raw);
     std::vector<DxuiDragDropSource::Format>  held;
     DxuiDragDropSource                     * source  = nullptr;
     bool                                     empty   = formats.empty();
@@ -758,7 +758,7 @@ HRESULT CassoExplorerDragOut::GetDropError (HRESULT hr)
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style,
-                                                                       std::shared_ptr<RenderLog> log)
+                                                                       std::shared_ptr<RenderLog> log, bool raw)
 {
     std::vector<DxuiDragDropSource::Format>                  formats;
     std::vector<FileEntry>                                   entries;
@@ -803,7 +803,8 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                                    [&browser, image, kind = browser.GetVolumeKind()] (const std::string & catalogPath, const FileEntry & entry)
                                    {
                                        return CopyOutConversion::Find (browser.GetOperations(), image, catalogPath, entry, kind);
-                                   });
+                                   },
+                                   raw);
 
         for (const DragPayload::Descriptor & descriptor : plan.descriptors)
         {
@@ -907,7 +908,8 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                                        [&browser, from, kind = matches[first].kind] (const std::string & catalogPath, const FileEntry & entry)
                                        {
                                            return CopyOutConversion::Find (browser.GetOperations(), from, catalogPath, entry, kind);
-                                       });
+                                       },
+                                       raw);
 
             for (DragPayload::Descriptor & descriptor : plan.descriptors)
             {

@@ -1249,12 +1249,14 @@ void CassoExplorerActions::FinishWrite (const std::wstring & imagePath)
 //  CassoExplorerActions::GetSelected
 //
 //  Directories are skipped: a directory copies out through a drag, which
-//  walks it. A file of the same name in the folder is replaced, skipped or
-//  kept beside the copy, by the choice `collision` returns.
+//  walks it. A file of the same name in the folder is replaced or skipped,
+//  or the copy gets a numbered name, by the choice `collision` returns. A
+//  raw copy has each file's bytes as they are on the volume, under its raw
+//  name.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & hostFolder, HostFileNaming::Style style, const CollisionFn & collision)
+ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & hostFolder, HostFileNaming::Style style, const CollisionFn & collision, bool raw)
 {
     Outcome                    outcome;
     std::vector<FileEntry>     entries;
@@ -1278,9 +1280,9 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
 
     for (const FileEntry & entry : entries)
     {
-        formats.push_back (style == HostFileNaming::Style::AppleSingle ? FileFormat::None
-                                                                       : CopyOutConversion::Find (m_browser.GetOperations(), image, m_browser.GetEntryPath (entry), entry, kind));
-        hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, kind, style, converted, formats.back()));
+        formats.push_back ((raw || style == HostFileNaming::Style::AppleSingle) ? FileFormat::None
+                                                                                : CopyOutConversion::Find (m_browser.GetOperations(), image, m_browser.GetEntryPath (entry), entry, kind));
+        hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, kind, style, converted, formats.back(), raw));
     }
 
     count = m_copier.CountCollisions (hostFolder, hostNames);
@@ -1310,7 +1312,7 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
         }
 
         Append (outcome, CopyOutConversion::GetToFile (m_browser.GetOperations(), m_fs, m_browser.GetDecodeOptions (m_browser.GetLocation().path, m_browser.GetEntryPath (entry)),
-                                                       image, m_browser.GetEntryPath (entry), entry, kind, formats[at], GetEncoding (entry, kind), hostPath));
+                                                       image, m_browser.GetEntryPath (entry), entry, kind, formats[at], raw ? Encoding::Verbatim : GetEncoding (entry, kind), hostPath));
     }
 
     return outcome;
