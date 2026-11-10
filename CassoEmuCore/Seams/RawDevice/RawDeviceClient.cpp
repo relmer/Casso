@@ -152,7 +152,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT RawDeviceConnection::Initialize (int number)
+HRESULT RawDeviceConnection::Initialize (int number, uint64_t layout)
 {
     HRESULT        hr     = S_OK;
     PhysicalDrive  drive;
@@ -168,7 +168,7 @@ HRESULT RawDeviceConnection::Initialize (int number)
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
 
-        hr = SendHeader (RawDeviceProtocol::kInitialize, number, 0, 0, {});
+        hr = SendHeader (RawDeviceProtocol::kInitialize, number, layout, 0, {});
         CHR (hr);
 
         hr = ReadResult (RawDeviceProtocol::kInitializeTimeoutMs);

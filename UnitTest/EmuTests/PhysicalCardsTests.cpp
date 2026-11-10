@@ -63,7 +63,7 @@ struct FakeCardHost : public IPhysicalCardHost
         return S_OK;
     }
 
-    HRESULT InitializeDrive (int number, HWND) override
+    HRESULT InitializeDrive (int number, HWND, uint64_t) override
     {
         initialized.push_back (number);
         return S_OK;
@@ -239,11 +239,11 @@ public:
         FakeCardHost   host;
         PhysicalCards  cards (host);
 
-        Assert::AreEqual (E_ACCESSDENIED, cards.Initialize (0, nullptr));
+        Assert::AreEqual (E_ACCESSDENIED, cards.Initialize (0, nullptr, 4));
         Assert::IsTrue (host.initialized.empty());
 
         AssertSucceeded (cards.Open (2, nullptr));
-        AssertSucceeded (cards.Initialize (2, nullptr));
+        AssertSucceeded (cards.Initialize (2, nullptr, 4));
 
         Assert::IsFalse (cards.IsOpen (2));
         Assert::AreEqual ((size_t) 1, host.initialized.size());

@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 struct ExplorerContext;
+struct InitializeCardChoice;
 
 
 
@@ -32,10 +33,12 @@ public:
 
     void  SetCardWriteConfirmed (bool confirmed);
 
-    //  A storage card erased and given CFFA's layout, after a confirmation
-    //  that lists the card and each volume erased.
+    //  A storage card erased and given the layout the user picks, after a
+    //  confirmation that lists the card and each volume erased.
     void  InitializeCard        (const std::wstring & cardPath);
 
 private:
+    static void  BuildInitializeChoices (uint64_t bytes, int maxVolumes, std::vector<InitializeCardChoice> & outChoices);
+
     ExplorerContext  & m_context;
 };

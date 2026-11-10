@@ -284,7 +284,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT PhysicalCards::Initialize (int number, HWND owner)
+HRESULT PhysicalCards::Initialize (int number, HWND owner, uint64_t layout)
 {
     HRESULT                     hr        = S_OK;
     bool                        removable = false;
@@ -304,7 +304,7 @@ HRESULT PhysicalCards::Initialize (int number, HWND owner)
 
     Close (number);
 
-    hr = m_host.InitializeDrive (number, owner);
+    hr = m_host.InitializeDrive (number, owner, layout);
     CHR (hr);
 
 Error:
@@ -652,7 +652,7 @@ HRESULT PhysicalCards::ListSession (Session & session)
 
     BAIL_OUT_IF (session.listed, S_OK);
 
-    hr = PartitionAccess::ListStore (*session.cache, session.kind, session.entries);
+    hr = PartitionAccess::ListCard (*session.cache, session.kind, session.entries);
     CHR (hr);
 
     session.listed = true;

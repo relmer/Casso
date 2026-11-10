@@ -34,8 +34,10 @@ public:
     static constexpr Byte      kWrite       = 3;
     static constexpr Byte      kClose       = 4;
 
-    //  The drive erased and given a new Apple layout, which the broker builds.
+    //  The drive erased and given a new layout, which the broker builds: the
+    //  header's block number is a count of CFFA volumes, or kLayoutFat32.
     static constexpr Byte      kInitialize  = 5;
+    static constexpr uint64_t  kLayoutFat32 = 1000;
 
     static constexpr size_t    kHeaderBytes = 17;
 

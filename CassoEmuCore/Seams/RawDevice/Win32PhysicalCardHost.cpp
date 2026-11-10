@@ -220,7 +220,7 @@ HRESULT Win32PhysicalCardHost::ListVolumes (int number, std::vector<WindowsVolum
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32PhysicalCardHost::InitializeDrive (int number, HWND owner)
+HRESULT Win32PhysicalCardHost::InitializeDrive (int number, HWND owner, uint64_t layout)
 {
     HRESULT  hr = S_OK;
 
@@ -229,7 +229,7 @@ HRESULT Win32PhysicalCardHost::InitializeDrive (int number, HWND owner)
     hr = StartBroker (owner);
     CHR (hr);
 
-    hr = m_broker->GetConnection().Initialize (number);
+    hr = m_broker->GetConnection().Initialize (number, layout);
     CHR (hr);
 
 Error:

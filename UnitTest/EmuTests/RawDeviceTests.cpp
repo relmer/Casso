@@ -8,6 +8,8 @@
 #include "Seams/RawDevice/RawDeviceClient.h"
 #include "Seams/RawDevice/RawDeviceProtocol.h"
 #include "Seams/RawDevice/RawDeviceServer.h"
+#include "Seams/RawDevice/Fat32Format.h"
+#include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Seams/RawDevice/Win32StorageCardBroker.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -769,7 +771,7 @@ public:
         session.drives.drives[kCard].bytes.assign ((size_t) blocks * kBlock, 0xA5);
         session.Start();
 
-        AssertSucceeded (session.connection->Initialize (kCard));
+        AssertSucceeded (session.connection->Initialize (kCard, 4));
 
         {
             MemoryBlockStore  store (session.drives.drives[kCard].bytes);
@@ -800,7 +802,7 @@ public:
         session.drives.drives[kCard].lockFails = true;
         session.Start();
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED), session.connection->Initialize (kCard));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED), session.connection->Initialize (kCard, 2));
 
         session.Finish();
 
@@ -817,7 +819,7 @@ public:
         session.drives.drives[kCard].removable = false;
         session.Start();
 
-        Assert::AreEqual (E_ACCESSDENIED, session.connection->Initialize (kCard));
+        Assert::AreEqual (E_ACCESSDENIED, session.connection->Initialize (kCard, 4));
 
         session.Finish();
 
@@ -826,14 +828,14 @@ public:
     }
 
 
-    TEST_METHOD (Initialize_FailsForACardOfOneSliceOrLess)
+    TEST_METHOD (Initialize_FailsForACardTooSmallForAVolume)
     {
         Session  session;
 
-        session.drives.drives[kCard].bytes.assign ((size_t) RawDeviceServer::kSliceBlocks * kBlock, 0xA5);
+        session.drives.drives[kCard].bytes.assign ((size_t) 100 * kBlock, 0xA5);
         session.Start();
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), session.connection->Initialize (kCard));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), session.connection->Initialize (kCard, 4));
 
         session.Finish();
 
@@ -841,9 +843,128 @@ public:
     }
 
 
+    TEST_METHOD (Initialize_GivesA32MbCardOneVolumeThatCanBeWritten)
+    {
+        Session                      session;
+        PhysicalDrive                drive;
+        PartitionLayoutKind          kind = PartitionLayoutKind::None;
+        std::vector<PartitionEntry>  entries;
+
+        session.drives.drives[kCard].bytes.assign ((size_t) RawDeviceServer::kSliceBlocks * kBlock, 0xA5);
+        session.Start();
+
+        AssertSucceeded (session.connection->Initialize (kCard, 1));
+
+        {
+            MemoryBlockStore  store (session.drives.drives[kCard].bytes);
+
+            AssertSucceeded (PartitionAccess::ListCard (store, kind, entries));
+        }
+
+        Assert::IsTrue (kind == PartitionLayoutKind::Cffa);
+        Assert::AreEqual ((size_t) 1, entries.size());
+        Assert::IsTrue (entries[0].partition.volumeKind == VolumeKind::ProDos);
+
+        RawDeviceClient  client (*session.connection);
+
+        AssertSucceeded (client.Connect (kCard, drive));
+        AssertSucceeded (client.WriteBlocks (100, MakeBlocks (1, 0x11)));
+        AssertSucceeded (client.Commit());
+    }
+
+
+    TEST_METHOD (Initialize_WithFewerVolumesClearsTheLaterSlices)
+    {
+        Session                 session;
+        PartitionLayoutKind     kind   = PartitionLayoutKind::None;
+        std::vector<Partition>  found;
+
+        session.drives.drives[kCard].bytes.assign ((size_t) (RawDeviceServer::kSliceBlocks * 3 + 500) * kBlock, 0xA5);
+        session.Start();
+
+        AssertSucceeded (session.connection->Initialize (kCard, 4));
+        AssertSucceeded (session.connection->Initialize (kCard, 1));
+
+        {
+            MemoryBlockStore  store (session.drives.drives[kCard].bytes);
+
+            AssertSucceeded (PartitionLayout::Detect (store, kind, found));
+        }
+
+        Assert::IsTrue (kind == PartitionLayoutKind::Cffa);
+        Assert::IsTrue (found[0].volumeKind == VolumeKind::ProDos);
+
+        for (size_t at = 1; at < found.size(); at++)
+        {
+            Assert::IsTrue (found[at].volumeKind == VolumeKind::Unknown);
+        }
+    }
+
+
+    TEST_METHOD (Initialize_FailsForALayoutThatDoesNotFit)
+    {
+        Session  session;
+
+        session.drives.drives[kCard].bytes.assign ((size_t) (RawDeviceServer::kSliceBlocks * 2) * kBlock, 0xA5);
+        session.Start();
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), session.connection->Initialize (kCard, 5));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), session.connection->Initialize (kCard, 0));
+
+        session.Finish();
+
+        Assert::AreEqual (0, session.drives.drives[kCard].writes);
+        Assert::AreEqual (0, session.drives.drives[kCard].locks);
+    }
+
+
+    TEST_METHOD (Initialize_Fat32WritesAnMbrAndAFat32Volume)
+    {
+        Session    session;
+        uint64_t   blocks  = 163840;
+        uint32_t   sectors = (uint32_t) blocks - Fat32Format::kPartitionStart;
+        uint32_t   fat     = Fat32Format::GetFatSectors (sectors, Fat32Format::GetSectorsPerCluster (sectors));
+        size_t     boot    = (size_t) Fat32Format::kPartitionStart * kBlock;
+        size_t     table   = boot + (size_t) Fat32Format::kReservedSectors * kBlock;
+
+        session.drives.drives[kCard].bytes.assign ((size_t) blocks * kBlock, 0xA5);
+        session.Start();
+
+        AssertSucceeded (session.connection->Initialize (kCard, RawDeviceProtocol::kLayoutFat32));
+
+        session.Finish();
+
+        const std::vector<Byte> & bytes = session.drives.drives[kCard].bytes;
+
+        Assert::AreEqual ((Byte) 0x0C, bytes[446 + 4]);
+        Assert::AreEqual (Fat32Format::kPartitionStart, RawDeviceProtocol::GetLong (&bytes[446 + 8]));
+        Assert::AreEqual (sectors, RawDeviceProtocol::GetLong (&bytes[446 + 12]));
+        Assert::AreEqual ((Byte) 0xAA, bytes[511]);
+
+        Assert::AreEqual (std::string ("FAT32   "), std::string ((const char *) &bytes[boot + 82], 8));
+        Assert::AreEqual (fat, RawDeviceProtocol::GetLong (&bytes[boot + 36]));
+        Assert::AreEqual (2u, RawDeviceProtocol::GetLong (&bytes[boot + 44]));
+        Assert::IsTrue (std::equal (bytes.begin() + (ptrdiff_t) boot, bytes.begin() + (ptrdiff_t) (boot + kBlock), bytes.begin() + (ptrdiff_t) (boot + 6 * kBlock)), L"the backup boot sector matches");
+        Assert::AreEqual (0x41615252u, RawDeviceProtocol::GetLong (&bytes[boot + kBlock]));
+
+        Assert::AreEqual (0x0FFFFFF8u, RawDeviceProtocol::GetLong (&bytes[table]));
+        Assert::AreEqual (0x0FFFFFFFu, RawDeviceProtocol::GetLong (&bytes[table + 8]));
+        Assert::AreEqual (0x0FFFFFF8u, RawDeviceProtocol::GetLong (&bytes[table + (size_t) fat * kBlock]), L"the second FAT");
+    }
+
+
+    TEST_METHOD (Fat32_CanFormatNeedsEnoughClusters)
+    {
+        Assert::IsFalse (Fat32Format::CanFormat (RawDeviceServer::kSliceBlocks));
+        Assert::IsTrue  (Fat32Format::CanFormat (163840));
+        Assert::IsTrue  (Fat32Format::CanFormat (64ull * 1024 * 1024 * 2));
+    }
+
+
     TEST_METHOD (CountInitialVolumes_StopsAtThirteenAndAtTheEndOfTheCard)
     {
-        Assert::AreEqual (0,  RawDeviceServer::CountInitialVolumes (RawDeviceServer::kSliceBlocks));
+        Assert::AreEqual (0,  RawDeviceServer::CountInitialVolumes (100));
+        Assert::AreEqual (1,  RawDeviceServer::CountInitialVolumes (RawDeviceServer::kSliceBlocks));
         Assert::AreEqual (2,  RawDeviceServer::CountInitialVolumes (RawDeviceServer::kSliceBlocks + 500));
         Assert::AreEqual (4,  RawDeviceServer::CountInitialVolumes (RawDeviceServer::kSliceBlocks * 3 + 500));
         Assert::AreEqual (13, RawDeviceServer::CountInitialVolumes (64ull * 1024 * 1024 * 2));

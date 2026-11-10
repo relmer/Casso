@@ -35,9 +35,10 @@ public:
     HRESULT  Read   (int number, uint64_t first, uint32_t count, std::span<Byte> outBytes);
     HRESULT  Write  (int number, uint64_t first, uint32_t count, std::span<const Byte> blocks);
 
-    //  The card erased and given CFFA's layout by the broker. The card is
-    //  opened for it and closed after.
-    HRESULT  Initialize (int number);
+    //  The card erased and given a layout by the broker: `layout` is a count
+    //  of CFFA volumes, or RawDeviceProtocol::kLayoutFat32. The card is opened
+    //  for it and closed after.
+    HRESULT  Initialize (int number, uint64_t layout);
 
 private:
     HRESULT  SendHeader (Byte operation, int number, uint64_t first, uint32_t count, std::span<const Byte> blocks);

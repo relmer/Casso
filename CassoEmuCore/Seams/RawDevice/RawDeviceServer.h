@@ -39,6 +39,12 @@ public:
     static constexpr uint32_t  kGptBlocks       = 34;
     static constexpr uint32_t  kMinVolumeBlocks = 280;
 
+    //  The 1 GB volumes of the CFFA 1.x GS/OS driver, after the first four
+    //  slices, and the blocks cleared at each place a volume could be.
+    static constexpr uint64_t  kLargeVolumeBlocks = 2097152;
+    static constexpr uint64_t  kLargeVolumes      = 2;
+    static constexpr uint32_t  kHeaderBlocks      = 4;
+
     using DeviceMaker = std::function<std::unique_ptr<IRawDevice> ()>;
 
     //  The volumes an initialize writes on a drive of `blocks`: 0 for a drive
@@ -66,8 +72,9 @@ private:
     HRESULT  ServeClose      (int number);
     HRESULT  ServeRead       (int number, uint64_t first, uint32_t count);
     HRESULT  ServeWrite      (int number, uint64_t first, uint32_t count);
-    HRESULT  ServeInitialize (int number);
-    HRESULT  WriteCffaLayout (Session & session);
+    HRESULT  ServeInitialize (int number, uint64_t layout);
+    HRESULT  WriteCffaLayout (Session & session, int volumes);
+    HRESULT  ClearHeader     (Session & session, uint64_t at, uint64_t written, uint64_t total, std::span<const Byte> header);
     HRESULT  CheckRange      (int number, uint64_t first, uint32_t count, Session * & outSession);
     HRESULT  CheckWrite      (Session & session, uint64_t first, uint32_t count);
     HRESULT  Reply           (HRESULT result, std::span<const Byte> payload);

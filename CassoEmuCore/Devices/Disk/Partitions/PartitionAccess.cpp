@@ -115,6 +115,52 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PartitionAccess::ListCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PartitionAccess::ListCard (IBlockStore & store, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries)
+{
+    HRESULT                 hr         = S_OK;
+    uint32_t                blocks     = store.GetBlockCount();
+    bool                    oneVolume  = false;
+    std::vector<Partition>  partitions;
+    PartitionEntry          entry;
+
+
+
+    hr = ListStore (store, outKind, outEntries);
+    CHR (hr);
+
+    BAIL_OUT_IF (outKind != PartitionLayoutKind::None || blocks == 0 || blocks > kCffaSliceBlocks, S_OK);
+
+    hr = PartitionLayout::AppendBlockPartition (store, PartitionLayoutKind::Cffa, 0, blocks, "", partitions);
+    CHR (hr);
+
+    oneVolume = partitions.back().volumeKind == VolumeKind::ProDos || partitions.back().isHfs;
+    BAIL_OUT_IF (!oneVolume, S_OK);
+
+    partitions.back().index = 1;
+
+    entry.partition = partitions.back();
+    entry.step      = GetStepName (entry.partition);
+    entry.byteCount = GetByteCount (entry.partition);
+
+    ReadVolumeLabel (store, entry);
+
+    outKind = PartitionLayoutKind::Cffa;
+    outEntries.push_back (std::move (entry));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PartitionAccess::GetStepName
 //
 ////////////////////////////////////////////////////////////////////////////////

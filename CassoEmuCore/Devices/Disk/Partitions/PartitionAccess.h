@@ -68,6 +68,13 @@ public:
     //  The partitions of a store of blocks, such as a card in a reader.
     static HRESULT  ListStore (IBlockStore & store, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries);
 
+    //  The partitions of a storage card. A card of one CFFA slice or less that
+    //  is one ProDOS or HFS volume is a CFFA card of one partition, as the
+    //  CFFA firmware maps it.
+    static HRESULT  ListCard  (IBlockStore & store, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries);
+
+    static constexpr uint32_t  kCffaSliceBlocks = 65536;
+
     //  One partition's bytes, read from and written to a store of blocks.
     //  WriteBytes takes the partition's whole length, and does not commit.
     static HRESULT  ReadBytes  (IBlockStore & store, const Partition & partition, std::vector<Byte> & outBytes);

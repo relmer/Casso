@@ -11,6 +11,9 @@
 #include "Core/TextEncoding.h"
 #include "Seams/IHostDialogs.h"
 #include "Seams/RawDevice/RawDeviceServer.h"
+#include "Seams/RawDevice/Fat32Format.h"
+#include "Seams/RawDevice/RawDeviceProtocol.h"
+#include "CassoExplorer/CassoExplorerInitializeCardDialog.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
@@ -193,16 +196,19 @@ void ExplorerOpen::SetCardWriteConfirmed (bool confirmed)
 
 void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
 {
-    HRESULT                     hr        = S_OK;
-    int                         drive     = 0;
-    int                         partition = 0;
-    PhysicalDrive               found;
-    std::wstring                question;
-    std::vector<PhysicalDrive>  drives;
-    std::vector<WindowsVolume>  volumes;
-    std::vector<PartitionEntry> apple;
-    PartitionLayoutKind         kind      = PartitionLayoutKind::None;
-    int                         count     = 0;
+    HRESULT                            hr        = S_OK;
+    int                                drive     = 0;
+    int                                partition = 0;
+    PhysicalDrive                      found;
+    std::wstring                       question;
+    std::wstring                       contents;
+    uint64_t                           layout    = 0;
+    std::vector<InitializeCardChoice>  choices;
+    std::vector<PhysicalDrive>         drives;
+    std::vector<WindowsVolume>         volumes;
+    std::vector<PartitionEntry>        apple;
+    PartitionLayoutKind                kind      = PartitionLayoutKind::None;
+    int                                count     = 0;
 
 
 
@@ -236,48 +242,43 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    count    = RawDeviceServer::CountInitialVolumes (found.bytes / IRawDevice::kBlockBytes);
-    question = std::format (L"Initialize {} for use with an Apple CFFA adapter?\r\n\r\n", PhysicalCards::FormatDrive (found));
+    count = RawDeviceServer::CountInitialVolumes (found.bytes / IRawDevice::kBlockBytes);
 
-    if (count == 0)
+    BuildInitializeChoices (found.bytes, count, choices);
+
+    if (choices.empty())
     {
         m_context.window.ShowMessage (std::format (L"{} is too small for a CFFA adapter.", PhysicalCards::FormatDrive (found)), MB_ICONWARNING);
         return;
     }
 
-    question += std::format (L"Initializing it will create {} empty ProDOS volume{} of 32 MB, in the fixed layout of the CFFA 2.0 and of the CFFA3000's raw CF mode.\r\n\r\n",
-                             count, count == 1 ? L"" : L"s");
-    question += L"This card currently contains these partitions:\r\n";
+    question = std::format (L"Initialize {} for use with an Apple CFFA adapter?", PhysicalCards::FormatDrive (found));
+    contents = L"This card currently contains these partitions:";
 
     for (const WindowsVolume & volume : volumes)
     {
         std::wstring  where = volume.letter.empty() ? std::wstring (L"No drive letter") : volume.letter;
         std::wstring  label = volume.label.empty() ? std::wstring (L"no label") : volume.label;
 
-        question += std::format (L"\r\n    {} {} ({})", where, label, volume.fileSystem.empty() ? std::wstring (L"no Windows file system") : volume.fileSystem);
+        contents += std::format (L"\r\n    {} {} ({})", where, label, volume.fileSystem.empty() ? std::wstring (L"no Windows file system") : volume.fileSystem);
     }
 
     for (const PartitionEntry & entry : apple)
     {
-        question += L"\r\n    " + TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, true));
+        contents += L"\r\n    " + TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, true));
     }
 
     if (volumes.empty() && apple.empty())
     {
-        question += L"\r\n    None that Windows or Casso recognizes";
+        contents += L"\r\n    None that Windows or Casso recognizes";
     }
 
-    question += L"\r\n\r\n**ALL DATA ON THIS CARD WILL BE ERASED AND CANNOT BE RECOVERED**";
-
-    //  Cancel is the default, so Enter and Escape cancel: the erase runs only
-    //  from its button, clicked or focused with Tab.
-    if (DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, question.c_str(), L"Initialize card for Apple",
-                        MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Erase and initialize", L"Cancel" }, 0) != IDOK)
+    if (!CassoExplorerInitializeCardDialog::Confirm (m_context.window.GetHwnd(), m_context.theme, question, choices, 0, contents, layout))
     {
         return;
     }
 
-    hr = m_context.app.cards->Initialize (drive, m_context.window.GetHwnd());
+    hr = m_context.app.cards->Initialize (drive, m_context.window.GetHwnd(), layout);
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
     {
@@ -292,4 +293,58 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
 
     m_context.browser.NavigateToLocation (Location::MakeDiskImage (cardPath));
     m_context.listPane.FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::BuildInitializeChoices
+//
+//  The CFFA counts worth choosing between, most first, then FAT32 for the
+//  CFFA3000's disk image files when the card is large enough for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerOpen::BuildInitializeChoices (uint64_t bytes, int maxVolumes, std::vector<InitializeCardChoice> & outChoices)
+{
+    std::vector<int>  counts;
+
+
+
+    outChoices.clear();
+
+    for (int count : { maxVolumes, 8, 4, 1 })
+    {
+        if (count >= 1 && count <= maxVolumes && std::find (counts.begin(), counts.end(), count) == counts.end())
+        {
+            counts.push_back (count);
+        }
+    }
+
+    for (int count : counts)
+    {
+        InitializeCardChoice  choice;
+
+        choice.layout = (uint64_t) count;
+        choice.label  = count == 1 && bytes <= 32ull * 1024 * 1024 ? std::wstring (L"CFFA: one ProDOS volume of the whole card")
+                                                                   : std::format (L"CFFA: {} ProDOS volume{} of 32 MB", count, count == 1 ? L"" : L"s");
+
+        choice.description = count == RawDeviceServer::kInitialVolumes ? L"The most a CFFA 2.0 maps. Set its partition count to 13 to use them all."
+                           : count == 4                                ? L"The CFFA 2.0's factory partition count."
+                           : count == maxVolumes                       ? L"As many as fit on the card."
+                                                                       : L"";
+        choice.description += std::wstring (choice.description.empty() ? L"" : L" ") + L"Also read by a CFFA3000 in its raw CF mode.";
+
+        outChoices.push_back (std::move (choice));
+    }
+
+    if (Fat32Format::CanFormat (bytes / IRawDevice::kBlockBytes))
+    {
+        outChoices.push_back (InitializeCardChoice { L"CFFA3000: FAT32 for disk image files",
+                                                     L"Copy .po, .2mg and other disk images onto the card in Windows. A CFFA3000 reads FAT32 with an MBR, which Windows doesn't offer for a card over 32 GB.",
+                                                     RawDeviceProtocol::kLayoutFat32 });
+    }
 }

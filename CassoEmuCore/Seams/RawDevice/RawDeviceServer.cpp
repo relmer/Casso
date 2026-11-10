@@ -5,6 +5,7 @@
 #include "Devices/Disk/IBlockStore.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Seams/RawDevice/Fat32Format.h"
 
 
 
@@ -85,7 +86,7 @@ HRESULT RawDeviceServer::Run()
                 break;
 
             case RawDeviceProtocol::kInitialize:
-                hr = ServeInitialize (number);
+                hr = ServeInitialize (number, first);
                 break;
 
             default:
@@ -132,7 +133,7 @@ void RawDeviceServer::FindApplePartitions (IRawDevice & device, uint64_t blocks,
 
     outExtents.clear();
 
-    hrList = PartitionAccess::ListStore (store, kind, entries);
+    hrList = PartitionAccess::ListCard (store, kind, entries);
 
     if (FAILED (hrList) || kind == PartitionLayoutKind::None)
     {
@@ -336,7 +337,8 @@ Error:
 //
 //  RawDeviceServer::CountInitialVolumes
 //
-//  The same walk WriteCffaLayout makes, without the writes.
+//  The same walk WriteCffaLayout makes, without the writes. A card of one
+//  slice or less is one volume of its whole size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -347,9 +349,14 @@ int RawDeviceServer::CountInitialVolumes (uint64_t blocks)
 
 
 
-    if (blocks <= kSliceBlocks)
+    if (blocks < kMinVolumeBlocks)
     {
         return 0;
+    }
+
+    if (blocks <= kSliceBlocks)
+    {
+        return 1;
     }
 
     while (count < kInitialVolumes && blocks - next >= kGptBlocks + kMinVolumeBlocks)
@@ -370,19 +377,30 @@ int RawDeviceServer::CountInitialVolumes (uint64_t blocks)
 //  RawDeviceServer::ServeInitialize
 //
 //  The volumes on the card are dismounted first, and the card's Apple layout
-//  is found again after the write.
+//  is found again after the write. `layout` is a count of CFFA volumes, or
+//  kLayoutFat32.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT RawDeviceServer::ServeInitialize (int number)
+HRESULT RawDeviceServer::ServeInitialize (int number, uint64_t layout)
 {
     HRESULT    hr      = S_OK;
     HRESULT    result  = S_OK;
     Session  * session = nullptr;
+    uint64_t   blocks  = 0;
+    bool       valid   = false;
 
 
 
     result = CheckRange (number, 0, 0, session);
+
+    if (SUCCEEDED (result))
+    {
+        blocks = session->drive.bytes / IRawDevice::kBlockBytes;
+        valid  = layout == RawDeviceProtocol::kLayoutFat32 ? Fat32Format::CanFormat (blocks)
+                                                            : layout >= 1 && layout <= (uint64_t) CountInitialVolumes (blocks);
+        result = valid ? S_OK : HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
+    }
 
     if (SUCCEEDED (result))
     {
@@ -391,10 +409,11 @@ HRESULT RawDeviceServer::ServeInitialize (int number)
 
     if (SUCCEEDED (result))
     {
-        result = WriteCffaLayout (*session);
+        result = layout == RawDeviceProtocol::kLayoutFat32 ? Fat32Format::Write (*session->device, blocks)
+                                                            : WriteCffaLayout (*session, (int) layout);
         session->device->UnlockVolumes();
 
-        FindApplePartitions (*session->device, session->drive.bytes / IRawDevice::kBlockBytes, session->writable);
+        FindApplePartitions (*session->device, blocks, session->writable);
     }
 
     hr = Reply (result, {});
@@ -413,24 +432,36 @@ Error:
 //  RawDeviceServer::WriteCffaLayout
 //
 //  Each slice is an empty ProDOS volume, CARD1 on, and the block after it is
-//  cleared. The last blocks of the card are cleared too, as a GPT has its
-//  second copy there.
+//  cleared. The first blocks of every later place a CFFA volume could be
+//  are cleared, so no volume of an earlier layout is found there, and so are
+//  the last blocks of the card, as a GPT has its second copy there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT RawDeviceServer::WriteCffaLayout (Session & session)
+HRESULT RawDeviceServer::WriteCffaLayout (Session & session, int volumes)
 {
     HRESULT            hr     = S_OK;
     uint64_t           total  = session.drive.bytes / IRawDevice::kBlockBytes;
-    bool               large  = total > kSliceBlocks;
     uint64_t           next   = 0;
     std::vector<Byte>  zeros ((size_t) kGptBlocks * IRawDevice::kBlockBytes, 0);
+    std::span<Byte>    header (zeros.data(), (size_t) kHeaderBlocks * IRawDevice::kBlockBytes);
 
 
 
-    CBREx (large, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+    if (total <= kSliceBlocks)
+    {
+        std::vector<Byte>  volume ((size_t) std::min<uint64_t> (kVolumeBlocks, total) * IRawDevice::kBlockBytes, 0);
 
-    for (int slice = 0; slice < kInitialVolumes && total - next >= kGptBlocks + kMinVolumeBlocks; slice++)
+        hr = ProDosSkeleton::Write (volume, "CARD1");
+        CHR (hr);
+
+        hr = session.device->WriteBlocks (0, volume);
+        CHR (hr);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    for (int slice = 0; slice < volumes; slice++)
     {
         uint64_t           blocks = std::min<uint64_t> (kVolumeBlocks, total - next - kGptBlocks);
         std::vector<Byte>  volume ((size_t) blocks * IRawDevice::kBlockBytes, 0);
@@ -452,7 +483,48 @@ HRESULT RawDeviceServer::WriteCffaLayout (Session & session)
         }
     }
 
+    for (int slice = volumes; slice < kInitialVolumes; slice++)
+    {
+        hr = ClearHeader (session, (uint64_t) slice * kSliceBlocks, next, total, header);
+        CHR (hr);
+    }
+
+    for (uint64_t large = 0; large < kLargeVolumes; large++)
+    {
+        hr = ClearHeader (session, 4ull * kSliceBlocks + large * kLargeVolumeBlocks, next, total, header);
+        CHR (hr);
+    }
+
     hr = session.device->WriteBlocks (total - kGptBlocks, zeros);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawDeviceServer::ClearHeader
+//
+//  The first blocks at `at`, unless they are inside the volumes written,
+//  which end at `written`, or past the last blocks of the card.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT RawDeviceServer::ClearHeader (Session & session, uint64_t at, uint64_t written, uint64_t total, std::span<const Byte> header)
+{
+    HRESULT  hr     = S_OK;
+    bool     beyond = at >= written && at + kHeaderBlocks + kGptBlocks <= total;
+
+
+
+    BAIL_OUT_IF (!beyond, S_OK);
+
+    hr = session.device->WriteBlocks (at, header);
     CHR (hr);
 
 Error:

@@ -31,7 +31,7 @@ public:
 
     HRESULT  HasUnmountedPartition (int number, bool & outHasUnmounted) override;
     HRESULT  ListVolumes           (int number, std::vector<WindowsVolume> & outVolumes) override;
-    HRESULT  InitializeDrive       (int number, HWND owner) override;
+    HRESULT  InitializeDrive       (int number, HWND owner, uint64_t layout) override;
 
 private:
     HRESULT  StartBroker (HWND owner);
