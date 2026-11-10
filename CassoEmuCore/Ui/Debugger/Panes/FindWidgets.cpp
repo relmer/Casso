@@ -87,42 +87,6 @@ FindWidget & FindWidgetSet::Activate (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FindWidgetSet::GetPlaceholder
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring FindWidgetSet::GetPlaceholder (const std::wstring & pane)
-{
-    static const std::set<std::wstring>  s_logs = { DebuggerLayout::kDiskLog, DebuggerLayout::kInputLog, DebuggerLayout::kVideoLog,
-                                                    DebuggerLayout::kSoundLog, DebuggerLayout::kSerialLog, DebuggerLayout::kNetworkLog,
-                                                    DebuggerLayout::kTrace };
-
-
-
-    if (pane == DebuggerLayout::kConsole)
-    {
-        return L"Find in the console";
-    }
-
-    if (s_logs.contains (pane))
-    {
-        return L"Find in the log";
-    }
-
-    if (pane == DebuggerLayout::kBasicProgram)
-    {
-        return L"Find in the program";
-    }
-
-    return (pane.starts_with (L"source")) ? L"Find in the source" : L"Find";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  FindWidgetSet::Create
 //
 //  Each control acts on its own pane's widget.
@@ -174,7 +138,7 @@ void FindWidgetSet::Create (const std::wstring & pane, FindWidget & widget)
 
     widget.box->SetHwnd        (m_host.GetOwnerHwnd());
     widget.box->SetMaxLength   (256);
-    widget.box->SetPlaceholder (GetPlaceholder (pane));
+    widget.box->SetPlaceholder (s_kPlaceholder);
 
     //  Each option is a toggle, emphasized while on, as Visual Studio Code's
     //  find bar draws them.
@@ -620,7 +584,7 @@ void FindWidgetSet::Open (const std::wstring & pane)
 
 
 
-    widget.box->SetPlaceholder (GetPlaceholder (pane));
+    widget.box->SetPlaceholder (s_kPlaceholder);
 
     if (!selected.empty() && selected.find (L'\n') == std::wstring::npos)
     {

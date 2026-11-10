@@ -213,6 +213,9 @@ private:
     //  Room for "99999 of 99999" on one line.
     static constexpr int     kCountDip        = 112;
 
+    //  Every pane's box reads Find while it is empty.
+    static constexpr const wchar_t *  s_kPlaceholder = L"Find";
+
     void         Create                  (const std::wstring & pane, FindWidget & widget);
     void         ApplySaved              (const std::wstring & pane, FindWidget & widget) const;
     static void  ShowOptions             (FindWidget & widget);
@@ -226,7 +229,6 @@ private:
     static std::wstring  GetStatusText  (DxuiFindResult result, int index, int count);
 
     //  The find box's hint: where the text is looked for in the pane.
-    static std::wstring  GetPlaceholder (const std::wstring & pane);
 
     IDebuggerPaneHost                     & m_host;
     IFindWidgetHost                       & m_window;

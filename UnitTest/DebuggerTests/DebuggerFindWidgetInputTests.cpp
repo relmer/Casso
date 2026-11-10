@@ -84,7 +84,23 @@ namespace DebuggerFindWidgetInputTests
         using DebuggerWindow::GetCursorForPoint;
         using DebuggerWindow::GetCodeList;
         using DebuggerWindow::GetFindWidgets;
+        using DebuggerWindow::GetFocused;
+        using DebuggerWindow::FindPaneForTest;
         using DebuggerWindow::AppendConsole;
+
+        //  A left press and its release at a point.
+        void  ClickAt (POINT point)
+        {
+            DxuiMouseEvent  ev = {};
+
+            ev.positionDip = point;
+            ev.button      = DxuiMouseButton::Left;
+            ev.kind        = DxuiMouseEventKind::Down;
+            (void) OnMouse (ev);
+
+            ev.kind = DxuiMouseEventKind::Up;
+            (void) OnMouse (ev);
+        }
 
         void  Build()
         {
@@ -177,6 +193,108 @@ namespace DebuggerFindWidgetInputTests
 
             window.Click (window.GetFindControl (5));
             Assert::AreEqual (std::wstring (L"2 of 2"), window.GetFindWidgets().GetStatus(), L"the next press the second");
+        }
+
+
+        //  A press on the find widget's plate, where none of its controls
+        //  is, is the plate's: the list under the widget doesn't get it, so
+        //  its header doesn't sort and it doesn't take the focus.
+        TEST_METHOD (APressOnThePlateDoesntReachTheListUnderIt)
+        {
+            CassoTheme      theme       = CassoTheme::MakeSkeuomorphic();
+            InputHost       host;
+            InputWindow     window      (theme, host);
+            DxuiListView  * under       = nullptr;
+            RECT            plate       = {};
+            POINT           point       = {};
+            bool            isOnControl = false;
+            bool            isSorted    = false;
+
+
+
+            window.Build();
+
+            for (const std::wstring & pane : { std::wstring (DebuggerLayout::kBreakpoints), std::wstring (DebuggerLayout::kDiskLog) })
+            {
+                window.GetFindWidgets().Open (pane);
+                plate = window.GetFindWidgets().GetBounds();
+                point = POINT { plate.left + 3, (plate.top + plate.bottom) / 2 };
+
+                for (DxuiListView * list : window.FindPaneForTest (pane)->GetLists())
+                {
+                    RECT  bounds = list->GetBounds();
+
+                    if (list->IsVisible() && PtInRect (&bounds, point) != FALSE)
+                    {
+                        under = list;
+                    }
+                }
+
+                if (under != nullptr)
+                {
+                    break;
+                }
+            }
+
+            Assert::IsNotNull (under, L"the widget's plate is over a list");
+
+            for (IDxuiControl * control : window.GetFindWidgets().GetActiveControls())
+            {
+                RECT  bounds = control->GetBounds();
+
+                isOnControl = isOnControl || PtInRect (&bounds, point) != FALSE;
+            }
+
+            Assert::IsFalse (isOnControl, L"the press is on the plate, off its controls");
+
+            under->SetOnSortColumn ([&isSorted] (int) { isSorted = true; });
+            window.ClickAt (point);
+
+            Assert::IsFalse (isSorted,                                   L"the list's header didn't sort");
+            Assert::IsTrue  (window.GetFocused() != under,               L"and the list didn't take the focus");
+        }
+
+
+        //  Clicking Match case, Whole word or Regular expression toggles it
+        //  and the text box has the focus after it, as Visual Studio Code's
+        //  find widget does.
+        TEST_METHOD (TheBoxHasTheFocusAfterAToggleIsClicked)
+        {
+            CassoTheme   theme  = CassoTheme::MakeSkeuomorphic();
+            InputHost    host;
+            InputWindow  window (theme, host);
+
+
+
+            window.Build();
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
+
+            for (size_t toggle = 1; toggle <= 3; toggle++)
+            {
+                window.Click (window.GetFindControl (toggle));
+
+                Assert::IsTrue (window.GetFocused() == window.GetFindWidgets().GetBox(), std::format (L"after toggle {}", toggle).c_str());
+            }
+        }
+
+
+        //  Every pane's find box has the placeholder Find.
+        TEST_METHOD (EveryFindBoxHasThePlaceholderFind)
+        {
+            CassoTheme   theme  = CassoTheme::MakeSkeuomorphic();
+            InputHost    host;
+            InputWindow  window (theme, host);
+
+
+
+            window.Build();
+
+            for (const wchar_t * pane : { DebuggerLayout::kConsole, DebuggerLayout::kDiskLog, DebuggerLayout::kBreakpoints })
+            {
+                window.GetFindWidgets().Open (pane);
+
+                Assert::AreEqual (std::wstring (L"Find"), window.GetFindWidgets().GetBox()->GetPlaceholder(), pane);
+            }
         }
 
 

@@ -115,7 +115,8 @@ public:
 
     // Muted prompt text drawn in place of the value while the field is
     // empty (e.g. "Search"). Empty by default.
-    void  SetPlaceholder (const std::wstring & text)  { m_placeholder = text; }
+    void                  SetPlaceholder (const std::wstring & text) { m_placeholder = text; }
+    const std::wstring &  GetPlaceholder () const                     { return m_placeholder; }
 
     //  Fixed text ahead of what is typed, as a command prompt shows: drawn in
     //  the field, never part of the text, and out of the caret's reach.

@@ -712,6 +712,9 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DebuggerTextColors::Set  GetTextColors   () const override;
     void                     OfferPress      (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
+    //  The pointer's press, release or wheel over a find widget's plate.
+    void                     RouteFindPlateMouse (const DxuiMouseEvent & ev);
+
     std::vector<DxuiListView *>  GetLists          () const;
     std::vector<DxuiListView *>  GetTextLists      () const;
 

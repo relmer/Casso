@@ -745,6 +745,52 @@ void DebuggerWindow::OfferPress (IDxuiControl * control, const DxuiMouseEvent & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::RouteFindPlateMouse
+//
+//  A press is offered to the widgets' controls alone, and a release given to
+//  them; a right press over the box opens the box's edit menu. A press on the
+//  plate between its controls, and the wheel, do nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RouteFindPlateMouse (const DxuiMouseEvent & ev)
+{
+    bool            handled = false;
+    DxuiTextInput * box     = nullptr;
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right)
+    {
+        box = GetTextBoxAt (ev.positionDip);
+
+        if (box != nullptr)
+        {
+            ShowTextBoxMenu (*box, ev.positionDip);
+        }
+
+        return;
+    }
+
+    for (IDxuiControl * control : m_finds->GetPressTargets())
+    {
+        if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
+        {
+            OfferPress (control, ev, handled);
+        }
+        else if (ev.kind == DxuiMouseEventKind::Up && IsRoutable (control) && control->IsVisible())
+        {
+            (void) control->OnMouse (ev);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::RouteMenuKey
 //
 //  While a context menu or a drop-down of a bar is open, every key goes to
@@ -1032,6 +1078,16 @@ bool DebuggerWindow::RouteWindowMouse (const DxuiMouseEvent & ev)
         {
             return true;
         }
+    }
+
+    //  A find widget lies over its pane's content, so a press, a release or
+    //  the wheel on its plate is the widget's whether or not one of its
+    //  controls takes it, and never reaches the content under it. Its moves
+    //  go on below, for the tips and the hover.
+    if (ev.kind != DxuiMouseEventKind::Move && ev.kind != DxuiMouseEventKind::Leave && m_finds->IsOverPlate (ev.positionDip))
+    {
+        RouteFindPlateMouse (ev);
+        return true;
     }
 
     //  A press on a disassembly or source tab sets the step mode as a press
