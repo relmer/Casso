@@ -13,6 +13,7 @@
 //  What each field takes, shown when the pointer rests on it.
 static constexpr const wchar_t *  s_kpszNameTip         = L"The new image's file name. The image type's extension is added when you do not type one.";
 static constexpr const wchar_t *  s_kpszDos33VolumeTip  = L"DOS 3.3: a volume number from 1 to 254. Leave it blank for 254.";
+static constexpr const wchar_t *  s_kpszDos32VolumeTip  = L"DOS 3.2: a volume number from 1 to 254. Leave it blank for 254.";
 static constexpr const wchar_t *  s_kpszProDosVolumeTip = L"ProDOS: up to 15 letters, digits and periods, starting with a letter. Leave it blank for NEWDISK.";
 static constexpr const wchar_t *  s_kpszPascalVolumeTip = L"Apple Pascal: up to 7 characters, with no spaces or any of $ = ? , : [ ]. Leave it blank for NEWDISK.";
 
@@ -129,7 +130,7 @@ DiskOperations::NewDiskRequest CassoExplorerNewDiskChoices::MakeRequest (int for
     request.formatName    = kFormats[(formatIndex >= 0 && formatIndex < formats) ? formatIndex : 0].value;
     request.containerType = kContainers[(containerIndex >= 0 && containerIndex < containers) ? containerIndex : 0].value;
     request.volumeName    = TextEncoding::WideToNarrow (volume);
-    request.bootable      = bootable && request.formatName != "none";
+    request.bootable      = bootable && request.formatName != "none" && request.formatName != "dos32";
     request.sizeName      = kSizes[(sizeIndex >= 0 && sizeIndex < (int) ARRAYSIZE (kSizes)) ? sizeIndex : 0].value;
 
     return request;
@@ -190,6 +191,7 @@ bool CassoExplorerNewDiskChoices::GetChoicesForExtension (const std::wstring & n
         { L".hdv",  5, kFormatProDos },
         { L".2mg",  6, kFormatProDos },
         { L".dc42", 7, kFormatProDos },
+        { L".d13",  8, kFormatDos32  },
     };
 
     size_t  dot = name.rfind (L'.');
@@ -294,7 +296,7 @@ std::wstring CassoExplorerNewDiskChoices::ValidateVolume (int formatIndex, const
         name   = name   && (isLetter || (i > 0 && (isDigit || c == L'.')));
     }
 
-    if (formatIndex == kFormatDos33)
+    if (formatIndex == kFormatDos33 || formatIndex == kFormatDos32)
     {
         number = (digits && volume.size() <= kMaxDos33VolumeLength) ? wcstol (volume.c_str(), nullptr, 10) : 0;
 
@@ -321,7 +323,8 @@ std::wstring CassoExplorerNewDiskChoices::ValidateVolume (int formatIndex, const
 //
 //  A disk larger than 140K, and any hard disk, 2IMG or Disk Copy 4.2 image, is
 //  a ProDOS volume; a large one is written in a container with blocks in
-//  order, and a Disk Copy 4.2 image is 800K.
+//  order, and a Disk Copy 4.2 image is 800K. DOS 3.2 and the 13-sector image
+//  go together.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -339,7 +342,15 @@ std::wstring CassoExplorerNewDiskChoices::ValidateSize (int formatIndex, int con
 
 
 
-    if ((isLarge || blockOnly) && formatIndex != kFormatProDos)
+    if ((container == "d13") != (formatIndex == kFormatDos32))
+    {
+        error = L"A DOS 3.2 disk is written as a .d13 image, and a .d13 image is a DOS 3.2 disk.";
+    }
+    else if (isLarge && formatIndex == kFormatDos32)
+    {
+        error = L"A DOS 3.2 disk cannot be larger than a 5.25\" disk.";
+    }
+    else if ((isLarge || blockOnly) && formatIndex != kFormatProDos)
     {
         error = L"Disks larger than 140K, and hard disk, 2IMG and Disk Copy 4.2 images, are ProDOS volumes.";
     }
@@ -862,6 +873,7 @@ void CassoExplorerNewDiskDialog::OnCreate()
 
             tip = (format == CassoExplorerNewDiskChoices::kFormatProDos) ? s_kpszProDosVolumeTip
                 : (format == CassoExplorerNewDiskChoices::kFormatPascal) ? s_kpszPascalVolumeTip
+                : (format == CassoExplorerNewDiskChoices::kFormatDos32)  ? s_kpszDos32VolumeTip
                                                                          : s_kpszDos33VolumeTip;
         }
 
@@ -993,6 +1005,7 @@ void CassoExplorerNewDiskDialog::Revalidate()
     m_volume.SetEnabled      (hasVolume);
     m_volume.SetPlaceholder  (hasName                                                ? L"NEWDISK"
                             : (format == CassoExplorerNewDiskChoices::kFormatDos33)  ? L"254"
+                            : (format == CassoExplorerNewDiskChoices::kFormatDos32)  ? L"254"
                                                                                 : L"");
 
     m_systemLabel.SetEnabled (m_bootable.IsChecked() && format == CassoExplorerNewDiskChoices::kFormatCpm);

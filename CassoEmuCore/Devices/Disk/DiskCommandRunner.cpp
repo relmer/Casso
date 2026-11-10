@@ -6,7 +6,10 @@
 #include "CommandLineParser.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
+#include "Machines/Apple2/Common/Dos33Geometry.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "Machines/Apple2/Common/NativeListing.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -3186,6 +3189,7 @@ HRESULT DiskCommandRunner::ResolveContents (const CommandLineOptions & options,
 {
     HRESULT      hr         = S_OK;   // vestigial, for the bail
     bool         recognized = true;
+    bool         isDos32    = false;
     std::string  asked      = options.disk.formatName;
 
 
@@ -3194,6 +3198,14 @@ HRESULT DiskCommandRunner::ResolveContents (const CommandLineOptions & options,
     {
         letter = (char) tolower ((unsigned char) letter);
     }
+
+    isDos32 = asked == "dos32" || asked == "dos3.2";
+
+    CBRFEx (!isDos32, E_INVALIDARG,
+            (result.diagnostics    += ApplyPrefix ("Error: a DOS 3.2 disk is written as a .d13 image\n"
+                                                   "       Use %Ltype d13, or a file name ending in .d13.\n"),
+             result.exitStatus      = DiskCommandResult::kNoOutput,
+             result.badCommandLine  = true));
 
     if (asked.empty() || asked == "dos33" || asked == "dos" || asked == "dos3.3")
     {
@@ -3738,6 +3750,13 @@ void DiskCommandRunner::RunCreate (const CommandLineOptions & options, DiskComma
         BAIL_OUT_IF (true, S_OK);
     }
 
+    if (IsThirteenSectorImage (resolved))
+    {
+        BuildThirteenSector (resolved, false, result);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     hr = ResolveContainer (resolved, nibbleTrackSize, format, result);
     CHR (hr);
 
@@ -3749,6 +3768,109 @@ void DiskCommandRunner::RunCreate (const CommandLineOptions & options, DiskComma
     {
         BuildAndWrite (resolved, format, nibbleTrackSize, false, result);
     }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::IsThirteenSectorImage
+//
+//  A `.d13` image: %Ltype d13, or a `.d13` extension with no %Ltype.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::IsThirteenSectorImage (const CommandLineOptions & options)
+{
+    std::string  type = options.disk.containerType;
+
+
+
+    if (type.empty())
+    {
+        type = std::filesystem::path (options.disk.imagePath).extension().string();
+        type = type.empty() ? type : type.substr (1);
+    }
+
+    std::transform (type.begin(), type.end(), type.begin(),
+                    [] (char c) { return (char) std::tolower ((unsigned char) c); });
+
+    return type == "d13";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::BuildThirteenSector
+//
+//  A blank DOS 3.2 volume written as a `.d13` image: 35 tracks of 13 sectors,
+//  in physical sector order. The volume has no DOS image on tracks 0 to 2, so
+//  it isn't bootable.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::BuildThirteenSector (const CommandLineOptions & options, bool overExisting, DiskCommandResult & result)
+{
+    HRESULT                        hr          = S_OK;
+    Dos33Geometry                  geometry    = Dos33Geometry::Make (ThirteenSectorCodec::kTrackCount, ThirteenSectorCodec::kSectorsPerTrack);
+    BlankDiskSpec                  spec;
+    vector<Byte>                   imageBytes;
+    DiskImageSession::OpenedImage  target;
+    std::string                    format      = options.disk.formatName;
+    bool                           isDos32     = false;
+    bool                           plain       = !options.disk.bootable && options.disk.directBootFile.empty() && !options.disk.flux;
+
+
+
+    std::transform (format.begin(), format.end(), format.begin(),
+                    [] (char c) { return (char) std::tolower ((unsigned char) c); });
+
+    isDos32 = format.empty() || format == "dos" || format == "dos32" || format == "dos3.2";
+
+    CBRFEx (isDos32, E_INVALIDARG,
+            (result.diagnostics    += ApplyPrefix ("Error: a .d13 image is a DOS 3.2 disk\n"
+                                                   "       Leave out %Lformat, or use %Lformat dos32.\n"),
+             result.exitStatus      = DiskCommandResult::kNoOutput,
+             result.badCommandLine  = true));
+
+    CBRFEx (plain, E_INVALIDARG,
+            (result.diagnostics    += ApplyPrefix ("Error: a .d13 image does not accept %Lbootable, %Lboot or %Lflux\n"),
+             result.exitStatus      = DiskCommandResult::kNoOutput,
+             result.badCommandLine  = true));
+
+    spec.contents = BlankDiskContents::Dos33;
+
+    hr = ResolveVolume (options, spec, result);
+    CHR (hr);
+
+    imageBytes.assign (geometry.GetImageByteSize(), 0);
+
+    hr = Dos33Skeleton::Write (imageBytes, spec.volumeNumber, geometry);
+    CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be built"));
+
+    target.imagePath     = options.disk.imagePath;
+    target.stampRecorded = false;
+    target.isNew         = !overExisting;
+
+    if (overExisting)
+    {
+        hr = m_fileIo.Stat (options.disk.imagePath, target.stamp);
+        target.stampRecorded = SUCCEEDED (hr);
+    }
+
+    hr = m_session.CommitImage (target, imageBytes, result);
+    CHR (hr);
+
+    result.output     += options.disk.imagePath + ": DOS 3.2, volume " + std::to_string ((int) spec.volumeNumber) + ", not bootable\n";
+    result.exitStatus  = DiskCommandResult::kClean;
 
 Error:
     return;
@@ -4210,6 +4332,13 @@ void DiskCommandRunner::RunInit (const CommandLineOptions & options, DiskCommand
     if (ImageContainer::GetKind (options.disk.imagePath, (size_t) stamp.sizeBytes) != ImageContainerKind::None)
     {
         ReformatLargeProDos (options, stamp, result);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (IsThirteenSectorImage (options))
+    {
+        BuildThirteenSector (options, true, result);
 
         BAIL_OUT_IF (true, S_OK);
     }

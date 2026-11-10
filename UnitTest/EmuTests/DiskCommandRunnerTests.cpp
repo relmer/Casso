@@ -9,7 +9,9 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Dos33Geometry.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -1726,6 +1728,62 @@ public:
         Assert::IsTrue (io.Exists ("new.dsk"), L"the image is there afterwards");
         Assert::IsTrue (result.output.find ("DOS 3.3") != std::string::npos,
                         L"and it reports what it made");
+    }
+
+    //  A .d13 image is a blank 13-sector DOS volume that lists, takes a file
+    //  and formats again.
+    TEST_METHOD (Create_WritesAThirteenSectorDos32Image)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("old.d13");
+        CommandLineOptions  init    = MakeCreate ("old.d13");
+        DiskCommandResult   result;
+        vector<Byte>        bytes;
+        Dos33Geometry       geometry;
+
+
+
+        options.disk.volumeName = "77";
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (result.output.find ("DOS 3.2, volume 77") != std::string::npos);
+
+        AssertSucceeded (io.ReadAllBytes ("old.d13", bytes));
+
+        Assert::AreEqual (ThirteenSectorCodec::kImageByteSize, bytes.size());
+        Assert::IsTrue (Dos33Geometry::TryDetect (bytes, geometry));
+        Assert::IsTrue (geometry.IsThirteenSector());
+
+        init.disk.command     = CommandLineOptions::DiskOptions::Command::Init;
+        init.disk.commandWord = "init";
+        result = runner.Run (init);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+    }
+
+    TEST_METHOD (Create_ThirteenSectorImageOfAnotherFormat_IsABadCommandLine)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  asProDos = MakeCreate ("old.d13");
+        CommandLineOptions  asDsk    = MakeCreate ("old.dsk");
+        DiskCommandResult   result;
+
+
+
+        asProDos.disk.formatName = "prodos";
+        result = runner.Run (asProDos);
+
+        Assert::IsTrue (result.badCommandLine);
+        Assert::IsFalse (io.Exists ("old.d13"));
+
+        asDsk.disk.formatName = "dos32";
+        result = runner.Run (asDsk);
+
+        Assert::IsTrue (result.badCommandLine);
+        Assert::IsFalse (io.Exists ("old.dsk"));
     }
 
     //  A ProDOS volume larger than a floppy, in each block container.

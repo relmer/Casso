@@ -1344,6 +1344,38 @@ public:
     }
 
 
+    //  DOS 3.2 and the 13-sector image are chosen together.
+    TEST_METHOD (NewDiskChoices_Dos32IsPairedWithTheThirteenSectorImage)
+    {
+        static constexpr int  kContainerD13 = 8;
+        static constexpr int  kContainerDsk = 1;
+
+
+
+        DiskOperations::NewDiskRequest  request   = CassoExplorerNewDiskChoices::MakeRequest (CassoExplorerNewDiskChoices::kFormatDos32, kContainerD13, L"77", true);
+        int                             container = 99;
+        int                             format    = 99;
+
+
+
+        Assert::AreEqual (std::string ("dos32"), request.formatName);
+        Assert::AreEqual (std::string ("d13"),   request.containerType);
+        Assert::AreEqual (std::string ("77"),    request.volumeName);
+        Assert::IsFalse  (request.bootable);
+
+        Assert::IsTrue (CassoExplorerNewDiskChoices::GetChoicesForExtension (L"Old.d13", container, format));
+        Assert::AreEqual (kContainerD13, container);
+        Assert::AreEqual (CassoExplorerNewDiskChoices::kFormatDos32, format);
+
+        Assert::IsTrue  (CassoExplorerNewDiskChoices::ValidateSize (CassoExplorerNewDiskChoices::kFormatDos32,  kContainerD13, 0).empty());
+        Assert::IsFalse (CassoExplorerNewDiskChoices::ValidateSize (CassoExplorerNewDiskChoices::kFormatDos32,  kContainerDsk, 0).empty());
+        Assert::IsFalse (CassoExplorerNewDiskChoices::ValidateSize (CassoExplorerNewDiskChoices::kFormatProDos, kContainerD13, 0).empty());
+
+        Assert::IsTrue  (CassoExplorerNewDiskChoices::ValidateVolume (CassoExplorerNewDiskChoices::kFormatDos32, L"254").empty());
+        Assert::IsFalse (CassoExplorerNewDiskChoices::ValidateVolume (CassoExplorerNewDiskChoices::kFormatDos32, L"255").empty());
+    }
+
+
     //  The new-disk dialog checks its fields as they are typed: a file name the
     //  host can hold and that is not taken, and a volume the format can use.
     TEST_METHOD (NewDiskChoices_ValidateFieldsAsTyped)

@@ -183,6 +183,8 @@ public:
     static std::string  GetAppleDoublePath (const std::string & hostFile);
     HRESULT             WriteAppleDouble   (const std::string & hostFile, const FilePayload & payload);
 
+    static bool  IsThirteenSectorImage  (const CommandLineOptions & options);
+    void         BuildThirteenSector    (const CommandLineOptions & options, bool overExisting, DiskCommandResult & result);
     static bool  IsLargeCreate          (const CommandLineOptions & options);
     static bool  IsBlockOnlyExtension   (const std::string & imagePath);
     static bool  IsProDosOrderExtension (const std::string & imagePath);

@@ -34,6 +34,7 @@ public:
         { L"Apple Pascal", "pascal" },
         { L"CP/M",         "cpm"    },
         { L"Unformatted",  "none"   },
+        { L"DOS 3.2",      "dos32"  },
     };
 
     static constexpr Choice  kContainers[] =
@@ -46,6 +47,7 @@ public:
         { L"Hard disk (.hdv)",      "hdv"  },
         { L"2IMG (.2mg)",           "2mg"  },
         { L"Disk Copy 4.2 (.dc42)", "dc42" },
+        { L"13-sector (.d13)",      "d13"  },
     };
 
     //  The sizes a ProDOS volume can be made at.
@@ -85,8 +87,8 @@ public:
 
     //  The container, and the format where the extension implies one, that a
     //  typed extension asks for: .po a ProDOS-order ProDOS disk, .dsk and .do
-    //  a DOS-order DOS 3.3 disk, .nib a nibble DOS 3.3 disk, .woz a WOZ image
-    //  of either. False, both left alone, for any other extension or none;
+    //  a DOS-order DOS 3.3 disk, .nib a nibble DOS 3.3 disk, .d13 a 13-sector
+    //  DOS 3.2 disk, .woz a WOZ image of either. False, both left alone, for any other extension or none;
     //  `outFormat` is -1 where the extension implies no format.
     static bool          GetChoicesForExtension (const std::wstring & name, int & outContainer, int & outFormat);
 
@@ -106,6 +108,7 @@ public:
     static constexpr int     kFormatPascal          = 2;
     static constexpr int     kFormatCpm             = 3;
     static constexpr int     kFormatNone            = 4;
+    static constexpr int     kFormatDos32           = 5;
     static constexpr size_t  kMaxFileNameLength     = 200;
     static constexpr size_t  kMaxDos33VolumeLength  = 3;
     static constexpr size_t  kMaxProDosVolumeLength = 15;
