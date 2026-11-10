@@ -559,6 +559,78 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PartitionAccess::GetLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string PartitionAccess::GetLabel (const PartitionEntry & entry, bool withSize)
+{
+    std::string  label  = std::format ("Partition {}", entry.partition.index);
+    std::string  volume = entry.volumeName.empty() ? entry.partition.name : entry.volumeName;
+
+
+
+    if (volume.empty() && entry.hasVolumeNumber)
+    {
+        volume = std::format ("volume {}", entry.volumeNumber);
+    }
+
+    if (!volume.empty())
+    {
+        label += ": " + volume;
+    }
+
+    if (withSize)
+    {
+        label += " (" + FormatSize (entry.byteCount) + ")";
+    }
+
+    return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PartitionAccess::FormatSize
+//
+//  Kilobytes below a megabyte, and megabytes to one decimal place above it,
+//  with a zero decimal left off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string PartitionAccess::FormatSize (uint64_t byteCount)
+{
+    static constexpr uint64_t  kKilobyte = 1024;
+    static constexpr uint64_t  kMegabyte = 1024 * 1024;
+
+
+
+    uint64_t  tenths = (byteCount * 10 + kMegabyte / 2) / kMegabyte;
+
+
+
+    if (byteCount < kMegabyte)
+    {
+        return std::format ("{} KB", (byteCount + kKilobyte - 1) / kKilobyte);
+    }
+
+    if (tenths % 10 == 0)
+    {
+        return std::format ("{} MB", tenths / 10);
+    }
+
+    return std::format ("{}.{} MB", tenths / 10, tenths % 10);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PartitionAccess::GetLeafName
 //
 //  The part of a path after its last separator, '/' or '\\'.

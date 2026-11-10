@@ -3,6 +3,7 @@
 #include "CassoExplorer/Model/BrowserModel.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 
@@ -500,8 +501,9 @@ void BrowserModel::GetLocations (std::vector<Location> & outLocations) const
 std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (const Location & location, const AddressRoot & root)
 {
     std::vector<AddressSegment>  segments;
-    size_t                       slash = 0;
-    size_t                       start = 0;
+    size_t                       slash     = 0;
+    size_t                       start     = 0;
+    int                          partition = 0;
     std::string                  inner;
 
 
@@ -514,6 +516,16 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
 
         case Location::Kind::DiskImage:
         case Location::Kind::DiskDirectory:
+            //  A partition follows the image it is a partition of.
+            slash = location.path.rfind (L'|');
+
+            if (slash != std::wstring::npos && PartitionAccess::TryParseStepName (TextEncoding::WideToNarrow (location.path.substr (slash + 1)), partition))
+            {
+                segments = GetAddressSegments (Location::MakeDiskImage (location.path.substr (0, slash)), root);
+                segments.push_back (AddressSegment { std::format (L"Partition {}", partition), Location::MakeDiskImage (location.path) });
+                break;
+            }
+
             //  An image in a ZIP follows the ZIP and its folders, as the
             //  shell's id for the image would have them.
             if (location.path.find (L'|') != std::wstring::npos)

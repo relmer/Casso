@@ -5,6 +5,7 @@
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
@@ -934,6 +935,11 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
     {
         result = m_browser.m_operations.List (TextEncoding::WideToNarrow (path), directory, m_browser.m_listing, m_browser.m_kind);
 
+        if (!result.Succeeded() && directory.empty() && LoadPartitions (path))
+        {
+            return S_OK;
+        }
+
         if (!result.Succeeded())
         {
             m_listError = BrowserCells::FormatImageError (path, result.message);
@@ -957,6 +963,64 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
     IGNORE_RETURN_VALUE (hrReadOnly, S_OK);
 
     return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserLoader::LoadPartitions
+//
+//  The partitions of an image that has no catalog, one row for each. False
+//  for an image with no partitions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BrowserLoader::LoadPartitions (const std::wstring & path)
+{
+    std::vector<Byte>            bytes;
+    std::vector<PartitionEntry>  entries;
+    std::string                  narrow     = TextEncoding::WideToNarrow (path);
+    PartitionLayoutKind          kind       = PartitionLayoutKind::None;
+    HRESULT                      hr         = S_OK;
+    HRESULT                      hrReadOnly = S_OK;
+
+
+
+    hr = m_browser.m_operations.GetFileIo().ReadAllBytes (narrow, bytes);
+
+    if (SUCCEEDED (hr))
+    {
+        hr = PartitionAccess::List (bytes, narrow, kind, entries);
+    }
+
+    if (FAILED (hr) || entries.empty())
+    {
+        return false;
+    }
+
+    for (const PartitionEntry & entry : entries)
+    {
+        CatalogRow  row;
+
+        row.name          = TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, false));
+        row.typeText      = TextEncoding::NarrowToWide (PartitionLayout::GetLayoutName (kind)) + (entry.partition.damaged ? L" partition, damaged" : L" partition");
+        row.sizeBytes     = entry.byteCount;
+        row.isDiskImage   = true;
+        row.containerPath = path + L"|" + TextEncoding::NarrowToWide (entry.step);
+        row.sourceIndex   = m_browser.m_rows.size();
+
+        m_browser.m_rows.push_back (std::move (row));
+    }
+
+    m_browser.m_isPartitionList = true;
+
+    hrReadOnly = m_browser.m_fs.GetReadOnlyAttribute (path.substr (0, path.find (L'|')), m_writeProtected);
+    IGNORE_RETURN_VALUE (hrReadOnly, S_OK);
+
+    return true;
 }
 
 

@@ -55,10 +55,25 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     Location                   location = m_browser.GetLocation();
     bool                       nested   = location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty();
     bool                       onDisk   = location.kind == Location::Kind::HostFolder || m_browser.AreSelectedRowsSearchFiles();
+    std::wstring               partition;
+    bool                       isPartition = m_partitions.TryGetTarget (partition);
 
 
 
-    if (m_browser.IsImageLocation())
+    if (m_browser.IsPartitionListLocation())
+    {
+        if (isPartition)
+        {
+            verbs.push_back (Verb::Open);
+            verbs.push_back (Verb::CopyPartitionToImage);
+
+            if (!m_browser.IsWriteProtected())
+            {
+                verbs.push_back (Verb::ReplacePartition);
+            }
+        }
+    }
+    else if (m_browser.IsImageLocation())
     {
         bool  writable = !m_browser.IsWriteProtected();
 
@@ -112,13 +127,23 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
 
         //  Formatting takes the whole disk, which is not what a subdirectory
         //  shows.
-        if (!nested && writable)
+        if (!nested && writable && !isPartition)
         {
             verbs.push_back (Verb::Format);
+        }
 
-            if (m_browser.GetVolumeKind() == VolumeKind::Pascal)
+        if (!nested && writable && m_browser.GetVolumeKind() == VolumeKind::Pascal)
+        {
+            verbs.push_back (Verb::Krunch);
+        }
+
+        if (isPartition)
+        {
+            verbs.push_back (Verb::CopyPartitionToImage);
+
+            if (writable)
             {
-                verbs.push_back (Verb::Krunch);
+                verbs.push_back (Verb::ReplacePartition);
             }
         }
     }

@@ -50,6 +50,8 @@ public:
     void                   ExtractAll                 ();
     void                   MakeArchive                (bool shrinkItDisk);
     void                   TestImage                  ();
+    void                   CopyPartitionToImage       ();
+    void                   ReplacePartition           ();
     void                   Dispatch                   (int id);
     bool                   IsEnabled                  (int id) const;
     bool                   IsChecked                  (int id) const;

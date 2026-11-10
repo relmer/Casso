@@ -139,6 +139,94 @@ void ExplorerCommandManager::MakeArchive (bool shrinkItDisk)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerCommandManager::CopyPartitionToImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::CopyPartitionToImage()
+{
+    std::wstring                   partition;
+    std::wstring                   created;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    if (!m_context.actions.TryGetPartition (partition))
+    {
+        return;
+    }
+
+    outcome = m_context.actions.CopyPartitionToImage (partition, created);
+
+    ReportOutcome (outcome, L"Copy partition to image");
+
+    if (!created.empty())
+    {
+        m_context.window.ShowMessage (L"The partition was copied to " + created + L".", MB_ICONINFORMATION);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerCommandManager::ReplacePartition
+//
+//  The image is picked, then the replace is confirmed with a question that
+//  lists the partition and the image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::ReplacePartition()
+{
+    HRESULT                        hr       = S_OK;
+    std::wstring                   partition;
+    std::wstring                   question;
+    std::filesystem::path          picked;
+    FileDialogSpec                 spec;
+    CassoExplorerActions::Outcome  outcome;
+    bool                           chosen   = false;
+
+
+
+    if (!m_context.actions.TryGetPartition (partition))
+    {
+        return;
+    }
+
+    hr = m_context.dialogs.PickFileToOpen (m_context.window.GetHwnd(), spec, picked, chosen);
+
+    if (FAILED (hr) || !chosen)
+    {
+        return;
+    }
+
+    outcome = m_context.actions.DescribePartitionReplace (partition, picked.wstring(), question);
+
+    if (!outcome.Succeeded())
+    {
+        ReportOutcome (outcome, L"Replace partition");
+        return;
+    }
+
+    if (DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, question.c_str(), L"Replace partition",
+                        MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Replace", L"Cancel" }) != IDOK)
+    {
+        return;
+    }
+
+    ReportOutcome (m_context.actions.ReplacePartition (partition, picked.wstring()), L"Replace partition");
+    m_context.listPane.FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerCommandManager::TestImage
 //
 //  What the test found, or that it found nothing, in a message.
@@ -1436,6 +1524,14 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
         case CassoExplorerActions::Verb::Test:
             TestImage();
+            break;
+
+        case CassoExplorerActions::Verb::CopyPartitionToImage:
+            CopyPartitionToImage();
+            break;
+
+        case CassoExplorerActions::Verb::ReplacePartition:
+            ReplacePartition();
             break;
 
         case CassoExplorerActions::Verb::Refresh:

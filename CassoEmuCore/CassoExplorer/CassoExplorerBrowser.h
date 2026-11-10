@@ -252,6 +252,9 @@ public:
     bool  IsVolumeLocation () const { return m_isImage || m_isAppleDrive; }
     bool  IsImageLocation  () const { return m_isImage; }
 
+    //  An image with no catalog, whose partitions are the rows.
+    bool  IsPartitionListLocation () const { return m_isPartitionList; }
+
     //  The root being listed, or empty when the list is another location's.
     std::wstring                     GetRootId () const;
 
@@ -426,6 +429,7 @@ private:
     VolumeKind                          m_kind           = VolumeKind::Unknown;
     bool                                m_isImage        = false;
     bool                                m_isAppleDrive   = false;
+    bool                                m_isPartitionList = false;
     bool                                m_listingKept    = false;   // an Apple drive's listing as last read, while it is read again
     CassoLinkConnections              * m_links          = nullptr;
     FilesystemChoices                 * m_filesystemChoices = nullptr;

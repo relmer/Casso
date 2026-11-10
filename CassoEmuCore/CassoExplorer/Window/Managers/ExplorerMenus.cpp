@@ -127,6 +127,8 @@ const wchar_t * ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::MakeArchive:    return L"Add to &ShrinkIt archive";
         case CassoExplorerActions::Verb::MakeShrinkItDisk: return L"Make a ShrinkIt &disk";
         case CassoExplorerActions::Verb::Test:           return L"&Test";
+        case CassoExplorerActions::Verb::CopyPartitionToImage: return L"Copy partition to &image";
+        case CassoExplorerActions::Verb::ReplacePartition: return L"Replace &partition...";
         default:                                   return L"";
     }
 }

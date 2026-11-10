@@ -328,6 +328,7 @@
     <ClCompile Include="CassoExplorer\Actions\ActionsAppleDrive.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsCopy.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsArchive.cpp" />
+    <ClCompile Include="CassoExplorer\Actions\ActionsPartition.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsGoTo.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowser.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserCells.cpp" />
@@ -1064,6 +1065,7 @@
     <ClInclude Include="CassoExplorer\Actions\ActionsAppleDrive.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsCopy.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsArchive.h" />
+    <ClInclude Include="CassoExplorer\Actions\ActionsPartition.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsGoTo.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsTypes.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerBrowser.h" />

@@ -204,6 +204,7 @@ HRESULT CassoExplorerBrowser::Refresh()
     m_kind         = VolumeKind::Unknown;
     m_isImage      = false;
     m_isAppleDrive = false;
+    m_isPartitionList = false;
     m_listingKept  = false;
     m_loader.m_writeProtected = false;
     m_loader.m_listError.clear();
@@ -1254,6 +1255,10 @@ bool CassoExplorerBrowser::TryGetRowLocation (int row, Location & outLocation)
     if (row < 0 || row >= (int) m_rows.size())
     {
         found = false;
+    }
+    else if (m_isPartitionList)
+    {
+        outLocation = Location::MakeDiskImage (m_rows[row].containerPath);
     }
     else if (!IsVolumeLocation() && !m_loader.m_rootChildren.empty() && m_rows[row].sourceIndex < m_loader.m_rootChildren.size())
     {

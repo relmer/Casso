@@ -78,6 +78,11 @@ struct ActionsTypes
         MakeArchive,
         MakeShrinkItDisk,
         Test,
+
+        //  A partition's blocks as an image file, and an image file over a
+        //  partition.
+        CopyPartitionToImage,
+        ReplacePartition,
     };
 
     //  What a put does with the bytes. ByContent is the rule a left-drag

@@ -6,6 +6,7 @@
 #include "CassoExplorer/Actions/ActionsArchive.h"
 #include "CassoExplorer/Actions/ActionsCopy.h"
 #include "CassoExplorer/Actions/ActionsGoTo.h"
+#include "CassoExplorer/Actions/ActionsPartition.h"
 #include "Devices/Disk/IDiskFileIo.h"
 
 struct AppleSingleFile;
@@ -65,6 +66,14 @@ public:
     Outcome  MakeArchive      (const std::vector<std::wstring> & hostPaths, std::wstring & outPath) { return m_archiver.MakeArchive (hostPaths, outPath); }
     Outcome  MakeShrinkItDisk (const std::wstring & imagePath, std::wstring & outPath)              { return m_archiver.MakeShrinkItDisk (imagePath, outPath); }
     Outcome  TestImage        (const std::wstring & imagePath, std::wstring & outReport)            { return m_archiver.Test (imagePath, outReport); }
+
+    //  One partition of a card image: the one selected or open, its copy as
+    //  an image file beside the card image, and an image file written over it
+    //  after the question DescribeReplace returns.
+    bool     TryGetPartition  (std::wstring & outPartitionPath) const                                { return m_partitions.TryGetTarget (outPartitionPath); }
+    Outcome  CopyPartitionToImage (const std::wstring & partitionPath, std::wstring & outPath)       { return m_partitions.CopyToImage (partitionPath, outPath); }
+    Outcome  ReplacePartition (const std::wstring & partitionPath, const std::wstring & imagePath)   { return m_partitions.Replace (partitionPath, imagePath); }
+    Outcome  DescribePartitionReplace (const std::wstring & partitionPath, const std::wstring & imagePath, std::wstring & outQuestion) { return m_partitions.DescribeReplace (partitionPath, imagePath, outQuestion); }
 
     //  The list's Apple drive: its link, drive and directory. False when the
     //  list is not on one.
@@ -321,9 +330,11 @@ private:
     friend class       ActionsArchive;
     friend class       ActionsCopy;
     friend class       ActionsGoTo;
+    friend class       ActionsPartition;
     ActionsAppleDrive  m_appleDrive      { *this };
     ActionsCopy        m_copier          { *this };
     ActionsArchive     m_archiver        { *this };
     ActionsGoTo        m_goTo            { *this };
+    ActionsPartition   m_partitions      { *this };
 };
 

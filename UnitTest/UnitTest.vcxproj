@@ -441,6 +441,7 @@
     <ClCompile Include="CassoExplorer\ExplorerWindowPartsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommandsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerActionsTests.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerPartitionTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerAboutTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerDragOutTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerNamedControlTests.cpp" />
@@ -825,6 +826,7 @@
     <ClInclude Include="EmuTests\EmbeddedMachineJson.h" />
     <ClInclude Include="EmuTests\TestMachine.h" />
     <ClInclude Include="EmuTests\FixtureProvider.h" />
+    <ClInclude Include="EmuTests\PartitionCard.h" />
     <ClInclude Include="CassoLink\CassoLinkCaptures.h" />
     <ClInclude Include="CassoLink\InMemoryCassoLinkFolder.h" />
     <ClInclude Include="CassoLink\FakeApple.h" />

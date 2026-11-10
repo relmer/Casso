@@ -220,6 +220,10 @@ public:
     //  this browser reads.
     static constexpr const wchar_t *  kNoFilesystemText = L"can't be previewed because it doesn't have a recognized file system.";
 
+    //  What follows a partition's label when the partition ends past the end
+    //  of the image.
+    static constexpr const wchar_t *  kDamagedPartitionText = L"is damaged: it ends past the end of the image.";
+
     //  The id grammar. A root tag, then the host path, then for a directory
     //  inside an image the directory's name after a bar, and after another,
     //  for the second and later entries of the same name, which one it is.
@@ -312,6 +316,16 @@ private:
 
     static void  ListDirectories (bool underCasso, const std::wstring & path, const std::vector<Byte> & sectors,
                                   const std::string & inner, std::vector<TreeNode> & outNodes);
+
+    //  A node for each partition of an image file. The list is empty for a
+    //  file with no partitions.
+    static void  ListPartitions (bool underCasso, const std::wstring & path, const std::vector<Byte> & fileBytes,
+                                 const std::string & name, std::vector<TreeNode> & outNodes);
+
+    //  An image's bytes, and the file name whose extension indicates their
+    //  format. `path` is a host file, or a container path to an image inside
+    //  another file.
+    HRESULT  ReadImage (const std::wstring & path, std::vector<Byte> & outBytes, std::string & outName);
 
     //  Reads and parses one image, producing either its directory children
     //  or the error on the node.

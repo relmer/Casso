@@ -60,6 +60,7 @@ public:
     HRESULT  LoadRecycleBin        ();
     HRESULT  LoadShellFolder       (const std::wstring & id);
     HRESULT  LoadImage             (const std::wstring & path, const std::string & directory);
+    bool     LoadPartitions        (const std::wstring & path);
     HRESULT  LoadAppleDrive        (const Location & location);
     void     AddCassoLinkItems     ();
     void     AddAdtProHelpItem     ();

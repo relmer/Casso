@@ -71,6 +71,12 @@ public:
     static bool         TryParseStepName (const std::string & step, int & outIndex);
     static uint64_t     GetByteCount     (const Partition & partition);
 
+    //  "Partition 2: GAMES", and with the size, "Partition 2: GAMES (32 MB)".
+    //  The text after the colon is the volume's name, the map's name for the
+    //  partition, or a DOS volume's number.
+    static std::string  GetLabel         (const PartitionEntry & entry, bool withSize);
+    static std::string  FormatSize       (uint64_t byteCount);
+
     static HRESULT  Extract (const std::vector<Byte>  & fileBytes,
                              const std::string        & name,
                              int                        index,

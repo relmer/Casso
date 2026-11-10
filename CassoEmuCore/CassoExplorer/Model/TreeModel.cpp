@@ -9,7 +9,9 @@
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Devices/Disk/Archives/ContainerPath.h"
 #include "Devices/Disk/Containers/ImageContainer.h"
+#include "Devices/Disk/Partitions/PartitionAccess.h"
 
 
 
@@ -301,6 +303,21 @@ bool TreeModel::TryParseImageOrDirectoryId (
     tag           = id.substr (prefixLength, firstBar - prefixLength);
     outUnderCasso = tag == kCassoTag;
     secondBar     = id.find (kSeparator, firstBar + 1);
+
+    //  A partition's step is part of the image's path.
+    while (secondBar != std::wstring::npos)
+    {
+        size_t        nextBar   = id.find (kSeparator, secondBar + 1);
+        std::wstring  step      = id.substr (secondBar + 1, (nextBar == std::wstring::npos) ? std::wstring::npos : nextBar - secondBar - 1);
+        int           partition = 0;
+
+        if (!PartitionAccess::TryParseStepName (TextEncoding::WideToNarrow (step), partition))
+        {
+            break;
+        }
+
+        secondBar = nextBar;
+    }
 
     if (secondBar == std::wstring::npos)
     {
@@ -1491,21 +1508,23 @@ HRESULT TreeModel::ListRoot (bool underCasso, std::vector<TreeNode> & outNodes)
 //  Reads the image once. A ProDOS volume's subdirectories become the node's
 //  children and give it an expand affordance; a DOS 3.3 volume has none; a
 //  file that will not parse gets the error as its tooltip and no affordance.
+//  The partitions of a partitioned image follow the directories, and a file
+//  that has partitions is not an error.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, TreeNode & inOutNode)
 {
     HRESULT                hr         = S_OK;
-    std::string            content;
     std::vector<Byte>      fileBytes;
+    std::string            name;
     std::vector<Byte>      sectors;
     SectorDecodeReport     report;
     MountDiagnosis         diagnosis;
     bool                   loaded     = false;
     VolumeKind             kind       = VolumeKind::Unknown;
     std::vector<TreeNode>  children;
-    std::string            narrowPath = TextEncoding::WideToNarrow (path);
+    std::vector<TreeNode>  partitions;
 
 
 
@@ -1513,13 +1532,13 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
     inOutNode.broken    = false;
     inOutNode.loadError.clear();
 
-    hr = m_fs.ReadAllText (path, content);
+    hr = ReadImage (path, fileBytes, name);
 
     if (SUCCEEDED (hr))
     {
-        fileBytes.assign (content.begin(), content.end());
+        ListPartitions (underCasso, path, fileBytes, name, partitions);
 
-        hr     = VolumeImage::Load (fileBytes, narrowPath, sectors, report, diagnosis);
+        hr     = VolumeImage::Load (fileBytes, name, sectors, report, diagnosis);
         loaded = SUCCEEDED (hr);
     }
 
@@ -1538,7 +1557,7 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
         }
     }
 
-    if (FAILED (hr))
+    if (FAILED (hr) && partitions.empty())
     {
         //  A file the loader refused says why, as the list does; one that
         //  loaded holds no file system this browser reads.
@@ -1555,10 +1574,111 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
         ListDirectories (underCasso, path, sectors, std::string(), children);
     }
 
+    children.insert (children.end(), partitions.begin(), partitions.end());
+
     inOutNode.canExpand      = !children.empty();
     m_children[inOutNode.id] = children;
 
     return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::ReadImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT TreeModel::ReadImage (const std::wstring & path, std::vector<Byte> & outBytes, std::string & outName)
+{
+    HRESULT          hr       = S_OK;
+    std::string      narrow   = TextEncoding::WideToNarrow (path);
+    bool             isNested = ContainerPath::IsNested (narrow);
+    std::string      content;
+    std::string      error;
+    OpenedContainer  opened;
+
+
+
+    outBytes.clear();
+    outName = narrow;
+
+    if (isNested)
+    {
+        hr = ContainerPath::Open (ContainerPath::Parse (narrow), m_fs, opened, error);
+        CHR (hr);
+
+        outBytes = std::move (opened.bytes);
+        outName  = opened.name;
+    }
+    else
+    {
+        hr = m_fs.ReadAllText (path, content);
+        CHR (hr);
+
+        outBytes.assign (content.begin(), content.end());
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::ListPartitions
+//
+//  A ProDOS partition has an expander before its directories are read: they
+//  are read when the node is expanded. A partition that ends past the end of
+//  the image is listed as damaged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TreeModel::ListPartitions (
+    bool                      underCasso,
+    const std::wstring      & path,
+    const std::vector<Byte> & fileBytes,
+    const std::string       & name,
+    std::vector<TreeNode>   & outNodes)
+{
+    PartitionLayoutKind          layout  = PartitionLayoutKind::None;
+    std::vector<PartitionEntry>  entries;
+    HRESULT                      hr      = PartitionAccess::List (fileBytes, name, layout, entries);
+
+
+
+    outNodes.clear();
+
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    for (const PartitionEntry & entry : entries)
+    {
+        TreeNode      node;
+        std::wstring  partitionPath = path + kSeparator + TextEncoding::NarrowToWide (entry.step);
+
+        node.id        = MakeImageId (underCasso, partitionPath);
+        node.kind      = TreeNode::Kind::DiskImage;
+        node.label     = TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, true));
+        node.location  = Location::MakeDiskImage (partitionPath);
+        node.canExpand = !entry.partition.damaged && entry.partition.volumeKind == VolumeKind::ProDos;
+
+        if (entry.partition.damaged)
+        {
+            node.broken    = true;
+            node.loadError = TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, false)) + L" " + kDamagedPartitionText;
+        }
+
+        outNodes.push_back (node);
+    }
 }
 
 
@@ -1639,7 +1759,7 @@ void TreeModel::ListDirectories (
 HRESULT TreeModel::ListImageDirectory (bool underCasso, const std::wstring & path, const std::string & inner, std::vector<TreeNode> & outNodes)
 {
     HRESULT             hr        = S_OK;
-    std::string         content;
+    std::string         name;
     std::vector<Byte>   fileBytes;
     std::vector<Byte>   sectors;
     SectorDecodeReport  report;
@@ -1649,12 +1769,10 @@ HRESULT TreeModel::ListImageDirectory (bool underCasso, const std::wstring & pat
 
     outNodes.clear();
 
-    hr = m_fs.ReadAllText (path, content);
+    hr = ReadImage (path, fileBytes, name);
     CHR (hr);
 
-    fileBytes.assign (content.begin(), content.end());
-
-    hr = VolumeImage::Load (fileBytes, TextEncoding::WideToNarrow (path), sectors, report);
+    hr = VolumeImage::Load (fileBytes, name, sectors, report);
     CHR (hr);
 
     isProDos = VolumeImage::DetectFilesystem (sectors) == VolumeKind::ProDos;
