@@ -293,6 +293,7 @@
     <ClCompile Include="EmuTests\GutenbergVolumeTests.cpp" />
     <ClCompile Include="EmuTests\RdosVolumeTests.cpp" />
     <ClCompile Include="EmuTests\Dos32VolumeTests.cpp" />
+    <ClCompile Include="EmuTests\PartitionLayoutTests.cpp" />
     <ClCompile Include="EmuTests\ThirteenSectorCodecTests.cpp" />
     <ClCompile Include="EmuTests\CrossVolumeCopyTests.cpp" />
     <ClCompile Include="EmuTests\NewPascalCpmDiskTests.cpp" />

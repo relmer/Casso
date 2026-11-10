@@ -556,6 +556,13 @@
     <ClCompile Include="Devices\Disk\Archives\GzipFile.cpp" />
     <ClCompile Include="Devices\Disk\Archives\ArchiveVolume.cpp" />
     <ClCompile Include="Devices\Disk\MemoryBlockStore.cpp" />
+    <ClCompile Include="Devices\Disk\Partitions\CffaLayout.cpp" />
+    <ClCompile Include="Devices\Disk\Partitions\DosMasterLayout.cpp" />
+    <ClCompile Include="Devices\Disk\Partitions\FocusDriveLayout.cpp" />
+    <ClCompile Include="Devices\Disk\Partitions\MicroDriveLayout.cpp" />
+    <ClCompile Include="Devices\Disk\Partitions\PartitionLayout.cpp" />
+    <ClCompile Include="Devices\Disk\Partitions\PpmLayout.cpp" />
+    <ClCompile Include="Devices\Disk\Partitions\UniDosLayout.cpp" />
     <ClCompile Include="Machines\Apple2\Common\WozCompatibility.cpp" />
     <ClCompile Include="Machines\Apple2\Common\WozLoader.cpp" />
     <ClCompile Include="Machines\Apple2\Common\BlankDiskBuilder.cpp" />
@@ -1235,6 +1242,13 @@
     <ClInclude Include="Devices\Disk\Archives\ArchiveVolume.h" />
     <ClInclude Include="Devices\Disk\IBlockStore.h" />
     <ClInclude Include="Devices\Disk\MemoryBlockStore.h" />
+    <ClInclude Include="Devices\Disk\Partitions\CffaLayout.h" />
+    <ClInclude Include="Devices\Disk\Partitions\DosMasterLayout.h" />
+    <ClInclude Include="Devices\Disk\Partitions\FocusDriveLayout.h" />
+    <ClInclude Include="Devices\Disk\Partitions\MicroDriveLayout.h" />
+    <ClInclude Include="Devices\Disk\Partitions\PartitionLayout.h" />
+    <ClInclude Include="Devices\Disk\Partitions\PpmLayout.h" />
+    <ClInclude Include="Devices\Disk\Partitions\UniDosLayout.h" />
     <ClInclude Include="Machines\Apple2\Common\WozCompatibility.h" />
     <ClInclude Include="Machines\Apple2\Common\WozLoader.h" />
     <ClInclude Include="Machines\Apple2\Common\WozMetadata.h" />
