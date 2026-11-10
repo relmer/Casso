@@ -521,7 +521,7 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
             //  A card is one segment, which its partitions follow.
             if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (location.path), drive, partition) == PhysicalCards::PathKind::Card)
             {
-                segments.push_back (AddressSegment { std::format (L"Physical drive {}", drive), Location::MakeDiskImage (location.path) });
+                segments.push_back (AddressSegment { root.getCardLabel ? root.getCardLabel (drive) : std::format (L"Physical drive {}", drive), Location::MakeDiskImage (location.path) });
                 break;
             }
 

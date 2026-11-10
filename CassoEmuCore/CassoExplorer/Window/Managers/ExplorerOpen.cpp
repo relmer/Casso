@@ -147,16 +147,15 @@ void ExplorerOpen::OpenPhysicalCard()
 
     if (FAILED (hr) || drives.empty())
     {
-        m_context.window.ShowMessage (L"No card is in a removable drive of this PC.", MB_ICONINFORMATION);
+        m_context.window.ShowMessage (L"No storage cards were found.", MB_ICONINFORMATION);
         return;
     }
 
     for (const PhysicalDrive & drive : drives)
     {
-        int           number = drive.number;
-        std::wstring  label  = PhysicalCards::FormatDrive (drive);
+        std::wstring  label = PhysicalCards::FormatDrive (drive);
 
-        m_context.menus.AddMenuCommand (items, label.c_str(), [this, number]() { OpenCard (number); });
+        m_context.menus.AddMenuCommand (items, label.c_str(), [this, drive]() { OpenCard (drive); });
     }
 
     got = GetCursorPos (&screen);
@@ -175,13 +174,13 @@ void ExplorerOpen::OpenPhysicalCard()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerOpen::OpenCard (int number)
+void ExplorerOpen::OpenCard (const PhysicalDrive & drive)
 {
     HRESULT  hr = S_OK;
 
 
 
-    hr = m_context.app.cards->Open (number, m_context.window.GetHwnd());
+    hr = m_context.app.cards->Open (drive.number, m_context.window.GetHwnd());
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
     {
@@ -190,11 +189,11 @@ void ExplorerOpen::OpenCard (int number)
 
     if (FAILED (hr))
     {
-        m_context.window.ShowMessage (std::format (L"Physical drive {} couldn't be opened.", number), MB_ICONWARNING);
+        m_context.window.ShowMessage (L"Unable to open " + PhysicalCards::FormatDrive (drive) + L".", MB_ICONWARNING);
         return;
     }
 
-    m_context.browser.NavigateToLocation (Location::MakeDiskImage (TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (number))));
+    m_context.browser.NavigateToLocation (Location::MakeDiskImage (TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (drive.number))));
     m_context.listPane.FillList();
 }
 
@@ -232,7 +231,7 @@ bool ExplorerOpen::PickPartitionImage (const std::wstring & partition, std::wstr
     spec.defaultExtension = L"po";
     spec.defaultFileName  = std::format (L"Physical drive {} partition {}.po", drive, index);
     spec.askToReplace     = true;
-    spec.title            = L"Copy partition to image";
+    spec.title            = std::format (L"Create image from partition {}", index);
 
     hr = m_context.dialogs.PickFileToSave (m_context.window.GetHwnd(), spec, target, picked);
 
@@ -244,4 +243,22 @@ bool ExplorerOpen::PickPartitionImage (const std::wstring & partition, std::wstr
     outTarget = target.wstring();
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::SetCardWriteConfirmed
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerOpen::SetCardWriteConfirmed (bool confirmed)
+{
+    if (m_context.app.cards != nullptr)
+    {
+        m_context.app.cards->SetConfirmed (confirmed);
+    }
 }

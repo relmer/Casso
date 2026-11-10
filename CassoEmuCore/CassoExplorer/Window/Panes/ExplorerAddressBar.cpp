@@ -12,6 +12,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/CassoExplorerCommands.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
 
@@ -74,6 +75,14 @@ void ExplorerAddressBar::Configure()
     m_addressRoot.isHostFolder = [this] (const std::wstring & path)
     {
         return m_context.app.fs != nullptr && path.size() > 1 && path[1] == L':' && m_context.app.fs->DirectoryExists (path);
+    };
+
+    m_addressRoot.getCardLabel = [this] (int drive)
+    {
+        PhysicalDrive  found;
+        bool           isOpen = m_context.app.cards != nullptr && m_context.app.cards->TryGetDrive (drive, found);
+
+        return isOpen ? PhysicalCards::FormatDrive (found) : std::format (L"Physical drive {}", drive);
     };
 
     m_address->SetOnSegment ([this] (int index)

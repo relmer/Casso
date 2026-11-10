@@ -5,6 +5,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
 
@@ -129,8 +130,12 @@ ActionsTypes::Outcome ActionsPartition::DescribeReplace (const std::wstring & pa
     std::vector<Byte>      converted;
     std::string            error;
     std::wstring           parent;
-    int                    index   = 0;
-    HRESULT                hr      = S_OK;
+    std::wstring           parentText;
+    PhysicalDrive          found;
+    int                    index     = 0;
+    int                    drive     = 0;
+    int                    cardIndex = 0;
+    HRESULT                hr        = S_OK;
 
 
 
@@ -159,9 +164,21 @@ ActionsTypes::Outcome ActionsPartition::DescribeReplace (const std::wstring & pa
 
     TrySplit (partitionPath, parent, index);
 
+    //  A card is listed by its drive's display name, as the question also
+    //  confirms the write to the card.
+    if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (parent), drive, cardIndex) == PhysicalCards::PathKind::Card &&
+        m_actions.m_browser.GetPhysicalCards() != nullptr && m_actions.m_browser.GetPhysicalCards()->TryGetDrive (drive, found))
+    {
+        parentText = PhysicalCards::FormatDrive (found);
+    }
+    else
+    {
+        parentText = CassoExplorerActions::GetLeafName (parent);
+    }
+
     outQuestion = std::format (L"Replace {} of {} with {} ({})?\r\n\r\nEverything on the partition is overwritten.",
                                TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, true)),
-                               CassoExplorerActions::GetLeafName (parent),
+                               parentText,
                                CassoExplorerActions::GetLeafName (imagePath),
                                TextEncoding::NarrowToWide (PartitionAccess::FormatSize (imageBytes.size())));
 

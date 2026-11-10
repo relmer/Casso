@@ -1667,7 +1667,7 @@ int CassoExplorerShell::RunMessageLoop()
 //  CassoExplorerShell::ConfirmCardWrite
 //
 //  A write from a thread other than the UI thread is canceled, as the prompt
-//  is a window of the UI thread.
+//  is a window of the UI thread. One prompt covers every write of a command.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1676,6 +1676,7 @@ bool CassoExplorerShell::ConfirmCardWrite (const PhysicalDrive & drive)
     CassoExplorerWindow  * window   = GetWindowFor (GetForegroundWindow());
     std::wstring           question = std::format (L"Write to {}? The card is changed in place.", PhysicalCards::FormatDrive (drive));
     int                    choice   = IDCANCEL;
+    UINT_PTR               timer    = 0;
 
 
 
@@ -1691,5 +1692,39 @@ bool CassoExplorerShell::ConfirmCardWrite (const PhysicalDrive & drive)
                              MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2,
                              { L"Write", L"Cancel" });
 
+    //  The writes that follow in the same command are sent without a prompt.
+    //  The timer fires once the UI thread is back in its message loop.
+    if (choice == IDOK)
+    {
+        s_confirmedCards = &m_cards;
+        m_cards.SetConfirmed (true);
+        timer = SetTimer (nullptr, 0, 0, &CassoExplorerShell::EndCardConfirmation);
+        IGNORE_RETURN_VALUE (timer, 0);
+    }
+
     return choice == IDOK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::EndCardConfirmation
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CALLBACK CassoExplorerShell::EndCardConfirmation (HWND, UINT, UINT_PTR id, DWORD)
+{
+    BOOL  killed = KillTimer (nullptr, id);
+
+
+
+    IGNORE_RETURN_VALUE (killed, TRUE);
+
+    if (s_confirmedCards != nullptr)
+    {
+        s_confirmedCards->SetConfirmed (false);
+    }
 }

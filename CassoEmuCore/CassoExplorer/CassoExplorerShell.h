@@ -176,6 +176,9 @@ public:
     static std::wstring  GetLocalizedFolderName (const std::wstring & path);
 
     bool                 ConfirmCardWrite       (const PhysicalDrive & drive);
+    static void CALLBACK EndCardConfirmation    (HWND, UINT, UINT_PTR id, DWORD);
+
+    static inline PhysicalCards * s_confirmedCards = nullptr;
     static std::wstring  GetPlainFolderName     (const std::wstring & path);
 
     //  EHM hooks for a process with no dialog host of its own.

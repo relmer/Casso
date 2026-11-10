@@ -74,6 +74,9 @@ public:
         //  zip into the folders that hold the zip and the zip's own folders.
         //  None: a shell folder is one segment.
         std::function<bool (const std::wstring & path)>  isHostFolder;
+
+        //  The display name of a card's drive. None: "Physical drive N".
+        std::function<std::wstring (int drive)>          getCardLabel;
     };
 
     size_t  OpenTab   (const Location & location);

@@ -93,6 +93,10 @@ public:
 
     void     SetConfirmWrite     (ConfirmWrite confirm) { m_confirmWrite = std::move (confirm); }
 
+    //  While set, writes are sent without the confirmation callback, so one
+    //  command that writes several times prompts once.
+    void     SetConfirmed        (bool confirmed)       { m_confirmed = confirmed; }
+
     HRESULT  ListRemovableDrives (std::vector<PhysicalDrive> & outDrives);
 
     //  Fails with E_ACCESSDENIED for a drive that is not removable.
@@ -137,4 +141,5 @@ private:
     std::map<int, Session>    m_sessions;
     int64_t                   m_nextStamp  = 1;
     bool                      m_confirming = false;
+    std::atomic<bool>         m_confirmed  = false;
 };

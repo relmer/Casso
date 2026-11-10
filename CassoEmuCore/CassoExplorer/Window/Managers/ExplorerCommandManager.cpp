@@ -210,7 +210,7 @@ void ExplorerCommandManager::CopyPartitionToImage()
 
     outcome = m_context.actions.CopyPartitionToImage (partition, created, target);
 
-    ReportOutcome (outcome, L"Copy partition to image");
+    ReportOutcome (outcome, L"Create image from partition");
 
     if (!created.empty())
     {
@@ -269,7 +269,13 @@ void ExplorerCommandManager::ReplacePartition()
         return;
     }
 
-    ReportOutcome (m_context.actions.ReplacePartition (partition, picked.wstring()), L"Replace partition");
+    //  The question above covers the write to a card, so the card write
+    //  prompt is skipped.
+    m_context.opener.SetCardWriteConfirmed (true);
+    outcome = m_context.actions.ReplacePartition (partition, picked.wstring());
+    m_context.opener.SetCardWriteConfirmed (false);
+
+    ReportOutcome (outcome, L"Replace partition");
     m_context.listPane.FillList();
 }
 

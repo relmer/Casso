@@ -434,7 +434,7 @@ HRESULT PhysicalCards::WritePartition (int number, int partition, std::span<cons
     m_confirming = true;
 
     lock.unlock();
-    confirmed = m_confirmWrite && m_confirmWrite (drive);
+    confirmed = m_confirmed || (m_confirmWrite && m_confirmWrite (drive));
     lock.lock();
 
     m_confirming = false;
