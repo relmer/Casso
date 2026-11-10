@@ -65,6 +65,8 @@ public:
     void          GetRows          (int position, std::vector<Row> & outRows) const;
 
 private:
+    static std::wstring  FormatRange (int first, int last, bool capitalized);
+
     uint64_t  m_bytes       = 0;
     int       m_volumeLimit = 0;
     bool      m_canFat32    = false;

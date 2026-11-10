@@ -128,7 +128,7 @@ bool CardLayoutBar::AdvanceAnimation (int64_t nowMs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int CardLayoutBar::MeasureHeightPx (int widthPx) const
+int CardLayoutBar::MeasureHeightPx (int widthPx, const DxuiDpiScaler & scaler) const
 {
     std::vector<CardLayoutModel::Row>  rows;
     size_t                             most = 0;
@@ -145,7 +145,7 @@ int CardLayoutBar::MeasureHeightPx (int widthPx) const
         most = std::max (most, rows.size());
     }
 
-    return (int) std::ceil (m_scaler.ToPxf (kBarHeightDip + kPuckHeightDip + kGapDip + kLineDip * 3.0f + kGapDip + kRowDip * (float) most));
+    return (int) std::ceil (scaler.ToPxf (kBarHeightDip + kPuckHeightDip + kGapDip + kLineDip * 3.0f + kGapDip + kRowDip * (float) most));
 }
 
 
@@ -564,12 +564,12 @@ void CardLayoutBar::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
             case CardLayoutModel::Support::Step:
                 painter.FillConvexQuad (cx, cy - r, cx + r * 1.1f, cy + r * 0.85f, cx - r * 1.1f, cy + r * 0.85f, cx, cy - r, s_kStepArgb);
-                painter.DrawLine (cx, cy - r * 0.35f, cx, cy + r * 0.3f, 2.0f, 0xFFFFFFFF);
-                painter.FillCircle (cx, cy + r * 0.6f, 1.2f, 0xFFFFFFFF);
+                painter.DrawLine (cx, cy - r * 0.35f, cx, cy + r * 0.3f, 2.0f, s_kWarningMarkArgb);
+                painter.FillCircle (cx, cy + r * 0.6f, 1.2f, s_kWarningMarkArgb);
                 break;
 
             case CardLayoutModel::Support::Fails:
-                painter.FillCircle (cx, cy, r, theme.ErrorForeground());
+                painter.FillCircle (cx, cy, r, s_kFailsArgb);
                 painter.DrawLine (cx - r * 0.45f, cy - r * 0.45f, cx + r * 0.45f, cy + r * 0.45f, 2.0f, 0xFFFFFFFF);
                 painter.DrawLine (cx - r * 0.45f, cy + r * 0.45f, cx + r * 0.45f, cy - r * 0.45f, 2.0f, 0xFFFFFFFF);
                 break;

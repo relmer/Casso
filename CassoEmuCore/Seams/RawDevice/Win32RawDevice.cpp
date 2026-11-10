@@ -410,6 +410,7 @@ HRESULT Win32RawDevice::QueryDrive (HANDLE drive, int number, const std::set<DWO
     product = ReadDescriptorText (buffer, descriptor->ProductIdOffset);
 
     outDrive.model = vendor.empty() || product.empty() ? vendor + product : vendor + " " + product;
+    outDrive.model = std::regex_replace (outDrive.model, std::regex ("  +"), " ");
 
     onCardBus          = !outDrive.bus.empty();
     outDrive.removable = descriptor->RemovableMedia != FALSE && onCardBus && !systemDrives.contains ((DWORD) number);
@@ -451,7 +452,11 @@ std::string Win32RawDevice::ReadDescriptorText (const std::vector<Byte> & descri
     {
         Byte  ch = descriptor[at];
 
-        text.push_back (ch >= 0x20 && ch < 0x7F ? (char) ch : ' ');
+        //  Runs of spaces are one, as some readers pad the vendor and product.
+        if (ch >= 0x20 && ch < 0x7F && !(ch == ' ' && !text.empty() && text.back() == ' '))
+        {
+            text.push_back ((char) ch);
+        }
     }
 
     first = text.find_first_not_of (' ');

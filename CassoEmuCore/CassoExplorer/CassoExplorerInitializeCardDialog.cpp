@@ -145,8 +145,7 @@ int CassoExplorerInitializeCardPanel::Arrange (const RECT & bounds, const DxuiDp
 
     top += question + gap;
 
-    m_bar->Layout (RECT { bounds.left, top, bounds.right, top + 1 }, scaler);
-    bar = m_bar->MeasureHeightPx (width);
+    bar = m_bar->MeasureHeightPx (width, scaler);
 
     if (place)
     {

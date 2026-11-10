@@ -40,7 +40,7 @@ public:
     bool  AdvanceAnimation (int64_t nowMs);
 
     //  The control's height at a width, in pixels.
-    int   MeasureHeightPx (int widthPx) const;
+    int   MeasureHeightPx (int widthPx, const DxuiDpiScaler & scaler) const;
 
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -73,7 +73,10 @@ private:
     static constexpr uint32_t  s_kFat32Argb       = 0xFF97C459;
     static constexpr uint32_t  s_kFat32OnArgb     = 0xFF3B6D11;
     static constexpr uint32_t  s_kWorksArgb       = 0xFF3B6D11;
-    static constexpr uint32_t  s_kStepArgb        = 0xFFBA7517;
+    static constexpr uint32_t  s_kStepArgb        = 0xFFFFB900;   // Windows' warning yellow
+    static constexpr uint32_t  s_kWarningMarkArgb = 0xFF000000;
+    //  Dark enough for the white cross, in light and dark themes.
+    static constexpr uint32_t  s_kFailsArgb       = 0xFFA32D2D;
     static constexpr uint32_t  s_kLightTextArgb   = 0xFFEAF3DE;
     static constexpr uint32_t  s_kDarkTextArgb    = 0xFF173404;
 

@@ -131,7 +131,7 @@ std::wstring CardLayoutModel::DescribeSpace (int position) const
 
     if (position > kUniversalVolumes)
     {
-        text = std::format (L"Volumes 5 to {} require CFFA 2.0 setup, and older adapters don't read them. ", position);
+        text = std::format (L"{} require{} CFFA 2.0 setup, and older adapters don't read {}. ", FormatRange (5, position, true), position == 5 ? L"s" : L"", position == 5 ? L"it" : L"them");
     }
 
     if (unused == 0)
@@ -178,9 +178,36 @@ void CardLayoutModel::GetRows (int position, std::vector<Row> & outRows) const
     outRows.push_back (Row { L"CFFA 1.x, ProDOS 8",          n <= 4 ? Support::Works : Support::Step,  n <= 4 ? L"" : L"Reads volumes 1 to 4 only" });
     outRows.push_back (Row { L"CFFA 1.2 8-drive firmware",   n <= 8 ? Support::Works : Support::Step,  n <= 8 ? L"" : L"Reads volumes 1 to 8 only" });
     outRows.push_back (Row { L"CFFA 1.x, GS/OS driver",      n <= 4 ? Support::Works : Support::Fails,
-                             n <= 4 ? std::wstring() : std::format (L"Reads volume 5 as a 1 GB drive and doesn't read 6 to {}. Erasing that drive destroys them", n) });
+                             n <= 4 ? std::wstring() : n == 5 ? std::wstring (L"Reads volume 5 as a 1 GB drive. Erasing that drive destroys the volume")
+                                                     : std::format (L"Reads volume 5 as a 1 GB drive and doesn't read {}. Erasing that drive destroys {}", FormatRange (6, n, false), FormatRange (5, n, false)) });
     outRows.push_back (Row { L"CFFA 2.0, 65C02 firmware",    n <= 4 ? Support::Works : Support::Step,
                              n <= 4 ? std::wstring() : std::format (L"Set its partition count to {} in its configuration menu. The factory setting is 4", n) });
     outRows.push_back (Row { L"CFFA 2.0, 6502 firmware",     n <= 2 ? Support::Works : Support::Step,  n <= 2 ? L"" : L"Reads volumes 1 to 2 only, or 1 to 4 in slot 5" });
     outRows.push_back (Row { L"CFFA3000, raw CF mode",       Support::Unknown, L"Not confirmed from its manual" });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CardLayoutModel::FormatRange
+//
+//  "volume 5" for a range of one, and "volumes 5 to 8" otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CardLayoutModel::FormatRange (int first, int last, bool capitalized)
+{
+    std::wstring  text = first == last ? std::format (L"volume {}", first) : std::format (L"volumes {} to {}", first, last);
+
+
+
+    if (capitalized)
+    {
+        text[0] = L'V';
+    }
+
+    return text;
 }
