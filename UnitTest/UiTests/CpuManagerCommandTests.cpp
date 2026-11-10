@@ -13,10 +13,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 static constexpr int  s_kWaitMs = 5000;
 static constexpr int  s_kPollMs = 5;
 
-// One settle window. Comfortably longer than the loop's ~16.6 ms frame
-// period, so a still-running thread is guaranteed to tick the counter.
-static constexpr int  s_kParkMs = 60;
-
 
 
 
@@ -86,12 +82,10 @@ public:
 
         cpu.SetPaused (true);
 
-        // Wait for the thread to actually PARK before posting, so the test
-        // covers the wake path rather than a command that happened to be
-        // queued while the loop was still spinning. Frames going quiet is
-        // the observable proof it reached the pause wait; IsPaused only
-        // reports what this thread just asked for.
-        WaitForFramesToStop (frames);
+        // Wait for the park before posting, so that the command ends the
+        // pause wait rather than being queued while the loop ran. IsPaused
+        // returns the request, not the park.
+        WaitUntilParked (cpu);
 
         cpu.PostCommand (IDM_DISK_EJECT1, "disk.woz");
 
@@ -130,15 +124,19 @@ public:
         Assert::AreEqual (S_OK, hr, L"CpuManager::Start should succeed");
 
         cpu.SetPaused (true);
-        WaitForFramesToStop (frames);
+        WaitUntilParked (cpu);
 
         int  baseline = frames.load (std::memory_order_acquire);
 
         cpu.PostCommand (IDM_DISK_EJECT2);
         WaitFor ([&] { return commands.load (std::memory_order_acquire) > 0; });
 
-        std::this_thread::sleep_for (std::chrono::milliseconds (50));
+        // The second command is dispatched one pass of the loop after the
+        // first, so a frame run after the first command is counted by then.
+        cpu.PostCommand (IDM_DISK_EJECT2);
+        WaitFor ([&] { return commands.load (std::memory_order_acquire) > 1; });
 
+        Assert::AreEqual (2, commands.load (std::memory_order_acquire), L"both commands were dispatched");
         Assert::AreEqual (baseline, frames.load (std::memory_order_acquire),
                           L"waking for a command must not step the emulation");
 
@@ -178,7 +176,7 @@ public:
         Assert::AreEqual (S_OK, hr, L"CpuManager::Start should succeed");
 
         cpu.SetPaused (true);
-        std::this_thread::sleep_for (std::chrono::milliseconds (s_kParkMs));
+        WaitUntilParked (cpu);
 
         // The paused-and-idle loop must still observe the run flag dropping;
         // a Stop that hangs here would deadlock app shutdown.
@@ -202,20 +200,12 @@ private:
         }
     }
 
-    // Blocks until the frame counter holds still across a settle window --
-    // the observable "the CPU thread has reached its pause wait" signal.
-    static void WaitForFramesToStop (const std::atomic<int> & frames)
+    // Blocks until the CPU thread parks: it is outside a frame, and the
+    // next frame runs after the resume.
+    static void WaitUntilParked (CpuManager & cpu)
     {
-        for (int waited = 0; waited < s_kWaitMs; waited += s_kParkMs)
-        {
-            int  before = frames.load (std::memory_order_acquire);
+        bool  isParked = cpu.TryWaitUntilParked (std::chrono::milliseconds (s_kWaitMs));
 
-            std::this_thread::sleep_for (std::chrono::milliseconds (s_kParkMs));
-
-            if (frames.load (std::memory_order_acquire) == before)
-            {
-                return;
-            }
-        }
+        Assert::IsTrue (isParked, L"the CPU thread parked");
     }
 };
