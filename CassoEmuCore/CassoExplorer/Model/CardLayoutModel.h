@@ -86,6 +86,10 @@ public:
 
 private:
     static std::wstring  FormatRange (int first, int last, bool capitalized);
+    static std::wstring  FormatBytes (uint64_t bytes);
+
+    //  Where FAT32's partition starts, as Fat32Format writes it.
+    static constexpr uint32_t  kFat32StartBlocks = 2048;
 
     uint64_t  m_bytes       = 0;
     int       m_volumeLimit = 0;

@@ -85,9 +85,10 @@ public:
 
         model.GetRows (5, rows);
 
-        Assert::IsTrue (model.DescribeSpace (5).starts_with (L"Volume 5 requires"));
         Assert::IsTrue (rows[2].note.find (L"to 5") == std::wstring::npos);
-        Assert::IsTrue (model.DescribeSpace (8).starts_with (L"Volumes 5 to 8 require"));
+        Assert::IsTrue (model.DescribeSpace (6).starts_with (L"Uses "));
+        Assert::IsTrue (model.DescribeSpace (6).ends_with (L"unused and inaccessible."));
+        Assert::IsTrue (model.DescribeSpace (14).starts_with (L"Creates a single "));
     }
 
 

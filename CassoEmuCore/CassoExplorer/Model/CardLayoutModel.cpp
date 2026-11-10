@@ -95,7 +95,7 @@ std::wstring CardLayoutModel::DescribePosition (int position) const
 {
     if (IsFat32 (position))
     {
-        return L"One FAT32 partition, the whole card, for a CFFA3000's disk image files";
+        return L"One FAT32 partition";
     }
 
     if (m_bytes <= kSliceBytes)
@@ -118,35 +118,37 @@ std::wstring CardLayoutModel::DescribePosition (int position) const
 
 std::wstring CardLayoutModel::DescribeSpace (int position) const
 {
-    uint64_t      used   = std::min (m_bytes, (uint64_t) position * kSliceBytes);
-    uint64_t      unused = m_bytes - used;
-    std::wstring  text;
+    uint64_t  used   = std::min (m_bytes, (uint64_t) position * kSliceBytes);
+    uint64_t  unused = m_bytes - used;
 
 
 
     if (IsFat32 (position))
     {
-        return L"The whole card is used. Only a CFFA3000 reads it.";
-    }
-
-    if (position > kUniversalVolumes)
-    {
-        text = std::format (L"{} require{} CFFA 2.0 setup, and older adapters don't read {}. ", FormatRange (5, position, true), position == 5 ? L"s" : L"", position == 5 ? L"it" : L"them");
+        return std::format (L"Creates a single {} FAT32 partition.", FormatBytes (m_bytes - (uint64_t) kFat32StartBlocks * 512));
     }
 
     if (unused == 0)
     {
-        return text + L"The whole card is used.";
+        return std::format (L"Uses the whole card for {}.", position == 1 ? L"one ProDOS volume" : L"CFFA ProDOS volumes");
     }
 
-    text += std::format (L"{} of the card is unused by the CFFA layout.", TextEncoding::NarrowToWide (PartitionAccess::FormatSize (unused)));
+    return std::format (L"Uses {} for CFFA ProDOS volumes, leaving {} unused and inaccessible.", FormatBytes (used), FormatBytes (unused));
+}
 
-    if (m_canFat32)
-    {
-        text += L" FAT32 uses all of it with a CFFA3000.";
-    }
 
-    return text;
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CardLayoutModel::FormatBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CardLayoutModel::FormatBytes (uint64_t bytes)
+{
+    return TextEncoding::NarrowToWide (PartitionAccess::FormatSize (bytes));
 }
 
 
@@ -171,7 +173,7 @@ void CardLayoutModel::GetRows (int position, std::vector<Row> & outRows) const
     {
         outRows.push_back (Row { L"CFFA 1.x",  Support::Fails, L"Reads only its fixed layout" });
         outRows.push_back (Row { L"CFFA 2.0",  Support::Fails, L"Reads only its fixed layout" });
-        outRows.push_back (Row { L"CFFA3000",  Support::Works, L"Copy disk images to the card in Windows, then assign them in its menu" });
+        outRows.push_back (Row { L"CFFA3000",  Support::Works, L"Copy disk images to the card in Casso Explorer, then assign them to drives in the CFFA3000's menu" });
         return;
     }
 
