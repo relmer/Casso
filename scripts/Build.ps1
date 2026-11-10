@@ -56,6 +56,10 @@
     with more than one leg writes one log per leg, with the configuration and
     platform inserted before the extension.
 
+.PARAMETER Property
+    Extra MSBuild properties, each as Name=Value, passed as -p:Name=Value.
+    For build experiments, for example -Property WholeProgramOptimization=false.
+
 .PARAMETER NormalPriority
     Run at the shell's own priority instead of below it. For CI, which has
     no foreground to protect.
@@ -93,6 +97,8 @@ param(
     [switch]$Sanitize,
 
     [string]$BinaryLog,
+
+    [string[]]$Property = @(),
 
     [switch]$NormalPriority,
 
@@ -315,6 +321,10 @@ foreach ($config in $configsToBuild) {
 
         if ($Sanitize) {
             $msbuildArgs += '-p:CassoSanitize=Address'
+        }
+
+        foreach ($extraProperty in $Property) {
+            $msbuildArgs += "-p:$extraProperty"
         }
 
         if ($BinaryLog) {

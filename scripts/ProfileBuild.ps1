@@ -39,6 +39,10 @@
     Where the logs go. Default: %TEMP%\CassoBuildProfile\<time>-<commit>,
     outside the working tree.
 
+.PARAMETER Property
+    Extra MSBuild properties, each as Name=Value, passed through to Build.ps1.
+    They are recorded in summary.txt.
+
 .PARAMETER NoTrace
     Skip the vcperf trace and write only the binary log.
 
@@ -65,6 +69,8 @@ param(
     [string]$Target = 'Rebuild',
 
     [string]$OutputDirectory,
+
+    [string[]]$Property = @(),
 
     [switch]$NoTrace,
 
@@ -155,6 +161,7 @@ try {
                                            -Platform $Platform `
                                            -Target $Target `
                                            -BinaryLog $binaryLogPath `
+                                           -Property $Property `
                                            -NormalPriority
     $buildExitCode = $LASTEXITCODE
 }
@@ -193,6 +200,7 @@ $summary = @(
     "Commit:         $commit ($branch)"
     "Configuration:  $Configuration|$Platform"
     "Target:         $Target"
+    "Properties:     $($Property -join ' ')"
     "Logical cores:  $([Environment]::ProcessorCount)"
     "Elapsed:        {0:00}:{1:00}.{2:000}" -f [int][Math]::Floor($elapsed.TotalMinutes), $elapsed.Seconds, $elapsed.Milliseconds
     "Build exit:     $buildExitCode"
