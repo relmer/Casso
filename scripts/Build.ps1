@@ -50,6 +50,12 @@
     which the suite runs. Run it with RunTests.ps1 -Build -Sanitize. See
     docs/testing.md.
 
+.PARAMETER BinaryLog
+    Write an MSBuild binary log to this path (-bl). Open it in MSBuild
+    Structured Log Viewer for the project timeline and per-target times. A run
+    with more than one leg writes one log per leg, with the configuration and
+    platform inserted before the extension.
+
 .PARAMETER NormalPriority
     Run at the shell's own priority instead of below it. For CI, which has
     no foreground to protect.
@@ -85,6 +91,8 @@ param(
     [switch]$RunCodeAnalysis,
 
     [switch]$Sanitize,
+
+    [string]$BinaryLog,
 
     [switch]$NormalPriority,
 
@@ -307,6 +315,17 @@ foreach ($config in $configsToBuild) {
 
         if ($Sanitize) {
             $msbuildArgs += '-p:CassoSanitize=Address'
+        }
+
+        if ($BinaryLog) {
+            $binaryLogPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($BinaryLog)
+
+            if ($configsToBuild.Count * $platformsToBuild.Count -gt 1) {
+                $binaryLogPath = Join-Path ([System.IO.Path]::GetDirectoryName($binaryLogPath)) `
+                    ("{0}-{1}-{2}.binlog" -f [System.IO.Path]::GetFileNameWithoutExtension($binaryLogPath), $config, $platformToBuild)
+            }
+
+            $msbuildArgs += "-bl:$binaryLogPath"
         }
 
         $flavorText = if ($Sanitize) { ' AddressSanitizer' } else { '' }
