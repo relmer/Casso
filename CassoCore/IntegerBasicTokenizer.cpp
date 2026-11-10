@@ -1662,10 +1662,10 @@ void IntegerBasicTokenizer::SplitLines (const std::string & hostListing, std::ve
 
 bool IntegerBasicTokenizer::ParseLineNumber (std::string_view text, size_t & ioAt, uint32_t & outNumber)
 {
-    size_t    i      = ioAt;
-    size_t    end    = ioAt;
-    size_t    digits = 0;
-    uint32_t  value  = 0;
+    size_t              i        = ioAt;
+    size_t              end      = ioAt;
+    size_t              digits   = 0;
+    uint32_t            value    = 0;
     constexpr uint32_t  kCeiling = 1000000;
 
 
