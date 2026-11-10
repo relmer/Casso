@@ -578,6 +578,7 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
 {
     HRESULT           hr          = S_OK;
     size_t            bufferBytes = m_sectors.size();
+    size_t            imageBytes  = m_geometry.GetImageByteSize();
     vector<RawEntry>  entries;
     bool              fullyParsed = true;
     int               track       = 0;
@@ -586,7 +587,7 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
 
 
 
-    CBREx (bufferBytes == m_geometry.GetImageByteSize(), E_INVALIDARG);
+    CBREx (bufferBytes == imageBytes, E_INVALIDARG);
 
     outListing = VolumeListing();
 
@@ -662,6 +663,7 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
 {
     HRESULT              hr          = S_OK;
     size_t               bufferBytes = m_sectors.size();
+    size_t               imageBytes  = m_geometry.GetImageByteSize();
     bool                 single      = path.IsSingleComponent();
     bool                 walked      = false;
     bool                 fullyParsed = true;
@@ -672,7 +674,7 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
 
 
 
-    CBREx (bufferBytes == m_geometry.GetImageByteSize(), E_INVALIDARG);
+    CBREx (bufferBytes == imageBytes, E_INVALIDARG);
     CBREx (single, E_INVALIDARG);
 
     CollectEntries (entries, damage, fullyParsed);
@@ -776,6 +778,7 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
 {
     HRESULT              hr          = S_OK;
     size_t               bufferBytes = m_sectors.size();
+    size_t               imageBytes  = m_geometry.GetImageByteSize();
     vector<RawEntry>     entries;
     vector<std::string>  damage;
     bool                 fullyParsed = true;
@@ -785,7 +788,7 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
 
 
 
-    CBREx (bufferBytes == m_geometry.GetImageByteSize(), E_INVALIDARG);
+    CBREx (bufferBytes == imageBytes, E_INVALIDARG);
 
     outReport.Reset (m_geometry.GetUnitCount());
 
@@ -1491,6 +1494,7 @@ HRESULT Dos33Volume::Write (
 {
     HRESULT              hr          = S_OK;
     size_t               bufferBytes = m_sectors.size();
+    size_t               imageBytes  = m_geometry.GetImageByteSize();
     bool                 single      = path.IsSingleComponent();
     bool                 nameOk      = false;
     bool                 exists      = false;
@@ -1511,7 +1515,7 @@ HRESULT Dos33Volume::Write (
 
 
 
-    CBREx (bufferBytes == m_geometry.GetImageByteSize(), E_INVALIDARG);
+    CBREx (bufferBytes == imageBytes, E_INVALIDARG);
 
     nameOk = single && TryEncodeCatalogName (path.GetLeaf(), nameBytes);
     CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
@@ -1660,6 +1664,7 @@ HRESULT Dos33Volume::Delete (
 {
     HRESULT                hr          = S_OK;
     size_t                 bufferBytes = m_sectors.size();
+    size_t                 imageBytes  = m_geometry.GetImageByteSize();
     bool                   single      = path.IsSingleComponent();
     bool                   isLocked    = false;
     bool                   fullyParsed = true;
@@ -1671,7 +1676,7 @@ HRESULT Dos33Volume::Delete (
 
 
 
-    CBREx (bufferBytes == m_geometry.GetImageByteSize(), E_INVALIDARG);
+    CBREx (bufferBytes == imageBytes, E_INVALIDARG);
     CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
     CollectEntries (entries, damage, fullyParsed);
@@ -1805,6 +1810,7 @@ HRESULT Dos33Volume::SetStartupProgram (const FilePath & path, vector<Byte> & ou
 {
     HRESULT                hr          = S_OK;
     size_t                 bufferBytes = m_sectors.size();
+    size_t                 imageBytes  = m_geometry.GetImageByteSize();
     bool                   single      = path.IsSingleComponent();
     bool                   sixteen     = m_geometry.sectorsPerTrack == 16;
     bool                   hasDos      = false;
@@ -1818,7 +1824,7 @@ HRESULT Dos33Volume::SetStartupProgram (const FilePath & path, vector<Byte> & ou
 
 
 
-    CBREx (bufferBytes == m_geometry.GetImageByteSize(), E_INVALIDARG);
+    CBREx (bufferBytes == imageBytes, E_INVALIDARG);
     CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
     //  The greeting's place is DOS 3.3's. DOS 3.2's image is laid out
@@ -1915,6 +1921,7 @@ HRESULT Dos33Volume::Rename (
 {
     HRESULT                hr          = S_OK;
     size_t                 bufferBytes = m_sectors.size();
+    size_t                 imageBytes  = m_geometry.GetImageByteSize();
     bool                   single      = from.IsSingleComponent();
     bool                   nameOk      = false;
     bool                   taken       = false;
@@ -1931,7 +1938,7 @@ HRESULT Dos33Volume::Rename (
 
 
 
-    CBREx (bufferBytes == m_geometry.GetImageByteSize(), E_INVALIDARG);
+    CBREx (bufferBytes == imageBytes, E_INVALIDARG);
     CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
     nameOk = TryEncodeCatalogName (to, nameBytes);

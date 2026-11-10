@@ -64,6 +64,7 @@ HRESULT Dos33Skeleton::Write (vector<Byte> & buffer, Byte volumeNumber, const Do
     HRESULT  hr           = S_OK;
     size_t   vtoc         = 0;
     size_t   bufferBytes  = buffer.size();
+    size_t   imageBytes   = geometry.GetImageByteSize();
     int      track        = 0;
     int      sector       = 0;
     int      width        = 0;
@@ -71,7 +72,7 @@ HRESULT Dos33Skeleton::Write (vector<Byte> & buffer, Byte volumeNumber, const Do
 
 
 
-    CBRA (bufferBytes == geometry.GetImageByteSize());
+    CBRA (bufferBytes == imageBytes);
 
     std::fill (buffer.begin(), buffer.end(), (Byte) 0);
 
