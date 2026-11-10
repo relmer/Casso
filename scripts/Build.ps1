@@ -36,10 +36,12 @@
     PLATFORM BUILT. Use -Target Rebuild: an incremental build does not
     reanalyze unchanged files.
 
-    CI analyses four of them: Debug and Release, each on x64 and ARM64. Pair
-    this with -Target RebuildAll to cover the same ground before merging; a
-    single-configuration run can pass while CI fails on one it did not
-    compile, and ARM64 is build-only here, so nothing else exercises it.
+    CI analyzes x64 Debug only. On its 4-core runners, analysis took most of
+    every job.
+    The other three configurations, Release and ARM64, are analyzed nowhere
+    but here. Pair this with -Target RebuildAll before merging; the analyzers
+    can disagree between configurations, and a single-configuration run can
+    pass where another fails.
 
 .PARAMETER Sanitize
     Build the AddressSanitizer flavor (-p:CassoSanitize=Address) into
