@@ -253,9 +253,9 @@ bool IntegerBasicTokenizer::IsDigit (char c)
 
 bool IntegerBasicTokenizer::IsAtNameStop (Scan & scan)
 {
-    static constexpr const char *  s_kStops[] = { "AND", "OR", "MOD", "TO", "STEP", "THEN", "AT" };
-
     size_t  start = scan.at;
+
+    static constexpr const char *  s_kStops[] = { "AND", "OR", "MOD", "TO", "STEP", "THEN", "AT" };
 
 
 
@@ -662,12 +662,12 @@ bool IntegerBasicTokenizer::ParseScreenCall (Scan & scan)
 
 bool IntegerBasicTokenizer::ParseNumberCall (Scan & scan)
 {
+    Mark  mark = Save (scan);
+
     static constexpr WordToken  s_kCalls[] =
     {
         { "PEEK", 0x2E }, { "RND", 0x2F }, { "SGN", 0x30 }, { "ABS", 0x31 }, { "PDL", 0x32 },
     };
-
-    Mark  mark = Save (scan);
 
 
 
@@ -718,12 +718,12 @@ bool IntegerBasicTokenizer::ParsePrimary (Scan & scan)
 
 bool IntegerBasicTokenizer::ParseUnary (Scan & scan)
 {
+    Mark  mark = Save (scan);
+
     static constexpr WordToken  s_kUnary[] =
     {
         { "+", s_kUnaryPlus }, { "-", s_kUnaryMinus }, { "NOT", s_kNot },
     };
-
-    Mark  mark = Save (scan);
 
 
 
@@ -788,15 +788,15 @@ bool IntegerBasicTokenizer::ParseOperand (Scan & scan)
 
 bool IntegerBasicTokenizer::ParseExpression (Scan & scan)
 {
+    Mark  mark;
+    bool  more = true;
+
     static constexpr WordToken  s_kOperators[] =
     {
         { ">=",  0x18 }, { "<=", 0x1A }, { "<>",  0x1B }, { "+", 0x12 }, { "-", 0x13 },
         { "*",   0x14 }, { "/",  0x15 }, { "=",   0x16 }, { "#", 0x17 }, { ">", 0x19 },
         { "<",   0x1C }, { "AND", 0x1D }, { "OR", 0x1E }, { "MOD", 0x1F }, { "^", 0x20 },
     };
-
-    Mark  mark;
-    bool  more = true;
 
 
 
@@ -886,13 +886,13 @@ bool IntegerBasicTokenizer::ParseRemark (Scan & scan)
 
 bool IntegerBasicTokenizer::ParseOneOperand (Scan & scan)
 {
+    Mark  mark = Save (scan);
+
     static constexpr WordToken  s_kWords[] =
     {
         { "CALL", 0x4D }, { "TAB",   0x50 }, { "VTAB", 0x6F }, { "COLOR=", 0x66 },
         { "GOTO", 0x5F }, { "GOSUB", 0x5C }, { "PR#",  0x7E }, { "IN#",    0x7F },
     };
-
-    Mark  mark = Save (scan);
 
 
 
@@ -921,9 +921,9 @@ bool IntegerBasicTokenizer::ParseOneOperand (Scan & scan)
 
 bool IntegerBasicTokenizer::ParseTwoOperands (Scan & scan)
 {
-    static constexpr WordToken  s_kWords[] = { { "POKE", 0x64 }, { "PLOT", 0x67 } };
-
     Mark  mark = Save (scan);
+
+    static constexpr WordToken  s_kWords[] = { { "POKE", 0x64 }, { "PLOT", 0x67 } };
 
 
 
@@ -1470,13 +1470,13 @@ bool IntegerBasicTokenizer::ParseAssignment (Scan & scan)
 
 bool IntegerBasicTokenizer::ParseKeyword (Scan & scan)
 {
+    Mark  mark = Save (scan);
+
     static constexpr WordToken  s_kAlone[] =
     {
         { "TEXT", 0x4B }, { "GR",    0x4C }, { "END",     0x51 }, { "RETURN", 0x5B },
         { "POP",  0x77 }, { "TRACE", 0x7D }, { "NOTRACE", 0x7A },
     };
-
-    Mark  mark = Save (scan);
 
 
 
@@ -1669,12 +1669,12 @@ void IntegerBasicTokenizer::SplitLines (const std::string & hostListing, std::ve
 
 bool IntegerBasicTokenizer::ParseLineNumber (std::string_view text, size_t & ioAt, uint32_t & outNumber)
 {
-    constexpr uint32_t  kCeiling = 1000000;
-
     size_t    i      = ioAt;
     size_t    end    = ioAt;
     size_t    digits = 0;
     uint32_t  value  = 0;
+
+    constexpr uint32_t  kCeiling = 1000000;
 
 
 

@@ -149,7 +149,7 @@ public:
 
 
 
-        Assert::IsTrue (SUCCEEDED (ApplesoftTokenizer::Tokenize (listing, correct, error)));
+        AssertSucceeded (ApplesoftTokenizer::Tokenize (listing, correct, error));
         Assert::AreEqual (0, result.exitStatus);
         Assert::IsTrue (result.hasFile);
         Assert::IsTrue (correct == result.fileBytes);
@@ -172,7 +172,7 @@ public:
             marked.push_back ((Byte) ch);
         }
 
-        Assert::IsTrue (SUCCEEDED (IntegerBasicTokenizer::Tokenize (listing, correct, error)));
+        AssertSucceeded (IntegerBasicTokenizer::Tokenize (listing, correct, error));
         Assert::IsTrue (correct == RunCommand ({ "tokenize", "a", "b", "--integer" }, apple).fileBytes);
         Assert::IsTrue (correct == RunCommand ({ "tokenize", "a", "b", "--integer" }, marked).fileBytes);
     }

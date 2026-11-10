@@ -207,7 +207,7 @@ public:
 
 
 
-        Assert::IsTrue   (FAILED (IntegerBasicTokenizer::Tokenize (listing, bytes, error)), message.c_str());
+        AssertFailed (IntegerBasicTokenizer::Tokenize (listing, bytes, error), message.c_str());
         Assert::IsTrue   (bytes.empty(), message.c_str());
         Assert::IsTrue   (error.reason.find (reasonPart) != std::string::npos, TextEncoding::NarrowToWide (error.reason).c_str());
         Assert::AreEqual ((size_t) lineIndex, error.sourceLineIndex, message.c_str());
@@ -235,7 +235,7 @@ public:
 
 
 
-        Assert::IsTrue (FAILED (IntegerBasicTokenizer::Tokenize (listing, bytes, error)));
+        AssertFailed (IntegerBasicTokenizer::Tokenize (listing, bytes, error));
         Assert::IsTrue (error.reason.find ("longer") != std::string::npos);
     }
 

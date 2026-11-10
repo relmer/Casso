@@ -52,7 +52,7 @@ public:
 
 
 
-        Assert::IsTrue (SUCCEEDED (BasicRenumber::Renumber (Tokenize (dialect, listing), start, step, bytes, reason)), message.c_str());
+        AssertSucceeded (BasicRenumber::Renumber (Tokenize (dialect, listing), start, step, bytes, reason), message.c_str());
         Assert::IsTrue (Tokenize (dialect, correct) == bytes, message.c_str());
     }
 
@@ -92,22 +92,22 @@ public:
 
 
 
-        Assert::IsTrue (SUCCEEDED (BasicProgram::Parse (Tokenize (Dialect::Applesoft, "10 PRINT \"HI\"\n20 END\n"), program, reason)));
+        AssertSucceeded (BasicProgram::Parse (Tokenize (Dialect::Applesoft, "10 PRINT \"HI\"\n20 END\n"), program, reason));
         Assert::IsTrue (program.dialect == Dialect::Applesoft);
         Assert::AreEqual ((size_t) 2, program.lines.size());
         Assert::AreEqual ((uint32_t) 20, program.lines[1].number);
         Assert::AreEqual ((int) ApplesoftTokenizer::kProgramBase, (int) program.base);
 
-        Assert::IsTrue (SUCCEEDED (BasicProgram::Parse (Tokenize (Dialect::Integer, "10 PRINT \"HI\"\n20 END\n"), program, reason)));
+        AssertSucceeded (BasicProgram::Parse (Tokenize (Dialect::Integer, "10 PRINT \"HI\"\n20 END\n"), program, reason));
         Assert::IsTrue (program.dialect == Dialect::Integer);
         Assert::AreEqual ((size_t) 2, program.lines.size());
         Assert::AreEqual ((uint32_t) 10, program.lines[0].number);
 
-        Assert::IsTrue  (FAILED (BasicProgram::Parse (bytes, program, reason)));
+        AssertFailed (BasicProgram::Parse (bytes, program, reason));
         Assert::IsFalse (reason.empty());
 
         bytes = { 0x4C, 0x00, 0x20, 0x60 };
-        Assert::IsTrue (FAILED (BasicProgram::Parse (bytes, program, reason)));
+        AssertFailed (BasicProgram::Parse (bytes, program, reason));
     }
 
 
@@ -126,8 +126,8 @@ public:
         {
             source = Tokenize (dialect, listing);
 
-            Assert::IsTrue (SUCCEEDED (BasicProgram::Parse (source, program, reason)));
-            Assert::IsTrue (SUCCEEDED (BasicProgram::Emit (program, bytes, longLine)));
+            AssertSucceeded (BasicProgram::Parse (source, program, reason));
+            AssertSucceeded (BasicProgram::Emit (program, bytes, longLine));
             Assert::IsTrue (source == bytes);
         }
     }
@@ -143,20 +143,20 @@ public:
 
 
 
-        Assert::IsTrue (SUCCEEDED (BasicProgram::Parse (source, program, reason)));
+        AssertSucceeded (BasicProgram::Parse (source, program, reason));
 
         program.base = 0x4001;
-        Assert::IsTrue (SUCCEEDED (BasicProgram::Emit (program, bytes, longLine)));
+        AssertSucceeded (BasicProgram::Emit (program, bytes, longLine));
         Assert::IsTrue (source != bytes);
 
-        Assert::IsTrue (SUCCEEDED (BasicProgram::Parse (bytes, program, reason)));
+        AssertSucceeded (BasicProgram::Parse (bytes, program, reason));
         Assert::AreEqual (0x4001, (int) program.base);
         Assert::AreEqual ((size_t) 2, program.lines.size());
 
         //  Links that match no address are ignored.
         bytes[0] = 0x34;
         bytes[1] = 0x12;
-        Assert::IsTrue (SUCCEEDED (BasicProgram::Parse (bytes, program, reason)));
+        AssertSucceeded (BasicProgram::Parse (bytes, program, reason));
         Assert::IsTrue (program.dialect == Dialect::Applesoft);
         Assert::AreEqual ((size_t) 2, program.lines.size());
     }
@@ -217,19 +217,19 @@ public:
 
 
 
-        Assert::IsTrue (FAILED (BasicRenumber::Renumber (Tokenize (Dialect::Applesoft, "10 END\n"), 10, 0, bytes, reason)));
+        AssertFailed (BasicRenumber::Renumber (Tokenize (Dialect::Applesoft, "10 END\n"), 10, 0, bytes, reason));
         Assert::IsTrue (reason.find ("step") != std::string::npos);
 
-        Assert::IsTrue (FAILED (BasicRenumber::Renumber (Tokenize (Dialect::Applesoft, "10 END\n20 END\n"), 63999, 1, bytes, reason)));
+        AssertFailed (BasicRenumber::Renumber (Tokenize (Dialect::Applesoft, "10 END\n20 END\n"), 63999, 1, bytes, reason));
         Assert::IsTrue (reason.find ("20") != std::string::npos);
         Assert::IsTrue (bytes.empty());
 
-        Assert::IsTrue (FAILED (BasicRenumber::Renumber (Tokenize (Dialect::Integer, "10 END\n20 END\n"), 32767, 1, bytes, reason)));
+        AssertFailed (BasicRenumber::Renumber (Tokenize (Dialect::Integer, "10 END\n20 END\n"), 32767, 1, bytes, reason));
         Assert::IsTrue (reason.find ("32767") != std::string::npos);
 
-        Assert::IsTrue (SUCCEEDED (BasicRenumber::Renumber (Tokenize (Dialect::Integer, "10 END\n20 END\n"), 32766, 1, bytes, reason)));
+        AssertSucceeded (BasicRenumber::Renumber (Tokenize (Dialect::Integer, "10 END\n20 END\n"), 32766, 1, bytes, reason));
 
-        Assert::IsTrue (FAILED (BasicRenumber::Renumber (junk, 10, 10, bytes, reason)));
+        AssertFailed (BasicRenumber::Renumber (junk, 10, 10, bytes, reason));
         Assert::IsFalse (reason.empty());
     }
 
@@ -248,7 +248,7 @@ public:
 
 
 
-        Assert::IsTrue (SUCCEEDED (BasicCrossReference::Build (Tokenize (Dialect::Applesoft, listing), report, reason)));
+        AssertSucceeded (BasicCrossReference::Build (Tokenize (Dialect::Applesoft, listing), report, reason));
         Assert::IsTrue (report.dialect == Dialect::Applesoft);
 
         Assert::AreEqual (std::string ("10 20 30 "), FindEntry (report.variables, "A"));
@@ -290,7 +290,7 @@ public:
 
 
 
-        Assert::IsTrue (SUCCEEDED (BasicCrossReference::Build (Tokenize (Dialect::Integer, listing), report, reason)));
+        AssertSucceeded (BasicCrossReference::Build (Tokenize (Dialect::Integer, listing), report, reason));
         Assert::IsTrue (report.dialect == Dialect::Integer);
 
         Assert::AreEqual (std::string ("10 20 40 "), FindEntry (report.variables, "A"));
@@ -319,7 +319,7 @@ public:
 
 
 
-        Assert::IsTrue (SUCCEEDED (BasicCrossReference::Build (Tokenize (Dialect::Applesoft, "10 END\n"), report, reason)));
+        AssertSucceeded (BasicCrossReference::Build (Tokenize (Dialect::Applesoft, "10 END\n"), report, reason));
         Assert::AreEqual (std::string ("Applesoft BASIC\n\nVariables\n  none\n\nLine references\n  none\n\nCALL, PEEK and POKE\n  none\n"),
                           BasicCrossReference::Format (report));
     }

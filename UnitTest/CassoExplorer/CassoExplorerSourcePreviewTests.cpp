@@ -116,7 +116,7 @@ public:
         Assert::AreEqual ((size_t) 2, rows.size());
         Assert::AreEqual ((size_t) 2, rows[0].cells.size(), L"The line number and the line");
 
-        Assert::IsTrue (SUCCEEDED (ApplesoftTokenizer::Tokenize ("10 TALLY = 1\n20 GOTO 10\n", preview.bytes, error)));
+        AssertSucceeded (ApplesoftTokenizer::Tokenize ("10 TALLY = 1\n20 GOTO 10\n", preview.bytes, error));
 
         rows = PreviewText::BuildCrossReferenceRows (preview, false);
 

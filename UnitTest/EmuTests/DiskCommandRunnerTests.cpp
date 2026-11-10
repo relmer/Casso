@@ -3525,7 +3525,7 @@ public:
         Assert::AreEqual (std::string(), result.diagnostics);
         Assert::IsTrue   (ListCommittedImage (io, kBlankImage).find (" I 002 PROG") != std::string::npos);
 
-        Assert::IsTrue (SUCCEEDED (IntegerBasicTokenizer::Tokenize (listing, tokens, error)));
+        AssertSucceeded (IntegerBasicTokenizer::Tokenize (listing, tokens, error));
 
         raw = GetFromCommittedImage (io, kBlankImage, "PROG", CommandLineOptions::DiskOptions::Encoding::Verbatim);
 

@@ -31,8 +31,8 @@ void BasicRenumber::RewriteLine (BasicProgram::Dialect                   dialect
 
     for (index = references.size(); index > 0; index--)
     {
-        const BasicProgram::LineReference       & reference = references[index - 1];
-        std::map<uint32_t, uint32_t>::const_iterator  found = numbers.find (reference.target);
+        const BasicProgram::LineReference             & reference = references[index - 1];
+        std::map<uint32_t, uint32_t>::const_iterator    found     = numbers.find (reference.target);
 
         if (found == numbers.end())
         {
