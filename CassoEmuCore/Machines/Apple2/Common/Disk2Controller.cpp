@@ -152,9 +152,45 @@ bool Disk2Controller::TryPeekIo (Word address, Byte & value)
     }
 
     //  A motor turned on from rest starts the spin-up, which reads $80.
-    value = (m_motorSpinupRemaining > 0 || (offset == 0x9 && !m_motorOn)) ? 0x80 : m_engine[drive].PeekLatchAfter (static_cast<uint32_t> (delta));
+    value = (m_motorSpinupRemaining > 0 || (offset == 0x9 && !m_motorOn)) ? 0x80 : PeekLatch (drive, delta);
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekLatch
+//
+//  The copy is taken again when the drive or the access it was taken at
+//  differs, when the drive has moved in any way since (IsSameReadState), or
+//  when the peek is for an earlier cycle than the copy has been run on to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Disk2Controller::PeekLatch (int drive, uint64_t delta)
+{
+    bool  isSame = m_peekDrive == drive && m_peekSync == m_lastCpuSync && delta >= m_peekDelta &&
+                   m_engine[drive].IsSameReadState (m_peekBase);
+
+
+
+    if (!isSame)
+    {
+        m_peekBase   = m_engine[drive].MakePeekCopy();
+        m_peekEngine = m_peekBase;
+        m_peekDrive  = drive;
+        m_peekSync   = m_lastCpuSync;
+        m_peekDelta  = 0;
+    }
+
+    m_peekEngine.AdvancePeekCopy (static_cast<uint32_t> (delta - m_peekDelta));
+    m_peekDelta = delta;
+
+    return m_peekEngine.PeekReadLatch();
 }
 
 

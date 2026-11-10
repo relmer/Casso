@@ -754,6 +754,7 @@
     <ClCompile Include="Audio\DriveAudioMixerMechanismTests.cpp" />
     <ClCompile Include="Audio\Disk2AudioSourceEventSinkTests.cpp" />
     <ClCompile Include="Devices\Disk2ControllerAudioTests.cpp" />
+    <ClCompile Include="Devices\Disk2PeekTests.cpp" />
     <ClCompile Include="Devices\Disk2ControllerIdleTests.cpp" />
     <ClCompile Include="Devices\Disk2StateTests.cpp" />
     <ClCompile Include="Devices\Disk2PerDriveHeadTests.cpp" />

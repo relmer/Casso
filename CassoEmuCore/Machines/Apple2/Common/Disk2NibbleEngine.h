@@ -109,6 +109,18 @@ public:
     // Only for a drive that is not writing.
     uint8_t    PeekLatchAfter (uint32_t cpuCycles) const;
 
+    // A copy for peeks, with no write open, so nothing it does is written to
+    // the image; and the copy run on by cpuCycles more cycles of reading. A copy
+    // run on twice is where one run on by the sum is. Only for a drive that
+    // is not writing.
+    Disk2NibbleEngine  MakePeekCopy    () const;
+    void               AdvancePeekCopy (uint32_t cpuCycles);
+
+    // Whether the drive is where `other` is, in everything a run on from
+    // there reads: its disk, track, motor and modes, the bit under the head,
+    // the sequencer and its latch, and the weak-bit generator.
+    bool               IsSameReadState (const Disk2NibbleEngine & other) const;
+
     // The next `count` nibbles the latch will assemble, read on a copy of the
     // engine, so the drive and its latch do not move; isRandom is set when
     // any bit came from the rule for long runs without a transition. Fewer

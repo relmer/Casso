@@ -237,6 +237,10 @@ private:
     Byte  HandleReadDispatch    ();
     void  CatchUpToCpu          ();
 
+    // The latch a read of `drive` would return `delta` cycles after the last
+    // access, from the peek's copy of the drive (m_peekEngine).
+    Byte  PeekLatch             (int drive, uint64_t delta);
+
     // Offers the idle callback a turn, at most once per emulated frame.
     void   PumpIdleCallback (uint32_t cpuCycles);
 
@@ -317,6 +321,18 @@ protected:
     const uint64_t *          m_cpuCycleSource           = nullptr;
     uint64_t                  m_lastCpuSync              = 0;
     const Word *              m_instructionAddressSource = nullptr;
+
+    // A peek's copy of a drive, run on from the last access and stored for the
+    // next peek, so a peek runs only the cycles since the one before it: the
+    // drive as the copy was taken, the copy as run on, the drive and access
+    // it was taken at, and how far it has been run on. The debugger peeks
+    // every frame, and running a copy from the last access each time cost
+    // more with every frame after the guest stopped reading the disk.
+    Disk2NibbleEngine         m_peekBase;
+    Disk2NibbleEngine         m_peekEngine;
+    int                       m_peekDrive                = -1;
+    uint64_t                  m_peekSync                 = 0;
+    uint64_t                  m_peekDelta                = 0;
 
     Word  GetInstructionAddress() const { return (m_instructionAddressSource != nullptr) ? *m_instructionAddressSource : 0; }
 };
