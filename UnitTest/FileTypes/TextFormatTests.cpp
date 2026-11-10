@@ -152,6 +152,29 @@ public:
     }
 
 
+    TEST_METHOD (Encode_SplitsACommentOnlyWhereItStartsAColumn)
+    {
+        std::vector<Byte>  bytes;
+        std::wstring       error;
+        const Byte         kMacroArguments[] = { 0xA0, 0xCD, 0xCF, 0xD6, 0xA0, 0xDD, 0xB1, 0xBB, 0xDD, 0xB2, 0x8D };
+        const Byte         kNoOperand[]      = { 0xA0, 0xC4, 0xC5, 0xD9, 0xA0, 0xA0, 0xBB, 0xE2, 0x8D };
+        const Byte         kOpenQuote[]      = { 0xA0, 0xC9, 0xC6, 0xA0, 0xDD, 0xB1, 0xBD, 0xA2, 0xA0, 0xBB, 0xE1, 0x20, 0xA2, 0xE2, 0xA2, 0x8D };
+
+
+
+        AssertSucceeded (MerlinSource::Encode ({ "         MOV   ]1;]2" }, bytes, error));
+        Assert::IsTrue (std::ranges::equal (bytes, kMacroArguments));
+
+        //  A comment at the comment column after an opcode alone has the
+        //  break of the operand it skips.
+        AssertSucceeded (MerlinSource::Encode ({ "         DEY              ;b" }, bytes, error));
+        Assert::IsTrue (std::ranges::equal (bytes, kNoOperand));
+
+        AssertSucceeded (MerlinSource::Encode ({ "         IF    ]1=\"       ;a \"b\"" }, bytes, error));
+        Assert::IsTrue (std::ranges::equal (bytes, kOpenQuote));
+    }
+
+
     TEST_METHOD (Encode_FailsALineTooLongWithItsNumber)
     {
         std::vector<Byte>  bytes;

@@ -39,5 +39,7 @@ private:
     static constexpr size_t  kMaxLine      = 255;
     static constexpr size_t  kColumns[]    = { 0, 9, 15, 26 };
 
-    static std::string  SplitColumns (const std::string & line, std::vector<std::string> & outColumns);
+    static std::string  SplitColumns       (const std::string & line, std::vector<std::string> & outColumns);
+    static void         PadToColumn        (size_t column, std::string & inOutText);
+    static size_t       CountCommentBreaks (const std::vector<std::string> & columns, size_t position);
 };

@@ -102,9 +102,7 @@ HRESULT MerlinSource::Decode (std::span<const Byte> bytes, const FileFacts & fac
 
                 if (column > 0)
                 {
-                    size_t  target = (column < _countof (kColumns)) ? kColumns[column] : text.size() + 1;
-
-                    text.append ((text.size() < target) ? target - text.size() : 1, ' ');
+                    PadToColumn (column, text);
                 }
 
                 text  += line.substr (start, at - start);
@@ -130,10 +128,81 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MerlinSource::PadToColumn
+//
+//  Spaces out to where a column starts, at least one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MerlinSource::PadToColumn (size_t column, std::string & inOutText)
+{
+    size_t  target = (column < _countof (kColumns)) ? kColumns[column] : inOutText.size() + 1;
+
+
+
+    inOutText.append ((inOutText.size() < target) ? target - inOutText.size() : 1, ' ');
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MerlinSource::CountCommentBreaks
+//
+//  The column breaks ahead of a comment at a position in its line: as many
+//  as put it there when the line is decoded, or one when no count does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t MerlinSource::CountCommentBreaks (const std::vector<std::string> & columns, size_t position)
+{
+    static constexpr size_t  kMostBreaks = 8;
+    std::string              text;
+
+
+
+    for (size_t at = 0; at < columns.size(); at++)
+    {
+        if (at > 0)
+        {
+            PadToColumn (at, text);
+        }
+
+        text += columns[at];
+    }
+
+    if (columns.empty() && position == 0)
+    {
+        return 0;
+    }
+
+    for (size_t breaks = 1; breaks <= kMostBreaks; breaks++)
+    {
+        PadToColumn (columns.empty() ? breaks : columns.size() - 1 + breaks, text);
+
+        if (text.size() == position)
+        {
+            return breaks;
+        }
+    }
+
+    return columns.empty() ? 0 : 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MerlinSource::SplitColumns
 //
 //  A line's columns, split on spaces outside quotes; everything from a
-//  semicolon on is the comment.
+//  semicolon that starts a column on is the comment. An operand such as
+//  ]1=" has a quote that never closes, so two or more spaces and then a
+//  semicolon end a quote too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -151,9 +220,19 @@ std::string MerlinSource::SplitColumns (const std::string & line, std::vector<st
     {
         char  c = line[at];
 
-        if (quote == 0 && c == ';')
+        if (quote == 0 && c == ';' && current.empty())
         {
             break;
+        }
+
+        if (quote != 0 && c == ' ')
+        {
+            size_t  next = line.find_first_not_of (' ', at);
+
+            if (next != std::string::npos && next - at >= 2 && line[next] == ';')
+            {
+                quote = 0;
+            }
         }
 
         if (quote == 0 && (c == ' ' || c == '\t'))
@@ -261,10 +340,7 @@ HRESULT MerlinSource::Encode (const std::vector<std::string> & lines, std::vecto
 
             if (!comment.empty())
             {
-                if (!coded.empty())
-                {
-                    coded.push_back (kColumnBreak);
-                }
+                coded.insert (coded.end(), CountCommentBreaks (columns, line.size() - comment.size()), kColumnBreak);
 
                 for (char c : comment)
                 {

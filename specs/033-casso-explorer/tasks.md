@@ -1746,7 +1746,7 @@ Session 2026-11-08. Plan's Phase 32, research R35, contract `contracts/file-type
 
 **Validation**
 
-- [ ] T523 [US18] Scenario tests in `ScenarioTests/FileTypeFixtureTests.cpp`: each fixture from T478 decodes, converts and, for import rows, round-trips, and each previews within half a second at up to 64 KB (SC-047, SC-049)
+- [X] T523 [US18] Scenario tests in `ScenarioTests/FileTypeFixtureTests.cpp`: each fixture from T478 decodes, converts and, for import rows, round-trips, and each previews within half a second at up to 64 KB (SC-047, SC-049)
 - [ ] T524 [US18] Put a Merlin source file back onto DOS 3.3 and ProDOS images and load it in Merlin in Casso; put a text file on a Pascal volume and open it in Apple Pascal's editor in Casso (SC-048)
 - [ ] T525 [US18] Walk quickstart §7d on Debug and Release, and write the results to `specs/033-casso-explorer/validation.md`
 - [ ] T526 Run `scripts/CheckStyle.ps1 -Mode Tree`, the code-analysis rebuild, and the unit and scenario suites in Debug and Release before the master merge

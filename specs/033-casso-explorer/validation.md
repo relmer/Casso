@@ -760,3 +760,18 @@ The Release x64 build packed by `BuildMsix.ps1` and registered from its layout w
 | Packaged Casso's Uthernet II infobar | Not walked: no machine with the card and LAN access in Casso's settings here |
 
 Two findings to follow up: the pane didn't offer to make the network private, with Tailscale's network private beside the public one, and the warning appeared only some seconds after the rule changed.
+
+## 13. File-type fixtures, 2026-11-09 (T478, T523)
+
+`FileTypeFixtureTests` reads every file on the disks below, decodes each one a contract row identifies, and fails on a decode error or on a decode slower than half a second at up to 64 KB. A file of an import row is exported, imported and compared with the file on the disk, byte for byte.
+
+| Disk | Source | Rows it covers |
+|---|---|---|
+| `CiderPress/fileconv/test-files.sdk` | CiderPress II's test data, fetched by `scripts/FetchCiderPressTestFiles.ps1` | Random-access text, Merlin, LISA, Business BASIC, OMF, the AppleWorks files, AppleWorks GS, Teach, the super hi-res pictures, IIgs animation, LZ4FH, Print Shop graphics, shape table, IIgs icons, Apple /// font, IIgs font |
+| `CiderPress/fileconv/dos-files.do.gz` | The same | Magic Window, S-C Assembler, LISA, hi-res font, Fontrix font, Print Shop font |
+| `Disks/Merlin-proProdos2.33-a.dsk`, `-b.dsk` | In the tree | Merlin |
+| `CassoExplorer/prodos.po` | In the tree | Apple /// font |
+
+Rows with no fixture, for the owner: Pascal textfile, Pascal codefile, VisiCalc and Gutenberg. A disk with an Apple Pascal volume covers the first two. `ScenarioTests/Fixtures/FileTypes/` is not created: CiderPress II's files are fetched, not checked in, and the other fixtures are disks already in the tree.
+
+The round trip failed on the Merlin importer until these were fixed: a semicolon inside an operand such as `]1;]2` was read as the start of a comment, a comment after an opcode with no operand was put in the operand column, and the comment after `IF ]1="` was read as part of a string.
