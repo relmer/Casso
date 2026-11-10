@@ -641,7 +641,7 @@ std::vector<int> CassoExplorerCommands::GetPreviewToolbarCommandIds (int bar)
 
 int CassoExplorerCommands::GetPreviewBar (int id)
 {
-    return (id == kLineAddresses)                                                  ? kPreviewBarListing
+    return (id == kLineAddresses || id == kCrossReference)                         ? kPreviewBarListing
          : (id == kPictureMonochrome || id == kPictureColor || id == kSavePicture) ? kPreviewBarPicture
          : (id == kEditWozMetadata)                                                ? kPreviewBarWoz
          : (id >= kCharsetAppleText && id <= kCharsetIso8859)                      ? kPreviewBarText

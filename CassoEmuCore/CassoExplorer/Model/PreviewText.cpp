@@ -4,6 +4,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Core/TextEncoding.h"
 #include "ApplesoftTokenizer.h"
+#include "BasicCrossReference.h"
 #include "IntegerBasicDetokenizer.h"
 
 
@@ -128,6 +129,56 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
         }
 
         rows.push_back (std::move (row));
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::BuildCrossReferenceRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> PreviewText::BuildCrossReferenceRows (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors)
+{
+    HRESULT                         hr        = E_FAIL;
+    std::vector<DxuiTextView::Row>  rows;
+    BasicCrossReference::Report     report;
+    std::string                     reason;
+    std::wstring                    text;
+    size_t                          start     = 0;
+    size_t                          end       = 0;
+    bool                            isProgram = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
+
+
+
+    if (isProgram)
+    {
+        hr = BasicCrossReference::Build (preview.bytes, report, reason);
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        text = TextEncoding::NarrowToWide (BasicCrossReference::Format (report));
+
+        while (start < text.size())
+        {
+            end = text.find (L'\n', start);
+            end = (end == std::wstring::npos) ? text.size() : end;
+
+            rows.push_back (DxuiTextView::Row { { text.substr (start, end - start) } });
+
+            start = end + 1;
+        }
+    }
+    else
+    {
+        rows = BuildTextRows (preview, lineAddresses, colors);
     }
 
     return rows;

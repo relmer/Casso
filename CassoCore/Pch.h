@@ -41,6 +41,7 @@
 #include <print>
 #include <memory>
 #include <optional>
+#include <set>
 #include <span>
 #include <sstream>
 #include <string>

@@ -411,6 +411,9 @@ private:
     //  produces and what the default has always been.
     static Byte     DetectFileType  (const std::vector<Byte> & bytes, VolumeKind kind);
 
+    //  ProDOS's type for an Integer BASIC program.
+    static constexpr Byte  kProDosIntegerType = 0xFA;
+
     static HRESULT  ResolvePascalKind  (const CommandLineOptions & options, Byte & outType, DiskCommandResult & result);
     static bool     ParseCpmAttributes (const std::string & text, bool & outReadOnly, bool & outSystem);
 

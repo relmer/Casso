@@ -565,6 +565,7 @@
     <ClCompile Include="Cli\CommandLine.cpp" />
     <ClCompile Include="Seams\Win32DiskFileIo.cpp" />
     <ClCompile Include="Cli\DiskCommand.cpp" />
+    <ClCompile Include="Cli\BasicCommand.cpp" />
     <ClCompile Include="Cli\ArtifactWriter.cpp" />
     <ClCompile Include="Cli\ImageArtifactSink.cpp" />
     <ClCompile Include="Cli\As65Mode.cpp" />
@@ -1241,6 +1242,7 @@
     <ClInclude Include="Cli\CommandLine.h" />
     <ClInclude Include="Seams\Win32DiskFileIo.h" />
     <ClInclude Include="Cli\DiskCommand.h" />
+    <ClInclude Include="Cli\BasicCommand.h" />
     <ClInclude Include="Cli\ArtifactWriter.h" />
     <ClInclude Include="Cli\ImageArtifactSink.h" />
     <ClInclude Include="Cli\As65Mode.h" />

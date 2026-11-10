@@ -55,7 +55,7 @@
 
 struct CommandLineOptions
 {
-    enum class Subcommand    { None, Run, Help, Version, As65, Merlin, Disk };
+    enum class Subcommand    { None, Run, Help, Version, As65, Merlin, Disk, Basic };
     enum class CpuTarget     { M6502, M65C02 };
 
     //  What the parser made of the command line itself, apart from anything
@@ -422,6 +422,25 @@ struct CommandLineOptions
     };
 
     DiskOptions   disk;
+
+    //
+    //  The `basic` subcommand: a listing or a tokenized program in one file
+    //  on the host, and the result in another.
+    //
+    struct BasicOptions
+    {
+        enum class Command  { None, Tokenize, List, Renumber, Xref, Help };
+        enum class Dialect  { Unstated, Applesoft, Integer };
+
+        Command      command  = Command::None;
+        Dialect      dialect  = Dialect::Unstated;     // --applesoft or --integer
+        std::string  inputFile;
+        std::string  outputFile;
+        uint32_t     start    = 10;                    // --start
+        uint32_t     step     = 10;                    // --step
+    };
+
+    BasicOptions  basic;
 
     //
     //  What the invocation said about writing the object into a disk image.

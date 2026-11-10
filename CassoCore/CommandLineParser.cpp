@@ -21,6 +21,7 @@ static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
     { "merlin", CommandLineOptions::Subcommand::Merlin },
     { "run",    CommandLineOptions::Subcommand::Run    },
     { "disk",   CommandLineOptions::Subcommand::Disk   },
+    { "basic",  CommandLineOptions::Subcommand::Basic  },
 };
 
 
@@ -597,8 +598,9 @@ bool CommandLineParser::IsLoneQuestionMark (int argc, char * argv[], int startIn
 
 int CommandLineParser::GetExitCodeForRefusal (CommandLineOptions::Subcommand mode)
 {
-    bool  startedNothing = mode == CommandLineOptions::Subcommand::Run ||
-                           mode == CommandLineOptions::Subcommand::Disk;
+    bool  startedNothing = mode == CommandLineOptions::Subcommand::Run  ||
+                           mode == CommandLineOptions::Subcommand::Disk ||
+                           mode == CommandLineOptions::Subcommand::Basic;
 
 
 
@@ -4269,6 +4271,10 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
     else if (named == CommandLineOptions::Subcommand::Disk)
     {
         ParseDiskOptions (argc, argv, 2, options);
+    }
+    else if (named == CommandLineOptions::Subcommand::Basic)
+    {
+        ParseBasicOptions (argc, argv, 2, options);
     }
 
 Error:

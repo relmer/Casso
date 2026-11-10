@@ -1956,11 +1956,11 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 ## Phase 54: BASIC language tools (User Story 37)
 
-- [ ] T644 [P] [US37] Add `IntegerBasicTokenizer` in `CassoCore/IntegerBasicTokenizer.h/.cpp` from the detokenizer's token table, and use it on a put (FR-236)
-- [ ] T645 [P] [US37] Add `BasicRenumber` in `CassoCore/BasicRenumber.h/.cpp`: every line and each GOTO, GOSUB, ON, THEN, LIST, RUN and DEL target, failing with the line past 63999 or 32767 (FR-237)
-- [ ] T646 [P] [US37] Add `BasicCrossReference` in `CassoCore/BasicCrossReference.h/.cpp`, the listing of `contracts/file-types.md`, drawn in the preview (FR-238)
-- [ ] T647 [US37] Add `casso basic tokenize`, `list`, `renumber` and `xref`, as the contract lists them
-- [ ] T648 [US37] Scenario tests: each sample listing tokenized matches BASIC's in Casso, and each renumbered program runs with the same output (SC-065)
+- [X] T644 [P] [US37] Add `IntegerBasicTokenizer` in `CassoCore/IntegerBasicTokenizer.h/.cpp` from the detokenizer's token table, and use it on a put (FR-236)
+- [X] T645 [P] [US37] Add `BasicRenumber` in `CassoCore/BasicRenumber.h/.cpp`: every line and each GOTO, GOSUB, ON, THEN, LIST, RUN and DEL target, failing with the line past 63999 or 32767 (FR-237)
+- [X] T646 [P] [US37] Add `BasicCrossReference` in `CassoCore/BasicCrossReference.h/.cpp`, the listing of `contracts/file-types.md`, drawn in the preview (FR-238)
+- [X] T647 [US37] Add `casso basic tokenize`, `list`, `renumber` and `xref`, as the contract lists them
+- [X] T648 [US37] Scenario tests: each sample listing tokenized matches BASIC's in Casso, and each renumbered program runs with the same output (SC-065)
 
 ## Phase 55: Game data viewers (User Story 38)
 

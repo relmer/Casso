@@ -143,6 +143,10 @@ std::string CommandLineHelp::GetUsageLine (CommandLineOptions::Subcommand mode)
     {
         line = "  CassoCli disk <command> <image> [...]         Read and write disk images";
     }
+    else if (mode == CommandLineOptions::Subcommand::Basic)
+    {
+        line = "  CassoCli basic <command> <file> [...]         Tokenize, list and renumber BASIC programs";
+    }
     else if (mode == CommandLineOptions::Subcommand::Merlin)
     {
         line = "  CassoCli merlin <source> [options]         Assemble Merlin source";
@@ -255,6 +259,7 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
         { "merlin " + lp + "help", "Merlin options, and where the supported subset ends" },
         { "run "    + lp + "help", "Run options: load address, where execution starts, limits" },
         { "disk "   + lp + "help", "Disk commands, their options, and a worked example" },
+        { "basic "  + lp + "help", "BASIC commands and their options" },
         { lp + "version",          "Version information" },
     };
 
@@ -267,6 +272,7 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
     text += GetUsageLine (CommandLineOptions::Subcommand::Merlin) + "\n";
     text += GetUsageLine (CommandLineOptions::Subcommand::Run)  + "\n";
     text += GetUsageLine (CommandLineOptions::Subcommand::Disk) + "\n";
+    text += GetUsageLine (CommandLineOptions::Subcommand::Basic) + "\n";
 
     text += "\nHelp:\n";
 
@@ -382,6 +388,53 @@ std::string CommandLineHelp::BuildEmulatorHelp (char flagPrefix)
                      + flag.valueName + "\n";
         text += WrapToColumns (flag.description, indent, kEmulatorLineColumns);
     }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineHelp::BuildBasicHelp
+//
+//  The page of the `basic` subcommand: the usage line, the commands and the
+//  options, each option written with the prefix the reader typed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CommandLineHelp::BuildBasicHelp (const std::string & banner, char flagPrefix)
+{
+    const std::string  lp   = GetLongPrefix (flagPrefix);
+    std::string        text = banner;
+
+
+
+    text += "\nUsage:\n";
+    text += GetUsageLine (CommandLineOptions::Subcommand::Basic) + "\n";
+
+    text += "\nBASIC commands:\n";
+    text += "  tokenize <listing> <program> " + lp + "applesoft | " + lp + "integer\n";
+    text += "                               Write the tokenized program of a text listing\n";
+    text += "  list <program> <listing>     Write the text listing of a tokenized program\n";
+    text += "  renumber <program> <output>  Renumber the lines and every reference to them\n";
+    text += "  xref <program>               Print the variables, the line references and the\n";
+    text += "                               CALL, PEEK and POKE addresses\n";
+
+    text += "\nOptions:\n";
+    text += "  " + lp + "applesoft                  tokenize: the listing is Applesoft BASIC\n";
+    text += "  " + lp + "integer                    tokenize: the listing is Integer BASIC\n";
+    text += "  " + lp + "start <n>                  renumber: the first line number (default 10)\n";
+    text += "  " + lp + "step <n>                   renumber: the distance between lines (default 10)\n";
+
+    text += "\nA tokenized program is the file as `disk get` writes it without " + lp + "basic.\n";
+    text += "The dialect of a tokenized program is detected from its bytes.\n";
+
+    text += "\nExit status:\n";
+    text += "  0  The command completed\n";
+    text += "  2  Nothing was written\n";
 
     return text;
 }

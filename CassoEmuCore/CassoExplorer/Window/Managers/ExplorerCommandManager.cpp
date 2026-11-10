@@ -276,7 +276,8 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kUp:                return m_context.browser.CanGoUp();
         case CassoExplorerCommands::kShowDisassembly:
         case CassoExplorerCommands::kShowBytes:         return model.HasTabs() && m_context.browser.GetPreview().kind == PreviewContent::Kind::Hex && m_context.browser.GetPreview().hostPath.empty();
-        case CassoExplorerCommands::kLineAddresses:     return m_context.preview.GetBarMode() == CassoExplorerCommands::kPreviewBarListing;
+        case CassoExplorerCommands::kLineAddresses:
+        case CassoExplorerCommands::kCrossReference:    return m_context.preview.GetBarMode() == CassoExplorerCommands::kPreviewBarListing;
         case CassoExplorerCommands::kPictureMonochrome:
         case CassoExplorerCommands::kPictureColor:      return m_context.browser.CanTogglePictureColor();
         case CassoExplorerCommands::kSavePicture:       return m_context.browser.GetPreview().kind == PreviewContent::Kind::Picture && !m_context.browser.GetPreview().bgra.empty();
@@ -379,6 +380,7 @@ bool ExplorerCommandManager::IsChecked (int id) const
         case CassoExplorerCommands::kGroupAscending:    return model.HasTabs() && !model.GetActiveTab().groupDescending;
         case CassoExplorerCommands::kGroupDescending:   return model.HasTabs() && model.GetActiveTab().groupDescending;
         case CassoExplorerCommands::kLineAddresses:     return m_context.prefs.lineAddresses;
+        case CassoExplorerCommands::kCrossReference:    return m_context.preview.GetText().IsCrossReference();
         case CassoExplorerCommands::kShowDisassembly:   return m_context.browser.GetPreview().disassembly;
         case CassoExplorerCommands::kShowBytes:         return m_context.browser.GetPreview().kind == PreviewContent::Kind::Hex && !m_context.browser.GetPreview().disassembly;
         case CassoExplorerCommands::kThemeLight:        return m_context.prefs.theme == CassoExplorerPrefs::kThemeLight;
@@ -639,6 +641,10 @@ void ExplorerCommandManager::Dispatch (int id)
 
         case CassoExplorerCommands::kLineAddresses:
             m_context.preview.GetText().ToggleLineAddresses();
+            break;
+
+        case CassoExplorerCommands::kCrossReference:
+            m_context.preview.GetText().ToggleCrossReference();
             break;
 
         //  Find searches the hex preview while it has focus; elsewhere it goes

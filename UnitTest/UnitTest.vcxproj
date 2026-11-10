@@ -438,7 +438,11 @@
     <ClCompile Include="CassoExplorer\CassoExplorerAboutTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerDragOutTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerNamedControlTests.cpp" />
+    <ClCompile Include="CassoExplorer\BasicProgramTests.cpp" />
+    <ClCompile Include="CassoExplorer\BasicCommandTests.cpp" />
     <ClCompile Include="CassoExplorer\IntegerBasicDetokenizerTests.cpp" />
+    <ClCompile Include="CassoExplorer\IntegerBasicTokenizerTests.cpp" />
+    <ClCompile Include="CassoExplorer\IntegerBasicOracleRows.cpp" />
     <ClCompile Include="CassoExplorer\DisassemblerTests.cpp" />
     <ClCompile Include="CassoExplorer\PCodeDisassemblerTests.cpp" />
     <ClCompile Include="CassoExplorer\HostFileNamingTests.cpp" />

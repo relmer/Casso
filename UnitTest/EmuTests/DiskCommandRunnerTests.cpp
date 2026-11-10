@@ -17,6 +17,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/FieldLocator.h"
 #include "InspectorTrackBuilder.h"
+#include "IntegerBasicTokenizer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -3497,6 +3498,66 @@ public:
                           returned,
             L"the listing must come back with the same statements and the same payload "
             L"spacing -- the leading spaces are the ones LIST puts in front of a token");
+    }
+
+    TEST_METHOD (Put_AnIntegerBasicListing_LandsTokenizedUnderTypeI)
+    {
+        FakeDiskFileIo         io;
+        DiskCommandRunner      runner (io);
+        CommandLineOptions     options  = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult      result;
+        DiskCommandResult      readBack;
+        DiskCommandResult      raw;
+        std::string            listing  = "20 GOTO 10\n10 PRINT \"HI\"\n";
+        std::string            returned;
+        std::vector<Byte>      tokens;
+        ApplesoftListingError  error;
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   vector<Byte> (listing.begin(), listing.end()));
+
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+        options.disk.typeName = "I";
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::AreEqual (std::string(), result.diagnostics);
+        Assert::IsTrue   (ListCommittedImage (io, kBlankImage).find (" I 002 PROG") != std::string::npos);
+
+        Assert::IsTrue (SUCCEEDED (IntegerBasicTokenizer::Tokenize (listing, tokens, error)));
+
+        raw = GetFromCommittedImage (io, kBlankImage, "PROG", CommandLineOptions::DiskOptions::Encoding::Verbatim);
+
+        Assert::IsTrue (raw.payload == tokens, L"the stored bytes are the tokenized program");
+
+        readBack = GetFromCommittedImage (io, kBlankImage, "PROG", CommandLineOptions::DiskOptions::Encoding::Basic);
+
+        returned.assign (readBack.payload.begin(), readBack.payload.end());
+
+        Assert::AreEqual (DiskCommandResult::kClean, readBack.exitStatus);
+        Assert::IsTrue   (returned.find ("PRINT \"HI\"") < returned.find ("GOTO 10"), L"the lines come back in number order");
+    }
+
+    TEST_METHOD (Put_AnIntegerBasicListing_ThatIntegerBasicRejects_FailsWithTheLine)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options  = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+        std::string         listing  = "10 PRINT \"HI\"\n20 SCORE=1\n";
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   vector<Byte> (listing.begin(), listing.end()));
+
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+        options.disk.typeName = "INT";
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue   (result.diagnostics.find ("Integer BASIC") != std::string::npos);
+        Assert::IsTrue   (result.diagnostics.find ("20") != std::string::npos);
     }
 
     TEST_METHOD (Put_ABasicListing_StoresTheTOKENIZEDForm_NotTheTextItWasGiven)

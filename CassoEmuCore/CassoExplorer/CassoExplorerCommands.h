@@ -160,6 +160,9 @@ public:
         kSheetValues,
         kSheetFormulas,
 
+        //  A BASIC program's cross-reference in place of its listing.
+        kCrossReference,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -408,6 +411,7 @@ private:
         { kRecordLength,      Menu::Count, L"&Record length...",   nullptr,     false },
         { kSheetValues,       Menu::Count, L"&Values",             nullptr,     true  },
         { kSheetFormulas,     Menu::Count, L"&Formulas",           nullptr,     true  },
+        { kCrossReference,    Menu::Count, L"&Cross-reference",    nullptr,     true  },
 
         //  The hex view's own choices are on its context menu, and nowhere
         //  else at the top of the window.
@@ -497,6 +501,7 @@ private:
     static constexpr ToolbarRow  kPreviewToolbarRows[] =
     {
         { kLineAddresses,     DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Tag,       L"Show address",  L"Show where each line starts in memory"                   },
+        { kCrossReference,    DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Cross-reference", L"List the program's variables, line references and addresses" },
         { kShowDisassembly,   DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Disassembly",   L"Show disassembly",                                       true },
         { kShowBytes,         DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Bytes",         L"Show bytes",                                             true },
         //  The Go to and search boxes, which the host supplies as custom entries.

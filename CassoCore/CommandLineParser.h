@@ -632,6 +632,7 @@ private:
                                       bool & stop);
 
     static void  ParseDiskOptions  (int argc, char * argv[], int argIndex, CommandLineOptions & options);
+    static void  ParseBasicOptions (int argc, char * argv[], int argIndex, CommandLineOptions & options);
 
     static CommandLineOptions::DiskOptions::Command  LookUpDiskCommand (const std::string & word);
 

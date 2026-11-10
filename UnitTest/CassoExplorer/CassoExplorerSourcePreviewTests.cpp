@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../Dxui/MockDxuiTheme.h"
 #include "CassoExplorer/Model/PreviewText.h"
+#include "ApplesoftTokenizer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -94,6 +95,39 @@ public:
 
         Assert::IsTrue (colored == std::vector<std::wstring> { L"5:10", L"1:PRINT", L"7:\"HI\"", L"4:SCORE", L"1:GOTO", L"3:10", L"2:REM LOOP" },
                         L"The number, then keywords, a string, a variable that starts like a keyword, a number and the REM");
+    }
+
+
+
+    //  A program's cross-reference is a row a line of it; a listing with no
+    //  program bytes has its lines.
+    TEST_METHOD (CrossReferenceRows_ListTheProgramsVariablesAndLineReferences)
+    {
+        PreviewContent                  preview;
+        ApplesoftListingError           error;
+        std::vector<DxuiTextView::Row>  rows;
+        std::wstring                    text;
+
+        preview.kind  = PreviewContent::Kind::Listing;
+        preview.lines = { L"10  TALLY = 1", L"20  GOTO 10" };
+
+        rows = PreviewText::BuildCrossReferenceRows (preview, false);
+
+        Assert::AreEqual ((size_t) 2, rows.size());
+        Assert::AreEqual ((size_t) 2, rows[0].cells.size(), L"The line number and the line");
+
+        Assert::IsTrue (SUCCEEDED (ApplesoftTokenizer::Tokenize ("10 TALLY = 1\n20 GOTO 10\n", preview.bytes, error)));
+
+        rows = PreviewText::BuildCrossReferenceRows (preview, false);
+
+        for (const DxuiTextView::Row & row : rows)
+        {
+            Assert::AreEqual ((size_t) 1, row.cells.size());
+
+            text += row.cells[0] + L"\n";
+        }
+
+        Assert::IsTrue (text == L"Applesoft BASIC\n\nVariables\n  TALLY  10\n\nLine references\n  10  20\n\nCALL, PEEK and POKE\n  none\n", text.c_str());
     }
 
 

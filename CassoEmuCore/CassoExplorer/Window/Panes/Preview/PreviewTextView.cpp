@@ -141,7 +141,8 @@ void PreviewTextView::Fill (const PreviewContent & preview)
 
     //  A catalog is a table, so its rows stay whole and scroll sideways.
     m_text->SetNoWrap (preview.kind == PreviewContent::Kind::Catalog);
-    m_text->SetRows (PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, PreviewText::GetSourceColors (m_context.theme)));
+    m_text->SetRows (m_crossReference ? PreviewText::BuildCrossReferenceRows (preview, m_context.prefs.lineAddresses, PreviewText::GetSourceColors (m_context.theme))
+                                      : PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, PreviewText::GetSourceColors (m_context.theme)));
 }
 
 
@@ -329,6 +330,27 @@ bool PreviewTextView::TryGetSelectionDetail (std::wstring & outDetail) const
 void PreviewTextView::ToggleLineAddresses()
 {
     m_context.prefs.lineAddresses = !m_context.prefs.lineAddresses;
+
+    Fill (m_context.browser.GetPreview());
+    m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewTextView::ToggleCrossReference
+//
+//  The choice lasts until the window closes, and applies to each BASIC
+//  program previewed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewTextView::ToggleCrossReference()
+{
+    m_crossReference = !m_crossReference;
 
     Fill (m_context.browser.GetPreview());
     m_context.window.Invalidate();

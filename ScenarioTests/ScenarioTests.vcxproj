@@ -171,6 +171,7 @@
     <ClCompile Include="CatalogReproductionTest.cpp" />
     <ClCompile Include="FileMapStockDiskTests.cpp" />
     <ClCompile Include="GuestVisibleBasicTests.cpp" />
+    <ClCompile Include="GuestVisibleBasicToolsTests.cpp" />
     <ClCompile Include="GuestVisibleBootTests.cpp" />
     <ClCompile Include="GuestVisibleJoyportTests.cpp" />
     <ClCompile Include="GuestVisibleDirectBootTests.cpp" />

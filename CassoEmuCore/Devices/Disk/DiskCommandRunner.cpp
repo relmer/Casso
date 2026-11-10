@@ -32,6 +32,7 @@
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "FileTypes/FileFormatTable.h"
 #include "IntegerBasicDetokenizer.h"
+#include "IntegerBasicTokenizer.h"
 #include "Utils.h"
 
 
@@ -1079,13 +1080,12 @@ HRESULT DiskCommandRunner::ApplyEncoding (
     FilePayload              &  payload,
     DiskCommandResult        &  result)
 {
-    static constexpr Byte     s_kProDosIntegerType = 0xFA;
     HRESULT                   hr                   = S_OK;
     std::string               hostText;
     ApplesoftListingError     listingError;
     IntegerBasicListingError  integerError;
     char                      note[200]            = {};
-    bool                      integer              = payload.type == Dos33Volume::kTypeInteger || payload.type == s_kProDosIntegerType;
+    bool                      integer              = payload.type == Dos33Volume::kTypeInteger || payload.type == kProDosIntegerType;
 
 
 
@@ -1801,6 +1801,7 @@ HRESULT DiskCommandRunner::ResolveFileType (
         if      (form == "T" || form == "TXT") { outType = ProDosVolume::kTypeText; }
         else if (form == "B" || form == "BIN") { outType = ProDosVolume::kTypeBinary; }
         else if (form == "A" || form == "BAS") { outType = ProDosVolume::kTypeBasic; }
+        else if (form == "I" || form == "INT") { outType = kProDosIntegerType; }
         else if (form == "S" || form == "SYS") { outType = ProDosVolume::kTypeSystem; }
         else                                           { recognized = false; }
     }
@@ -1810,7 +1811,7 @@ HRESULT DiskCommandRunner::ResolveFileType (
         result.diagnostics += DiskHelpPage::ApplyPrefixes ("%Ltype ", options.flagPrefix) + options.disk.typeName
                             + " means nothing on this volume: "
                             + (isDos ? "DOS 3.3 takes T, I, A, B or R"
-                                     : "ProDOS takes TXT, BIN, BAS or SYS")
+                                     : "ProDOS takes TXT, BIN, BAS, INT or SYS")
                             + "\n";
 
         result.exitStatus   = DiskCommandResult::kNoOutput;
@@ -1962,6 +1963,7 @@ HRESULT DiskCommandRunner::BuildPutPayload (
     ApplesoftListingError  listingError;
     bool                   hasAddresses = kind == VolumeKind::Dos33 || kind == VolumeKind::ProDos || kind == VolumeKind::Archive;
     bool                   isReadOnly   = false;
+    bool                   integer      = false;
     bool                   allowed      = hasAddresses || (!options.disk.hasLoadAddress && options.disk.encoding != CommandLineOptions::DiskOptions::Encoding::Basic);
 
 
@@ -1972,6 +1974,8 @@ HRESULT DiskCommandRunner::BuildPutPayload (
 
     hr = ResolveFileType (options, kind, hostBytes, type, result);
     CHR (hr);
+
+    integer = (kind == VolumeKind::Dos33) ? type == Dos33Volume::kTypeInteger : type == kProDosIntegerType;
 
     outPayload.type           = type;
     outPayload.loadAddress    = options.disk.loadAddress;
@@ -2029,14 +2033,37 @@ HRESULT DiskCommandRunner::BuildPutPayload (
                 // be honored. Accepting and ignoring it would place the program
                 // and leave the caller believing it loads somewhere it does not.
                 result.diagnostics += DiskHelpPage::ApplyPrefixes (
-                    "%Lload means nothing with %Lbasic: "
-                    "an Applesoft BASIC program always loads at $0801\n", options.flagPrefix);
+                    integer ? "%Lload means nothing with %Lbasic: "
+                              "an Integer BASIC program has no load address\n"
+                            : "%Lload means nothing with %Lbasic: "
+                              "an Applesoft BASIC program always loads at $0801\n", options.flagPrefix);
                 result.exitStatus   = DiskCommandResult::kNoOutput;
                 hr                  = HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER);
                 break;
             }
 
             hostText.assign (hostBytes.begin(), hostBytes.end());
+
+            //  A type of I or INT selects Integer BASIC's stored form. ProDOS
+            //  has no load address for one, so the auxiliary type is not set.
+            if (integer)
+            {
+                hr = IntegerBasicTokenizer::Tokenize (hostText, outPayload.bytes, listingError);
+
+                if (FAILED (hr))
+                {
+                    result.diagnostics += DescribeListingRefusal (
+                        DiskHelpPage::ApplyPrefixes ("%Lbasic cannot make an Integer BASIC program of "
+                                       "this listing", options.flagPrefix).c_str(), listingError);
+
+                    result.exitStatus   = DiskCommandResult::kNoOutput;
+                    break;
+                }
+
+                outPayload.hasLoadAddress = false;
+                outPayload.encoding       = PayloadEncoding::HostText;
+                break;
+            }
 
             hr = ApplesoftTokenizer::Tokenize (hostText, outPayload.bytes, listingError);
 

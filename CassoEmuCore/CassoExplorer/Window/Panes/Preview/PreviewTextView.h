@@ -38,6 +38,8 @@ public:
     bool            TryGetScrollbarMenu   (const DxuiMouseEvent & ev, std::vector<DxuiPopupMenuItem> & outItems) const;
     bool            TryGetSelectionDetail (std::wstring & outDetail) const;
     void            ToggleLineAddresses   ();
+    void            ToggleCrossReference  ();
+    bool            IsCrossReference      () const { return m_crossReference; }
     IDxuiControl  * GetControl            () const { return m_text; }
 
     bool            HandleCapturedMouse   (const DxuiMouseEvent & ev);
@@ -47,5 +49,6 @@ public:
 private:
     void  ShowContextMenu (int x, int y);
 
-    DxuiTextView  * m_text = nullptr;
+    DxuiTextView  * m_text           = nullptr;
+    bool            m_crossReference = false;
 };

@@ -40,6 +40,11 @@ public:
     //  and a disassembly have their syntax colored.
     static std::vector<DxuiTextView::Row>  BuildTextRows      (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors = {});
     static std::vector<DxuiTextView::Row>  BuildDetailRows    (const std::vector<std::pair<std::wstring, std::wstring>> & details);
+
+    //  A BASIC program's cross-reference, a row a line of it. Any other
+    //  preview, and a program that cannot be cross-referenced, has the rows
+    //  of BuildTextRows.
+    static std::vector<DxuiTextView::Row>  BuildCrossReferenceRows (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors = {});
     static std::vector<DxuiTextView::Row>  BuildDocumentRows  (const std::vector<Paragraph> & paragraphs);
 
     //  Visual Studio's code colors for the theme's background, dark or light,
