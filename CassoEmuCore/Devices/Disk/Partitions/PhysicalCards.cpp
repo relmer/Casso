@@ -211,8 +211,8 @@ Error:
 //
 //  PhysicalCards::Open
 //
-//  The drive is opened outside the lock, as the UAC prompt can stay up
-//  until the user answers it. A card that is open already is closed
+//  The drive is opened outside the lock, as the UAC prompt can stay up for
+//  minutes. A card that is open already is closed
 //  first, so the blocks are read again.
 //
 ////////////////////////////////////////////////////////////////////////////////
