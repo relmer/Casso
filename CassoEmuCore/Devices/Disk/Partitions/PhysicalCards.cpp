@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Seams/RawDevice/RawDeviceProtocol.h"
 #include "Core/TextEncoding.h"
 
 
@@ -326,6 +327,7 @@ HRESULT PhysicalCards::Initialize (int number, HWND owner, uint64_t layout)
 {
     HRESULT                     hr        = S_OK;
     bool                        removable = false;
+    bool                        done      = false;
     std::vector<PhysicalDrive>  drives;
 
 
@@ -341,6 +343,15 @@ HRESULT PhysicalCards::Initialize (int number, HWND owner, uint64_t layout)
     CBREx (removable, E_ACCESSDENIED);
 
     Close (number);
+
+    //  FAT32 over a card's first partition is written without administrator
+    //  access. The broker is started only for a card without that partition.
+    if (layout == RawDeviceProtocol::kLayoutFat32)
+    {
+        hr = m_host.FormatFirstPartition (number, done);
+        CHR (hr);
+        BAIL_OUT_IF (done, S_OK);
+    }
 
     hr = m_host.InitializeDrive (number, owner, layout);
     CHR (hr);

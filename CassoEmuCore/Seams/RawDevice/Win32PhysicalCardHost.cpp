@@ -4,6 +4,7 @@
 #include "Seams/RawDevice/RawDeviceClient.h"
 #include "Seams/RawDevice/Win32PipeStream.h"
 #include "Seams/RawDevice/Win32RawDevice.h"
+#include "Seams/RawDevice/Win32VolumeFormat.h"
 #include "Seams/RawDevice/Win32StorageCardBroker.h"
 
 
@@ -284,4 +285,19 @@ Error:
 HRESULT Win32PhysicalCardHost::FindVolumeDrive (const std::wstring & root, int & outNumber)
 {
     return Win32RawDevice::FindVolumeDrive (root, outNumber);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PhysicalCardHost::FormatFirstPartition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32PhysicalCardHost::FormatFirstPartition (int number, bool & outDone)
+{
+    return Win32VolumeFormat::FormatFirstPartition (number, outDone);
 }

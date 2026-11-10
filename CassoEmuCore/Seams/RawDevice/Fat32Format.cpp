@@ -106,30 +106,17 @@ uint32_t Fat32Format::GetFatSectors (uint64_t sectors, uint32_t sectorsPerCluste
 
 HRESULT Fat32Format::Write (IRawDevice & device, uint64_t blocks)
 {
-    HRESULT            hr         = S_OK;
-    uint64_t           sectors    = 0;
-    uint32_t           perCluster = 0;
-    uint32_t           fatSectors = 0;
-    uint64_t           boot       = kPartitionStart;
-    uint64_t           fat        = 0;
-    uint64_t           root       = 0;
-    bool               fits       = CanFormat (blocks);
+    HRESULT            hr      = S_OK;
+    uint64_t           sectors = 0;
+    bool               fits    = CanFormat (blocks);
     std::vector<Byte>  sector;
-    std::vector<Byte>  info;
-    std::vector<Byte>  reserved ((size_t) kReservedSectors * IRawDevice::kBlockBytes, 0);
     std::vector<Byte>  lead ((size_t) kPartitionStart * IRawDevice::kBlockBytes, 0);
-    std::vector<Byte>  table;
-    std::vector<Byte>  cluster;
 
 
 
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 
-    sectors    = std::min (blocks - kPartitionStart, kMaxSectors);
-    perCluster = GetSectorsPerCluster (sectors);
-    fatSectors = GetFatSectors (sectors, perCluster);
-    fat        = boot + kReservedSectors;
-    root       = fat + (uint64_t) kFatCount * fatSectors;
+    sectors = std::min (blocks - kPartitionStart, kMaxSectors);
 
     BuildMbr (sectors, sector);
     std::copy (sector.begin(), sector.end(), lead.begin());
@@ -137,9 +124,52 @@ HRESULT Fat32Format::Write (IRawDevice & device, uint64_t blocks)
     hr = device.WriteBlocks (0, lead);
     CHR (hr);
 
+    hr = WriteVolume ([&device] (uint64_t first, std::span<const Byte> bytes) { return device.WriteBlocks (kPartitionStart + first, bytes); }, sectors, kPartitionStart);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Fat32Format::WriteVolume
+//
+//  Blocks are numbered from the volume's start. `hiddenSectors` is where the
+//  volume starts on its drive, which is written in the boot sector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Fat32Format::WriteVolume (const BlockWriter & write, uint64_t sectors, uint64_t hiddenSectors)
+{
+    HRESULT            hr         = S_OK;
+    uint32_t           perCluster = 0;
+    uint32_t           fatSectors = 0;
+    uint64_t           fat        = kReservedSectors;
+    uint64_t           root       = 0;
+    bool               fits       = CanFormatVolume (sectors);
+    std::vector<Byte>  sector;
+    std::vector<Byte>  info;
+    std::vector<Byte>  reserved ((size_t) kReservedSectors * IRawDevice::kBlockBytes, 0);
+    std::vector<Byte>  table;
+    std::vector<Byte>  cluster;
+
+
+
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+    sectors    = std::min (sectors, kMaxSectors);
+    perCluster = GetSectorsPerCluster (sectors);
+    fatSectors = GetFatSectors (sectors, perCluster);
+    root       = fat + (uint64_t) kFatCount * fatSectors;
+
     //  The boot sector at 0 and its copy at 6, FSInfo after each, and the
     //  third sector of each set ending in the signature as the boot code's.
-    BuildBoot (sectors, perCluster, fatSectors, sector);
+    BuildBoot (sectors, perCluster, fatSectors, (uint32_t) std::min<uint64_t> (hiddenSectors, UINT32_MAX), sector);
     BuildFsInfo (info);
 
     for (size_t copy : { (size_t) 0, (size_t) 6 })
@@ -150,7 +180,7 @@ HRESULT Fat32Format::Write (IRawDevice & device, uint64_t blocks)
         reserved[(copy + 2) * IRawDevice::kBlockBytes + 511] = 0xAA;
     }
 
-    hr = device.WriteBlocks (boot, reserved);
+    hr = write (0, reserved);
     CHR (hr);
 
     //  Entries 0 and 1 are reserved, and 2, the root directory, is its only
@@ -162,7 +192,7 @@ HRESULT Fat32Format::Write (IRawDevice & device, uint64_t blocks)
 
     for (uint32_t copy = 0; copy < kFatCount; copy++)
     {
-        hr = device.WriteBlocks (fat + (uint64_t) copy * fatSectors, table);
+        hr = write (fat + (uint64_t) copy * fatSectors, table);
         CHR (hr);
     }
 
@@ -170,11 +200,41 @@ HRESULT Fat32Format::Write (IRawDevice & device, uint64_t blocks)
     std::copy_n ("CFFA3000   ", 11, cluster.begin());
     cluster[11] = 0x08;
 
-    hr = device.WriteBlocks (root, cluster);
+    hr = write (root, cluster);
     CHR (hr);
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Fat32Format::CanFormatVolume
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Fat32Format::CanFormatVolume (uint64_t sectors)
+{
+    uint32_t  perCluster = 0;
+    uint32_t  fatSectors = 0;
+
+
+
+    sectors = std::min (sectors, kMaxSectors);
+
+    if (sectors <= kReservedSectors)
+    {
+        return false;
+    }
+
+    perCluster = GetSectorsPerCluster (sectors);
+    fatSectors = GetFatSectors (sectors, perCluster);
+
+    return sectors > kReservedSectors + (uint64_t) kFatCount * fatSectors && (sectors - kReservedSectors - (uint64_t) kFatCount * fatSectors) / perCluster >= kMinClusters;
 }
 
 
@@ -225,7 +285,7 @@ void Fat32Format::BuildMbr (uint64_t sectors, std::vector<Byte> & outSector)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Fat32Format::BuildBoot (uint64_t sectors, uint32_t sectorsPerCluster, uint32_t fatSectors, std::vector<Byte> & outSector)
+void Fat32Format::BuildBoot (uint64_t sectors, uint32_t sectorsPerCluster, uint32_t fatSectors, uint32_t hiddenSectors, std::vector<Byte> & outSector)
 {
     outSector.assign (IRawDevice::kBlockBytes, 0);
 
@@ -241,7 +301,7 @@ void Fat32Format::BuildBoot (uint64_t sectors, uint32_t sectorsPerCluster, uint3
     outSector[21] = 0xF8;
     PutWord (outSector, 24, 63);
     PutWord (outSector, 26, 255);
-    PutLong (outSector, 28, kPartitionStart);
+    PutLong (outSector, 28, hiddenSectors);
     PutLong (outSector, 32, (uint32_t) sectors);
     PutLong (outSector, 36, fatSectors);
     PutLong (outSector, 44, 2);

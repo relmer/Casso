@@ -7,6 +7,7 @@
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "Seams/IShellItemVerbs.h"
 #include "Seams/IShellIcons.h"
 #include "Core/TextEncoding.h"
@@ -210,6 +211,7 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
     bool                               confirmed = false;
     std::vector<PhysicalDrive>         drives;
     std::vector<WindowsVolume>         volumes;
+    std::wstring                       root;
     std::vector<PartitionEntry>        apple;
     PartitionLayoutKind                kind      = PartitionLayoutKind::None;
     int                                count     = 0;
@@ -306,7 +308,32 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
         return;
     }
 
-    m_context.browser.NavigateToLocation (Location::MakeDiskImage (cardPath));
+    //  The drive's folders and files in the tree are from before the erase.
+    for (const WindowsVolume & volume : volumes)
+    {
+        if (!volume.letter.empty())
+        {
+            std::wstring  node = TreeModel::MakeFolderId (false, volume.letter + L"\\");
+
+            m_context.browser.GetTreeModel().Invalidate (node);
+            m_context.treePane.ReloadChildren (node);
+            root = root.empty() ? volume.letter + L"\\" : root;
+        }
+    }
+
+    m_context.browser.GetTreeModel().Invalidate (TreeModel::kThisPcRootId);
+    m_context.treePane.ReloadChildren (TreeModel::kThisPcRootId);
+
+    //  A FAT32 card is opened at its drive letter, and a CFFA card as a card.
+    if (layout == RawDeviceProtocol::kLayoutFat32 && !root.empty())
+    {
+        m_context.browser.NavigateToLocation (Location::MakeHostFolder (root));
+    }
+    else
+    {
+        m_context.browser.NavigateToLocation (Location::MakeDiskImage (cardPath));
+    }
+
     m_context.listPane.FillList();
 }
 

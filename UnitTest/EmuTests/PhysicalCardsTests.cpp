@@ -6,6 +6,7 @@
 #include "Devices/Disk/MemoryBlockStore.h"
 #include "Devices/Disk/Partitions/PhysicalCardFileIo.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Seams/RawDevice/RawDeviceProtocol.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -62,6 +63,21 @@ struct FakeCardHost : public IPhysicalCardHost
         outVolumes = volumes;
         return S_OK;
     }
+
+    HRESULT FormatFirstPartition (int number, bool & outDone) override
+    {
+        outDone = firstPartition;
+
+        if (firstPartition)
+        {
+            formatted.push_back (number);
+        }
+
+        return S_OK;
+    }
+
+    bool              firstPartition = false;
+    std::vector<int>  formatted;
 
     HRESULT InitializeDrive (int number, HWND, uint64_t) override
     {
@@ -253,6 +269,22 @@ public:
         AssertSucceeded (cards.Initialize (2, nullptr, 4));
 
         Assert::IsFalse (cards.IsOpen (2));
+        Assert::AreEqual ((size_t) 1, host.initialized.size());
+    }
+
+
+    TEST_METHOD (Initialize_Fat32OverAFirstPartitionSkipsTheBroker)
+    {
+        FakeCardHost   host;
+        PhysicalCards  cards (host);
+
+        host.firstPartition = true;
+        AssertSucceeded (cards.Initialize (2, nullptr, RawDeviceProtocol::kLayoutFat32));
+        Assert::AreEqual ((size_t) 1, host.formatted.size());
+        Assert::IsTrue (host.initialized.empty());
+
+        host.firstPartition = false;
+        AssertSucceeded (cards.Initialize (2, nullptr, RawDeviceProtocol::kLayoutFat32));
         Assert::AreEqual ((size_t) 1, host.initialized.size());
     }
 

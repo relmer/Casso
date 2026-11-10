@@ -43,6 +43,11 @@ public:
     //  The drive erased and given CFFA's layout, through the broker.
     virtual HRESULT  InitializeDrive       (int number, HWND owner, uint64_t layout) = 0;
 
+    //  FAT32 written over the first partition of the drive's MBR without
+    //  administrator access. `outDone` is false, and nothing written, for a
+    //  drive with no such partition.
+    virtual HRESULT  FormatFirstPartition  (int number, bool & outDone) = 0;
+
     //  Fails with ERROR_CANCELLED when the user declines administrator access.
     //  Destroying `outStore` closes the drive.
     virtual HRESULT  OpenDrive  (int number, HWND owner, PhysicalDrive & outDrive, std::unique_ptr<IBlockStore> & outStore) = 0;
