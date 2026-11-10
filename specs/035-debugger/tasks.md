@@ -2329,3 +2329,9 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1437 Bookmarks and Data ranges sort by the heading clicked, reversed by a second click: `BookmarksPane::GetSorted`, `DataBlocksPane::GetSorted`. Test: `DebuggerToolPanesTests::BookmarksAndDataRangesSortByAColumn`.
 - [X] T1438 A heading's chevron filters a list by the column's values, in a menu that stays open, with a funnel on a filtered heading and Clear filter: `ListValueFilters`, on Breakpoints' Kind, Trigger and File and on Data ranges' Kind. Tests: `DebuggerToolPanesTests::AHeadingFilterHidesAValueAndListsItInTheMenu`, `DataRangesLeaveOutAHiddenKind`, `BreakpointsLeaveOutAHiddenKind`.
 - [X] T1439 Check on screen: the find bar over each list pane, the disassembly's search button, the sort arrows on Bookmarks and Data ranges, and the value filter menus on Breakpoints and Data ranges, in each theme.
+
+## Phase 70: Moved from 040 (040 FR-069)
+
+Blocked until 040 is on master and 035 has merged it: `DiskImageStore::NoteStateRestored` is 040 code. 040's T194 points here.
+
+- [ ] T1440 Call `DiskImageStore::NoteStateRestored (slot, drive)` for each mounted bay after `MachineHost::LoadState` restores a state and after a history rewind restores one, so the disk inspector and the "As inserted" comparison copy reload. Test: the call is made on both paths.
