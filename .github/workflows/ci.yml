@@ -150,8 +150,15 @@ jobs:
         uses: microsoft/setup-msbuild@v3
 
       # 64-bit tools, as the x64 build above uses and for the same reason.
+      #
+      # Only the three programs and the libraries they link, not UnitTest or
+      # ScenarioTests. An ARM64 test DLL cannot run on this x64 runner, and
+      # building the two took over half of the Release job: about twelve
+      # minutes to compile and analyze UnitTest, then six and a half for its
+      # link-time code generation. The x64 jobs compile, analyze and run the
+      # same test code.
       - name: Build ARM64
-        run: msbuild Casso.sln -m -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:PreferredToolArchitecture=x64 -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
+        run: msbuild Casso.sln -m -t:"Casso;CassoCli;CassoExplorer" -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:PreferredToolArchitecture=x64 -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
 
       # Hand the Release ARM64 binaries to the release job so it doesn't rebuild
       # them. Only on master pushes (the only place the release job runs).
