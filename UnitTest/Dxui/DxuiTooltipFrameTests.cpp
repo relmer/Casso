@@ -243,9 +243,9 @@ public:
 
 
 
-    //  An instant tip moved to the next cell takes that cell's gradient: a
-    //  heat map cell with no heat after one with heat has no scale, and one
-    //  with heat after one without has its scale.
+    //  An instant tip moved to the next cell takes that cell's gradient, and
+    //  stays at the largest size it has had: a heat map cell with no heat after
+    //  one with heat is as tall as the one with its scale.
     TEST_METHOD (AMovedInstantTipTakesTheNextCellsGradient)
     {
         DxuiHwndSource   host;
@@ -269,7 +269,7 @@ public:
 
         tip.SetGradient    ({}, -1.0f);
         tip.RequestShowNow (RECT { 110, 200, 111, 201 }, L"$0401", 1);
-        Assert::IsTrue (tip.GetActivePopup()->GetParams().sizePx.cy < withScale, L"no scale for the cell without heat");
+        Assert::AreEqual (withScale, tip.GetActivePopup()->GetParams().sizePx.cy, L"the cell without heat is as tall as the one with its scale, so the tip does not shrink as it moves");
 
         tip.SetGradient    ({ 0xFF000000u, 0xFFFFFFFFu }, 0.25f);
         tip.RequestShowNow (RECT { 120, 200, 121, 201 }, L"$0402", 2);

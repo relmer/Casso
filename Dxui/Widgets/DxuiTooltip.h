@@ -485,6 +485,7 @@ private:
     float                                 m_shownMaxWidthDip   = 0.0f;
     mutable bool                          m_isTooSmall         = false;
     mutable SIZE                          m_neededPx           = {};
+    mutable D2D1_SIZE_F                   m_instantMaxPx       = {};   // the largest size of a tip that follows the pointer, since it opened
     std::wstring                          m_frameLabel;
     std::wstring                          m_shownFrameLabel;
     uint32_t                              m_frameArgb          = 0;

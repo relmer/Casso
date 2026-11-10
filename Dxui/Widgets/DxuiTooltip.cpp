@@ -613,6 +613,7 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
         return;
     }
 
+    m_instantMaxPx = {};
     m_isPointerTip = true;
 
     MeasurePointerForPlacement();
@@ -848,6 +849,7 @@ void DxuiTooltip::Tick (int64_t nowMs)
 
 void DxuiTooltip::FinishHide()
 {
+    m_instantMaxPx = {};
     m_visible   = false;
     m_fadingOut = false;
     m_hideAtMs  = 0;
@@ -868,6 +870,7 @@ void DxuiTooltip::FinishHide()
 
 void DxuiTooltip::HideImmediate()
 {
+    m_instantMaxPx = {};
     m_pending   = false;
     m_visible   = false;
     m_fadingOut = false;
@@ -1277,6 +1280,17 @@ bool DxuiTooltip::MeasureBoxPx (
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         widthPx = std::max (widthPx, std::ceil (labelW) + (GetFrameEdgePx() + m_scaler.ToPxf (kFrameCornerDip) + m_scaler.ToPxf (kFrameGapDip)) * 2.0f);
+    }
+
+    //  A tip that follows the pointer from cell to cell stays at the largest size
+    //  it has had since it opened, so a cell whose text is shorter, or whose
+    //  last lines are yet to come, doesn't narrow the balloon and widen it
+    //  again as the pointer moves.
+    if (m_isInstant)
+    {
+        widthPx           = std::max (widthPx,  m_instantMaxPx.width);
+        heightPx          = std::max (heightPx, m_instantMaxPx.height);
+        m_instantMaxPx    = { widthPx, heightPx };
     }
 
     return isMeasured;

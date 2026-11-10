@@ -152,4 +152,34 @@ public:
 
         tip.HideImmediate();
     }
+
+    //  A tip that follows the pointer stays at its largest size while it moves,
+    //  so a shorter text in the next cell doesn't narrow it; a tip opened
+    //  again starts from its text.
+    TEST_METHOD (APointerTipKeepsItsLargestSizeWhileItMoves)
+    {
+        DxuiHwndSource  host;
+        DxuiTooltip     tip;
+        DxuiDarkTheme   theme;
+        SIZE            wide = {};
+
+
+
+        host.SetDpiForTest (96);
+        tip.SetPopupHost   (&host);
+        tip.SetTheme       (theme);
+        tip.ApplyVisualStudioLook();
+
+        tip.RequestShowNow (RECT { 100, 200, 101, 201 }, L"Last written by $6A12 DRAWROW", 0);
+        wide = GetPlacedSize (tip);
+
+        tip.RequestShowNow (RECT { 110, 200, 111, 201 }, L"$0401", 1);
+        Assert::AreEqual (wide.cx, GetPlacedSize (tip).cx, L"as wide as the widest text since it opened");
+
+        tip.HideImmediate();
+        tip.RequestShowNow (RECT { 110, 200, 111, 201 }, L"$0401", 2);
+        Assert::IsTrue (GetPlacedSize (tip).cx < wide.cx, L"opened again, as wide as its text");
+
+        tip.HideImmediate();
+    }
 };

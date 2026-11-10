@@ -106,9 +106,15 @@ void CallStackPane::Apply (const CallStackData & data, const std::vector<BasicFr
     m_list->SetRows (std::move (cells));
 
     //  New frames size the columns to themselves again, narrower as well as
-    //  wider, rather than keeping the widest text the pane has ever shown.
+    //  wider, rather than staying at the widest text the pane has ever had or
+    //  a width the user dragged.
     if (changed)
     {
+        for (size_t column = 0; column < m_list->GetColumnCount(); column++)
+        {
+            m_list->SetColumnOverrideWidthPx (column, -1);
+        }
+
         m_list->ResetAutoFit();
     }
 
