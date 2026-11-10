@@ -168,4 +168,10 @@ public:
     {
         CompareWithExtraction ("rdos3-rss-save.woz", RdosVolume::Layout::Rdos3);
     }
+
+
+    TEST_METHOD (Rdos32SaveDisk_EveryFileMatchesCiderPressExtraction)
+    {
+        CompareWithExtraction ("rdos32-shiloh-save.woz", RdosVolume::Layout::Rdos32);
+    }
 };

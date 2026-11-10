@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Machines/Apple2/Common/Dos33Geometry.h"
 #include "Machines/Apple2/Common/IVolume.h"
 #include "Machines/Apple2/Common/SectorReadObserver.h"
 #include "Devices/Disk/ChainWalkGuard.h"
@@ -206,24 +207,24 @@ private:
     static constexpr int     kGreetingSector = 9;
     static constexpr size_t  kGreetingOffset = 0x75;
 
-    static uint32_t  ToUnit    (int track, int sector);
-    static int       GetTrack  (uint32_t unit);
-    static int       GetSector (uint32_t unit);
+    uint32_t  ToUnit    (int track, int sector) const;
+    int       GetTrack  (uint32_t unit) const;
+    int       GetSector (uint32_t unit) const;
 
     //  Order in which free sectors are handed out: outward from the catalog
     //  track first, then inward, which is the order DOS's own allocation hint
     //  describes. Never yields the catalog track.
-    static int       GetAllocationTrack (int index);
+    int       GetAllocationTrack (int index) const;
 
     //  Credits the volume's own structures -- the tracks DOS occupies and the
     //  catalog track -- to the reserved volume owner. No catalog entry names
     //  them, and a report that left them unowned would call every healthy
     //  volume inconsistent.
-    static void  ClaimVolumeStructures  (VolumeIntegrityReport & outReport);
+    void  ClaimVolumeStructures  (VolumeIntegrityReport & outReport) const;
 
-    static bool  IsFreeInBitmap  (const vector<Byte> & buffer, int track, int sector);
-    static void  SetFreeInBitmap (vector<Byte> & buffer, int track, int sector, bool isFree);
-    static void  WriteByteAt     (vector<Byte> & buffer, int track, int sector, size_t offset, Byte value);
+    bool  IsFreeInBitmap  (const vector<Byte> & buffer, int track, int sector) const;
+    void  SetFreeInBitmap (vector<Byte> & buffer, int track, int sector, bool isFree) const;
+    void  WriteByteAt     (vector<Byte> & buffer, int track, int sector, size_t offset, Byte value) const;
 
     //  30 bytes of high ASCII, space-padded. False when the name is one DOS
     //  could not open again.
@@ -234,19 +235,19 @@ private:
     //  reproduces the stored form.
     static HRESULT  ComposeStoredBytes (const FilePayload & payload, vector<Byte> & outStored);
 
-    static void  ZeroUnits        (vector<Byte> & buffer, const vector<uint32_t> & units);
-    static void  PlaceFile        (vector<Byte>            & buffer,
-                                   const vector<uint32_t>  & units,
-                                   size_t                    dataSectorCount,
-                                   const vector<Byte>      & stored);
-    static void  WriteCatalogEntry (vector<Byte>        & buffer,
-                                    int                   catalogTrack,
-                                    int                   catalogSector,
-                                    size_t                entryOffset,
-                                    uint32_t              listUnit,
-                                    Byte                  typeByte,
-                                    uint16_t              sectorCount,
-                                    const vector<Byte>  & nameBytes);
+    void  ZeroUnits        (vector<Byte> & buffer, const vector<uint32_t> & units) const;
+    void  PlaceFile        (vector<Byte>            & buffer,
+                            const vector<uint32_t>  & units,
+                            size_t                    dataSectorCount,
+                            const vector<Byte>      & stored) const;
+    void  WriteCatalogEntry (vector<Byte>        & buffer,
+                             int                   catalogTrack,
+                             int                   catalogSector,
+                             size_t                entryOffset,
+                             uint32_t              listUnit,
+                             Byte                  typeByte,
+                             uint16_t              sectorCount,
+                             const vector<Byte>  & nameBytes) const;
 
     Byte  ReadByte (int track, int sector, size_t offset) const;
 
@@ -311,5 +312,6 @@ private:
     static void  ApplyTypeHeader (Byte typeByte, vector<Byte> & inOutBytes, FilePayload & outPayload);
 
     const vector<Byte> &   m_sectors;
+    Dos33Geometry          m_geometry;
     ISectorReadObserver  * m_readObserver = nullptr;
 };

@@ -2,6 +2,7 @@
 
 #include "Machines/Apple2/Common/RdosVolume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 
 
 
@@ -62,7 +63,7 @@ RdosVolume::RdosVolume (const vector<Byte> & sectors)
 
 int RdosVolume::GetSectorsPerTrack (Layout layout)
 {
-    return (layout == Layout::Rdos3) ? s_kSectorsRdos3 : s_kSectorsRdos33;
+    return (layout == Layout::Rdos33) ? s_kSectorsRdos33 : s_kSectorsRdos3;
 }
 
 
@@ -77,7 +78,7 @@ int RdosVolume::GetSectorsPerTrack (Layout layout)
 
 int RdosVolume::GetCatalogSectors (Layout layout)
 {
-    return (layout == Layout::Rdos3) ? s_kCatalogRdos3 : s_kCatalogRdos33;
+    return (layout == Layout::Rdos33) ? s_kCatalogRdos33 : s_kCatalogRdos3;
 }
 
 
@@ -104,7 +105,8 @@ uint32_t RdosVolume::GetSectorTotal (Layout layout)
 //  RdosVolume::GetUnit
 //
 //  Rdos33 counts a track's sectors in the order of a ProDOS-ordered file,
-//  and Rdos3 in the order of the address fields.
+//  and Rdos3 in the order of the address fields. An Rdos32 buffer is in the
+//  order RDOS counts, so its index is the unit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,6 +118,11 @@ uint32_t RdosVolume::GetUnit (Layout layout, uint32_t index)
     int       logical  = 0;
 
 
+
+    if (layout == Layout::Rdos32)
+    {
+        return index;
+    }
 
     if (layout == Layout::Rdos3)
     {
@@ -238,16 +245,18 @@ bool RdosVolume::IsSystemName (const std::string & name)
 //
 //  Sector 0 of track 1 is the first catalog sector in both layouts. The
 //  first entry's length is two tracks, which is 26 sectors in Rdos3 and 32
-//  in Rdos33. For any other length, version 2 in the name is Rdos3.
+//  in Rdos33. For any other length, version 2 in the name is Rdos3. A buffer
+//  of 13-sector tracks is Rdos32.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RdosVolume::Layout RdosVolume::DetectLayout (const vector<Byte> & sectors)
 {
-    Layout       layout  = Layout::None;
-    size_t       at      = (size_t) (kCatalogTrack * kBufferSectorsPerTrack) * kSectorBytes;
-    bool         isFound = sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
-    uint32_t     count   = 0;
+    Layout       layout   = Layout::None;
+    bool         thirteen = sectors.size() == ThirteenSectorCodec::kImageByteSize;
+    size_t       at       = (size_t) (kCatalogTrack * (thirteen ? s_kSectorsRdos3 : kBufferSectorsPerTrack)) * kSectorBytes;
+    bool         isFound  = thirteen || sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    uint32_t     count    = 0;
     std::string  name;
 
 
@@ -259,7 +268,11 @@ RdosVolume::Layout RdosVolume::DetectLayout (const vector<Byte> & sectors)
         isFound = IsSystemName (name) && ReadWord (sectors, at + s_kOffFirstSector) == 0;
     }
 
-    if (isFound)
+    if (isFound && thirteen)
+    {
+        layout = Layout::Rdos32;
+    }
+    else if (isFound)
     {
         layout = (count == s_kSystemTracks * s_kSectorsRdos3)  ? Layout::Rdos3
                : (count == s_kSystemTracks * s_kSectorsRdos33) ? Layout::Rdos33
@@ -546,6 +559,7 @@ HRESULT RdosVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) con
 {
     HRESULT          hr      = S_OK;
     bool             isFound = m_layout != Layout::None;
+    uint32_t         units   = (uint32_t) (m_sectors.size() / kSectorBytes);
     vector<RawFile>  files;
 
 
@@ -554,7 +568,7 @@ HRESULT RdosVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) con
 
     CollectFiles (files);
 
-    outReport.Reset (kUnitCount);
+    outReport.Reset (units);
     outReport.SetCatalogFullyParsed (true);
 
     for (size_t i = 0; i < files.size(); i++)
@@ -571,7 +585,7 @@ HRESULT RdosVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) con
         }
     }
 
-    for (uint32_t unit = 0; unit < kUnitCount; unit++)
+    for (uint32_t unit = 0; unit < units; unit++)
     {
         outReport.SetAllocatedInFreeMap (unit, outReport.IsClaimed (unit));
     }

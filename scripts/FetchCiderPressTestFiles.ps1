@@ -21,7 +21,8 @@
 .PARAMETER Extract
     After fetching, have CiderPress II's cp2.exe extract test-files.sdk into
     UnitTest/Fixtures/CiderPress/extracted/test-files/ and each RDOS save disk
-    into a folder beside it, for the scenario tests that compare Casso's reads
+    and DOS 3.2 disk into a folder beside it, for the scenario tests that
+    compare Casso's reads
     with them. Each fork's file name is in NAPS
     form, with the type and aux type after '#'. cp2.exe is looked for in
     %LOCALAPPDATA%\Programs\CiderPress2 unless its path is passed in -Cp2.
@@ -55,6 +56,10 @@ $baseUrl = "https://raw.githubusercontent.com/fadden/CiderPress2/$ref/TestData"
 $files = @(
     @{ Path = 'fileconv/test-files.sdk';     Size = 445987  },
     @{ Path = 'fileconv/dos-files.do.gz';    Size = 28898   },
+    @{ Path = 'dos32/3.2-blank.d13';         Size = 116480  },
+    @{ Path = 'dos32/3.2.1-blank.nib';       Size = 232960  },
+    @{ Path = 'dos32/3.2.1-master.d13';      Size = 116480  },
+    @{ Path = 'nib/dos321-master.nib';       Size = 232960  },
     @{ Path = 'nufx/DIcEd.BSE';              Size = 71552   },
     @{ Path = 'nufx/GSHK11.SEA';             Size = 118055  },
     @{ Path = 'nufx/PatchHFS.shk';           Size = 13083   },
@@ -75,6 +80,7 @@ $files = @(
     @{ Path = 'turducken/WrappedSDK.zip';    Size = 475     },
     @{ Path = 'turducken/subdirs.zip';       Size = 667     },
     @{ Path = 'turducken/zip4.zip';          Size = 936     },
+    @{ Path = 'woz/dos32master_2.woz';       Size = 234496  },
     @{ Path = 'zip/GSHK11.zip';              Size = 76046   },
     @{ Path = 'zip/hello-as.zip';            Size = 262     },
     @{ Path = 'zip/new-init-po.zip';         Size = 7489    },
@@ -176,14 +182,20 @@ if ($Extract) {
 
     Write-Host "Extracted test-files.sdk to UnitTest/Fixtures/CiderPress/extracted/test-files"
 
-    #  The RDOS save disks. Track 0 of the RDOS 3 disk has no sector
-    #  CiderPress II can read, so its first file is left out.
-    $rdosDisks = @(
-        @{ Image = 'rdos/rdos33-rw2000-save.woz'; Files = @() },
-        @{ Image = 'rdos/rdos3-rss-save.woz';     Files = @('FIGHTMENU', 'DISKCHECK') }
+    #  The RDOS save disks. Track 0 of the RDOS 3 and RDOS 3.2 disks has
+    #  no sector CiderPress II can read, so the first file of each is left out.
+    #  A DOS file is extracted without --raw, so that its bytes are the
+    #  program or the text and not the sectors.
+    $disks = @(
+        @{ Image = 'rdos/rdos33-rw2000-save.woz'; Raw = $true;  Files = @() },
+        @{ Image = 'rdos/rdos3-rss-save.woz';     Raw = $true;  Files = @('FIGHTMENU', 'DISKCHECK') },
+        @{ Image = 'rdos/rdos32-shiloh-save.woz'; Raw = $true;  Files = @('MYSAVE') },
+        @{ Image = 'dos32/3.2.1-master.d13';      Raw = $false; Files = @() },
+        @{ Image = 'nib/dos321-master.nib';       Raw = $false; Files = @() },
+        @{ Image = 'woz/dos32master_2.woz';       Raw = $false; Files = @() }
     )
 
-    foreach ($disk in $rdosDisks) {
+    foreach ($disk in $disks) {
         $stem      = [IO.Path]::GetFileNameWithoutExtension($disk.Image)
         $extracted = Join-Path $destRoot "extracted/$stem"
 
@@ -192,7 +204,13 @@ if ($Extract) {
         }
 
         New-Item -ItemType Directory -Path $extracted -Force | Out-Null
-        & $Cp2 extract --raw --preserve=naps "--exdir=$extracted" (Join-Path $destRoot $disk.Image) @($disk.Files) | Out-Null
+        $cp2Args = @('extract', '--preserve=naps', "--exdir=$extracted")
+
+        if ($disk.Raw) {
+            $cp2Args += '--raw'
+        }
+
+        & $Cp2 @cp2Args (Join-Path $destRoot $disk.Image) @($disk.Files) | Out-Null
 
         if ($LASTEXITCODE -ne 0) {
             Write-Host "cp2.exe failed to extract $($disk.Image)" -ForegroundColor Red

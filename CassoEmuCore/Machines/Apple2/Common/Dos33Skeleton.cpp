@@ -43,46 +43,70 @@ size_t Dos33Skeleton::GetSectorOffset (int track, int sector)
 
 HRESULT Dos33Skeleton::Write (vector<Byte> & buffer, Byte volumeNumber)
 {
-    HRESULT  hr          = S_OK;
-    size_t   vtoc        = 0;
-    size_t   bufferBytes = buffer.size();
-    int      track       = 0;
-    int      sector      = 0;
+    return Write (buffer, volumeNumber, Dos33Geometry());
+}
 
 
 
-    CBRA (bufferBytes == (size_t) NibblizationLayer::kImageByteSize);
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Skeleton::Write
+//
+//  The empty volume of any geometry. The catalog begins at the track's last
+//  sector, and a 13-sector volume has DOS release 2.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dos33Skeleton::Write (vector<Byte> & buffer, Byte volumeNumber, const Dos33Geometry & geometry)
+{
+    HRESULT  hr           = S_OK;
+    size_t   vtoc         = 0;
+    size_t   bufferBytes  = buffer.size();
+    int      track        = 0;
+    int      sector       = 0;
+    int      width        = 0;
+    Byte     freeBytes[4] = {};
+
+
+
+    CBRA (bufferBytes == geometry.GetImageByteSize());
 
     std::fill (buffer.begin(), buffer.end(), (Byte) 0);
 
+    geometry.GetFreeTrackBytes (freeBytes);
+
     // VTOC (T17 S0)
-    vtoc = GetSectorOffset (kVtocTrack, 0);
+    vtoc = geometry.GetSectorOffset (kVtocTrack, 0);
 
     buffer[vtoc + kVtocOffCatalogTrack]   = (Byte) kVtocTrack;
-    buffer[vtoc + kVtocOffCatalogSector]  = (Byte) kCatalogFirstSector;
-    buffer[vtoc + kVtocOffDosRelease]     = kDosRelease;
+    buffer[vtoc + kVtocOffCatalogSector]  = (Byte) geometry.GetLastSector();
+    buffer[vtoc + kVtocOffDosRelease]     = geometry.IsThirteenSector() ? kDos32Release : kDosRelease;
     buffer[vtoc + kVtocOffVolumeNumber]   = volumeNumber;
     buffer[vtoc + kVtocOffMaxTsPairs]     = kMaxTsPairs;
     buffer[vtoc + kVtocOffLastAllocTrack] = (Byte) (kVtocTrack + 1);
     buffer[vtoc + kVtocOffAllocDirection] = 1;
-    buffer[vtoc + kVtocOffTrackCount]     = (Byte) NibblizationLayer::kTrackCount;
-    buffer[vtoc + kVtocOffSectorCount]    = (Byte) NibblizationLayer::kSectorsPerTrack;
+    buffer[vtoc + kVtocOffTrackCount]     = (Byte) geometry.tracks;
+    buffer[vtoc + kVtocOffSectorCount]    = (Byte) geometry.sectorsPerTrack;
     buffer[vtoc + kVtocOffSectorBytesLo]  = 0x00;
     buffer[vtoc + kVtocOffSectorBytesHi]  = 0x01;
 
-    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (track = 0; track < geometry.tracks; track++)
     {
         bool    allocated = (track < kDosImageTracks) || (track == kVtocTrack);
-        size_t  entry     = vtoc + kVtocOffFreeBitmap + (size_t) track * 4;
+        size_t  entry     = vtoc + kVtocOffFreeBitmap + (size_t) track * (size_t) geometry.bitmapBytesPerTrack;
 
-        buffer[entry]     = allocated ? 0x00 : 0xFF;
-        buffer[entry + 1] = allocated ? 0x00 : 0xFF;
+        for (width = 0; width < geometry.bitmapBytesPerTrack; width++)
+        {
+            buffer[entry + (size_t) width] = allocated ? (Byte) 0x00 : freeBytes[width];
+        }
     }
 
-    // Catalog chain (T17 S15 -> S1)
-    for (sector = kCatalogFirstSector; sector >= 1; sector--)
+    // Catalog chain, from the track's last sector down to sector 1
+    for (sector = geometry.GetLastSector(); sector >= 1; sector--)
     {
-        size_t  cat = GetSectorOffset (kVtocTrack, sector);
+        size_t  cat = geometry.GetSectorOffset (kVtocTrack, sector);
 
         if (sector > 1)
         {

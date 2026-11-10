@@ -4,6 +4,7 @@
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
+#include "Machines/Apple2/Common/Dos33Geometry.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/GutenbergVolume.h"
@@ -11,6 +12,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/RdosVolume.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/TrackWritability.h"
@@ -157,12 +159,13 @@ HRESULT VolumeImage::Load (
     SectorDecodeReport   & outReport,
     MountDiagnosis       & outDiagnosis)
 {
-    HRESULT             hr      = S_OK;
-    DiskFormat          format  = DiskFormat::Dsk;
-    size_t              size    = fileBytes.size();
-    bool                sized   = false;
-    bool                hasData = size != 0;
-    ImageContainerKind  kind    = ImageContainer::GetKind (path, size);
+    HRESULT             hr       = S_OK;
+    DiskFormat          format   = DiskFormat::Dsk;
+    size_t              size     = fileBytes.size();
+    bool                sized    = false;
+    bool                hasData  = size != 0;
+    bool                thirteen = IsThirteenSectorFile (path);
+    ImageContainerKind  kind     = ImageContainer::GetKind (path, size);
     DiskImage           image;
 
 
@@ -176,6 +179,21 @@ HRESULT VolumeImage::Load (
     {
         hr = LoadContainer (kind, fileBytes, std::filesystem::path (path).replace_extension().string(), outSectors, outReport, outDiagnosis);
         CHR (hr);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    //  A .d13 file is the 13-sector buffer itself.
+    if (thirteen)
+    {
+        sized = size == ThirteenSectorCodec::kImageByteSize;
+
+        CBRFEx (hasData, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH),
+                outDiagnosis.failure = MountFailure::EmptyFile);
+        CBRFEx (sized, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH),
+                outDiagnosis.failure = MountFailure::WrongSizeForFormat);
+
+        outSectors = fileBytes;
 
         BAIL_OUT_IF (true, S_OK);
     }
@@ -197,7 +215,7 @@ HRESULT VolumeImage::Load (
         //  path: these callers address files and sectors, so a track that will
         //  not decode is a track they cannot act on. Its refusal is the strict
         //  one, and correctly so.
-        hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, outSectors, outReport);
+        hr = DenibblizeBitStream (image, outSectors, outReport);
         CHRF (hr, outDiagnosis.failure = MountFailure::Unrecognized);
 
         BAIL_OUT_IF (true, S_OK);
@@ -368,10 +386,11 @@ HRESULT VolumeImage::Save (
     vector<Byte>        & outFileBytes,
     std::string         & outRefusalReason)
 {
-    HRESULT             hr     = S_OK;
-    DiskFormat          format = DiskFormat::Dsk;
-    bool                sized  = editedSectors.size() == (size_t) NibblizationLayer::kImageByteSize;
-    ImageContainerKind  kind   = ImageContainer::GetKind (path, originalFileBytes.size());
+    HRESULT             hr       = S_OK;
+    DiskFormat          format   = DiskFormat::Dsk;
+    bool                thirteen = editedSectors.size() == ThirteenSectorCodec::kImageByteSize;
+    bool                sized    = thirteen || editedSectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    ImageContainerKind  kind     = ImageContainer::GetKind (path, originalFileBytes.size());
 
 
 
@@ -388,6 +407,15 @@ HRESULT VolumeImage::Save (
 
     CBRAEx (sized, E_INVALIDARG);
 
+    if (IsThirteenSectorFile (path))
+    {
+        CBREx (thirteen, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH));
+
+        outFileBytes = editedSectors;
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     hr = DiskImageStore::GetSourceFormatByExtension (path, format);
     CHR (hr);
 
@@ -400,7 +428,7 @@ HRESULT VolumeImage::Save (
         BAIL_OUT_IF (true, S_OK);
     }
 
-    sized = originalFileBytes.size() == (size_t) NibblizationLayer::kImageByteSize;
+    sized = !thirteen && originalFileBytes.size() == (size_t) NibblizationLayer::kImageByteSize;
     CBRAEx (sized, E_INVALIDARG);
 
     if (format == DiskFormat::Po)
@@ -539,6 +567,8 @@ HRESULT VolumeImage::SaveBitStream (
     vector<SectorWriteError>  errors;
     bool                      imageOk    = false;
     bool                      tracksOk   = false;
+    bool                      sameSize   = false;
+    bool                      thirteen   = false;
     size_t                    i          = 0;
 
 
@@ -546,11 +576,23 @@ HRESULT VolumeImage::SaveBitStream (
     hr = LoadBitStream (format, originalFileBytes, image);
     CHR (hr);
 
-    hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, prior, report);
+    hr = DenibblizeBitStream (image, prior, report);
     CHR (hr);
 
+    sameSize = prior.size() == editedSectors.size();
+    thirteen = prior.size() == ThirteenSectorCodec::kImageByteSize;
+    CBREx (sameSize, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH));
+
     writability = TrackWritability::Evaluate (image, report);
-    CollectChangedTracks (prior, editedSectors, changed);
+
+    if (thirteen)
+    {
+        ThirteenSectorCodec::CollectChangedTracks (prior, editedSectors, changed);
+    }
+    else
+    {
+        CollectChangedTracks (prior, editedSectors, changed);
+    }
 
     imageOk = writability.IsImageWritable();
     CBRFEx (imageOk, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED),
@@ -572,7 +614,14 @@ HRESULT VolumeImage::SaveBitStream (
 
     CBREx (tracksOk, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
 
-    CollectSectorWrites (prior, editedSectors, writes);
+    if (thirteen)
+    {
+        ThirteenSectorCodec::CollectSectorWrites (prior, editedSectors, writes);
+    }
+    else
+    {
+        CollectSectorWrites (prior, editedSectors, writes);
+    }
 
     hr = SectorFieldWriter::Write (image, writes, SectorWritePolicy::Strict, errors);
     CHRF (hr, outRefusalReason = errors.empty() ? std::string() : SectorFieldWriter::Describe (errors.front()));
@@ -632,26 +681,65 @@ bool VolumeImage::IsPlausibleVolumeName (const vector<Byte> & sectors, size_t na
 //
 //  Five corroborating fields from the VTOC. Any one alone would be weak; a
 //  buffer that satisfies all five is describing itself as DOS 3.3 in a way
-//  stray data does not.
+//  stray data does not. The track and sector counts are those of any DOS 3.x
+//  geometry whose size is the buffer's (Dos33Geometry::TryDetect).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool VolumeImage::LooksLikeDos33 (const vector<Byte> & sectors)
 {
-    size_t  vtoc = Dos33Skeleton::GetSectorOffset (17, 0);
+    Dos33Geometry  geometry;
 
 
 
-    if (vtoc + 0x38 >= sectors.size())
+    return Dos33Geometry::TryDetect (sectors, geometry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::DenibblizeBitStream
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT VolumeImage::DenibblizeBitStream (const DiskImage & image, vector<Byte> & outSectors, SectorDecodeReport & outReport)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (ThirteenSectorCodec::IsThirteenSector (image))
     {
-        return false;
+        ThirteenSectorCodec::Denibblize (image, outSectors, outReport);
+    }
+    else
+    {
+        hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, outSectors, outReport);
     }
 
-    return sectors[vtoc + 0x01] == 17                                              // catalog track
-        && sectors[vtoc + 0x02] >= 1  && sectors[vtoc + 0x02] <= 15                 // catalog sector
-        && sectors[vtoc + 0x34] == (Byte) NibblizationLayer::kTrackCount            // 35 tracks
-        && sectors[vtoc + 0x35] == (Byte) NibblizationLayer::kSectorsPerTrack       // 16 sectors
-        && sectors[vtoc + 0x36] == 0x00 && sectors[vtoc + 0x37] == 0x01;            // 256 bytes
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::IsThirteenSectorFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool VolumeImage::IsThirteenSectorFile (const std::string & path)
+{
+    std::string  extension = std::filesystem::path (path).extension().string();
+
+
+
+    return _stricmp (extension.c_str(), ".d13") == 0;
 }
 
 
@@ -759,8 +847,18 @@ VolumeKind VolumeImage::DetectFilesystem (const vector<Byte> & sectors)
         return VolumeKind::Archive;
     }
 
-    //  A buffer larger than a floppy is a run of blocks, and of the file
-    //  systems here only ProDOS is that large.
+    //  A buffer of another size is a DOS 3.x volume of that size, a 13-sector
+    //  disk, or a run of ProDOS blocks.
+    if (!sized && LooksLikeDos33 (sectors))
+    {
+        return VolumeKind::Dos33;
+    }
+
+    if (sectors.size() == ThirteenSectorCodec::kImageByteSize)
+    {
+        return RdosVolume::IsFound (sectors) ? VolumeKind::Rdos : VolumeKind::Unknown;
+    }
+
     if (!sized)
     {
         return ProDosSkeleton::IsValidVolumeSize (sectors.size()) && LooksLikeProDos (sectors) ? VolumeKind::ProDos : VolumeKind::Unknown;
@@ -986,7 +1084,7 @@ HRESULT VolumeImage::LoadContainer (
         hr = LoadBitStream (DiskFormat::Nib, payload, image);
         CHRF (hr, outDiagnosis.failure = MountFailure::Unrecognized);
 
-        hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, outSectors, outReport);
+        hr = DenibblizeBitStream (image, outSectors, outReport);
         CHRF (hr, outDiagnosis.failure = MountFailure::Unrecognized);
 
         BAIL_OUT_IF (true, S_OK);

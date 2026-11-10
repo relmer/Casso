@@ -181,6 +181,7 @@
     <ClCompile Include="WozEditRealImageTests.cpp" />
     <ClCompile Include="ArchiveTests.cpp" />
     <ClCompile Include="RdosTests.cpp" />
+    <ClCompile Include="Dos32Tests.cpp" />
     <ClCompile Include="ResourceForkTests.cpp" />
     <ClCompile Include="FileTypeFixtureTests.cpp" />
     <ClCompile Include="DurableCommitFileTests.cpp" />

@@ -25,8 +25,13 @@
 //               track, in physical sector order. The last three physical
 //               sectors of each track are outside the file system.
 //
+//  A 13-sector image is the third:
+//
+//      Rdos32   RDOS 2.1 on its original disk. Thirteen sectors a track, and
+//               the buffer has thirteen sectors a track in that order.
+//
 //  The catalog is in track 1: all sixteen sectors in Rdos33, and sectors 0
-//  to 10 in Rdos3. Each entry is 32 bytes:
+//  to 10 in Rdos3 and Rdos32. Each entry is 32 bytes:
 //
 //      $00  name, 24 high-ASCII characters padded with spaces
 //      $18  type, a high-ASCII A, B, T or S
@@ -43,7 +48,7 @@
 //  The layout is from CiderPress II's RDOS notes, under its Apache license.
 //
 //  Addressing for the integrity pass is one unit per sector of the buffer,
-//  track * 16 + DOS logical sector.
+//  track * 16 + DOS logical sector, or track * 13 + sector in Rdos32.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +60,7 @@ public:
         None,
         Rdos33,
         Rdos3,
+        Rdos32,
     };
 
     static constexpr uint32_t  kUnitCount             = 560;

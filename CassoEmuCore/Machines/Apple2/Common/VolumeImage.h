@@ -153,6 +153,13 @@ private:
                                         const vector<Byte> & originalFileBytes,
                                         vector<Byte> & outFileBytes);
 
+    //  A bit-stream image as a sector buffer: a 13-sector disk in the layout
+    //  of a .d13 file, any other in DOS logical order.
+    static HRESULT  DenibblizeBitStream  (const DiskImage & image, vector<Byte> & outSectors, SectorDecodeReport & outReport);
+
+    //  True for a path with the .d13 extension.
+    static bool     IsThirteenSectorFile (const std::string & path);
+
     //  The containers Load and Save read beside the emulator's formats: raw
     //  block images, 2IMG and Disk Copy 4.2.
     static HRESULT  LoadContainer (ImageContainerKind     kind,

@@ -126,20 +126,25 @@ bool SectorFieldWriter::IsSlotDamaged (const DiskImage & image, int slot)
 //  SectorFieldWriter::IsTrackComplete
 //
 //  The Strict policy's test: sixteen 16-sector address fields numbered 0 to
-//  15, each once, each with a good checksum and a data field whose checksum is
-//  good, and no other address field.
+//  15, or thirteen 13-sector ones numbered 0 to 12, each once, each with a
+//  good checksum and a data field whose checksum is good, and no other address
+//  field. The first address field sets the format of the track.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool SectorFieldWriter::IsTrackComplete (const vector<LocatedField> & fields)
 {
-    static constexpr int  kSectors = 16;
+    static constexpr int  kSectors16 = 16;
+    static constexpr int  kSectors13 = 13;
 
 
 
-    std::array<int, kSectors>  seen       = {};
-    bool                       isComplete = true;
-    int                        addresses  = 0;
+    std::array<int, kSectors16>  seen       = {};
+    DiskFieldKind                kind       = DiskFieldKind::Sixteen;
+    bool                         isComplete = true;
+    int                          addresses  = 0;
+    int                          sectors    = kSectors16;
+    int                          i          = 0;
 
 
 
@@ -150,12 +155,18 @@ bool SectorFieldWriter::IsTrackComplete (const vector<LocatedField> & fields)
             continue;
         }
 
+        if (addresses == 0)
+        {
+            kind    = f.kind;
+            sectors = (kind == DiskFieldKind::Thirteen) ? kSectors13 : kSectors16;
+        }
+
         addresses++;
 
         isComplete = isComplete
-                  && f.kind == DiskFieldKind::Sixteen
+                  && f.kind == kind
                   && f.isAddressChecksumGood
-                  && f.sector < kSectors
+                  && f.sector < sectors
                   && f.pairedField >= 0
                   && fields[f.pairedField].data.isChecksumGood;
 
@@ -165,12 +176,12 @@ bool SectorFieldWriter::IsTrackComplete (const vector<LocatedField> & fields)
         }
     }
 
-    for (int count : seen)
+    for (i = 0; i < sectors; i++)
     {
-        isComplete = isComplete && count == 1;
+        isComplete = isComplete && seen[(size_t) i] == 1;
     }
 
-    return isComplete && addresses == kSectors;
+    return isComplete && addresses == sectors;
 }
 
 
@@ -532,7 +543,7 @@ std::string SectorFieldWriter::Describe (const SectorWriteError & error)
     switch (error.reason)
     {
         case SectorWriteFailure::NoRecord:              text = where + " holds no track, and no track is formatted to make room";                                              break;
-        case SectorWriteFailure::TrackIncomplete:       text = where + " does not decode to all 16 sectors, each once with good checksums, so it was left unchanged";        break;
+        case SectorWriteFailure::TrackIncomplete:       text = where + " does not decode to all of its sectors, each once with good checksums, so it was left unchanged";        break;
         case SectorWriteFailure::SectorNotFound:        text = where + " has no " + sector;                                                                                  break;
         case SectorWriteFailure::NoDataField:           text = where + " " + sector + " has no data field";                                                                  break;
         case SectorWriteFailure::AddressChecksumFailed: text = where + " " + sector + " has an address field whose checksum fails";                                          break;
