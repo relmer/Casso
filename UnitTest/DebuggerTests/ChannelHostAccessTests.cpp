@@ -180,8 +180,9 @@ namespace DebuggerControllerTests
         //  The rule, the reply's reason and both console lines.
         TEST_METHOD (AWriteOutsideTheAllowedFolders_FailsWithTheReason)
         {
-            Rig        rig;
-            JsonValue  reply;
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig>();   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            JsonValue               reply;
 
 
 
@@ -203,9 +204,10 @@ namespace DebuggerControllerTests
 
         TEST_METHOD (AnAccessLine_ShowsTheFileNameAndLinksTheFullPath)
         {
-            Rig                              rig;
-            std::vector<ConsoleLinks::Link>  links;
-            std::wstring                     shown;
+            std::unique_ptr<Rig>               rigOwner = std::make_unique<Rig>();   // heap: more than a function's stack allows (C6262)
+            Rig                              & rig      = *rigOwner;
+            std::vector<ConsoleLinks::Link>    links;
+            std::wstring                       shown;
 
 
 
@@ -232,8 +234,9 @@ namespace DebuggerControllerTests
 
         TEST_METHOD (AWriteInAnAllowPathFolder_IsWrittenAndListed)
         {
-            Rig        rig;
-            JsonValue  reply;
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig>();   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            JsonValue               reply;
 
 
 
@@ -252,9 +255,10 @@ namespace DebuggerControllerTests
 
         TEST_METHOD (AReadOutsideTheAllowedFolders_Fails)
         {
-            Rig        rig;
-            JsonValue  reply;
-            HRESULT    hr = rig.files.WriteAllText (L"C:\\Elsewhere\\x.bin", std::string (16, 'A'));
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig>();   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            JsonValue               reply;
+            HRESULT                 hr = rig.files.WriteAllText (L"C:\\Elsewhere\\x.bin", std::string (16, 'A'));
 
 
 
@@ -307,9 +311,10 @@ namespace DebuggerControllerTests
         //  line in it is limited as a channel line is.
         TEST_METHOD (AScriptRuns_AndItsLinesAreLimitedAsAChannelLineIs)
         {
-            Rig        rig;
-            JsonValue  reply;
-            HRESULT    hr = rig.files.WriteAllText (L"C:\\Work\\ok.txt", "R\n");
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig>();   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            JsonValue               reply;
+            HRESULT                 hr = rig.files.WriteAllText (L"C:\\Work\\ok.txt", "R\n");
 
 
 
@@ -376,8 +381,9 @@ namespace DebuggerControllerTests
         //  folders and the default name.
         TEST_METHOD (AClientWithoutAHello_HasTheDefaults)
         {
-            Rig        rig;
-            JsonValue  reply;
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig>();   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            JsonValue               reply;
 
 
 
@@ -397,8 +403,9 @@ namespace DebuggerControllerTests
         //  A loaded symbol file's folder is allowed.
         TEST_METHOD (ALoadedSymbolFilesFolder_IsAllowed)
         {
-            Rig        rig;
-            JsonValue  reply;
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig>();   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            JsonValue               reply;
 
 
 
@@ -440,8 +447,9 @@ namespace DebuggerControllerTests
         //  policy failed it.
         TEST_METHOD (AnAllowedFileThatIsMissing_FailsWithTheCommandsError)
         {
-            Rig        rig;
-            JsonValue  reply;
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig>();   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            JsonValue               reply;
 
 
 

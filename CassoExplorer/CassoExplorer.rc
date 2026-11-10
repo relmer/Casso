@@ -29,6 +29,7 @@ IDR_THEME_SKEUO_THEME_JSON         RCDATA "..\\Resources\\Themes\\Skeuomorphic\\
 IDR_THEME_DARK_THEME_JSON          RCDATA "..\\Resources\\Themes\\DarkModern\\theme.json"
 
 IDR_THEME_RETRO_THEME_JSON         RCDATA "..\\Resources\\Themes\\RetroTerminal\\theme.json"
+
 IDR_THEME_PHOSPHOR_THEME_JSON      RCDATA "..\\Resources\\Themes\\Phosphor\\theme.json"
 IDR_THEME_PHOSPHOR_FONT_TTF        RCDATA "..\\Resources\\Themes\\Phosphor\\fonts\\VT323-Regular.ttf"
 IDR_THEME_PHOSPHOR_FONT_OFL        RCDATA "..\\Resources\\Themes\\Phosphor\\fonts\\OFL.txt"

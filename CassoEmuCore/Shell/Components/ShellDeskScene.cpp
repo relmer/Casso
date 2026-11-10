@@ -4699,14 +4699,13 @@ void ShellDeskScene::TickStrip (bool anyDriveLive)
 
         inputs.nowMs = stripNowMs;
 
-        // The edge is the bottom of the strip's area: the screen's bottom in
-        // fullscreen, the picture's bottom in a window with auto-hide on. On
-        // the windowed desk it is taller: the lower half of the desk under
-        // the monitor.
+        // The reveal zone is one inch tall at the bottom of the strip's area
+        // (the screen's bottom in fullscreen, the bottom of the center band
+        // in a window), or the bottom half of the free space under the
+        // monitor when that is more than two inches.
         if (DxuiInputState::GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor) && PtInRect (&client, cursor))
         {
-            LONG  edgeTop = (deskSlide && !m_shell.m_renderer->GetD3D().IsFullscreen()) ? m_shell.m_chrome->GetDeskSlideRevealTopPx()
-                                                                                         : area.bottom - m_shell.m_scaler.ToPx (s_kStripEdgeZoneDp);
+            LONG  edgeTop = m_shell.m_chrome->GetDeskSlideRevealTopPx();
 
 
 

@@ -51,7 +51,8 @@ public:
 
     void  Hide            ()
     {
-        m_bounds     = {};
+        SetBounds (RECT {});
+
         m_resetRect  = {};
         m_eightyRect = {};
         m_kbdRect    = {};
@@ -104,7 +105,6 @@ public:
 
     Part  GetPartAt (int x, int y) const;
     bool  HitTest   (int x, int y) const  { return GetPartAt (x, y) != Part::None; }
-    RECT  GetBounds () const              { return m_bounds; }
 
     const wchar_t * GetTooltipTextAt (int x, int y) const;
 
@@ -114,9 +114,9 @@ public:
     void  Layout    (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  Paint     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
-    //  The strip's bounds, m_bounds rather than the base's, are under the
-    //  pointer, and a part's tip is the strip's, anchored on the strip.
-    bool  IsHitAt   (POINT pointPx) const override { return IsVisible() && PtInRect (&m_bounds, pointPx) != FALSE; }
+    //  The strip's bounds are under the pointer, and a part's tip is the
+    //  strip's, anchored on the strip.
+    bool  IsHitAt   (POINT pointPx) const override { RECT bounds = GetBounds(); return IsVisible() && PtInRect (&bounds, pointPx) != FALSE; }
     bool  TryGetTip (POINT pointPx, DxuiTip & tip) const override;
 
 private:
@@ -244,7 +244,6 @@ private:
     static void      ShearGradH (IDxuiPainter & p, float xL, float yTop, float w, float h,
                                  float tan, float refBottom, uint32_t left, uint32_t right, int cols);
 
-    RECT                 m_bounds       = {};
     RECT                 m_resetRect    = {};
     RECT                 m_eightyRect   = {};   // clickable: key + label
     RECT                 m_kbdRect      = {};

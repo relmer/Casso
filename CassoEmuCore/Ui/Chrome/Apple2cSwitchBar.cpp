@@ -238,7 +238,7 @@ void Apple2cSwitchBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
 
 
     m_dpi    = eDpi;
-    m_bounds = boundsDip;
+    SetBounds (boundsDip);
 
     // Left group: [reset] [80/40 key] "80/40" [keyboard key] "keyboard".
     x = boundsDip.left + edge;
@@ -379,7 +379,7 @@ bool Apple2cSwitchBar::TryGetTip (POINT pointPx, DxuiTip & tip) const
 
     tip        = DxuiTip();
     tip.text   = text;
-    tip.anchor = m_bounds;
+    tip.anchor = GetBounds();
     return true;
 }
 
@@ -674,20 +674,21 @@ void Apple2cSwitchBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     float  w      = 0.0f;
     float  h      = 0.0f;
     float  fontPx = 0.0f;
+    RECT   bounds = GetBounds();
 
 
 
     (void) theme;
 
-    if (m_bounds.right <= m_bounds.left)
+    if (bounds.right <= bounds.left)
     {
         return;                       // hidden / collapsed
     }
 
-    x = (float) m_bounds.left;
-    y = (float) m_bounds.top;
-    w = (float) (m_bounds.right - m_bounds.left);
-    h = (float) (m_bounds.bottom - m_bounds.top);
+    x = (float) bounds.left;
+    y = (float) bounds.top;
+    w = (float) (bounds.right - bounds.left);
+    h = (float) (bounds.bottom - bounds.top);
     fontPx = kFontDip * (float) m_dpi / 96.0f;
 
 
