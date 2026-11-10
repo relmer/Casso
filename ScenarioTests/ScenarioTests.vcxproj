@@ -218,6 +218,9 @@
     <ProjectReference Include="..\CassoEmuCore\CassoEmuCore.vcxproj">
       <Project>{A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\Dxui\Dxui.vcxproj">
+      <Project>{C981717F-FA2A-4AEA-9AE6-FA36152C38E5}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

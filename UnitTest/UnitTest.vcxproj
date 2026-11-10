@@ -353,7 +353,7 @@
     <ClCompile Include="CassoLink\TrackVerifierTests.cpp" />
     <ClCompile Include="CassoLink\LinkedDiskTests.cpp" />
     <ClCompile Include="CassoLink\AdtProServerSessionTests.cpp" />
-    <ClCompile Include="CassoLink\BootDiskTests.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkBootDiskTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkFaultTests.cpp" />
     <ClCompile Include="CassoLink\FakeAppleContractTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSectorTests.cpp" />
