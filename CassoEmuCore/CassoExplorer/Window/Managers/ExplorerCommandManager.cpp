@@ -285,6 +285,8 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kCharsetMacOsRoman:
         case CassoExplorerCommands::kCharsetIso8859:    return m_context.browser.GetPreview().charset != Charset::Default;
         case CassoExplorerCommands::kRecordLength:      return m_context.browser.GetPreview().recordLength > 0;
+        case CassoExplorerCommands::kSheetValues:
+        case CassoExplorerCommands::kSheetFormulas:     return m_context.browser.GetPreview().sheetForm != SheetForm::None;
         case CassoExplorerCommands::kFindNext:          return m_context.preview.GetFind().CanFindNext();
 
         //  The search box finds in the hex view and filters a VAR file's variables.
@@ -391,6 +393,8 @@ bool ExplorerCommandManager::IsChecked (int id) const
         case CassoExplorerCommands::kCharsetAppleText:  return m_context.browser.GetPreview().charset == Charset::AppleText;
         case CassoExplorerCommands::kCharsetMacOsRoman: return m_context.browser.GetPreview().charset == Charset::MacOsRoman;
         case CassoExplorerCommands::kCharsetIso8859:    return m_context.browser.GetPreview().charset == Charset::Iso8859_1;
+        case CassoExplorerCommands::kSheetValues:       return m_context.browser.GetPreview().sheetForm == SheetForm::Values;
+        case CassoExplorerCommands::kSheetFormulas:     return m_context.browser.GetPreview().sheetForm == SheetForm::Formulas;
         case CassoExplorerCommands::kNoData:            return !m_context.preview.GetHex().IsShowingValues();
         case CassoExplorerCommands::kGroup1:            return m_context.preview.GetHex().IsShowingValues() && m_context.prefs.hexGrouping == 1;
         case CassoExplorerCommands::kGroup2:            return m_context.preview.GetHex().IsShowingValues() && m_context.prefs.hexGrouping == 2;
@@ -626,6 +630,8 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kCharsetMacOsRoman:  ChooseCharset (Charset::MacOsRoman); break;
         case CassoExplorerCommands::kCharsetIso8859:     ChooseCharset (Charset::Iso8859_1);  break;
         case CassoExplorerCommands::kRecordLength:       ChooseRecordLength();                break;
+        case CassoExplorerCommands::kSheetValues:        ChooseSheetForm (false);             break;
+        case CassoExplorerCommands::kSheetFormulas:      ChooseSheetForm (true);              break;
 
         case CassoExplorerCommands::kGoToOffset:
             m_context.preview.GetFind().FocusGoTo();
@@ -732,6 +738,24 @@ void ExplorerCommandManager::Dispatch (int id)
     }
 
     m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerCommandManager::ChooseSheetForm
+//
+//  Lists the previewed spreadsheet again as formulas or as values.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::ChooseSheetForm (bool formulas)
+{
+    m_context.browser.SetPreviewFormulas (formulas);
+    m_context.preview.FillPreview();
 }
 
 

@@ -156,6 +156,10 @@ public:
         kCharsetIso8859,
         kRecordLength,
 
+        //  A spreadsheet's cells as values or as formulas, a choice of one.
+        kSheetValues,
+        kSheetFormulas,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -225,6 +229,9 @@ public:
     //  which has the record length as well.
     static constexpr int  kPreviewBarText    = 7;
     static constexpr int  kPreviewBarRecords = 8;
+
+    //  A spreadsheet with formulas: Values and Formulas.
+    static constexpr int  kPreviewBarSheet   = 9;
 
     std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries  (int bar, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;
     static std::vector<int>          GetPreviewToolbarCommandIds (int bar);
@@ -399,6 +406,8 @@ private:
         { kCharsetMacOsRoman, Menu::Count, L"&Mac OS Roman",       nullptr,     true  },
         { kCharsetIso8859,    Menu::Count, L"&ISO 8859-1",         nullptr,     true  },
         { kRecordLength,      Menu::Count, L"&Record length...",   nullptr,     false },
+        { kSheetValues,       Menu::Count, L"&Values",             nullptr,     true  },
+        { kSheetFormulas,     Menu::Count, L"&Formulas",           nullptr,     true  },
 
         //  The hex view's own choices are on its context menu, and nowhere
         //  else at the top of the window.
@@ -501,6 +510,8 @@ private:
         { kCharsetMacOsRoman, DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Mac OS Roman",  L"Read the text as Mac OS Roman, the Apple IIgs set"     },
         { kCharsetIso8859,    DxuiToolbar::Kind::Toggle,  0, nullptr,             L"ISO 8859-1",    L"Read the text as ISO 8859-1"                           },
         { kRecordLength,      DxuiToolbar::Kind::Command, 1, nullptr,             L"Record length", L"Set the length the file is split into records by"      },
+        { kSheetValues,       DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Values",        L"List each cell's value, as VisiCalc draws it"          },
+        { kSheetFormulas,     DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Formulas",      L"List each cell's formula, as it was typed"             },
     };
 
     static constexpr Key  kKeys[] =

@@ -48,6 +48,21 @@ enum class Charset { Default, AppleText, MacOsRoman, Iso8859_1 };
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SheetForm
+//
+//  A spreadsheet's cells as the values the program draws or as the formulas
+//  typed, None for a file that has no such choice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class SheetForm { None, Values, Formulas };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DecodeOptions
 //
 //  Chosen in a file's preview while its tab is open: the record length
@@ -60,6 +75,7 @@ struct DecodeOptions
 {
     size_t   recordLength = 0;
     Charset  charset      = Charset::Default;
+    bool     formulas     = false;      // a spreadsheet's formulas as typed, not their values
 };
 
 
@@ -122,7 +138,8 @@ struct Grid
 //  later version or the missing lines of a short picture. The character set
 //  is the one the text was read in, Default for a format that has one fixed
 //  set, and the record length the one a random-access text file was split
-//  by.
+//  by. The sheet form is the one a spreadsheet with formulas was decoded
+//  in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,4 +158,5 @@ struct DecodedFile
     std::vector<std::wstring>  notes;
     Charset                    charset      = Charset::Default;
     size_t                     recordLength = 0;
+    SheetForm                  sheetForm    = SheetForm::None;
 };

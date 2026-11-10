@@ -169,6 +169,7 @@ public:
         Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarSave)    == std::vector<int> { CassoExplorerCommands::kSavePicture });
         Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarText)    == std::vector<int> { CassoExplorerCommands::kCharsetAppleText, CassoExplorerCommands::kCharsetMacOsRoman, CassoExplorerCommands::kCharsetIso8859 });
         Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarRecords) == std::vector<int> { CassoExplorerCommands::kCharsetAppleText, CassoExplorerCommands::kCharsetMacOsRoman, CassoExplorerCommands::kCharsetIso8859, CassoExplorerCommands::kRecordLength });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarSheet)   == std::vector<int> { CassoExplorerCommands::kSheetValues, CassoExplorerCommands::kSheetFormulas });
         Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarNone).empty());
 
         Assert::IsTrue (commands.Find (CassoExplorerCommands::kPictureMonochrome)->radio);
@@ -176,4 +177,5 @@ public:
         Assert::IsFalse (commands.Find (CassoExplorerCommands::kSavePicture)->radio);
         Assert::IsTrue (commands.Find (CassoExplorerCommands::kCharsetMacOsRoman)->radio);
         Assert::IsFalse (commands.Find (CassoExplorerCommands::kRecordLength)->radio);
+        Assert::IsTrue (commands.Find (CassoExplorerCommands::kSheetFormulas)->radio);
     }};

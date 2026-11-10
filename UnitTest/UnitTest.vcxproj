@@ -325,6 +325,7 @@
     <ClCompile Include="FileTypes\IigsFormatTests.cpp" />
     <ClCompile Include="FileTypes\OmfFileTests.cpp" />
     <ClCompile Include="FileTypes\VisiCalcSheetTests.cpp" />
+    <ClCompile Include="FileTypes\VisiCalcEvaluatorTests.cpp" />
     <ClCompile Include="FileTypes\PascalCodefileTests.cpp" />
     <ClCompile Include="EmuTests\NuFxArchiveTests.cpp" />
     <ClCompile Include="EmuTests\ArchiveWrapperTests.cpp" />

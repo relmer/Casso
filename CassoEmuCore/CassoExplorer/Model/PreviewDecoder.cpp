@@ -908,6 +908,7 @@ void PreviewDecoder::FromDecoded (const DecodedFile & decoded, PreviewContent & 
     outContent              = PreviewContent();
     outContent.charset      = decoded.charset;
     outContent.recordLength = decoded.recordLength;
+    outContent.sheetForm    = decoded.sheetForm;
 
     switch (decoded.kind)
     {

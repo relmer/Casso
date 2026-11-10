@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "FileTypes/VisiCalcSheet.h"
+#include "FileTypes/VisiCalcEvaluator.h"
 #include "FileTypes/AppleWorks.h"
 #include "FileTypes/TextCharset.h"
 #include "Core/TextEncoding.h"
@@ -242,10 +243,226 @@ std::wstring VisiCalcSheet::GetEntered (const Sheet & sheet, const Cell & cell)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  VisiCalcSheet::FormatFixed
+//
+//  As VisiCalc draws it: without a zero ahead of the point or a sign on
+//  a zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string VisiCalcSheet::FormatFixed (double number, int decimals)
+{
+    std::string  text   = std::format ("{:.{}f}", number, decimals);
+    bool         isZero = text.find_first_of ("123456789") == std::string::npos;
+    size_t       zero   = 0;
+
+
+
+    if (isZero && text.starts_with ("-"))
+    {
+        text.erase (0, 1);
+    }
+
+    zero = text.starts_with ("-") ? 1 : 0;
+
+    if (text.size() > zero + 1 && text[zero] == '0' && text[zero + 1] == '.')
+    {
+        text.erase (zero, 1);
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VisiCalcSheet::FormatScientific
+//
+//  A mantissa of as many digits as fit, then E and the power of ten.
+//  Returns an empty string where no mantissa fits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string VisiCalcSheet::FormatScientific (double number, size_t limit)
+{
+    int     power    = (int) std::floor (std::log10 (std::fabs (number)));
+    double  mantissa = number / std::pow (10.0, power);
+
+
+
+    for (int decimals = kDigits - 1; decimals >= 0; decimals--)
+    {
+        std::string  digits = std::format ("{:.{}f}", mantissa, decimals);
+        bool         ten    = digits.starts_with ("10") || digits.starts_with ("-10");
+        std::string  text;
+
+        if (ten)
+        {
+            digits = std::format ("{:.{}f}", mantissa / 10, decimals);
+        }
+
+        if (digits.find ('.') != std::string::npos)
+        {
+            digits.erase (digits.find_last_not_of ('0') + 1);
+            digits.erase (digits.find_last_not_of ('.') + 1);
+        }
+
+        text = digits + "E" + std::to_string (power + (ten ? 1 : 0));
+
+        if (text.size() <= limit)
+        {
+            return text;
+        }
+    }
+
+    return std::string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VisiCalcSheet::FormatGeneral
+//
+//  As many decimal places as fit, to kDigits significant digits, without
+//  trailing zeros. A number whose whole part doesn't fit, or whose digits
+//  would all be dropped, is drawn with an exponent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string VisiCalcSheet::FormatGeneral (double number, size_t limit)
+{
+    double  size  = std::fabs (number);
+    int     whole = (size < 1) ? 0 : (int) std::floor (std::log10 (size)) + 1;
+
+
+
+    if (number == 0)
+    {
+        return "0";
+    }
+
+    for (int decimals = std::max (0, kDigits - whole); decimals >= 0; decimals--)
+    {
+        std::string  text = FormatFixed (number, decimals);
+
+        if (text.find ('.') != std::string::npos)
+        {
+            text.erase (text.find_last_not_of ('0') + 1);
+            text.erase (text.find_last_not_of ('.') + 1);
+        }
+
+        if (text.empty() || text == "-")
+        {
+            break;
+        }
+
+        if (text.size() <= limit)
+        {
+            return text;
+        }
+    }
+
+    return FormatScientific (number, limit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VisiCalcSheet::FormatNumber
+//
+//  I rounds to a whole number, $ to cents, and * draws that many
+//  asterisks; any other format is the general one. A number too long for
+//  the limit is a row of > signs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string VisiCalcSheet::FormatNumber (double number, char format, size_t limit)
+{
+    std::string  text;
+
+
+
+    if (format == '*')
+    {
+        return std::string ((size_t) std::clamp (number, 0.0, (double) limit), '*');
+    }
+
+    text = (format == 'I') ? FormatFixed (std::round (number), 0)
+         : (format == '$') ? FormatFixed (number, 2)
+         :                   FormatGeneral (number, limit);
+
+    return (text.empty() || text.size() > limit) ? std::string (limit, '>') : text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VisiCalcSheet::Draw
+//
+//  A label starts at the left and a value ends at the right, short of the
+//  column's first character, unless the format is L or R.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring VisiCalcSheet::Draw (const Sheet & sheet, const Cell & cell, const Value & value)
+{
+    size_t       width  = sheet.columnWidth;
+    size_t       limit  = (width > 0) ? width - 1 : 0;
+    char         format = (cell.format != 0 && cell.format != 'D') ? cell.format : sheet.format;
+    bool         left   = cell.label ? (format != 'R') : (format == 'L' || format == '*');
+    std::string  text;
+
+
+
+    if (cell.repeat)
+    {
+        return GetEntered (sheet, cell);
+    }
+
+    text = (value.kind == Value::Kind::Label)        ? cell.contents.substr (0, width)
+         : (value.kind == Value::Kind::Number)       ? FormatNumber (value.number, format, limit)
+         : (value.kind == Value::Kind::Boolean)      ? std::string (value.number != 0 ? "TRUE" : "FALSE")
+         : (value.kind == Value::Kind::NotAvailable) ? std::string ("NA")
+         : (value.kind == Value::Kind::Error)        ? std::string ("ERROR")
+         :                                             std::string();
+
+    if (!cell.label && text.size() > limit)
+    {
+        text.resize (limit);
+    }
+
+    if (text.size() < width)
+    {
+        text.insert (left ? text.size() : 0, width - text.size(), ' ');
+    }
+
+    return TextEncoding::NarrowToWide (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  VisiCalcSheet::Decode
 //
 //  A row for each sheet row with an entry, its number first, and a column
-//  for each sheet column up to the last with an entry.
+//  for each sheet column up to the last with an entry. Each cell is drawn
+//  as VisiCalc draws it after a recalculation, without the padding, or as
+//  typed where the options specify formulas.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -253,17 +470,23 @@ HRESULT VisiCalcSheet::Decode (std::span<const Byte> bytes, const FileFacts & fa
 {
     HRESULT                                         hr = S_OK;
     Sheet                                           sheet;
+    std::vector<Value>                              values;
     std::map<size_t, std::vector<std::wstring>>     rows;
 
 
 
     UNREFERENCED_PARAMETER (facts);
-    UNREFERENCED_PARAMETER (options);
 
     hr = Parse (bytes, sheet, outError);
     CHR (hr);
 
-    outFile.kind = DecodedFile::Kind::Grid;
+    if (!options.formulas)
+    {
+        values = VisiCalcEvaluator::Evaluate (sheet);
+    }
+
+    outFile.kind      = DecodedFile::Kind::Grid;
+    outFile.sheetForm = options.formulas ? SheetForm::Formulas : SheetForm::Values;
     outFile.grid.columns.push_back (L"Row");
 
     for (size_t column = 0; column < sheet.columns; column++)
@@ -271,9 +494,11 @@ HRESULT VisiCalcSheet::Decode (std::span<const Byte> bytes, const FileFacts & fa
         outFile.grid.columns.push_back (AppleWorksSs::GetColumnLetters (column));
     }
 
-    for (const Cell & cell : sheet.cells)
+    for (size_t at = 0; at < sheet.cells.size(); at++)
     {
-        std::vector<std::wstring> &  row = rows[cell.row];
+        const Cell &                 cell = sheet.cells[at];
+        std::vector<std::wstring> &  row  = rows[cell.row];
+        std::wstring                 text = options.formulas ? GetEntered (sheet, cell) : Draw (sheet, cell, values[at]);
 
         if (row.empty())
         {
@@ -281,7 +506,13 @@ HRESULT VisiCalcSheet::Decode (std::span<const Byte> bytes, const FileFacts & fa
             row[0] = std::to_wstring (cell.row);
         }
 
-        row[cell.column + 1] = GetEntered (sheet, cell);
+        if (!options.formulas)
+        {
+            text.erase (text.find_last_not_of (L' ') + 1);
+            text.erase (0, text.find_first_not_of (L' '));
+        }
+
+        row[cell.column + 1] = text;
     }
 
     for (auto & [number, row] : rows)

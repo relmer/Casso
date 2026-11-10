@@ -226,6 +226,7 @@ void ExplorerPreviewManager::FillPreview()
     bool                    woz      = !preview.wozPath.empty();
     bool                    random   = preview.recordLength > 0;
     bool                    sets     = preview.charset != Charset::Default;
+    bool                    sheet    = preview.sheetForm != SheetForm::None;
     bool                    details  = visible && woz && preview.kind == PreviewContent::Kind::Catalog && !preview.details.empty();
     bool                    hadThem  = m_summary->IsVisible();
     int                     mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
@@ -237,6 +238,7 @@ void ExplorerPreviewManager::FillPreview()
                                      : vars     ? CassoExplorerCommands::kPreviewBarVariables
                                      : random   ? CassoExplorerCommands::kPreviewBarRecords
                                      : sets     ? CassoExplorerCommands::kPreviewBarText
+                                     : sheet    ? CassoExplorerCommands::kPreviewBarSheet
                                      : woz      ? CassoExplorerCommands::kPreviewBarWoz
                                                 : CassoExplorerCommands::kPreviewBarNone;
 

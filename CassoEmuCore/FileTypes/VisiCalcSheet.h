@@ -35,6 +35,16 @@ public:
         std::string  contents;          // a label's text, or the formula as typed
     };
 
+    struct Value
+    {
+        enum class Kind { Blank, Label, Number, Boolean, NotAvailable, Error };
+
+        Kind    kind   = Kind::Blank;
+        double  number = 0;             // 1 or 0 for a truth value
+
+        bool  operator== (const Value &) const = default;
+    };
+
     struct Sheet
     {
         std::vector<Cell>  cells;
@@ -55,7 +65,19 @@ public:
     //  repeating label across the column, or a formula as typed.
     static std::wstring  GetEntered (const Sheet & sheet, const Cell & cell);
 
+    //  A cell as VisiCalc draws it after a recalculation, the column's width
+    //  in characters: the value in the cell's format, or the sheet's if
+    //  the cell lacks one.
+    static std::wstring  Draw         (const Sheet & sheet, const Cell & cell, const Value & value);
+    static std::string   FormatNumber (double number, char format, size_t limit);
+
 private:
+    static constexpr int     kDigits     = 11;
+
+    static std::string  FormatFixed      (double number, int decimals);
+    static std::string  FormatGeneral    (double number, size_t limit);
+    static std::string  FormatScientific (double number, size_t limit);
+
     static constexpr Byte    kProDosText = 0x04;
     static constexpr Byte    kDosText    = 0x00;
     static constexpr size_t  kMaxColumns = 63;

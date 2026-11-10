@@ -172,9 +172,11 @@ struct PreviewContent
 
     //  The character set text was read in, Default when the preview has no
     //  choice of one, and the record length a random-access text file was
-    //  split by, 0 for any other file.
+    //  split by, 0 for any other file. The sheet form is the one a
+    //  spreadsheet with formulas is listed in, None for any other file.
     Charset                    charset      = Charset::Default;
     size_t                     recordLength = 0;
+    SheetForm                  sheetForm    = SheetForm::None;
 
     bool  operator== (const PreviewContent &) const = default;
 };

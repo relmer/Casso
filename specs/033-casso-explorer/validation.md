@@ -775,3 +775,15 @@ Two findings to follow up: the pane didn't offer to make the network private, wi
 Rows with no fixture, for the owner: Pascal textfile, Pascal codefile, VisiCalc and Gutenberg. A disk with an Apple Pascal volume covers the first two. `ScenarioTests/Fixtures/FileTypes/` is not created: CiderPress II's files are fetched, not checked in, and the other fixtures are disks already in the tree.
 
 The round trip failed on the Merlin importer until these were fixed: a semicolon inside an operand such as `]1;]2` was read as the start of a comment, a comment after an opcode with no operand was put in the operand column, and the comment after `IF ]1="` was read as part of a string.
+## 14. VisiCalc recalculation, 2026-11-09 (T562 to T565)
+
+`VisiCalcEvaluatorTests` and `VisiCalcSheetTests` cover each operator and function, ERROR and NA, a circular reference, a forward reference by rows and by columns, and each format at a column width. The preview lists values, and its Values and Formulas buttons switch the listing; a copy out writes the form the preview is in.
+
+T565 is open: no VisiCalc disk or saved sheet is in the tree, so no cell was compared with the program. These rules were taken from the User's Guide and are unconfirmed until that comparison is made:
+
+- An entry is evaluated once as the file is read, in the file's order, and the sheet is then recalculated once.
+- A label is zero in arithmetic and in a list function, and `@COUNT` counts it.
+- ERROR takes precedence over NA where a formula has both.
+- The general format drops the zero ahead of the decimal point and uses up to 11 significant digits.
+- A value has one column fewer than the column width, and a value too long for it is drawn as `>` characters.
+- A label is cut at the column width in the values listing.

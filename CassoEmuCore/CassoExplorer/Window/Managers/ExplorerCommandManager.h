@@ -75,6 +75,7 @@ public:
 private:
     void  ChooseCharset      (Charset charset);
     void  ChooseRecordLength ();
+    void  ChooseSheetForm    (bool formulas);
 
     ExplorerContext  & m_context;
 };

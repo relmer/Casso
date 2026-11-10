@@ -83,6 +83,7 @@ public:
     //  the one found.
     void  SetCharset            (Charset charset);
     void  SetRecordLength       (size_t recordLength);
+    void  SetFormulas           (bool formulas);
 
     //  The choices made for a file, by its image's path and its path in the
     //  image; the defaults for a file with none.

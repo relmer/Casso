@@ -1809,9 +1809,9 @@ Session 2026-11-09. Plan's Phase 33, research R36 to R57, contracts `contracts/v
 
 Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independent test**: quickstart §7h step 1.
 
-- [ ] T562 [US22] Add `VisiCalcEvaluator` in `CassoEmuCore/FileTypes/VisiCalcEvaluator.h/.cpp`: parse each formula into a tree; evaluate in the file's order, rows or columns, one pass per recalculation; every function and operator in the VisiCalc User's Guide's reference section; ERROR and NA as VisiCalc has them (FR-190). Tests include a circular reference and each function
-- [ ] T563 [US22] Format values as VisiCalc formats them, general, integer, dollars and cents, left, right and graph, at the column width, in `VisiCalcSheet`
-- [ ] T564 [US22] Draw computed values in the preview and write them on a copy out, with a preview choice that writes formulas instead (FR-190)
+- [X] T562 [US22] Add `VisiCalcEvaluator` in `CassoEmuCore/FileTypes/VisiCalcEvaluator.h/.cpp`: parse each formula into a tree; evaluate in the file's order, rows or columns, one pass per recalculation; every function and operator in the VisiCalc User's Guide's reference section; ERROR and NA as VisiCalc has them (FR-190). Tests include a circular reference and each function
+- [X] T563 [US22] Format values as VisiCalc formats them, general, integer, dollars and cents, left, right and graph, at the column width, in `VisiCalcSheet`
+- [X] T564 [US22] Draw computed values in the preview and write them on a copy out, with a preview choice that writes formulas instead (FR-190)
 - [ ] T565 [US22] Scenario test in `ScenarioTests/VisiCalcTests.cpp`: each sample sheet's cells match the values VisiCalc draws after a recalculation, run in Casso (SC-053)
 
 ## Phase 40: Block devices on a real Apple (User Story 23)

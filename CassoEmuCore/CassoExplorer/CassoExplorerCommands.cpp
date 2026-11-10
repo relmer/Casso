@@ -43,6 +43,7 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
                             || (row.id >= kThemeLight && row.id <= kThemeRetroTerminal)
                             || (row.id >= kPictureMonochrome && row.id <= kPictureColor)
                             || (row.id >= kCharsetAppleText && row.id <= kCharsetIso8859)
+                            || row.id == kSheetValues || row.id == kSheetFormulas
                             || row.id == kShowDisassembly || row.id == kShowBytes;
 
         command->dispatch = [this, id]()
@@ -645,6 +646,7 @@ int CassoExplorerCommands::GetPreviewBar (int id)
          : (id == kEditWozMetadata)                                                ? kPreviewBarWoz
          : (id >= kCharsetAppleText && id <= kCharsetIso8859)                      ? kPreviewBarText
          : (id == kRecordLength)                                                   ? kPreviewBarRecords
+         : (id == kSheetValues || id == kSheetFormulas)                            ? kPreviewBarSheet
                                                                                    : kPreviewBarHex;
 }
 
