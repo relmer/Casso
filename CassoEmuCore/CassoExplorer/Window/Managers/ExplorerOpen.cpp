@@ -10,6 +10,7 @@
 #include "Seams/IShellItemVerbs.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IHostDialogs.h"
+#include "Seams/RawDevice/RawDeviceServer.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
@@ -199,6 +200,9 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
     std::wstring                question;
     std::vector<PhysicalDrive>  drives;
     std::vector<WindowsVolume>  volumes;
+    std::vector<PartitionEntry> apple;
+    PartitionLayoutKind         kind      = PartitionLayoutKind::None;
+    int                         count     = 0;
 
 
 
@@ -225,29 +229,50 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
     hr = m_context.app.cards->ListVolumes (drive, volumes);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    question = std::format (L"Initialize {} for an Apple?\r\n\r\nEverything on the card is erased", PhysicalCards::FormatDrive (found));
-
-    if (!volumes.empty())
+    //  A card open already lists its Apple partitions too.
+    if (m_context.app.cards->IsOpen (drive))
     {
-        question += L", including:\r\n";
-
-        for (const WindowsVolume & volume : volumes)
-        {
-            std::wstring  where = volume.letter.empty() ? std::wstring (L"No drive letter") : volume.letter;
-            std::wstring  label = volume.label.empty() ? std::wstring (L"no label") : volume.label;
-
-            question += std::format (L"\r\n    {} {} ({})", where, label, volume.fileSystem.empty() ? std::wstring (L"no file system") : volume.fileSystem);
-        }
-    }
-    else
-    {
-        question += L".";
+        hr = m_context.app.cards->ListPartitions (drive, kind, apple);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    question += L"\r\n\r\nThe card then has up to eight empty 32 MB ProDOS volumes, as a CFFA card does.";
+    count    = RawDeviceServer::CountInitialVolumes (found.bytes / IRawDevice::kBlockBytes);
+    question = std::format (L"Initialize {} for use with an Apple CFFA adapter?\r\n\r\n", PhysicalCards::FormatDrive (found));
 
+    if (count == 0)
+    {
+        m_context.window.ShowMessage (std::format (L"{} is too small for a CFFA adapter.", PhysicalCards::FormatDrive (found)), MB_ICONWARNING);
+        return;
+    }
+
+    question += std::format (L"Initializing it will create {} empty ProDOS volume{} of 32 MB, in the fixed layout of the CFFA 2.0 and of the CFFA3000's raw CF mode.\r\n\r\n",
+                             count, count == 1 ? L"" : L"s");
+    question += L"This card currently contains these partitions:\r\n";
+
+    for (const WindowsVolume & volume : volumes)
+    {
+        std::wstring  where = volume.letter.empty() ? std::wstring (L"No drive letter") : volume.letter;
+        std::wstring  label = volume.label.empty() ? std::wstring (L"no label") : volume.label;
+
+        question += std::format (L"\r\n    {} {} ({})", where, label, volume.fileSystem.empty() ? std::wstring (L"no Windows file system") : volume.fileSystem);
+    }
+
+    for (const PartitionEntry & entry : apple)
+    {
+        question += L"\r\n    " + TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, true));
+    }
+
+    if (volumes.empty() && apple.empty())
+    {
+        question += L"\r\n    None that Windows or Casso recognizes";
+    }
+
+    question += L"\r\n\r\n**ALL DATA ON THIS CARD WILL BE ERASED AND CANNOT BE RECOVERED**";
+
+    //  Cancel is the default, so Enter and Escape cancel: the erase runs only
+    //  from its button, clicked or focused with Tab.
     if (DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, question.c_str(), L"Initialize card for Apple",
-                        MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Initialize", L"Cancel" }) != IDOK)
+                        MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Erase and initialize", L"Cancel" }, 0) != IDOK)
     {
         return;
     }

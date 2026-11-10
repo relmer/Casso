@@ -1104,7 +1104,7 @@ bool BrowserLoader::LoadPartitions (const std::wstring & path)
 //  BrowserLoader::ListPartitions
 //
 //  A card's partitions are read through its session. A card that is not open
-//  is opened, which raises the UAC prompt when the proxy isn't running, over
+//  is opened, which raises the UAC prompt when the broker isn't running, over
 //  the window in front when it is one of this program's. Before opening is
 //  allowed, the listing fails with ERROR_NOT_READY.
 //

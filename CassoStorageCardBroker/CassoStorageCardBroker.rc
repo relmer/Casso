@@ -20,10 +20,10 @@ BEGIN
         BLOCK "040904B0"
         BEGIN
             VALUE "CompanyName",      "\0"
-            VALUE "FileDescription",  "Casso Storage Card Proxy\0"
+            VALUE "FileDescription",  "Casso Storage Card Broker\0"
             VALUE "FileVersion",      VERSION_STRING ".0\0"
-            VALUE "InternalName",     "CassoStorageCardProxy\0"
-            VALUE "OriginalFilename", "CassoStorageCardProxy.exe\0"
+            VALUE "InternalName",     "CassoStorageCardBroker\0"
+            VALUE "OriginalFilename", "CassoStorageCardBroker.exe\0"
             VALUE "ProductName",      "Casso\0"
             VALUE "ProductVersion",   VERSION_STRING ".0\0"
         END

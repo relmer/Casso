@@ -9,6 +9,7 @@
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
 #include "Theme/DxuiColor.h"
+#include "Widgets/DxuiButton.h"
 
 
 
@@ -345,8 +346,9 @@ class DxuiMessageBoxWindow : public DxuiDialogWindow
 public:
     struct ButtonSpec
     {
-        const wchar_t *  label = nullptr;
-        int              id    = 0;
+        const wchar_t *  label  = nullptr;
+        int              id     = 0;
+        bool             danger = false;
     };
 
     // Rough (renderer-free) wrapped-line estimate for the window's first
@@ -372,7 +374,12 @@ protected:
 
         for (const ButtonSpec & b : m_buttons)
         {
-            AddDialogButton (b.label, b.id);
+            DxuiButton  * button = AddDialogButton (b.label, b.id);
+
+            if (b.danger && button != nullptr)
+            {
+                button->SetVariant (DxuiButton::Variant::Danger);
+            }
         }
     }
 
@@ -686,7 +693,7 @@ static std::wstring StripRunMarks (const std::wstring & text)
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, const wchar_t * caption, UINT uType,
-                    const std::vector<const wchar_t *> & buttonLabels)
+                    const std::vector<const wchar_t *> & buttonLabels, int dangerButton)
 {
     using                     ButtonSpec = DxuiMessageBoxWindow::ButtonSpec;
     DxuiMessageSeverity       severity   = DxuiMessageSeverity::None;
@@ -726,6 +733,11 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
         {
             buttons[i].label = buttonLabels[i];
         }
+    }
+
+    if (dangerButton >= 0 && dangerButton < (int) buttons.size())
+    {
+        buttons[(size_t) dangerButton].danger = true;
     }
 
     defIndex = (int) ((uType & MB_DEFMASK) >> 8);

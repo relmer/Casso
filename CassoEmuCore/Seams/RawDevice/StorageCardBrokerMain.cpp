@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Seams/RawDevice/Win32StorageCardProxy.h"
+#include "Seams/RawDevice/Win32StorageCardBroker.h"
 
 
 
@@ -8,15 +8,15 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  wCassoStorageCardProxyMain
+//  wCassoStorageCardBrokerMain
 //
-//  CassoStorageCardProxy's process entry point. The process exit code is
-//  the HRESULT the proxy ends with, which Casso Explorer reports when the
-//  proxy exits before it connects.
+//  CassoStorageCardBroker's process entry point. The process exit code is
+//  the HRESULT the broker ends with, which Casso Explorer reports when the
+//  broker exits before it connects.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-extern "C" int WINAPI wCassoStorageCardProxyMain (
+extern "C" int WINAPI wCassoStorageCardBrokerMain (
     _In_     HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
     _In_     LPWSTR    lpCmdLine,
@@ -27,5 +27,5 @@ extern "C" int WINAPI wCassoStorageCardProxyMain (
     UNREFERENCED_PARAMETER (lpCmdLine);
     UNREFERENCED_PARAMETER (nCmdShow);
 
-    return (int) Win32StorageCardProxy::Run (GetCommandLineW());
+    return (int) Win32StorageCardBroker::Run (GetCommandLineW());
 }

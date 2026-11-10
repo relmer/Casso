@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Seams/RawDevice/Win32StorageCardProxy.h"
+#include "Seams/RawDevice/Win32StorageCardBroker.h"
 #include "Seams/RawDevice/RawDeviceServer.h"
 #include "Seams/RawDevice/Win32RawDevice.h"
 #include "Update/AuthenticodeVerifier.h"
@@ -11,15 +11,15 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32StorageCardProxy::Launch
+//  Win32StorageCardBroker::Launch
 //
-//  The pipe exists before the proxy starts, so the proxy's connection
+//  The pipe exists before the broker starts, so the broker's connection
 //  cannot arrive first. ShellExecuteExW returns once the user has dealt
 //  with the UAC prompt, so that time is not part of the wait.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32StorageCardProxy::Launch (HWND owner, Win32PipeStream & stream, HANDLE & outProcess)
+HRESULT Win32StorageCardBroker::Launch (HWND owner, Win32PipeStream & stream, HANDLE & outProcess)
 {
     HRESULT            hr      = S_OK;
     HANDLE             pipe    = INVALID_HANDLE_VALUE;
@@ -87,14 +87,14 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32StorageCardProxy::Run
+//  Win32StorageCardBroker::Run
 //
 //  The command line is the program and the pipe's name, and the name is
 //  checked before anything is opened.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32StorageCardProxy::Run (const wchar_t * commandLine)
+HRESULT Win32StorageCardBroker::Run (const wchar_t * commandLine)
 {
     HRESULT            hr        = S_OK;
     int                argc      = 0;
@@ -149,11 +149,11 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32StorageCardProxy::IsValidPipeName
+//  Win32StorageCardBroker::IsValidPipeName
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Win32StorageCardProxy::IsValidPipeName (const std::wstring & name)
+bool Win32StorageCardBroker::IsValidPipeName (const std::wstring & name)
 {
     size_t  prefix = wcslen (kPipePrefix);
     bool    valid  = name.size() > prefix && name.size() <= kMaxNameChars && name.compare (0, prefix, kPipePrefix) == 0;
@@ -176,11 +176,11 @@ bool Win32StorageCardProxy::IsValidPipeName (const std::wstring & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32StorageCardProxy::GetSiblingPath
+//  Win32StorageCardBroker::GetSiblingPath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32StorageCardProxy::GetSiblingPath (const wchar_t * file, std::wstring & outPath)
+HRESULT Win32StorageCardBroker::GetSiblingPath (const wchar_t * file, std::wstring & outPath)
 {
     HRESULT  hr             = S_OK;
     wchar_t  self[MAX_PATH] = {};
@@ -205,13 +205,13 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32StorageCardProxy::MakePipeName
+//  Win32StorageCardBroker::MakePipeName
 //
 //  The prefix and a new GUID's digits, so no two launches share a pipe.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32StorageCardProxy::MakePipeName (std::wstring & outName)
+HRESULT Win32StorageCardBroker::MakePipeName (std::wstring & outName)
 {
     HRESULT  hr   = S_OK;
     GUID     guid = {};
@@ -240,7 +240,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32StorageCardProxy::CreatePipe
+//  Win32StorageCardBroker::CreatePipe
 //
 //  Only SYSTEM and elevated administrators may open the pipe: a process that
 //  is not elevated has the Administrators group for deny only, so Windows
@@ -250,7 +250,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32StorageCardProxy::CreatePipe (const std::wstring & name, HANDLE & outPipe)
+HRESULT Win32StorageCardBroker::CreatePipe (const std::wstring & name, HANDLE & outPipe)
 {
     HRESULT              hr         = S_OK;
     SECURITY_ATTRIBUTES  attributes = {};
@@ -294,14 +294,14 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32StorageCardProxy::WaitForClient
+//  Win32StorageCardBroker::WaitForClient
 //
-//  Ends when a client connects, when the proxy exits, or at the timeout. A
-//  proxy that exits first failed, and its exit code is the reason.
+//  Ends when a client connects, when the broker exits, or at the timeout. A
+//  broker that exits first failed, and its exit code is the reason.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32StorageCardProxy::WaitForClient (HANDLE pipe, HANDLE process)
+HRESULT Win32StorageCardBroker::WaitForClient (HANDLE pipe, HANDLE process)
 {
     HRESULT     hr         = S_OK;
     OVERLAPPED  overlapped = {};
@@ -362,13 +362,13 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32StorageCardProxy::CheckClient
+//  Win32StorageCardBroker::CheckClient
 //
-//  The process at the pipe's other end must be the proxy just started.
+//  The process at the pipe's other end must be the broker just started.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32StorageCardProxy::CheckClient (HANDLE pipe, HANDLE process)
+HRESULT Win32StorageCardBroker::CheckClient (HANDLE pipe, HANDLE process)
 {
     HRESULT  hr       = S_OK;
     ULONG    clientId = 0;
@@ -392,16 +392,16 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32StorageCardProxy::CheckServer
+//  Win32StorageCardBroker::CheckServer
 //
 //  The process at the pipe's other end must be running CassoExplorer.exe
-//  from this program's folder. A signed proxy also requires a Casso Explorer
-//  signed by the same publisher, so a release proxy never serves an
+//  from this program's folder. A signed broker also requires a Casso Explorer
+//  signed by the same publisher, so a release broker never serves an
 //  unsigned build.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32StorageCardProxy::CheckServer (HANDLE pipe)
+HRESULT Win32StorageCardBroker::CheckServer (HANDLE pipe)
 {
     HRESULT               hr               = S_OK;
     wchar_t               server[MAX_PATH] = {};

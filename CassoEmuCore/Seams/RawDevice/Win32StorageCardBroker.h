@@ -10,37 +10,37 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32StorageCardProxy
+//  Win32StorageCardBroker
 //
-//  CassoStorageCardProxy.exe, the elevated program that reads and writes
+//  CassoStorageCardBroker.exe, the elevated program that reads and writes
 //  storage cards for Casso Explorer, and Casso Explorer's launch of it.
 //
 //  Casso Explorer creates a pipe with a new random name that only SYSTEM
-//  and elevated administrators may open, and starts the proxy with the
+//  and elevated administrators may open, and starts the broker with the
 //  name through the UAC prompt. Casso Explorer accepts the connection only
-//  from the process it started. The proxy connects without allowing
+//  from the process it started. The broker connects without allowing
 //  impersonation, and serves the pipe only when its server is
-//  CassoExplorer.exe in the proxy's folder, signed by the same publisher
-//  when the proxy is signed. The proxy serves one connection and exits when
+//  CassoExplorer.exe in the broker's folder, signed by the same publisher
+//  when the broker is signed. The broker serves one connection and exits when
 //  the pipe closes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Win32StorageCardProxy
+class Win32StorageCardBroker
 {
 public:
-    static constexpr const wchar_t *  kProgramFile  = L"CassoStorageCardProxy.exe";
+    static constexpr const wchar_t *  kProgramFile  = L"CassoStorageCardBroker.exe";
     static constexpr const wchar_t *  kExplorerFile = L"CassoExplorer.exe";
 
-    //  Returns once the proxy has connected, with `stream` attached to the
+    //  Returns once the broker has connected, with `stream` attached to the
     //  pipe. Fails with ERROR_CANCELLED when the user declines the UAC
-    //  prompt, with the proxy's exit code when it exits before connecting,
+    //  prompt, with the broker's exit code when it exits before connecting,
     //  with E_ACCESSDENIED when another process connects, and with
     //  ERROR_TIMEOUT when nothing connects in kConnectTimeoutMs. The caller
     //  closes `outProcess`.
     static HRESULT  Launch (HWND owner, Win32PipeStream & stream, HANDLE & outProcess);
 
-    //  The proxy's work, from its command line of the pipe's name alone.
+    //  The broker's work, from its command line of the pipe's name alone.
     static HRESULT  Run    (const wchar_t * commandLine);
 
     //  A pipe name is the prefix and hexadecimal digits, nothing else.

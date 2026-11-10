@@ -275,11 +275,11 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 
     BAIL_OUT_IF (isLink, S_OK);
 
-    if (m_variant == Variant::Primary)
+    if (m_variant == Variant::Primary || m_variant == Variant::Danger)
     {
         // White label on this fill, so the fill must clear the WCAG
         // 1.4.3 text-contrast threshold (4.5:1) against white.
-        idle      = DxuiColor::ComputeAccentForWhiteContrast (theme.Accent(), s_kPrimaryTextRatio);
+        idle      = DxuiColor::ComputeAccentForWhiteContrast (m_variant == Variant::Danger ? theme.ErrorForeground() : theme.Accent(), s_kPrimaryTextRatio);
         hover     = DxuiColor::Lighten (idle, s_kPrimaryHover);
         pressed   = DxuiColor::Darken  (idle, s_kPrimaryPressed);
         textColor = s_kPrimaryTextArgb;

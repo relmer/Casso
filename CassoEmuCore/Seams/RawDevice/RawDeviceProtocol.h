@@ -13,7 +13,7 @@
 //
 //  RawDeviceProtocol
 //
-//  The bytes exchanged between Casso Explorer and the storage card proxy,
+//  The bytes exchanged between Casso Explorer and the storage card broker,
 //  the elevated process that reads and writes the cards.
 //
 //  A request is a header: the operation in one byte, the drive's number in
@@ -34,7 +34,7 @@ public:
     static constexpr Byte      kWrite       = 3;
     static constexpr Byte      kClose       = 4;
 
-    //  The drive erased and given a new Apple layout, which the proxy builds.
+    //  The drive erased and given a new Apple layout, which the broker builds.
     static constexpr Byte      kInitialize  = 5;
 
     static constexpr size_t    kHeaderBytes = 17;

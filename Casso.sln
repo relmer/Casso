@@ -17,7 +17,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Casso", "Casso\Casso.vcxpro
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CassoExplorer", "CassoExplorer\CassoExplorer.vcxproj", "{726B673A-4E01-4E22-AFD8-07946CE6CF9F}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CassoStorageCardProxy", "CassoStorageCardProxy\CassoStorageCardProxy.vcxproj", "{3C7A1E52-9B4D-4F86-A2E1-5D8C0B7F4A19}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CassoStorageCardBroker", "CassoStorageCardBroker\CassoStorageCardBroker.vcxproj", "{3C7A1E52-9B4D-4F86-A2E1-5D8C0B7F4A19}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CassoEmuCore", "CassoEmuCore\CassoEmuCore.vcxproj", "{A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D}"
 EndProject

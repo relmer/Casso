@@ -3299,16 +3299,16 @@ interpreter's.
   storage card node, and once per Casso Explorer session. A tab restored at
   launch MUST NOT request it. Each command that writes to a card MUST be
   confirmed once, with the drive's model and size.
-- **FR-243**: Raw access MUST run in a separate elevated proxy program that
+- **FR-243**: Raw access MUST run in a separate elevated broker program that
   opens only storage cards: removable media on a USB, SD or MMC bus, with no
   Windows, boot, page file, hibernation or BitLocker volume. Hard disks,
-  SSDs and NVMe drives MUST NOT be opened. The proxy MUST make each check
+  SSDs and NVMe drives MUST NOT be opened. The broker MUST make each check
   itself at every open, MUST accept a write only inside an Apple partition
   it detects, and MUST fail a write that overlaps a mounted Windows volume.
   The pipe MUST admit elevated administrators only. Casso Explorer MUST
-  accept only the proxy process it started, and the proxy MUST accept only
-  the Casso Explorer in its folder, signed with the proxy's certificate
-  when the proxy is signed. The proxy MUST exit when the pipe closes.
+  accept only the broker process it started, and the broker MUST accept only
+  the Casso Explorer in its folder, signed with the broker's certificate
+  when the broker is signed. The broker MUST exit when the pipe closes.
 - **FR-244**: Initialize card for Apple MUST erase a storage card and write
   a new Apple layout, after a confirmation that lists the card's model,
   size and each volume erased with its drive letter and label. It MUST be

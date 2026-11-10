@@ -334,6 +334,39 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RawDeviceServer::CountInitialVolumes
+//
+//  The same walk WriteCffaLayout makes, without the writes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int RawDeviceServer::CountInitialVolumes (uint64_t blocks)
+{
+    uint64_t  next  = 0;
+    int       count = 0;
+
+
+
+    if (blocks <= kSliceBlocks)
+    {
+        return 0;
+    }
+
+    while (count < kInitialVolumes && blocks - next >= kGptBlocks + kMinVolumeBlocks)
+    {
+        next += std::min<uint64_t> (kVolumeBlocks, blocks - next - kGptBlocks) + 1;
+        count++;
+    }
+
+    return count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RawDeviceServer::ServeInitialize
 //
 //  The volumes on the card are dismounted first, and the card's Apple layout

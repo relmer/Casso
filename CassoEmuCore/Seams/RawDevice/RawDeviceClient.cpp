@@ -54,7 +54,7 @@ Error:
 //
 //  RawDeviceConnection::Close
 //
-//  The proxy doesn't reply to a close.
+//  The broker doesn't reply to a close.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

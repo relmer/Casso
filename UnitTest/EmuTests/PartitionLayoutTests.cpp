@@ -336,6 +336,61 @@ public:
     }
 
 
+    //  CFFA 2.0's firmware maps up to 13 slices of 32 MB. The store is sparse,
+    //  as 13 slices are 416 MB.
+    TEST_METHOD (Cffa_ThirteenSlices_AreAllFound)
+    {
+        struct SparseStore : public IBlockStore
+        {
+            uint32_t                              blocks = 0;
+            std::map<uint32_t, vector<Byte>>      placed;
+
+            uint32_t  GetBlockCount() const override { return blocks; }
+
+            HRESULT  ReadBlocks (uint32_t first, uint32_t count, std::span<Byte> outBytes) override
+            {
+                std::fill (outBytes.begin(), outBytes.begin() + (ptrdiff_t) ((size_t) count * kBlock), (Byte) 0);
+
+                for (const auto & [start, volume] : placed)
+                {
+                    for (uint32_t at = 0; at < count; at++)
+                    {
+                        uint32_t  block = first + at;
+
+                        if (block >= start && (size_t) (block - start) * kBlock < volume.size())
+                        {
+                            std::copy_n (volume.begin() + (ptrdiff_t) ((size_t) (block - start) * kBlock), kBlock, outBytes.begin() + (ptrdiff_t) ((size_t) at * kBlock));
+                        }
+                    }
+                }
+
+                return S_OK;
+            }
+
+            HRESULT  WriteBlocks (uint32_t, std::span<const Byte>) override { return E_NOTIMPL; }
+            HRESULT  Commit      () override { return S_OK; }
+        };
+
+        SparseStore          store;
+        vector<Partition>    partitions;
+        PartitionLayoutKind  kind = PartitionLayoutKind::None;
+
+        store.blocks = 13 * kSliceBlocks;
+
+        for (uint32_t slice = 0; slice < 13; slice++)
+        {
+            store.placed[slice * kSliceBlocks] = MakeProDos (kDiskBlocks);
+        }
+
+        AssertSucceeded (PartitionLayout::Detect (store, kind, partitions));
+
+        Assert::IsTrue (kind == PartitionLayoutKind::Cffa);
+        Assert::AreEqual (size_t (13), partitions.size());
+        Assert::AreEqual (12 * kSliceBlocks, partitions[12].firstBlock);
+        Assert::IsTrue (partitions[12].volumeKind == VolumeKind::ProDos);
+    }
+
+
     TEST_METHOD (UniDos_TwoVolumesOfWholeBlocks_AreFound)
     {
         MemoryBlockStore     store (MakeUniDosDisk());

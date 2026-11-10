@@ -36,7 +36,7 @@ public:
     virtual HRESULT  HasUnmountedPartition (int number, bool & outHasUnmounted) = 0;
     virtual HRESULT  ListVolumes           (int number, std::vector<WindowsVolume> & outVolumes) = 0;
 
-    //  The drive erased and given CFFA's layout, through the proxy.
+    //  The drive erased and given CFFA's layout, through the broker.
     virtual HRESULT  InitializeDrive       (int number, HWND owner) = 0;
 
     //  Fails with ERROR_CANCELLED when the user declines administrator access.
@@ -121,8 +121,8 @@ public:
     HRESULT  ListStorageCards    (std::vector<StorageCard> & outCards);
     HRESULT  ListVolumes         (int number, std::vector<WindowsVolume> & outVolumes) { return m_host.ListVolumes (number, outVolumes); }
 
-    //  The card closed, erased and given CFFA's layout: up to eight empty
-    //  ProDOS volumes of 32 MB. The only write that is not confirmed by the
+    //  The card closed, erased and given CFFA's layout: up to 13 empty ProDOS
+    //  volumes of 32 MB. The only write that is not confirmed by the
     //  callback, as the caller confirms it with the volumes erased.
     HRESULT  Initialize          (int number, HWND owner);
 

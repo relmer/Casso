@@ -33,11 +33,12 @@ public:
 
     // Visual variant. Default uses the theme's neutral button tokens;
     // Primary fills with the theme accent (darkened to a WCAG 4.5:1
-    // contrast against its white label). Link renders as accent-colored
+    // contrast against its white label). Danger fills the same way with the
+    // theme's error color, for an action that destroys data. Link renders as accent-colored
     // text with no fill/border (a clickable hyperlink); the consumer wires
     // SetOnClick to open the URL. A button cannot be given an arbitrary,
     // non-theme color -- every fill/text derives from IDxuiTheme.
-    enum class Variant { Default, Primary, Link };
+    enum class Variant { Default, Primary, Danger, Link };
     void  SetVariant  (Variant variant) { m_variant = variant; }
 
     // How the label is trimmed when it does not fit the button's box. Off by

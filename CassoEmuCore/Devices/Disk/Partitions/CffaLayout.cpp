@@ -9,6 +9,7 @@
 static constexpr uint32_t  s_kSliceBlocks = 65536;
 static constexpr uint32_t  s_kLargeBlocks = 2097152;
 static constexpr int       s_kSliceCount  = 4;
+static constexpr int       s_kMoreSlices  = 9;
 static constexpr int       s_kLargeCount  = 2;
 
 
@@ -56,7 +57,7 @@ HRESULT CffaLayout::TryDetect (IBlockStore & store, std::vector<Partition> & out
         hr = AppendSet (store, s_kLargeBlocks, s_kLargeCount, nextLarge, large, recognizedLarge);
         CHR (hr);
 
-        hr = AppendSet (store, s_kSliceBlocks, s_kSliceCount, nextSlice, slices, recognizedSlice);
+        hr = AppendSet (store, s_kSliceBlocks, s_kMoreSlices, nextSlice, slices, recognizedSlice);
         CHR (hr);
 
         if (recognizedSlice > recognizedLarge)

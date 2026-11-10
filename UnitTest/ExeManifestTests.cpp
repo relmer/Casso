@@ -124,21 +124,21 @@ public:
     }
 
 
-    TEST_METHOD (CassoStorageCardProxy_DeclaresTheUtf8CodePage)
+    TEST_METHOD (CassoStorageCardBroker_DeclaresTheUtf8CodePage)
     {
-        AssertUtf8CodePage (L"CassoStorageCardProxy.exe");
+        AssertUtf8CodePage (L"CassoStorageCardBroker.exe");
     }
 
 
-    //  Windows raises the UAC prompt for every start of the proxy, so it never
+    //  Windows raises the UAC prompt for every start of the broker, so it never
     //  runs without administrator access.
-    TEST_METHOD (CassoStorageCardProxy_RequiresAdministrator)
+    TEST_METHOD (CassoStorageCardBroker_RequiresAdministrator)
     {
-        std::string  manifest = LoadManifest (L"CassoStorageCardProxy.exe");
+        std::string  manifest = LoadManifest (L"CassoStorageCardBroker.exe");
 
 
 
         Assert::IsTrue (manifest.find ("level=\"requireAdministrator\"") != std::string::npos,
-                        L"CassoStorageCardProxy.exe requires administrator access");
+                        L"CassoStorageCardBroker.exe requires administrator access");
     }
 };

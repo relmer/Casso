@@ -4,7 +4,7 @@
 #include "Seams/RawDevice/RawDeviceClient.h"
 #include "Seams/RawDevice/Win32PipeStream.h"
 #include "Seams/RawDevice/Win32RawDevice.h"
-#include "Seams/RawDevice/Win32StorageCardProxy.h"
+#include "Seams/RawDevice/Win32StorageCardBroker.h"
 
 
 
@@ -12,24 +12,24 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProxyProcess
+//  BrokerProcess
 //
-//  The running storage card proxy: the pipe to it, the connection on the
+//  The running storage card broker: the pipe to it, the connection on the
 //  pipe, and the process's handle. Destroying it closes the pipe, and the
-//  proxy then exits.
+//  broker then exits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ProxyProcess
+class BrokerProcess
 {
 public:
-    ProxyProcess() = default;
-    ~ProxyProcess();
+    BrokerProcess() = default;
+    ~BrokerProcess();
 
-    ProxyProcess (const ProxyProcess &) = delete;
-    ProxyProcess & operator= (const ProxyProcess &) = delete;
+    BrokerProcess (const BrokerProcess &) = delete;
+    BrokerProcess & operator= (const BrokerProcess &) = delete;
 
-    HRESULT                Start          (HWND owner) { return Win32StorageCardProxy::Launch (owner, m_stream, m_process); }
+    HRESULT                Start          (HWND owner) { return Win32StorageCardBroker::Launch (owner, m_stream, m_process); }
     bool                   IsRunning      () const;
     RawDeviceConnection  & GetConnection  ()           { return m_connection; }
 
@@ -45,17 +45,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProxyDriveStore
+//  BrokerDriveStore
 //
-//  One card open through the proxy. The blocks of a commit that fails are
+//  One card open through the broker. The blocks of a commit that fails are
 //  dropped, so that a later commit sends only its blocks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ProxyDriveStore : public IBlockStore
+class BrokerDriveStore : public IBlockStore
 {
 public:
-    explicit ProxyDriveStore (std::shared_ptr<ProxyProcess> proxy) : m_proxy (std::move (proxy)), m_client (m_proxy->GetConnection()) {}
+    explicit BrokerDriveStore (std::shared_ptr<BrokerProcess> broker) : m_broker (std::move (broker)), m_client (m_broker->GetConnection()) {}
 
     HRESULT   Connect       (int number, PhysicalDrive & outDrive) { return m_client.Connect (number, outDrive); }
 
@@ -65,8 +65,8 @@ public:
     HRESULT   Commit        () override;
 
 private:
-    std::shared_ptr<ProxyProcess>  m_proxy;
-    RawDeviceClient                m_client;
+    std::shared_ptr<BrokerProcess>  m_broker;
+    RawDeviceClient                 m_client;
 };
 
 
@@ -75,11 +75,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProxyProcess::~ProxyProcess
+//  BrokerProcess::~BrokerProcess
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ProxyProcess::~ProxyProcess()
+BrokerProcess::~BrokerProcess()
 {
     m_stream.Close();
 
@@ -95,11 +95,11 @@ ProxyProcess::~ProxyProcess()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProxyProcess::IsRunning
+//  BrokerProcess::IsRunning
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ProxyProcess::IsRunning() const
+bool BrokerProcess::IsRunning() const
 {
     return m_process != nullptr && WaitForSingleObject (m_process, 0) == WAIT_TIMEOUT;
 }
@@ -110,11 +110,11 @@ bool ProxyProcess::IsRunning() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProxyDriveStore::Commit
+//  BrokerDriveStore::Commit
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ProxyDriveStore::Commit()
+HRESULT BrokerDriveStore::Commit()
 {
     HRESULT  hr = m_client.Commit();
 
@@ -159,17 +159,17 @@ HRESULT Win32PhysicalCardHost::ListDrives (std::vector<PhysicalDrive> & outDrive
 
 HRESULT Win32PhysicalCardHost::OpenDrive (int number, HWND owner, PhysicalDrive & outDrive, std::unique_ptr<IBlockStore> & outStore)
 {
-    HRESULT                           hr        = S_OK;
-    std::unique_ptr<ProxyDriveStore>  store;
+    HRESULT                            hr    = S_OK;
+    std::unique_ptr<BrokerDriveStore>  store;
 
 
 
     outStore.reset();
 
-    hr = StartProxy (owner);
+    hr = StartBroker (owner);
     CHR (hr);
 
-    store = std::make_unique<ProxyDriveStore> (m_proxy);
+    store = std::make_unique<BrokerDriveStore> (m_broker);
 
     hr = store->Connect (number, outDrive);
     CHR (hr);
@@ -226,10 +226,10 @@ HRESULT Win32PhysicalCardHost::InitializeDrive (int number, HWND owner)
 
 
 
-    hr = StartProxy (owner);
+    hr = StartBroker (owner);
     CHR (hr);
 
-    hr = m_proxy->GetConnection().Initialize (number);
+    hr = m_broker->GetConnection().Initialize (number);
     CHR (hr);
 
 Error:
@@ -242,30 +242,30 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32PhysicalCardHost::StartProxy
+//  Win32PhysicalCardHost::StartBroker
 //
-//  The proxy is started when none is running, which raises the UAC prompt.
+//  The broker is started when none is running, which raises the UAC prompt.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32PhysicalCardHost::StartProxy (HWND owner)
+HRESULT Win32PhysicalCardHost::StartBroker (HWND owner)
 {
-    HRESULT                        hr        = S_OK;
-    bool                           isRunning = m_proxy != nullptr && m_proxy->IsRunning();
-    std::shared_ptr<ProxyProcess>  proxy;
+    HRESULT                         hr        = S_OK;
+    bool                            isRunning = m_broker != nullptr && m_broker->IsRunning();
+    std::shared_ptr<BrokerProcess>  broker;
 
 
 
     BAIL_OUT_IF (isRunning, S_OK);
 
-    m_proxy.reset();
+    m_broker.reset();
 
-    proxy = std::make_shared<ProxyProcess>();
+    broker = std::make_shared<BrokerProcess>();
 
-    hr = proxy->Start (owner);
+    hr = broker->Start (owner);
     CHR (hr);
 
-    m_proxy = std::move (proxy);
+    m_broker = std::move (broker);
 
 Error:
     return hr;

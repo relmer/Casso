@@ -16,7 +16,7 @@
 //  RawDeviceConnection
 //
 //  Casso Explorer's side of RawDeviceProtocol: the one stream to the storage
-//  card proxy, shared by every card open through it. Each request and its
+//  card broker, shared by every card open through it. Each request and its
 //  reply are sent under one lock, so cards can be read from several
 //  threads.
 //
@@ -27,7 +27,7 @@ class RawDeviceConnection
 public:
     explicit RawDeviceConnection (IByteStream & stream) : m_stream (stream) {}
 
-    //  Fails with the proxy's reason when the drive did not open there, and
+    //  Fails with the broker's reason when the drive did not open there, and
     //  with E_ACCESSDENIED for a drive that is not a storage card.
     HRESULT  Open   (int number, PhysicalDrive & outDrive);
     void     Close  (int number);
@@ -35,7 +35,7 @@ public:
     HRESULT  Read   (int number, uint64_t first, uint32_t count, std::span<Byte> outBytes);
     HRESULT  Write  (int number, uint64_t first, uint32_t count, std::span<const Byte> blocks);
 
-    //  The card erased and given CFFA's layout by the proxy. The card is
+    //  The card erased and given CFFA's layout by the broker. The card is
     //  opened for it and closed after.
     HRESULT  Initialize (int number);
 

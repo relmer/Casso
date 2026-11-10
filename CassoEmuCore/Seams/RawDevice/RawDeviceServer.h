@@ -13,7 +13,7 @@
 //
 //  RawDeviceServer
 //
-//  The storage card proxy's side of RawDeviceProtocol: the blocks of each
+//  The storage card broker's side of RawDeviceProtocol: the blocks of each
 //  card Casso Explorer opens, read and written on request until the stream
 //  closes.
 //
@@ -30,15 +30,20 @@
 class RawDeviceServer
 {
 public:
-    //  A new layout is CFFA's: up to this many ProDOS volumes of 32 MB from
-    //  block 0. The card must be larger than one.
-    static constexpr int       kInitialVolumes  = 8;
+    //  A new layout is CFFA 2.0's: up to 13 ProDOS volumes of 32 MB from block
+    //  0, the most its firmware maps. The card must be larger than one. The
+    //  partition count in the firmware's menu sets how many are mapped.
+    static constexpr int       kInitialVolumes  = 13;
     static constexpr uint32_t  kSliceBlocks     = 65536;
     static constexpr uint32_t  kVolumeBlocks    = 65535;
     static constexpr uint32_t  kGptBlocks       = 34;
     static constexpr uint32_t  kMinVolumeBlocks = 280;
 
     using DeviceMaker = std::function<std::unique_ptr<IRawDevice> ()>;
+
+    //  The volumes an initialize writes on a drive of `blocks`: 0 for a drive
+    //  too small.
+    static int  CountInitialVolumes (uint64_t blocks);
 
     RawDeviceServer (DeviceMaker makeDevice, IByteStream & stream) : m_makeDevice (std::move (makeDevice)), m_stream (stream) {}
 

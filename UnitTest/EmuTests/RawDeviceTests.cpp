@@ -8,7 +8,7 @@
 #include "Seams/RawDevice/RawDeviceClient.h"
 #include "Seams/RawDevice/RawDeviceProtocol.h"
 #include "Seams/RawDevice/RawDeviceServer.h"
-#include "Seams/RawDevice/Win32StorageCardProxy.h"
+#include "Seams/RawDevice/Win32StorageCardBroker.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -841,6 +841,15 @@ public:
     }
 
 
+    TEST_METHOD (CountInitialVolumes_StopsAtThirteenAndAtTheEndOfTheCard)
+    {
+        Assert::AreEqual (0,  RawDeviceServer::CountInitialVolumes (RawDeviceServer::kSliceBlocks));
+        Assert::AreEqual (2,  RawDeviceServer::CountInitialVolumes (RawDeviceServer::kSliceBlocks + 500));
+        Assert::AreEqual (4,  RawDeviceServer::CountInitialVolumes (RawDeviceServer::kSliceBlocks * 3 + 500));
+        Assert::AreEqual (13, RawDeviceServer::CountInitialVolumes (64ull * 1024 * 1024 * 2));
+    }
+
+
     TEST_METHOD (BlockExtent_ContainsAndOverlapsAtTheEdges)
     {
         BlockExtent  extent { 100, 50 };
@@ -860,11 +869,11 @@ public:
 
     TEST_METHOD (IsValidPipeName_AdmitsOnlyThePrefixAndHexDigits)
     {
-        Assert::IsTrue  (Win32StorageCardProxy::IsValidPipeName (L"CassoStorageCard0123456789ABCDEF"));
-        Assert::IsFalse (Win32StorageCardProxy::IsValidPipeName (L"CassoStorageCard"));
-        Assert::IsFalse (Win32StorageCardProxy::IsValidPipeName (L"Other0123"));
-        Assert::IsFalse (Win32StorageCardProxy::IsValidPipeName (L"CassoStorageCard01\\..\\x"));
-        Assert::IsFalse (Win32StorageCardProxy::IsValidPipeName (L"CassoStorageCard01 23"));
-        Assert::IsFalse (Win32StorageCardProxy::IsValidPipeName (std::wstring (L"CassoStorageCard") + std::wstring (80, L'A')));
+        Assert::IsTrue  (Win32StorageCardBroker::IsValidPipeName (L"CassoStorageCard0123456789ABCDEF"));
+        Assert::IsFalse (Win32StorageCardBroker::IsValidPipeName (L"CassoStorageCard"));
+        Assert::IsFalse (Win32StorageCardBroker::IsValidPipeName (L"Other0123"));
+        Assert::IsFalse (Win32StorageCardBroker::IsValidPipeName (L"CassoStorageCard01\\..\\x"));
+        Assert::IsFalse (Win32StorageCardBroker::IsValidPipeName (L"CassoStorageCard01 23"));
+        Assert::IsFalse (Win32StorageCardBroker::IsValidPipeName (std::wstring (L"CassoStorageCard") + std::wstring (80, L'A')));
     }
 };
