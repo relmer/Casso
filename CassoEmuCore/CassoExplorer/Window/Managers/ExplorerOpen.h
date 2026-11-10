@@ -32,6 +32,10 @@ public:
 
     void  SetCardWriteConfirmed (bool confirmed);
 
+    //  A storage card erased and given CFFA's layout, after a confirmation
+    //  that lists the card and each volume erased.
+    void  InitializeCard        (const std::wstring & cardPath);
+
 private:
     ExplorerContext  & m_context;
 };

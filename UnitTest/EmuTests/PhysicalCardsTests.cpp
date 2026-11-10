@@ -57,7 +57,21 @@ struct FakeCardHost : public IPhysicalCardHost
         return S_OK;
     }
 
-    bool  hasUnmounted = true;
+    HRESULT ListVolumes (int, std::vector<WindowsVolume> & outVolumes) override
+    {
+        outVolumes = volumes;
+        return S_OK;
+    }
+
+    HRESULT InitializeDrive (int number, HWND) override
+    {
+        initialized.push_back (number);
+        return S_OK;
+    }
+
+    bool                        hasUnmounted = true;
+    std::vector<WindowsVolume>  volumes;
+    std::vector<int>            initialized;
 
     static PhysicalDrive MakeDrive (int number, bool removable)
     {
@@ -217,6 +231,22 @@ public:
 
         drive.model.clear();
         Assert::AreEqual (std::wstring (L"Storage card (32.0 GB)"), PhysicalCards::FormatCardLabel (drive));
+    }
+
+
+    TEST_METHOD (Initialize_FailsForAFixedDriveAndClosesAnOpenCard)
+    {
+        FakeCardHost   host;
+        PhysicalCards  cards (host);
+
+        Assert::AreEqual (E_ACCESSDENIED, cards.Initialize (0, nullptr));
+        Assert::IsTrue (host.initialized.empty());
+
+        AssertSucceeded (cards.Open (2, nullptr));
+        AssertSucceeded (cards.Initialize (2, nullptr));
+
+        Assert::IsFalse (cards.IsOpen (2));
+        Assert::AreEqual ((size_t) 1, host.initialized.size());
     }
 
 

@@ -155,32 +155,19 @@ HRESULT Win32PhysicalCardHost::ListDrives (std::vector<PhysicalDrive> & outDrive
 //
 //  Win32PhysicalCardHost::OpenDrive
 //
-//  The proxy is started when none is running, which raises the UAC prompt.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32PhysicalCardHost::OpenDrive (int number, HWND owner, PhysicalDrive & outDrive, std::unique_ptr<IBlockStore> & outStore)
 {
     HRESULT                           hr        = S_OK;
-    bool                              isRunning = m_proxy != nullptr && m_proxy->IsRunning();
-    std::shared_ptr<ProxyProcess>     proxy;
     std::unique_ptr<ProxyDriveStore>  store;
 
 
 
     outStore.reset();
 
-    if (!isRunning)
-    {
-        m_proxy.reset();
-
-        proxy = std::make_shared<ProxyProcess>();
-
-        hr = proxy->Start (owner);
-        CHR (hr);
-
-        m_proxy = std::move (proxy);
-    }
+    hr = StartProxy (owner);
+    CHR (hr);
 
     store = std::make_unique<ProxyDriveStore> (m_proxy);
 
@@ -206,4 +193,80 @@ Error:
 HRESULT Win32PhysicalCardHost::HasUnmountedPartition (int number, bool & outHasUnmounted)
 {
     return Win32RawDevice::HasUnmountedPartition (number, outHasUnmounted);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PhysicalCardHost::ListVolumes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32PhysicalCardHost::ListVolumes (int number, std::vector<WindowsVolume> & outVolumes)
+{
+    return Win32RawDevice::ListVolumes (number, outVolumes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PhysicalCardHost::InitializeDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32PhysicalCardHost::InitializeDrive (int number, HWND owner)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = StartProxy (owner);
+    CHR (hr);
+
+    hr = m_proxy->GetConnection().Initialize (number);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PhysicalCardHost::StartProxy
+//
+//  The proxy is started when none is running, which raises the UAC prompt.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32PhysicalCardHost::StartProxy (HWND owner)
+{
+    HRESULT                        hr        = S_OK;
+    bool                           isRunning = m_proxy != nullptr && m_proxy->IsRunning();
+    std::shared_ptr<ProxyProcess>  proxy;
+
+
+
+    BAIL_OUT_IF (isRunning, S_OK);
+
+    m_proxy.reset();
+
+    proxy = std::make_shared<ProxyProcess>();
+
+    hr = proxy->Start (owner);
+    CHR (hr);
+
+    m_proxy = std::move (proxy);
+
+Error:
+    return hr;
 }

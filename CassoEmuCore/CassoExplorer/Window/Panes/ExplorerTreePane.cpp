@@ -27,6 +27,8 @@
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
+#include "CassoExplorer/Window/Managers/ExplorerOpen.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
 
@@ -860,6 +862,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
     Location                        location;
     bool                            hasFolder   = m_context.browser.TryGetNodePath (id, folder);
     bool                            hasLocation = m_context.browser.TryGetNodeLocation (id, location);
+    bool                            isCard      = hasLocation && PhysicalCards::IsCardPath (location.path);
     const DxuiTreeNode            * node        = m_tree->GetNodeAt (m_tree->FindRowById (id));
 
 
@@ -875,7 +878,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
     //  A folder on the disk has Explorer's row of Cut, Copy, Paste, Rename and
     //  Delete, and a drive Copy and Paste.
-    if (hasLocation && (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::DiskImage))
+    if (hasLocation && !isCard && (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::DiskImage))
     {
         AddTreeIconRow (items, location.path, id, location.kind == Location::Kind::HostFolder && location.path.size() <= 3);
     }
@@ -904,8 +907,18 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         m_context.menus.AddOpenRows (items, location, false);
     }
 
+    //  A storage card is erased and given an Apple layout. It doesn't have a
+    //  disk image's commands.
+    if (isCard)
+    {
+        std::wstring  card = location.path;
+
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        m_context.menus.AddMenuCommand (items, L"&Initialize card for Apple...", [this, card]() { m_context.opener.InitializeCard (card); });
+    }
+
     //  A disk image's Casso commands, as its row in the list has them.
-    if (hasLocation && location.kind == Location::Kind::DiskImage)
+    if (hasLocation && !isCard && location.kind == Location::Kind::DiskImage)
     {
         std::wstring  image = location.path;
 

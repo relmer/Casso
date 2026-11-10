@@ -5,6 +5,7 @@
 #include "Devices/Disk/IBlockStore.h"
 #include "Seams/IByteStream.h"
 #include "Seams/RawDevice/IRawDevice.h"
+#include "Seams/RawDevice/RawDeviceProtocol.h"
 
 
 
@@ -34,9 +35,13 @@ public:
     HRESULT  Read   (int number, uint64_t first, uint32_t count, std::span<Byte> outBytes);
     HRESULT  Write  (int number, uint64_t first, uint32_t count, std::span<const Byte> blocks);
 
+    //  The card erased and given CFFA's layout by the proxy. The card is
+    //  opened for it and closed after.
+    HRESULT  Initialize (int number);
+
 private:
     HRESULT  SendHeader (Byte operation, int number, uint64_t first, uint32_t count, std::span<const Byte> blocks);
-    HRESULT  ReadResult ();
+    HRESULT  ReadResult (DWORD timeoutMs = RawDeviceProtocol::kReplyTimeoutMs);
 
     IByteStream  & m_stream;
     std::mutex     m_mutex;

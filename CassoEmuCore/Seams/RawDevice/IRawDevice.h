@@ -36,6 +36,28 @@ struct PhysicalDrive
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WindowsVolume
+//
+//  A volume Windows has on a drive, for the confirmation of an erase.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct WindowsVolume
+{
+    //  "E:", or empty for a volume with no drive letter.
+    std::wstring  letter;
+    std::wstring  label;
+
+    //  "FAT32", "exFAT", "NTFS", or empty for a volume with no file system.
+    std::wstring  fileSystem;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockExtent
 //
 //  A run of blocks of a drive.
@@ -85,4 +107,10 @@ public:
     //  with a file system, read at each call, as a volume can mount at any
     //  time.
     virtual HRESULT  GetMountedExtents (std::vector<BlockExtent> & outExtents) = 0;
+
+    //  Every volume on the open drive locked and dismounted, for an erase.
+    //  `UnlockVolumes` has Windows read the drive's partitions again and
+    //  releases them. A volume with an open file fails to lock.
+    virtual HRESULT  LockVolumes   () = 0;
+    virtual void     UnlockVolumes () = 0;
 };

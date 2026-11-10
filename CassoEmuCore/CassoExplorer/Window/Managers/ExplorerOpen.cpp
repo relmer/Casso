@@ -179,3 +179,92 @@ void ExplorerOpen::SetCardWriteConfirmed (bool confirmed)
         m_context.app.cards->SetConfirmed (confirmed);
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::InitializeCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
+{
+    HRESULT                     hr        = S_OK;
+    int                         drive     = 0;
+    int                         partition = 0;
+    PhysicalDrive               found;
+    std::wstring                question;
+    std::vector<PhysicalDrive>  drives;
+    std::vector<WindowsVolume>  volumes;
+
+
+
+    if (m_context.app.cards == nullptr ||
+        PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (cardPath), drive, partition) != PhysicalCards::PathKind::Card)
+    {
+        return;
+    }
+
+    hr = m_context.app.cards->ListRemovableDrives (drives);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (const PhysicalDrive & each : drives)
+    {
+        found = each.number == drive ? each : found;
+    }
+
+    if (found.number != drive)
+    {
+        m_context.window.ShowMessage (L"The storage card is no longer in its drive.", MB_ICONWARNING);
+        return;
+    }
+
+    hr = m_context.app.cards->ListVolumes (drive, volumes);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    question = std::format (L"Initialize {} for an Apple?\r\n\r\nEverything on the card is erased", PhysicalCards::FormatDrive (found));
+
+    if (!volumes.empty())
+    {
+        question += L", including:\r\n";
+
+        for (const WindowsVolume & volume : volumes)
+        {
+            std::wstring  where = volume.letter.empty() ? std::wstring (L"No drive letter") : volume.letter;
+            std::wstring  label = volume.label.empty() ? std::wstring (L"no label") : volume.label;
+
+            question += std::format (L"\r\n    {} {} ({})", where, label, volume.fileSystem.empty() ? std::wstring (L"no file system") : volume.fileSystem);
+        }
+    }
+    else
+    {
+        question += L".";
+    }
+
+    question += L"\r\n\r\nThe card then has up to eight empty 32 MB ProDOS volumes, as a CFFA card does.";
+
+    if (DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, question.c_str(), L"Initialize card for Apple",
+                        MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Initialize", L"Cancel" }) != IDOK)
+    {
+        return;
+    }
+
+    hr = m_context.app.cards->Initialize (drive, m_context.window.GetHwnd());
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+    {
+        return;
+    }
+
+    if (FAILED (hr))
+    {
+        m_context.window.ShowMessage (std::format (L"Unable to initialize {}.", PhysicalCards::FormatDrive (found)), MB_ICONWARNING);
+        return;
+    }
+
+    m_context.browser.NavigateToLocation (Location::MakeDiskImage (cardPath));
+    m_context.listPane.FillList();
+}

@@ -315,6 +315,8 @@ void Win32RawDevice::Close()
         CloseHandle (m_drive);
     }
 
+    UnlockVolumes();
+
     if (m_transfer != nullptr)
     {
         VirtualFree (m_transfer, 0, MEM_RELEASE);
@@ -761,5 +763,181 @@ HRESULT Win32RawDevice::Seek (uint64_t block)
     CWR (ok);
 
 Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32RawDevice::LockVolumes
+//
+//  Every volume with an extent on this drive, mounted or not. A volume that
+//  cannot be opened or has no extents, as a CD drive with no disc, is passed
+//  over.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32RawDevice::LockVolumes()
+{
+    HRESULT   hr             = S_OK;
+    wchar_t   name[MAX_PATH] = {};
+    HANDLE    search         = INVALID_HANDLE_VALUE;
+    BOOL      more           = FALSE;
+    bool      open           = m_drive != INVALID_HANDLE_VALUE;
+
+
+
+    CBRAEx (open, E_UNEXPECTED);
+
+    search = FindFirstVolumeW (name, ARRAYSIZE (name));
+    more   = search != INVALID_HANDLE_VALUE;
+
+    while (more)
+    {
+        std::set<DWORD>  drives;
+        HANDLE           volume   = CreateFileW (TrimVolumeName (name).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+        DWORD            returned = 0;
+        BOOL             ok       = FALSE;
+
+        if (volume != INVALID_HANDLE_VALUE && TryGetVolumeDrives (volume, drives) && drives.contains ((DWORD) m_number))
+        {
+            m_volumes.push_back (volume);
+
+            ok = DeviceIoControl (volume, FSCTL_LOCK_VOLUME, nullptr, 0, nullptr, 0, &returned, nullptr);
+            CWR (ok);
+
+            ok = DeviceIoControl (volume, FSCTL_DISMOUNT_VOLUME, nullptr, 0, nullptr, 0, &returned, nullptr);
+            CWR (ok);
+        }
+        else if (volume != INVALID_HANDLE_VALUE)
+        {
+            CloseHandle (volume);
+        }
+
+        more = FindNextVolumeW (search, name, ARRAYSIZE (name));
+    }
+
+Error:
+    if (search != INVALID_HANDLE_VALUE)
+    {
+        FindVolumeClose (search);
+    }
+
+    if (FAILED (hr))
+    {
+        UnlockVolumes();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32RawDevice::UnlockVolumes
+//
+//  Closing a volume's handle unlocks it, and Windows mounts what it finds
+//  there on its next use. Called at each close, so the partitions are read
+//  again after any write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32RawDevice::UnlockVolumes()
+{
+    DWORD  returned = 0;
+
+
+
+    if (m_drive != INVALID_HANDLE_VALUE)
+    {
+        FlushFileBuffers (m_drive);
+        DeviceIoControl (m_drive, IOCTL_DISK_UPDATE_PROPERTIES, nullptr, 0, nullptr, 0, &returned, nullptr);
+    }
+
+    for (HANDLE volume : m_volumes)
+    {
+        CloseHandle (volume);
+    }
+
+    m_volumes.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32RawDevice::ListVolumes
+//
+//  Read without administrator access. A volume with no file system has an
+//  empty label and file system.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32RawDevice::ListVolumes (int number, std::vector<WindowsVolume> & outVolumes)
+{
+    HRESULT   hr             = S_OK;
+    wchar_t   name[MAX_PATH] = {};
+    HANDLE    search         = INVALID_HANDLE_VALUE;
+    BOOL      more           = FALSE;
+
+
+
+    outVolumes.clear();
+
+    search = FindFirstVolumeW (name, ARRAYSIZE (name));
+    CWR (search != INVALID_HANDLE_VALUE);
+
+    more = TRUE;
+
+    while (more)
+    {
+        std::set<DWORD>  drives;
+        WindowsVolume    volume;
+        wchar_t          label[MAX_PATH + 1]      = {};
+        wchar_t          fileSystem[MAX_PATH + 1] = {};
+        wchar_t          paths[MAX_PATH * 4]      = {};
+        DWORD            length                   = 0;
+        HANDLE           handle                   = CreateFileW (TrimVolumeName (name).c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+        bool             onDrive                  = false;
+
+        if (handle != INVALID_HANDLE_VALUE)
+        {
+            onDrive = TryGetVolumeDrives (handle, drives) && drives.contains ((DWORD) number);
+            CloseHandle (handle);
+        }
+
+        if (onDrive)
+        {
+            if (GetVolumeInformationW (name, label, ARRAYSIZE (label), nullptr, nullptr, nullptr, fileSystem, ARRAYSIZE (fileSystem)))
+            {
+                volume.label      = label;
+                volume.fileSystem = _wcsicmp (fileSystem, L"RAW") == 0 ? std::wstring() : std::wstring (fileSystem);
+            }
+
+            if (GetVolumePathNamesForVolumeNameW (name, paths, ARRAYSIZE (paths), &length) && paths[0] != L'\0' && paths[1] == L':')
+            {
+                volume.letter = std::wstring (paths, 2);
+            }
+
+            outVolumes.push_back (std::move (volume));
+        }
+
+        more = FindNextVolumeW (search, name, ARRAYSIZE (name));
+    }
+
+Error:
+    if (search != INVALID_HANDLE_VALUE)
+    {
+        FindVolumeClose (search);
+    }
+
     return hr;
 }

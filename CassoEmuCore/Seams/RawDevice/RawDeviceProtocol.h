@@ -34,6 +34,9 @@ public:
     static constexpr Byte      kWrite       = 3;
     static constexpr Byte      kClose       = 4;
 
+    //  The drive erased and given a new Apple layout, which the proxy builds.
+    static constexpr Byte      kInitialize  = 5;
+
     static constexpr size_t    kHeaderBytes = 17;
 
     //  The most drives open at once.
@@ -42,7 +45,8 @@ public:
     //  The most blocks in one read or one write.
     static constexpr uint32_t  kMaxBlocks   = 128;
 
-    static constexpr DWORD     kReplyTimeoutMs = 60000;
+    static constexpr DWORD     kReplyTimeoutMs      = 60000;
+    static constexpr DWORD     kInitializeTimeoutMs = 600000;
 
     //  Fails with ERROR_BROKEN_PIPE when the stream closes first, and with
     //  ERROR_TIMEOUT when `timeoutMs` passes first. INFINITE waits for the

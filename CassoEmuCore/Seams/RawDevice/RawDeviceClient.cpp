@@ -148,6 +148,48 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RawDeviceConnection::Initialize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT RawDeviceConnection::Initialize (int number)
+{
+    HRESULT        hr     = S_OK;
+    PhysicalDrive  drive;
+    bool           opened = false;
+
+
+
+    hr = Open (number, drive);
+    CHR (hr);
+
+    opened = true;
+
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        hr = SendHeader (RawDeviceProtocol::kInitialize, number, 0, 0, {});
+        CHR (hr);
+
+        hr = ReadResult (RawDeviceProtocol::kInitializeTimeoutMs);
+        CHR (hr);
+    }
+
+Error:
+    if (opened)
+    {
+        Close (number);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RawDeviceConnection::SendHeader
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,14 +226,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT RawDeviceConnection::ReadResult()
+HRESULT RawDeviceConnection::ReadResult (DWORD timeoutMs)
 {
     HRESULT  hr       = S_OK;
     Byte     bytes[4] = {};
 
 
 
-    hr = RawDeviceProtocol::ReadExact (m_stream, bytes, sizeof (bytes), RawDeviceProtocol::kReplyTimeoutMs);
+    hr = RawDeviceProtocol::ReadExact (m_stream, bytes, sizeof (bytes), timeoutMs);
     CHR (hr);
 
     hr = (HRESULT) RawDeviceProtocol::GetLong (bytes);

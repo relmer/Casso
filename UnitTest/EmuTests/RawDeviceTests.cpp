@@ -36,6 +36,9 @@ struct FakeDrives
         int                       opens     = 0;
         int                       reads     = 0;
         int                       writes    = 0;
+        int                       locks     = 0;
+        int                       unlocks   = 0;
+        bool                      lockFails = false;
     };
 
     std::map<int, Drive>  drives;
@@ -113,6 +116,18 @@ public:
         outExtents = m_drive->mounted;
 
         return S_OK;
+    }
+
+    HRESULT LockVolumes() override
+    {
+        m_drive->locks++;
+
+        return m_drive->lockFails ? HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED) : S_OK;
+    }
+
+    void UnlockVolumes() override
+    {
+        m_drive->unlocks++;
     }
 
     static PhysicalDrive MakeDrive (int number, const FakeDrives::Drive & drive)
@@ -740,6 +755,89 @@ public:
         {
             Assert::IsTrue (inMemory[at].volumeKind == found[at].volumeKind);
         }
+    }
+
+
+    TEST_METHOD (Initialize_WritesCffaVolumesThatCanThenBeWritten)
+    {
+        Session                 session;
+        PhysicalDrive           drive;
+        uint32_t                blocks = RawDeviceServer::kSliceBlocks * 3 + 500;
+        PartitionLayoutKind     kind   = PartitionLayoutKind::None;
+        std::vector<Partition>  found;
+
+        session.drives.drives[kCard].bytes.assign ((size_t) blocks * kBlock, 0xA5);
+        session.Start();
+
+        AssertSucceeded (session.connection->Initialize (kCard));
+
+        {
+            MemoryBlockStore  store (session.drives.drives[kCard].bytes);
+
+            AssertSucceeded (PartitionLayout::Detect (store, kind, found));
+        }
+
+        Assert::IsTrue (kind == PartitionLayoutKind::Cffa);
+        Assert::AreEqual ((size_t) 4, found.size());
+        Assert::IsTrue (found[0].volumeKind == VolumeKind::ProDos);
+        Assert::AreEqual (1, session.drives.drives[kCard].locks);
+        Assert::IsTrue (session.drives.drives[kCard].unlocks >= 1);
+
+        RawDeviceClient  client (*session.connection);
+
+        AssertSucceeded (client.Connect (kCard, drive));
+        AssertSucceeded (client.WriteBlocks (RawDeviceServer::kSliceBlocks + 10, MakeBlocks (1, 0x11)));
+        AssertSucceeded (client.Commit());
+    }
+
+
+    TEST_METHOD (Initialize_WritesNothingWhenAVolumeFailsToLock)
+    {
+        Session            session;
+        std::vector<Byte>  original ((size_t) RawDeviceServer::kSliceBlocks * 2 * kBlock, 0xA5);
+
+        session.drives.drives[kCard].bytes     = original;
+        session.drives.drives[kCard].lockFails = true;
+        session.Start();
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED), session.connection->Initialize (kCard));
+
+        session.Finish();
+
+        Assert::AreEqual (0, session.drives.drives[kCard].writes);
+        Assert::IsTrue (session.drives.drives[kCard].bytes == original);
+    }
+
+
+    TEST_METHOD (Initialize_FailsForADriveThatIsNotAStorageCard)
+    {
+        Session  session;
+
+        session.drives.drives[kCard].bytes.assign ((size_t) RawDeviceServer::kSliceBlocks * 2 * kBlock, 0xA5);
+        session.drives.drives[kCard].removable = false;
+        session.Start();
+
+        Assert::AreEqual (E_ACCESSDENIED, session.connection->Initialize (kCard));
+
+        session.Finish();
+
+        Assert::AreEqual (0, session.drives.drives[kCard].writes);
+        Assert::AreEqual (0, session.drives.drives[kCard].locks);
+    }
+
+
+    TEST_METHOD (Initialize_FailsForACardOfOneSliceOrLess)
+    {
+        Session  session;
+
+        session.drives.drives[kCard].bytes.assign ((size_t) RawDeviceServer::kSliceBlocks * kBlock, 0xA5);
+        session.Start();
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), session.connection->Initialize (kCard));
+
+        session.Finish();
+
+        Assert::AreEqual (0, session.drives.drives[kCard].writes);
     }
 
 

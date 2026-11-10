@@ -4,6 +4,7 @@
 #include "Seams/RawDevice/RawDeviceProtocol.h"
 #include "Devices/Disk/IBlockStore.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 
 
@@ -81,6 +82,10 @@ HRESULT RawDeviceServer::Run()
 
             case RawDeviceProtocol::kWrite:
                 hr = ServeWrite (number, first, count);
+                break;
+
+            case RawDeviceProtocol::kInitialize:
+                hr = ServeInitialize (number);
                 break;
 
             default:
@@ -317,6 +322,104 @@ HRESULT RawDeviceServer::ServeWrite (int number, uint64_t first, uint32_t count)
     }
 
     hr = Reply (result, {});
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawDeviceServer::ServeInitialize
+//
+//  The volumes on the card are dismounted first, and the card's Apple layout
+//  is found again after the write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT RawDeviceServer::ServeInitialize (int number)
+{
+    HRESULT    hr      = S_OK;
+    HRESULT    result  = S_OK;
+    Session  * session = nullptr;
+
+
+
+    result = CheckRange (number, 0, 0, session);
+
+    if (SUCCEEDED (result))
+    {
+        result = session->device->LockVolumes();
+    }
+
+    if (SUCCEEDED (result))
+    {
+        result = WriteCffaLayout (*session);
+        session->device->UnlockVolumes();
+
+        FindApplePartitions (*session->device, session->drive.bytes / IRawDevice::kBlockBytes, session->writable);
+    }
+
+    hr = Reply (result, {});
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawDeviceServer::WriteCffaLayout
+//
+//  Each slice is an empty ProDOS volume, CARD1 on, and the block after it is
+//  cleared. The last blocks of the card are cleared too, as a GPT has its
+//  second copy there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT RawDeviceServer::WriteCffaLayout (Session & session)
+{
+    HRESULT            hr     = S_OK;
+    uint64_t           total  = session.drive.bytes / IRawDevice::kBlockBytes;
+    bool               large  = total > kSliceBlocks;
+    uint64_t           next   = 0;
+    std::vector<Byte>  zeros ((size_t) kGptBlocks * IRawDevice::kBlockBytes, 0);
+
+
+
+    CBREx (large, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+    for (int slice = 0; slice < kInitialVolumes && total - next >= kGptBlocks + kMinVolumeBlocks; slice++)
+    {
+        uint64_t           blocks = std::min<uint64_t> (kVolumeBlocks, total - next - kGptBlocks);
+        std::vector<Byte>  volume ((size_t) blocks * IRawDevice::kBlockBytes, 0);
+
+        hr = ProDosSkeleton::Write (volume, std::format ("CARD{}", slice + 1));
+        CHR (hr);
+
+        hr = session.device->WriteBlocks (next, volume);
+        CHR (hr);
+
+        next += blocks;
+
+        if (next < total - kGptBlocks && blocks == kVolumeBlocks)
+        {
+            hr = session.device->WriteBlocks (next, std::span<const Byte> (zeros.data(), IRawDevice::kBlockBytes));
+            CHR (hr);
+
+            next++;
+        }
+    }
+
+    hr = session.device->WriteBlocks (total - kGptBlocks, zeros);
     CHR (hr);
 
 Error:

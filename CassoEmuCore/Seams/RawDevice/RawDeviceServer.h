@@ -22,13 +22,22 @@
 //  request for it fails with E_ACCESSDENIED. A write fails with
 //  E_ACCESSDENIED unless each of its blocks is inside a partition of an
 //  Apple layout found on the card when it opened, and none is inside a
-//  volume Windows has mounted with a file system.
+//  volume Windows has mounted with a file system. An initialize is the one
+//  request that writes outside them, and the blocks it writes are built here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class RawDeviceServer
 {
 public:
+    //  A new layout is CFFA's: up to this many ProDOS volumes of 32 MB from
+    //  block 0. The card must be larger than one.
+    static constexpr int       kInitialVolumes  = 8;
+    static constexpr uint32_t  kSliceBlocks     = 65536;
+    static constexpr uint32_t  kVolumeBlocks    = 65535;
+    static constexpr uint32_t  kGptBlocks       = 34;
+    static constexpr uint32_t  kMinVolumeBlocks = 280;
+
     using DeviceMaker = std::function<std::unique_ptr<IRawDevice> ()>;
 
     RawDeviceServer (DeviceMaker makeDevice, IByteStream & stream) : m_makeDevice (std::move (makeDevice)), m_stream (stream) {}
@@ -48,13 +57,15 @@ private:
 
     static void  FindApplePartitions (IRawDevice & device, uint64_t blocks, std::vector<BlockExtent> & outExtents);
 
-    HRESULT  ServeOpen   (int number);
-    HRESULT  ServeClose  (int number);
-    HRESULT  ServeRead   (int number, uint64_t first, uint32_t count);
-    HRESULT  ServeWrite  (int number, uint64_t first, uint32_t count);
-    HRESULT  CheckRange  (int number, uint64_t first, uint32_t count, Session * & outSession);
-    HRESULT  CheckWrite  (Session & session, uint64_t first, uint32_t count);
-    HRESULT  Reply       (HRESULT result, std::span<const Byte> payload);
+    HRESULT  ServeOpen       (int number);
+    HRESULT  ServeClose      (int number);
+    HRESULT  ServeRead       (int number, uint64_t first, uint32_t count);
+    HRESULT  ServeWrite      (int number, uint64_t first, uint32_t count);
+    HRESULT  ServeInitialize (int number);
+    HRESULT  WriteCffaLayout (Session & session);
+    HRESULT  CheckRange      (int number, uint64_t first, uint32_t count, Session * & outSession);
+    HRESULT  CheckWrite      (Session & session, uint64_t first, uint32_t count);
+    HRESULT  Reply           (HRESULT result, std::span<const Byte> payload);
 
     DeviceMaker               m_makeDevice;
     IByteStream             & m_stream;

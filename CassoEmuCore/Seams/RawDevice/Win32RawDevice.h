@@ -24,8 +24,8 @@
 //  found when it opens. A drive whose sectors are not 512 bytes fails to
 //  open with ERROR_NOT_SUPPORTED.
 //
-//  No volume is locked or dismounted: RawDeviceServer fails every write
-//  inside a mounted volume.
+//  No volume is locked or dismounted for a write: RawDeviceServer fails every
+//  write inside a mounted volume. Only an erase locks them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,9 +48,12 @@ public:
     void     Close       () override;
 
     HRESULT  GetMountedExtents (std::vector<BlockExtent> & outExtents) override;
+    HRESULT  LockVolumes       () override;
+    void     UnlockVolumes     () override;
 
     static HRESULT  HasUnmountedPartition (int number, bool & outHasUnmounted);
     static HRESULT  ReadMountedExtents    (int number, std::vector<BlockExtent> & outExtents);
+    static HRESULT  ListVolumes           (int number, std::vector<WindowsVolume> & outVolumes);
 
 private:
     static constexpr int     kMaxDrives      = 64;
@@ -76,6 +79,7 @@ private:
     HANDLE               m_drive    = INVALID_HANDLE_VALUE;
     int                  m_number   = -1;
     uint64_t             m_blocks   = 0;
+    std::vector<HANDLE>  m_volumes;
 
     //  Page-aligned, as a transfer to a drive is from sector-aligned memory.
     Byte               * m_transfer = nullptr;

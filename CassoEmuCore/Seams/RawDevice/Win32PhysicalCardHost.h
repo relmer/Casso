@@ -30,8 +30,12 @@ public:
     HRESULT  OpenDrive  (int number, HWND owner, PhysicalDrive & outDrive, std::unique_ptr<IBlockStore> & outStore) override;
 
     HRESULT  HasUnmountedPartition (int number, bool & outHasUnmounted) override;
+    HRESULT  ListVolumes           (int number, std::vector<WindowsVolume> & outVolumes) override;
+    HRESULT  InitializeDrive       (int number, HWND owner) override;
 
 private:
+    HRESULT  StartProxy (HWND owner);
+
     //  Shared with each card's store, so the proxy runs until this host and
     //  every store are destroyed.
     std::shared_ptr<ProxyProcess>  m_proxy;

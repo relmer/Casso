@@ -280,6 +280,43 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PhysicalCards::Initialize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::Initialize (int number, HWND owner)
+{
+    HRESULT                     hr        = S_OK;
+    bool                        removable = false;
+    std::vector<PhysicalDrive>  drives;
+
+
+
+    hr = ListRemovableDrives (drives);
+    CHR (hr);
+
+    for (const PhysicalDrive & drive : drives)
+    {
+        removable = removable || drive.number == number;
+    }
+
+    CBREx (removable, E_ACCESSDENIED);
+
+    Close (number);
+
+    hr = m_host.InitializeDrive (number, owner);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PhysicalCards::Open
 //
 //  The drive is opened outside the lock, as the UAC prompt can stay up for

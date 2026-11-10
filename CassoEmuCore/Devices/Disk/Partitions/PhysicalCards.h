@@ -34,6 +34,10 @@ public:
     //  Read without administrator access: true for a drive with no partition
     //  table, or with a partition Windows hasn't mounted with a file system.
     virtual HRESULT  HasUnmountedPartition (int number, bool & outHasUnmounted) = 0;
+    virtual HRESULT  ListVolumes           (int number, std::vector<WindowsVolume> & outVolumes) = 0;
+
+    //  The drive erased and given CFFA's layout, through the proxy.
+    virtual HRESULT  InitializeDrive       (int number, HWND owner) = 0;
 
     //  Fails with ERROR_CANCELLED when the user declines administrator access.
     //  Destroying `outStore` closes the drive.
@@ -115,6 +119,12 @@ public:
 
     HRESULT  ListRemovableDrives (std::vector<PhysicalDrive> & outDrives);
     HRESULT  ListStorageCards    (std::vector<StorageCard> & outCards);
+    HRESULT  ListVolumes         (int number, std::vector<WindowsVolume> & outVolumes) { return m_host.ListVolumes (number, outVolumes); }
+
+    //  The card closed, erased and given CFFA's layout: up to eight empty
+    //  ProDOS volumes of 32 MB. The only write that is not confirmed by the
+    //  callback, as the caller confirms it with the volumes erased.
+    HRESULT  Initialize          (int number, HWND owner);
 
     //  Fails with E_ACCESSDENIED for a drive that is not removable.
     HRESULT  Open                (int number, HWND owner);
