@@ -360,9 +360,9 @@ public:
 
     TEST_METHOD (AmDos_CatalogOnSectorFifteen_IsAmDos)
     {
-        vector<Byte>         bytes = MakeUniDosDisk();
+        vector<Byte>         bytes    = MakeUniDosDisk();
         vector<Partition>    partitions;
-        PartitionLayoutKind  kind  = PartitionLayoutKind::None;
+        PartitionLayoutKind  kind     = PartitionLayoutKind::None;
         Dos33Geometry        geometry = Dos33Geometry::Make (50, 32);
 
         bytes[geometry.GetSectorOffset (Dos33Geometry::kVtocTrack, 0) + Dos33Geometry::kVtocOffCatalogSector] = 15;

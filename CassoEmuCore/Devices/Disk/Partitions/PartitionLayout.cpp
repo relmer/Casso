@@ -457,14 +457,13 @@ bool PartitionLayout::IsProDosDirectory (const std::vector<Byte> & blocks, uint3
 
 bool PartitionLayout::IsHfsDirectory (const std::vector<Byte> & blocks, uint32_t blockCount, uint32_t & outVolumeBlocks)
 {
-    static constexpr size_t  kMdb                = 2 * IBlockStore::kBlockBytes;
-    static constexpr size_t  kOffAllocationCount = 0x12;
-    static constexpr size_t  kOffAllocationBytes = 0x14;
-    static constexpr size_t  kOffFirstAllocation = 0x1C;
-
-    //  The boot blocks ahead of the volume's blocks, and the alternate master
-    //  directory block and the unused block after them.
-    static constexpr uint64_t  kBlocksOutside = 2;
+    //  `kBlocksOutside` is the boot blocks ahead of the volume's blocks, and
+    //  the alternate master directory block and the unused block after them.
+    static constexpr size_t    kMdb                = 2 * IBlockStore::kBlockBytes;
+    static constexpr size_t    kOffAllocationCount = 0x12;
+    static constexpr size_t    kOffAllocationBytes = 0x14;
+    static constexpr size_t    kOffFirstAllocation = 0x1C;
+    static constexpr uint64_t  kBlocksOutside      = 2;
 
 
 
