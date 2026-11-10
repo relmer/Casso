@@ -351,8 +351,8 @@ void ExplorerOpen::BuildInitializeChoices (uint64_t bytes, int maxVolumes, std::
 
         outChoices.push_back (std::move (choice));
     }
-    if (Fat32Format::CanFormat (bytes / IRawDevice::kBlockBytes))
 
+    if (Fat32Format::CanFormat (bytes / IRawDevice::kBlockBytes))
     {
         outChoices.push_back (InitializeCardChoice { L"FAT32 for a CFFA3000's disk image files",
                                                      L"Copy .po, .2mg and other disk images onto the card in Windows. A CFFA3000 reads FAT32 with an MBR, which Windows doesn't offer for a card over 32 GB.",
