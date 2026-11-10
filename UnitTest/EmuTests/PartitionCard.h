@@ -25,7 +25,6 @@
 
 struct PartitionCard
 {
-    using vector = std::vector<Byte>;
     static constexpr size_t           kBlock        = IBlockStore::kBlockBytes;
     static constexpr size_t           kFloppyBytes  = 143360;
     static constexpr uint32_t         kCardBlocks   = 2000;

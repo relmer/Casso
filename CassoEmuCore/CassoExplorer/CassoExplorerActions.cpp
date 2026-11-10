@@ -51,10 +51,10 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     std::vector<Verb>          verbs;
     std::vector<FileEntry>     entries;
     std::vector<std::wstring>  imagePaths;
-    size_t                     selected = m_browser.GetSelectedRows().size();
-    Location                   location = m_browser.GetLocation();
-    bool                       nested   = location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty();
-    bool                       onDisk   = location.kind == Location::Kind::HostFolder || m_browser.AreSelectedRowsSearchFiles();
+    size_t                     selected    = m_browser.GetSelectedRows().size();
+    Location                   location    = m_browser.GetLocation();
+    bool                       nested      = location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty();
+    bool                       onDisk      = location.kind == Location::Kind::HostFolder || m_browser.AreSelectedRowsSearchFiles();
     std::wstring               partition;
     bool                       isPartition = m_partitions.TryGetTarget (partition);
 
