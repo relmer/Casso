@@ -296,6 +296,7 @@
     <ClCompile Include="EmuTests\HybridVolumeTests.cpp" />
     <ClCompile Include="EmuTests\PartitionAccessTests.cpp" />
     <ClCompile Include="EmuTests\PartitionLayoutTests.cpp" />
+    <ClCompile Include="EmuTests\RawDeviceTests.cpp" />
     <ClCompile Include="EmuTests\ThirteenSectorCodecTests.cpp" />
     <ClCompile Include="EmuTests\CrossVolumeCopyTests.cpp" />
     <ClCompile Include="EmuTests\NewPascalCpmDiskTests.cpp" />

@@ -12,6 +12,7 @@
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Seams/RawDevice/Win32RawDevice.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -288,5 +289,35 @@ public:
         volume = VolumeImage::CreateVolume (VolumeKind::ProDos, withBoth);
         AssertSucceeded (volume->Read (FilePath::Parse ("CASSO"), after));
         Assert::IsTrue (payload.bytes == after.bytes);
+    }
+
+
+    //  The drives of this PC, queried through handles with no access. No
+    //  drive is read or written: a fixed drive fails to open before any
+    //  access is requested.
+    TEST_METHOD (PhysicalDrives_FixedDriveIsDeniedAndEveryDriveHasASize)
+    {
+        Win32RawDevice              device;
+        std::vector<PhysicalDrive>  drives;
+        PhysicalDrive               opened;
+        bool                        anyFixed = false;
+
+
+
+        AssertSucceeded (device.ListDrives (drives));
+        Assert::IsFalse (drives.empty());
+
+        for (const PhysicalDrive & drive : drives)
+        {
+            Assert::IsTrue (drive.bytes > 0);
+
+            if (!drive.removable)
+            {
+                Assert::AreEqual (E_ACCESSDENIED, device.Open (drive.number, opened));
+                anyFixed = true;
+            }
+        }
+
+        Assert::IsTrue (anyFixed);
     }
 };

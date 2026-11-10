@@ -113,6 +113,7 @@
 #include <dcomp.h>
 #include <crtdbg.h>
 #include <shellapi.h>
+#include <winioctl.h>
 #include <shobjidl.h>
 #include <xmllite.h>
 #include <searchapi.h>
