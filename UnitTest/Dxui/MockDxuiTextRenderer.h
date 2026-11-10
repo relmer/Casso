@@ -54,6 +54,18 @@ struct RecordedTextCall
 
 
 
+struct RecordedVectorIconCall
+{
+    const DxuiVectorIcon  * icon       = nullptr;
+    float                   x          = 0.0f;
+    float                   y          = 0.0f;
+    float                   size       = 0.0f;
+    uint32_t                foreground = 0;
+    uint32_t                accent     = 0;
+};
+
+
+
 class MockDxuiTextRenderer : public IDxuiTextRenderer
 {
 public:
@@ -61,10 +73,13 @@ public:
     ~MockDxuiTextRenderer() override = default;
 
     const std::vector<RecordedTextCall>  & Calls () const { return m_calls; }
-    void                                   Reset () { m_calls.clear(); m_iconCalls.clear(); }
+    void                                   Reset () { m_calls.clear(); m_iconCalls.clear(); m_vectorIconCalls.clear(); }
 
     //  DrawIconBitmap's destinations, apart from the other calls.
     const std::vector<RecordedTextCall> &  IconCalls() const { return m_iconCalls; }
+
+    //  FillVectorIcon's calls, apart from the other calls.
+    const std::vector<RecordedVectorIconCall> &  VectorIconCalls() const { return m_vectorIconCalls; }
 
     void  SetCannedMetrics  (const std::wstring & text, SIZE sizeDip);
 
@@ -92,6 +107,7 @@ public:
 
     HRESULT  FillRect      (float xDip, float yDip, float widthDip, float heightDip, uint32_t argbColor) override;
     HRESULT  DrawLine      (float x0Dip, float y0Dip, float x1Dip, float y1Dip, float thicknessDip, uint32_t argbColor) override;
+    HRESULT  FillVectorIcon (const DxuiVectorIcon & icon, float xDip, float yDip, float sizeDip, uint32_t foreground, uint32_t accent) override;
 
     HRESULT  MeasureString (const wchar_t * text,
                             float           fontSizeDip,
@@ -142,6 +158,7 @@ public:
 private:
     std::vector<RecordedTextCall>          m_calls;
     std::vector<RecordedTextCall>          m_iconCalls;
+    std::vector<RecordedVectorIconCall>    m_vectorIconCalls;
     std::map<std::wstring, SIZE>           m_cannedMetrics;
     std::wstring                           m_lastMeasureFamily;
     bool                                   m_measureReturnsZero = false;

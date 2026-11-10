@@ -2260,43 +2260,6 @@ bool DxuiToolbar::TryOpenDropDownAt (POINT screenPx, const DxuiToolbar * closing
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiToolbar::Flatten
-//
-//  `ink` composited over `behind`, so a translucent color becomes the opaque
-//  color it would have looked like. Alpha in `behind` is ignored: it is what
-//  is already on the surface.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t DxuiToolbar::Flatten (uint32_t ink, uint32_t behind)
-{
-    unsigned  alpha = (ink >> 24) & 0xFFu;
-    unsigned  out   = 0xFF000000u;
-
-
-
-    if (alpha == 0xFFu)
-    {
-        return ink;
-    }
-
-    for (int shift = 0; shift <= 16; shift += 8)
-    {
-        unsigned  front = (ink    >> shift) & 0xFFu;
-        unsigned  back  = (behind >> shift) & 0xFFu;
-
-        out |= (((front * alpha + back * (255u - alpha) + 127u) / 255u) & 0xFFu) << shift;
-    }
-
-    return out;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiToolbar::PaintFaceText
 //
 //  The lines are measured at a reference size and scaled together to the
@@ -2376,25 +2339,17 @@ void DxuiToolbar::PaintFaceText (const Slot & slot, IDxuiTextRenderer & text, fl
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiToolbar::PaintEntryIcon (const Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink, uint32_t accent)
+void DxuiToolbar::PaintEntryIcon (const Slot & slot, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink, uint32_t accent)
 {
-    HRESULT          hr    = S_OK;
-    const wchar_t *  glyph = (slot.entry.command != nullptr) ? slot.entry.command->glyph : nullptr;
+    HRESULT                 hr     = S_OK;
+    const wchar_t        *  glyph  = (slot.entry.command != nullptr) ? slot.entry.command->glyph : nullptr;
+    const DxuiVectorIcon *  vector = slot.entry.getVectorIcon ? slot.entry.getVectorIcon() : slot.entry.vectorIcon;
 
 
 
-    //  A drawn icon stands in for the glyph, in the same box and the same
-    //  ink: whatever this path decided about hover, disabling and theme
-    //  reaches both kinds of icon or neither.
-    if (slot.entry.icon)
+    if (vector != nullptr)
     {
-        slot.entry.icon (painter, icon);
-        return;
-    }
-
-    if (slot.entry.vectorIcon != nullptr)
-    {
-        hr = text.FillVectorIcon (*slot.entry.vectorIcon, icon.x, icon.top + (icon.rowH - icon.size) * 0.5f, icon.size, ink, accent);
+        hr = text.FillVectorIcon (*vector, icon.x, icon.top + (icon.rowH - icon.size) * 0.5f, icon.size, ink, accent);
         IGNORE_RETURN_VALUE (hr, S_OK);
         return;
     }
@@ -2468,18 +2423,20 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     int                 padX     = GetButtonPadPx();
     int                 iconGap  = (int) std::lround (m_scaler.ToPxf (m_iconGapDip));
     uint32_t            ink      = m_stripColorsSet ? m_textOverride : theme.ButtonText();
-    uint32_t            accent   = theme.Accent();
+    uint32_t            accent   = slot.entry.getAccent ? slot.entry.getAccent() : theme.Accent();
     float               textX    = 0.0f;
     DxuiToolbarIconBox  icon;
     std::wstring        label;
 
 
 
-    //  A disabled icon dims both its tones alike, as Explorer's do.
+    //  A disabled icon dims both its tones alike, as Explorer's do. An
+    //  entry's accent color is replaced by the dimmed ink, so a disabled
+    //  icon is one color.
     if (!enabled)
     {
         ink    = (ink    & 0x00FFFFFFu) | kDisabledInkAlpha;
-        accent = (accent & 0x00FFFFFFu) | kDisabledInkAlpha;
+        accent = slot.entry.getAccent ? ink : ((accent & 0x00FFFFFFu) | kDisabledInkAlpha);
     }
 
     if (active && m_flat)
@@ -2539,13 +2496,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
         icon.x    = bl + (bw - icon.size) * 0.5f;
     }
 
-    //  A DECORATION IS GIVEN AN OPAQUE INK. Text draws a partly transparent
-    //  color once, but strokes are laid down as overlapping rects, and each
-    //  overlap blends again -- the same color would come out solid. So the
-    //  ink is flattened against what it will be drawn on first.
-    icon.ink  = Flatten (ink, active ? ((slot.pressed || checked) ? theme.ButtonPressed()
-                                                                  : (hovered ? theme.ButtonHover() : theme.ButtonIdle()))
-                                     : (m_stripColorsSet ? m_stripOverride : theme.Background()));
+    icon.ink = ink;
 
     if (slot.entry.faceText != nullptr && !slot.labeled)
     {
@@ -2553,7 +2504,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     }
     else
     {
-        PaintEntryIcon (slot, painter, text, icon, ink, accent);
+        PaintEntryIcon (slot, text, icon, ink, accent);
     }
 
     if (slot.entry.decoration)

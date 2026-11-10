@@ -4,6 +4,7 @@
 
 #include "resource.h"
 #include "Core/UnicodeSymbols.h"
+#include "InputGlyphIcons.h"
 
 #include "PrinterStatusLed.h"
 #include "VolumeFlyout.h"
@@ -1101,22 +1102,20 @@ void EmulatorCommands::BuildToolbar (DxuiToolbar       & toolbar,
 
         if (row.id == IDM_PRINTER_PREVIEW) { e.decoration = led.MakeDecoration(); }
 
-        // The picker draws its own icon, because the icon tracks the DEVICE:
-        // a gamepad, a stick, the paddle or the arrow keys (FR-008b). A font
-        // glyph cannot follow that, and MDL2 has no Apple paddle anyway. It
-        // goes through the strip's icon path rather than a decoration, so
-        // layout reserves the icon's room and the label starts after it, and
-        // it takes the entry's disabled and hover ink.
+        // The picker's icon is chosen at paint time, because it tracks the
+        // DEVICE: a gamepad, a stick, the paddle or the arrow keys. MDL2 has
+        // no Apple paddle, so all four are vector icons.
         if (row.id == kIdPaddle)
         {
-            e.icon = [this] (IDxuiPainter & painter, const DxuiToolbarIconBox & icon)
+            e.getVectorIcon = [this] () -> const DxuiVectorIcon *
             {
-                RECT  box = { (LONG) icon.x,
-                              (LONG) (icon.top + (icon.rowH - icon.size) * 0.5f),
-                              (LONG) (icon.x + icon.size),
-                              (LONG) (icon.top + (icon.rowH + icon.size) * 0.5f) };
-
-                InputMonoGlyphs::Paint (painter, GetPickerGlyph(), box, icon.ink);
+                switch (GetPickerGlyph())
+                {
+                    case InputMonoGlyphKind::Gamepad:  return &InputGlyphIcons::s_kGamepad;
+                    case InputMonoGlyphKind::Joystick: return &InputGlyphIcons::s_kJoystick;
+                    case InputMonoGlyphKind::Paddle:   return &InputGlyphIcons::s_kPaddle;
+                    default:                           return &InputGlyphIcons::s_kKeys;
+                }
             };
         }
 

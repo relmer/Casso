@@ -173,6 +173,33 @@ HRESULT MockDxuiTextRenderer::DrawLine (float x0Dip, float y0Dip, float x1Dip, f
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MockDxuiTextRenderer::FillVectorIcon
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MockDxuiTextRenderer::FillVectorIcon (const DxuiVectorIcon & icon, float xDip, float yDip, float sizeDip, uint32_t foreground, uint32_t accent)
+{
+    RecordedVectorIconCall  call;
+
+
+
+    call.icon       = &icon;
+    call.x          = xDip;
+    call.y          = yDip;
+    call.size       = sizeDip;
+    call.foreground = foreground;
+    call.accent     = accent;
+    m_vectorIconCalls.push_back (call);
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MeasureString
 //
 //  Returns the canned size if the caller registered one for the

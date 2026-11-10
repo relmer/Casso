@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "../Dxui/MockDxuiPainter.h"
 #include "Ui/Debugger/DebuggerCommands.h"
+#include "Ui/Debugger/DebuggerIcons.h"
 
 #include "CppUnitTest.h"
 
@@ -13,9 +13,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace DebuggerCommandIconTests
 {
-    static constexpr uint32_t  s_kInk       = 0xFF808080u;
-    static constexpr uint32_t  s_kDarkGreen = 0xFF6CCB5Fu;
-    static constexpr uint32_t  s_kDarkBlue  = 0xFF4FA8E8u;
+    static constexpr uint32_t  s_kDarkGreen  = 0xFF6CCB5Fu;
+    static constexpr uint32_t  s_kDarkBlue   = 0xFF4FA8E8u;
+    static constexpr uint32_t  s_kLightGreen = 0xFF1F883Du;
+    static constexpr uint32_t  s_kLightBlue  = 0xFF1A6FC4u;
 
 
 
@@ -23,42 +24,36 @@ namespace DebuggerCommandIconTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  Paint
+    //  FindEntry
     //
-    //  The calls one command bar entry's icon makes, on a dark ground.
+    //  One command's entry on the command bar.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    static std::vector<RecordedPaintCall> Paint (int id, bool enabled, bool isRunning = false)
+    static DxuiToolbar::Entry FindEntry (int id, bool isRunning = false, bool isDark = true)
     {
         DebuggerCommands::Handlers  handlers;
-        MockDxuiPainter             painter;
-        DxuiToolbarIconBox          icon;
+        DxuiToolbar::Entry          found;
 
 
 
-        handlers.isDark    = [] { return true; };
+        handlers.isDark    = [isDark] { return isDark; };
         handlers.isEnabled = [isRunning] (int each) { return each != DebuggerCommands::kPause || isRunning; };
 
-        DebuggerCommands                 commands (std::move (handlers));
-        std::vector<DxuiToolbar::Entry>  entries  = commands.BuildEntries();
+        //  The entries' callbacks capture the commands, which outlive the test.
+        static std::vector<std::unique_ptr<DebuggerCommands>>  s_commands;
 
-        icon.x       = 0.0f;
-        icon.top     = 0.0f;
-        icon.size    = 16.0f;
-        icon.rowH    = 24.0f;
-        icon.ink     = s_kInk;
-        icon.enabled = enabled;
+        s_commands.push_back (std::make_unique<DebuggerCommands> (std::move (handlers)));
 
-        for (const DxuiToolbar::Entry & entry : entries)
+        for (const DxuiToolbar::Entry & entry : s_commands.back()->BuildEntries())
         {
-            if (entry.command != nullptr && entry.command->id == id && entry.icon)
+            if (entry.command != nullptr && entry.command->id == id)
             {
-                entry.icon (painter, icon);
+                found = entry;
             }
         }
 
-        return painter.Calls();
+        return found;
     }
 
 
@@ -67,13 +62,42 @@ namespace DebuggerCommandIconTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  CountIn
+    //  CountLayers
+    //
+    //  How many of an icon's layers are drawn in the accent, or in the ink.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    static size_t CountIn (const std::vector<RecordedPaintCall> & calls, uint32_t argb)
+    static size_t CountLayers (const DxuiVectorIcon & icon, bool accent)
     {
-        return (size_t) std::count_if (calls.begin(), calls.end(), [argb] (const RecordedPaintCall & c) { return c.argb == argb; });
+        size_t  count = 0;
+
+
+
+        for (size_t i = 0; i < icon.layerCount; i++)
+        {
+            count += (icon.layers[i].accent == accent) ? 1 : 0;
+        }
+
+        return count;
+    }
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  IsIcon
+    //
+    //  The icons are static data, so each translation unit has a copy: two are
+    //  the same icon when their path data is.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    static bool IsIcon (const DxuiVectorIcon * actual, const DxuiVectorIcon & other)
+    {
+        return actual != nullptr && wcscmp (actual->pathData, other.pathData) == 0;
     }
 
 
@@ -88,13 +112,15 @@ namespace DebuggerCommandIconTests
         //  stopped.
         TEST_METHOD (RunIsAGreenTriangle)
         {
-            std::vector<RecordedPaintCall>  calls = Paint (DebuggerCommands::kRunOrPause, true);
+            DxuiToolbar::Entry  entry = FindEntry (DebuggerCommands::kRunOrPause);
 
 
 
-            Assert::AreEqual (size_t (1), calls.size());
-            Assert::IsTrue   (calls[0].kind == RecordedPaintKind::FillConvexQuad);
-            Assert::AreEqual (s_kDarkGreen, calls[0].argb);
+            Assert::IsTrue   (static_cast<bool> (entry.getVectorIcon));
+            Assert::IsTrue   (IsIcon (entry.getVectorIcon(), DebuggerIcons::s_kRun));
+            Assert::AreEqual (s_kDarkGreen, entry.getAccent());
+            Assert::AreEqual (size_t (1), CountLayers (DebuggerIcons::s_kRun, true));
+            Assert::AreEqual (size_t (0), CountLayers (DebuggerIcons::s_kRun, false));
         }
 
 
@@ -102,98 +128,122 @@ namespace DebuggerCommandIconTests
         //  And Pause while it runs.
         TEST_METHOD (PauseIsTwoBarsInTheInk)
         {
-            std::vector<RecordedPaintCall>  calls = Paint (DebuggerCommands::kRunOrPause, true, true);
+            DxuiToolbar::Entry  entry = FindEntry (DebuggerCommands::kRunOrPause, true);
 
 
 
-            Assert::AreEqual (size_t (2), calls.size());
-            Assert::AreEqual (size_t (2), CountIn (calls, s_kInk));
+            Assert::IsTrue   (IsIcon (entry.getVectorIcon(), DebuggerIcons::s_kPause));
+            Assert::AreEqual (size_t (0), CountLayers (DebuggerIcons::s_kPause, true));
+            Assert::AreEqual (uint32_t (0x03u), DebuggerIcons::s_kPause.layers[0].subpaths);
         }
 
 
 
         TEST_METHOD (StepsAreBlueArrowsWithADot)
         {
-            for (int id : { DebuggerCommands::kStepInto, DebuggerCommands::kStepOver, DebuggerCommands::kStepOut })
-            {
-                std::vector<RecordedPaintCall>  calls = Paint (id, true);
-                size_t                          dots  = (size_t) std::count_if (calls.begin(), calls.end(),
-                                                            [] (const RecordedPaintCall & c) { return c.kind == RecordedPaintKind::FillCircle; });
+            struct Case { int id; const DxuiVectorIcon * icon; };
 
-                Assert::IsFalse  (calls.empty());
-                Assert::AreEqual (calls.size(), CountIn (calls, s_kDarkBlue));
-                Assert::AreEqual (size_t (1), dots);
+            Case  cases[] =
+            {
+                { DebuggerCommands::kStepInto,     &DebuggerIcons::s_kStepInto     },
+                { DebuggerCommands::kStepOver,     &DebuggerIcons::s_kStepOver     },
+                { DebuggerCommands::kStepOut,      &DebuggerIcons::s_kStepOut      },
+                { DebuggerCommands::kStepBackInto, &DebuggerIcons::s_kStepBackInto },
+                { DebuggerCommands::kStepBackOver, &DebuggerIcons::s_kStepBackOver },
+                { DebuggerCommands::kStepBackOut,  &DebuggerIcons::s_kStepBackOut  },
+            };
+
+
+
+            for (const Case & each : cases)
+            {
+                DxuiToolbar::Entry  entry = FindEntry (each.id);
+
+                Assert::IsTrue   (IsIcon (entry.vectorIcon, *each.icon));
+                Assert::AreEqual (s_kDarkBlue, entry.getAccent());
+                Assert::AreEqual (size_t (1), CountLayers (*each.icon, true));
+                Assert::AreEqual (size_t (0), CountLayers (*each.icon, false));
             }
         }
 
 
 
-        TEST_METHOD (DisabledIconsTakeTheDimmedInk)
+        TEST_METHOD (ReverseContinueIsAGreenTriangle)
         {
-            for (int id : { DebuggerCommands::kRunOrPause, DebuggerCommands::kStepInto, DebuggerCommands::kStepOver,
-                            DebuggerCommands::kStepOut, DebuggerCommands::kRunToCursor })
-            {
-                std::vector<RecordedPaintCall>  calls = Paint (id, false);
+            DxuiToolbar::Entry  entry = FindEntry (DebuggerCommands::kReverseContinue);
 
-                Assert::IsFalse  (calls.empty());
-                Assert::AreEqual (calls.size(), CountIn (calls, s_kInk));
-            }
+
+
+            Assert::IsTrue   (IsIcon (entry.vectorIcon, DebuggerIcons::s_kReverseRun));
+            Assert::AreEqual (s_kDarkGreen, entry.getAccent());
+        }
+
+
+
+        TEST_METHOD (TheColorsAreDeeperOnALightGround)
+        {
+            Assert::AreEqual (s_kLightGreen, FindEntry (DebuggerCommands::kRunOrPause, false, false).getAccent());
+            Assert::AreEqual (s_kLightBlue,  FindEntry (DebuggerCommands::kStepInto,   false, false).getAccent());
+        }
+
+
+
+        //  Run to cursor's arrow is in the steps' color and its bar in the ink.
+        TEST_METHOD (RunToCursorIsABlueArrowAndABarInTheInk)
+        {
+            DxuiToolbar::Entry  entry = FindEntry (DebuggerCommands::kRunToCursor);
+
+
+
+            Assert::IsTrue   (IsIcon (entry.vectorIcon, DebuggerIcons::s_kRunToCursor));
+            Assert::AreEqual (s_kDarkBlue, entry.getAccent());
+            Assert::AreEqual (size_t (1), CountLayers (DebuggerIcons::s_kRunToCursor, true));
+            Assert::AreEqual (size_t (1), CountLayers (DebuggerIcons::s_kRunToCursor, false));
         }
 
 
 
         TEST_METHOD (ShowNextIsAnArrowInTheInk)
         {
-            std::vector<RecordedPaintCall>  calls = Paint (DebuggerCommands::kShowNext, true);
+            DxuiToolbar::Entry  entry = FindEntry (DebuggerCommands::kShowNext);
 
 
 
-            Assert::AreEqual (size_t (3), calls.size());
-            Assert::AreEqual (size_t (3), CountIn (calls, s_kInk));
+            Assert::IsTrue   (IsIcon (entry.vectorIcon, DebuggerIcons::s_kShowNext));
+            Assert::AreEqual (size_t (0), CountLayers (DebuggerIcons::s_kShowNext, true));
         }
 
 
 
-        //  Load file into memory is a two-by-two grid of digits: a 1 at the
-        //  top left and the bottom right in the steps' color, and a 0 at the
-        //  other two corners in the ink.
+        //  Load file into memory is a two-by-two grid of digits: the 1s in
+        //  the steps' color, and the 0s, each an outline around a hole, in the
+        //  ink.
         TEST_METHOD (LoadFileIsAGridOfOnesAndZeros)
         {
-            std::vector<RecordedPaintCall>  calls = Paint (DebuggerCommands::kLoadFile, true);
-            std::vector<RecordedPaintCall>  ones;
-            std::vector<RecordedPaintCall>  zeros;
+            DxuiToolbar::Entry      entry = FindEntry (DebuggerCommands::kLoadFile);
+            const DxuiVectorIcon  & icon  = DebuggerIcons::s_kLoadFile;
 
 
 
-            for (const RecordedPaintCall & call : calls)
-            {
-                if (call.kind == RecordedPaintKind::DrawLine)
-                {
-                    ones.push_back (call);
-                }
-                else if (call.kind == RecordedPaintKind::OutlineRoundedRect)
-                {
-                    zeros.push_back (call);
-                }
-            }
+            Assert::IsTrue   (IsIcon (entry.vectorIcon, icon));
+            Assert::AreEqual (size_t (2), icon.layerCount);
+            Assert::IsTrue   (icon.layers[0].accent,  L"the 1s in the steps' color");
+            Assert::IsFalse  (icon.layers[1].accent,  L"the 0s in the ink");
+            Assert::AreEqual (uint32_t (0x03u), icon.layers[0].subpaths, L"two 1s, each a bar");
+            Assert::AreEqual (uint32_t (0x3Cu), icon.layers[1].subpaths, L"two 0s, each an outline and its hole");
+        }
 
-            Assert::AreEqual (size_t (4), calls.size(), L"four digits");
-            Assert::AreEqual (size_t (2), ones.size(),  L"two 1s, each a stroke");
-            Assert::AreEqual (size_t (2), zeros.size(), L"two 0s, each an outline");
 
-            for (const RecordedPaintCall & one : ones)
-            {
-                Assert::AreEqual (s_kDarkBlue, one.argb, L"a 1 in the steps' color");
-            }
 
-            for (const RecordedPaintCall & zero : zeros)
-            {
-                Assert::AreEqual (s_kInk, zero.argb, L"a 0 in the ink");
-            }
+        //  Trace is a toggle drawn as a glyph.
+        TEST_METHOD (TraceIsAGlyph)
+        {
+            DxuiToolbar::Entry  entry = FindEntry (DebuggerCommands::kTrace);
 
-            Assert::IsTrue (ones[0].x < zeros[0].x && ones[0].y < zeros[1].y, L"the first 1 at the top left");
-            Assert::IsTrue (ones[1].x > zeros[1].x && ones[1].y > zeros[0].y, L"the second 1 at the bottom right");
-            Assert::IsTrue (zeros[0].x > zeros[1].x && zeros[0].y < zeros[1].y, L"a 0 at the top right and one at the bottom left");
+
+
+            Assert::IsTrue (entry.vectorIcon == nullptr);
+            Assert::IsFalse (static_cast<bool> (entry.getVectorIcon));
         }
     };
 }

@@ -71,11 +71,6 @@ private:
 
     static const std::vector<Row> &  GetRows ();
 
-    static void  PaintBalls      (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, std::optional<uint32_t> crossArgb);
-    static void  PaintGoTo       (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, bool bracket);
-    static void  PaintFileArrow  (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, bool out);
-    static void  PaintArrowHead  (IDxuiPainter & painter, float tipX, float tipY, float length, bool pointsRight, float thickness, uint32_t ink);
-
     Handlers                                   m_handlers;
     std::vector<std::shared_ptr<DxuiCommand>>  m_commands;
 };

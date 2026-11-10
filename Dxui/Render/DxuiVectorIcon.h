@@ -31,6 +31,7 @@ struct DxuiVectorIconLayer
     bool      accent     = false;   // accent ink, else the foreground's
     float     bandTop    = 0.0f;    // in icon units; top == bottom means the whole icon
     float     bandBottom = 0.0f;
+    float     opacity    = 1.0f;    // multiplies the ink's alpha, for a part drawn fainter
 };
 
 

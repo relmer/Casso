@@ -168,7 +168,7 @@ namespace BreakpointVsLayoutTests
             for (const DxuiToolbar::Entry & entry : entries)
             {
                 bool  isMenu  = entry.command->id == BreakpointBarCommands::kNew;
-                bool  hasIcon = static_cast<bool> (entry.icon) || entry.command->glyph != nullptr;
+                bool  hasIcon = entry.vectorIcon != nullptr || entry.command->glyph != nullptr;
 
                 Assert::AreEqual (isMenu,  entry.kind == DxuiToolbar::Kind::DropDown, entry.command->label.c_str());
                 Assert::AreEqual (!isMenu, entry.iconOnly,                            entry.command->label.c_str());

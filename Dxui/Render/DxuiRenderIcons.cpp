@@ -155,7 +155,7 @@ HRESULT DxuiRenderIcons::FillVectorIcon (const DxuiVectorIcon & icon, float xDip
             continue;
         }
 
-        color.a *= m_renderer.m_globalAlpha;
+        color.a *= m_renderer.m_globalAlpha * layer.opacity;
         hr = m_renderer.m_d2dContext->CreateSolidColorBrush (color, &brush);
 
         if (FAILED (hr))

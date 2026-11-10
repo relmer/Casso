@@ -153,12 +153,6 @@ public:
     };
 
     using ChoiceFn     = std::function<void (int index)>;
-
-    //  An entry whose icon is a shape rather than a glyph: the strip calls
-    //  this where it would have drawn the glyph, with the box and the ink it
-    //  would have used, so a drawn icon and a font icon go through one path
-    //  and cannot disagree about hover, disabling or theme.
-    using IconFn       = std::function<void (IDxuiPainter & painter, const DxuiToolbarIconBox & icon)>;
     using DecorationFn = std::function<void (IDxuiPainter              & painter,
                                              const IDxuiTheme          & theme,
                                              const DxuiToolbarIconBox  & icon,
@@ -169,7 +163,6 @@ public:
         std::shared_ptr<const DxuiCommand>   command;
         Kind                                 kind       = Kind::Command;
         int                                  group      = 0;
-        IconFn                               icon;
         DecorationFn                         decoration;
         IDxuiToolbarCustomEntry            * custom     = nullptr;
 
@@ -177,6 +170,16 @@ public:
         //  entry's ink with its accent part in the theme's accent, as File
         //  Explorer draws its command bar. Constant data; not owned.
         const DxuiVectorIcon               * vectorIcon = nullptr;
+
+        //  Called at paint time for the vector icon when set, in place of
+        //  `vectorIcon`, for an entry whose icon follows its state, such as
+        //  a button that is Run while stopped and Pause while running.
+        std::function<const DxuiVectorIcon * ()>  getVectorIcon;
+
+        //  Called at paint time for the color of the vector icon's accent
+        //  part when set, in place of the theme's accent. A disabled entry
+        //  draws that part in its dimmed ink.
+        std::function<uint32_t ()>  getAccent;
 
         //  Never labeled, regardless of available width, like Explorer's Back,
         //  Forward, Up and Refresh buttons. The tooltip text is unchanged.
@@ -543,13 +546,13 @@ private:
 
     //  An entry without a glyph is its label alone: it spends no room on an
     //  icon, never collapses to one, and as a drop-down shows a chevron.
-    //  An icon of any kind: a glyph from the icon font, a drawn one, a vector
-    //  icon, face text, or one its decoration draws. Layout reserves the
-    //  icon's room from this, so a drawn icon that did not count would be
-    //  painted over its own label.
+    //  An icon of any kind: a glyph from the icon font, a vector icon, face
+    //  text, or one its decoration draws. Layout reserves the icon's room
+    //  from this, so an icon that did not count would be painted over its
+    //  label.
     static bool  HasGlyph (const Slot & slot)
     {
-        return static_cast<bool> (slot.entry.icon) || slot.entry.vectorIcon != nullptr || slot.entry.faceText != nullptr ||
+        return static_cast<bool> (slot.entry.getVectorIcon) || slot.entry.vectorIcon != nullptr || slot.entry.faceText != nullptr ||
                static_cast<bool> (slot.entry.decoration) ||
                (slot.entry.command != nullptr && slot.entry.command->glyph != nullptr && slot.entry.command->glyph[0] != 0);
     }
@@ -597,12 +600,9 @@ private:
     void          ForwardToFlyout      (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, bool & handled);
 
     void  PaintSlot      (Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    void  PaintEntryIcon (const Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink, uint32_t accent);
+    void  PaintEntryIcon (const Slot & slot, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink, uint32_t accent);
     void  PaintFaceText  (const Slot & slot, IDxuiTextRenderer & text, float left, float top, float width, float height, uint32_t ink);
-
-    //  A translucent ink as the opaque color it looks like over `behind`.
-    static uint32_t  Flatten     (uint32_t ink, uint32_t behind);
-    void             PaintFlyout (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  PaintFlyout    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
 
     std::vector<Slot>      m_slots;
