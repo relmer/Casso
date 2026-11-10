@@ -60,7 +60,9 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "CassoCli disk get <image> <name> [%Lindex <n>] [%Luser <n>] [%Lout <file>] [%Ltext | %Lbasic]",
         "  %Lindex <n>             Identifies a specific file from a set with duplicate names, as shown by the 'disk list' command\n"
         "  %Luser <n>              On CP/M, the user the file is in, 0 to 31\n"
-        "  %Lout <file>            Extract the file to <file>. By default, the file is written to stdout instead\n"
+        "  %Lout <file>            Extract the file to <file>. By default, the file is written to stdout instead."
+                                   " A <file> with a suffix Casso Explorer writes for a conversion, such as SOURCE.Merlin.txt,"
+                                   " is written as that conversion of the file\n"
         "  %Ltext                  Convert Apple high-ASCII encoding and line endings to standard ASCII with Windows line endings\n"
         "  %Lbasic                 Convert tokenized Applesoft BASIC to readable text\n",
         "Applesoft BASIC programs are stored in a tokenized form on disk. Retrieving these with 'get' returns the raw tokenized file,"

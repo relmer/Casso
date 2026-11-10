@@ -429,6 +429,15 @@ private:
     //  other host name, and the options are then left as they were.
     static bool     ApplyHostFileName (CommandLineOptions & inOutOptions, ParsedHostName & outParsed);
 
+    //  For a get whose output file has a conversion's suffix, such as
+    //  SOURCE.Merlin.txt: replace the payload's bytes with that conversion.
+    //  An error for a file in another format.
+    static HRESULT  ApplyHostFileConversion (const CommandLineOptions  & options,
+                                             VolumeKind                  kind,
+                                             const std::string         & name,
+                                             FilePayload               & inOutPayload,
+                                             DiskCommandResult         & result);
+
     //  Set the payload's type and aux type from that form's name.
     static HRESULT  ApplyHostFileType (const ParsedHostName & parsed, VolumeKind kind, FilePayload & inOutPayload);
 

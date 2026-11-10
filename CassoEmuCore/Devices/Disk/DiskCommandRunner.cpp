@@ -1183,6 +1183,87 @@ HRESULT DiskCommandRunner::ApplyEncoding (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::ApplyHostFileConversion
+//
+//  The conversion Casso Explorer writes for the file, when the output file's
+//  name ends in that conversion's suffix and the command line has no --text
+//  or --basic. Any other output name gets the file's bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ApplyHostFileConversion (
+    const CommandLineOptions  & options,
+    VolumeKind                  kind,
+    const std::string         & name,
+    FilePayload               & inOutPayload,
+    DiskCommandResult         & result)
+{
+    HRESULT        hr            = S_OK;
+    size_t         lastSeparator = options.disk.hostFile.find_last_of ("/\\");
+    std::wstring   leaf          = TextEncoding::NarrowToWide ((lastSeparator == std::string::npos) ? options.disk.hostFile
+                                                                                                    : options.disk.hostFile.substr (lastSeparator + 1));
+    size_t         lastSlash     = name.find_last_of ('/');
+    FileFormat     bySuffix      = FileFormat::None;
+    FileFormat     format        = FileFormat::None;
+    bool           matches       = false;
+    FileEntry      entry;
+    FileFacts      facts;
+    DecodedFile    decoded;
+    vector<Byte>   converted;
+    std::wstring   error;
+
+
+
+    BAIL_OUT_IF (options.disk.encoding != CommandLineOptions::DiskOptions::Encoding::Verbatim, S_OK);
+
+    bySuffix = FileFormatTable::GetBySuffix (leaf);
+    BAIL_OUT_IF (bySuffix == FileFormat::None, S_OK);
+
+    entry.name           = (lastSlash == std::string::npos) ? name : name.substr (lastSlash + 1);
+    entry.type           = inOutPayload.type;
+    entry.auxType        = inOutPayload.auxType;
+    entry.hasAuxType     = inOutPayload.hasAuxType;
+    entry.loadAddress    = inOutPayload.loadAddress;
+    entry.hasLoadAddress = inOutPayload.hasLoadAddress;
+
+    //  Several formats have one suffix, so the file's format is compared by
+    //  its suffix.
+    format  = FileFormatTable::Identify (entry, kind, inOutPayload.bytes);
+    matches = format != FileFormat::None && _wcsicmp (FileFormatTable::GetSuffix (format), FileFormatTable::GetSuffix (bySuffix)) == 0;
+
+    CBRFEx (matches, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA),
+            result.FailAction (options.disk.imagePath, "convert " + name,
+                               "it is not a file with a " + TextEncoding::WideToNarrow (FileFormatTable::GetSuffix (bySuffix)) + " conversion"));
+
+    facts              = FileFacts::From (entry, kind);
+    facts.resourceFork = inOutPayload.resourceFork;
+
+    hr = FileFormatTable::Decode (format, inOutPayload.bytes, facts, DecodeOptions(), decoded, error);
+
+    if (SUCCEEDED (hr))
+    {
+        hr = FileFormatTable::Export (decoded, converted);
+    }
+
+    CHRF (hr, result.FailAction (options.disk.imagePath, "convert " + name,
+                                 error.empty() ? std::string ("it could not be decoded") : TextEncoding::WideToNarrow (error)));
+
+    //  The conversion is a host file: it has no resource fork and no load
+    //  address.
+    inOutPayload.bytes           = converted;
+    inOutPayload.hasResourceFork = false;
+    inOutPayload.hasLoadAddress  = false;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::RunGet
 //
 //  Extraction goes to a named file when one is given and to the process's own
@@ -1224,6 +1305,9 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
                           ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
     hr = ApplyEncoding (options, payload, result);
+    CHR (hr);
+
+    hr = ApplyHostFileConversion (options, opened.kind, name, payload, result);
     CHR (hr);
 
     result.resourceFork    = payload.resourceFork;

@@ -3981,6 +3981,48 @@ public:
     }
 
 
+    //  A get to a file with a conversion's suffix writes that conversion,
+    //  and a file in another format is an error with no file written.
+    TEST_METHOD (Get_ToAConversionName_WritesTheConversion)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  put     = MakePutOptions (kBlankImage, "C:\\out\\DEMO.S.Merlin.txt", nullptr);
+        CommandLineOptions  get     = MakeOptions (CommandLineOptions::DiskOptions::Command::Get, kBlankImage);
+        DiskCommandResult   written;
+        DiskCommandResult   failed;
+        std::string         text    = "START LDA #$00 ;zero\n RTS\n";
+        std::string         back;
+
+
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "C:\\out\\DEMO.S.Merlin.txt", vector<Byte> (text.begin(), text.end()));
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (put).exitStatus);
+
+        get.disk.path     = "T.DEMO";
+        get.disk.hostFile = "C:\\back\\DEMO.S.Merlin.txt";
+        written           = runner.Run (get);
+
+        Assert::AreEqual (DiskCommandResult::kClean, written.exitStatus, TextEncoding::NarrowToWide (written.diagnostics).c_str());
+        Assert::AreEqual (size_t (1), io.files.count ("C:\\back\\DEMO.S.Merlin.txt"));
+
+        back.assign (io.files["C:\\back\\DEMO.S.Merlin.txt"].begin(), io.files["C:\\back\\DEMO.S.Merlin.txt"].end());
+
+        Assert::IsTrue (back.find ("LDA") != std::string::npos && back.find ("RTS") != std::string::npos, TextEncoding::NarrowToWide (back).c_str());
+        Assert::IsTrue (back.find ('\x8D') == std::string::npos, L"the conversion has no Apple text bytes");
+        Assert::IsTrue (written.diagnostics.find ("loads at") == std::string::npos, TextEncoding::NarrowToWide (written.diagnostics).c_str());
+
+        get.disk.hostFile = "C:\\back\\DEMO.LZ4FH.png";
+        failed            = runner.Run (get);
+
+        Assert::AreNotEqual (DiskCommandResult::kClean, failed.exitStatus);
+        Assert::IsTrue (failed.diagnostics.find ("Unable to convert T.DEMO") != std::string::npos, TextEncoding::NarrowToWide (failed.diagnostics).c_str());
+        Assert::AreEqual (size_t (0), io.files.count ("C:\\back\\DEMO.LZ4FH.png"));
+    }
+
+
     //  A conversion with no import is a host file like any other, so it
     //  goes in under its whole name.
     TEST_METHOD (Put_AConversionWithNoImport_IsUsedAsWritten)
