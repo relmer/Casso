@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 struct ExplorerContext;
-struct InitializeCardChoice;
 
 
 
@@ -37,10 +36,10 @@ public:
     //  confirmation that lists the card and each volume erased.
     void  InitializeCard        (const std::wstring & cardPath);
 
+    //  Initialize card for Apple, for the root of a drive letter on a storage
+    //  card. Nothing for any other folder.
+    void  AddInitializeRow      (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);
+
 private:
-    static constexpr uint64_t  kSliceBytes = 32ull * 1024 * 1024;
-
-    static void  BuildInitializeChoices (uint64_t bytes, int maxVolumes, std::vector<InitializeCardChoice> & outChoices);
-
     ExplorerContext  & m_context;
 };

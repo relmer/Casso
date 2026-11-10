@@ -54,6 +54,7 @@ public:
     static HRESULT  HasUnmountedPartition (int number, bool & outHasUnmounted);
     static HRESULT  ReadMountedExtents    (int number, std::vector<BlockExtent> & outExtents);
     static HRESULT  ListVolumes           (int number, std::vector<WindowsVolume> & outVolumes);
+    static HRESULT  FindVolumeDrive       (const std::wstring & root, int & outNumber);
 
 private:
     static constexpr int     kMaxDrives      = 64;

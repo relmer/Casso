@@ -941,3 +941,47 @@ Error:
 
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32RawDevice::FindVolumeDrive
+//
+//  The volume is opened by its letter with no access, which every user may
+//  do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32RawDevice::FindVolumeDrive (const std::wstring & root, int & outNumber)
+{
+    HRESULT          hr     = S_OK;
+    HANDLE           volume = INVALID_HANDLE_VALUE;
+    bool             valid  = root.size() >= 2 && root[1] == L':';
+    bool             single = false;
+    std::set<DWORD>  drives;
+
+
+
+    outNumber = -1;
+
+    CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    volume = CreateFileW (std::format (L"\\\\.\\{}:", root[0]).c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+    CWR (volume != INVALID_HANDLE_VALUE);
+
+    single = TryGetVolumeDrives (volume, drives) && drives.size() == 1;
+    CBREx (single, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+    outNumber = (int) *drives.begin();
+
+Error:
+    if (volume != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle (volume);
+    }
+
+    return hr;
+}

@@ -36,6 +36,10 @@ public:
     virtual HRESULT  HasUnmountedPartition (int number, bool & outHasUnmounted) = 0;
     virtual HRESULT  ListVolumes           (int number, std::vector<WindowsVolume> & outVolumes) = 0;
 
+    //  The drive a volume such as `I:\` is on, read without administrator
+    //  access. Fails for a volume on more than one drive.
+    virtual HRESULT  FindVolumeDrive       (const std::wstring & root, int & outNumber) = 0;
+
     //  The drive erased and given CFFA's layout, through the broker.
     virtual HRESULT  InitializeDrive       (int number, HWND owner, uint64_t layout) = 0;
 
@@ -120,6 +124,10 @@ public:
     HRESULT  ListRemovableDrives (std::vector<PhysicalDrive> & outDrives);
     HRESULT  ListStorageCards    (std::vector<StorageCard> & outCards);
     HRESULT  ListVolumes         (int number, std::vector<WindowsVolume> & outVolumes) { return m_host.ListVolumes (number, outVolumes); }
+
+    //  The storage card a drive letter's volume is on. False for a volume on
+    //  any other drive.
+    bool     TryGetVolumeCard    (const std::wstring & root, int & outNumber);
 
     //  The card closed, erased and given CFFA's layout: up to 13 empty ProDOS
     //  volumes of 32 MB. The only write that is not confirmed by the

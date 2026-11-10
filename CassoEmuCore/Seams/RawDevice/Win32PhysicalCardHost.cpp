@@ -270,3 +270,18 @@ HRESULT Win32PhysicalCardHost::StartBroker (HWND owner)
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PhysicalCardHost::FindVolumeDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32PhysicalCardHost::FindVolumeDrive (const std::wstring & root, int & outNumber)
+{
+    return Win32RawDevice::FindVolumeDrive (root, outNumber);
+}

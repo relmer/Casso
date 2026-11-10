@@ -3,6 +3,7 @@
 #include "Seams/ShellItemId.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
+#include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
@@ -447,6 +448,11 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         browsable = true;
 
         m_context.menus.AddOpenRows (items, location, true);
+
+        if (location.kind == Location::Kind::HostFolder)
+        {
+            m_context.opener.AddInitializeRow (items, location.path);
+        }
 
         //  A folder's rows run on into Copy as path, as in File Explorer; an
         //  image's Casso commands follow in a group of their own.

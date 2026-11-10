@@ -909,12 +909,20 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
     //  A storage card is erased and given an Apple layout. It doesn't have a
     //  disk image's commands.
+    //  A drive letter on a storage card can be initialized too, as a card
+    //  with only Windows volumes has no storage card node.
+    if (!isCard && hasLocation && location.kind == Location::Kind::HostFolder)
+    {
+        m_context.opener.AddInitializeRow (items, location.path);
+    }
+
     if (isCard)
     {
         std::wstring  card = location.path;
 
         items.push_back (DxuiPopupMenuItem::ForSeparator());
         m_context.menus.AddMenuCommand (items, L"&Initialize card for Apple...", [this, card]() { m_context.opener.InitializeCard (card); });
+        m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::AppleMachine);
     }
 
     //  A disk image's Casso commands, as its row in the list has them.

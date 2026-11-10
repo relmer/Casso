@@ -280,6 +280,44 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PhysicalCards::TryGetVolumeCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PhysicalCards::TryGetVolumeCard (const std::wstring & root, int & outNumber)
+{
+    HRESULT                     hr     = S_OK;
+    int                         number = -1;
+    bool                        isCard = false;
+    std::vector<PhysicalDrive>  drives;
+
+
+
+    outNumber = -1;
+
+    hr = m_host.FindVolumeDrive (root, number);
+    CHR (hr);
+
+    hr = ListRemovableDrives (drives);
+    CHR (hr);
+
+    for (const PhysicalDrive & drive : drives)
+    {
+        isCard = isCard || drive.number == number;
+    }
+
+    outNumber = isCard ? number : -1;
+
+Error:
+    return isCard;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PhysicalCards::Initialize
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -69,6 +69,13 @@ struct FakeCardHost : public IPhysicalCardHost
         return S_OK;
     }
 
+    HRESULT FindVolumeDrive (const std::wstring &, int & outNumber) override
+    {
+        outNumber = volumeDrive;
+        return outNumber >= 0 ? S_OK : HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
+    }
+
+    int                         volumeDrive  = -1;
     bool                        hasUnmounted = true;
     std::vector<WindowsVolume>  volumes;
     std::vector<int>            initialized;
