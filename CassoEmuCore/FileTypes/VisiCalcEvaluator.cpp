@@ -740,7 +740,6 @@ VisiCalcEvaluator::Value VisiCalcEvaluator::Call (const Node & node, const Grid 
         { "ACOS",  [] (double x) { return std::acos (x);  } },
         { "ATAN",  [] (double x) { return std::atan (x);  } },
     };
-
     const std::string &  name   = node.function;
     size_t               count  = node.children.size();
     std::vector<Value>   list;

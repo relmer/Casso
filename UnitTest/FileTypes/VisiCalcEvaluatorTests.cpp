@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "Core/TextEncoding.h"
 #include "FileTypes/VisiCalcEvaluator.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -64,7 +65,7 @@ public:
     static void AssertNumber (double correct, const std::string & formula)
     {
         Value         value   = Compute (formula);
-        std::wstring  message = std::wstring (formula.begin(), formula.end());
+        std::wstring  message = TextEncoding::NarrowToWide (formula);
 
 
 
@@ -75,7 +76,7 @@ public:
 
     static void AssertKind (Value::Kind correct, const std::string & formula)
     {
-        std::wstring  message = std::wstring (formula.begin(), formula.end());
+        std::wstring  message = TextEncoding::NarrowToWide (formula);
 
 
 
@@ -86,7 +87,7 @@ public:
     static void AssertTruth (bool correct, const std::string & formula)
     {
         Value         value   = Compute (formula);
-        std::wstring  message = std::wstring (formula.begin(), formula.end());
+        std::wstring  message = TextEncoding::NarrowToWide (formula);
 
 
 
