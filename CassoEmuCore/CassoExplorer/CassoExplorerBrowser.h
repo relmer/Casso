@@ -11,6 +11,7 @@
 
 class CassoLinkConnections;
 class FilesystemChoices;
+class PhysicalCards;
 class IDiskFileIo;
 
 
@@ -333,6 +334,13 @@ public:
     FilesystemChoices     * GetFilesystemChoices () const { return m_filesystemChoices; }
     CassoLinkConnections  * GetLinks             () const                       { return m_links; }
 
+    //  The cards open through removable drives. Without them, a path on a card
+    //  lists nothing.
+    void                    SetPhysicalCards     (PhysicalCards * cards)         { m_cards = cards; }
+    PhysicalCards         * GetPhysicalCards     () const                       { return m_cards; }
+
+    HRESULT                 ListPartitions       (const std::wstring & path, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries) { return m_loader.ListPartitions (path, outKind, outEntries); }
+
     //  What lists the Recycle Bin. None set, it shows empty.
     void  SetShellVerbs (IShellItemVerbs * verbs);
 
@@ -432,6 +440,7 @@ private:
     bool                                m_isPartitionList = false;
     bool                                m_listingKept    = false;   // an Apple drive's listing as last read, while it is read again
     CassoLinkConnections              * m_links          = nullptr;
+    PhysicalCards                     * m_cards          = nullptr;
     FilesystemChoices                 * m_filesystemChoices = nullptr;
     std::vector<int>                    m_selectedRows;
     Status                              m_status;

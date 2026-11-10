@@ -61,11 +61,11 @@ bool ActionsPartition::TryGetTarget (std::wstring & outPartitionPath) const
 //
 //  The image is written in the folder of the file on the PC, under the card
 //  image's name and the partition's number, as a name the folder doesn't
-//  have.
+//  have, unless `target` is the path to write.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome ActionsPartition::CopyToImage (const std::wstring & partitionPath, std::wstring & outPath)
+ActionsTypes::Outcome ActionsPartition::CopyToImage (const std::wstring & partitionPath, std::wstring & outPath, const std::wstring & target)
 {
     ActionsTypes::Outcome  outcome;
     IDiskFileIo          & io        = m_actions.m_browser.GetOperations().GetFileIo();
@@ -96,7 +96,7 @@ ActionsTypes::Outcome ActionsPartition::CopyToImage (const std::wstring & partit
     }
 
     leaf    = std::format (L"{} partition {}{}", std::filesystem::path (CassoExplorerActions::GetLeafName (parent)).stem().wstring(), index, step.extension().wstring());
-    outPath = m_actions.m_copier.MakeFreeFilePath (host.parent_path().wstring(), leaf);
+    outPath = target.empty() ? m_actions.m_copier.MakeFreeFilePath (host.parent_path().wstring(), leaf) : target;
     hr      = io.WriteAllBytes (TextEncoding::WideToNarrow (outPath), bytes);
 
     if (FAILED (hr))
@@ -238,10 +238,8 @@ ActionsTypes::Outcome ActionsPartition::Replace (const std::wstring & partitionP
 HRESULT ActionsPartition::FindEntry (const std::wstring & partitionPath, PartitionEntry & outEntry)
 {
     HRESULT                      hr     = S_OK;
-    std::vector<Byte>            bytes;
     std::vector<PartitionEntry>  entries;
     std::wstring                 parent;
-    std::string                  narrow;
     PartitionLayoutKind          kind   = PartitionLayoutKind::None;
     int                          index  = 0;
     bool                         split  = TrySplit (partitionPath, parent, index);
@@ -251,12 +249,7 @@ HRESULT ActionsPartition::FindEntry (const std::wstring & partitionPath, Partiti
 
     CBREx (split, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
-    narrow = TextEncoding::WideToNarrow (parent);
-
-    hr = m_actions.m_browser.GetOperations().GetFileIo().ReadAllBytes (narrow, bytes);
-    CHR (hr);
-
-    hr = PartitionAccess::List (bytes, narrow, kind, entries);
+    hr = m_actions.m_browser.ListPartitions (parent, kind, entries);
     CHR (hr);
 
     for (const PartitionEntry & entry : entries)

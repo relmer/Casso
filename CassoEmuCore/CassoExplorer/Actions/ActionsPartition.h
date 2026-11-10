@@ -32,7 +32,8 @@ public:
     //  volume directory is open. False for anything else.
     bool  TryGetTarget (std::wstring & outPartitionPath) const;
 
-    ActionsTypes::Outcome  CopyToImage (const std::wstring & partitionPath, std::wstring & outPath);
+    //  An empty 	arget writes the image beside the file on the PC.
+    ActionsTypes::Outcome  CopyToImage (const std::wstring & partitionPath, std::wstring & outPath, const std::wstring & target = {});
     ActionsTypes::Outcome  Replace     (const std::wstring & partitionPath, const std::wstring & imagePath);
 
     //  The question a replace is confirmed with, which lists the partition

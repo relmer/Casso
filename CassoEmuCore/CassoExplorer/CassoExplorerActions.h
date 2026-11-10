@@ -71,7 +71,7 @@ public:
     //  an image file beside the card image, and an image file written over it
     //  after the question DescribeReplace returns.
     bool     TryGetPartition          (std::wstring & outPartitionPath) const                                                          { return m_partitions.TryGetTarget (outPartitionPath); }
-    Outcome  CopyPartitionToImage     (const std::wstring & partitionPath, std::wstring & outPath)                                     { return m_partitions.CopyToImage (partitionPath, outPath); }
+    Outcome  CopyPartitionToImage     (const std::wstring & partitionPath, std::wstring & outPath, const std::wstring & target = {})   { return m_partitions.CopyToImage (partitionPath, outPath, target); }
     Outcome  ReplacePartition         (const std::wstring & partitionPath, const std::wstring & imagePath)                             { return m_partitions.Replace (partitionPath, imagePath); }
     Outcome  DescribePartitionReplace (const std::wstring & partitionPath, const std::wstring & imagePath, std::wstring & outQuestion) { return m_partitions.DescribeReplace (partitionPath, imagePath, outQuestion); }
 

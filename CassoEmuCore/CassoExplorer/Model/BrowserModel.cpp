@@ -4,6 +4,7 @@
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 
@@ -504,6 +505,7 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
     size_t                       slash     = 0;
     size_t                       start     = 0;
     int                          partition = 0;
+    int                          drive     = 0;
     std::string                  inner;
 
 
@@ -516,6 +518,13 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
 
         case Location::Kind::DiskImage:
         case Location::Kind::DiskDirectory:
+            //  A card is one segment, which its partitions follow.
+            if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (location.path), drive, partition) == PhysicalCards::PathKind::Card)
+            {
+                segments.push_back (AddressSegment { std::format (L"Physical drive {}", drive), Location::MakeDiskImage (location.path) });
+                break;
+            }
+
             //  A partition follows the image it is a partition of.
             slash = location.path.rfind (L'|');
 

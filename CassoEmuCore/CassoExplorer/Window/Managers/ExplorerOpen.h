@@ -26,6 +26,15 @@ public:
     void  OpenSelectedEntries ();
     void  OpenEachSelected    ();
 
+    //  A menu of the removable drives, and the card chosen opened as a card
+    //  image.
+    void  OpenPhysicalCard    ();
+    void  OpenCard            (int number);
+
+    //  The file a partition on a card is copied to, which the user picks. An
+    //  empty path for a partition of an image file. False when canceled.
+    bool  PickPartitionImage  (const std::wstring & partition, std::wstring & outTarget);
+
 private:
     ExplorerContext  & m_context;
 };

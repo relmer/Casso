@@ -41,6 +41,7 @@ class IInfoTips;
 class ILinkAnnouncements;
 class IShellIcons;
 class IShellItemVerbs;
+class PhysicalCards;
 class RunningCassoRegistry;
 struct CassoExplorerPrefs;
 struct FolderOptions;
@@ -71,6 +72,7 @@ public:
     RunningCassoRegistry       * running     = nullptr;   // without it, running Cassos are not listed as connections
     ILinkAnnouncements         * announced   = nullptr;   // without it, no Apple is listed from a universal boot disk's announcements
     FirewallMonitor            * firewall    = nullptr;   // without it, no connection is reported blocked by Windows Firewall
+    PhysicalCards              * cards       = nullptr;   // without it, no card can be opened
 };
 
 

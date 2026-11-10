@@ -4,8 +4,6 @@
 
 #include "Devices/Disk/Partitions/PartitionLayout.h"
 
-class MemoryBlockStore;
-
 
 
 
@@ -67,6 +65,14 @@ public:
                           PartitionLayoutKind          & outKind,
                           std::vector<PartitionEntry>  & outEntries);
 
+    //  The partitions of a store of blocks, such as a card in a reader.
+    static HRESULT  ListStore (IBlockStore & store, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries);
+
+    //  One partition's bytes, read from and written to a store of blocks.
+    //  WriteBytes takes the partition's whole length, and does not commit.
+    static HRESULT  ReadBytes  (IBlockStore & store, const Partition & partition, std::vector<Byte> & outBytes);
+    static HRESULT  WriteBytes (IBlockStore & store, const Partition & partition, const std::vector<Byte> & bytes);
+
     static std::string  GetStepName      (const Partition & partition);
     static bool         TryParseStepName (const std::string & step, int & outIndex);
     static uint64_t     GetByteCount     (const Partition & partition);
@@ -105,15 +111,12 @@ private:
 
     static HRESULT  OpenBlocks (const std::vector<Byte> & fileBytes, const std::string & name, std::vector<Byte> & outBlocks, bool & outIsRaw);
 
-    static HRESULT  FindPartition (MemoryBlockStore   & store,
+    static HRESULT  FindPartition (IBlockStore        & store,
                                    const std::string  & name,
                                    int                  index,
                                    Partition          & outPartition,
                                    std::string        & outError);
 
-    static HRESULT  ReadBytes  (MemoryBlockStore & store, const Partition & partition, std::vector<Byte> & outBytes);
-    static HRESULT  WriteBytes (MemoryBlockStore & store, const Partition & partition, const std::vector<Byte> & bytes);
-
-    static void         ReadVolumeLabel (MemoryBlockStore & store, PartitionEntry & ioEntry);
+    static void         ReadVolumeLabel (IBlockStore & store, PartitionEntry & ioEntry);
     static std::string  GetLeafName     (const std::string & path);
 };

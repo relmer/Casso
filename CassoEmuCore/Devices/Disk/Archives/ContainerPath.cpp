@@ -4,6 +4,7 @@
 #include "Devices/Disk/Archives/GzipFile.h"
 #include "Devices/Disk/FilePath.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Machines/Apple2/Common/IVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Config/IFileSystem.h"
@@ -83,6 +84,10 @@ std::string ContainerPath::ToString() const
 //  A gzip step goes in when a name ending `.gz` has a step after it; a
 //  gzip at the end is expanded by the image loader, as one on the PC is.
 //
+//  A partition of a card in a reader is the host step, card and partition
+//  together, as it is read and written in place and the card is never read
+//  whole.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 ContainerPath ContainerPath::Parse (const std::string & text)
@@ -91,6 +96,7 @@ ContainerPath ContainerPath::Parse (const std::string & text)
     size_t         start     = 0;
     size_t         bar       = 0;
     int            partition = 0;
+    bool           isOnCard  = false;
     std::string    prior;
 
 
@@ -102,9 +108,16 @@ ContainerPath ContainerPath::Parse (const std::string & text)
         bar  = text.find (kPathSeparator, start);
         name = text.substr (start, (bar == std::string::npos) ? std::string::npos : bar - start);
 
+        isOnCard = path.steps.size() == 1 && PhysicalCards::IsCardPath (path.steps[0].name) && PartitionAccess::TryParseStepName (name, partition);
+
         if (path.steps.empty())
         {
             path.steps.push_back ({ ContainerStep::Kind::HostFile, name });
+        }
+        else if (isOnCard)
+        {
+            path.steps[0].name += kPathSeparator;
+            path.steps[0].name += name;
         }
         else
         {

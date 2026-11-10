@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "AssetBootstrap.h"
 #include "BuildInfo.h"
@@ -73,6 +74,8 @@ CassoExplorerShell::CassoExplorerShell()
         folder->SetFolder (path);
         return folder;
     });
+
+    m_cards.SetConfirmWrite ([this] (const PhysicalDrive & drive) { return ConfirmCardWrite (drive); });
 }
 
 
@@ -875,6 +878,7 @@ void CassoExplorerShell::ConfigureBrowser (CassoExplorerBrowser & browser)
     browser.GetTreeModel().SetKnownFolders (m_knownFolders);
     browser.GetTreeModel().SetDrives (GetDriveRoots());
     browser.GetTreeModel().SetLocalizedNameLookup (&CassoExplorerShell::GetLocalizedFolderName);
+    browser.SetPhysicalCards (&m_cards);
     browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path)
     {
         DWORD  attributes = GetFileAttributesW (path.c_str());
@@ -926,6 +930,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
     context.running     = &m_running;
     context.announced   = &m_announcements;
     context.firewall    = &m_firewall;
+    context.cards       = &m_cards;
 
     slot->window = std::make_unique<CassoExplorerWindow> (*slot->browser, *slot->actions, m_prefs, std::move (context));
 
@@ -1657,3 +1662,34 @@ int CassoExplorerShell::RunMessageLoop()
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::ConfirmCardWrite
+//
+//  A write from a thread other than the UI thread is canceled, as the prompt
+//  is a window of the UI thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerShell::ConfirmCardWrite (const PhysicalDrive & drive)
+{
+    CassoExplorerWindow  * window   = GetWindowFor (GetForegroundWindow());
+    std::wstring           question = std::format (L"Write to {}? The card is changed in place.", PhysicalCards::FormatDrive (drive));
+    int                    choice   = IDCANCEL;
+
+
+
+    if (GetCurrentThreadId() != m_uiThread)
+    {
+        return false;
+    }
+
+    choice = DxuiMessageBox (window != nullptr ? window->GetHwnd() : nullptr,
+                             window != nullptr ? window->GetDialogTheme() : nullptr,
+                             question.c_str(),
+                             L"Write to card",
+                             MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2,
+                             { L"Write", L"Cancel" });
+
+    return choice == IDOK;
+}

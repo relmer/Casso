@@ -5,6 +5,7 @@
 #include "CassoExplorer/CassoExplorerShellListings.h"
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "CassoExplorer/Model/TreeModel.h"
+#include "Devices/Disk/Partitions/PartitionAccess.h"
 
 class CassoExplorerBrowser;
 
@@ -28,6 +29,9 @@ public:
     explicit BrowserLoader (CassoExplorerBrowser & browser);
 
     bool  LeaveMissingLocation ();
+
+    //  The partitions of an image, or of a card that is open.
+    HRESULT  ListPartitions (const std::wstring & path, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries);
 
     bool  PrepareCassoLinkItems ();
 

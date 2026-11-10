@@ -6,6 +6,7 @@
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
@@ -927,7 +928,8 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
 {
     DiskOperations::Result  result;
     HRESULT                 hrReadOnly = S_OK;
-    bool                    cached     = directory.empty() && m_browser.m_model.TryGetCachedCatalog (path, m_browser.m_listing, m_browser.m_kind);
+    bool                    onCard     = PhysicalCards::IsOnCard (path);
+    bool                    cached     = !onCard && directory.empty() && m_browser.m_model.TryGetCachedCatalog (path, m_browser.m_listing, m_browser.m_kind);
 
 
 
@@ -947,8 +949,9 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
         }
 
         //  The cache holds an image's catalog, which is its volume directory,
-        //  so a subdirectory's listing is read fresh each time.
-        if (directory.empty())
+        //  so a subdirectory's listing is read fresh each time. A card is read
+        //  anew each time it is opened, so its catalog is not cached.
+        if (directory.empty() && !onCard)
         {
             m_browser.m_model.CacheCatalog (path, m_browser.m_listing, m_browser.m_kind);
         }
@@ -959,8 +962,13 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
 
     //  A read-only file refuses every write the runner would make, so the
     //  verbs that write are offered grayed rather than failing at the end.
-    hrReadOnly = m_browser.m_fs.GetReadOnlyAttribute (path.substr (0, path.find (L'|')), m_writeProtected);
-    IGNORE_RETURN_VALUE (hrReadOnly, S_OK);
+    m_writeProtected = false;
+
+    if (!onCard)
+    {
+        hrReadOnly = m_browser.m_fs.GetReadOnlyAttribute (path.substr (0, path.find (L'|')), m_writeProtected);
+        IGNORE_RETURN_VALUE (hrReadOnly, S_OK);
+    }
 
     return S_OK;
 }
@@ -980,21 +988,14 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
 
 bool BrowserLoader::LoadPartitions (const std::wstring & path)
 {
-    std::vector<Byte>            bytes;
     std::vector<PartitionEntry>  entries;
-    std::string                  narrow     = TextEncoding::WideToNarrow (path);
     PartitionLayoutKind          kind       = PartitionLayoutKind::None;
     HRESULT                      hr         = S_OK;
     HRESULT                      hrReadOnly = S_OK;
 
 
 
-    hr = m_browser.m_operations.GetFileIo().ReadAllBytes (narrow, bytes);
-
-    if (SUCCEEDED (hr))
-    {
-        hr = PartitionAccess::List (bytes, narrow, kind, entries);
-    }
+    hr = ListPartitions (path, kind, entries);
 
     if (FAILED (hr) || entries.empty())
     {
@@ -1016,11 +1017,58 @@ bool BrowserLoader::LoadPartitions (const std::wstring & path)
     }
 
     m_browser.m_isPartitionList = true;
+    m_writeProtected            = false;
 
-    hrReadOnly = m_browser.m_fs.GetReadOnlyAttribute (path.substr (0, path.find (L'|')), m_writeProtected);
-    IGNORE_RETURN_VALUE (hrReadOnly, S_OK);
+    if (!PhysicalCards::IsOnCard (path))
+    {
+        hrReadOnly = m_browser.m_fs.GetReadOnlyAttribute (path.substr (0, path.find (L'|')), m_writeProtected);
+        IGNORE_RETURN_VALUE (hrReadOnly, S_OK);
+    }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserLoader::ListPartitions
+//
+//  A card's partitions are read through the open session, and fail with
+//  ERROR_NOT_READY when the card is not open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BrowserLoader::ListPartitions (const std::wstring & path, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries)
+{
+    HRESULT            hr        = S_OK;
+    std::vector<Byte>  bytes;
+    std::string        narrow    = TextEncoding::WideToNarrow (path);
+    int                drive     = 0;
+    int                partition = 0;
+
+
+
+    if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (path), drive, partition) == PhysicalCards::PathKind::Card)
+    {
+        CBREx (m_browser.m_cards != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+
+        hr = m_browser.m_cards->ListPartitions (drive, outKind, outEntries);
+        CHR (hr);
+    }
+    else
+    {
+        hr = m_browser.m_operations.GetFileIo().ReadAllBytes (narrow, bytes);
+        CHR (hr);
+
+        hr = PartitionAccess::List (bytes, narrow, outKind, outEntries);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -1092,6 +1140,9 @@ bool BrowserLoader::LeaveMissingLocation()
     Location      location = m_browser.GetLocation();
     std::wstring  path     = location.path.substr (0, location.path.find (L'|'));
     size_t        slash    = 0;
+    int           drive    = 0;
+    int           part     = 0;
+    bool          isOpen   = false;
 
 
 
@@ -1099,6 +1150,20 @@ bool BrowserLoader::LeaveMissingLocation()
         location.kind != Location::Kind::DiskDirectory)
     {
         return false;
+    }
+
+    //  A card that is not open, such as one restored at launch, is left for
+    //  This PC rather than raising the administrator prompt.
+    if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (path), drive, part) != PhysicalCards::PathKind::None)
+    {
+        isOpen = m_browser.m_cards != nullptr && m_browser.m_cards->IsOpen (drive);
+
+        if (!isOpen)
+        {
+            m_browser.NavigateToLocation (Location::MakeRoot (TreeModel::kThisPcRootId));
+        }
+
+        return !isOpen;
     }
 
     if (path.empty() || m_browser.m_fs.Exists (path) || m_browser.GetTreeModel().IsDirectory (path))

@@ -199,15 +199,16 @@ void ExplorerCommandManager::CopyPartitionToImage()
     std::wstring                   partition;
     std::wstring                   created;
     CassoExplorerActions::Outcome  outcome;
+    std::wstring                   target;
 
 
 
-    if (!m_context.actions.TryGetPartition (partition))
+    if (!m_context.actions.TryGetPartition (partition) || !m_context.opener.PickPartitionImage (partition, target))
     {
         return;
     }
 
-    outcome = m_context.actions.CopyPartitionToImage (partition, created);
+    outcome = m_context.actions.CopyPartitionToImage (partition, created, target);
 
     ReportOutcome (outcome, L"Copy partition to image");
 
@@ -459,6 +460,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kExtractAll:        return !m_context.browser.GetExtractTarget().empty();
         case CassoExplorerCommands::kInspectDiskImage:  return m_context.actions.CanInspect();
         case CassoExplorerCommands::kCompareDiskImages: return m_context.actions.CanCompare();
+        case CassoExplorerCommands::kOpenPhysicalCard:  return m_context.app.cards != nullptr;
         case CassoExplorerCommands::kReadDiskToImage:
         case CassoExplorerCommands::kWriteImageToDisk:  return m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive);
         case CassoExplorerCommands::kCancelLinkOperation: return (m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive)) && m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
@@ -669,6 +671,7 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kExtractAll:   ExtractAll();                                  break;
         case CassoExplorerCommands::kInspectDiskImage:  RunVerb (CassoExplorerActions::Verb::InspectDiskImage);  break;
         case CassoExplorerCommands::kCompareDiskImages: RunVerb (CassoExplorerActions::Verb::CompareDiskImages); break;
+        case CassoExplorerCommands::kOpenPhysicalCard:  m_context.opener.OpenPhysicalCard();                     break;
         case CassoExplorerCommands::kReadDiskToImage:     m_context.cassoLinkManager.ReadDiskToImage();                   break;
         case CassoExplorerCommands::kWriteImageToDisk:    m_context.cassoLinkManager.WriteImageToDisk();                  break;
         case CassoExplorerCommands::kCancelLinkOperation: m_context.actions.CancelLinkOperation();     break;

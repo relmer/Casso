@@ -16,6 +16,9 @@
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Devices/Disk/Archives/ContainerDiskFileIo.h"
+#include "Devices/Disk/Partitions/PhysicalCardFileIo.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Seams/RawDevice/Win32PhysicalCardHost.h"
 #include "Seams/Win32LinkAnnouncements.h"
 #include "Seams/Win32NetworkChanges.h"
 #include "Seams/Win32HostFirewall.h"
@@ -171,6 +174,8 @@ public:
     //  The name a folder's desktop.ini gives it, such as "Camera Roll", or
     //  empty for none.
     static std::wstring  GetLocalizedFolderName (const std::wstring & path);
+
+    bool                 ConfirmCardWrite       (const PhysicalDrive & drive);
     static std::wstring  GetPlainFolderName     (const std::wstring & path);
 
     //  EHM hooks for a process with no dialog host of its own.
@@ -221,7 +226,11 @@ private:
 
     Win32FileSystem                           m_fs;
     Win32DiskFileIo                           m_fileIo;
-    ContainerDiskFileIo                       m_containerIo    { m_fileIo };
+    Win32PhysicalCardHost                     m_cardHost;
+    PhysicalCards                             m_cards          { m_cardHost };
+    PhysicalCardFileIo                        m_cardIo         { m_fileIo, m_cards };
+    ContainerDiskFileIo                       m_containerIo    { m_cardIo };
+    DWORD                                     m_uiThread       = GetCurrentThreadId();
     Win32ByteStreamFactory                    m_streams;
     CassoLinkFolder                           m_linkFolder;
     CassoLinkConnections                      m_links;

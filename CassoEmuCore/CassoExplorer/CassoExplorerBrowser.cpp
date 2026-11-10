@@ -3,6 +3,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 #pragma comment(lib, "shlwapi.lib")
 
@@ -1475,6 +1476,12 @@ bool CassoExplorerBrowser::TryGetUpTarget (Location & outTarget) const
     if (location.kind == Location::Kind::DiskDirectory)
     {
         outTarget = Location::MakeDiskImage (location.path);
+    }
+    else if (PhysicalCards::IsOnCard (location.path))
+    {
+        //  A partition goes up to its card, and a card to This PC.
+        outTarget = PhysicalCards::IsCardPath (location.path) ? Location::MakeRoot (TreeModel::kThisPcRootId)
+                                                              : Location::MakeDiskImage (location.path.substr (0, location.path.find (L'|')));
     }
     else if (location.kind == Location::Kind::AppleDrive)
     {

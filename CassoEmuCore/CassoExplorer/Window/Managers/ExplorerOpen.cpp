@@ -8,6 +8,10 @@
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "Seams/IShellItemVerbs.h"
+#include "CassoExplorer/Window/Managers/ExplorerMenus.h"
+#include "Core/TextEncoding.h"
+#include "Seams/IHostDialogs.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
 
@@ -109,4 +113,135 @@ void ExplorerOpen::OpenEachSelected()
     {
         m_context.listPane.FillList();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::OpenPhysicalCard
+//
+//  Listing the drives doesn't open them, so the administrator prompt is
+//  raised only for the drive chosen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerOpen::OpenPhysicalCard()
+{
+    std::vector<PhysicalDrive>        drives;
+    std::vector<DxuiPopupMenuItem>    items;
+    POINT                             screen = {};
+    HRESULT                           hr     = S_OK;
+    BOOL                              got    = FALSE;
+
+
+
+    if (m_context.app.cards == nullptr)
+    {
+        return;
+    }
+
+    hr = m_context.app.cards->ListRemovableDrives (drives);
+
+    if (FAILED (hr) || drives.empty())
+    {
+        m_context.window.ShowMessage (L"No card is in a removable drive of this PC.", MB_ICONINFORMATION);
+        return;
+    }
+
+    for (const PhysicalDrive & drive : drives)
+    {
+        int           number = drive.number;
+        std::wstring  label  = PhysicalCards::FormatDrive (drive);
+
+        m_context.menus.AddMenuCommand (items, label.c_str(), [this, number]() { OpenCard (number); });
+    }
+
+    got = GetCursorPos (&screen);
+    IGNORE_RETURN_VALUE (got, TRUE);
+
+    DxuiContextMenu::Show (*m_context.window.GetPopupHost(), screen.x, screen.y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::OpenCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerOpen::OpenCard (int number)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = m_context.app.cards->Open (number, m_context.window.GetHwnd());
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+    {
+        return;
+    }
+
+    if (FAILED (hr))
+    {
+        m_context.window.ShowMessage (std::format (L"Physical drive {} couldn't be opened.", number), MB_ICONWARNING);
+        return;
+    }
+
+    m_context.browser.NavigateToLocation (Location::MakeDiskImage (TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (number))));
+    m_context.listPane.FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::PickPartitionImage
+//
+//  A card has no folder on the PC to write beside, so the image goes where
+//  the user picks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerOpen::PickPartitionImage (const std::wstring & partition, std::wstring & outTarget)
+{
+    FileDialogSpec         spec;
+    std::filesystem::path  target;
+    bool                   picked = false;
+    int                    drive  = 0;
+    int                    index  = 0;
+    HRESULT                hr     = S_OK;
+
+
+
+    outTarget.clear();
+
+    if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (partition), drive, index) != PhysicalCards::PathKind::Partition)
+    {
+        return true;
+    }
+
+    spec.defaultExtension = L"po";
+    spec.defaultFileName  = std::format (L"Physical drive {} partition {}.po", drive, index);
+    spec.askToReplace     = true;
+    spec.title            = L"Copy partition to image";
+
+    hr = m_context.dialogs.PickFileToSave (m_context.window.GetHwnd(), spec, target, picked);
+
+    if (FAILED (hr) || !picked)
+    {
+        return false;
+    }
+
+    outTarget = target.wstring();
+
+    return true;
 }

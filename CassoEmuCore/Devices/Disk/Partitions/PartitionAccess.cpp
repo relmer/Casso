@@ -34,7 +34,6 @@ HRESULT PartitionAccess::List (const std::vector<Byte>      & fileBytes,
     std::string                innerName = name;
     std::vector<Byte>          expanded;
     std::vector<Byte>          blocks;
-    std::vector<Partition>     partitions;
     std::string                gzipName;
     std::string                error;
 
@@ -62,21 +61,48 @@ HRESULT PartitionAccess::List (const std::vector<Byte>      & fileBytes,
     {
         MemoryBlockStore  store (std::move (blocks));
 
-        hr = PartitionLayout::Detect (store, outKind, partitions);
+        hr = ListStore (store, outKind, outEntries);
         CHR (hr);
+    }
 
-        for (const Partition & partition : partitions)
-        {
-            PartitionEntry  entry;
+Error:
+    return hr;
+}
 
-            entry.partition = partition;
-            entry.step      = GetStepName (partition);
-            entry.byteCount = GetByteCount (partition);
 
-            ReadVolumeLabel (store, entry);
 
-            outEntries.push_back (std::move (entry));
-        }
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PartitionAccess::ListStore
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PartitionAccess::ListStore (IBlockStore & store, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries)
+{
+    HRESULT                 hr = S_OK;
+    std::vector<Partition>  partitions;
+
+
+
+    outKind = PartitionLayoutKind::None;
+    outEntries.clear();
+
+    hr = PartitionLayout::Detect (store, outKind, partitions);
+    CHR (hr);
+
+    for (const Partition & partition : partitions)
+    {
+        PartitionEntry  entry;
+
+        entry.partition = partition;
+        entry.step      = GetStepName (partition);
+        entry.byteCount = GetByteCount (partition);
+
+        ReadVolumeLabel (store, entry);
+
+        outEntries.push_back (std::move (entry));
     }
 
 Error:
@@ -410,7 +436,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT PartitionAccess::FindPartition (MemoryBlockStore   & store,
+HRESULT PartitionAccess::FindPartition (IBlockStore        & store,
                                         const std::string  & name,
                                         int                  index,
                                         Partition          & outPartition,
@@ -455,7 +481,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT PartitionAccess::ReadBytes (MemoryBlockStore & store, const Partition & partition, std::vector<Byte> & outBytes)
+HRESULT PartitionAccess::ReadBytes (IBlockStore & store, const Partition & partition, std::vector<Byte> & outBytes)
 {
     HRESULT  hr = S_OK;
 
@@ -486,7 +512,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT PartitionAccess::WriteBytes (MemoryBlockStore & store, const Partition & partition, const std::vector<Byte> & bytes)
+HRESULT PartitionAccess::WriteBytes (IBlockStore & store, const Partition & partition, const std::vector<Byte> & bytes)
 {
     HRESULT  hr = S_OK;
 
@@ -520,7 +546,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PartitionAccess::ReadVolumeLabel (MemoryBlockStore & store, PartitionEntry & ioEntry)
+void PartitionAccess::ReadVolumeLabel (IBlockStore & store, PartitionEntry & ioEntry)
 {
     HRESULT                   hr       = S_OK;
     bool                      readable = !ioEntry.partition.damaged && ioEntry.partition.volumeKind != VolumeKind::Unknown;

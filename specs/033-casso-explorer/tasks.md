@@ -1911,7 +1911,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [X] T616 [US31] Open DOS 3.3 hybrids with ProDOS or Pascal as two file systems on one buffer, a write failing when it would allocate a block the other's map has as used (FR-220)
 - [X] T617 [US31] List each partition as a node, and add Copy partition to image and Replace partition with its confirmation (FR-219)
 - [X] T618 [US31] Add `IRawDevice`, `RawDeviceServer` and `RawDeviceClient` in `CassoEmuCore/Seams/RawDevice/`: the `/rawdevice` mode in the core's entry, started elevated with `runas` and a pipe name, serving block reads and writes, exiting when the pipe closes; removable drives only, by `IOCTL_STORAGE_QUERY_PROPERTY` (FR-221). Tests on a fake `IRawDevice`
-- [ ] T619 [US31] Add Open physical card, listing removable drives with model and size, and confirming each write with them (FR-221)
+- [X] T619 [US31] Add Open physical card, listing removable drives with model and size, and confirming each write with them (FR-221)
 - [ ] T620 [US31] Scenario tests in `ScenarioTests/PartitionTests.cpp` on each layout's sample image, then a CFFA image written to a CF card in a USB reader and read back, with the results in `validation.md` (SC-060)
 
 ## Phase 49: HFS volumes (User Story 32)
