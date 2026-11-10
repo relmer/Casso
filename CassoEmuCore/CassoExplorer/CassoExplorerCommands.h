@@ -169,9 +169,6 @@ public:
         kInspectDiskImage,
         kCompareDiskImages,
 
-        //  A card in a removable drive of the PC, opened as a card image.
-        kOpenPhysicalCard,
-
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -322,7 +319,6 @@ private:
         { kSeparator,         Menu::File, nullptr,                nullptr,     false },
         { kInspectDiskImage,  Menu::File, L"&Inspect disk image", nullptr,     false },
         { kCompareDiskImages, Menu::File, L"Co&mpare disk images", nullptr,    false },
-        { kOpenPhysicalCard,  Menu::File, L"Open &physical card...", nullptr,  false },
         { kSeparator,         Menu::File, nullptr,                nullptr,     false },
         { kExit,              Menu::File, L"E&xit",               nullptr,     false },
         { kUndo,              Menu::Edit, L"&Undo",                L"Ctrl+Z",  false },

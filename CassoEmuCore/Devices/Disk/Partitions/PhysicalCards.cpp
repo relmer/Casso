@@ -151,22 +151,53 @@ bool PhysicalCards::IsOnCard (const std::wstring & path)
 
 std::wstring PhysicalCards::FormatDrive (const PhysicalDrive & drive)
 {
-    static constexpr uint64_t  kGigabyte = 1024ull * 1024 * 1024;
+    std::string  model = drive.model.empty() ? std::format ("Drive {}", drive.number) : drive.model;
 
 
 
-    uint64_t     tenths = (drive.bytes * 10 + kGigabyte / 2) / kGigabyte;
-    std::string  model  = drive.model.empty() ? std::format ("Drive {}", drive.number) : drive.model;
-    std::string  size   = PartitionAccess::FormatSize (drive.bytes);
+    return TextEncoding::Utf8ToWide (std::format ("{} ({})", model, FormatDriveSize (drive)));
+}
 
 
 
-    if (drive.bytes >= kGigabyte)
-    {
-        size = std::format ("{}.{} GB", tenths / 10, tenths % 10);
-    }
 
-    return TextEncoding::Utf8ToWide (std::format ("{} ({})", model, size));
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::FormatCardLabel
+//
+//  A drive with no model is "Storage card (29.7 GB)".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PhysicalCards::FormatCardLabel (const PhysicalDrive & drive)
+{
+    std::string  size = FormatDriveSize (drive);
+
+
+
+    return TextEncoding::Utf8ToWide (drive.model.empty() ? std::format ("Storage card ({})", size) : std::format ("Storage card ({}, {})", drive.model, size));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::FormatDriveSize
+//
+//  Gigabytes to one decimal place from a gigabyte up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string PhysicalCards::FormatDriveSize (const PhysicalDrive & drive)
+{
+    uint64_t  tenths = (drive.bytes * 10 + kGigabyte / 2) / kGigabyte;
+
+
+
+    return drive.bytes >= kGigabyte ? std::format ("{}.{} GB", tenths / 10, tenths % 10) : PartitionAccess::FormatSize (drive.bytes);
 }
 
 
@@ -197,6 +228,46 @@ HRESULT PhysicalCards::ListRemovableDrives (std::vector<PhysicalDrive> & outDriv
         {
             outDrives.push_back (std::move (drive));
         }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::ListStorageCards
+//
+//  A card whose partitions can't be read is listed with a node, so it can
+//  be opened.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::ListStorageCards (std::vector<StorageCard> & outCards)
+{
+    HRESULT                     hr = S_OK;
+    std::vector<PhysicalDrive>  drives;
+
+
+
+    outCards.clear();
+
+    hr = ListRemovableDrives (drives);
+    CHR (hr);
+
+    for (PhysicalDrive & drive : drives)
+    {
+        StorageCard  card;
+        HRESULT      hrLayout = m_host.HasUnmountedPartition (drive.number, card.hasUnmounted);
+
+        card.hasUnmounted = card.hasUnmounted || FAILED (hrLayout);
+        card.drive        = std::move (drive);
+
+        outCards.push_back (std::move (card));
     }
 
 Error:

@@ -134,6 +134,28 @@ public:
 
 
 
+    TEST_METHOD (ThisPc_ListsStorageCardsAfterItsDrives)
+    {
+        InMemoryFileSystem     fs;
+        TreeModel              model (fs);
+        std::vector<TreeNode>  nodes;
+
+        SeedHost (fs);
+        Configure (model);
+        model.SetStorageCards ({ StorageCardTreeEntry { L"\\\\.\\PhysicalDrive2", L"Storage card (SanDisk Ultra, 29.7 GB)" } });
+
+        AssertSucceeded (model.GetChildren (TreeModel::kThisPcRootId, nodes));
+
+        Assert::AreEqual ((size_t) 2, nodes.size());
+        Assert::IsTrue   (nodes[0].kind == TreeNode::Kind::Drive);
+        Assert::IsTrue   (nodes[1].kind == TreeNode::Kind::DiskImage);
+        Assert::AreEqual (std::wstring (L"Storage card (SanDisk Ultra, 29.7 GB)"), nodes[1].label);
+        Assert::IsFalse  (nodes[1].canExpand, L"a card opens when selected, not when the tree is read");
+        Assert::IsTrue   (nodes[1].location == Location::MakeDiskImage (L"\\\\.\\PhysicalDrive2"));
+    }
+
+
+
     TEST_METHOD (Folder_ListsSubfoldersThenImagesAndNotPlainFiles)
     {
         InMemoryFileSystem     fs;

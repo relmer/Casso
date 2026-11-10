@@ -139,6 +139,7 @@ void ExplorerLayout::ConfigureWidgets()
     //  The tabs of the request, from the session or a torn-off tab, or Home.
     m_context.browser.RestoreTabs (std::move (m_context.app.request.tabs), m_context.app.request.activeTab);
     m_context.browser.LeaveMissingLocation();
+    m_context.browser.SetCardOpenAllowed (true);
 
     m_context.folderSync.StartPolling();
 

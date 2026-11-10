@@ -31,6 +31,10 @@ public:
     //  Every drive, removable or not.
     virtual HRESULT  ListDrives (std::vector<PhysicalDrive> & outDrives) = 0;
 
+    //  Read without administrator access: true for a drive with no partition
+    //  table, or with a partition Windows hasn't mounted with a file system.
+    virtual HRESULT  HasUnmountedPartition (int number, bool & outHasUnmounted) = 0;
+
     //  Fails with ERROR_CANCELLED when the user declines administrator access.
     //  Destroying `outStore` closes the drive.
     virtual HRESULT  OpenDrive  (int number, HWND owner, PhysicalDrive & outDrive, std::unique_ptr<IBlockStore> & outStore) = 0;
@@ -78,6 +82,15 @@ public:
 
     using ConfirmWrite = std::function<bool (const PhysicalDrive &)>;
 
+    struct StorageCard
+    {
+        PhysicalDrive  drive;
+
+        //  A card with only volumes Windows mounts has no storage card node:
+        //  its volumes are drives under This PC.
+        bool           hasUnmounted = false;
+    };
+
     static constexpr uint64_t  kMaxPartitionBytes = 32ull * 1024 * 1024;
 
     explicit PhysicalCards (IPhysicalCardHost & host) : m_host (host) {}
@@ -91,6 +104,9 @@ public:
     //  "SanDisk Ultra (29.7 GB)".
     static std::wstring  FormatDrive  (const PhysicalDrive & drive);
 
+    //  "Storage card (SanDisk Ultra, 29.7 GB)".
+    static std::wstring  FormatCardLabel (const PhysicalDrive & drive);
+
     void     SetConfirmWrite     (ConfirmWrite confirm) { m_confirmWrite = std::move (confirm); }
 
     //  While set, writes are sent without the confirmation callback, so one
@@ -98,6 +114,7 @@ public:
     void     SetConfirmed        (bool confirmed)       { m_confirmed = confirmed; }
 
     HRESULT  ListRemovableDrives (std::vector<PhysicalDrive> & outDrives);
+    HRESULT  ListStorageCards    (std::vector<StorageCard> & outCards);
 
     //  Fails with E_ACCESSDENIED for a drive that is not removable.
     HRESULT  Open                (int number, HWND owner);
@@ -129,6 +146,9 @@ private:
 
     static constexpr std::string_view  kDrivePrefix = "\\\\.\\PhysicalDrive";
     static constexpr size_t            kMaxDigits   = 4;
+    static constexpr uint64_t          kGigabyte    = 1024ull * 1024 * 1024;
+
+    static std::string  FormatDriveSize (const PhysicalDrive & drive);
 
     HRESULT  FindSession   (int number, Session * & outSession);
     HRESULT  ListSession   (Session & session);

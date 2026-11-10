@@ -10,19 +10,21 @@
 //
 //  Win32RawDevice::ListDrives
 //
-//  Drive numbers are not always consecutive, so every number is probed.
+//  Drive numbers are not always consecutive, so every number is probed. The
+//  volumes are searched for protected ones only when a drive could be a
+//  storage card, as the list is read every few seconds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32RawDevice::ListDrives (std::vector<PhysicalDrive> & outDrives)
 {
+    std::set<DWORD>  noDrives;
     std::set<DWORD>  systemDrives;
+    bool             anyCard      = false;
 
 
 
     outDrives.clear();
-
-    FindProtectedDrives (systemDrives);
 
     for (int number = 0; number < kMaxDrives; number++)
     {
@@ -36,17 +38,101 @@ HRESULT Win32RawDevice::ListDrives (std::vector<PhysicalDrive> & outDrives)
             continue;
         }
 
-        hrQuery = QueryDrive (handle, number, systemDrives, drive, sectorBytes);
+        hrQuery = QueryDrive (handle, number, noDrives, drive, sectorBytes);
 
         if (SUCCEEDED (hrQuery) && drive.bytes > 0 && sectorBytes == kBlockBytes)
         {
+            anyCard = anyCard || drive.removable;
             outDrives.push_back (drive);
         }
 
         CloseHandle (handle);
     }
 
+    if (anyCard)
+    {
+        FindProtectedDrives (systemDrives);
+    }
+
+    for (PhysicalDrive & drive : outDrives)
+    {
+        drive.removable = drive.removable && !systemDrives.contains ((DWORD) drive.number);
+    }
+
     return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32RawDevice::HasUnmountedPartition
+//
+//  Read without administrator access. True for a drive with no partition
+//  table, and for one with a partition no volume with a file system covers.
+//  An extended MBR entry is passed over: each of its logical drives is a
+//  separate entry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32RawDevice::HasUnmountedPartition (int number, bool & outHasUnmounted)
+{
+    HRESULT                          hr       = S_OK;
+    HANDLE                           drive    = INVALID_HANDLE_VALUE;
+    std::vector<Byte>                buffer (sizeof (DRIVE_LAYOUT_INFORMATION_EX) + 127 * sizeof (PARTITION_INFORMATION_EX), 0);
+    DRIVE_LAYOUT_INFORMATION_EX    * layout   = (DRIVE_LAYOUT_INFORMATION_EX *) buffer.data();
+    DWORD                            returned = 0;
+    BOOL                             ok       = FALSE;
+    bool                             anyEntry = false;
+    std::vector<BlockExtent>         mounted;
+
+
+
+    outHasUnmounted = false;
+
+    drive = CreateFileW (MakeDrivePath (number).c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+    CWR (drive != INVALID_HANDLE_VALUE);
+
+    ok = DeviceIoControl (drive, IOCTL_DISK_GET_DRIVE_LAYOUT_EX, nullptr, 0, buffer.data(), (DWORD) buffer.size(), &returned, nullptr);
+    CWR (ok);
+
+    hr = ReadMountedExtents (number, mounted);
+    CHR (hr);
+
+    for (DWORD at = 0; at < layout->PartitionCount && at < 128; at++)
+    {
+        const PARTITION_INFORMATION_EX  & partition = layout->PartitionEntry[at];
+        uint64_t                          start     = (uint64_t) partition.StartingOffset.QuadPart / kBlockBytes;
+        uint64_t                          length    = (uint64_t) partition.PartitionLength.QuadPart / kBlockBytes;
+        bool                              extended  = partition.PartitionStyle == PARTITION_STYLE_MBR && IsContainerPartition (partition.Mbr.PartitionType);
+        bool                              covered   = false;
+
+        if (length == 0 || extended)
+        {
+            continue;
+        }
+
+        anyEntry = true;
+
+        for (const BlockExtent & extent : mounted)
+        {
+            covered = covered || extent.Overlaps (start, length);
+        }
+
+        outHasUnmounted = outHasUnmounted || !covered;
+    }
+
+    outHasUnmounted = outHasUnmounted || !anyEntry;
+
+Error:
+    if (drive != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle (drive);
+    }
+
+    return hr;
 }
 
 
@@ -513,17 +599,42 @@ bool Win32RawDevice::TryGetVolumeDrives (HANDLE volume, std::set<DWORD> & outDri
 
 HRESULT Win32RawDevice::GetMountedExtents (std::vector<BlockExtent> & outExtents)
 {
-    HRESULT   hr             = S_OK;
-    wchar_t   name[MAX_PATH] = {};
-    HANDLE    search         = INVALID_HANDLE_VALUE;
-    BOOL      more           = FALSE;
-    bool      open           = m_drive != INVALID_HANDLE_VALUE;
+    HRESULT  hr   = S_OK;
+    bool     open = m_drive != INVALID_HANDLE_VALUE;
 
 
 
     outExtents.clear();
 
     CBRAEx (open, E_UNEXPECTED);
+
+    hr = ReadMountedExtents (m_number, outExtents);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32RawDevice::ReadMountedExtents
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32RawDevice::ReadMountedExtents (int number, std::vector<BlockExtent> & outExtents)
+{
+    HRESULT   hr             = S_OK;
+    wchar_t   name[MAX_PATH] = {};
+    HANDLE    search         = INVALID_HANDLE_VALUE;
+    BOOL      more           = FALSE;
+
+
+
+    outExtents.clear();
 
     search = FindFirstVolumeW (name, ARRAYSIZE (name));
     CWR (search != INVALID_HANDLE_VALUE);
@@ -559,7 +670,7 @@ HRESULT Win32RawDevice::GetMountedExtents (std::vector<BlockExtent> & outExtents
             uint64_t             start  = (uint64_t) extent.StartingOffset.QuadPart;
             uint64_t             length = (uint64_t) extent.ExtentLength.QuadPart;
 
-            if (extent.DiskNumber == (DWORD) m_number && length > 0)
+            if (extent.DiskNumber == (DWORD) number && length > 0)
             {
                 outExtents.push_back (BlockExtent { start / kBlockBytes, (start + length + kBlockBytes - 1) / kBlockBytes - start / kBlockBytes });
             }

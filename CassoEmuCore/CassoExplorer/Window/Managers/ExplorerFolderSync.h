@@ -56,6 +56,8 @@ public:
     void  HandleSettleTimer   ();
 
 private:
+    bool  UpdateStorageCards ();
+
     ExplorerContext               & m_context;
     std::unique_ptr<FolderWatch>    m_folderWatch;
     ULONGLONG                       m_firstChangeMs    = 0;   // 0: no change waiting
@@ -64,4 +66,6 @@ private:
     int64_t                         m_quickAccessStamp = 0;   // its file's last write at the last look
     int64_t                         m_recentStamp      = 0;
     std::string                     m_knownFoldersText;   // KnownFolders.json as last read
+    std::wstring                    m_storageCardKey;     // the storage cards at the last look, as text
+    std::vector<int>                m_storageCardDrives;  // their drive numbers
 };

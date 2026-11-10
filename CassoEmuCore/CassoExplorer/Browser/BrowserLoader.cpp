@@ -933,6 +933,11 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
 
 
 
+    if (PhysicalCards::IsCardPath (path))
+    {
+        return LoadCard (path);
+    }
+
     if (!cached)
     {
         result = m_browser.m_operations.List (TextEncoding::WideToNarrow (path), directory, m_browser.m_listing, m_browser.m_kind);
@@ -971,6 +976,68 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
     }
 
     return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserLoader::LoadCard
+//
+//  The partitions of a storage card. The message for a failure contains the
+//  drive's model and size, as the card's path means nothing to the user.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BrowserLoader::LoadCard (const std::wstring & path)
+{
+    HRESULT                      hr        = S_OK;
+    PartitionLayoutKind          kind      = PartitionLayoutKind::None;
+    int                          drive     = 0;
+    int                          partition = 0;
+    HRESULT                      hrDrives  = E_NOTIMPL;
+    std::wstring                 name;
+    std::vector<PhysicalDrive>   drives;
+    std::vector<PartitionEntry>  entries;
+
+
+
+    PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (path), drive, partition);
+
+    name = std::format (L"physical drive {}", drive);
+
+    if (m_browser.m_cards != nullptr)
+    {
+        hrDrives = m_browser.m_cards->ListRemovableDrives (drives);
+    }
+
+    if (SUCCEEDED (hrDrives))
+    {
+        for (const PhysicalDrive & each : drives)
+        {
+            name = each.number == drive ? PhysicalCards::FormatDrive (each) : name;
+        }
+    }
+
+    hr = ListPartitions (path, kind, entries);
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+    {
+        m_listError = std::format (L"Opening {} requires administrator access.", name);
+    }
+    else if (FAILED (hr))
+    {
+        m_listError = std::format (L"Unable to open {}.", name);
+    }
+    else if (entries.empty() || !LoadPartitions (path))
+    {
+        hr          = HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
+        m_listError = std::format (L"No Apple partitions were found on {}.", name);
+    }
+
+    return hr;
 }
 
 
@@ -1036,8 +1103,10 @@ bool BrowserLoader::LoadPartitions (const std::wstring & path)
 //
 //  BrowserLoader::ListPartitions
 //
-//  A card's partitions are read through the open session, and fail with
-//  ERROR_NOT_READY when the card is not open.
+//  A card's partitions are read through its session. A card that is not open
+//  is opened, which raises the UAC prompt when the proxy isn't running, over
+//  the window in front when it is one of this program's. Before opening is
+//  allowed, the listing fails with ERROR_NOT_READY.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1054,6 +1123,19 @@ HRESULT BrowserLoader::ListPartitions (const std::wstring & path, PartitionLayou
     if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (path), drive, partition) == PhysicalCards::PathKind::Card)
     {
         CBREx (m_browser.m_cards != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+
+        if (!m_browser.m_cards->IsOpen (drive))
+        {
+            HWND   front   = GetForegroundWindow();
+            DWORD  process = 0;
+
+            CBREx (m_browser.m_cardOpenAllowed, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+
+            GetWindowThreadProcessId (front, &process);
+
+            hr = m_browser.m_cards->Open (drive, process == GetCurrentProcessId() ? front : nullptr);
+            CHR (hr);
+        }
 
         hr = m_browser.m_cards->ListPartitions (drive, outKind, outEntries);
         CHR (hr);

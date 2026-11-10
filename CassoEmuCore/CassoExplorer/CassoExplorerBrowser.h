@@ -337,6 +337,10 @@ public:
     //  The cards open through removable drives. Without them, a path on a card
     //  lists nothing.
     void                    SetPhysicalCards     (PhysicalCards * cards)         { m_cards = cards; }
+
+    //  Until set, a card that is not open is not opened, so the tabs restored
+    //  at launch raise no UAC prompt.
+    void                    SetCardOpenAllowed   (bool allowed)                 { m_cardOpenAllowed = allowed; }
     PhysicalCards         * GetPhysicalCards     () const                       { return m_cards; }
 
     HRESULT                 ListPartitions       (const std::wstring & path, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries) { return m_loader.ListPartitions (path, outKind, outEntries); }
@@ -441,6 +445,7 @@ private:
     bool                                m_listingKept    = false;   // an Apple drive's listing as last read, while it is read again
     CassoLinkConnections              * m_links          = nullptr;
     PhysicalCards                     * m_cards          = nullptr;
+    bool                                m_cardOpenAllowed = false;
     FilesystemChoices                 * m_filesystemChoices = nullptr;
     std::vector<int>                    m_selectedRows;
     Status                              m_status;

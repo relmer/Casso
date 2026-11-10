@@ -52,6 +52,26 @@ struct TreeNode
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StorageCardTreeEntry
+//
+//  A storage card with a partition Windows hasn't mounted, as the tree
+//  lists it under This PC.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct StorageCardTreeEntry
+{
+    //  The card's path, `\\.\PhysicalDrive2`.
+    std::wstring  path;
+    std::wstring  label;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LinkTreeEntry
 //
 //  An CassoLink as the tree lists it: a root with the link's name, and
@@ -123,6 +143,9 @@ public:
     void                         SetKnownFolders        (std::vector<std::wstring> folders);
     bool                         IsKnownFolder          (const std::wstring & path) const;
     void                         SetDrives              (std::vector<std::wstring> driveRoots);
+
+    //  The storage cards listed under This PC after its drives.
+    void                         SetStorageCards        (std::vector<StorageCardTreeEntry> cards);
     void                         SetDirectoryProbe      (DirectoryProbe probe) { m_directoryProbe = std::move (probe); }
     bool                         IsDirectory            (const std::wstring & path) const { return m_directoryProbe && m_directoryProbe (path); }
     void                         SetLocalizedNameLookup (LocalizedNameLookup lookup) { m_localizedName = std::move (lookup); }
@@ -267,6 +290,9 @@ public:
     //  dialog, and the list stays where it was.
     static constexpr const wchar_t *  kAddLinkId       = L"addlink:";
 
+    //  A storage card under This PC: card:<its path>.
+    static constexpr const wchar_t *  kStorageCardTag  = L"card:";
+
     //  The copy of CassoLink's root after Casso, and of the links and drives
     //  under it: top:<id>, at the same location as the first.
     static constexpr const wchar_t *  kLinkCopyTag   = L"top:";
@@ -340,6 +366,7 @@ private:
     std::map<std::wstring, int>                      m_unseen;
     std::vector<std::wstring>                        m_knownFolders;
     std::vector<std::wstring>                        m_drives;
+    std::vector<StorageCardTreeEntry>                m_storageCards;
     DirectoryProbe                                   m_directoryProbe;
     mutable std::map<std::wstring, bool>             m_archiveExtensions;
     LocalizedNameLookup                              m_localizedName;

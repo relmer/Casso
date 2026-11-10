@@ -192,3 +192,18 @@ HRESULT Win32PhysicalCardHost::OpenDrive (int number, HWND owner, PhysicalDrive 
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PhysicalCardHost::HasUnmountedPartition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32PhysicalCardHost::HasUnmountedPartition (int number, bool & outHasUnmounted)
+{
+    return Win32RawDevice::HasUnmountedPartition (number, outHasUnmounted);
+}

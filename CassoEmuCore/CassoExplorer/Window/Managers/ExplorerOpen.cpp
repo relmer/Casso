@@ -8,7 +8,6 @@
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "Seams/IShellItemVerbs.h"
-#include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IHostDialogs.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
@@ -113,88 +112,6 @@ void ExplorerOpen::OpenEachSelected()
     {
         m_context.listPane.FillList();
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerOpen::OpenPhysicalCard
-//
-//  Listing the drives doesn't open them, so the administrator prompt is
-//  raised only for the drive chosen.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerOpen::OpenPhysicalCard()
-{
-    std::vector<PhysicalDrive>        drives;
-    std::vector<DxuiPopupMenuItem>    items;
-    POINT                             screen = {};
-    HRESULT                           hr     = S_OK;
-    BOOL                              got    = FALSE;
-
-
-
-    if (m_context.app.cards == nullptr)
-    {
-        return;
-    }
-
-    hr = m_context.app.cards->ListRemovableDrives (drives);
-
-    if (FAILED (hr) || drives.empty())
-    {
-        m_context.window.ShowMessage (L"No storage cards were found.", MB_ICONINFORMATION);
-        return;
-    }
-
-    for (const PhysicalDrive & drive : drives)
-    {
-        std::wstring  label = PhysicalCards::FormatDrive (drive);
-
-        m_context.menus.AddMenuCommand (items, label.c_str(), [this, drive]() { OpenCard (drive); });
-    }
-
-    got = GetCursorPos (&screen);
-    IGNORE_RETURN_VALUE (got, TRUE);
-
-    DxuiContextMenu::Show (*m_context.window.GetPopupHost(), screen.x, screen.y, std::move (items));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerOpen::OpenCard
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerOpen::OpenCard (const PhysicalDrive & drive)
-{
-    HRESULT  hr = S_OK;
-
-
-
-    hr = m_context.app.cards->Open (drive.number, m_context.window.GetHwnd());
-
-    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
-    {
-        return;
-    }
-
-    if (FAILED (hr))
-    {
-        m_context.window.ShowMessage (L"Unable to open " + PhysicalCards::FormatDrive (drive) + L".", MB_ICONWARNING);
-        return;
-    }
-
-    m_context.browser.NavigateToLocation (Location::MakeDiskImage (TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (drive.number))));
-    m_context.listPane.FillList();
 }
 
 

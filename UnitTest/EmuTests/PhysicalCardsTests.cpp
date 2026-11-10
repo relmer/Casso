@@ -51,6 +51,14 @@ struct FakeCardHost : public IPhysicalCardHost
         return S_OK;
     }
 
+    HRESULT HasUnmountedPartition (int, bool & outHasUnmounted) override
+    {
+        outHasUnmounted = hasUnmounted;
+        return S_OK;
+    }
+
+    bool  hasUnmounted = true;
+
     static PhysicalDrive MakeDrive (int number, bool removable)
     {
         return PhysicalDrive { number, "Test Card", (uint64_t) PartitionCard::kCardBlocks * PartitionCard::kBlock, "USB", removable };
@@ -181,6 +189,34 @@ public:
             AssertSucceeded (io.ReadAllBytes ("\\\\.\\PhysicalDrive2|#2.po", bytes));
             Assert::IsTrue (bytes == PartitionCard::GetSecond (host.card));
         }
+    }
+
+
+    TEST_METHOD (ListStorageCards_ListsRemovableDrivesWithTheirLayouts)
+    {
+        FakeCardHost                              host;
+        PhysicalCards                             cards (host);
+        std::vector<PhysicalCards::StorageCard>   found;
+
+        host.hasUnmounted = false;
+
+        AssertSucceeded (cards.ListStorageCards (found));
+        Assert::AreEqual ((size_t) 1, found.size());
+        Assert::AreEqual (2, found[0].drive.number);
+        Assert::IsFalse (found[0].hasUnmounted);
+        Assert::AreEqual (0, host.opens);
+    }
+
+
+    TEST_METHOD (FormatCardLabel_ReturnsTheModelAndSize)
+    {
+        PhysicalDrive  drive = FakeCardHost::MakeDrive (2, true);
+
+        drive.bytes = 32ull * 1024 * 1024 * 1024;
+        Assert::AreEqual (std::wstring (L"Storage card (Test Card, 32.0 GB)"), PhysicalCards::FormatCardLabel (drive));
+
+        drive.model.clear();
+        Assert::AreEqual (std::wstring (L"Storage card (32.0 GB)"), PhysicalCards::FormatCardLabel (drive));
     }
 
 

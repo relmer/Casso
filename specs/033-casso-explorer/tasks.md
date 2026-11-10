@@ -1914,7 +1914,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [X] T619 [US31] Add Open physical card, listing removable drives with model and size, and confirming each write with them (FR-221)
 - [X] T655 [US31] Add `CassoStorageCardProxy.exe` as a separate project: the pipe server, the raw drive access, one session for every card, and exit when the pipe closes; remove the `/rawdevice` mode from Casso Explorer (FR-243)
 - [X] T656 [US31] Guardrails in the proxy: the storage card rule at every open, writes only inside a detected Apple partition and never over a mounted Windows volume, a pipe for elevated administrators only, the client process and server image checks, and the signature check for a signed proxy. A test for each refusal (FR-243)
-- [ ] T657 [US31] Detect storage cards on insertion, read MBR and GPT partition tables without elevation, and list storage card nodes under This PC; remove Open physical card (FR-221)
+- [X] T657 [US31] Detect storage cards on insertion, read MBR and GPT partition tables without elevation, and list storage card nodes under This PC; remove Open physical card (FR-221)
 - [ ] T658 [US31] Add Initialize card for Apple to a storage card's context menu, with the confirmation of FR-244
 - [ ] T620 [US31] Scenario tests in `ScenarioTests/PartitionTests.cpp` on each layout's sample image, then a CFFA image written to a CF card in a USB reader and read back, with the results in `validation.md` (SC-060)
 

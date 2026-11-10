@@ -29,6 +29,8 @@ public:
     HRESULT  ListDrives (std::vector<PhysicalDrive> & outDrives) override;
     HRESULT  OpenDrive  (int number, HWND owner, PhysicalDrive & outDrive, std::unique_ptr<IBlockStore> & outStore) override;
 
+    HRESULT  HasUnmountedPartition (int number, bool & outHasUnmounted) override;
+
 private:
     //  Shared with each card's store, so the proxy runs until this host and
     //  every store are destroyed.

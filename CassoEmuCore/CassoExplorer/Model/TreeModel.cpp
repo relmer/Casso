@@ -107,6 +107,23 @@ void TreeModel::SetDrives (std::vector<std::wstring> driveRoots)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::SetStorageCards
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TreeModel::SetStorageCards (std::vector<StorageCardTreeEntry> cards)
+{
+    m_storageCards = std::move (cards);
+
+    m_children.erase (kThisPcRootId);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::IsSupportedImage
 //
 //  The container words the disk tool advertises, as extensions.
@@ -1490,6 +1507,20 @@ HRESULT TreeModel::ListRoot (bool underCasso, std::vector<TreeNode> & outNodes)
         node.location  = Location::MakeHostFolder (path);
         node.missing   = !exists;
         node.canExpand = exists;
+
+        outNodes.push_back (node);
+    }
+
+    //  A card opens when it is selected, which raises the UAC prompt the
+    //  first time, so it has no expander for the tree to read it through.
+    for (const StorageCardTreeEntry & card : underCasso ? std::vector<StorageCardTreeEntry>() : m_storageCards)
+    {
+        TreeNode  node;
+
+        node.id       = kStorageCardTag + card.path;
+        node.kind     = TreeNode::Kind::DiskImage;
+        node.label    = card.label;
+        node.location = Location::MakeDiskImage (card.path);
 
         outNodes.push_back (node);
     }

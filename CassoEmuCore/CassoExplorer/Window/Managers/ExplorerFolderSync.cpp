@@ -12,6 +12,8 @@
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "Core/AppMessages.h"
+#include "Core/TextEncoding.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
 
@@ -282,13 +284,14 @@ int64_t ExplorerFolderSync::GetFileStamp (const std::wstring & path)
 
 void ExplorerFolderSync::CheckDrives()
 {
-    HRESULT   hr   = S_OK;
-    DWORD     mask = GetLogicalDrives();
+    HRESULT   hr           = S_OK;
+    DWORD     mask         = GetLogicalDrives();
+    bool      cardsChanged = UpdateStorageCards();
     Location  showing;
 
 
 
-    if (mask == m_driveMask)
+    if (mask == m_driveMask && !cardsChanged)
     {
         return;
     }
@@ -318,6 +321,69 @@ void ExplorerFolderSync::CheckDrives()
     {
         m_context.listPane.FillList();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::UpdateStorageCards
+//
+//  Returns true when the storage cards differ from the last look. A card that
+//  was removed is closed, so a card put back in is read again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerFolderSync::UpdateStorageCards()
+{
+    HRESULT                                   hr      = S_OK;
+    std::vector<PhysicalCards::StorageCard>   cards;
+    std::vector<StorageCardTreeEntry>         entries;
+    std::vector<int>                          drives;
+    std::wstring                              key;
+    bool                                      changed = false;
+
+
+
+    BAIL_OUT_IF (m_context.app.cards == nullptr, S_OK);
+
+    hr = m_context.app.cards->ListStorageCards (cards);
+    CHR (hr);
+
+    for (const PhysicalCards::StorageCard & card : cards)
+    {
+        std::wstring  path  = TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (card.drive.number));
+        std::wstring  label = PhysicalCards::FormatCardLabel (card.drive);
+
+        drives.push_back (card.drive.number);
+        key += std::format (L"{}|{}|{}|{};", card.drive.number, card.drive.bytes, label, card.hasUnmounted ? 1 : 0);
+
+        if (card.hasUnmounted)
+        {
+            entries.push_back (StorageCardTreeEntry { path, label });
+        }
+    }
+
+    changed = key != m_storageCardKey;
+    BAIL_OUT_IF (!changed, S_OK);
+
+    for (int number : m_storageCardDrives)
+    {
+        if (std::find (drives.begin(), drives.end(), number) == drives.end())
+        {
+            m_context.app.cards->Close (number);
+        }
+    }
+
+    m_storageCardKey    = std::move (key);
+    m_storageCardDrives = std::move (drives);
+
+    m_context.browser.GetTreeModel().SetStorageCards (std::move (entries));
+
+Error:
+    return changed;
 }
 
 

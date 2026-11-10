@@ -49,6 +49,9 @@ public:
 
     HRESULT  GetMountedExtents (std::vector<BlockExtent> & outExtents) override;
 
+    static HRESULT  HasUnmountedPartition (int number, bool & outHasUnmounted);
+    static HRESULT  ReadMountedExtents    (int number, std::vector<BlockExtent> & outExtents);
+
 private:
     static constexpr int     kMaxDrives      = 64;
     static constexpr size_t  kTransferBlocks = 128;
