@@ -1894,9 +1894,9 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 **Goal**: 13-sector, 40-, 50- and 80-track disks. **Independent test**: quickstart §7g step 1.
 
-- [ ] T607 [US30] Add the 5-and-3 codec to `NibblizationLayer`, D5 AA B5 address prologs and 410-nibble data fields, and load `.d13` and 13-sector `.nib` and `.woz` images as `Dos13` (FR-215). Tests round-trip a track
-- [ ] T608 [US30] Read and write DOS 3.2's catalog in `Dos33Volume` on a `Dos13` buffer, and create 13-sector images from the New disk dialog and `casso disk create`
-- [ ] T609 [US30] Read the track and sector counts from the VTOC in `Dos33Volume`, with `Dos33Geometry` as data-model.md defines it: "`tracks` (35 to 50, or 80 for the Basis 108 layout), `sectorsPerTrack` (13, 16 or 32), `bitmapBytesPerTrack` (4, or 2 for the Basis 108)" (FR-217)
+- [X] T607 [US30] Add the 5-and-3 codec to `NibblizationLayer`, D5 AA B5 address prologs and 410-nibble data fields, and load `.d13` and 13-sector `.nib` and `.woz` images as `Dos13` (FR-215). Tests round-trip a track
+- [X] T608 [US30] Read and write DOS 3.2's catalog in `Dos33Volume` on a `Dos13` buffer, and create 13-sector images from the New disk dialog and `casso disk create`
+- [X] T609 [US30] Read the track and sector counts from the VTOC in `Dos33Volume`, with `Dos33Geometry` as data-model.md defines it: "`tracks` (35 to 50, or 80 for the Basis 108 layout), `sectorsPerTrack` (13, 16 or 32), `bitmapBytesPerTrack` (4, or 2 for the Basis 108)" (FR-217)
 - [ ] T610 [US30] Read 13-sector disks over the link with Read quarter track at whole positions, decoded on the PC, and write them with Write nibble track (FR-216)
 - [ ] T611 [US30] Scenario tests in `ScenarioTests/Dos32Tests.cpp` on CiderPress II's samples: each file copied out matches, and changed images pass Test; read a 13-sector disk on the owner's //c and record it in `validation.md`
 
