@@ -3,6 +3,134 @@
 How the Casso test suite is put together, what each part is for, and the one
 place where the default is deliberately weaker than what is available.
 
+## Quick reference
+
+Everything below runs from the repository root in PowerShell 7.
+
+### The test binaries
+
+| Binary | Source | Contents | How to run |
+|---|---|---|---|
+| `UnitTest.dll` | `UnitTest/` | The unit suite. CI runs this one. | `.\scripts\RunTests.ps1 -Build` |
+| `ScenarioTests.dll` | `ScenarioTests/` | System tests that boot real guests from fetched disks. Not run by CI. | `.\scripts\RunTests.ps1 -Build -Scenario` |
+
+### `RunTests.ps1` switches
+
+| Switch | Effect |
+|---|---|
+| `-Build` | Build first. Without it, a test assembly older than its sources is an error. |
+| `-Configuration Debug\|Release` | Which build to run. Default: Debug. |
+| `-Platform x64\|ARM64\|Auto` | Default: Auto, the host's architecture. |
+| `-Filter <text>` | Run matching tests only. See below. |
+| `-Scenario` | Run `ScenarioTests.dll` in place of `UnitTest.dll`. Fetches the stock disks first. |
+| `-Sanitize` | Run the AddressSanitizer build. x64 only. Combine with `-Build`. |
+| `-AllowStale` | Run a test assembly that is older than its sources. |
+| `-NormalPriority` | Run at normal process priority. The default is below normal. |
+| `-LowPriority` | Run at idle priority. |
+
+### Filters
+
+A bare word matches any part of the fully qualified name. Text with a filter
+operator (`~ = ! & | ( )`) is passed to vstest as written.
+
+```powershell
+.\scripts\RunTests.ps1 -Filter Merlin                              # every test with Merlin in its name
+.\scripts\RunTests.ps1 -Filter "FullyQualifiedName~HeatHistoryTests"  # one class
+.\scripts\RunTests.ps1 -Filter "Name=OnePictureCostIsMeasured"       # one method, exact
+.\scripts\RunTests.ps1 -Filter "FullyQualifiedName~Reverse&Name!~Disk"
+.\scripts\RunTests.ps1 -Filter "Name~CostIsLogged|Name~CostIsMeasured"
+```
+
+The console lists each test by its method name alone, with its time. A method
+name used in more than one class is listed once per class, so two lines with
+one name and different times are two tests. Use
+`FullyQualifiedName~Class.Method` to run one of them.
+
+A filtered run prints `FILTERED RUN -- this is NOT the full suite.` Run the
+full suite before a merge.
+
+### Where the unit tests are
+
+| Folder | Area |
+|---|---|
+| `UnitTest/` (top level) | CPU, assembler, command line, Applesoft tokenizer, text codecs |
+| `UnitTest/EmuTests/` | The emulated machine: devices, disk, video, history, reverse execution |
+| `UnitTest/DebuggerTests/` | The debugger |
+| `UnitTest/Dxui/` | The Dxui controls, with mock painter, text renderer and theme |
+| `UnitTest/UiTests/` | The shell and its windows |
+| `UnitTest/CassoExplorer/` | Casso Explorer |
+| `UnitTest/CassoLink/` | CassoLink |
+| `UnitTest/ControllerTests/` | Game controllers and input mapping |
+| `UnitTest/NetworkTests/` | The Uthernet II and the network layer |
+| `UnitTest/PrinterTests/` | Printers |
+| `UnitTest/Audio/`, `UnitTest/Devices/` | Sound and device cards |
+| `UnitTest/CaptureTests/` | Screen and video capture |
+| `UnitTest/UpdateTests/` | The updater |
+
+Fixtures are in `UnitTest/Fixtures/`, `UnitTest/HarteVectors/` and
+`UnitTest/MerlinCorpus/`. The ROMs are fetched by `scripts/FetchRoms.ps1`,
+which `RunTests.ps1` runs when one is missing.
+
+### Benchmarks
+
+Some unit tests time an operation at full scale and write the cost to the test
+output. A few also fail above a ceiling. They run in the default suite. Their
+times are fixed from run to run, and they take about 21 seconds of a Debug run.
+
+| Test | Cost measured | Build |
+|---|---|---|
+| `HeatHistoryTests.RebuildCostIsLogged` | Rebuilding the heat map from history | Both |
+| `HeatHistoryTests.TheNewChannelsCostIsLogged` | The heat map's added channels | Both |
+| `HistorySeekCostTests.EverySeekByCycleIsMeasured` | A history seek by cycle | Both |
+| `HistoryThumbnailCostTests.EveryThumbnailStageIsMeasured` | Each stage of a history thumbnail | Both |
+| `HistoryScratchPictureTests.OnePictureCostIsMeasured` | One history picture | Both |
+| `ReverseReplayTests.RecordingCostIsLogged` | History recording | Both |
+| `SliceInputSampleTests.SampleCostIsLogged` | An input sample | Both |
+| `CallRecorderCostTests.TheRecorderCostIsMeasuredOnEachWorkload` | The call recorder, per workload | Both |
+| `TapeTurboGovernorTests.SixteenKilobyteFastLoadTakesUnderTenSecondsOfHostTime` | A 16 KB tape fast load | Both |
+| `CallStackRebuildCostTests.RebuildCostIsLogged` | Rebuilding the call stack from history | Release |
+| `ShadowCpuCostTests.AScratchCpuIsCheapEnoughToBuildPerPrediction` | A scratch CPU for one prediction | Release |
+| `PerformanceTests.CycleEmulation_MeetsBudget` | Emulated cycles per second | Release |
+| `PerformanceTests.SharedImageIdleProbe_CostsNothingTheUserCanFeel` | The shared image's idle probe | Release |
+
+The Release tests are inside `#ifdef NDEBUG`. To read the costs, run the
+benchmarks alone. Each cost is printed above its test's result line:
+
+```powershell
+.\scripts\RunTests.ps1 -Build -Configuration Release -Filter "Name~CostIsLogged|Name~CostIsMeasured|Name~EverySeekByCycleIsMeasured|Name~EveryThumbnailStageIsMeasured|FullyQualifiedName~PerformanceTests|FullyQualifiedName~ShadowCpuCostTests|Name~SixteenKilobyteFastLoad"
+```
+
+```
+history picture: first 7.57 ms (builds the scratch machine), then 0.328 ms each; a strip of 20 at 8 a second refreshes in 2.5 s
+  Passed OnePictureCostIsMeasured [52 ms]
+```
+
+### Other test scripts
+
+| Script | Purpose |
+|---|---|
+| `scripts/RunHarteTests.ps1` | Download and generate the full Harte vector set, build, and run the Harte tests. `-Opcode A9` for one opcode, `-MaxVectors <n>` for a short run, `-Cpu`, `-SkipGenerate`. See "Getting the full set". |
+| `scripts/RunDormannTest.ps1` | Download Klaus Dormann's 6502 functional test and assemble it with `CassoCli.exe` in AS65 mode. |
+| `scripts/RunMerlinOracles.ps1` | Assemble each shipped Merlin Pro object from its vendor source through `CassoCli.exe` and compare. |
+| `scripts/RunMutation.ps1` | One mutation test: replace `-Anchor` with `-Mutation` in `-File`, run the suite, and restore the file. The run passes when a test fails. |
+| `scripts/RunBuildLoopGate.ps1` | Run the assemble, place, list, boot and launch loop and check it against its time budget. `-SkipLaunch` on a machine with no desktop. |
+| `scripts/CheckDemoDisks.ps1` | Rebuild each demo disk from its sources and compare with the committed disk. |
+| `scripts/UpdateCycleReference.ps1` | Regenerate `docs/cycle-reference.md`. `-Check` reports staleness only. |
+| `scripts/CheckStyle.ps1 -Mode Tree` | The style gate over the whole tree. CI runs it on every push. |
+
+### What CI runs
+
+`.github/workflows/ci.yml` runs the style gate over the tree, builds, fetches
+the fixture ROMs, runs `UnitTest.dll` through `vstest.console.exe`, checks that
+the demo disks match their sources, and checks that the test run left the
+working tree as it was. The scenario suite, the AddressSanitizer builds and the
+full Harte depth are local runs.
+
+### From VS Code
+
+The `Run Tests` tasks do not build. The `Build + Test Debug (current arch)` and
+`Build + Test Release (current arch)` tasks build first.
+
 ## Running it
 
 ```powershell
