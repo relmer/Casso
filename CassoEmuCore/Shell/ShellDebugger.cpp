@@ -1891,7 +1891,40 @@ void ShellDebugger::ServiceDebugger()
     if (m_reverseHost != nullptr)
     {
         m_reverseHost->SyncInputGate();
+        ReportHistoryCuts();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReportHistoryCuts
+//
+//  A replay that didn't match its keyframe cuts history there, whatever
+//  started it: a seek, a step, or the machine run on from the past. Each
+//  cut goes to the console with the state section the replay differed in,
+//  so a cut is never silent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::ReportHistoryCuts()
+{
+    const ReverseController  & controller = m_reverseHost->GetController();
+
+
+
+    if (controller.GetCutCount() == m_reportedCuts)
+    {
+        return;
+    }
+
+    m_reportedCuts = controller.GetCutCount();
+
+    AddConsoleLines ({ "History diverged from its recording on a replay, so the history after the last keyframe that matched was dropped.",
+                       "  Differs in: " + (controller.GetLastDivergence().empty() ? std::string ("unknown") : controller.GetLastDivergence()) });
 }
 
 

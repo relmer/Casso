@@ -38,18 +38,22 @@ struct ReplayTarget
 //  ReplayReport
 //
 //  How a replay ended. A divergence gives the keyframe whose checksum the
-//  replayed machine did not match; the machine then stands at that keyframe's
-//  position in the diverged state. The last hit is the latest position a stop
+//  replayed machine did not match, and where the two differ; the machine
+//  is then at that keyframe's position in the diverged state. The last hit is the latest position a stop
 //  test fired at, before the replay's end position.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ReplayReport
 {
-    bool      isDiverged       = false;
-    size_t    divergedKeyframe = 0;
-    bool      hasHit           = false;
-    uint64_t  lastHit          = 0;
+    bool         isDiverged       = false;
+    size_t       divergedKeyframe = 0;
+    bool         hasHit           = false;
+    uint64_t     lastHit          = 0;
+
+    //  For a divergence, where the replayed machine first differs from the
+    //  keyframe, by section (StateDiff::Describe).
+    std::string  divergence;
 };
 
 

@@ -1145,6 +1145,9 @@ HRESULT ReverseController::HandleDivergence (
 
     CBRAEx (hasGood, E_UNEXPECTED);
 
+    m_lastDivergence = report.divergence;
+    m_cutCount++;
+
     good = report.divergedKeyframe - 1;
     info = m_keyframes.GetInfo (good);
 

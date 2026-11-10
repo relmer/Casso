@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/StateFloat.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Debugger/DiagnosticsSnapshot.h"
@@ -190,7 +191,17 @@ namespace MockingboardState
                 Assert::AreEqual (m_regs[i], other.m_regs[i], L"register");
             }
 
-            Assert::AreEqual (m_latched,   other.m_latched,   L"latched address");
+            Assert::AreEqual (m_latched, other.m_latched, L"latched address");
+        }
+
+        //  The tone, noise and envelope generators, which the host's audio
+        //  thread advances and a load doesn't change.
+        void AssertSameGenerators (const StateProbeAy & other) const
+        {
+            int   i = 0;
+
+
+
             Assert::AreEqual (m_tickAccum, other.m_tickAccum, L"tick accumulator");
 
             for (i = 0; i < 3; i++)
@@ -211,7 +222,45 @@ namespace MockingboardState
             Assert::AreEqual (m_envHold,      other.m_envHold,      L"envelope hold");
         }
 
-        void SetEnvLevel (int level) { m_envLevel = level; }
+        //  The chip as a version 2 state saved it, with its generators after
+        //  the latch and a write record after them.
+        std::vector<Byte> SaveVersion2() const
+        {
+            StateWriter  writer;
+            int          i = 0;
+
+
+
+            writer.BeginSection (kStateTag, 2);
+            writer.WriteBytes   (m_regs, kRegCount);
+            writer.WriteByte    (m_latched);
+            StateFloat::Write   (writer, m_tickAccum);
+
+            for (i = 0; i < 3; i++)
+            {
+                writer.WriteUInt32 (static_cast<uint32_t> (m_toneCounter[i]));
+                writer.WriteUInt32 (static_cast<uint32_t> (m_toneState[i]));
+            }
+
+            writer.WriteUInt32 (static_cast<uint32_t> (m_noiseCounter));
+            writer.WriteUInt32 (m_lfsr);
+            writer.WriteUInt32 (static_cast<uint32_t> (m_envCounter));
+            writer.WriteUInt32 (static_cast<uint32_t> (m_envLevel));
+            writer.WriteBool   (m_envDirUp);
+            writer.WriteBool   (m_envHolding);
+            writer.WriteBool   (m_envCont);
+            writer.WriteBool   (m_envAttack);
+            writer.WriteBool   (m_envAlt);
+            writer.WriteBool   (m_envHold);
+            writer.WriteUInt32 (7);
+            writer.WriteBool   (true);
+            writer.WriteByte   (9);
+            writer.WriteByte   (0x05);
+
+            Assert::AreEqual (S_OK, writer.EndSection());
+
+            return writer.GetBytes();
+        }
     };
 
 
@@ -281,6 +330,15 @@ namespace MockingboardState
             Assert::AreEqual (m_request,       other.m_request,       L"request");
             Assert::AreEqual (m_sounding,      other.m_sounding,      L"sounding");
             Assert::AreEqual (m_phonemeCycles, other.m_phonemeCycles, L"phoneme cycles");
+        }
+
+        //  The synthesis, which the host's audio thread advances and a load
+        //  doesn't change.
+        void AssertSameSynthesis (const StateProbeSsi & other) const
+        {
+            int   i = 0;
+
+
 
             for (i = 0; i < 3; i++)
             {
@@ -308,6 +366,52 @@ namespace MockingboardState
         }
 
         void SetMode (Byte mode) { m_mode = mode; }
+
+        //  The chip as a version 3 state saved it, with its synthesis after
+        //  the phoneme's time and no recent phonemes after it.
+        std::vector<Byte> SaveVersion3() const
+        {
+            StateWriter  writer;
+            int          i = 0;
+
+
+
+            writer.BeginSection (kStateTag, 3);
+            writer.WriteBytes   (m_reg, kRegCount);
+            writer.WriteByte    (m_mode);
+            writer.WriteBool    (m_request);
+            writer.WriteBool    (m_sounding);
+            StateFloat::Write   (writer, m_phonemeCycles);
+
+            for (i = 0; i < 3; i++)
+            {
+                StateFloat::Write (writer, m_fCur[i]);
+                StateFloat::Write (writer, m_resY1[i]);
+                StateFloat::Write (writer, m_resY2[i]);
+            }
+
+            StateFloat::Write  (writer, m_envLevel);
+            StateFloat::Write  (writer, m_glottalPhase);
+            StateFloat::Write  (writer, m_excLp1);
+            StateFloat::Write  (writer, m_excLp2);
+            writer.WriteUInt32 (m_lfsr);
+            StateFloat::Write  (writer, m_noiseLp);
+            StateFloat::Write  (writer, m_vaCur);
+            StateFloat::Write  (writer, m_faCur);
+            StateFloat::Write  (writer, m_fricLp);
+            StateFloat::Write  (writer, m_fricLp2);
+            StateFloat::Write  (writer, m_fricLp3);
+            StateFloat::Write  (writer, m_fricY1);
+            StateFloat::Write  (writer, m_fricY2);
+            StateFloat::Write  (writer, m_radPrev);
+            StateFloat::Write  (writer, m_outLp);
+            StateFloat::Write  (writer, m_outLp2);
+            writer.WriteUInt32 (0);
+
+            Assert::AreEqual (S_OK, writer.EndSection());
+
+            return writer.GetBytes();
+        }
     };
 
 
@@ -380,7 +484,11 @@ namespace MockingboardState
         }
 
         // Ticks and renders `steps` audio-sample-sized slices and returns every
-        // rendered sample and the VIA #1 IFR after each slice.
+        // rendered sample and the VIA #1 IFR after each slice, four values a
+        // slice: the two PSGs' samples, the speech sample and the IFR.
+        static constexpr size_t  kValuesPerStep = 4;
+        static constexpr size_t  kIfrValue      = 3;
+
         std::vector<float> Run (int steps)
         {
             constexpr uint32_t  kCyclesPerStep = 23;
@@ -400,6 +508,26 @@ namespace MockingboardState
             }
 
             return out;
+        }
+
+        // A Run's IFR values, without the samples. The chips' generators and
+        // synthesis are the host's audio state, not saved, so their samples
+        // after a load go on from wherever the loading card's chips were.
+        static std::vector<float> GetIfrValues (const std::vector<float> & values)
+        {
+            std::vector<float>  kept;
+
+
+
+            for (size_t i = 0; i < values.size(); i++)
+            {
+                if (i % kValuesPerStep == kIfrValue)
+                {
+                    kept.push_back (values[i]);
+                }
+            }
+
+            return kept;
         }
     };
 
@@ -452,21 +580,72 @@ namespace MockingboardState
         }
 
 
-        TEST_METHOD (AyRoundTripsEveryField)
+        //  The registers and the latch go through a save and a load; the
+        //  generators, which the host's audio thread advances, are not saved,
+        //  so a replay of history matches its keyframes.
+        TEST_METHOD (AyRoundTripsItsRegistersAndNotItsGenerators)
         {
             StateProbeAy       source;
             StateProbeAy       target;
+            StateProbeAy       untouched;
             HRESULT            hr = S_OK;
 
 
 
-            source.Fill (kSeed);
-            target.Fill (kTargetSeed);
+            source.Fill    (kSeed);
+            target.Fill    (kTargetSeed);
+            untouched.Fill (kTargetSeed);
 
             hr = LoadFrom (target, Save (source));
             Assert::AreEqual (S_OK, hr);
 
-            source.AssertSameState (target);
+            source.AssertSameState         (target);
+            untouched.AssertSameGenerators (target);
+        }
+
+
+        //  Two chips whose generators differ save the same state.
+        TEST_METHOD (AyGeneratorsDontChangeItsSavedState)
+        {
+            StateProbeAy  first;
+            StateProbeAy  second;
+
+
+
+            first.Fill           (kSeed);
+            second.Fill          (kSeed);
+            second.SetSampleRate (kSampleRate);
+            second.GenerateSample();
+
+            Assert::IsTrue (Save (first) == Save (second));
+        }
+
+
+        //  A state from before version 3 has the generators; it loads, with
+        //  its registers and write record, and the generators are dropped.
+        TEST_METHOD (AnAyStateWithItsGeneratorsLoads)
+        {
+            StateProbeAy         source;
+            StateProbeAy         target;
+            StateProbeAy         untouched;
+            DiagnosticsSoundPsg  psg;
+            HRESULT              hr = S_OK;
+
+
+
+            source.Fill    (kSeed);
+            target.Fill    (kTargetSeed);
+            untouched.Fill (kTargetSeed);
+
+            hr = LoadFrom (target, source.SaveVersion2());
+            Assert::AreEqual (S_OK, hr);
+
+            source.AssertSameState         (target);
+            untouched.AssertSameGenerators (target);
+
+            target.AppendSoundBoard (psg);
+            Assert::AreEqual ((uint32_t) 7, psg.writeCount);
+            Assert::AreEqual ((int) 9, (int) psg.lastWriteReg);
         }
 
 
@@ -525,35 +704,50 @@ namespace MockingboardState
         }
 
 
-        TEST_METHOD (AyEnvelopeLevelOutOfRangeFails)
-        {
-            StateProbeAy       ay;
-            HRESULT            hr = S_OK;
-
-
-
-            ay.SetEnvLevel (Ay8910::kMaxEnvLevel + 1);
-
-            hr = LoadFrom (ay, Save (ay));
-            Assert::AreEqual (kInvalidData, hr);
-        }
-
-
-        TEST_METHOD (SsiRoundTripsEveryField)
+        //  The registers, the mode, the lines and the phoneme's time go through
+        //  a save and a load; the synthesis, which the host's audio thread
+        //  advances, is not saved.
+        TEST_METHOD (SsiRoundTripsItsRegistersAndNotItsSynthesis)
         {
             StateProbeSsi      source;
             StateProbeSsi      target;
+            StateProbeSsi      untouched;
             HRESULT            hr = S_OK;
 
 
 
-            source.Fill (kSeed);
-            target.Fill (kTargetSeed);
+            source.Fill    (kSeed);
+            target.Fill    (kTargetSeed);
+            untouched.Fill (kTargetSeed);
 
             hr = LoadFrom (target, Save (source));
             Assert::AreEqual (S_OK, hr);
 
-            source.AssertSameState (target);
+            source.AssertSameState          (target);
+            untouched.AssertSameSynthesis   (target);
+        }
+
+
+        //  A state from before version 4 has the synthesis; it loads, with the
+        //  rest of the chip, and the synthesis is dropped.
+        TEST_METHOD (AnSsiStateWithItsSynthesisLoads)
+        {
+            StateProbeSsi      source;
+            StateProbeSsi      target;
+            StateProbeSsi      untouched;
+            HRESULT            hr = S_OK;
+
+
+
+            source.Fill    (kSeed);
+            target.Fill    (kTargetSeed);
+            untouched.Fill (kTargetSeed);
+
+            hr = LoadFrom (target, source.SaveVersion3());
+            Assert::AreEqual (S_OK, hr);
+
+            source.AssertSameState        (target);
+            untouched.AssertSameSynthesis (target);
         }
 
 
@@ -622,14 +816,14 @@ namespace MockingboardState
             Assert::AreEqual (S_OK, hr);
 
             replayed = target.Run (kSteps);
-            Assert::IsTrue (expected == replayed, L"a fresh card loaded from the save");
+            Assert::IsTrue (StateProbeCard::GetIfrValues (expected) == StateProbeCard::GetIfrValues (replayed), L"a fresh card loaded from the save");
             Assert::IsTrue (Save (source) == Save (target));
 
             hr = LoadFrom (source, saved);
             Assert::AreEqual (S_OK, hr);
 
             reloaded = source.Run (kSteps);
-            Assert::IsTrue (expected == reloaded, L"the same card loaded back");
+            Assert::IsTrue (StateProbeCard::GetIfrValues (expected) == StateProbeCard::GetIfrValues (reloaded), L"the same card loaded back");
         }
 
 

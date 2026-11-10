@@ -181,6 +181,12 @@ public:
     Replayer             & GetReplayer  ()       { return m_replayer; }
     const KeyframeStore  & GetKeyframes () const { return m_keyframes; }
 
+    //  The last replay that diverged and cut history: where the replayed
+    //  machine first differed from its keyframe (StateDiff::Describe), and
+    //  how many times history has been cut. Empty and 0 for none.
+    const std::string    & GetLastDivergence () const { return m_lastDivergence; }
+    size_t                 GetCutCount       () const { return m_cutCount; }
+
 private:
     friend class ReverseStepSearch;
 
@@ -250,4 +256,6 @@ private:
     uint64_t                   m_liveEndCycle      = 0;
     uint64_t                   m_hereStart         = 0;      // the stretch the machine last ran an instruction in behind live
     uint64_t                   m_hereEnd           = 0;
+    std::string                m_lastDivergence;
+    size_t                     m_cutCount          = 0;
 };

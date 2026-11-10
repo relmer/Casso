@@ -533,6 +533,7 @@ private:
     void  SyncHeatHistory           (bool isAttached);
     void  ServiceCallHistory        ();
     void  ServiceEventLogs          ();
+    void  ReportHistoryCuts         ();
 
     // The debug channel, when `--debugger` opened it. Built and torn down on
     // the CPU thread, and only ever touched there.
@@ -548,6 +549,7 @@ private:
     DebuggerViewState                m_debugViewState;
     ULONGLONG                        m_debugViewBuiltAt      = 0;
     bool                             m_isDebugViewDirty      = true;
+    size_t                           m_reportedCuts          = 0;       // history's cuts already reported to the console
     bool                             m_wasPausedAtDebugBuild = false;
     bool                             m_wasHeatRebuilding     = false;   // the last build's heat map awaited its rebuilt heat
     bool                             m_wasCallRebuilding     = false;   // the last build's call stack awaited its rebuilt record

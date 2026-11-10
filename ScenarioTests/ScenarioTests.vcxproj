@@ -193,6 +193,7 @@
     <ClCompile Include="Disk2SectorEventTests.cpp" />
     <ClCompile Include="DiskReadProbeTests.cpp" />
     <ClCompile Include="DebugEventLogRebuildTests.cpp" />
+    <ClCompile Include="MusicDemoReplayTests.cpp" />
     <ClCompile Include="DebugEventLogScrollTests.cpp" />
     <ClCompile Include="IoLogCostTests.cpp" />
     <ClCompile Include="MachineStateCompatibilityTests.cpp" />

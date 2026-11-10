@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Reverse/Replayer.h"
+#include "Debugger/Reverse/StateDiff.h"
 
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
@@ -635,11 +636,13 @@ Error:
 
 HRESULT Replayer::CheckKeyframe (ReplayReport & report)
 {
-    HRESULT        hr       = S_OK;
-    uint64_t       position = m_machine.GetPosition();
-    bool           isDue    = false;
-    StateWriter  & writer   = m_checkWriter;
-    bool           isMatch  = false;
+    HRESULT              hr         = S_OK;
+    uint64_t             position   = m_machine.GetPosition();
+    bool                 isDue      = false;
+    StateWriter        & writer     = m_checkWriter;
+    bool                 isMatch    = false;
+    std::vector<Byte>    recorded;
+    HRESULT              hrRecorded = S_OK;
 
 
 
@@ -659,6 +662,13 @@ HRESULT Replayer::CheckKeyframe (ReplayReport & report)
     {
         report.isDiverged       = true;
         report.divergedKeyframe = m_nextKeyframe;
+
+        hrRecorded = m_keyframes.Restore (m_nextKeyframe, recorded);
+
+        if (SUCCEEDED (hrRecorded))
+        {
+            report.divergence = StateDiff::Describe (recorded, writer.GetBytes());
+        }
     }
 
     m_nextKeyframe++;

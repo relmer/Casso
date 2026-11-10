@@ -138,15 +138,16 @@ public:
 
     static float GetVolumeForLevel (int level);
 
-    // IMachineState: the registers, the address latch, the tick accumulator,
-    // the tone, noise and envelope generators, and the count and last of the
-    // bus's writes. The clock and host sample rate are configuration the machine
-    // builder sets, so they are not saved.
+    // IMachineState: the registers, the address latch, and the count and last
+    // of the bus's writes; not the tone, noise and envelope generators, which
+    // the host's audio thread advances (see SaveState). The clock and host
+    // sample rate are configuration the machine builder sets, so they are not
+    // saved.
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('P', 'S', 'G', ' ');
-    static constexpr uint16_t  kStateVersion = 2;
+    static constexpr uint16_t  kStateVersion = 3;
 
 private:
     float   GetChannelOutput (int channel) const;
