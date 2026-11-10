@@ -69,20 +69,12 @@ jobs:
       # as long, and on a 4-core runner it was most of every job. The other
       # configurations are analyzed by Build.ps1 -Target RebuildAll
       # -RunCodeAnalysis before a master merge.
-      #
-      # Link-time code generation off except on a master push, which
-      # produces the release binaries. In the Release job it took four to
-      # six minutes, almost all of it in the links, and a pull request ships
-      # nothing.
       - name: Build
         shell: pwsh
         run: |
           $props = @()
           if ('${{ matrix.configuration }}' -eq 'Debug') {
               $props += '-p:EnableCppCoreCheck=true', '-p:RunCodeAnalysis=true', '-p:CodeAnalysisTreatWarningsAsErrors=true'
-          }
-          if ('${{ github.event_name }}' -ne 'push') {
-              $props += '-p:WholeProgramOptimization=false'
           }
           msbuild Casso.sln -m -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.platform }} -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:PreferredToolArchitecture=x64 @props
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -181,17 +173,9 @@ jobs:
       # link-time code generation. The x64 jobs compile and run the same test
       # code.
       #
-      # No code analysis, and link-time code generation only on a master
-      # push, for the reasons given at the x64 build step.
+      # No code analysis, for the reason given at the x64 build step.
       - name: Build ARM64
-        shell: pwsh
-        run: |
-          $props = @()
-          if ('${{ github.event_name }}' -ne 'push') {
-              $props += '-p:WholeProgramOptimization=false'
-          }
-          msbuild Casso.sln -m -t:"Casso;CassoCli;CassoExplorer" -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:PreferredToolArchitecture=x64 @props
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        run: msbuild Casso.sln -m -t:"Casso;CassoCli;CassoExplorer" -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:PreferredToolArchitecture=x64
 
       # Hand the Release ARM64 binaries to the release job so it doesn't rebuild
       # them. Only on master pushes (the only place the release job runs).
