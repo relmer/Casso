@@ -438,6 +438,7 @@
     <ClCompile Include="CassoExplorer\Model\PreviewText.cpp" />
     <ClCompile Include="CassoExplorer\Model\ApplesoftVariables.cpp" />
     <ClCompile Include="CassoExplorer\Model\TreeModel.cpp" />
+    <ClCompile Include="CassoExplorer\Model\TreeModelImages.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkConnections.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkLogFile.cpp" />
     <ClCompile Include="Machines\Apple2\Common\VolumeImage.cpp" />
