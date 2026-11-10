@@ -617,6 +617,12 @@ Two specific practices fall out of this:
   that compiles into it, because a stale run reports a full, confident pass
   against code that is not on disk, and a new test file that never compiled
   in is simply absent from the count.
+- **An unfiltered `RunTests.ps1` run is split across up to 12 vstest
+  processes** by `RunTestShards.ps1`, one group of test classes each, so tests
+  in different classes run at the same time. A test that depends on another
+  class's state, or that writes a fixed path another class also uses, fails
+  only in some runs. `-Serial` runs the suite in one process, to rule that out
+  or when memory is short.
 - **`RunTests.ps1 -Filter <word>`** runs only matching tests, for the edit-test
   loop. A bare word matches as a substring of the fully qualified name
   (`-Filter Merlin`); anything containing filter grammar passes through to
@@ -745,6 +751,13 @@ intermediate commit on a feature branch: feature branches routinely carry many
 work-in-progress commits, and running the full build/test/analysis suite on each
 one wastes time. Validate the full gates **once, just before merging/PRing the
 branch to `master`** (and re-run after resolving merge conflicts).
+- **`scripts\RunMergeGate.ps1` runs the whole gate**: the style sweep, all four
+  configurations rebuilt with code analysis, the Debug and Release unit suites,
+  the scenario suite and the AddressSanitizer scenario run. Independent steps
+  overlap, about 11 minutes against 26 one at a time. If a parallel run fails
+  because it ran out of commit memory (C3859, C1060, a linker out of heap),
+  rerun with `-Serial`. CI analyzes x64 Debug only, so this is the only place
+  the other three configurations are analyzed.
 - **ALL** tests MUST pass before merging to master
 - Build MUST succeed with no errors before merging to master
 - Every commit that lands on `master` must leave the codebase compilable and tests-passing

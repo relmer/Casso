@@ -145,25 +145,31 @@ $totalPass  = 0
 foreach ($p in $processes) {
     $p.Process.WaitForExit()
 
-    $log    = Get-Content $p.Log
+    $log    = @(Get-Content $p.Log) + @(Get-Content "$($p.Log).err" -ErrorAction SilentlyContinue)
     $total  = [int](($log | Select-String '^\s*Total tests:\s*(\d+)' | Select-Object -Last 1).Matches.Groups[1].Value)
     $passed = [int](($log | Select-String '^\s*Passed:\s*(\d+)' | Select-Object -Last 1).Matches.Groups[1].Value)
 
     $totalRun  += $total
     $totalPass += $passed
 
-    $status = 'OK'
+    $status  = 'OK'
+    $asanHit = $log | Select-String -SimpleMatch 'ERROR: AddressSanitizer' -Quiet
 
-    if ($p.Process.ExitCode -ne 0 -or $total -ne $p.Expected -or $passed -ne $total) {
+    if ($asanHit) {
+        #  An AddressSanitizer report fails the shard even when vstest exits 0.
+        #  The whole log is printed so the report is in the caller's output.
+        $log | ForEach-Object { Write-Host $_ }
+    }
+
+    if ($p.Process.ExitCode -ne 0 -or $total -ne $p.Expected -or $passed -ne $total -or $asanHit) {
         $status = 'FAILED'
         $failed = $true
     }
 
     Write-Host ("Shard {0}: {1} of {2} listed tests run, {3} passed, exit {4}  {5}" -f $p.Index, $total, $p.Expected, $passed, $p.Process.ExitCode, $status)
 
-    if ($status -ne 'OK') {
+    if ($status -ne 'OK' -and -not $asanHit) {
         $log | Select-String -Pattern '^\s*Failed |Error Message' -Context 0, 2 | ForEach-Object { Write-Host $_ }
-        Get-Content "$($p.Log).err" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_ }
     }
 }
 
