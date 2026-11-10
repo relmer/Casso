@@ -276,7 +276,7 @@ public:
     // calls Tick on a timeout rather than sleeping until the next input or
     // frame. Unticked, a fade-in stops at transparent, and a hover tip with no
     // lifetime is invisible until the pointer moves off it.
-    bool                 WantsTick () const { return m_pending || m_fadingOut
+    bool                 WantsTick () const { return m_pending || m_fadingOut || m_isTooSmall
                                                    || (m_visible && m_hideAtMs != 0)
                                                    || (m_activePopup != nullptr && m_activePopup->IsRevealing()); }
 
@@ -374,9 +374,11 @@ private:
     //  A hover tip's hide time: zero, for none, unless it has a lifetime.
     int64_t  GetHoverHideAtMs (int64_t nowMs) const;
 
-    //  The balloon's size for the current text, the anchor in screen
-    //  pixels, and the balloon that is up moved to the anchor in place.
-    void  MeasureBoxPx       (float & widthPx, float & heightPx);
+    //  The balloon's size for the current text, measured by `text` or, for
+    //  nullptr, by the popup's renderer; false when it was estimated, since
+    //  neither could measure it. Then the anchor in screen pixels, and the
+    //  balloon that is up moved to the anchor in place.
+    bool  MeasureBoxPx       (float & widthPx, float & heightPx, IDxuiTextRenderer * text = nullptr) const;
     SIZE  MeasureBoxDip      ();
     RECT  GetScreenAnchor    () const;
     void  MovePopup          (bool isNewText);
@@ -406,13 +408,26 @@ private:
 
     //  The table's parts drawn from its top-left, in pixels.
     void  DrawTable          (IDxuiPainter & painter, IDxuiTextRenderer & text, const TableLayout & table, float left, float top) const;
-    bool  IsTableTip         () const { return IsTable (m_text) || !m_lineSwatches.empty() || !m_lineScales.empty(); }
+    bool  IsTableTip         () const { return IsTable (m_text) || !m_shownLineSwatches.empty() || !m_shownLineScales.empty(); }
     float GetSwatchIndentPx  (float lineHeight) const;
     float GetLineIndentPx    (float lineHeight) const;
     void  DrawLineScale      (IDxuiPainter & painter, const std::vector<uint32_t> & stops, float left, float top, float heightPx) const;
 
     //  The table laid out with `text` measuring the parts at the tip's font.
     HRESULT  LayOutTableWith (IDxuiTextRenderer & text, TableLayout & table) const;
+
+    //  The face and the wrap width of the tip that is up, from the look taken
+    //  as it was raised, so a look set for the next tip doesn't change how
+    //  this one is measured or drawn.
+    const wchar_t  * GetShownFace            () const { return m_shownMono ? DxuiTheme::kMonoFace : DxuiTheme::GetUiFace(); }
+    float            GetShownMaxTextWidthDip () const;
+
+    //  A BALLOON IS NEVER SMALLER THAN ITS TEXT. Each time the balloon is
+    //  drawn, its text is measured by the renderer drawing it; a balloon
+    //  smaller than that is noted, and on the next tick it is grown to the
+    //  size measured, whatever made the two differ.
+    void             NoteIfTooSmall          (IDxuiTextRenderer & text, float widthPx, float heightPx) const;
+    void             GrowIfTooSmall          ();
 
     DxuiDpiScaler                         m_scaler;
     RECT                                  m_anchor             = {};
@@ -466,6 +481,10 @@ private:
     std::wstring                          m_shownCornerTag;
     uint32_t                              m_cornerTagArgb      = 0;
     uint32_t                              m_shownCornerTagArgb = 0;
+    bool                                  m_shownMono          = false;
+    float                                 m_shownMaxWidthDip   = 0.0f;
+    mutable bool                          m_isTooSmall         = false;
+    mutable SIZE                          m_neededPx           = {};
     std::wstring                          m_frameLabel;
     std::wstring                          m_shownFrameLabel;
     uint32_t                              m_frameArgb          = 0;

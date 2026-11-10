@@ -653,6 +653,9 @@ void DxuiTooltip::ShowAt (const RECT & anchor, const std::wstring & text)
 
     if (isUp)
     {
+        isNew = isNew || IsNewLook();
+
+        TakeLook();
         MovePopup (isNew);
         return;
     }
@@ -817,6 +820,8 @@ void DxuiTooltip::Tick (int64_t nowMs)
         }
     }
 
+    GrowIfTooSmall();
+
     // Drive whatever animation is running. AdvanceReveal reports false when
     // nothing is, which is the ordinary case, so the fade-out completion is
     // read only while one was actually started.
@@ -955,6 +960,13 @@ void DxuiTooltip::ShowPopup()
     // then this function may have just acquired one.
     shows = (m_popupHost != nullptr && m_activePopup == nullptr && !m_text.empty());
 
+    //  The look this tip is drawn with, with a popup or, without a host, in
+    //  the window by Paint.
+    if (m_activePopup == nullptr)
+    {
+        TakeLook();
+    }
+
     //  A new tip ends any fade-out the last one began, which would otherwise
     //  hide this one as its fade-in ends.
     if (shows)
@@ -1072,6 +1084,101 @@ float DxuiTooltip::GetMaxTextWidthDip() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetShownMaxTextWidthDip
+//
+//  GetMaxTextWidthDip's width for the look the tip that is up was raised with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetShownMaxTextWidthDip() const
+{
+    if (m_shownMaxWidthDip > 0.0f)
+    {
+        return m_shownMaxWidthDip;
+    }
+
+    return m_shownMono ? s_kMaxMonoWidthDip : kDefaultMaxTextWidthDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NoteIfTooSmall
+//
+//  Only a measurement counts: an estimate made without a renderer is not
+//  a reason to resize. The balloon is only ever grown, so a balloon drawn
+//  again at its new size is never noted again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::NoteIfTooSmall (IDxuiTextRenderer & text, float widthPx, float heightPx) const
+{
+    float  neededW = 0.0f;
+    float  neededH = 0.0f;
+
+
+
+    if (!MeasureBoxPx (neededW, neededH, &text))
+    {
+        return;
+    }
+
+    neededW = std::ceil (neededW);
+    neededH = std::ceil (neededH);
+
+    if (neededW <= widthPx && neededH <= heightPx)
+    {
+        return;
+    }
+
+    m_neededPx   = SIZE { (LONG) std::max (neededW, widthPx), (LONG) std::max (neededH, heightPx) };
+    m_isTooSmall = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GrowIfTooSmall
+//
+//  Moved to the anchor it was placed against, at the size measured, so a tip
+//  placed by the pointer stays by the pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::GrowIfTooSmall()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (!m_isTooSmall)
+    {
+        return;
+    }
+
+    m_isTooSmall = false;
+
+    if (m_activePopup == nullptr)
+    {
+        return;
+    }
+
+    hr = m_activePopup->MoveToPx (m_activePopup->GetParams().anchorRectScreen, m_neededPx);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MeasureBoxPx
 //
 //  The balloon's size for the current text, in pixels: the text, rounded up
@@ -1092,26 +1199,38 @@ float DxuiTooltip::GetMaxTextWidthDip() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTooltip::MeasureBoxPx (
-    float  & widthPx,
-    float  & heightPx)
+bool DxuiTooltip::MeasureBoxPx (
+    float              & widthPx,
+    float              & heightPx,
+    IDxuiTextRenderer  * text) const
 {
-    HRESULT  hr      = S_OK;
-    float    fontPx  = m_scaler.ToPxf (m_fontDip);
-    float    maxWPx  = m_scaler.ToPxf (GetMaxTextWidthDip());
-    float    textWPx = 0.0f;
-    float    textHPx = 0.0f;
+    HRESULT  hr         = S_OK;
+    float    fontPx     = m_scaler.ToPxf (m_fontDip);
+    float    maxWPx     = m_scaler.ToPxf (GetShownMaxTextWidthDip());
+    float    textWPx    = 0.0f;
+    float    textHPx    = 0.0f;
+    bool     isMeasured = true;
     Margins  margins;
 
+    auto     measure    = [this, text] (const wchar_t * what, float sizePx, float wrapPx, float & w, float & h) -> HRESULT
+    {
+        if (text != nullptr)
+        {
+            return text->MeasureStringWrapped (what, sizePx, GetShownFace(), wrapPx, w, h);
+        }
+
+        return (m_activePopup != nullptr) ? m_activePopup->MeasureTextWrapped (what, sizePx, GetShownFace(), wrapPx, w, h) : E_FAIL;
+    };
 
 
-    if (IsTableTip() && m_activePopup != nullptr)
+
+    if (IsTableTip())
     {
         TableLayout  table;
 
-        hr = LayOutTable (m_text, fontPx, [this, fontPx] (const std::wstring & part, float & w, float & h)
+        hr = LayOutTable (m_text, fontPx, [&measure, fontPx] (const std::wstring & part, float & w, float & h)
         {
-            return m_activePopup->MeasureTextWrapped (part.c_str(), fontPx, GetFace(), s_kNoWrapPx, w, h);
+            return measure (part.c_str(), fontPx, s_kNoWrapPx, w, h);
         }, table);
 
         textWPx = table.width + GetLineIndentPx (table.lineHeight);
@@ -1119,9 +1238,7 @@ void DxuiTooltip::MeasureBoxPx (
     }
     else
     {
-        hr = (m_activePopup != nullptr)
-                 ? m_activePopup->MeasureTextWrapped (m_text.c_str(), fontPx, GetFace(), maxWPx, textWPx, textHPx)
-                 : E_FAIL;
+        hr = measure (m_text.c_str(), fontPx, maxWPx, textWPx, textHPx);
     }
 
     if (FAILED (hr) || textWPx <= 0.0f)
@@ -1129,8 +1246,9 @@ void DxuiTooltip::MeasureBoxPx (
         float  estWPx   = (float) m_text.size() * fontPx * s_kEstCharWidthEm;
         float  estLines = std::ceil (estWPx / maxWPx);
 
-        textWPx = std::min (estWPx, maxWPx);
-        textHPx = std::max (estLines, 1.0f) * fontPx * s_kEstLineHeightEm;
+        isMeasured = false;
+        textWPx    = std::min (estWPx, maxWPx);
+        textHPx    = std::max (estLines, 1.0f) * fontPx * s_kEstLineHeightEm;
     }
 
     if (textHPx <= 0.0f)
@@ -1139,7 +1257,7 @@ void DxuiTooltip::MeasureBoxPx (
     }
 
     margins  = GetContentMargins();
-    textWPx += GetCornerTagPx (nullptr);
+    textWPx += GetCornerTagPx (text);
     widthPx  = std::ceil (textWPx) + margins.left + margins.right;
     heightPx = std::ceil (textHPx) + margins.top  + margins.bottom;
 
@@ -1156,14 +1274,13 @@ void DxuiTooltip::MeasureBoxPx (
 
 
 
-        if (m_activePopup != nullptr)
-        {
-            hr = m_activePopup->MeasureTextWrapped (m_shownFrameLabel.c_str(), GetFrameLabelPx(), GetFace(), s_kNoWrapPx, labelW, labelH);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
+        hr = measure (m_shownFrameLabel.c_str(), GetFrameLabelPx(), s_kNoWrapPx, labelW, labelH);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         widthPx = std::max (widthPx, std::ceil (labelW) + (GetFrameEdgePx() + m_scaler.ToPxf (kFrameCornerDip) + m_scaler.ToPxf (kFrameGapDip)) * 2.0f);
     }
+
+    return isMeasured;
 }
 
 
@@ -1418,7 +1535,9 @@ bool DxuiTooltip::IsNewLook() const
            m_frameLabel   != m_shownFrameLabel   ||
            m_frameArgb    != m_shownFrameArgb    ||
            m_cornerTag    != m_shownCornerTag    ||
-           m_cornerTagArgb != m_shownCornerTagArgb;
+           m_cornerTagArgb != m_shownCornerTagArgb ||
+           m_monospace    != m_shownMono         ||
+           m_maxTextWidthDip != m_shownMaxWidthDip;
 }
 
 
@@ -1442,6 +1561,8 @@ void DxuiTooltip::TakeLook()
     m_shownFrameArgb     = m_frameArgb;
     m_shownCornerTag     = m_cornerTag;
     m_shownCornerTagArgb = m_cornerTagArgb;
+    m_shownMono          = m_monospace;
+    m_shownMaxWidthDip   = m_maxTextWidthDip;
 }
 
 
@@ -1538,8 +1659,8 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     else
     {
         hr = const_cast<IDxuiTextRenderer &> (text).MeasureStringWrapped (
-                 m_text.c_str(), fontPx, GetFace(),
-                 m_scaler.ToPxf (GetMaxTextWidthDip()), textW, textH);
+                 m_text.c_str(), fontPx, GetShownFace(),
+                 m_scaler.ToPxf (GetShownMaxTextWidthDip()), textW, textH);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
@@ -1590,7 +1711,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
                           height - padY * 2.0f,
                           m_textArgb,
                           fontPx,
-                          GetFace());
+                          GetShownFace());
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -1667,6 +1788,8 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
     width  = (float) (placed.right  - placed.left);
     height = (float) (placed.bottom - placed.top);
 
+    NoteIfTooSmall (text, width, height);
+
     //  A tip that follows the pointer is a card with a shadow and no border.
     if (!m_followPointer)
     {
@@ -1709,7 +1832,7 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
                           height - margins.top  - margins.bottom,
                           m_textArgb,
                           fontPx,
-                          GetFace());
+                          GetShownFace());
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -1742,11 +1865,11 @@ float DxuiTooltip::GetCornerTagPx (IDxuiTextRenderer * text) const
 
     if (text != nullptr)
     {
-        hr = text->MeasureStringWrapped (m_shownCornerTag.c_str(), fontPx, GetFace(), s_kNoWrapPx, width, height);
+        hr = text->MeasureStringWrapped (m_shownCornerTag.c_str(), fontPx, GetShownFace(), s_kNoWrapPx, width, height);
     }
     else if (m_activePopup != nullptr)
     {
-        hr = m_activePopup->MeasureTextWrapped (m_shownCornerTag.c_str(), fontPx, GetFace(), s_kNoWrapPx, width, height);
+        hr = m_activePopup->MeasureTextWrapped (m_shownCornerTag.c_str(), fontPx, GetShownFace(), s_kNoWrapPx, width, height);
     }
 
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1783,7 +1906,7 @@ void DxuiTooltip::DrawCornerTag (IDxuiTextRenderer & text, float right, float to
 
     hr = text.DrawString (m_shownCornerTag.c_str(), right - width, top, width, lineHeight,
                           DxuiColor::ComputeInkForContrast (ink, m_bgArgb, kMinTextContrast) | 0xFF000000u,
-                          fontPx, GetFace(), DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+                          fontPx, GetShownFace(), DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -1832,7 +1955,7 @@ void DxuiTooltip::DrawFrame (IDxuiPainter & painter, IDxuiTextRenderer & text, f
         painter.DrawLine (segment.from.x, segment.from.y, segment.to.x, segment.to.y, 1.0f, stroke);
     }
 
-    hr = text.MeasureStringWrapped (m_shownFrameLabel.c_str(), labelPx, GetFace(), s_kNoWrapPx, labelW, measH);
+    hr = text.MeasureStringWrapped (m_shownFrameLabel.c_str(), labelPx, GetShownFace(), s_kNoWrapPx, labelW, measH);
 
     if (FAILED (hr) || labelW <= 0.0f)
     {
@@ -1844,7 +1967,7 @@ void DxuiTooltip::DrawFrame (IDxuiPainter & painter, IDxuiTextRenderer & text, f
     painter.FillRect (std::round (labelX - pad), top - labelH / 2.0f, std::ceil (labelW), labelH, m_bgArgb);
 
     hr = text.DrawString (m_shownFrameLabel.c_str(), std::round (labelX - pad), top - labelH / 2.0f, std::ceil (labelW), labelH,
-                          ink, labelPx, GetFace(), DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+                          ink, labelPx, GetShownFace(), DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -1959,7 +2082,7 @@ HRESULT DxuiTooltip::LayOutTableWith (IDxuiTextRenderer & text, TableLayout & ta
 
     return LayOutTable (m_text, fontPx, [this, &text, fontPx] (const std::wstring & part, float & w, float & h)
     {
-        return text.MeasureStringWrapped (part.c_str(), fontPx, GetFace(), s_kNoWrapPx, w, h);
+        return text.MeasureStringWrapped (part.c_str(), fontPx, GetShownFace(), s_kNoWrapPx, w, h);
     }, table);
 }
 
@@ -1997,22 +2120,22 @@ void DxuiTooltip::DrawTable (
     for (size_t line = 0; line < table.lines.size(); line++)
     {
         const std::vector<std::wstring>  & parts = table.lines[line];
-        uint32_t                           argb  = DxuiColor::ComputeInkForContrast ((line < m_lineArgbs.size() && m_lineArgbs[line] != 0) ? m_lineArgbs[line] : m_textArgb,
+        uint32_t                           argb  = DxuiColor::ComputeInkForContrast ((line < m_shownLineArgbs.size() && m_shownLineArgbs[line] != 0) ? m_shownLineArgbs[line] : m_textArgb,
                                                                                      m_bgArgb, kMinTextContrast);
         uint32_t                           edge  = DxuiColor::ComputeInkForContrast (m_borderArgb, m_bgArgb, kMinLineContrast) | 0xFF000000u;
-        bool                               scale = line < m_lineScales.size() && !m_lineScales[line].empty();
+        bool                               scale = line < m_shownLineScales.size() && !m_shownLineScales[line].empty();
 
         indent = scale ? GetLineIndentPx (table.lineHeight) : GetSwatchIndentPx (table.lineHeight);
 
-        if (line < m_lineSwatches.size() && m_lineSwatches[line] != 0)
+        if (line < m_shownLineSwatches.size() && m_shownLineSwatches[line] != 0)
         {
-            painter.FillRect    (left, y + std::round ((table.lineHeight - side) / 2.0f), side, side, m_lineSwatches[line]);
+            painter.FillRect    (left, y + std::round ((table.lineHeight - side) / 2.0f), side, side, m_shownLineSwatches[line]);
             painter.OutlineRect (left, y + std::round ((table.lineHeight - side) / 2.0f), side, side, 1.0f, edge);
         }
 
         if (scale)
         {
-            DrawLineScale (painter, m_lineScales[line], left, y + std::round ((table.lineHeight - side) / 2.0f), side);
+            DrawLineScale (painter, m_shownLineScales[line], left, y + std::round ((table.lineHeight - side) / 2.0f), side);
         }
 
         for (size_t c = 0; c < parts.size(); c++)
@@ -2021,7 +2144,7 @@ void DxuiTooltip::DrawTable (
 
             x  = isSpan ? 0.0f        : table.columnX[c];
             w  = isSpan ? table.width : table.width - table.columnX[c];
-            hr = text.DrawString (parts[c].c_str(), left + indent + x, y, w, table.lineHeight, argb, fontPx, GetFace());
+            hr = text.DrawString (parts[c].c_str(), left + indent + x, y, w, table.lineHeight, argb, fontPx, GetShownFace());
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
@@ -2072,7 +2195,7 @@ void DxuiTooltip::DrawLineScale (IDxuiPainter & painter, const std::vector<uint3
 
 float DxuiTooltip::GetLineIndentPx (float lineHeight) const
 {
-    bool  hasScales = std::ranges::any_of (m_lineScales, [] (const std::vector<uint32_t> & stops) { return !stops.empty(); });
+    bool  hasScales = std::ranges::any_of (m_shownLineScales, [] (const std::vector<uint32_t> & stops) { return !stops.empty(); });
 
 
 
@@ -2098,5 +2221,5 @@ float DxuiTooltip::GetSwatchIndentPx (float lineHeight) const
 
 
 
-    return m_lineSwatches.empty() ? 0.0f : std::round (lineHeight * kIndentShare);
+    return m_shownLineSwatches.empty() ? 0.0f : std::round (lineHeight * kIndentShare);
 }
