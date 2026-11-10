@@ -13,34 +13,50 @@
 //
 //  RawDeviceServer
 //
-//  The elevated process's side of RawDeviceProtocol: one drive's blocks,
-//  read and written on request until the stream closes.
+//  The storage card proxy's side of RawDeviceProtocol: the blocks of each
+//  card Casso Explorer opens, read and written on request until the stream
+//  closes.
 //
-//  The drive is checked here, in the process that has administrator access:
-//  a drive that is not removable is never read or written, whatever the
-//  requests are. The reply to each request for it is E_ACCESSDENIED.
+//  Every check is made here, in the elevated process, whatever the requests
+//  are. A drive that is not a storage card is closed again at once, and each
+//  request for it fails with E_ACCESSDENIED. A write fails with
+//  E_ACCESSDENIED unless each of its blocks is inside a partition of an
+//  Apple layout found on the card when it opened, and none is inside a
+//  volume Windows has mounted with a file system.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class RawDeviceServer
 {
 public:
-    RawDeviceServer (IRawDevice & device, IByteStream & stream) : m_device (device), m_stream (stream) {}
+    using DeviceMaker = std::function<std::unique_ptr<IRawDevice> ()>;
+
+    RawDeviceServer (DeviceMaker makeDevice, IByteStream & stream) : m_makeDevice (std::move (makeDevice)), m_stream (stream) {}
 
     //  Returns S_OK once the stream has closed, and ERROR_INVALID_DATA after
     //  a request that is not one of the protocol's, which also closes the
-    //  stream. The drive is closed either way.
-    HRESULT  Run (int driveNumber);
+    //  stream. Every drive is closed either way.
+    HRESULT  Run ();
 
 private:
-    HRESULT  ServeInfo  ();
-    HRESULT  ServeRead  (uint64_t first, uint32_t count);
-    HRESULT  ServeWrite (uint64_t first, uint32_t count);
-    HRESULT  CheckRange (uint64_t first, uint32_t count) const;
-    HRESULT  Reply      (HRESULT result, std::span<const Byte> payload);
+    struct Session
+    {
+        std::unique_ptr<IRawDevice>  device;
+        PhysicalDrive                drive;
+        std::vector<BlockExtent>     writable;
+    };
 
-    IRawDevice     & m_device;
-    IByteStream    & m_stream;
-    PhysicalDrive    m_drive;
-    HRESULT          m_opened = E_FAIL;
+    static void  FindApplePartitions (IRawDevice & device, uint64_t blocks, std::vector<BlockExtent> & outExtents);
+
+    HRESULT  ServeOpen   (int number);
+    HRESULT  ServeClose  (int number);
+    HRESULT  ServeRead   (int number, uint64_t first, uint32_t count);
+    HRESULT  ServeWrite  (int number, uint64_t first, uint32_t count);
+    HRESULT  CheckRange  (int number, uint64_t first, uint32_t count, Session * & outSession);
+    HRESULT  CheckWrite  (Session & session, uint64_t first, uint32_t count);
+    HRESULT  Reply       (HRESULT result, std::span<const Byte> payload);
+
+    DeviceMaker               m_makeDevice;
+    IByteStream             & m_stream;
+    std::map<int, Session>    m_sessions;
 };

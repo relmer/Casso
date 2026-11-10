@@ -8,7 +8,7 @@
 #include "Seams/RawDevice/RawDeviceClient.h"
 #include "Seams/RawDevice/RawDeviceProtocol.h"
 #include "Seams/RawDevice/RawDeviceServer.h"
-#include "Seams/RawDevice/Win32RawDeviceHelper.h"
+#include "Seams/RawDevice/Win32StorageCardProxy.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -18,34 +18,64 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FakeRawDevice
+//  FakeDrives
 //
-//  One drive in memory, with the calls made on it counted.
+//  The PC's drives in memory, by number, with the calls made on them
+//  counted. Each FakeRawDevice the server makes opens one of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+struct FakeDrives
+{
+    struct Drive
+    {
+        std::vector<Byte>         bytes;
+        bool                      removable = true;
+        std::vector<BlockExtent>  mounted;
+        bool                      isOpen    = false;
+        int                       opens     = 0;
+        int                       reads     = 0;
+        int                       writes    = 0;
+    };
+
+    std::map<int, Drive>  drives;
+};
+
+
+
+
 
 class FakeRawDevice : public IRawDevice
 {
 public:
-    static constexpr int  kNumber = 3;
+    explicit FakeRawDevice (FakeDrives & drives) : m_drives (drives) {}
 
     HRESULT ListDrives (std::vector<PhysicalDrive> & outDrives) override
     {
-        outDrives.assign (1, MakeDrive());
+        outDrives.clear();
+
+        for (auto & [number, drive] : m_drives.drives)
+        {
+            outDrives.push_back (MakeDrive (number, drive));
+        }
 
         return S_OK;
     }
 
     HRESULT Open (int number, PhysicalDrive & outDrive) override
     {
-        if (number != kNumber)
+        auto  found = m_drives.drives.find (number);
+
+        if (found == m_drives.drives.end())
         {
             return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
         }
 
-        outDrive = MakeDrive();
-        isOpen   = true;
-        opens++;
+        m_drive  = &found->second;
+        outDrive = MakeDrive (number, *m_drive);
+
+        m_drive->isOpen = true;
+        m_drive->opens++;
 
         return S_OK;
     }
@@ -54,46 +84,53 @@ public:
     {
         size_t  start = (size_t) first * kBlockBytes;
 
-        reads++;
+        m_drive->reads++;
 
-        std::copy (bytes.begin() + (ptrdiff_t) start, bytes.begin() + (ptrdiff_t) (start + (size_t) count * kBlockBytes), outBytes.begin());
+        std::copy (m_drive->bytes.begin() + (ptrdiff_t) start, m_drive->bytes.begin() + (ptrdiff_t) (start + (size_t) count * kBlockBytes), outBytes.begin());
 
         return S_OK;
     }
 
     HRESULT WriteBlocks (uint64_t first, std::span<const Byte> blocks) override
     {
-        writes++;
+        m_drive->writes++;
 
-        std::copy (blocks.begin(), blocks.end(), bytes.begin() + (ptrdiff_t) ((size_t) first * kBlockBytes));
+        std::copy (blocks.begin(), blocks.end(), m_drive->bytes.begin() + (ptrdiff_t) ((size_t) first * kBlockBytes));
 
         return S_OK;
     }
 
     void Close() override
     {
-        isOpen = false;
+        if (m_drive != nullptr)
+        {
+            m_drive->isOpen = false;
+        }
     }
 
-    PhysicalDrive MakeDrive() const
+    HRESULT GetMountedExtents (std::vector<BlockExtent> & outExtents) override
     {
-        PhysicalDrive  drive;
+        outExtents = m_drive->mounted;
 
-        drive.number    = kNumber;
-        drive.model     = "Generic Card Reader";
-        drive.bus       = "USB";
-        drive.bytes     = bytes.size();
-        drive.removable = removable;
-
-        return drive;
+        return S_OK;
     }
 
-    std::vector<Byte>  bytes;
-    bool               removable = true;
-    bool               isOpen    = false;
-    int                opens     = 0;
-    int                reads     = 0;
-    int                writes    = 0;
+    static PhysicalDrive MakeDrive (int number, const FakeDrives::Drive & drive)
+    {
+        PhysicalDrive  description;
+
+        description.number    = number;
+        description.model     = "Generic Card Reader";
+        description.bus       = "USB";
+        description.bytes     = drive.bytes.size();
+        description.removable = drive.removable;
+
+        return description;
+    }
+
+private:
+    FakeDrives         & m_drives;
+    FakeDrives::Drive  * m_drive = nullptr;
 };
 
 
@@ -104,8 +141,8 @@ public:
 //
 //  RawDeviceTests
 //
-//  A RawDeviceClient and a RawDeviceServer on the two ends of an in-process
-//  stream, the server on a thread and over a drive in memory.
+//  A RawDeviceConnection and a RawDeviceServer on the two ends of an
+//  in-process stream, the server on a thread and over drives in memory.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,26 +150,34 @@ TEST_CLASS (RawDeviceTests)
 {
 public:
 
-    static constexpr size_t    kBlock  = IBlockStore::kBlockBytes;
-    static constexpr uint32_t  kBlocks = 400;
+    static constexpr size_t    kBlock      = IBlockStore::kBlockBytes;
+    static constexpr uint32_t  kBlocks     = 400;
+    static constexpr int       kCard       = 3;
+    static constexpr int       kOtherCard  = 5;
+
+    //  Blocks inside the card's second partition.
+    static constexpr uint32_t  kInside     = PartitionCard::kSecondStart + 10;
 
     struct Session
     {
-        FakeRawDevice                         device;
+        FakeDrives                            drives;
         std::shared_ptr<InProcessByteStream>  clientEnd;
         std::shared_ptr<InProcessByteStream>  serverEnd;
+        std::unique_ptr<RawDeviceConnection>  connection;
         std::thread                           thread;
         HRESULT                               result = E_PENDING;
 
-        void Start (int drive = FakeRawDevice::kNumber)
+        void Start()
         {
             InProcessByteStream::CreatePair (clientEnd, serverEnd);
 
-            thread = std::thread ([this, drive]
-            {
-                RawDeviceServer  server (device, *serverEnd);
+            connection = std::make_unique<RawDeviceConnection> (*clientEnd);
 
-                result = server.Run (drive);
+            thread = std::thread ([this]
+            {
+                RawDeviceServer  server ([this]() { return std::make_unique<FakeRawDevice> (drives); }, *serverEnd);
+
+                result = server.Run();
             });
         }
 
@@ -167,11 +212,22 @@ public:
         return bytes;
     }
 
-    static HRESULT SendRequest (IByteStream & stream, Byte operation, uint64_t first, uint32_t count)
+    //  A MicroDrive card, a whole number of blocks.
+    static std::vector<Byte> MakeCard()
+    {
+        std::vector<Byte>  card = PartitionCard::MakeCard();
+
+        card.resize ((size_t) PartitionCard::kCardBlocks * kBlock);
+
+        return card;
+    }
+
+    static HRESULT SendRequest (IByteStream & stream, Byte operation, int number, uint64_t first, uint32_t count)
     {
         std::vector<Byte>  bytes;
 
         bytes.push_back (operation);
+        RawDeviceProtocol::AppendLong (bytes, (uint32_t) number);
         RawDeviceProtocol::AppendQuad (bytes, first);
         RawDeviceProtocol::AppendLong (bytes, count);
 
@@ -192,14 +248,14 @@ public:
         Session        session;
         PhysicalDrive  drive;
 
-        session.device.bytes = MakeBlocks (kBlocks, 1);
+        session.drives.drives[kCard].bytes = MakeBlocks (kBlocks, 1);
         session.Start();
 
-        RawDeviceClient  client (*session.clientEnd);
+        RawDeviceClient  client (*session.connection);
 
-        AssertSucceeded (client.Connect (drive));
+        AssertSucceeded (client.Connect (kCard, drive));
 
-        Assert::AreEqual (FakeRawDevice::kNumber, drive.number);
+        Assert::AreEqual (kCard, drive.number);
         Assert::AreEqual (std::string ("Generic Card Reader"), drive.model);
         Assert::AreEqual (std::string ("USB"), drive.bus);
         Assert::AreEqual ((uint64_t) kBlocks * kBlock, drive.bytes);
@@ -208,32 +264,32 @@ public:
     }
 
 
-    TEST_METHOD (Connect_FailsWithAccessDeniedForADriveThatIsNotRemovable)
+    TEST_METHOD (Connect_FailsWithAccessDeniedForADriveThatIsNotAStorageCard)
     {
         Session            session;
         PhysicalDrive      drive;
         std::vector<Byte>  block (kBlock, 0);
 
-        session.device.bytes     = MakeBlocks (kBlocks, 1);
-        session.device.removable = false;
+        session.drives.drives[kCard].bytes     = MakeBlocks (kBlocks, 1);
+        session.drives.drives[kCard].removable = false;
         session.Start();
 
-        RawDeviceClient  client (*session.clientEnd);
+        RawDeviceClient  client (*session.connection);
 
-        Assert::AreEqual (E_ACCESSDENIED, client.Connect (drive));
+        Assert::AreEqual (E_ACCESSDENIED, client.Connect (kCard, drive));
 
-        AssertSucceeded (SendRequest (*session.clientEnd, RawDeviceProtocol::kRead, 0, 1));
+        AssertSucceeded (SendRequest (*session.clientEnd, RawDeviceProtocol::kRead, kCard, 0, 1));
         Assert::AreEqual (E_ACCESSDENIED, ReadReply (*session.clientEnd));
 
-        AssertSucceeded (SendRequest (*session.clientEnd, RawDeviceProtocol::kWrite, 0, 1));
+        AssertSucceeded (SendRequest (*session.clientEnd, RawDeviceProtocol::kWrite, kCard, 0, 1));
         AssertSucceeded (session.clientEnd->Write (block.data(), block.size()));
         Assert::AreEqual (E_ACCESSDENIED, ReadReply (*session.clientEnd));
 
         session.Finish();
 
-        Assert::AreEqual (0, session.device.reads);
-        Assert::AreEqual (0, session.device.writes);
-        Assert::IsFalse (session.device.isOpen);
+        Assert::AreEqual (0, session.drives.drives[kCard].reads);
+        Assert::AreEqual (0, session.drives.drives[kCard].writes);
+        Assert::IsFalse (session.drives.drives[kCard].isOpen);
     }
 
 
@@ -242,12 +298,104 @@ public:
         Session        session;
         PhysicalDrive  drive;
 
-        session.device.bytes = MakeBlocks (kBlocks, 1);
-        session.Start (FakeRawDevice::kNumber + 1);
+        session.drives.drives[kCard].bytes = MakeBlocks (kBlocks, 1);
+        session.Start();
 
-        RawDeviceClient  client (*session.clientEnd);
+        RawDeviceClient  client (*session.connection);
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), client.Connect (drive));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), client.Connect (kCard + 1, drive));
+    }
+
+
+    TEST_METHOD (Request_ForADriveThatIsNotOpenFails)
+    {
+        Session  session;
+
+        session.drives.drives[kCard].bytes = MakeBlocks (kBlocks, 1);
+        session.Start();
+
+        AssertSucceeded (SendRequest (*session.clientEnd, RawDeviceProtocol::kRead, kCard, 0, 1));
+        Assert::AreEqual (E_ACCESSDENIED, ReadReply (*session.clientEnd));
+
+        session.Finish();
+
+        Assert::AreEqual (0, session.drives.drives[kCard].opens);
+    }
+
+
+    TEST_METHOD (TwoCards_AreReadThroughOneConnection)
+    {
+        Session            session;
+        PhysicalDrive      first;
+        PhysicalDrive      second;
+        std::vector<Byte>  readFirst (kBlock, 0);
+        std::vector<Byte>  readSecond (kBlock, 0);
+
+        session.drives.drives[kCard].bytes      = MakeBlocks (kBlocks, 1);
+        session.drives.drives[kOtherCard].bytes = MakeBlocks (kBlocks, 0x40);
+        session.Start();
+
+        RawDeviceClient  cardClient  (*session.connection);
+        RawDeviceClient  otherClient (*session.connection);
+
+        AssertSucceeded (cardClient.Connect (kCard, first));
+        AssertSucceeded (otherClient.Connect (kOtherCard, second));
+        AssertSucceeded (cardClient.ReadBlocks (7, 1, readFirst));
+        AssertSucceeded (otherClient.ReadBlocks (7, 1, readSecond));
+
+        Assert::IsTrue (std::equal (readFirst.begin(), readFirst.end(), session.drives.drives[kCard].bytes.begin() + (ptrdiff_t) (7 * kBlock)));
+        Assert::IsTrue (std::equal (readSecond.begin(), readSecond.end(), session.drives.drives[kOtherCard].bytes.begin() + (ptrdiff_t) (7 * kBlock)));
+    }
+
+
+    TEST_METHOD (Destroying_AClientClosesItsCardOnly)
+    {
+        Session        session;
+        PhysicalDrive  drive;
+
+        session.drives.drives[kCard].bytes      = MakeBlocks (kBlocks, 1);
+        session.drives.drives[kOtherCard].bytes = MakeBlocks (kBlocks, 2);
+        session.Start();
+
+        RawDeviceClient  open (*session.connection);
+
+        AssertSucceeded (open.Connect (kOtherCard, drive));
+
+        {
+            RawDeviceClient  closed (*session.connection);
+
+            AssertSucceeded (closed.Connect (kCard, drive));
+        }
+
+        session.Finish();
+
+        Assert::AreEqual (1, session.drives.drives[kCard].opens);
+        Assert::IsFalse (session.drives.drives[kCard].isOpen);
+        Assert::IsFalse (session.drives.drives[kOtherCard].isOpen);
+    }
+
+
+    TEST_METHOD (Open_FailsPastTheLimitOfOpenCards)
+    {
+        Session        session;
+        PhysicalDrive  drive;
+        HRESULT        hr = S_OK;
+
+        for (int number = 0; number <= (int) RawDeviceProtocol::kMaxDrives; number++)
+        {
+            session.drives.drives[number].bytes = MakeBlocks (4, 1);
+        }
+
+        session.Start();
+
+        for (int number = 0; number < (int) RawDeviceProtocol::kMaxDrives; number++)
+        {
+            AssertSucceeded (session.connection->Open (number, drive));
+        }
+
+        hr = session.connection->Open ((int) RawDeviceProtocol::kMaxDrives, drive);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_TOO_MANY_OPEN_FILES), hr);
     }
 
 
@@ -259,49 +407,157 @@ public:
         uint32_t           count = RawDeviceProtocol::kMaxBlocks * 2 + 30;
         std::vector<Byte>  read ((size_t) count * kBlock, 0);
 
-        session.device.bytes = MakeBlocks (kBlocks, 1);
+        session.drives.drives[kCard].bytes = MakeBlocks (kBlocks, 1);
         session.Start();
 
-        RawDeviceClient  client (*session.clientEnd);
+        RawDeviceClient  client (*session.connection);
 
-        AssertSucceeded (client.Connect (drive));
+        AssertSucceeded (client.Connect (kCard, drive));
         AssertSucceeded (client.ReadBlocks (first, count, read));
 
-        Assert::IsTrue (std::equal (read.begin(), read.end(), session.device.bytes.begin() + (ptrdiff_t) ((size_t) first * kBlock)));
-        Assert::AreEqual (3, session.device.reads);
+        Assert::IsTrue (std::equal (read.begin(), read.end(), session.drives.drives[kCard].bytes.begin() + (ptrdiff_t) ((size_t) first * kBlock)));
     }
 
 
-    TEST_METHOD (WriteBlocks_ChangesTheDriveAtCommit)
+    TEST_METHOD (Write_InsideAnApplePartitionChangesTheCardAtCommit)
     {
         Session            session;
         PhysicalDrive      drive;
-        uint32_t           first    = 10;
         uint32_t           count    = RawDeviceProtocol::kMaxBlocks + 20;
-        std::vector<Byte>  original = MakeBlocks (kBlocks, 1);
+        std::vector<Byte>  original = MakeCard();
         std::vector<Byte>  written  = MakeBlocks (count, 0x80);
 
-        session.device.bytes = original;
+        session.drives.drives[kCard].bytes = original;
         session.Start();
 
-        RawDeviceClient  client (*session.clientEnd);
+        RawDeviceClient  client (*session.connection);
 
-        AssertSucceeded (client.Connect (drive));
-        AssertSucceeded (client.WriteBlocks (first, written));
+        AssertSucceeded (client.Connect (kCard, drive));
+        AssertSucceeded (client.WriteBlocks (kInside, written));
 
         Assert::AreEqual ((size_t) count, client.GetPendingBlockCount());
-        Assert::AreEqual (0, session.device.writes);
+        Assert::AreEqual (0, session.drives.drives[kCard].writes);
 
         AssertSucceeded (client.Commit());
         session.Finish();
 
         Assert::AreEqual ((size_t) 0, client.GetPendingBlockCount());
-        Assert::AreEqual (2, session.device.writes);
-        Assert::IsTrue (std::equal (written.begin(), written.end(), session.device.bytes.begin() + (ptrdiff_t) ((size_t) first * kBlock)));
+        Assert::AreEqual (2, session.drives.drives[kCard].writes);
+        Assert::IsTrue (std::equal (written.begin(), written.end(), session.drives.drives[kCard].bytes.begin() + (ptrdiff_t) ((size_t) kInside * kBlock)));
+    }
 
-        //  The blocks on either side are as they were.
-        Assert::IsTrue (std::equal (original.begin(), original.begin() + (ptrdiff_t) ((size_t) first * kBlock), session.device.bytes.begin()));
-        Assert::IsTrue (std::equal (original.begin() + (ptrdiff_t) ((size_t) (first + count) * kBlock), original.end(), session.device.bytes.begin() + (ptrdiff_t) ((size_t) (first + count) * kBlock)));
+
+    TEST_METHOD (Write_OnADriveWithNoAppleLayoutFails)
+    {
+        Session            session;
+        PhysicalDrive      drive;
+        std::vector<Byte>  original = MakeBlocks (kBlocks, 1);
+
+        session.drives.drives[kCard].bytes = original;
+        session.Start();
+
+        RawDeviceClient  client (*session.connection);
+
+        AssertSucceeded (client.Connect (kCard, drive));
+        AssertSucceeded (client.WriteBlocks (10, MakeBlocks (1, 0x80)));
+
+        Assert::AreEqual (E_ACCESSDENIED, client.Commit());
+
+        session.Finish();
+
+        Assert::AreEqual (0, session.drives.drives[kCard].writes);
+        Assert::IsTrue (session.drives.drives[kCard].bytes == original);
+    }
+
+
+    TEST_METHOD (Write_OutsideEveryApplePartitionFails)
+    {
+        Session            session;
+        PhysicalDrive      drive;
+        std::vector<Byte>  original = MakeCard();
+
+        session.drives.drives[kCard].bytes = original;
+        session.Start();
+
+        RawDeviceClient  client (*session.connection);
+
+        //  Block 0 is the partition map.
+        AssertSucceeded (client.Connect (kCard, drive));
+        AssertSucceeded (client.WriteBlocks (0, MakeBlocks (1, 0x80)));
+
+        Assert::AreEqual (E_ACCESSDENIED, client.Commit());
+
+        session.Finish();
+
+        Assert::AreEqual (0, session.drives.drives[kCard].writes);
+        Assert::IsTrue (session.drives.drives[kCard].bytes == original);
+    }
+
+
+    TEST_METHOD (Write_PastTheEndOfAnApplePartitionFails)
+    {
+        Session            session;
+        PhysicalDrive      drive;
+        uint32_t           last = PartitionCard::kSecondStart + PartitionCard::kSecondBlocks - 1;
+
+        session.drives.drives[kCard].bytes = MakeCard();
+        session.Start();
+
+        RawDeviceClient  client (*session.connection);
+
+        AssertSucceeded (client.Connect (kCard, drive));
+        AssertSucceeded (client.WriteBlocks (last, MakeBlocks (2, 0x80)));
+
+        Assert::AreEqual (E_ACCESSDENIED, client.Commit());
+
+        session.Finish();
+
+        Assert::AreEqual (0, session.drives.drives[kCard].writes);
+    }
+
+
+    TEST_METHOD (Write_OverAMountedWindowsVolumeFails)
+    {
+        Session            session;
+        PhysicalDrive      drive;
+        std::vector<Byte>  original = MakeCard();
+
+        session.drives.drives[kCard].bytes   = original;
+        session.drives.drives[kCard].mounted = { BlockExtent { kInside + 5, 50 } };
+        session.Start();
+
+        RawDeviceClient  client (*session.connection);
+
+        AssertSucceeded (client.Connect (kCard, drive));
+        AssertSucceeded (client.WriteBlocks (kInside, MakeBlocks (10, 0x80)));
+
+        Assert::AreEqual (E_ACCESSDENIED, client.Commit());
+
+        session.Finish();
+
+        Assert::AreEqual (0, session.drives.drives[kCard].writes);
+        Assert::IsTrue (session.drives.drives[kCard].bytes == original);
+    }
+
+
+    TEST_METHOD (Write_BesideAMountedWindowsVolumeSucceeds)
+    {
+        Session        session;
+        PhysicalDrive  drive;
+
+        session.drives.drives[kCard].bytes   = MakeCard();
+        session.drives.drives[kCard].mounted = { BlockExtent { kInside + 10, 50 } };
+        session.Start();
+
+        RawDeviceClient  client (*session.connection);
+
+        AssertSucceeded (client.Connect (kCard, drive));
+        AssertSucceeded (client.WriteBlocks (kInside, MakeBlocks (10, 0x80)));
+        AssertSucceeded (client.Commit());
+
+        session.Finish();
+
+        Assert::AreEqual (1, session.drives.drives[kCard].writes);
     }
 
 
@@ -311,22 +567,22 @@ public:
         PhysicalDrive      drive;
         std::vector<Byte>  block = MakeBlocks (1, 0x55);
 
-        session.device.bytes = MakeBlocks (kBlocks, 1);
+        session.drives.drives[kCard].bytes = MakeCard();
         session.Start();
 
-        RawDeviceClient  client (*session.clientEnd);
+        RawDeviceClient  client (*session.connection);
 
-        AssertSucceeded (client.Connect (drive));
-        AssertSucceeded (client.WriteBlocks (2, block));
-        AssertSucceeded (client.WriteBlocks (3, block));
-        AssertSucceeded (client.WriteBlocks (90, block));
+        AssertSucceeded (client.Connect (kCard, drive));
+        AssertSucceeded (client.WriteBlocks (kInside, block));
+        AssertSucceeded (client.WriteBlocks (kInside + 1, block));
+        AssertSucceeded (client.WriteBlocks (kInside + 90, block));
         AssertSucceeded (client.Commit());
         session.Finish();
 
-        Assert::AreEqual (2, session.device.writes);
-        Assert::AreEqual ((Byte) 0x55, session.device.bytes[2 * kBlock]);
-        Assert::AreEqual ((Byte) 0x55, session.device.bytes[3 * kBlock]);
-        Assert::AreEqual ((Byte) 0x55, session.device.bytes[90 * kBlock]);
+        Assert::AreEqual (2, session.drives.drives[kCard].writes);
+        Assert::AreEqual ((Byte) 0x55, session.drives.drives[kCard].bytes[(size_t) kInside * kBlock]);
+        Assert::AreEqual ((Byte) 0x55, session.drives.drives[kCard].bytes[(size_t) (kInside + 1) * kBlock]);
+        Assert::AreEqual ((Byte) 0x55, session.drives.drives[kCard].bytes[(size_t) (kInside + 90) * kBlock]);
     }
 
 
@@ -338,19 +594,19 @@ public:
         std::vector<Byte>  block    = MakeBlocks (1, 0xEE);
         std::vector<Byte>  read (3 * kBlock, 0);
 
-        session.device.bytes = original;
+        session.drives.drives[kCard].bytes = original;
         session.Start();
 
-        RawDeviceClient  client (*session.clientEnd);
+        RawDeviceClient  client (*session.connection);
 
-        AssertSucceeded (client.Connect (drive));
+        AssertSucceeded (client.Connect (kCard, drive));
         AssertSucceeded (client.WriteBlocks (21, block));
         AssertSucceeded (client.ReadBlocks (20, 3, read));
 
         Assert::IsTrue (std::equal (read.begin(), read.begin() + (ptrdiff_t) kBlock, original.begin() + (ptrdiff_t) (20 * kBlock)));
         Assert::IsTrue (std::equal (block.begin(), block.end(), read.begin() + (ptrdiff_t) kBlock));
         Assert::IsTrue (std::equal (read.begin() + (ptrdiff_t) (2 * kBlock), read.end(), original.begin() + (ptrdiff_t) (22 * kBlock)));
-        Assert::IsTrue (session.device.bytes == original);
+        Assert::IsTrue (session.drives.drives[kCard].bytes == original);
     }
 
 
@@ -358,96 +614,101 @@ public:
     {
         Session            session;
         PhysicalDrive      drive;
-        std::vector<Byte>  original = MakeBlocks (kBlocks, 1);
-        std::vector<Byte>  block    = MakeBlocks (1, 0xEE);
+        std::vector<Byte>  original = MakeCard();
 
-        session.device.bytes = original;
+        session.drives.drives[kCard].bytes = original;
         session.Start();
 
-        RawDeviceClient  client (*session.clientEnd);
+        RawDeviceClient  client (*session.connection);
 
-        AssertSucceeded (client.Connect (drive));
-        AssertSucceeded (client.WriteBlocks (21, block));
+        AssertSucceeded (client.Connect (kCard, drive));
+        AssertSucceeded (client.WriteBlocks (kInside, MakeBlocks (1, 0xEE)));
 
         client.Discard();
 
         AssertSucceeded (client.Commit());
         session.Finish();
 
-        Assert::AreEqual (0, session.device.writes);
-        Assert::IsTrue (session.device.bytes == original);
+        Assert::AreEqual (0, session.drives.drives[kCard].writes);
+        Assert::IsTrue (session.drives.drives[kCard].bytes == original);
     }
 
 
     TEST_METHOD (Request_PastTheEndOfTheDriveFails)
     {
         Session            session;
+        PhysicalDrive      drive;
         std::vector<Byte>  block (kBlock, 0);
 
-        session.device.bytes = MakeBlocks (kBlocks, 1);
+        session.drives.drives[kCard].bytes = MakeBlocks (kBlocks, 1);
         session.Start();
 
-        AssertSucceeded (SendRequest (*session.clientEnd, RawDeviceProtocol::kRead, kBlocks, 1));
+        AssertSucceeded (session.connection->Open (kCard, drive));
+
+        AssertSucceeded (SendRequest (*session.clientEnd, RawDeviceProtocol::kRead, kCard, kBlocks, 1));
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND), ReadReply (*session.clientEnd));
 
-        AssertSucceeded (SendRequest (*session.clientEnd, RawDeviceProtocol::kWrite, kBlocks, 1));
+        AssertSucceeded (SendRequest (*session.clientEnd, RawDeviceProtocol::kWrite, kCard, kBlocks, 1));
         AssertSucceeded (session.clientEnd->Write (block.data(), block.size()));
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND), ReadReply (*session.clientEnd));
 
         session.Finish();
 
-        Assert::AreEqual (0, session.device.reads);
-        Assert::AreEqual (0, session.device.writes);
+        Assert::AreEqual (0, session.drives.drives[kCard].writes);
     }
 
 
     TEST_METHOD (Run_EndsTheSessionAtAnUnknownOperation)
     {
-        Session  session;
+        Session        session;
+        PhysicalDrive  drive;
 
-        session.device.bytes = MakeBlocks (kBlocks, 1);
+        session.drives.drives[kCard].bytes = MakeBlocks (kBlocks, 1);
         session.Start();
 
-        AssertSucceeded (SendRequest (*session.clientEnd, 9, 0, 1));
+        AssertSucceeded (session.connection->Open (kCard, drive));
+        AssertSucceeded (SendRequest (*session.clientEnd, 9, kCard, 0, 1));
 
         session.thread.join();
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), session.result);
-        Assert::IsFalse (session.device.isOpen);
+        Assert::IsFalse (session.drives.drives[kCard].isOpen);
     }
 
 
     TEST_METHOD (Run_EndsTheSessionAtARequestOverTheBlockLimit)
     {
-        Session  session;
+        Session        session;
+        PhysicalDrive  drive;
 
-        session.device.bytes = MakeBlocks (kBlocks, 1);
+        session.drives.drives[kCard].bytes = MakeBlocks (kBlocks, 1);
         session.Start();
 
-        AssertSucceeded (SendRequest (*session.clientEnd, RawDeviceProtocol::kRead, 0, RawDeviceProtocol::kMaxBlocks + 1));
+        AssertSucceeded (session.connection->Open (kCard, drive));
+        AssertSucceeded (SendRequest (*session.clientEnd, RawDeviceProtocol::kRead, kCard, 0, RawDeviceProtocol::kMaxBlocks + 1));
 
         session.thread.join();
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), session.result);
-        Assert::AreEqual (0, session.device.reads);
+        Assert::IsFalse (session.drives.drives[kCard].isOpen);
     }
 
 
-    TEST_METHOD (Run_ReturnsWhenTheStreamCloses)
+    TEST_METHOD (Run_ClosesEveryCardWhenTheStreamCloses)
     {
         Session        session;
         PhysicalDrive  drive;
 
-        session.device.bytes = MakeBlocks (kBlocks, 1);
+        session.drives.drives[kCard].bytes      = MakeBlocks (kBlocks, 1);
+        session.drives.drives[kOtherCard].bytes = MakeBlocks (kBlocks, 2);
         session.Start();
 
-        RawDeviceClient  client (*session.clientEnd);
-
-        AssertSucceeded (client.Connect (drive));
+        AssertSucceeded (session.connection->Open (kCard, drive));
+        AssertSucceeded (session.connection->Open (kOtherCard, drive));
         AssertSucceeded (session.Finish());
 
-        Assert::AreEqual (1, session.device.opens);
-        Assert::IsFalse (session.device.isOpen);
+        Assert::IsFalse (session.drives.drives[kCard].isOpen);
+        Assert::IsFalse (session.drives.drives[kOtherCard].isOpen);
     }
 
 
@@ -455,19 +716,19 @@ public:
     {
         Session                 session;
         PhysicalDrive           drive;
-        std::vector<Byte>       card         = PartitionCard::MakeCard();
+        std::vector<Byte>       card         = MakeCard();
         MemoryBlockStore        store (card);
         PartitionLayoutKind     direct       = PartitionLayoutKind::None;
         PartitionLayoutKind     throughPipe  = PartitionLayoutKind::None;
         std::vector<Partition>  inMemory;
         std::vector<Partition>  found;
 
-        session.device.bytes = card;
+        session.drives.drives[kCard].bytes = card;
         session.Start();
 
-        RawDeviceClient  client (*session.clientEnd);
+        RawDeviceClient  client (*session.connection);
 
-        AssertSucceeded (client.Connect (drive));
+        AssertSucceeded (client.Connect (kCard, drive));
         AssertSucceeded (PartitionLayout::Detect (store, direct, inMemory));
         AssertSucceeded (PartitionLayout::Detect (client, throughPipe, found));
 
@@ -482,28 +743,30 @@ public:
     }
 
 
-    TEST_METHOD (IsValidPipeName_AdmitsOnlyThePrefixAndHexDigits)
+    TEST_METHOD (BlockExtent_ContainsAndOverlapsAtTheEdges)
     {
-        Assert::IsTrue  (Win32RawDeviceHelper::IsValidPipeName (L"CassoRawDevice0123456789ABCDEF"));
-        Assert::IsFalse (Win32RawDeviceHelper::IsValidPipeName (L"CassoRawDevice"));
-        Assert::IsFalse (Win32RawDeviceHelper::IsValidPipeName (L"Other0123"));
-        Assert::IsFalse (Win32RawDeviceHelper::IsValidPipeName (L"CassoRawDevice01\\..\\x"));
-        Assert::IsFalse (Win32RawDeviceHelper::IsValidPipeName (L"CassoRawDevice01 23"));
-        Assert::IsFalse (Win32RawDeviceHelper::IsValidPipeName (std::wstring (L"CassoRawDevice") + std::wstring (80, L'A')));
+        BlockExtent  extent { 100, 50 };
+
+        Assert::IsTrue  (extent.Contains (100, 50));
+        Assert::IsTrue  (extent.Contains (149, 1));
+        Assert::IsFalse (extent.Contains (99, 2));
+        Assert::IsFalse (extent.Contains (149, 2));
+        Assert::IsFalse (extent.Contains (UINT64_MAX, 2));
+
+        Assert::IsTrue  (extent.Overlaps (149, 10));
+        Assert::IsTrue  (extent.Overlaps (90, 11));
+        Assert::IsFalse (extent.Overlaps (150, 10));
+        Assert::IsFalse (extent.Overlaps (90, 10));
     }
 
 
-    TEST_METHOD (TryParseDrive_AdmitsOnlyDecimalDigits)
+    TEST_METHOD (IsValidPipeName_AdmitsOnlyThePrefixAndHexDigits)
     {
-        int  drive = 0;
-
-        Assert::IsTrue (Win32RawDeviceHelper::TryParseDrive (L"12", drive));
-        Assert::AreEqual (12, drive);
-
-        Assert::IsFalse (Win32RawDeviceHelper::TryParseDrive (L"", drive));
-        Assert::IsFalse (Win32RawDeviceHelper::TryParseDrive (L"-1", drive));
-        Assert::IsFalse (Win32RawDeviceHelper::TryParseDrive (L"1 ", drive));
-        Assert::IsFalse (Win32RawDeviceHelper::TryParseDrive (L"0x1", drive));
-        Assert::IsFalse (Win32RawDeviceHelper::TryParseDrive (L"12345", drive));
+        Assert::IsTrue  (Win32StorageCardProxy::IsValidPipeName (L"CassoStorageCard0123456789ABCDEF"));
+        Assert::IsFalse (Win32StorageCardProxy::IsValidPipeName (L"CassoStorageCard"));
+        Assert::IsFalse (Win32StorageCardProxy::IsValidPipeName (L"Other0123"));
+        Assert::IsFalse (Win32StorageCardProxy::IsValidPipeName (L"CassoStorageCard01\\..\\x"));
+        Assert::IsFalse (Win32StorageCardProxy::IsValidPipeName (L"CassoStorageCard01 23"));
+        Assert::IsFalse (Win32StorageCardProxy::IsValidPipeName (std::wstring (L"CassoStorageCard") + std::wstring (80, L'A')));
     }
 };

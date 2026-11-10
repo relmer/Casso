@@ -7,7 +7,6 @@
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "Config/Win32FileSystem.h"
-#include "Seams/RawDevice/Win32RawDeviceHelper.h"
 #include "Seams/ShellVerbs/Win32FilterHost.h"
 #include "Seams/Win32FirewallHelper.h"
 #include "Seams/Win32PreviewHelper.h"
@@ -63,7 +62,6 @@ extern "C" int WINAPI wCassoExplorerMain (
     bool                                   helper     = false;
     bool                                   firewall   = false;
     bool                                   filterHost = false;
-    bool                                   rawDevice  = false;
     std::unique_ptr<CassoExplorerShell>    shell      = std::make_unique<CassoExplorerShell>();
 
 
@@ -83,10 +81,6 @@ extern "C" int WINAPI wCassoExplorerMain (
     //  Started by a file contents search to run a file's IFilter.
     filterHost = Win32FilterHost::TryRunFromCommandLine (exitCode);
     BAIL_OUT_IF (filterHost, S_OK);
-
-    //  Started elevated by a window, to read and write a removable drive.
-    rawDevice = Win32RawDeviceHelper::TryRunFromCommandLine (exitCode);
-    BAIL_OUT_IF (rawDevice, S_OK);
 
     //  lpCmdLine arrives as one string. The full command line is split by the
     //  runtime's quoting rules instead, and the program name dropped.

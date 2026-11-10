@@ -24,9 +24,31 @@ struct PhysicalDrive
     //  "USB", "SD", "MMC", or empty for any other bus.
     std::string  bus;
 
-    //  True for removable media and for a drive on a USB, SD or MMC bus,
-    //  unless the drive has the Windows volume on it.
+    //  True for a storage card: removable media on a USB, SD or MMC bus, with
+    //  no volume of Windows, its boot files, a page file or a hibernation
+    //  file on it. A hard disk, an SSD or an NVMe drive is never one.
     bool         removable = false;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockExtent
+//
+//  A run of blocks of a drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct BlockExtent
+{
+    uint64_t  first = 0;
+    uint64_t  count = 0;
+
+    bool  Contains (uint64_t start, uint64_t length) const { return start >= first && length <= count && start - first <= count - length; }
+    bool  Overlaps (uint64_t start, uint64_t length) const { return length > 0 && count > 0 && start < first + count && first < start + length; }
 };
 
 
@@ -58,4 +80,9 @@ public:
     virtual HRESULT  ReadBlocks  (uint64_t first, uint32_t count, std::span<Byte> outBytes) = 0;
     virtual HRESULT  WriteBlocks (uint64_t first, std::span<const Byte> bytes) = 0;
     virtual void     Close       () = 0;
+
+    //  The blocks of each volume on the open drive that Windows has mounted
+    //  with a file system, read at each call, as a volume can mount at any
+    //  time.
+    virtual HRESULT  GetMountedExtents (std::vector<BlockExtent> & outExtents) = 0;
 };

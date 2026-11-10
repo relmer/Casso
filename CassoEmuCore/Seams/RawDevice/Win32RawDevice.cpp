@@ -22,7 +22,7 @@ HRESULT Win32RawDevice::ListDrives (std::vector<PhysicalDrive> & outDrives)
 
     outDrives.clear();
 
-    FindSystemDrives (systemDrives);
+    FindProtectedDrives (systemDrives);
 
     for (int number = 0; number < kMaxDrives; number++)
     {
@@ -78,7 +78,7 @@ HRESULT Win32RawDevice::Open (int number, PhysicalDrive & outDrive)
 
     CBREx (inRange, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
-    FindSystemDrives (systemDrives);
+    FindProtectedDrives (systemDrives);
 
     probe = CreateFileW (MakeDrivePath (number).c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
     CWR (probe != INVALID_HANDLE_VALUE);
@@ -98,6 +98,9 @@ HRESULT Win32RawDevice::Open (int number, PhysicalDrive & outDrive)
 
     m_number = number;
     m_blocks = outDrive.bytes / kBlockBytes;
+
+    hr = CheckBitLocker();
+    CHR (hr);
 
 Error:
     if (probe != INVALID_HANDLE_VALUE)
@@ -184,9 +187,6 @@ HRESULT Win32RawDevice::WriteBlocks (uint64_t first, std::span<const Byte> bytes
     CBRAEx (whole, E_INVALIDARG);
     CBREx (inside, HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND));
 
-    hr = LockVolumes();
-    CHR (hr);
-
     hr = Seek (first);
     CHR (hr);
 
@@ -218,9 +218,7 @@ Error:
 //
 //  Win32RawDevice::Close
 //
-//  Closing a volume's handle unlocks it, and Windows mounts it again on its
-//  next use.
-//
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void Win32RawDevice::Close()
@@ -231,23 +229,15 @@ void Win32RawDevice::Close()
         CloseHandle (m_drive);
     }
 
-    for (HANDLE volume : m_volumes)
-    {
-        CloseHandle (volume);
-    }
-
     if (m_transfer != nullptr)
     {
         VirtualFree (m_transfer, 0, MEM_RELEASE);
     }
 
-    m_volumes.clear();
-
     m_drive    = INVALID_HANDLE_VALUE;
     m_transfer = nullptr;
     m_number   = -1;
     m_blocks   = 0;
-    m_locked   = false;
 }
 
 
@@ -334,7 +324,7 @@ HRESULT Win32RawDevice::QueryDrive (HANDLE drive, int number, const std::set<DWO
     outDrive.model = vendor.empty() || product.empty() ? vendor + product : vendor + " " + product;
 
     onCardBus          = !outDrive.bus.empty();
-    outDrive.removable = (descriptor->RemovableMedia != FALSE || onCardBus) && !systemDrives.contains ((DWORD) number);
+    outDrive.removable = descriptor->RemovableMedia != FALSE && onCardBus && !systemDrives.contains ((DWORD) number);
 
     //  Fails for a drive with no media, which is reported as a size of 0.
     if (DeviceIoControl (drive, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, nullptr, 0, &geometry, sizeof (geometry), &returned, nullptr))
@@ -388,34 +378,98 @@ std::string Win32RawDevice::ReadDescriptorText (const std::vector<Byte> & descri
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32RawDevice::FindSystemDrives
+//  Win32RawDevice::FindProtectedDrives
 //
-//  The drives the volume of the Windows folder is on. Nothing is added when
-//  that cannot be read.
+//  The drives of every volume that is protected. A volume that cannot be
+//  opened or has no extents, as a CD drive with no disc, is passed over.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32RawDevice::FindSystemDrives (std::set<DWORD> & outDrives)
+void Win32RawDevice::FindProtectedDrives (std::set<DWORD> & outDrives)
 {
-    wchar_t  folder[MAX_PATH] = {};
-    UINT     length           = GetWindowsDirectoryW (folder, ARRAYSIZE (folder));
-    bool     lettered         = length >= 2 && length < ARRAYSIZE (folder) && folder[1] == L':';
-    HANDLE   volume           = INVALID_HANDLE_VALUE;
+    wchar_t  name[MAX_PATH] = {};
+    HANDLE   search         = FindFirstVolumeW (name, ARRAYSIZE (name));
+    BOOL     more           = search != INVALID_HANDLE_VALUE;
 
 
 
     outDrives.clear();
 
-    if (lettered)
+    while (more)
     {
-        volume = CreateFileW (std::format (L"\\\\.\\{}:", folder[0]).c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+        std::wstring  root   = name;
+        HANDLE        volume = INVALID_HANDLE_VALUE;
+
+        if (IsProtectedVolume (root))
+        {
+            volume = CreateFileW (TrimVolumeName (root).c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+        }
+
+        if (volume != INVALID_HANDLE_VALUE)
+        {
+            TryGetVolumeDrives (volume, outDrives);
+            CloseHandle (volume);
+        }
+
+        more = FindNextVolumeW (search, name, ARRAYSIZE (name));
     }
 
-    if (volume != INVALID_HANDLE_VALUE)
+    if (search != INVALID_HANDLE_VALUE)
     {
-        TryGetVolumeDrives (volume, outDrives);
-        CloseHandle (volume);
+        FindVolumeClose (search);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32RawDevice::IsProtectedVolume
+//
+//  A volume with Windows, Windows' boot files, a page file, a swap file or
+//  a hibernation file at its root. A volume whose root cannot be read for a
+//  reason other than an empty drive is treated as protected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32RawDevice::IsProtectedVolume (const std::wstring & root)
+{
+    DWORD  attributes = GetFileAttributesW (root.c_str());
+    DWORD  error      = attributes == INVALID_FILE_ATTRIBUTES ? GetLastError() : ERROR_SUCCESS;
+    bool   found      = false;
+
+
+
+    if (attributes == INVALID_FILE_ATTRIBUTES)
+    {
+        return error != ERROR_NOT_READY && error != ERROR_UNRECOGNIZED_VOLUME && error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND;
+    }
+
+    for (const wchar_t * marker : s_kProtectedFiles)
+    {
+        found = found || GetFileAttributesW ((root + marker).c_str()) != INVALID_FILE_ATTRIBUTES;
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32RawDevice::TrimVolumeName
+//
+//  A volume is opened by its name without the final backslash.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring Win32RawDevice::TrimVolumeName (const std::wstring & name)
+{
+    return !name.empty() && name.back() == L'\\' ? name.substr (0, name.size() - 1) : name;
 }
 
 
@@ -451,62 +505,68 @@ bool Win32RawDevice::TryGetVolumeDrives (HANDLE volume, std::set<DWORD> & outDri
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32RawDevice::LockVolumes
+//  Win32RawDevice::GetMountedExtents
 //
-//  Every volume with an extent on this drive. A volume that cannot be opened
-//  or has no extents, as a CD drive with no disc, is passed over.
+//  A volume Windows reports as RAW, or with no file system, is not mounted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32RawDevice::LockVolumes()
+HRESULT Win32RawDevice::GetMountedExtents (std::vector<BlockExtent> & outExtents)
 {
     HRESULT   hr             = S_OK;
     wchar_t   name[MAX_PATH] = {};
     HANDLE    search         = INVALID_HANDLE_VALUE;
     BOOL      more           = FALSE;
+    bool      open           = m_drive != INVALID_HANDLE_VALUE;
 
 
 
-    BAIL_OUT_IF (m_locked, S_OK);
+    outExtents.clear();
+
+    CBRAEx (open, E_UNEXPECTED);
 
     search = FindFirstVolumeW (name, ARRAYSIZE (name));
-    more   = search != INVALID_HANDLE_VALUE;
+    CWR (search != INVALID_HANDLE_VALUE);
+
+    more = TRUE;
 
     while (more)
     {
-        std::wstring     path     = name;
-        std::set<DWORD>  drives;
-        HANDLE           volume   = INVALID_HANDLE_VALUE;
-        DWORD            returned = 0;
-        BOOL             ok       = FALSE;
+        std::wstring          root                       = name;
+        wchar_t               fileSystem[MAX_PATH + 1]   = {};
+        std::vector<Byte>     buffer (sizeof (VOLUME_DISK_EXTENTS) + 31 * sizeof (DISK_EXTENT), 0);
+        VOLUME_DISK_EXTENTS * extents                    = (VOLUME_DISK_EXTENTS *) buffer.data();
+        DWORD                 returned                   = 0;
+        HANDLE                volume                     = INVALID_HANDLE_VALUE;
+        bool                  mounted                    = GetVolumeInformationW (root.c_str(), nullptr, 0, nullptr, nullptr, nullptr, fileSystem, ARRAYSIZE (fileSystem)) != FALSE &&
+                                                           _wcsicmp (fileSystem, L"RAW") != 0;
+        bool                  read                       = false;
 
-        //  A volume is opened by its name without the final backslash.
-        if (!path.empty() && path.back() == L'\\')
+        if (mounted)
         {
-            path.pop_back();
+            volume = CreateFileW (TrimVolumeName (root).c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
         }
 
-        volume = CreateFileW (path.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
-
-        if (volume != INVALID_HANDLE_VALUE && TryGetVolumeDrives (volume, drives) && drives.contains ((DWORD) m_number))
+        if (volume != INVALID_HANDLE_VALUE)
         {
-            m_volumes.push_back (volume);
-
-            ok = DeviceIoControl (volume, FSCTL_LOCK_VOLUME, nullptr, 0, nullptr, 0, &returned, nullptr);
-            CWR (ok);
-
-            ok = DeviceIoControl (volume, FSCTL_DISMOUNT_VOLUME, nullptr, 0, nullptr, 0, &returned, nullptr);
-            CWR (ok);
-        }
-        else if (volume != INVALID_HANDLE_VALUE)
-        {
+            read = DeviceIoControl (volume, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, nullptr, 0, buffer.data(), (DWORD) buffer.size(), &returned, nullptr) != FALSE;
             CloseHandle (volume);
+        }
+
+        for (DWORD at = 0; read && at < extents->NumberOfDiskExtents && at < 32; at++)
+        {
+            const DISK_EXTENT  & extent = extents->Extents[at];
+            uint64_t             start  = (uint64_t) extent.StartingOffset.QuadPart;
+            uint64_t             length = (uint64_t) extent.ExtentLength.QuadPart;
+
+            if (extent.DiskNumber == (DWORD) m_number && length > 0)
+            {
+                outExtents.push_back (BlockExtent { start / kBlockBytes, (start + length + kBlockBytes - 1) / kBlockBytes - start / kBlockBytes });
+            }
         }
 
         more = FindNextVolumeW (search, name, ARRAYSIZE (name));
     }
-
-    m_locked = true;
 
 Error:
     if (search != INVALID_HANDLE_VALUE)
@@ -514,6 +574,55 @@ Error:
         FindVolumeClose (search);
     }
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32RawDevice::CheckBitLocker
+//
+//  A partition that begins with BitLocker's signature fails the open with
+//  E_ACCESSDENIED, locked or not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32RawDevice::CheckBitLocker()
+{
+    HRESULT                          hr       = S_OK;
+    std::vector<Byte>                buffer (sizeof (DRIVE_LAYOUT_INFORMATION_EX) + 127 * sizeof (PARTITION_INFORMATION_EX), 0);
+    DRIVE_LAYOUT_INFORMATION_EX    * layout   = (DRIVE_LAYOUT_INFORMATION_EX *) buffer.data();
+    DWORD                            returned = 0;
+    BOOL                             ok       = FALSE;
+    std::vector<Byte>                sector (kBlockBytes, 0);
+
+
+
+    ok = DeviceIoControl (m_drive, IOCTL_DISK_GET_DRIVE_LAYOUT_EX, nullptr, 0, buffer.data(), (DWORD) buffer.size(), &returned, nullptr);
+    CWR (ok);
+
+    for (DWORD at = 0; at < layout->PartitionCount && at < 128; at++)
+    {
+        const PARTITION_INFORMATION_EX  & partition = layout->PartitionEntry[at];
+        uint64_t                          start     = (uint64_t) partition.StartingOffset.QuadPart;
+        bool                              isLocked  = false;
+
+        if (partition.PartitionLength.QuadPart <= 0 || start % kBlockBytes != 0)
+        {
+            continue;
+        }
+
+        hr = ReadBlocks (start / kBlockBytes, 1, sector);
+        CHR (hr);
+
+        isLocked = memcmp (sector.data() + 3, s_kBitLockerSignature, sizeof (s_kBitLockerSignature) - 1) == 0;
+        CBREx (!isLocked, E_ACCESSDENIED);
+    }
+
+Error:
     return hr;
 }
 

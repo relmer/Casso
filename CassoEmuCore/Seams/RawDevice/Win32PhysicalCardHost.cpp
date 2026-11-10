@@ -4,7 +4,7 @@
 #include "Seams/RawDevice/RawDeviceClient.h"
 #include "Seams/RawDevice/Win32PipeStream.h"
 #include "Seams/RawDevice/Win32RawDevice.h"
-#include "Seams/RawDevice/Win32RawDeviceHelper.h"
+#include "Seams/RawDevice/Win32StorageCardProxy.h"
 
 
 
@@ -12,33 +12,31 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ElevatedDriveStore
+//  ProxyProcess
 //
-//  A drive open in the elevated process: the pipe to it, the client on the
-//  pipe, and the process's handle.
+//  The running storage card proxy: the pipe to it, the connection on the
+//  pipe, and the process's handle. Destroying it closes the pipe, and the
+//  proxy then exits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ElevatedDriveStore : public IBlockStore
+class ProxyProcess
 {
 public:
-    ElevatedDriveStore() = default;
-    ~ElevatedDriveStore() override;
+    ProxyProcess() = default;
+    ~ProxyProcess();
 
-    ElevatedDriveStore (const ElevatedDriveStore &) = delete;
-    ElevatedDriveStore & operator= (const ElevatedDriveStore &) = delete;
+    ProxyProcess (const ProxyProcess &) = delete;
+    ProxyProcess & operator= (const ProxyProcess &) = delete;
 
-    HRESULT   Open          (int number, HWND owner, PhysicalDrive & outDrive);
-
-    uint32_t  GetBlockCount() const override { return m_client.GetBlockCount(); }
-    HRESULT   ReadBlocks    (uint32_t first, uint32_t count, std::span<Byte> outBytes) override { return m_client.ReadBlocks (first, count, outBytes); }
-    HRESULT   WriteBlocks   (uint32_t first, std::span<const Byte> bytes) override              { return m_client.WriteBlocks (first, bytes); }
-    HRESULT   Commit        () override;
+    HRESULT                Start          (HWND owner) { return Win32StorageCardProxy::Launch (owner, m_stream, m_process); }
+    bool                   IsRunning      () const;
+    RawDeviceConnection  & GetConnection  ()           { return m_connection; }
 
 private:
-    Win32PipeStream  m_stream;
-    RawDeviceClient  m_client  { m_stream };
-    HANDLE           m_process = nullptr;
+    Win32PipeStream      m_stream;
+    RawDeviceConnection  m_connection { m_stream };
+    HANDLE               m_process    = nullptr;
 };
 
 
@@ -47,11 +45,41 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ElevatedDriveStore::~ElevatedDriveStore
+//  ProxyDriveStore
+//
+//  One card open through the proxy. The blocks of a commit that fails are
+//  dropped, so that a later commit sends only its blocks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ElevatedDriveStore::~ElevatedDriveStore()
+class ProxyDriveStore : public IBlockStore
+{
+public:
+    explicit ProxyDriveStore (std::shared_ptr<ProxyProcess> proxy) : m_proxy (std::move (proxy)), m_client (m_proxy->GetConnection()) {}
+
+    HRESULT   Connect       (int number, PhysicalDrive & outDrive) { return m_client.Connect (number, outDrive); }
+
+    uint32_t  GetBlockCount() const override                                                    { return m_client.GetBlockCount(); }
+    HRESULT   ReadBlocks    (uint32_t first, uint32_t count, std::span<Byte> outBytes) override { return m_client.ReadBlocks (first, count, outBytes); }
+    HRESULT   WriteBlocks   (uint32_t first, std::span<const Byte> bytes) override              { return m_client.WriteBlocks (first, bytes); }
+    HRESULT   Commit        () override;
+
+private:
+    std::shared_ptr<ProxyProcess>  m_proxy;
+    RawDeviceClient                m_client;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProxyProcess::~ProxyProcess
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProxyProcess::~ProxyProcess()
 {
     m_stream.Close();
 
@@ -67,24 +95,13 @@ ElevatedDriveStore::~ElevatedDriveStore()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ElevatedDriveStore::Open
+//  ProxyProcess::IsRunning
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ElevatedDriveStore::Open (int number, HWND owner, PhysicalDrive & outDrive)
+bool ProxyProcess::IsRunning() const
 {
-    HRESULT  hr = S_OK;
-
-
-
-    hr = Win32RawDeviceHelper::Launch (owner, number, m_stream, m_process);
-    CHR (hr);
-
-    hr = m_client.Connect (outDrive);
-    CHR (hr);
-
-Error:
-    return hr;
+    return m_process != nullptr && WaitForSingleObject (m_process, 0) == WAIT_TIMEOUT;
 }
 
 
@@ -93,14 +110,11 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ElevatedDriveStore::Commit
-//
-//  The blocks of a commit that fails are dropped, so that a later commit
-//  sends only its blocks.
+//  ProxyDriveStore::Commit
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ElevatedDriveStore::Commit()
+HRESULT ProxyDriveStore::Commit()
 {
     HRESULT  hr = m_client.Commit();
 
@@ -141,18 +155,36 @@ HRESULT Win32PhysicalCardHost::ListDrives (std::vector<PhysicalDrive> & outDrive
 //
 //  Win32PhysicalCardHost::OpenDrive
 //
+//  The proxy is started when none is running, which raises the UAC prompt.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32PhysicalCardHost::OpenDrive (int number, HWND owner, PhysicalDrive & outDrive, std::unique_ptr<IBlockStore> & outStore)
 {
-    HRESULT                              hr    = S_OK;
-    std::unique_ptr<ElevatedDriveStore>  store = std::make_unique<ElevatedDriveStore>();
+    HRESULT                           hr        = S_OK;
+    bool                              isRunning = m_proxy != nullptr && m_proxy->IsRunning();
+    std::shared_ptr<ProxyProcess>     proxy;
+    std::unique_ptr<ProxyDriveStore>  store;
 
 
 
     outStore.reset();
 
-    hr = store->Open (number, owner, outDrive);
+    if (!isRunning)
+    {
+        m_proxy.reset();
+
+        proxy = std::make_shared<ProxyProcess>();
+
+        hr = proxy->Start (owner);
+        CHR (hr);
+
+        m_proxy = std::move (proxy);
+    }
+
+    store = std::make_unique<ProxyDriveStore> (m_proxy);
+
+    hr = store->Connect (number, outDrive);
     CHR (hr);
 
     outStore = std::move (store);

@@ -18,14 +18,14 @@
 //  may do. Reading and writing its blocks takes administrator access, so
 //  `Open` succeeds only in the elevated process.
 //
-//  A removable drive is one with removable media or on a USB, SD or MMC bus.
-//  The drive with Windows on it is never one, whatever its bus. A drive whose
-//  sectors are not 512 bytes fails to open with ERROR_NOT_SUPPORTED.
+//  A storage card is removable media on a USB, SD or MMC bus. A drive with
+//  a volume of Windows, its boot files, a page file, a swap file or a
+//  hibernation file is never one, nor is a drive with a BitLocker volume,
+//  found when it opens. A drive whose sectors are not 512 bytes fails to
+//  open with ERROR_NOT_SUPPORTED.
 //
-//  Before the first write, each Windows volume on the drive is locked and
-//  dismounted, and stays locked until `Close`; Windows fails a write to
-//  sectors inside a mounted volume. A volume with an open file fails to
-//  lock, and the write fails with that error.
+//  No volume is locked or dismounted: RawDeviceServer fails every write
+//  inside a mounted volume.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,25 +47,32 @@ public:
     HRESULT  WriteBlocks (uint64_t first, std::span<const Byte> bytes) override;
     void     Close       () override;
 
+    HRESULT  GetMountedExtents (std::vector<BlockExtent> & outExtents) override;
+
 private:
     static constexpr int     kMaxDrives      = 64;
     static constexpr size_t  kTransferBlocks = 128;
     static constexpr size_t  kTransferBytes  = kTransferBlocks * kBlockBytes;
 
+    //  A volume with any of these at its root is protected.
+    static constexpr const wchar_t *  s_kProtectedFiles[] = { L"Windows\\System32", L"bootmgr", L"EFI\\Microsoft\\Boot", L"Boot\\BCD", L"pagefile.sys", L"swapfile.sys", L"hiberfil.sys" };
+
+    static constexpr char  s_kBitLockerSignature[] = "-FVE-FS-";
+
     static std::wstring  MakeDrivePath      (int number);
     static HRESULT       QueryDrive         (HANDLE drive, int number, const std::set<DWORD> & systemDrives, PhysicalDrive & outDrive, DWORD & outSectorBytes);
     static std::string   ReadDescriptorText (const std::vector<Byte> & descriptor, DWORD offset);
-    static void          FindSystemDrives   (std::set<DWORD> & outDrives);
-    static bool          TryGetVolumeDrives (HANDLE volume, std::set<DWORD> & outDrives);
+    static void          FindProtectedDrives (std::set<DWORD> & outDrives);
+    static bool          IsProtectedVolume   (const std::wstring & root);
+    static bool          TryGetVolumeDrives  (HANDLE volume, std::set<DWORD> & outDrives);
+    static std::wstring  TrimVolumeName      (const std::wstring & name);
 
-    HRESULT  LockVolumes ();
-    HRESULT  Seek        (uint64_t block);
+    HRESULT  CheckBitLocker ();
+    HRESULT  Seek           (uint64_t block);
 
     HANDLE               m_drive    = INVALID_HANDLE_VALUE;
     int                  m_number   = -1;
     uint64_t             m_blocks   = 0;
-    bool                 m_locked   = false;
-    std::vector<HANDLE>  m_volumes;
 
     //  Page-aligned, as a transfer to a drive is from sector-aligned memory.
     Byte               * m_transfer = nullptr;

@@ -1,8 +1,9 @@
 #include "Pch.h"
 
-#include "Seams/RawDevice/Win32RawDeviceHelper.h"
+#include "Seams/RawDevice/Win32StorageCardProxy.h"
 #include "Seams/RawDevice/RawDeviceServer.h"
 #include "Seams/RawDevice/Win32RawDevice.h"
+#include "Update/AuthenticodeVerifier.h"
 
 
 
@@ -10,33 +11,29 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32RawDeviceHelper::Launch
+//  Win32StorageCardProxy::Launch
 //
-//  The pipe exists before the helper starts, so the helper's connection
-//  cannot arrive first. ShellExecuteExW returns once the user has
-//  dealt with the UAC prompt, so that time is not part of the wait.
+//  The pipe exists before the proxy starts, so the proxy's connection
+//  cannot arrive first. ShellExecuteExW returns once the user has dealt
+//  with the UAC prompt, so that time is not part of the wait.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32RawDeviceHelper::Launch (HWND owner, int drive, Win32PipeStream & stream, HANDLE & outProcess)
+HRESULT Win32StorageCardProxy::Launch (HWND owner, Win32PipeStream & stream, HANDLE & outProcess)
 {
-    HRESULT            hr             = S_OK;
-    wchar_t            self[MAX_PATH] = {};
-    DWORD              length         = 0;
-    bool               fits           = false;
-    HANDLE             pipe           = INVALID_HANDLE_VALUE;
-    SHELLEXECUTEINFOW  info           = {};
-    BOOL               started        = FALSE;
+    HRESULT            hr      = S_OK;
+    HANDLE             pipe    = INVALID_HANDLE_VALUE;
+    SHELLEXECUTEINFOW  info    = {};
+    BOOL               started = FALSE;
+    std::wstring       program;
     std::wstring       name;
-    std::wstring       parameters;
 
 
 
     outProcess = nullptr;
 
-    length = GetModuleFileNameW (nullptr, self, ARRAYSIZE (self));
-    fits   = length > 0 && length < ARRAYSIZE (self);
-    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INSUFFICIENT_BUFFER));
+    hr = GetSiblingPath (kProgramFile, program);
+    CHR (hr);
 
     hr = MakePipeName (name);
     CHR (hr);
@@ -44,22 +41,24 @@ HRESULT Win32RawDeviceHelper::Launch (HWND owner, int drive, Win32PipeStream & s
     hr = CreatePipe (name, pipe);
     CHR (hr);
 
-    parameters = std::format (L"{} {} {}", kSwitch, name, drive);
-
     info.cbSize       = sizeof (info);
     info.fMask        = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_UNICODE;
     info.hwnd         = owner;
     info.lpVerb       = L"runas";
-    info.lpFile       = self;
-    info.lpParameters = parameters.c_str();
+    info.lpFile       = program.c_str();
+    info.lpParameters = name.c_str();
     info.nShow        = SW_HIDE;
 
     started = ShellExecuteExW (&info);
     CWR (started);
 
     outProcess = info.hProcess;
+    CBREx (outProcess != nullptr, E_UNEXPECTED);
 
     hr = WaitForClient (pipe, outProcess);
+    CHR (hr);
+
+    hr = CheckClient (pipe, outProcess);
     CHR (hr);
 
     //  The stream closes the pipe from here on.
@@ -88,36 +87,28 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32RawDeviceHelper::TryRunFromCommandLine
+//  Win32StorageCardProxy::Run
 //
-//  The helper's command line is the switch, the pipe name and the drive
-//  number. Both are checked before anything is opened.
+//  The command line is the program and the pipe's name, and the name is
+//  checked before anything is opened.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Win32RawDeviceHelper::TryRunFromCommandLine (int & outExitCode)
+HRESULT Win32StorageCardProxy::Run (const wchar_t * commandLine)
 {
-    HRESULT            hr         = S_OK;
-    int                argc       = 0;
-    LPWSTR           * argv       = CommandLineToArgvW (GetCommandLineW(), &argc);
-    bool               helper     = argv != nullptr && argc == 4 && wcscmp (argv[1], kSwitch) == 0;
-    bool               validName  = false;
-    bool               validDrive = false;
-    int                drive      = -1;
-    HANDLE             pipe       = INVALID_HANDLE_VALUE;
+    HRESULT            hr        = S_OK;
+    int                argc      = 0;
+    LPWSTR           * argv      = CommandLineToArgvW (commandLine, &argc);
+    bool               validName = argv != nullptr && argc == 2 && IsValidPipeName (argv[1]);
+    HANDLE             pipe      = INVALID_HANDLE_VALUE;
     std::wstring       path;
     Win32PipeStream    stream;
-    Win32RawDevice     device;
 
 
 
-    BAIL_OUT_IF (!helper, S_OK);
+    CBREx (validName, E_INVALIDARG);
 
-    validName  = IsValidPipeName (argv[2]);
-    validDrive = TryParseDrive (argv[3], drive);
-    CBREx (validName && validDrive, E_INVALIDARG);
-
-    path = std::format (L"\\\\.\\pipe\\{}", argv[2]);
+    path = std::format (L"\\\\.\\pipe\\{}", argv[1]);
 
     //  Anonymous, so the pipe's server cannot act as this elevated process.
     pipe = CreateFileW (path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED | SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS, nullptr);
@@ -132,9 +123,9 @@ bool Win32RawDeviceHelper::TryRunFromCommandLine (int & outExitCode)
     CHR (hr);
 
     {
-        RawDeviceServer  server (device, stream);
+        RawDeviceServer  server ([]() { return std::make_unique<Win32RawDevice>(); }, stream);
 
-        hr = server.Run (drive);
+        hr = server.Run();
         CHR (hr);
     }
 
@@ -149,9 +140,7 @@ Error:
         LocalFree (argv);
     }
 
-    outExitCode = (int) hr;
-
-    return helper;
+    return hr;
 }
 
 
@@ -160,11 +149,11 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32RawDeviceHelper::IsValidPipeName
+//  Win32StorageCardProxy::IsValidPipeName
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Win32RawDeviceHelper::IsValidPipeName (const std::wstring & name)
+bool Win32StorageCardProxy::IsValidPipeName (const std::wstring & name)
 {
     size_t  prefix = wcslen (kPipePrefix);
     bool    valid  = name.size() > prefix && name.size() <= kMaxNameChars && name.compare (0, prefix, kPipePrefix) == 0;
@@ -187,26 +176,27 @@ bool Win32RawDeviceHelper::IsValidPipeName (const std::wstring & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32RawDeviceHelper::TryParseDrive
+//  Win32StorageCardProxy::GetSiblingPath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Win32RawDeviceHelper::TryParseDrive (const std::wstring & text, int & outDrive)
+HRESULT Win32StorageCardProxy::GetSiblingPath (const wchar_t * file, std::wstring & outPath)
 {
-    bool  valid = !text.empty() && text.size() <= 4;
-    int   value = 0;
+    HRESULT  hr             = S_OK;
+    wchar_t  self[MAX_PATH] = {};
+    DWORD    length         = GetModuleFileNameW (nullptr, self, ARRAYSIZE (self));
+    bool     fits           = length > 0 && length < ARRAYSIZE (self);
 
 
 
-    for (size_t at = 0; valid && at < text.size(); at++)
-    {
-        valid = text[at] >= L'0' && text[at] <= L'9';
-        value = value * 10 + (text[at] - L'0');
-    }
+    outPath.clear();
 
-    outDrive = valid ? value : -1;
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INSUFFICIENT_BUFFER));
 
-    return valid;
+    outPath = (std::filesystem::path (self).parent_path() / file).wstring();
+
+Error:
+    return hr;
 }
 
 
@@ -215,13 +205,13 @@ bool Win32RawDeviceHelper::TryParseDrive (const std::wstring & text, int & outDr
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32RawDeviceHelper::MakePipeName
+//  Win32StorageCardProxy::MakePipeName
 //
 //  The prefix and a new GUID's digits, so no two launches share a pipe.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32RawDeviceHelper::MakePipeName (std::wstring & outName)
+HRESULT Win32StorageCardProxy::MakePipeName (std::wstring & outName)
 {
     HRESULT  hr   = S_OK;
     GUID     guid = {};
@@ -250,88 +240,29 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32RawDeviceHelper::GetUserSid
+//  Win32StorageCardProxy::CreatePipe
 //
-//  The SID of the user this process runs as, in its text form.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT Win32RawDeviceHelper::GetUserSid (std::wstring & outSid)
-{
-    HRESULT            hr       = S_OK;
-    HANDLE             token    = nullptr;
-    DWORD              length   = 0;
-    LPWSTR             text     = nullptr;
-    BOOL               ok       = FALSE;
-    std::vector<Byte>  buffer;
-
-
-
-    outSid.clear();
-
-    ok = OpenProcessToken (GetCurrentProcess(), TOKEN_QUERY, &token);
-    CWR (ok);
-
-    GetTokenInformation (token, TokenUser, nullptr, 0, &length);
-    CBREx (length > 0, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-    buffer.resize (length);
-
-    ok = GetTokenInformation (token, TokenUser, buffer.data(), length, &length);
-    CWR (ok);
-
-    ok = ConvertSidToStringSidW (((TOKEN_USER *) buffer.data())->User.Sid, &text);
-    CWR (ok);
-
-    outSid = text;
-
-Error:
-    if (text != nullptr)
-    {
-        LocalFree (text);
-    }
-
-    if (token != nullptr)
-    {
-        CloseHandle (token);
-    }
-
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Win32RawDeviceHelper::CreatePipe
-//
-//  FILE_FLAG_FIRST_PIPE_INSTANCE fails the call when a pipe of this name
-//  exists, so the pipe is never one some other process created first.
+//  Only SYSTEM and elevated administrators may open the pipe: a process that
+//  is not elevated has the Administrators group for deny only, so Windows
+//  fails its open. FILE_FLAG_FIRST_PIPE_INSTANCE fails the call when a pipe
+//  of this name exists, so the pipe is never one some other process created
+//  first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32RawDeviceHelper::CreatePipe (const std::wstring & name, HANDLE & outPipe)
+HRESULT Win32StorageCardProxy::CreatePipe (const std::wstring & name, HANDLE & outPipe)
 {
     HRESULT              hr         = S_OK;
     SECURITY_ATTRIBUTES  attributes = {};
     PSECURITY_DESCRIPTOR descriptor = nullptr;
     BOOL                 ok         = FALSE;
-    std::wstring         sid;
-    std::wstring         sddl;
     std::wstring         path       = std::format (L"\\\\.\\pipe\\{}", name);
 
 
 
     outPipe = INVALID_HANDLE_VALUE;
 
-    hr = GetUserSid (sid);
-    CHR (hr);
-
-    sddl = std::format (L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;{})", sid);
-
-    ok = ConvertStringSecurityDescriptorToSecurityDescriptorW (sddl.c_str(), SDDL_REVISION_1, &descriptor, nullptr);
+    ok = ConvertStringSecurityDescriptorToSecurityDescriptorW (L"D:P(A;;GA;;;SY)(A;;GA;;;BA)", SDDL_REVISION_1, &descriptor, nullptr);
     CWR (ok);
 
     attributes.nLength              = sizeof (attributes);
@@ -363,14 +294,14 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32RawDeviceHelper::WaitForClient
+//  Win32StorageCardProxy::WaitForClient
 //
-//  Ends when the helper connects, when it exits, or at the timeout. A helper
-//  that exits first failed, and its exit code is the reason.
+//  Ends when a client connects, when the proxy exits, or at the timeout. A
+//  proxy that exits first failed, and its exit code is the reason.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32RawDeviceHelper::WaitForClient (HANDLE pipe, HANDLE process)
+HRESULT Win32StorageCardProxy::WaitForClient (HANDLE pipe, HANDLE process)
 {
     HRESULT     hr         = S_OK;
     OVERLAPPED  overlapped = {};
@@ -395,7 +326,7 @@ HRESULT Win32RawDeviceHelper::WaitForClient (HANDLE pipe, HANDLE process)
     waits[0] = overlapped.hEvent;
     waits[1] = process;
 
-    waited = WaitForMultipleObjects (process != nullptr ? 2 : 1, waits, FALSE, kConnectTimeoutMs);
+    waited = WaitForMultipleObjects (2, waits, FALSE, kConnectTimeoutMs);
 
     if (waited != WAIT_OBJECT_0)
     {
@@ -431,30 +362,67 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32RawDeviceHelper::CheckServer
+//  Win32StorageCardProxy::CheckClient
 //
-//  The process at the pipe's other end must be running this program's file.
+//  The process at the pipe's other end must be the proxy just started.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32RawDeviceHelper::CheckServer (HANDLE pipe)
+HRESULT Win32StorageCardProxy::CheckClient (HANDLE pipe, HANDLE process)
 {
-    HRESULT   hr               = S_OK;
-    wchar_t   self[MAX_PATH]   = {};
-    wchar_t   server[MAX_PATH] = {};
-    DWORD     selfLength       = 0;
-    DWORD     serverLength     = ARRAYSIZE (server);
-    ULONG     processId        = 0;
-    HANDLE    process          = nullptr;
-    BOOL      ok               = FALSE;
-    bool      fits             = false;
-    bool      same             = false;
+    HRESULT  hr       = S_OK;
+    ULONG    clientId = 0;
+    BOOL     ok       = GetNamedPipeClientProcessId (pipe, &clientId);
+    bool     same     = false;
 
 
 
-    selfLength = GetModuleFileNameW (nullptr, self, ARRAYSIZE (self));
-    fits       = selfLength > 0 && selfLength < ARRAYSIZE (self);
-    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INSUFFICIENT_BUFFER));
+    CWR (ok);
+
+    same = clientId != 0 && clientId == GetProcessId (process);
+    CBREx (same, E_ACCESSDENIED);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32StorageCardProxy::CheckServer
+//
+//  The process at the pipe's other end must be running CassoExplorer.exe
+//  from this program's folder. A signed proxy also requires a Casso Explorer
+//  signed by the same publisher, so a release proxy never serves an
+//  unsigned build.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32StorageCardProxy::CheckServer (HANDLE pipe)
+{
+    HRESULT               hr               = S_OK;
+    wchar_t               server[MAX_PATH] = {};
+    DWORD                 serverLength     = ARRAYSIZE (server);
+    ULONG                 processId        = 0;
+    HANDLE                process          = nullptr;
+    BOOL                  ok               = FALSE;
+    bool                  same             = false;
+    bool                  selfSigned       = false;
+    bool                  serverSigned     = false;
+    std::wstring          self;
+    std::wstring          explorer;
+    AuthenticodeVerifier  verifier;
+
+
+
+    hr = GetSiblingPath (kProgramFile, self);
+    CHR (hr);
+
+    hr = GetSiblingPath (kExplorerFile, explorer);
+    CHR (hr);
 
     ok = GetNamedPipeServerProcessId (pipe, &processId);
     CWR (ok);
@@ -465,8 +433,19 @@ HRESULT Win32RawDeviceHelper::CheckServer (HANDLE pipe)
     ok = QueryFullProcessImageNameW (process, 0, server, &serverLength);
     CWR (ok);
 
-    same = _wcsicmp (self, server) == 0;
+    same = _wcsicmp (explorer.c_str(), server) == 0;
     CBREx (same, E_ACCESSDENIED);
+
+    hr = verifier.IsOfficialFile (self, selfSigned);
+    CHR (hr);
+
+    if (selfSigned)
+    {
+        hr = verifier.IsOfficialFile (server, serverSigned);
+        CHR (hr);
+
+        CBREx (serverSigned, E_ACCESSDENIED);
+    }
 
 Error:
     if (process != nullptr)

@@ -13,27 +13,31 @@
 //
 //  RawDeviceProtocol
 //
-//  The bytes exchanged between a Casso Explorer window and the elevated
-//  process that has a drive open.
+//  The bytes exchanged between Casso Explorer and the storage card proxy,
+//  the elevated process that reads and writes the cards.
 //
-//  A request is a header: the operation in one byte, a block number in
-//  eight and a block count in four, least significant byte first. A write's
-//  blocks follow its header. A reply begins with an HRESULT in four bytes.
-//  After a success, a read's blocks follow, and for kInfo the drive: its
-//  size in eight bytes, one byte that is 1 for a removable drive, its number
-//  in four, then its model and its bus, each a length in two bytes and that
-//  many characters.
+//  A request is a header: the operation in one byte, the drive's number in
+//  four, a block number in eight and a block count in four, least
+//  significant byte first. A write's blocks follow its header. A reply
+//  begins with an HRESULT in four bytes. After a success, a read's blocks
+//  follow, and for kOpen the drive: its size in eight bytes, one byte that
+//  is 1 for a storage card, its number in four, then its model and its bus,
+//  each a length in two bytes and that many characters.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class RawDeviceProtocol
 {
 public:
-    static constexpr Byte      kInfo        = 1;
+    static constexpr Byte      kOpen        = 1;
     static constexpr Byte      kRead        = 2;
     static constexpr Byte      kWrite       = 3;
+    static constexpr Byte      kClose       = 4;
 
-    static constexpr size_t    kHeaderBytes = 13;
+    static constexpr size_t    kHeaderBytes = 17;
+
+    //  The most drives open at once.
+    static constexpr size_t    kMaxDrives   = 16;
 
     //  The most blocks in one read or one write.
     static constexpr uint32_t  kMaxBlocks   = 128;

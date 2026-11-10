@@ -229,7 +229,8 @@
     <ClCompile Include="Seams\RawDevice\RawDeviceServer.cpp" />
     <ClCompile Include="Seams\RawDevice\Win32PipeStream.cpp" />
     <ClCompile Include="Seams\RawDevice\Win32RawDevice.cpp" />
-    <ClCompile Include="Seams\RawDevice\Win32RawDeviceHelper.cpp" />
+    <ClCompile Include="Seams\RawDevice\Win32StorageCardProxy.cpp" />
+    <ClCompile Include="Seams\RawDevice\StorageCardProxyMain.cpp" />
     <ClCompile Include="Seams\RawDevice\Win32PhysicalCardHost.cpp" />
     <ClCompile Include="Seams\Win32FirewallHelper.cpp" />
     <ClCompile Include="Seams\Win32HostFirewall.cpp" />
@@ -1371,7 +1372,7 @@
     <ClInclude Include="Seams\RawDevice\RawDeviceServer.h" />
     <ClInclude Include="Seams\RawDevice\Win32PipeStream.h" />
     <ClInclude Include="Seams\RawDevice\Win32RawDevice.h" />
-    <ClInclude Include="Seams\RawDevice\Win32RawDeviceHelper.h" />
+    <ClInclude Include="Seams\RawDevice\Win32StorageCardProxy.h" />
     <ClInclude Include="Seams\RawDevice\Win32PhysicalCardHost.h" />
     <ClInclude Include="Seams\Win32FirewallHelper.h" />
     <ClInclude Include="Seams\Win32HostFirewall.h" />

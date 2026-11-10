@@ -12,25 +12,63 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RawDeviceConnection
+//
+//  Casso Explorer's side of RawDeviceProtocol: the one stream to the storage
+//  card proxy, shared by every card open through it. Each request and its
+//  reply are sent under one lock, so cards can be read from several
+//  threads.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class RawDeviceConnection
+{
+public:
+    explicit RawDeviceConnection (IByteStream & stream) : m_stream (stream) {}
+
+    //  Fails with the proxy's reason when the drive did not open there, and
+    //  with E_ACCESSDENIED for a drive that is not a storage card.
+    HRESULT  Open   (int number, PhysicalDrive & outDrive);
+    void     Close  (int number);
+
+    HRESULT  Read   (int number, uint64_t first, uint32_t count, std::span<Byte> outBytes);
+    HRESULT  Write  (int number, uint64_t first, uint32_t count, std::span<const Byte> blocks);
+
+private:
+    HRESULT  SendHeader (Byte operation, int number, uint64_t first, uint32_t count, std::span<const Byte> blocks);
+    HRESULT  ReadResult ();
+
+    IByteStream  & m_stream;
+    std::mutex     m_mutex;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RawDeviceClient
 //
-//  A Casso Explorer window's side of RawDeviceProtocol: the drive the
-//  elevated process has open, as a block store.
+//  One card open through a RawDeviceConnection, as a block store.
 //
 //  A written block is in memory until `Commit`, which sends every one to the
-//  drive, and a read returns it from there. `Discard` drops them, for a
-//  write the user declined.
+//  card, and a read returns it from there. `Discard` drops them, for a
+//  write the user declined. Destroying the client closes the card.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class RawDeviceClient : public IBlockStore
 {
 public:
-    explicit RawDeviceClient (IByteStream & stream) : m_stream (stream) {}
+    explicit RawDeviceClient (RawDeviceConnection & connection) : m_connection (connection) {}
+    ~RawDeviceClient () override;
 
-    //  Fails with the elevated process's reason when the drive did not open
-    //  there, and with E_ACCESSDENIED for a drive that is not removable.
-    HRESULT   Connect       (PhysicalDrive & outDrive);
+    RawDeviceClient (const RawDeviceClient &) = delete;
+    RawDeviceClient & operator= (const RawDeviceClient &) = delete;
+
+    //  A drive of more blocks than a block number counts is cut off there.
+    HRESULT   Connect       (int number, PhysicalDrive & outDrive);
 
     uint32_t  GetBlockCount () const override { return m_blockCount; }
     HRESULT   ReadBlocks    (uint32_t first, uint32_t count, std::span<Byte> outBytes) override;
@@ -41,10 +79,8 @@ public:
     void      Discard              ()       { m_pending.clear(); }
 
 private:
-    HRESULT   SendHeader (Byte operation, uint64_t first, uint32_t count, std::span<const Byte> blocks);
-    HRESULT   ReadResult ();
-
-    IByteStream                            & m_stream;
+    RawDeviceConnection                    & m_connection;
+    int                                      m_number     = -1;
     uint32_t                                 m_blockCount = 0;
     std::map<uint32_t, std::vector<Byte>>    m_pending;
 };
