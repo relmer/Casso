@@ -308,7 +308,9 @@ Error:
 //
 //  Win32ShellTransfers::IsFromFolder
 //
-//  Whether any file the object holds is in the folder itself.
+//  Whether any file in the object is in the folder itself. Both paths are
+//  compared without a final backslash, as a drive's root, I:\, ends in one
+//  and so does the parent path of a file in it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -344,7 +346,13 @@ bool Win32ShellTransfers::IsFromFolder (IDataObject * data, const std::wstring &
 
         DragQueryFileW (drop, i, path, (UINT) std::size (path));
         parent = std::filesystem::path (path).parent_path().wstring();
-        found  = _wcsicmp (parent.c_str(), inside.c_str()) == 0;
+
+        while (!parent.empty() && parent.back() == L'\\')
+        {
+            parent.pop_back();
+        }
+
+        found = _wcsicmp (parent.c_str(), inside.c_str()) == 0;
     }
 
     ReleaseStgMedium (&medium);
