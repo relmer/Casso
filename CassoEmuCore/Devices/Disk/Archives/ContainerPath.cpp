@@ -3,6 +3,7 @@
 #include "Devices/Disk/Archives/ContainerPath.h"
 #include "Devices/Disk/Archives/GzipFile.h"
 #include "Devices/Disk/FilePath.h"
+#include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Machines/Apple2/Common/IVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Config/IFileSystem.h"
@@ -87,8 +88,9 @@ std::string ContainerPath::ToString() const
 ContainerPath ContainerPath::Parse (const std::string & text)
 {
     ContainerPath  path;
-    size_t         start = 0;
-    size_t         bar   = 0;
+    size_t         start     = 0;
+    size_t         bar       = 0;
+    int            partition = 0;
     std::string    prior;
 
 
@@ -112,7 +114,18 @@ ContainerPath ContainerPath::Parse (const std::string & text)
                 prior = StripGzipExtension (prior);
             }
 
-            path.steps.push_back ({ HasExtension (prior, ".zip") ? ContainerStep::Kind::ZipMember : ContainerStep::Kind::ImageFile, name });
+            if (HasExtension (prior, ".zip"))
+            {
+                path.steps.push_back ({ ContainerStep::Kind::ZipMember, name });
+            }
+            else if (PartitionAccess::TryParseStepName (name, partition))
+            {
+                path.steps.push_back ({ ContainerStep::Kind::Partition, name });
+            }
+            else
+            {
+                path.steps.push_back ({ ContainerStep::Kind::ImageFile, name });
+            }
         }
 
         prior = name;
@@ -327,8 +340,10 @@ Error:
 
 HRESULT ContainerPath::OpenStep (const ContainerStep & step, const Level & parent, Level & outLevel, std::string & outError)
 {
-    HRESULT                hr    = S_OK;
-    bool                   found = false;
+    HRESULT                hr          = S_OK;
+    bool                   found       = false;
+    bool                   isPartition = false;
+    int                    partition   = 0;
     std::vector<ZipEntry>  entries;
 
 
@@ -371,7 +386,13 @@ HRESULT ContainerPath::OpenStep (const ContainerStep & step, const Level & paren
             break;
 
         case ContainerStep::Kind::Partition:
-            CBRFEx (false, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), outError = "Casso doesn't open partitions yet.");
+            isPartition = PartitionAccess::TryParseStepName (step.name, partition);
+            CBRAEx (isPartition, E_INVALIDARG);
+
+            hr = PartitionAccess::Extract (parent.bytes, parent.name, partition, outLevel.bytes, outError);
+            CHR (hr);
+
+            outLevel.name = step.name;
             break;
 
         default:
@@ -397,7 +418,9 @@ Error:
 
 HRESULT ContainerPath::ReplaceStep (const ContainerStep & step, const Level & parent, const Level & child, std::vector<Byte> & outParent, std::string & outError)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr          = S_OK;
+    bool     isPartition = false;
+    int      partition   = 0;
 
 
 
@@ -421,7 +444,11 @@ HRESULT ContainerPath::ReplaceStep (const ContainerStep & step, const Level & pa
             break;
 
         case ContainerStep::Kind::Partition:
-            CBRFEx (false, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), outError = "Casso doesn't open partitions yet.");
+            isPartition = PartitionAccess::TryParseStepName (step.name, partition);
+            CBRAEx (isPartition, E_INVALIDARG);
+
+            hr = PartitionAccess::Replace (parent.bytes, parent.name, partition, child.bytes, outParent, outError);
+            CHR (hr);
             break;
 
         default:
