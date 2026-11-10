@@ -107,6 +107,7 @@ public:
 
     HRESULT  FillRect      (float xDip, float yDip, float widthDip, float heightDip, uint32_t argbColor) override;
     HRESULT  DrawLine      (float x0Dip, float y0Dip, float x1Dip, float y1Dip, float thicknessDip, uint32_t argbColor) override;
+
     HRESULT  FillVectorIcon (const DxuiVectorIcon & icon, float xDip, float yDip, float sizeDip, uint32_t foreground, uint32_t accent) override;
 
     HRESULT  MeasureString (const wchar_t * text,

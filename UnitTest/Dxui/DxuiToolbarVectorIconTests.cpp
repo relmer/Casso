@@ -93,7 +93,7 @@ public:
     }
 
 
-    TEST_METHOD (AnEntrysAccentReplacesTheThemes)
+    TEST_METHOD (GetAccentOverridesTheThemeAccent)
     {
         DxuiToolbar::Entry                   entry;
         std::vector<RecordedVectorIconCall>  calls;
