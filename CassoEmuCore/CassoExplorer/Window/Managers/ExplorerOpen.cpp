@@ -273,7 +273,7 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
         contents += L"\r\n    None that Windows or Casso recognizes";
     }
 
-    if (!CassoExplorerInitializeCardDialog::Confirm (m_context.window.GetHwnd(), m_context.theme, question, choices, 0, contents, layout))
+    if (!CassoExplorerInitializeCardDialog::Confirm (m_context.window.GetHwnd(), m_context.theme, question, choices, (size_t) std::min (count, 4) - 1, contents, layout))
     {
         return;
     }
@@ -303,57 +303,58 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
 //
 //  ExplorerOpen::BuildInitializeChoices
 //
-//  The CFFA counts worth choosing between, most first, then FAT32 for the
+//  Each count of CFFA volumes that fits, then FAT32 for the
 //  CFFA3000's disk image files when the card is large enough for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerOpen::BuildInitializeChoices (uint64_t bytes, int maxVolumes, std::vector<InitializeCardChoice> & outChoices)
 {
-    std::vector<int>  counts;
-    uint64_t          unused = 0;
-    uint64_t          fit    = std::min<uint64_t> (bytes / kSliceBytes, RawDeviceServer::kInitialVolumes);
+    uint64_t  unused = 0;
+    uint64_t  fit    = std::min<uint64_t> (bytes / kSliceBytes, RawDeviceServer::kInitialVolumes);
 
 
 
     outChoices.clear();
 
-    for (int count : { maxVolumes, 8, 4, 1 })
-    {
-        if (count >= 1 && count <= maxVolumes && std::find (counts.begin(), counts.end(), count) == counts.end())
-        {
-            counts.push_back (count);
-        }
-    }
-
-    for (int count : counts)
+    for (int count = 1; count <= maxVolumes; count++)
     {
         InitializeCardChoice  choice;
 
         choice.layout = (uint64_t) count;
-        choice.label  = count == 1 && bytes <= 32ull * 1024 * 1024 ? std::wstring (L"CFFA: one ProDOS volume of the whole card")
-                                                                   : std::format (L"CFFA: {} ProDOS volume{} of 32 MB", count, count == 1 ? L"" : L"s");
+        choice.label  = count == 1 && bytes <= kSliceBytes ? std::wstring (L"1 volume of the whole card")
+                                                           : std::format (L"{} volume{} of 32 MB", count, count == 1 ? L"" : L"s");
 
-        choice.description = count == RawDeviceServer::kInitialVolumes ? L"The most a CFFA 2.0 maps. Set its partition count to 13 to use them all."
-                           : count == 4                                ? L"The CFFA 2.0's factory partition count."
-                           : count == maxVolumes                       ? L"As many as fit on the card."
-                                                                       : L"";
-        choice.description += std::wstring (choice.description.empty() ? L"" : L" ") + L"Also read by a CFFA3000 in its raw CF mode.";
+        //  CFFA 1.x maps four volumes, or eight with its 8-drive firmware 1.2,
+        //  and its GS/OS driver reads the space after the fourth as 1 GB
+        //  drives. CFFA 2.0 maps up to 13 with its 65C02 firmware.
+        if (count <= 4)
+        {
+            choice.description = L"Fully compatible with ProDOS and GS/OS on every CFFA: 1.x, 2.0, and a CFFA3000 in its raw CF mode.";
+        }
+        else
+        {
+            choice.description = std::format (L"Requires {}, on a 65C02 Apple, with its partition count set to {}. "
+                                              L"Older firmware can't read volumes 5 to {}. GS/OS with the CFFA 1.x driver reads volume 5 as a 1 GB drive and can't see volumes 6 to {}; "
+                                              L"erasing that drive in GS/OS destroys volumes 5 to {}.",
+                                              count <= 8 ? L"CFFA firmware 1.2 (8 drives) or 2.0" : L"CFFA firmware 2.0",
+                                              count, count, count, count);
+        }
 
         //  The space of the card outside the volumes. A CFFA volume is at most
         //  32 MB, so the rest of a large card is unusable from the Apple.
         unused              = bytes > (uint64_t) count * kSliceBytes ? bytes - (uint64_t) count * kSliceBytes : 0;
         choice.description += fit == 0 ? std::wstring (L"\r\n\r\nThe card is smaller than 32 MB, so it is one volume.")
-                                       : std::format (L"\r\n\r\n{} volume{} of 32 MB fit on this card, and a CFFA 2.0 maps up to 13.", fit, fit == 1 ? L"" : L"s");
+                                       : std::format (L"\r\n\r\n{} volume{} of 32 MB fit on this card. A CFFA maps up to 13.", fit, fit == 1 ? L"" : L"s");
         choice.description += unused > 0 ? std::format (L" {} of the card is unused and unavailable to the Apple.", TextEncoding::NarrowToWide (PartitionAccess::FormatSize (unused)))
                                          : std::wstring (L" The whole card is used.");
 
         outChoices.push_back (std::move (choice));
     }
-
     if (Fat32Format::CanFormat (bytes / IRawDevice::kBlockBytes))
+
     {
-        outChoices.push_back (InitializeCardChoice { L"CFFA3000: FAT32 for disk image files",
+        outChoices.push_back (InitializeCardChoice { L"FAT32 for a CFFA3000's disk image files",
                                                      L"Copy .po, .2mg and other disk images onto the card in Windows. A CFFA3000 reads FAT32 with an MBR, which Windows doesn't offer for a card over 32 GB.",
                                                      RawDeviceProtocol::kLayoutFat32 });
     }
