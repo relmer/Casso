@@ -112,7 +112,7 @@ public:
     //  an override, which stays the user's.
     void  QueueGrowsToVisibleRows ();
     void  ApplyAutoGrows          (IDxuiTextRenderer & text);
-    void  ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vector<int> & ws) const;
+    void  ComputeColumnLayout     (float fullW, std::vector<int> & xs, std::vector<int> & ws) const;
 
 private:
     //  The room past a heading's title.
