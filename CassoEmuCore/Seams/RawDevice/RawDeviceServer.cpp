@@ -2,6 +2,7 @@
 
 #include "Seams/RawDevice/RawDeviceServer.h"
 #include "Seams/RawDevice/RawDeviceProtocol.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/IBlockStore.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
@@ -181,6 +182,8 @@ HRESULT RawDeviceServer::ServeOpen (int number)
         session.device = m_makeDevice();
         result         = session.device != nullptr ? session.device->Open (number, session.drive) : E_OUTOFMEMORY;
     }
+
+    Log (std::format (L"open drive {} ({}, {} bytes, bus {}, card {})", number, TextEncoding::NarrowToWide (session.drive.model), session.drive.bytes, TextEncoding::NarrowToWide (session.drive.bus), session.drive.removable ? 1 : 0), result);
 
     if (SUCCEEDED (result) && !session.drive.removable)
     {
@@ -393,6 +396,7 @@ HRESULT RawDeviceServer::ServeInitialize (int number, uint64_t layout)
 
 
     result = CheckRange (number, 0, 0, session);
+    Log (std::format (L"initialize drive {} layout {}: open", number, layout), result);
 
     if (SUCCEEDED (result))
     {
@@ -405,12 +409,14 @@ HRESULT RawDeviceServer::ServeInitialize (int number, uint64_t layout)
     if (SUCCEEDED (result))
     {
         result = session->device->LockVolumes();
+        Log (L"initialize: lock volumes", result);
     }
 
     if (SUCCEEDED (result))
     {
         result = layout == RawDeviceProtocol::kLayoutFat32 ? Fat32Format::Write (*session->device, blocks)
                                                             : WriteCffaLayout (*session, (int) layout);
+        Log (L"initialize: write", result);
         session->device->UnlockVolumes();
 
         FindApplePartitions (*session->device, blocks, session->writable);

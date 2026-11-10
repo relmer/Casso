@@ -115,6 +115,7 @@ HRESULT Win32StorageCardBroker::Run (const wchar_t * commandLine)
     CWR (pipe != INVALID_HANDLE_VALUE);
 
     hr = CheckServer (pipe);
+    AppendLog (std::format (L"connect to Casso Explorer: 0x{:08X}", (uint32_t) hr));
     CHR (hr);
 
     //  The stream closes the pipe from here on.
@@ -124,6 +125,9 @@ HRESULT Win32StorageCardBroker::Run (const wchar_t * commandLine)
 
     {
         RawDeviceServer  server ([]() { return std::make_unique<Win32RawDevice>(); }, stream);
+
+        server.SetLog (&Win32StorageCardBroker::AppendLog);
+        Win32RawDevice::SetLog (&Win32StorageCardBroker::AppendLog);
 
         hr = server.Run();
         CHR (hr);
@@ -454,4 +458,47 @@ Error:
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32StorageCardBroker::AppendLog
+//
+//  A line with the time, in StorageCardBroker.log in Casso's log folder
+//  under the user's local application data. A line that cannot be written
+//  is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32StorageCardBroker::AppendLog (const std::wstring & line)
+{
+    wchar_t                * appData = nullptr;
+    HRESULT                  hr      = SHGetKnownFolderPath (FOLDERID_LocalAppData, 0, nullptr, &appData);
+    SYSTEMTIME               now     = {};
+    std::error_code          ignore;
+    std::filesystem::path    folder;
+
+
+
+    if (FAILED (hr))
+    {
+        CoTaskMemFree (appData);
+        return;
+    }
+
+    folder = std::filesystem::path (appData) / L"Casso" / L"Logs";
+    CoTaskMemFree (appData);
+
+    std::filesystem::create_directories (folder, ignore);
+    GetLocalTime (&now);
+
+    {
+        std::wofstream  log (folder / L"StorageCardBroker.log", std::ios::app);
+
+        log << std::format (L"{:04}-{:02}-{:02} {:02}:{:02}:{:02}  {}", now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond, line) << L"\n";
+    }
 }

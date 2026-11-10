@@ -46,6 +46,10 @@ public:
     static constexpr uint32_t  kHeaderBlocks      = 4;
 
     using DeviceMaker = std::function<std::unique_ptr<IRawDevice> ()>;
+    using LogFn       = std::function<void (const std::wstring & line)>;
+
+    //  Each open and each step of an initialize, with its result.
+    void  SetLog (LogFn log) { m_log = std::move (log); }
 
     //  The volumes an initialize writes on a drive of `blocks`: 0 for a drive
     //  too small.
@@ -79,7 +83,10 @@ private:
     HRESULT  CheckWrite      (Session & session, uint64_t first, uint32_t count);
     HRESULT  Reply           (HRESULT result, std::span<const Byte> payload);
 
+    void  Log (const std::wstring & step, HRESULT result) const { if (m_log) { m_log (std::format (L"{}: 0x{:08X}", step, (uint32_t) result)); } }
+
     DeviceMaker               m_makeDevice;
+    LogFn                     m_log;
     IByteStream             & m_stream;
     std::map<int, Session>    m_sessions;
 };

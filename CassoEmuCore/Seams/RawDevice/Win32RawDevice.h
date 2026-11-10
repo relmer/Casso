@@ -48,8 +48,11 @@ public:
     void     Close       () override;
 
     HRESULT  GetMountedExtents (std::vector<BlockExtent> & outExtents) override;
-    HRESULT  LockVolumes       () override;
-    void     UnlockVolumes     () override;
+
+    //  Each step of preparing a drive for an erase, with its result.
+    static void  SetLog        (std::function<void (const std::wstring &)> log) { s_log = std::move (log); }
+    HRESULT      LockVolumes   () override;
+    void         UnlockVolumes () override;
 
     static HRESULT  HasUnmountedPartition (int number, bool & outHasUnmounted);
     static HRESULT  ReadMountedExtents    (int number, std::vector<BlockExtent> & outExtents);
@@ -57,9 +60,17 @@ public:
     static HRESULT  FindVolumeDrive       (const std::wstring & root, int & outNumber);
 
 private:
-    static constexpr int     kMaxDrives      = 64;
-    static constexpr size_t  kTransferBlocks = 128;
-    static constexpr size_t  kTransferBytes  = kTransferBlocks * kBlockBytes;
+    static void  Log (const std::wstring & step, DWORD error) { if (s_log) { s_log (std::format (L"  {}: {}", step, error)); } }
+
+    static inline std::function<void (const std::wstring &)>  s_log;
+
+    static constexpr int       kMaxDrives      = 64;
+    static constexpr int       kLockAttempts   = 10;
+    static constexpr DWORD     kLockRetryMs    = 100;
+    static constexpr int       kRemovalPolls   = 50;
+    static constexpr uint64_t  kTableBlocks    = 34;
+    static constexpr size_t    kTransferBlocks = 128;
+    static constexpr size_t    kTransferBytes  = kTransferBlocks * kBlockBytes;
 
     //  A volume with any of these at its root is protected.
     static constexpr const wchar_t *  s_kProtectedFiles[] = { L"Windows\\System32", L"bootmgr", L"EFI\\Microsoft\\Boot", L"Boot\\BCD", L"pagefile.sys", L"swapfile.sys", L"hiberfil.sys" };
@@ -74,8 +85,9 @@ private:
     static bool          TryGetVolumeDrives  (HANDLE volume, std::set<DWORD> & outDrives);
     static std::wstring  TrimVolumeName      (const std::wstring & name);
 
-    HRESULT  CheckBitLocker ();
-    HRESULT  Seek           (uint64_t block);
+    HRESULT  CheckBitLocker      ();
+    HRESULT  ClearPartitionTable ();
+    HRESULT  Seek                (uint64_t block);
 
     HANDLE               m_drive    = INVALID_HANDLE_VALUE;
     int                  m_number   = -1;

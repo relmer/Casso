@@ -280,7 +280,13 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
     adapter   = (CardLayoutModel::Adapter) m_context.prefs.cffaAdapter;
     confirmed = CassoExplorerInitializeCardDialog::Confirm (m_context.window.GetHwnd(), m_context.theme, question, *model, contents, adapter, layout);
 
-    m_context.prefs.cffaAdapter = (int) adapter;
+    //  Saved now rather than at exit, so the next initialize starts with it
+    //  however Casso Explorer ends.
+    if (m_context.prefs.cffaAdapter != (int) adapter)
+    {
+        m_context.prefs.cffaAdapter = (int) adapter;
+        m_context.window.SaveSession();
+    }
 
     if (!confirmed)
     {

@@ -779,9 +779,15 @@ Error:
 //
 //  Win32RawDevice::LockVolumes
 //
-//  Every volume with an extent on this drive, mounted or not. A volume that
-//  cannot be opened or has no extents, as a CD drive with no disc, is passed
-//  over.
+//  Every volume with an extent on this drive, mounted or not, for an erase.
+//  A volume that cannot be opened or has no extents, as a CD drive with no
+//  disc, is passed over.
+//
+//  While a program such as File Explorer or the search indexer has a file
+//  open on a volume, Windows fails every lock of it. The volume is then
+//  dismounted, and the drive's partition table deleted, which removes the
+//  volume from Windows before anything is written. That is what diskpart's
+//  clean does, and it runs only after the user has confirmed the erase.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -791,6 +797,9 @@ HRESULT Win32RawDevice::LockVolumes()
     wchar_t   name[MAX_PATH] = {};
     HANDLE    search         = INVALID_HANDLE_VALUE;
     BOOL      more           = FALSE;
+    BOOL      ok             = FALSE;
+    DWORD     returned       = 0;
+    bool      unlocked       = false;
     bool      open           = m_drive != INVALID_HANDLE_VALUE;
 
 
@@ -804,30 +813,31 @@ HRESULT Win32RawDevice::LockVolumes()
     {
         std::set<DWORD>  drives;
         HANDLE           volume   = CreateFileW (TrimVolumeName (name).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
-        DWORD            returned = 0;
-        BOOL             ok       = FALSE;
+
+        ok = FALSE;
 
         if (volume != INVALID_HANDLE_VALUE && TryGetVolumeDrives (volume, drives) && drives.contains ((DWORD) m_number))
         {
             m_volumes.push_back (volume);
 
-            //  A volume with a file open, as by File Explorer or the search
-            //  indexer, fails to lock. Dismounting it anyway closes those
-            //  files, after the confirmation of the erase, and the lock then
-            //  succeeds.
-            ok = DeviceIoControl (volume, FSCTL_LOCK_VOLUME, nullptr, 0, nullptr, 0, &returned, nullptr);
-
-            if (!ok)
+            for (int attempt = 0; !ok && attempt < kLockAttempts; attempt++)
             {
-                ok = DeviceIoControl (volume, FSCTL_DISMOUNT_VOLUME, nullptr, 0, nullptr, 0, &returned, nullptr);
-                CWR (ok);
-
                 ok = DeviceIoControl (volume, FSCTL_LOCK_VOLUME, nullptr, 0, nullptr, 0, &returned, nullptr);
-                CWR (ok);
+
+                if (!ok)
+                {
+                    Log (std::format (L"lock {}", name), GetLastError());
+                    Sleep (kLockRetryMs);
+                }
             }
 
-            ok = DeviceIoControl (volume, FSCTL_DISMOUNT_VOLUME, nullptr, 0, nullptr, 0, &returned, nullptr);
-            CWR (ok);
+            unlocked = unlocked || !ok;
+
+            //  When the dismount fails as well, zeroing the partition table
+            //  removes the volume.
+            ok       = DeviceIoControl (volume, FSCTL_DISMOUNT_VOLUME, nullptr, 0, nullptr, 0, &returned, nullptr);
+            Log (std::format (L"dismount {}", name), ok ? 0 : GetLastError());
+            unlocked = unlocked || !ok;
         }
         else if (volume != INVALID_HANDLE_VALUE)
         {
@@ -835,6 +845,12 @@ HRESULT Win32RawDevice::LockVolumes()
         }
 
         more = FindNextVolumeW (search, name, ARRAYSIZE (name));
+    }
+
+    if (unlocked)
+    {
+        hr = ClearPartitionTable();
+        CHR (hr);
     }
 
 Error:
@@ -848,6 +864,65 @@ Error:
         UnlockVolumes();
     }
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32RawDevice::ClearPartitionTable
+//
+//  The MBR and GPT at the start of the drive and the GPT's copy at its end
+//  are zeroed with ordinary writes: they are outside every volume, so
+//  Windows allows them while a volume is mounted, and a reader that fails
+//  IOCTL_DISK_DELETE_DRIVE_LAYOUT takes them. Windows then reads the drive
+//  again and dismounts its file systems, which is waited for, so the layout
+//  written after lands on no mounted volume. A removable drive can have a
+//  volume with no file system, and Windows allows a raw write inside it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32RawDevice::ClearPartitionTable()
+{
+    HRESULT            hr       = S_OK;
+    DWORD              returned = 0;
+    std::vector<Byte>  zeros ((size_t) kTableBlocks * kBlockBytes, 0);
+    bool               gone     = false;
+
+
+
+    hr = WriteBlocks (0, zeros);
+    Log (L"zero the partition table", (DWORD) hr);
+    CHR (hr);
+
+    if (m_blocks > kTableBlocks * 2)
+    {
+        hr = WriteBlocks (m_blocks - kTableBlocks + 1, std::span<const Byte> (zeros.data(), (size_t) (kTableBlocks - 1) * kBlockBytes));
+        CHR (hr);
+    }
+
+    FlushFileBuffers (m_drive);
+    DeviceIoControl (m_drive, IOCTL_DISK_UPDATE_PROPERTIES, nullptr, 0, nullptr, 0, &returned, nullptr);
+
+    for (int attempt = 0; !gone && attempt < kRemovalPolls; attempt++)
+    {
+        std::vector<BlockExtent>  mounted;
+        HRESULT                   hrRead = ReadMountedExtents (m_number, mounted);
+
+        gone = SUCCEEDED (hrRead) && mounted.empty();
+
+        if (!gone)
+        {
+            Sleep (kLockRetryMs);
+        }
+    }
+
+    CBREx (gone, HRESULT_FROM_WIN32 (ERROR_BUSY));
+
+Error:
     return hr;
 }
 

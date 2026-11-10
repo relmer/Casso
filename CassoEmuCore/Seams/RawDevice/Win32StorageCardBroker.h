@@ -46,6 +46,9 @@ public:
     //  A pipe name is the prefix and hexadecimal digits, nothing else.
     static bool     IsValidPipeName (const std::wstring & name);
 
+    //  A line of the broker's log, StorageCardBroker.log in Casso's log folder.
+    static void     AppendLog       (const std::wstring & line);
+
     //  The file in the same folder as this program.
     static HRESULT  GetSiblingPath  (const wchar_t * file, std::wstring & outPath);
 
