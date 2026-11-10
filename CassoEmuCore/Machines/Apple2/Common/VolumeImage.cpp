@@ -21,6 +21,7 @@
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
 #include "Devices/Disk/Archives/ArchiveVolume.h"
 #include "Devices/Disk/Archives/GzipFile.h"
+#include "Devices/Disk/Partitions/HybridVolume.h"
 
 
 
@@ -911,6 +912,7 @@ VolumeKind VolumeImage::DetectFilesystem (const vector<Byte> & sectors)
 std::unique_ptr<IVolume> VolumeImage::CreateVolume (VolumeKind kind, const vector<Byte> & sectors, ISectorReadObserver * observer)
 {
     std::unique_ptr<IVolume>  volume;
+    vector<VolumeKind>        kinds;
 
 
 
@@ -982,7 +984,55 @@ std::unique_ptr<IVolume> VolumeImage::CreateVolume (VolumeKind kind, const vecto
             break;
     }
 
+    //  One file system of a hybrid disk is checked against the other on
+    //  every write.
+    DetectFilesystems (sectors, kinds);
+
+    if (kinds.size() == 2 && (kind == kinds[0] || kind == kinds[1]))
+    {
+        volume = std::make_unique<HybridVolume> (sectors, std::move (volume), kind == kinds[0] ? kinds[1] : kinds[0]);
+    }
+
     return volume;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::DetectFilesystems
+//
+//  A 140K DOS 3.3 disk may also have a ProDOS or Pascal volume, each with the
+//  other's area marked in use.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void VolumeImage::DetectFilesystems (const vector<Byte> & sectors, vector<VolumeKind> & outKinds)
+{
+    VolumeKind  first = DetectFilesystem (sectors);
+
+
+
+    outKinds.clear();
+
+    if (first != VolumeKind::Unknown)
+    {
+        outKinds.push_back (first);
+    }
+
+    if (first == VolumeKind::Dos33 && sectors.size() == (size_t) NibblizationLayer::kImageByteSize)
+    {
+        if (LooksLikeProDos (sectors))
+        {
+            outKinds.push_back (VolumeKind::ProDos);
+        }
+        else if (PascalVolume::IsFound (sectors))
+        {
+            outKinds.push_back (VolumeKind::Pascal);
+        }
+    }
 }
 
 

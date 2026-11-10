@@ -125,6 +125,10 @@ public:
     //  Which filesystem the DOS-logical buffer carries.
     static VolumeKind  DetectFilesystem (const vector<Byte> & sectors);
 
+    //  Every file system on the buffer, the one DetectFilesystem returns
+    //  first: two for a hybrid disk, and none for an unrecognized buffer.
+    static void  DetectFilesystems (const vector<Byte> & sectors, vector<VolumeKind> & outKinds);
+
     //  The volume of `kind` over the buffer, which must outlive it. Each read
     //  of a sector is reported to the observer, when there is one. An Unknown
     //  kind has a NullVolume, whose operations all fail.

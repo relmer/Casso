@@ -4,9 +4,13 @@
 #include "FixtureProvider.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Archives/GzipFile.h"
+#include "Devices/Disk/FilePath.h"
 #include "Devices/Disk/MemoryBlockStore.h"
 #include "Devices/Disk/Partitions/PartitionLayout.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/IVolume.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -170,5 +174,119 @@ public:
     TEST_METHOD (DosMaster400x2Plus_HasTwoDosVolumes)
     {
         ExpectPartitions ("dos.master/dm-400x2+.po.gz", PartitionLayoutKind::DosMaster, VolumeKind::Dos33, { 1422, 1534 });
+    }
+
+
+    //  A DOS 3.3 volume and a ProDOS volume on one 140K disk. The free space
+    //  and files are those of CiderPress II's catalog.
+    TEST_METHOD (DosProDosHybrid_HasBothVolumes)
+    {
+        static constexpr const char *  kImage = "hybrid/dos-prodos.do";
+
+
+
+        std::vector<Byte>         bytes;
+        std::vector<Byte>         sectors;
+        std::vector<VolumeKind>   kinds;
+        std::unique_ptr<IVolume>  volume;
+        SectorDecodeReport        report;
+        VolumeListing             dosListing;
+        VolumeListing             proDosListing;
+        FilePayload               hello;
+
+
+
+        if (!OpenImage (kImage, bytes))
+        {
+            return;
+        }
+
+        AssertSucceeded (VolumeImage::Load (bytes, kImage, sectors, report));
+
+        VolumeImage::DetectFilesystems (sectors, kinds);
+
+        Assert::AreEqual (size_t (2), kinds.size());
+        Assert::IsTrue (kinds[0] == VolumeKind::Dos33);
+        Assert::IsTrue (kinds[1] == VolumeKind::ProDos);
+
+        volume = VolumeImage::CreateVolume (VolumeKind::Dos33, sectors);
+        AssertSucceeded (volume->Enumerate (dosListing));
+        AssertSucceeded (volume->Read (FilePath::Parse ("HELLO"), hello));
+
+        volume = VolumeImage::CreateVolume (VolumeKind::ProDos, sectors);
+        AssertSucceeded (volume->Enumerate (proDosListing));
+
+        Assert::AreEqual (size_t (1), dosListing.entries.size());
+        Assert::AreEqual (270u, dosListing.freeUnits);
+        Assert::AreEqual (size_t (39), hello.bytes.size());
+        Assert::AreEqual (size_t (4), proDosListing.entries.size());
+        Assert::AreEqual (58u, proDosListing.freeUnits);
+    }
+
+
+    TEST_METHOD (DosProDosHybrid_FileWrittenToEachVolume_FilesOfTheOtherAreIntact)
+    {
+        static constexpr const char *  kImage = "hybrid/dos-prodos.do";
+
+
+
+        std::vector<Byte>         bytes;
+        std::vector<Byte>         sectors;
+        std::vector<Byte>         withDos;
+        std::vector<Byte>         withBoth;
+        std::unique_ptr<IVolume>  volume;
+        SectorDecodeReport        report;
+        VolumeListing             listing;
+        FilePayload               payload;
+        FilePayload               before;
+        FilePayload               after;
+
+
+
+        if (!OpenImage (kImage, bytes))
+        {
+            return;
+        }
+
+        AssertSucceeded (VolumeImage::Load (bytes, kImage, sectors, report));
+
+        payload.loadAddress    = 0x2000;
+        payload.hasLoadAddress = true;
+        payload.bytes.assign (20000, 0xA5);
+
+        payload.type = Dos33Volume::kTypeBinary;
+        volume       = VolumeImage::CreateVolume (VolumeKind::Dos33, sectors);
+        AssertSucceeded (volume->Write (FilePath::Parse ("CASSO"), payload, withDos));
+
+        payload.type = ProDosVolume::kTypeBinary;
+        volume       = VolumeImage::CreateVolume (VolumeKind::ProDos, withDos);
+        AssertSucceeded (volume->Write (FilePath::Parse ("CASSO"), payload, withBoth));
+
+        volume = VolumeImage::CreateVolume (VolumeKind::ProDos, sectors);
+        AssertSucceeded (volume->Enumerate (listing));
+
+        for (const FileEntry & entry : listing.entries)
+        {
+            std::unique_ptr<IVolume>  edited = VolumeImage::CreateVolume (VolumeKind::ProDos, withBoth);
+
+            AssertSucceeded (volume->Read (FilePath::Parse (entry.name), before));
+            AssertSucceeded (edited->Read (FilePath::Parse (entry.name), after));
+
+            Assert::IsTrue (before.bytes == after.bytes, TextEncoding::Utf8ToWide (entry.name).c_str());
+        }
+
+        volume = VolumeImage::CreateVolume (VolumeKind::Dos33, sectors);
+        AssertSucceeded (volume->Read (FilePath::Parse ("HELLO"), before));
+
+        volume = VolumeImage::CreateVolume (VolumeKind::Dos33, withBoth);
+        AssertSucceeded (volume->Read (FilePath::Parse ("HELLO"), after));
+        Assert::IsTrue (before.bytes == after.bytes);
+
+        AssertSucceeded (volume->Read (FilePath::Parse ("CASSO"), after));
+        Assert::IsTrue (payload.bytes == after.bytes);
+
+        volume = VolumeImage::CreateVolume (VolumeKind::ProDos, withBoth);
+        AssertSucceeded (volume->Read (FilePath::Parse ("CASSO"), after));
+        Assert::IsTrue (payload.bytes == after.bytes);
     }
 };

@@ -560,6 +560,7 @@
     <ClCompile Include="Devices\Disk\Partitions\DosMasterLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\FocusDriveLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\MicroDriveLayout.cpp" />
+    <ClCompile Include="Devices\Disk\Partitions\HybridVolume.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\PartitionLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\PpmLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\UniDosLayout.cpp" />
@@ -1246,6 +1247,7 @@
     <ClInclude Include="Devices\Disk\Partitions\DosMasterLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\FocusDriveLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\MicroDriveLayout.h" />
+    <ClInclude Include="Devices\Disk\Partitions\HybridVolume.h" />
     <ClInclude Include="Devices\Disk\Partitions\PartitionLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\PpmLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\UniDosLayout.h" />
