@@ -78,10 +78,13 @@ public:
         fs::path                  extracted = fs::path (fixtures.GetRoot()) / kRoot / "extracted" / fs::path (image).stem();
         size_t                    compared  = 0;
         std::string               mismatches;
+        HRESULT                   hrOpen    = S_OK;
 
 
 
-        if (FAILED (fixtures.OpenFixture (std::string (kRoot) + "/rdos/" + image, bytes)))
+        hrOpen = fixtures.OpenFixture (std::string (kRoot) + "/rdos/" + image, bytes);
+
+        if (FAILED (hrOpen))
         {
             Logger::WriteMessage (std::format ("SKIPPED: {} is not on this machine; run scripts/FetchCiderPressTestFiles.ps1\n", image).c_str());
             return;
