@@ -3291,9 +3291,28 @@ interpreter's.
   partition over it, after a confirmation that lists both.
 - **FR-220**: On a hybrid disk, a write to one file system MUST NOT
   allocate or change a block of another's.
-- **FR-221**: Open physical card MUST list removable drives only, MUST request administrator access from Windows for that operation alone, and MUST
-  confirm each write with the drive's model and size. Fixed drives MUST
-  NOT be offered.
+- **FR-221**: A storage card MUST be detected when it is inserted, and its
+  partition table read without administrator access. A partition Windows
+  mounts MUST appear under This PC by its drive letter, and every other
+  partition, or a card with no table, MUST appear as a storage card node.
+  Administrator access MUST be requested only when the user first opens a
+  storage card node, and once per Casso Explorer session. A tab restored at
+  launch MUST NOT request it. Each command that writes to a card MUST be
+  confirmed once, with the drive's model and size.
+- **FR-243**: Raw access MUST run in a separate elevated proxy program that
+  opens only storage cards: removable media on a USB, SD or MMC bus, with no
+  Windows, boot, page file, hibernation or BitLocker volume. Hard disks,
+  SSDs and NVMe drives MUST NOT be opened. The proxy MUST make each check
+  itself at every open, MUST accept a write only inside an Apple partition
+  it detects, and MUST fail a write that overlaps a mounted Windows volume.
+  The pipe MUST admit elevated administrators only. Casso Explorer MUST
+  accept only the proxy process it started, and the proxy MUST accept only
+  the Casso Explorer in its folder, signed with the proxy's certificate
+  when the proxy is signed. The proxy MUST exit when the pipe closes.
+- **FR-244**: Initialize card for Apple MUST erase a storage card and write
+  a new Apple layout, after a confirmation that lists the card's model,
+  size and each volume erased with its drive letter and label. It MUST be
+  the only command that writes outside an Apple partition.
 
 **HFS**
 
