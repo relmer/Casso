@@ -1904,10 +1904,10 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 **Goal**: partitioned images and cards as volumes. **Independent test**: quickstart §7g steps 1 and 4.
 
-- [ ] T612 [US31] Add `PartitionLayout` and `Partition` in `CassoEmuCore/Devices/Disk/Partitions/PartitionLayout.h`, with `Detect` over an `IBlockStore`. "Partitions don't overlap except in a hybrid"
-- [ ] T613 [P] [US31] `CffaLayout`: consecutive 32 MB slices with a volume directory at block 2, and after the fourth, the 1.2 GS/OS driver's HFS partitions (FR-218)
-- [ ] T614 [P] [US31] `FocusDriveLayout` and `MicroDriveLayout`: each partition map in block 0
-- [ ] T615 [P] [US31] `DosMasterLayout`, `UniDosLayout` (with AmDOS and OzDOS) and `PpmLayout`, from CiderPress II's notes
+- [X] T612 [US31] Add `PartitionLayout` and `Partition` in `CassoEmuCore/Devices/Disk/Partitions/PartitionLayout.h`, with `Detect` over an `IBlockStore`. "Partitions don't overlap except in a hybrid"
+- [X] T613 [P] [US31] `CffaLayout`: consecutive 32 MB slices with a volume directory at block 2, and after the fourth, the 1.2 GS/OS driver's HFS partitions (FR-218)
+- [X] T614 [P] [US31] `FocusDriveLayout` and `MicroDriveLayout`: each partition map in block 0
+- [X] T615 [P] [US31] `DosMasterLayout`, `UniDosLayout` (with AmDOS and OzDOS) and `PpmLayout`, from CiderPress II's notes
 - [ ] T616 [US31] Open DOS 3.3 hybrids with ProDOS or Pascal as two file systems on one buffer, a write failing when it would allocate a block the other's map has as used (FR-220)
 - [ ] T617 [US31] List each partition as a node, and add Copy partition to image and Replace partition with its confirmation (FR-219)
 - [ ] T618 [US31] Add `IRawDevice`, `RawDeviceServer` and `RawDeviceClient` in `CassoEmuCore/Seams/RawDevice/`: the `/rawdevice` mode in the core's entry, started elevated with `runas` and a pipe name, serving block reads and writes, exiting when the pipe closes; removable drives only, by `IOCTL_STORAGE_QUERY_PROPERTY` (FR-221). Tests on a fake `IRawDevice`
