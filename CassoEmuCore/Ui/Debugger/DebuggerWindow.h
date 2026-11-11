@@ -20,6 +20,7 @@
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/DisassemblyOptions.h"
+#include "Ui/Debugger/ReplayProgressDialog.h"
 #include "Ui/Debugger/RegisterHistory.h"
 #include "Ui/Debugger/StackHistory.h"
 #include "Ui/Debugger/StopChanges.h"
@@ -369,6 +370,7 @@ protected:
     static float     GetTextZoomPosition (float zoom);
     static float     GetTextZoomAt       (float position);
     void             UpdateStatusBar     ();
+    void             SyncReplayDialog    (const ReplayProgress & progress);
     bool             RouteStatusBarMouse (const DxuiMouseEvent & ev);
     void             FitHistoryField     (IDxuiTextRenderer & text);
 
@@ -990,6 +992,9 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
     //  The disassembly views' menu entries that change a line.
     std::unique_ptr<CodeEditCommands>                                                m_codeEdits;
+
+    //  A long reverse continue's progress, open while its search runs.
+    std::unique_ptr<ReplayProgressDialog>                                            m_replayDialog;
 
     //  The command bar and the history timeline, laid out together in bands
     //  along the window's edges. Declared ahead of their hosts, which leave

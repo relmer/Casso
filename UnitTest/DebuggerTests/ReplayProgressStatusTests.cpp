@@ -296,5 +296,24 @@ namespace ReplayProgressStatusTests
 
             Assert::AreEqual (1, host.stops, L"the button stops the replay");
         }
+
+
+        //  The progress dialog is due once a search that reports its progress
+        //  has run past the delay, and not for a short one or one that reports
+        //  none, which can't be stopped.
+        TEST_METHOD (TheProgressDialogIsDueForALongSearch)
+        {
+            constexpr uint64_t  kLong = ReplayProgressDialog::kShowAfterMs;
+
+
+
+            Assert::IsTrue  (ReplayProgressDialog::IsDue ({ true,  kLong,     0.25f }));
+            Assert::IsFalse (ReplayProgressDialog::IsDue ({ true,  kLong - 1, 0.25f }), L"a short search");
+            Assert::IsFalse (ReplayProgressDialog::IsDue ({ true,  kLong,     ReplayControl::kNoProgress }), L"no progress to report");
+            Assert::IsFalse (ReplayProgressDialog::IsDue ({ false, kLong,     0.25f }), L"no search");
+
+            Assert::AreEqual (std::wstring (L"Searching history for a breakpoint: 25%"), ReplayProgressDialog::GetText ({ true, kLong, 0.25f }, false));
+            Assert::AreEqual (std::wstring (L"Stopping the search..."),                  ReplayProgressDialog::GetText ({ true, kLong, 0.25f }, true));
+        }
     };
 }

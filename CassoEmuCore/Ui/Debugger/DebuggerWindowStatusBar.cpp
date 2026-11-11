@@ -144,6 +144,8 @@ void DebuggerWindow::UpdateStatusBar()
 
 
 
+    SyncReplayDialog (progress);
+
     if (m_statusBar == nullptr)
     {
         return;
@@ -155,6 +157,39 @@ void DebuggerWindow::UpdateStatusBar()
     m_statusBar->SetBar   (kStatusHistory, fill, DebuggerStatusText::kEmptyArgb, DebuggerStatusText::GetBudgetColor (fill));
     m_statusBar->SetText  (kStatusSpeed,   DebuggerStatusText::GetSpeedText ((m_host != nullptr) ? m_host->GetEmulatorSpeed() : SpeedMode::Authentic));
     m_statusBar->SetText  (kStatusZoom,    DebuggerStatusText::GetZoomText (m_textZoom));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SyncReplayDialog
+//
+//  A search that runs long opens the progress dialog, and the window is
+//  disabled until the search ends and the dialog closes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SyncReplayDialog (const ReplayProgress & progress)
+{
+    if (m_replayDialog == nullptr && ReplayProgressDialog::IsDue (progress) && GetHwnd() != nullptr)
+    {
+        m_replayDialog = ReplayProgressDialog::Open (GetHwnd(), m_theme,
+                                                     [this] { return (m_host != nullptr) ? m_host->GetReplayProgress() : ReplayProgress(); },
+                                                     [this] { (void) TryStopReplay(); });
+
+        if (m_replayDialog != nullptr)
+        {
+            EnableWindow (GetHwnd(), FALSE);
+        }
+    }
+    else if (m_replayDialog != nullptr && !progress.isReplaying)
+    {
+        EnableWindow (GetHwnd(), TRUE);
+        m_replayDialog.reset();
+    }
 }
 
 
