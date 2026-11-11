@@ -139,6 +139,7 @@ std::wstring PreviewViewChoices::DescribeDefault (const PreviewContent & content
         case PreviewContent::Kind::Grid:      return L"Table";
         case PreviewContent::Kind::Variables: return L"Variables";
         case PreviewContent::Kind::Catalog:   return L"Catalog";
+        case PreviewContent::Kind::Shell:     return L"Windows preview";
 
         case PreviewContent::Kind::Picture:
             return (content.pictureMode == PicturePreview::Mode::LoRes) ? L"Lo-res picture"

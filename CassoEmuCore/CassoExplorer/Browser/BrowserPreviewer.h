@@ -109,6 +109,9 @@ public:
     void  PreviewCassoLinkItem         (const CatalogRow & row);
 
     bool     TryPreviewAppleSingle (const std::wstring & folder, const CatalogRow & row);
+    void     PreviewHostFile       (const std::wstring & folder, const CatalogRow & row);
+    bool     TryReadHostPayload    (const std::wstring & path, const CatalogRow & row, FilePayload & outPayload, FileEntry & outEntry, bool & outTyped);
+    void     AttachHostViews       (const FileEntry & entry, const FilePayload & payload, bool loaded, PreviewDecoder::HexForm hexForm);
     void     ReadTextPreview       (const std::wstring & path, const std::wstring & name);
     bool     TryPreviewText        (const std::wstring & name, std::span<const Byte> bytes);
 

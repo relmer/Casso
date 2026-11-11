@@ -1056,6 +1056,47 @@ public:
     }
 
 
+    //  A file in a host folder has View as: a plain 8 KB file is offered as a
+    //  hi-res picture, and a file exported with its type in its name previews
+    //  as it does in its disk.
+    TEST_METHOD (ViewAs_WorksOnFilesInAHostFolder)
+    {
+        Rig                     rig;
+        std::vector<Byte>       picture (8192, 0x55);
+        DiskOperations::Result  hello;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.Open();
+
+        hello = rig.browser.GetOperations().Get ("C:\\Disks\\prodos.po", "HELLO", DiskOperations::Encoding::Verbatim, "");
+        Assert::IsTrue (hello.Succeeded());
+
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Host\\screen.bin",   std::string (picture.begin(), picture.end())));
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Host\\HELLO#FC0801", std::string (hello.payload.begin(), hello.payload.end())));
+
+        rig.prefs.previewVisible = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Host"));
+        rig.parts->listPane.FillList();
+
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"screen.bin"));
+        rig.parts->preview.FillPreview();
+
+        Assert::IsTrue (rig.parts->commandManager.IsEnabled (CassoExplorerCommands::kViewAs));
+        rig.parts->commandManager.Dispatch (CassoExplorerCommands::kViewAsHiRes);
+
+        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Picture);
+        Assert::IsTrue (rig.browser.GetPreview().viewAs == ViewChoice::HiRes);
+
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"HELLO#FC0801"));
+        rig.parts->preview.FillPreview();
+
+        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Listing, L"An exported BASIC program lists");
+        Assert::IsTrue (rig.browser.GetPreview().viewAs == ViewChoice::Default, L"Another file opens in its default view");
+    }
+
+
     TEST_METHOD (HandleTimer_TakesTheWindowsTimersButTheTick)
     {
         Rig  rig;
