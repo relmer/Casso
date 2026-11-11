@@ -52,6 +52,7 @@ public:
     void         Create                  ();
     void         Configure               ();
     void         Layout                  (const RECT & free, const RECT & strip, int rightOfTreePx);
+    void         SetHidden               (bool hidden) { m_address->SetVisible (!hidden); m_findBox->SetVisible (!hidden); }
     static RECT  GetAddressRect          (const RECT & free, const RECT & strip, const DxuiDpiScaler & scaler);
     void         ApplyTheme              (const DxuiTheme * theme) { m_suggest.SetTheme (theme); }
     void         CloseSuggestionsOnPress (const DxuiMouseEvent & ev);

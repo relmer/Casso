@@ -50,6 +50,7 @@ public:
     void                  ApplyTheme             (const DxuiTheme & theme);
     void                  PlanForWidth           (int widthPx);
     void                  Layout                 (const RECT & commandBand, const RECT & navBand);
+    void                  SetHidden              (bool hidden) { m_toolbar->SetVisible (!hidden); m_commandBar->SetVisible (!hidden); }
     RECT                  GetFreeRect            () const { return m_toolbar->GetFreeRect(); }
     void                  UpdateCommandBar       ();
     void                  SetCommandBarDropDowns ();

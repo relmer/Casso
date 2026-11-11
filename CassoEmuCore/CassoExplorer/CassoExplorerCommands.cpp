@@ -564,9 +564,10 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildEntries (std::span<c
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntries (int bar, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const
+std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntries (int bar, bool expanded, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const
 {
     std::vector<DxuiToolbar::Entry>  entries;
+    std::vector<int>                 ids = GetPreviewToolbarCommandIds (bar, expanded);
 
 
 
@@ -574,7 +575,7 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntrie
     {
         DxuiToolbar::Entry  entry;
 
-        if (!IsOnPreviewBar (row.id, bar))
+        if (std::find (ids.begin(), ids.end(), row.id) == ids.end())
         {
             continue;
         }
@@ -614,7 +615,7 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntrie
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int> CassoExplorerCommands::GetPreviewToolbarCommandIds (int bar)
+std::vector<int> CassoExplorerCommands::GetPreviewToolbarCommandIds (int bar, bool expanded)
 {
     std::vector<int>  ids;
 
@@ -622,7 +623,9 @@ std::vector<int> CassoExplorerCommands::GetPreviewToolbarCommandIds (int bar)
 
     for (const ToolbarRow & row : kPreviewToolbarRows)
     {
-        if (IsOnPreviewBar (row.id, bar))
+        bool  isStep = row.id == kPreviousFile || row.id == kNextFile;
+
+        if (IsOnPreviewBar (row.id, bar) && (expanded || !isStep))
         {
             ids.push_back (row.id);
         }
@@ -664,12 +667,18 @@ int CassoExplorerCommands::GetPreviewBar (int id)
 //
 //  Save as PNG is on both picture bars, Search on the variables' bar as
 //  well as the hex view's, and the character sets on a random-access text
-//  file's bar as well as the text bar.
+//  file's bar as well as the text bar. Expand, previous and next are on
+//  every bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CassoExplorerCommands::IsOnPreviewBar (int id, int bar)
 {
+    if (id == kExpandPreview || id == kPreviousFile || id == kNextFile)
+    {
+        return true;
+    }
+
     return GetPreviewBar (id) == bar || (id == kSavePicture && bar == kPreviewBarSave) || (id == kFind && bar == kPreviewBarVariables)
         || (GetPreviewBar (id) == kPreviewBarText && bar == kPreviewBarRecords);
 }

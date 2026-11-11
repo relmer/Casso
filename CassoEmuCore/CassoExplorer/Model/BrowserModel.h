@@ -45,6 +45,7 @@ public:
         bool                       groupDescending = false;
         int                        previewScroll   = 0;
         bool                       previewOpen     = false;
+        bool                       previewExpanded = false;   // the preview over the whole tab, until the tab goes elsewhere
         int                        listTopRow      = 0;
         int                        treeTopRow      = -1;
 

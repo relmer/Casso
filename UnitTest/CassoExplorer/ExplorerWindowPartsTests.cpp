@@ -764,6 +764,135 @@ public:
 
 
 
+    //  The rows of the files in the list, in list order.
+    static std::vector<int> GetFileRows (Rig & rig)
+    {
+        std::vector<int>  rows;
+
+
+
+        for (size_t row = 0; row < rig.browser.GetRows().size(); row++)
+        {
+            if (!rig.browser.GetRows()[row].isDirectory)
+            {
+                rows.push_back ((int) row);
+            }
+        }
+
+        return rows;
+    }
+
+
+    static void PressKey (Rig & rig, WPARAM vk, bool alt = false, bool shift = false)
+    {
+        DxuiKeyEvent  key;
+
+
+
+        key.kind  = DxuiKeyEventKind::Down;
+        key.vk    = vk;
+        key.alt   = alt;
+        key.shift = shift;
+        rig.parts->input.HandleKey (key);
+    }
+
+
+    //  Alt+Shift+P lays the preview over the tab below the tab strip, Right
+    //  moves the list's selection to the next file, and Esc puts the panes
+    //  back as they were with the selection on the file last previewed.
+    TEST_METHOD (ExpandedPreview_FillsTheTabStepsAndCollapses)
+    {
+        Rig               rig;
+        std::vector<int>  files;
+        RECT              listBefore = {};
+        RECT              preview    = {};
+        RECT              list       = {};
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.Open();
+
+        rig.prefs.previewVisible = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        rig.parts->listPane.FillList();
+
+        files = GetFileRows (rig);
+        Assert::IsTrue (files.size() >= 2, L"The fixture has two files to step between");
+
+        rig.parts->listPane.SetListSelection ({ files[0] });
+        rig.parts->layout.RecomputeLayout();
+        listBefore = rig.parts->listPane.GetBounds();
+
+        Assert::IsTrue (rig.parts->preview.IsShown());
+        Assert::IsFalse (rig.parts->preview.CanStep (true), L"Previous and next are for an expanded preview");
+
+        PressKey (rig, 'P', true, true);
+
+        preview = rig.parts->preview.GetRect();
+        list    = rig.parts->listPane.GetBounds();
+
+        Assert::IsTrue (rig.parts->preview.IsExpanded());
+        Assert::AreEqual (0L, preview.left);
+        Assert::AreEqual (1280L, preview.right);
+        Assert::AreEqual (800L, preview.bottom, L"The status bar is hidden");
+        Assert::IsTrue (list.right <= list.left, L"The list is laid out empty");
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::Preview);
+        Assert::IsFalse (rig.parts->preview.CanStep (false), L"The first file has no previous");
+
+        PressKey (rig, VK_RIGHT);
+
+        Assert::IsTrue (rig.browser.GetSelectedRows() == std::vector<int> { files[1] });
+        Assert::IsTrue (rig.parts->preview.CanStep (false));
+
+        PressKey (rig, VK_ESCAPE);
+
+        list = rig.parts->listPane.GetBounds();
+
+        Assert::IsFalse (rig.parts->preview.IsExpanded());
+        Assert::IsTrue (list.left == listBefore.left && list.right == listBefore.right && list.top == listBefore.top && list.bottom == listBefore.bottom);
+        Assert::IsTrue (rig.browser.GetSelectedRows() == std::vector<int> { files[1] });
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::List);
+    }
+
+
+    //  With files selected together, expanding selects the first of them alone
+    //  and the steps go only through them. A selection made in the list ends
+    //  the set.
+    TEST_METHOD (ExpandedPreview_StepsThroughTheSelectedFiles)
+    {
+        Rig               rig;
+        std::vector<int>  files;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.Open();
+
+        rig.prefs.previewVisible = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        rig.parts->listPane.FillList();
+
+        files = GetFileRows (rig);
+        Assert::IsTrue (files.size() >= 3, L"The fixture has three files");
+
+        rig.parts->listPane.SetListSelection ({ files[0], files[2] });
+        rig.parts->preview.SetExpanded (true);
+
+        Assert::IsTrue (rig.browser.GetSelectedRows() == std::vector<int> { files[0] }, L"The first selected file is selected alone");
+        Assert::IsTrue (rig.parts->preview.IsExpanded());
+
+        rig.parts->preview.Step (true);
+
+        Assert::IsTrue (rig.browser.GetSelectedRows() == std::vector<int> { files[2] }, L"The step skips the file not selected");
+        Assert::IsFalse (rig.parts->preview.CanStep (true), L"The set ends at its last file");
+
+        rig.parts->listPane.SetListSelection ({ files[0] });
+
+        Assert::IsTrue (rig.parts->preview.CanStep (true), L"A selection made in the list ends the set");
+    }
+
+
     TEST_METHOD (HandleTimer_TakesTheWindowsTimersButTheTick)
     {
         Rig  rig;

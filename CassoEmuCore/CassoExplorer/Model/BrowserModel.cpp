@@ -222,7 +222,8 @@ void BrowserModel::NavigateTo (const Location & location)
     tab.forward.clear();
     tab.selection.clear();
     tab.previewScroll = 0;
-    tab.location      = location;
+    tab.location        = location;
+    tab.previewExpanded = false;
 }
 
 
@@ -277,7 +278,8 @@ bool BrowserModel::GoBack()
     }
 
     tab.forward.push_back (tab.location);
-    tab.location = tab.back.back();
+    tab.location        = tab.back.back();
+    tab.previewExpanded = false;
     tab.back.pop_back();
     tab.selection.clear();
     tab.previewScroll = 0;
@@ -307,7 +309,8 @@ bool BrowserModel::GoForward()
     }
 
     tab.back.push_back (tab.location);
-    tab.location = tab.forward.back();
+    tab.location        = tab.forward.back();
+    tab.previewExpanded = false;
     tab.forward.pop_back();
     tab.selection.clear();
     tab.previewScroll = 0;

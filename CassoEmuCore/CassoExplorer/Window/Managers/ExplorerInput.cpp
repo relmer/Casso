@@ -219,9 +219,14 @@ std::vector<FocusStop> ExplorerInput::BuildFocusStops() const
         enabled.push_back (m_context.commandManager.IsToolbarEntryAvailable (i));
     }
 
-    for (int id : (m_context.preview.GetBarMode() != CassoExplorerCommands::kPreviewBarNone) ? CassoExplorerCommands::GetPreviewToolbarCommandIds (m_context.preview.GetBarMode()) : std::vector<int>())
+    for (int id : CassoExplorerCommands::GetPreviewToolbarCommandIds (m_context.preview.GetBarMode(), m_context.preview.IsExpanded()))
     {
         previewEnabled.push_back (m_context.commandManager.IsEnabled (id));
+    }
+
+    if (m_context.preview.IsExpanded())
+    {
+        return FocusRing::BuildExpandedStops (previewEnabled);
     }
 
     for (int i = 0; i < m_context.toolbars.GetCommandBar().GetEntryCount(); i++)
@@ -295,7 +300,7 @@ void ExplorerInput::StepToolbarFocus (bool preview, bool forward)
 
     if (preview)
     {
-        ids = CassoExplorerCommands::GetPreviewToolbarCommandIds (m_context.preview.GetBarMode());
+        ids = CassoExplorerCommands::GetPreviewToolbarCommandIds (m_context.preview.GetBarMode(), m_context.preview.IsExpanded());
     }
     else
     {
@@ -661,6 +666,13 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
             m_context.window.Invalidate();
             return handled;
         }
+    }
+
+    //  An expanded preview's Esc, Left and Right.
+    if (m_context.preview.HandleExpandedKey (ev, m_focus))
+    {
+        m_context.window.Invalidate();
+        return true;
     }
 
     //  The preview's shortcuts, for an archive's files and a message.

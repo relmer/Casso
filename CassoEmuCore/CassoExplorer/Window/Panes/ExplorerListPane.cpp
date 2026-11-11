@@ -964,6 +964,7 @@ bool ExplorerListPane::IsSelectionOpenable() const
 
 void ExplorerListPane::OnSelectionChanged()
 {
+    m_context.preview.HandleSelectionChanged();
     m_context.browser.SetSelectedRows (m_list->GetSelectedRows());
 
     //  A closed pane that may open for a folder, disk image or archive is

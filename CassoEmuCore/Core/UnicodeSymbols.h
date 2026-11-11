@@ -84,6 +84,7 @@ static constexpr LPCWSTR s_kpszMdl2OpenInNewWindow = L"\xE8A7";       // U+E8A7 
 static constexpr LPCWSTR s_kpszMdl2Save            = L"\xE74E";       // U+E74E Save (a floppy disk)
 static constexpr LPCWSTR s_kpszMdl2HardDrive       = L"\xEDA2";       // U+EDA2 HardDrive
 static constexpr LPCWSTR s_kpszMdl2BackToWindow    = L"\xE73F";       // U+E73F BackToWindow (arrows pointing in), Krunch
+static constexpr LPCWSTR s_kpszMdl2FullScreen      = L"\xE740";       // U+E740 FullScreen (arrows pointing out)
 static constexpr LPCWSTR s_kpszMdl2Setting         = L"\xE713";       // U+E713 Setting (gear)
 static constexpr LPCWSTR s_kpszMdl2Edit            = L"\xE70F";       // U+E70F Edit (pencil)
 static constexpr LPCWSTR s_kpszMdl2SaveAs          = L"\xE792";       // U+E792 SaveAs (a floppy disk and a pencil)

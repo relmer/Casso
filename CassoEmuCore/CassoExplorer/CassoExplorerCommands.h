@@ -169,6 +169,12 @@ public:
         kInspectDiskImage,
         kCompareDiskImages,
 
+        //  The preview over the whole tab, and its steps to the previous and
+        //  next file.
+        kExpandPreview,
+        kPreviousFile,
+        kNextFile,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -248,8 +254,10 @@ public:
     //  A spreadsheet with formulas: Values and Formulas.
     static constexpr int  kPreviewBarSheet   = 9;
 
-    std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries  (int bar, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;
-    static std::vector<int>          GetPreviewToolbarCommandIds (int bar);
+    //  Expand is on every bar, and previous and next on every bar of an
+    //  expanded preview.
+    std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries  (int bar, bool expanded, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;
+    static std::vector<int>          GetPreviewToolbarCommandIds (int bar, bool expanded = false);
     static int                       GetPreviewBar               (int id);
     static bool                      IsOnPreviewBar              (int id, int bar);
 
@@ -348,6 +356,7 @@ private:
         { kRefresh,           Menu::View, L"&Refresh",            L"F5",       false },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kTogglePreview,     Menu::View, L"&Preview pane",       L"Alt+P",    true  },
+        { kExpandPreview,     Menu::View, L"E&xpand preview",     L"Alt+Shift+P", true },
         { kShowDisassembly,   Menu::View, L"&Disassembly",        nullptr,     true  },
         { kShowBytes,         Menu::View, L"&Bytes",              nullptr,     true  },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
@@ -427,6 +436,8 @@ private:
         { kSheetValues,       Menu::Count, L"&Values",             nullptr,     true  },
         { kSheetFormulas,     Menu::Count, L"&Formulas",           nullptr,     true  },
         { kCrossReference,    Menu::Count, L"&Cross-reference",    nullptr,     true  },
+        { kPreviousFile,      Menu::Count, L"&Previous file",      L"Left",     false },
+        { kNextFile,          Menu::Count, L"&Next file",          L"Right",    false },
 
         //  The hex view's own choices are on its context menu, and nowhere
         //  else at the top of the window.
@@ -528,6 +539,8 @@ private:
 
     static constexpr ToolbarRow  kPreviewToolbarRows[] =
     {
+        { kPreviousFile,      DxuiToolbar::Kind::Command, 8, s_kpszMdl2ChevronLeft,  L"Previous",  L"Previous file (Left)",                                    true },
+        { kNextFile,          DxuiToolbar::Kind::Command, 8, s_kpszMdl2ChevronRight, L"Next",      L"Next file (Right)",                                       true },
         { kLineAddresses,     DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Tag,       L"Show address",  L"Show where each line starts in memory"                   },
         { kCrossReference,    DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Cross-reference", L"List the program's variables, line references and addresses" },
         { kShowDisassembly,   DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Disassembly",   L"Show disassembly",                                       true },
@@ -545,6 +558,7 @@ private:
         { kRecordLength,      DxuiToolbar::Kind::Command, 1, nullptr,             L"Record length", L"Set the length the file is split into records by"      },
         { kSheetValues,       DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Values",        L"List each cell's value, as VisiCalc draws it"          },
         { kSheetFormulas,     DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Formulas",      L"List each cell's formula, as it was typed"             },
+        { kExpandPreview,     DxuiToolbar::Kind::Toggle,  9, s_kpszMdl2FullScreen, L"Expand",       L"Expand the preview to fill the tab (Alt+Shift+P)",     true, true },
     };
 
     static constexpr Key  kKeys[] =
@@ -552,6 +566,7 @@ private:
         { VK_F1,    false, false, false, kAbout         },
         { VK_F5,    false, false, false, kRefresh       },
         { 'P',      false, true,  false, kTogglePreview },
+        { 'P',      false, true,  true,  kExpandPreview },
         { VK_LEFT,  false, true,  false, kBack          },
         { VK_RIGHT, false, true,  false, kForward       },
         { VK_UP,    false, true,  false, kUp            },

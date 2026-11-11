@@ -427,6 +427,9 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kPictureMonochrome:
         case CassoExplorerCommands::kPictureColor:      return m_context.browser.CanTogglePictureColor();
         case CassoExplorerCommands::kSavePicture:       return m_context.browser.GetPreview().kind == PreviewContent::Kind::Picture && !m_context.browser.GetPreview().bgra.empty();
+        case CassoExplorerCommands::kExpandPreview:     return m_context.preview.IsShown();
+        case CassoExplorerCommands::kPreviousFile:      return m_context.preview.CanStep (false);
+        case CassoExplorerCommands::kNextFile:          return m_context.preview.CanStep (true);
         case CassoExplorerCommands::kEditWozMetadata:   return !m_context.browser.GetPreview().wozPath.empty();
         case CassoExplorerCommands::kCharsetAppleText:
         case CassoExplorerCommands::kCharsetMacOsRoman:
@@ -524,6 +527,7 @@ bool ExplorerCommandManager::IsChecked (int id) const
     switch (id)
     {
         case CassoExplorerCommands::kTogglePreview:     return m_context.prefs.previewVisible;
+        case CassoExplorerCommands::kExpandPreview:     return m_context.preview.IsExpanded();
         case CassoExplorerCommands::kSortAscending:     return model.HasTabs() && !model.GetActiveTab().sortDescending;
         case CassoExplorerCommands::kSortDescending:    return model.HasTabs() && model.GetActiveTab().sortDescending;
         case CassoExplorerCommands::kGroupAscending:    return model.HasTabs() && !model.GetActiveTab().groupDescending;
@@ -759,6 +763,9 @@ void ExplorerCommandManager::Dispatch (int id)
             m_context.layout.RecomputeLayout();
             break;
 
+        case CassoExplorerCommands::kExpandPreview:      m_context.preview.SetExpanded (!m_context.preview.IsExpanded()); break;
+        case CassoExplorerCommands::kPreviousFile:
+        case CassoExplorerCommands::kNextFile:           m_context.preview.Step (id == CassoExplorerCommands::kNextFile);  break;
         case CassoExplorerCommands::kShowDisassembly:
             m_context.browser.SetHexForm (PreviewDecoder::HexForm::Disassembly);
             m_context.preview.FillPreview();
@@ -783,7 +790,7 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kCharsetAppleText:   ChooseCharset (Charset::AppleText);  break;
         case CassoExplorerCommands::kCharsetMacOsRoman:  ChooseCharset (Charset::MacOsRoman); break;
         case CassoExplorerCommands::kCharsetIso8859:     ChooseCharset (Charset::Iso8859_1);  break;
-        case CassoExplorerCommands::kRecordLength:       ChooseRecordLength();                break;
+        case CassoExplorerCommands::kRecordLength:       m_context.preview.ChooseRecordLength(); break;
         case CassoExplorerCommands::kSheetValues:        ChooseSheetForm (false);             break;
         case CassoExplorerCommands::kSheetFormulas:      ChooseSheetForm (true);              break;
 
@@ -932,81 +939,6 @@ void ExplorerCommandManager::ChooseCharset (Charset charset)
 {
     m_context.browser.SetPreviewCharset (charset);
     m_context.preview.FillPreview();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerCommandManager::ChooseRecordLength
-//
-//  Opens the prompt for the record length of the previewed random-access
-//  text file, prefilled with the current one, and opens it again after text
-//  that isn't a length. An empty answer or 0 is the length found in the file.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerCommandManager::ChooseRecordLength()
-{
-    std::wstring  text   = std::to_wstring (m_context.browser.GetPreview().recordLength);
-    size_t        length = 0;
-    bool          parsed = false;
-
-
-
-    while (!parsed && CassoExplorerPromptDialog::Ask (m_context.window.GetHwnd(), m_context.theme, L"Record length",
-                                                       L"Bytes in each record, or 0 for the length found in the file:", text, kRecordLengthDigits, text))
-    {
-        parsed = TryParseRecordLength (text, length);
-
-        if (!parsed)
-        {
-            m_context.window.ShowMessage (L"Type a length from 1 to 65535, or 0.", MB_ICONWARNING);
-        }
-    }
-
-    if (parsed)
-    {
-        m_context.browser.SetPreviewRecordLength (length);
-        m_context.preview.FillPreview();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerCommandManager::TryParseRecordLength
-//
-//  A record length in decimal digits, from 0 to 65535. Empty text is 0.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerCommandManager::TryParseRecordLength (const std::wstring & text, size_t & outLength)
-{
-    size_t  value = 0;
-    bool    valid = text.size() <= kRecordLengthDigits;
-
-
-
-    for (wchar_t ch : text)
-    {
-        valid = valid && ch >= L'0' && ch <= L'9';
-        value = value * 10 + (size_t) (ch - L'0');
-    }
-
-    valid = valid && value <= kRecordLengthMax;
-
-    if (valid)
-    {
-        outLength = value;
-    }
-
-    return valid;
 }
 
 

@@ -47,6 +47,7 @@ public:
     void  Create      ();
     void  Configure   ();
     void  Layout      (const RECT & band);
+    void  SetHidden   (bool hidden) { m_status->SetVisible (!hidden); }
     void  Fill        ();
     void  SetDetail   (const std::wstring & text) { m_status->SetText (kStatusDetail, text); }
     void  SetActivity (const std::wstring & text) { m_status->SetText (kStatusFill, text); }

@@ -194,6 +194,8 @@ public:
     bool                              IsSearchRunning ();
     void                              StopSearch      ();
     bool                              IsTabPreview    () { return m_model.HasTabs() && m_model.GetActiveTab().previewOpen; }
+    void                              SetTabPreviewExpanded (bool expanded) { if (m_model.HasTabs()) { m_model.GetActiveTab().previewExpanded = expanded; } }
+    bool                              IsTabPreviewExpanded  () const { return m_model.HasTabs() && m_model.GetActiveTab().previewExpanded; }
     void                              SetTabTopRow    (int row) { if (m_model.HasTabs()) { m_model.GetActiveTab().listTopRow = row; } }
     int                               GetTabTopRow    () { return m_model.HasTabs() ? m_model.GetActiveTab().listTopRow : 0; }
     void                              SetTabTreeRow   (int row) { if (m_model.HasTabs()) { m_model.GetActiveTab().treeTopRow = row; } }

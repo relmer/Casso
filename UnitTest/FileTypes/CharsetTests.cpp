@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "Core/MemoryBus.h"
 #include "FileTypes/FileFormatTable.h"
 #include "FileTypes/PascalText.h"
@@ -210,14 +211,14 @@ public:
 
 
 
-        Assert::IsTrue   (ExplorerCommandManager::TryParseRecordLength (L"128", length));
+        Assert::IsTrue   (ExplorerPreviewManager::TryParseRecordLength (L"128", length));
         Assert::AreEqual ((size_t) 128, length);
-        Assert::IsTrue   (ExplorerCommandManager::TryParseRecordLength (L"", length));
+        Assert::IsTrue   (ExplorerPreviewManager::TryParseRecordLength (L"", length));
         Assert::AreEqual ((size_t) 0, length);
-        Assert::IsTrue   (ExplorerCommandManager::TryParseRecordLength (L"65535", length));
-        Assert::IsFalse  (ExplorerCommandManager::TryParseRecordLength (L"65536", length));
-        Assert::IsFalse  (ExplorerCommandManager::TryParseRecordLength (L"12a", length));
-        Assert::IsFalse  (ExplorerCommandManager::TryParseRecordLength (L"-1", length));
+        Assert::IsTrue   (ExplorerPreviewManager::TryParseRecordLength (L"65535", length));
+        Assert::IsFalse  (ExplorerPreviewManager::TryParseRecordLength (L"65536", length));
+        Assert::IsFalse  (ExplorerPreviewManager::TryParseRecordLength (L"12a", length));
+        Assert::IsFalse  (ExplorerPreviewManager::TryParseRecordLength (L"-1", length));
         Assert::AreEqual ((size_t) 65535, length);
     }
 };

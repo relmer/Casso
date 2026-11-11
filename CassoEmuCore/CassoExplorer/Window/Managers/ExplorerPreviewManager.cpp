@@ -3,8 +3,10 @@
 
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/InspectorWindowSet.h"
+#include "CassoExplorer/CassoExplorerPromptDialog.h"
 #include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Model/PreviewSteps.h"
 #include "CassoExplorer/Model/PreviewText.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
@@ -131,9 +133,9 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
 
     m_rect     = rect;
     m_ruleBand = RECT {};
-    m_toolbar->SetVisible (m_barMode != CassoExplorerCommands::kPreviewBarNone);
+    m_toolbar->SetVisible (true);
 
-    if (m_barMode != CassoExplorerCommands::kPreviewBarNone)
+    //  Expand is on every file's toolbar.
     {
         m_toolbar->PlanForWidth (rect.right - rect.left, scaler);
         barPx = scaler.ToPx (m_toolbar->GetBandDp());
@@ -298,14 +300,13 @@ void ExplorerPreviewManager::FillPreview()
         m_context.layout.RecomputeLayout();
     }
 
-    if (mode != m_barMode)
+    if (mode != m_barMode || !m_isBarBuilt || m_isBarExpanded != IsExpanded())
     {
-        m_barMode = mode;
+        m_barMode       = mode;
+        m_isBarBuilt    = true;
+        m_isBarExpanded = IsExpanded();
 
-        if (mode != CassoExplorerCommands::kPreviewBarNone)
-        {
-            m_toolbar->SetEntries (m_context.commands.BuildPreviewToolbarEntries (mode, m_find.GetSearchBox(), m_find.GetGoToBox()));
-        }
+        m_toolbar->SetEntries (m_context.commands.BuildPreviewToolbarEntries (mode, m_isBarExpanded, m_find.GetSearchBox(), m_find.GetGoToBox()));
 
         //  The boxes go with the hex view's toolbar, and their focus with it;
         //  the variables' toolbar has the search box alone.
@@ -1092,7 +1093,7 @@ bool ExplorerPreviewManager::IsArchiveLocation() const
 
 int ExplorerPreviewManager::GetPreviewStopIndex (int commandId) const
 {
-    std::vector<int>  ids = CassoExplorerCommands::GetPreviewToolbarCommandIds (m_barMode);
+    std::vector<int>  ids = CassoExplorerCommands::GetPreviewToolbarCommandIds (m_barMode, IsExpanded());
 
 
 
@@ -1110,4 +1111,289 @@ int ExplorerPreviewManager::GetPreviewStopIndex (int commandId) const
     }
 
     return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::IsExpanded
+//
+//  The tab's preview over the whole tab, while a file is selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::IsExpanded() const
+{
+    return m_shown && m_context.browser.IsTabPreviewExpanded();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::SetExpanded
+//
+//  With more than one file selected, the files are the step set and the
+//  first of them is selected alone. Collapsing ends the step set and puts
+//  the keyboard on the list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::SetExpanded (bool expanded)
+{
+    const std::vector<int> &   selected = m_context.browser.GetSelectedRows();
+    std::vector<std::wstring>  keys;
+    int                        first    = -1;
+
+
+
+    m_stepSet.clear();
+
+    if (expanded && selected.size() > 1)
+    {
+        m_context.browser.GetRowKeys (keys);
+
+        for (int row : selected)
+        {
+            if (row >= 0 && (size_t) row < keys.size())
+            {
+                m_stepSet.push_back (keys[(size_t) row]);
+            }
+        }
+
+        first = PreviewSteps::GetTarget (m_context.browser.GetRows(), keys, m_stepSet, -1, true);
+
+        if (first >= 0)
+        {
+            SelectStep (first);
+        }
+    }
+
+    m_context.browser.SetTabPreviewExpanded (expanded);
+    FillPreview();
+    m_context.layout.RecomputeLayout();
+    m_context.input.SetFocusPane (IsExpanded() ? ExplorerPane::Preview : ExplorerPane::List);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::GetStepTarget
+//
+//  The row previous or next goes to, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ExplorerPreviewManager::GetStepTarget (bool forward) const
+{
+    const std::vector<int> &   selected = m_context.browser.GetSelectedRows();
+    std::vector<std::wstring>  keys;
+    int                        current  = (selected.size() == 1) ? selected[0] : -1;
+
+
+
+    m_context.browser.GetRowKeys (keys);
+
+    return PreviewSteps::GetTarget (m_context.browser.GetRows(), keys, m_stepSet, current, forward);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::CanStep
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::CanStep (bool forward) const
+{
+    return IsExpanded() && GetStepTarget (forward) >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::Step
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::Step (bool forward)
+{
+    int  target = IsExpanded() ? GetStepTarget (forward) : -1;
+
+
+
+    if (target >= 0)
+    {
+        SelectStep (target);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::SelectStep
+//
+//  The row selected alone and scrolled to, as a click would select it,
+//  keeping the step set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::SelectStep (int row)
+{
+    m_isStepping = true;
+    m_context.listPane.SetListSelection ({ row });
+    m_context.listPane.GetListView()->EnsureVisible (row);
+    m_isStepping = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::HandleSelectionChanged
+//
+//  A selection made any way but by a step ends the step set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::HandleSelectionChanged()
+{
+    if (!m_isStepping)
+    {
+        m_stepSet.clear();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::HandleExpandedKey
+//
+//  Esc collapses the preview. Left and Right step while the keyboard is on
+//  the preview, since the toolbar takes them to move between its buttons.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::HandleExpandedKey (const DxuiKeyEvent & ev, ExplorerPane focus)
+{
+    bool  plain = ev.kind == DxuiKeyEventKind::Down && !ev.ctrl && !ev.alt && !ev.shift;
+
+
+
+    if (!IsExpanded() || !plain)
+    {
+        return false;
+    }
+
+    if (ev.vk == VK_ESCAPE)
+    {
+        SetExpanded (false);
+        return true;
+    }
+
+    if ((ev.vk == VK_LEFT || ev.vk == VK_RIGHT) && focus == ExplorerPane::Preview)
+    {
+        Step (ev.vk == VK_RIGHT);
+        m_context.window.Invalidate();
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::ChooseRecordLength
+//
+//  Opens the prompt for the record length of the previewed random-access
+//  text file, prefilled with the current one, and opens it again after text
+//  that isn't a length. An empty answer or 0 is the length found in the file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::ChooseRecordLength()
+{
+    std::wstring  text   = std::to_wstring (m_context.browser.GetPreview().recordLength);
+    size_t        length = 0;
+    bool          parsed = false;
+
+
+
+    while (!parsed && CassoExplorerPromptDialog::Ask (m_context.window.GetHwnd(), m_context.theme, L"Record length",
+                                                       L"Bytes in each record, or 0 for the length found in the file:", text, kRecordLengthDigits, text))
+    {
+        parsed = TryParseRecordLength (text, length);
+
+        if (!parsed)
+        {
+            m_context.window.ShowMessage (L"Type a length from 1 to 65535, or 0.", MB_ICONWARNING);
+        }
+    }
+
+    if (parsed)
+    {
+        m_context.browser.SetPreviewRecordLength (length);
+        FillPreview();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::TryParseRecordLength
+//
+//  A record length in decimal digits, from 0 to 65535. Empty text is 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::TryParseRecordLength (const std::wstring & text, size_t & outLength)
+{
+    size_t  value = 0;
+    bool    valid = text.size() <= kRecordLengthDigits;
+
+
+
+    for (wchar_t ch : text)
+    {
+        valid = valid && ch >= L'0' && ch <= L'9';
+        value = value * 10 + (size_t) (ch - L'0');
+    }
+
+    valid = valid && value <= kRecordLengthMax;
+
+    if (valid)
+    {
+        outLength = value;
+    }
+
+    return valid;
 }

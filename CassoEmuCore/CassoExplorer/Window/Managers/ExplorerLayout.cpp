@@ -188,6 +188,7 @@ void ExplorerLayout::RecomputeLayout()
     RECT            sashRect    = {};
     int             rightDip    = 0;
     bool            preview     = m_context.preview.IsShown();
+    bool            expanded    = m_context.preview.IsExpanded();
     PaneWidths      panes;
 
 
@@ -199,10 +200,16 @@ void ExplorerLayout::RecomputeLayout()
 
     m_context.toolbars.PlanForWidth (m_client.right - m_client.left);
 
+    m_context.toolbars.SetHidden   (expanded);
+    m_context.addressBar.SetHidden (expanded);
+    m_context.statusBar.SetHidden  (expanded);
+
+    //  An expanded preview fills the tab below the tab strip. The command bar,
+    //  the address bar and the status bar are hidden, with bands of 0.
     m_tabBand.SetThickness     (m_context.scaler.ToPx (kTabHeightDip));
-    m_menuBand.SetThickness    ((int) std::floor (m_context.scaler.ToPxf (kCommandBarDip)));
-    m_toolbarBand.SetThickness ((int) std::floor (m_context.scaler.ToPxf (kNavStripFillDip))   + DxuiToolbar::GetEdgePx (m_context.scaler));
-    m_statusBand.SetThickness  (m_context.scaler.ToPx (ExplorerStatusBar::kStatusBandDip));
+    m_menuBand.SetThickness    (expanded ? 0 : (int) std::floor (m_context.scaler.ToPxf (kCommandBarDip)));
+    m_toolbarBand.SetThickness (expanded ? 0 : (int) std::floor (m_context.scaler.ToPxf (kNavStripFillDip))   + DxuiToolbar::GetEdgePx (m_context.scaler));
+    m_statusBand.SetThickness  (expanded ? 0 : m_context.scaler.ToPx (ExplorerStatusBar::kStatusBandDip));
 
     m_dock.Arrange (m_client, m_context.scaler, bands);
 
@@ -224,6 +231,26 @@ void ExplorerLayout::RecomputeLayout()
     m_context.addressBar.Layout (m_context.toolbars.GetFreeRect(), m_toolbarBand.GetBounds(), body.right - body.left - m_context.scaler.ToPx (panes.tree));
 
     m_context.tips.Layout (m_context.scaler.GetDpi(), m_client.right - m_client.left, m_client.bottom - m_client.top);
+
+    //  The tree and the list are laid out empty under an expanded preview.
+    //  Their widths stay in the preferences for the collapse.
+    if (expanded)
+    {
+        m_treeSplitter->SetVisible (false);
+        m_previewSplitter->SetVisible (false);
+
+        m_context.treePane.Layout (RECT { body.left, body.top, body.left, body.top });
+        m_context.listPane.Layout (RECT { body.left, body.top, body.left, body.top });
+        m_context.cassoLinkManager.LayoutListActions();
+        m_context.preview.Layout (body);
+        m_context.statusBar.Layout (m_statusBand.GetBounds());
+
+        m_dropHits.Clear();
+        m_dropHits.Register (DxuiHitRect { m_context.tabManager.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagTabs });
+
+        m_context.window.Invalidate();
+        return;
+    }
 
     //  A narrow window has already taken each pane below its minimum, so
     //  the sash can go no further than where the fit put it.

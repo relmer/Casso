@@ -39,6 +39,16 @@ public:
     static constexpr int              kRuleBandDip     = 13;      // the band between those details and the catalog, with a rule across it
     static constexpr int              kRuleInsetDip    = 8;
 
+    //  The longest record length that can be typed, and its digits.
+    static constexpr size_t           kRecordLengthMax    = 65535;
+    static constexpr int              kRecordLengthDigits = 5;
+
+    //  A prompt for the record length of a random-access text file, and the
+    //  text typed in it read as a length: decimal digits, 0 to 65535, empty
+    //  for 0.
+    void                              ChooseRecordLength     ();
+    static bool                       TryParseRecordLength   (const std::wstring & text, size_t & outLength);
+
     void                              Create                 ();
     void                              CreateToolbar          ();
     void                              Configure              ();
@@ -73,6 +83,15 @@ public:
     PreviewPictureView              & GetPicture             ()            { return m_picture; }
     PreviewShellView                & GetShell               ()            { return m_shell; }
     PreviewFindBar                  & GetFind                ()            { return m_find; }
+
+    //  The preview over the whole tab, below the tab strip, and its steps to
+    //  the previous and next file.
+    bool  IsExpanded             () const;
+    void  SetExpanded            (bool expanded);
+    bool  CanStep                (bool forward) const;
+    void  Step                   (bool forward);
+    void  HandleSelectionChanged ();
+    bool  HandleExpandedKey      (const DxuiKeyEvent & ev, ExplorerPane focus);
 
     void  HandleAutoPreviewTimer ();
     void  SaveTabState           ();
@@ -109,9 +128,15 @@ private:
     PreviewContent::Kind            m_lastKind    = PreviewContent::Kind::Text;
     bool                            m_pinned      = false;   // turned on manually, so automatic preview doesn't close it
     bool                            m_shown       = false;   // on screen: turned on, with a file selected
+    bool                            m_isBarBuilt    = false;   // the toolbar's entries set at least once
+    bool                            m_isBarExpanded = false;   // whether they have previous and next
+    bool                            m_isStepping    = false;   // set during a step's selection, so the step set stays
+    std::vector<std::wstring>       m_stepSet;                 // the keys of the files a step goes through; empty for every file
     std::wstring                    m_autoKey;   // the file automatic preview last checked
     std::wstring                    m_autoAddress;
 
+    int           GetStepTarget     (bool forward) const;
+    void          SelectStep        (int row);
     std::wstring  GetAutoKey        () const;
     bool          UpdateAutoPreview ();
     bool          UpdateShown       ();
