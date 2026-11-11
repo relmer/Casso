@@ -40,6 +40,10 @@ public:
     //  card. Nothing for any other folder.
     void  AddInitializeRow      (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);
 
+    //  InitializeCard for the card open in the list, or for the card of the
+    //  drive letter open in it. Nothing for any other location.
+    void  InitializeShownCard   ();
+
 private:
     ExplorerContext  & m_context;
 };

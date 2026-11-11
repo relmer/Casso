@@ -27,8 +27,8 @@ public:
 
     void  SetChoice (int position, CardLayoutModel::Adapter adapter) { m_position = position; m_adapter = adapter; }
 
-    //  The height at a width, in pixels: as tall as the most rows any choice
-    //  has, so a new choice moves nothing below the grid.
+    //  The height at a width, in pixels: as tall as the most rows of any
+    //  adapter and layout.
     int   MeasureHeightPx (int widthPx, const DxuiDpiScaler & scaler) const;
 
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;

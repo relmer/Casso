@@ -366,3 +366,31 @@ void ExplorerOpen::AddInitializeRow (std::vector<DxuiPopupMenuItem> & items, con
     m_context.menus.AddMenuCommand (items, L"&Initialize card for Apple...", [this, card]() { InitializeCard (card); });
     m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::AppleMachine);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::InitializeShownCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerOpen::InitializeShownCard()
+{
+    Location      location = m_context.browser.GetLocation();
+    std::wstring  root     = location.path.substr (0, std::min<size_t> (location.path.size(), 3));
+    int           number   = -1;
+
+
+
+    if (PhysicalCards::IsCardPath (location.path))
+    {
+        InitializeCard (location.path);
+    }
+    else if (location.kind == Location::Kind::HostFolder && m_context.app.cards != nullptr && m_context.app.cards->TryGetVolumeCard (root, number))
+    {
+        InitializeCard (TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (number)));
+    }
+}

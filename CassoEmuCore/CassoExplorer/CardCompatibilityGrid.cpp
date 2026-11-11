@@ -21,10 +21,15 @@ int CardCompatibilityGrid::MeasureHeightPx (int widthPx, const DxuiDpiScaler & s
 
     UNREFERENCED_PARAMETER (widthPx);
 
-    for (int position = 1; position <= m_model.GetPositionCount(); position++)
+    //  Every adapter's rows, so a new choice of adapter or layout moves
+    //  nothing below the grid.
+    for (int adapter = 0; adapter < (int) CardLayoutModel::Adapter::Count; adapter++)
     {
-        m_model.GetRows (position, m_adapter, rows);
-        most = std::max (most, rows.size());
+        for (int position = 1; position <= m_model.GetPositionCount(); position++)
+        {
+            m_model.GetRows (position, (CardLayoutModel::Adapter) adapter, rows);
+            most = std::max (most, rows.size());
+        }
     }
 
     return (int) std::ceil (scaler.ToPxf (kLineDip * 2.0f + kGapDip + kRowDip * (float) most));

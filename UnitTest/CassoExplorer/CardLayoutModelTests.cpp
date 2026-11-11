@@ -2,6 +2,7 @@
 
 #include "../EhmTestHelper.h"
 #include "CassoExplorer/Model/CardLayoutModel.h"
+#include "CassoExplorer/CardCompatibilityGrid.h"
 #include "Seams/RawDevice/RawDeviceProtocol.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -134,6 +135,20 @@ public:
 
         model.GetRows (6, CardLayoutModel::Adapter::Unsure, rows);
         Assert::AreEqual ((size_t) 6, rows.size());
+    }
+
+
+    TEST_METHOD (Grid_IsTallEnoughForEveryRow)
+    {
+        CardLayoutModel        model (kCard, 13, true);
+        CardCompatibilityGrid  grid (model);
+        DxuiDpiScaler          scaler;
+
+        scaler.SetDpi (144);
+        grid.SetChoice (4, CardLayoutModel::Adapter::Unsure);
+
+        Logger::WriteMessage (std::format (L"grid height {}", grid.MeasureHeightPx (600, scaler)).c_str());
+        Assert::IsTrue (grid.MeasureHeightPx (600, scaler) > 6 * 36);
     }
 
 

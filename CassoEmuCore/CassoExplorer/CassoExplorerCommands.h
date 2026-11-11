@@ -178,6 +178,12 @@ public:
         //  kGroupByField + a RowGrouping::Field, None included.
         kGroupByField = 600,
         kGroupByLast  = 699,
+
+        //  Initialize card for Apple on the card open in the list, or on the
+        //  card of the drive letter open in it. Not on a menu: the rows on a
+        //  card's and a drive's context menus run it, and ExplorerRunCommand
+        //  with this id opens its dialog.
+        kInitializeCard = 700,
     };
 
     enum class Menu { File, Edit, View, Go, Help, Count };
