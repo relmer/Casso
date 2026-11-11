@@ -452,6 +452,7 @@ private:
 
     HRESULT      EnsureWindowClass         ();
     HRESULT      CreateHwndAndComposition  (const RECT & placedRectScreenPx);
+    void         ShowDrawn                 ();
     HRESULT      CreateComposition         (int widthPx, int heightPx);
     void         SetCompositionSize        (int widthPx, int heightPx);
     void         ApplyAcrylic              ();
@@ -489,6 +490,7 @@ private:
     //  the .cpp so no consumer needs the WinRT headers.
     struct                        Composition;
     std::unique_ptr<Composition>  m_comp;
+    uint32_t                      m_showSerial = 0;
 
     // Per-popup render facades bound to the popup's own back buffer. The
     // surface composites with premultiplied alpha; RenderNow clears

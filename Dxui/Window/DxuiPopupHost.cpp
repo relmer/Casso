@@ -49,6 +49,7 @@ struct DxuiPopupHost::Composition
 
 
 static constexpr UINT     s_kDefaultDpi          = 96;
+static constexpr UINT     s_kShowMessage         = WM_APP + 0x51;   // shows a popup drawn and committed
 
 std::atomic<uint32_t>  s_classSerial { 0 };
 
@@ -585,30 +586,14 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // visibility was never what they needed.
     RenderNow();
 
-    // Arm the open animation and put the window into its FIRST frame before
-    // it is ever shown. Starting the reveal after ShowWindow let the popup
-    // appear full size for one frame and then jump back to the start of the
-    // animation, which is exactly the blink the animation exists to avoid.
-    if (m_params.revealMs > 0)
-    {
-        BeginReveal (m_params.revealMs, m_params.revealFade);
-        ApplyReveal (0.0f);
-    }
-
-    // Show without activating (WS_EX_NOACTIVATE) so the owner keeps
-    // keyboard focus / caption activation state.
-    ShowWindow (m_hwnd, SW_SHOWNOACTIVATE);
-
-    // Click-outside dismiss: capture so off-popup clicks route to
-    // our WndProc as WM_CAPTURECHANGED / WM_LBUTTONDOWN-with-NCHITTEST.
-    // Skipped when grabsCapture is false (owner-driven dismiss): the
-    // popup then only receives events while the cursor is over it.
-    if (m_params.grabsCapture &&
-        (m_params.dismiss == DxuiPopupDismiss::OnClickOutside ||
-         m_params.dismiss == DxuiPopupDismiss::OnClickAnywhere))
-    {
-        SetCapture (m_hwnd);
-    }
+    // SHOWN FROM THE MESSAGE LOOP, after the composition has committed the
+    // frame drawn above. The composition commits when this thread returns to
+    // its loop, so a window shown here appeared with the acrylic backdrop
+    // and none of the frame for a moment, worst for the first menu ever
+    // opened. The serial tells a message for this show from one posted for
+    // an earlier show of the same pooled window.
+    m_showSerial++;
+    PostMessageW (m_hwnd, s_kShowMessage, (WPARAM) m_showSerial, 0);
 
 Error:
 
@@ -1217,6 +1202,14 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 
     switch (msg)
     {
+        case s_kShowMessage:
+            if (m_open && (uint32_t) wp == m_showSerial)
+            {
+                ShowDrawn();
+            }
+
+            return 0;
+
         case WM_CAPTURECHANGED:
             //  A submenu opening from this menu takes the mouse to show itself.
             //  That is not the menu losing the mouse to the rest of the screen,
@@ -1472,6 +1465,46 @@ HRESULT DxuiPopupHost::EnsureWindowClass()
 Error:
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowDrawn
+//
+//  Shows a popup whose first frame is drawn and committed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::ShowDrawn()
+{
+    // Arm the open animation and put the window into its FIRST frame before
+    // it is ever shown. Starting the reveal after ShowWindow let the popup
+    // appear full size for one frame and then jump back to the start of the
+    // animation, which is exactly the blink the animation exists to avoid.
+    if (m_params.revealMs > 0)
+    {
+        BeginReveal (m_params.revealMs, m_params.revealFade);
+        ApplyReveal (0.0f);
+    }
+
+    // Show without activating (WS_EX_NOACTIVATE) so the owner keeps
+    // keyboard focus / caption activation state.
+    ShowWindow (m_hwnd, SW_SHOWNOACTIVATE);
+
+    // Click-outside dismiss: capture so off-popup clicks route to
+    // our WndProc as WM_CAPTURECHANGED / WM_LBUTTONDOWN-with-NCHITTEST.
+    // Skipped when grabsCapture is false (owner-driven dismiss): the
+    // popup then only receives events while the cursor is over it.
+    if (m_params.grabsCapture &&
+        (m_params.dismiss == DxuiPopupDismiss::OnClickOutside ||
+         m_params.dismiss == DxuiPopupDismiss::OnClickAnywhere))
+    {
+        SetCapture (m_hwnd);
+    }
 }
 
 
