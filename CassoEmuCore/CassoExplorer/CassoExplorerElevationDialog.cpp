@@ -139,10 +139,10 @@ void CassoExplorerElevationDialog::OnCreate()
 
 
     m_text.SetText (std::format (L"Reading and writing {} requires administrator access.\r\n\r\n"
-                                 L"Windows opens a drive's blocks only to a program running as administrator, so Casso Explorer "
-                                 L"starts a separate program, Casso Storage Card Broker, with that access. The broker opens "
-                                 L"storage cards only, never a hard drive, and writes only inside a card's Apple partitions. "
-                                 L"It closes when Casso Explorer closes.\r\n\r\n"
+                                 L"The partition layout of CFFA 1.x and 2.x adapters requires low-level access to the card, which "
+                                 L"Windows allows only to a program running as administrator. For security, Casso Explorer starts "
+                                 L"a separate program, Casso Storage Card Broker, with that access. The broker is limited to "
+                                 L"storage cards, and to the Apple partitions on them. It closes when Casso Explorer closes.\r\n\r\n"
                                  L"When you click OK, Windows displays a prompt for permission.", m_card));
     ExplorerTextStyles::Apply (m_text, ExplorerTextStyles::kFormLabel);
 
