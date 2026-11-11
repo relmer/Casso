@@ -907,6 +907,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                                    GoToMemory           (Word address) override;
     void                                    AddShowInMemoryItems (const std::wstring & what, const std::string & goTo, PaneMenuItems & items) override { AddShowInMemory (what, goTo, items); }
     void                                    AddSkipItem          (const std::string & name, Word address, PaneMenuItems & items) override;
+    void                                    AddBookmarkItem      (Word address, PaneMenuItems & items) override;
     void                                    ShowSkipNotice       (const std::string & routine);
     void                                    GoLive               () override { GoLiveFromBand(); }
     const StopChanges                     & GetStopChanges       () const override { return m_stopChanges; }

@@ -1744,6 +1744,7 @@ bool ProfilerPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & i
     if (address.has_value())
     {
         items.push_back ({ L"Add symbol here...", [this, at = *address] { AddSymbolDialog::Run (m_host, at); } });
+        m_host.AddBookmarkItem (*address, items);
     }
 
     items.push_back ({ m_isOn ? L"Stop profiling" : L"Start profiling", [this, on = m_isOn] { RunProfile (on ? "OFF" : "ON"); } });

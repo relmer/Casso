@@ -111,6 +111,10 @@ public:
     static int   GetLineOfRow (const std::vector<Row> & rows, int row);
     static int   GetRowOfLine (const std::vector<Row> & rows, int codeLine);
 
+    //  The instruction a row is part of: its own, or for a source or label
+    //  row, the first instruction below it; -1 for none.
+    static int   GetLineAtOrBelow (const std::vector<Row> & rows, int row);
+
     //  How many lines have their instruction's row among the first `capacity`
     //  rows.
     static int   CountShownLines (const std::vector<Row> & rows, int capacity);

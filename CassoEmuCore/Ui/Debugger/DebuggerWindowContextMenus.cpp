@@ -539,6 +539,33 @@ void DebuggerWindow::AddSkipItem (const std::string & name, Word address, PaneMe
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::AddBookmarkItem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddBookmarkItem (Word address, PaneMenuItems & items)
+{
+    auto  found = (m_snapshot == nullptr) ? std::vector<DebuggerViewSnapshot::WatchLine>::const_iterator()
+                                          : std::ranges::find_if (m_snapshot->bookmarks, [address] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == address; });
+
+
+
+    if (m_snapshot != nullptr && found != m_snapshot->bookmarks.end())
+    {
+        items.push_back ({ L"Remove bookmark", [this, id = found->id] { RunAction (DebuggerActions::GetClearBookmark (id, GetMode())); } });
+    }
+    else
+    {
+        items.push_back ({ L"Add bookmark", [this, address] { RunAction (DebuggerActions::GetAddBookmark (address, GetMode())); } });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ShowSkipNotice
 //
 //  How to take a routine out of the step filter again, until the notice's

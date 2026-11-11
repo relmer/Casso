@@ -1481,6 +1481,7 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
 
     if (byte.has_value())
     {
+        m_host.AddBookmarkItem    (*byte, items);
         m_host.AddHeatAccessItems (*byte, HeatMapOptions::Bank::Cpu, items);
     }
 }

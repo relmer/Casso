@@ -363,6 +363,7 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
     if (BreakpointColumns::HasAddress (bp.info))
     {
         items.push_back ({ L"Go to disassembly", [this, bp] { m_host.GoToCode (bp.address); } });
+        m_host.AddBookmarkItem (bp.address, items);
     }
 
     //  A session stop is no table entry: it has no off state, no name and no

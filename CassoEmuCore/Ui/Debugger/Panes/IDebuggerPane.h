@@ -127,6 +127,9 @@ public:
     //  memory window.
     virtual void                   AddShowInMemoryItems (const std::wstring & what, const std::string & goTo, PaneMenuItems & items) = 0;
 
+    //  Add bookmark for a code address, or Remove bookmark when it has one.
+    virtual void                   AddBookmarkItem      (Word address, PaneMenuItems & items) = 0;
+
     //  A routine's Never step into this routine row: checked while the step
     //  filter has it, a click then taking it out; otherwise a click adds it
     //  and opens a notice of how to take it out again.

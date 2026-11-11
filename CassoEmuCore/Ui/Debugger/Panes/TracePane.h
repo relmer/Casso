@@ -66,6 +66,9 @@ public:
     void  SetPcStyle     (std::shared_ptr<const DxuiIconImage> marker, uint32_t rowArgb);
     void  ProvideRow     (int row, std::vector<DxuiListView::Cell> & out) const;
 
+    //  The address of a row's instruction, none for a row not read yet.
+    std::optional<Word>  GetRowPc (int row) const;
+
     //  A row's address, bytes, label and instruction in the disassembly's
     //  colors; the cycles in the muted one.
     static void  AddColors      (std::vector<DxuiListView::Cell> & row, const DebuggerTextColors::Set & colors);

@@ -180,6 +180,7 @@ bool CallStackController::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
     if (!frame.basicLine.has_value())
     {
         items.push_back ({ L"Show call site", [this, at = frame.address] { m_host.GoToCode (at); } });
+        m_host.AddBookmarkItem (frame.address, items);
     }
 
     if (frame.routineAddress.has_value())

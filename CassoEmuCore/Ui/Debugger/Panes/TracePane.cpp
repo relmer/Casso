@@ -388,3 +388,33 @@ void TracePane::ToggleBytes()
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TracePane::GetRowPc
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> TracePane::GetRowPc (int row) const
+{
+    uint64_t  index = (uint64_t) row;
+
+
+
+    if (row < 0)
+    {
+        return std::nullopt;
+    }
+
+    if (index >= m_total && index - m_total < m_next.size())
+    {
+        return m_next[(size_t) (index - m_total)].pc;
+    }
+
+    if (index < m_first || index - m_first >= m_entries.size())
+    {
+        return std::nullopt;
+    }
+
+    return m_entries[(size_t) (index - m_first)].pc;
+}

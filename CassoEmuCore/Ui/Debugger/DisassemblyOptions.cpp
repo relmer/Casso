@@ -347,6 +347,30 @@ int DisassemblyOptions::GetLineOfRow (const std::vector<Row> & rows, int row)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyOptions::GetLineAtOrBelow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DisassemblyOptions::GetLineAtOrBelow (const std::vector<Row> & rows, int row)
+{
+    int  line = -1;
+
+
+
+    for (int each = std::max (0, row); each < (int) rows.size() && line < 0 && row >= 0; each++)
+    {
+        line = rows[(size_t) each].codeLine;
+    }
+
+    return line;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyOptions::GetRowOfLine
 //
 ////////////////////////////////////////////////////////////////////////////////

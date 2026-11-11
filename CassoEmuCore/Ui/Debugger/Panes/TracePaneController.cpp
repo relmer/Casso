@@ -370,11 +370,20 @@ Error:
 
 bool TracePaneController::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items)
 {
-    (void) row;
+    std::optional<Word>  pc;
+
+
 
     if (list != m_list)
     {
         return false;
+    }
+
+    pc = m_model->GetRowPc (row);
+
+    if (pc.has_value())
+    {
+        m_host.AddBookmarkItem (*pc, items);
     }
 
     items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });

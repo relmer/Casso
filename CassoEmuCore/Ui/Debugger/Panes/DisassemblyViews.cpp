@@ -445,14 +445,15 @@ bool DisassemblyViewPane::RouteBarMouse (const DxuiMouseEvent & ev)
 //  In groups: running to the line, its breakpoint, copying and showing it in
 //  memory (FR-084: the instruction's operand, resolved through its
 //  addressing mode, or the line's address, one row for each memory pane
-//  open), then the line's edits.
+//  open), then the line's edits. A source or label row's menu is the menu of
+//  the instruction below it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items)
 {
     const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
-    int                           index    = m_group.GetCodeLineOfRow (m_view, row);
+    int                           index    = m_group.GetMenuLineOfRow (m_view, row);
     RECT                          bounds   = m_list->GetBounds();
     int                           column   = m_host.GetListColumnAt (m_list, m_host.GetLastPressPx().x - bounds.left);
 
@@ -648,6 +649,32 @@ int DisassemblyGroup::GetCodeLineOfRow (int view, int row) const
     }
 
     line = DisassemblyOptions::GetLineOfRow (m_views[(size_t) view]->GetRows(), row);
+
+    return (line < (int) GetCodeLines (view).size()) ? line : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::GetMenuLineOfRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DisassemblyGroup::GetMenuLineOfRow (int view, int row) const
+{
+    int  line = -1;
+
+
+
+    if (view < 0 || view >= DebuggerViewState::kMaxCodeViews)
+    {
+        return -1;
+    }
+
+    line = DisassemblyOptions::GetLineAtOrBelow (m_views[(size_t) view]->GetRows(), row);
 
     return (line < (int) GetCodeLines (view).size()) ? line : -1;
 }

@@ -306,6 +306,10 @@ namespace DisassemblyOptionsTests
             Assert::AreEqual (2,  rows[4].codeLine, L"the data byte has no line, so no row above it");
             Assert::AreEqual (3,  DisassemblyOptions::GetRowOfLine (rows, 1));
             Assert::AreEqual (-1, DisassemblyOptions::GetLineOfRow (rows, 2));
+            Assert::AreEqual (1,  DisassemblyOptions::GetLineAtOrBelow (rows, 2), L"a source row's menu is its instruction's");
+            Assert::AreEqual (0,  DisassemblyOptions::GetLineAtOrBelow (rows, 0));
+            Assert::AreEqual (2,  DisassemblyOptions::GetLineAtOrBelow (rows, 4), L"an instruction row is its own");
+            Assert::AreEqual (-1, DisassemblyOptions::GetLineAtOrBelow (rows, 5), L"past the last row");
 
             rows = DisassemblyOptions::BuildRows (snapshot->codeViews[0], false, always);
             Assert::AreEqual ((size_t) 3, rows.size(), L"source off lists the instructions alone");

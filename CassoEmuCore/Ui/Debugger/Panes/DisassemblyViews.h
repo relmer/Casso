@@ -139,6 +139,7 @@ public:
     const std::vector<DebuggerViewSnapshot::CodeLine>  & GetCodeLines       (int view) const override;
     DxuiListView                                       * GetCodeList        (int view) const override;
     int                                                  GetCodeLineOfRow   (int view, int row) const override;
+    int                                                  GetMenuLineOfRow   (int view, int row) const;
     int                                                  GetGutterLineOfRow (int view, int row) const override;
 
     //  The view a list is, or -1; and how many views are open.

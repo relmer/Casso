@@ -101,6 +101,7 @@ namespace DebuggerCodeMenuTests
         using DebuggerWindow::ApplyCodeSnapshot;
         using DebuggerWindow::GetCodeList;
         using DebuggerWindow::GetCodeEdits;
+        using DebuggerWindow::GetPaneHostForTest;
         using DebuggerWindow::GetCodeGroup;
         using DebuggerWindow::ScrollCodeAtEdge;
         using DebuggerWindow::OnMouse;
@@ -344,6 +345,34 @@ namespace DebuggerCodeMenuTests
             Assert::AreEqual ((size_t) 1, window.notices.size(), L"no notice once it is off");
         }
 
+
+
+        //  The other panes that list code addresses add the same row: Add
+        //  bookmark at an address without one, Remove bookmark at one with.
+        TEST_METHOD (APanesRowAddsOrRemovesTheBookmarkAtItsAddress)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            MenuWindow         window   (theme, host);
+            DxuiDpiScaler      scaler;
+            auto               snapshot = MakeSnapshot();
+            Items              items;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            window.GetPaneHostForTest().AddBookmarkItem (0x0302, items);
+            Run (items, L"Add bookmark");
+            Assert::AreEqual (std::string ("BMA 0302"), host.commands.back());
+
+            items.clear();
+            window.GetPaneHostForTest().AddBookmarkItem (0x0305, items);
+            Assert::IsTrue (Has (items, L"Remove bookmark"), L"$0305 has a bookmark");
+        }
 
 
         TEST_METHOD (TheMenuRunsEachEntryAsATypedAction)
