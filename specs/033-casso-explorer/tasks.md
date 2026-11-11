@@ -1993,6 +1993,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [ ] T672 [US40] Annotate ProDOS, SOS, Pascal and HFS blocks by structure, and 2MG and Disk Copy 4.2 headers, checksums and tag bytes (FR-251)
 - [ ] T673 [US40] Draw partition bands for the Apple Partition Map, CFFA slices, MicroDrive and FocusDrive (FR-254)
 - [ ] T674 [US40] Compare two block images block by block, and mark leftover data in free blocks with Save as file (FR-255)
+- [ ] T676 [US40] Address and annotate a volume inside another over the outer blocks: the DOS 3.3 volumes of UniDOS, AmDOS and OzDOS 800K disks by track and sector, and a hybrid disk's second file system (FR-256)
 - [ ] T675 [US40] Tests on CiderPress II's ProDOS, HFS and partitioned images: each block's annotation matches its catalog use, and a step on a 32 MB volume takes under 100 ms (SC-069)
 
 ## Phase 56: Roadmap validation and merge

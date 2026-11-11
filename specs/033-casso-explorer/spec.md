@@ -2017,6 +2017,11 @@ back, and edit a byte and see it written.
 9. **Given** a free block with text or code in it, **When** the block map
    is open, **Then** it is marked as leftover data, and a run of such
    blocks can be saved as a file on the PC.
+10. **Given** a volume inside another, as the two DOS 3.3 volumes of a
+    UniDOS, AmDOS or OzDOS 800K disk, or a ProDOS volume inside a DOS 3.3
+    hybrid, **When** a block of it is selected, **Then** the block is also
+    addressed in the inner volume's terms, track and sector for DOS 3.3, and
+    annotated by the inner volume's structure.
 
 ---
 ### Edge Cases
@@ -3438,6 +3443,10 @@ back, and edit a byte and see it written.
 - **FR-254**: Each partition MUST be drawn as a band over its blocks.
 - **FR-255**: Block mode MUST compare two block images block by block, and
   mark free blocks with text or code in them, which can be saved as a file.
+- **FR-256**: A volume inside another MUST be addressed and annotated in
+  its own terms over the outer volume's blocks: the DOS 3.3 volumes of
+  UniDOS, AmDOS and OzDOS disks by track and sector, and a hybrid disk's
+  second file system.
 
 **HFS**
 
