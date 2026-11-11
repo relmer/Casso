@@ -36,6 +36,7 @@ struct Breakpoint
     uint32_t             hits      = 0;
     std::string          symbol;                  // the symbol an address breakpoint was set by
     std::string          name;                    // BPNAME's; empty for the default
+    std::string          log;                     // BPLOG's message; empty for none
 
     // Kind Disk: what BPDISK was given, and the routine an RWTS or driver
     // breakpoint stops at now, absent while its vector has no target.
@@ -97,6 +98,7 @@ public:
     bool  TrySetFlags      (int id, bool temporary, bool stops);
     bool  TrySetSymbol     (int id, const std::string & symbol);
     bool  TrySetName       (int id, const std::string & name);
+    bool  TrySetLog        (int id, const std::string & log);
     bool  TrySetCondition  (int id, const Expression & condition);
     bool  TryMove          (int id, Word first);
     bool  TrySetResolved   (int id, std::optional<Word> routine);
@@ -113,6 +115,14 @@ public:
     bool  TryFind          (int id, Breakpoint & entry) const;
 
     const std::vector<Breakpoint> &  GetAll () const { return m_entries; }
+
+    //  The messages logging breakpoints wrote at their hits since the last
+    //  call, oldest first.
+    std::vector<std::string>  TakeLogs () { return std::exchange (m_logs, {}); }
+
+    //  A logging breakpoint's message at a hit: each {expression} evaluated
+    //  and written in hex, or as {?expression} when it can't be.
+    static std::string  FormatLog (int id, const std::string & log, const IDebugExpressionContext & context);
 
     bool  HasEnabledStopCondition () const;
     bool  IsAddressHit            (Word pc) const { return m_addressBits[pc]; }
@@ -185,6 +195,9 @@ private:
 
     int                     & m_nextId;
     std::vector<Breakpoint>   m_entries;
+    std::vector<std::string>  m_logs;
+
+    void  NoteLog (const Breakpoint & entry, const IDebugExpressionContext & context);
     std::vector<bool>         m_addressBits = std::vector<bool> (kAddressCount, false);
     std::optional<int32_t>    m_lastConditionValue;
 };

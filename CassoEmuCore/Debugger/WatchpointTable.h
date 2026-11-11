@@ -31,6 +31,7 @@ struct Watchpoint
     bool         stops     = true;                // false: counts hits only
     uint32_t     hits      = 0;
     std::string  name;                            // BPNAME's; empty for the default
+    std::string  log;                             // BPLOG's message; empty for none
 };
 
 
@@ -114,6 +115,7 @@ public:
     bool   TrySetEnabled    (int id, bool enabled);
     bool   TrySetFlags      (int id, bool temporary, bool stops);
     bool   TrySetName       (int id, const std::string & name);
+    bool   TrySetLog        (int id, const std::string & log);
     bool   TryAdopt         (const Watchpoint & entry);
     bool   TryChangeId      (int from, int to);
     bool   TryFind          (int id, Watchpoint & entry) const;
@@ -123,6 +125,10 @@ public:
     int    AddCopy          (const Watchpoint & entry);
 
     const std::vector<Watchpoint> &  GetAll () const { return m_entries; }
+
+    //  The messages logging watchpoints wrote at their hits since the last
+    //  call, oldest first.
+    std::vector<std::string>  TakeLogs () { return std::exchange (m_logs, {}); }
 
     bool                             HasEnabled       () const;
     bool                             HasEnabledBefore () const;
@@ -182,6 +188,9 @@ private:
 
     int                              & m_nextId;
     std::vector<Watchpoint>            m_entries;
+    std::vector<std::string>           m_logs;
+
+    void  NoteLog (const Watchpoint & entry);
     IDebugTarget                     * m_target           = nullptr;
     const IDebugExpressionContext    * m_context          = nullptr;
     BreakpointTable                  * m_valueBreakpoints = nullptr;

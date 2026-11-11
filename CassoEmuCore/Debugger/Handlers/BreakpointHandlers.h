@@ -98,6 +98,7 @@ private:
     static void                Edit           (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void                Change         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void                SetName        (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void                SetLog         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void                Save           (DebugSession & session, const DebugCommand & command, Reply & reply);
 
     static bool  TryParseBrkArguments (const std::string & text, int & selector, std::optional<bool> & isOn, std::string & error);

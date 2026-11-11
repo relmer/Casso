@@ -66,6 +66,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "BPE",         H::Breakpoints,        "BPE #|*",                                        "Enable a breakpoint, or all of them"                                                     },
     { "BPEDIT",      H::Breakpoints,        "BPEDIT # definition",                            "Replace a breakpoint with a new definition"                                              },
     { "BPNAME",      H::Breakpoints,        "BPNAME # [\"text\"]",                            "Set a breakpoint's name, or with none return it to the default"                          },
+    { "BPLOG",       H::Breakpoints,        "BPLOG # [GO] \"text {expr}\" | CLEAR",           "Write a message at each hit, {expr} evaluated; GO runs on instead of stopping"           },
     { "BPL",         H::Breakpoints,        "BPL",                                            "List the breakpoints"                                                                    },
     { "BPM",         H::Breakpoints,        "BPM addr[,len|:last] [BEFORE|AFTER] [IF expr]",  "Stop on a read or write of memory"                                                       },
     { "BPMR",        H::Breakpoints,        "BPMR addr[,len|:last] [BEFORE|AFTER] [IF expr]", "Stop on a read of memory"                                                                },

@@ -50,6 +50,8 @@ AppleWin commands:
     BPE #|*                   Enable a breakpoint, or all of them
     BPEDIT # definition       Replace a breakpoint with a new definition
     BPL                       List the breakpoints
+    BPLOG # [GO] "text {expr}" | CLEAR
+                              Write a message at each hit, {expr} evaluated; GO runs on instead of stopping
     BPM, BPIO addr[,len|:last] [BEFORE|AFTER] [IF expr]
                               Stop on a read or write of memory
     BPMR addr[,len|:last] [BEFORE|AFTER] [IF expr]
@@ -392,6 +394,8 @@ Casso commands:
     /BPE #|*                  Enable a breakpoint, or all of them
     /BPEDIT # definition      Replace a breakpoint with a new definition
     /BPL                      List the breakpoints
+    /BPLOG # [GO] "text {expr}" | CLEAR
+                              Write a message at each hit, {expr} evaluated; GO runs on instead of stopping
     /BPM, /BPIO addr[,len|:last] [BEFORE|AFTER] [IF expr]
                               Stop on a read or write of memory
     /BPMR addr[,len|:last] [BEFORE|AFTER] [IF expr]
@@ -686,6 +690,8 @@ Casso commands:
     BPE #|*                   Enable a breakpoint, or all of them
     BPEDIT # definition       Replace a breakpoint with a new definition
     BPL                       List the breakpoints
+    BPLOG # [GO] "text {expr}" | CLEAR
+                              Write a message at each hit, {expr} evaluated; GO runs on instead of stopping
     BPMV addr[,len|:last] byte [IF expr]
                               Stop when a write sets a byte of the range to byte
     BPNAME # ["text"]         Set a breakpoint's name, or with none return it to the default
@@ -932,6 +938,8 @@ Casso commands:
     !BPDISK [D1|D2] event [arguments] [IF expr]
                               Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     !BPEDIT # definition      Replace a breakpoint with a new definition
+    !BPLOG # [GO] "text {expr}" | CLEAR
+                              Write a message at each hit, {expr} evaluated; GO runs on instead of stopping
     !BPMV addr[,len|:last] byte [IF expr]
                               Stop when a write sets a byte of the range to byte
     !BPNAME # ["text"]        Set a breakpoint's name, or with none return it to the default
@@ -1163,6 +1171,8 @@ Casso commands:
     BPE #|*                   Enable a breakpoint, or all of them
     BPEDIT # definition       Replace a breakpoint with a new definition
     BPL                       List the breakpoints
+    BPLOG # [GO] "text {expr}" | CLEAR
+                              Write a message at each hit, {expr} evaluated; GO runs on instead of stopping
     BPM, BPIO addr[,len|:last] [BEFORE|AFTER] [IF expr]
                               Stop on a read or write of memory
     BPMR addr[,len|:last] [BEFORE|AFTER] [IF expr]

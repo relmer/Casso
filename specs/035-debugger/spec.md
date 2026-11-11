@@ -4068,6 +4068,12 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   debugger following the emulator's theme draws in the emulator's.
 - **FR-407**: The disk in drive 1 once a machine is built and its disks are
   mounted MUST be its boot disk for the debug project's scope.
+- **FR-408**: A breakpoint MUST be able to log, as Visual Studio's actions do:
+  at each hit it writes a message to the console, with each `{expression}` in
+  the message evaluated at the hit, and it either stops or runs on. `BPLOG #
+  [GO] "text"` sets the message, GO making the hit run on, and `BPLOG # CLEAR`
+  removes it. The message and whether a hit stops MUST be saved in the debug
+  project, and the Breakpoints pane's When hit column MUST list the message.
 
 ### Key Entities
 

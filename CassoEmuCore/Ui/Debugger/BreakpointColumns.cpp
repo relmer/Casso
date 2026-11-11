@@ -710,6 +710,12 @@ std::string BreakpointColumns::GetRange (const BreakpointInfo & info)
 
 std::string BreakpointColumns::GetWhenHit (const BreakpointInfo & info)
 {
+    //  A logging breakpoint's message, as Visual Studio lists its actions.
+    if (!info.log.empty())
+    {
+        return std::format ("Log \"{}\"{}", info.log, info.stops ? " and break" : std::string());
+    }
+
     if (!info.stops)
     {
         return "Count";

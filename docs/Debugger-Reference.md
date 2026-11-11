@@ -739,6 +739,15 @@ in place, and Ctrl+Z undoes it as it undoes the pane's other changes. The name
 survives `BPEDIT`. `BPSAVE` doesn't write the name, so its script is one
 AppleWin reads.
 
+### Breakpoint logging
+
+After `BPLOG 3 "A={A} count={count.b}"`, each hit of breakpoint #3 writes a
+line to the console, with each expression in braces evaluated at the hit, as
+`Breakpoint #3: A=$42 count=$07`, and then stops. `BPLOG 3 GO "..."` writes the
+line and runs on, as Visual Studio's Continue execution does, and `BPLOG 3
+CLEAR` removes the message. The Breakpoints pane's When hit column lists the
+message, and the debug project saves it.
+
 ### The Breakpoints pane
 
 The Breakpoints pane's **New** drop-down lists Execution's types (Address,

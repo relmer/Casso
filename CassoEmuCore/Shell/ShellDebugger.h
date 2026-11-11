@@ -407,6 +407,7 @@ public:
     void                    SetDebugWindowShown (bool isShown) { m_isDebugWindowShown.store (isShown); }
     void                    SetProjectStore     (std::unique_ptr<DebugProjectStore> store) { m_projectStore = std::move (store); }
     void                    ServiceProject      ();
+    void                    ServiceHitLogs      ();
     void                    SaveProject         (bool isKeepingSymbolFiles = false);
     bool                    HasMergeOffer       ();
 

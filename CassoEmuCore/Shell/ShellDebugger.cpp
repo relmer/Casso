@@ -1858,6 +1858,36 @@ void ShellDebugger::CloseDebugger()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ServiceHitLogs
+//
+//  The messages logging breakpoints wrote at their hits go to the console.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::ServiceHitLogs()
+{
+    std::vector<std::string>  logs    = m_debugController->GetSession().GetBreakpoints().TakeLogs();
+    std::vector<std::string>  watches = m_debugController->GetSession().GetWatchpoints().TakeLogs();
+
+
+
+    std::ranges::copy (watches, std::back_inserter (logs));
+
+    if (!logs.empty())
+    {
+        std::lock_guard<std::mutex>  held (m_debugViewMutex);
+
+        std::ranges::copy (logs, std::back_inserter (m_debugConsolePending));
+        m_isDebugViewDirty = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ServiceDebugger
 //
 //  The CPU manager's service tick: once per pass through its loop, paused or
@@ -1881,6 +1911,7 @@ void ShellDebugger::ServiceDebugger()
         m_debugController->Pump();
 
         m_isDebugViewDirty = m_isDebugViewDirty || m_debugController->GetLinesRun() != linesRun;
+        ServiceHitLogs();
         ServiceProject();
         ServiceCallHistory();
         ServiceEventLogs();

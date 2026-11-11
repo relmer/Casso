@@ -52,6 +52,7 @@ bool BreakpointHandlers::TryExecute (DebugSession & session, const DebugCommand 
     case DebugVerb::ChangeBreakpoint:           Change        (session, command, reply);                         return true;
     case DebugVerb::SaveBreakpoints:            Save          (session, command, reply);                         return true;
     case DebugVerb::SetBreakpointName:          SetName       (session, command, reply);                         return true;
+    case DebugVerb::SetBreakpointLog:           SetLog        (session, command, reply);                         return true;
 
     case DebugVerb::ListBreakpoints:
         ListAll (session, list);
@@ -122,6 +123,7 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Breakpoint & entry)
     info.hits      = entry.hits;
     info.symbol    = entry.symbol;
     info.name      = entry.name;
+    info.log       = entry.log;
     info.disk      = entry.disk;
     info.resolved  = entry.resolved;
     info.basicName = entry.basicName;
@@ -156,6 +158,7 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Watchpoint & entry)
     info.stops     = entry.stops;
     info.hits      = entry.hits;
     info.name      = entry.name;
+    info.log       = entry.log;
     return info;
 }
 
@@ -1642,6 +1645,75 @@ void BreakpointHandlers::SetName (DebugSession & session, const DebugCommand & c
 
     reply.data = MessageData { { command.text.empty() ? std::format ("Breakpoint #{}: name cleared.", id)
                                                        : std::format ("Breakpoint #{}: name set to \"{}\".", id, command.text) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::SetLog
+//
+//  BPLOG # "text": each hit writes the text to the console, with each
+//  {expression} evaluated. GO before the text makes a hit run on rather than
+//  stop; CLEAR takes the message off and makes hits stop again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::SetLog (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    int          id      = (int) command.count;
+    std::string  text    = command.text;
+    std::string  upper   = text;
+    bool         isGo    = false;
+    bool         isClear = false;
+    bool         isFound = false;
+
+
+
+    std::ranges::transform (upper, upper.begin(), [] (char ch) { return (char) toupper ((unsigned char) ch); });
+
+    isClear = upper == "CLEAR" || text.empty();
+    isGo    = upper.starts_with ("GO ");
+
+    if (isGo)
+    {
+        text = text.substr (3);
+
+        if (text.size() >= 2 && text.front() == '"' && text.back() == '"')
+        {
+            text = text.substr (1, text.size() - 2);
+        }
+    }
+
+    if (isClear)
+    {
+        text.clear();
+    }
+
+    isFound = session.GetBreakpoints().TrySetLog (id, text);
+
+    if (isFound)
+    {
+        session.GetBreakpoints().TrySetFlags (id, false, !isGo);
+    }
+    else if (session.GetWatchpoints().TrySetLog (id, text))
+    {
+        session.GetWatchpoints().TrySetFlags (id, false, !isGo);
+        isFound = true;
+    }
+
+    if (!isFound)
+    {
+        SetNoSuch (session, reply, id);
+        return;
+    }
+
+    session.OnStopConditionsChanged();
+
+    reply.data = MessageData { { isClear ? std::format ("Breakpoint #{}: log cleared.", id)
+                                         : std::format ("Breakpoint #{}: logs \"{}\" and {}.", id, text, isGo ? "runs on" : "stops") } };
 }
 
 

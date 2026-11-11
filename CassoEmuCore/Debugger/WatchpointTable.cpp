@@ -228,6 +228,48 @@ bool WatchpointTable::TrySetFlags (int id, bool temporary, bool stops)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WatchpointTable::TrySetLog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchpointTable::TrySetLog (int id, const std::string & log)
+{
+    auto  found = std::ranges::find_if (m_entries, [id] (const Watchpoint & entry) { return entry.id == id; });
+
+
+
+    if (found != m_entries.end())
+    {
+        found->log = log;
+    }
+
+    return found != m_entries.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::NoteLog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchpointTable::NoteLog (const Watchpoint & entry)
+{
+    if (!entry.log.empty() && m_context != nullptr)
+    {
+        m_logs.push_back (BreakpointTable::FormatLog (entry.id, entry.log, *m_context));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WatchpointTable::AddCopy
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -395,6 +437,7 @@ bool WatchpointTable::TryMatchBefore (Word pc, const AccessPrediction & predicti
             }
 
             ++entry.hits;
+            NoteLog (entry);
 
             if (!entry.stops)
             {
@@ -675,6 +718,7 @@ void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess acces
         }
 
         ++entry.hits;
+        NoteLog (entry);
 
         if (entry.stops && !isHit)
         {

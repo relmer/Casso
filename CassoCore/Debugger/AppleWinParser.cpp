@@ -670,6 +670,7 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
 
     // BPNAME # "text": the id, then the name as typed, its quotes taken off.
     case DebugVerb::SetBreakpointName:
+    case DebugVerb::SetBreakpointLog:
         return TryParseNameArguments (args, command, error);
 
     // A file name keeps its case; BRK's and BRKINT's keywords do not.

@@ -5,6 +5,7 @@
 #include "Debugger/ConditionContext.h"
 #include "Debugger/DiskCallVector.h"
 #include "Debugger/IDebugExpressionContext.h"
+#include "Debugger/DebugExpressionEvaluator.h"
 
 
 
@@ -328,6 +329,102 @@ bool BreakpointTable::TrySetName (int id, const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointTable::TrySetLog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TrySetLog (int id, const std::string & log)
+{
+    auto  found = std::ranges::find_if (m_entries, [id] (const Breakpoint & entry) { return entry.id == id; });
+
+
+
+    if (found != m_entries.end())
+    {
+        found->log = log;
+    }
+
+    return found != m_entries.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::NoteLog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointTable::NoteLog (const Breakpoint & entry, const IDebugExpressionContext & context)
+{
+    if (!entry.log.empty())
+    {
+        m_logs.push_back (FormatLog (entry.id, entry.log, context));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::FormatLog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BreakpointTable::FormatLog (int id, const std::string & log, const IDebugExpressionContext & context)
+{
+    static constexpr int32_t  kByteMax = 0xFF;
+    std::string               text     = std::format ("Breakpoint #{}: ", id);
+    size_t                    at       = 0;
+
+
+
+    while (at < log.size())
+    {
+        size_t       open  = log.find ('{', at);
+        size_t       close = (open == std::string::npos) ? std::string::npos : log.find ('}', open);
+        std::string  expression;
+        std::string  error;
+        int32_t      value = 0;
+        HRESULT      hr    = S_OK;
+
+
+
+        if (close == std::string::npos)
+        {
+            text += log.substr (at);
+            break;
+        }
+
+        text      += log.substr (at, open - at);
+        expression = log.substr (open + 1, close - open - 1);
+        hr         = DebugExpressionEvaluator::ParseAndEvaluate (expression, context, value, error);
+
+        if (FAILED (hr))
+        {
+            text += "{?" + expression + "}";
+        }
+        else
+        {
+            text += (value >= 0 && value <= kByteMax) ? std::format ("${:02X}", value) : std::format ("${:04X}", (Word) value);
+        }
+
+        at = close + 1;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointTable::TrySetCondition
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -519,6 +616,7 @@ bool BreakpointTable::TryMatchBasic (const std::function<bool (const Breakpoint 
         }
 
         ++entry.hits;
+        NoteLog (entry, context);
 
         if (!entry.stops || isHit)
         {
@@ -616,6 +714,7 @@ bool BreakpointTable::TryMatchDisk (
         }
 
         ++entry.hits;
+        NoteLog (entry, context);
 
         if (!entry.stops || isHit)
         {
@@ -812,6 +911,7 @@ bool BreakpointTable::TryMatchBeforeInstruction (
             if (TryMatchEntry (entry, entry.resolved, pc, opcode, context, conditionValue))
             {
                 ++entry.hits;
+                NoteLog (entry, context);
 
                 if (!entry.stops || isHit)
                 {
@@ -853,6 +953,7 @@ bool BreakpointTable::TryMatchInterrupt (const IDebugExpressionContext & context
         }
 
         ++entry.hits;
+        NoteLog (entry, context);
 
         if (!entry.stops || isHit)
         {
@@ -904,6 +1005,7 @@ bool BreakpointTable::TryMatchWrite (
         }
 
         ++entry.hits;
+        NoteLog (entry, context);
 
         if (!entry.stops || isHit)
         {

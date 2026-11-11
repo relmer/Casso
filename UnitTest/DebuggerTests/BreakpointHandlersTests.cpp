@@ -4,6 +4,8 @@
 #include "Debugger/Handlers/SymbolHandlers.h"
 #include "HandlerTestRig.h"
 #include "TestHelpers.h"
+#include "MockExpressionContext.h"
+#include "Debugger/BreakpointTable.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -64,6 +66,46 @@ namespace DebuggerTests
 
         //  BRKOP, BRK and BRKINT take an IF clause, and their definitions
         //  have it; BRK ON again sets the condition of the one BRK entry.
+        //  BPLOG sets a breakpoint's message, GO makes its hits run on, and
+        //  CLEAR takes the message off and makes hits stop again.
+        TEST_METHOD (BplogSetsAMessageAndWhetherAHitStops)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("BP 0300");
+            rig.RunOk (std::format ("BPLOG {} GO \"A={{A}} X={{X}}\"", rig.session.GetBreakpoints().GetAll().at (0).id));
+
+            Assert::AreEqual (std::string ("A={A} X={X}"), rig.session.GetBreakpoints().GetAll().at (0).log);
+            Assert::IsFalse  (rig.session.GetBreakpoints().GetAll().at (0).stops, L"GO runs on");
+
+            rig.RunOk (std::format ("BPLOG {} \"stopping\"", rig.session.GetBreakpoints().GetAll().at (0).id));
+            Assert::IsTrue   (rig.session.GetBreakpoints().GetAll().at (0).stops, L"without GO a hit stops");
+
+            rig.RunOk (std::format ("BPLOG {} CLEAR", rig.session.GetBreakpoints().GetAll().at (0).id));
+            Assert::IsTrue   (rig.session.GetBreakpoints().GetAll().at (0).log.empty());
+        }
+
+
+        //  A hit's message has each {expression} evaluated in hex, and one that
+        //  can't be evaluated left as {?expression}.
+        TEST_METHOD (ALogsExpressionsAreEvaluatedAtTheHit)
+        {
+            MockExpressionContext  context;
+
+
+
+            context.registers["A"] = 0x42;
+            context.memory[0x0300] = 0x07;
+            context.symbols["COUNT"] = 0x0300;
+
+            Assert::AreEqual (std::string ("Breakpoint #3: A=$42 count=$07 at $0300"),
+                              BreakpointTable::FormatLog (3, "A={A} count={count.b} at {count}", context));
+            Assert::AreEqual (std::string ("Breakpoint #3: {?nosuch}"), BreakpointTable::FormatLog (3, "{nosuch}", context));
+        }
+
+
         TEST_METHOD (OpcodeBrkAndInterruptTakeIf)
         {
             Rig  rig;

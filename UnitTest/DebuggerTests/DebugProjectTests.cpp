@@ -288,6 +288,37 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("five"), list.breakpoints[1].name);
         }
 
+        //  A logging breakpoint's message and its running on come back with
+        //  the project, through its JSON.
+        TEST_METHOD (ABreakpointsLogComesBackWithTheProject)
+        {
+            std::unique_ptr<SessionRig>    firstRig  = std::make_unique<SessionRig>();
+            std::unique_ptr<SessionRig>    secondRig = std::make_unique<SessionRig>();
+            SessionRig                   & first     = *firstRig;
+            SessionRig                   & second    = *secondRig;
+            DebugProject                   project;
+            DebugProject                   read;
+            std::string                    error;
+            std::vector<std::string>       failures;
+            BreakpointListData             list;
+
+
+
+            first.rig.RunOk ("BP 0300");
+            first.rig.RunOk (std::format ("BPLOG {} GO \"A={{A}}\"", first.rig.session.GetBreakpoints().GetAll().at (0).id));
+
+            project.CaptureEngine (first.rig.session, &first.handlers.GetExecution());
+
+            Assert::IsTrue (DebugProject::TryParse (project.ToJson (L"C:\\Work"), L"C:\\Work", read, error), TextEncoding::NarrowToWide (error).c_str());
+            read.ApplyEngine (second.rig.session, failures);
+
+            BreakpointHandlers::ListAll (second.rig.session, list);
+
+            Assert::AreEqual ((size_t) 1, list.breakpoints.size());
+            Assert::AreEqual (std::string ("A={A}"), list.breakpoints[0].log);
+            Assert::IsFalse  (list.breakpoints[0].stops, L"GO runs on");
+        }
+
         //  The session's other state comes back too: a symbol table turned
         //  off, the CD directory, the stopwatch, the profiler, the command
         //  mode and the trip count's mark; and the window's states by name.
