@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/ByteDialog.h"
+#include "Debugger/DebugMemoryImage.h"
 
 
 
@@ -75,6 +76,21 @@ void ByteDialog::OnCreate()
     }
 
     m_body->Add      (m_valueLabel, m_value);
+
+    if (m_example)
+    {
+        m_value.SetOnChange ([this] (const std::wstring & text)
+        {
+            Byte  value = 0;
+
+
+
+            m_error.SetTextRole (DxuiTextRole::Body);
+            m_error.SetText     (TryParseByte (text, value) ? m_example (value) : std::wstring());
+            Invalidate();
+        });
+    }
+
     m_body->SetError (m_error);
 
     ok = AddDialogButton (L"OK", IDOK);
@@ -88,7 +104,8 @@ void ByteDialog::OnCreate()
 
         if (!TryParseByte (m_value.GetText(), value))
         {
-            m_error.SetText (L"A byte is one or two hex digits, as $A9.");
+            m_error.SetTextRole (DxuiTextRole::Error);
+            m_error.SetText     (L"A byte is one or two hex digits, as $A9.");
             Invalidate();
             return;
         }
@@ -111,7 +128,7 @@ void ByteDialog::OnCreate()
 ////////////////////////////////////////////////////////////////////////////////
 
 std::optional<Byte> ByteDialog::RunModal (HWND owner, const IDxuiTheme * theme, const std::wstring & title, const std::wstring & label,
-                                          const std::wstring & description)
+                                          const std::wstring & description, ExampleFn example)
 {
     HRESULT                   hr     = S_OK;
     ByteDialog                dialog;
@@ -122,6 +139,7 @@ std::optional<Byte> ByteDialog::RunModal (HWND owner, const IDxuiTheme * theme, 
     dialog.m_theme = theme;
     dialog.m_label       = label;
     dialog.m_description = description;
+    dialog.m_example     = std::move (example);
 
     params.title                    = title;
     params.hInstance                = GetModuleHandleW (nullptr);
@@ -144,4 +162,43 @@ std::optional<Byte> ByteDialog::RunModal (HWND owner, const IDxuiTheme * theme, 
     dialog.ShowModalDialog (IDOK);
 
     return dialog.m_result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ByteDialog::FormatPointerExample
+//
+//  The address the zero-page byte and the one after it form, then the
+//  first bytes there; a byte a peek doesn't read, an I/O byte, is "--".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ByteDialog::FormatPointerExample (Byte address, const DebugMemoryImage * memory)
+{
+    static constexpr int  kShownBytes = 3;
+    Word                  target      = 0;
+    std::wstring          text;
+
+
+
+    if (memory == nullptr)
+    {
+        return text;
+    }
+
+    target = (Word) (memory->bytes[address] | (memory->bytes[(Byte) (address + 1)] << 8));
+    text   = std::format (L"${:02X}: ${:04X}:", address, target);
+
+    for (int each = 0; each < kShownBytes; each++)
+    {
+        Word  at = (Word) (target + each);
+
+        text += memory->readable[at] ? std::format (L" {:02X}", memory->bytes[at]) : std::wstring (L" --");
+    }
+
+    return text + L" ...";
 }

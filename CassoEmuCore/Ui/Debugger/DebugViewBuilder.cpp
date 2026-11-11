@@ -42,5 +42,10 @@ DebuggerViewSnapshot DebugViewBuilder::Build (const DebuggerViewState & view, co
 
     snapshot = view.BuildCaptured (m_session, input.isPaused, m_runner);
 
+    if (input.capture != nullptr)
+    {
+        snapshot.memoryImage = std::shared_ptr<const DebugMemoryImage> (input.capture, &input.capture->memory);
+    }
+
     return snapshot;
 }

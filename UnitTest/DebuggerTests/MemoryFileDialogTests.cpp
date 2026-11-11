@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/MemoryFileDialog.h"
 #include "Ui/Debugger/ByteDialog.h"
+#include "Debugger/DebugMemoryImage.h"
 #include "Ui/Debugger/TextDialog.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/FieldDialogPanel.h"
@@ -215,6 +216,32 @@ namespace DebuggerTests
             Assert::IsTrue (std::wstring (ByteDialog::kPointerWatchText).find (L"$2000") != std::wstring::npos, L"the example");
             Assert::IsTrue (description.GetRect().bottom > description.GetRect().top + FieldDialogPanel::kRowDip, L"wrapped onto lines");
             Assert::IsTrue (field.GetRect().top >= description.GetRect().bottom, L"the field is under it");
+        }
+
+
+        //  The pointer dialog's example: the address $3E and $3F form and the
+        //  first bytes there, an I/O byte as --; nothing without memory.
+        TEST_METHOD (ThePointerExampleReadsTheAddressAndItsBytes)
+        {
+            DebugMemoryImage  memory;
+
+
+
+            memory.bytes[0x3E]   = 0x00;
+            memory.bytes[0x3F]   = 0x20;
+            memory.bytes[0x2000] = 0xA9;
+            memory.bytes[0x2001] = 0x00;
+            memory.bytes[0x2002] = 0x8D;
+            memory.readable.set();
+
+            Assert::AreEqual (std::wstring (L"$3E: $2000: A9 00 8D ..."), ByteDialog::FormatPointerExample (0x3E, &memory));
+
+            memory.bytes[0x3E] = 0x00;
+            memory.bytes[0x3F] = 0xC0;
+            memory.readable.reset (0xC001);
+            Assert::AreEqual (std::wstring (L"$3E: $C000: 00 -- 00 ..."), ByteDialog::FormatPointerExample (0x3E, &memory));
+
+            Assert::IsTrue (ByteDialog::FormatPointerExample (0x3E, nullptr).empty());
         }
     };
 }

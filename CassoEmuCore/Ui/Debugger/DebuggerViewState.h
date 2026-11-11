@@ -2,6 +2,7 @@
 
 #include "Debugger/DataBlockTable.h"
 #include "Debugger/DebugFile.h"
+#include "Debugger/DebugMemoryImage.h"
 #include "Debugger/DiagnosticsSnapshot.h"
 #include "Debugger/HeatMapOptions.h"
 #include "Debugger/Reply.h"
@@ -301,6 +302,10 @@ struct DebuggerViewSnapshot
     //  built from a capture.
     const Microcode                                * instructionSet   = nullptr;
     std::shared_ptr<const std::vector<Microcode>>    instructionTable;
+
+    //  The 64K the CPU saw when the snapshot was built from a capture, for a
+    //  dialog that reads memory at an address typed into it; empty otherwise.
+    std::shared_ptr<const DebugMemoryImage>          memoryImage;
 
     //  Where the machine stands in its recorded history; the host fills it in.
     HistoryStatus                history;

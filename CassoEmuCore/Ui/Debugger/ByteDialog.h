@@ -2,6 +2,8 @@
 
 #include "Ui/Debugger/FieldDialogPanel.h"
 
+struct DebugMemoryImage;
+
 
 
 
@@ -23,8 +25,16 @@ public:
 
     //  Runs the dialog modally over `owner`; the byte when OK. A description,
     //  when given, is drawn above the field.
+    //  An example, when given, is drawn under the field for each byte typed,
+    //  and cleared while the text isn't a byte.
+    using ExampleFn = std::function<std::wstring (Byte value)>;
+
     static std::optional<Byte>  RunModal (HWND owner, const IDxuiTheme * theme, const std::wstring & title, const std::wstring & label,
-                                          const std::wstring & description);
+                                          const std::wstring & description, ExampleFn example = {});
+
+    //  A pointer watch's row for a zero-page address, from the memory given:
+    //  "$3E: $2000: A9 00 8D ..."; empty without memory.
+    static std::wstring  FormatPointerExample (Byte address, const DebugMemoryImage * memory);
 
     //  Add pointer watch's description.
     static constexpr const wchar_t * kPointerWatchText = L"A pointer watch reads the two bytes at a zero-page address as an address, "
@@ -38,6 +48,7 @@ private:
     const IDxuiTheme     * m_theme = nullptr;
     std::wstring           m_label;
     std::wstring           m_description;
+    ExampleFn              m_example;
     std::optional<Byte>    m_result;
     DxuiLabel              m_descriptionLabel;
     DxuiLabel              m_valueLabel;
