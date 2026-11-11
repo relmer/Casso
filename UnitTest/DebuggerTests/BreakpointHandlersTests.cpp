@@ -64,8 +64,6 @@ namespace DebuggerTests
 
 
 
-        //  BRKOP, BRK and BRKINT take an IF clause, and their definitions
-        //  have it; BRK ON again sets the condition of the one BRK entry.
         //  BPLOG sets a breakpoint's message, GO makes its hits run on, and
         //  CLEAR takes the message off and makes hits stop again.
         TEST_METHOD (BplogSetsAMessageAndWhetherAHitStops)
@@ -106,6 +104,32 @@ namespace DebuggerTests
         }
 
 
+        //  BPEDIT changes a definition; the breakpoint's message and
+        //  whether a hit stops are copied to the new one, on a breakpoint and on
+        //  a memory breakpoint.
+        TEST_METHOD (AnEditKeepsTheLogMessage)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("BP 0300");
+            rig.RunOk ("BPM 0400");
+            rig.RunOk (std::format ("BPLOG {} GO \"pc={{PC}}\"", rig.session.GetBreakpoints().GetAll().at (0).id));
+            rig.RunOk (std::format ("BPLOG {} \"a write\"",      rig.session.GetWatchpoints().GetAll().at (0).id));
+
+            rig.RunOk (std::format ("BPEDIT {} BP 0310",  rig.session.GetBreakpoints().GetAll().at (0).id));
+            rig.RunOk (std::format ("BPEDIT {} BPM 0410", rig.session.GetWatchpoints().GetAll().at (0).id));
+
+            Assert::AreEqual ((int) 0x0310, (int) rig.session.GetBreakpoints().GetAll().at (0).first);
+            Assert::AreEqual (std::string ("pc={PC}"), rig.session.GetBreakpoints().GetAll().at (0).log);
+            Assert::IsFalse  (rig.session.GetBreakpoints().GetAll().at (0).stops);
+            Assert::AreEqual (std::string ("a write"), rig.session.GetWatchpoints().GetAll().at (0).log);
+        }
+
+
+        //  BRKOP, BRK and BRKINT take an IF clause, and their definitions
+        //  have it; BRK ON again sets the condition of the one BRK entry.
         TEST_METHOD (OpcodeBrkAndInterruptTakeIf)
         {
             Rig  rig;

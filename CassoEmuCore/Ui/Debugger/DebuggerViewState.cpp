@@ -193,6 +193,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     snapshot.beam = DebuggerViewSnapshot::BeamState { video.scanline, video.cycleInLine };
 
     BreakpointHandlers::ListAll (session, breakpoints);
+    snapshot.nextBreakpointId = session.GetNextId();
 
     //  An RWTS or driver breakpoint is listed at the routine it resolved to.
     for (const BreakpointInfo & info : breakpoints.breakpoints)

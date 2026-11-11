@@ -1716,6 +1716,31 @@ DebuggerAction DebuggerActions::GetNameBreakpoint (int id, const std::string & n
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetLogBreakpoint
+//
+//  The text is what the handler reads after the id: the message, GO and the
+//  quoted message, or CLEAR.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetLogBreakpoint (int id, const std::string & message, bool isGo, CommandMode mode)
+{
+    std::string     text   = message.empty() ? std::string ("CLEAR") : isGo ? std::format ("GO \"{}\"", message) : std::format ("\"{}\"", message);
+    DebuggerAction  action = Make (DebugVerb::SetBreakpointLog, std::format ("BPLOG {} {}", id, text), mode);
+
+
+
+    action.command.count = (uint32_t) id;
+    action.command.text  = (message.empty() || isGo) ? text : message;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetForKey
 //
 ////////////////////////////////////////////////////////////////////////////////

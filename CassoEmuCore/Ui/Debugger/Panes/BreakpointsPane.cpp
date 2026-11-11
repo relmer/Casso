@@ -384,16 +384,13 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
     {
         items.push_back ({ L"Edit...", [this, bp]
         {
-            std::optional<int>          editedId   = (bp.id >= 0) ? std::optional<int> (bp.id) : std::nullopt;
-            std::optional<std::string>  definition = BreakpointDialog::RunModal (m_host.GetOwnerHwnd(), m_host.GetTheme(), bp.info, std::nullopt, MakeValidator (editedId));
+            std::optional<int>                       editedId = (bp.id >= 0) ? std::optional<int> (bp.id) : std::nullopt;
+            std::optional<BreakpointDialog::Result>  result   = BreakpointDialog::RunModal (m_host.GetOwnerHwnd(), m_host.GetTheme(), bp.info, std::nullopt, MakeValidator (editedId));
+            const DebuggerViewSnapshot             * snapshot = m_host.GetLatestSnapshot();
 
-            if (definition.has_value() && bp.id >= 0)
+            if (result.has_value())
             {
-                RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEditBreakpoint (bp.id, *definition, m_host.GetMode()) }, {} });
-            }
-            else if (definition.has_value())
-            {
-                RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetDefineBreakpoint (*definition, m_host.GetMode()) }, {} });
+                RunStep ({ BreakpointStep::Kind::Actions, GetDialogActions (*result, editedId, bp.info, (snapshot != nullptr) ? snapshot->nextBreakpointId : 0, m_host.GetMode()), {} });
             }
         } });
     }
@@ -726,18 +723,57 @@ DebuggerAction BreakpointsPane::GetClearAction (const DebuggerViewSnapshot::Brea
 
 void BreakpointsPane::NewBreakpoint (BreakpointDialog::Type type)
 {
-    const DebuggerViewSnapshot   * snapshot   = m_host.GetLatestSnapshot();
-    std::optional<std::string>     definition;
+    const DebuggerViewSnapshot               * snapshot = m_host.GetLatestSnapshot();
+    std::optional<BreakpointDialog::Result>    result;
 
 
 
-    definition = BreakpointDialog::RunNew (m_host.GetOwnerHwnd(), m_host.GetTheme(), type, (snapshot != nullptr) ? snapshot->pc : (Word) 0, MakeValidator (std::nullopt),
-                                           GetSourceFiles (snapshot));
+    result = BreakpointDialog::RunNew (m_host.GetOwnerHwnd(), m_host.GetTheme(), type, (snapshot != nullptr) ? snapshot->pc : (Word) 0, MakeValidator (std::nullopt),
+                                       GetSourceFiles (snapshot));
 
-    if (definition.has_value())
+    //  The dialog is modal, so the latest snapshot is read again for the id
+    //  the new breakpoint takes.
+    snapshot = m_host.GetLatestSnapshot();
+
+    if (result.has_value())
     {
-        RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetDefineBreakpoint (*definition, m_host.GetMode()) }, {} });
+        RunStep ({ BreakpointStep::Kind::Actions, GetDialogActions (*result, std::nullopt, BreakpointInfo {}, (snapshot != nullptr) ? snapshot->nextBreakpointId : 0, m_host.GetMode()), {} });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::GetDialogActions
+//
+//  The definition, as an edit of the breakpoint or a new one, then BPLOG
+//  where the message or whether a hit goes on running changed. A new
+//  breakpoint's message is set on the id it takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DebuggerAction> BreakpointsPane::GetDialogActions (const BreakpointDialog::Result & result, std::optional<int> editedId, const BreakpointInfo & original,
+                                                               int nextId, CommandMode mode)
+{
+    std::vector<DebuggerAction>  actions;
+    int                          id        = editedId.value_or (nextId);
+    bool                         wasGo     = !original.log.empty() && !original.stops;
+    bool                         isChanged = result.log != original.log || (!result.log.empty() && result.isLogGo != wasGo);
+
+
+
+    actions.push_back (editedId.has_value() ? DebuggerActions::GetEditBreakpoint (*editedId, result.definition, mode)
+                                            : DebuggerActions::GetDefineBreakpoint (result.definition, mode));
+
+    if (isChanged)
+    {
+        actions.push_back (DebuggerActions::GetLogBreakpoint (id, result.log, result.isLogGo, mode));
+    }
+
+    return actions;
 }
 
 

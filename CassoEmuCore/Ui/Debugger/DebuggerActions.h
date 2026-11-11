@@ -229,6 +229,10 @@ public:
     //  name.
     static DebuggerAction  GetNameBreakpoint       (int id, const std::string & name, CommandMode mode);
 
+    //  BPLOG # [GO] "text", GO when a hit goes on running; an empty text is
+    //  BPLOG # CLEAR.
+    static DebuggerAction  GetLogBreakpoint        (int id, const std::string & message, bool isGo, CommandMode mode);
+
     //  The watches pane's edits. A string value is what the user typed, which
     //  the session evaluates in its mode when the action runs.
     static DebuggerAction  GetAddWatch             (const std::string & expression, CommandMode mode);

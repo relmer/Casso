@@ -341,6 +341,7 @@ struct DebuggerViewSnapshot
     std::vector<StackLine>                stack;
     CallStackData                         callStack;
     std::vector<BreakpointLine>           breakpoints;
+    int                                   nextBreakpointId = 0;   // the id the next breakpoint set takes
 
     //  The Disk II controller's slot, which a disk breakpoint's Data column
     //  has; absent on a machine with none.

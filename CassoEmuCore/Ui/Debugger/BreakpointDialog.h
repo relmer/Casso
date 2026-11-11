@@ -106,6 +106,17 @@ public:
         int          drive     = 0;
         std::string  arguments;
         std::string  file;
+        std::string  log;
+        bool         isLogGo   = false;
+    };
+
+    //  What OK returns: the definition BPEDIT takes, and the message each
+    //  hit writes, empty for none, with whether a hit goes on running.
+    struct Result
+    {
+        std::string  definition;
+        std::string  log;
+        bool         isLogGo = false;
     };
 
     //  The fields a type uses, which are the dialog's only visible fields
@@ -120,6 +131,7 @@ public:
         bool  condition = false;
         bool  access    = false;
         bool  file      = false;
+        bool  log       = false;
     };
 
     static VisibleFields  GetVisibleFields (Type type);
@@ -186,13 +198,16 @@ public:
     //  the breakpoint's own type otherwise; the definition when OK. OK
     //  closes the dialog only once the validator, when given, accepts the
     //  definition; otherwise its reason is drawn under the fields.
-    static std::optional<std::string>  RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type = std::nullopt,
-                                                 Validator validator = {}, std::vector<std::wstring> sourceFiles = {});
+    static std::optional<Result>  RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type = std::nullopt,
+                                            Validator validator = {}, std::vector<std::wstring> sourceFiles = {});
 
     //  A new breakpoint's dialog for the type chosen: an execution address
     //  starts at the PC, and every other type's fields start empty.
-    static std::optional<std::string>  RunNew   (HWND owner, const IDxuiTheme * theme, Type type, Word pc, Validator validator = {},
-                                                 std::vector<std::wstring> sourceFiles = {});
+    static std::optional<Result>  RunNew   (HWND owner, const IDxuiTheme * theme, Type type, Word pc, Validator validator = {},
+                                            std::vector<std::wstring> sourceFiles = {});
+
+    //  The log row's info tip text.
+    static const wchar_t *  GetLogTip ();
 
     //  The tip of the New drop-down's Source line row while no debug file is
     //  loaded, when the row is disabled.
@@ -235,7 +250,7 @@ private:
     BreakpointInfo                 m_info;
     std::optional<Type>            m_presetType;
     std::optional<std::wstring>    m_newAddress;
-    std::optional<std::string>     m_definition;
+    std::optional<Result>          m_result;
     Validator                      m_validator;
     bool                           m_isCheckDue         = false;   // the focus moved off a field
     DxuiFieldError                 m_error;
@@ -247,6 +262,8 @@ private:
     DxuiLabel                      m_conditionLabel;
     DxuiLabel                      m_eventLabel;
     DxuiLabel                      m_driveLabel;
+    DxuiLabel                      m_logLabel;
+    DxuiLabel                      m_logGoLabel;
     DxuiCheckbox                   m_accessRead;
     DxuiCheckbox                   m_accessWrite;
     Type                           m_type               = Type::Execute;
@@ -259,6 +276,9 @@ private:
     DxuiTextInput                  m_value;
     DxuiTextInput                  m_condition;
     DxuiInfoTip                    m_conditionTip;
+    DxuiTextInput                  m_log;
+    DxuiCheckbox                   m_logGo;
+    DxuiInfoTip                    m_logTip;
     DxuiLabel                      m_diskTrackLabel;
     DxuiLabel                      m_diskSectorLabel;
     DxuiLabel                      m_diskNumberLabel;

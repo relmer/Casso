@@ -1508,11 +1508,13 @@ bool BreakpointHandlers::TryMakeEntry (
     breakpoint.temporary = old.temporary;
     breakpoint.stops     = old.stops;
     breakpoint.name      = old.name;
+    breakpoint.log       = old.log;
     watchpoint.id        = id;
     watchpoint.enabled   = old.enabled;
     watchpoint.temporary = old.temporary;
     watchpoint.stops     = old.stops;
     watchpoint.name      = old.name;
+    watchpoint.log       = old.log;
     watchpoint.first     = definition.a1;
     watchpoint.last      = last;
     watchpoint.mode      = GetMode (definition);

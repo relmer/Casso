@@ -692,6 +692,7 @@ BreakpointDialog::VisibleFields BreakpointDialog::GetVisibleFields (Type type)
     shown.value     = type == Type::Value || type == Type::Opcode || type == Type::Beam;
     shown.condition = type != Type::UnwrittenRead && type != Type::VideoLine && type != Type::Beam;
     shown.file      = type == Type::SourceLine;
+    shown.log       = type != Type::UnwrittenRead;
     shown.address   = type == Type::Execute || type == Type::SourceLine || isWatched || type == Type::Value || type == Type::BasicLine ||
                       type == Type::BasicVariable || type == Type::VideoLine || type == Type::Beam;
 
@@ -769,6 +770,8 @@ BreakpointDialog::Fields BreakpointDialog::GetFields (const BreakpointInfo & inf
     fields.address   = (info.last > info.address) ? std::format ("{:04X}:{:04X}", info.address, info.last)
                                                   : std::format ("{:04X}", info.address);
     fields.condition = info.condition;
+    fields.log       = info.log;
+    fields.isLogGo   = !info.log.empty() && !info.stops;
 
     switch (fields.type)
     {
@@ -896,6 +899,8 @@ void BreakpointDialog::ShowFieldsForType()
     m_value.SetVisible     (shown.value);
     m_address.SetVisible   (shown.address);
     m_condition.SetVisible (shown.condition);
+    m_log.SetVisible       (shown.log);
+    m_logGo.SetVisible     (shown.log);
     m_accessRead.SetVisible  (shown.access);
     ShowDiskFields (type == Type::Disk);
 
@@ -1198,7 +1203,7 @@ void BreakpointDialog::OnCreate()
 
     m_type = fields.type;
 
-    for (DxuiLabel * label : { &m_accessLabel, &m_eventLabel, &m_driveLabel, &m_fileLabel, &m_modeLabel, &m_addressLabel, &m_valueLabel, &m_conditionLabel })
+    for (DxuiLabel * label : { &m_accessLabel, &m_eventLabel, &m_driveLabel, &m_fileLabel, &m_modeLabel, &m_addressLabel, &m_valueLabel, &m_conditionLabel, &m_logLabel })
     {
         label->SetTextRole  (DxuiTextRole::Body);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
@@ -1211,6 +1216,10 @@ void BreakpointDialog::OnCreate()
     m_modeLabel.SetText      (L"Stops");
     m_addressLabel.SetText   (L"Address or range");
     m_conditionLabel.SetText (L"Condition");
+    m_logLabel.SetText       (L"Log message");
+    m_logGo.SetLabel         (L"Continue after logging");
+    m_logGo.SetChecked       (fields.isLogGo);
+    m_log.SetPlaceholder     (L"Text with {expressions}. Optional.");
 
     m_accessRead.SetLabel    (L"Read");
     m_accessWrite.SetLabel   (L"Write");
@@ -1277,7 +1286,7 @@ void BreakpointDialog::OnCreate()
         m_diskThirteen.SetChecked    (disk.isThirteen);
     }
 
-    for (DxuiTextInput * box : { &m_address, &m_value, &m_condition, &m_diskTrack, &m_diskSector, &m_diskNumber, &m_diskAddressMarks, &m_diskDataMarks })
+    for (DxuiTextInput * box : { &m_address, &m_value, &m_condition, &m_log, &m_diskTrack, &m_diskSector, &m_diskNumber, &m_diskAddressMarks, &m_diskDataMarks })
     {
         box->SetTheme        (m_theme);
         box->SetHwnd         (GetHwnd());
@@ -1289,8 +1298,9 @@ void BreakpointDialog::OnCreate()
     m_newAddress = m_newAddress.has_value() ? std::optional<std::wstring> (SourcePathList::Utf8ToWide (fields.address)) : std::nullopt;
     m_value.SetText     (SourcePathList::Utf8ToWide (fields.value));
     m_condition.SetText (SourcePathList::Utf8ToWide (fields.condition));
+    m_log.SetText       (SourcePathList::Utf8ToWide (fields.log));
 
-    for (DxuiInfoTip * tip : { &m_conditionTip, &m_eventTip, &m_choiceTip })
+    for (DxuiInfoTip * tip : { &m_conditionTip, &m_eventTip, &m_choiceTip, &m_logTip })
     {
         tip->SetPopupHost (GetPopupHost());
         tip->SetDpi       (GetDpi());
@@ -1298,6 +1308,7 @@ void BreakpointDialog::OnCreate()
 
     m_conditionTip.SetText (GetConditionTip (fields.type));
     m_eventTip.SetText     (GetDiskEventTip());
+    m_logTip.SetText       (GetLogTip());
 
     m_body = CreateDialogContent<BreakpointDialogPanel>();
     m_body->SetTextMeasure (GetTextRenderer(), m_theme);
@@ -1321,6 +1332,8 @@ void BreakpointDialog::OnCreate()
     m_body->Add (m_addressLabel,             m_address);
     m_body->Add (m_valueLabel,               m_value);
     m_body->Add (m_conditionLabel,           m_condition, &m_conditionTip);
+    m_body->Add (m_logLabel,                 m_log, &m_logTip);
+    m_body->Add (m_logGoLabel,               m_logGo);
     m_body->AddError (m_error);
 
     ShowFieldsForType();
@@ -1367,7 +1380,7 @@ void BreakpointDialog::Confirm()
         return;
     }
 
-    m_definition = definition;
+    m_result = Result { definition, SourcePathList::WideToUtf8 (m_log.GetText()), m_logGo.IsChecked() };
     EndDialog (IDOK);
 }
 
@@ -1411,6 +1424,8 @@ BreakpointDialog::Fields BreakpointDialog::GetEditedFields() const
     edited.drive     = m_drive.GetSelectedIndex();
     edited.file      = (m_file.GetSelectedIndex() >= 0 && m_file.GetSelectedIndex() < (int) m_sourceFiles.size()) ? SourcePathList::WideToUtf8 (m_sourceFiles[(size_t) m_file.GetSelectedIndex()]) : std::string();
     edited.arguments = MakeDiskArguments (edited.event, ReadDiskFields());
+    edited.log       = SourcePathList::WideToUtf8 (m_log.GetText());
+    edited.isLogGo   = m_logGo.IsChecked();
 
     return edited;
 }
@@ -1592,12 +1607,33 @@ const wchar_t * BreakpointDialog::GetDiskEventTip()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointDialog::GetLogTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * BreakpointDialog::GetLogTip()
+{
+    return L"Each hit writes this message to the console, with each expression in braces evaluated at the hit, in hex.\n"
+           L"An expression reads the registers, the flags, memory and symbols, as a condition does.\n"
+           L"A .b or .w after a symbol reads its byte or word.\n"
+           L"\n"
+           L"Example: A={A} count={count.b}\n"
+           L"\n"
+           L"With Continue after logging checked, a hit logs and the machine runs on; otherwise it logs and stops.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointDialog::RunModal
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<std::string> BreakpointDialog::RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type, Validator validator,
-                                                       std::vector<std::wstring> sourceFiles)
+std::optional<BreakpointDialog::Result> BreakpointDialog::RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type, Validator validator,
+                                                                    std::vector<std::wstring> sourceFiles)
 {
     HRESULT                            hr     = S_OK;
     std::unique_ptr<BreakpointDialog>  dialog = std::make_unique<BreakpointDialog>();
@@ -1633,7 +1669,7 @@ std::optional<std::string> BreakpointDialog::RunModal (HWND owner, const IDxuiTh
     dialog->FitToMaxSize();
     dialog->ShowModalDialog (IDOK);
 
-    return dialog->m_definition;
+    return dialog->m_result;
 }
 
 
@@ -1646,8 +1682,8 @@ std::optional<std::string> BreakpointDialog::RunModal (HWND owner, const IDxuiTh
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<std::string> BreakpointDialog::RunNew (HWND owner, const IDxuiTheme * theme, Type type, Word pc, Validator validator,
-                                                     std::vector<std::wstring> sourceFiles)
+std::optional<BreakpointDialog::Result> BreakpointDialog::RunNew (HWND owner, const IDxuiTheme * theme, Type type, Word pc, Validator validator,
+                                                                  std::vector<std::wstring> sourceFiles)
 {
     BreakpointInfo  info;
 
@@ -1686,6 +1722,7 @@ void BreakpointDialog::OnDialogTick()
     m_conditionTip.Tick (nowMs);
     m_eventTip.Tick     (nowMs);
     m_choiceTip.Tick    (nowMs);
+    m_logTip.Tick       (nowMs);
 
     if (m_isCheckDue && !isPressed)
     {

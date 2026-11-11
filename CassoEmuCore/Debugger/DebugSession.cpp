@@ -3902,6 +3902,7 @@ void DebugSession::TakeView (DebugSessionView & out)
     out.compareSerial    = m_compareSerial;
     out.fileSystem       = m_fileSystem;
     out.currentDirectory = m_currentDirectory;
+    out.nextId           = m_nextId;
 
     if (out.symbols == nullptr || out.symbols->GetRevision() != m_symbols.GetRevision())
     {
@@ -3969,6 +3970,7 @@ void DebugSession::InstallView (const DebugSessionView & view)
     m_compareSerial    = view.compareSerial;
     m_fileSystem       = view.fileSystem;
     m_currentDirectory = view.currentDirectory;
+    m_nextId           = view.nextId;
 
     m_callRecorder.SetRecord (view.callRecord);
     m_callRebuildProgress = view.callRebuild;

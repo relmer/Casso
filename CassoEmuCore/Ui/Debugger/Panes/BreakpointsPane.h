@@ -95,6 +95,13 @@ public:
     //  The loaded debug file's sources by name; empty without a debug file.
     static std::vector<std::wstring>  GetSourceFiles (const DebuggerViewSnapshot * snapshot);
 
+    //  The actions the breakpoint dialog's OK runs: the definition, as an
+    //  edit of editedId or a new breakpoint, then BPLOG when the message or
+    //  whether a hit goes on running differs from the original's. A new
+    //  breakpoint's message is set on nextId, the id it takes.
+    static std::vector<DebuggerAction>  GetDialogActions (const BreakpointDialog::Result & result, std::optional<int> editedId, const BreakpointInfo & original,
+                                                          int nextId, CommandMode mode);
+
 private:
     static constexpr int  kNoId = INT_MIN;     // GetIdOfRow's id for no row; a session stop's id is negative
 
