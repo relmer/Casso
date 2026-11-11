@@ -31,7 +31,7 @@ public:
         FakeDiskFileIo  io;
         DiskOperations  operations { io };
         VolumeListing   listing;
-        VolumeKind      kind = VolumeKind::Unknown;
+        VolumeKind      kind       = VolumeKind::Unknown;
     };
 
     static void Open (Disk & disk)
