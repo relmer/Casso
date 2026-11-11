@@ -1961,7 +1961,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [X] T640 [US36] Add Disk list and Find duplicates to a folder's context menu and Save as CSV to the results toolbar Done: `ExplorerCollectionTools`; the menu rows are on a folder row and the open folder's background.
 - [X] T641 [US36] Search each file inside an image as `FileFormatTable::Export` writes it when File contents is on, BASIC detokenized and binary files skipped (FR-234) Done: `ImageFileSearchSources`, the text of the file's preview, in `Win32ShellSearch::SearchImage`.
 - [X] T642 [US36] Add `casso disk list`, `casso disk dupes` and `casso disk search` (FR-235) Done: `list` of a folder, in `DiskCollectionCommands`.
-- [ ] T643 [US36] Scenario test on a 5,000-image test set with known duplicates: under five minutes, every duplicate found and none false (SC-064)
+- [X] T643 [US36] Scenario test on a 5,000-image test set with known duplicates: under five minutes, every duplicate found and none false (SC-064) Done: `CollectionScaleTests` builds the set in memory: 4,900 DOS 3.3 disks and 100 copies in ProDOS order, all gzipped. 8 s in Release.
 
 ## Phase 54: BASIC language tools (User Story 37)
 
