@@ -8,6 +8,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "Seams/IShellItemVerbs.h"
 #include "Seams/IShellIcons.h"
 #include "Core/AppMessages.h"
@@ -497,7 +498,12 @@ void ExplorerOpen::FinishInitialize()
     }
     else
     {
+        //  Opening the card reads its new partitions, which the tree then
+        //  lists under the card's node, opened.
         m_context.browser.NavigateToLocation (Location::MakeDiskImage (m_initCard));
+        m_context.folderSync.CheckDrives();
+        m_context.treePane.ExpandNode (std::wstring (TreeModel::kStorageCardTag) + m_initCard);
+        m_context.treePane.RevealLocationInTree();
     }
 
     m_context.listPane.FillList();

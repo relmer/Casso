@@ -59,6 +59,7 @@ public:
     void                              RevealLocationInTree ();
     void                              RefreshTree          ();
     void                              ReloadChildren       (const std::wstring & id);
+    void                              ExpandNode           (const std::wstring & id) { m_tree->SetRowExpanded (m_tree->FindRowById (id), true); }
     void                              SetActivityPulse     (float pulse) { m_tree->SetActivityPulse (pulse); }
     void                              ApplyNavPaneOptions  ();
     bool                              IsNavOptionOn        (CassoExplorerPrefs::NavOption option) const;
