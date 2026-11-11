@@ -293,6 +293,22 @@ jobs:
           tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # The broker is signed in a separate call, with a description: the UAC
+      # prompt displays a signed program's description as its name. The
+      # description applies to every file of a call, and a second signature
+      # would replace the first, so the broker is moved out of the staging
+      # tree for the main call and back after the second.
+      - name: Move the broker out of the staging tree
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        shell: pwsh
+        run: |
+          Get-ChildItem staging -Recurse -Filter CassoStorageCardBroker.exe | ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath((Resolve-Path staging), $_.DirectoryName)
+            $target   = Join-Path broker-staging $relative
+            New-Item -ItemType Directory -Force $target | Out-Null
+            Move-Item $_.FullName $target
+          }
+
       # One call covers both platforms: the staging tree holds x64 and ARM64
       # side by side, and an ARM64 PE signs on an x64 runner like any other.
       - name: Sign the staged binaries
@@ -310,6 +326,32 @@ jobs:
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
+
+      - name: Sign the storage card broker
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        uses: azure/artifact-signing-action@v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          endpoint: https://wcus.codesigning.azure.net/
+          signing-account-name: relmer-signing
+          certificate-profile-name: relmer-public
+          files-folder: ${{ github.workspace }}/broker-staging
+          files-folder-filter: exe
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: Casso Explorer storage card access
+
+      - name: Move the broker back into the staging tree
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        shell: pwsh
+        run: |
+          Get-ChildItem broker-staging -Recurse -Filter CassoStorageCardBroker.exe | ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath((Resolve-Path broker-staging), $_.DirectoryName)
+            Move-Item $_.FullName (Join-Path staging $relative)
+          }
 
       # A signing action that fails is loud; one that runs and leaves a file
       # untouched is not. Every executable that ships has to have a
