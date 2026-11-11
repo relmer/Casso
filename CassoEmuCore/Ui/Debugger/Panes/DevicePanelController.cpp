@@ -85,7 +85,13 @@ void DevicePanelController::CreateControls()
 
     m_model = std::make_unique<DiagnosticsPane> (m_panelId, m_title, list, map, head, meters, board, m_bar->GetSlot());
     list->SetVisible (false);
-    board->SetFocusable (true);
+
+    //  A press on a graphic focuses the pane, so Ctrl+Plus, Ctrl+Minus and
+    //  Ctrl+0 size its text as Ctrl+wheel does.
+    map->SetFocusable    (true);
+    head->SetFocusable   (true);
+    meters->SetFocusable (true);
+    board->SetFocusable  (true);
 
     board->SetOnMute ([this] (int channel, bool isMuted)
     {

@@ -22,6 +22,10 @@
 #include "Ui/Debugger/Panes/CommLogPane.h"
 #include "Ui/Debugger/Panes/CommSignalGraph.h"
 #include "Ui/Debugger/Panes/DevicePanelController.h"
+#include "Ui/Debugger/Panes/DiskHeadView.h"
+#include "Ui/Debugger/Panes/MemoryMapBar.h"
+#include "Ui/Debugger/Panes/MeterBar.h"
+#include "Ui/Debugger/Panes/SoundBoardView.h"
 #include "Ui/Debugger/Panes/EventLogControllers.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
 #include "Ui/Debugger/Panes/IoLogPane.h"
@@ -1612,6 +1616,31 @@ namespace DebuggerToolPanesTests
 
             Assert::IsTrue (serial.GetGraph().GetLast() > 50'000,  L"just after the last row before the position");
             Assert::IsTrue (serial.GetGraph().GetLast() < 60'000,  L"and not at the newest row");
+        }
+
+
+        //  A device panel's graphics take the focus on a press, so the zoom
+        //  keys size the panel's text as Ctrl+wheel does over them.
+        TEST_METHOD (APanelsGraphicsTakeTheFocus)
+        {
+            CassoTheme             theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost      host;
+            ToolWindow             window (theme, host);
+            DevicePanelController  panel  (window.GetPaneHostForTest(), "mmu", L"MMU");
+
+
+
+            window.OnCreate();
+            panel.CreateControls();
+
+            for (IDxuiControl * control : panel.GetControls())
+            {
+                if (dynamic_cast<MemoryMapBar *> (control) != nullptr || dynamic_cast<DiskHeadView *> (control) != nullptr ||
+                    dynamic_cast<MeterBar *> (control) != nullptr     || dynamic_cast<SoundBoardView *> (control) != nullptr)
+                {
+                    Assert::IsTrue (control->IsFocusable(), control->GetAccessibleName().c_str());
+                }
+            }
         }
 
 
