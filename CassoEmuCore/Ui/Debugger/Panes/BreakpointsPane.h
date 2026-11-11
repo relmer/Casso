@@ -92,6 +92,9 @@ public:
     bool                               AddMenuItems       (DxuiListView * list, int row, PaneMenuItems & items) override;
     bool                               AddColumnMenuItems (DxuiListView * list, std::vector<std::shared_ptr<DxuiCommand>> & commands) override;
 
+    //  The loaded debug file's sources by name; empty without a debug file.
+    static std::vector<std::wstring>  GetSourceFiles (const DebuggerViewSnapshot * snapshot);
+
 private:
     static constexpr int  kNoId = INT_MIN;     // GetIdOfRow's id for no row; a session stop's id is negative
 

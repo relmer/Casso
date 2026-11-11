@@ -198,9 +198,11 @@ namespace DebuggerBreakpointBarTests
                 labels.push_back (item.command != nullptr ? item.command->label : std::wstring());
             }
 
-            Assert::IsTrue (labels == std::vector<std::wstring> { L"Address...", L"Condition...", L"Opcode...", L"BRK", L"BRK on interrupt", L"Memory", L"BASIC", L"Hardware" });
-            Assert::IsTrue (items[5].kind == DxuiPopupMenuItem::Kind::Submenu && items[5].children.size() == 3);
-            Assert::IsFalse (items[3].command->isChecked && items[3].command->isChecked(), L"BRK is off");
+            Assert::IsTrue (labels == std::vector<std::wstring> { L"Address...", L"Source line...", L"Condition...", L"Opcode...", L"BRK", L"BRK on interrupt", L"Memory", L"BASIC", L"Hardware" });
+            Assert::IsTrue (items[6].kind == DxuiPopupMenuItem::Kind::Submenu && items[6].children.size() == 3);
+            Assert::IsFalse (items[4].command->isChecked && items[4].command->isChecked(), L"BRK is off");
+            Assert::IsFalse (items[1].command->IsEnabled(), L"no debug file, so no source line");
+            Assert::AreEqual (std::wstring (BreakpointDialog::s_kNoSourceTip), items[1].command->GetTipText());
 
             brk.id        = 9;
             brk.info.id   = 9;
@@ -209,9 +211,9 @@ namespace DebuggerBreakpointBarTests
             window.SetSnapshotForTest (snapshot);
 
             items = window.GetBreakpointsPane().GetNewMenuItems();
-            Assert::IsTrue (items[3].command->isChecked && items[3].command->isChecked(), L"BRK is on");
+            Assert::IsTrue (items[4].command->isChecked && items[4].command->isChecked(), L"BRK is on");
 
-            items[3].command->dispatch();
+            items[4].command->dispatch();
             Assert::AreEqual ((size_t) 1, host.actions.size());
             Assert::IsTrue   (host.actions[0].breakpointStep.has_value() && host.actions[0].breakpointStep->actions.at (0).definition == "BRK OFF");
         }

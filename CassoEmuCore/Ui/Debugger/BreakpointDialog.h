@@ -76,7 +76,7 @@ class BreakpointDialog : public DxuiDialogWindow
 public:
     //  The types offered, in the order the list shows them.
     enum class Type { Execute, Read, Write, ReadWrite, Value, Condition, Opcode, Brk, Interrupt, Disk, BasicLine, BasicVariable, BasicError,
-                      UnwrittenRead, VideoLine, Beam };
+                      UnwrittenRead, VideoLine, Beam, SourceLine };
 
     //  A row of the New drop-down: a heading when type is empty.
     struct TypeRow
@@ -105,6 +105,7 @@ public:
         int          event     = 0;
         int          drive     = 0;
         std::string  arguments;
+        std::string  file;
     };
 
     //  The fields a type uses, which are the dialog's only visible fields
@@ -118,6 +119,7 @@ public:
         bool  value     = false;
         bool  condition = false;
         bool  access    = false;
+        bool  file      = false;
     };
 
     static VisibleFields  GetVisibleFields (Type type);
@@ -185,11 +187,16 @@ public:
     //  closes the dialog only once the validator, when given, accepts the
     //  definition; otherwise its reason is drawn under the fields.
     static std::optional<std::string>  RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type = std::nullopt,
-                                                 Validator validator = {});
+                                                 Validator validator = {}, std::vector<std::wstring> sourceFiles = {});
 
     //  A new breakpoint's dialog for the type chosen: an execution address
     //  starts at the PC, and every other type's fields start empty.
-    static std::optional<std::string>  RunNew   (HWND owner, const IDxuiTheme * theme, Type type, Word pc, Validator validator = {});
+    static std::optional<std::string>  RunNew   (HWND owner, const IDxuiTheme * theme, Type type, Word pc, Validator validator = {},
+                                                 std::vector<std::wstring> sourceFiles = {});
+
+    //  The tip of the New drop-down's Source line row while no debug file is
+    //  loaded, when the row is disabled.
+    static constexpr const wchar_t *  s_kNoSourceTip = L"Load a debug file to set a breakpoint on a source line";
 
     //  The condition's info tip text for a type, and the type's heading with
     //  its article: "A memory", "An execution".
@@ -235,6 +242,7 @@ private:
     DxuiLabel                      m_accessLabel;
     DxuiLabel                      m_modeLabel;
     DxuiLabel                      m_addressLabel;
+    DxuiLabel                      m_fileLabel;
     DxuiLabel                      m_valueLabel;
     DxuiLabel                      m_conditionLabel;
     DxuiLabel                      m_eventLabel;
@@ -245,6 +253,8 @@ private:
     DxuiComboBox                   m_mode;
     DxuiComboBox                   m_event;
     DxuiComboBox                   m_drive;
+    DxuiComboBox                   m_file;
+    std::vector<std::wstring>      m_sourceFiles;
     DxuiTextInput                  m_address;
     DxuiTextInput                  m_value;
     DxuiTextInput                  m_condition;

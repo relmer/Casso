@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Ui/Debugger/Panes/BreakpointsPane.h"
+
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugHandlerSet.h"
 #include "Debugger/DebuggerController.h"
@@ -1729,6 +1731,34 @@ namespace DebuggerViewStateTests
             after  = rig.view.Build (rig.controller.GetSession(), false);
             Assert::IsTrue (GetPcIndex (after) >= 5 && GetPcIndex (after) <= 15, L"then the PC, in the middle");
         }
+
+        //  A source line's breakpoint is the one BP file:line sets, and the New
+        //  drop-down's row for it has no file to offer without a debug file.
+        TEST_METHOD (TheDialogsSourceLineIsBpFileLine)
+        {
+            BreakpointDialog::Fields         fields;
+            DebuggerViewSnapshot             none;
+            DebuggerViewSnapshot             loaded;
+            DebugSourceFile                  file;
+
+
+
+            fields.type      = BreakpointDialog::Type::SourceLine;
+            fields.file      = "main.a65";
+            fields.address   = "12";
+            fields.condition = "A == 1";
+
+            Assert::AreEqual (std::string ("BP main.a65:12 IF A == 1"), BreakpointDialog::MakeDefinition (fields));
+            Assert::IsTrue   (BreakpointDialog::GetVisibleFields (BreakpointDialog::Type::SourceLine).file, L"the file drop-down");
+
+            file.name     = "main.a65";
+            loaded.source = DebuggerViewSnapshot::SourceState();
+            loaded.source->files.push_back (file);
+
+            Assert::IsTrue   (BreakpointsPane::GetSourceFiles (&none).empty(), L"no debug file, no row to choose");
+            Assert::AreEqual ((size_t) 1, BreakpointsPane::GetSourceFiles (&loaded).size());
+        }
+
 
         TEST_METHOD (TheBreakpointDialogWritesADefinitionBpeditTakes)
         {

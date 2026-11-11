@@ -411,7 +411,7 @@ public:
         }
 
         Assert::IsTrue   (headings == std::vector<std::wstring> { L"Execution", L"Memory", L"BASIC", L"Hardware" });
-        Assert::AreEqual ((size_t) Type::Beam + 1 - 2, types, L"a type is missing or repeated");
+        Assert::AreEqual ((size_t) Type::SourceLine + 1 - 2, types, L"a type is missing or repeated");
         Assert::AreEqual (BreakpointDialog::GetRowOf (Type::ReadWrite), BreakpointDialog::GetRowOf (Type::Read), L"a read is not a memory address");
         Assert::AreEqual (std::wstring (L"New memory breakpoint: Address"),   BreakpointDialog::GetTitle (Type::Write, std::nullopt));
         Assert::AreEqual (std::wstring (L"Execution breakpoint #3: Address"), BreakpointDialog::GetTitle (Type::Execute, 3));

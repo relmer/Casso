@@ -10,6 +10,7 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
+#include "Debugger/Source/SourcePathList.h"
 
 
 
@@ -608,6 +609,36 @@ std::vector<DxuiPopupMenuItem> BreakpointsPane::GetNewMenuItems()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointsPane::GetSourceFiles
+//
+//  The loaded debug file's sources by name, for a breakpoint on a line;
+//  empty without a debug file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> BreakpointsPane::GetSourceFiles (const DebuggerViewSnapshot * snapshot)
+{
+    std::vector<std::wstring>  files;
+
+
+
+    if (snapshot != nullptr && snapshot->source.has_value())
+    {
+        for (const DebugSourceFile & file : snapshot->source->files)
+        {
+            files.push_back (SourcePathList::Utf8ToWide (file.name));
+        }
+    }
+
+    return files;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointsPane::MakeTypeCommand
 //
 //  BRK, BRK on interrupt, Reading uninitialized memory and BASIC errors take
@@ -633,6 +664,18 @@ std::shared_ptr<DxuiCommand> BreakpointsPane::MakeTypeCommand (BreakpointDialog:
                                                  [kind] (const DebuggerViewSnapshot::BreakpointLine & bp) { return bp.info.kind == kind; });
 
 
+
+    //  A source line comes from the debug file's sources, so without one the
+    //  row is disabled and its tip has why.
+    if (type == Type::SourceLine)
+    {
+        auto  command = DebuggerMenuCommand::Make (std::wstring (label) + L"...", [this, type] { NewBreakpoint (type); });
+        bool  hasFile = !GetSourceFiles (snapshot).empty();
+
+        command->isEnabled = [hasFile] { return hasFile; };
+        command->tip       = hasFile ? std::wstring() : std::wstring (BreakpointDialog::s_kNoSourceTip);
+        return command;
+    }
 
     if (!isToggle)
     {
@@ -688,7 +731,8 @@ void BreakpointsPane::NewBreakpoint (BreakpointDialog::Type type)
 
 
 
-    definition = BreakpointDialog::RunNew (m_host.GetOwnerHwnd(), m_host.GetTheme(), type, (snapshot != nullptr) ? snapshot->pc : (Word) 0, MakeValidator (std::nullopt));
+    definition = BreakpointDialog::RunNew (m_host.GetOwnerHwnd(), m_host.GetTheme(), type, (snapshot != nullptr) ? snapshot->pc : (Word) 0, MakeValidator (std::nullopt),
+                                           GetSourceFiles (snapshot));
 
     if (definition.has_value())
     {
