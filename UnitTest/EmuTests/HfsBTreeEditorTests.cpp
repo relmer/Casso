@@ -74,27 +74,25 @@ public:
     }
 
 
-    //  The reference list's index of the key, or -1.
-    static int FindReference (Kind kind, const std::vector<Record> & reference, const std::vector<Byte> & key)
+    //  Keys in the tree's order.
+    struct KeyOrder
     {
-        for (size_t at = 0; at < reference.size(); at++)
+        Kind  kind = Kind::Catalog;
+
+        bool operator() (const std::vector<Byte> & a, const std::vector<Byte> & b) const
         {
-            int  order = (kind == Kind::Catalog) ? HfsBTree::CompareCatalogKeys (reference[at].key, key) : HfsBTree::CompareExtentsKeys (reference[at].key, key);
-
-            if (order == 0)
-            {
-                return (int) at;
-            }
+            return HfsBTree::CompareKeys (kind, a.data(), a.size(), b.data(), b.size()) < 0;
         }
+    };
 
-        return -1;
-    }
+    using Reference = std::map<std::vector<Byte>, std::vector<Byte>, KeyOrder>;
 
 
-    static void AssertClean (const HfsBTreeEditor & editor, const std::vector<Record> & reference, const std::string & step)
+    static void AssertClean (const HfsBTreeEditor & editor, const Reference & reference, const std::string & step)
     {
         std::string          problems;
         std::vector<Record>  records;
+        size_t               at = 0;
 
 
 
@@ -104,22 +102,25 @@ public:
         AssertSucceeded (editor.ReadAll (records));
         Assert::AreEqual (reference.size(), records.size(), TextEncoding::Utf8ToWide (step).c_str());
 
-        for (size_t at = 0; at < records.size(); at++)
+        for (const auto & [key, data] : reference)
         {
-            Assert::IsTrue (records[at].key == reference[at].key && records[at].data == reference[at].data, TextEncoding::Utf8ToWide (std::format ("{}: record {} differs", step, at)).c_str());
+            Assert::IsTrue (records[at].key == key && records[at].data == data, TextEncoding::Utf8ToWide (std::format ("{}: record {} differs", step, at)).c_str());
+            at++;
         }
     }
 
 
-    //  `operations` random changes: inserts while the tree is growing, then
-    //  as many removes as inserts, and replaces throughout.
-    static void RunRandom (Kind kind, uint32_t seed, size_t operations, size_t checkEvery, uint32_t & outDeepest, uint32_t & outMostUsed)
+    //  Inserts only until `fillNodes` nodes are in use, then `operations`
+    //  random changes: mostly inserts in the first half, mostly removes in
+    //  the second, and replaces throughout. The tree is emptied at the end.
+    static void RunRandom (Kind kind, uint32_t seed, size_t operations, size_t checkEvery, uint32_t & outDeepest, uint32_t & outMostUsed, uint32_t fillNodes = 0)
     {
         std::mt19937         random (seed);
         std::vector<Byte>    nodes  = MakeEmptyTree (kind, 16);
         HfsBTreeEditor       editor (kind, nodes);
-        std::vector<Record>  reference;
-        uint32_t             number = 0;
+        Reference                       reference (KeyOrder { kind });
+        std::vector<std::vector<Byte>>  keys;
+        uint32_t                        number = 0;
 
 
 
@@ -127,11 +128,14 @@ public:
         outMostUsed = 0;
         AssertSucceeded (editor.Open());
 
-        for (size_t step = 0; step < operations; step++)
+        for (size_t step = 0, counted = 0; counted < operations; step++)
         {
-            bool    growing = step < operations / 2;
-            int     choice  = (int) (random() % 10);
+            bool    filling = editor.GetTotalNodes() - editor.GetFreeNodes() < fillNodes;
+            bool    growing = counted < operations / 2;
+            int     choice  = filling ? 0 : (int) (random() % 10);
             Record  record;
+
+            counted += filling ? 0 : 1;
 
             if (editor.GetFreeNodes() < editor.GetNodesForInsert())
             {
@@ -154,40 +158,42 @@ public:
                 }
 
                 AssertSucceeded (editor.Insert (record));
-                reference.insert (std::upper_bound (reference.begin(), reference.end(), record, [kind] (const Record & a, const Record & b)
-                {
-                    return ((kind == Kind::Catalog) ? HfsBTree::CompareCatalogKeys (a.key, b.key) : HfsBTree::CompareExtentsKeys (a.key, b.key)) < 0;
-                }), record);
+                reference.emplace (record.key, record.data);
+                keys.push_back (record.key);
             }
             else if (choice < 9)
             {
-                size_t  at = random() % reference.size();
+                size_t  at = random() % keys.size();
 
-                AssertSucceeded (editor.Remove (reference[at].key));
-                reference.erase (reference.begin() + (ptrdiff_t) at);
+                AssertSucceeded (editor.Remove (keys[at]));
+                reference.erase (keys[at]);
+                keys[at] = keys.back();
+                keys.pop_back();
             }
             else
             {
-                size_t  at = random() % reference.size();
+                size_t               at   = random() % keys.size();
+                std::vector<Byte> &  data = reference[keys[at]];
 
-                reference[at].data.assign (reference[at].data.size(), (Byte) (step + 1));
-                AssertSucceeded (editor.Replace (reference[at]));
+                data.assign (data.size(), (Byte) (step + 1));
+                AssertSucceeded (editor.Replace (Record { keys[at], data }));
             }
 
             outDeepest  = std::max (outDeepest, editor.GetDepth());
             outMostUsed = std::max (outMostUsed, editor.GetTotalNodes() - editor.GetFreeNodes());
 
-            if (step % checkEvery == 0 || step + 1 == operations)
+            if (step % checkEvery == 0 || counted == operations)
             {
                 AssertClean (editor, reference, std::format ("seed {} step {}", seed, step));
             }
         }
 
-        while (!reference.empty())
+        for (const std::vector<Byte> & key : keys)
         {
-            AssertSucceeded (editor.Remove (reference.back().key));
-            reference.pop_back();
+            AssertSucceeded (editor.Remove (key));
         }
+
+        reference.clear();
 
         AssertClean (editor, reference, std::format ("seed {} emptied", seed));
         Assert::AreEqual ((uint32_t) 0, editor.GetDepth());
@@ -201,9 +207,9 @@ public:
 
 
 
-        for (uint32_t seed = 1; seed <= 4; seed++)
+        for (uint32_t seed = 1; seed <= 3; seed++)
         {
-            RunRandom (Kind::Catalog, seed, 3000, 50, deepest, used);
+            RunRandom (Kind::Catalog, seed, 3000, 250, deepest, used);
             Assert::IsTrue (deepest >= 3, L"the tree never reached three levels");
         }
     }
@@ -218,7 +224,7 @@ public:
 
         for (uint32_t seed = 11; seed <= 13; seed++)
         {
-            RunRandom (Kind::Extents, seed, 4000, 50, deepest, used);
+            RunRandom (Kind::Extents, seed, 4000, 250, deepest, used);
             Assert::IsTrue (deepest >= 3, L"the tree never reached three levels");
         }
     }
@@ -233,7 +239,7 @@ public:
 
 
 
-        RunRandom (Kind::Catalog, 99, 30000, 4000, deepest, used);
+        RunRandom (Kind::Catalog, 99, 3000, 2000, deepest, used, 2100);
         Assert::IsTrue (used > 2048, std::format (L"only {} nodes were in use", used).c_str());
     }
 

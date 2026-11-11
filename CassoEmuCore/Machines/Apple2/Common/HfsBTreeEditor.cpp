@@ -157,7 +157,67 @@ void HfsBTreeEditor::SetHeaderLong (size_t at, uint32_t value)
 
 int HfsBTreeEditor::CompareKeys (const std::vector<Byte> & a, const std::vector<Byte> & b) const
 {
-    return (m_kind == HfsBTree::Kind::Catalog) ? HfsBTree::CompareCatalogKeys (a, b) : HfsBTree::CompareExtentsKeys (a, b);
+    return HfsBTree::CompareKeys (m_kind, a.data(), a.size(), b.data(), b.size());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsBTreeEditor::FindChild
+//
+//  The node's type and, for an index node, the entry to follow for `key`
+//  and its child, read from the node's bytes without decoding the node.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsBTreeEditor::FindChild (uint32_t number, const std::vector<Byte> & key, Byte & outType, size_t & outIndex, uint32_t & outChild) const
+{
+    HRESULT       hr     = S_OK;
+    size_t        base   = (size_t) number * HfsBTree::kNodeBytes;
+    bool          inside = number != 0 && number < GetTotalNodes() && base + HfsBTree::kNodeBytes <= m_nodes.size();
+    const Byte  * node   = nullptr;
+    size_t        count  = 0;
+    bool          valid  = false;
+
+
+
+    outType  = 0;
+    outIndex = 0;
+    outChild = 0;
+
+    CBREx (inside, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
+    node    = m_nodes.data() + base;
+    outType = node[8];
+    BAIL_OUT_IF (outType != HfsBTree::kNodeIndex, S_OK);
+
+    count = ((size_t) node[10] << 8) | node[11];
+    valid = count > 0 && HfsBTree::kDescriptorBytes + 2 * (count + 1) <= HfsBTree::kNodeBytes;
+    CBREx (valid, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
+    for (size_t at = 0; at < count; at++)
+    {
+        size_t  start = ((size_t) node[HfsBTree::kNodeBytes - 2 * (at + 1)] << 8) | node[HfsBTree::kNodeBytes - 2 * (at + 1) + 1];
+        size_t  bytes = (start < HfsBTree::kNodeBytes) ? (size_t) node[start] + 1 : 0;
+        size_t  data  = start + bytes + (bytes % 2);
+
+        valid = start >= HfsBTree::kDescriptorBytes && data + 4 <= HfsBTree::kNodeBytes;
+        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
+        if (at > 0 && HfsBTree::CompareKeys (m_kind, node + start, bytes, key.data(), key.size()) > 0)
+        {
+            break;
+        }
+
+        outIndex = at;
+        outChild = ((uint32_t) node[data] << 24) | ((uint32_t) node[data + 1] << 16) | ((uint32_t) node[data + 2] << 8) | node[data + 3];
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -270,33 +330,6 @@ HfsBTree::Record HfsBTreeEditor::MakeEntry (const std::vector<Byte> & firstKey, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HfsBTreeEditor::GetChildIndex
-//
-//  The last entry whose key is at or before `key`, or the first entry when
-//  `key` sorts before them all.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-size_t HfsBTreeEditor::GetChildIndex (const Node & node, const std::vector<Byte> & key) const
-{
-    size_t  child = 0;
-
-
-
-    for (size_t at = 1; at < node.records.size() && CompareKeys (node.records[at].key, key) <= 0; at++)
-    {
-        child = at;
-    }
-
-    return child;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  HfsBTreeEditor::ReadNode
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -323,6 +356,8 @@ HRESULT HfsBTreeEditor::ReadNode (uint32_t number, Node & outNode) const
     count          = word (10);
     counted        = HfsBTree::kDescriptorBytes + 2 * (count + 1) <= HfsBTree::kNodeBytes;
     CBREx (counted, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
+    outNode.records.reserve (count + 1);
 
     for (size_t i = 0; i < count; i++)
     {
@@ -416,17 +451,22 @@ HRESULT HfsBTreeEditor::FindLeaf (const std::vector<Byte> & key, uint32_t & outL
 
     for (int level = 0; level <= kMaxHeight; level++)
     {
-        bool  isIndex = false;
+        Byte      type  = 0;
+        size_t    entry = 0;
+        uint32_t  child = 0;
 
-        hr = ReadNode (outLeaf, outNode);
+        hr = FindChild (outLeaf, key, type, entry, child);
         CHR (hr);
 
-        BAIL_OUT_IF (outNode.type == HfsBTree::kNodeLeaf, S_OK);
+        if (type == HfsBTree::kNodeLeaf)
+        {
+            hr = ReadNode (outLeaf, outNode);
+            BAIL_OUT_IF (true, hr);
+        }
 
-        isIndex = outNode.type == HfsBTree::kNodeIndex && !outNode.records.empty();
-        CBREx (isIndex, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+        CBREx (type == HfsBTree::kNodeIndex, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
 
-        outLeaf = HfsBTree::GetLong (outNode.records[GetChildIndex (outNode, key)].data, 0);
+        outLeaf = child;
     }
 
     hr = HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT);
@@ -862,13 +902,27 @@ Error:
 
 HRESULT HfsBTreeEditor::InsertInto (uint32_t number, const Record & record, Change & outChange)
 {
-    HRESULT  hr        = S_OK;
-    Node     node;
-    bool     isChanged = true;
+    HRESULT   hr    = S_OK;
+    Node      node;
+    Byte      type  = 0;
+    size_t    entry = 0;
+    uint32_t  child = 0;
+    Change    below;
 
 
 
     outChange = Change();
+
+    hr = FindChild (number, record.key, type, entry, child);
+    CHR (hr);
+
+    if (type == HfsBTree::kNodeIndex)
+    {
+        hr = InsertInto (child, record, below);
+        CHR (hr);
+
+        BAIL_OUT_IF (!below.isFirstChanged && !below.isSplit, S_OK);
+    }
 
     hr = ReadNode (number, node);
     CHR (hr);
@@ -896,26 +950,15 @@ HRESULT HfsBTreeEditor::InsertInto (uint32_t number, const Record & record, Chan
     }
     else
     {
-        bool      isIndex = node.type == HfsBTree::kNodeIndex && !node.records.empty();
-        size_t    at      = 0;
-        uint32_t  child   = 0;
-        Change    below;
+        bool  isIndex = node.type == HfsBTree::kNodeIndex && entry < node.records.size();
 
         CBREx (isIndex, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
 
-        at    = GetChildIndex (node, record.key);
-        child = HfsBTree::GetLong (node.records[at].data, 0);
-
-        hr = InsertInto (child, record, below);
-        CHR (hr);
-
-        isChanged = below.isFirstChanged || below.isSplit;
-
         if (below.isFirstChanged)
         {
-            node.records[at].key = HfsBTree::MakeIndexKey (m_kind, below.firstKey);
+            node.records[entry].key = HfsBTree::MakeIndexKey (m_kind, below.firstKey);
 
-            if (at == 0)
+            if (entry == 0)
             {
                 outChange.isFirstChanged = true;
                 outChange.firstKey       = below.firstKey;
@@ -924,11 +967,9 @@ HRESULT HfsBTreeEditor::InsertInto (uint32_t number, const Record & record, Chan
 
         if (below.isSplit)
         {
-            node.records.insert (node.records.begin() + (ptrdiff_t) at + 1, below.splitEntry);
+            node.records.insert (node.records.begin() + (ptrdiff_t) entry + 1, below.splitEntry);
         }
     }
-
-    BAIL_OUT_IF (!isChanged, S_OK);
 
     if (GetPayload (node) <= kCapacity)
     {
@@ -1111,12 +1152,29 @@ Error:
 
 HRESULT HfsBTreeEditor::RemoveFrom (uint32_t number, const std::vector<Byte> & key, bool isRoot, Change & outChange)
 {
-    HRESULT  hr = S_OK;
-    Node     node;
+    HRESULT   hr    = S_OK;
+    Node      node;
+    Byte      type  = 0;
+    size_t    entry = 0;
+    uint32_t  child = 0;
+    Change    below;
 
 
 
     outChange = Change();
+
+    hr = FindChild (number, key, type, entry, child);
+    CHR (hr);
+
+    //  An index node is rewritten only when its child's first key changed
+    //  or the child fell below half full.
+    if (type == HfsBTree::kNodeIndex)
+    {
+        hr = RemoveFrom (child, key, false, below);
+        CHR (hr);
+
+        BAIL_OUT_IF (!below.isFirstChanged && !below.isShort, S_OK);
+    }
 
     hr = ReadNode (number, node);
     CHR (hr);
@@ -1144,24 +1202,15 @@ HRESULT HfsBTreeEditor::RemoveFrom (uint32_t number, const std::vector<Byte> & k
     }
     else
     {
-        bool      isIndex = node.type == HfsBTree::kNodeIndex && !node.records.empty();
-        size_t    at      = 0;
-        uint32_t  child   = 0;
-        Change    below;
+        bool  isIndex = node.type == HfsBTree::kNodeIndex && entry < node.records.size();
 
         CBREx (isIndex, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
 
-        at    = GetChildIndex (node, key);
-        child = HfsBTree::GetLong (node.records[at].data, 0);
-
-        hr = RemoveFrom (child, key, false, below);
-        CHR (hr);
-
         if (below.isFirstChanged)
         {
-            node.records[at].key = HfsBTree::MakeIndexKey (m_kind, below.firstKey);
+            node.records[entry].key = HfsBTree::MakeIndexKey (m_kind, below.firstKey);
 
-            if (at == 0)
+            if (entry == 0)
             {
                 outChange.isFirstChanged = true;
                 outChange.firstKey       = below.firstKey;
@@ -1170,7 +1219,7 @@ HRESULT HfsBTreeEditor::RemoveFrom (uint32_t number, const std::vector<Byte> & k
 
         if (below.isShort && node.records.size() > 1)
         {
-            hr = Rebalance (node, at, outChange);
+            hr = Rebalance (node, entry, outChange);
             CHR (hr);
         }
     }

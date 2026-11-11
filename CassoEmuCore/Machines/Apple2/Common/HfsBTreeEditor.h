@@ -134,11 +134,11 @@ private:
     size_t    GetRecordSize  (const Record & record, bool isIndex) const;
     size_t    GetMinimumFill (bool isIndex) const;
     Record    MakeEntry      (const std::vector<Byte> & firstKey, uint32_t child) const;
-    size_t    GetChildIndex  (const Node & node, const std::vector<Byte> & key) const;
 
     HRESULT   ReadNode       (uint32_t number, Node & outNode) const;
     void      WriteNode      (uint32_t number, const Node & node);
     HRESULT   FindLeaf       (const std::vector<Byte> & key, uint32_t & outLeaf, Node & outNode) const;
+    HRESULT   FindChild      (uint32_t number, const std::vector<Byte> & key, Byte & outType, size_t & outIndex, uint32_t & outChild) const;
 
     bool      IsNodeUsed     (uint32_t number) const;
     void      SetNodeUsed    (uint32_t number, bool used);

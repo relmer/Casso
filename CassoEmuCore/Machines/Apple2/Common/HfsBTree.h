@@ -54,6 +54,9 @@ public:
     //  Negative, zero or positive, as `a` sorts before, with or after `b`.
     static int  CompareCatalogKeys (const std::vector<Byte> & a, const std::vector<Byte> & b);
     static int  CompareExtentsKeys (const std::vector<Byte> & a, const std::vector<Byte> & b);
+    static int  CompareCatalogKeys (const Byte * a, size_t aSize, const Byte * b, size_t bSize);
+    static int  CompareExtentsKeys (const Byte * a, size_t aSize, const Byte * b, size_t bSize);
+    static int  CompareKeys        (Kind kind, const Byte * a, size_t aSize, const Byte * b, size_t bSize);
     static int  CompareNames       (const Byte * a, size_t aLength, const Byte * b, size_t bLength);
 
     static void  Sort (Kind kind, std::vector<Record> & ioRecords);
@@ -75,7 +78,8 @@ public:
     static uint32_t           GetLong        (const std::vector<Byte> & bytes, size_t at);
 
 private:
-    static Byte  FoldName (Byte character);
+    static Byte      FoldName   (Byte character);
+    static uint32_t  GetKeyLong (const Byte * key, size_t size, size_t at);
 
     static void  PackLevel (Kind kind, const std::vector<Record> & records, bool isIndex, std::vector<std::vector<size_t>> & outNodes);
 };

@@ -110,10 +110,28 @@ int HfsBTree::CompareNames (const Byte * a, size_t aLength, const Byte * b, size
 
 int HfsBTree::CompareCatalogKeys (const std::vector<Byte> & a, const std::vector<Byte> & b)
 {
-    uint32_t  aParent = GetLong (a, 2);
-    uint32_t  bParent = GetLong (b, 2);
-    size_t    aLength = (a.size() > 6) ? std::min<size_t> (a[6], a.size() - 7) : 0;
-    size_t    bLength = (b.size() > 6) ? std::min<size_t> (b[6], b.size() - 7) : 0;
+    return CompareCatalogKeys (a.data(), a.size(), b.data(), b.size());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsBTree::CompareCatalogKeys
+//
+//  Over a key's bytes where they are, in a node or a vector. Bytes past
+//  `size` read as zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int HfsBTree::CompareCatalogKeys (const Byte * a, size_t aSize, const Byte * b, size_t bSize)
+{
+    uint32_t  aParent = GetKeyLong (a, aSize, 2);
+    uint32_t  bParent = GetKeyLong (b, bSize, 2);
+    size_t    aLength = (aSize > 6) ? std::min<size_t> (a[6], aSize - 7) : 0;
+    size_t    bLength = (bSize > 6) ? std::min<size_t> (b[6], bSize - 7) : 0;
 
 
 
@@ -122,7 +140,7 @@ int HfsBTree::CompareCatalogKeys (const std::vector<Byte> & a, const std::vector
         return (aParent < bParent) ? -1 : 1;
     }
 
-    return CompareNames (a.data() + 7, aLength, b.data() + 7, bLength);
+    return CompareNames (a + 7, aLength, b + 7, bLength);
 }
 
 
@@ -140,10 +158,29 @@ int HfsBTree::CompareCatalogKeys (const std::vector<Byte> & a, const std::vector
 
 int HfsBTree::CompareExtentsKeys (const std::vector<Byte> & a, const std::vector<Byte> & b)
 {
-    uint32_t  aFile  = GetLong (a, 2);
-    uint32_t  bFile  = GetLong (b, 2);
-    uint32_t  aStart = ((uint32_t) a[6] << 8) | a[7];
-    uint32_t  bStart = ((uint32_t) b[6] << 8) | b[7];
+    return CompareExtentsKeys (a.data(), a.size(), b.data(), b.size());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsBTree::CompareExtentsKeys
+//
+//  Over a key's bytes where they are. Bytes past `size` read as zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int HfsBTree::CompareExtentsKeys (const Byte * a, size_t aSize, const Byte * b, size_t bSize)
+{
+    uint32_t  aFile  = GetKeyLong (a, aSize, 2);
+    uint32_t  bFile  = GetKeyLong (b, bSize, 2);
+    int       aFork  = (aSize > 1) ? a[1] : 0;
+    int       bFork  = (bSize > 1) ? b[1] : 0;
+    int       aStart = (aSize > 7) ? (a[6] << 8) | a[7] : 0;
+    int       bStart = (bSize > 7) ? (b[6] << 8) | b[7] : 0;
 
 
 
@@ -152,12 +189,42 @@ int HfsBTree::CompareExtentsKeys (const std::vector<Byte> & a, const std::vector
         return (aFile < bFile) ? -1 : 1;
     }
 
-    if (a[1] != b[1])
+    if (aFork != bFork)
     {
-        return (int) a[1] - (int) b[1];
+        return aFork - bFork;
     }
 
-    return (int) aStart - (int) bStart;
+    return aStart - bStart;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsBTree::CompareKeys
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int HfsBTree::CompareKeys (Kind kind, const Byte * a, size_t aSize, const Byte * b, size_t bSize)
+{
+    return (kind == Kind::Catalog) ? CompareCatalogKeys (a, aSize, b, bSize) : CompareExtentsKeys (a, aSize, b, bSize);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsBTree::GetKeyLong
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t HfsBTree::GetKeyLong (const Byte * key, size_t size, size_t at)
+{
+    return (at + 3 < size) ? ((uint32_t) key[at] << 24) | ((uint32_t) key[at + 1] << 16) | ((uint32_t) key[at + 2] << 8) | key[at + 3] : 0;
 }
 
 
