@@ -195,10 +195,10 @@ public:
     static HRESULT      AssembleSerialLoader   (std::vector<Byte> & outBytes, std::string & outErrors);
     static HRESULT      BuildBootstrapImage    (const LinkShimOptions & options, std::vector<Byte> & outImage, Word & outStart);
 
-    static std::string  GetShimSource       ();
-    static std::string  GetProgramSource    ();
-    static std::string  GetUniversalSource  ();
-    static std::string  GetSlotFinderSource ();
+    static std::string  GetShimSource          ();
+    static std::string  GetProgramSource       ();
+    static std::string  GetUniversalSource     ();
+    static std::string  GetSlotFinderSource    ();
     static std::string  GetCaptureModuleSource ();
 
     //  The 6551 control byte for a speed: 8 data bits, 1 stop bit and the
