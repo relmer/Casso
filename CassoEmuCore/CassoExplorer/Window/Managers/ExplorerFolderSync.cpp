@@ -357,8 +357,8 @@ bool ExplorerFolderSync::UpdateStorageCards()
         std::wstring  path  = TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (card.drive.number));
         std::wstring  label = PhysicalCards::FormatCardLabel (card.drive);
 
-        StorageCardTreeEntry         entry { path, label };
-        PartitionLayoutKind          kind = PartitionLayoutKind::None;
+        StorageCardTreeEntry         entry        { path, label };
+        PartitionLayoutKind          kind         = PartitionLayoutKind::None;
         std::vector<PartitionEntry>  partitions;
         HRESULT                      hrPartitions = S_OK;
 
