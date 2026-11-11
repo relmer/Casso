@@ -40,13 +40,14 @@ public:
     //  access. Fails for a volume on more than one drive.
     virtual HRESULT  FindVolumeDrive       (const std::wstring & root, int & outNumber) = 0;
 
-    //  The drive erased and given CFFA's layout, through the broker.
-    virtual HRESULT  InitializeDrive       (int number, HWND owner, uint64_t layout) = 0;
+    //  The drive erased and given CFFA's layout, through the broker. Each
+    //  step of the write is reported to `progress`, on the calling thread.
+    virtual HRESULT  InitializeDrive       (int number, HWND owner, uint64_t layout, const WriteProgress & progress) = 0;
 
     //  FAT32 written over the first partition of the drive's MBR without
     //  administrator access. `outDone` is false, and nothing written, for a
     //  drive with no such partition.
-    virtual HRESULT  FormatFirstPartition  (int number, bool & outDone) = 0;
+    virtual HRESULT  FormatFirstPartition  (int number, const WriteProgress & progress, bool & outDone) = 0;
 
     //  Fails with ERROR_CANCELLED when the user declines administrator access.
     //  Destroying `outStore` closes the drive.
@@ -137,7 +138,15 @@ public:
     //  The card closed, erased and given CFFA's layout: up to 13 empty ProDOS
     //  volumes of 32 MB. The only write that is not confirmed by the
     //  callback, as the caller confirms it with the volumes erased.
-    HRESULT  Initialize          (int number, HWND owner, uint64_t layout);
+    //
+    //  Runs on any thread. While it runs the card is busy: `TryGetWork`
+    //  returns its progress, and opening it fails with ERROR_BUSY. The first
+    //  call to `progress`, with 0 and 0, comes once the card is busy.
+    HRESULT  Initialize          (int number, HWND owner, uint64_t layout, const WriteProgress & progress = {});
+
+    //  True while the card is being initialized, with the bytes written so
+    //  far and the bytes to write. `outTotal` is 0 before the first report.
+    bool     TryGetWork          (int number, uint64_t & outDone, uint64_t & outTotal);
 
     //  Fails with E_ACCESSDENIED for a drive that is not removable.
     HRESULT  Open                (int number, HWND owner);
@@ -167,6 +176,12 @@ private:
         int64_t                             stamp  = 0;
     };
 
+    struct Work
+    {
+        uint64_t  done  = 0;
+        uint64_t  total = 0;
+    };
+
     static constexpr std::string_view  kDrivePrefix = "\\\\.\\PhysicalDrive";
     static constexpr size_t            kMaxDigits   = 4;
     static constexpr uint64_t          kGigabyte    = 1024ull * 1024 * 1024;
@@ -174,6 +189,9 @@ private:
     static std::string  FormatDriveSize (const PhysicalDrive & drive);
 
     HRESULT  FindSession   (int number, Session * & outSession);
+    HRESULT  CheckNotBusy  (int number);
+    void     SetWork       (int number, uint64_t done, uint64_t total);
+    void     EndWork       (int number);
     HRESULT  ListSession   (Session & session);
     HRESULT  FindPartition (Session & session, int partition, const PartitionEntry * & outEntry);
     HRESULT  StageWrite    (int number, int partition, std::span<const Byte> bytes, Session * & outSession);
@@ -182,6 +200,8 @@ private:
     ConfirmWrite              m_confirmWrite;
     std::mutex                m_mutex;
     std::map<int, Session>    m_sessions;
+    std::mutex                m_workMutex;
+    std::map<int, Work>       m_work;
     int64_t                   m_nextStamp  = 1;
     bool                      m_confirming = false;
     std::atomic<bool>         m_confirmed  = false;

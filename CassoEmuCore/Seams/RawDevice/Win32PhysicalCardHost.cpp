@@ -221,7 +221,7 @@ HRESULT Win32PhysicalCardHost::ListVolumes (int number, std::vector<WindowsVolum
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32PhysicalCardHost::InitializeDrive (int number, HWND owner, uint64_t layout)
+HRESULT Win32PhysicalCardHost::InitializeDrive (int number, HWND owner, uint64_t layout, const WriteProgress & progress)
 {
     HRESULT  hr = S_OK;
 
@@ -230,7 +230,7 @@ HRESULT Win32PhysicalCardHost::InitializeDrive (int number, HWND owner, uint64_t
     hr = StartBroker (owner);
     CHR (hr);
 
-    hr = m_broker->GetConnection().Initialize (number, layout);
+    hr = m_broker->GetConnection().Initialize (number, layout, progress);
     CHR (hr);
 
 Error:
@@ -297,7 +297,7 @@ HRESULT Win32PhysicalCardHost::FindVolumeDrive (const std::wstring & root, int &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32PhysicalCardHost::FormatFirstPartition (int number, bool & outDone)
+HRESULT Win32PhysicalCardHost::FormatFirstPartition (int number, const WriteProgress & progress, bool & outDone)
 {
-    return Win32VolumeFormat::FormatFirstPartition (number, outDone);
+    return Win32VolumeFormat::FormatFirstPartition (number, progress, outDone);
 }

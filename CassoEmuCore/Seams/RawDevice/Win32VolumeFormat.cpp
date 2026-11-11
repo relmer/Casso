@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32VolumeFormat::FormatFirstPartition (int number, bool & outDone)
+HRESULT Win32VolumeFormat::FormatFirstPartition (int number, const WriteProgress & progress, bool & outDone)
 {
     HRESULT                     hr       = S_OK;
     HANDLE                      volume   = INVALID_HANDLE_VALUE;
@@ -86,7 +86,8 @@ HRESULT Win32VolumeFormat::FormatFirstPartition (int number, bool & outDone)
 
     hr = Fat32Format::WriteVolume ([volume] (uint64_t first, std::span<const Byte> bytes) { return WriteAt (volume, first, bytes); },
                                    (uint64_t) length.Length.QuadPart / kSectorBytes,
-                                   (uint64_t) info.StartingOffset.QuadPart / kSectorBytes);
+                                   (uint64_t) info.StartingOffset.QuadPart / kSectorBytes,
+                                   progress);
     Log (L"  write", (DWORD) hr);
     CHR (hr);
 

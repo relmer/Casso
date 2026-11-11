@@ -263,6 +263,12 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
+    if (msg == (UINT) AppMessage::ExplorerCardProgress)
+    {
+        opener.HandleCardProgress();
+        return true;
+    }
+
     if (msg == (UINT) AppMessage::ExplorerThumbnail)
     {
         preview.TakeThumbnail();

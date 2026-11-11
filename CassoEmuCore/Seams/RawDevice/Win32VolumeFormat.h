@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Seams/RawDevice/IRawDevice.h"
+
 
 
 
@@ -27,7 +29,7 @@ public:
     //  `outDone` is false, and nothing written, for a drive with no MBR, or
     //  whose first partition has no volume, as a CFFA card; the caller then
     //  writes the whole drive another way.
-    static HRESULT  FormatFirstPartition (int number, bool & outDone);
+    static HRESULT  FormatFirstPartition (int number, const WriteProgress & progress, bool & outDone);
 
 private:
     static void  Log (const std::wstring & step, DWORD error);

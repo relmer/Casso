@@ -38,7 +38,7 @@ public:
     //  The card erased and given a layout by the broker: `layout` is a count
     //  of CFFA volumes, or RawDeviceProtocol::kLayoutFat32. The card is opened
     //  for it and closed after.
-    HRESULT  Initialize (int number, uint64_t layout);
+    HRESULT  Initialize (int number, uint64_t layout, const WriteProgress & progress = {});
 
 private:
     HRESULT  SendHeader (Byte operation, int number, uint64_t first, uint32_t count, std::span<const Byte> blocks);

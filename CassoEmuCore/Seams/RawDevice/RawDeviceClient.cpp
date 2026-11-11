@@ -152,7 +152,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT RawDeviceConnection::Initialize (int number, uint64_t layout)
+HRESULT RawDeviceConnection::Initialize (int number, uint64_t layout, const WriteProgress & progress)
 {
     HRESULT        hr     = S_OK;
     PhysicalDrive  drive;
@@ -171,7 +171,25 @@ HRESULT RawDeviceConnection::Initialize (int number, uint64_t layout)
         hr = SendHeader (RawDeviceProtocol::kInitialize, number, layout, 0, {});
         CHR (hr);
 
+        //  Replies of S_FALSE are progress, each with the bytes written and
+        //  the bytes to write; the last reply ends the request.
         hr = ReadResult (RawDeviceProtocol::kInitializeTimeoutMs);
+
+        while (hr == S_FALSE)
+        {
+            Byte  counts[16] = {};
+
+            hr = RawDeviceProtocol::ReadExact (m_stream, counts, sizeof (counts), RawDeviceProtocol::kInitializeTimeoutMs);
+            CHR (hr);
+
+            if (progress)
+            {
+                progress (RawDeviceProtocol::GetQuad (counts), RawDeviceProtocol::GetQuad (counts + 8));
+            }
+
+            hr = ReadResult (RawDeviceProtocol::kInitializeTimeoutMs);
+        }
+
         CHR (hr);
     }
 

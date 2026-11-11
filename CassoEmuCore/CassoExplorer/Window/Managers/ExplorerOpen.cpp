@@ -10,6 +10,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "Seams/IShellItemVerbs.h"
 #include "Seams/IShellIcons.h"
+#include "Core/AppMessages.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "Seams/IHostDialogs.h"
@@ -32,6 +33,27 @@
 ExplorerOpen::ExplorerOpen (ExplorerContext & context)
     : m_context (context)
 {
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::~ExplorerOpen
+//
+//  A card's write is never cut off, so a window closed during one waits
+//  for it to end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ExplorerOpen::~ExplorerOpen()
+{
+    if (m_initThread.joinable())
+    {
+        m_initThread.join();
+    }
 }
 
 
@@ -211,7 +233,6 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
     bool                               confirmed = false;
     std::vector<PhysicalDrive>         drives;
     std::vector<WindowsVolume>         volumes;
-    std::wstring                       root;
     std::vector<PartitionEntry>        apple;
     PartitionLayoutKind                kind      = PartitionLayoutKind::None;
     int                                count     = 0;
@@ -295,7 +316,137 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
         return;
     }
 
-    hr = m_context.app.cards->Initialize (drive, m_context.window.GetHwnd(), layout);
+    if (m_initThread.joinable())
+    {
+        m_context.window.ShowMessage (L"A storage card is being initialized. Initialize this card after it finishes.", MB_ICONWARNING);
+        return;
+    }
+
+    StartInitialize (cardPath, found, layout, std::move (volumes));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::StartInitialize
+//
+//  The write runs on a separate thread, which posts ExplorerCardProgress to the
+//  window at its start, at most every kProgressPostMs while it runs, and at
+//  its end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerOpen::StartInitialize (const std::wstring & cardPath, const PhysicalDrive & drive, uint64_t layout, std::vector<WindowsVolume> volumes)
+{
+    HWND             window = m_context.window.GetHwnd();
+    PhysicalCards  * cards  = m_context.app.cards;
+    int              number = drive.number;
+
+
+
+    m_initCard        = cardPath;
+    m_initDrive       = drive;
+    m_initLayout      = layout;
+    m_initVolumes     = std::move (volumes);
+    m_initDone        = false;
+    m_initResult      = S_OK;
+    m_lastPostMs      = 0;
+    m_navigatePending = true;
+
+    m_initThread = std::thread ([this, window, cards, number, layout] ()
+    {
+        HRESULT  hr = cards->Initialize (number, window, layout, [this, window] (uint64_t, uint64_t totalBytes)
+        {
+            ULONGLONG  now = GetTickCount64();
+
+            if (totalBytes == 0 || now - m_lastPostMs >= kProgressPostMs)
+            {
+                m_lastPostMs = now;
+                PostMessageW (window, (UINT) AppMessage::ExplorerCardProgress, 0, 0);
+            }
+        });
+
+        m_initResult = hr;
+        m_initDone   = true;
+        PostMessageW (window, (UINT) AppMessage::ExplorerCardProgress, 0, 0);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::HandleCardProgress
+//
+//  The card is opened in the list once its write starts, and its list is
+//  refreshed with each report while it is the location in the list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerOpen::HandleCardProgress()
+{
+    Location  card = Location::MakeDiskImage (m_initCard);
+
+
+
+    if (m_initDone)
+    {
+        FinishInitialize();
+    }
+    else if (m_navigatePending)
+    {
+        m_navigatePending = false;
+        m_context.browser.NavigateToLocation (card);
+        m_context.listPane.FillList();
+    }
+    else if (m_context.browser.GetLocation() == card)
+    {
+        HRESULT  hr = m_context.browser.Refresh();
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        m_context.listPane.FillList();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::FinishInitialize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerOpen::FinishInitialize()
+{
+    HRESULT       hr        = m_initResult;
+    HRESULT       hrRefresh = S_OK;
+    std::wstring  root;
+
+
+
+    if (m_initThread.joinable())
+    {
+        m_initThread.join();
+    }
+
+    m_initDone        = false;
+    m_navigatePending = false;
+
+    //  After a write declined at the UAC prompt, or one that failed, the
+    //  card's list is reloaded.
+    if (FAILED (hr))
+    {
+        hrRefresh = m_context.browser.Refresh();
+        IGNORE_RETURN_VALUE (hrRefresh, S_OK);
+        m_context.listPane.FillList();
+    }
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
     {
@@ -304,12 +455,12 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
 
     if (FAILED (hr))
     {
-        m_context.window.ShowMessage (std::format (L"Unable to initialize {} (error 0x{:08X}).", PhysicalCards::FormatDrive (found), (uint32_t) hr), MB_ICONWARNING);
+        m_context.window.ShowMessage (std::format (L"Unable to initialize {} (error 0x{:08X}).", PhysicalCards::FormatDrive (m_initDrive), (uint32_t) hr), MB_ICONWARNING);
         return;
     }
 
     //  The drive's folders and files in the tree are from before the erase.
-    for (const WindowsVolume & volume : volumes)
+    for (const WindowsVolume & volume : m_initVolumes)
     {
         if (!volume.letter.empty())
         {
@@ -325,13 +476,13 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
     m_context.treePane.ReloadChildren (TreeModel::kThisPcRootId);
 
     //  A FAT32 card is opened at its drive letter, and a CFFA card as a card.
-    if (layout == RawDeviceProtocol::kLayoutFat32 && !root.empty())
+    if (m_initLayout == RawDeviceProtocol::kLayoutFat32 && !root.empty())
     {
         m_context.browser.NavigateToLocation (Location::MakeHostFolder (root));
     }
     else
     {
-        m_context.browser.NavigateToLocation (Location::MakeDiskImage (cardPath));
+        m_context.browser.NavigateToLocation (Location::MakeDiskImage (m_initCard));
     }
 
     m_context.listPane.FillList();

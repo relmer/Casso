@@ -104,7 +104,7 @@ uint32_t Fat32Format::GetFatSectors (uint64_t sectors, uint32_t sectorsPerCluste
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Fat32Format::Write (IRawDevice & device, uint64_t blocks)
+HRESULT Fat32Format::Write (IRawDevice & device, uint64_t blocks, const WriteProgress & progress)
 {
     HRESULT            hr      = S_OK;
     uint64_t           sectors = 0;
@@ -124,7 +124,7 @@ HRESULT Fat32Format::Write (IRawDevice & device, uint64_t blocks)
     hr = device.WriteBlocks (0, lead);
     CHR (hr);
 
-    hr = WriteVolume ([&device] (uint64_t first, std::span<const Byte> bytes) { return device.WriteBlocks (kPartitionStart + first, bytes); }, sectors, kPartitionStart);
+    hr = WriteVolume ([&device] (uint64_t first, std::span<const Byte> bytes) { return device.WriteBlocks (kPartitionStart + first, bytes); }, sectors, kPartitionStart, progress);
     CHR (hr);
 
 Error:
@@ -144,7 +144,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Fat32Format::WriteVolume (const BlockWriter & write, uint64_t sectors, uint64_t hiddenSectors)
+HRESULT Fat32Format::WriteVolume (const BlockWriter & write, uint64_t sectors, uint64_t hiddenSectors, const WriteProgress & progress)
 {
     HRESULT            hr         = S_OK;
     uint32_t           perCluster = 0;
@@ -155,6 +155,8 @@ HRESULT Fat32Format::WriteVolume (const BlockWriter & write, uint64_t sectors, u
     std::vector<Byte>  sector;
     std::vector<Byte>  info;
     std::vector<Byte>  reserved ((size_t) kReservedSectors * IRawDevice::kBlockBytes, 0);
+    uint64_t           done       = 0;
+    uint64_t           total      = 0;
     std::vector<Byte>  table;
     std::vector<Byte>  cluster;
 
@@ -180,8 +182,13 @@ HRESULT Fat32Format::WriteVolume (const BlockWriter & write, uint64_t sectors, u
         reserved[(copy + 2) * IRawDevice::kBlockBytes + 511] = 0xAA;
     }
 
+    total = reserved.size() + (uint64_t) kFatCount * fatSectors * IRawDevice::kBlockBytes + (uint64_t) perCluster * IRawDevice::kBlockBytes;
+
     hr = write (0, reserved);
     CHR (hr);
+
+    done += reserved.size();
+    Report (progress, done, total);
 
     //  Entries 0 and 1 are reserved, and 2, the root directory, is its only
     //  cluster.
@@ -194,6 +201,9 @@ HRESULT Fat32Format::WriteVolume (const BlockWriter & write, uint64_t sectors, u
     {
         hr = write (fat + (uint64_t) copy * fatSectors, table);
         CHR (hr);
+
+        done += table.size();
+        Report (progress, done, total);
     }
 
     cluster.assign ((size_t) perCluster * IRawDevice::kBlockBytes, 0);
@@ -202,6 +212,8 @@ HRESULT Fat32Format::WriteVolume (const BlockWriter & write, uint64_t sectors, u
 
     hr = write (root, cluster);
     CHR (hr);
+
+    Report (progress, total, total);
 
 Error:
     return hr;
@@ -373,4 +385,22 @@ void Fat32Format::PutLong (std::vector<Byte> & bytes, size_t at, uint32_t value)
     bytes[at + 1] = (Byte) ((value >> 8) & 0xFF);
     bytes[at + 2] = (Byte) ((value >> 16) & 0xFF);
     bytes[at + 3] = (Byte) (value >> 24);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Fat32Format::Report
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Fat32Format::Report (const WriteProgress & progress, uint64_t done, uint64_t total)
+{
+    if (progress)
+    {
+        progress (done, total);
+    }
 }

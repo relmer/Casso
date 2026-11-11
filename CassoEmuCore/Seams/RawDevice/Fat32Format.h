@@ -35,14 +35,14 @@ public:
 
     //  Writes the MBR, the boot sector and its copy, FSInfo, both FATs and
     //  the root directory. The rest of the drive is left as it is.
-    static HRESULT   Write               (IRawDevice & device, uint64_t blocks);
+    static HRESULT   Write               (IRawDevice & device, uint64_t blocks, const WriteProgress & progress = {});
 
     //  An empty FAT32 volume alone, written at blocks numbered from the
     //  volume's start, as through a volume's handle, which Windows opens for
     //  the signed-in user on a removable drive.
     using BlockWriter = std::function<HRESULT (uint64_t first, std::span<const Byte> bytes)>;
 
-    static HRESULT   WriteVolume         (const BlockWriter & write, uint64_t sectors, uint64_t hiddenSectors);
+    static HRESULT   WriteVolume         (const BlockWriter & write, uint64_t sectors, uint64_t hiddenSectors, const WriteProgress & progress = {});
     static bool      CanFormatVolume     (uint64_t sectors);
 
     //  The sectors per cluster for a volume of `sectors`, from the
@@ -57,5 +57,6 @@ private:
     static void  BuildBoot     (uint64_t sectors, uint32_t sectorsPerCluster, uint32_t fatSectors, uint32_t hiddenSectors, std::vector<Byte> & outSector);
     static void  BuildFsInfo   (std::vector<Byte> & outSector);
     static void  PutWord       (std::vector<Byte> & bytes, size_t at, uint16_t value);
+    static void  Report        (const WriteProgress & progress, uint64_t done, uint64_t total);
     static void  PutLong       (std::vector<Byte> & bytes, size_t at, uint32_t value);
 };

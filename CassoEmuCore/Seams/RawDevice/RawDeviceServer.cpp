@@ -387,13 +387,28 @@ int RawDeviceServer::CountInitialVolumes (uint64_t blocks)
 
 HRESULT RawDeviceServer::ServeInitialize (int number, uint64_t layout)
 {
-    HRESULT    hr      = S_OK;
-    HRESULT    result  = S_OK;
-    Session  * session = nullptr;
-    uint64_t   blocks  = 0;
-    bool       valid   = false;
+    HRESULT          hr       = S_OK;
+    HRESULT          result   = S_OK;
+    Session        * session  = nullptr;
+    uint64_t         blocks   = 0;
+    bool             valid    = false;
+    WriteProgress    progress;
 
 
+
+    //  Each step of the write is a reply of S_FALSE with the bytes written and
+    //  the bytes to write, before the reply that ends the request.
+    progress = [this] (uint64_t done, uint64_t total)
+    {
+        std::vector<Byte>  payload;
+        HRESULT            hrSent = S_OK;
+
+        RawDeviceProtocol::AppendQuad (payload, done);
+        RawDeviceProtocol::AppendQuad (payload, total);
+
+        hrSent = Reply (S_FALSE, payload);
+        IGNORE_RETURN_VALUE (hrSent, S_OK);
+    };
 
     result = CheckRange (number, 0, 0, session);
     Log (std::format (L"initialize drive {} layout {}: open", number, layout), result);
@@ -414,8 +429,8 @@ HRESULT RawDeviceServer::ServeInitialize (int number, uint64_t layout)
 
     if (SUCCEEDED (result))
     {
-        result = layout == RawDeviceProtocol::kLayoutFat32 ? Fat32Format::Write (*session->device, blocks)
-                                                            : WriteCffaLayout (*session, (int) layout);
+        result = layout == RawDeviceProtocol::kLayoutFat32 ? Fat32Format::Write (*session->device, blocks, progress)
+                                                            : WriteCffaLayout (*session, (int) layout, progress);
         Log (L"initialize: write", result);
         session->device->UnlockVolumes();
 
@@ -444,7 +459,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT RawDeviceServer::WriteCffaLayout (Session & session, int volumes)
+HRESULT RawDeviceServer::WriteCffaLayout (Session & session, int volumes, const WriteProgress & progress)
 {
     HRESULT            hr     = S_OK;
     uint64_t           total  = session.drive.bytes / IRawDevice::kBlockBytes;
@@ -477,6 +492,11 @@ HRESULT RawDeviceServer::WriteCffaLayout (Session & session, int volumes)
 
         hr = session.device->WriteBlocks (next, volume);
         CHR (hr);
+
+        if (progress)
+        {
+            progress ((uint64_t) (slice + 1) * kVolumeBlocks * IRawDevice::kBlockBytes, (uint64_t) volumes * kVolumeBlocks * IRawDevice::kBlockBytes);
+        }
 
         next += blocks;
 

@@ -64,7 +64,7 @@ struct FakeCardHost : public IPhysicalCardHost
         return S_OK;
     }
 
-    HRESULT FormatFirstPartition (int number, bool & outDone) override
+    HRESULT FormatFirstPartition (int number, const WriteProgress &, bool & outDone) override
     {
         outDone = firstPartition;
 
@@ -79,11 +79,19 @@ struct FakeCardHost : public IPhysicalCardHost
     bool              firstPartition = false;
     std::vector<int>  formatted;
 
-    HRESULT InitializeDrive (int number, HWND, uint64_t) override
+    HRESULT InitializeDrive (int number, HWND, uint64_t, const WriteProgress & progress) override
     {
         initialized.push_back (number);
+
+        if (onInitialize)
+        {
+            onInitialize (progress);
+        }
+
         return S_OK;
     }
+
+    std::function<void (const WriteProgress &)>  onInitialize;
 
     HRESULT FindVolumeDrive (const std::wstring &, int & outNumber) override
     {
@@ -286,6 +294,35 @@ public:
         host.firstPartition = false;
         AssertSucceeded (cards.Initialize (2, nullptr, RawDeviceProtocol::kLayoutFat32));
         Assert::AreEqual ((size_t) 1, host.initialized.size());
+    }
+
+
+    TEST_METHOD (Initialize_ReportsProgressAndIsBusyUntilDone)
+    {
+        FakeCardHost   host;
+        PhysicalCards  cards (host);
+        uint64_t       done      = 0;
+        uint64_t       total     = 0;
+        uint64_t       reported  = 0;
+        bool           wasBusy   = false;
+        HRESULT        openWhile = S_OK;
+
+        host.onInitialize = [&] (const WriteProgress & progress)
+        {
+            progress (64, 256);
+            wasBusy   = cards.TryGetWork (2, done, total);
+            openWhile = cards.Open (2, nullptr);
+        };
+
+        AssertSucceeded (cards.Initialize (2, nullptr, 4, [&] (uint64_t doneBytes, uint64_t) { reported = doneBytes; }));
+
+        Assert::IsTrue (wasBusy);
+        Assert::AreEqual ((uint64_t) 64,  done);
+        Assert::AreEqual ((uint64_t) 256, total);
+        Assert::AreEqual ((uint64_t) 64,  reported);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BUSY), openWhile);
+        Assert::IsFalse (cards.TryGetWork (2, done, total));
+        AssertSucceeded (cards.Open (2, nullptr));
     }
 
 

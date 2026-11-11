@@ -210,7 +210,8 @@ public:
 
         for (AppMessage message : { AppMessage::ExplorerFolderChanged, AppMessage::ExplorerShellListed, AppMessage::ExplorerCassoLink,
                                     AppMessage::ExplorerInfoTip, AppMessage::ExplorerContentDetails, AppMessage::ExplorerIconsLoaded,
-                                    AppMessage::ExplorerNewChoices, AppMessage::ExplorerReply, AppMessage::ExplorerRecycleBin })
+                                    AppMessage::ExplorerNewChoices, AppMessage::ExplorerReply, AppMessage::ExplorerRecycleBin,
+                                    AppMessage::ExplorerCardProgress })
         {
             Assert::IsTrue (rig.parts->HandleAppMessage ((UINT) message, 0, 0));
         }

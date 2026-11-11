@@ -323,12 +323,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT PhysicalCards::Initialize (int number, HWND owner, uint64_t layout)
+HRESULT PhysicalCards::Initialize (int number, HWND owner, uint64_t layout, const WriteProgress & progress)
 {
     HRESULT                     hr        = S_OK;
     bool                        removable = false;
     bool                        done      = false;
+    bool                        started   = false;
     std::vector<PhysicalDrive>  drives;
+    WriteProgress               report;
 
 
 
@@ -342,22 +344,127 @@ HRESULT PhysicalCards::Initialize (int number, HWND owner, uint64_t layout)
 
     CBREx (removable, E_ACCESSDENIED);
 
+    hr = CheckNotBusy (number);
+    CHR (hr);
+
+    SetWork (number, 0, 0);
+    started = true;
+
     Close (number);
+
+    report = [this, number, &progress] (uint64_t doneBytes, uint64_t totalBytes)
+    {
+        SetWork (number, doneBytes, totalBytes);
+
+        if (progress)
+        {
+            progress (doneBytes, totalBytes);
+        }
+    };
+
+    //  The first report, of no bytes, is made once the card is busy.
+    report (0, 0);
 
     //  FAT32 over a card's first partition is written without administrator
     //  access. The broker is started only for a card without that partition.
     if (layout == RawDeviceProtocol::kLayoutFat32)
     {
-        hr = m_host.FormatFirstPartition (number, done);
+        hr = m_host.FormatFirstPartition (number, report, done);
         CHR (hr);
         BAIL_OUT_IF (done, S_OK);
     }
 
-    hr = m_host.InitializeDrive (number, owner, layout);
+    hr = m_host.InitializeDrive (number, owner, layout, report);
     CHR (hr);
 
 Error:
+    if (started)
+    {
+        EndWork (number);
+    }
+
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::TryGetWork
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PhysicalCards::TryGetWork (int number, uint64_t & outDone, uint64_t & outTotal)
+{
+    std::lock_guard<std::mutex>  lock (m_workMutex);
+    auto                         found  = m_work.find (number);
+    bool                         isBusy = found != m_work.end();
+
+
+
+    outDone  = isBusy ? found->second.done  : 0;
+    outTotal = isBusy ? found->second.total : 0;
+
+    return isBusy;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::CheckNotBusy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::CheckNotBusy (int number)
+{
+    std::lock_guard<std::mutex>  lock (m_workMutex);
+
+
+
+    return m_work.contains (number) ? HRESULT_FROM_WIN32 (ERROR_BUSY) : S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::SetWork
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PhysicalCards::SetWork (int number, uint64_t done, uint64_t total)
+{
+    std::lock_guard<std::mutex>  lock (m_workMutex);
+
+
+
+    m_work[number] = Work { done, total };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::EndWork
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PhysicalCards::EndWork (int number)
+{
+    std::lock_guard<std::mutex>  lock (m_workMutex);
+
+
+
+    m_work.erase (number);
 }
 
 
@@ -392,6 +499,9 @@ HRESULT PhysicalCards::Open (int number, HWND owner)
     }
 
     CBREx (removable, E_ACCESSDENIED);
+
+    hr = CheckNotBusy (number);
+    CHR (hr);
 
     Close (number);
 

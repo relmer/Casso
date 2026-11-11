@@ -998,6 +998,8 @@ HRESULT BrowserLoader::LoadCard (const std::wstring & path)
     int                          drive     = 0;
     int                          partition = 0;
     HRESULT                      hrDrives  = E_NOTIMPL;
+    uint64_t                     done      = 0;
+    uint64_t                     total     = 0;
     std::wstring                 name;
     std::vector<PhysicalDrive>   drives;
     std::vector<PartitionEntry>  entries;
@@ -1019,6 +1021,17 @@ HRESULT BrowserLoader::LoadCard (const std::wstring & path)
         {
             name = each.number == drive ? PhysicalCards::FormatDrive (each) : name;
         }
+    }
+
+    //  A card being initialized is not opened until the write ends, and its
+    //  list is the write's progress instead.
+    if (m_browser.m_cards != nullptr && m_browser.m_cards->TryGetWork (drive, done, total))
+    {
+        m_listError = total == 0 ? std::format (L"Initializing {}...", name)
+                                 : std::format (L"Initializing {}: {} of {} written.", name,
+                                                TextEncoding::NarrowToWide (PartitionAccess::FormatSize (done)),
+                                                TextEncoding::NarrowToWide (PartitionAccess::FormatSize (total)));
+        return HRESULT_FROM_WIN32 (ERROR_BUSY);
     }
 
     hr = ListPartitions (path, kind, entries);

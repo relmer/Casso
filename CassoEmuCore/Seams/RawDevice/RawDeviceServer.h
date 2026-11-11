@@ -77,7 +77,7 @@ private:
     HRESULT  ServeRead       (int number, uint64_t first, uint32_t count);
     HRESULT  ServeWrite      (int number, uint64_t first, uint32_t count);
     HRESULT  ServeInitialize (int number, uint64_t layout);
-    HRESULT  WriteCffaLayout (Session & session, int volumes);
+    HRESULT  WriteCffaLayout (Session & session, int volumes, const WriteProgress & progress);
     HRESULT  ClearHeader     (Session & session, uint64_t at, uint64_t written, uint64_t total, std::span<const Byte> header);
     HRESULT  CheckRange      (int number, uint64_t first, uint32_t count, Session * & outSession);
     HRESULT  CheckWrite      (Session & session, uint64_t first, uint32_t count);

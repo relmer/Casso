@@ -32,8 +32,8 @@ public:
     HRESULT  HasUnmountedPartition (int number, bool & outHasUnmounted) override;
     HRESULT  ListVolumes           (int number, std::vector<WindowsVolume> & outVolumes) override;
     HRESULT  FindVolumeDrive       (const std::wstring & root, int & outNumber) override;
-    HRESULT  InitializeDrive       (int number, HWND owner, uint64_t layout) override;
-    HRESULT  FormatFirstPartition  (int number, bool & outDone) override;
+    HRESULT  InitializeDrive       (int number, HWND owner, uint64_t layout, const WriteProgress & progress) override;
+    HRESULT  FormatFirstPartition  (int number, const WriteProgress & progress, bool & outDone) override;
 
 private:
     HRESULT  StartBroker (HWND owner);
