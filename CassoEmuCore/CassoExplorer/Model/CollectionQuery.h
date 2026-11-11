@@ -26,9 +26,9 @@ public:
 
     static constexpr const wchar_t *  kPrefix = L"casso-results:";
 
-    static std::wstring  MakeId     (Tool tool, const std::wstring & folder);
-    static bool          TryParseId (const std::wstring & id, Tool & outTool, std::wstring & outFolder);
-    static bool          IsId       (const std::wstring & id) { return id.starts_with (kPrefix); }
+    static std::wstring  MakeId         (Tool tool, const std::wstring & folder);
+    static bool          TryParseId     (const std::wstring & id, Tool & outTool, std::wstring & outFolder);
+    static bool          IsId           (const std::wstring & id) { return id.starts_with (kPrefix); }
     static bool          IsDuplicatesId (const std::wstring & id);
 
     //  The text of the address bar and the tab.
