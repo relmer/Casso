@@ -195,6 +195,17 @@ next match, and a close button. With no toggle on, the text is found as a plain
 substring, ignoring case. Enter and F3 find the next match, Shift+Enter and
 Shift+F3 the one before, and Escape closes the bar.
 
+In a disassembly view, while the machine is stopped, the find searches every
+line of the address space, not only the rows on screen: the address, the
+bytes, the label and the instruction with its symbols, each while its column
+is visible, and with source rows on, the source line above an instruction.
+The operand and result column isn't searched, since its values are worked
+out for the rows on screen alone. A match is brought into view and selected,
+and Enter walks the matches round the end of memory. The lines' text is made
+once the machine has been stopped for a moment with no step, so it costs
+nothing while you step; until then, and while the machine runs, the find
+searches the rows on screen.
+
 ### Menus
 
 - **File**: Open source file..., Open symbol or debug file..., Unload symbol
@@ -755,7 +766,7 @@ before the stop; with `--json`, as `{"type":"log","text":"Breakpoint #3: A=$42"}
 ### The Breakpoints pane
 
 The Breakpoints pane's **New** drop-down lists Execution's types (Address,
-Condition, Opcode, BRK, BRK on interrupt) and the Memory, BASIC and Hardware
+Source line, Condition, Opcode, BRK, BRK on interrupt) and the Memory, BASIC and Hardware
 submenus. **Delete all** opens a confirmation with Delete and Cancel first. A
 type with fields opens the breakpoint dialog on it, sized to those fields;
 BRK, BRK on interrupt, Reading uninitialized memory and BASIC errors have none,
@@ -763,7 +774,10 @@ so they are set or cleared at once and checked while on, and **Edit...** on
 the row adds a condition. Every type that is a row of the table takes a
 condition, and the info tip after the Condition label lists what it can use,
 with examples; the tip stays open while the pointer is over it or its tip, or
-while it has the focus.
+while it has the focus. **Source line** takes a file of the loaded debug file
+and a line number in it, and is offered only while a debug file is loaded.
+Every type has **Log message** and **Continue after logging**, which set
+`BPLOG` (see [breakpoint logging](#breakpoint-logging)).
 
 A field is checked when the focus moves off it, and OK checks the whole
 breakpoint first, against the debugger's symbols and breakpoints: a definition
@@ -1166,20 +1180,30 @@ tables, USER2, SRC and SRC2, are listed only once `SYMUSER2`, `SYMSRC` or
 
 ### Memory windows
 
-Each memory window has Visual Studio's bar. The **Address** box takes an
-address, a register, a symbol or an expression, and its drop-down lists the
-addresses entered before. **Refresh** reads the window's bytes again.
-**Columns** sets the values in a row: Auto, 1, 2, 4, 8 or 16. Auto, the
-default, fits as many as the window's width allows. **Group by** displays
-each value as a byte, a word or a long. **View > Memory** opens another
-window, up to four; a window closes from its tab. What does not fit a narrow
-pane moves into the bar's **...** menu. Type over the hex or the text to edit
-memory, in RAM or in ROM; Ctrl+Z undoes the last edit in that window and
-Ctrl+Y redoes it. Neither writes over a byte that has changed since the edit;
-that byte's address appears in the console instead.
+Each memory window's bar has Undo and Redo, the **Address** box, **Heat** and
+**Refresh**. The Address box takes an address, a register, a symbol or an
+expression, and its drop-down lists the addresses entered before. **Heat**
+tints each byte with its heat map color. **Refresh** reads the window's bytes
+again. The window's menu sets **Columns**, the values in a row (Auto, 1, 2, 4,
+8 or 16; Auto, the default, fits as many as the window's width allows), and
+**Group by**, each value as a byte, a word or a long. **View > Memory** opens
+another window, up to four; a window closes from its tab. What does not fit a
+narrow pane moves into the bar's **...** menu.
 
-**Edit > Find**, Ctrl+F or **Find...** on the window's menu searches all of
-memory as `S` does: hex bytes, a word, text in quotes (`'text'` with the high
+Type over the hex or the text to edit memory, in RAM or in ROM. A hex digit,
+Enter or a double-click on a value opens a box over it for the new value;
+Enter writes it, and Escape closes the box with the value unwritten. Ctrl+Z
+undoes the last edit in that window and Ctrl+Y redoes it. Neither writes over
+a byte that has changed since the edit; that byte's address appears in the
+console instead.
+The tip over a byte has its symbol, its value, its character and the region
+of memory it is in.
+
+Ctrl+F or **Edit > Find** opens the find bar over the window, which searches
+all of memory: hex bytes, as `A9 00` or `$A9 $00`, or else text, matched by
+each byte's low seven bits so normal and high-bit characters both match, or a
+regular expression. **Find...** on the window's menu searches all of memory
+as `S` does: hex bytes, a word, text in quotes (`'text'` with the high
 bit set), `??` for any byte and `?n` or `n?` for half of one. The window goes
 to the first match and selects it, and F3 and Shift+F3 walk the matches, round
 to the other end. On a selection, while the machine is stopped, **Fill
