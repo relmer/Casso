@@ -2,6 +2,8 @@
 
 #include "Update/Win32UpdateFileSystem.h"
 
+#pragma comment(lib, "version.lib")
+
 
 
 

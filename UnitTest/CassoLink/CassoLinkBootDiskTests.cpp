@@ -22,7 +22,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BootDiskTests
+//  CassoLinkBootDiskTests
 //
 //  The disks Casso makes, booted on an emulated //c: the link disk, the
 //  universal disk with both ports, and the link disk for a Wi-Fi modem. Each
@@ -32,7 +32,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (BootDiskTests)
+TEST_CLASS (CassoLinkBootDiskTests)
 {
 public:
 

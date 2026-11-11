@@ -64,8 +64,20 @@ jobs:
       # 32-bit process's memory (C1002 "compiler is out of heap space in pass
       # 2"). Code analysis runs on the same 64-bit compiler, as Build.ps1's
       # -RunCodeAnalysis does locally, so the two agree.
+      #
+      # Code analysis in x64 Debug only. It makes a rebuild about 2.3 times
+      # as long, and on a 4-core runner it was most of every job. The other
+      # configurations are analyzed by Build.ps1 -Target RebuildAll
+      # -RunCodeAnalysis before a master merge.
       - name: Build
-        run: msbuild Casso.sln -m -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.platform }} -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:PreferredToolArchitecture=x64 -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
+        shell: pwsh
+        run: |
+          $props = @()
+          if ('${{ matrix.configuration }}' -eq 'Debug') {
+              $props += '-p:EnableCppCoreCheck=true', '-p:RunCodeAnalysis=true', '-p:CodeAnalysisTreatWarningsAsErrors=true'
+          }
+          msbuild Casso.sln -m -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.platform }} -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:PreferredToolArchitecture=x64 @props
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # The ROMs are Apple's and are not in the repository. The suite reads
       # them from UnitTest/Fixtures, so they are fetched from their pinned
@@ -75,8 +87,11 @@ jobs:
       - name: Fetch fixture ROMs
         run: scripts/FetchRoms.ps1 -Fixtures
 
+      # One vstest.console per core. A single one runs the DLL's tests on one
+      # thread, which left three of the runner's four cores idle.
       - name: Run Tests
-        run: vstest.console.exe ${{ matrix.platform }}/${{ matrix.configuration }}/UnitTest.dll
+        shell: pwsh
+        run: scripts/RunTestShards.ps1 -TestDll ${{ matrix.platform }}/${{ matrix.configuration }}/UnitTest.dll
 
       # The committed demo disk has to be what its sources build.
       #
@@ -150,8 +165,17 @@ jobs:
         uses: microsoft/setup-msbuild@v3
 
       # 64-bit tools, as the x64 build above uses and for the same reason.
+      #
+      # Only the three programs and the libraries they link, not UnitTest or
+      # ScenarioTests. An ARM64 test DLL cannot run on this x64 runner, and
+      # building the two took over half of the Release job: about twelve
+      # minutes to compile and analyze UnitTest, then six and a half for its
+      # link-time code generation. The x64 jobs compile and run the same test
+      # code.
+      #
+      # No code analysis, for the reason given at the x64 build step.
       - name: Build ARM64
-        run: msbuild Casso.sln -m -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:PreferredToolArchitecture=x64 -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
+        run: msbuild Casso.sln -m -t:"Casso;CassoCli;CassoExplorer" -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:PreferredToolArchitecture=x64
 
       # Hand the Release ARM64 binaries to the release job so it doesn't rebuild
       # them. Only on master pushes (the only place the release job runs).

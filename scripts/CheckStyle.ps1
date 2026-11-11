@@ -183,7 +183,7 @@ $checks = @(
         Globs   = @('*.cpp', '*.h')
         Pattern = '^\s*#include\s*<'
         Message = 'angle-bracket include outside Pch.h -- system headers belong in Pch.h'
-        Exclude = @('Pch.h', 'Dxui/Dxui.h')
+        Exclude = @('Pch.h', 'Dxui/Dxui.h', 'Dxui/Window/DxuiWinRt.h')
     },
     @{
         Id      = 'CS0006'
