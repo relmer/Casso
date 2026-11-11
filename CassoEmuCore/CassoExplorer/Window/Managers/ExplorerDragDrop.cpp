@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
+#include "CassoExplorer/Actions/ActionsCopy.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/CassoExplorerShell.h"
@@ -828,7 +829,80 @@ bool ExplorerDragDrop::ReadDropSource (IDataObject * data, DropSource & outSourc
 
     hr = DxuiDragDropTarget::ExtractHDropPaths (data, outSource.hostPaths);
 
-    return SUCCEEDED (hr) && !outSource.hostPaths.empty();
+    if (FAILED (hr) || outSource.hostPaths.empty())
+    {
+        outSource.hostPaths.clear();
+        outSource.isVirtual = !GetDroppedNames (data).empty() && !ActionsCopy::IsCassoCopy (data);
+    }
+
+    return !outSource.hostPaths.empty() || outSource.isVirtual;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerDragDrop::WriteVirtualFiles
+//
+//  Each file in a new folder under the PC's temporary folder, by its
+//  name, so a `._` AppleDouble file beside it is read with it as from any
+//  folder. The folder is removed after the put.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerDragDrop::WriteVirtualFiles (IDataObject * data, DropSource & ioSource)
+{
+    std::error_code                error;
+    std::filesystem::path          folder = std::filesystem::temp_directory_path (error) / std::format (L"CassoExplorerDrop-{}", GetTickCount64());
+    std::vector<std::wstring>      created;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    std::filesystem::create_directories (folder, error);
+
+    outcome = m_context.actions.PasteVirtualFiles (data, folder.wstring(), [] (const std::wstring &, int, int) { return ActionsTypes::Collision::Replace; }, created);
+
+    if (!outcome.Succeeded())
+    {
+        std::filesystem::remove_all (folder, error);
+        m_context.window.ShowMessage (outcome.message, MB_ICONWARNING);
+        return false;
+    }
+
+    for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (folder, error))
+    {
+        ioSource.hostPaths.push_back (entry.path().wstring());
+    }
+
+    m_virtualDropFolder = folder.wstring();
+
+    return !ioSource.hostPaths.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerDragDrop::RemoveVirtualFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerDragDrop::RemoveVirtualFiles()
+{
+    std::error_code  error;
+
+
+
+    if (!m_virtualDropFolder.empty())
+    {
+        std::filesystem::remove_all (m_virtualDropFolder, error);
+        m_virtualDropFolder.clear();
+    }
 }
 
 
@@ -1214,10 +1288,18 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
             m_context.addressBar.GoToLocation (location);
         }
 
+        RemoveVirtualFiles();
+
+        if (source.isVirtual && !WriteVirtualFiles (data, source))
+        {
+            return;
+        }
+
         outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
                                    : m_context.actions.PutFiles (source.hostPaths, m_context.prompts.MakeAddressPrompt());
 
         m_context.commandManager.ReportOutcome (outcome, L"Put");
+        RemoveVirtualFiles();
         return;
     }
 
@@ -1231,6 +1313,19 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
     if (effect == DROPEFFECT_NONE)
     {
         return;
+    }
+
+    //  A file with no path is copied, as there is no original to move.
+    if (source.isVirtual)
+    {
+        effect = DROPEFFECT_COPY;
+
+        RemoveVirtualFiles();
+
+        if (!WriteVirtualFiles (data, source))
+        {
+            return;
+        }
     }
 
     m_dropTarget.SetDropResult (DROPEFFECT_COPY);
@@ -1305,6 +1400,8 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
 
     m_context.commandManager.ReportOutcome (outcome, (effect == DROPEFFECT_MOVE) ? L"Move" : L"Put");
     m_context.folderSync.RefreshAfterHostChange();
+
+    RemoveVirtualFiles();
 }
 
 
@@ -1548,6 +1645,8 @@ void ExplorerDragDrop::RunDrop (CassoExplorerActions::Conversion conversion)
     m_context.undo.PushPut    (outcome, drop.location.path, drop.inner);
     m_context.commandManager.ReportOutcome  (outcome, L"Put");
     m_context.folderSync.RefreshAfterHostChange();
+
+    RemoveVirtualFiles();
 }
 
 

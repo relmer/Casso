@@ -34,6 +34,10 @@ public:
         VolumeKind                 kind      = VolumeKind::Unknown;
         std::vector<std::string>   catalogPaths;
         std::vector<std::wstring>  hostPaths;
+
+        //  Files with contents and no path, as a ZIP member File Explorer
+        //  drags: they are written to a folder on the PC at the drop.
+        bool                       isVirtual = false;
     };
 
     //  What a right-drag dropped, held between the drop and the menu's
@@ -90,6 +94,8 @@ public:
     void                                    RunDrop              (CassoExplorerActions::Conversion conversion);
     void                                    ClearDropTarget      ();
     bool                                    ReadDropSource       (IDataObject * data, DropSource & outSource);
+    bool                                    WriteVirtualFiles    (IDataObject * data, DropSource & ioSource);
+    void                                    RemoveVirtualFiles   ();
     static bool                             IsImageWriteDrop     (const DropSource & source, const Location & drive);
     DWORD                                   ChooseDropEffect     (const DropSource & source, const Location & target) const;
     void                                    DescribeDrop         (IDataObject * data, DWORD effect, const Location & target);
@@ -108,6 +114,7 @@ private:
     ComPtr<IDropTarget>    m_hostDrop;   // the host folder the drag is over, if any
     std::wstring           m_hostDropFolder;
     PendingDrop            m_pendingDrop;
+    std::wstring           m_virtualDropFolder;
     int                    m_treeDropRow     = -1;
     ULONGLONG              m_treeDropSinceMs = 0;
     bool                   m_dropOver        = false;   // a drag is over the window, at m_dropTag and m_dropScreen
