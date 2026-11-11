@@ -94,6 +94,19 @@ void MemoryPane::Configure (HWND hwnd)
 
     m_view->SetByteFill ([this] (uint64_t offset) -> uint32_t
     {
+        Word  address = m_model.GetAddressOf (offset);
+
+
+
+        //  A find's hits, the selected one in the current-match color.
+        for (size_t hit = 0; hit < m_findHits.size(); hit++)
+        {
+            if ((Word) (address - m_findHits[hit]) < m_findLength)
+            {
+                return ((int) hit == m_findCurrent) ? m_currentArgb : m_matchArgb;
+            }
+        }
+
         if (!m_isHeatOn || m_heatLevels == nullptr)
         {
             return 0;
@@ -546,3 +559,281 @@ std::optional<Word> MemoryPane::GetAddressAt (POINT clientDip) const
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::FindHits
+//
+//  A run of one- or two-digit hex numbers, each with or without a dollar
+//  sign, is bytes; anything else is text. Text is compared with each byte's
+//  low seven bits, so normal and high-bit characters both match.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Word> MemoryPane::FindHits (const DebugMemoryImage & image, const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, size_t & outLength)
+{
+    static constexpr Byte  kLowSeven = 0x7F;
+    std::vector<Word>      hits;
+    std::vector<Byte>      bytes;
+    std::wistringstream    words (needle);
+    std::wstring           word;
+    bool                   isBytes   = !isRegex && !needle.empty();
+    std::wstring           text;
+
+
+
+    outLength = 0;
+
+    while (isBytes && words >> word)
+    {
+        std::wstring  digits = word.starts_with (L'$') ? word.substr (1) : word;
+
+        isBytes = !digits.empty() && digits.size() <= 2 && std::ranges::all_of (digits, [] (wchar_t ch) { return iswxdigit (ch) != 0; });
+
+        if (isBytes)
+        {
+            bytes.push_back ((Byte) std::stoul (digits, nullptr, 16));
+        }
+    }
+
+    isBytes = isBytes && !bytes.empty();
+
+    if (isBytes)
+    {
+        outLength = bytes.size();
+
+        for (size_t at = 0; at + bytes.size() <= DebugMemoryImage::kBytes; at++)
+        {
+            if (std::equal (bytes.begin(), bytes.end(), image.bytes.begin() + (ptrdiff_t) at))
+            {
+                hits.push_back ((Word) at);
+            }
+        }
+
+        return hits;
+    }
+
+    if (needle.empty())
+    {
+        return hits;
+    }
+
+    //  The text as the screen shows it, a character a byte; a control
+    //  character matches nothing typed.
+    text.resize (DebugMemoryImage::kBytes);
+
+    for (size_t at = 0; at < DebugMemoryImage::kBytes; at++)
+    {
+        wchar_t  ch = (wchar_t) (image.bytes[at] & kLowSeven);
+
+        text[at] = (ch < L' ') ? (wchar_t) 1 : ch;
+    }
+
+    if (isRegex)
+    {
+        try
+        {
+            std::wregex  pattern (needle, matchCase ? std::regex::ECMAScript : (std::regex::ECMAScript | std::regex::icase));
+
+            for (auto match = std::wsregex_iterator (text.begin(), text.end(), pattern); match != std::wsregex_iterator(); ++match)
+            {
+                if (match->length() > 0)
+                {
+                    hits.push_back ((Word) match->position());
+                    outLength = std::max (outLength, (size_t) match->length());
+                }
+            }
+        }
+        catch (const std::regex_error &)
+        {
+            hits.clear();
+        }
+
+        return hits;
+    }
+
+    outLength = needle.size();
+
+    for (size_t at = 0; at + needle.size() <= text.size(); at++)
+    {
+        bool  isMatch = true;
+
+
+
+        for (size_t each = 0; each < needle.size() && isMatch; each++)
+        {
+            wchar_t  have = text[at + each];
+            wchar_t  want = needle[each];
+
+            isMatch = matchCase ? have == want : towupper (have) == towupper (want);
+        }
+
+        if (isMatch && wholeWord)
+        {
+            isMatch = (at == 0 || !iswalnum (text[at - 1])) && (at + needle.size() == text.size() || !iswalnum (text[at + needle.size()]));
+        }
+
+        if (isMatch)
+        {
+            hits.push_back ((Word) at);
+        }
+    }
+
+    return hits;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::GetFindControl
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiControl * MemoryPane::GetFindControl()
+{
+    return m_view;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::GetFindBounds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT MemoryPane::GetFindBounds() const
+{
+    return (m_view != nullptr) ? m_view->GetBounds() : RECT {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::IsFindVisible
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryPane::IsFindVisible() const
+{
+    return m_view != nullptr && m_view->IsVisible();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::SelectMatch
+//
+//  The hit after the caret, or the one before it, wrapping at the ends of
+//  memory; it is brought into view with the caret on it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiFindResult MemoryPane::SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount)
+{
+    Word            caret  = m_model.GetAddressOf (m_view->GetCaret());
+    int             chosen = -1;
+    DxuiFindResult  result = DxuiFindResult::NotFound;
+
+
+
+    m_findHits    = (m_image != nullptr) ? FindHits (*m_image, needle, matchCase, wholeWord, isRegex, m_findLength) : std::vector<Word>();
+    m_findCurrent = -1;
+    outIndex      = 0;
+    outCount      = (int) m_findHits.size();
+
+    if (m_findHits.empty())
+    {
+        return result;
+    }
+
+    for (int hit = 0; hit < outCount && forward && chosen < 0; hit++)
+    {
+        chosen = (m_findHits[(size_t) hit] > caret) ? hit : -1;
+    }
+
+    for (int hit = outCount - 1; hit >= 0 && !forward && chosen < 0; hit--)
+    {
+        chosen = (m_findHits[(size_t) hit] < caret) ? hit : -1;
+    }
+
+    result = (chosen < 0) ? DxuiFindResult::Wrapped : DxuiFindResult::Found;
+    chosen = (chosen >= 0) ? chosen : (forward ? 0 : outCount - 1);
+
+    m_findCurrent = chosen;
+    outIndex      = chosen + 1;
+    ShowFindHit (m_findHits[(size_t) chosen]);
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::SelectMatchInView
+//
+//  As the needle is typed: the first hit at or after the window's first
+//  byte, or the first in memory past the end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiFindResult MemoryPane::SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount)
+{
+    Word  top    = m_model.GetAddressOf (m_view->GetTopRow() * (uint64_t) m_view->GetBytesPerRow());
+    int   chosen = 0;
+
+
+
+    m_findHits    = (m_image != nullptr) ? FindHits (*m_image, needle, matchCase, wholeWord, isRegex, m_findLength) : std::vector<Word>();
+    m_findCurrent = -1;
+    outIndex      = 0;
+    outCount      = (int) m_findHits.size();
+
+    if (m_findHits.empty())
+    {
+        return DxuiFindResult::NotFound;
+    }
+
+    while (chosen < outCount && m_findHits[(size_t) chosen] < top)
+    {
+        chosen++;
+    }
+
+    chosen        = (chosen < outCount) ? chosen : 0;
+    m_findCurrent = chosen;
+    outIndex      = chosen + 1;
+    ShowFindHit (m_findHits[(size_t) chosen]);
+    return DxuiFindResult::Found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::ShowFindHit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryPane::ShowFindHit (Word address)
+{
+    uint64_t  offset = (uint64_t) (Word) (address - m_model.GetAddressOf (0));
+
+
+
+    m_view->GoToOffset (offset);
+    m_view->SelectByte (offset, DxuiHexViewTypes::Column::Hex);
+}

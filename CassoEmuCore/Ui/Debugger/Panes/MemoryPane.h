@@ -29,7 +29,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class MemoryPane
+class MemoryPane : public IDxuiFindTarget
 {
 public:
     using  MoveFn   = std::function<void (int id, Word first)>;
@@ -102,6 +102,30 @@ public:
     //  Asks again for the bytes the window last read.
     void  Refresh ();
 
+    //  The 64K the find box searches, from the latest snapshot.
+    void  SetMemoryImage (std::shared_ptr<const DebugMemoryImage> image) { m_image = std::move (image); }
+
+    //  Where a find's needle is in memory: bytes, as "A9 00" or "$A9 $00",
+    //  or else text, matched by its low seven bits as the screen shows it.
+    //  outLength is a hit's length in bytes.
+    static std::vector<Word>  FindHits (const DebugMemoryImage & image, const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, size_t & outLength);
+
+    //  The find box's searches, over all of memory.
+    IDxuiControl    * GetFindControl          () override;
+    RECT              GetFindBounds           () const override;
+    bool              IsFindVisible           () const override;
+    std::wstring      GetSelectionText        () const override { return std::wstring(); }
+    DxuiFindResult    SelectMatch             (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount) override;
+    DxuiFindResult    SelectMatchInView       (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount) override;
+    void              SetFindScopeToSelection () override {}
+    void              ClearFindScope          () override {}
+    void              ClearFindHighlights     () override { m_findHits.clear(); m_findCurrent = -1; }
+    void              SetFindColors           (uint32_t matchArgb, uint32_t currentArgb) override { m_matchArgb = matchArgb; m_currentArgb = currentArgb; }
+
+    //  The last find's hits, and the one selected; -1 for none.
+    const std::vector<Word> &  GetFindHits    () const { return m_findHits; }
+    int                        GetFindCurrent () const { return m_findCurrent; }
+
     //  The address of the byte under a point, if any.
     std::optional<Word>  GetAddressAt (POINT clientDip) const;
 
@@ -153,6 +177,8 @@ public:
     static constexpr int  kDefaultColumns = 0;
 
 private:
+    void  ShowFindHit (Word address);
+
     static constexpr int  kBytesPerRow = DebuggerViewState::kMemoryRowBytes;
 
     void  NoteRefusal (uint64_t offset) const;
@@ -178,4 +204,10 @@ private:
     //  The heat the bytes are tinted by while Heat is on.
     std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>  m_heatLevels;
     HeatMapView::Palette                                           m_heatPalette;
+    std::shared_ptr<const DebugMemoryImage>                        m_image;
+    std::vector<Word>                                              m_findHits;
+    size_t                                                         m_findLength  = 0;
+    int                                                            m_findCurrent = -1;
+    uint32_t                                                       m_matchArgb   = 0;
+    uint32_t                                                       m_currentArgb = 0;
 };

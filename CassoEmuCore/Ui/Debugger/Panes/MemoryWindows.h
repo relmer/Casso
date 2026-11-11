@@ -41,6 +41,7 @@ public:
     void                             Configure           () override;
     void                             AddToDock           (DxuiDockSite & dock) override;
     IDxuiControl                   * GetContent          () const override;
+    IDxuiFindTarget                * GetFindView         () const override;
     std::vector<IDxuiControl *>      GetControls         () const override;
     std::optional<PaneColorKeySpec>  GetColorKey         () const override;
     bool                             TryGetOpened        (bool & isOpened) const override { isOpened = m_isOpen; return true; }

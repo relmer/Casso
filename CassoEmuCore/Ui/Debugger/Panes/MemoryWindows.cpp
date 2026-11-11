@@ -461,6 +461,21 @@ void MemoryWindowGroup::CreateControls()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryWindowPane::GetFindView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiFindTarget * MemoryWindowPane::GetFindView() const
+{
+    return m_model.get();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryWindowGroup::Configure
 //
 //  Visual Studio's memory window bar: the Address box, Refresh, Columns and
@@ -885,6 +900,7 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
         each->GetModel().SetPaused     (snapshot.isPaused);
         each->GetModel().SetSlotCards  (snapshot.slotCards);
         each->GetModel().SetMachineId  (snapshot.machineId);
+        each->GetModel().SetMemoryImage (snapshot.memoryImage);
         each->GetModel().SetSymbols    (snapshot.symbols == nullptr ? nullptr : std::shared_ptr<const std::vector<SymbolInfo>> (snapshot.symbols, &snapshot.symbols->symbols));
         each->GetModel().SetHeat       (snapshot.heatColumns, m_host.GetHeatPalette());
 
