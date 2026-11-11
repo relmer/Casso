@@ -2232,17 +2232,39 @@ bool DxuiWindow::ShowScrollbarMenuIn (IDxuiControl & control, HWND hwnd, POINT c
 
 DxuiMessageResult DxuiWindow::DispatchKey (DxuiKeyEventKind kind, WPARAM code)
 {
+    DxuiKeyEvent  ev = MakeKeyEvent (kind, code);
+
+
+
+    return (OnKey (ev) || RouteMappedKey (ev)) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeKeyEvent
+//
+//  A key event for the key, with the Shift, Ctrl and Alt keys as they are
+//  now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiKeyEvent DxuiWindow::MakeKeyEvent (DxuiKeyEventKind kind, WPARAM vk)
+{
     DxuiKeyEvent  ev;
 
 
 
     ev.kind  = kind;
-    ev.vk    = code;
+    ev.vk    = vk;
     ev.shift = DxuiInputState::IsKeyDown (VK_SHIFT);
     ev.ctrl  = DxuiInputState::IsKeyDown (VK_CONTROL);
     ev.alt   = DxuiInputState::IsKeyDown (VK_MENU);
 
-    return (OnKey (ev) || RouteMappedKey (ev)) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+    return ev;
 }
 
 
@@ -2523,8 +2545,9 @@ void DxuiWindow::WireDialogButtons()
 //
 //  RouteKeyToFocused
 //
-//  Forwards a key-down to the focused control as a DxuiKeyEvent. Returns
-//  true iff a control has focus and consumed the key.
+//  Forwards a key-down to the focused control as a DxuiKeyEvent, with the
+//  Ctrl and Alt keys as they are now. Returns true iff a control has focus
+//  and consumed the key.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2533,16 +2556,13 @@ bool DxuiWindow::RouteKeyToFocused (WPARAM vk, bool shift)
     HRESULT         hr        = S_OK;
     bool            isHandled = false;
     IDxuiControl *  focused   = m_focus.GetFocusedControl();
-    DxuiKeyEvent    ke;
+    DxuiKeyEvent    ke        = MakeKeyEvent (DxuiKeyEventKind::Down, vk);
 
 
 
     BAIL_OUT_IF (focused == nullptr, S_OK);
 
-    ke.kind  = DxuiKeyEventKind::Down;
-    ke.vk    = vk;
-    ke.shift = shift;
-
+    ke.shift  = shift;
     isHandled = focused->OnKey (ke);
 
 Error:

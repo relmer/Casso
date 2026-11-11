@@ -304,6 +304,12 @@ public:
     static DxuiTextInput *  FindTextBoxAt (const IDxuiControl & node, POINT clientPx);
 
     //
+    //  A key event for the key, with the Shift, Ctrl and Alt keys as they are
+    //  now. Every path to a control, a dialog's included, builds it here.
+    //
+    static DxuiKeyEvent  MakeKeyEvent (DxuiKeyEventKind kind, WPARAM vk);
+
+    //
     //  Like FitToMaxSize, but never shrinks the window. For content that
     //  grows while the window is open.
     //

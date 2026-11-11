@@ -120,4 +120,28 @@ public:
         other->SetVisible (false);
         Assert::IsNull (DxuiWindow::FindTextBoxAt (root, POINT { 20, 60 }), L"a hidden box is passed over");
     }
+
+
+    //  A dialog's keys are built by MakeKeyEvent, so Ctrl+A with the Ctrl key
+    //  down selects the box's text, as it does in a pane.
+    TEST_METHOD (CtrlAInADialogSelectsTheBoxsText)
+    {
+        DxuiTextInput  box;
+        DxuiKeyEvent   ev;
+
+
+
+        DxuiInputState::SetKeyReader ([] (int vk) { return (vk == VK_CONTROL) ? (SHORT) 0x8000 : SHORT (0); });
+        ev = DxuiWindow::MakeKeyEvent (DxuiKeyEventKind::Down, 'A');
+        DxuiInputState::SetKeyReader ([] (int) { return SHORT (0); });
+
+        box.SetText      (L"$0300");
+        box.SetFocused   (true);
+        box.SetSelection (5, 5);
+
+        Assert::IsTrue   (ev.ctrl, L"the Ctrl key is in the event");
+        Assert::IsTrue   (box.OnKey (ev));
+        Assert::AreEqual ((size_t) 0, box.GetSelectionStart());
+        Assert::AreEqual ((size_t) 5, box.GetSelectionEnd());
+    }
 };
