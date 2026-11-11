@@ -250,5 +250,44 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 1, rig->session.GetBreakpoints().GetAll().size());
             Assert::IsTrue   (Go (*rig).reason == StopReason::Disk, L"it stops again");
         }
+
+
+        //  A kind the other tests don't cover, on the boot ROM's run: it
+        //  selects drive 1, which SELECT EVERY stops on and SELECT alone, for
+        //  a change of drive, doesn't.
+        TEST_METHOD (TheBootSelectsDriveOne)
+        {
+            auto  select   = MakeRig();
+            auto  change   = MakeRig();
+            auto  driveTwo = MakeRig();
+
+
+
+            select->RunOk   ("BPDISK SELECT EVERY");
+            change->RunOk   ("BPDISK SELECT");
+            driveTwo->RunOk ("BPDISK D2 SELECT EVERY");
+
+            Assert::IsTrue (Go (*select).reason   == StopReason::Disk,   L"the ROM selects drive 1");
+            Assert::IsTrue (Go (*change).reason   == StopReason::Budget, L"drive 1 was already the drive selected");
+            Assert::IsTrue (Go (*driveTwo).reason == StopReason::Budget, L"and never drive 2");
+        }
+
+
+        //  A disk put in a drive while the machine is paused stops nothing
+        //  when the machine runs again: the change is reported instead.
+        TEST_METHOD (APausedInsertStopsNothing)
+        {
+            auto               insert = MakeRig (false);
+            std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
+
+
+
+            insert->RunOk ("BPDISK INSERT");
+            Assert::AreEqual (S_OK, insert->machine.GetDiskStore().MountFromBytes (6, 0, "blank.dsk", DiskFormat::Dsk, blank));
+            insert->machine.GetRefs().diskController->SetExternalDisk (0, insert->machine.GetDiskStore().GetImage (6, 0));
+
+            Assert::IsTrue   (Go (*insert).reason == StopReason::Budget, L"nothing stops");
+            Assert::AreEqual (0u, Entry (*insert).hits);
+        }
     };
 }
