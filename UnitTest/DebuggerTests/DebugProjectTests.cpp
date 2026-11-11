@@ -288,6 +288,27 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("five"), list.breakpoints[1].name);
         }
 
+        //  A number in a project's line too large to be an index is no
+        //  breakpoint's, rather than an exception.
+        TEST_METHOD (AnOversizedBreakpointNumberIsNoBreakpoints)
+        {
+            std::unique_ptr<SessionRig>    rigHeap  = std::make_unique<SessionRig>();
+            SessionRig                   & session  = *rigHeap;
+            DebugProject                   project;
+            std::vector<std::string>       failures;
+            BreakpointListData             list;
+
+
+
+            project.engineScript = { "BPC *", "BP 0400", "BPD 99999999999999999999999" };
+            project.ApplyEngine (session.rig.session, failures);
+
+            BreakpointHandlers::ListAll (session.rig.session, list);
+
+            Assert::AreEqual ((size_t) 1, list.breakpoints.size());
+            Assert::IsTrue   (list.breakpoints[0].enabled, L"no breakpoint was disabled");
+        }
+
         //  A logging breakpoint's message and its running on come back with
         //  the project, through its JSON.
         TEST_METHOD (ABreakpointsLogComesBackWithTheProject)

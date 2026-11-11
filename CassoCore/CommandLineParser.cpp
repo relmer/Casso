@@ -1548,9 +1548,10 @@ void CommandLineParser::ParseDiskOptions (
             int          value = 0;
             bool         ok    = IsPlainDecimal (text);
 
+            //  A number too large for an int is an error, as a word is.
             if (ok)
             {
-                value = std::stoi (text);
+                ok = std::from_chars (text.data(), text.data() + text.size(), value).ec == std::errc();
             }
 
             if (ok)

@@ -82,7 +82,10 @@ inline HRESULT ShellItemId::ToPidl (const std::wstring & id, PIDLIST_ABSOLUTE * 
         return SHParseDisplayName (id.c_str(), nullptr, outPidl, 0, nullptr);
     }
 
-    if (end == std::wstring::npos || (end - start) % 2 != 0 || end == start)
+    //  A saved id is read back from a file, so every encoded character must
+    //  be a hex digit.
+    if (end == std::wstring::npos || (end - start) % 2 != 0 || end == start ||
+        !std::all_of (id.begin() + (ptrdiff_t) start, id.begin() + (ptrdiff_t) end, [] (wchar_t ch) { return iswxdigit (ch) != 0; }))
     {
         return HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);
     }

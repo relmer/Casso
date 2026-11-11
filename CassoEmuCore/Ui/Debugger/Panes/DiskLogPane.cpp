@@ -279,7 +279,8 @@ void DiskLogPane::SetOptionsText (const std::string & text)
         }
         else if (key == "headings" && !value.empty() && value.find_first_not_of ("0123456789") == std::string::npos)
         {
-            headings = std::stoi (value);
+            //  With a value too large for an int, the default is used.
+            (void) std::from_chars (value.data(), value.data() + value.size(), headings);
         }
         else if (key == "columnLayout")
         {

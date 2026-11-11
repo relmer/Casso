@@ -135,5 +135,21 @@ namespace BreakpointImportDialectTests
             Assert::IsFalse  (list[1].enabled, L"BPD 1 is the script's BP 0400");
             Assert::IsTrue   (list[2].enabled, L"and not BP 0500");
         }
+
+        //  A number in an imported line too large for an int is no
+        //  breakpoint's, rather than an exception.
+        TEST_METHOD (AnOversizedNumberIsSkipped)
+        {
+            ImportRig                    rig;
+            std::vector<BreakpointInfo>  list;
+
+
+
+            rig.Import ("BP 300\nBPCHANGE 99999999999999999999 d\n");
+            list = rig.List();
+
+            Assert::AreEqual ((size_t) 1, list.size());
+            Assert::IsTrue   (list[0].enabled, L"no breakpoint was changed");
+        }
     };
 }

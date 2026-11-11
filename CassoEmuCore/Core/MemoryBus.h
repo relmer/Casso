@@ -67,7 +67,8 @@ public:
     MemoryBus ();
     ~MemoryBus ();
 
-    //  A machine switch moves a new bus in; the fetch tables are not copied.
+    //  A machine switch moves a new bus in. The fetch tables and the flag
+    //  sink are on the heap, so the pointers to them stay good.
     MemoryBus (MemoryBus &&)              = default;
     MemoryBus & operator= (MemoryBus &&)  = default;
 
@@ -351,5 +352,9 @@ private:
     std::array<uint8_t, 256>                     m_opcodeLengths = MakeDefaultLengths();
 
     static std::array<uint8_t, 256>  MakeDefaultLengths () { std::array<uint8_t, 256> lengths; lengths.fill (3); return lengths; }
-    Byte                    m_flagSink         = 0;
+
+    //  The written flag of a page in no registered buffer. On the heap, so
+    //  a bus moved into a machine's has m_writeFlag entries that point at
+    //  its sink rather than at the moved-from bus.
+    std::unique_ptr<Byte>   m_flagSink         = std::make_unique<Byte> ((Byte) 0);
 };

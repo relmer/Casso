@@ -1472,6 +1472,12 @@ namespace CliSwitchCoverageTests
 
                 Assert::IsFalse (opts.refusalMessage.empty(),
                                  Widen (std::string (option) + " took a hex value").c_str());
+
+                //  A number too large for an int is an error, not an exception.
+                opts = ParseOf ({ "CassoCli", "disk", "sectorwrite", "d.dsk", "p.bin", option, "99999999999" });
+
+                Assert::IsFalse (opts.refusalMessage.empty(),
+                                 Widen (std::string (option) + " took a number too large for an int").c_str());
             }
 
             //  and its addresses are hex, written the way the message says.

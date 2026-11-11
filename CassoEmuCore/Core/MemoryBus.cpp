@@ -42,7 +42,7 @@ MemoryBus::MemoryBus()
     // "unmapped" until AddDevice rebuilds it.
     m_ioDeviceMap.assign (kIoMapSize, nullptr);
 
-    m_writeFlag.assign (0x100, &m_flagSink);
+    m_writeFlag.assign (0x100, m_flagSink.get());
 }
 
 
@@ -882,7 +882,7 @@ void MemoryBus::UnregisterRamPages (const Byte * base)
 Byte * MemoryBus::FindPageFlag (const Byte * page)
 {
     static constexpr size_t  kPageShift = 8;
-    Byte                   * flag       = &m_flagSink;
+    Byte                   * flag       = m_flagSink.get();
     const RamRegion        * region     = nullptr;
     size_t                   count      = m_ramRegions.size();
     size_t                   tried      = 0;

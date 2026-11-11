@@ -374,9 +374,10 @@ void DebugProject::RunScriptLine (
     verb     = (command != nullptr) ? command->verb : DebugVerb::None;
     isNumber = !number.empty() && std::ranges::all_of (number, [] (char ch) { return isdigit ((unsigned char) ch) != 0; });
 
+    //  A number too large to be an index is no breakpoint's.
     if (isNumber)
     {
-        index = std::stoul (number);
+        isNumber = std::from_chars (number.data(), number.data() + number.size(), index).ec == std::errc();
     }
 
     if (isNumber && (verb == DebugVerb::DisableBreakpoint || verb == DebugVerb::EnableBreakpoint || verb == DebugVerb::ChangeBreakpoint))
