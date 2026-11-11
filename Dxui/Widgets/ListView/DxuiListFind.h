@@ -28,6 +28,10 @@ public:
     DxuiFindResult  SelectMatch       (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount);
     DxuiFindResult  SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount);
     void            ClearHighlights   () { m_needle.clear(); m_current.reset(); }
+
+    //  Every match in the rows drawn on the match fill, with no row selected
+    //  and no current match, for a find that selects its matches itself.
+    void            HighlightMatches  (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex) { (void) SetSearch (needle, matchCase, wholeWord, isRegex); m_current.reset(); }
     void            SetColors         (uint32_t matchArgb, uint32_t currentArgb) { m_matchArgb = matchArgb; m_currentArgb = currentArgb; }
 
     //  Every match of the last search, in row, column and character order.

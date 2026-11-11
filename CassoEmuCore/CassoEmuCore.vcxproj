@@ -253,6 +253,7 @@
     <ClCompile Include="Ui\Debugger\Panes\CodeEditCommands.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\OperandTipController.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\DisassemblyGutter.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\CodeViewFind.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\DisassemblyViews.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\FindWidgets.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\ConsolePanes.cpp" />
@@ -1146,6 +1147,7 @@
     <ClInclude Include="Ui\Debugger\Panes\CodeEditCommands.h" />
     <ClInclude Include="Ui\Debugger\Panes\OperandTipController.h" />
     <ClInclude Include="Ui\Debugger\Panes\DisassemblyGutter.h" />
+    <ClInclude Include="Ui\Debugger\Panes\CodeViewFind.h" />
     <ClInclude Include="Ui\Debugger\Panes\DisassemblyViews.h" />
     <ClInclude Include="Ui\Debugger\Panes\FindWidgets.h" />
     <ClInclude Include="Ui\Debugger\Panes\ConsolePanes.h" />

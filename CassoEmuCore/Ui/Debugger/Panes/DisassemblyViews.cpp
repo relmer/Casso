@@ -11,6 +11,7 @@
 #include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/HistoryBand.h"
 #include "Ui/Debugger/Panes/CodeEditCommands.h"
+#include "Ui/Debugger/Panes/CodeViewFind.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/DisassemblyGutter.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
@@ -139,10 +140,106 @@ void DisassemblyViewPane::CreateControls()
     m_banner->SetSeverity (DxuiInfoBanner::Severity::Info);
     m_banner->SetVisible  (false);
 
+    m_find = std::make_unique<CodeViewFind> (*m_list, m_group.GetOptions(),
+                                             [this] { return GetFindLines(); },
+                                             [this] (bool isTop) { return GetFindStart (isTop); },
+                                             [this] (Word address) { SelectFound (address); },
+                                             [this] (int fileId, int line, std::wstring & text) { return m_group.GetSourceText (fileId, line, text); });
+
     if (m_view == 0)
     {
         m_historyBand = parent.CreateChild<HistoryBand>();
         m_historyBand->SetOnGoLive ([this] { m_host.GoLive(); });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyViewPane::GetFindView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiFindTarget * DisassemblyViewPane::GetFindView() const
+{
+    return m_find.get();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyViewPane::GetFindLines
+//
+//  The paused machine's lines for the whole address space; none while it
+//  runs, when the find searches the rows on screen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const std::vector<DebuggerViewSnapshot::CodeLine>> DisassemblyViewPane::GetFindLines() const
+{
+    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+
+
+
+    return (snapshot != nullptr && snapshot->isPaused) ? snapshot->codeFind : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyViewPane::GetFindStart
+//
+//  The selected instruction's address, or the top line's with isTop set;
+//  none for a view with no lines.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> DisassemblyViewPane::GetFindStart (bool isTop) const
+{
+    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines = m_group.GetCodeLines (m_view);
+    int                                                  line  = isTop ? 0 : m_group.GetCodeLineOfRow (m_view, m_list->GetSelectedRow());
+
+
+
+    if (line < 0 || (size_t) line >= lines.size())
+    {
+        return lines.empty() ? std::nullopt : std::optional<Word> (lines.front().address);
+    }
+
+    return lines[(size_t) line].address;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyViewPane::SelectFound
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisassemblyViewPane::SelectFound (Word address)
+{
+    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+
+
+
+    m_group.SetActive     (m_view);
+    m_group.SetFindSelect (m_view, address);
+
+    if (host != nullptr)
+    {
+        host->SelectDebuggerCode (m_view, address);
     }
 }
 
@@ -1608,7 +1705,15 @@ void DisassemblyGroup::SelectAsked (
             GetCodeList (view)->SetSelectedRow (DisassemblyOptions::GetRowOfLine (built, (int) i));
             m_sources.ShowLine (lines[i].sourceFileId, lines[i].sourceLine);
             m_host.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
-            m_host.FocusControl (GetCodeList (view));
+
+            //  A find's match is selected with the focus left in the find box,
+            //  so typing goes on there.
+            if (m_findSelect[(size_t) view] != asked)
+            {
+                m_host.FocusControl (GetCodeList (view));
+            }
+
+            m_findSelect[(size_t) view].reset();
             return;
         }
     }

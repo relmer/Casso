@@ -491,6 +491,23 @@ public:
     }
 
 
+    TEST_METHOD (ACodeSelectionGoesToItsViewAndAddress)
+    {
+        Notebook  target;
+
+
+
+        Dispatch (IDM_DEBUG_VIEW, "codeselect 2 D00F", target);
+        Dispatch (IDM_DEBUG_VIEW, "codeselect 5 D00F", target);
+        Dispatch (IDM_DEBUG_VIEW, "codeselect 1 G00F", target);
+        Dispatch (IDM_DEBUG_VIEW, "codeselect 1 12345", target);
+        Dispatch (IDM_DEBUG_VIEW, "codeselect",        target);
+
+        Assert::AreEqual ((size_t) 1, target.calls.size(), L"views 1 to 4, and a hex address of four digits at most");
+        Assert::AreEqual (std::string ("SelectDebugCode 1 D00F"), target.calls[0]);
+    }
+
+
     TEST_METHOD (ABeamChangeRedrawsTheStoppedFrame)
     {
         Notebook  target;
@@ -732,6 +749,11 @@ private:
         void     SetDebugTraceView (std::optional<uint64_t> first) override
         {
             calls.push_back (first.has_value() ? std::format ("SetDebugTraceView {}", *first) : std::string ("SetDebugTraceView end"));
+        }
+
+        void     SelectDebugCode (int view, Word address) override
+        {
+            calls.push_back (std::format ("SelectDebugCode {} {:04X}", view, address));
         }
 
         void     GoToDebugMemory (int window, const std::string & text) override

@@ -865,6 +865,19 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebu
         return;
     }
 
+    //  "codeselect <view> <hex>": a find's match, brought into view N and
+    //  selected there.
+    if (view == "codeselect")
+    {
+        if (where.size() > 2 && where.size() <= 6 && where[0] >= '1' && where[0] <= '4' && where[1] == ' ' &&
+            where.find_first_not_of ("0123456789ABCDEFabcdef", 2) == std::string::npos)
+        {
+            target.SelectDebugCode (where[0] - '1', (Word) std::stoul (where.substr (2), nullptr, 16));
+        }
+
+        return;
+    }
+
     //  "goto <window> <text>": the text is whatever was typed, resolved later.
     if (view == "goto")
     {

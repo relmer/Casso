@@ -684,6 +684,7 @@ public:
     void            SetFindScopeToSelection () override {}
     void            ClearFindScope          () override {}
     void            ClearFindHighlights     () override { m_find.ClearHighlights(); }
+    void            HighlightFindMatches    (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex) { m_find.HighlightMatches (needle, matchCase, wholeWord, isRegex); }
     void            SetFindColors           (uint32_t matchArgb, uint32_t currentArgb) override { m_find.SetColors (matchArgb, currentArgb); }
 
     //  Every match of the last search, in row, column and character order.

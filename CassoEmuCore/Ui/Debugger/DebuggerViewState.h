@@ -308,6 +308,11 @@ struct DebuggerViewSnapshot
     //  dialog that reads memory at an address typed into it; empty otherwise.
     std::shared_ptr<const DebugMemoryImage>          memoryImage;
 
+    //  While paused, every line of the line list, with the address, bytes,
+    //  label and instruction a code view's find searches; empty while the
+    //  machine runs.
+    std::shared_ptr<const std::vector<CodeLine>>     codeFind;
+
     //  Where the machine stands in its recorded history; the host fills it in.
     HistoryStatus                history;
 
@@ -1111,13 +1116,16 @@ private:
 
     //  The disassembly's lines for the whole address space, built while the
     //  machine is paused and again when what it is built from changes, and
-    //  what it was built from; the views scroll through it while it is.
-    void                                        RefreshLineList (DebugSession & session, bool isPaused) const;
-    std::optional<Word>                         StepLineList    (Word address, int count) const;
-    mutable std::mutex                          m_lineListMutex;
-    mutable DisassemblyLineList                 m_lineList;
-    mutable uint64_t                            m_lineListInputs = 0;
-    mutable bool                                m_isLineListLive = false;
+    //  what it was built from; the views scroll through it while it is. Each
+    //  build also makes the lines a code view's find searches.
+    void                                                                       RefreshLineList (DebugSession & session, bool isPaused) const;
+    std::optional<Word>                                                        StepLineList    (Word address, int count) const;
+    static std::shared_ptr<const std::vector<DebuggerViewSnapshot::CodeLine>>  MakeFindLines   (DebugSession & session, const DisassemblyLineList & list);
+    mutable std::mutex                                                          m_lineListMutex;
+    mutable DisassemblyLineList                                                 m_lineList;
+    mutable uint64_t                                                            m_lineListInputs = 0;
+    mutable bool                                                                m_isLineListLive = false;
+    mutable std::shared_ptr<const std::vector<DebuggerViewSnapshot::CodeLine>>  m_findLines;
 
     //  The heat map as last read, when, and whether the next build reads it
     //  again whatever the time.

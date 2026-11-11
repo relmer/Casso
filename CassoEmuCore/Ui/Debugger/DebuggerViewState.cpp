@@ -134,6 +134,12 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
     RefreshLineList (session, isPaused);
 
+    {
+        std::lock_guard<std::mutex>  held (m_lineListMutex);
+
+        snapshot.codeFind = isPaused ? m_findLines : nullptr;
+    }
+
     snapshot.isPaused       = isPaused;
     snapshot.isAssembling   = session.IsAssembling();
     snapshot.stopReason     = session.GetLastStopReason();
@@ -4107,6 +4113,76 @@ void DebuggerViewState::RefreshLineList (DebugSession & session, bool isPaused) 
 
     m_lineList.Build (inputs);
     m_lineListInputs = hash;
+    m_findLines      = MakeFindLines (session, m_lineList);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::MakeFindLines
+//
+//  Each line of the list as a code line with what a find searches: its
+//  address, bytes, label and instruction with its symbols, as a view's line
+//  has them, and the source line it comes from. The annotation is left out; it is worked out for the lines on
+//  screen alone, and its values change with the registers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const std::vector<DebuggerViewSnapshot::CodeLine>> DebuggerViewState::MakeFindLines (DebugSession & session, const DisassemblyLineList & list)
+{
+    auto  lines = std::make_shared<std::vector<DebuggerViewSnapshot::CodeLine>>();
+
+
+
+    lines->reserve (list.GetLines().size());
+
+    for (const DisassemblyLineList::Line & each : list.GetLines())
+    {
+        DisassemblyData                 data;
+        DebuggerViewSnapshot::CodeLine  row;
+        std::string                     bytes;
+
+
+
+        (void) DataDirectiveHandlers::Disassemble (session, each.address, std::nullopt, 1, data);
+
+        if (data.lines.empty())
+        {
+            continue;
+        }
+
+        const DisassemblyLine & line = data.lines.front();
+
+        for (size_t at = 0; at < each.length && at < line.instruction.bytes.size(); at++)
+        {
+            bytes += std::format ("{:02X} ", line.instruction.bytes[at]);
+        }
+
+        row.address     = each.address;
+        row.bytes       = bytes.empty() ? bytes : bytes.substr (0, bytes.size() - 1);
+        row.instruction = line.instruction.operand.empty() ? line.instruction.mnemonic : line.instruction.mnemonic + " " + line.GetShownOperand();
+        row.label       = line.label;
+        row.dataOrigin  = line.dataOrigin;
+
+        if (line.instruction.hasOperandAddress || line.instruction.operand.starts_with ("("))
+        {
+            row.memoryOperand = line.instruction.operand;
+            row.shownOperand  = line.GetShownOperand();
+        }
+
+        if (!session.GetLineTable().GetPositionsAt (each.address).empty())
+        {
+            row.sourceFileId = session.GetLineTable().GetPositionsAt (each.address).front().file;
+            row.sourceLine   = session.GetLineTable().GetPositionsAt (each.address).front().line;
+        }
+
+        lines->push_back (std::move (row));
+    }
+
+    return lines;
 }
 
 

@@ -92,6 +92,9 @@ public:
     //  acts on it when a snapshot carries the answer.
     virtual void  GoToDebuggerMemory      (int window, const std::string & text) = 0;
 
+    //  A find's match in a code view, brought into view and selected there.
+    virtual void  SelectDebuggerCode      (int view, Word address)               { (void) view; (void) address; }
+
     //  Scrolls the code pane by instructions, through the whole address space.
     virtual void  ScrollDebuggerCode      (int lines, int view) = 0;
 

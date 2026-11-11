@@ -239,6 +239,7 @@ public:
     void    SetDebugTraceView  (std::optional<uint64_t> first) override;
     void    SetDebugEventLog   (DebugLogKind kind, const std::string & request) override;
     void    GoToDebugMemory    (int window, const std::string & text) override;
+    void    SelectDebugCode    (int view, Word address) override;
     void    ScrollDebugCode    (int lines, int view) override;
     void    HoldDebugCode      (bool isHeld, int view) override;
     void    RunDebugActions    () override;
@@ -292,6 +293,7 @@ public:
     void                SetDebuggerSoundMuted       (int channel, bool isMuted) override;
     void                SetDebuggerBasicShown       (bool isVisible) override;
     void                GoToDebuggerMemory          (int window, const std::string & text) override;
+    void                SelectDebuggerCode          (int view, Word address) override;
     void                ScrollDebuggerCode          (int lines, int view) override;
     void                HoldDebuggerCode            (int view, bool isHeld) override;
     void                OnDebuggerWindowClosed      () override;

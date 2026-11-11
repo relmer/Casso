@@ -731,6 +731,21 @@ void ShellDebugger::GoToDebuggerMemory (int window, const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SelectDebuggerCode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SelectDebuggerCode (int view, Word address)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codeselect {} {:04X}", view + 1, address));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TakeDebuggerUpdate
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1061,6 +1076,26 @@ void ShellDebugger::HoldDebugCode (bool isHeld, int view)
 
 
     m_debugViewState.HoldCode (isHeld, view);
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectDebugCode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SelectDebugCode (int view, Word address)
+{
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
+    m_debugViewState.SelectCodeAt (address, view);
     m_isDebugViewDirty = true;
 }
 

@@ -9,6 +9,7 @@
 #include "Ui/Debugger/Panes/IDebuggerPane.h"
 
 class CodeEditCommands;
+class CodeViewFind;
 class DebuggerPaneFrame;
 class DisassemblyGroup;
 class DisassemblyGutter;
@@ -74,7 +75,7 @@ public:
     bool                               IsFixed          () const override { return m_view == 0; }
     void                               AddToDock        (DxuiDockSite & dock) override;
     IDxuiControl                     * GetContent       () const override;
-    IDxuiFindTarget                  * GetFindView      () const override { return m_list; }
+    IDxuiFindTarget                  * GetFindView      () const override;
     DebuggerPaneFrame                * GetFindFrame     () const override { return m_frame.get(); }
     std::vector<IDxuiControl *>        GetControls      () const override;
     std::vector<DxuiListView *>        GetLists         () const override { return { m_list }; }
@@ -86,6 +87,10 @@ public:
     bool                               AddMenuItems     (DxuiListView * list, int row, PaneMenuItems & items) override;
 
 private:
+    std::shared_ptr<const std::vector<DebuggerViewSnapshot::CodeLine>>  GetFindLines () const;
+    std::optional<Word>                                                 GetFindStart (bool isTop) const;
+    void                                                                SelectFound  (Word address);
+
     DisassemblyGroup                            & m_group;
     int                                           m_view          = 0;
     std::wstring                                  m_id;
@@ -95,6 +100,7 @@ private:
     DxuiInfoBanner                              * m_banner        = nullptr;
     bool                                          m_isBannerShown = false;
     std::unique_ptr<DebuggerPaneFrame>            m_frame;
+    std::unique_ptr<CodeViewFind>                 m_find;
     std::vector<DisassemblyOptions::Row>          m_rows;
     std::vector<DisassemblyCells::SourceParts>    m_sourceParts;
 };
@@ -150,6 +156,14 @@ public:
     //  The view last used, which the keys and the command bar act on.
     int                              GetActive      () const { return m_active; }
     void                             SetActive      (int view) { m_active = view; }
+
+    //  The address a view's find requested, which is selected without
+    //  moving the focus out of the find box.
+    void                             SetFindSelect  (int view, Word address) { m_findSelect[(size_t) view] = address; }
+
+    //  A source line's text, as it is drawn in the source rows; false where
+    //  the file isn't found.
+    bool                             GetSourceText  (int fileId, int line, std::wstring & text) { return TryGetSourceText (fileId, line, text); }
 
     //  The viewing options, and all of them replaced, as the options sheet
     //  does; each check box's entries for a view's bar, a check box switched,
@@ -251,6 +265,7 @@ private:
     std::array<int, DebuggerViewState::kMaxCodeViews>     m_linesSentTo  = {};
     std::array<int, DebuggerViewState::kMaxCodeViews>     m_shownSentTo  = {};
     std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>     m_selected;
+    std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>     m_findSelect;
     std::array<std::optional<bool>, DebuggerViewState::kMaxCodeViews>     m_edgeAfterScroll;     // true for the top row
     std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>     m_edgeScrolledFrom;    // the first line when the key scrolled
     std::optional<Word>                                   m_navigatedTo;
