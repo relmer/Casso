@@ -1238,6 +1238,8 @@ bool BrowserLoader::LeaveMissingLocation()
     int           drive    = 0;
     int           part     = 0;
     bool          isOpen   = false;
+    uint64_t      done     = 0;
+    uint64_t      total    = 0;
 
 
 
@@ -1248,10 +1250,12 @@ bool BrowserLoader::LeaveMissingLocation()
     }
 
     //  A card that is not open, such as one restored at launch, is left for
-    //  This PC rather than raising the administrator prompt.
+    //  This PC rather than raising the administrator prompt. A card being
+    //  initialized is closed until the write ends, and is not left.
     if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (path), drive, part) != PhysicalCards::PathKind::None)
     {
-        isOpen = m_browser.m_cards != nullptr && m_browser.m_cards->IsOpen (drive);
+        isOpen = m_browser.m_cards != nullptr &&
+                 (m_browser.m_cards->IsOpen (drive) || m_browser.m_cards->TryGetWork (drive, done, total));
 
         if (!isOpen)
         {

@@ -45,6 +45,10 @@ public:
     static constexpr uint64_t  kLargeVolumes      = 2;
     static constexpr uint32_t  kHeaderBlocks      = 4;
 
+    //  The blocks of a volume written between reports of an initialize's
+    //  progress.
+    static constexpr uint32_t  kProgressBlocks    = 2048;
+
     using DeviceMaker = std::function<std::unique_ptr<IRawDevice> ()>;
     using LogFn       = std::function<void (const std::wstring & line)>;
 
@@ -78,6 +82,7 @@ private:
     HRESULT  ServeWrite      (int number, uint64_t first, uint32_t count);
     HRESULT  ServeInitialize (int number, uint64_t layout);
     HRESULT  WriteCffaLayout (Session & session, int volumes, const WriteProgress & progress);
+    HRESULT  WriteVolume     (Session & session, uint64_t first, std::span<const Byte> volume, uint64_t & ioWritten, uint64_t total, const WriteProgress & progress);
     HRESULT  ClearHeader     (Session & session, uint64_t at, uint64_t written, uint64_t total, std::span<const Byte> header);
     HRESULT  CheckRange      (int number, uint64_t first, uint32_t count, Session * & outSession);
     HRESULT  CheckWrite      (Session & session, uint64_t first, uint32_t count);

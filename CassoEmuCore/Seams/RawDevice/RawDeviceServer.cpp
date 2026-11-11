@@ -461,9 +461,11 @@ Error:
 
 HRESULT RawDeviceServer::WriteCffaLayout (Session & session, int volumes, const WriteProgress & progress)
 {
-    HRESULT            hr     = S_OK;
-    uint64_t           total  = session.drive.bytes / IRawDevice::kBlockBytes;
-    uint64_t           next   = 0;
+    HRESULT            hr      = S_OK;
+    uint64_t           total   = session.drive.bytes / IRawDevice::kBlockBytes;
+    uint64_t           next    = 0;
+    uint64_t           written = 0;
+    uint64_t           toWrite = 0;
     std::vector<Byte>  zeros ((size_t) kGptBlocks * IRawDevice::kBlockBytes, 0);
     std::span<Byte>    header (zeros.data(), (size_t) kHeaderBlocks * IRawDevice::kBlockBytes);
 
@@ -476,11 +478,13 @@ HRESULT RawDeviceServer::WriteCffaLayout (Session & session, int volumes, const 
         hr = ProDosSkeleton::Write (volume, "CARD1");
         CHR (hr);
 
-        hr = session.device->WriteBlocks (0, volume);
+        hr = WriteVolume (session, 0, volume, written, volume.size(), progress);
         CHR (hr);
 
         BAIL_OUT_IF (true, S_OK);
     }
+
+    toWrite = (uint64_t) volumes * kVolumeBlocks * IRawDevice::kBlockBytes;
 
     for (int slice = 0; slice < volumes; slice++)
     {
@@ -490,13 +494,8 @@ HRESULT RawDeviceServer::WriteCffaLayout (Session & session, int volumes, const 
         hr = ProDosSkeleton::Write (volume, std::format ("CARD{}", slice + 1));
         CHR (hr);
 
-        hr = session.device->WriteBlocks (next, volume);
+        hr = WriteVolume (session, next, volume, written, toWrite, progress);
         CHR (hr);
-
-        if (progress)
-        {
-            progress ((uint64_t) (slice + 1) * kVolumeBlocks * IRawDevice::kBlockBytes, (uint64_t) volumes * kVolumeBlocks * IRawDevice::kBlockBytes);
-        }
 
         next += blocks;
 
@@ -523,6 +522,46 @@ HRESULT RawDeviceServer::WriteCffaLayout (Session & session, int volumes, const 
 
     hr = session.device->WriteBlocks (total - kGptBlocks, zeros);
     CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawDeviceServer::WriteVolume
+//
+//  A volume's blocks, written kProgressBlocks at a time, with a report to
+//  `progress` after each.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT RawDeviceServer::WriteVolume (Session & session, uint64_t first, std::span<const Byte> volume, uint64_t & ioWritten, uint64_t total, const WriteProgress & progress)
+{
+    HRESULT  hr     = S_OK;
+    size_t   offset = 0;
+
+
+
+    while (offset < volume.size())
+    {
+        size_t  run = std::min (volume.size() - offset, (size_t) kProgressBlocks * IRawDevice::kBlockBytes);
+
+        hr = session.device->WriteBlocks (first + offset / IRawDevice::kBlockBytes, volume.subspan (offset, run));
+        CHR (hr);
+
+        offset    += run;
+        ioWritten += run;
+
+        if (progress)
+        {
+            progress (ioWritten, total);
+        }
+    }
 
 Error:
     return hr;
