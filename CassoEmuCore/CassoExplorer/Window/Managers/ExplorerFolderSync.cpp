@@ -354,13 +354,30 @@ bool ExplorerFolderSync::UpdateStorageCards()
 
     for (const PhysicalCards::StorageCard & card : cards)
     {
-        std::wstring  path  = TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (card.drive.number));
-        std::wstring  label = PhysicalCards::FormatCardLabel (card.drive);
-
-        StorageCardTreeEntry         entry        { path, label };
+        std::wstring                 path         = TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (card.drive.number));
+        std::wstring                 letters;
+        std::vector<WindowsVolume>   volumes;
+        StorageCardTreeEntry         entry        { path, std::wstring() };
         PartitionLayoutKind          kind         = PartitionLayoutKind::None;
         std::vector<PartitionEntry>  partitions;
+        HRESULT                      hrVolumes    = S_OK;
         HRESULT                      hrPartitions = S_OK;
+
+        hrVolumes = m_context.app.cards->ListVolumes (card.drive.number, volumes);
+        IGNORE_RETURN_VALUE (hrVolumes, S_OK);
+
+        //  A volume Windows can't read, as a CFFA card is to it, is listed as
+        //  the card's node rather than a drive letter.
+        for (const WindowsVolume & volume : volumes)
+        {
+            if (volume.fileSystem.empty() && !volume.letter.empty())
+            {
+                entry.hiddenRoots.push_back (volume.letter + L"\\");
+                letters += (letters.empty() ? L"" : L", ") + volume.letter;
+            }
+        }
+
+        entry.label = PhysicalCards::FormatCardLabel (card.drive, letters);
 
         drives.push_back (card.drive.number);
 
@@ -377,7 +394,7 @@ bool ExplorerFolderSync::UpdateStorageCards()
             entry.partitions.push_back ({ TextEncoding::Utf8ToWide (partition.step), TextEncoding::NarrowToWide (PartitionAccess::GetLabel (partition, true)) });
         }
 
-        key += std::format (L"{}|{}|{}|{}|{};", card.drive.number, card.drive.bytes, label, card.hasUnmounted ? 1 : 0, entry.partitions.size());
+        key += std::format (L"{}|{}|{}|{}|{}|{};", letters, card.drive.number, card.drive.bytes, entry.label, card.hasUnmounted ? 1 : 0, entry.partitions.size());
 
         for (const StorageCardTreeEntry::Partition & partition : entry.partitions)
         {
@@ -405,6 +422,9 @@ bool ExplorerFolderSync::UpdateStorageCards()
     m_storageCardDrives = std::move (drives);
 
     m_context.browser.GetTreeModel().SetStorageCards (std::move (entries));
+
+    //  The top level is rebuilt without the drive letters the card's node replaces.
+    m_context.treePane.RefreshTree();
 
 Error:
     return changed;

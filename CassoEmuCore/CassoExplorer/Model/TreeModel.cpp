@@ -116,6 +116,7 @@ void TreeModel::SetStorageCards (std::vector<StorageCardTreeEntry> cards)
     m_storageCards = std::move (cards);
 
     m_children.erase (kThisPcRootId);
+    m_children.erase (kDesktopRootId);
     std::erase_if (m_children, [] (const auto & child) { return child.first.starts_with (kStorageCardTag); });
 }
 
@@ -519,7 +520,7 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
                     || (root.isNetwork   && !IsNavRootShown (NavRoot::Network))
                     || (root.isLibraries && !IsNavRootShown (NavRoot::Libraries));
 
-        if (root.leading || root.isRecycleBin || hidden)
+        if (root.leading || root.isRecycleBin || hidden || IsHiddenDrive (root.path))
         {
             continue;
         }
@@ -632,7 +633,7 @@ HRESULT TreeModel::ListDesktopRoot (std::vector<TreeNode> & outNodes)
                       || (item->isNetwork   && !IsNavRootShown (NavRoot::Network))
                       || (item->isLibraries && !IsNavRootShown (NavRoot::Libraries));
 
-        if (hidden)
+        if (hidden || IsHiddenDrive (item->path))
         {
             continue;
         }
@@ -748,7 +749,7 @@ bool TreeModel::IsPinnedFolder (const std::wstring & path) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TreeNode TreeModel::MakeShellNode (const IShellItemVerbs::ShellFolderItem & item)
+TreeNode TreeModel::MakeShellNode (const IShellItemVerbs::ShellFolderItem & item) const
 {
     TreeNode  node;
 
@@ -759,10 +760,16 @@ TreeNode TreeModel::MakeShellNode (const IShellItemVerbs::ShellFolderItem & item
 
     if (!item.path.empty() && !item.isFile)
     {
+        //  A drive at the top level, as a removable drive is, is grayed when
+        //  it can't be read, as it is under This PC.
+        bool  isDrive = item.path.size() <= 3 && item.path.size() >= 2 && item.path[1] == L':';
+        bool  exists  = !isDrive || !m_directoryProbe || m_directoryProbe (item.path);
+
         node.id        = MakeFolderId (false, item.path);
         node.kind      = TreeNode::Kind::HostFolder;
         node.location  = Location::MakeHostFolder (item.path);
-        node.canExpand = true;
+        node.missing   = !exists;
+        node.canExpand = exists;
     }
     else
     {
@@ -1500,7 +1507,14 @@ HRESULT TreeModel::ListRoot (bool underCasso, std::vector<TreeNode> & outNodes)
     {
         const std::wstring &  path   = paths[i];
         TreeNode              node;
-        bool                  exists = !m_directoryProbe || m_directoryProbe (path);
+        bool                  exists = false;
+
+        if (!underCasso && IsHiddenDrive (path))
+        {
+            continue;
+        }
+
+        exists = !m_directoryProbe || m_directoryProbe (path);
 
         node.id        = MakeFolderId (underCasso, path);
         node.kind      = underCasso ? TreeNode::Kind::KnownFolder : TreeNode::Kind::Drive;
@@ -1528,6 +1542,32 @@ HRESULT TreeModel::ListRoot (bool underCasso, std::vector<TreeNode> & outNodes)
     }
 
     return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::IsHiddenDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::IsHiddenDrive (const std::wstring & path) const
+{
+    for (const StorageCardTreeEntry & card : m_storageCards)
+    {
+        for (const std::wstring & root : card.hiddenRoots)
+        {
+            if (_wcsnicmp (root.c_str(), path.c_str(), 2) == 0 && path.size() <= 3)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 

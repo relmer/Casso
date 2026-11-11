@@ -156,6 +156,28 @@ public:
 
 
 
+    TEST_METHOD (ThisPc_LeavesOutADriveLetterTheCardNodeStandsFor)
+    {
+        InMemoryFileSystem     fs;
+        TreeModel              model (fs);
+        std::vector<TreeNode>  nodes;
+        StorageCardTreeEntry   card { L"\\.\PhysicalDrive2", L"Storage card (I:, Test, 64 MB)" };
+
+        SeedHost (fs);
+        Configure (model);
+        model.SetDrives ({ kDrive, L"I:\\" });
+        card.hiddenRoots = { L"I:\\" };
+        model.SetStorageCards ({ card });
+
+        AssertSucceeded (model.GetChildren (TreeModel::kThisPcRootId, nodes));
+
+        Assert::AreEqual ((size_t) 2, nodes.size());
+        Assert::IsTrue   (nodes[0].kind == TreeNode::Kind::Drive);
+        Assert::AreEqual (std::wstring (L"Storage card (I:, Test, 64 MB)"), nodes[1].label);
+    }
+
+
+
     TEST_METHOD (ThisPc_AnOpenStorageCardHasItsPartitionsAsChildren)
     {
         InMemoryFileSystem     fs;

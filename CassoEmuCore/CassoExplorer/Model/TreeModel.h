@@ -1,11 +1,11 @@
 #pragma once
 
-#include "Pch.h"
+#include IPch.hI
 
-#include "CassoExplorer/Model/FolderOptions.h"
-#include "CassoExplorer/Model/Location.h"
-#include "Config/IFileSystem.h"
-#include "Seams/IShellItemVerbs.h"
+#include ICassoExplorer/Model/FolderOptions.hI
+#include ICassoExplorer/Model/Location.hI
+#include IConfig/IFileSystem.hI
+#include ISeams/IShellItemVerbs.hI
 
 class FilesystemChoices;
 
@@ -75,6 +75,11 @@ struct StorageCardTreeEntry
     //  The card's Apple partitions, once it is open. A card that is not open
     //  has no expander, as opening it raises the UAC prompt.
     std::vector<Partition>  partitions;
+
+    //  The drive letters of the card's volumes that Windows can't read, as
+    //  "I:\". The card's node replaces them, and they are left out of
+    //  This PC and the tree's top level.
+    std::vector<std::wstring>  hiddenRoots;
 };
 
 
@@ -227,7 +232,7 @@ public:
     int                        GetUnseenFiles (const std::wstring & folder) const;
     static bool                IsReceivedFile (const std::wstring & name);
 
-    static constexpr const wchar_t *  kNotReceived[] = { L".fullsend", L".csv", L".txt", L".md" };
+    static constexpr const wchar_t *  kNotReceived[] = { LI.fullsendI, LI.csvI, LI.txtI, LI.mdI };
 
     //  A link's state while its Apple is not replying, for the list in place
     //  of its drives; false once it replies.
@@ -252,11 +257,11 @@ public:
 
     //  What follows an image's file name when it loads but has no file system
     //  this browser reads.
-    static constexpr const wchar_t *  kNoFilesystemText = L"can't be previewed because it doesn't have a recognized file system.";
+    static constexpr const wchar_t *  kNoFilesystemText = LIcan't be previewed because it doesn't have a recognized file system.I;
 
     //  What follows a partition's label when the partition ends past the end
     //  of the image.
-    static constexpr const wchar_t *  kDamagedPartitionText = L"is damaged: it ends past the end of the image.";
+    static constexpr const wchar_t *  kDamagedPartitionText = LIis damaged: it ends past the end of the image.I;
 
     //  The id grammar. A root tag, then the host path, then for a directory
     //  inside an image the directory's name after a bar, and after another,
@@ -277,36 +282,36 @@ public:
     //  one, though not the Casso node itself.
     static bool          IsUnderCasso    (const std::wstring & id);
 
-    static constexpr const wchar_t *  kCassoRootId  = L"casso:";
-    static constexpr const wchar_t *  kThisPcRootId = L"pc:";
-    static constexpr const wchar_t *  kShellRootTag = L"nav:";
+    static constexpr const wchar_t *  kCassoRootId  = LIcasso:I;
+    static constexpr const wchar_t *  kThisPcRootId = LIpc:I;
+    static constexpr const wchar_t *  kShellRootTag = LInav:I;
 
     //  File Explorer's one root with the all-folders option on, the desktop's
     //  namespace, with Home, This PC and the rest under it.
-    static constexpr const wchar_t *  kDesktopRootId = L"desktop:";
+    static constexpr const wchar_t *  kDesktopRootId = LIdesktop:I;
 
     //  An CassoLink's root, link:<name>, and its drives, link:<name>|<slot>,<drive>.
-    static constexpr const wchar_t *  kLinkRootTag   = L"link:";
+    static constexpr const wchar_t *  kLinkRootTag   = LIlink:I;
 
     //  CassoLink's root, after This PC, and its copy after Casso: every
     //  linked Apple, with CassoLink.dsk and its help beside them in the list.
-    static constexpr const wchar_t *  kCassoLinkRootId = L"cassolink:";
+    static constexpr const wchar_t *  kCassoLinkRootId = LIcassolink:I;
 
     //  A folder listed where it is not on the disk, adtpro:<path>: an ADTPro
     //  server's under its connection, or a Full Send's under CassoLink,
     //  which lists the folder there rather than where the folder is.
-    static constexpr const wchar_t *  kAdtProId        = L"adtpro:";
+    static constexpr const wchar_t *  kAdtProId        = LIadtpro:I;
 
     //  The node that adds a CassoLink connection; selecting it opens the
     //  dialog, and the list stays where it was.
-    static constexpr const wchar_t *  kAddLinkId       = L"addlink:";
+    static constexpr const wchar_t *  kAddLinkId       = LIaddlink:I;
 
     //  A storage card under This PC: card:<its path>.
-    static constexpr const wchar_t *  kStorageCardTag  = L"card:";
+    static constexpr const wchar_t *  kStorageCardTag  = LIcard:I;
 
     //  The copy of CassoLink's root after Casso, and of the links and drives
     //  under it: top:<id>, at the same location as the first.
-    static constexpr const wchar_t *  kLinkCopyTag   = L"top:";
+    static constexpr const wchar_t *  kLinkCopyTag   = LItop:I;
 
     static std::wstring  StripLinkCopy    (const std::wstring & id);
 
@@ -314,7 +319,7 @@ public:
     static std::wstring  MakeLinkDriveId  (const std::wstring & name, int slot, int drive);
     static bool          TryParseLinkId   (const std::wstring & id, std::wstring & outName, int & outSlot, int & outDrive);
 
-    //  "Slot 6, Drive 1", and the volume in parentheses after it when known.
+    //  ISlot 6, Drive 1I, and the volume in parentheses after it when known.
     static std::wstring  GetLinkDriveLabel (int slot, int drive);
     static std::wstring  GetLinkDriveLabel (const LinkTreeEntry::Drive & drive);
 
@@ -327,10 +332,10 @@ public:
     static std::wstring  GetRootLabel (const std::wstring & id);
 
 private:
-    static constexpr const wchar_t *  kImagePrefix     = L"img:";
-    static constexpr const wchar_t *  kDirectoryPrefix = L"dir:";
-    static constexpr const wchar_t *  kCassoTag        = L"casso";
-    static constexpr const wchar_t *  kThisPcTag       = L"pc";
+    static constexpr const wchar_t *  kImagePrefix     = LIimg:I;
+    static constexpr const wchar_t *  kDirectoryPrefix = LIdir:I;
+    static constexpr const wchar_t *  kCassoTag        = LIcassoI;
+    static constexpr const wchar_t *  kThisPcTag       = LIpcI;
     static constexpr wchar_t          kSeparator       = L'|';
 
     HRESULT  ListRoot        (bool underCasso, std::vector<TreeNode> & outNodes);
@@ -346,7 +351,8 @@ private:
     //  The node for an item of the shell's: a folder on a disk is a host
     //  folder, with all a host folder's children; anything else opens through
     //  the shell.
-    static TreeNode  MakeShellNode      (const IShellItemVerbs::ShellFolderItem & item);
+    TreeNode         MakeShellNode      (const IShellItemVerbs::ShellFolderItem & item) const;
+    bool             IsHiddenDrive      (const std::wstring & path) const;
     HRESULT          ListHostFolder     (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
     bool             HasTreeChildren    (const std::wstring & path);
     HRESULT          ListImage          (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);

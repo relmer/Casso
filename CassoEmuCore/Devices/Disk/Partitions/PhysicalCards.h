@@ -118,8 +118,9 @@ public:
     //  "SanDisk Ultra (29.7 GB)".
     static std::wstring  FormatDrive  (const PhysicalDrive & drive);
 
-    //  "Storage card (SanDisk Ultra, 29.7 GB)".
-    static std::wstring  FormatCardLabel (const PhysicalDrive & drive);
+    //  "Storage card (SanDisk Ultra, 29.7 GB)", or with `letters`,
+    //  "Storage card (I:, SanDisk Ultra, 29.7 GB)".
+    static std::wstring  FormatCardLabel (const PhysicalDrive & drive, const std::wstring & letters = {});
 
     void     SetConfirmWrite     (ConfirmWrite confirm) { m_confirmWrite = std::move (confirm); }
 

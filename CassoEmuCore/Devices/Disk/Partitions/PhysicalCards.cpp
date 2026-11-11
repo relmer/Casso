@@ -171,13 +171,15 @@ std::wstring PhysicalCards::FormatDrive (const PhysicalDrive & drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring PhysicalCards::FormatCardLabel (const PhysicalDrive & drive)
+std::wstring PhysicalCards::FormatCardLabel (const PhysicalDrive & drive, const std::wstring & letters)
 {
-    std::string  size = FormatDriveSize (drive);
+    std::wstring  size   = TextEncoding::Utf8ToWide (FormatDriveSize (drive));
+    std::wstring  prefix = letters.empty() ? std::wstring() : letters + L", ";
 
 
 
-    return TextEncoding::Utf8ToWide (drive.model.empty() ? std::format ("Storage card ({})", size) : std::format ("Storage card ({}, {})", drive.model, size));
+    return drive.model.empty() ? std::format (L"Storage card ({}{})", prefix, size)
+                               : std::format (L"Storage card ({}{}, {})", prefix, TextEncoding::Utf8ToWide (drive.model), size);
 }
 
 
