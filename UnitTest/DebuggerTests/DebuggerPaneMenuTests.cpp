@@ -427,6 +427,35 @@ namespace DebuggerPaneMenuTests
         }
 
 
+        //  Ctrl+click on JSR DRAW goes to DRAW's definition, as the menu's row
+        //  does.
+        TEST_METHOD (CtrlClickOnASymbolGoesToItsDefinition)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            MenuHost        host;
+            MenuWindow      window (theme, host);
+            DxuiMouseEvent  press;
+            DxuiMouseEvent  release;
+
+
+
+            window.TakeSnapshot (MakeSnapshot (false));
+
+            press.kind        = DxuiMouseEventKind::Down;
+            press.button      = DxuiMouseButton::Left;
+            press.positionDip = GetInstructionPoint (window, theme, 0);
+            release           = press;
+            release.kind      = DxuiMouseEventKind::Up;
+
+            host.addresses.clear();
+            press.ctrl = true;
+            (void) window.OnMouse (press);
+            (void) window.OnMouse (release);
+            Assert::IsFalse (host.addresses.empty(), L"the disassembly moves");
+            Assert::IsTrue  (host.addresses.back() == std::optional<Word> (kDraw), L"to DRAW");
+        }
+
+
         //  With a debug file that maps DRAW to line 5 of main.a65, Go to
         //  definition opens that line in its document, and the disassembly
         //  isn't moved.

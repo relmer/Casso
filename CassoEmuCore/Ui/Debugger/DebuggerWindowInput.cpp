@@ -1021,6 +1021,21 @@ bool DebuggerWindow::RouteWindowMouse (const DxuiMouseEvent & ev)
         }
     }
 
+    //  Ctrl+click on a symbol in a code view or a source document goes to its
+    //  definition, as the menu's Go to definition does.
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && ev.ctrl && !ev.shift && !ev.alt)
+    {
+        Word  address = 0;
+
+
+
+        if (TryGetDefinitionAt (ev.positionDip, address))
+        {
+            GoToDefinition (address);
+            return true;
+        }
+    }
+
     //  Ctrl+wheel anywhere over a pane whose content zooms, such as the heat
     //  map, zooms that content, over its bar and its empty space as much as
     //  over the content itself. Over any other pane it sizes that pane's text

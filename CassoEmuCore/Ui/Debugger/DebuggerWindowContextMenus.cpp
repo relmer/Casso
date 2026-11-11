@@ -313,22 +313,45 @@ void DebuggerWindow::HoldCodeView (int view)
 //  DebuggerWindow::AddGoToDefinition
 //
 //  Insert Go to definition first on the menu when the point is over a
-//  symbol in a code view or a source document. A constant has no
-//  defining line to go to.
+//  symbol in a code view or a source document.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::AddGoToDefinition (POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> & items)
 {
-    const SymbolInfo  * found   = nullptr;
+    Word  address = 0;
+
+
+
+    if (TryGetDefinitionAt (clientPx, address))
+    {
+        items.insert (items.begin(), { L"Go to definition", [this, address] { GoToDefinition (address); } });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetDefinitionAt
+//
+//  The address of the symbol at a point in a code view or a source
+//  document. A constant has no defining line to go to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetDefinitionAt (POINT clientPx, Word & address) const
+{
+    const SymbolInfo  * found = nullptr;
     std::string         name;
-    Word                address = 0;
 
 
 
     if (m_snapshot == nullptr || m_snapshot->symbols == nullptr)
     {
-        return;
+        return false;
     }
 
     if (!m_code->TryGetSymbolAt (clientPx, name, address))
@@ -345,22 +368,14 @@ void DebuggerWindow::AddGoToDefinition (POINT clientPx, std::vector<std::pair<st
 
         if (found == nullptr)
         {
-            return;
+            return false;
         }
 
         name    = found->name;
         address = found->address;
     }
 
-    for (const SymbolInfo & symbol : m_snapshot->symbols->symbols)
-    {
-        if (symbol.name == name && symbol.isConstant)
-        {
-            return;
-        }
-    }
-
-    items.insert (items.begin(), { L"Go to definition", [this, address] { GoToDefinition (address); } });
+    return std::ranges::none_of (m_snapshot->symbols->symbols, [&name] (const SymbolInfo & symbol) { return symbol.name == name && symbol.isConstant; });
 }
 
 

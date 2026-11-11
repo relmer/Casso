@@ -346,6 +346,7 @@ int SourcePane::GetTopSourceLine() const
 //  SourcePane::SetTopSourceLine
 //
 //  Placed once the rows are laid out; until then it waits, as ScrollTo does.
+//  The line is the view's active row, as a click on it makes it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -359,7 +360,8 @@ void SourcePane::SetTopSourceLine (int line)
 
     if (first >= 0)
     {
-        m_view->SetTopLine (first);
+        m_view->SetTopLine  (first);
+        m_view->SetFocusRow (GetRowOfLine (line));
     }
 }
 

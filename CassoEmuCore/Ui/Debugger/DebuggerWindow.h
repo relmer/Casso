@@ -432,6 +432,7 @@ protected:
     //  Protected so a test can read a content menu's Go to definition row,
     //  and run it.
     void     AddGoToDefinition  (POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
+    bool     TryGetDefinitionAt (POINT clientPx, Word & address) const;
     void     GoToDefinition     (Word address);
 
 private:
