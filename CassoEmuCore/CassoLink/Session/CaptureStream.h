@@ -42,6 +42,9 @@ public:
     //  significant first.
     static void  BuildRevolution (std::span<const Byte> bytes, size_t length, std::vector<uint8_t> & outBits);
 
+    //  The bits of the byte at t of a revolution of length bytes.
+    static void  AppendByte      (std::span<const Byte> bytes, size_t at, size_t length, std::vector<uint8_t> & ioBits);
+
     //  Whether a byte as stored was followed by zero bits.
     static bool  IsSync (Byte stored) { return (stored & s_kTopBit) == 0; }
 

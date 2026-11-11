@@ -6,6 +6,8 @@
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/Session/CaptureStream.h"
+#include "CassoLink/Session/CassoLinkCapture.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImage.h"
 #include "ProgramRig.h"
@@ -123,5 +125,43 @@ public:
         Logger::WriteMessage (std::format ("revolution {} bytes, {} bits; the track has {} bits; {} syncs\n", length, bits.size(), track.size(), syncs).c_str());
 
         Assert::IsTrue (IsRotationOf (bits, track), L"One revolution is the drive's track");
+    }
+
+    //  Tracks 0 and 1 captured into a WOZ: each quarter-track position reads
+    //  what the emulated drive reads there, and only the whole tracks have
+    //  streams.
+    TEST_METHOD (TwoTracks_CaptureToAWozOfTheSameTracks)
+    {
+        ProgramRig                 rig (LoadFixture());
+        std::vector<Byte>          module;
+        CassoLinkCapture::Result   result;
+        DiskImage                  woz;
+        int                        reads = 0;
+
+
+
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-11", [&reads] (int, int) { reads++; }, result, 1));
+        AssertSucceeded (WozLoader::Load (result.woz, woz));
+
+        Assert::AreEqual (5, reads, L"Positions 0 to 4");
+        Assert::AreEqual ((size_t) 2, result.streams.size(), L"The two whole tracks");
+        Assert::IsTrue   (result.unstable.empty());
+        Assert::IsTrue   (result.weak.empty());
+
+        for (int quarter = 0; quarter <= 4; quarter++)
+        {
+            std::vector<uint8_t>  captured;
+            int                   slot = woz.ResolveQuarterTrack (quarter);
+
+            Assert::IsTrue (slot >= 0);
+
+            for (size_t at = 0; at < woz.GetTrackBitCount (slot); at++)
+            {
+                captured.push_back (woz.ReadBit (slot, at));
+            }
+
+            Assert::IsTrue (IsRotationOf (captured, GetTrackBits (rig, quarter)), std::format (L"Quarter track {}", quarter).c_str());
+        }
     }
 };

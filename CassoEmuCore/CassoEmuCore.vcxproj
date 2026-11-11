@@ -263,6 +263,7 @@
     <ClCompile Include="CassoLink\Session\CassoLinkDiskTransfer.cpp" />
     <ClCompile Include="CassoLink\Session\TrackVerifier.cpp" />
     <ClCompile Include="CassoLink\Session\CaptureStream.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkCapture.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkFullSend.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendDisk.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendManifest.cpp" />
@@ -1449,6 +1450,7 @@
     <ClInclude Include="CassoLink\Session\CassoLinkDiskTransfer.h" />
     <ClInclude Include="CassoLink\Session\TrackVerifier.h" />
     <ClInclude Include="CassoLink\Session\CaptureStream.h" />
+    <ClInclude Include="CassoLink\Session\CassoLinkCapture.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
     <ClInclude Include="CassoLink\FullSend\FullSendDisk.h" />
     <ClInclude Include="CassoLink\FullSend\FullSendManifest.h" />

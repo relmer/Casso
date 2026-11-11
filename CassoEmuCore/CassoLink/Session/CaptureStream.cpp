@@ -63,18 +63,35 @@ void CaptureStream::BuildRevolution (std::span<const Byte> bytes, size_t length,
 
     for (size_t at = 0; at < length && at < bytes.size(); at++)
     {
-        Byte  value = bytes[at] | s_kTopBit;
-        bool  sync  = IsSync (bytes[at]) && (at + length >= bytes.size() || IsSync (bytes[at + length]));
+        AppendByte (bytes, at, length, outBits);
+    }
+}
 
-        for (int bit = 7; bit >= 0; bit--)
-        {
-            outBits.push_back ((uint8_t) ((value >> bit) & 1));
-        }
 
-        if (sync)
-        {
-            outBits.push_back (0);
-            outBits.push_back (0);
-        }
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureStream::AppendByte
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CaptureStream::AppendByte (std::span<const Byte> bytes, size_t at, size_t length, std::vector<uint8_t> & ioBits)
+{
+    Byte  value = bytes[at] | s_kTopBit;
+    bool  sync  = IsSync (bytes[at]) && (at + length >= bytes.size() || IsSync (bytes[at + length]));
+
+
+
+    for (int bit = 7; bit >= 0; bit--)
+    {
+        ioBits.push_back ((uint8_t) ((value >> bit) & 1));
+    }
+
+    if (sync)
+    {
+        ioBits.push_back (0);
+        ioBits.push_back (0);
     }
 }
