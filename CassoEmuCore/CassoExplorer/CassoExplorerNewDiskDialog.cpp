@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 #include "Core/TextEncoding.h"
+#include "Machines/Apple2/Common/HfsWriter.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/StockBootDisks.h"
 #include "Ui/FileBrowseModel.h"
@@ -16,6 +17,7 @@ static constexpr const wchar_t *  s_kpszDos33VolumeTip  = L"DOS 3.3: a volume nu
 static constexpr const wchar_t *  s_kpszDos32VolumeTip  = L"DOS 3.2: a volume number from 1 to 254. Leave it blank for 254.";
 static constexpr const wchar_t *  s_kpszProDosVolumeTip = L"ProDOS: up to 15 letters, digits and periods, starting with a letter. Leave it blank for NEWDISK.";
 static constexpr const wchar_t *  s_kpszPascalVolumeTip = L"Apple Pascal: up to 7 characters, with no spaces or any of $ = ? , : [ ]. Leave it blank for NEWDISK.";
+static constexpr const wchar_t *  s_kpszHfsVolumeTip    = L"HFS: up to 27 characters, with no colon. Leave it blank for Untitled.";
 
 
 
@@ -259,8 +261,9 @@ std::wstring CassoExplorerNewDiskChoices::ValidateFileName (const std::wstring &
 //  Blank takes the runner's default for the format. A DOS 3.3 volume is a
 //  number from 1 to 254; a ProDOS volume is a name of up to 15 letters, digits
 //  and periods, starting with a letter, matched without regard to case. An
-//  Apple Pascal volume is a name of up to 7 characters. CP/M and an unformatted
-//  image have no volume.
+//  Apple Pascal volume is a name of up to 7 characters, and an HFS volume a
+//  name of up to 27 Mac OS Roman characters with no colon. CP/M and an
+//  unformatted image have no volume.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -284,6 +287,13 @@ std::wstring CassoExplorerNewDiskChoices::ValidateVolume (int formatIndex, const
         return PascalVolume::IsValidVolumeName (TextEncoding::WideToNarrow (volume))
              ? error
              : std::wstring (L"Use up to 7 characters, with no spaces or any of $ = ? , : [ ], or leave it blank for NEWDISK.");
+    }
+
+    if (formatIndex == kFormatHfs)
+    {
+        return HfsWriter::IsValidVolumeName (TextEncoding::WideToUtf8 (volume))
+             ? error
+             : std::wstring (L"Use up to 27 characters, with no colon, or leave it blank for Untitled.");
     }
 
     for (i = 0; i < volume.size(); i++)
@@ -322,9 +332,9 @@ std::wstring CassoExplorerNewDiskChoices::ValidateVolume (int formatIndex, const
 //  CassoExplorerNewDiskChoices::ValidateSize
 //
 //  A disk larger than 140K, and any hard disk, 2IMG or Disk Copy 4.2 image, is
-//  a ProDOS volume; a large one is written in a container with blocks in
-//  order, and a Disk Copy 4.2 image is 800K. DOS 3.2 and the 13-sector image
-//  go together.
+//  a ProDOS or HFS volume; a large one is written in a container with blocks
+//  in order, and a Disk Copy 4.2 image is 800K. An HFS volume is 800K or
+//  larger. DOS 3.2 and the 13-sector image go together.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -350,9 +360,13 @@ std::wstring CassoExplorerNewDiskChoices::ValidateSize (int formatIndex, int con
     {
         error = L"A DOS 3.2 disk cannot be larger than a 5.25\" disk.";
     }
-    else if ((isLarge || blockOnly) && formatIndex != kFormatProDos)
+    else if (!isLarge && formatIndex == kFormatHfs)
     {
-        error = L"Disks larger than 140K, and hard disk, 2IMG and Disk Copy 4.2 images, are ProDOS volumes.";
+        error = L"An HFS volume is 800K or larger.";
+    }
+    else if ((isLarge || blockOnly) && formatIndex != kFormatProDos && formatIndex != kFormatHfs)
+    {
+        error = L"Disks larger than 140K, and hard disk, 2IMG and Disk Copy 4.2 images, are ProDOS or HFS volumes.";
     }
     else if (isLarge && !blockOnly && container != "po")
     {
@@ -404,6 +418,7 @@ size_t CassoExplorerNewDiskChoices::GetVolumeMaxLength (int formatIndex)
 {
     return (formatIndex == kFormatProDos) ? kMaxProDosVolumeLength
          : (formatIndex == kFormatPascal) ? kMaxPascalVolumeLength
+         : (formatIndex == kFormatHfs)    ? kMaxHfsVolumeLength
                                           : kMaxDos33VolumeLength;
 }
 
@@ -874,6 +889,7 @@ void CassoExplorerNewDiskDialog::OnCreate()
             tip = (format == CassoExplorerNewDiskChoices::kFormatProDos) ? s_kpszProDosVolumeTip
                 : (format == CassoExplorerNewDiskChoices::kFormatPascal) ? s_kpszPascalVolumeTip
                 : (format == CassoExplorerNewDiskChoices::kFormatDos32)  ? s_kpszDos32VolumeTip
+                : (format == CassoExplorerNewDiskChoices::kFormatHfs)    ? s_kpszHfsVolumeTip
                                                                          : s_kpszDos33VolumeTip;
         }
 
@@ -1004,6 +1020,7 @@ void CassoExplorerNewDiskDialog::Revalidate()
     m_volumeLabel.SetEnabled (hasVolume);
     m_volume.SetEnabled      (hasVolume);
     m_volume.SetPlaceholder  (hasName                                                ? L"NEWDISK"
+                            : (format == CassoExplorerNewDiskChoices::kFormatHfs)    ? L"Untitled"
                             : (format == CassoExplorerNewDiskChoices::kFormatDos33)  ? L"254"
                             : (format == CassoExplorerNewDiskChoices::kFormatDos32)  ? L"254"
                                                                                 : L"");

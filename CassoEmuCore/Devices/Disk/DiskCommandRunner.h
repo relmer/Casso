@@ -187,6 +187,8 @@ public:
     static bool  IsThirteenSectorImage  (const CommandLineOptions & options);
     void         BuildThirteenSector    (const CommandLineOptions & options, bool overExisting, DiskCommandResult & result);
     static bool  IsLargeCreate          (const CommandLineOptions & options);
+    static bool  IsHfsFormat            (const CommandLineOptions & options);
+    static const char * GetVolumeNameRule (bool isHfs);
     static bool  IsBlockOnlyExtension   (const std::string & imagePath);
     static bool  IsProDosOrderExtension (const std::string & imagePath);
     static bool  TryGetLargeBlockCount  (const std::string & sizeName, uint32_t & outBlocks);

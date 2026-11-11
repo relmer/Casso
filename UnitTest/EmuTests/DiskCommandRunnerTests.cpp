@@ -8,6 +8,8 @@
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
+#include "Machines/Apple2/Common/HfsVolume.h"
+#include "Devices/Disk/BlockImage.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Dos33Geometry.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -1873,6 +1875,86 @@ public:
         AssertSucceeded (VolumeImage::Load (written, "big.hdv", sectors, report));
         AssertSucceeded (VolumeImage::CreateVolume (VolumeKind::ProDos, sectors)->Enumerate (listing));
         Assert::AreEqual (std::string ("AGAIN"), listing.volumeName);
+    }
+
+    //  An HFS volume, 800K by default, then reformatted with another name.
+    TEST_METHOD (Create_WritesAnHfsVolumeAndInitReformatsIt)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("mac.po");
+        vector<Byte>        written;
+        vector<Byte>        sectors;
+        SectorDecodeReport  report;
+        VolumeListing       listing;
+
+
+
+        options.disk.formatName = "hfs";
+
+        DiskCommandResult  created = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, created.exitStatus, TextEncoding::NarrowToWide (created.diagnostics).c_str());
+        AssertSucceeded (io.ReadAllBytes ("mac.po", written));
+        Assert::AreEqual ((size_t) 1600 * 512, written.size());
+
+        AssertSucceeded (VolumeImage::Load (written, "mac.po", sectors, report));
+        Assert::IsTrue (VolumeImage::DetectFilesystem (sectors) == VolumeKind::Hfs);
+        AssertSucceeded (VolumeImage::CreateVolume (VolumeKind::Hfs, sectors)->Enumerate (listing));
+        Assert::AreEqual (std::string ("Untitled"), listing.volumeName);
+
+        options.disk.command    = CommandLineOptions::DiskOptions::Command::Init;
+        options.disk.volumeName = "Work Disk";
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+        AssertSucceeded (io.ReadAllBytes ("mac.po", written));
+        AssertSucceeded (VolumeImage::Load (written, "mac.po", sectors, report));
+        AssertSucceeded (VolumeImage::CreateVolume (VolumeKind::Hfs, sectors)->Enumerate (listing));
+        Assert::AreEqual (std::string ("Work Disk"), listing.volumeName);
+    }
+
+    TEST_METHOD (Create_WritesA32MBHfsHardDisk)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("mac.hdv");
+        vector<Byte>        written;
+
+
+
+        options.disk.formatName = "HFS";
+        options.disk.sizeName   = "32M";
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+        AssertSucceeded (io.ReadAllBytes ("mac.hdv", written));
+        Assert::AreEqual ((size_t) 65535 * 512, written.size());
+        Assert::IsTrue (HfsVolume::IsFound (BlockImage (written)));
+    }
+
+    TEST_METHOD (Create_RefusesA140KHfsVolumeAndAColonInItsName)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("mac.po");
+
+
+
+        options.disk.formatName = "hfs";
+        options.disk.sizeName   = "140K";
+
+        DiskCommandResult  tiny = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, tiny.exitStatus);
+        Assert::IsTrue (tiny.diagnostics.find ("800K or larger") != std::string::npos);
+
+        options.disk.sizeName   = "";
+        options.disk.volumeName = "A:B";
+
+        DiskCommandResult  colon = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, colon.exitStatus);
+        Assert::IsTrue (colon.diagnostics.find ("colon") != std::string::npos);
+        Assert::IsFalse (io.Exists ("mac.po"));
     }
 
     TEST_METHOD (Test_ReportsACleanImageAndADamagedArchive)

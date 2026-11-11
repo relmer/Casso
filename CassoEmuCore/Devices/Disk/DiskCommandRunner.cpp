@@ -38,6 +38,7 @@
 #include "IntegerBasicTokenizer.h"
 #include "Utils.h"
 #include "Devices/Disk/BlockVolumeOpener.h"
+#include "Machines/Apple2/Common/HfsWriter.h"
 
 
 
@@ -3903,8 +3904,8 @@ Error:
 //
 //  DiskCommandRunner::IsLargeCreate
 //
-//  A create of a ProDOS volume larger than a floppy: a size past 140K, or a
-//  container only a block volume has.
+//  A create of a ProDOS volume larger than a floppy, a size past 140K or a
+//  container only a block volume has, or of an HFS volume.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3915,7 +3916,22 @@ bool DiskCommandRunner::IsLargeCreate (const CommandLineOptions & options)
 
 
 
-    return isSized || IsBlockOnlyExtension (options.disk.imagePath);
+    return isSized || IsBlockOnlyExtension (options.disk.imagePath) || IsHfsFormat (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::IsHfsFormat
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::IsHfsFormat (const CommandLineOptions & options)
+{
+    return _stricmp (options.disk.formatName.c_str(), "hfs") == 0;
 }
 
 
@@ -4017,9 +4033,10 @@ bool DiskCommandRunner::TryGetLargeBlockCount (const std::string & sizeName, uin
 //
 //  DiskCommandRunner::BuildLargeProDos
 //
-//  A formatted ProDOS volume of the size asked for, in the container the
-//  image's extension selects: raw blocks for `.po` and `.hdv`, 2IMG in ProDOS
-//  order, or Disk Copy 4.2, which holds 800K disks only.
+//  A formatted ProDOS or HFS volume of the size asked for, in the container
+//  the image's extension selects: raw blocks for `.po` and `.hdv`, 2IMG in
+//  ProDOS order, or Disk Copy 4.2, which is for 800K disks only. An HFS
+//  volume is 800K or larger.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4033,9 +4050,11 @@ void DiskCommandRunner::BuildLargeProDos (const CommandLineOptions & options, Di
     ImageContainerKind             kind       = ImageContainer::GetKind (options.disk.imagePath, 0);
     uint32_t                       blocks     = 0;
     bool                           sizeKnown  = TryGetLargeBlockCount (options.disk.sizeName, blocks);
-    bool                           isProDos   = options.disk.formatName.empty() || options.disk.formatName == "prodos";
-    std::string                    name       = options.disk.volumeName.empty() ? std::string ("NEWDISK") : options.disk.volumeName;
-    bool                           nameOk     = ProDosVolume::IsValidName (name);
+    bool                           isHfs      = IsHfsFormat (options);
+    bool                           isProDos   = isHfs || options.disk.formatName.empty() || options.disk.formatName == "prodos";
+    std::string                    name       = options.disk.volumeName.empty() ? std::string (isHfs ? "Untitled" : "NEWDISK") : options.disk.volumeName;
+    bool                           nameOk     = isHfs ? HfsWriter::IsValidVolumeName (name) : ProDosVolume::IsValidName (name);
+    bool                           hfsFits    = false;
     bool                           container  = false;
     bool                           fitsDc42   = false;
     vector<Byte>                   volume;
@@ -4053,13 +4072,18 @@ void DiskCommandRunner::BuildLargeProDos (const CommandLineOptions & options, Di
 
     container = IsBlockOnlyExtension (options.disk.imagePath) || IsProDosOrderExtension (options.disk.imagePath);
     fitsDc42  = kind != ImageContainerKind::DiskCopy42 || blocks == k800KBlocks;
+    hfsFits   = !isHfs || blocks >= k800KBlocks;
 
     CBRF (sizeKnown, (result.diagnostics   += ApplyPrefix ("Error: illegal %Lsize value\n"
                                                            "       The sizes are 140K, 800K, 5M, 10M, 20M and 32M.\n"),
                       result.exitStatus     = DiskCommandResult::kNoOutput,
                       result.badCommandLine = true));
     CBRF (isProDos,  (result.diagnostics   += ApplyPrefix ("Error: illegal %Lformat for a large disk\n"
-                                                           "       Disks larger than 140K are ProDOS volumes.\n"),
+                                                           "       Disks larger than 140K are ProDOS or HFS volumes.\n"),
+                      result.exitStatus     = DiskCommandResult::kNoOutput,
+                      result.badCommandLine = true));
+    CBRF (hfsFits,   (result.diagnostics   += "Error: illegal size for an HFS volume\n"
+                                              "       HFS volumes are 800K or larger.\n",
                       result.exitStatus     = DiskCommandResult::kNoOutput,
                       result.badCommandLine = true));
     CBRF (container, (result.diagnostics   += "Error: illegal container for a large disk\n"
@@ -4070,14 +4094,13 @@ void DiskCommandRunner::BuildLargeProDos (const CommandLineOptions & options, Di
                                               "       A Disk Copy 4.2 image is an 800K disk.\n",
                       result.exitStatus     = DiskCommandResult::kNoOutput,
                       result.badCommandLine = true));
-    CBRF (nameOk,    (result.diagnostics   += "Error: illegal volume name\n"
-                                              "       ProDOS volume names are 1-15 characters, starting with a letter, and can include letters, digits, and periods.\n",
+    CBRF (nameOk,    (result.diagnostics   += GetVolumeNameRule (isHfs),
                       result.exitStatus     = DiskCommandResult::kNoOutput,
                       result.badCommandLine = true));
 
     volume.assign ((size_t) blocks * (size_t) ProDosSkeleton::kBlockByteSize, 0);
 
-    hr = ProDosSkeleton::Write (volume, name);
+    hr = isHfs ? HfsWriter::Format (volume, blocks, name) : ProDosSkeleton::Write (volume, name);
     CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be built"));
 
     //  A 140K volume is built in DOS logical order, and every container here
@@ -4109,11 +4132,29 @@ void DiskCommandRunner::BuildLargeProDos (const CommandLineOptions & options, Di
     hr = m_session.CommitImage (target, imageBytes, result);
     CHR (hr);
 
-    result.output     += std::format ("{}: ProDOS volume {}, {} blocks\n", options.disk.imagePath, name, blocks);
+    result.output     += std::format ("{}: {} volume {}, {} blocks\n", options.disk.imagePath, isHfs ? "HFS" : "ProDOS", name, blocks);
     result.exitStatus  = DiskCommandResult::kClean;
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::GetVolumeNameRule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * DiskCommandRunner::GetVolumeNameRule (bool isHfs)
+{
+    return isHfs ? "Error: illegal volume name\n"
+                   "       HFS volume names are 1-27 characters, and can't include a colon.\n"
+                 : "Error: illegal volume name\n"
+                   "       ProDOS volume names are 1-15 characters, starting with a letter, and can include letters, digits, and periods.\n";
 }
 
 
@@ -4133,9 +4174,10 @@ Error:
 void DiskCommandRunner::ReformatLargeProDos (const CommandLineOptions & options, const FileStamp & stamp, DiskCommandResult & result)
 {
     HRESULT                        hr       = S_OK;
-    bool                           isProDos = options.disk.formatName.empty() || options.disk.formatName == "prodos";
-    std::string                    name     = options.disk.volumeName.empty() ? std::string ("NEWDISK") : options.disk.volumeName;
-    bool                           nameOk   = ProDosVolume::IsValidName (name);
+    bool                           isHfs    = IsHfsFormat (options);
+    bool                           isProDos = isHfs || options.disk.formatName.empty() || options.disk.formatName == "prodos";
+    std::string                    name     = options.disk.volumeName.empty() ? std::string (isHfs ? "Untitled" : "NEWDISK") : options.disk.volumeName;
+    bool                           nameOk   = isHfs ? HfsWriter::IsValidVolumeName (name) : ProDosVolume::IsValidName (name);
     vector<Byte>                   original;
     vector<Byte>                   sectors;
     vector<Byte>                   imageBytes;
@@ -4146,11 +4188,10 @@ void DiskCommandRunner::ReformatLargeProDos (const CommandLineOptions & options,
 
 
     CBRF (isProDos, (result.diagnostics   += ApplyPrefix ("Error: illegal %Lformat for a large disk\n"
-                                                          "       Disks larger than 140K are ProDOS volumes.\n"),
+                                                          "       Disks larger than 140K are ProDOS or HFS volumes.\n"),
                      result.exitStatus     = DiskCommandResult::kNoOutput,
                      result.badCommandLine = true));
-    CBRF (nameOk,   (result.diagnostics   += "Error: illegal volume name\n"
-                                             "       ProDOS volume names are 1-15 characters, starting with a letter, and can include letters, digits, and periods.\n",
+    CBRF (nameOk,   (result.diagnostics   += GetVolumeNameRule (isHfs),
                      result.exitStatus     = DiskCommandResult::kNoOutput,
                      result.badCommandLine = true));
 
@@ -4160,7 +4201,7 @@ void DiskCommandRunner::ReformatLargeProDos (const CommandLineOptions & options,
     hr = VolumeImage::Load (original, options.disk.imagePath, sectors, report);
     CHRF (hr, result.Fail (options.disk.imagePath, "", "is not an image this tool can read"));
 
-    hr = ProDosSkeleton::Write (sectors, name);
+    hr = isHfs ? HfsWriter::Format (sectors, sectors.size() / ProDosSkeleton::kBlockByteSize, name) : ProDosSkeleton::Write (sectors, name);
     CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be built"));
 
     hr = VolumeImage::Save (original, options.disk.imagePath, sectors, imageBytes, refusal);
@@ -4174,7 +4215,7 @@ void DiskCommandRunner::ReformatLargeProDos (const CommandLineOptions & options,
     hr = m_session.CommitImage (target, imageBytes, result);
     CHR (hr);
 
-    result.output     += std::format ("{}: ProDOS volume {}, {} blocks\n", options.disk.imagePath, name, ProDosSkeleton::GetBlockCount (sectors.size()));
+    result.output     += std::format ("{}: {} volume {}, {} blocks\n", options.disk.imagePath, isHfs ? "HFS" : "ProDOS", name, ProDosSkeleton::GetBlockCount (sectors.size()));
     result.exitStatus  = DiskCommandResult::kClean;
 
 Error:

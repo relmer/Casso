@@ -54,6 +54,9 @@ public:
     //  A name HFS can store: 1 to 31 Mac OS Roman characters, no colon.
     static bool  IsValidName (const std::string & name);
 
+    //  A volume name: 1 to 27 Mac OS Roman characters, no colon.
+    static bool  IsValidVolumeName (const std::string & name);
+
     //  The catalog's leaf records in the order the volume's tree links them.
     static HRESULT  ReadCatalogRecords (std::vector<Byte> & image, std::vector<HfsBTree::Record> & outRecords);
 
@@ -80,26 +83,27 @@ private:
         std::vector<HfsBTree::Record>    extents;
     };
 
-    static constexpr size_t    kSectorBytes      = 512;
-    static constexpr size_t    kMdbOffset        = 1024;
-    static constexpr Word      kSignature        = 0x4244;
-    static constexpr uint32_t  kRootId           = 2;
-    static constexpr uint32_t  kRootParentId     = 1;
-    static constexpr uint32_t  kExtentsFileId    = 3;
-    static constexpr uint32_t  kCatalogFileId    = 4;
-    static constexpr uint32_t  kFirstUserId      = 16;
-    static constexpr Byte      kRecordDirectory  = 1;
-    static constexpr Byte      kRecordFile       = 2;
-    static constexpr Byte      kRecordDirThread  = 3;
-    static constexpr Byte      kRecordFileThread = 4;
-    static constexpr size_t    kDirectoryBytes   = 70;
-    static constexpr size_t    kFileBytes        = 102;
-    static constexpr size_t    kThreadBytes      = 46;
-    static constexpr Byte      kForkData         = 0x00;
-    static constexpr Byte      kForkResource     = 0xFF;
-    static constexpr Byte      kFileLocked       = 0x01;
-    static constexpr size_t    kMaxNameLength    = 31;
-    static constexpr int64_t   kMacToUnixSeconds = 2082844800;
+    static constexpr size_t    kSectorBytes         = 512;
+    static constexpr size_t    kMdbOffset           = 1024;
+    static constexpr Word      kSignature           = 0x4244;
+    static constexpr uint32_t  kRootId              = 2;
+    static constexpr uint32_t  kRootParentId        = 1;
+    static constexpr uint32_t  kExtentsFileId       = 3;
+    static constexpr uint32_t  kCatalogFileId       = 4;
+    static constexpr uint32_t  kFirstUserId         = 16;
+    static constexpr Byte      kRecordDirectory     = 1;
+    static constexpr Byte      kRecordFile          = 2;
+    static constexpr Byte      kRecordDirThread     = 3;
+    static constexpr Byte      kRecordFileThread    = 4;
+    static constexpr size_t    kDirectoryBytes      = 70;
+    static constexpr size_t    kFileBytes           = 102;
+    static constexpr size_t    kThreadBytes         = 46;
+    static constexpr Byte      kForkData            = 0x00;
+    static constexpr Byte      kForkResource        = 0xFF;
+    static constexpr Byte      kFileLocked          = 0x01;
+    static constexpr size_t    kMaxNameLength       = 31;
+    static constexpr size_t    kMaxVolumeNameLength = 27;
+    static constexpr int64_t   kMacToUnixSeconds    = 2082844800;
 
     static Word      GetWord (const std::vector<Byte> & bytes, size_t at) { return (Word) ((bytes[at] << 8) | bytes[at + 1]); }
     static uint32_t  GetLong (const std::vector<Byte> & bytes, size_t at) { return ((uint32_t) GetWord (bytes, at) << 16) | GetWord (bytes, at + 2); }

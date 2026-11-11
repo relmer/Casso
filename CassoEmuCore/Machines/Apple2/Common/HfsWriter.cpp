@@ -123,6 +123,25 @@ bool HfsWriter::IsValidName (const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HfsWriter::IsValidVolumeName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HfsWriter::IsValidVolumeName (const std::string & name)
+{
+    std::vector<Byte>  encoded;
+
+
+
+    return EncodeName (name, encoded) && encoded.size() <= kMaxVolumeNameLength;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HfsWriter::ReadCatalogRecords
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1534,7 +1553,7 @@ HRESULT HfsWriter::Format (std::vector<Byte> & outImage, size_t sectors, const s
     outImage.clear();
 
     CBREx (sectors >= 800 && sectors <= 4194304, HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER));
-    valid = EncodeName (name, encoded) && encoded.size() <= 27;
+    valid = EncodeName (name, encoded) && encoded.size() <= kMaxVolumeNameLength;
     CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
     while ((sectors - 5) / perBlock > 65535)

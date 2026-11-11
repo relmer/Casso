@@ -1442,6 +1442,38 @@ public:
     }
 
 
+    //  HFS is 800K or larger, in a block container, with a name of up to 27
+    //  characters and no colon.
+    TEST_METHOD (NewDiskChoices_HfsIs800KOrLarger)
+    {
+        static constexpr int  kContainerDsk = 1;
+        static constexpr int  kContainerPo  = 2;
+        static constexpr int  kContainerHdv = 5;
+        static constexpr int  kSize800K     = 1;
+        static constexpr int  kSize32M      = 5;
+
+        using Choices = CassoExplorerNewDiskChoices;
+
+        DiskOperations::NewDiskRequest  request = Choices::MakeRequest (Choices::kFormatHfs, kContainerPo, L"Mac Disk", false, kSize800K);
+
+
+
+        Assert::AreEqual (std::string ("hfs"),      request.formatName);
+        Assert::AreEqual (std::string ("800k"),     request.sizeName);
+        Assert::AreEqual (std::string ("Mac Disk"), request.volumeName);
+
+        Assert::IsTrue  (Choices::ValidateSize (Choices::kFormatHfs, kContainerPo,  kSize800K).empty());
+        Assert::IsTrue  (Choices::ValidateSize (Choices::kFormatHfs, kContainerHdv, kSize32M).empty());
+        Assert::IsFalse (Choices::ValidateSize (Choices::kFormatHfs, kContainerPo,  0).empty());
+        Assert::IsFalse (Choices::ValidateSize (Choices::kFormatHfs, kContainerDsk, kSize800K).empty());
+
+        Assert::IsTrue  (Choices::ValidateVolume (Choices::kFormatHfs, L"Mac Disk").empty());
+        Assert::IsFalse (Choices::ValidateVolume (Choices::kFormatHfs, L"A:B").empty());
+        Assert::IsFalse (Choices::ValidateVolume (Choices::kFormatHfs, std::wstring (28, L'x')).empty());
+        Assert::AreEqual ((size_t) 27, Choices::GetVolumeMaxLength (Choices::kFormatHfs));
+    }
+
+
     //  The new-disk dialog checks its fields as they are typed: a file name the
     //  host can hold and that is not taken, and a volume the format can use.
     TEST_METHOD (NewDiskChoices_ValidateFieldsAsTyped)

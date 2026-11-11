@@ -35,6 +35,7 @@ public:
         { L"CP/M",         "cpm"    },
         { L"Unformatted",  "none"   },
         { L"DOS 3.2",      "dos32"  },
+        { L"HFS",          "hfs"    },
     };
 
     static constexpr Choice  kContainers[] =
@@ -109,10 +110,12 @@ public:
     static constexpr int     kFormatCpm             = 3;
     static constexpr int     kFormatNone            = 4;
     static constexpr int     kFormatDos32           = 5;
+    static constexpr int     kFormatHfs             = 6;
     static constexpr size_t  kMaxFileNameLength     = 200;
     static constexpr size_t  kMaxDos33VolumeLength  = 3;
     static constexpr size_t  kMaxProDosVolumeLength = 15;
     static constexpr size_t  kMaxPascalVolumeLength = 7;
+    static constexpr size_t  kMaxHfsVolumeLength    = 27;
 };
 
 
