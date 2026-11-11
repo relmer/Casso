@@ -223,7 +223,9 @@ bool HostAccessPolicy::IsUnder (const std::wstring & path, const std::wstring & 
 
 bool HostAccessPolicy::HasBlockedExtension (const std::wstring & path, std::wstring & extension)
 {
-    static constexpr std::wstring_view  kBlocked[] = { L".exe", L".dll", L".bat", L".cmd", L".ps1", L".vbs", L".js", L".lnk", L".scr" };
+    static constexpr std::wstring_view  kBlocked[] = { L".exe", L".dll", L".bat", L".cmd", L".ps1", L".psm1", L".vbs", L".vbe", L".js", L".jse",
+                                                       L".wsf", L".wsh", L".hta", L".lnk", L".url", L".pif", L".scr", L".com", L".cpl",
+                                                       L".msi", L".msc", L".reg" };
     size_t                              slash      = path.find_last_of (L"\\/");
     std::wstring                        name       = path.substr (slash == std::wstring::npos ? 0 : slash + 1);
     size_t                              dot        = 0;

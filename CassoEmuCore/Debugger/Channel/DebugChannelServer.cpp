@@ -179,7 +179,7 @@ void DebugChannelServer::HandleRequest (ChannelConnectionId connection, const Ch
     switch (request.type)
     {
     case ChannelRequestType::Hello:
-        m_clients[connection] = ChannelClient { request.client, request.allowPaths };
+        m_clients[connection] = ChannelClient { request.client, request.allowPaths, request.logs };
 
         hello    = m_runner.GetInstance();
         hello.id = request.id;
@@ -318,6 +318,35 @@ void DebugChannelServer::OnMachineChanged (const std::string & machineName)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugChannelServer::SendHitLogs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugChannelServer::SendHitLogs (const std::vector<std::string> & logs)
+{
+    std::lock_guard<std::mutex>  locked (m_lock);
+
+
+
+    for (const std::string & log : logs)
+    {
+        if (m_pendingLogs.size() < kMaxLogsPerPump)
+        {
+            m_pendingLogs.push_back (ReplyJson::WriteHitLog (log));
+        }
+        else
+        {
+            m_droppedLogs++;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugChannelServer::OnModeChanged
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -369,18 +398,40 @@ void DebugChannelServer::Queue (std::string && record)
 void DebugChannelServer::FlushNotifications()
 {
     std::vector<std::string>  records;
+    std::vector<std::string>  logs;
+    size_t                    dropped = 0;
 
 
 
     {
-        std::lock_guard<std::mutex>  held (m_lock);
+        std::lock_guard<std::mutex>  locked (m_lock);
 
         records.swap (m_pending);
+        logs.swap (m_pendingLogs);
+        dropped       = m_droppedLogs;
+        m_droppedLogs = 0;
     }
 
     for (const std::string & record : records)
     {
         Broadcast (record);
+    }
+
+    if (dropped > 0)
+    {
+        logs.push_back (ReplyJson::WriteHitLog (std::format ("{} more breakpoint messages were not sent.", dropped)));
+    }
+
+    //  Only to the clients whose hello set logs.
+    for (const auto & [connection, client] : m_clients)
+    {
+        for (const std::string & log : logs)
+        {
+            if (client.wantsLogs)
+            {
+                m_transport.WriteLine (connection, log);
+            }
+        }
     }
 }
 

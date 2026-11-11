@@ -59,6 +59,9 @@ public:
     void     Close   ();
     bool     IsOpen  () const { return m_server.IsOpen(); }
 
+    //  The messages logging breakpoints wrote, to the channel's clients.
+    void     SendHitLogs (const std::vector<std::string> & logs) { m_server.SendHitLogs (logs); }
+
     //  Once per frame, on the CPU thread. A closed controller does nothing.
     void     Pump    ();
 

@@ -216,6 +216,7 @@ Notifications have no `id` and go to every connected client.
 {"type":"reset","kind":"soft"}
 {"type":"machineChanged","machine":"Apple //c"}
 {"type":"modeChanged","mode":"monitor"}
+{"type":"log","text":"Breakpoint #3: A=$42 count=$07"}
 {"type":"closing"}
 ```
 
@@ -241,6 +242,12 @@ Notifications have no `id` and go to every connected client.
   none.
 - `machineChanged` means every breakpoint and watchpoint was cleared, since
   their addresses belonged to the old machine. `reset` keeps them.
+- `log` is a message a logging breakpoint (`BPLOG`) wrote at a hit, as the
+  console has it. Log notifications go only to a client whose `hello` set
+  `"logs":true`, since a breakpoint in a tight loop writes thousands a
+  second. Don't set it in a client that reads the pipe only between sending
+  a request and reading its reply. Each pump sends at most 256, then one log
+  notification with the count of the rest.
 - `closing` is the last record before the pipe closes.
 ### Disk breakpoints
 

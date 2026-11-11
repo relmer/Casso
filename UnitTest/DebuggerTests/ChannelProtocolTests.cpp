@@ -499,6 +499,11 @@ namespace DebuggerTests
             request = ParseOk (ChannelProtocol::WriteHelloRequest (8, ChannelClient { "x", {} }));
 
             Assert::IsTrue  (request.allowPaths.empty());
+            Assert::IsFalse (request.logs, L"no log notifications unless the hello sets logs");
+
+            request = ParseOk (ChannelProtocol::WriteHelloRequest (9, ChannelClient { "x", {}, true }));
+
+            Assert::IsTrue  (request.logs);
         }
 
 

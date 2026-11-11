@@ -64,6 +64,13 @@ public:
     void  OnMachineChanged (const std::string & machineName) override;
     void  OnModeChanged    (CommandMode mode) override;
 
+    //  The messages logging breakpoints wrote at their hits, each a log
+    //  notification to the clients whose hello set logs. A pump sends
+    //  at most kMaxLogsPerPump of them, then one log record that counts the
+    //  rest, so a breakpoint in a tight loop can't fill a client's pipe.
+    static constexpr size_t  kMaxLogsPerPump = 256;
+    void  SendHitLogs      (const std::vector<std::string> & logs);
+
 private:
     void  HandleLine          (ChannelConnectionId connection, const std::string & line);
     void  HandleRequest       (ChannelConnectionId connection, const ChannelRequest & request);
@@ -87,4 +94,6 @@ private:
 
     mutable std::mutex          m_lock;
     std::vector<std::string>    m_pending;
+    std::vector<std::string>    m_pendingLogs;
+    size_t                      m_droppedLogs = 0;
 };

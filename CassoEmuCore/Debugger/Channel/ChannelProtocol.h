@@ -51,6 +51,7 @@ struct ChannelRequest
     std::string                client;
     int                        protocol = 0;
     std::vector<std::wstring>  allowPaths;
+    bool                       logs     = false;
 };
 
 
@@ -71,6 +72,11 @@ struct ChannelClient
 {
     std::string                 name;
     std::vector<std::wstring>   allowPaths;
+
+    // Set by "logs":true in the client's hello: the messages logging
+    // breakpoints write are sent to it as log notifications. Off for a
+    // client that reads the pipe only during its requests.
+    bool                        wantsLogs = false;
 };
 
 

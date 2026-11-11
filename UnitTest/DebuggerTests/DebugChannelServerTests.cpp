@@ -326,6 +326,44 @@ namespace DebuggerTests
 
 
 
+        //  A logging breakpoint's messages go to the client whose hello set
+        //  logs, as log notifications, and to no other; past kMaxLogsPerPump
+        //  in one pump, one notification counts the rest.
+        TEST_METHOD (HitLogsGoToTheClientsWhoseHelloSetLogs)
+        {
+            InMemoryPipeTransport     transport;
+            RecordingRunner           runner;
+            DebugChannelServer        server (transport, runner);
+            ChannelConnectionId       logging = 0;
+            ChannelConnectionId       silent  = 0;
+            std::vector<std::string>  flood (DebugChannelServer::kMaxLogsPerPump + 5, "Breakpoint #3: A=$42");
+
+
+
+            server.Open();
+            logging = transport.Connect();
+            silent  = transport.Connect();
+            transport.Send (logging, "{\"type\":\"hello\",\"id\":1,\"logs\":true}");
+            transport.Send (silent,  "{\"type\":\"hello\",\"id\":2}");
+            server.Pump();
+
+            server.SendHitLogs ({ "Breakpoint #3: A=$42" });
+            server.Pump();
+
+            Assert::AreEqual ((size_t) 2, transport.Written (logging).size(), L"its hello's reply, then the log");
+            Assert::AreEqual (std::string ("log"), TypeOf (transport.Written (logging).back()));
+            Assert::IsTrue   (transport.Written (logging).back().find ("Breakpoint #3: A=$42") != std::string::npos);
+            Assert::AreEqual ((size_t) 1, transport.Written (silent).size(), L"its hello's reply alone");
+
+            server.SendHitLogs (flood);
+            server.Pump();
+
+            Assert::AreEqual ((size_t) 2 + DebugChannelServer::kMaxLogsPerPump + 1, transport.Written (logging).size());
+            Assert::IsTrue   (transport.Written (logging).back().find ("5 more breakpoint messages were not sent.") != std::string::npos);
+        }
+
+
+
         TEST_METHOD (EveryNotificationReachesEveryClient)
         {
             InMemoryPipeTransport  transport;

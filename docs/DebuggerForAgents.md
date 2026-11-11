@@ -215,8 +215,10 @@ always fail:
 
 - a UNC or network path (`\\server\share`, `\\?\UNC\...`, or a mapped drive),
   or a device path (`\\.\`, `\\?\`);
-- a write of a file with the extension `.exe`, `.dll`, `.bat`, `.cmd`, `.ps1`,
-  `.vbs`, `.js`, `.lnk` or `.scr`, or into a Startup folder;
+- a write of a file with an extension Windows runs or opens as a program:
+  `.exe`, `.dll`, `.com`, `.bat`, `.cmd`, `.ps1`, `.psm1`, `.vbs`, `.vbe`,
+  `.js`, `.jse`, `.wsf`, `.wsh`, `.hta`, `.lnk`, `.url`, `.pif`, `.scr`,
+  `.cpl`, `.msi`, `.msc` or `.reg`; or a write into a Startup folder;
 - a write over a file that exists, unless the `command` tool's `overwrite`
   argument is `true`.
 

@@ -279,7 +279,9 @@ namespace DebuggerTests
 
 
 
-            for (const wchar_t * extension : { L".exe", L".dll", L".bat", L".cmd", L".ps1", L".vbs", L".js", L".lnk", L".scr" })
+            for (const wchar_t * extension : { L".exe", L".dll", L".bat", L".cmd", L".ps1", L".psm1", L".vbs", L".vbe", L".js", L".jse",
+                                               L".wsf", L".wsh", L".hta", L".lnk", L".url", L".pif", L".scr", L".com", L".cpl",
+                                               L".msi", L".msc", L".reg" })
             {
                 std::wstring  path = std::wstring (L"C:\\Work\\run") + extension;
 

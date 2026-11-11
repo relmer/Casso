@@ -1895,7 +1895,8 @@ void ShellDebugger::CloseDebugger()
 //
 //  ServiceHitLogs
 //
-//  The messages logging breakpoints wrote at their hits go to the console.
+//  The messages logging breakpoints wrote at their hits go to the console and
+//  to the debug channel's clients.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1904,6 +1905,8 @@ void ShellDebugger::ServiceHitLogs()
     std::vector<std::string>  logs = m_debugController->GetSession().TakeHitLogs();
 
 
+
+    m_debugController->SendHitLogs (logs);
 
     if (!logs.empty())
     {

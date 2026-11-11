@@ -95,6 +95,12 @@ bool ChannelProtocol::TryParseRequest (const std::string & line, ChannelRequest 
             return false;
         }
 
+        if (GetFlag (root, "logs", request.logs) == Member::Invalid)
+        {
+            SetError (error, "malformed request", "logs must be true or false.");
+            return false;
+        }
+
         return true;
     }
 
@@ -330,6 +336,10 @@ std::string ChannelProtocol::WriteHelloRequest (int64_t id, const ChannelClient 
         members.emplace_back ("allowPaths", JsonValue (std::move (folders)));
     }
 
+    if (client.wantsLogs)
+    {
+        members.emplace_back ("logs", JsonValue (true));
+    }
 
     return WriteLine (std::move (members));
 }
