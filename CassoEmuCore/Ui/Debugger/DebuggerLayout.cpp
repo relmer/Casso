@@ -418,7 +418,7 @@ std::vector<std::wstring> DebuggerLayout::GetToolPaneIds()
 //
 //  Each hundred is a section of the menu, with a separator between
 //  sections: the code, then the machine's state and memory, then the
-//  window's output, then the device panels.
+//  window's output, then the logs and the device panels.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -441,12 +441,12 @@ std::optional<int> DebuggerLayout::GetViewMenuRank (const std::wstring & pane)
         { kConsole,       200 },
         { kTrace,         201 },
         { kProfiler,      202 },
-        { kDiskLog,       210 },
-        { kInputLog,      211 },
-        { kVideoLog,      212 },
-        { kSoundLog,      213 },
-        { kSerialLog,     214 },
-        { kNetworkLog,    215 },
+        { kDiskLog,       300 },
+        { kInputLog,      301 },
+        { kVideoLog,      302 },
+        { kSoundLog,      303 },
+        { kSerialLog,     304 },
+        { kNetworkLog,    305 },
     };
     std::string  diagnosticsId;
 
@@ -490,6 +490,47 @@ std::optional<int> DebuggerLayout::GetViewMenuRank (const std::wstring & pane)
     }
 
     return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::GetDevicePanelOrder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebuggerLayout::GetDevicePanelOrder (const std::string & id)
+{
+    static const std::pair<const char *, int>  kOrder[] =
+    {
+        { "disk",         0 },
+        { "cassette",     0 },
+        { "keyboard",     1 },
+        { "mouse",        1 },
+        { "game",         1 },
+        { "video",        2 },
+        { "mockingboard", 3 },
+        { "serial",       4 },
+        { "printer",      4 },
+        { "uthernet",     5 },
+    };
+    int  order = 6;
+
+
+
+    for (const auto & [prefix, each] : kOrder)
+    {
+        if (id.starts_with (prefix))
+        {
+            order = each;
+            break;
+        }
+    }
+
+    return order;
 }
 
 

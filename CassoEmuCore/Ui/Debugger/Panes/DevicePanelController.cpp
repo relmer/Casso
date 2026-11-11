@@ -341,13 +341,17 @@ bool DevicePanelController::RequestClose()
 //
 //  DevicePanelController::GetViewMenuRank
 //
-//  A panel has a row while its device is in the machine, in the order the
-//  snapshot lists the machine's panels.
+//  A panel has a row while its device is in the machine, ordered by its
+//  device as the logs are, and within one kind as the snapshot lists them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::optional<int> DevicePanelController::GetViewMenuRank (const DebuggerViewSnapshot * snapshot) const
 {
+    static constexpr int  kPanelsPerOrder = 12;
+
+
+
     if (snapshot == nullptr)
     {
         return std::nullopt;
@@ -357,7 +361,7 @@ std::optional<int> DevicePanelController::GetViewMenuRank (const DebuggerViewSna
     {
         if (snapshot->panels[i].id == m_panelId)
         {
-            return DebuggerLayout::kDevicePanelRank + (int) i;
+            return DebuggerLayout::kDevicePanelRank + DebuggerLayout::GetDevicePanelOrder (m_panelId) * kPanelsPerOrder + std::min ((int) i, kPanelsPerOrder - 1);
         }
     }
 
