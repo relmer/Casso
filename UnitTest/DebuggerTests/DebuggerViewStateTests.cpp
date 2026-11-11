@@ -3996,6 +3996,17 @@ namespace DebuggerViewStateTests
         //  Every build carries every open panel, so a panel follows the device
         //  at the cadence the view is built: each frame while running, and on
         //  stop (SC-015).
+        //  A step over a short call sends the views its stop alone; one that
+        //  runs past the hold is drawn as running.
+        TEST_METHOD (AStepIsHeldUntilItRunsPastTheHold)
+        {
+            Assert::IsTrue  (DebuggerViewState::IsStepHeld (true,  0),                                   L"as the step starts");
+            Assert::IsTrue  (DebuggerViewState::IsStepHeld (true,  DebuggerViewState::kStepHoldMs - 1), L"a short call");
+            Assert::IsFalse (DebuggerViewState::IsStepHeld (true,  DebuggerViewState::kStepHoldMs),     L"a long call is drawn as running");
+            Assert::IsFalse (DebuggerViewState::IsStepHeld (false, 0),                                   L"a run");
+        }
+
+
         TEST_METHOD (AnOpenPanelIsInEverySnapshot)
         {
             PanelRig                               rig;

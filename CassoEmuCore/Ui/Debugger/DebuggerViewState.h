@@ -608,6 +608,13 @@ public:
     static bool  IsBuildDue (bool isDirty, bool isPaused, bool wasPaused, uint64_t nowMs, uint64_t builtAtMs);
     static bool  IsBuildDue (bool isDirty, bool isPaused, bool wasPaused, bool isTaken, uint64_t nowMs, uint64_t builtAtMs);
 
+    //  Whether a step under way, such as a step over a call, is still too new
+    //  for a view: the views see the stop's PC alone, unless the step runs
+    //  past kStepHoldMs and is drawn as a run is.
+    static bool  IsStepHeld (bool isStepping, uint64_t elapsedMs) { return isStepping && elapsedMs < kStepHoldMs; }
+
+    static constexpr uint64_t  kStepHoldMs = 500;
+
     //  Up to four disassembly views; the first is always open. Each call
     //  names a view, the first when it does not.
     static constexpr int  kMaxCodeViews = 4;

@@ -221,9 +221,10 @@ namespace ShellDebuggerViewStateTests
         //  A step un-pauses the machine until it lands, and a view built in
         //  between would have a running machine's rows, without the trace's
         //  next instructions, before the stopped view put them back: the
-        //  trace pane's flash on a step (T770). A pass while the step is under
-        //  way builds nothing; one a build interval later builds, so a long
-        //  trace run refreshes as a run does.
+        //  trace pane's flash on a step (T770), and the code views drawn at
+        //  the PC inside a call a step over runs. A pass while the step is
+        //  under way builds nothing, a build interval later as well; one past
+        //  the hold builds, so a long trace run refreshes as a run does.
         TEST_METHOD (APassWhileAStepIsUnderWayBuildsNothing)
         {
             ViewRig  rig;
@@ -237,8 +238,11 @@ namespace ShellDebuggerViewStateTests
 
             Assert::IsFalse (rig.PassBuilds (false), L"no view while the step is under way");
 
-            rig.PassLater();
-            Assert::IsTrue (rig.TryTakeView (ViewRig::kViewWaitMs), L"a view a build interval later");
+            Assert::IsFalse (rig.PassBuilds (true), L"nor a build interval later");
+
+            rig.nowMs += DebuggerViewState::kStepHoldMs;
+            rig.shell->GetDebugger().ServiceDebugger();
+            Assert::IsTrue (rig.TryTakeView (ViewRig::kViewWaitMs), L"a view once the hold passes");
         }
 
 

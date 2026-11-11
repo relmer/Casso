@@ -1451,11 +1451,11 @@ void ShellDebugger::PublishDebuggerView()
     }
 
     //  A step or a trace run un-pauses the machine until it lands. A view
-    //  built in between has a running machine's rows, without the trace's
-    //  next instructions, and the view after it puts them back: a flash in
-    //  the trace pane. Such a run gets no view for one build interval from
-    //  the first pass during it, so a long trace run refreshes as a run
-    //  does.
+    //  built in between has a running machine's rows, and the PC inside the
+    //  call a step over runs, and the view after it puts them back: a flash
+    //  in the trace pane and the code views. Such a run gets no view for
+    //  kStepHoldMs from the first pass during it, so a long one refreshes as
+    //  a run does.
     isStepping = m_debugRunDriver != nullptr && m_debugRunDriver->IsSilent();
 
     if (isStepping && !m_wasStepping)
@@ -1465,7 +1465,7 @@ void ShellDebugger::PublishDebuggerView()
 
     m_wasStepping = isStepping;
 
-    if (isStepping && now - m_steppingSince < DebuggerViewState::kBuildIntervalMs)
+    if (DebuggerViewState::IsStepHeld (isStepping, now - m_steppingSince))
     {
         return;
     }
