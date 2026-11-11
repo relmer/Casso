@@ -212,6 +212,30 @@ namespace DebuggerTests
 
 
 
+        //  A width suffix reads memory at the value before it, as a watch
+        //  does: .b the byte, .w the word. .s is text, read in a watch
+        //  alone.
+        TEST_METHOD (WidthSuffixesReadMemory)
+        {
+            MockExpressionContext context;
+
+
+
+            context.symbols["COUNT"] = 0x0300;
+            context.memory[0x0300]   = 0x05;
+            context.memory[0x0301]   = 0x20;
+
+            Expect      (context, "count.b",        0x05);
+            Expect      (context, "count.w",        0x2005);
+            Expect      (context, "count.B == 5",   1);
+            Expect      (context, "-count.b",       -5);
+            Expect      (context, "count.w + 1",    0x2006);
+            Expect      (context, "count",          0x0300);
+            ExpectError (context, "count.s",        "text");
+        }
+
+
+
         TEST_METHOD (Symbols)
         {
             MockExpressionContext context;

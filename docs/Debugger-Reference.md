@@ -719,6 +719,9 @@ An expression has `+ - * / %`, `& | ^ ~`, `! && ||`, the comparisons `== != <
 > <= >=`, and parentheses. Numbers are hex; `0n10` is decimal. A register is
 `A`, `X`, `Y`, `P`, `S` or `PC`, and a symbol is its address; `*addr` is the
 byte at an address, and `<` and `>` before a value are its low and high byte.
+After a value, `.b` is the byte at that address and `.w` the word there, as in
+a watch, so `count.b == 5` compares the byte at `count`. A watch also takes
+`.s` for the text there; an expression doesn't, since text isn't a number.
 `P.C`, `P.Z`, `P.I`, `P.D`, `P.B`, `P.V` and `P.N` are the flags, each 0 or 1:
 
 ```text

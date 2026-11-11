@@ -240,10 +240,22 @@ bool DebugExpressionEvaluator::TryParseOperandPosition (
 
     isRead = TryReadOperand (text, pos, syntax, token, error);
 
+    //  A width suffix reads memory at the operand's value, as a watch does:
+    //  .b the byte there, .w the word. .s is text, read in a watch alone.
+    if (isRead && token.kind == ExpressionToken::Kind::Name)
+    {
+        isRead = TryCutWidthSuffix (token, op, error);
+    }
+
     if (isRead)
     {
         expression.postfix.push_back (token);
         expectOperand = false;
+
+        if (op == ExpressionOperator::Dereference || op == ExpressionOperator::DereferenceWord)
+        {
+            EmitOperator (op, expression);
+        }
     }
     else if (error.empty())
     {
@@ -448,6 +460,53 @@ bool DebugExpressionEvaluator::TryReadOperand (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugExpressionEvaluator::TryCutWidthSuffix
+//
+//  A name ending in .b or .w loses the suffix, and op is the read the suffix
+//  asks for; any other name keeps its text, and op is Add, for none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugExpressionEvaluator::TryCutWidthSuffix (ExpressionToken & token, ExpressionOperator & op, std::string & error)
+{
+    static constexpr size_t  kSuffixLength = 2;
+    const std::string      & name          = token.name;
+    char                     last          = name.empty() ? '.' : (char) tolower ((unsigned char) name.back());
+    bool                     isSuffix      = name.size() > kSuffixLength && name[name.size() - kSuffixLength] == '.';
+    std::string              upper;
+
+
+
+    op = ExpressionOperator::Add;
+
+    if (!isSuffix || (last != 'b' && last != 'w' && last != 's'))
+    {
+        return true;
+    }
+
+    if (last == 's')
+    {
+        error = std::format ("{} is text, read in a watch alone; an expression takes .b or .w.", name);
+        return false;
+    }
+
+    op                   = (last == 'b') ? ExpressionOperator::Dereference : ExpressionOperator::DereferenceWord;
+    token.name           = name.substr (0, name.size() - kSuffixLength);
+    upper                = token.name;
+
+    std::ranges::transform (upper, upper.begin(), [] (char ch) { return (char) toupper ((unsigned char) ch); });
+
+    token.isRegisterName = IsRegisterName (upper);
+    token.isHexNumber    = TryParseNumber (token.name, 16, token.value);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugExpressionEvaluator::TryReadOperator
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -594,6 +653,11 @@ bool DebugExpressionEvaluator::TryReadAtRegister (
 
 bool DebugExpressionEvaluator::IsUnary (ExpressionOperator op)
 {
+    if (op == ExpressionOperator::DereferenceWord)
+    {
+        return true;
+    }
+
     for (const OperatorSpelling & entry : s_kUnaryOperators)
     {
         if (entry.op == op)
@@ -860,6 +924,7 @@ bool DebugExpressionEvaluator::TryApplyUnary (
     static constexpr int32_t  kByteMask = 0xFF;
     static constexpr int      kByteBits = 8;
     Byte                      byte      = 0;
+    Byte                      high      = 0;
     bool                      isRead    = true;
     bool                      isInRange = true;
 
@@ -880,6 +945,11 @@ bool DebugExpressionEvaluator::TryApplyUnary (
     case ExpressionOperator::Dereference:
         isRead = context.TryPeek ((Word) operand, byte);
         result = byte;
+        break;
+
+    case ExpressionOperator::DereferenceWord:
+        isRead = context.TryPeek ((Word) operand, byte) && context.TryPeek ((Word) (operand + 1), high);
+        result = byte | (high << kByteBits);
         break;
 
     default:

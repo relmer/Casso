@@ -37,6 +37,7 @@ enum class ExpressionOperator
     LowByte,
     HighByte,
     Dereference,
+    DereferenceWord,
     OpenParen,
 };
 
@@ -160,6 +161,7 @@ private:
     static bool  TryParseOperandPosition  (const std::string & text, size_t & pos, NumberSyntax syntax, bool & expectOperand, OperatorStack & stack, Expression & expression, std::string & error);
     static bool  TryParseOperatorPosition (const std::string & text, size_t & pos, bool & expectOperand, OperatorStack & stack, Expression & expression, std::string & error);
     static bool  TryReadOperand           (const std::string & text, size_t & pos, NumberSyntax syntax, ExpressionToken & token, std::string & error);
+    static bool  TryCutWidthSuffix        (ExpressionToken & token, ExpressionOperator & op, std::string & error);
     static bool  TryReadOperator          (const std::string & text, size_t & pos, std::span<const OperatorSpelling> table, ExpressionOperator & op);
     static bool  TryParseNumber           (const std::string & digits, int base, int32_t & value);
     static bool  TryReadAtRegister        (const std::string & text, size_t & pos, NumberSyntax syntax, ExpressionToken & token, std::string & error);
