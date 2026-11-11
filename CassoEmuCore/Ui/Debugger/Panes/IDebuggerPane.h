@@ -258,6 +258,9 @@ public:
     //  Opens a pane and brings it forward, as its row on the View menu does.
     virtual void                   OpenPane         (const std::wstring & pane) = 0;
 
+    //  Opens a pane and brings it forward without moving the focus.
+    virtual void                   RaisePane        (const std::wstring & pane) = 0;
+
     //  A question put to the user in a message box centered on owner, with
     //  the user's answer; a test supplies the answer instead.
     virtual int                    ShowMessageBox   (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type) = 0;

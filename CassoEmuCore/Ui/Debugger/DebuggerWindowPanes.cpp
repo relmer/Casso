@@ -538,7 +538,7 @@ void DebuggerWindow::ApplyBreakpoints()
 
 void DebuggerWindow::ShowBasicLine (Word line)
 {
-    m_basicProgram->ShowLine (line);
+    m_basicProgram->ShowLine (line, true);
 }
 
 

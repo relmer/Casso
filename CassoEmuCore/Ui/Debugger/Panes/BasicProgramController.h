@@ -38,7 +38,7 @@ public:
 
     //  The line, brought forward in the pane, and scrolled to again once the
     //  pane has the program.
-    void                             ShowLine       (Word line);
+    void                             ShowLine       (Word line, bool isFocused);
 
     const std::wstring            & GetId          () const override;
     std::wstring                     GetTitle       () const override { return L"BASIC program"; }

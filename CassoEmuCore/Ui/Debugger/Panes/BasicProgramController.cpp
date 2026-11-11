@@ -207,7 +207,8 @@ void BasicProgramController::Apply (const DebuggerViewSnapshot & snapshot)
 //  when one is set. At a stop in machine code the program called, the code
 //  view stays in front. An instruction step or a run to the cursor doesn't
 //  change which pane is in front, wherever it stops, and a breakpoint on an
-//  address brings the code view forward over this pane.
+//  address brings the code view forward over this pane. Only a breakpoint
+//  moves the focus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -233,7 +234,7 @@ void BasicProgramController::Follow (const DebuggerViewSnapshot & snapshot)
 
     if (isStop && snapshot.stopReason != StopReason::Step && snapshot.stopReason != StopReason::RunTo && IsMachineStop (snapshot) && m_list->IsVisible())
     {
-        m_host.OpenPane (DebuggerLayout::GetCodePaneId (snapshot.followView));
+        m_host.RaisePane (DebuggerLayout::GetCodePaneId (snapshot.followView));
     }
 
     for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
@@ -255,7 +256,7 @@ void BasicProgramController::Follow (const DebuggerViewSnapshot & snapshot)
 
     if (line.has_value())
     {
-        ShowLine (*line);
+        ShowLine (*line, snapshot.stopReason == StopReason::Breakpoint);
     }
 }
 
@@ -597,9 +598,17 @@ bool BasicProgramController::AddMenuItems (DxuiListView * list, int row, PaneMen
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BasicProgramController::ShowLine (Word line)
+void BasicProgramController::ShowLine (Word line, bool isFocused)
 {
-    m_host.OpenPane (DebuggerLayout::kBasicProgram);
+    if (isFocused)
+    {
+        m_host.OpenPane (DebuggerLayout::kBasicProgram);
+    }
+    else
+    {
+        m_host.RaisePane (DebuggerLayout::kBasicProgram);
+    }
+
     m_model->ShowLine (line);
     m_pendingLine = line;
 }

@@ -942,7 +942,7 @@ std::vector<std::wstring> DebuggerWindow::GetViewMenuPanes() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::ShowPane (const std::wstring & pane)
+void DebuggerWindow::ShowPane (const std::wstring & pane, bool isFocused)
 {
     //  A pane turned on opens docked and shown, not slid in at an edge.
     if (!IsPaneShown (pane) && m_dockSite->GetPaneLayout().IsAutoHidden (pane))
@@ -975,7 +975,8 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
 
     m_floating->MarkSyncNeeded();
     m_dockSite->Relayout();
-    m_pendingShowPane = pane;
+    m_pendingShowPane      = pane;
+    m_isPendingShowFocused = isFocused;
     ShowPendingPane();
     SetWindowMenus();
     SaveLayout();
@@ -992,7 +993,8 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
 //
 //  The pane the View menu chose comes forward once it shows: its tab is
 //  selected, an auto-hidden one slides out, and a floating one's window is
-//  raised. It takes the focus, as a click on it would.
+//  raised. It takes the focus, as a click on it would, unless it was raised
+//  without the focus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1013,6 +1015,11 @@ void DebuggerWindow::ShowPendingPane()
     m_floating->Show (pane);
 
     //  The focus moves to the pane, in whichever window it is in.
+    if (!m_isPendingShowFocused)
+    {
+        return;
+    }
+
     if (m_dockSite->GetPaneLayout().IsFloating (pane))
     {
         FloatingPanes::RouteScope  scope (*m_floating, pane);

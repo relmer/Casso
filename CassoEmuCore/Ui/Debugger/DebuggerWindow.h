@@ -254,7 +254,7 @@ protected:
     //  Protected so a test can work the View menu as a click does: the
     //  panes it lists, and showing or closing one.
     std::vector<std::wstring>  GetViewMenuPanes () const;
-    void                       ShowPane         (const std::wstring & pane);
+    void                       ShowPane         (const std::wstring & pane, bool isFocused = true);
     void                       ClosePane        (const std::wstring & pane) override;
     bool                       IsPaneShown      (const std::wstring & pane) const override;
 
@@ -921,6 +921,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                                    AddHeatAccessItems   (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items) override;
     const DxuiTheme                       * GetTheme             () const override { return m_theme; }
     void                                    OpenPane             (const std::wstring & pane) override { ShowPane (pane); }
+    void                                    RaisePane            (const std::wstring & pane) override { ShowPane (pane, false); }
     void                                    ShowMemoryAddress    (Word address) override;
     IHostDialogs                          * GetHostDialogs       () override { return (m_host != nullptr) ? &m_host->GetHostDialogs() : nullptr; }
     bool                                    IsTooltipVisible     () const override { return m_tooltip.IsVisible(); }
@@ -983,6 +984,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  menu opened that comes forward once the next snapshot shows it.
     std::set<std::wstring>                                                           m_closedPanes;
     std::wstring                                                                     m_pendingShowPane;
+    bool                                                                             m_isPendingShowFocused = true;
 
     //  The disassembly views' menu entries that change a line.
     std::unique_ptr<CodeEditCommands>                                                m_codeEdits;

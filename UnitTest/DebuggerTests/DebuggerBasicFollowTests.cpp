@@ -94,6 +94,7 @@ namespace DebuggerBasicFollowTests
         using DebuggerWindow::FocusControl;
         using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetPaneOfFocus;
+        using DebuggerWindow::ShowPane;
     };
 
 
@@ -230,6 +231,40 @@ namespace DebuggerBasicFollowTests
             window.TakeSnapshot (MakeSnapshot (true, 0xD81D, 10));
 
             Assert::AreEqual (std::wstring (DebuggerLayout::kBasicProgram), window.GetPaneOfFocus());
+        }
+
+
+
+        //  A pause or a step in the interpreter brings the program forward, but
+        //  the focus stays in the Trace pane. A BASIC line's breakpoint moves it.
+        TEST_METHOD (OnlyABreakpointMovesTheFocusFromTheTrace)
+        {
+            CassoTheme         theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            FollowWindow       window (theme, host);
+            DxuiDpiScaler      scaler;
+            auto               basic  = MakeSnapshot (true, 0xD81D, 10);
+
+
+
+            basic->stopReason     = StopReason::Breakpoint;
+            basic->stopBreakpoint = 8;
+            basic->breakpoints    = { MakeBasicBreakpoint (8, 10) };
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.TakeSnapshot (MakeSnapshot (false, 0xD81D, 10));
+            window.ShowPane     (DebuggerLayout::kTrace);
+            window.TakeSnapshot (MakeSnapshot (true, 0xD81D, 10));
+
+            Assert::IsTrue   (window.IsPaneShown (DebuggerLayout::kBasicProgram), L"the pause opens the program");
+            Assert::AreEqual (std::wstring (DebuggerLayout::kTrace), window.GetPaneOfFocus(), L"the pause");
+
+            window.TakeSnapshot (MakeSnapshot (false, 0xD81D, 10));
+            window.TakeSnapshot (basic);
+
+            Assert::AreEqual (std::wstring (DebuggerLayout::kBasicProgram), window.GetPaneOfFocus(), L"the breakpoint");
         }
 
 
