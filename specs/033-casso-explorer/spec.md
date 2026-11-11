@@ -3443,8 +3443,8 @@ back, and edit a byte and see it written.
 - **FR-254**: Each partition MUST be drawn as a band over its blocks.
 - **FR-255**: Block mode MUST compare two block images block by block, and
   mark free blocks with text or code in them, which can be saved as a file.
-- **FR-256**: A volume inside another MUST be addressed and annotated in
-  its own terms over the outer volume's blocks: the DOS 3.3 volumes of
+- **FR-256**: A volume inside another MUST be addressed and annotated by
+  its file system over the outer volume's blocks: the DOS 3.3 volumes of
   UniDOS, AmDOS and OzDOS disks by track and sector, and a hybrid disk's
   second file system.
 
