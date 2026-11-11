@@ -48,8 +48,8 @@ public:
     size_t   GetBytesLoaded () const { return m_chunks.size() * kChunkBytes; }
 
 private:
-    Byte                  ReadStoreByte (size_t at) const;
-    const std::vector<Byte> & LoadChunk (size_t chunk) const;
+    Byte                       ReadStoreByte (size_t at) const;
+    const std::vector<Byte>  & LoadChunk     (size_t chunk) const;
 
     const std::vector<Byte>                       * m_view      = nullptr;
     IBlockStore                                   * m_store     = nullptr;
