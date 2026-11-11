@@ -132,14 +132,6 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
 
 
-    RefreshLineList (session, isPaused);
-
-    {
-        std::lock_guard<std::mutex>  held (m_lineListMutex);
-
-        snapshot.codeFind = isPaused ? m_findLines : nullptr;
-    }
-
     snapshot.isPaused       = isPaused;
     snapshot.isAssembling   = session.IsAssembling();
     snapshot.stopReason     = session.GetLastStopReason();
@@ -223,6 +215,18 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
         UpdateLastStop (session, snapshot);
     }
 
+    snapshot.callStack      = session.GetCallStack();
+
+    //  The line list takes the call stack's JSRs as known starts, so it is
+    //  built once the call stack is read and before the code views are.
+    RefreshLineList (session, isPaused, snapshot.callStack);
+
+    {
+        std::lock_guard<std::mutex>  held (m_lineListMutex);
+
+        snapshot.codeFind = isPaused ? m_findLines : nullptr;
+    }
+
     //  The code views, the memory panes and the trace each read the machine
     //  and write only their own part of the snapshot, so they are built at
     //  once. What follows reads the code views and the call record.
@@ -236,7 +240,6 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
         snapshot.stack.push_back ({ entry.address, entry.value });
     }
 
-    snapshot.callStack      = session.GetCallStack();
     snapshot.instructionSet   = session.GetTarget().GetInstructionSet();
     snapshot.instructionTable = session.GetTarget().GetInstructionTable();
 
@@ -4035,12 +4038,12 @@ Word DebuggerViewState::ScrollCodeTop (DebugSession & session, Word top, int lin
 //
 //  While the machine runs, nothing builds the list and the views decode as
 //  they did. Paused, the list is built again only when what it is built
-//  from changed: memory, the fetch bits, the PC, the marks or the debug
-//  file, which a step, an edit, Load file and a seek all change.
+//  from changed: memory, the fetch bits, the known starts, the marks or the
+//  debug file, which a step, an edit, Load file and a seek all change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerViewState::RefreshLineList (DebugSession & session, bool isPaused) const
+void DebuggerViewState::RefreshLineList (DebugSession & session, bool isPaused, const CallStackData & calls) const
 {
     static constexpr uint64_t    kFnvOffset   = 1469598103934665603ull;
     static constexpr uint64_t    kFnvPrime    = 1099511628211ull;
@@ -4072,7 +4075,13 @@ void DebuggerViewState::RefreshLineList (DebugSession & session, bool isPaused) 
     }
 
     mix (std::hash<std::bitset<DebugMemoryImage::kBytes>> {} (image->fetched));
-    mix (pc);
+    inputs.starts = GetKnownStarts (calls, pc, *image);
+
+    for (Word start : inputs.starts)
+    {
+        mix (start);
+    }
+
     mix (session.GetDataBlocks().GetAll().size());
 
     for (const DataBlockEntry & block : session.GetDataBlocks().GetAll())
@@ -4094,7 +4103,6 @@ void DebuggerViewState::RefreshLineList (DebugSession & session, bool isPaused) 
 
     inputs.image      = image.get();
     inputs.debugLines = session.GetDebugFileLines();
-    inputs.starts     = { pc };
     inputs.dataLine   = [&session] (Word address, bool & isMarked) -> int
     {
         DataBlockEntry   block;
@@ -4184,6 +4192,39 @@ std::shared_ptr<const std::vector<DebuggerViewSnapshot::CodeLine>> DebuggerViewS
     }
 
     return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetKnownStarts
+//
+//  A call frame's call site is a start only where memory has a JSR there,
+//  so an interrupt's frame or a JSR overwritten since isn't one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Word> DebuggerViewState::GetKnownStarts (const CallStackData & calls, Word pc, const DebugMemoryImage & image)
+{
+    static constexpr Byte  kJsr   = 0x20;
+    std::vector<Word>      starts = { pc };
+
+
+
+    for (const CallStackRow & row : calls.rows)
+    {
+        bool  isJsr = row.frame.has_value() && row.frame->kind == CallFrameKind::Call && image.bytes[row.frame->callSite] == kJsr;
+
+        if (isJsr && !std::ranges::contains (starts, row.frame->callSite))
+        {
+            starts.push_back (row.frame->callSite);
+        }
+    }
+
+    return starts;
 }
 
 

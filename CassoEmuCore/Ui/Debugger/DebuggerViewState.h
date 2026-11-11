@@ -642,6 +642,10 @@ public:
     void  CenterCodeOn     (Word address, int view = 0) { m_code[(size_t) view].centerOn = address; m_code[(size_t) view].scrollLines = 0; }
     void  SelectCodeAt     (Word address, int view = 0) { CenterCodeOn (address, view); m_code[(size_t) view].selectOn = address; m_code[(size_t) view].selectSerial++; }
 
+    //  The line list's known starts besides the debug file's and the fetch
+    //  bits: the PC, and each call frame's JSR where memory has it.
+    static std::vector<Word>  GetKnownStarts (const CallStackData & calls, Word pc, const DebugMemoryImage & image);
+
     //  Scrolls a code view by instructions, down when positive, up when
     //  negative, through the whole address space.
     void  ScrollCode       (int lines, int view = 0)    { m_code[(size_t) view].scrollLines += lines; m_code[(size_t) view].scrolledAtMs = m_clock(); }
@@ -1119,7 +1123,7 @@ private:
     //  machine is paused and again when what it is built from changes, and
     //  what it was built from; the views scroll through it while it is. Each
     //  build also makes the lines a code view's find searches.
-    void                                                                       RefreshLineList (DebugSession & session, bool isPaused) const;
+    void                                                                       RefreshLineList (DebugSession & session, bool isPaused, const CallStackData & calls) const;
     std::optional<Word>                                                        StepLineList    (Word address, int count) const;
     static std::shared_ptr<const std::vector<DebuggerViewSnapshot::CodeLine>>  MakeFindLines   (DebugSession & session, const DisassemblyLineList & list);
     mutable std::mutex                                                          m_lineListMutex;

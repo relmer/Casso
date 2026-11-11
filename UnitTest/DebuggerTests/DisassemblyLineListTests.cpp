@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/DisassemblyLineList.h"
+#include "Ui/Debugger/DebuggerViewState.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -140,6 +141,39 @@ namespace DebuggerTests
             Assert::AreEqual    ((int) 0x0600, (int) rig.list.StepLines (0x0602, -1), L"the LDA, cut short at the PC");
             Assert::AreEqual    ((int) 0x0603, (int) rig.list.StepLines (0x0602, 1));
             Assert::AreEqual    ((int) 0x0000, (int) rig.list.StepLines (0x0002, -10), L"stops at the first line");
+        }
+
+
+        //  A call frame's JSR is a known start where memory has the JSR, so a
+        //  decode from before it is cut short there; an interrupt's frame and
+        //  a call site whose byte is no longer a JSR are not.
+        TEST_METHOD (ACallFramesJsrIsAKnownStart)
+        {
+            static constexpr Byte  kJsr = 0x20;
+            Rig                    rig;
+            CallStackData          calls;
+            CallStackFrame         call;
+            CallStackFrame         irq;
+            CallStackFrame         gone;
+
+
+
+            rig.inputs.lengths[kJsr] = 3;
+            rig.image.bytes[0x0700]  = kLda;
+            rig.image.bytes[0x0702]  = kJsr;
+
+            call.callSite = 0x0702;
+            irq.callSite  = 0x0710;
+            irq.kind      = CallFrameKind::Irq;
+            gone.callSite = 0x0720;
+            calls.rows    = { { call, std::nullopt }, { irq, std::nullopt }, { gone, std::nullopt } };
+
+            rig.inputs.starts = DebuggerViewState::GetKnownStarts (calls, 0x0300, rig.image);
+            rig.list.Build (rig.inputs);
+
+            Assert::AreEqual ((size_t) 2, rig.inputs.starts.size(), L"the PC and the JSR");
+            Assert::IsTrue   (rig.StartsAt (0x0702), L"the JSR, over the LDA's decode from $0700");
+            Assert::AreEqual ((int) 3, (int) rig.LineAt (0x0702).length);
         }
     };
 }
