@@ -156,6 +156,32 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CountingBlockStore
+//
+//  A MemoryBlockStore that counts the blocks read from it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class CountingBlockStore : public MemoryBlockStore
+{
+public:
+    explicit CountingBlockStore (std::vector<Byte> bytes) : MemoryBlockStore (std::move (bytes)) {}
+
+    HRESULT  ReadBlocks (uint32_t first, uint32_t count, std::span<Byte> outBytes) override
+    {
+        blocksRead += count;
+        return MemoryBlockStore::ReadBlocks (first, count, outBytes);
+    }
+
+    uint64_t  blocksRead = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RawDeviceTests
 //
 //  A RawDeviceConnection and a RawDeviceServer on the two ends of an
@@ -840,6 +866,28 @@ public:
         session.Finish();
 
         Assert::AreEqual (0, session.drives.drives[kCard].writes);
+    }
+
+
+    TEST_METHOD (ListCard_ReadsEachVolumeNameWithoutReadingTheVolume)
+    {
+        Session                      session;
+        PartitionLayoutKind          kind = PartitionLayoutKind::None;
+        std::vector<PartitionEntry>  entries;
+
+        session.drives.drives[kCard].bytes.assign ((size_t) RawDeviceServer::kSliceBlocks * 2 * kBlock, 0);
+        session.Start();
+
+        AssertSucceeded (session.connection->Initialize (kCard, 2));
+
+        CountingBlockStore  store (session.drives.drives[kCard].bytes);
+
+        AssertSucceeded (PartitionAccess::ListCard (store, kind, entries));
+
+        Assert::AreEqual ((size_t) 2, entries.size());
+        Assert::AreEqual (std::string ("CARD1"), entries[0].volumeName);
+        Assert::AreEqual (std::string ("CARD2"), entries[1].volumeName);
+        Assert::IsTrue (store.blocksRead < 1000);
     }
 
 

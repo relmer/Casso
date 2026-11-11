@@ -5,6 +5,7 @@
 #include "Devices/Disk/Containers/ImageContainer.h"
 #include "Devices/Disk/MemoryBlockStore.h"
 #include "Machines/Apple2/Common/IVolume.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -604,6 +605,15 @@ void PartitionAccess::ReadVolumeLabel (IBlockStore & store, PartitionEntry & ioE
 
     BAIL_OUT_IF (!readable, S_OK);
 
+    //  A ProDOS volume's name is in its key block, which is read alone, as a
+    //  whole partition on a card is 32 MB or more.
+    if (ioEntry.partition.volumeKind == VolumeKind::ProDos &&
+        ioEntry.partition.span == PartitionSpan::WholeBlocks && !ioEntry.partition.dosSectors)
+    {
+        ReadProDosName (store, ioEntry);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     hr = PartitionLayout::ReadPartition (store, ioEntry.partition, sectors);
     CHR (hr);
 
@@ -620,6 +630,43 @@ void PartitionAccess::ReadVolumeLabel (IBlockStore & store, PartitionEntry & ioE
 
     ioEntry.hasVolumeNumber = listing.hasVolumeNumber;
     ioEntry.volumeNumber    = listing.volumeNumber;
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PartitionAccess::ReadProDosName
+//
+//  The volume directory header, the first entry of the key block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PartitionAccess::ReadProDosName (IBlockStore & store, PartitionEntry & ioEntry)
+{
+    HRESULT            hr         = S_OK;
+    std::vector<Byte>  block (IBlockStore::kBlockBytes);
+    Byte               headerType = 0;
+    size_t             nameLength = 0;
+
+
+
+    BAIL_OUT_IF (ioEntry.partition.blockCount <= (uint32_t) ProDosSkeleton::kDirKeyBlock, S_OK);
+
+    hr = store.ReadBlocks (ioEntry.partition.firstBlock + (uint32_t) ProDosSkeleton::kDirKeyBlock, 1, block);
+    CHR (hr);
+
+    headerType = block[s_kProDosHeader];
+    nameLength = (size_t) (headerType & 0x0F);
+
+    BAIL_OUT_IF ((headerType & 0xF0) != s_kProDosVolumeHeader, S_OK);
+
+    ioEntry.volumeName.assign ((const char *) &block[s_kProDosHeader + 1], nameLength);
 
 Error:
     return;

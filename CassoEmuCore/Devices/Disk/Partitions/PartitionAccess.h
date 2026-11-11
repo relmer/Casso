@@ -125,5 +125,11 @@ private:
                                    std::string        & outError);
 
     static void         ReadVolumeLabel (IBlockStore & store, PartitionEntry & ioEntry);
+    static void         ReadProDosName  (IBlockStore & store, PartitionEntry & ioEntry);
+
+    //  The volume directory header in a ProDOS key block, its storage type
+    //  and name length in one byte, and the name after it.
+    static constexpr size_t  s_kProDosHeader       = 0x04;
+    static constexpr Byte    s_kProDosVolumeHeader = 0xF0;
     static std::string  GetLeafName     (const std::string & path);
 };
