@@ -122,13 +122,19 @@ HRESULT PhysicalCardFileIo::ReadAt (const std::string & path, uint64_t offset, s
 {
     HRESULT            hr     = S_OK;
     bool               inside = false;
+    Target             target = Resolve (path);
     std::vector<Byte>  bytes;
 
 
 
-    if (Resolve (path).kind == PhysicalCards::PathKind::None)
+    if (target.kind == PhysicalCards::PathKind::None)
     {
         return m_inner.ReadAt (path, offset, outBytes);
+    }
+
+    if (target.kind == PhysicalCards::PathKind::Partition)
+    {
+        return m_cards.ReadPartitionAt (target.drive, target.partition, offset, outBytes);
     }
 
     hr = ReadAllBytes (path, bytes);

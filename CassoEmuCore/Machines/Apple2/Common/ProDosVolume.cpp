@@ -26,6 +26,21 @@ ProDosVolume::ProDosVolume (const vector<Byte> & sectors)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProDosVolume::ProDosVolume
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProDosVolume::ProDosVolume (const BlockImage & image)
+    : m_sectors (image)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProDosVolume::ReadByte
 //
 //  Refuses a block the volume cannot hold rather than indexing past the end of
@@ -65,7 +80,7 @@ Byte ProDosVolume::ReadByte (int block, size_t offset) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const vector<Byte> & ProDosVolume::AccessBlock (int block) const
+const BlockImage & ProDosVolume::AccessBlock (int block) const
 {
     ProDosReader::NoteBlockRead (m_readObserver, m_sectors.size(), block);
 
@@ -931,7 +946,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ProDosVolume::IsFreeInBitmap (const vector<Byte> & buffer, uint32_t block)
+bool ProDosVolume::IsFreeInBitmap (const BlockImage & buffer, uint32_t block)
 {
     size_t  at   = 0;
     Byte    mask = (Byte) (0x80 >> (block % 8));

@@ -575,6 +575,7 @@
     <ClCompile Include="Devices\Disk\Archives\ArchiveVolume.cpp" />
     <ClCompile Include="Devices\Disk\MemoryBlockStore.cpp" />
     <ClCompile Include="Devices\Disk\CachingBlockStore.cpp" />
+    <ClCompile Include="Devices\Disk\BlockImage.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\CffaLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\DosMasterLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\FocusDriveLayout.cpp" />
@@ -1277,6 +1278,7 @@
     <ClInclude Include="Devices\Disk\IBlockStore.h" />
     <ClInclude Include="Devices\Disk\MemoryBlockStore.h" />
     <ClInclude Include="Devices\Disk\CachingBlockStore.h" />
+    <ClInclude Include="Devices\Disk\BlockImage.h" />
     <ClInclude Include="Devices\Disk\Partitions\CffaLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\DosMasterLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\FocusDriveLayout.h" />

@@ -144,7 +144,7 @@ bool ProDosSkeleton::IsValidVolumeSize (size_t bufferBytes)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t ProDosSkeleton::GetBitmapByteOffset (const vector<Byte> & buffer, uint32_t block)
+size_t ProDosSkeleton::GetBitmapByteOffset (const BlockImage & buffer, uint32_t block)
 {
     size_t  bufferBytes = buffer.size();
     size_t  byteIndex   = (size_t) (block / 8);
@@ -402,7 +402,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ProDosReader::ExtractFile (
-    const vector<Byte> & volume,
+    const BlockImage   & volume,
     const std::string  & fileName,
     vector<Byte>       & outBytes,
     Byte               & outFileType,
@@ -435,7 +435,7 @@ HRESULT ProDosReader::ExtractFile (
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ProDosReader::ExtractFileFromDirectory (
-    const vector<Byte>   & volume,
+    const BlockImage     & volume,
     int                    dirKeyBlock,
     const std::string    & fileName,
     vector<Byte>         & outBytes,
@@ -471,7 +471,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ProDosReader::ExtractForksFromDirectory (
-    const vector<Byte>   & volume,
+    const BlockImage     & volume,
     int                    dirKeyBlock,
     const std::string    & fileName,
     ProDosForks          & outForks,
@@ -615,7 +615,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ProDosReader::ReadFork (
-    const vector<Byte>   & volume,
+    const BlockImage     & volume,
     Byte                   storage,
     Word                   keyPointer,
     uint32_t               eof,
@@ -721,7 +721,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProDosReader::ReadMiniEntry (const vector<Byte> & volume, Word keyBlock, size_t at, Byte & outStorage, Word & outKey, uint32_t & outEof)
+void ProDosReader::ReadMiniEntry (const BlockImage   & volume, Word keyBlock, size_t at, Byte & outStorage, Word & outKey, uint32_t & outEof)
 {
     size_t  bytes = volume.size();
 
@@ -751,7 +751,7 @@ void ProDosReader::ReadMiniEntry (const vector<Byte> & volume, Word keyBlock, si
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ProDosReader::ReadExtendedForks (
-    const vector<Byte>   & volume,
+    const BlockImage     & volume,
     Word                   keyBlock,
     ISectorReadObserver  * observer,
     ProDosForks          & outForks)
@@ -816,7 +816,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ProDosReader::AppendIndexedBlocks (
-    const vector<Byte>   & volume,
+    const BlockImage     & volume,
     Word                   indexBlock,
     vector<Word>         & dataBlocks,
     ISectorReadObserver  * observer)
@@ -888,7 +888,7 @@ void ProDosReader::NoteBlockRead (ISectorReadObserver * observer, size_t bufferB
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ProDosReader::IsBlockInRange (const vector<Byte> & volume, Word block)
+bool ProDosReader::IsBlockInRange (const BlockImage   & volume, Word block)
 {
     return (int) block < ProDosSkeleton::GetBlockCount (volume.size());
 }

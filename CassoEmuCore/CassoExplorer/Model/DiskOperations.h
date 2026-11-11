@@ -6,11 +6,13 @@
 #include "Devices/Disk/DiskCommandResult.h"
 #include "Devices/Disk/DiskImageSession.h"
 #include "Devices/Disk/FilePath.h"
+#include "Devices/Disk/IBlockStore.h"
 #include "Machines/Apple2/Common/SectorReadObserver.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
 
 class FilesystemChoices;
+class ProDosVolume;
 class IDiskFileIo;
 class IIntentChannel;
 enum class VolumeKind;
@@ -160,8 +162,35 @@ private:
         std::set<size_t>            m_lost;
     };
 
+    //  A ProDOS image of at least this size in block order is listed and read
+    //  through its blocks, rather than read whole.
+    static constexpr uint64_t  kMinBlockVolumeBytes = 1024 * 1024;
+
+    //  The .2mg header's fields: its magic, the image format, where the
+    //  volume starts and its length.
+    static constexpr size_t    k2mgHeaderBytes = 64;
+    static constexpr size_t    k2mgFormat      = 0x0C;
+    static constexpr size_t    k2mgDataOffset  = 0x18;
+    static constexpr size_t    k2mgDataLength  = 0x1C;
+    static constexpr uint32_t  k2mgProDosOrder = 1;
+
+    //  A ProDOS volume's directory header, the key block's first entry, and
+    //  its storage type in the high nibble.
+    static constexpr size_t    kVolumeHeaderAt   = 2 * 512 + 4;
+    static constexpr Byte      kVolumeHeaderType = 0xF0;
+
+    static uint32_t  Read2mgLong (const std::vector<Byte> & header, size_t at) { return (uint32_t) header[at] | ((uint32_t) header[at + 1] << 8) | ((uint32_t) header[at + 2] << 16) | ((uint32_t) header[at + 3] << 24); }
+
     Result  RunCommand (const CommandLineOptions & options);
     Result  OpenVolume (const std::string & imagePath, DiskImageSession::OpenedImage & outOpened);
+
+    //  A large ProDOS volume of whole blocks, read as its blocks are touched:
+    //  a .po, a .hdv, a .2mg in ProDOS order, or a partition on a storage
+    //  card. False, with nothing opened, for any other image, which is read
+    //  whole. `outStore` must outlive `outVolume`.
+    bool    TryOpenBlockVolume (const std::string              & imagePath,
+                                std::unique_ptr<IBlockStore>   & outStore,
+                                std::unique_ptr<ProDosVolume>  & outVolume);
 
     VolumeKind  GetChoice (const std::string & imagePath) const;
 

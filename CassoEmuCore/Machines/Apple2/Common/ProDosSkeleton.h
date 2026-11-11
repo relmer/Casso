@@ -4,6 +4,7 @@
 
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/SectorReadObserver.h"
+#include "Devices/Disk/BlockImage.h"
 
 
 
@@ -52,7 +53,7 @@ public:
     static bool     IsValidVolumeSize     (size_t bufferBytes);
     static bool     IsBlockOrder          (size_t bufferBytes);
     static int      GetReservedBlockCount (size_t bufferBytes);
-    static size_t   GetBitmapByteOffset   (const vector<Byte> & buffer, uint32_t block);
+    static size_t   GetBitmapByteOffset   (const BlockImage & buffer, uint32_t block);
 
     static constexpr int     kBlockByteSize   = 512;
 
@@ -197,7 +198,7 @@ struct ProDosForks
 class ProDosReader
 {
 public:
-    static HRESULT  ExtractFile (const vector<Byte> & volume,
+    static HRESULT  ExtractFile (const BlockImage   & volume,
                                  const std::string  & fileName,
                                  vector<Byte>       & outBytes,
                                  Byte               & outFileType,
@@ -205,7 +206,7 @@ public:
 
     //  The same, for a file in the directory whose key block is given, which
     //  may be a subdirectory's.
-    static HRESULT  ExtractFileFromDirectory (const vector<Byte>   & volume,
+    static HRESULT  ExtractFileFromDirectory (const BlockImage     & volume,
                                               int                    dirKeyBlock,
                                               const std::string    & fileName,
                                               vector<Byte>         & outBytes,
@@ -215,7 +216,7 @@ public:
 
     //  Both forks and the Finder information of an extended file; the data
     //  fork alone of any other.
-    static HRESULT  ExtractForksFromDirectory (const vector<Byte>   & volume,
+    static HRESULT  ExtractForksFromDirectory (const BlockImage     & volume,
                                                int                    dirKeyBlock,
                                                const std::string    & fileName,
                                                ProDosForks          & outForks,
@@ -224,7 +225,7 @@ public:
                                                ISectorReadObserver  * observer = nullptr);
 
     //  One fork's bytes from its storage type, key block and length.
-    static HRESULT  ReadFork (const vector<Byte>   & volume,
+    static HRESULT  ReadFork (const BlockImage     & volume,
                               Byte                   storage,
                               Word                   keyPointer,
                               uint32_t               eof,
@@ -232,7 +233,7 @@ public:
                               vector<Byte>         & outBytes);
 
     //  One fork's entry in an extended key block.
-    static void  ReadMiniEntry (const vector<Byte> & volume, Word keyBlock, size_t at, Byte & outStorage, Word & outKey, uint32_t & outEof);
+    static void  ReadMiniEntry (const BlockImage   & volume, Word keyBlock, size_t at, Byte & outStorage, Word & outKey, uint32_t & outEof);
 
     //  A block's two sectors, to the observer if there is one.
     static void  NoteBlockRead (ISectorReadObserver * observer, size_t bufferBytes, int block);
@@ -241,17 +242,17 @@ public:
     //  comes off the disk, so none of them may be trusted: block numbers index
     //  directly into the sector buffer, and an out-of-range one reads far past
     //  its end rather than merely returning something wrong.
-    static bool  IsBlockInRange (const vector<Byte> & volume, Word block);
+    static bool  IsBlockInRange (const BlockImage   & volume, Word block);
 
 private:
     //  False when the index block itself is unusable, so the caller reports an
     //  unreadable file instead of gathering garbage.
-    static HRESULT  ReadExtendedForks (const vector<Byte>   & volume,
+    static HRESULT  ReadExtendedForks (const BlockImage     & volume,
                                        Word                   keyBlock,
                                        ISectorReadObserver  * observer,
                                        ProDosForks          & outForks);
 
-    static bool  AppendIndexedBlocks (const vector<Byte>   & volume,
+    static bool  AppendIndexedBlocks (const BlockImage     & volume,
                                       Word                   indexBlock,
                                       vector<Word>         & dataBlocks,
                                       ISectorReadObserver  * observer);

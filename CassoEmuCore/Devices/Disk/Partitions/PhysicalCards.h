@@ -167,6 +167,11 @@ public:
     HRESULT  ListPartitions      (int number, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries);
     HRESULT  ReadPartition       (int number, int partition, std::vector<Byte> & outBytes);
 
+    //  Bytes from `offset` in the partition, read through the card's cache
+    //  for a partition of whole blocks, and from the whole partition for any
+    //  other.
+    HRESULT  ReadPartitionAt     (int number, int partition, uint64_t offset, std::span<Byte> outBytes);
+
     //  `bytes` is written over the start of the partition.
     HRESULT  WritePartition      (int number, int partition, std::span<const Byte> bytes);
 

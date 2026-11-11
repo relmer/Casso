@@ -837,7 +837,7 @@ HRESULT ProDosVolumeWriter::CreateDirectory (const FilePath & path, vector<Byte>
     CBREx (allocated, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
 
     keyBlock = blocks[0];
-    result   = m_volume.m_sectors;
+    result   = m_volume.m_sectors.ToVector();
 
     if (!slotOk)
     {
@@ -1007,7 +1007,7 @@ HRESULT ProDosVolumeWriter::AddFileWithCase (
     haveKeyBlock = !blocks.empty();
     CBRA (haveKeyBlock);
 
-    result = m_volume.m_sectors;
+    result = m_volume.m_sectors.ToVector();
 
     if (!slotOk)
     {
@@ -1116,7 +1116,7 @@ HRESULT ProDosVolumeWriter::AddExtendedFile (
     allocated = TryAllocateBlocks (report, 1 + dataTotal + forkTotal + (slotOk ? 0 : 1), blocks);
     CBREx (allocated, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
 
-    result = m_volume.m_sectors;
+    result = m_volume.m_sectors.ToVector();
 
     if (!slotOk)
     {
@@ -1467,7 +1467,7 @@ HRESULT ProDosVolumeWriter::SetStartupProgram (const FilePath & path, vector<Byt
         }
     }
 
-    result = m_volume.m_sectors;
+    result = m_volume.m_sectors.ToVector();
 
     // A file already in front of every other candidate leaves the volume
     // exactly as it was, rather than being rewritten to what it already says.
@@ -1564,7 +1564,7 @@ HRESULT ProDosVolumeWriter::Rename (
     hr = m_volume.BuildIntegrityReport (report);
     CHRA (hr);
 
-    result = m_volume.m_sectors;
+    result = m_volume.m_sectors.ToVector();
 
     WriteByteAt (result,
                  entries[owner].dirBlock,
@@ -1648,7 +1648,7 @@ HRESULT ProDosVolumeWriter::SetAttributes (
     hr = m_volume.BuildIntegrityReport (report);
     CHRA (hr);
 
-    result = m_volume.m_sectors;
+    result = m_volume.m_sectors.ToVector();
     block  = entries[owner].dirBlock;
     entry  = entries[owner].entryOffset;
 

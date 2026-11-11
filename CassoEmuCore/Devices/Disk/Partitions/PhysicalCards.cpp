@@ -806,6 +806,64 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PhysicalCards::ReadPartitionAt
+//
+//  The blocks the range covers, read whole, and the range copied out of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::ReadPartitionAt (int number, int partition, uint64_t offset, std::span<Byte> outBytes)
+{
+    HRESULT                      hr      = S_OK;
+    std::lock_guard<std::mutex>  lock (m_mutex);
+    Session                    * session = nullptr;
+    const PartitionEntry       * entry   = nullptr;
+    bool                         inside  = false;
+    uint64_t                     first   = 0;
+    uint64_t                     last    = 0;
+    std::vector<Byte>            blocks;
+
+
+
+    hr = FindSession (number, session);
+    CHR (hr);
+
+    hr = FindPartition (*session, partition, entry);
+    CHR (hr);
+
+    inside = offset <= entry->byteCount && outBytes.size() <= entry->byteCount - offset;
+    CBREx (inside, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
+    BAIL_OUT_IF (outBytes.empty(), S_OK);
+
+    if (entry->partition.span != PartitionSpan::WholeBlocks || entry->partition.dosSectors)
+    {
+        hr = PartitionAccess::ReadBytes (*session->cache, entry->partition, blocks);
+        CHR (hr);
+
+        std::copy_n (blocks.begin() + (ptrdiff_t) offset, outBytes.size(), outBytes.begin());
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    first = offset / IBlockStore::kBlockBytes;
+    last  = (offset + outBytes.size() - 1) / IBlockStore::kBlockBytes;
+
+    blocks.resize ((size_t) (last - first + 1) * IBlockStore::kBlockBytes);
+
+    hr = session->cache->ReadBlocks (entry->partition.firstBlock + (uint32_t) first, (uint32_t) (last - first + 1), blocks);
+    CHR (hr);
+
+    std::copy_n (blocks.begin() + (ptrdiff_t) (offset % IBlockStore::kBlockBytes), outBytes.size(), outBytes.begin());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PhysicalCards::FindSession
 //
 //  Called with the lock taken.

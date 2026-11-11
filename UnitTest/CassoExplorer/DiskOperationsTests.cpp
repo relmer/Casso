@@ -7,6 +7,8 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -124,6 +126,42 @@ public:
         return text;
     }
 
+
+
+    TEST_METHOD (ListAndRead_ALargeProDosImage_ReadOnlyTheBlocksTouched)
+    {
+        FakeDiskFileIo     io;
+        DiskOperations     ops (io);
+        vector<Byte>       volume ((size_t) 65535 * ProDosSkeleton::kBlockByteSize, 0);
+        vector<Byte>       written;
+        FilePayload        payload;
+        FilePayload        back;
+        VolumeListing      listing;
+        VolumeKind         kind = VolumeKind::Unknown;
+
+        payload.type           = ProDosVolume::kTypeBinary;
+        payload.loadAddress    = 0x2000;
+        payload.hasLoadAddress = true;
+        payload.bytes.assign (5000, 0x5A);
+
+        AssertSucceeded (ProDosSkeleton::Write (volume, "BIG"));
+        AssertSucceeded (ProDosVolume (volume).Write (FilePath::Parse ("PROG"), payload, written));
+
+        io.files["C:\\big.po"]  = written;
+        io.stamps["C:\\big.po"] = FileStamp { written.size(), 1 };
+
+        AssertSucceeded (ops.List ("C:\\big.po", listing, kind).hr);
+
+        Assert::IsTrue   (kind == VolumeKind::ProDos);
+        Assert::AreEqual (size_t (1), listing.entries.size());
+        Assert::AreEqual (0, io.wholeReads);
+        Assert::IsTrue   (io.bytesReadAt < (uint64_t) 1024 * 1024);
+
+        AssertSucceeded (ops.Read ("C:\\big.po", "PROG", back, 0).hr);
+
+        Assert::IsTrue   (back.bytes == payload.bytes);
+        Assert::AreEqual (0, io.wholeReads);
+    }
 
 
     TEST_METHOD (Get_EveryEncoding_ProducesTheSameFile)

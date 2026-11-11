@@ -81,9 +81,15 @@ public:
     //  durable before it became the target.
     vector<std::string>  flushedPaths;
 
+    //  Whole reads and ranged reads, so a test can see how much was read.
+    int       wholeReads   = 0;
+    uint64_t  bytesReadAt  = 0;
+
     HRESULT  ReadAllBytes (const std::string & path, vector<Byte> & outBytes) override
     {
         auto  found = files.find (path);
+
+        wholeReads++;
 
         if (found == files.end())
         {
@@ -159,6 +165,7 @@ public:
         }
 
         std::copy_n (found->second.begin() + (ptrdiff_t) offset, outBytes.size(), outBytes.begin());
+        bytesReadAt += outBytes.size();
         return S_OK;
     }
 

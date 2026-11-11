@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Common/IVolume.h"
 #include "Machines/Apple2/Common/SectorReadObserver.h"
 #include "Devices/Disk/ChainWalkGuard.h"
+#include "Devices/Disk/BlockImage.h"
 #include "Machines/Apple2/Common/ProDosVolumeWriter.h"
 #include "Machines/Apple2/Common/ProDosVolumeRemover.h"
 
@@ -46,6 +47,13 @@ class ProDosVolume : public IVolume
 {
 public:
     explicit ProDosVolume (const vector<Byte> & sectors);
+
+    //  Over an image that reads its blocks as they are touched, as a card's
+    //  partition or a hard drive image is read.
+    explicit ProDosVolume (const BlockImage & image);
+
+    //  The bytes read from the image's store so far.
+    size_t   GetBytesLoaded () const { return m_sectors.GetBytesLoaded(); }
     ProDosVolume (const ProDosVolume &) = delete;
 
     //  Called with each sector the volume reads from here on; null for none.
@@ -167,11 +175,11 @@ private:
 
     //  The buffer, for a read of one block of it. Every read of the volume's
     //  own buffer goes through here, so the read observer has each sector.
-    const vector<Byte>  & AccessBlock (int block) const;
+    const BlockImage    & AccessBlock (int block) const;
     Word                  ReadWord    (int block, size_t offset) const;
 
     //  Volume bitmap: one bit per block, MSB of byte 0 is block 0, SET is free.
-    static bool  IsFreeInBitmap  (const vector<Byte> & buffer, uint32_t block);
+    static bool  IsFreeInBitmap  (const BlockImage & buffer, uint32_t block);
 
     //  An upper-case name with the case word applied, for display. A word
     //  without its top bit describes nothing, and the name comes back as the
@@ -244,7 +252,7 @@ private:
     friend class ProDosVolumeWriter;
     friend class ProDosVolumeRemover;
 
-    const vector<Byte> &   m_sectors;
+    BlockImage             m_sectors;
     ISectorReadObserver  * m_readObserver = nullptr;
 
     ProDosVolumeWriter   m_writer  { *this };

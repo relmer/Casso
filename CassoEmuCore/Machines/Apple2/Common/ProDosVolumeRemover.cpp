@@ -206,7 +206,7 @@ HRESULT ProDosVolumeRemover::DeleteEntry (
     outOutcome                    = DeleteOutcome();
     outOutcome.catalogFullyParsed = report.IsCatalogFullyParsed();
 
-    result = m_volume.m_sectors;
+    result = m_volume.m_sectors.ToVector();
 
     // The report walks the same directory in the same order over the same
     // buffer, so an owner index names the same entry on both sides.
@@ -455,7 +455,7 @@ HRESULT ProDosVolumeRemover::RemoveEmptyDirectory (
     hr = m_volume.BuildIntegrityReport (report);
     CHRA (hr);
 
-    result = m_volume.m_sectors;
+    result = m_volume.m_sectors.ToVector();
 
     for (uint32_t block : report.GetClaimsOf (owner))
     {
@@ -535,7 +535,7 @@ HRESULT ProDosVolumeRemover::RemoveDirectory (
     outOutcome                    = DeleteOutcome();
     outOutcome.catalogFullyParsed = plan.catalogFullyParsed;
 
-    staged = m_volume.m_sectors;
+    staged = m_volume.m_sectors.ToVector();
 
     for (i = 0; i < plan.entries.size(); i++)
     {
