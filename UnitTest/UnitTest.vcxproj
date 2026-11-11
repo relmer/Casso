@@ -460,6 +460,7 @@
     <ClCompile Include="CassoExplorer\BrowserFormattingTests.cpp" />
     <ClCompile Include="CassoExplorer\ChooseDetailsModelTests.cpp" />
     <ClCompile Include="CassoExplorer\IconSizeStepsTests.cpp" />
+    <ClCompile Include="CassoExplorer\ImageFileSearchSourcesTests.cpp" />
     <ClCompile Include="CassoExplorer\PreviewSaveChoicesTests.cpp" />
     <ClCompile Include="CassoExplorer\PreviewStepsTests.cpp" />
     <ClCompile Include="CassoExplorer\PreviewViewChoicesTests.cpp" />

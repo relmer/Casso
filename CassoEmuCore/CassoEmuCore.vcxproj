@@ -207,6 +207,7 @@
     <ClCompile Include="CassoExplorer\Model\ChooseDetailsModel.cpp" />
     <ClCompile Include="CassoExplorer\Model\KrunchMap.cpp" />
     <ClCompile Include="CassoExplorer\Model\IconSizeSteps.cpp" />
+    <ClCompile Include="CassoExplorer\Model\ImageFileSearchSources.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewSaveChoices.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewSteps.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewViewChoices.cpp" />
@@ -1023,6 +1024,7 @@
     <ClInclude Include="CassoExplorer\Model\ChooseDetailsModel.h" />
     <ClInclude Include="CassoExplorer\Model\KrunchMap.h" />
     <ClInclude Include="CassoExplorer\Model\IconSizeSteps.h" />
+    <ClInclude Include="CassoExplorer\Model\ImageFileSearchSources.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewSaveChoices.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewSteps.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewViewChoices.h" />
