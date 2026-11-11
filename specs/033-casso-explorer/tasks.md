@@ -1979,7 +1979,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 ## Phase 57: Volumes read and written by the block (User Story 39)
 
-- [ ] T663 [US39] Replace the `vector<Byte>` of `ProDosVolume` and its writer and remover with a block source (`IBlockStore` through `CachingBlockStore`) that reads each block on demand (FR-247)
+- [X] T663 [US39] Replace the `vector<Byte>` of `ProDosVolume` and its writer and remover with a block source (`IBlockStore` through `CachingBlockStore`) that reads each block on demand (FR-247)
 - [ ] T664 [US39] Write a change as the blocks it touches, committed together through the cache, for files, cards, hard drive images and CassoLink drives (FR-248)
 - [ ] T665 [US39] Build volumes from a block source at every place one is created: the browser, preview, copy, `casso disk` and the emulator's mounts. DOS 3.3, Pascal and CP/M are read whole behind the same interface (FR-249)
 - [ ] T666 [US39] Read HFS volumes by the block (FR-247)
