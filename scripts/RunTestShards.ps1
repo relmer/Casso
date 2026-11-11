@@ -141,6 +141,7 @@ for ($i = 0; $i -lt $shardCount; $i++) {
 $failed     = $false
 $totalRun   = 0
 $totalPass  = 0
+$totalSkip  = 0
 
 foreach ($p in $processes) {
     $p.Process.WaitForExit()
@@ -149,8 +150,14 @@ foreach ($p in $processes) {
     $total  = [int](($log | Select-String '^\s*Total tests:\s*(\d+)' | Select-Object -Last 1).Matches.Groups[1].Value)
     $passed = [int](($log | Select-String '^\s*Passed:\s*(\d+)' | Select-Object -Last 1).Matches.Groups[1].Value)
 
+    #  A test marked TEST_IGNORE is reported as skipped, not failed, as the
+    #  serial run treats it.
+    $skipLine = $log | Select-String '^\s*Skipped:\s*(\d+)' | Select-Object -Last 1
+    $skipped  = ($null -ne $skipLine) ? [int]$skipLine.Matches.Groups[1].Value : 0
+
     $totalRun  += $total
     $totalPass += $passed
+    $totalSkip += $skipped
 
     $status  = 'OK'
     $asanHit = $log | Select-String -SimpleMatch 'ERROR: AddressSanitizer' -Quiet
@@ -161,19 +168,19 @@ foreach ($p in $processes) {
         $log | ForEach-Object { Write-Host $_ }
     }
 
-    if ($p.Process.ExitCode -ne 0 -or $total -ne $p.Expected -or $passed -ne $total -or $asanHit) {
+    if ($p.Process.ExitCode -ne 0 -or $total -ne $p.Expected -or $passed + $skipped -ne $total -or $asanHit) {
         $status = 'FAILED'
         $failed = $true
     }
 
-    Write-Host ("Shard {0}: {1} of {2} listed tests run, {3} passed, exit {4}  {5}" -f $p.Index, $total, $p.Expected, $passed, $p.Process.ExitCode, $status)
+    Write-Host ("Shard {0}: {1} of {2} listed tests run, {3} passed, {4} skipped, exit {5}  {6}" -f $p.Index, $total, $p.Expected, $passed, $skipped, $p.Process.ExitCode, $status)
 
     if ($status -ne 'OK' -and -not $asanHit) {
         $log | Select-String -Pattern '^\s*Failed |Error Message' -Context 0, 2 | ForEach-Object { Write-Host $_ }
     }
 }
 
-Write-Host ("Total: {0} of {1} tests run, {2} passed" -f $totalRun, $allTests.Count, $totalPass)
+Write-Host ("Total: {0} of {1} tests run, {2} passed, {3} skipped" -f $totalRun, $allTests.Count, $totalPass, $totalSkip)
 
 if ($totalRun -ne $allTests.Count) {
     Write-Host 'The shards did not run every listed test.' -ForegroundColor Red
