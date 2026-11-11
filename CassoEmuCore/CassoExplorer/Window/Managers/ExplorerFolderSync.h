@@ -50,6 +50,10 @@ public:
     static int64_t  GetQuickAccessStamp         (const std::wstring & directory);
     static int64_t  GetFileStamp                (const std::wstring & path);
     void            CheckDrives                 ();
+
+    //  For a list just filled: a storage card that opened for it has its
+    //  partitions listed in the tree at once, rather than at the next poll.
+    void            CheckOpenedCard             ();
     void            ChangeKnownFolder           (const std::wstring & folder, bool add);
 
     void  HandleFolderChanged ();
@@ -68,4 +72,6 @@ private:
     std::string                     m_knownFoldersText;   // KnownFolders.json as last read
     std::wstring                    m_storageCardKey;     // the storage cards at the last look, as text
     std::vector<int>                m_storageCardDrives;  // their drive numbers
+    std::vector<int>                m_openCardDrives;     // the cards open at the last look
+    std::vector<std::wstring>       m_expandIds;          // card nodes to open once the tree has them
 };

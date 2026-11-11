@@ -303,6 +303,20 @@ void ExplorerFolderSync::CheckDrives()
     m_context.treePane.ReloadChildren (TreeModel::kThisPcRootId);
     ReloadKnownFolders();
 
+    //  A card opened since the last look is opened in the tree to its
+    //  partitions.
+    for (const std::wstring & id : m_expandIds)
+    {
+        m_context.treePane.ExpandNode (id);
+    }
+
+    if (!m_expandIds.empty())
+    {
+        m_context.treePane.RevealLocationInTree();
+    }
+
+    m_expandIds.clear();
+
     if (!m_context.browser.GetBrowserModel().HasTabs())
     {
         return;
@@ -320,6 +334,40 @@ void ExplorerFolderSync::CheckDrives()
     else if (m_context.browser.LeaveMissingLocation())
     {
         m_context.listPane.FillList();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::CheckOpenedCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::CheckOpenedCard()
+{
+    Location  location = m_context.browser.GetLocation();
+    int       number   = 0;
+    int       part     = 0;
+    bool      isNew    = false;
+
+
+
+    if (m_context.app.cards == nullptr ||
+        PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (location.path), number, part) == PhysicalCards::PathKind::None)
+    {
+        return;
+    }
+
+    isNew = m_context.app.cards->IsOpen (number) &&
+            std::find (m_openCardDrives.begin(), m_openCardDrives.end(), number) == m_openCardDrives.end();
+
+    if (isNew)
+    {
+        CheckDrives();
     }
 }
 
@@ -409,6 +457,35 @@ bool ExplorerFolderSync::UpdateStorageCards()
 
     changed = key != m_storageCardKey;
     BAIL_OUT_IF (!changed, S_OK);
+
+    for (const StorageCardTreeEntry & entry : entries)
+    {
+        int   number   = 0;
+        int   part     = 0;
+        bool  isOpened = false;
+
+        PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (entry.path), number, part);
+        isOpened = !entry.partitions.empty() && std::find (m_openCardDrives.begin(), m_openCardDrives.end(), number) == m_openCardDrives.end();
+
+        if (isOpened)
+        {
+            m_expandIds.push_back (std::wstring (TreeModel::kStorageCardTag) + entry.path);
+        }
+    }
+
+    m_openCardDrives.clear();
+
+    for (const StorageCardTreeEntry & entry : entries)
+    {
+        int  number = 0;
+        int  part   = 0;
+
+        if (!entry.partitions.empty())
+        {
+            PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (entry.path), number, part);
+            m_openCardDrives.push_back (number);
+        }
+    }
 
     for (int number : m_storageCardDrives)
     {

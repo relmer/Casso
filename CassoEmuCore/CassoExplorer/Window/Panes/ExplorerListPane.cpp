@@ -1080,6 +1080,8 @@ void ExplorerListPane::FillList()
 
     m_homeShown = m_context.browser.IsHomeLocation();
 
+    m_context.folderSync.CheckOpenedCard();
+
     if (m_context.browser.IsHomeSectioned())
     {
         static constexpr int  s_kSharedTab = 2;
