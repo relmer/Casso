@@ -447,3 +447,6 @@ Apple2/Demos/**/*.bin
 # CiderPress II's test files, fetched by scripts/FetchCiderPressTestFiles.ps1 under its
 # Apache 2.0 license and not redistributed here.
 UnitTest/Fixtures/CiderPress/
+
+# Sample disks from the Asimov Apple II archive, fetched by scripts/FetchAsimovSamples.ps1.
+UnitTest/Fixtures/Asimov/
