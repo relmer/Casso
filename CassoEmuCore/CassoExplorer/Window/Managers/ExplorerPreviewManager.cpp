@@ -319,6 +319,18 @@ void ExplorerPreviewManager::FillPreview()
         m_context.layout.RecomputeLayout();
     }
 
+    //  View as lists the file's default view and the others that apply.
+    {
+        std::vector<DxuiPopupMenuItem>  views = { DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kViewAsDefault)) };
+
+        for (ViewChoice view : preview.viewChoices)
+        {
+            views.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kViewAsDefault + (int) view)));
+        }
+
+        m_toolbar->SetDropDownItems (CassoExplorerCommands::kViewAs, std::move (views));
+    }
+
     m_hex.Fill (preview, hex, opened, charset);
 
     m_message->SetText (!error                  ? std::wstring()

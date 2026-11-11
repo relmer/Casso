@@ -44,7 +44,8 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
                             || (row.id >= kPictureMonochrome && row.id <= kPictureColor)
                             || (row.id >= kCharsetAppleText && row.id <= kCharsetIso8859)
                             || row.id == kSheetValues || row.id == kSheetFormulas
-                            || row.id == kShowDisassembly || row.id == kShowBytes;
+                            || row.id == kShowDisassembly || row.id == kShowBytes
+                            || (row.id >= kViewAsDefault && row.id <= kViewAsResourceFork);
 
         command->dispatch = [this, id]()
         {
@@ -59,7 +60,7 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
             return m_handlers.isEnabled ? m_handlers.isEnabled (id) : true;
         };
 
-        if (id == kRestoreItems)
+        if (id == kRestoreItems || id == kViewAsDefault)
         {
             command->labelText = [this, id, label = command->label]()
             {
@@ -587,9 +588,9 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntrie
         entry.iconOnly   = row.iconOnly;
         entry.vectorIcon = GetCommandBarIcon (row.id);
 
-        //  The two forms stay on the strip at any width. Their faces are code
-        //  and the bytes it assembles to.
-        entry.pinned   = row.id == kShowDisassembly || row.id == kShowBytes;
+        //  The two forms, Expand and View as stay on the strip at any width.
+        //  The forms' faces are code and the bytes it assembles to.
+        entry.pinned   = row.id == kShowDisassembly || row.id == kShowBytes || row.id == kExpandPreview || row.id == kViewAs;
         entry.faceText = (row.id == kShowDisassembly) ? s_kpszDisassemblyFace
                        : (row.id == kShowBytes)       ? s_kpszBytesFace
                                                       : nullptr;
@@ -667,14 +668,14 @@ int CassoExplorerCommands::GetPreviewBar (int id)
 //
 //  Save as PNG is on both picture bars, Search on the variables' bar as
 //  well as the hex view's, and the character sets on a random-access text
-//  file's bar as well as the text bar. Expand, previous and next are on
-//  every bar.
+//  file's bar as well as the text bar. Expand, View as, previous and next
+//  are on every bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CassoExplorerCommands::IsOnPreviewBar (int id, int bar)
 {
-    if (id == kExpandPreview || id == kPreviousFile || id == kNextFile)
+    if (id == kExpandPreview || id == kPreviousFile || id == kNextFile || id == kViewAs)
     {
         return true;
     }

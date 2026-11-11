@@ -83,6 +83,31 @@ struct VariableArray
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ViewChoice
+//
+//  A view of a file the preview's View as offers: its default, or one of
+//  the others PreviewViewChoices lists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class ViewChoice
+{
+    Default,
+    Text,
+    Hex,
+    Disassembly,
+    HiRes,
+    DoubleHiRes,
+    LoRes,
+    ResourceFork,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewContent
 //
 //  What the preview pane shows for one entry, by kind. Text-shaped kinds
@@ -177,6 +202,12 @@ struct PreviewContent
     Charset                    charset      = Charset::Default;
     size_t                     recordLength = 0;
     SheetForm                  sheetForm    = SheetForm::None;
+
+    //  The views in View as besides the default, the current one, and the
+    //  default's name.
+    std::vector<ViewChoice>    viewChoices;
+    ViewChoice                 viewAs       = ViewChoice::Default;
+    std::wstring               defaultView;
 
     bool  operator== (const PreviewContent &) const = default;
 };

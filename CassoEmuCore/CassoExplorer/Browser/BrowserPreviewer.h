@@ -77,6 +77,7 @@ public:
 
     void  ShowShellPreviewBytes ();
     void  SetHexForm            (PreviewDecoder::HexForm form);
+    void  SetViewAs             (ViewChoice view);
 
     //  The character set and the record length of the file previewed now,
     //  in effect for that file until the window closes. A record length of 0 is
@@ -136,6 +137,7 @@ private:
     //  The form of the file previewed now, which another file resets.
     PreviewDecoder::HexForm             m_hexForm        = PreviewDecoder::HexForm::Auto;
     std::wstring                        m_hexFormKey;
+    ViewChoice                          m_viewAs         = ViewChoice::Default;
 
     //  The decode choices of each file one was made for, by file key.
     std::map<std::wstring, DecodeOptions>  m_decodeOptions;

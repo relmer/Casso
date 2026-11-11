@@ -216,6 +216,7 @@ public:
     void  SetPreviewCharset      (Charset charset)              { m_previewer.SetCharset (charset); }
     void  SetPreviewRecordLength (size_t recordLength)          { m_previewer.SetRecordLength (recordLength); }
     void  SetPreviewFormulas     (bool formulas)                { m_previewer.SetFormulas (formulas); }
+    void  SetPreviewViewAs       (ViewChoice view)              { m_previewer.SetViewAs (view); }
 
     DecodeOptions  GetDecodeOptions (const std::wstring & imagePath, const std::string & entryPath) const { return m_previewer.GetDecodeOptions (imagePath, entryPath); }
 

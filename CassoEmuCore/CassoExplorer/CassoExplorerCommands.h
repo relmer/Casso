@@ -175,6 +175,17 @@ public:
         kPreviousFile,
         kNextFile,
 
+        //  The preview's View as, and its choices, in ViewChoice's order.
+        kViewAs,
+        kViewAsDefault,
+        kViewAsText,
+        kViewAsHex,
+        kViewAsDisassembly,
+        kViewAsHiRes,
+        kViewAsDoubleHiRes,
+        kViewAsLoRes,
+        kViewAsResourceFork,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -438,6 +449,15 @@ private:
         { kCrossReference,    Menu::Count, L"&Cross-reference",    nullptr,     true  },
         { kPreviousFile,      Menu::Count, L"&Previous file",      L"Left",     false },
         { kNextFile,          Menu::Count, L"&Next file",          L"Right",    false },
+        { kViewAs,            Menu::Count, L"View as",             nullptr,     false },
+        { kViewAsDefault,     Menu::Count, L"Default",             nullptr,     true  },
+        { kViewAsText,        Menu::Count, L"&Text",               nullptr,     true  },
+        { kViewAsHex,         Menu::Count, L"&Hex",                nullptr,     true  },
+        { kViewAsDisassembly, Menu::Count, L"&Disassembly",        nullptr,     true  },
+        { kViewAsHiRes,       Menu::Count, L"Hi-res &picture",     nullptr,     true  },
+        { kViewAsDoubleHiRes, Menu::Count, L"D&ouble hi-res picture", nullptr,  true  },
+        { kViewAsLoRes,       Menu::Count, L"&Lo-res picture",     nullptr,     true  },
+        { kViewAsResourceFork, Menu::Count, L"&Resource fork",     nullptr,     true  },
 
         //  The hex view's own choices are on its context menu, and nowhere
         //  else at the top of the window.
@@ -541,6 +561,7 @@ private:
     {
         { kPreviousFile,      DxuiToolbar::Kind::Command, 8, s_kpszMdl2ChevronLeft,  L"Previous",  L"Previous file (Left)",                                    true },
         { kNextFile,          DxuiToolbar::Kind::Command, 8, s_kpszMdl2ChevronRight, L"Next",      L"Next file (Right)",                                       true },
+        { kViewAs,            DxuiToolbar::Kind::DropDown, 7, s_kpszMdl2List,     L"View as",       L"Choose how the file is displayed"                      },
         { kLineAddresses,     DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Tag,       L"Show address",  L"Show where each line starts in memory"                   },
         { kCrossReference,    DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Cross-reference", L"List the program's variables, line references and addresses" },
         { kShowDisassembly,   DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Disassembly",   L"Show disassembly",                                       true },

@@ -893,6 +893,42 @@ public:
     }
 
 
+    //  View as switches a BASIC program to its bytes and checks that choice,
+    //  and the next file opens in its default view.
+    TEST_METHOD (ViewAs_ShowsTheChosenViewUntilAnotherFile)
+    {
+        Rig               rig;
+        std::vector<int>  files;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.Open();
+
+        rig.prefs.previewVisible = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        rig.parts->listPane.FillList();
+
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"HELLO"));
+        rig.parts->preview.FillPreview();
+
+        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Listing);
+        Assert::IsTrue (rig.parts->commandManager.IsEnabled (CassoExplorerCommands::kViewAs));
+        Assert::IsTrue (rig.parts->commandManager.IsChecked (CassoExplorerCommands::kViewAsDefault));
+        Assert::AreEqual (std::wstring (L"BASIC listing (default)"), rig.parts->commandManager.GetCommandLabel (CassoExplorerCommands::kViewAsDefault));
+
+        rig.parts->commandManager.Dispatch (CassoExplorerCommands::kViewAsHex);
+
+        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Hex);
+        Assert::IsTrue (rig.parts->commandManager.IsChecked (CassoExplorerCommands::kViewAsHex));
+
+        files = GetFileRows (rig);
+        rig.parts->listPane.SetListSelection ({ files[0] == rig.browser.GetSelectedRows()[0] ? files[1] : files[0] });
+
+        Assert::IsTrue (rig.browser.GetPreview().viewAs == ViewChoice::Default, L"Another file opens in its default view");
+    }
+
+
     TEST_METHOD (HandleTimer_TakesTheWindowsTimersButTheTick)
     {
         Rig  rig;

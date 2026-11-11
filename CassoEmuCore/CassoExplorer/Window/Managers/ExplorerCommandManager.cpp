@@ -428,6 +428,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kPictureColor:      return m_context.browser.CanTogglePictureColor();
         case CassoExplorerCommands::kSavePicture:       return m_context.browser.GetPreview().kind == PreviewContent::Kind::Picture && !m_context.browser.GetPreview().bgra.empty();
         case CassoExplorerCommands::kExpandPreview:     return m_context.preview.IsShown();
+        case CassoExplorerCommands::kViewAs:            return !m_context.browser.GetPreview().viewChoices.empty();
         case CassoExplorerCommands::kPreviousFile:      return m_context.preview.CanStep (false);
         case CassoExplorerCommands::kNextFile:          return m_context.preview.CanStep (true);
         case CassoExplorerCommands::kEditWozMetadata:   return !m_context.browser.GetPreview().wozPath.empty();
@@ -528,6 +529,14 @@ bool ExplorerCommandManager::IsChecked (int id) const
     {
         case CassoExplorerCommands::kTogglePreview:     return m_context.prefs.previewVisible;
         case CassoExplorerCommands::kExpandPreview:     return m_context.preview.IsExpanded();
+        case CassoExplorerCommands::kViewAsDefault:
+        case CassoExplorerCommands::kViewAsText:
+        case CassoExplorerCommands::kViewAsHex:
+        case CassoExplorerCommands::kViewAsDisassembly:
+        case CassoExplorerCommands::kViewAsHiRes:
+        case CassoExplorerCommands::kViewAsDoubleHiRes:
+        case CassoExplorerCommands::kViewAsLoRes:
+        case CassoExplorerCommands::kViewAsResourceFork: return (int) m_context.browser.GetPreview().viewAs == id - CassoExplorerCommands::kViewAsDefault;
         case CassoExplorerCommands::kSortAscending:     return model.HasTabs() && !model.GetActiveTab().sortDescending;
         case CassoExplorerCommands::kSortDescending:    return model.HasTabs() && model.GetActiveTab().sortDescending;
         case CassoExplorerCommands::kGroupAscending:    return model.HasTabs() && !model.GetActiveTab().groupDescending;
@@ -766,6 +775,17 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kExpandPreview:      m_context.preview.SetExpanded (!m_context.preview.IsExpanded()); break;
         case CassoExplorerCommands::kPreviousFile:
         case CassoExplorerCommands::kNextFile:           m_context.preview.Step (id == CassoExplorerCommands::kNextFile);  break;
+        case CassoExplorerCommands::kViewAsDefault:
+        case CassoExplorerCommands::kViewAsText:
+        case CassoExplorerCommands::kViewAsHex:
+        case CassoExplorerCommands::kViewAsDisassembly:
+        case CassoExplorerCommands::kViewAsHiRes:
+        case CassoExplorerCommands::kViewAsDoubleHiRes:
+        case CassoExplorerCommands::kViewAsLoRes:
+        case CassoExplorerCommands::kViewAsResourceFork:
+            m_context.browser.SetPreviewViewAs ((ViewChoice) (id - CassoExplorerCommands::kViewAsDefault));
+            m_context.preview.FillPreview();
+            break;
         case CassoExplorerCommands::kShowDisassembly:
             m_context.browser.SetHexForm (PreviewDecoder::HexForm::Disassembly);
             m_context.preview.FillPreview();
@@ -1228,6 +1248,11 @@ std::wstring ExplorerCommandManager::GetCommandLabel (int id) const
     if (id == CassoExplorerCommands::kRestoreItems && !m_context.browser.GetSelectedRows().empty())
     {
         return L"Restore the selected items";
+    }
+
+    if (id == CassoExplorerCommands::kViewAsDefault && !m_context.browser.GetPreview().defaultView.empty())
+    {
+        return m_context.browser.GetPreview().defaultView + L" (default)";
     }
 
     //  A linked Apple's drive by its slot, drive and volume: the open drive, or

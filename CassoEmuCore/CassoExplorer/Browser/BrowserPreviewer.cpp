@@ -6,6 +6,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/ArchiveProbe.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
+#include "CassoExplorer/Model/PreviewViewChoices.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Devices/Disk/DiskImageSession.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -170,8 +171,10 @@ void BrowserPreviewer::PreviewAppleEntry (const std::string & entryPath, const F
 
     if (SUCCEEDED (hr))
     {
-        hr = PreviewDecoder::Render (entry, m_browser.m_kind, payload, GetHexForm (m_browser.GetLocation().path + L"|" + TextEncoding::NarrowToWide (entryPath)), m_bus, m_preview, m_previewMonitor, m_customArgb,
-                                     GetDecodeOptions (m_browser.GetLocation().path, entryPath));
+        PreviewDecoder::HexForm  hexForm = GetHexForm (m_browser.GetLocation().path + L"|" + TextEncoding::NarrowToWide (entryPath));
+
+        hr = PreviewViewChoices::Render (m_viewAs, entry, m_browser.m_kind, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb,
+                                         GetDecodeOptions (m_browser.GetLocation().path, entryPath));
     }
 
     if (FAILED (hr) && m_preview.message.empty())
@@ -206,6 +209,25 @@ void BrowserPreviewer::SetHexForm (PreviewDecoder::HexForm form)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BrowserPreviewer::SetViewAs
+//
+//  The view applies to the file previewed now. Another file opens in its
+//  default view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::SetViewAs (ViewChoice view)
+{
+    m_viewAs = view;
+    UpdatePreview();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BrowserPreviewer::GetHexForm
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,6 +238,7 @@ PreviewDecoder::HexForm BrowserPreviewer::GetHexForm (const std::wstring & fileK
     {
         m_hexFormKey = fileKey;
         m_hexForm    = PreviewDecoder::HexForm::Auto;
+        m_viewAs     = ViewChoice::Default;
     }
 
     return m_hexForm;
@@ -1276,6 +1299,7 @@ void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::
     DiskOperations::Result  result;
     FilePayload             payload;
     HRESULT                 hr          = S_OK;
+    PreviewDecoder::HexForm hexForm     = PreviewDecoder::HexForm::Auto;
 
 
 
@@ -1294,8 +1318,9 @@ void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::
         return;
     }
 
-    hr = PreviewDecoder::Render (entry, kind, payload, GetHexForm (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath)), m_bus, m_preview, m_previewMonitor, m_customArgb,
-                                 GetDecodeOptions (imagePath, entryPath));
+    hexForm = GetHexForm (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath));
+    hr      = PreviewViewChoices::Render (m_viewAs, entry, kind, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb,
+                                          GetDecodeOptions (imagePath, entryPath));
 
     //  A double hi-res picture's monitor follows its form, which is known once
     //  it is decoded.
