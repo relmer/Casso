@@ -1310,7 +1310,7 @@ void StackPane::CommitEdit (int row, Byte typed)
 
 void StackPane::PushByte()
 {
-    std::optional<Byte>  value = m_host.RunByteDialog (L"Push byte", L"Byte");
+    std::optional<Byte>  value = m_host.RunByteDialog (L"Push byte", L"Byte", {});
 
 
 

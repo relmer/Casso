@@ -1263,7 +1263,7 @@ variables as well; see [Applesoft in the window](#applesoft-in-the-window).
 Under **Zero-page pointers** the pane lists the zero-page pointers: each
 zero-page address, then the address its two bytes form and the first four
 bytes there, as `$0800: 00 00 00 00`, with Remove on its menu running `ZPC`.
-**Add zero-page pointer...** on the pane's menu, and **Add as pointer watch**
+**Add pointer watch...** on the pane's menu, and **Add as pointer watch**
 on a Memory pane's menu over a byte in zero page, run `ZP`.
 
 ### The heat map

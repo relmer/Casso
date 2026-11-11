@@ -498,7 +498,7 @@ DxuiToolbar * DebuggerWindow::GetUndoBar (const std::wstring & pane) const
 
 void DebuggerWindow::AddZeroPagePointer()
 {
-    std::optional<Byte>  address = RunByteDialog (L"Add zero-page pointer", L"Zero-page address");
+    std::optional<Byte>  address = RunByteDialog (L"Add pointer watch", L"Zero-page address", ByteDialog::kPointerWatchText);
 
 
 

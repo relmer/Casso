@@ -286,7 +286,7 @@ protected:
     //  address and length of memory saved to one; none when canceled. A test
     //  overrides it.
     //  A byte for Push byte..., none when canceled; a test overrides it.
-    std::optional<Byte>  RunByteDialog (const std::wstring & title, const std::wstring & label) override;
+    std::optional<Byte>  RunByteDialog (const std::wstring & title, const std::wstring & label, const std::wstring & description) override;
 
     //  A line typed for a Memory pane's Find, Fill, Copy or Compare, none when
     //  canceled; a test overrides it.
@@ -315,8 +315,8 @@ protected:
     IDxuiControl   * GetPaneContentForTest (const std::wstring & pane) const { return GetPaneContent (pane); }
     IDebuggerPane  * FindPaneForTest       (const std::wstring & pane) const { return FindPane (pane); }
 
-    //  Protected so a test can open the zero-page pointer dialog as Add
-    //  zero-page pointer... does.
+    //  Protected so a test can open the pointer watch dialog as Add pointer
+    //  watch... does.
     void                                               AddZeroPagePointer     () override;
 
     //  Protected so a test can work the registers, stack and watch panes'

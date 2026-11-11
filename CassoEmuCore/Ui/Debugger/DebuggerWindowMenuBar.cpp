@@ -1149,9 +1149,9 @@ std::optional<std::wstring> DebuggerWindow::RunTextDialog (const std::wstring & 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<Byte> DebuggerWindow::RunByteDialog (const std::wstring & title, const std::wstring & label)
+std::optional<Byte> DebuggerWindow::RunByteDialog (const std::wstring & title, const std::wstring & label, const std::wstring & description)
 {
-    return ByteDialog::RunModal (GetRoutingHwnd(), m_theme, title, label);
+    return ByteDialog::RunModal (GetRoutingHwnd(), m_theme, title, label, description);
 }
 
 

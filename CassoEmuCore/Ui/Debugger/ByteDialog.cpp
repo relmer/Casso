@@ -66,6 +66,14 @@ void ByteDialog::OnCreate()
     m_value.SetPlaceholder  (L"$00");
 
     m_body = CreateDialogContent<FieldDialogPanel>();
+
+    if (!m_description.empty())
+    {
+        m_descriptionLabel.SetTextRole (DxuiTextRole::Body);
+        m_descriptionLabel.SetText     (m_description);
+        m_body->SetDescription         (m_descriptionLabel);
+    }
+
     m_body->Add      (m_valueLabel, m_value);
     m_body->SetError (m_error);
 
@@ -102,7 +110,8 @@ void ByteDialog::OnCreate()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<Byte> ByteDialog::RunModal (HWND owner, const IDxuiTheme * theme, const std::wstring & title, const std::wstring & label)
+std::optional<Byte> ByteDialog::RunModal (HWND owner, const IDxuiTheme * theme, const std::wstring & title, const std::wstring & label,
+                                          const std::wstring & description)
 {
     HRESULT                   hr     = S_OK;
     ByteDialog                dialog;
@@ -111,12 +120,13 @@ std::optional<Byte> ByteDialog::RunModal (HWND owner, const IDxuiTheme * theme, 
 
 
     dialog.m_theme = theme;
-    dialog.m_label = label;
+    dialog.m_label       = label;
+    dialog.m_description = description;
 
     params.title                    = title;
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
-    params.initialSizeDip           = { 360, 190 };
+    params.initialSizeDip           = { 360, description.empty() ? 190 : 270 };
     params.minSizeDip               = params.initialSizeDip;
     params.resizable                = false;
     params.insetContentBelowCaption = true;

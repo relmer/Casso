@@ -1132,7 +1132,7 @@ bool WatchesPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
         items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
     }
 
-    items.push_back ({ L"Add zero-page pointer...", [this] { m_host.AddZeroPagePointer(); } });
+    items.push_back ({ L"Add pointer watch...", [this] { m_host.AddZeroPagePointer(); } });
     AddUndoItems (items);
     return true;
 }

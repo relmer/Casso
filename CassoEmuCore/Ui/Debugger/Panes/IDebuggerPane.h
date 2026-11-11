@@ -313,7 +313,7 @@ public:
     //  Writes lines to the console; and the line the user types in a dialog,
     //  none when canceled, which a test supplies instead.
     virtual void                   AppendConsole    (const std::vector<std::string> & lines) = 0;
-    virtual std::optional<Byte>    RunByteDialog    (const std::wstring & title, const std::wstring & label) = 0;
+    virtual std::optional<Byte>    RunByteDialog    (const std::wstring & title, const std::wstring & label, const std::wstring & description) = 0;
     virtual std::optional<std::wstring>  RunTextDialog (const std::wstring & title, const std::wstring & label, const std::wstring & placeholder,
                                                         TextDialog::CheckFn check) = 0;
 

@@ -4,6 +4,7 @@
 #include "Ui/Debugger/ByteDialog.h"
 #include "Ui/Debugger/TextDialog.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
+#include "Ui/Debugger/FieldDialogPanel.h"
 
 #include "CppUnitTest.h"
 
@@ -155,6 +156,65 @@ namespace DebuggerTests
 
             Assert::IsFalse  (MemoryFileDialog::TryMakeSave ("page.bin", { Format::Raw, L"$400", L"" }, CommandMode::AppleWin, action, error), L"no length");
             Assert::IsFalse  (MemoryFileDialog::TryMakeSave ("page.bin", { Format::Raw, L"", L"$10" }, CommandMode::AppleWin, action, error), L"no address");
+        }
+
+
+        //  A small dialog's label column fits its longest label on one line,
+        //  as Add pointer watch's Zero-page address. A short label has the
+        //  usual column.
+        TEST_METHOD (TheLabelColumnFitsTheLongestLabel)
+        {
+            FieldDialogPanel  shortPanel;
+            FieldDialogPanel  longPanel;
+            DxuiLabel         byte;
+            DxuiLabel         address;
+            DxuiLabel         field;
+            DxuiLabel         other;
+            float             oneLine = 0.0f;
+            float             height  = 0.0f;
+            HRESULT           hrOne   = S_OK;
+            HRESULT           hrFit   = S_OK;
+
+
+
+            byte.SetText    (L"Byte");
+            address.SetText (L"Zero-page address of the pointer");
+            shortPanel.Add  (byte, field);
+            longPanel.Add   (address, other);
+
+            Assert::AreEqual (FieldDialogPanel::kLabelDip, shortPanel.GetLabelDip(), L"a short label");
+
+            hrOne = address.MeasureWrappedDip (10000.0f, oneLine);
+            hrFit = address.MeasureWrappedDip ((float) longPanel.GetLabelDip(), height);
+
+            Assert::IsTrue (SUCCEEDED (hrOne) && SUCCEEDED (hrFit));
+            Assert::IsTrue (longPanel.GetLabelDip() > FieldDialogPanel::kLabelDip, L"a long label widens the column");
+            Assert::AreEqual (oneLine, height, 0.01f, L"on one line");
+        }
+
+
+        //  Add pointer watch's dialog has a description above its field, and
+        //  the field is laid out under it.
+        TEST_METHOD (ThePointerDialogsDescriptionIsAboveItsField)
+        {
+            FieldDialogPanel  panel;
+            DxuiLabel         description;
+            DxuiLabel         label;
+            DxuiTextInput     field;
+            DxuiDpiScaler     scaler;
+
+
+
+            scaler.SetDpi (96);
+            description.SetText (ByteDialog::kPointerWatchText);
+            label.SetText       (L"Zero-page address");
+            panel.SetDescription (description);
+            panel.Add            (label, field);
+            panel.Layout         (RECT { 0, 0, 320, 200 }, scaler);
+
+            Assert::IsTrue (std::wstring (ByteDialog::kPointerWatchText).find (L"$2000") != std::wstring::npos, L"the example");
+            Assert::IsTrue (description.GetRect().bottom > description.GetRect().top + FieldDialogPanel::kRowDip, L"wrapped onto lines");
+            Assert::IsTrue (field.GetRect().top >= description.GetRect().bottom, L"the field is under it");
         }
     };
 }
