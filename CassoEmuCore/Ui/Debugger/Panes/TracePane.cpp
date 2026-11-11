@@ -144,6 +144,38 @@ std::optional<uint64_t> TracePane::GetReadStartFor (uint64_t first, uint64_t hel
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TracePane::SetPcStyle
+//
+//  The PC's row has the marker in its first cell, and every other row a
+//  clear image of the marker's size there, so the cycle counts of every row
+//  start at the same column and the marker is in a margin of its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TracePane::SetPcStyle (std::shared_ptr<const DxuiIconImage> marker, uint32_t rowArgb)
+{
+    auto  blank = std::make_shared<DxuiIconImage>();
+
+
+
+    if (marker != nullptr)
+    {
+        blank->width  = marker->width;
+        blank->height = marker->height;
+        blank->bgraPremul.assign (marker->bgraPremul.size(), 0);
+    }
+
+    m_pcMarker    = std::move (marker);
+    m_blankMarker = (m_pcMarker != nullptr) ? std::move (blank) : nullptr;
+    m_pcRowArgb   = rowArgb;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TracePane::ProvideRow
 //
 //  A row outside the window read last is blank until its read arrives.
@@ -176,6 +208,8 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
         out[4].text = TextEncoding::NarrowToWide (record->instruction);
         AddColors (out, m_colors);
 
+        out[0].icon = m_blankMarker;
+
         if (index == m_total)
         {
             out[0].icon = m_pcMarker;
@@ -197,6 +231,8 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
     record = &m_entries[(size_t) (index - m_first)];
 
     //  An instruction history could not replay, or is replaying now.
+    out[0].icon = m_blankMarker;
+
     if (!record->isAvailable)
     {
         out[4].text = record->isRebuilding ? L"Rebuilding from history" : L"Not available: history could not be replayed here";
@@ -212,6 +248,7 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
 
     bytes = AppleWinFormatter::FormatTraceBytes (*record);
 
+    out[0].icon = m_blankMarker;
     out[0].text = DebuggerStatusText::FormatCount (record->cycles);
     out[1].text = std::format (L"{:04X}", record->pc);
     out[2].text = TextEncoding::NarrowToWide (bytes);

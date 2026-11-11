@@ -63,7 +63,7 @@ public:
 
     void  ToggleBytes    ();
     void  SetColors      (const DebuggerTextColors::Set & colors) { m_colors = colors; }
-    void  SetPcStyle     (std::shared_ptr<const DxuiIconImage> marker, uint32_t rowArgb) { m_pcMarker = std::move (marker); m_pcRowArgb = rowArgb; }
+    void  SetPcStyle     (std::shared_ptr<const DxuiIconImage> marker, uint32_t rowArgb);
     void  ProvideRow     (int row, std::vector<DxuiListView::Cell> & out) const;
 
     //  A row's address, bytes, label and instruction in the disassembly's
@@ -98,5 +98,6 @@ private:
     std::optional<uint64_t>                 m_requested = kFollowEnd;
     DebuggerTextColors::Set                 m_colors;
     std::shared_ptr<const DxuiIconImage>    m_pcMarker;
+    std::shared_ptr<const DxuiIconImage>    m_blankMarker;   // the marker's size, clear: every other row's, so every row's text starts where the PC's does
     uint32_t                                m_pcRowArgb = 0;
 };
