@@ -184,16 +184,16 @@ public:
     static std::string  GetAppleDoublePath (const std::string & hostFile);
     HRESULT             WriteAppleDouble   (const std::string & hostFile, const FilePayload & payload);
 
-    static bool  IsThirteenSectorImage  (const CommandLineOptions & options);
-    void         BuildThirteenSector    (const CommandLineOptions & options, bool overExisting, DiskCommandResult & result);
-    static bool  IsLargeCreate          (const CommandLineOptions & options);
-    static bool  IsHfsFormat            (const CommandLineOptions & options);
-    static const char * GetVolumeNameRule (bool isHfs);
-    static bool  IsBlockOnlyExtension   (const std::string & imagePath);
-    static bool  IsProDosOrderExtension (const std::string & imagePath);
-    static bool  TryGetLargeBlockCount  (const std::string & sizeName, uint32_t & outBlocks);
-    void         BuildLargeProDos       (const CommandLineOptions & options, DiskCommandResult & result);
-    void         ReformatLargeProDos    (const CommandLineOptions & options, const FileStamp & stamp, DiskCommandResult & result);
+    static bool          IsThirteenSectorImage  (const CommandLineOptions & options);
+    void                 BuildThirteenSector    (const CommandLineOptions & options, bool overExisting, DiskCommandResult & result);
+    static bool          IsLargeCreate          (const CommandLineOptions & options);
+    static bool          IsHfsFormat            (const CommandLineOptions & options);
+    static const char *  GetVolumeNameRule      (bool isHfs);
+    static bool          IsBlockOnlyExtension   (const std::string & imagePath);
+    static bool          IsProDosOrderExtension (const std::string & imagePath);
+    static bool          TryGetLargeBlockCount  (const std::string & sizeName, uint32_t & outBlocks);
+    void                 BuildLargeProDos       (const CommandLineOptions & options, DiskCommandResult & result);
+    void                 ReformatLargeProDos    (const CommandLineOptions & options, const FileStamp & stamp, DiskCommandResult & result);
 
     void  RunInit   (const CommandLineOptions & options, DiskCommandResult & result);
 
