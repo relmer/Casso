@@ -279,5 +279,5 @@ never stored in `links`.
 - **Disk list CSV**, one row per image: `path`, `container`, `fileSystem`, `volumeName`, `files`, `freeBytes`, `crc32`, `sha256`, `hasMore`.
 - **Duplicate CSV**, one row per member: `set`, `kind` (disk or file), `path`, `name` for a file, `sha256`.
 - **ResultsLocation**: `id`, `tool` (disk list, duplicates), `root`, `rows`, `finished`. Closed with its tab, not saved.
-- **ViewerState**: `folder` (a location), `current` (an entry), the tab's sort order when each step is taken.
+- **Expanded preview**, per tab: `expanded`, saved with the tab. The steps read the list's rows in its sort order when each is taken. **View as**: the current view, reset to the default on each file.
 - **TapeRecording sidecar**, `NAME.tape.txt`: a line per file with its start time (mm:ss.s), length, load address and load command.

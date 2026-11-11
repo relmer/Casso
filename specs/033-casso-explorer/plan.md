@@ -598,7 +598,7 @@ CassoEmuCore/
 ├── Devices/Tape/TapeRecordingWriter.h/.cpp, TapeRecordingVolume.h/.cpp   # NEW (R46)
 ├── Audio/WasapiCapture.h/.cpp         # NEW (R45)
 ├── FileTypes/VisiCalcEvaluator, WizardryScenario, ZMachineStory          # NEW (R56, R57)
-├── CassoExplorer/Window/Viewer/ExplorerViewer.h/.cpp                     # NEW (R53)
+├── CassoExplorer/Window/Managers/ExplorerPreviewManager.h/.cpp            # Expand, previous and next, View as (R53)
 ├── CassoExplorer/Model/CollectionWalk, DiskIdentity, ResultsLocation     # NEW (R54)
 └── Seams/RawDevice/                   # NEW: RawDeviceServer (elevated), RawDeviceClient, IRawDevice (R50)
 CassoCore/
@@ -651,7 +651,7 @@ scripts/EmuTargets/                    # NEW: AppleWin, MAME, KEGS, GSplus launc
 13. **partitions (Story 31)**: `PartitionLayout` and each layout;
     hybrids; copy and replace; `RawDeviceServer` and the elevated process.
 14. **HFS (Story 32)**, **SOS (Story 33)**, **Gutenberg writes and RDOS (Story 34)**.
-15. **the viewer (Story 35)**, **collection tools (Story
+15. **the expanded preview (Story 35)**, **collection tools (Story
     36)**, **BASIC tools and game data (Stories 37 and 38)**.
 
 ### Constitution check for Phase 33

@@ -1945,11 +1945,12 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [X] T631 [P] [US34] Add a read-only `RdosVolume` for RDOS 2.1, 3.2 and 3.3 in `CassoEmuCore/Machines/Apple2/Common/RdosVolume.h/.cpp` (FR-228)
 - [ ] T632 [US34] Scenario tests: a document written by Casso Explorer opens and saves again in Gutenberg in Casso (SC-062); each RDOS sample file matches CiderPress II's extraction
 
-## Phase 52: A viewer window (User Story 35)
+## Phase 52: An expanded preview (User Story 35)
 
-- [ ] T633 [US35] Add `ExplorerViewer` in `CassoEmuCore/CassoExplorer/Window/Viewer/ExplorerViewer.h/.cpp`: a top-level `DxuiWindow` with the preview pane's components, one per Casso Explorer window, reused (FR-229)
-- [ ] T634 [US35] Step previous and next in the folder's sort order at the time of the step, by arrows and Left and Right, skipping folders and stopping at each end with the arrow disabled (FR-230). Tests on the model with a folder changed between steps
-- [ ] T635 [US35] Add Save as with Get's choices, Ctrl and the wheel to zoom pictures, and Options' Enter opens the viewer (FR-229, FR-231)
+- [ ] T633 [US35] Add Expand and Collapse to the preview pane in `ExplorerPreviewManager`, Alt+Shift+P and Esc, and the expanded layout in `ExplorerLayout::RecomputeLayout`: the preview over the command bar, address bar, body and status bar, the tab strip above it, and the tree, list and splitters back as they were on collapse. Each tab's expanded state is saved with the tab and stays with it when it is torn off (FR-229)
+- [ ] T634 [US35] Add previous and next to the expanded preview, and Left and Right, moving the list's selection in its sort order at the time of the step, skipping folders, through the selected files when more than one is selected, disabled at each end (FR-230). Tests on the model with a folder changed between steps
+- [ ] T677 [US35] Add View as to the preview's toolbar: the views `PreviewDecoder` can make of the file, its default first and marked "(default)", text, hex, and the resource fork when there is one, each file opening in its default (FR-257). Tests on a binary file that is a hi-res picture, a BASIC program and a file with a resource fork
+- [ ] T635 [US35] Add Save as, a save dialog whose file types are the conversions Get offers with the current view's first, pictures written at their original resolution, and Copy and Ctrl+C, a document as plain and formatted text, to the preview; Ctrl and the wheel to zoom pictures; and the Options setting for Enter to expand the preview (FR-229, FR-231)
 - [ ] T636 [US35] Measure a step on files up to 64 KB and record SC-063 in `validation.md`
 
 ## Phase 53: Collection tools (User Story 36)

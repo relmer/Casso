@@ -1817,32 +1817,51 @@ copied out with CiderPress II's.
 
 ---
 
-### User Story 35 - A viewer window (Priority: P3)
+### User Story 35 - An expanded preview (Priority: P3)
 
-A user opens a file large, in a separate window, and steps through the
-folder with the previous and next arrows, as Windows' Photos steps through a
-folder of pictures.
+A user expands the preview pane to fill the tab and steps through the
+folder's files with previous and next, as Windows' Photos steps through a
+folder of pictures. A tab torn off into a window, with its preview
+expanded, is a viewer beside the main window. Docked or expanded, the
+preview displays a file in any of the views that apply to it, and saves or
+copies the view on screen.
 
 **Why this priority**: The preview pane is narrow. Looking through a disk of
-pictures or documents one file at a time is what a viewer is for.
+pictures or documents one file at a time is what a viewer is for, and a
+file whose default view is the wrong one, such as a binary file that is a
+picture, has to be displayed another way.
 
-**Independent Test**: Open a picture in the viewer from a disk of pictures,
-step forward past a text file and a BASIC program to the end and back to
-the start, and save one as PNG.
+**Independent Test**: Expand the preview on a picture on a disk of
+pictures, step forward past a text file and a BASIC program to the end and
+back to the start, view a binary file as a hi-res picture, save one as PNG,
+and collapse the preview: the list's selection is on the last file
+displayed.
 
 **Acceptance Scenarios**:
 
-1. **Given** a selected file, **When** Open in viewer is chosen or Enter is
-   pressed with Open in viewer set in Options, **Then** a viewer window
-   opens with the file's preview at the window's size.
-2. **Given** the viewer, **When** previous or next is clicked, or Left or
-   Right is pressed, **Then** the folder's previous or next file opens, in
-   the list's sort order, folders skipped.
-3. **Given** the viewer, **When** Save as is chosen, **Then** the file is
-   written with its conversion, or raw, as Get offers.
-4. **Given** the file's folder changes while the viewer is open, **When**
-   next is pressed, **Then** the next file is taken from the folder as it
-   is now.
+1. **Given** a previewed file, **When** Expand is clicked on the preview
+   pane, Alt+Shift+P is pressed, or Enter is pressed with Enter set to
+   expand the preview in Options, **Then** the preview fills the tab's area
+   below the tab strip.
+2. **Given** an expanded preview, **When** previous or next is clicked, or
+   Left or Right is pressed, **Then** the list's selection moves to the
+   previous or next file, in the list's sort order, folders skipped, and
+   the preview displays it. The arrows are disabled at each end. With several
+   files selected, the steps go through the selected files.
+3. **Given** a previewed file, **When** View as is opened, **Then** it lists
+   the views that apply to the file, the default first and marked
+   "(default)", and the resource fork when the file has one; choosing one
+   displays the file that way. The next file opens in its default view.
+4. **Given** a previewed file, **When** Save as is chosen, **Then** a save
+   dialog offers each conversion Get offers for the file as a file type, the
+   current view's first, and the file is written in the type chosen. Copy,
+   or Ctrl+C in the pane, puts the current view on the clipboard.
+5. **Given** the file's folder changes while the preview is expanded,
+   **When** next is pressed, **Then** the next file is taken from the folder
+   as it is now.
+6. **Given** an expanded preview, **When** Esc is pressed or Collapse is
+   clicked, **Then** the tab's panes are back as they were, and the list's
+   selection is on the file last displayed.
 
 ---
 
@@ -3479,19 +3498,28 @@ back, and edit a byte and see it written.
 - **FR-228**: RDOS volumes MUST be read, read-only, with each file listed
   and copied out.
 
-**Viewer window**
+**Expanded preview**
 
-- **FR-229**: Open in viewer MUST open a window with the file's preview at
-  the window's size, from the context menu, and from Enter when Options sets
-  Enter to open the viewer. Each Casso Explorer window MUST have at most one
-  viewer, reused for the next file opened.
-- **FR-230**: The viewer MUST step to the previous and next file of its
-  folder, in the list's sort order as it is when the step is taken, by
-  arrows on the window and by Left and Right, skipping folders and stopping
-  at each end.
-- **FR-231**: The viewer MUST offer Save as, with the conversion and raw
-  choices Get offers, and pictures MUST be zoomed with Ctrl and the mouse
-  wheel.
+- **FR-229**: The preview pane MUST have an Expand button, and Alt+Shift+P,
+  that make it fill the tab's area below the tab strip, and Collapse and Esc
+  MUST put the tab's panes back as they were. The expanded state MUST be
+  per tab, and MUST stay with a tab torn off into a window. Enter MUST
+  expand the preview when Options sets Enter to do so.
+- **FR-230**: The expanded preview MUST step to the previous and next file
+  of its folder, in the list's sort order as it is when the step is taken,
+  by arrows on the pane and by Left and Right, skipping folders and
+  stopping at each end, by moving the list's selection. With more than one
+  file selected, the steps MUST go through the selected files.
+- **FR-231**: The preview MUST offer Save as and Copy, and pictures MUST be
+  zoomed with Ctrl and the mouse wheel. Save as MUST offer, as the save
+  dialog's file types, each conversion Get offers for the file, the current
+  view's first, and MUST write a picture at its original resolution at any
+  zoom. Copy MUST put the current view on the clipboard, a document as both
+  plain and formatted text.
+- **FR-257**: The preview MUST have a View as list of the views that apply
+  to the file: its default view first, marked "(default)", then the other
+  conversions the file's type and contents allow, text and hex, and its
+  resource fork when it has one. Each file MUST open in its default view.
 
 **Collection tools**
 
@@ -3779,7 +3807,7 @@ back, and edit a byte and see it written.
   GSplus and opens each changed file.
 - **SC-062**: A Gutenberg document written by Casso Explorer opens in
   Gutenberg in Casso and saves again.
-- **SC-063**: The viewer steps to the next file within half a second for
+- **SC-063**: The expanded preview steps to the next file within half a second for
   files up to 64 KB.
 - **SC-064**: Disk list and Find duplicates over 5,000 images finish within
   five minutes, and find every known duplicate in the test set with no

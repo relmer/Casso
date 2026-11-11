@@ -1138,9 +1138,15 @@ files as they are fails SC-037.
 - **Gutenberg**: the free-space map is worked out from disks Gutenberg saves in Casso: blank, after one document, after a delete, after a long document. The result is written into [contracts/file-types.md](contracts/file-types.md) before `GutenbergVolume` gains writes.
 - **RDOS**: `RdosVolume`, read-only, for RDOS 2.1, 3.2 and 3.3, from CiderPress II's RDOS notes.
 
-## R53. The viewer window (Story 35)
+## R53. The expanded preview (Story 35)
 
-**Decision**: `ExplorerViewer` is a top-level `DxuiWindow` with the preview pane's components and a strip with previous, next and Save as. It reads the folder's rows from the tab's list in sort order when each step is taken. One viewer per Casso Explorer window, created on first use and reused.
+**Decision**: An expanded state of the preview pane, per tab, in place of a separate viewer window. Expanded, `ExplorerLayout` lays the preview over the command bar, address bar, body and status bar, below the tab strip. The tree, list and splitter widths stay in the preferences for the collapse. Previous and next move the list's selection, so the list, the status bar and a collapse all match the file on screen. A tab torn off into a window, with its preview expanded, is a viewer beside the main window.
+
+View as, Save as and Copy are on the preview pane, docked or expanded. View as resets to the default view on each file.
+
+**Alternatives considered**: A separate top-level viewer window, one per Casso Explorer window, reused for each file. It duplicated the preview pane, and its file had to follow the list.
+
+CiderPress II's file viewer, from its GUI manual, was compared feature by feature. Taken from it: previous and next through the selected files, or the whole list when one file is selected; a list of the conversions that apply, the best first; export of the current conversion, a picture at its original resolution; Copy, with formatted text as plain and formatted; and the resource fork as a view. Left out: saving the conversion options as defaults, control characters drawn as symbols, and opening PDF and RTF files in their Windows applications. Its character sets, hex dump, text search and DOS 3.3 sector view are in the preview and the disk inspector already.
 
 ## R54. Collection tools (Story 36, Session 2026-11-09)
 

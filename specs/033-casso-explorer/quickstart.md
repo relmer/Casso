@@ -303,7 +303,7 @@ owner's //c.
 
 1. Preview each sample VisiCalc sheet. Result: every cell matches VisiCalc
    in Casso after a recalculation (SC-053).
-2. Open a picture in the viewer, step to the end and back, and save one.
+2. Expand the preview on a picture, step to the end and back, view a binary file as a picture, save one, and collapse.
    Result: each step within half a second (SC-063).
 3. Run Disk list and Find duplicates over the 5,000-image test set. Result:
    done within five minutes, every known duplicate found and none false
