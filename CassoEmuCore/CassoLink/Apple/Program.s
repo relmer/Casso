@@ -179,6 +179,27 @@ CMDKEY    = $E2                 ; Wait for key, and the key in reply
 CMDFAULT  = $E6                 ; Debug builds: a fault for the next operation
 CMDKRUNCH = $E7                 ; Krunch
 CMDKPROG  = $E8                 ; and its progress in reply
+CMDMODULE = $E9                 ; Load module, and a module's id and version in reply
+
+; A module: code the PC loads at MODBASE for requests that aren't the
+; program's. It is on the disk buffers, RAWBUF to the end of ENCBUF, so an
+; operation that uses them clears modok, and the PC loads the module again.
+; Its header is MODMAGIC, its id and version, the PROGVER it
+; was assembled against, its length with the header, the CRC-16/XMODEM of
+; the bytes after the CRC, and its requests: a count, then each one's
+; command and entry. An entry is jumped to with the request's payload in
+; PKTBUF, and ends at opdone or main.
+MODBASE   = $5000
+MODLIMIT  = $9000
+MODMAGIC0 = 'C'
+MODMAGIC1 = 'M'
+MODID     = 2                   ; the header's fields, by offset
+MODVER    = 3
+MODPROG   = 4
+MODLEN    = 6
+MODCRC    = 8
+MODCOUNT  = 10
+MODTABLE  = 11
 
 ; Fault's kinds, in Debug builds alone. The first three change a byte the
 ; Apple sends, counted from the operation's first: flipped, dropped, or sent
@@ -510,7 +531,13 @@ notcrc: cmp #CMDKEY
 notkey: cmp #CMDKRUNCH
         bne notkrunch
         jmp dokrunch
-notkrunch:
+notkrunch: cmp #CMDMODULE
+        bne notmodule
+        jmp domodule
+notmodule: jsr modfind          ; a request of the module loaded
+        bcs notmodreq
+        jmp modjmp
+notmodreq: lda envcmd
         ifdef FAULTS
         cmp #CMDFAULT
         bne tomain
@@ -604,7 +631,8 @@ lvwarm: jmp $E003               ; Applesoft's warm start, at its ] prompt
 ; Time drive: sector 0's address field found on the track, then $A5 sent as
 ; each later pass of it is read, one a revolution; the time between the
 ; PC's timestamps on them is the drive's revolution.
-dotime: lda PKTBUF+2
+dotime: jsr modoff           ; the disk buffers, and the module on them
+        lda PKTBUF+2
         sta revs
         lda #0
         sta PKTBUF+2            ; no sector count for begin
@@ -687,6 +715,180 @@ dlgo:   lda SHIMDIAL            ; the dial command marked as dialed, which the
         sta SHIMDIAL
 dlnone: jmp SHIM
         endif
+; domodule: Load module. With no payload, the module's id and version in
+; reply, or 0 and 0 with none loaded. With an offset into the module and
+; bytes, the bytes stored there and an Acknowledge with the offset. With
+; $FFFF alone, the module checked, and its id and version in reply, or 0 and
+; 0 when it fails a check.
+domodule: lda lenlo
+        bne dmdata
+        jmp sendmodule
+dmdata: cmp #2
+        bne dmstore
+        lda PKTBUF
+        and PKTBUF+1
+        cmp #$FF
+        bne dmstore
+        jsr modcheck
+        jmp sendmodule
+dmstore: lda #0
+        sta modok
+        lda lenlo               ; an offset and at least one byte, inside the area
+        cmp #3
+        bcc dmbad
+        lda PKTBUF+1
+        cmp #>(MODLIMIT-MODBASE)
+        bcs dmbad
+        lda PKTBUF
+        clc
+        adc #<MODBASE
+        sta ptr
+        lda PKTBUF+1
+        adc #>MODBASE
+        sta ptr+1
+        lda lenlo               ; the last byte stored must be below MODLIMIT
+        sec
+        sbc #3
+        clc
+        adc ptr
+        lda ptr+1
+        adc #0
+        cmp #>MODLIMIT
+        bcs dmbad
+        ldx #2
+        ldy #0
+dmcopy: lda PKTBUF,x
+        sta (ptr),y
+        iny
+        inx
+        cpx lenlo
+        bne dmcopy
+        lda #ACK
+        ldx PKTBUF
+        ldy PKTBUF+1
+        jsr sendack
+        jmp main
+dmbad:  lda #NAK
+        ldx PKTBUF
+        ldy PKTBUF+1
+        jsr sendack
+        jmp main
+
+; modcheck: modok set when the module at MODBASE has the magic, this
+; program's version, a length that fits and a CRC that matches.
+modcheck: lda #0
+        sta modok
+        lda MODBASE
+        cmp #MODMAGIC0
+        bne mcdone
+        lda MODBASE+1
+        cmp #MODMAGIC1
+        bne mcdone
+        lda MODBASE+MODPROG
+        cmp #<PROGVER
+        bne mcdone
+        lda MODBASE+MODPROG+1
+        cmp #>PROGVER
+        bne mcdone
+        lda MODBASE+MODLEN+1
+        cmp #>(MODLIMIT-MODBASE)
+        bcs mcdone
+        lda #<(MODBASE+MODCOUNT) ; the CRC from the count to the end
+        sta ptr
+        lda #>(MODBASE+MODCOUNT)
+        sta ptr+1
+        lda MODBASE+MODLEN
+        sec
+        sbc #MODCOUNT
+        sta tmp
+        lda MODBASE+MODLEN+1
+        sbc #0
+        sta tmp2
+        lda #0
+        sta crclo
+        sta crchi
+        ldy #0
+mcloop: lda tmp
+        ora tmp2
+        beq mcend
+        lda (ptr),y
+        jsr crcupd
+        inc ptr
+        bne mcdec
+        inc ptr+1
+mcdec:  lda tmp
+        bne mcdec2
+        dec tmp2
+mcdec2: dec tmp
+        jmp mcloop
+mcend:  lda crclo
+        cmp MODBASE+MODCRC
+        bne mcdone
+        lda crchi
+        cmp MODBASE+MODCRC+1
+        bne mcdone
+        lda #1
+        sta modok
+mcdone: rts
+
+; modfind: the entry of the loaded module's request for envcmd into
+; modjmp, with the carry clear; the carry is set when no module is
+; loaded or it has no such request.
+modfind: lda modok
+        beq mffail
+        ldx MODBASE+MODCOUNT
+        beq mffail
+        ldy #0
+mfloop: lda MODBASE+MODTABLE,y
+        cmp envcmd
+        beq mffound
+        iny
+        iny
+        iny
+        dex
+        bne mfloop
+mffail: sec
+        rts
+mffound: lda MODBASE+MODTABLE+1,y
+        sta modjmp+1
+        lda MODBASE+MODTABLE+2,y
+        sta modjmp+2
+        clc
+        rts
+
+; sendmodule: the module's id and version, or 0 and 0 with none loaded.
+sendmodule: ldx #0
+smhdr:  lda modhdr,x
+        jsr putb
+        inx
+        cpx #modend-modhdr
+        bne smhdr
+        lda #0
+        sta peor
+        ldx #0
+        ldy #0
+        lda modok
+        beq smsend
+        ldx MODBASE+MODID
+        ldy MODBASE+MODVER
+smsend: txa
+        jsr putpe
+        tya
+        jsr putpe
+        lda peor
+        jsr putb
+        jmp main
+
+modhdr: .byte $C1, $02, $00, CMDMODULE, $C1 ^ $02 ^ $00 ^ CMDMODULE
+modend:
+; modoff: the module marked as overwritten.
+modoff: lda #0
+        sta modok
+        rts
+
+modok:  .byte 0                 ; 1 once a module passes modcheck
+modjmp: jmp main                ; modfind sets the entry
+
 ; cancel: the operation stops where it is, and the loop starts again.
 cancel: jsr motoroff
         jsr kmapoff             ; the history again, after a krunch's block map
@@ -728,7 +930,8 @@ spdwait: lda ACIASTAT,x
 ; sending in turn would wait most of a revolution for every sector. A sector
 ; not read is skipped and the status has NOT FOUND. The PC then requests
 ; only those sectors again.
-doread: lda #OPREAD
+doread: jsr modoff           ; the disk buffers, and the module on them
+        lda #OPREAD
         jsr begin
         bcs opdone
         jsr readtrack
@@ -807,7 +1010,8 @@ quiet:  .byte 0                 ; nonzero for a check the PC reports itself
 ; Read CRCs: the requested sectors read as for Read sectors, and each one's CRC
 ; sent with a flag for whether it was read. A sector not read isn't an error here,
 ; as the host is counting them.
-docrcs: lda #OPREAD
+docrcs: jsr modoff           ; the disk buffers, and the module on them
+        lda #OPREAD
         jsr begin
         ifdef FAULTS
         bcc crbegun             ; crdone is out of a branch's range
@@ -935,7 +1139,8 @@ scdone: rts
 ; sector and reading it back before asking for the next takes more than a
 ; revolution a sector, and encoding each here took more time than sending
 ; its nibbles.
-dowrite: lda #OPWRITE
+dowrite: jsr modoff           ; the disk buffers, and the module on them
+        lda #OPWRITE
         jsr begin
         bcs wrdone
         jsr protected
@@ -977,7 +1182,8 @@ wrgot:  jsr frameslot
 ; Format track: 16 sectors of zeros, numbered 0 to 15 in order around the
 ; track, under the given volume; then the track read back, so a format that
 ; did not take ends with the first sector that does not read.
-doformat: lda PKTBUF+2
+doformat: jsr modoff           ; the disk buffers, and the module on them
+        lda PKTBUF+2
         sta volume
         jsr getgap
         lda #0
@@ -1004,7 +1210,8 @@ fmtdone: jmp opdone
 ; which writes it in one revolution, and read back and compared. Writing
 ; sector by sector waits for each sector to come round twice, once to write
 ; and once to read back.
-dowtrack: lda PKTBUF+2
+dowtrack: jsr modoff           ; the disk buffers, and the module on them
+        lda PKTBUF+2
         sta volume
         jsr getgap
         lda #0
@@ -4549,7 +4756,8 @@ RDALTCHAR = $C01E               ; a //e's or //c's alternate characters, in bit 
 ALTCHAROFF = $C00E              ; the primary characters, which flash
 ALTCHARON = $C00F
 
-dokrunch: lda PKTBUF+1
+dokrunch: jsr modoff           ; the disk buffers, and the module on them
+        lda PKTBUF+1
         sta kcrc
         lda PKTBUF+2
         sta kcrc+1

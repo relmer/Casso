@@ -301,6 +301,16 @@ public:
     //  80 columns where the Apple has them, or 40. The screen is drawn again.
     HRESULT  SetColumns        (bool wide);
 
+    //  The module the program has loaded, 0 and 0 for none; and a module
+    //  loaded, chunk by chunk, then checked. EnsureModule loads it when the
+    //  program has another, or none, as a disk operation overwrites it.
+    HRESULT  QueryModule       (Byte & outId, Byte & outVersion);
+    HRESULT  LoadModule        (std::span<const Byte> module);
+    HRESULT  EnsureModule      (std::span<const Byte> module);
+
+    //  A request of the module loaded, and the first packet in reply.
+    HRESULT  RequestModule     (Byte command, std::span<const Byte> payload, CassoLinkPacket & outReply);
+
     HRESULT  SendSessionScreen (bool active, Byte tone, const std::vector<std::string> & rows);
 
     //  Space or Q on the Apple, with no drive running there: its code.

@@ -436,6 +436,7 @@
     <ClCompile Include="CassoLink\LinkBootstrapTests.cpp" />
     <ClCompile Include="CassoLink\DiskDriverTimingTests.cpp" />
     <ClCompile Include="CassoLink\KrunchProgramTests.cpp" />
+    <ClCompile Include="CassoLink\ModuleProgramTests.cpp" />
     <ClCompile Include="CassoLink\ProgramDriveTests.cpp" />
     <ClCompile Include="CassoLink\ProgramKeyTests.cpp" />
     <ClCompile Include="CassoLink\ProgramKrunchMapTests.cpp" />

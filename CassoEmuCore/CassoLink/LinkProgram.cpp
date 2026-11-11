@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/LinkProgram.h"
+#include "CassoLink/CassoLinkCodec.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Assembler.h"
 #include "Cpu.h"
@@ -508,7 +509,7 @@ bool LinkProgram::GetSpeedControl (DWORD baud, Byte & outControl)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults)
+HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults, std::unordered_map<std::string, Word> * outSymbols)
 {
     HRESULT          hr        = S_OK;
     static const Cpu s_cpu;
@@ -536,6 +537,78 @@ HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip
     CBREx (placed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     outBytes = result.bytes;
+
+    if (outSymbols != nullptr)
+    {
+        *outSymbols = result.symbols;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::AssembleModule
+//
+//  The program is assembled first for its symbols. The module's length in
+//  its header must be its size, and the CRC covers the bytes after the CRC.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::AssembleModule (const std::string & source, std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip, bool faults)
+{
+    HRESULT                                 hr      = S_OK;
+    std::vector<Byte>                       program;
+    std::unordered_map<std::string, Word>   symbols;
+    std::vector<std::string>                exported;
+    std::string                             imports;
+    Word                                    crc     = 0;
+    bool                                    fits    = false;
+    bool                                    sized   = false;
+
+
+
+    outBytes.clear();
+
+    hr = Assemble (GetProgramSource(), kProgramAddress, chip, program, outErrors, faults, &symbols);
+    CHR (hr);
+
+    for (const auto & [name, value] : symbols)
+    {
+        bool  plain = !name.empty() && (isalpha ((unsigned char) name[0]) || name[0] == '_')
+                   && std::all_of (name.begin(), name.end(), [] (char c) { return isalnum ((unsigned char) c) || c == '_'; });
+
+        if (plain && name != "PROGVER" && name != "SHIMVER")
+        {
+            exported.push_back (name);
+        }
+    }
+
+    std::sort (exported.begin(), exported.end());
+
+    for (const std::string & name : exported)
+    {
+        imports += std::format ("p_{} = ${:04X}\n", name, symbols[name]);
+    }
+
+    hr = Assemble (imports + source, kModuleAddress, chip, outBytes, outErrors, faults);
+    CHR (hr);
+
+    fits  = outBytes.size() > kModuleCrcStart && outBytes.size() <= kModuleLimit;
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    sized = (size_t) (outBytes[kModuleLength] | (outBytes[kModuleLength + 1] << 8)) == outBytes.size();
+    CBREx (sized, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    crc = CassoLinkCodec::ComputeCrc (std::span<const Byte> (outBytes).subspan (kModuleCrcStart));
+
+    outBytes[kModuleCrcOffset]     = (Byte) (crc & 0xFF);
+    outBytes[kModuleCrcOffset + 1] = (Byte) (crc >> 8);
 
 Error:
     return hr;

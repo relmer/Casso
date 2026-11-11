@@ -91,7 +91,7 @@ struct LinkShimOptions
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 85;
+    static constexpr Word    kProgramVersion    = 86;
     static constexpr Byte    kShimVersion       = 8;
     static constexpr Word    kShimAddress       = 0x3B00;
     static constexpr Word    kZeroPageSave      = 0x3A00;   // the shim's copy of the machine's zero page, below it
@@ -150,6 +150,19 @@ public:
     //  of how a link recovers.
     static HRESULT      AssembleProgram  (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia, bool faults = false);
 
+    //  A module for the program built for `chip`: its source is given each
+    //  of the program's symbols as p_ and the name, and PROGVER, so it calls
+    //  the program's routines and uses its zero page by name. It must start
+    //  at kModuleAddress with the header in Program.s's notes, whose CRC is
+    //  filled in here, and end below kModuleAddress + kModuleLimit.
+    static HRESULT      AssembleModule   (const std::string & source, std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia, bool faults = false);
+
+    static constexpr Word    kModuleAddress   = 0x5000;
+    static constexpr size_t  kModuleLimit     = 0x4000;
+    static constexpr size_t  kModuleCrcOffset = 8;
+    static constexpr size_t  kModuleCrcStart  = 10;
+    static constexpr size_t  kModuleLength    = 6;
+
     //  The shim, starting at the given speed. A boot disk and an emulated
     //  link use the link's speed; the typed bootstrap uses its own.
     static HRESULT      BuildShim        (const LinkShimOptions & options, std::vector<Byte> & outShim);
@@ -189,5 +202,5 @@ public:
     static bool         GetSpeedControl  (DWORD baud, Byte & outControl);
 
 private:
-    static HRESULT      Assemble (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults = false);
+    static HRESULT      Assemble (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults = false, std::unordered_map<std::string, Word> * outSymbols = nullptr);
 };

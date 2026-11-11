@@ -133,6 +133,14 @@ public:
     static constexpr Byte  kKrunch         = 0xE7;
     static constexpr Byte  kKrunchProgress = 0xE8;
 
+    //  Load module: with no payload, the module loaded's id and version in
+    //  reply, 0 and 0 for none; with an offset into the module and bytes,
+    //  an Acknowledge with the offset; with $FFFF alone, the module checked,
+    //  and its id and version in reply, 0 and 0 when it fails.
+    static constexpr Byte    kLoadModule      = 0xE9;
+    static constexpr Word    kModuleCheck     = 0xFFFF;
+    static constexpr size_t  kModuleChunk     = 240;
+
     //  The longest row on the Session screen.
     static constexpr size_t  kSessionRowLength = 80;
 

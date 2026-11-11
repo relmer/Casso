@@ -1054,6 +1054,8 @@ files as they are fails SC-037.
 
 **Alternatives considered**: one larger program. It overruns hi-res page 1 and the space under BASIC on every machine. Not adopted.
 
+**Revised (2026-11-11, T566)**: $4000 to $7FFF is not free: the program's CRC and nibble tables are at $4000 to $42FF and its request payload at $4900, and DOS or BASIC.SYSTEM, which the program returns to, is above $9600. A module loads at $5000 to $8FFF, on the 5.25" disk buffers. A request that uses those buffers marks the module overwritten, and before each module request the PC sends a query of the module the program has, and loads it again if that isn't the module. A module is assembled against the program's build, given each of its symbols with a `p_` prefix, and its header has the PROGVER it was built for, which the program checks with the CRC. The header: `CM`, id, version, PROGVER, length, CRC-16/XMODEM of the bytes from offset 10, the request count and each request's command and entry.
+
 ## R41. Block devices through firmware (Story 23)
 
 **Finding**: a ProDOS block device's firmware has $20, $00 and $03 at $Cn01, $Cn03 and $Cn05, and its entry at $Cn00 plus the byte at $CnFF. A SmartPort device also has $00 at $Cn07, and its dispatch is three bytes past the ProDOS entry. SmartPort STATUS lists the units and each unit's size and type. The //c's 3.5" port, the //c Plus, a UniDisk 3.5 and hard disk cards all answer this way, and the IIgs's slot 5 is a SmartPort.

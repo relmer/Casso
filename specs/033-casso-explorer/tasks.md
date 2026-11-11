@@ -1818,7 +1818,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 **Goal**: 3.5" drives and hard drives on a linked Apple. **Independent test**: quickstart §7f step 1.
 
-- [ ] T566 [US23] Add Load module to `CassoLink/Apple/Program.s` and `CassoLinkCodec`: the module header, its CRC, the entry table, the version check on each connection, and the request table's dispatch to a module's entries (contract's Modules section). Allocate the request codes and update the contract's table
+- [X] T566 [US23] Add Load module to `CassoLink/Apple/Program.s` and `CassoLinkCodec`: the module header, its CRC, the entry table, the version check on each connection, and the request table's dispatch to a module's entries (contract's Modules section). Allocate the request codes and update the contract's table Done: modules load at $5000 to $8FFF, R40's revision; `CassoLinkHost::EnsureModule` loads one again after a disk operation overwrites it.
 - [ ] T567 [US23] Assemble each `CassoLink/Apple/Modules/*.s` at build time as the program is, with a size check against $4000 to $7FFF, in `LinkProgram`
 - [ ] T568 [US23] Write `CassoLink/Apple/Modules/Block.s`: scan slots 1 to 7 for the ProDOS block signature, SmartPort STATUS per unit, READ BLOCK and WRITE BLOCK, each block sent with its CRC, and verify by reading back when verify is on (R41)
 - [ ] T569 [US23] Add `CassoLinkBlockTransfer` in `CassoEmuCore/CassoLink/Session/`: List block devices, Read blocks and Write blocks over a queue with progress, errors in words for no disk, write protected, device offline and I/O error with the block number (FR-193)
