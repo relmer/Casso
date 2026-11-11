@@ -231,6 +231,8 @@ namespace DebuggerTests
             Expect      (context, "-count.b",       -5);
             Expect      (context, "count.w + 1",    0x2006);
             Expect      (context, "count",          0x0300);
+            Expect      (context, "300.b",          0x05);
+            Expect      (context, "$300.W",         0x2005);
             ExpectError (context, "count.s",        "text");
         }
 

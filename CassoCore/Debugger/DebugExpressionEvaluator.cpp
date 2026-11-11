@@ -222,6 +222,7 @@ bool DebugExpressionEvaluator::TryParseOperandPosition (
     ExpressionToken     token;
     ExpressionOperator  op        = ExpressionOperator::Add;
     bool                isRead    = false;
+    size_t              cut       = 0;
 
 
 
@@ -238,14 +239,13 @@ bool DebugExpressionEvaluator::TryParseOperandPosition (
         return true;
     }
 
-    isRead = TryReadOperand (text, pos, syntax, token, error);
-
     //  A width suffix reads memory at the operand's value, as a watch does:
-    //  .b the byte there, .w the word. .s is text, read in a watch alone.
-    if (isRead && token.kind == ExpressionToken::Kind::Name)
-    {
-        isRead = TryCutWidthSuffix (token, op, error);
-    }
+    //  .b the byte there, .w the word. .s is text, read in a watch alone. The
+    //  operand is read without it, so $3E.w is the number $3E.
+    cut    = FindWidthSuffix (text, pos);
+    op     = ExpressionOperator::Add;
+    isRead = (cut == std::string::npos) ? TryReadOperand (text, pos, syntax, token, error)
+                                        : TryReadSuffixed (text, cut, pos, syntax, token, op, error);
 
     if (isRead)
     {
@@ -460,45 +460,88 @@ bool DebugExpressionEvaluator::TryReadOperand (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugExpressionEvaluator::TryCutWidthSuffix
+//  DebugExpressionEvaluator::FindWidthSuffix
 //
-//  A name ending in .b or .w loses the suffix, and op is the read the suffix
-//  asks for; any other name keeps its text, and op is Add, for none.
+//  Where the .b, .w or .s at the end of the word at pos begins, after any $ or
+//  # before it; npos when the word has none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebugExpressionEvaluator::TryCutWidthSuffix (ExpressionToken & token, ExpressionOperator & op, std::string & error)
+size_t DebugExpressionEvaluator::FindWidthSuffix (const std::string & text, size_t pos)
 {
     static constexpr size_t  kSuffixLength = 2;
-    const std::string      & name          = token.name;
-    char                     last          = name.empty() ? '.' : (char) tolower ((unsigned char) name.back());
-    bool                     isSuffix      = name.size() > kSuffixLength && name[name.size() - kSuffixLength] == '.';
-    std::string              upper;
+    size_t                   start         = pos;
+    size_t                   end           = pos;
+    char                     last          = '.';
 
 
 
-    op = ExpressionOperator::Add;
-
-    if (!isSuffix || (last != 'b' && last != 'w' && last != 's'))
+    if (start < text.size() && (text[start] == '$' || text[start] == '#'))
     {
-        return true;
+        start++;
     }
+
+    end = start;
+
+    while (end < text.size() && (isalnum ((unsigned char) text[end]) || text[end] == '_' || text[end] == '.'))
+    {
+        end++;
+    }
+
+    if (end - start <= kSuffixLength || text[end - kSuffixLength] != '.')
+    {
+        return std::string::npos;
+    }
+
+    last = (char) tolower ((unsigned char) text[end - 1]);
+
+    return (last == 'b' || last == 'w' || last == 's') ? end - kSuffixLength : std::string::npos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugExpressionEvaluator::TryReadSuffixed
+//
+//  The operand before the suffix at cut, read alone, and op the read the
+//  suffix asks for; pos moves past the suffix.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugExpressionEvaluator::TryReadSuffixed (
+    const std::string   & text,
+    size_t                cut,
+    size_t              & pos,
+    NumberSyntax          syntax,
+    ExpressionToken     & token,
+    ExpressionOperator  & op,
+    std::string         & error)
+{
+    static constexpr size_t  kSuffixLength = 2;
+    char                     last          = (char) tolower ((unsigned char) text[cut + 1]);
+    std::string              head          = text.substr (0, cut);
+    bool                     isRead        = false;
+
+
 
     if (last == 's')
     {
-        error = std::format ("{} is text, read in a watch alone; an expression takes .b or .w.", name);
+        error = std::format ("{} is text, read in a watch alone; an expression takes .b or .w.", text.substr (pos, cut + kSuffixLength - pos));
         return false;
     }
 
-    op                   = (last == 'b') ? ExpressionOperator::Dereference : ExpressionOperator::DereferenceWord;
-    token.name           = name.substr (0, name.size() - kSuffixLength);
-    upper                = token.name;
+    isRead = TryReadOperand (head, pos, syntax, token, error) && pos == cut;
 
-    std::ranges::transform (upper, upper.begin(), [] (char ch) { return (char) toupper ((unsigned char) ch); });
+    if (isRead)
+    {
+        op   = (last == 'b') ? ExpressionOperator::Dereference : ExpressionOperator::DereferenceWord;
+        pos += kSuffixLength;
+    }
 
-    token.isRegisterName = IsRegisterName (upper);
-    token.isHexNumber    = TryParseNumber (token.name, 16, token.value);
-    return true;
+    return isRead;
 }
 
 
