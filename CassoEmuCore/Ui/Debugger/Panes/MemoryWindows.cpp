@@ -524,17 +524,14 @@ void MemoryWindowGroup::Configure()
 //
 //  MemoryWindowGroup::SetBarMenus
 //
-//  The Address box's history, newest first, and the Columns and grouping
-//  choices with the active window's checked. Built again whenever what they
-//  list changes, since the rows have the state they were built with.
+//  The Address box's history, newest first. Built again whenever it
+//  changes, since the rows have the state they were built with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryWindowGroup::SetBarMenus()
 {
     std::vector<DxuiPopupMenuItem>  history;
-    std::vector<DxuiPopupMenuItem>  columns;
-    MemoryWindowPane              * window   = GetActive();
 
 
 
@@ -547,15 +544,7 @@ void MemoryWindowGroup::SetBarMenus()
         })));
     }
 
-    for (int choice : MemoryBarCommands::GetColumnChoices())
-    {
-        columns.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (MemoryBarCommands::GetColumnsLabel (choice),
-                                                                                     window != nullptr && window->GetModel().GetColumns() == choice,
-                                                                                     [this, choice] { ChooseColumns (choice); })));
-    }
-
-    m_bar->SetDropDownItems (MemoryBarCommands::kAddress,  std::move (history));
-    m_bar->SetDropDownItems (MemoryBarCommands::kColumns,  std::move (columns));
+    m_bar->SetDropDownItems (MemoryBarCommands::kAddress, std::move (history));
 }
 
 
@@ -566,25 +555,13 @@ void MemoryWindowGroup::SetBarMenus()
 //
 //  MemoryWindowGroup::GetBarLabel
 //
-//  What the drop-downs show: the choice in force in the active window.
+//  Every entry has its label from the bar's rows, so none is replaced.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring MemoryWindowGroup::GetBarLabel (int id) const
 {
-    MemoryWindowPane  * window = GetActive();
-
-
-
-    if (window == nullptr)
-    {
-        return std::wstring();
-    }
-
-    if (id == MemoryBarCommands::kColumns)
-    {
-        return L"Columns: " + MemoryBarCommands::GetColumnsLabel (window->GetModel().GetColumns());
-    }
+    (void) id;
 
     return std::wstring();
 }

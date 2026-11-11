@@ -212,10 +212,11 @@ namespace DebuggerTests
                 ids.push_back (window.GetMemoryGroup().GetBar()->GetEntryCommandId (i));
             }
 
-            for (int id : { MemoryBarCommands::kAddress, MemoryBarCommands::kRefresh, MemoryBarCommands::kColumns })
-            {
-                Assert::IsTrue (std::find (ids.begin(), ids.end(), id) != ids.end(), std::format (L"entry {} is on the bar", id).c_str());
-            }
+            std::erase_if (ids, [] (int id) { return id < MemoryBarCommands::kAddress || id > MemoryBarCommands::kHeat; });
+
+            Assert::IsTrue (ids == std::vector<int> { MemoryBarCommands::kUndo, MemoryBarCommands::kRedo, MemoryBarCommands::kAddress,
+                                                      MemoryBarCommands::kHeat, MemoryBarCommands::kRefresh },
+                            L"Undo, Redo, the address box, Heat and Refresh, in that order; Columns is on the right-click menu");
 
             Assert::IsNull (window.FindButton (L"- Memory"), L"a window closes from its tab");
             Assert::IsNull (window.FindButton (L"Poke"),     L"memory is written in the view or from the console");

@@ -19,7 +19,8 @@ static constexpr const wchar_t *  s_kGlyphRedo    = s_kpszMdl2Redo;      // arro
 //
 //  MemoryBarCommands::GetRows
 //
-//  Where to look, then how to lay the bytes out, then undo, then the heat.
+//  Undo and Redo first, as on every pane's bar, then where to look, the heat
+//  and Refresh. The Columns choices are on the right-click menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,12 +28,11 @@ const std::vector<MemoryBarCommands::Row> & MemoryBarCommands::GetRows()
 {
     static const std::vector<Row>  rows =
     {
-        { kAddress,   L"Address",           nullptr,            L"Address: a hex address, a register, a symbol or an expression such as (3E),Y", DxuiToolbar::Kind::DropDown, 0, false },
-        { kRefresh,   L"Refresh",           s_kGlyphRefresh,    L"Read this window's bytes again",                                               DxuiToolbar::Kind::Command,  0, true  },
-        { kColumns,   L"Columns",           nullptr,            L"Values in each row, or as many as fit",                                        DxuiToolbar::Kind::DropDown, 1, false },
-        { kUndo,      L"Undo",              s_kGlyphUndo,       L"Undo the last change made in this window",                                     DxuiToolbar::Kind::Command,  2, true  },
-        { kRedo,      L"Redo",              s_kGlyphRedo,       L"Redo the change just undone",                                                  DxuiToolbar::Kind::Command,  2, true  },
-        { kHeat,      L"Heat",              nullptr,            L"Tint each byte by its heat, in the heat map's colors",                         DxuiToolbar::Kind::Toggle,   3, false },
+        { kUndo,      L"Undo",              s_kGlyphUndo,       L"Undo the last change made in this window",                                     DxuiToolbar::Kind::Command,  0, true  },
+        { kRedo,      L"Redo",              s_kGlyphRedo,       L"Redo the change just undone",                                                  DxuiToolbar::Kind::Command,  0, true  },
+        { kAddress,   L"Address",           nullptr,            L"Address: a hex address, a register, a symbol or an expression such as (3E),Y", DxuiToolbar::Kind::DropDown, 1, false },
+        { kHeat,      L"Heat",              nullptr,            L"Tint each byte by its heat, in the heat map's colors",                         DxuiToolbar::Kind::Toggle,   2, false },
+        { kRefresh,   L"Refresh",           s_kGlyphRefresh,    L"Read this window's bytes again",                                               DxuiToolbar::Kind::Command,  3, true  },
     };
 
 
