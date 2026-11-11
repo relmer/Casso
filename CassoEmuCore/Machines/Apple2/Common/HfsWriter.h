@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/HfsBTree.h"
+#include "Machines/Apple2/Common/HfsBTreeEditor.h"
 #include "Machines/Apple2/Common/IVolume.h"
 
 
@@ -13,18 +14,18 @@
 //
 //  HfsWriter
 //
-//  Changes to an HFS volume, each made on a copy of its bytes: the catalog
-//  and extents overflow trees are read as records, the change is made to
-//  them and to the volume bitmap, both trees are built again in their files,
-//  and the master directory block and its copy in the volume's second-last
-//  block are brought up to date. A record's fields this class doesn't
-//  interpret are written back as they were read.
+//  Changes to an HFS volume, each made on a copy of its bytes. The catalog
+//  and extents overflow trees are changed in place by HfsBTreeEditor, and
+//  only the nodes it changes are written back, with the volume bitmap, the
+//  master directory block and its copy in the volume's second-last block.
+//  A record's fields this class doesn't interpret are written back as they
+//  were read.
 //
 //  A new fork takes at most three runs of allocation blocks, the most a
 //  catalog record has room for; a volume too fragmented for that fails with
-//  ERROR_DISK_FULL. A catalog or extents file whose tree outgrows it gains
-//  a run of blocks when its record in the master directory block has room
-//  for one.
+//  ERROR_DISK_FULL. A tree file with too few free nodes for an insert grows
+//  first: its last extent is lengthened when the blocks after it are free,
+//  and otherwise the file is moved to new runs.
 //
 //  A ProDOS file copied in gets GS/OS's Finder type and creator from Apple's
 //  File Type Note: 'TEXT', 'PSYS' and 'PS16' for text, system and GS/OS
@@ -60,6 +61,10 @@ public:
     //  The catalog's leaf records in the order the volume's tree links them.
     static HRESULT  ReadCatalogRecords (std::vector<Byte> & image, std::vector<HfsBTree::Record> & outRecords);
 
+    //  Each broken invariant of the catalog and extents trees, as
+    //  HfsBTreeEditor::Check reports them.
+    static HRESULT  CheckTrees (std::vector<Byte> & image, std::string & outProblems);
+
 private:
     struct Extent
     {
@@ -67,20 +72,25 @@ private:
         Word  count = 0;
     };
 
+    struct Tree
+    {
+        Extent                           file[3];
+        uint32_t                         bytes   = 0;
+        std::vector<Byte>                nodes;
+        std::unique_ptr<HfsBTreeEditor>  editor;
+        bool                             isMoved = false;
+    };
+
     struct State
     {
-        std::vector<Byte>              * image            = nullptr;
-        Word                             bitmapStart      = 0;
-        Word                             allocationBlocks = 0;
-        uint32_t                         allocationBytes  = 0;
-        Word                             firstBlock       = 0;
-        uint32_t                         nextId           = 0;
-        uint32_t                         extentsBytes     = 0;
-        Extent                           extentsFile[3];
-        uint32_t                         catalogBytes     = 0;
-        Extent                           catalogFile[3];
-        std::vector<HfsBTree::Record>    catalog;
-        std::vector<HfsBTree::Record>    extents;
+        std::vector<Byte>  * image            = nullptr;
+        Word                 bitmapStart      = 0;
+        Word                 allocationBlocks = 0;
+        uint32_t             allocationBytes  = 0;
+        Word                 firstBlock       = 0;
+        uint32_t             nextId           = 0;
+        Tree                 extents;
+        Tree                 catalog;
     };
 
     static constexpr size_t    kSectorBytes         = 512;
@@ -117,9 +127,12 @@ private:
 
     static HRESULT   Load            (std::vector<Byte> & image, State & outState);
     static HRESULT   Save            (State & state);
-    static HRESULT   ReadTree        (State & state, const Extent (& file)[3], uint32_t bytes, std::vector<HfsBTree::Record> & outRecords);
-    static HRESULT   WriteTree       (State & state, HfsBTree::Kind kind, Extent (& file)[3], uint32_t & ioBytes, const std::vector<HfsBTree::Record> & records);
-    static HRESULT   GrowTree        (State & state, Extent (& file)[3], uint32_t & ioBytes, uint32_t needed);
+    static HRESULT   LoadTree        (State & state, HfsBTree::Kind kind, Tree & ioTree);
+    static void      WriteTree       (State & state, const Tree & tree);
+    static HRESULT   GrowTree        (State & state, Tree & ioTree, uint32_t needed);
+    static HRESULT   EnsureNodes     (State & state, Tree & ioTree, uint32_t count);
+    static HRESULT   InsertRecord    (State & state, Tree & ioTree, const HfsBTree::Record & record);
+    static HRESULT   ReplaceRecord   (State & state, Tree & ioTree, const HfsBTree::Record & record);
     static size_t    GetBlockOffset  (const State & state, Word block) { return (size_t) state.firstBlock * kSectorBytes + (size_t) block * state.allocationBytes; }
 
     static bool      IsAllocated     (const State & state, Word block);
@@ -129,12 +142,12 @@ private:
     static HRESULT   WriteFork       (State & state, const std::vector<Byte> & bytes, std::vector<Extent> & outRuns);
 
     static HRESULT   FindDirectory   (const State & state, const FilePath & path, size_t components, uint32_t & outId);
-    static int       FindRecord      (const State & state, uint32_t parent, const std::vector<Byte> & name, Byte type);
-    static int       FindThread      (const State & state, uint32_t id);
+    static bool      FindRecord      (const State & state, uint32_t parent, const std::vector<Byte> & name, Byte type, HfsBTree::Record & outRecord);
+    static bool      FindThread      (const State & state, uint32_t id, HfsBTree::Record & outRecord);
     static HRESULT   ResolveLeaf     (const State & state, const FilePath & path, uint32_t & outParent, std::vector<Byte> & outName);
 
-    static void      AdjustValence   (State & state, uint32_t directory, int delta);
+    static HRESULT   AdjustValence   (State & state, uint32_t directory, int delta);
     static void      AdjustCount     (State & state, size_t at, int delta);
-    static HRESULT   RemoveFile      (State & state, size_t record, DeleteOutcome & outOutcome);
-    static void      FreeForkExtents (State & state, const std::vector<Byte> & data, size_t at, uint32_t fileId, Byte fork, DeleteOutcome & outOutcome);
+    static HRESULT   RemoveFile      (State & state, const HfsBTree::Record & record, DeleteOutcome & outOutcome);
+    static HRESULT   FreeForkExtents (State & state, const std::vector<Byte> & data, size_t at, uint32_t fileId, Byte fork, DeleteOutcome & outOutcome);
 };

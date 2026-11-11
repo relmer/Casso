@@ -577,6 +577,7 @@
     <ClCompile Include="Devices\Disk\CachingBlockStore.cpp" />
     <ClCompile Include="Devices\Disk\BlockImage.cpp" />
     <ClCompile Include="Machines\Apple2\Common\HfsBTree.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\HfsBTreeEditor.cpp" />
     <ClCompile Include="Machines\Apple2\Common\HfsVolume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\HfsWriter.cpp" />
     <ClCompile Include="Devices\Disk\BlockVolumeOpener.cpp" />
@@ -1284,6 +1285,7 @@
     <ClInclude Include="Devices\Disk\CachingBlockStore.h" />
     <ClInclude Include="Devices\Disk\BlockImage.h" />
     <ClInclude Include="Machines\Apple2\Common\HfsBTree.h" />
+    <ClInclude Include="Machines\Apple2\Common\HfsBTreeEditor.h" />
     <ClInclude Include="Machines\Apple2\Common\HfsVolume.h" />
     <ClInclude Include="Machines\Apple2\Common\HfsWriter.h" />
     <ClInclude Include="Devices\Disk\BlockVolumeOpener.h" />

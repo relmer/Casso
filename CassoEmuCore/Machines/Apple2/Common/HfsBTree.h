@@ -17,9 +17,9 @@
 //  contain the records in key order, linked forward and back. Index nodes
 //  above them contain the first key of each child and its node number.
 //
-//  A change is made by building the whole tree again from its records in
-//  order, which a catalog of a floppy or a hard disk has few enough of. A
-//  record is its key, from the key length byte, and its data.
+//  Build makes a tree from records already in order, for a new volume.
+//  HfsBTreeEditor changes a tree in place. A record is its key, from the key
+//  length byte, and its data.
 //
 //  Catalog keys sort by parent directory ID, then by name, compared without
 //  case as the Finder compares them; extents keys by fork, file ID and first
@@ -66,13 +66,16 @@ public:
     //  included.
     static uint32_t  CountNodes (Kind kind, const std::vector<Record> & records);
 
-private:
-    static Byte               FoldName       (Byte character);
+    //  A record's bytes in a node: a leaf's key padded to an even length,
+    //  or an index record's key at the tree's longest, then its data.
     static size_t             GetRecordBytes (Kind kind, const Record & record, bool isIndex);
+    static std::vector<Byte>  MakeIndexKey   (Kind kind, const std::vector<Byte> & key);
     static void               PutWord        (std::vector<Byte> & bytes, size_t at, uint32_t value);
     static void               PutLong        (std::vector<Byte> & bytes, size_t at, uint32_t value);
     static uint32_t           GetLong        (const std::vector<Byte> & bytes, size_t at);
-    static std::vector<Byte>  MakeIndexKey   (Kind kind, const std::vector<Byte> & key);
+
+private:
+    static Byte  FoldName (Byte character);
 
     static void  PackLevel (Kind kind, const std::vector<Record> & records, bool isIndex, std::vector<std::vector<size_t>> & outNodes);
 };

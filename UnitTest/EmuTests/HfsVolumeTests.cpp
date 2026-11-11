@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/HfsBTree.h"
 #include "Machines/Apple2/Common/HfsVolume.h"
 #include "Machines/Apple2/Common/HfsWriter.h"
@@ -193,6 +194,62 @@ public:
 
         AssertSucceeded (after.Read (FilePath::Parse ("File number 299"), read));
         Assert::AreEqual ((size_t) 100, read.bytes.size());
+    }
+
+
+    //  A file added to a full catalog changes the file's blocks, the bitmap,
+    //  both master directory blocks and a few catalog nodes, not the whole
+    //  catalog file.
+    TEST_METHOD (Write_ChangesOnlyTheCatalogNodesItTouches)
+    {
+        constexpr size_t  kFiles    = 400;
+        constexpr size_t  kMaxBlock = 16;
+
+        vector<Byte>  image   = MakeVolume (k64MBSectors);
+        vector<Byte>  before;
+        size_t        changed = 0;
+
+
+
+        for (size_t i = 0; i < kFiles; i++)
+        {
+            image = Apply (image, [&] (HfsVolume & volume, vector<Byte> & out) { return volume.Write (FilePath::Parse (std::format ("Document {}", i)), MakePayload (100), out); });
+        }
+
+        before = image;
+        image  = Apply (image, [&] (HfsVolume & volume, vector<Byte> & out) { return volume.Write (FilePath::Parse ("Document 200a"), MakePayload (100), out); });
+
+        for (size_t block = 0; block < image.size() / 512; block++)
+        {
+            changed += std::equal (image.begin() + (ptrdiff_t) (block * 512), image.begin() + (ptrdiff_t) ((block + 1) * 512), before.begin() + (ptrdiff_t) (block * 512)) ? 0 : 1;
+        }
+
+        Logger::WriteMessage (std::format ("{} of {} blocks changed\n", changed, image.size() / 512).c_str());
+        Assert::IsTrue (changed <= kMaxBlock, std::format (L"{} blocks changed", changed).c_str());
+    }
+
+
+    TEST_METHOD (Trees_KeepEveryInvariantAfterChanges)
+    {
+        vector<Byte>   image = MakeVolume();
+        std::string    problems;
+        DeleteOutcome  outcome;
+
+
+
+        for (size_t i = 0; i < 120; i++)
+        {
+            image = Apply (image, [&] (HfsVolume & volume, vector<Byte> & out) { return volume.Write (FilePath::Parse (std::format ("Note {}", i)), MakePayload (50), out); });
+        }
+
+        for (size_t i = 0; i < 120; i += 2)
+        {
+            image = Apply (image, [&] (HfsVolume & volume, vector<Byte> & out) { return volume.Delete (FilePath::Parse (std::format ("Note {}", i)), out, outcome); });
+        }
+
+        AssertSucceeded (HfsWriter::CheckTrees (image, problems));
+        Assert::IsTrue (problems.empty(), TextEncoding::Utf8ToWide (problems).c_str());
+        Assert::AreEqual ((size_t) 60, List (image).entries.size());
     }
 
 

@@ -158,7 +158,40 @@ HRESULT HfsWriter::ReadCatalogRecords (std::vector<Byte> & image, std::vector<Hf
     hr = Load (image, state);
     CHR (hr);
 
-    outRecords = std::move (state.catalog);
+    hr = state.catalog.editor->ReadAll (outRecords);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsWriter::CheckTrees
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsWriter::CheckTrees (std::vector<Byte> & image, std::string & outProblems)
+{
+    HRESULT      hr = S_OK;
+    State        state;
+    std::string  extents;
+
+
+
+    outProblems.clear();
+
+    hr = Load (image, state);
+    CHR (hr);
+
+    state.catalog.editor->Check (outProblems);
+    state.extents.editor->Check (extents);
+
+    outProblems += extents.empty() ? std::string() : "extents: " + extents;
 
 Error:
     return hr;
@@ -238,8 +271,8 @@ void HfsWriter::MapFromProDos (Byte type, Word auxType, uint32_t & outMacType, u
 //
 //  HfsWriter::Load
 //
-//  The master directory block's fields this class changes, and both trees'
-//  records. A tree file with extents in the overflow file isn't written.
+//  The master directory block's fields this class changes, and both tree
+//  files. A tree file with extents in the overflow file isn't written.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -251,7 +284,6 @@ HRESULT HfsWriter::Load (std::vector<Byte> & image, State & outState)
 
 
 
-    outState       = State();
     outState.image = &image;
 
     CBREx (sized, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT));
@@ -264,21 +296,21 @@ HRESULT HfsWriter::Load (std::vector<Byte> & image, State & outState)
     outState.allocationBytes  = GetLong (image, kMdbOffset + 20);
     outState.firstBlock       = GetWord (image, kMdbOffset + 28);
     outState.nextId           = GetLong (image, kMdbOffset + 30);
-    outState.extentsBytes     = GetLong (image, kMdbOffset + 130);
-    outState.catalogBytes     = GetLong (image, kMdbOffset + 146);
+    outState.extents.bytes    = GetLong (image, kMdbOffset + 130);
+    outState.catalog.bytes    = GetLong (image, kMdbOffset + 146);
 
     for (size_t i = 0; i < 3; i++)
     {
-        outState.extentsFile[i] = Extent { GetWord (image, kMdbOffset + 134 + i * 4), GetWord (image, kMdbOffset + 136 + i * 4) };
-        outState.catalogFile[i] = Extent { GetWord (image, kMdbOffset + 150 + i * 4), GetWord (image, kMdbOffset + 152 + i * 4) };
+        outState.extents.file[i] = Extent { GetWord (image, kMdbOffset + 134 + i * 4), GetWord (image, kMdbOffset + 136 + i * 4) };
+        outState.catalog.file[i] = Extent { GetWord (image, kMdbOffset + 150 + i * 4), GetWord (image, kMdbOffset + 152 + i * 4) };
     }
 
     CBREx (outState.allocationBytes >= kSectorBytes && outState.allocationBytes % kSectorBytes == 0, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT));
 
-    hr = ReadTree (outState, outState.extentsFile, outState.extentsBytes, outState.extents);
+    hr = LoadTree (outState, HfsBTree::Kind::Extents, outState.extents);
     CHR (hr);
 
-    hr = ReadTree (outState, outState.catalogFile, outState.catalogBytes, outState.catalog);
+    hr = LoadTree (outState, HfsBTree::Kind::Catalog, outState.catalog);
     CHR (hr);
 
 Error:
@@ -291,26 +323,23 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HfsWriter::ReadTree
+//  HfsWriter::LoadTree
 //
-//  Each leaf record, from the first leaf the header node has, along the
-//  forward links, as its key and its data.
+//  The tree file's nodes, from its three extents.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsWriter::ReadTree (State & state, const Extent (& file)[3], uint32_t bytes, std::vector<HfsBTree::Record> & outRecords)
+HRESULT HfsWriter::LoadTree (State & state, HfsBTree::Kind kind, Tree & ioTree)
 {
-    HRESULT            hr    = S_OK;
-    std::vector<Byte>  fork;
-    uint32_t           next  = 0;
-    uint32_t           steps = 0;
-    uint64_t           total = 0;
+    HRESULT   hr    = S_OK;
+    uint64_t  total = 0;
+    bool      whole = false;
 
 
 
-    outRecords.clear();
+    ioTree.nodes.clear();
 
-    for (const Extent & extent : file)
+    for (const Extent & extent : ioTree.file)
     {
         size_t  at     = GetBlockOffset (state, extent.start);
         size_t  length = (size_t) extent.count * state.allocationBytes;
@@ -318,51 +347,18 @@ HRESULT HfsWriter::ReadTree (State & state, const Extent (& file)[3], uint32_t b
 
         CBREx (at + length <= size, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
 
-        fork.insert (fork.end(), state.image->begin() + (ptrdiff_t) at, state.image->begin() + (ptrdiff_t) (at + length));
+        ioTree.nodes.insert (ioTree.nodes.end(), state.image->begin() + (ptrdiff_t) at, state.image->begin() + (ptrdiff_t) (at + length));
         total += length;
     }
 
-    CBREx (total >= bytes && bytes >= HfsBTree::kNodeBytes, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+    whole = total >= ioTree.bytes && ioTree.bytes >= HfsBTree::kNodeBytes;
+    CBREx (whole, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 
-    fork.resize (bytes);
-    next = GetLong (fork, 24);
+    ioTree.nodes.resize (ioTree.bytes);
+    ioTree.editor = std::make_unique<HfsBTreeEditor> (kind, ioTree.nodes);
 
-    while (next != 0)
-    {
-        size_t  node    = (size_t) next * HfsBTree::kNodeBytes;
-        size_t  size    = fork.size();
-        Word    records = 0;
-
-        CBREx (++steps <= bytes / HfsBTree::kNodeBytes && node + HfsBTree::kNodeBytes <= size, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
-        CBREx (fork[node + 8] == HfsBTree::kNodeLeaf, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
-
-        records = GetWord (fork, node + 10);
-
-        for (Word i = 0; i < records; i++)
-        {
-            size_t             start = GetWord (fork, node + HfsBTree::kNodeBytes - 2 * ((size_t) i + 1));
-            size_t             end   = GetWord (fork, node + HfsBTree::kNodeBytes - 2 * ((size_t) i + 2));
-            size_t             key   = 0;
-            size_t             data  = 0;
-            HfsBTree::Record   record;
-
-            CBREx (start < end && end <= HfsBTree::kNodeBytes, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
-
-            key  = (size_t) fork[node + start] + 1;
-            data = start + key + (key % 2);
-
-            if (key == 1 || data > end)
-            {
-                continue;
-            }
-
-            record.key.assign  (fork.begin() + (ptrdiff_t) (node + start), fork.begin() + (ptrdiff_t) (node + start + key));
-            record.data.assign (fork.begin() + (ptrdiff_t) (node + data),  fork.begin() + (ptrdiff_t) (node + end));
-            outRecords.push_back (std::move (record));
-        }
-
-        next = GetLong (fork, node);
-    }
+    hr = ioTree.editor->Open();
+    CHR (hr);
 
 Error:
     return hr;
@@ -376,39 +372,48 @@ Error:
 //
 //  HfsWriter::WriteTree
 //
-//  The tree built again in its file, which gains a run of blocks when the
-//  tree has outgrown it and the master directory block has room for one.
+//  The nodes the editor changed, or every node of a tree that moved, into
+//  the tree file's extents.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsWriter::WriteTree (State & state, HfsBTree::Kind kind, Extent (& file)[3], uint32_t & ioBytes, const std::vector<HfsBTree::Record> & records)
+void HfsWriter::WriteTree (State & state, const Tree & tree)
 {
-    HRESULT              hr      = S_OK;
-    uint32_t             needed  = HfsBTree::CountNodes (kind, records);
-    std::vector<Byte>    nodes;
-    size_t               written = 0;
+    std::vector<uint32_t>  nodes;
+    uint32_t               total = (uint32_t) (tree.nodes.size() / HfsBTree::kNodeBytes);
 
 
 
-    if (needed > ioBytes / HfsBTree::kNodeBytes)
+    if (tree.isMoved)
     {
-        hr = GrowTree (state, file, ioBytes, needed);
-        CHR (hr);
+        for (uint32_t node = 0; node < total; node++)
+        {
+            nodes.push_back (node);
+        }
+    }
+    else
+    {
+        nodes.assign (tree.editor->GetChangedNodes().begin(), tree.editor->GetChangedNodes().end());
     }
 
-    hr = HfsBTree::Build (kind, records, ioBytes / (uint32_t) HfsBTree::kNodeBytes, nodes);
-    CHR (hr);
-
-    for (const Extent & extent : file)
+    for (uint32_t node : nodes)
     {
-        size_t  length = std::min ((size_t) extent.count * state.allocationBytes, nodes.size() - written);
+        size_t  offset = (size_t) node * HfsBTree::kNodeBytes;
 
-        std::copy_n (nodes.begin() + (ptrdiff_t) written, length, state.image->begin() + (ptrdiff_t) GetBlockOffset (state, extent.start));
-        written += length;
+        for (const Extent & extent : tree.file)
+        {
+            size_t  length = (size_t) extent.count * state.allocationBytes;
+
+            if (offset < length)
+            {
+                std::copy_n (tree.nodes.begin() + (ptrdiff_t) ((size_t) node * HfsBTree::kNodeBytes), HfsBTree::kNodeBytes,
+                             state.image->begin() + (ptrdiff_t) (GetBlockOffset (state, extent.start) + offset));
+                break;
+            }
+
+            offset -= length;
+        }
     }
-
-Error:
-    return hr;
 }
 
 
@@ -420,17 +425,16 @@ Error:
 //  HfsWriter::GrowTree
 //
 //  At least `needed` nodes, and at least double the file's size, so a tree
-//  that grows one file at a time is rarely moved. The last extent is
+//  that grows one record at a time is rarely moved. The last extent is
 //  lengthened when the blocks after it are free. Otherwise the file is
-//  moved to new runs, at most three; the tree is built again from its
-//  records, so the old blocks are freed without being copied.
+//  moved to new runs, at most three, and every node is written there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsWriter::GrowTree (State & state, Extent (& file)[3], uint32_t & ioBytes, uint32_t needed)
+HRESULT HfsWriter::GrowTree (State & state, Tree & ioTree, uint32_t needed)
 {
     HRESULT              hr      = S_OK;
-    uint32_t             current = ioBytes / state.allocationBytes;
+    uint32_t             current = ioTree.bytes / state.allocationBytes;
     uint32_t             minimum = (needed * (uint32_t) HfsBTree::kNodeBytes + state.allocationBytes - 1) / state.allocationBytes;
     uint32_t             target  = std::max (minimum, 2 * current);
     int                  last    = -1;
@@ -441,12 +445,12 @@ HRESULT HfsWriter::GrowTree (State & state, Extent (& file)[3], uint32_t & ioByt
 
     for (int i = 0; i < 3; i++)
     {
-        last = (file[i].count != 0) ? i : last;
+        last = (ioTree.file[i].count != 0) ? i : last;
     }
 
     if (last >= 0)
     {
-        uint32_t  end = (uint32_t) file[last].start + file[last].count;
+        uint32_t  end = (uint32_t) ioTree.file[last].start + ioTree.file[last].count;
 
         while (end + free < state.allocationBlocks && current + free < target && !IsAllocated (state, (Word) (end + free)))
         {
@@ -458,19 +462,19 @@ HRESULT HfsWriter::GrowTree (State & state, Extent (& file)[3], uint32_t & ioByt
 
     if (free > 0)
     {
-        runs.push_back (Extent { (Word) ((uint32_t) file[last].start + file[last].count), (Word) free });
+        runs.push_back (Extent { (Word) ((uint32_t) ioTree.file[last].start + ioTree.file[last].count), (Word) free });
 
         for (Word block = 0; block < runs[0].count; block++)
         {
             SetAllocated (state, (Word) (runs[0].start + block), true);
         }
 
-        file[last].count = (Word) (file[last].count + free);
-        ioBytes         += free * state.allocationBytes;
+        ioTree.file[last].count = (Word) (ioTree.file[last].count + free);
+        ioTree.bytes           += free * state.allocationBytes;
     }
     else
     {
-        for (const Extent & extent : file)
+        for (const Extent & extent : ioTree.file)
         {
             Free (state, extent);
         }
@@ -484,7 +488,7 @@ HRESULT HfsWriter::GrowTree (State & state, Extent (& file)[3], uint32_t & ioByt
 
         if (FAILED (hr))
         {
-            for (const Extent & extent : file)
+            for (const Extent & extent : ioTree.file)
             {
                 for (Word block = 0; block < extent.count; block++)
                 {
@@ -495,12 +499,13 @@ HRESULT HfsWriter::GrowTree (State & state, Extent (& file)[3], uint32_t & ioByt
 
         CHR (hr);
 
-        ioBytes = 0;
+        ioTree.bytes   = 0;
+        ioTree.isMoved = true;
 
         for (size_t i = 0; i < 3; i++)
         {
-            file[i]  = (i < runs.size()) ? runs[i] : Extent();
-            ioBytes += (uint32_t) file[i].count * state.allocationBytes;
+            ioTree.file[i]  = (i < runs.size()) ? runs[i] : Extent();
+            ioTree.bytes   += (uint32_t) ioTree.file[i].count * state.allocationBytes;
         }
     }
 
@@ -508,6 +513,94 @@ HRESULT HfsWriter::GrowTree (State & state, Extent (& file)[3], uint32_t & ioByt
     {
         std::fill_n (state.image->begin() + (ptrdiff_t) GetBlockOffset (state, run.start), (size_t) run.count * state.allocationBytes, (Byte) 0);
     }
+
+    hr = ioTree.editor->Extend (ioTree.bytes / (uint32_t) HfsBTree::kNodeBytes);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsWriter::EnsureNodes
+//
+//  At least `count` free nodes in the tree, its file grown for them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsWriter::EnsureNodes (State & state, Tree & ioTree, uint32_t count)
+{
+    HRESULT  hr    = S_OK;
+    int      tries = 0;
+
+
+
+    while (ioTree.editor->GetFreeNodes() < count)
+    {
+        uint32_t  needed = ioTree.editor->GetTotalNodes() + (count - ioTree.editor->GetFreeNodes());
+
+        CBREx (++tries <= 4, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
+
+        hr = GrowTree (state, ioTree, needed);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsWriter::InsertRecord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsWriter::InsertRecord (State & state, Tree & ioTree, const HfsBTree::Record & record)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = EnsureNodes (state, ioTree, ioTree.editor->GetNodesForInsert());
+    CHR (hr);
+
+    hr = ioTree.editor->Insert (record);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsWriter::ReplaceRecord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsWriter::ReplaceRecord (State & state, Tree & ioTree, const HfsBTree::Record & record)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = EnsureNodes (state, ioTree, ioTree.editor->GetNodesForInsert());
+    CHR (hr);
+
+    hr = ioTree.editor->Replace (record);
+    CHR (hr);
 
 Error:
     return hr;
@@ -528,21 +621,14 @@ Error:
 
 HRESULT HfsWriter::Save (State & state)
 {
-    HRESULT              hr    = S_OK;
     std::vector<Byte> &  image = *state.image;
     uint32_t             free  = 0;
     size_t               copy  = image.size() - 2 * kSectorBytes;
 
 
 
-    HfsBTree::Sort (HfsBTree::Kind::Catalog, state.catalog);
-    HfsBTree::Sort (HfsBTree::Kind::Extents, state.extents);
-
-    hr = WriteTree (state, HfsBTree::Kind::Extents, state.extentsFile, state.extentsBytes, state.extents);
-    CHR (hr);
-
-    hr = WriteTree (state, HfsBTree::Kind::Catalog, state.catalogFile, state.catalogBytes, state.catalog);
-    CHR (hr);
+    WriteTree (state, state.extents);
+    WriteTree (state, state.catalog);
 
     for (Word block = 0; block < state.allocationBlocks; block++)
     {
@@ -553,21 +639,20 @@ HRESULT HfsWriter::Save (State & state)
     PutLong (image, kMdbOffset + 30,  state.nextId);
     PutWord (image, kMdbOffset + 34,  free);
     PutLong (image, kMdbOffset + 70,  GetLong (image, kMdbOffset + 70) + 1);
-    PutLong (image, kMdbOffset + 130, state.extentsBytes);
-    PutLong (image, kMdbOffset + 146, state.catalogBytes);
+    PutLong (image, kMdbOffset + 130, state.extents.bytes);
+    PutLong (image, kMdbOffset + 146, state.catalog.bytes);
 
     for (size_t i = 0; i < 3; i++)
     {
-        PutWord (image, kMdbOffset + 134 + i * 4, state.extentsFile[i].start);
-        PutWord (image, kMdbOffset + 136 + i * 4, state.extentsFile[i].count);
-        PutWord (image, kMdbOffset + 150 + i * 4, state.catalogFile[i].start);
-        PutWord (image, kMdbOffset + 152 + i * 4, state.catalogFile[i].count);
+        PutWord (image, kMdbOffset + 134 + i * 4, state.extents.file[i].start);
+        PutWord (image, kMdbOffset + 136 + i * 4, state.extents.file[i].count);
+        PutWord (image, kMdbOffset + 150 + i * 4, state.catalog.file[i].start);
+        PutWord (image, kMdbOffset + 152 + i * 4, state.catalog.file[i].count);
     }
 
     std::copy_n (image.begin() + (ptrdiff_t) kMdbOffset, kSectorBytes, image.begin() + (ptrdiff_t) copy);
 
-Error:
-    return hr;
+    return S_OK;
 }
 
 
@@ -756,26 +841,18 @@ Error:
 //  HfsWriter::FindRecord
 //
 //  The catalog record under `parent` with this name, of `type`, or of
-//  either a directory's or a file's for type 0. -1 when none is.
+//  either a directory's or a file's for type 0.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int HfsWriter::FindRecord (const State & state, uint32_t parent, const std::vector<Byte> & name, Byte type)
+bool HfsWriter::FindRecord (const State & state, uint32_t parent, const std::vector<Byte> & name, Byte type, HfsBTree::Record & outRecord)
 {
-    for (size_t at = 0; at < state.catalog.size(); at++)
-    {
-        const HfsBTree::Record &  record = state.catalog[at];
-        size_t                    length = (record.key.size() > 6) ? std::min<size_t> (record.key[6], record.key.size() - 7) : 0;
-        Byte                      kind   = record.data.empty() ? 0 : record.data[0];
-        bool                      typed  = (type == 0) ? (kind == kRecordDirectory || kind == kRecordFile) : kind == type;
+    HRESULT  hr    = state.catalog.editor->Find (MakeCatalogKey (parent, name), outRecord);
+    Byte     kind  = (SUCCEEDED (hr) && !outRecord.data.empty()) ? outRecord.data[0] : (Byte) 0;
 
-        if (typed && GetLong (record.key, 2) == parent && HfsBTree::CompareNames (record.key.data() + 7, length, name.data(), name.size()) == 0)
-        {
-            return (int) at;
-        }
-    }
 
-    return -1;
+
+    return (type == 0) ? (kind == kRecordDirectory || kind == kRecordFile) : kind == type;
 }
 
 
@@ -791,20 +868,14 @@ int HfsWriter::FindRecord (const State & state, uint32_t parent, const std::vect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int HfsWriter::FindThread (const State & state, uint32_t id)
+bool HfsWriter::FindThread (const State & state, uint32_t id, HfsBTree::Record & outRecord)
 {
-    for (size_t at = 0; at < state.catalog.size(); at++)
-    {
-        const HfsBTree::Record &  record = state.catalog[at];
-        Byte                      kind   = record.data.empty() ? 0 : record.data[0];
+    HRESULT  hr   = state.catalog.editor->Find (MakeCatalogKey (id, {}), outRecord);
+    Byte     kind = (SUCCEEDED (hr) && !outRecord.data.empty()) ? outRecord.data[0] : (Byte) 0;
 
-        if ((kind == kRecordDirThread || kind == kRecordFileThread) && GetLong (record.key, 2) == id)
-        {
-            return (int) at;
-        }
-    }
 
-    return -1;
+
+    return kind == kRecordDirThread || kind == kRecordFileThread;
 }
 
 
@@ -831,15 +902,16 @@ HRESULT HfsWriter::FindDirectory (const State & state, const FilePath & path, si
     for (size_t i = 0; i < components && i < path.GetComponents().size(); i++)
     {
         std::vector<Byte>  name;
+        HfsBTree::Record   record;
         bool               valid = EncodeName (path.GetComponents()[i], name);
-        int                found = -1;
+        bool               found = false;
 
         CBREx (valid, HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND));
 
-        found = FindRecord (state, outId, name, kRecordDirectory);
-        CBREx (found >= 0, HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND));
+        found = FindRecord (state, outId, name, kRecordDirectory, record);
+        CBREx (found, HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND));
 
-        outId = GetLong (state.catalog[(size_t) found].data, 6);
+        outId = GetLong (record.data, 6);
     }
 
 Error:
@@ -884,18 +956,36 @@ Error:
 //
 //  HfsWriter::AdjustValence
 //
+//  The directory's record, found through its thread, with its count of
+//  entries changed and its modification date now.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void HfsWriter::AdjustValence (State & state, uint32_t directory, int delta)
+HRESULT HfsWriter::AdjustValence (State & state, uint32_t directory, int delta)
 {
-    for (HfsBTree::Record & record : state.catalog)
-    {
-        if (!record.data.empty() && record.data[0] == kRecordDirectory && GetLong (record.data, 6) == directory)
-        {
-            PutWord (record.data, 4, (uint32_t) std::max (0, (int) GetWord (record.data, 4) + delta));
-            PutLong (record.data, 14, GetMacNow());
-        }
-    }
+    HRESULT            hr     = S_OK;
+    HfsBTree::Record   thread;
+    HfsBTree::Record   record;
+    std::vector<Byte>  name;
+    bool               found  = FindThread (state, directory, thread);
+
+
+
+    BAIL_OUT_IF (!found || thread.data.size() < kThreadBytes, S_OK);
+
+    name.assign (thread.data.begin() + 15, thread.data.begin() + 15 + std::min<size_t> (thread.data[14], kMaxNameLength));
+
+    found = FindRecord (state, GetLong (thread.data, 10), name, kRecordDirectory, record);
+    BAIL_OUT_IF (!found, S_OK);
+
+    PutWord (record.data, 4, (uint32_t) std::max (0, (int) GetWord (record.data, 4) + delta));
+    PutLong (record.data, 14, GetMacNow());
+
+    hr = ReplaceRecord (state, state.catalog, record);
+    CHR (hr);
+
+Error:
+    return hr;
 }
 
 
@@ -941,9 +1031,12 @@ void HfsWriter::AdjustCount (State & state, size_t at, int delta)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HfsWriter::FreeForkExtents (State & state, const std::vector<Byte> & data, size_t at, uint32_t fileId, Byte fork, DeleteOutcome & outOutcome)
+HRESULT HfsWriter::FreeForkExtents (State & state, const std::vector<Byte> & data, size_t at, uint32_t fileId, Byte fork, DeleteOutcome & outOutcome)
 {
-    auto  release = [&] (const Extent & run)
+    HRESULT                         hr    = S_OK;
+    std::vector<Byte>               from  = { 7, fork, 0, 0, 0, 0, 0, 0 };
+    std::vector<HfsBTree::Record>   overflow;
+    auto                            release = [&] (const Extent & run)
     {
         Free (state, run);
 
@@ -955,26 +1048,39 @@ void HfsWriter::FreeForkExtents (State & state, const std::vector<Byte> & data, 
 
 
 
+    PutLong (from, 2, fileId);
+
     for (size_t i = 0; i < 3; i++)
     {
         release (Extent { GetWord (data, at + i * 4), GetWord (data, at + i * 4 + 2) });
     }
 
-    for (const HfsBTree::Record & record : state.extents)
+    hr = state.extents.editor->Scan (from, [&] (const HfsBTree::Record & record)
     {
-        if (record.key.size() >= 8 && record.key[1] == fork && GetLong (record.key, 2) == fileId)
+        bool  isFork = record.key.size() >= 8 && record.key[1] == fork && GetLong (record.key, 2) == fileId;
+
+        if (isFork)
         {
-            for (size_t i = 0; i < 3 && i * 4 + 4 <= record.data.size(); i++)
-            {
-                release (Extent { GetWord (record.data, i * 4), GetWord (record.data, i * 4 + 2) });
-            }
+            overflow.push_back (record);
         }
+
+        return isFork;
+    });
+    CHR (hr);
+
+    for (const HfsBTree::Record & record : overflow)
+    {
+        for (size_t i = 0; i < 3 && i * 4 + 4 <= record.data.size(); i++)
+        {
+            release (Extent { GetWord (record.data, i * 4), GetWord (record.data, i * 4 + 2) });
+        }
+
+        hr = state.extents.editor->Remove (record.key);
+        CHR (hr);
     }
 
-    std::erase_if (state.extents, [fileId, fork] (const HfsBTree::Record & record)
-    {
-        return record.key.size() >= 8 && record.key[1] == fork && GetLong (record.key, 2) == fileId;
-    });
+Error:
+    return hr;
 }
 
 
@@ -990,36 +1096,45 @@ void HfsWriter::FreeForkExtents (State & state, const std::vector<Byte> & data, 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsWriter::RemoveFile (State & state, size_t record, DeleteOutcome & outOutcome)
+HRESULT HfsWriter::RemoveFile (State & state, const HfsBTree::Record & record, DeleteOutcome & outOutcome)
 {
-    std::vector<Byte>  data   = state.catalog[record].data;
-    uint32_t           parent = GetLong (state.catalog[record].key, 2);
-    uint32_t           fileId = GetLong (data, 20);
-    int                thread = 0;
+    HRESULT           hr     = S_OK;
+    uint32_t          parent = GetLong (record.key, 2);
+    uint32_t          fileId = GetLong (record.data, 20);
+    HfsBTree::Record  thread;
+    bool              found  = false;
 
 
 
-    FreeForkExtents (state, data, 74, fileId, kForkData,     outOutcome);
-    FreeForkExtents (state, data, 86, fileId, kForkResource, outOutcome);
+    hr = FreeForkExtents (state, record.data, 74, fileId, kForkData, outOutcome);
+    CHR (hr);
 
-    state.catalog.erase (state.catalog.begin() + (ptrdiff_t) record);
+    hr = FreeForkExtents (state, record.data, 86, fileId, kForkResource, outOutcome);
+    CHR (hr);
 
-    thread = FindThread (state, fileId);
+    hr = state.catalog.editor->Remove (record.key);
+    CHR (hr);
 
-    if (thread >= 0)
+    found = FindThread (state, fileId, thread);
+
+    if (found)
     {
-        state.catalog.erase (state.catalog.begin() + thread);
+        hr = state.catalog.editor->Remove (thread.key);
+        CHR (hr);
     }
 
-    AdjustValence (state, parent, -1);
-    AdjustCount   (state, 84, -1);
+    hr = AdjustValence (state, parent, -1);
+    CHR (hr);
+
+    AdjustCount (state, 84, -1);
 
     if (parent == kRootId)
     {
         AdjustCount (state, 12, -1);
     }
 
-    return S_OK;
+Error:
+    return hr;
 }
 
 
@@ -1048,7 +1163,8 @@ HRESULT HfsWriter::Write (std::vector<Byte> & ioImage, const FilePath & path, co
     uint32_t             creator  = 0;
     uint32_t             now      = GetMacNow();
     uint32_t             fileId   = 0;
-    int                  existing = -1;
+    bool                 existing = false;
+    HfsBTree::Record     record;
     DeleteOutcome        replaced;
 
 
@@ -1059,14 +1175,14 @@ HRESULT HfsWriter::Write (std::vector<Byte> & ioImage, const FilePath & path, co
     hr = ResolveLeaf (state, path, parent, name);
     CHR (hr);
 
-    existing = FindRecord (state, parent, name, kRecordDirectory);
-    CBREx (existing < 0, HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS));
+    existing = FindRecord (state, parent, name, kRecordDirectory, record);
+    CBREx (!existing, HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS));
 
-    existing = FindRecord (state, parent, name, kRecordFile);
+    existing = FindRecord (state, parent, name, kRecordFile, record);
 
-    if (existing >= 0)
+    if (existing)
     {
-        hr = RemoveFile (state, (size_t) existing, replaced);
+        hr = RemoveFile (state, record, replaced);
         CHR (hr);
     }
 
@@ -1116,10 +1232,13 @@ HRESULT HfsWriter::Write (std::vector<Byte> & ioImage, const FilePath & path, co
         PutWord (data, 88 + i * 4, forkRuns[i].count);
     }
 
-    state.catalog.push_back (HfsBTree::Record { MakeCatalogKey (parent, name), data });
+    hr = InsertRecord (state, state.catalog, HfsBTree::Record { MakeCatalogKey (parent, name), data });
+    CHR (hr);
 
-    AdjustValence (state, parent, 1);
-    AdjustCount   (state, 84, 1);
+    hr = AdjustValence (state, parent, 1);
+    CHR (hr);
+
+    AdjustCount (state, 84, 1);
 
     if (parent == kRootId)
     {
@@ -1151,7 +1270,8 @@ HRESULT HfsWriter::Delete (std::vector<Byte> & ioImage, const FilePath & path, D
     State              state;
     uint32_t           parent = 0;
     std::vector<Byte>  name;
-    int                found  = -1;
+    HfsBTree::Record   record;
+    bool               found  = false;
 
 
 
@@ -1163,11 +1283,11 @@ HRESULT HfsWriter::Delete (std::vector<Byte> & ioImage, const FilePath & path, D
     hr = ResolveLeaf (state, path, parent, name);
     CHR (hr);
 
-    found = FindRecord (state, parent, name, kRecordFile);
-    CBREx (found >= 0, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
-    CBREx ((state.catalog[(size_t) found].data[2] & kFileLocked) == 0, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+    found = FindRecord (state, parent, name, kRecordFile, record);
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+    CBREx ((record.data[2] & kFileLocked) == 0, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
 
-    hr = RemoveFile (state, (size_t) found, outOutcome);
+    hr = RemoveFile (state, record, outOutcome);
     CHR (hr);
 
     hr = Save (state);
@@ -1196,7 +1316,8 @@ HRESULT HfsWriter::CreateDirectory (std::vector<Byte> & ioImage, const FilePath 
     uint32_t           parent   = 0;
     uint32_t           id       = 0;
     uint32_t           now      = GetMacNow();
-    int                existing = -1;
+    bool               existing = false;
+    HfsBTree::Record   record;
     std::vector<Byte>  name;
     std::vector<Byte>  directory (kDirectoryBytes, 0);
     std::vector<Byte>  thread (kThreadBytes, 0);
@@ -1209,8 +1330,8 @@ HRESULT HfsWriter::CreateDirectory (std::vector<Byte> & ioImage, const FilePath 
     hr = ResolveLeaf (state, path, parent, name);
     CHR (hr);
 
-    existing = FindRecord (state, parent, name, 0);
-    CBREx (existing < 0, HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS));
+    existing = FindRecord (state, parent, name, 0, record);
+    CBREx (!existing, HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS));
 
     id = state.nextId++;
 
@@ -1224,11 +1345,16 @@ HRESULT HfsWriter::CreateDirectory (std::vector<Byte> & ioImage, const FilePath 
     thread[14] = (Byte) name.size();
     std::copy (name.begin(), name.end(), thread.begin() + 15);
 
-    state.catalog.push_back (HfsBTree::Record { MakeCatalogKey (parent, name), directory });
-    state.catalog.push_back (HfsBTree::Record { MakeCatalogKey (id, {}), thread });
+    hr = InsertRecord (state, state.catalog, HfsBTree::Record { MakeCatalogKey (parent, name), directory });
+    CHR (hr);
 
-    AdjustValence (state, parent, 1);
-    AdjustCount   (state, 88, 1);
+    hr = InsertRecord (state, state.catalog, HfsBTree::Record { MakeCatalogKey (id, {}), thread });
+    CHR (hr);
+
+    hr = AdjustValence (state, parent, 1);
+    CHR (hr);
+
+    AdjustCount (state, 88, 1);
 
     if (parent == kRootId)
     {
@@ -1257,10 +1383,12 @@ Error:
 
 HRESULT HfsWriter::RemoveDirectory (std::vector<Byte> & ioImage, const FilePath & path, bool force, DeleteOutcome & outOutcome)
 {
-    HRESULT                hr     = S_OK;
-    State                  state;
-    uint32_t               id     = 0;
-    std::vector<uint32_t>  folders;
+    HRESULT                        hr       = S_OK;
+    State                          state;
+    uint32_t                       id       = 0;
+    bool                           isLocked = false;
+    std::vector<uint32_t>          folders;
+    std::vector<HfsBTree::Record>  files;
 
 
 
@@ -1278,67 +1406,63 @@ HRESULT HfsWriter::RemoveDirectory (std::vector<Byte> & ioImage, const FilePath 
 
     for (size_t at = 0; at < folders.size(); at++)
     {
-        for (const HfsBTree::Record & record : state.catalog)
-        {
-            if (!record.data.empty() && GetLong (record.key, 2) == folders[at])
-            {
-                if (record.data[0] == kRecordDirectory)
-                {
-                    folders.push_back (GetLong (record.data, 6));
-                }
+        uint32_t  folder = folders[at];
 
-                CBREx (force || record.data[0] != kRecordFile || (record.data[2] & kFileLocked) == 0, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+        hr = state.catalog.editor->Scan (MakeCatalogKey (folder, {}), [&] (const HfsBTree::Record & record)
+        {
+            bool  isChild = GetLong (record.key, 2) == folder && !record.data.empty();
+
+            if (isChild && record.data[0] == kRecordDirectory)
+            {
+                folders.push_back (GetLong (record.data, 6));
             }
-        }
+            else if (isChild && record.data[0] == kRecordFile)
+            {
+                files.push_back (record);
+                isLocked = isLocked || (record.data[2] & kFileLocked) != 0;
+            }
+
+            return isChild;
+        });
+        CHR (hr);
     }
 
-    //  The files, then each folder from the deepest up.
-    for (uint32_t folder : folders)
+    CBREx (force || !isLocked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+
+    for (const HfsBTree::Record & file : files)
     {
-        for (int at = (int) state.catalog.size() - 1; at >= 0; at--)
-        {
-            const HfsBTree::Record &  record = state.catalog[(size_t) at];
-
-            if (!record.data.empty() && record.data[0] == kRecordFile && GetLong (record.key, 2) == folder)
-            {
-                hr = RemoveFile (state, (size_t) at, outOutcome);
-                CHR (hr);
-
-                at = std::min (at, (int) state.catalog.size());
-            }
-        }
+        hr = RemoveFile (state, file, outOutcome);
+        CHR (hr);
     }
 
+    //  Each folder from the deepest up: its record, found through its
+    //  thread, then the thread.
     for (auto folder = folders.rbegin(); folder != folders.rend(); folder++)
     {
-        int  thread = FindThread (state, *folder);
+        HfsBTree::Record   thread;
+        uint32_t           parent = 0;
+        std::vector<Byte>  name;
+        bool               found  = FindThread (state, *folder, thread);
 
-        for (size_t at = 0; at < state.catalog.size(); at++)
+        CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
+        parent = GetLong (thread.data, 10);
+        name.assign (thread.data.begin() + 15, thread.data.begin() + 15 + std::min<size_t> (thread.data[14], kMaxNameLength));
+
+        hr = state.catalog.editor->Remove (MakeCatalogKey (parent, name));
+        CHR (hr);
+
+        hr = state.catalog.editor->Remove (thread.key);
+        CHR (hr);
+
+        hr = AdjustValence (state, parent, -1);
+        CHR (hr);
+
+        AdjustCount (state, 88, -1);
+
+        if (parent == kRootId)
         {
-            const HfsBTree::Record &  record = state.catalog[at];
-
-            if (!record.data.empty() && record.data[0] == kRecordDirectory && GetLong (record.data, 6) == *folder)
-            {
-                uint32_t  parent = GetLong (record.key, 2);
-
-                state.catalog.erase (state.catalog.begin() + (ptrdiff_t) at);
-                AdjustValence (state, parent, -1);
-                AdjustCount   (state, 88, -1);
-
-                if (parent == kRootId)
-                {
-                    AdjustCount (state, 82, -1);
-                }
-
-                break;
-            }
-        }
-
-        thread = FindThread (state, *folder);
-
-        if (thread >= 0)
-        {
-            state.catalog.erase (state.catalog.begin() + thread);
+            AdjustCount (state, 82, -1);
         }
     }
 
@@ -1357,9 +1481,9 @@ Error:
 //
 //  HfsWriter::Rename
 //
-//  The record's key takes the new name, and a directory's or file's thread
-//  record its name too. A name another entry of the directory has fails
-//  with ERROR_ALREADY_EXISTS.
+//  The record is removed and inserted again under the new name, and a
+//  directory's or file's thread record takes the name too. A name another
+//  entry of the directory has fails with ERROR_ALREADY_EXISTS.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1371,9 +1495,11 @@ HRESULT HfsWriter::Rename (std::vector<Byte> & ioImage, const FilePath & from, c
     uint32_t           id      = 0;
     std::vector<Byte>  name;
     std::vector<Byte>  renamed;
-    int                found   = -1;
-    int                thread  = -1;
-    int                clash   = -1;
+    HfsBTree::Record   record;
+    HfsBTree::Record   other;
+    HfsBTree::Record   thread;
+    bool               found   = false;
+    bool               clash   = false;
     bool               valid   = false;
 
 
@@ -1387,24 +1513,29 @@ HRESULT HfsWriter::Rename (std::vector<Byte> & ioImage, const FilePath & from, c
     valid = EncodeName (to, renamed);
     CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
-    found = FindRecord (state, parent, name, 0);
-    CBREx (found >= 0, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+    found = FindRecord (state, parent, name, 0, record);
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
-    clash = FindRecord (state, parent, renamed, 0);
-    CBREx (clash < 0 || clash == found, HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS));
+    clash = FindRecord (state, parent, renamed, 0, other) && HfsBTree::CompareCatalogKeys (other.key, record.key) != 0;
+    CBREx (!clash, HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS));
 
-    state.catalog[(size_t) found].key = MakeCatalogKey (parent, renamed);
+    hr = state.catalog.editor->Remove (record.key);
+    CHR (hr);
 
-    id     = GetLong (state.catalog[(size_t) found].data, state.catalog[(size_t) found].data[0] == kRecordDirectory ? 6 : 20);
-    thread = FindThread (state, id);
+    hr = InsertRecord (state, state.catalog, HfsBTree::Record { MakeCatalogKey (parent, renamed), record.data });
+    CHR (hr);
 
-    if (thread >= 0)
+    id    = GetLong (record.data, record.data[0] == kRecordDirectory ? 6 : 20);
+    found = FindThread (state, id, thread);
+
+    if (found)
     {
-        std::vector<Byte> &  data = state.catalog[(size_t) thread].data;
+        std::fill (thread.data.begin() + 14, thread.data.end(), (Byte) 0);
+        thread.data[14] = (Byte) renamed.size();
+        std::copy (renamed.begin(), renamed.end(), thread.data.begin() + 15);
 
-        std::fill (data.begin() + 14, data.end(), (Byte) 0);
-        data[14] = (Byte) renamed.size();
-        std::copy (renamed.begin(), renamed.end(), data.begin() + 15);
+        hr = ReplaceRecord (state, state.catalog, thread);
+        CHR (hr);
     }
 
     hr = Save (state);
@@ -1464,7 +1595,8 @@ HRESULT HfsWriter::SetAttributes (std::vector<Byte> & ioImage, const FilePath & 
     State              state;
     uint32_t           parent  = 0;
     std::vector<Byte>  name;
-    int                found   = -1;
+    HfsBTree::Record   record;
+    bool               found   = false;
     Byte               type    = 0;
     Word               auxType = 0;
     uint32_t           macType = 0;
@@ -1478,36 +1610,35 @@ HRESULT HfsWriter::SetAttributes (std::vector<Byte> & ioImage, const FilePath & 
     hr = ResolveLeaf (state, path, parent, name);
     CHR (hr);
 
-    found = FindRecord (state, parent, name, kRecordFile);
-    CBREx (found >= 0, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+    found = FindRecord (state, parent, name, kRecordFile, record);
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
+    HfsVolume::MapToProDos (GetLong (record.data, 4), GetLong (record.data, 8), type, auxType);
+
+    if (attributes.hasType || attributes.hasAuxType)
     {
-        std::vector<Byte> &  data = state.catalog[(size_t) found].data;
-
-        HfsVolume::MapToProDos (GetLong (data, 4), GetLong (data, 8), type, auxType);
-
-        if (attributes.hasType || attributes.hasAuxType)
-        {
-            MapFromProDos (attributes.hasType ? attributes.type : type, attributes.hasAuxType ? attributes.auxType : auxType, macType, creator);
-            PutLong (data, 4, macType);
-            PutLong (data, 8, creator);
-        }
-
-        if (attributes.hasAccess)
-        {
-            data[2] = (attributes.access & FilePayload::kAccessWriteEnable) != 0 ? (Byte) (data[2] & ~kFileLocked) : (Byte) (data[2] | kFileLocked);
-        }
-
-        if (attributes.hasCreated)
-        {
-            PutLong (data, 44, ToMacDate (attributes.createdDate, attributes.createdTime));
-        }
-
-        if (attributes.hasModified)
-        {
-            PutLong (data, 48, ToMacDate (attributes.modifiedDate, attributes.modifiedTime));
-        }
+        MapFromProDos (attributes.hasType ? attributes.type : type, attributes.hasAuxType ? attributes.auxType : auxType, macType, creator);
+        PutLong (record.data, 4, macType);
+        PutLong (record.data, 8, creator);
     }
+
+    if (attributes.hasAccess)
+    {
+        record.data[2] = (attributes.access & FilePayload::kAccessWriteEnable) != 0 ? (Byte) (record.data[2] & ~kFileLocked) : (Byte) (record.data[2] | kFileLocked);
+    }
+
+    if (attributes.hasCreated)
+    {
+        PutLong (record.data, 44, ToMacDate (attributes.createdDate, attributes.createdTime));
+    }
+
+    if (attributes.hasModified)
+    {
+        PutLong (record.data, 48, ToMacDate (attributes.modifiedDate, attributes.modifiedTime));
+    }
+
+    hr = ReplaceRecord (state, state.catalog, record);
+    CHR (hr);
 
     hr = Save (state);
     CHR (hr);
@@ -1547,6 +1678,7 @@ HRESULT HfsWriter::Format (std::vector<Byte> & outImage, size_t sectors, const s
     State              state;
     std::vector<Byte>  root (kDirectoryBytes, 0);
     std::vector<Byte>  thread (kThreadBytes, 0);
+    std::vector<HfsBTree::Record>  records;
 
 
 
@@ -1594,10 +1726,10 @@ HRESULT HfsWriter::Format (std::vector<Byte> & outImage, size_t sectors, const s
     state.allocationBytes  = perBlock * (uint32_t) kSectorBytes;
     state.firstBlock       = (Word) (3 + bitmap);
     state.nextId           = kFirstUserId;
-    state.extentsBytes     = treeBlocks * state.allocationBytes;
-    state.catalogBytes     = treeBlocks * state.allocationBytes;
-    state.extentsFile[0]   = Extent { 0, (Word) treeBlocks };
-    state.catalogFile[0]   = Extent { (Word) treeBlocks, (Word) treeBlocks };
+    state.extents.bytes    = treeBlocks * state.allocationBytes;
+    state.catalog.bytes    = treeBlocks * state.allocationBytes;
+    state.extents.file[0]  = Extent { 0, (Word) treeBlocks };
+    state.catalog.file[0]  = Extent { (Word) treeBlocks, (Word) treeBlocks };
 
     for (Word block = 0; block < 2 * treeBlocks; block++)
     {
@@ -1614,8 +1746,19 @@ HRESULT HfsWriter::Format (std::vector<Byte> & outImage, size_t sectors, const s
     thread[14] = (Byte) encoded.size();
     std::copy (encoded.begin(), encoded.end(), thread.begin() + 15);
 
-    state.catalog.push_back (HfsBTree::Record { MakeCatalogKey (kRootParentId, encoded), root });
-    state.catalog.push_back (HfsBTree::Record { MakeCatalogKey (kRootId, {}), thread });
+    records.push_back (HfsBTree::Record { MakeCatalogKey (kRootParentId, encoded), root });
+    records.push_back (HfsBTree::Record { MakeCatalogKey (kRootId, {}), thread });
+
+    hr = HfsBTree::Build (HfsBTree::Kind::Extents, {}, state.extents.bytes / (uint32_t) HfsBTree::kNodeBytes, state.extents.nodes);
+    CHR (hr);
+
+    hr = HfsBTree::Build (HfsBTree::Kind::Catalog, records, state.catalog.bytes / (uint32_t) HfsBTree::kNodeBytes, state.catalog.nodes);
+    CHR (hr);
+
+    state.extents.editor  = std::make_unique<HfsBTreeEditor> (HfsBTree::Kind::Extents, state.extents.nodes);
+    state.catalog.editor  = std::make_unique<HfsBTreeEditor> (HfsBTree::Kind::Catalog, state.catalog.nodes);
+    state.extents.isMoved = true;
+    state.catalog.isMoved = true;
 
     hr = Save (state);
     CHR (hr);
