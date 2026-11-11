@@ -1916,7 +1916,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [X] T656 [US31] Guardrails in the broker: the storage card rule at every open, writes only inside a detected Apple partition and never over a mounted Windows volume, a pipe for elevated administrators only, the client process and server image checks, and the signature check for a signed broker. A test for each refusal (FR-243)
 - [X] T657 [US31] Detect storage cards on insertion, read MBR and GPT partition tables without elevation, and list storage card nodes under This PC; remove Open physical card (FR-221)
 - [X] T658 [US31] Add Initialize card for Apple to a storage card's context menu, with the confirmation of FR-244
-- [ ] T659 [US31] Log each card's bytes read and written and the device time in the broker, and raise the largest request above 64 KB if the log points at round trips (FR-246)
+- [X] T659 [US31] Log each card's bytes read and written and the device time in the broker, and raise the largest request above 64 KB if the log points at round trips (FR-246)
 - [X] T660 [US31] Add Quick format, checked by default, to the Initialize card dialog; unchecked, zero every block of each volume (FR-245, SC-068)
 - [X] T661 [US31] One tree node per card: a drive letter Windows can read and no storage card node, or the storage card node alone, labeled with the letter, for a card Windows can't read
 - [X] T662 [US31] Gray a top-level removable drive that Windows can't read, as This PC does
