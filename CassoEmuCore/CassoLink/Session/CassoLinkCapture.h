@@ -70,10 +70,10 @@ private:
         std::vector<uint8_t>  bits;
     };
 
-    static HRESULT  ReadPosition  (CassoLinkHost & host, Byte drive, std::span<const Byte> module, int position, int reads, Position & outPosition);
-    static bool     MakeStream     (const Position & position, Stream & outStream, bool & outUnstable);
-    static int      FindWholeTrack (const std::map<int, Stream> & streams, int position);
-    static bool     FindRotation  (std::span<const Byte> revolution, std::span<const Byte> read, size_t & outOffset);
-    static bool     IsSameStream  (std::span<const Byte> a, std::span<const Byte> b);
-    static void     ToBits        (const Stream & stream, std::vector<uint8_t> & outBits);
+    static HRESULT ReadPosition   (CassoLinkHost & host, Byte drive, std::span<const Byte> module, int position, int reads, Position & outPosition);
+    static bool    MakeStream     (const Position & position, Stream & outStream, bool & outUnstable);
+    static int     FindWholeTrack (const std::map<int, Stream> & streams, int position);
+    static bool    FindRotation   (std::span<const Byte> revolution, std::span<const Byte> read, size_t & outOffset);
+    static bool    IsSameStream   (std::span<const Byte> a, std::span<const Byte> b);
+    static void    ToBits         (const Stream & stream, std::vector<uint8_t> & outBits);
 };
