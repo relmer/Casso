@@ -6,6 +6,7 @@
 #include "Debugger/DebugViewCapture.h"
 #include "Ui/Debugger/BreakpointColumns.h"
 #include "Ui/Debugger/BreakpointDialog.h"
+#include "Debugger/DiskBreakSpecText.h"
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 
@@ -227,6 +228,132 @@ namespace DiskBreakpointPaneTests
                 Assert::AreEqual (BreakpointHandlers::MakeDefinition (info), BreakpointDialog::MakeDefinition (fields), TextEncoding::NarrowToWide (line).c_str());
             }
         }
+
+        //  Every disk event with each of its choices and checks, filled in
+        //  the dialog's disk fields with each drive filter: the definition
+        //  the dialog makes is one BPDISK sets, the breakpoint it sets gives
+        //  the same definition back, and the dialog reads the same fields
+        //  back from it.
+        TEST_METHOD (EveryEventAndOptionSetsTheBreakpointBpdiskSets)
+        {
+            using Fields = BreakpointDialog::DiskFields;
+
+            struct Case
+            {
+                const char  * word;
+                Fields        fields;
+            };
+
+            auto  marks = [] (const char * address, const char * data) { Fields f; f.addressMarks = address; f.dataMarks = data; return f; };
+            auto  ts    = [] (const char * track, const char * sector) { Fields f; f.track = track; f.sector = sector; return f; };
+            auto  with  = [] (Fields f, auto change) { change (f); return f; };
+
+            const std::vector<Case>  cases =
+            {
+                { "READ",    Fields {} },
+                { "READ",    with (ts ("11", "0"), [] (Fields & f) { f.isPassed = true; }) },
+                { "READ",    marks ("D5 AA 96", "D5 AA AD") },
+                { "ADDRESS", with (ts ("11", ""), [] (Fields & f) { f.number = "FE"; f.isBadChecksum = true; }) },
+                { "ADDRESS", with (Fields {}, [] (Fields & f) { f.isWrongTrack = true; }) },
+                { "ADDRESS", marks ("D5 AA 96", "") },
+                { "HEAD",    with (Fields {}, [] (Fields & f) { f.choice = 0; }) },
+                { "HEAD",    with (Fields {}, [] (Fields & f) { f.choice = 1; f.track = "3:5"; }) },
+                { "HEAD",    with (Fields {}, [] (Fields & f) { f.choice = 2; f.track = "8:C"; f.isBump = true; }) },
+                { "HEAD",    with (Fields {}, [] (Fields & f) { f.choice = 3; }) },
+                { "WRITE",   with (Fields {}, [] (Fields & f) { f.choice = 0; }) },
+                { "WRITE",   with (ts ("3", "4"), [] (Fields & f) { f.choice = 1; }) },
+                { "WRITE",   with (ts ("4", ""), [] (Fields & f) { f.choice = 2; }) },
+                { "WRITE",   with (ts ("4", ""), [] (Fields & f) { f.choice = 3; }) },
+                { "WRITE",   with (Fields {}, [] (Fields & f) { f.choice = 4; }) },
+                { "DOS",     ts ("11", "5") },
+                { "DOS",     with (ts ("11", "5"), [] (Fields & f) { f.isPassed = true; }) },
+                { "BLOCK",   with (Fields {}, [] (Fields & f) { f.number = "7"; }) },
+                { "BLOCK",   with (Fields {}, [] (Fields & f) { f.number = "7"; f.isPassed = true; }) },
+                { "RWTS",    with (ts ("11", "5"), [] (Fields & f) { f.choice = 0; }) },
+                { "RWTS",    with (ts ("11", "5"), [] (Fields & f) { f.choice = 1; }) },
+                { "RWTS",    with (Fields {}, [] (Fields & f) { f.choice = 2; }) },
+                { "RWTS",    with (Fields {}, [] (Fields & f) { f.choice = 3; }) },
+                { "RWTS",    with (Fields {}, [] (Fields & f) { f.choice = 4; }) },
+                { "DRIVER",  with (Fields {}, [] (Fields & f) { f.choice = 0; }) },
+                { "DRIVER",  with (Fields {}, [] (Fields & f) { f.choice = 1; f.number = "2"; }) },
+                { "DRIVER",  with (Fields {}, [] (Fields & f) { f.choice = 2; f.number = "2"; }) },
+                { "DRIVER",  with (Fields {}, [] (Fields & f) { f.choice = 3; }) },
+                { "DRIVER",  with (Fields {}, [] (Fields & f) { f.choice = 4; }) },
+                { "MOTOR",   with (Fields {}, [] (Fields & f) { f.choice = 0; }) },
+                { "MOTOR",   with (Fields {}, [] (Fields & f) { f.choice = 1; }) },
+                { "MOTOR",   with (Fields {}, [] (Fields & f) { f.choice = 2; }) },
+                { "MOTOR",   with (Fields {}, [] (Fields & f) { f.choice = 3; }) },
+                { "SELECT",  Fields {} },
+                { "SELECT",  with (Fields {}, [] (Fields & f) { f.isEvery = true; }) },
+                { "INSERT",  Fields {} },
+                { "EJECT",   Fields {} },
+            };
+
+            auto  words = DiskBreakSpecText::GetEventWords();
+
+
+
+            for (const Case & each : cases)
+            {
+                auto  found = std::ranges::find_if (words, [&each] (const DiskBreakSpecText::EventWord & word) { return std::string (word.word) == each.word; });
+                int   event = (int) (found - words.begin());
+
+
+
+                Assert::IsTrue (found != words.end(), TextEncoding::NarrowToWide (each.word).c_str());
+
+                for (int drive = 0; drive <= 2; drive++)
+                {
+                    PaneRig                    rig;
+                    BreakpointDialog::Fields   dialog;
+                    BreakpointDialog::Fields   readBack;
+                    std::string                definition;
+                    std::wstring               label;
+                    BreakpointInfo             info;
+
+
+
+                    dialog.type      = BreakpointDialog::Type::Disk;
+                    dialog.event     = event;
+                    dialog.drive     = drive;
+                    dialog.arguments = BreakpointDialog::MakeDiskArguments (event, each.fields);
+                    definition       = BreakpointDialog::MakeDefinition (dialog);
+                    label            = TextEncoding::NarrowToWide (definition);
+
+                    rig.Run (definition);
+                    Assert::AreEqual ((size_t) 1, rig.List().size(), (label + L": BPDISK sets it").c_str());
+
+                    info     = rig.List().at (0);
+                    readBack = BreakpointDialog::GetFields (info);
+
+                    Assert::AreEqual (definition, BreakpointHandlers::MakeDefinition (info), (label + L": the same definition back").c_str());
+                    Assert::AreEqual (event, readBack.event, label.c_str());
+                    Assert::AreEqual (drive, readBack.drive, label.c_str());
+                    Assert::AreEqual (dialog.arguments, BreakpointDialog::MakeDiskArguments (event, BreakpointDialog::ParseDiskArguments (event, readBack.arguments)),
+                                      (label + L": the dialog reads its fields back").c_str());
+                }
+            }
+
+            //  The lines a person would type for a few of them.
+            for (const auto & [word, fields, drive, expected] : { std::tuple<const char *, Fields, int, const char *>
+                  { "HEAD",  with (Fields {}, [] (Fields & f) { f.choice = 2; f.track = "8:C"; f.isBump = true; }), 0, "BPDISK HEAD QT 8:C BUMP" },
+                  { "WRITE", ts ("3", "4") , 2, "BPDISK D2 WRITE 3 4" },
+                  { "BLOCK", with (Fields {}, [] (Fields & f) { f.number = "7"; }), 0, "BPDISK BLOCK 7" } })
+            {
+                BreakpointDialog::Fields  dialog;
+                auto                      found = std::ranges::find_if (words, [word] (const DiskBreakSpecText::EventWord & each) { return std::string (each.word) == word; });
+
+
+
+                dialog.type      = BreakpointDialog::Type::Disk;
+                dialog.event     = (int) (found - words.begin());
+                dialog.drive     = drive;
+                dialog.arguments = BreakpointDialog::MakeDiskArguments (dialog.event, (std::string (word) == "WRITE") ? with (fields, [] (Fields & f) { f.choice = 1; }) : fields);
+
+                Assert::AreEqual (std::string (expected), BreakpointDialog::MakeDefinition (dialog));
+            }
+        }
+
 
         TEST_METHOD (ImportReadsEachModesForm)
         {
