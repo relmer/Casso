@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/Panes/MemoryEditModel.h"
 #include "Ui/Debugger/UndoText.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -441,20 +442,57 @@ bool MemoryEditModel::WriteBytes (uint64_t offset, std::span<const uint8_t> byte
 //  MemoryEditModel::TryGetByteTip
 //
 //  The byte's address, which the view's own offset column gives only for the
-//  first byte of each row, then what its color means, as its mark says:
-//  changed, I/O or ROM. Plain RAM has no color and no word.
+//  first byte of each row, and its symbol, then what its color means, as its
+//  mark says: changed, I/O or ROM. Plain RAM has no color and no word. Below
+//  them, a byte read has its value in hex, in decimal and as a character, and
+//  its region.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MemoryEditModel::TryGetByteTip (uint64_t offset, std::wstring & tip) const
 {
-    uint8_t  mark = kMarkNone;
+    static constexpr Byte  kLowSeven  = 0x7F;
+    static constexpr Byte  kFirstChar = 0x20;
+    uint8_t                mark       = kMarkNone;
+    Word                   address    = GetAddressOf (offset);
+    std::optional<Byte>    value;
+    MemoryRegion           region     = MemoryRegion::MainRam;
+    std::wstring           detail;
+    std::wstring           label;
 
 
 
     ReadMarks (offset, std::span<uint8_t> (&mark, 1));
 
-    tip = std::format (L"${:04X}", GetAddressOf (offset));
+    tip = std::format (L"${:04X}", address);
+
+    if (m_symbols != nullptr)
+    {
+        auto  found = std::ranges::find_if (*m_symbols, [address] (const SymbolInfo & symbol) { return !symbol.isConstant && symbol.address == address; });
+
+        if (found != m_symbols->end())
+        {
+            tip += L"  " + TextEncoding::NarrowToWide (found->name);
+        }
+    }
+
+    if (TryGetKnown (address, value, region))
+    {
+        if (value.has_value())
+        {
+            Byte  low = (Byte) (*value & kLowSeven);
+
+            detail = std::format (L"${:02X}  {}", *value, *value);
+
+            if (low >= kFirstChar && low < kLowSeven)
+            {
+                detail += std::format (L"  '{}'", (wchar_t) low);
+            }
+        }
+
+        label   = MemoryRegionKeys::GetLabel (GetRegionKey (region, address), m_slotCards, m_machineId);
+        detail += (detail.empty() ? L"" : L"\n") + (label.empty() ? std::wstring (L"Main RAM") : label);
+    }
 
     switch (mark)
     {
@@ -464,6 +502,11 @@ bool MemoryEditModel::TryGetByteTip (uint64_t offset, std::wstring & tip) const
     case kMarkUnread:  tip += L"  not read yet"; break;
     case kMarkDiffers: tip += std::format (L"  differs: the other range has ${:02X}", m_others.at (GetAddressOf (offset))); break;
     default:                                     break;
+    }
+
+    if (!detail.empty())
+    {
+        tip += L"\n" + detail;
     }
 
     return true;

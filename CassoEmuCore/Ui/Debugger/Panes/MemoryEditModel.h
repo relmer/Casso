@@ -73,6 +73,9 @@ public:
     void  SetSlotCards    (const MemoryRegionKeys::SlotCards & cards) { m_slotCards = cards; }
     void  SetMachineId    (const std::string & machineId)             { m_machineId = machineId; }
 
+    //  The symbols a byte's tip gives the name of.
+    void  SetSymbols      (std::shared_ptr<const std::vector<SymbolInfo>> symbols) { m_symbols = std::move (symbols); }
+
     //  An edit's bytes, which the window writes at the address directly. For
     //  an undo or redo, `required` is what memory must contain there first;
     //  for a new edit it is empty.
@@ -190,13 +193,14 @@ private:
     //  past its read draws what it was last shown there rather than unmarked
     //  zeros until the next read arrives. A region is kept one above its
     //  value; zero is an address no read has reached.
-    std::vector<std::optional<Byte>>          m_keptBytes;
-    std::vector<uint8_t>                      m_keptRegions;
-    mutable std::vector<Edit>                 m_history;
-    mutable std::vector<Edit>                 m_redo;
-    std::optional<Unconfirmed>                m_unconfirmed;
-    PatchFn                                   m_onPatch;
-    RegionColors                              m_regionColors;
-    MemoryRegionKeys::SlotCards               m_slotCards;
-    std::string                               m_machineId;
+    std::vector<std::optional<Byte>>                m_keptBytes;
+    std::vector<uint8_t>                            m_keptRegions;
+    mutable std::vector<Edit>                       m_history;
+    mutable std::vector<Edit>                       m_redo;
+    std::optional<Unconfirmed>                      m_unconfirmed;
+    PatchFn                                         m_onPatch;
+    RegionColors                                    m_regionColors;
+    MemoryRegionKeys::SlotCards                     m_slotCards;
+    std::string                                     m_machineId;
+    std::shared_ptr<const std::vector<SymbolInfo>>  m_symbols;
 };

@@ -78,6 +78,7 @@ public:
     //  the model's directory name, which labels the parts of its ROM.
     void  SetSlotCards (const MemoryRegionKeys::SlotCards & cards) { m_model.SetSlotCards (cards); }
     void  SetMachineId (const std::string & machineId)             { m_model.SetMachineId (machineId); }
+    void  SetSymbols   (std::shared_ptr<const std::vector<SymbolInfo>> symbols) { m_model.SetSymbols (std::move (symbols)); }
 
     //  The bytes the snapshot read for this window. The first one places the
     //  view there; later ones leave the view where the user has it.

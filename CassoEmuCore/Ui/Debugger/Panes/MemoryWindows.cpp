@@ -885,6 +885,7 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
         each->GetModel().SetPaused     (snapshot.isPaused);
         each->GetModel().SetSlotCards  (snapshot.slotCards);
         each->GetModel().SetMachineId  (snapshot.machineId);
+        each->GetModel().SetSymbols    (snapshot.symbols == nullptr ? nullptr : std::shared_ptr<const std::vector<SymbolInfo>> (snapshot.symbols, &snapshot.symbols->symbols));
         each->GetModel().SetHeat       (snapshot.heatColumns, m_host.GetHeatPalette());
 
         //  Bytes are edited while the machine is stopped, as Visual Studio's
