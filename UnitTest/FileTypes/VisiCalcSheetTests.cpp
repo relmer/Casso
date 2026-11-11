@@ -37,6 +37,25 @@ public:
     }
 
 
+    //  A DOS 3.3 sheet's name is whatever the user typed, so a text file
+    //  whose first line is an entry matches by its contents.
+    TEST_METHOD (Matches_ADos33SheetByItsFirstEntryWhateverItsName)
+    {
+        FileFacts  facts;
+
+        facts.volume = VolumeKind::Dos33;
+        facts.type   = 0x00;
+        facts.name   = "BREAK-EVEN POINT";
+
+        Assert::IsTrue  (VisiCalcSheet::Matches (facts, ToApple (">B45:/F$(B29-B20)\n>A45:\"PROFIT =\n")));
+        Assert::IsFalse (VisiCalcSheet::Matches (facts, ToApple ("> A QUOTED LINE\n")));
+        Assert::IsFalse (VisiCalcSheet::Matches (facts, ToApple ("/X>A1:>A1:\n")), L"a setting alone needs the .VC name");
+
+        facts.name = "SHEET.VC";
+        Assert::IsTrue  (VisiCalcSheet::Matches (facts, ToApple ("/X>A1:>A1:\n")));
+    }
+
+
     TEST_METHOD (Decode_EntriesAsTyped)
     {
         std::vector<Byte>  bytes = ToApple (">B3:/FR@SUM(A1...A2)\n>A3:/--\n>A2:2.5\n>A1:\"PRICE\n/W1\n/GOR\n/GC5\n/X>A1:>A1:\n");

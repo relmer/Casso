@@ -16,18 +16,33 @@
 //  VisiCalcSheet::Matches
 //
 //  A text file whose name ends .VC and whose first character starts an
-//  entry or a setting.
+//  entry or a setting, or with any name, whose first line is an entry: '>',
+//  a coordinate and ':'. VisiCalc adds no suffix, so a DOS 3.3 sheet's name
+//  is whatever the user typed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool VisiCalcSheet::Matches (const FileFacts & facts, std::span<const Byte> bytes)
 {
-    bool  typed = facts.HasProDosType (kProDosText) || (facts.IsDos33() && facts.type == kDosText);
-    Byte  first = bytes.empty() ? 0 : (Byte) (bytes[0] & 0x7F);
+    bool         typed  = facts.HasProDosType (kProDosText) || (facts.IsDos33() && facts.type == kDosText);
+    Byte         first  = bytes.empty() ? 0 : (Byte) (bytes[0] & 0x7F);
+    bool         named  = facts.IsNameEnding (".VC");
+    bool         entry  = false;
+    size_t       column = 0;
+    size_t       row    = 0;
+    size_t       length = 0;
+    std::string  start;
 
 
 
-    return typed && facts.IsNameEnding (".VC") && (first == '>' || first == '/');
+    for (size_t i = 1; i < bytes.size() && i < kEntryProbeBytes; i++)
+    {
+        start += (char) (bytes[i] & 0x7F);
+    }
+
+    entry = first == '>' && ParseCoordinate (start, column, row, length) && length < start.size() && start[length] == ':';
+
+    return typed && ((named && (first == '>' || first == '/')) || entry);
 }
 
 

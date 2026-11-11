@@ -74,6 +74,9 @@ public:
 private:
     static constexpr int     kDigits     = 11;
 
+    //  The bytes read from a file's start for the entry Matches looks for.
+    static constexpr size_t  kEntryProbeBytes = 8;
+
     static std::string  FormatFixed      (double number, int decimals);
     static std::string  FormatGeneral    (double number, size_t limit);
     static std::string  FormatScientific (double number, size_t limit);
