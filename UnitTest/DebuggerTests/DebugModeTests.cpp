@@ -285,6 +285,27 @@ namespace DebugModeTests
             Assert::IsFalse (first == other.result.output, L"another seed");
         }
 
+        //  A logging breakpoint's messages print after the line whose run made
+        //  them, as text, and as JSON objects of type log.
+        TEST_METHOD (ALoggingBreakpointsMessagesPrint)
+        {
+            const std::string  script = "MEB 300 A9 42 4C 00 03\nR PC 300\nBP 302\nBPLOG 0 GO \"A={A}\"\nBP 300 IF A == 0x7F\nG\n";
+            BatchRig           text;
+            BatchRig           json;
+
+
+
+            text.options.maxCycles = 1000;
+            text.Run (script);
+            text.AssertContains ("Breakpoint #0: A=$42");
+
+            json.options.json      = true;
+            json.options.maxCycles = 1000;
+            json.Run (script);
+            json.AssertContains ("\"type\":\"log\"");
+            json.AssertContains ("Breakpoint #0: A=$42");
+        }
+
         //  A run that never reaches its breakpoint ends on the budget every
         //  run carries, and the status says so.
         TEST_METHOD (BudgetStop_ExitsThree)

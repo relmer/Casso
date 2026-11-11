@@ -21,7 +21,9 @@
 //  a start the caller gives, as the PC) it takes that alignment. Elsewhere it
 //  decodes the next instruction and moves on by its length; a decode that
 //  would run over a known start is cut short there, as data, so the line
-//  list has an instruction at the start.
+//  list has an instruction at the start. The PC is a line's start even when
+//  another known instruction runs over it, as code that jumps into the
+//  middle of an instruction does, so the views always have its row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +57,7 @@ public:
         std::array<uint8_t, 256>                lengths    = {};
         std::vector<ProgramCheck::Entry>        debugLines;
         std::vector<Word>                       starts;      // other known starts, as the PC
+        std::optional<Word>                     pc;          // starts a line even inside another known instruction
         DataLineFn                              dataLine;
     };
 

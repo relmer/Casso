@@ -146,6 +146,34 @@ namespace DebuggerTests
         }
 
 
+        //  Code that jumps into the middle of an instruction, as the BIT skip
+        //  does: both starts are fetched, and the PC, at the inner one, starts
+        //  a line, so the views have a row for it.
+        TEST_METHOD (ThePcStartsALineInsideAnotherKnownInstruction)
+        {
+            static constexpr Byte  kBit = 0x2C;
+            Rig                    rig;
+
+
+
+            rig.inputs.lengths[kBit] = 3;
+            rig.inputs.lengths[0xA9] = 2;
+            rig.image.bytes[0x0800]  = kBit;
+            rig.image.bytes[0x0801]  = 0xA9;
+            rig.image.bytes[0x0802]  = 0x00;
+            rig.image.fetched.set (0x0800);
+            rig.image.fetched.set (0x0801);
+            rig.inputs.starts        = { 0x0801 };
+            rig.inputs.pc            = 0x0801;
+
+            rig.list.Build (rig.inputs);
+
+            Assert::IsTrue   (rig.StartsAt (0x0801), L"the PC's instruction");
+            Assert::IsTrue   (rig.StartsAt (0x0800), L"and the BIT before it, cut short");
+            Assert::AreEqual ((int) 1, (int) rig.LineAt (0x0800).length);
+        }
+
+
         //  A call frame's JSR is a known start where memory has the JSR, so a
         //  decode from before it is cut short there; an interrupt's frame and
         //  a call site whose byte is no longer a JSR are not.

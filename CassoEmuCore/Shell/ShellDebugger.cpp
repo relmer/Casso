@@ -1901,12 +1901,9 @@ void ShellDebugger::CloseDebugger()
 
 void ShellDebugger::ServiceHitLogs()
 {
-    std::vector<std::string>  logs    = m_debugController->GetSession().GetBreakpoints().TakeLogs();
-    std::vector<std::string>  watches = m_debugController->GetSession().GetWatchpoints().TakeLogs();
+    std::vector<std::string>  logs = m_debugController->GetSession().TakeHitLogs();
 
 
-
-    std::ranges::copy (watches, std::back_inserter (logs));
 
     if (!logs.empty())
     {
@@ -1950,6 +1947,10 @@ void ShellDebugger::ServiceDebugger()
         ServiceProject();
         ServiceCallHistory();
         ServiceEventLogs();
+
+        //  A code view's find text is made once a pause has gone without a
+        //  step for a moment; the views are built again then to make it.
+        m_isDebugViewDirty = m_isDebugViewDirty || m_debugViewState.IsFindTextDue (GetTickCount64());
         PublishDebuggerView();
     }
 

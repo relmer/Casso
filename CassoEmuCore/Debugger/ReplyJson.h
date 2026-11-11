@@ -32,6 +32,9 @@ public:
     static std::string  WriteReset          (bool isPowerCycle);
     static std::string  WriteMachineChanged (const std::string & machineName);
     static std::string  WriteModeChanged    (CommandMode mode);
+
+    //  A logging breakpoint's message at a hit: {"type":"log","text":...}.
+    static std::string  WriteHitLog         (const std::string & text);
     static std::string  WriteClosing        ();
 
     static const char  * GetStatusName         (CommandStatus status);

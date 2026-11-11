@@ -62,6 +62,25 @@ public:
     };
 
 
+    //  An instruction at the end of page 2 whose operand is in page 3: a
+    //  write to the operand's byte clears the instruction's bit.
+    TEST_METHOD (AWriteToAnOperandInTheNextPageClearsTheInstruction)
+    {
+        Rig  rig;
+
+
+
+        rig.bus.SetReadPage  (2, &rig.main[0x200]);
+        rig.bus.SetWritePage (2, &rig.main[0x200]);
+        rig.main[0x2FF] = kLda;
+        rig.bus.NoteFetch (0x02FF);
+
+        rig.bus.WriteByte (0x0301, kNop);
+
+        Assert::IsFalse (rig.bus.IsFetched (0x02FF), L"the LDA at $02FF runs on to $0301");
+    }
+
+
     //  A write to the bank the card writes while it reads ROM clears the RAM
     //  bank's bit, and the ROM's bit is there afterward.
     TEST_METHOD (AWriteToTheRamBankWhileReadingRomLeavesTheRomsBit)

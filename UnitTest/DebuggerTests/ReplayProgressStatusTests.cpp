@@ -315,5 +315,24 @@ namespace ReplayProgressStatusTests
             Assert::AreEqual (std::wstring (L"Searching history for a breakpoint: 25%"), ReplayProgressDialog::GetText ({ true, kLong, 0.25f }, false));
             Assert::AreEqual (std::wstring (L"Stopping the search..."),                  ReplayProgressDialog::GetText ({ true, kLong, 0.25f }, true));
         }
+
+
+        //  Stop, the Close button and Escape each request the stop; the search
+        //  is stopped once however many of them are pressed.
+        TEST_METHOD (EveryWayOfClosingTheDialogStopsTheSearchOnce)
+        {
+            ReplayProgressDialog  dialog;
+            int                   stops = 0;
+
+
+
+            dialog.SetStop ([&stops] { stops++; });
+
+            dialog.RequestStop();
+            dialog.RequestStop();
+
+            Assert::AreEqual (1, stops);
+            Assert::IsTrue   (dialog.IsStopping());
+        }
     };
 }

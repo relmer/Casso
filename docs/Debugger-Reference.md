@@ -746,7 +746,11 @@ line to the console, with each expression in braces evaluated at the hit, as
 `Breakpoint #3: A=$42 count=$07`, and then stops. `BPLOG 3 GO "..."` writes the
 line and runs on, as Visual Studio's Continue execution does, and `BPLOG 3
 CLEAR` removes the message. The Breakpoints pane's When hit column lists the
-message, and the debug project saves it.
+message, and the debug project saves it. The breakpoint dialog sets the message and Continue
+after logging, which is `GO`.
+
+In `CassoCli debug`, each message is printed after the line whose run wrote it,
+before the stop; with `--json`, as `{"type":"log","text":"Breakpoint #3: A=$42"}`.
 
 ### The Breakpoints pane
 

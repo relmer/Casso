@@ -82,10 +82,13 @@ void DisassemblyLineList::Build (const Inputs & inputs)
             length      = std::min (length, kBytes - address);
             line.source = debug[address] ? Source::DebugFile : known[address] ? Source::Fetched : Source::Decoded;
 
-            //  A decode running over a known start stops short of it, as data.
+            //  A decode running over a known start stops short of it, as data;
+            //  so does a known instruction running over the PC.
             for (uint32_t inside = 1; inside < length; inside++)
             {
-                if (known[address + inside] && !known[address])
+                bool  isPc = inputs.pc.has_value() && *inputs.pc == address + inside;
+
+                if ((known[address + inside] && !known[address]) || isPc)
                 {
                     length      = inside;
                     line.isData = true;

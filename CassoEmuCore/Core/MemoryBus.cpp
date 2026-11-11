@@ -325,6 +325,11 @@ void MemoryBus::WriteByte (Word address, Byte value)
                 ClearFetchInPage (m_fetchTables->write[address >> 8], page, address & 0xFF);
             }
 
+            if ((address & 0xFE) == 0)
+            {
+                ClearFetchBeforePage (address);
+            }
+
             return;
         }
 
@@ -390,6 +395,11 @@ void MemoryBus::StoreToPage (Byte * page, Word address, Byte value)
     if (m_fetchTables->write[address >> 8] != nullptr)
     {
         ClearFetchInPage (m_fetchTables->write[address >> 8], page, address & 0xFF);
+    }
+
+    if ((address & 0xFE) == 0)
+    {
+        ClearFetchBeforePage (address);
     }
 }
 
@@ -658,6 +668,42 @@ void MemoryBus::ClearFetchInPage (uint8_t * bits, const Byte * page, int offset)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ClearFetchBeforePage
+//
+//  A write to one of a page's first two bytes: each of the last two bytes of
+//  the page before, through the write table, whose instruction runs on over
+//  the written byte.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::ClearFetchBeforePage (Word address)
+{
+    static constexpr int  kPageBytes = 0x100;
+    int                   offset     = address & 0xFF;
+    int                   before     = (address >> 8) - 1;
+    uint8_t             * bits       = (before >= 0) ? m_fetchTables->write[(size_t) before] : nullptr;
+    const Byte          * page       = (before >= 0) ? m_shadowWritePage[before] : nullptr;
+
+
+
+    for (int back = offset + 1; back <= 2 && bits != nullptr && page != nullptr; back++)
+    {
+        int   at    = kPageBytes - (back - offset);
+        bool  isSet = (bits[at >> 3] & (1u << (at & 7))) != 0;
+
+        if (isSet && m_opcodeLengths[page[at]] > back)
+        {
+            bits[at >> 3] &= (uint8_t) ~(1u << (at & 7));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ClearFetchOnWrite
 //
 //  A write made around the bus, as a debugger edit is, through the page the
@@ -674,6 +720,11 @@ void MemoryBus::ClearFetchOnWrite (Word address)
     if (page != nullptr && m_fetchTables->write[address >> 8] != nullptr)
     {
         ClearFetchInPage (m_fetchTables->write[address >> 8], page, address & 0xFF);
+    }
+
+    if ((address & 0xFE) == 0)
+    {
+        ClearFetchBeforePage (address);
     }
 }
 

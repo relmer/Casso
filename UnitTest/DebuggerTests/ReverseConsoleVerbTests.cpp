@@ -111,7 +111,8 @@ public:
             Assert::AreEqual (each.argument, taken.front().second, ToWide (each.line).c_str());
         }
 
-        for (const char * bad : { "SEEK", "SEEK 5s", "SEEK -5m", "SEEK CYCLE", "SEEK POS x1" })
+        for (const char * bad : { "SEEK", "SEEK 5s", "SEEK -5m", "SEEK CYCLE", "SEEK POS x1",
+                                  "SEEK CYCLE 99999999999999999999999", "SEEK -99999999999999999999s", "SEEK -18446744073709552s" })
         {
             taken.clear();
             reply = rig.session.ExecuteLine (bad, CommandMode::AppleWin);
@@ -122,6 +123,7 @@ public:
 
         Assert::AreEqual ((uint64_t) (2'000'000 - 1'020'484), ReverseHost::GetCycleBack (2'000'000, 1000), L"a second back");
         Assert::AreEqual ((uint64_t) 0, ReverseHost::GetCycleBack (1000, 1000), L"past the start");
+        Assert::AreEqual ((uint64_t) 0, ReverseHost::GetCycleBack (1000, UINT64_MAX), L"longer than 64 bits of cycles");
     }
 
 

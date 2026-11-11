@@ -70,6 +70,13 @@ public:
 
     static std::unique_ptr<ReplayProgressDialog>  Open (HWND owner, const IDxuiTheme * theme, ProgressFn progress, StopFn stop);
 
+    //  Stops the search, once: Stop, the Close button and Escape all call
+    //  it. Without it, a dialog closed by its Close button or Escape would let
+    //  the search continue with the debugger window disabled.
+    void  RequestStop ();
+    void  SetStop     (StopFn stop) { m_stop = std::move (stop); }
+    bool  IsStopping  () const      { return m_isStopping; }
+
 protected:
     void  OnCreate     () override;
     void  OnDialogTick () override;

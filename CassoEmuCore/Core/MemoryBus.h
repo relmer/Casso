@@ -331,9 +331,10 @@ private:
     //  pointer, and the bits the read and write tables' pages have now.
     using FetchPage = std::array<uint8_t, 32>;
 
-    uint8_t * FindFetchPage     (const Byte * page);
-    void      ClearFetchOnWrite (Word address);
-    void      ClearFetchInPage  (uint8_t * bits, const Byte * page, int offset);
+    uint8_t * FindFetchPage        (const Byte * page);
+    void      ClearFetchOnWrite    (Word address);
+    void      ClearFetchInPage     (uint8_t * bits, const Byte * page, int offset);
+    void      ClearFetchBeforePage (Word address);
 
     std::unordered_map<const Byte *, FetchPage>  m_fetchPages;
 

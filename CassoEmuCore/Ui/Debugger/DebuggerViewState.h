@@ -628,6 +628,15 @@ public:
 
     static constexpr uint64_t  kStepHoldMs = 500;
 
+    //  A code view's find searches every line's text, which takes several
+    //  milliseconds to make, so it is made only once the machine has been
+    //  paused kFindTextIdleMs without a step; until then a find searches the
+    //  rows on screen. Whether the text is due now, so the views are built
+    //  again to make it; and the delay, which a test sets to 0.
+    static constexpr uint64_t  kFindTextIdleMs = 300;
+    bool                       IsFindTextDue   (uint64_t nowMs) const;
+    void                       SetFindTextIdle (uint64_t ms) { m_findTextIdleMs = ms; }
+
     //  Up to four disassembly views; the first is always open. Each call
     //  names a view, the first when it does not.
     static constexpr int  kMaxCodeViews = 4;
@@ -1123,14 +1132,18 @@ private:
     //  machine is paused and again when what it is built from changes, and
     //  what it was built from; the views scroll through it while it is. Each
     //  build also makes the lines a code view's find searches.
-    void                                                                       RefreshLineList (DebugSession & session, bool isPaused, const CallStackData & calls) const;
-    std::optional<Word>                                                        StepLineList    (Word address, int count) const;
-    static std::shared_ptr<const std::vector<DebuggerViewSnapshot::CodeLine>>  MakeFindLines   (DebugSession & session, const DisassemblyLineList & list);
+    void                                                                       RefreshLineList    (DebugSession & session, bool isPaused, const CallStackData & calls) const;
+    std::optional<Word>                                                        StepLineList       (Word address, int count) const;
+    static std::shared_ptr<const std::vector<DebuggerViewSnapshot::CodeLine>>  MakeFindLines      (DebugSession & session, const DisassemblyLineList & list);
+    void                                                                       MakeFindTextIfIdle (DebugSession & session) const;
     mutable std::mutex                                                          m_lineListMutex;
     mutable DisassemblyLineList                                                 m_lineList;
-    mutable uint64_t                                                            m_lineListInputs = 0;
-    mutable bool                                                                m_isLineListLive = false;
+    mutable uint64_t                                                            m_lineListInputs   = 0;
+    mutable bool                                                                m_isLineListLive   = false;
     mutable std::shared_ptr<const std::vector<DebuggerViewSnapshot::CodeLine>>  m_findLines;
+    mutable uint64_t                                                            m_findLinesVersion = UINT64_MAX;  // the list's version m_findLines was made from
+    mutable uint64_t                                                            m_lineListBuiltMs  = 0;
+    uint64_t                                                                    m_findTextIdleMs   = kFindTextIdleMs;
 
     //  The heat map as last read, when, and whether the next build reads it
     //  again whatever the time.

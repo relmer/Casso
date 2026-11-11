@@ -219,6 +219,15 @@ public:
     // The debug file's instruction lines, as SetDebugFileLines set them.
     const std::vector<ProgramCheck::Entry> &  GetDebugFileLines () const { return m_debugFileLines; }
 
+    // The messages logging breakpoints and watchpoints wrote at their hits
+    // since the last call, in that order. The debugger window and the batch
+    // runner print them.
+    std::vector<std::string>                  TakeHitLogs       ();
+
+    // A count that goes up with each change to the debug file, its source
+    // lines or the symbol table it loads into.
+    uint64_t                                  GetFilesRevision  () const { return m_filesRevision; }
+
     // The files whose program isn't in memory, by name, for the banners.
     std::vector<std::string>  GetStaleFileNames () const;
 

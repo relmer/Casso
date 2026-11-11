@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "ControllerRig.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/Panes/CodeViewFind.h"
 
@@ -222,6 +223,62 @@ namespace DebuggerTests
             (void) rig.find.SelectMatch (L"COUT", false, false, false, true, index, count);
 
             Assert::IsTrue (rig.selects.empty());
+        }
+
+        //  Steps that follow each other quickly don't make the find text; a
+        //  pause with no step for the idle delay does, and the views are
+        //  built again for it.
+        TEST_METHOD (TheFindTextIsMadeOncePausedWithoutAStep)
+        {
+            ControllerRig         rig;
+            DebugSession        & session = rig.controller.GetSession();
+            Cpu6502Registers      r       = session.GetTarget().GetRegisters();
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            snapshot = rig.view.BuildCaptured (session, true);
+            r.pc     = (Word) (r.pc + 1);
+            session.GetTarget().SetRegisters (r);
+            snapshot = rig.view.BuildCaptured (session, true);
+
+            Assert::IsTrue  (snapshot.codeFind == nullptr, L"not between steps");
+            Assert::IsFalse (rig.view.IsFindTextDue (GetTickCount64()), L"not before the delay");
+            Assert::IsTrue  (rig.view.IsFindTextDue (GetTickCount64() + DebuggerViewState::kFindTextIdleMs), L"due after it");
+
+            rig.view.SetFindTextIdle (0);
+            snapshot = rig.view.BuildCaptured (session, true);
+
+            Assert::IsTrue  (snapshot.codeFind != nullptr && !snapshot.codeFind->empty(), L"made once idle");
+        }
+
+
+        //  A symbol added at a line's address is in the find text, with no
+        //  change to memory.
+        TEST_METHOD (TheFindTextHasASymbolAddedSinceItWasMade)
+        {
+            ControllerRig         rig;
+            DebugSession        & session = rig.controller.GetSession();
+            Word                  pc      = session.GetTarget().GetRegisters().pc;
+            DebuggerViewSnapshot  snapshot;
+            bool                  isFound = false;
+
+
+
+            rig.view.SetFindTextIdle (0);
+            (void) rig.view.BuildCaptured (session, true);
+
+            session.GetSymbols().Add (SymbolTableId::User, "ZZFINDME", pc);
+            snapshot = rig.view.BuildCaptured (session, true);
+
+            Assert::IsTrue (snapshot.codeFind != nullptr);
+
+            for (const DebuggerViewSnapshot::CodeLine & line : *snapshot.codeFind)
+            {
+                isFound = isFound || (line.address == pc && line.label == "ZZFINDME");
+            }
+
+            Assert::IsTrue (isFound, L"the new label");
         }
     };
 }

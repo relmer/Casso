@@ -404,11 +404,13 @@ Error:
 //
 //  DebugBatchRunner::RunLines
 //
-//  Text mode echoes each line behind the mode's prompt, then its reply's
-//  text, then any notification the command caused. JSON mode prints the
-//  reply record, then the notification records. A blank line reaches the
-//  session only while the line assembler is active, where it ends the
-//  assembly; a ; line is a comment in both modes.
+//  In text mode, each line is echoed behind the mode's prompt, then its
+//  reply's text, the messages logging breakpoints wrote and any
+//  notification the command caused. In JSON mode, the reply's object is
+//  printed, then an object of type log for each message, then the
+//  notifications' objects. A blank line goes to the session only while the
+//  line assembler is active, where it ends the assembly; a ; line is a
+//  comment in both modes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -457,6 +459,13 @@ void DebugBatchRunner::RunLines (
             {
                 result.output += text + "\n";
             }
+        }
+
+        //  A logging breakpoint's messages, from a run the line made, print
+        //  after its reply and before its stop.
+        for (const std::string & log : session.TakeHitLogs())
+        {
+            result.output += (options.json ? ReplyJson::WriteHitLog (log) : log) + "\n";
         }
 
         result.output += m_sink.TakePending();

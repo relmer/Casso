@@ -1650,12 +1650,14 @@ bool ExecutionHandlers::TryParseSeek (const std::string & text, ReverseCommand &
 {
     static constexpr const char * kUsage = "SEEK takes a time back from live, as -5s or -250ms, CYCLE n or POS n.";
     static constexpr uint64_t     kMsPerS = 1000;
+    static constexpr uint64_t     kMaxMs  = UINT64_MAX / kMsPerS;
     std::istringstream            words (text);
     std::string                   first;
     std::string                   number;
     std::string                   unit;
     uint64_t                      value   = 0;
     size_t                        digits  = 0;
+    std::from_chars_result        parsed;
 
 
 
@@ -1668,16 +1670,17 @@ bool ExecutionHandlers::TryParseSeek (const std::string & text, ReverseCommand &
 
     if (first == "CYCLE" || first == "POS")
     {
-        digits = (size_t) std::ranges::count_if (number, [] (char ch) { return isdigit ((unsigned char) ch) != 0; });
+        parsed = std::from_chars (number.data(), number.data() + number.size(), value);
 
-        if (number.empty() || digits != number.size())
+        //  A number too large for 64 bits is an error, not an exception.
+        if (number.empty() || parsed.ec != std::errc() || parsed.ptr != number.data() + number.size())
         {
             error = kUsage;
             return false;
         }
 
         command  = (first == "CYCLE") ? ReverseCommand::SeekCycle : ReverseCommand::Seek;
-        argument = std::stoull (number);
+        argument = value;
         return true;
     }
 
@@ -1694,10 +1697,10 @@ bool ExecutionHandlers::TryParseSeek (const std::string & text, ReverseCommand &
         digits++;
     }
 
-    value = std::stoull (first.substr (1, digits - 1));
-    unit  = first.substr (digits);
+    parsed = std::from_chars (first.data() + 1, first.data() + digits, value);
+    unit   = first.substr (digits);
 
-    if (unit != "S" && unit != "MS")
+    if (parsed.ec != std::errc() || (unit != "S" && unit != "MS") || (unit == "S" && value > kMaxMs))
     {
         error = kUsage;
         return false;

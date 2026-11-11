@@ -467,9 +467,11 @@ void ReverseHost::GetRecentTrace (
 uint64_t ReverseHost::GetCycleBack (uint64_t liveEnd, uint64_t milliseconds)
 {
     static constexpr double  kMsPerSecond = 1000.0;
-    uint64_t                 back         = (uint64_t) ((double) milliseconds * HistoryStatus::kCyclesPerSecond / kMsPerSecond);
+    double                   back         = (double) milliseconds * HistoryStatus::kCyclesPerSecond / kMsPerSecond;
 
 
 
-    return (back >= liveEnd) ? 0 : liveEnd - back;
+    //  Compared as a double, so a time longer than 64 bits of cycles goes to
+    //  the start rather than overflowing.
+    return (back >= (double) liveEnd) ? 0 : liveEnd - (uint64_t) back;
 }

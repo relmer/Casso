@@ -3871,6 +3871,27 @@ CallStackData DebugSession::GetCallStack()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::TakeHitLogs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> DebugSession::TakeHitLogs()
+{
+    std::vector<std::string>  logs    = m_breakpoints.TakeLogs();
+    std::vector<std::string>  watches = m_watchpoints.TakeLogs();
+
+
+
+    std::ranges::copy (watches, std::back_inserter (logs));
+    return logs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::TakeView
 //
 //  Copies only what is small or has changed: the symbols and the debug file

@@ -110,16 +110,11 @@ void ReplayProgressDialog::OnCreate()
     m_panel      = CreateDialogContent<ReplayProgressPanel>();
     m_stopButton = AddDialogButton (L"Stop", IDCANCEL);
 
-    m_stopButton->SetOnClick ([this]()
-    {
-        if (m_stop && !m_isStopping)
-        {
-            m_stop();
-        }
+    m_stopButton->SetOnClick ([this]() { RequestStop(); });
 
-        m_isStopping = true;
-        Refresh();
-    });
+    //  The Close button and Escape end the dialog as IDCANCEL; they stop the
+    //  search as Stop does.
+    SetOnDialogEnd ([this] (int) { RequestStop(); });
 
     SetDialogTickIntervalMs (kTickMs);
     Refresh();
@@ -138,6 +133,31 @@ void ReplayProgressDialog::OnCreate()
 void ReplayProgressDialog::OnDialogTick()
 {
     Refresh();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplayProgressDialog::RequestStop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReplayProgressDialog::RequestStop()
+{
+    if (m_stop && !m_isStopping)
+    {
+        m_stop();
+    }
+
+    m_isStopping = true;
+
+    if (m_panel != nullptr)
+    {
+        Refresh();
+    }
 }
 
 
@@ -181,7 +201,7 @@ std::unique_ptr<ReplayProgressDialog> ReplayProgressDialog::Open (HWND owner, co
 
 
     dialog->m_progress = std::move (progress);
-    dialog->m_stop     = std::move (stop);
+    dialog->SetStop (std::move (stop));
 
     params.title                    = L"Reverse continue";
     params.hInstance                = (owner != nullptr) ? (HINSTANCE) GetWindowLongPtrW (owner, GWLP_HINSTANCE) : GetModuleHandleW (nullptr);

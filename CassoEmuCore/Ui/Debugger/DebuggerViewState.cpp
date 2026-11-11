@@ -224,7 +224,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     {
         std::lock_guard<std::mutex>  held (m_lineListMutex);
 
-        snapshot.codeFind = isPaused ? m_findLines : nullptr;
+        snapshot.codeFind = (isPaused && m_findLinesVersion == m_lineList.GetVersion()) ? m_findLines : nullptr;
     }
 
     //  The code views, the memory panes and the trace each read the machine
@@ -4038,8 +4038,9 @@ Word DebuggerViewState::ScrollCodeTop (DebugSession & session, Word top, int lin
 //
 //  While the machine runs, nothing builds the list and the views decode as
 //  they did. Paused, the list is built again only when what it is built
-//  from changed: memory, the fetch bits, the known starts, the marks or the
-//  debug file, which a step, an edit, Load file and a seek all change.
+//  from changed: memory, the fetch bits, the known starts, the marks, the
+//  debug file or the symbols, which a step, an edit, Load file, a symbol
+//  edit and a seek all change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4076,6 +4077,7 @@ void DebuggerViewState::RefreshLineList (DebugSession & session, bool isPaused, 
 
     mix (std::hash<std::bitset<DebugMemoryImage::kBytes>> {} (image->fetched));
     inputs.starts = GetKnownStarts (calls, pc, *image);
+    inputs.pc     = pc;
 
     for (Word start : inputs.starts)
     {
@@ -4090,9 +4092,12 @@ void DebuggerViewState::RefreshLineList (DebugSession & session, bool isPaused, 
     }
 
     mix (session.GetDebugFileLines().size());
+    mix (session.GetFilesRevision());
+    mix (session.GetSymbols().GetRevision());
 
     if (m_lineList.IsBuilt() && hash == m_lineListInputs)
     {
+        MakeFindTextIfIdle (session);
         return;
     }
 
@@ -4122,7 +4127,53 @@ void DebuggerViewState::RefreshLineList (DebugSession & session, bool isPaused, 
 
     m_lineList.Build (inputs);
     m_lineListInputs = hash;
-    m_findLines      = MakeFindLines (session, m_lineList);
+    m_lineListBuiltMs = GetTickCount64();
+    MakeFindTextIfIdle (session);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::MakeFindTextIfIdle
+//
+//  The find text for the list as it is, once the list hasn't changed for
+//  the idle delay. The caller has locked m_lineListMutex.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::MakeFindTextIfIdle (DebugSession & session) const
+{
+    bool  isDue = m_findLinesVersion != m_lineList.GetVersion() && GetTickCount64() - m_lineListBuiltMs >= m_findTextIdleMs;
+
+
+
+    if (isDue)
+    {
+        m_findLines        = MakeFindLines (session, m_lineList);
+        m_findLinesVersion = m_lineList.GetVersion();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::IsFindTextDue
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerViewState::IsFindTextDue (uint64_t nowMs) const
+{
+    std::lock_guard<std::mutex>  held (m_lineListMutex);
+
+
+
+    return m_isLineListLive && m_lineList.IsBuilt() && m_findLinesVersion != m_lineList.GetVersion() && nowMs - m_lineListBuiltMs >= m_findTextIdleMs;
 }
 
 
@@ -4135,8 +4186,9 @@ void DebuggerViewState::RefreshLineList (DebugSession & session, bool isPaused, 
 //
 //  Each line of the list as a code line with what a find searches: its
 //  address, bytes, label and instruction with its symbols, as a view's line
-//  has them, and the source line it comes from. The annotation is left out; it is worked out for the lines on
-//  screen alone, and its values change with the registers.
+//  has them, and the source line it comes from. The annotation is left
+//  out; it is worked out for the lines on screen alone, and its values
+//  change with the registers.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
