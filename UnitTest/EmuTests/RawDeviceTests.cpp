@@ -891,6 +891,62 @@ public:
     }
 
 
+    TEST_METHOD (ReadUsedBytes_ReadsOnlyTheBlocksTheBitmapMarksUsed)
+    {
+        Session                      session;
+        PartitionLayoutKind          kind = PartitionLayoutKind::None;
+        std::vector<PartitionEntry>  entries;
+        std::vector<Byte>            used;
+        std::vector<Byte>            whole;
+
+        session.drives.drives[kCard].bytes.assign ((size_t) RawDeviceServer::kSliceBlocks * 2 * kBlock, 0);
+        session.Start();
+
+        AssertSucceeded (session.connection->Initialize (kCard, 2));
+
+        CountingBlockStore  store (session.drives.drives[kCard].bytes);
+
+        AssertSucceeded (PartitionAccess::ListCard (store, kind, entries));
+        store.blocksRead = 0;
+
+        AssertSucceeded (PartitionAccess::ReadUsedBytes (store, entries[1].partition, used));
+        Assert::IsTrue (store.blocksRead < 100);
+
+        AssertSucceeded (PartitionAccess::ReadBytes (store, entries[1].partition, whole));
+        Assert::IsTrue (used == whole);
+    }
+
+
+    TEST_METHOD (WriteUsedBytes_WritesOnlyTheBlocksTheNewBitmapMarksUsed)
+    {
+        Session                      session;
+        PartitionLayoutKind          kind = PartitionLayoutKind::None;
+        std::vector<PartitionEntry>  entries;
+        std::vector<Byte>            volume;
+        std::vector<Byte>            written;
+
+        session.drives.drives[kCard].bytes.assign ((size_t) RawDeviceServer::kSliceBlocks * 2 * kBlock, 0);
+        session.Start();
+
+        AssertSucceeded (session.connection->Initialize (kCard, 2));
+
+        MemoryBlockStore  store (session.drives.drives[kCard].bytes);
+
+        AssertSucceeded (PartitionAccess::ListCard (store, kind, entries));
+        AssertSucceeded (PartitionAccess::ReadBytes (store, entries[0].partition, volume));
+
+        //  A free block's bytes are not written, and a used block's are.
+        volume[(size_t) 1000 * kBlock] = 0x5A;
+        volume[(size_t) 1 * kBlock]    = 0x5A;
+
+        AssertSucceeded (PartitionAccess::WriteUsedBytes (store, entries[0].partition, volume));
+        AssertSucceeded (PartitionAccess::ReadBytes (store, entries[0].partition, written));
+
+        Assert::AreEqual ((Byte) 0x00, written[(size_t) 1000 * kBlock]);
+        Assert::AreEqual ((Byte) 0x5A, written[(size_t) 1 * kBlock]);
+    }
+
+
     TEST_METHOD (Initialize_GivesA32MbCardOneVolumeThatCanBeWritten)
     {
         Session                      session;

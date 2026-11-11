@@ -555,6 +555,190 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PartitionAccess::IsSparse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PartitionAccess::IsSparse (const Partition & partition)
+{
+    return partition.volumeKind == VolumeKind::ProDos && partition.span == PartitionSpan::WholeBlocks &&
+           !partition.dosSectors && !partition.damaged && partition.blockCount >= s_kMinSparseBlocks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PartitionAccess::FindUsedRuns
+//
+//  The volume directory header's bitmap pointer and total blocks, then each
+//  bitmap block, where a set bit is a free block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PartitionAccess::FindUsedRuns (const BlockReader & read, uint32_t blockCount, std::vector<BlockRun> & outRuns, bool & outFound)
+{
+    HRESULT            hr          = S_OK;
+    std::vector<Byte>  block (IBlockStore::kBlockBytes);
+    uint32_t           bitmap      = 0;
+    uint32_t           total       = 0;
+    uint32_t           bitmapCount = 0;
+    uint32_t           runStart    = 0;
+    bool               inRun       = false;
+
+
+
+    outRuns.clear();
+    outFound = false;
+
+    BAIL_OUT_IF (blockCount <= (uint32_t) ProDosSkeleton::kDirKeyBlock, S_OK);
+
+    hr = read ((uint32_t) ProDosSkeleton::kDirKeyBlock, block);
+    CHR (hr);
+
+    BAIL_OUT_IF ((block[s_kProDosHeader] & 0xF0) != s_kProDosVolumeHeader, S_OK);
+
+    bitmap      = (uint32_t) block[s_kProDosBitmap]      | ((uint32_t) block[s_kProDosBitmap + 1] << 8);
+    total       = (uint32_t) block[s_kProDosTotalBlocks] | ((uint32_t) block[s_kProDosTotalBlocks + 1] << 8);
+    bitmapCount = (total + s_kBlocksPerBitmap - 1) / s_kBlocksPerBitmap;
+
+    BAIL_OUT_IF (total == 0 || total > blockCount || bitmap < 3 || bitmap + bitmapCount > total, S_OK);
+
+    for (uint32_t index = 0; index < bitmapCount; index++)
+    {
+        hr = read (bitmap + index, block);
+        CHR (hr);
+
+        for (uint32_t bit = 0; bit < s_kBlocksPerBitmap && index * s_kBlocksPerBitmap + bit < total; bit++)
+        {
+            uint32_t  number = index * s_kBlocksPerBitmap + bit;
+            bool      isUsed = (block[bit / 8] & (0x80 >> (bit % 8))) == 0;
+
+            if (isUsed && !inRun)
+            {
+                runStart = number;
+                inRun    = true;
+            }
+            else if (!isUsed && inRun)
+            {
+                outRuns.emplace_back (runStart, number - runStart);
+                inRun = false;
+            }
+        }
+    }
+
+    if (inRun)
+    {
+        outRuns.emplace_back (runStart, total - runStart);
+    }
+
+    outFound = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PartitionAccess::ReadUsedBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PartitionAccess::ReadUsedBytes (IBlockStore & store, const Partition & partition, std::vector<Byte> & outBytes)
+{
+    HRESULT                hr    = S_OK;
+    bool                   found = false;
+    std::vector<BlockRun>  runs;
+
+
+
+    if (!IsSparse (partition))
+    {
+        return ReadBytes (store, partition, outBytes);
+    }
+
+    hr = FindUsedRuns ([&store, &partition] (uint32_t block, std::span<Byte> outBlock) { return store.ReadBlocks (partition.firstBlock + block, 1, outBlock); },
+                       partition.blockCount, runs, found);
+    CHR (hr);
+
+    if (!found)
+    {
+        return ReadBytes (store, partition, outBytes);
+    }
+
+    outBytes.assign ((size_t) partition.blockCount * IBlockStore::kBlockBytes, 0);
+
+    for (const BlockRun & run : runs)
+    {
+        hr = store.ReadBlocks (partition.firstBlock + run.first, run.second,
+                               std::span<Byte> (outBytes).subspan ((size_t) run.first * IBlockStore::kBlockBytes, (size_t) run.second * IBlockStore::kBlockBytes));
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PartitionAccess::WriteUsedBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PartitionAccess::WriteUsedBytes (IBlockStore & store, const Partition & partition, const std::vector<Byte> & bytes)
+{
+    HRESULT                hr    = S_OK;
+    bool                   found = false;
+    bool                   whole = bytes.size() == (size_t) partition.blockCount * IBlockStore::kBlockBytes;
+    std::vector<BlockRun>  runs;
+
+
+
+    if (!IsSparse (partition) || !whole)
+    {
+        return WriteBytes (store, partition, bytes);
+    }
+
+    hr = FindUsedRuns ([&bytes] (uint32_t block, std::span<Byte> outBlock)
+                       {
+                           std::copy_n (bytes.begin() + (ptrdiff_t) block * IBlockStore::kBlockBytes, IBlockStore::kBlockBytes, outBlock.begin());
+                           return S_OK;
+                       },
+                       partition.blockCount, runs, found);
+    CHR (hr);
+
+    if (!found)
+    {
+        return WriteBytes (store, partition, bytes);
+    }
+
+    for (const BlockRun & run : runs)
+    {
+        hr = store.WriteBlocks (partition.firstBlock + run.first,
+                                std::span<const Byte> (bytes).subspan ((size_t) run.first * IBlockStore::kBlockBytes, (size_t) run.second * IBlockStore::kBlockBytes));
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PartitionAccess::WriteBytes
 //
 ////////////////////////////////////////////////////////////////////////////////

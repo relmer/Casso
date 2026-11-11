@@ -80,6 +80,22 @@ public:
     static HRESULT  ReadBytes  (IBlockStore & store, const Partition & partition, std::vector<Byte> & outBytes);
     static HRESULT  WriteBytes (IBlockStore & store, const Partition & partition, const std::vector<Byte> & bytes);
 
+    //  ReadBytes and WriteBytes for a card, where a partition is 32 MB or
+    //  more and mostly free: of a ProDOS volume, only the blocks its bitmap
+    //  marks used are read, the rest returned as zeros, and only the blocks
+    //  the new bitmap marks used are written. Any other partition is read
+    //  and written whole.
+    static HRESULT  ReadUsedBytes  (IBlockStore & store, const Partition & partition, std::vector<Byte> & outBytes);
+    static HRESULT  WriteUsedBytes (IBlockStore & store, const Partition & partition, const std::vector<Byte> & bytes);
+
+    //  The runs of blocks a ProDOS volume's bitmap marks used, as first block
+    //  and count. `outFound` is false for blocks that are not a ProDOS
+    //  volume with a bitmap inside it.
+    using BlockReader = std::function<HRESULT (uint32_t block, std::span<Byte> outBlock)>;
+    using BlockRun    = std::pair<uint32_t, uint32_t>;
+
+    static HRESULT  FindUsedRuns (const BlockReader & read, uint32_t blockCount, std::vector<BlockRun> & outRuns, bool & outFound);
+
     static std::string  GetStepName      (const Partition & partition);
     static bool         TryParseStepName (const std::string & step, int & outIndex);
     static uint64_t     GetByteCount     (const Partition & partition);
@@ -126,10 +142,17 @@ private:
 
     static void         ReadVolumeLabel (IBlockStore & store, PartitionEntry & ioEntry);
     static void         ReadProDosName  (IBlockStore & store, PartitionEntry & ioEntry);
-
-    //  The volume directory header in a ProDOS key block, its storage type
-    //  and name length in one byte, and the name after it.
-    static constexpr size_t  s_kProDosHeader       = 0x04;
-    static constexpr Byte    s_kProDosVolumeHeader = 0xF0;
+    static bool         IsSparse        (const Partition & partition);
     static std::string  GetLeafName     (const std::string & path);
+
+    //  Offsets in a ProDOS key block: the volume directory header, its
+    //  storage type and name length in one byte with the name after it, the
+    //  bitmap's first block and the volume's blocks. A partition smaller
+    //  than s_kMinSparseBlocks is read whole.
+    static constexpr size_t    s_kProDosHeader       = 0x04;
+    static constexpr Byte      s_kProDosVolumeHeader = 0xF0;
+    static constexpr size_t    s_kProDosBitmap       = 0x27;
+    static constexpr size_t    s_kProDosTotalBlocks  = 0x29;
+    static constexpr uint32_t  s_kBlocksPerBitmap    = 4096;
+    static constexpr uint32_t  s_kMinSparseBlocks    = 4096;
 };

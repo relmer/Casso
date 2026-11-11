@@ -654,7 +654,7 @@ HRESULT PhysicalCards::ReadPartition (int number, int partition, std::vector<Byt
     hr = FindPartition (*session, partition, entry);
     CHR (hr);
 
-    hr = PartitionAccess::ReadBytes (*session->cache, entry->partition, outBytes);
+    hr = PartitionAccess::ReadUsedBytes (*session->cache, entry->partition, outBytes);
     CHR (hr);
 
 Error:
@@ -899,12 +899,17 @@ HRESULT PhysicalCards::StageWrite (int number, int partition, std::span<const By
     fits = bytes.size() <= entry->byteCount;
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH));
 
-    hr = PartitionAccess::ReadBytes (*session->cache, entry->partition, current);
-    CHR (hr);
+    //  A write shorter than the partition is laid over what is there now.
+    if (bytes.size() < entry->byteCount)
+    {
+        hr = PartitionAccess::ReadBytes (*session->cache, entry->partition, current);
+        CHR (hr);
+    }
 
+    current.resize ((size_t) entry->byteCount);
     std::copy (bytes.begin(), bytes.end(), current.begin());
 
-    hr = PartitionAccess::WriteBytes (*session->cache, entry->partition, current);
+    hr = PartitionAccess::WriteUsedBytes (*session->cache, entry->partition, current);
     CHR (hr);
 
     outSession = session;
