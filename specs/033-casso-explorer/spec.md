@@ -1965,6 +1965,60 @@ count the blocks written. Repeat on a 1 GB HFS volume.
    **Then** it reads as it does today.
 
 ---
+
+### User Story 40 - Block mode in the disk inspector (Priority: P2)
+
+A user opens a ProDOS, HFS, Pascal or SOS block image, an 800K disk, a hard
+drive image or a partition on a card in the disk inspector, and steps
+through its blocks: each one in hex and text, its structure annotated, the
+blocks colored by what uses them, and a block number in an index block, a
+directory link or a B-tree link followed by a click.
+
+**Why this priority**: The inspector reads Disk II tracks, so a block image
+can't be opened in it at all, and a damaged hard drive image or card has no
+tool in Casso to look inside it.
+
+**Independent Test**: Open CiderPress II's 800K ProDOS, 2IMG, HFS and
+partitioned images and a CFFA card's partition in the inspector. Step to
+the volume directory, an index block and an HFS catalog leaf node, check
+the annotations against the volume's catalog, follow a pointer and come
+back, and edit a byte and see it written.
+
+**Acceptance Scenarios**:
+
+1. **Given** a block image, **When** it is opened in the inspector,
+   **Then** its blocks are listed by number, with a block's 512 bytes in
+   hex and text, and a byte can be edited and written as a sector can.
+2. **Given** a ProDOS volume, **When** a block is selected, **Then** it is
+   annotated as what it is: boot loader, volume or subdirectory header and
+   entries, bitmap, seedling, sapling or tree index block, an extended
+   file's fork block, or a file's data, with the owning file's path.
+3. **Given** an HFS volume, **When** a block is selected, **Then** the boot
+   blocks, master directory block and its copy, volume bitmap and B-tree
+   header, index, leaf and map nodes are annotated, and the allocation
+   blocks are marked where they start.
+4. **Given** any block volume, **When** the block map is open, **Then**
+   each block is colored as free, a file's data, an index block, a
+   directory, the bitmap or boot, and blocks marked used with no file,
+   and blocks in two files, each have a separate color.
+5. **Given** a block number in an index block, a directory link or a
+   B-tree link, **When** it is clicked, **Then** the inspector steps to
+   that block, and Back and Forward return as in a browser. Highlight file's
+   blocks marks every block of the file under the cursor.
+6. **Given** an image with partitions, **When** it is opened, **Then** each
+   partition is a band over its blocks: an Apple Partition Map's driver
+   descriptor and entries, CFFA slices, MicroDrive and FocusDrive.
+7. **Given** a 2MG or Disk Copy 4.2 container, **When** it is opened,
+   **Then** its header is annotated, and Disk Copy's checksums and tag
+   bytes are listed.
+8. **Given** two block images, **When** they are compared, **Then** the
+   blocks that differ are listed and stepped through, as Compare does for
+   tracks.
+9. **Given** a free block with text or code in it, **When** the block map
+   is open, **Then** it is marked as leftover data, and a run of such
+   blocks can be saved as a file on the PC.
+
+---
 ### Edge Cases
 
 - **A picture on a monochrome monitor**: green, amber and white show a
@@ -3366,6 +3420,25 @@ count the blocks written. Repeat on a 1 GB HFS volume.
 - **FR-249**: DOS 3.3, Pascal and CP/M volumes MAY be read whole through
   the same block interface.
 
+**Block mode in the disk inspector**
+
+- **FR-250**: The disk inspector MUST open block images, 800K disks, hard
+  drive images and card partitions in a block mode: block number, hex and
+  text panes of one 512-byte block, and editing written as the sector
+  editor writes.
+- **FR-251**: Block mode MUST annotate ProDOS, SOS, Pascal and HFS blocks by
+  their structure, and 2MG and Disk Copy 4.2 headers, from the formats'
+  published documentation.
+- **FR-252**: Block mode MUST color each block by its use from the volume's
+  integrity report, with distinct colors for blocks marked used with no
+  file and for blocks in two files, and the owning file's path MUST appear
+  on hover.
+- **FR-253**: A block number in an index block, directory link or B-tree
+  link MUST step to that block when clicked, with Back and Forward.
+- **FR-254**: Each partition MUST be drawn as a band over its blocks.
+- **FR-255**: Block mode MUST compare two block images block by block, and
+  mark free blocks with text or code in them, which can be saved as a file.
+
 **HFS**
 
 - **FR-222**: HFS volumes MUST be read and written in every container
@@ -3709,6 +3782,9 @@ count the blocks written. Repeat on a 1 GB HFS volume.
   than 64 blocks, and copying a 10 KB file onto it writes fewer than 64.
 - **SC-068**: Quick format initializes a 1 GB card with 13 volumes in
   under 5 seconds.
+- **SC-069**: Every block of CiderPress II's ProDOS and HFS sample images is
+  annotated with its use in the catalog, and a step to a block on a 32 MB
+  volume or a card's partition takes under 100 ms.
 
 ## Assumptions
 

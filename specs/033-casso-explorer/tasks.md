@@ -1767,7 +1767,7 @@ Session 2026-11-09. Plan's Phase 33, research R36 to R57, contracts `contracts/v
 - [X] T532 [US19] Add `ImageContainer` and `ImageContainerKind` in `CassoEmuCore/Devices/Disk/Containers/`, beside `DiskFormat`, which stays the emulator's formats, route `.2mg`, `.2img`, `.dc`, `.dc42` and `.image` through the containers in `VolumeImage`, and pass a 2IMG nibble payload to the nibble layer as a `.nib` is
 - [X] T533 [US19] Accept block images on every path Casso Explorer and `casso disk` read: the ProDOS classes take their size from the buffer, Casso Explorer lists `.hdv`, `.2mg`, `.2img`, `.dc`, `.dc42` and `.image` as images, and the ADTPro server serves block images of any size, as it did. The 143,360-byte checks left in `DiskImage.h`, `DiskImageStore.cpp`, `MountDiagnosis.cpp`, `BlankDiskBuilder.cpp` and the link are for 5.25" disks and stay
 - [X] T534 [US19] Add 800K, 5 MB, 10 MB, 20 MB and 32 MB ProDOS sizes in each FR-175 container to the New disk dialog and `casso disk create` (FR-178). Tests in `UnitTest/EmuTests/DiskCommandRunnerTests.cpp`
-- [ ] T535 [US19] Open the raw block dialogs, Properties and the 040 sector editor on `Blocks` volumes at any size, the block range taken from the layout. Done: the raw block dialogs and `blockread` and `blockwrite` take their range from the image. Open: the disk inspector reads Disk II tracks, so a block image opens in it only once it has a block view
+- [ ] T535 [US19] Open the raw block dialogs, Properties and the 040 sector editor on `Blocks` volumes at any size, the block range taken from the layout. Done: the raw block dialogs and `blockread` and `blockwrite` take their range from the image. Open: the disk inspector reads Disk II tracks, so a block image opens in it only once it has a block view The inspector's block mode is Story 40 (T669 to T675).
 - [X] T536 [P] [US19] Add `IBlockStore`, `FileBlockStore` (64 KB pages read on demand, dirty pages written on `Commit`) and `MemoryBlockStore` in `CassoEmuCore/Devices/Disk/`. "A write past the end fails with `E_INVALIDARG`." Tests on `FakeDiskFileIo`
 - [X] T537 [US19] List 2IMG and Disk Copy 4.2 headers in the image details above the catalog, as WOZ chunks are. The file associations stay the six formats Casso opens, as the Assumptions set, until Casso mounts block images (#101, #163)
 - [ ] T538 [US19] Scenario tests in `ScenarioTests/LargeVolumeTests.cpp` on CiderPress II's 800K, 32 MB, 2IMG and Disk Copy 4.2 images: copy in and out, a new folder, and a byte-for-byte comparison with CiderPress II's output (SC-050). Add `scripts/EmuTargets/Mame.ps1` with the //c Plus target and record the ProDOS catalog in `validation.md` Done: `LargeVolumeTests` compares each file of CiderPress II's 800K and 2IMG images with its extraction, checks a Disk Copy 4.2 image decodes, copies a file into a new folder on 800K and 32 MB volumes, and has cp2.exe extract the 32 MB one. Open: the MAME script, as MAME on this machine has no Apple ROMs, and the Disk Copy image's files, which are HFS (T622).
@@ -1984,6 +1984,16 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [X] T665 [US39] Build volumes from a block source at every place one is created: the browser, preview, copy, `casso disk` and the emulator's mounts. DOS 3.3, Pascal and CP/M are read whole behind the same interface (FR-249)
 - [X] T666 [US39] Read HFS volumes by the block (FR-247)
 - [ ] T667 [US39] Tests counting blocks read and written on a full 32 MB volume and a 1 GB HFS volume (SC-067)
+
+## Phase 58: Block mode in the disk inspector (User Story 40)
+
+- [ ] T669 [US40] Add a block view to the disk inspector over a `BlockImage`: block number field and arrows in place of track and sector, the hex and text panes of one block, editing through the sector editor's write path, and no nibble or flux panes; open block images, 800K disks, hard drive images and card partitions in it (FR-250)
+- [ ] T670 [US40] Color the block map from the volume's integrity report: free, data, index, directory, bitmap, boot, unclaimed and cross-linked, with the owning file's path on hover (FR-252)
+- [ ] T671 [US40] Follow a block number in an index block, a directory link or a B-tree link on click, with Back and Forward, and Highlight file's blocks (FR-253)
+- [ ] T672 [US40] Annotate ProDOS, SOS, Pascal and HFS blocks by structure, and 2MG and Disk Copy 4.2 headers, checksums and tag bytes (FR-251)
+- [ ] T673 [US40] Draw partition bands for the Apple Partition Map, CFFA slices, MicroDrive and FocusDrive (FR-254)
+- [ ] T674 [US40] Compare two block images block by block, and mark leftover data in free blocks with Save as file (FR-255)
+- [ ] T675 [US40] Tests on CiderPress II's ProDOS, HFS and partitioned images: each block's annotation matches its catalog use, and a step on a 32 MB volume takes under 100 ms (SC-069)
 
 ## Phase 56: Roadmap validation and merge
 
