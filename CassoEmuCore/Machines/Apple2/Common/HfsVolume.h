@@ -15,8 +15,8 @@
 //
 //  The Macintosh Hierarchical File System, as GS/OS reads and writes it on
 //  800K disks and hard disks, over a BlockImage, so a volume of a gigabyte or
-//  more reads only the blocks a listing or a file touches. Read-only for now:
-//  every change fails with ERROR_WRITE_PROTECT.
+//  more reads only the blocks a listing or a file touches. A change is made
+//  by HfsWriter on a copy of the volume's bytes.
 //
 //  The layout is from Apple's Inside Macintosh: Files, "Data Organization on
 //  Volumes". Block 2 is the master directory block. The volume is a run of
@@ -57,6 +57,13 @@ public:
     HRESULT  Enumerate          (VolumeListing & outListing) const override;
     HRESULT  EnumerateDirectory (const FilePath & directory, VolumeListing & outListing) const override;
     HRESULT  Read               (const FilePath & path, FilePayload & outPayload) const override;
+
+    HRESULT  CreateDirectory  (const FilePath & path, vector<Byte> & outBuffer) const override;
+    HRESULT  BuildRemovalPlan (const FilePath & path, DirectoryRemovalPlan & outPlan) const override;
+    HRESULT  RemoveDirectory  (const FilePath  & path,
+                               bool              force,
+                               vector<Byte>    & outBuffer,
+                               DeleteOutcome   & outOutcome) const override;
 
     HRESULT  Write     (const FilePath     & path,
                         const FilePayload  & payload,
@@ -143,6 +150,9 @@ private:
     HRESULT  LoadCatalog      (const Mdb & mdb, vector<CatalogRecord> & outRecords) const;
     HRESULT  FindDirectory    (const vector<CatalogRecord> & records, const FilePath & path, uint32_t & outId) const;
     HRESULT  ListDirectory    (const Mdb & mdb, const vector<CatalogRecord> & records, uint32_t id, VolumeListing & outListing) const;
+
+    HRESULT      ApplyChange       (vector<Byte> & outBuffer, const std::function<HRESULT (vector<Byte> &)> & change) const;
+    static void  AddRemovalEntries (const vector<CatalogRecord> & records, uint32_t id, const std::string & prefix, DirectoryRemovalPlan & ioPlan);
 
     BlockImage  m_image;
 };

@@ -6,6 +6,9 @@
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/FilePath.h"
+#include "Machines/Apple2/Common/HfsBTree.h"
+#include "Machines/Apple2/Common/HfsVolume.h"
+#include "Machines/Apple2/Common/HfsWriter.h"
 #include "Machines/Apple2/Common/IVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -303,17 +306,17 @@ public:
 
         bytes.resize (4 * 1024 * 1024, 0);
 
-        io.files["C:\gsos.po"]  = bytes;
-        io.stamps["C:\gsos.po"] = FileStamp { bytes.size(), 1 };
+        io.files["C:\\gsos.po"]  = bytes;
+        io.stamps["C:\\gsos.po"] = FileStamp { bytes.size(), 1 };
 
-        AssertSucceeded (ops.List ("C:\gsos.po", listing, kind).hr);
+        AssertSucceeded (ops.List ("C:\\gsos.po", listing, kind).hr);
 
         Assert::IsTrue   (kind == VolumeKind::Hfs);
         Assert::IsTrue   (!listing.entries.empty());
         Assert::AreEqual (0, io.wholeReads);
         Assert::IsTrue   (io.bytesReadAt < (uint64_t) 512 * 1024);
 
-        AssertSucceeded (ops.Read ("C:\gsos.po", "SIZES/L131073", back, 0).hr);
+        AssertSucceeded (ops.Read ("C:\\gsos.po", "SIZES/L131073", back, 0).hr);
         Assert::AreEqual ((size_t) 131073, back.bytes.size());
         Assert::AreEqual (0, io.wholeReads);
     }
@@ -367,5 +370,149 @@ public:
         CompareTree (ProDosVolume (sectors), out, "a 32 MB volume");
 
         fs::remove_all (folder);
+    }
+
+    //  The image after `change`, which must succeed.
+    template <typename Change>
+    static std::vector<Byte> ApplyHfs (const std::vector<Byte> & image, Change change)
+    {
+        HfsVolume          volume (image);
+        std::vector<Byte>  written;
+
+
+
+        AssertSucceeded (change (volume, written));
+
+        return written;
+    }
+
+    //  Folders, files of many sizes, two with resource forks, one renamed and
+    //  one deleted, written through HfsVolume.
+    static void FillHfs (std::vector<Byte> & ioImage)
+    {
+        DeleteOutcome  outcome;
+
+
+
+        ioImage = ApplyHfs (ioImage, [] (HfsVolume & v, std::vector<Byte> & out) { return v.CreateDirectory (FilePath::Parse ("Games"), out); });
+        ioImage = ApplyHfs (ioImage, [] (HfsVolume & v, std::vector<Byte> & out) { return v.CreateDirectory (FilePath::Parse ("Games/Arcade"), out); });
+
+        for (size_t i = 0; i < 40; i++)
+        {
+            FilePayload  payload;
+            std::string  path = std::format ("{}File {}", (i % 3 == 0) ? "Games/" : (i % 3 == 1) ? "Games/Arcade/" : "", i);
+
+            payload.type       = (Byte) (i % 2 == 0 ? 0x06 : 0x04);
+            payload.auxType    = 0x2000;
+            payload.hasAuxType = true;
+
+            for (size_t b = 0; b < i * 197 + 1; b++)
+            {
+                payload.bytes.push_back ((Byte) (b * 13 + i));
+            }
+
+            if (i % 17 == 5)
+            {
+                payload.resourceFork.assign (1500 + i, (Byte) i);
+                payload.hasResourceFork = true;
+            }
+
+            ioImage = ApplyHfs (ioImage, [&] (HfsVolume & v, std::vector<Byte> & out) { return v.Write (FilePath::Parse (path), payload, out); });
+        }
+
+        ioImage = ApplyHfs (ioImage, [] (HfsVolume & v, std::vector<Byte> & out) { return v.Rename (FilePath::Parse ("File 2"), "Caf\xC3\xA9 menu", out); });
+        ioImage = ApplyHfs (ioImage, [&] (HfsVolume & v, std::vector<Byte> & out) { return v.Delete (FilePath::Parse ("File 5"), out, outcome); });
+    }
+
+    //  CiderPress II's test of the image passes, and each fork it extracts
+    //  matches what Casso reads.
+    static void CheckHfsInCiderPress (const std::vector<Byte> & image, const std::wstring & name)
+    {
+        fs::path  folder = fs::temp_directory_path() / L"CassoHfsTests";
+        fs::path  file   = folder / (name + L".po");
+        fs::path  out    = folder / (name + L"-extracted");
+        DWORD     exit   = 0;
+
+
+
+        fs::create_directories (out);
+
+        {
+            std::ofstream  stream (file, std::ios::binary);
+
+            stream.write ((const char *) image.data(), (std::streamsize) image.size());
+        }
+
+        if (!RunCp2 (L"test \"" + file.wstring() + L"\"", exit))
+        {
+            Logger::WriteMessage ("SKIPPED: CiderPress II's cp2.exe isn't installed\n");
+            return;
+        }
+
+        Assert::AreEqual ((DWORD) 0, exit, (L"cp2.exe found damage in " + name).c_str());
+
+        RunCp2 (L"extract --preserve=naps \"--exdir=" + out.wstring() + L"\" \"" + file.wstring() + L"\"", exit);
+        Assert::AreEqual ((DWORD) 0, exit, (L"cp2.exe could not extract " + name).c_str());
+
+        CompareTree (HfsVolume (image), out, TextEncoding::WideToUtf8 (name));
+
+        fs::remove_all (folder);
+    }
+
+    //  HFS volumes Casso formats and writes, 800K and 64 MB, checked and
+    //  extracted by CiderPress II.
+    TEST_METHOD (CassoHfsVolumes_ReadTheSameInCiderPress)
+    {
+        for (size_t sectors : { (size_t) 1600, (size_t) 131072 })
+        {
+            std::vector<Byte>  image;
+
+            AssertSucceeded (HfsWriter::Format (image, sectors, "Casso HFS"));
+            FillHfs (image);
+            CheckHfsInCiderPress (image, std::format (L"casso-{}", sectors));
+        }
+    }
+
+    //  A GS/OS HFS disk Casso writes to, checked and extracted by CiderPress
+    //  II.
+    TEST_METHOD (GsOsHfs800K_WrittenByCassoReadsInCiderPress)
+    {
+        std::vector<Byte>  image;
+
+
+
+        if (!OpenImage ("hfs/simple-gsos.po", image))
+        {
+            return;
+        }
+
+        FillHfs (image);
+        CheckHfsInCiderPress (image, L"gsos");
+    }
+
+    //  Each catalog's records are in the order HfsBTree sorts them in, so a
+    //  tree Casso builds again is in the order GS/OS and the Finder built it.
+    TEST_METHOD (HfsCatalogs_AreInTheOrderCassoSorts)
+    {
+        for (const char * name : { "hfs/simple-gsos.po", "diskcopy/Installer Disk 1.image" })
+        {
+            std::vector<Byte>              image;
+            std::vector<HfsBTree::Record>  records;
+
+            if (!OpenImage (name, image))
+            {
+                return;
+            }
+
+            AssertSucceeded (HfsWriter::ReadCatalogRecords (image, records));
+            Assert::IsTrue (records.size() > 10);
+
+            for (size_t i = 1; i < records.size(); i++)
+            {
+                int  order = HfsBTree::CompareCatalogKeys (records[i - 1].key, records[i].key);
+
+                Assert::IsTrue (order < 0, TextEncoding::Utf8ToWide (std::format ("{}: record {} sorts before record {}", name, i, i - 1)).c_str());
+            }
+        }
     }
 };

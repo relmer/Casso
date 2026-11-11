@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/HfsVolume.h"
+#include "Machines/Apple2/Common/HfsWriter.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/VolumeIntegrityReport.h"
 
@@ -832,15 +833,42 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HfsVolume::ApplyChange
+//
+//  The change made by `change` on a copy of the volume's bytes, which is
+//  the new buffer when it succeeds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsVolume::ApplyChange (vector<Byte> & outBuffer, const std::function<HRESULT (vector<Byte> &)> & change) const
+{
+    HRESULT       hr    = S_OK;
+    vector<Byte>  image = m_image.ToVector();
+
+
+
+    hr = change (image);
+    CHR (hr);
+
+    outBuffer = std::move (image);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HfsVolume::Write
 //
-//  Every change fails until HFS writes are built.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsVolume::Write (const FilePath &, const FilePayload &, vector<Byte> &) const
+HRESULT HfsVolume::Write (const FilePath & path, const FilePayload & payload, vector<Byte> & outBuffer) const
 {
-    return HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT);
+    return ApplyChange (outBuffer, [&] (vector<Byte> & image) { return HfsWriter::Write (image, path, payload); });
 }
 
 
@@ -853,9 +881,13 @@ HRESULT HfsVolume::Write (const FilePath &, const FilePayload &, vector<Byte> &)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsVolume::Delete (const FilePath &, vector<Byte> &) const
+HRESULT HfsVolume::Delete (const FilePath & path, vector<Byte> & outBuffer) const
 {
-    return HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT);
+    DeleteOutcome  outcome;
+
+
+
+    return Delete (path, outBuffer, outcome);
 }
 
 
@@ -868,9 +900,119 @@ HRESULT HfsVolume::Delete (const FilePath &, vector<Byte> &) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsVolume::Delete (const FilePath &, vector<Byte> &, DeleteOutcome &) const
+HRESULT HfsVolume::Delete (const FilePath & path, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const
 {
-    return HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT);
+    return ApplyChange (outBuffer, [&] (vector<Byte> & image) { return HfsWriter::Delete (image, path, outOutcome); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsVolume::CreateDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsVolume::CreateDirectory (const FilePath & path, vector<Byte> & outBuffer) const
+{
+    return ApplyChange (outBuffer, [&] (vector<Byte> & image) { return HfsWriter::CreateDirectory (image, path); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsVolume::BuildRemovalPlan
+//
+//  The directory's contents, deepest first, then the directory. Blocks are
+//  512-byte blocks of both forks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsVolume::BuildRemovalPlan (const FilePath & path, DirectoryRemovalPlan & outPlan) const
+{
+    HRESULT                hr = S_OK;
+    Mdb                    mdb;
+    vector<CatalogRecord>  records;
+    uint32_t               id = 0;
+
+
+
+    outPlan = DirectoryRemovalPlan();
+
+    hr = ReadMdb (mdb);
+    CHR (hr);
+
+    hr = LoadCatalog (mdb, records);
+    CHR (hr);
+
+    hr = FindDirectory (records, path, id);
+    CHR (hr);
+
+    CBREx (id != kRootId, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+
+    AddRemovalEntries (records, id, path.ToString(), outPlan);
+
+    outPlan.entries.push_back (DirectoryRemovalEntry { path.ToString(), true, false, 0 });
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsVolume::AddRemovalEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HfsVolume::AddRemovalEntries (const vector<CatalogRecord> & records, uint32_t id, const std::string & prefix, DirectoryRemovalPlan & ioPlan)
+{
+    for (const CatalogRecord & record : records)
+    {
+        std::string  child = prefix + "/" + record.name;
+
+        if (record.parentId != id)
+        {
+            continue;
+        }
+
+        if (record.type == kRecordDirectory)
+        {
+            AddRemovalEntries (records, record.id, child, ioPlan);
+            ioPlan.entries.push_back (DirectoryRemovalEntry { child, true, false, 0 });
+        }
+        else if (record.type == kRecordFile)
+        {
+            uint32_t  blocks = (uint32_t) (((uint64_t) record.dataPhysical + record.forkPhysical) / kSectorBytes);
+
+            ioPlan.entries.push_back (DirectoryRemovalEntry { child, false, record.isLocked, blocks });
+            ioPlan.blocksFreed      += blocks;
+            ioPlan.hasLockedEntries  = ioPlan.hasLockedEntries || record.isLocked;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsVolume::RemoveDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsVolume::RemoveDirectory (const FilePath & path, bool force, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const
+{
+    return ApplyChange (outBuffer, [&] (vector<Byte> & image) { return HfsWriter::RemoveDirectory (image, path, force, outOutcome); });
 }
 
 
@@ -881,11 +1023,14 @@ HRESULT HfsVolume::Delete (const FilePath &, vector<Byte> &, DeleteOutcome &) co
 //
 //  HfsVolume::SetStartupProgram
 //
+//  HFS has no startup program setting. GS/OS starts from the System
+//  folder.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT HfsVolume::SetStartupProgram (const FilePath &, vector<Byte> &) const
 {
-    return HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT);
+    return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
 }
 
 
@@ -898,9 +1043,9 @@ HRESULT HfsVolume::SetStartupProgram (const FilePath &, vector<Byte> &) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsVolume::Rename (const FilePath &, const std::string &, vector<Byte> &) const
+HRESULT HfsVolume::Rename (const FilePath & from, const std::string & to, vector<Byte> & outBuffer) const
 {
-    return HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT);
+    return ApplyChange (outBuffer, [&] (vector<Byte> & image) { return HfsWriter::Rename (image, from, to); });
 }
 
 
@@ -913,7 +1058,7 @@ HRESULT HfsVolume::Rename (const FilePath &, const std::string &, vector<Byte> &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsVolume::SetAttributes (const FilePath &, const FileAttributes &, vector<Byte> &) const
+HRESULT HfsVolume::SetAttributes (const FilePath & path, const FileAttributes & attributes, vector<Byte> & outBuffer) const
 {
-    return HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT);
+    return ApplyChange (outBuffer, [&] (vector<Byte> & image) { return HfsWriter::SetAttributes (image, path, attributes); });
 }
