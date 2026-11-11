@@ -8,11 +8,19 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/HeatMapBarCommands.h"
+#include "Ui/Debugger/MemoryAddressEntry.h"
+#include "Ui/Debugger/TextDialog.h"
+#include "Debugger/Source/SourcePathList.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 
 
 
 
+
+//  The address box's entry on the bar, and its tip while what it has is an
+//  address.
+static constexpr int              s_kAddressEntryId = 1000;
+static constexpr const wchar_t *  s_kAddressTip     = L"Address: a hex address, a register, a symbol or an expression; Enter moves the map to it at the largest zoom";
 
 //  The rows a menu on a byte or a heat map cell gets for its last accesses.
 static constexpr HeatMapView::PickAction  s_kAccessRows[] =
@@ -89,6 +97,7 @@ void HeatMapPane::CreateControls()
     m_view->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
     m_bar.Create();
     m_viewBar = m_host.GetControlParent().CreateChild<DxuiToolbar>();
+    m_box     = m_host.GetControlParent().CreateChild<DxuiTextInput>();
 }
 
 
@@ -129,7 +138,15 @@ void HeatMapPane::Configure()
 
     m_bar.Configure();
     m_bar.SetOnPress ([this] { SetBarMenus(); });
-    m_bar.GetBar()->SetEntries (m_commands->BuildEntries (options.cumulative));
+    m_box->SetHwnd        (m_host.GetOwnerHwnd());
+    m_box->SetMaxLength   (256);
+    m_box->SetPlaceholder (L"Address: 0300, PC");
+    m_box->SetVisible     (false);
+
+    m_addressEntry = std::make_unique<MemoryAddressEntry> (m_box);
+    m_addressEntry->SetTooltips (s_kAddressTip, s_kAddressTip);
+
+    SetBarEntries (options.cumulative);
 
     //  The set of ranges and the bank, beside the map's tabs, as tall as
     //  their row.
@@ -224,7 +241,7 @@ IDxuiControl * HeatMapPane::GetContent() const
 
 std::vector<IDxuiControl *> HeatMapPane::GetControls() const
 {
-    return { m_bar.GetSlot(), m_view, m_bar.GetBar(), m_viewBar };
+    return { m_bar.GetSlot(), m_view, m_bar.GetBar(), m_viewBar, m_box };
 }
 
 
@@ -347,7 +364,7 @@ void HeatMapPane::SetOptions (const HeatMapOptions & options)
 
     if (options.cumulative != wasCumulative)
     {
-        m_bar.GetBar()->SetEntries (m_commands->BuildEntries (options.cumulative));
+        SetBarEntries (options.cumulative);
         PlaceBar();
     }
 
@@ -645,6 +662,7 @@ void HeatMapPane::PlaceBar()
 
 
     m_bar.Place();
+    m_box->SetVisible (m_bar.GetBar()->IsVisible() && m_view->IsVisible());
 
     row   = m_view->GetViewRowFreeRect();
     shown = m_bar.GetBar()->IsVisible() && m_view->IsVisible() && row.right > row.left;
@@ -1203,6 +1221,8 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
 
 
 
+    ApplyGoTo (snapshot);
+
     for (const DebuggerViewSnapshot::BreakpointLine & line : snapshot.breakpoints)
     {
         std::optional<HeatMapView::BreakKind>  kind = HeatMapView::GetBreakKind (line.info);
@@ -1260,4 +1280,113 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
     {
         m_host.UpdatePaneTooltip (GetId(), *m_tipAt);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapPane::SetBarEntries
+//
+//  The bar's commands, then the address box.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapPane::SetBarEntries (bool isCumulative)
+{
+    std::vector<DxuiToolbar::Entry>  entries = m_commands->BuildEntries (isCumulative);
+    DxuiToolbar::Entry               address;
+    auto                             command = std::make_shared<DxuiCommand>();
+
+
+
+    command->id    = s_kAddressEntryId;
+    command->label = L"Address";
+    command->tip   = s_kAddressTip;
+
+    address.command = command;
+    address.custom  = m_addressEntry.get();
+    address.pinned  = true;
+    entries.push_back (std::move (address));
+
+    m_bar.GetBar()->SetEntries (std::move (entries));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapPane::SubmitTextBox
+//
+//  A hex address is shown at once; anything else goes to the CPU thread,
+//  which evaluates it as the Memory pane's box does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapPane::SubmitTextBox (DxuiTextInput * box)
+{
+    std::wstring  text    = (box != nullptr) ? box->GetText() : std::wstring();
+    Word          address = 0;
+
+
+
+    if (box != m_box || text.find_first_not_of (L" \t") == std::wstring::npos)
+    {
+        return false;
+    }
+
+    if (text != L"A" && text != L"a" && TextDialog::TryParseHexWord (text, address))
+    {
+        m_view->ShowAddress (address);
+        m_addressEntry->SetTooltips (s_kAddressTip, s_kAddressTip);
+        m_host.Repaint();
+    }
+    else if (m_host.GetWindowHost() != nullptr)
+    {
+        m_host.GetWindowHost()->GoToDebuggerMemory (DebuggerViewState::kHeatMapGoTo, SourcePathList::WideToUtf8 (text));
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapPane::ApplyGoTo
+//
+//  The address box's text as the CPU thread evaluated it, once: the address
+//  shown, or the reason it isn't one in the box's tip, the map left where
+//  it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapPane::ApplyGoTo (const DebuggerViewSnapshot & snapshot)
+{
+    std::wstring  reason;
+
+
+
+    if (!snapshot.goTo.has_value() || snapshot.goTo->serial == m_goToSerial || snapshot.goTo->window != DebuggerViewState::kHeatMapGoTo)
+    {
+        return;
+    }
+
+    m_goToSerial = snapshot.goTo->serial;
+
+    if (snapshot.goTo->address.has_value())
+    {
+        m_view->ShowAddress (*snapshot.goTo->address);
+        m_addressEntry->SetTooltips (s_kAddressTip, s_kAddressTip);
+        return;
+    }
+
+    reason = std::format (L"\"{}\" is not an address. {}", TextEncoding::NarrowToWide (snapshot.goTo->text), TextEncoding::NarrowToWide (snapshot.goTo->error));
+    m_addressEntry->SetTooltips (reason, reason);
 }

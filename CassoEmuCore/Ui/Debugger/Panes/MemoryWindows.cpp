@@ -846,7 +846,7 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
 
 
 
-    if (snapshot.goTo.has_value() && snapshot.goTo->serial != m_goToSerial)
+    if (snapshot.goTo.has_value() && snapshot.goTo->serial != m_goToSerial && snapshot.goTo->window != DebuggerViewState::kHeatMapGoTo)
     {
         const DebuggerViewSnapshot::GoTo & goTo = *snapshot.goTo;
 

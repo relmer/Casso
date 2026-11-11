@@ -118,6 +118,7 @@ namespace HeatMapPaneWindowTests
         using DebuggerWindow::GetFloatingPanes;
         using DebuggerWindow::GetPaneContentForTest;
         using DebuggerWindow::FindPaneForTest;
+        using DebuggerWindow::TakeSnapshot;
 
         //  A floating window with none of the system's behind it.
         HRESULT CreateFloatWindow (DxuiDockedWindow & window, const DxuiWindow::CreateParams & params) override
@@ -704,6 +705,47 @@ namespace HeatMapPaneWindowTests
             Assert::IsTrue   (window.GetPaneTextZoom (DebuggerLayout::kConsole) > 1.0f, L"over the console, Ctrl+wheel sizes the console's text");
             Assert::AreEqual (zoom, window.GetTextZoom(), L"and not every pane's");
             Assert::AreEqual (2, view->GetCellPx(), L"and the map stays at its zoom");
+        }
+
+
+
+        //  Enter in the address box moves the map to an address at the largest
+        //  zoom, centered and outlined: a hex address at once, and a symbol once
+        //  the CPU thread has evaluated it. An address that can't be evaluated
+        //  doesn't move the map.
+        TEST_METHOD (TheAddressBoxShowsAnAddressAtTheLargestZoom)
+        {
+            CassoTheme      theme    = CassoTheme::MakeSkeuomorphic();
+            HeatMapHost     host;
+            HeatMapWindow   window   (theme, host);
+            HeatMapView   * view     = nullptr;
+            RECT            cell     = {};
+            RECT            map      = {};
+            auto            symbol   = std::make_shared<DebuggerViewSnapshot>();
+            auto            bad      = std::make_shared<DebuggerViewSnapshot>();
+
+
+
+            BuildShown (window);
+            view = window.GetHeatMapPane().GetView();
+
+            window.GetHeatMapPane().GetAddressBox()->SetText (L"$2000");
+            Assert::IsTrue (window.GetHeatMapPane().SubmitTextBox (window.GetHeatMapPane().GetAddressBox()));
+
+            cell = view->GetCellRect (0x2000);
+            map  = view->GetMapRect();
+
+            Assert::AreEqual (HeatMapView::kMaxCellPx, view->GetCellPx(), L"the largest zoom");
+            Assert::IsTrue   (view->GetShownAddress() == std::optional<Word> (0x2000), L"$2000 is outlined");
+            Assert::IsTrue   (std::abs ((cell.top + cell.bottom) / 2 - (map.top + map.bottom) / 2) <= HeatMapView::kMaxCellPx, L"and centered");
+
+            symbol->goTo = DebuggerViewSnapshot::GoTo { DebuggerViewState::kHeatMapGoTo, Word (0x0300), "start", "", 1 };
+            window.TakeSnapshot (symbol);
+            Assert::IsTrue (view->GetShownAddress() == std::optional<Word> (0x0300), L"a symbol the CPU thread resolved");
+
+            bad->goTo = DebuggerViewSnapshot::GoTo { DebuggerViewState::kHeatMapGoTo, std::nullopt, "nosuch", "No symbol NOSUCH.", 2 };
+            window.TakeSnapshot (bad);
+            Assert::IsTrue (view->GetShownAddress() == std::optional<Word> (0x0300), L"a bad expression doesn't move the map");
         }
 
 

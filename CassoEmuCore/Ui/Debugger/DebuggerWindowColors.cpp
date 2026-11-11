@@ -578,6 +578,7 @@ HeatMapView::Palette DebuggerWindow::GetHeatPalette() const
     palette.selfModifying = colors.heatSelfModifying;
     palette.unwritten     = colors.heatUnwritten;
     palette.changed       = colors.heatChanged;
+    palette.found         = (m_theme != nullptr) ? m_theme->Accent() : 0xFFFFFFFF;
 
     return palette;
 }

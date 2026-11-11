@@ -7,6 +7,7 @@
 #include "Ui/Debugger/Panes/IDebuggerPane.h"
 
 class HeatMapBarCommands;
+class MemoryAddressEntry;
 
 
 
@@ -98,6 +99,12 @@ public:
     bool                             ResetContentZoom    () override;
     bool                             TryGetTipAt         (POINT clientPx, DxuiTip & tip);
     void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
+    std::vector<IDxuiControl *>      GetPressTargets     () const override { return { m_box }; }
+    std::vector<DxuiTextInput *>     GetTextBoxes        () const override { return { m_box }; }
+    bool                             SubmitTextBox       (DxuiTextInput * box) override;
+
+    //  The address box on the bar. Enter moves the map to its address.
+    DxuiTextInput                  * GetAddressBox       () const { return m_box; }
 
     //  An access row's label and whether it is on, for the cell's accesses
     //  as the machine looked them up, or none yet. Only a machine behind
@@ -110,6 +117,8 @@ private:
     void  RequestAccess  (Word address, HeatMapView::PickAction action, HeatMapOptions::Bank bank);
     void  SendHover      (std::optional<Word> address);
     void  SaveOptions    (const HeatMapOptions & options);
+    void  SetBarEntries  (bool isCumulative);
+    void  ApplyGoTo      (const DebuggerViewSnapshot & snapshot);
 
     Ranges                                       m_ranges;
     PaneBarSlot                                  m_bar;
@@ -124,6 +133,11 @@ private:
     std::string                                  m_ignoreWords;
     std::vector<HeatMapOptions::Bank>            m_banks;
     uint64_t                                     m_appliedSerial = 0;
+
+    //  The address box, its entry on the bar, and the last Go to it acted on.
+    DxuiTextInput                              * m_box           = nullptr;
+    std::unique_ptr<MemoryAddressEntry>          m_addressEntry;
+    uint32_t                                     m_goToSerial    = 0;
 
     //  The point the tip over the map is for, and whether it is pending until
     //  a snapshot brings the cell's last writer and reader.

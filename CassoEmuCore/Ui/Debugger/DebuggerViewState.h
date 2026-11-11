@@ -599,6 +599,7 @@ public:
     //  reads this many bytes from a sixteen-byte boundary, enough for the rows a
     //  window shows at its widest columns and some to scroll into.
     static constexpr int       kMaxMemoryWindows  = 4;
+    static constexpr int       kHeatMapGoTo       = 0;   // a Go to's window for the heat map's address box
     static constexpr int       kMemoryWindowBytes = 4096;
     static constexpr int       kMemoryRowBytes    = 16;
 

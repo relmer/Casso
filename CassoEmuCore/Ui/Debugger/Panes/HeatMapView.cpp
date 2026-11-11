@@ -1068,6 +1068,46 @@ void HeatMapView::ZoomTo (int cellPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::ShowAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::ShowAddress (Word address)
+{
+    std::optional<Place>  place;
+    long                  pitch = 0;
+
+
+
+    m_found    = address;
+    m_cellPx   = kMaxCellPx;
+    m_isFitted = false;
+
+    PlaceMap();
+
+    place = GetPlaceOf (address);
+    pitch = GetPitch();
+
+    if (place.has_value())
+    {
+        const Placed  & placed = m_placed[place->band];
+        long            row    = place->offset / placed.columns;
+
+
+
+        m_scrollTop = placed.rowsTop + row * pitch + pitch / 2 - (m_map.bottom - m_map.top) / 2;
+        ClampScroll();
+    }
+
+    m_isFrameStale = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::ScrollBy
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1677,6 +1717,11 @@ std::vector<uint32_t> HeatMapView::GetOutlineColors (Word address) const
     Word                   cpu    = HeatMapOptions::GetCpuAddress (m_shownBank, address);
 
 
+
+    if (m_found == address)
+    {
+        colors.push_back (m_palette.found);
+    }
 
     if (m_pc == address)
     {
@@ -3201,7 +3246,7 @@ void HeatMapView::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme & th
     float             minFont    = m_scaler.ToPxf (kMinDetailFontDip);
     float             pad        = m_scaler.ToPxf ((float) kDetailPadDip);
     bool              hasDetail  = m_values.size() == kCount && (float) m_cellPx >= minFont * kLinePerEm + pad * 2.0f;
-    bool              hasMarks   = m_pc.has_value() || m_stack.has_value() || !m_breakpoints.empty();
+    bool              hasMarks   = m_pc.has_value() || m_stack.has_value() || m_found.has_value() || !m_breakpoints.empty();
     bool              hasRegions = m_regions.size() == kCount && m_cellPx >= kRegionCellPx;
     int               covered    = 0;
     HRESULT           hr         = S_OK;
@@ -3211,7 +3256,7 @@ void HeatMapView::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme & th
 
 
 
-        return m_pc == address || m_stack == address ||
+        return m_pc == address || m_stack == address || m_found == address ||
                std::ranges::any_of (m_breakpoints, [cpu] (const Breakpoint & each) { return cpu >= each.first && cpu <= each.last; });
     };
 

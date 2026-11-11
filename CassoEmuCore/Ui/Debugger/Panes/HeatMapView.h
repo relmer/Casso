@@ -113,6 +113,7 @@ public:
         uint32_t  selfModifying = 0;
         uint32_t  unwritten     = 0;
         uint32_t  changed       = 0;
+        uint32_t  found         = 0;
 
         bool operator== (const Palette & other) const = default;
     };
@@ -413,6 +414,11 @@ public:
     void   ScrollBy     (int dy);
     void   ResetZoom    ();
 
+    //  Zooms the map in all the way with an address centered and outlined, for
+    //  the address box. The outline is drawn until another address replaces it.
+    void                 ShowAddress     (Word address);
+    std::optional<Word>  GetShownAddress () const { return m_found; }
+
     //  The cell size the map starts at, which the zoom's percentage is of;
     //  the zoom widget in the map's bottom-right corner; and its tip, for a
     //  point over its button.
@@ -672,6 +678,7 @@ private:
     std::shared_ptr<const std::vector<std::string>>  m_opcodeForms;
     std::optional<Word>                              m_pc;
     std::optional<Word>                              m_stack;
+    std::optional<Word>                              m_found;
     std::vector<Breakpoint>                          m_breakpoints;
     std::shared_ptr<const HeatMapSymbols>            m_symbols;
     Bank                                             m_symbolsBank   = Bank::Cpu;
