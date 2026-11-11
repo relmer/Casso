@@ -687,6 +687,30 @@ std::vector<Word> MemoryPane::FindHits (const DebugMemoryImage & image, const st
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryPane::GetWordAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> MemoryPane::GetWordAt (const DebugMemoryImage & image, Word address)
+{
+    Word  high = (Word) (address + 1);
+
+
+
+    if (!image.readable.test (address) || !image.readable.test (high))
+    {
+        return std::nullopt;
+    }
+
+    return (Word) (image.bytes[address] | (image.bytes[high] << 8));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryPane::GetFindControl
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -110,6 +110,10 @@ public:
     //  outLength is a hit's length in bytes.
     static std::vector<Word>  FindHits (const DebugMemoryImage & image, const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, size_t & outLength);
 
+    //  The little-endian word a byte and the byte after it make, as a pointer
+    //  there reads; none where either byte wasn't read.
+    static std::optional<Word>  GetWordAt (const DebugMemoryImage & image, Word address);
+
     //  The find box's searches, over all of memory.
     IDxuiControl    * GetFindControl          () override;
     RECT              GetFindBounds           () const override;

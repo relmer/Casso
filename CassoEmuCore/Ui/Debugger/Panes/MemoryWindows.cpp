@@ -1424,8 +1424,9 @@ bool MemoryWindowGroup::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 //  MemoryWindowGroup::AddWindowMenuItems
 //
 //  On a selection: Fill and Copy write the machine, so only while it is
-//  stopped; Compare reads it, so at any time. A byte in zero page can be
-//  the low byte of a pointer.
+//  stopped; Compare reads it, so at any time. The byte under the pointer and
+//  the one after it are a word to go to, and a byte in zero page can be the
+//  low byte of a pointer watch.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1489,6 +1490,18 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
     }
 
     byte = model.GetAddressAt (clientPx);
+
+    //  The word the byte and the one after it make, as a pointer: the window
+    //  goes to where it points.
+    if (byte.has_value() && m_host.GetLatestSnapshot() != nullptr && m_host.GetLatestSnapshot()->memoryImage != nullptr)
+    {
+        std::optional<Word>  target = MemoryPane::GetWordAt (*m_host.GetLatestSnapshot()->memoryImage, *byte);
+
+        if (target.has_value())
+        {
+            items.push_back ({ std::format (L"Go to ${:04X}, the word here", *target), [each, at = *target] { each->GetModel().GoTo (at); } });
+        }
+    }
 
     if (byte.has_value() && *byte < 0x100)
     {

@@ -6,6 +6,7 @@
 #include "Ui/Debugger/TextDialog.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/FieldDialogPanel.h"
+#include "Ui/Debugger/Panes/MemoryPane.h"
 
 #include "CppUnitTest.h"
 
@@ -216,6 +217,30 @@ namespace DebuggerTests
             Assert::IsTrue (std::wstring (ByteDialog::kPointerWatchText).find (L"$2000") != std::wstring::npos, L"the example");
             Assert::IsTrue (description.GetRect().bottom > description.GetRect().top + FieldDialogPanel::kRowDip, L"wrapped onto lines");
             Assert::IsTrue (field.GetRect().top >= description.GetRect().bottom, L"the field is under it");
+        }
+
+
+        //  The word a byte and the one after it make, little-endian, wrapping at
+        //  the top of memory; none where a byte wasn't read.
+        TEST_METHOD (TheWordAtAByteIsAPointer)
+        {
+            auto                owned  = std::make_unique<DebugMemoryImage>();
+            DebugMemoryImage  & memory = *owned;
+
+
+
+            memory.bytes[0x3E]   = 0x00;
+            memory.bytes[0x3F]   = 0x20;
+            memory.bytes[0xFFFF] = 0x34;
+            memory.bytes[0x0000] = 0x12;
+            memory.readable.set (0x3E);
+            memory.readable.set (0x3F);
+            memory.readable.set (0xFFFF);
+            memory.readable.set (0x0000);
+
+            Assert::AreEqual ((int) 0x2000, (int) MemoryPane::GetWordAt (memory, 0x3E).value_or (0));
+            Assert::AreEqual ((int) 0x1234, (int) MemoryPane::GetWordAt (memory, 0xFFFF).value_or (0), L"wraps to $0000");
+            Assert::IsFalse  (MemoryPane::GetWordAt (memory, 0x3F).has_value(), L"$40 wasn't read");
         }
 
 

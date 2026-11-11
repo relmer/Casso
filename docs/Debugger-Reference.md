@@ -1203,6 +1203,8 @@ a byte that has changed since the edit; that byte's address appears in the
 console instead.
 The tip over a byte has its symbol, its value, its character and the region
 of memory it is in.
+On a byte's menu, **Go to $2000, the word here** goes to the address that
+byte and the next one make, low byte first, as a pointer there reads.
 
 Ctrl+F or **Edit > Find** opens the find bar over the window, which searches
 all of memory: hex bytes, as `A9 00` or `$A9 $00`, or else text, matched by
