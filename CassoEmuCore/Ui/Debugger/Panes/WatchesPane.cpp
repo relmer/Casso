@@ -329,6 +329,31 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
         }
     }
 
+    //  The variables the BASIC statement being run uses, and those the one
+    //  before it used, ahead of the instruction's: in a program, they are
+    //  what the line is doing.
+    for (const BasicAutoWatches::Row & used : basicAutos)
+    {
+        DxuiListView::Cell  name  = BasicWatches::MakeNameCell (used.item.name, otherLabels);
+        DxuiListView::Cell  value = { TextEncoding::NarrowToWide (used.item.value) };
+
+        if (used.isPrevious)
+        {
+            name.weight  = DxuiFontWeight::Italic;
+            value.weight = name.weight;
+            name.tip     = ColorLegend::GetText (ColorLegend::Meaning::PreviousStatement);
+        }
+
+        if (used.isChanged)
+        {
+            value.argb = changed;
+            value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
+        }
+
+        rows.push_back ({ { MakeIdCell (L"Auto"), name, value, MakeTypeCell (L"BASIC") }, {}, true });
+        m_rows.push_back ({ RowKind::BasicItem, 0 });
+    }
+
     if (!snapshot.autoWatches.empty())
     {
         for (size_t i = 0; i < snapshot.autoWatches.size(); i++)
@@ -444,7 +469,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
     //  expands or collapses.
     if (isInProgram)
     {
-        rows.push_back ({ MakeHeading (std::format (L"{} BASIC variables", m_isBasicVariablesExpanded ? s_kpszTriangleDown : s_kpszTriangleRight)), {}, true });
+        rows.push_back ({ MakeHeading (std::format (L"{} BASIC variables", m_isBasicVariablesExpanded ? s_kpszSmallTriangleDown : s_kpszSmallTriangleRight)), {}, true });
         m_rows.push_back ({ RowKind::BasicHeading, 0 });
 
         for (const BasicWatches::Item & item : m_isBasicVariablesExpanded ? BasicWatches::GetAllItems (*snapshot.basic) : std::vector<BasicWatches::Item>())
@@ -622,15 +647,17 @@ std::wstring WatchesPane::GetWatchType (const DebuggerViewSnapshot::WatchLine & 
 //
 //  WatchesPane::IsInRom
 //
-//  Whether the PC is in the ROM, where Applesoft runs a statement and the
-//  Monitor routines it calls are; a PC moved to machine code in RAM is
-//  outside the program's statement.
+//  Whether the PC is in ROM or a slot's firmware, where Applesoft runs a
+//  statement and the Monitor and firmware routines it calls are; a PC moved
+//  to machine code in RAM is outside the program's statement.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool WatchesPane::IsInRom (Word pc)
 {
-    constexpr Word  kRomFirst = 0xD000;
+    //  From the slots' firmware up: the //c's and an enhanced //e's 80-column
+    //  firmware at $C300 and $C800 run inside a PRINT.
+    constexpr Word  kRomFirst = 0xC100;
 
 
 

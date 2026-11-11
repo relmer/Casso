@@ -627,7 +627,7 @@ std::vector<std::vector<DxuiListView::Cell>> SymbolsPane::GetCells (const Debugg
         {
             auto                table = std::ranges::find_if (symbols.tables, [&row] (const DebuggerViewSnapshot::SymbolTableRow & each) { return each.name == row.table; });
             std::string         file  = GetFileOf (symbols, row.table);
-            DxuiListView::Cell  name  = { std::format (L"{} {} ({})", open.contains (row.table) ? s_kpszTriangleDown : s_kpszTriangleRight,
+            DxuiListView::Cell  name  = { std::format (L"{} {} ({})", open.contains (row.table) ? s_kpszSmallTriangleDown : s_kpszSmallTriangleRight,
                                                        TextEncoding::NarrowToWide (file.empty() ? row.table : file), table->count) };
 
 

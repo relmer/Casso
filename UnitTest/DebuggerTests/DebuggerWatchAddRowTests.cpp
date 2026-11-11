@@ -452,6 +452,58 @@ namespace DebuggerWatchAddRowTests
             Assert::AreEqual (std::wstring (L"$0300: A9 41 8D 00"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[3].text);
             Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].check != DxuiListView::Cell::Check::None, L"nor on the pointer");
         }
+
+        //  Stopped in a BASIC statement, its variables are Auto rows at the top
+        //  of the pane, also with the PC in a slot's firmware, as during a
+        //  PRINT on a //c.
+        TEST_METHOD (TheStatementsBasicVariablesAreAutoRows)
+        {
+            for (Word pc : { (Word) 0xD7D2, (Word) 0xC305 })
+            {
+                CassoTheme                              theme    = CassoTheme::MakeSkeuomorphic();
+                QuietDebuggerHost                       host;
+                WatchWindow                             window   (theme, host);
+                DxuiDpiScaler                           scaler;
+                auto                                    snapshot = std::make_shared<DebuggerViewSnapshot>();
+                DebuggerViewSnapshot::BasicState        basic;
+                BasicLine                               line;
+                DxuiListView                          * list     = nullptr;
+                std::wstring                            at       = std::format (L"PC ${:04X}", pc);
+
+
+
+                scaler.SetDpi (96);
+                window.OnCreate();
+                window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+                line.address = 0x0801;
+                line.number  = 10;
+                line.pieces  = { "A", " = ", "A", " + ", "1" };
+                line.text    = "A = A + 1";
+
+                basic.isApplesoft = true;
+                basic.hasProgram  = true;
+                basic.hasValues   = true;
+                basic.lines       = { line };
+                basic.line        = 10;
+                basic.textPointer = (Word) (line.address + 4);
+                basic.variables   = { { "A", BasicType::Real, 0, "1.5" } };
+
+                snapshot->isPaused = true;
+                snapshot->pc       = pc;
+                snapshot->cycles   = 1000;
+                snapshot->basic    = basic;
+                window.TakeSnapshot (snapshot);
+
+                list = window.GetWatchesPane().GetLists()[0];
+
+                Assert::IsTrue   (list->GetRowCount() > 1,                                      at.c_str());
+                Assert::AreEqual (std::wstring (L"Auto"),  list->GetCellsOfRow (0)[1].text,       at.c_str());
+                Assert::AreEqual (std::wstring (L"A (BASIC)"), list->GetCellsOfRow (0)[2].text,   at.c_str());
+                Assert::AreEqual (std::wstring (L"1.5"),   list->GetCellsOfRow (0)[3].text,       at.c_str());
+                Assert::AreEqual (std::wstring (L"BASIC"), list->GetCellsOfRow (0)[4].text,       at.c_str());
+            }
+        }
     };
 
 

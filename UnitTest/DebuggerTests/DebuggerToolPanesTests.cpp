@@ -2,6 +2,7 @@
 
 #include "CaptureTests/FakeHostDialogs.h"
 #include "Core/TextEncoding.h"
+#include "Core/UnicodeSymbols.h"
 #include "Devices/Acia6551.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
@@ -202,7 +203,7 @@ namespace DebuggerToolPanesTests
             Assert::AreEqual ((size_t) 2, machine.size(), L"main's heading and its symbol");
             Assert::AreEqual (std::string ("main"), machine[0].table);
             Assert::IsTrue   (user[0].isHeading);
-            Assert::AreEqual (std::format (L"{} user (2)", s_kpszTriangleDown), cells[0][0].text);
+            Assert::AreEqual (std::format (L"{} user (2)", s_kpszSmallTriangleDown), cells[0][0].text);
             Assert::IsTrue   (cells[0][0].check == DxuiListView::Cell::Check::Off, L"user is off");
             Assert::AreEqual (std::wstring (L"$0300"), cells[1][1].text);
             Assert::AreEqual (std::wstring (L"0028 (constant)"), cells[2][1].text, L"a constant is not an address");
@@ -262,7 +263,7 @@ namespace DebuggerToolPanesTests
             cells = SymbolsPane::GetCells (*symbols, rows, {});
 
             Assert::AreEqual ((size_t) 1, rows.size(), L"only the heading");
-            Assert::AreEqual (std::format (L"{} demo.dbg (2)", s_kpszTriangleRight), cells[0][0].text);
+            Assert::AreEqual (std::format (L"{} demo.dbg (2)", s_kpszSmallTriangleRight), cells[0][0].text);
         }
 
 
