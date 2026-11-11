@@ -90,7 +90,11 @@ public:
             return;
         }
 
-        if (imported.bytes != original)
+        //  A Pascal textfile's first two blocks are the Editor's environment,
+        //  its margins and dates, which the text doesn't contain, and its pages
+        //  are packed as the Editor packed them; the conversion must come back
+        //  the same, but the bytes can't.
+        if (format != FileFormat::PascalText && imported.bytes != original)
         {
             outFailures += std::format ("{}: the imported file is not the file on the disk\n", path);
             return;
@@ -213,6 +217,10 @@ public:
             "Disks/Merlin-proProdos2.33-b.dsk",
             "CassoExplorer/dos33.dsk",
             "CassoExplorer/prodos.po",
+            "CiderPress/pascal/Apple Pascal1.po",
+            "CiderPress/pascal/Apple Pascal 1.3.po.gz",
+            "CiderPress/gutenberg/gjr-data.do",
+            "Asimov/productivity/spreadsheet/Visicalc Home and Office Companion disk 1.dsk",
         };
 
         FixtureProvider       fixtures;

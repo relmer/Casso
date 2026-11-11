@@ -1682,7 +1682,7 @@ Session 2026-11-08. Plan's Phase 32, research R35, contract `contracts/file-type
 **Foundation**
 
 - [X] T477 [US18] Fill each *notes* cell of `specs/033-casso-explorer/contracts/file-types.md` from CiderPress II's format notes and the File Type Notes they cite: S-C Assembler's and LISA's types on both file systems, Magic Window's, the Print Shop graphic's and font's, and the Apple II hi-res font's note
-- [ ] T478 [US18] Collect a fixture of each contract row in `ScenarioTests/Fixtures/FileTypes/`, saved by its program run in Casso where the owner has the program, or taken from a disk image the owner has, and list the rows with no fixture for the owner
+- [X] T478 [US18] Collect a fixture of each contract row in `ScenarioTests/Fixtures/FileTypes/`, saved by its program run in Casso where the owner has the program, or taken from a disk image the owner has, and list the rows with no fixture for the owner
 - [X] T479 [US18] Add `FileFormat` and `FileFormatTable::Identify` in `CassoEmuCore/FileTypes/FileFormatTable.h/.cpp`, matching the contract's rows by volume kind, ProDOS type and aux type, DOS 3.3 type, name prefix or suffix, and size, then the row's `Check` (FR-157). Tests in `UnitTest/FileTypes/FileFormatTableTests.cpp`, one per row and one per near miss
 - [X] T480 [P] [US18] Add `DecodedFile`, `Paragraph`, `Run` and `Grid` in `CassoEmuCore/FileTypes/DecodedFile.h` and `DecodeOptions` in `CassoEmuCore/FileTypes/DecodeOptions.h`, as `data-model.md` defines them: "a `DecodedFile` is never partial, except for the lines its `notes` list", and `charset` defaults to "MacOsRoman for a IIgs format and AppleText otherwise"
 - [X] T481 [P] [US18] Add `RtfWriter` in `CassoEmuCore/FileTypes/RtfWriter.h/.cpp`, writing RTF 1.5 with only `\b`, `\i`, `\ul`, `\ql`, `\qc`, `\qr`, `\qj`, `\tab` and `\par`, and non-ASCII characters as `\u` escapes. Tests in `UnitTest/FileTypes/RtfWriterTests.cpp`
@@ -1812,7 +1812,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [X] T562 [US22] Add `VisiCalcEvaluator` in `CassoEmuCore/FileTypes/VisiCalcEvaluator.h/.cpp`: parse each formula into a tree; evaluate in the file's order, rows or columns, one pass per recalculation; every function and operator in the VisiCalc User's Guide's reference section; ERROR and NA as VisiCalc has them (FR-190). Tests include a circular reference and each function
 - [X] T563 [US22] Format values as VisiCalc formats them, general, integer, dollars and cents, left, right and graph, at the column width, in `VisiCalcSheet`
 - [X] T564 [US22] Draw computed values in the preview and write them on a copy out, with a preview choice that writes formulas instead (FR-190)
-- [ ] T565 [US22] Scenario test in `ScenarioTests/VisiCalcTests.cpp`: each sample sheet's cells match the values VisiCalc draws after a recalculation, run in Casso (SC-053)
+- [X] T565 [US22] Scenario test in `ScenarioTests/VisiCalcTests.cpp`: each sample sheet's cells match the values VisiCalc draws after a recalculation, run in Casso (SC-053)
 
 ## Phase 40: Block devices on a real Apple (User Story 23)
 

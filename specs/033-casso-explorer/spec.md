@@ -3181,6 +3181,8 @@ back, and edit a byte and see it written.
   2IMG, `.2mg` and `.2img`, and in Disk Copy 4.2, `.dc`, `.dc42` and
   `.image`. Every operation available on a 140K ProDOS image MUST be
   available on them, the raw block dialogs included.
+  Apple Pascal volumes of 800K, as Apple Pascal 1.3 writes them, MUST be
+  read and written in the same containers.
 - **FR-176**: A 2IMG image MUST be read by its header: DOS order, ProDOS
   order or nibbles, at any size the format allows. Its comment, creator,
   flags and creator data MUST be listed in Properties and written back on

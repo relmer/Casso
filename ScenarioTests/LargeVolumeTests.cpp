@@ -270,6 +270,11 @@ public:
         CompareWithExtraction ("diskcopy/Installer Disk 1.image", VolumeKind::Hfs);
     }
 
+    TEST_METHOD (Pascal800K_EachFileMatchesCiderPress)
+    {
+        CompareWithExtraction ("pascal/Apple Pascal 1.3.po.gz", VolumeKind::Pascal);
+    }
+
     TEST_METHOD (GsOsHfs800K_EachForkMatchesCiderPress)
     {
         CompareWithExtraction ("hfs/simple-gsos.po", VolumeKind::Hfs);
