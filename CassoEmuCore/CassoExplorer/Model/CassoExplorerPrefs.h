@@ -54,6 +54,11 @@ struct CassoExplorerPrefs
     //  The preview pane opens for a selected file of a type Casso Explorer can
     //  preview, and closes for any other, until the pane is turned on manually.
     bool                   autoPreview     = true;
+
+    //  Enter on a file in the list expands its preview over the tab, as an
+    //  Open in viewer setting would.
+    bool                   enterExpandsPreview = false;
+
     std::string            hostNaming      = kNamingDescriptive;
 
     //  Where a Full Send started on an Apple writes: the folder, empty for the

@@ -56,14 +56,16 @@ static constexpr FullSendFormat  s_kFullSendFormats[] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & registration)
+void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration)
 {
-    m_previewNote = &previewNote;
-    m_autoPreview = &autoPreview;
-    m_register    = &registration;
+    m_previewNote  = &previewNote;
+    m_autoPreview  = &autoPreview;
+    m_enterExpands = &enterExpands;
+    m_register     = &registration;
 
     Adopt (previewNote);
     Adopt (autoPreview);
+    Adopt (enterExpands);
     Adopt (registration);
 }
 
@@ -82,7 +84,9 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     int  previewEnd   = boundsDip.top + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
     int  noteTop      = previewEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip);
     int  noteBottom   = noteTop + scaler.ToPx (kNoteHeightDip);
-    int  registerTop  = noteBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
+    int  enterTop     = noteBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
+    int  enterEnd     = enterTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  registerTop  = enterEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
     int  registerEnd  = registerTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
 
 
@@ -91,6 +95,7 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
 
     m_autoPreview->Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, previewEnd }, scaler);
     m_previewNote->Layout (RECT { boundsDip.left + scaler.ToPx (kNoteIndentDip), noteTop, boundsDip.right, noteBottom }, scaler);
+    m_enterExpands->Layout (RECT { boundsDip.left, enterTop, boundsDip.right, enterEnd }, scaler);
     m_register->Layout    (RECT { boundsDip.left, registerTop, boundsDip.right, registerEnd }, scaler);
 
     SetContentHeightPx (registerEnd - boundsDip.top);
@@ -108,7 +113,7 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
 
 bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_autoPreview->OnMouse (ev) || m_register->OnMouse (ev);
+    return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev);
 }
 
 
@@ -496,8 +501,11 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_autoPreview.SetLabel   (L"Automatically preview known file types");
     m_autoPreview.SetChecked (m_choices.autoPreview);
 
+    m_enterExpands.SetLabel   (L"Enter on a file expands its preview to fill the tab");
+    m_enterExpands.SetChecked (m_choices.enterExpands);
+
     m_general = CreatePage<CassoExplorerGeneralPage> (L"General");
-    m_general->Init (m_previewNote, m_autoPreview, m_register);
+    m_general->Init (m_previewNote, m_autoPreview, m_enterExpands, m_register);
 
     m_hostNames = CreatePage<CassoExplorerHostNamesPage> (L"Host file names");
     m_hostNames->Init (m_namingNote, m_naming);
@@ -837,7 +845,8 @@ void CassoExplorerOptionsDialog::PreviewChoices()
 HRESULT CassoExplorerOptionsDialog::OnOk()
 {
     m_choices.registered  = m_register.IsChecked();
-    m_choices.autoPreview = m_autoPreview.IsChecked();
+    m_choices.autoPreview  = m_autoPreview.IsChecked();
+    m_choices.enterExpands = m_enterExpands.IsChecked();
     m_choices.fullSendExtension = s_kFullSendFormats[(size_t) m_fullSendFormat.GetSelected()].extension;
     m_choices.verifyReads       = m_verifyRows[0].toggle.IsChecked();
     m_choices.verifyWrites      = m_verifyRows[1].toggle.IsChecked();

@@ -668,6 +668,13 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
         }
     }
 
+    //  Enter on a file expands its preview, when Options sets it to.
+    if (m_focus == ExplorerPane::List && m_context.preview.HandleEnterKey (ev))
+    {
+        m_context.window.Invalidate();
+        return true;
+    }
+
     //  An expanded preview's Esc, Left and Right.
     if (m_context.preview.HandleExpandedKey (ev, m_focus))
     {

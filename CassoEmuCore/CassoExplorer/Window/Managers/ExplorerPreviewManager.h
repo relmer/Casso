@@ -92,6 +92,7 @@ public:
     void  Step                   (bool forward);
     void  HandleSelectionChanged ();
     bool  HandleExpandedKey      (const DxuiKeyEvent & ev, ExplorerPane focus);
+    bool  HandleEnterKey         (const DxuiKeyEvent & ev);
 
     void  HandleAutoPreviewTimer ();
     void  SaveTabState           ();

@@ -668,14 +668,14 @@ int CassoExplorerCommands::GetPreviewBar (int id)
 //
 //  Save as PNG is on both picture bars, Search on the variables' bar as
 //  well as the hex view's, and the character sets on a random-access text
-//  file's bar as well as the text bar. Expand, View as, previous and next
-//  are on every bar.
+//  file's bar as well as the text bar. Expand, View as, Copy, Save as,
+//  previous and next are on every bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CassoExplorerCommands::IsOnPreviewBar (int id, int bar)
 {
-    if (id == kExpandPreview || id == kPreviousFile || id == kNextFile || id == kViewAs)
+    if (id == kExpandPreview || id == kPreviousFile || id == kNextFile || id == kViewAs || id == kCopyPreview || id == kSavePreviewAs)
     {
         return true;
     }

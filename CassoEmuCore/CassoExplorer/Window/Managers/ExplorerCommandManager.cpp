@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewOutput.h"
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "AssetBootstrap.h"
 #include "CassoExplorer/CassoExplorerRawDialog.h"
@@ -429,6 +430,8 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kSavePicture:       return m_context.browser.GetPreview().kind == PreviewContent::Kind::Picture && !m_context.browser.GetPreview().bgra.empty();
         case CassoExplorerCommands::kExpandPreview:     return m_context.preview.IsShown();
         case CassoExplorerCommands::kViewAs:            return !m_context.browser.GetPreview().viewChoices.empty();
+        case CassoExplorerCommands::kCopyPreview:       return ExplorerPreviewOutput::CanCopy (m_context);
+        case CassoExplorerCommands::kSavePreviewAs:     return ExplorerPreviewOutput::CanSaveAs (m_context);
         case CassoExplorerCommands::kPreviousFile:      return m_context.preview.CanStep (false);
         case CassoExplorerCommands::kNextFile:          return m_context.preview.CanStep (true);
         case CassoExplorerCommands::kEditWozMetadata:   return !m_context.browser.GetPreview().wozPath.empty();
@@ -773,6 +776,8 @@ void ExplorerCommandManager::Dispatch (int id)
             break;
 
         case CassoExplorerCommands::kExpandPreview:      m_context.preview.SetExpanded (!m_context.preview.IsExpanded()); break;
+        case CassoExplorerCommands::kCopyPreview:        ExplorerPreviewOutput::Copy (m_context);                           break;
+        case CassoExplorerCommands::kSavePreviewAs:      ExplorerPreviewOutput::SaveAs (m_context);                         break;
         case CassoExplorerCommands::kPreviousFile:
         case CassoExplorerCommands::kNextFile:           m_context.preview.Step (id == CassoExplorerCommands::kNextFile);  break;
         case CassoExplorerCommands::kViewAsDefault:
@@ -1022,6 +1027,7 @@ void ExplorerCommandManager::ShowOptions()
     choices.registered   = wasRegistered;
     choices.packaged     = packaged;
     choices.autoPreview  = m_context.prefs.autoPreview;
+    choices.enterExpands = m_context.prefs.enterExpandsPreview;
     choices.fullSendFolder    = m_context.prefs.fullSendFolder.empty() ? CassoLinkManager::GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
     choices.fullSendExtension = m_context.prefs.fullSendExtension;
     choices.verifyReads       = m_context.prefs.verifyReads;
@@ -1065,7 +1071,8 @@ void ExplorerCommandManager::ShowOptions()
         m_context.prefs.hostNaming = kNamings[choices.hostNaming];
     }
 
-    m_context.prefs.autoPreview       = choices.autoPreview;
+    m_context.prefs.autoPreview         = choices.autoPreview;
+    m_context.prefs.enterExpandsPreview = choices.enterExpands;
     m_context.prefs.fullSendFolder    = choices.fullSendFolder == CassoLinkManager::GetDefaultFullSendFolder() ? std::wstring() : choices.fullSendFolder;
     m_context.prefs.fullSendExtension = choices.fullSendExtension;
     m_context.prefs.verifyReads       = choices.verifyReads;

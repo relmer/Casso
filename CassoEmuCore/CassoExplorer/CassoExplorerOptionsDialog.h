@@ -28,7 +28,7 @@ class CassoExplorerGeneralPage : public DxuiPropertyPage
 public:
     explicit CassoExplorerGeneralPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & registration);
+    void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
@@ -36,9 +36,10 @@ public:
     static constexpr int  kNoteIndentDip = 22;   // under the checkbox's label
 
 private:
-    DxuiLabel     * m_previewNote = nullptr;
-    DxuiCheckbox  * m_autoPreview = nullptr;
-    DxuiCheckbox  * m_register    = nullptr;
+    DxuiLabel     * m_previewNote  = nullptr;
+    DxuiCheckbox  * m_autoPreview  = nullptr;
+    DxuiCheckbox  * m_enterExpands = nullptr;
+    DxuiCheckbox  * m_register     = nullptr;
 };
 
 
@@ -197,8 +198,10 @@ public:
         bool  registered = false;
         bool  packaged   = false;
 
-        //  Whether the preview pane opens and closes for the selected file.
-        bool  autoPreview = true;
+        //  Whether the preview pane opens and closes for the selected file, and
+        //  whether Enter on a file expands its preview.
+        bool  autoPreview  = true;
+        bool  enterExpands = false;
 
         //  A Full Send's folder and its extension, each empty for the default.
         std::wstring  fullSendFolder;
@@ -270,6 +273,7 @@ private:
     DxuiLabel                                      m_namingNote;
     DxuiLabel                                      m_previewNote;
     DxuiCheckbox                                   m_autoPreview;
+    DxuiCheckbox                                   m_enterExpands;
     DxuiCheckbox                                   m_register;
     DxuiLabel                                      m_fullSendNote;
     DxuiLabel                                      m_fullSendFolderLabel;

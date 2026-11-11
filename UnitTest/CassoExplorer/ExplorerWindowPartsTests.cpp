@@ -59,6 +59,7 @@ public:
         RecordingShellVerbs                    * verbs   = nullptr;
         RecordingInfoTips                      * tips    = nullptr;
         BlankShellIcons                        * icons   = nullptr;
+        FakeHostDialogs                        * dialogs = nullptr;
         std::unique_ptr<ExplorerWindowParts>     parts;
 
         Rig()
@@ -85,9 +86,10 @@ public:
             services.infoTips   = std::make_unique<RecordingInfoTips>();
             services.shellVerbs = std::make_unique<RecordingShellVerbs>();
 
-            icons = static_cast<BlankShellIcons *>     (services.shellIcons.get());
-            tips  = static_cast<RecordingInfoTips *>   (services.infoTips.get());
-            verbs = static_cast<RecordingShellVerbs *> (services.shellVerbs.get());
+            icons   = static_cast<BlankShellIcons *>     (services.shellIcons.get());
+            tips    = static_cast<RecordingInfoTips *>   (services.infoTips.get());
+            verbs   = static_cast<RecordingShellVerbs *> (services.shellVerbs.get());
+            dialogs = static_cast<FakeHostDialogs *>     (services.dialogs.get());
 
             parts = std::make_unique<ExplorerWindowParts> (window, browser, actions, prefs, app, scaler, theme, std::move (services));
         }
@@ -926,6 +928,131 @@ public:
         rig.parts->listPane.SetListSelection ({ files[0] == rig.browser.GetSelectedRows()[0] ? files[1] : files[0] });
 
         Assert::IsTrue (rig.browser.GetPreview().viewAs == ViewChoice::Default, L"Another file opens in its default view");
+    }
+
+
+    //  Save as offers the picture first, and writes the type of the name
+    //  picked: the picture as a PNG, or the file's original bytes.
+    TEST_METHOD (SaveAs_WritesTheTypeOfTheNamePicked)
+    {
+        Rig          rig;
+        std::string  png;
+        std::string  raw;
+        HRESULT      read = S_OK;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.Open();
+
+        rig.prefs.previewVisible = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        rig.parts->listPane.FillList();
+
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"PICTURE"));
+        rig.parts->preview.FillPreview();
+
+        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Picture);
+        Assert::IsTrue (rig.parts->commandManager.IsEnabled (CassoExplorerCommands::kSavePreviewAs));
+
+        rig.dialogs->path = L"C:\\Out\\picture.png";
+        rig.parts->commandManager.Dispatch (CassoExplorerCommands::kSavePreviewAs);
+
+        Assert::AreEqual (std::wstring (L"png"), rig.dialogs->lastSpec.defaultExtension, L"The picture is the first type");
+        AssertSucceeded (rig.fs.ReadAllText (L"C:\\Out\\picture.png", png));
+        Assert::IsTrue (png.starts_with ("\x89PNG"));
+
+        rig.dialogs->path = L"C:\\Out\\picture.bin";
+        rig.parts->commandManager.Dispatch (CassoExplorerCommands::kSavePreviewAs);
+
+        Assert::IsTrue (rig.window.messages.empty());
+
+        //  Get's host name for the file is PICTURE.bin, so the .bin type is
+        //  Get's copy, which is written through the disk I/O.
+        read = rig.fs.ReadAllText (L"C:\\Out\\picture.bin", raw);
+
+        if (FAILED (read))
+        {
+            raw.assign (rig.io.files["C:\\Out\\picture.bin"].begin(), rig.io.files["C:\\Out\\picture.bin"].end());
+        }
+
+        Assert::AreEqual ((size_t) 8192, raw.size());
+    }
+
+
+    //  With Options' setting on, Enter on a file in the list expands its
+    //  preview, turning the pane on.
+    TEST_METHOD (Enter_ExpandsTheFilesPreviewWhenOptionsSetsIt)
+    {
+        Rig  rig;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.Open();
+
+        rig.prefs.previewVisible      = false;
+        rig.prefs.enterExpandsPreview = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        rig.parts->listPane.FillList();
+
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"HELLO"));
+        rig.parts->input.SetFocusPane (ExplorerPane::List);
+
+        PressKey (rig, VK_RETURN);
+
+        Assert::IsTrue (rig.prefs.previewVisible);
+        Assert::IsTrue (rig.parts->preview.IsExpanded());
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::Preview);
+    }
+
+
+    //  SC-063: each step of the expanded preview, through a disk's files and a
+    //  64 KB binary, fills the preview within half a second.
+    TEST_METHOD (ExpandedPreview_StepsWithinHalfASecond)
+    {
+        static constexpr size_t  kBigBytes = 65536;
+        static constexpr double  kLimitMs  = 500.0;
+
+        Rig                rig;
+        std::vector<Byte>  big (kBigBytes, 0x5A);
+        double             slowest = 0.0;
+        int                steps   = 0;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Drop\\BIG#064000", std::string (big.begin(), big.end())));
+        rig.io.files["C:\\Drop\\BIG#064000"]  = big;
+        rig.io.stamps["C:\\Drop\\BIG#064000"] = FileStamp { big.size(), 100 };
+        rig.Open();
+
+        Assert::IsTrue (rig.browser.GetOperations().Put ("C:\\Disks\\prodos.po", "C:\\Drop\\BIG#064000", std::string(), std::string(), false, 0,
+                                                         DiskOperations::Encoding::Verbatim).Succeeded());
+
+        rig.prefs.previewVisible = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        rig.parts->listPane.FillList();
+
+        rig.parts->listPane.SetListSelection ({ GetFileRows (rig)[0] });
+        rig.parts->preview.SetExpanded (true);
+
+        while (rig.parts->preview.CanStep (true))
+        {
+            auto    start = std::chrono::steady_clock::now();
+            double  ms    = 0.0;
+
+            rig.parts->preview.Step (true);
+            rig.parts->layout.RecomputeLayout();
+
+            ms      = std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now() - start).count();
+            slowest = std::max (slowest, ms);
+            steps++;
+        }
+
+        Logger::WriteMessage (std::format ("{} steps, the slowest {:.1f} ms\n", steps, slowest).c_str());
+        Assert::IsTrue (steps >= 6);
+        Assert::IsTrue (slowest < kLimitMs, std::format (L"A step took {:.1f} ms", slowest).c_str());
     }
 
 

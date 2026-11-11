@@ -787,3 +787,14 @@ T565 is open: no VisiCalc disk or saved sheet is in the tree, so no cell was com
 - The general format drops the zero ahead of the decimal point and uses up to 11 significant digits.
 - A value has one column fewer than the column width, and a value too long for it is drawn as `>` characters.
 - A label is cut at the column width in the values listing.
+
+## 15. The expanded preview, 2026-11-11 (T633 to T636, T677)
+
+`ExplorerWindowPartsTests` drives the expanded preview through `ExplorerInput` and the commands: Alt+Shift+P, Right and Esc; previous and next over a selection of files; View as on a BASIC program; Save as to a PNG and to the file's bytes; and Enter with Options' setting on. `PreviewStepsTests`, `PreviewViewChoicesTests` and `PreviewSaveChoicesTests` cover the rules underneath.
+
+SC-063: `ExpandedPreview_StepsWithinHalfASecond` steps through every file of `CassoExplorer/prodos.po` with a 64 KB binary added. The slowest of 6 steps took 85.5 ms on x64 Debug, against the half second.
+
+Checked on screen in a separate window on the fixtures: the preview expands over the tab below the tab strip, steps to the next file, and collapses with the list, the status bar and the selection as they were. View as lists "BASIC listing (default)", Text, Hex and Disassembly for HELLO, and Hex displays its bytes. View as, Copy, Save as and Expand stay on the toolbar in a narrow pane. Options has the Enter setting.
+
+A host text file can take about a second to appear after a step, docked or expanded: Casso Explorer starts the Windows preview handler for .txt first, and displays the file's bytes when the handler takes too long. Files in disk images don't take that path.
+

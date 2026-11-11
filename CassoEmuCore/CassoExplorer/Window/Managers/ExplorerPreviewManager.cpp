@@ -7,6 +7,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Model/PreviewSteps.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewOutput.h"
 #include "CassoExplorer/Model/PreviewText.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
@@ -748,6 +749,13 @@ bool ExplorerPreviewManager::HandleShortcutKey (const DxuiKeyEvent & ev)
         return true;
     }
 
+    //  Any other preview copies the whole view.
+    if (ev.ctrl && !ev.shift && ev.vk == 'C' && ExplorerPreviewOutput::CanCopy (m_context))
+    {
+        ExplorerPreviewOutput::Copy (m_context);
+        return true;
+    }
+
     return false;
 }
 
@@ -1293,6 +1301,54 @@ void ExplorerPreviewManager::HandleSelectionChanged()
     {
         m_stepSet.clear();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::HandleEnterKey
+//
+//  Enter on a file, not a folder, disk image or archive, which open as they
+//  always do, expands its preview when Options sets Enter to, turning the
+//  pane on first if it's off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::HandleEnterKey (const DxuiKeyEvent & ev)
+{
+    const std::vector<int> &  selected = m_context.browser.GetSelectedRows();
+    bool                      plain    = ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_RETURN && !ev.ctrl && !ev.alt && !ev.shift;
+    bool                      isFile   = selected.size() == 1 && selected[0] >= 0 && (size_t) selected[0] < m_context.browser.GetRows().size();
+
+
+
+    if (!plain || !m_context.prefs.enterExpandsPreview || !isFile)
+    {
+        return false;
+    }
+
+    {
+        const CatalogRow &  row = m_context.browser.GetRows()[(size_t) selected[0]];
+
+        if (row.isDirectory || row.isDiskImage || row.isArchive)
+        {
+            return false;
+        }
+    }
+
+    if (!m_context.prefs.previewVisible)
+    {
+        m_context.prefs.previewVisible = true;
+        SetPinned (true);
+        FillPreview();
+    }
+
+    SetExpanded (true);
+
+    return IsExpanded();
 }
 
 

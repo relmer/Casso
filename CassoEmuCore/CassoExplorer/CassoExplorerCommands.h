@@ -186,6 +186,10 @@ public:
         kViewAsLoRes,
         kViewAsResourceFork,
 
+        //  The preview's Copy and Save as.
+        kCopyPreview,
+        kSavePreviewAs,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -458,6 +462,8 @@ private:
         { kViewAsDoubleHiRes, Menu::Count, L"D&ouble hi-res picture", nullptr,  true  },
         { kViewAsLoRes,       Menu::Count, L"&Lo-res picture",     nullptr,     true  },
         { kViewAsResourceFork, Menu::Count, L"&Resource fork",     nullptr,     true  },
+        { kCopyPreview,       Menu::Count, L"&Copy",               nullptr,     false },
+        { kSavePreviewAs,     Menu::Count, L"&Save as...",         nullptr,     false },
 
         //  The hex view's own choices are on its context menu, and nowhere
         //  else at the top of the window.
@@ -571,7 +577,6 @@ private:
         { kFind,              DxuiToolbar::Kind::Command, 1, nullptr,             L"Search",        L"",                                                       false, true },
         { kPictureMonochrome, DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Contrast,  L"Monochrome",    L"Draw the picture as its bits, on a monochrome monitor" },
         { kPictureColor,      DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Palette,   L"Color",         L"Draw the picture in color, on the color monitor"      },
-        { kSavePicture,       DxuiToolbar::Kind::Command, 1, s_kpszMdl2SaveAs,    L"Save as PNG",   L"Save the picture as a PNG file"                      },
         { kEditWozMetadata,   DxuiToolbar::Kind::Command, 0, s_kpszMdl2Edit,      L"Edit metadata", L"Edit the image's title, publisher and other metadata" },
         { kCharsetAppleText,  DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Apple text",    L"Read the text as Apple II text"                        },
         { kCharsetMacOsRoman, DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Mac OS Roman",  L"Read the text as Mac OS Roman, the Apple IIgs set"     },
@@ -579,6 +584,8 @@ private:
         { kRecordLength,      DxuiToolbar::Kind::Command, 1, nullptr,             L"Record length", L"Set the length the file is split into records by"      },
         { kSheetValues,       DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Values",        L"List each cell's value, as VisiCalc draws it"          },
         { kSheetFormulas,     DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Formulas",      L"List each cell's formula, as it was typed"             },
+        { kCopyPreview,       DxuiToolbar::Kind::Command, 9, s_kpszMdl2Copy,      L"Copy",          L"Copy the preview",                                     true, true },
+        { kSavePreviewAs,     DxuiToolbar::Kind::Command, 9, s_kpszMdl2SaveAs,    L"Save as",       L"Save the file as a picture, text or its original bytes", true, true },
         { kExpandPreview,     DxuiToolbar::Kind::Toggle,  9, s_kpszMdl2FullScreen, L"Expand",       L"Expand the preview to fill the tab (Alt+Shift+P)",     true, true },
     };
 
