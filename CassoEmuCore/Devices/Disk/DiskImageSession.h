@@ -82,7 +82,8 @@ public:
     }
 
     //  The filesystem of an image with no recognized filesystem.
-    void  SetChosenKind (VolumeKind kind) { m_chosenKind = kind; }
+    void        SetChosenKind (VolumeKind kind) { m_chosenKind = kind; }
+    VolumeKind  GetChosenKind () const          { return m_chosenKind; }
 
     //  Loads the image, identifies its filesystem and records its stamp, or
     //  explains why not.

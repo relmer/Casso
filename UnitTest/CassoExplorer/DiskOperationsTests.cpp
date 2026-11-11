@@ -161,6 +161,12 @@ public:
 
         Assert::IsTrue   (back.bytes == payload.bytes);
         Assert::AreEqual (0, io.wholeReads);
+
+        DiskOperations::Result  got = ops.Get ("C:\\big.po", "PROG", DiskOperations::Encoding::Verbatim, "", 0);
+
+        AssertSucceeded (got.hr);
+        Assert::IsTrue   (got.payload == payload.bytes);
+        Assert::AreEqual (0, io.wholeReads);
     }
 
 

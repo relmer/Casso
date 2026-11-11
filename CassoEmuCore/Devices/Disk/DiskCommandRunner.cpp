@@ -37,6 +37,7 @@
 #include "IntegerBasicDetokenizer.h"
 #include "IntegerBasicTokenizer.h"
 #include "Utils.h"
+#include "Devices/Disk/BlockVolumeOpener.h"
 
 
 
@@ -627,7 +628,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
         //  The rows come from the directory the caller named, and the volume's
         //  name and free space above and below them describe the whole volume
         //  either way.
-        hr = ResolveVolumePath (options, opened, options.disk.path, directory, result);
+        hr = ResolveVolumePath (options, opened.kind, opened.sectors, options.disk.path, directory, result);
         CHR (hr);
 
         hr = AppendDirectoryRows (*volume, opened.kind, directory, options.disk.recurse, result);
@@ -892,7 +893,7 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
             result.FailAction (options.disk.imagePath, "create " + options.disk.path,
                                std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (opened.kind))));
 
-    hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
+    hr = ResolveVolumePath (options, opened.kind, opened.sectors, options.disk.path, typed, result);
     CHR (hr);
 
     path   = FilePath::Parse (typed);
@@ -989,7 +990,7 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
             result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
                                std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (opened.kind))));
 
-    hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
+    hr = ResolveVolumePath (options, opened.kind, opened.sectors, options.disk.path, typed, result);
     CHR (hr);
 
     path = FilePath::Parse (typed);
@@ -1280,23 +1281,40 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
 {
     HRESULT                        hr        = S_OK;
     bool                           named     = !options.disk.path.empty();
+    VolumeKind                     kind      = VolumeKind::Unknown;
     DiskImageSession::OpenedImage  opened;
     FilePayload                    payload;
     FilePath                       path;
     std::string                    name;
     char                           note[128] = {};
+    std::unique_ptr<IBlockStore>   store;
+    std::unique_ptr<ProDosVolume>  blockVolume;
 
 
 
     CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<name>", result));
 
-    hr = m_session.OpenImage (options.disk.imagePath, opened, result);
-    CHR (hr);
-
-    hr = ResolveEntryPath (options, opened, path, name, result);
-    CHR (hr);
-
+    //  A large ProDOS volume is read by the block, so a file is copied out
+    //  without reading the volume whole. --index applies to DOS 3.3 only.
+    if (!options.disk.hasIndex && BlockVolumeOpener::TryOpen (m_fileIo, options.disk.imagePath, m_session.GetChosenKind(), store, blockVolume))
     {
+        kind = VolumeKind::ProDos;
+
+        hr = ResolveEntryPath (options, kind, BlockImage (*store), path, name, result);
+        CHR (hr);
+
+        hr = blockVolume->Read (path, payload);
+    }
+    else
+    {
+        hr = m_session.OpenImage (options.disk.imagePath, opened, result);
+        CHR (hr);
+
+        kind = opened.kind;
+
+        hr = ResolveEntryPath (options, kind, opened.sectors, path, name, result);
+        CHR (hr);
+
         std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
 
         hr = volume->Read (path, payload);
@@ -1305,12 +1323,12 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     result.failure = hr;
 
     CHRF (hr, result.FailAction (options.disk.imagePath, "read " + name,
-                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
+                          ApplyPrefix (DescribeVolumeRefusal (hr, kind))));
 
     hr = ApplyEncoding (options, payload, result);
     CHR (hr);
 
-    hr = ApplyHostFileConversion (options, opened.kind, name, payload, result);
+    hr = ApplyHostFileConversion (options, kind, name, payload, result);
     CHR (hr);
 
     result.resourceFork    = payload.resourceFork;
@@ -2341,7 +2359,7 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
     hr = m_session.OpenImage (options.disk.imagePath, opened, result);
     CHR (hr);
 
-    hr = ResolveEntryPath (options, opened, path, name, result);
+    hr = ResolveEntryPath (options, opened.kind, opened.sectors, path, name, result);
     CHR (hr);
 
     {
@@ -2439,14 +2457,15 @@ Error:
 
 HRESULT DiskCommandRunner::ResolveVolumePath (
     const CommandLineOptions             & options,
-    const DiskImageSession::OpenedImage  & opened,
+    VolumeKind                             kind,
+    const BlockImage                     & sectors,
     const std::string                    & typed,
     std::string                          & outPath,
     DiskCommandResult                    & result)
 {
     HRESULT        hr        = S_OK;
     FilePath       path      = FilePath::Parse (typed);
-    bool           plain     = !path.IsRooted() || opened.kind != VolumeKind::ProDos;
+    bool           plain     = !path.IsRooted() || kind != VolumeKind::ProDos;
     bool           mine      = false;
     size_t         i         = 0;
     VolumeListing  listing;
@@ -2460,7 +2479,7 @@ HRESULT DiskCommandRunner::ResolveVolumePath (
     BAIL_OUT_IF (plain, S_OK);
 
     {
-        ProDosVolume  volume (opened.sectors);
+        ProDosVolume  volume (sectors);
 
         hr = volume.Enumerate (listing);
     }
@@ -2539,7 +2558,8 @@ Error:
 
 HRESULT DiskCommandRunner::ResolveEntryPath (
     const CommandLineOptions             & options,
-    const DiskImageSession::OpenedImage  & opened,
+    VolumeKind                             kind,
+    const BlockImage                     & sectors,
     FilePath                             & outPath,
     std::string                          & outName,
     DiskCommandResult                    & result)
@@ -2548,7 +2568,7 @@ HRESULT DiskCommandRunner::ResolveEntryPath (
     std::string    notAllowed = "--index is only allowed when identifying a specific file with a non-unique name";
     size_t         position  = options.disk.index - 1;
     size_t         sharing   = 0;
-    bool           isDos     = opened.kind == VolumeKind::Dos33;
+    bool           isDos     = kind == VolumeKind::Dos33;
     bool           inRange   = false;
     bool           matches   = true;
     bool           shared    = false;
@@ -2558,10 +2578,10 @@ HRESULT DiskCommandRunner::ResolveEntryPath (
 
 
 
-    hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
+    hr = ResolveVolumePath (options, kind, sectors, options.disk.path, typed, result);
     CHR (hr);
 
-    hr = ApplyUser (options, opened.kind, typed, result);
+    hr = ApplyUser (options, kind, typed, result);
     CHR (hr);
 
     outName = typed;
@@ -2575,7 +2595,8 @@ HRESULT DiskCommandRunner::ResolveEntryPath (
             result.Fail (options.disk.imagePath, "", ApplyPrefix (notAllowed.c_str())));
 
     {
-        Dos33Volume  volume (opened.sectors);
+        std::vector<Byte>  whole = sectors.ToVector();
+        Dos33Volume        volume (whole);
 
         hr = volume.Enumerate (listing);
     }
@@ -2662,7 +2683,7 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
     hr = m_session.OpenImage (options.disk.imagePath, opened, result);
     CHR (hr);
 
-    hr = ResolveEntryPath (options, opened, path, name, result);
+    hr = ResolveEntryPath (options, opened.kind, opened.sectors, path, name, result);
     CHR (hr);
 
     {

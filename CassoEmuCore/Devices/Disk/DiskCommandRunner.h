@@ -9,6 +9,7 @@
 #include "DiskCommandResult.h"
 #include "DiskHelpPage.h"
 #include "DiskImageSession.h"
+#include "Devices/Disk/BlockImage.h"
 #include "IDiskFileIo.h"
 #include "Machines/Apple2/Common/IVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
@@ -356,7 +357,8 @@ private:
     //  leading slash names the volume first, and is turned down when that name
     //  is not this image's. A DOS 3.3 name is one name, slashes included.
     HRESULT  ResolveVolumePath (const CommandLineOptions             & options,
-                                const DiskImageSession::OpenedImage  & opened,
+                                VolumeKind                             kind,
+                                const BlockImage                     & sectors,
                                 const std::string                    & typed,
                                 std::string                          & outPath,
                                 DiskCommandResult                    & result);
@@ -367,7 +369,8 @@ private:
     //  The path `get`, `delete` and `boot` act on, and the name used in their
     //  messages: the name as typed, or with --index the entry at that position.
     HRESULT  ResolveEntryPath (const CommandLineOptions             & options,
-                               const DiskImageSession::OpenedImage  & opened,
+                               VolumeKind                             kind,
+                               const BlockImage                     & sectors,
                                FilePath                             & outPath,
                                std::string                          & outName,
                                DiskCommandResult                    & result);
