@@ -28,6 +28,8 @@ AppleWin commands:
     P-                        Step back over, taking a whole subroutine call as one step
     RCC                       Reset the cycle counter that CYCLES PART reads
     RTS [count]               Step out of the current subroutine
+    SEEK -time | CYCLE n | POS n
+                              Move to a time back from live, as -5s or -250ms, or to a cycle or a position in history
     T, TL, TRACE [count]      Step into
     T-                        Step back one instruction
     TF [ON|OFF] [file] [V]    Turn tracing to a file on or off, or with ON or OFF set it; V adds the video position
@@ -363,6 +365,8 @@ Casso commands:
     /RCC                      Reset the cycle counter that CYCLES PART reads
     /RESET [SOFT|POWER]       Reset the machine as its reset key does, or power cycle it
     /RTS [count]              Step out of the current subroutine
+    /SEEK -time | CYCLE n | POS n
+                              Move to a time back from live, as -5s or -250ms, or to a cycle or a position in history
     /SKIP [CLEAR|[-]name|addr[.last]]
                               Show or change the routines stepping goes over
     /SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]
@@ -660,6 +664,8 @@ Casso commands:
                               Profile where execution goes, by routine or by address; HISTORY builds it from recorded history
     RCC                       Reset the cycle counter that CYCLES PART reads
     RESET [SOFT|POWER]        Reset the machine as its reset key does, or power cycle it
+    SEEK -time | CYCLE n | POS n
+                              Move to a time back from live, as -5s or -250ms, or to a cycle or a position in history
     SKIP [CLEAR|[-]name|addr[.last]]
                               Show or change the routines stepping goes over
     SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]
@@ -906,6 +912,8 @@ Casso commands:
                               Profile where execution goes, by routine or by address; HISTORY builds it from recorded history
     !RCC                      Reset the cycle counter that CYCLES PART reads
     !RESET [SOFT|POWER]       Reset the machine as its reset key does, or power cycle it
+    !SEEK -time | CYCLE n | POS n
+                              Move to a time back from live, as -5s or -250ms, or to a cycle or a position in history
     !SKIP [CLEAR|[-]name|addr[.last]]
                               Show or change the routines stepping goes over
     !SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]
@@ -1127,6 +1135,8 @@ Casso commands:
     RCC                       Reset the cycle counter that CYCLES PART reads
     RESET [SOFT|POWER]        Reset the machine as its reset key does, or power cycle it
     RTS [count]               Step out of the current subroutine
+    SEEK -time | CYCLE n | POS n
+                              Move to a time back from live, as -5s or -250ms, or to a cycle or a position in history
     SKIP [CLEAR|[-]name|addr[.last]]
                               Show or change the routines stepping goes over
     SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]

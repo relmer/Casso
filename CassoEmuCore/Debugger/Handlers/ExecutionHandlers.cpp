@@ -43,6 +43,7 @@ bool ExecutionHandlers::TryExecute (DebugSession & session, const DebugCommand &
     case DebugVerb::StepBackOut:
     case DebugVerb::ReverseGo:
     case DebugVerb::GoLive:            RunReverse        (session, command, reply); return true;
+    case DebugVerb::Seek:              RunReverse        (session, command, reply); return true;
     default:                                                                        return false;
     }
 }
@@ -1582,9 +1583,17 @@ void ExecutionHandlers::RunReverse (DebugSession & session, const DebugCommand &
 {
     const DebugSession::ReverseRequester  & requester = session.GetReverseRequester();
     ReverseCommand                          reverse   = GetReverseCommand (command.verb);
+    uint64_t                                argument  = 0;
     bool                                    isTaken   = false;
+    std::string                             error;
 
 
+
+    if (command.verb == DebugVerb::Seek && !TryParseSeek (command.text, reverse, argument, error))
+    {
+        reply.SetError (CommandStatus::Error, "bad seek", error);
+        return;
+    }
 
     if (session.GetRunState() != RunState::Paused)
     {
@@ -1595,7 +1604,7 @@ void ExecutionHandlers::RunReverse (DebugSession & session, const DebugCommand &
 
     if (requester != nullptr)
     {
-        isTaken = requester (reverse);
+        isTaken = requester (reverse, argument);
     }
 
     if (!isTaken)
@@ -1625,6 +1634,78 @@ ReverseCommand ExecutionHandlers::GetReverseCommand (DebugVerb verb)
     case DebugVerb::GoLive:       return ReverseCommand::GoLive;
     default:                      return ReverseCommand::StepBack;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::TryParseSeek
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExecutionHandlers::TryParseSeek (const std::string & text, ReverseCommand & command, uint64_t & argument, std::string & error)
+{
+    static constexpr const char * kUsage = "SEEK takes a time back from live, as -5s or -250ms, CYCLE n or POS n.";
+    static constexpr uint64_t     kMsPerS = 1000;
+    std::istringstream            words (text);
+    std::string                   first;
+    std::string                   number;
+    std::string                   unit;
+    uint64_t                      value   = 0;
+    size_t                        digits  = 0;
+
+
+
+    words >> first >> number;
+
+    for (char & ch : first)
+    {
+        ch = (char) toupper ((unsigned char) ch);
+    }
+
+    if (first == "CYCLE" || first == "POS")
+    {
+        digits = (size_t) std::ranges::count_if (number, [] (char ch) { return isdigit ((unsigned char) ch) != 0; });
+
+        if (number.empty() || digits != number.size())
+        {
+            error = kUsage;
+            return false;
+        }
+
+        command  = (first == "CYCLE") ? ReverseCommand::SeekCycle : ReverseCommand::Seek;
+        argument = std::stoull (number);
+        return true;
+    }
+
+    if (first.size() < 3 || first[0] != '-' || !isdigit ((unsigned char) first[1]))
+    {
+        error = kUsage;
+        return false;
+    }
+
+    digits = 1;
+
+    while (digits < first.size() && isdigit ((unsigned char) first[digits]))
+    {
+        digits++;
+    }
+
+    value = std::stoull (first.substr (1, digits - 1));
+    unit  = first.substr (digits);
+
+    if (unit != "S" && unit != "MS")
+    {
+        error = kUsage;
+        return false;
+    }
+
+    command  = ReverseCommand::SeekBack;
+    argument = (unit == "S") ? value * kMsPerS : value;
+    return true;
 }
 
 

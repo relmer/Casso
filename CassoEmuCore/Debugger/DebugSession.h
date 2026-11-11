@@ -429,7 +429,7 @@ public:
     // Reverse execution, where the host records the machine's history: the
     // requester carries a reverse command to the machine and returns whether
     // it was taken. Empty where nothing is recorded.
-    using ReverseRequester = std::function<bool (ReverseCommand)>;
+    using ReverseRequester = std::function<bool (ReverseCommand, uint64_t)>;
 
     void                       SetReverseRequester (ReverseRequester requester)    { m_reverseRequester = std::move (requester); }
     const ReverseRequester   & GetReverseRequester () const                        { return m_reverseRequester; }

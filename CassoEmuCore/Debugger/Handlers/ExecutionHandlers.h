@@ -115,6 +115,10 @@ private:
     //  The reverse command a reverse verb stands for.
     static ReverseCommand  GetReverseCommand (DebugVerb verb);
 
+    //  SEEK's text: -5s or -250ms back from live, CYCLE n, or POS n, each
+    //  number in decimal.
+    static bool            TryParseSeek      (const std::string & text, ReverseCommand & command, uint64_t & argument, std::string & error);
+
     void                RecordProfile     (DebugSession & session, Word pc);
     void                BillProfile       (DebugSession & session);
     void                BuildRoutines     (DebugSession & session, ProfileData & data) const;

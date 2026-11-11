@@ -861,6 +861,7 @@ machine can run backward through the history:
 | Step back out | `GU-` | steps back out to the `JSR` that called the current subroutine |
 | Reverse continue | `G-` | runs backward through the history to the latest breakpoint |
 | Go live | `LIVE` | returns to where the machine was running |
+| Seek | `SEEK -5s`, `SEEK CYCLE n`, `SEEK POS n` | moves to a time back from live (`s` or `ms`), a cycle or a position, as a click on the history band does |
 
 Each mode's forms are in [Debugger-Commands.md](Debugger-Commands.md), and the
 keys in [key schemes](#key-schemes): in every scheme, a reverse command's key

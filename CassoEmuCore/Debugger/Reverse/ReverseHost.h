@@ -63,6 +63,10 @@ public:
     //  How full the store's budget is and where its history begins.
     static void             FillBudget   (const KeyframeStore & store, HistoryStatus & status);
 
+    //  The cycle a number of milliseconds of emulated time before liveEnd, or
+    //  the first cycle when the time is longer than the machine has run.
+    static uint64_t         GetCycleBack (uint64_t liveEnd, uint64_t milliseconds);
+
 private:
     HRESULT  Move (ReverseCommand command, uint64_t argument, IReverseStopTest * stopTest, ReverseResult & result);
 

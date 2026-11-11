@@ -1962,7 +1962,7 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
     m_debugController->GetSession().SetTapeControl   (&m_host.GetTapeControl());
     m_debugController->GetSession().SetMachineControl (&m_host.GetMachineControl());
 
-    m_debugController->GetSession().SetReverseRequester ([this] (ReverseCommand command)
+    m_debugController->GetSession().SetReverseRequester ([this] (ReverseCommand command, uint64_t argument)
     {
         bool  isRecording = m_reverseHost != nullptr && m_reverseHost->IsRecording();
 
@@ -1970,7 +1970,7 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
 
         if (isRecording)
         {
-            PostReverseCommand (command);
+            PostReverseCommand (command, argument);
         }
 
         return isRecording;

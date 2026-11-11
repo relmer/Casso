@@ -30,7 +30,7 @@ namespace DebuggerTests
         {
             "A",
             "=", "G", "GG", "IN", "KEY", "JSR", "NOP", "OUT", "LBR", "PROFILE", "SOUNDLOG", "STOPWATCH", "VIDEOLOG", "R", "POP", "PPOP", "PUSH", "P", "RTS", "T", "TF", "TL", "U",
-            "T-", "P-", "GU-", "G-", "LIVE",
+            "T-", "P-", "GU-", "G-", "LIVE", "SEEK",
             "BM", "BMA", "BMC", "BML", "BMG", "BMSAVE",
             "BRK", "BRKOP", "BRKINT", "BRKUNINIT", "BPDISK", "BPBASIC", "BPBASICVAR", "BRKBASIC", "BPNAME", "BP", "BPA", "BPR", "BPX", "BPIO", "BPM", "BPMR", "BPMW", "BPMV", "BPC", "BPD", "BPEDIT", "BPE", "BPL", "BPSAVE", "BPCHANGE",
             "LOAD", "SAVE", "PWD", "CD",

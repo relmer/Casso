@@ -1656,7 +1656,8 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
     }
 
     if (command.verb == DebugVerb::Profile  || command.verb == DebugVerb::Stopwatch ||
-        command.verb == DebugVerb::VideoLog || command.verb == DebugVerb::SoundLog)
+        command.verb == DebugVerb::VideoLog || command.verb == DebugVerb::SoundLog  ||
+        command.verb == DebugVerb::Seek)
     {
         command.text = args.rest;
         return true;

@@ -37,6 +37,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "JSR",         H::RunningAndStepping, "JSR addr",                                       "Call a subroutine and run until it returns"                                              },
     { "KEY",         H::RunningAndStepping, "KEY byte [byte ...]",                            "Queue key codes for the machine to read"                                                 },
     { "LIVE",        H::RunningAndStepping, "LIVE",                                           "Leave the recorded history and return to where the machine was running"                  },
+    { "SEEK",        H::RunningAndStepping, "SEEK -time | CYCLE n | POS n",                   "Move to a time back from live, as -5s or -250ms, or to a cycle or a position in history"  },
     { "LBR",         H::RunningAndStepping, "LBR",                                            "Show the last branch taken"                                                              },
     { "P",           H::RunningAndStepping, "P [count]",                                      "Step over"                                                                               },
     { "P-",          H::RunningAndStepping, "P-",                                             "Step back over, taking a whole subroutine call as one step"                              },

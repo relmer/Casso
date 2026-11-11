@@ -92,6 +92,7 @@ enum class DebugVerb
     StepBackOut,
     ReverseGo,
     GoLive,
+    Seek,
     SaveState,
     LoadState,
     Project,

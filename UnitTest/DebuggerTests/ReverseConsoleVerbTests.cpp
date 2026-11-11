@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Debugger/Reverse/ReverseHost.h"
+
 #include "DebuggerTests/HandlerTestRig.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
 #include "Core/TextEncoding.h"
@@ -57,7 +59,7 @@ public:
 
 
 
-        rig.session.SetReverseRequester ([&taken] (ReverseCommand command) { taken.push_back (command); return true; });
+        rig.session.SetReverseRequester ([&taken] (ReverseCommand command, uint64_t) { taken.push_back (command); return true; });
 
         for (const Case & each : kCases)
         {
@@ -71,6 +73,58 @@ public:
     }
 
 
+    //  SEEK goes to a time back from live, a cycle or a position, as a
+    //  click on the history band does; anything else is an error.
+    TEST_METHOD (SeekGoesToATimeACycleOrAPosition)
+    {
+        struct Case
+        {
+            const char      * line;
+            ReverseCommand    expected;
+            uint64_t          argument;
+        };
+
+        static constexpr Case  kCases[] =
+        {
+            { "SEEK -5s",          ReverseCommand::SeekBack,  5000   },
+            { "seek -250ms",       ReverseCommand::SeekBack,  250    },
+            { "SEEK CYCLE 646218", ReverseCommand::SeekCycle, 646218 },
+            { "SEEK pos 17",       ReverseCommand::Seek,      17     },
+        };
+
+        HandlerRig<ExecutionHandlers>                       rig;
+        std::vector<std::pair<ReverseCommand, uint64_t>>    taken;
+        Reply                                               reply;
+
+
+
+        rig.session.SetReverseRequester ([&taken] (ReverseCommand command, uint64_t argument) { taken.push_back ({ command, argument }); return true; });
+
+        for (const Case & each : kCases)
+        {
+            taken.clear();
+            reply = rig.session.ExecuteLine (each.line, CommandMode::AppleWin);
+
+            Assert::IsTrue (reply.status == CommandStatus::Ok, ToWide (each.line).c_str());
+            Assert::AreEqual<size_t> (1, taken.size(), ToWide (each.line).c_str());
+            Assert::IsTrue (taken.front().first == each.expected, ToWide (each.line).c_str());
+            Assert::AreEqual (each.argument, taken.front().second, ToWide (each.line).c_str());
+        }
+
+        for (const char * bad : { "SEEK", "SEEK 5s", "SEEK -5m", "SEEK CYCLE", "SEEK POS x1" })
+        {
+            taken.clear();
+            reply = rig.session.ExecuteLine (bad, CommandMode::AppleWin);
+
+            Assert::IsTrue (reply.status != CommandStatus::Ok, ToWide (bad).c_str());
+            Assert::IsTrue (taken.empty(), ToWide (bad).c_str());
+        }
+
+        Assert::AreEqual ((uint64_t) (2'000'000 - 1'020'484), ReverseHost::GetCycleBack (2'000'000, 1000), L"a second back");
+        Assert::AreEqual ((uint64_t) 0, ReverseHost::GetCycleBack (1000, 1000), L"past the start");
+    }
+
+
     TEST_METHOD (ARunningMachineIsNotMovedThroughHistory)
     {
         HandlerRig<ExecutionHandlers>  rig;
@@ -79,7 +133,7 @@ public:
 
 
 
-        rig.session.SetReverseRequester ([&calls] (ReverseCommand) { ++calls; return true; });
+        rig.session.SetReverseRequester ([&calls] (ReverseCommand, uint64_t) { ++calls; return true; });
         rig.session.OnUserResumed();
 
         reply = rig.Run ("T-");
@@ -100,7 +154,7 @@ public:
         reply = rig.Run ("P-");
         Assert::IsTrue (reply.status == CommandStatus::NotAvailable, L"no requester: not available");
 
-        rig.session.SetReverseRequester ([] (ReverseCommand) { return false; });
+        rig.session.SetReverseRequester ([] (ReverseCommand, uint64_t) { return false; });
 
         reply = rig.Run ("G-");
         Assert::IsTrue (reply.status == CommandStatus::NotAvailable, L"a requester that took nothing: not available");

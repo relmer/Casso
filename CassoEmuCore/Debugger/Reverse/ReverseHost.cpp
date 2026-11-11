@@ -281,6 +281,10 @@ HRESULT ReverseHost::Move (
             hr = m_controller.SeekToPosition (m_controller.GetLiveEndPosition(), result);
             break;
 
+        case ReverseCommand::SeekBack:
+            hr = m_controller.SeekToCycle (GetCycleBack (m_controller.GetLiveEndCycle(), argument), result);
+            break;
+
         default:
             CBRAEx (false, E_INVALIDARG);
             break;
@@ -454,3 +458,18 @@ void ReverseHost::GetRecentTrace (
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReverseHost::GetCycleBack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t ReverseHost::GetCycleBack (uint64_t liveEnd, uint64_t milliseconds)
+{
+    static constexpr double  kMsPerSecond = 1000.0;
+    uint64_t                 back         = (uint64_t) ((double) milliseconds * HistoryStatus::kCyclesPerSecond / kMsPerSecond);
+
+
+
+    return (back >= liveEnd) ? 0 : liveEnd - back;
+}
