@@ -40,6 +40,11 @@ struct DxuiListViewTypes
         //  right end of its heading.
         bool            filtered   = false;
 
+        //  Whether the list's find searches the column. A column of values
+        //  that exist for the rows on screen alone isn't searched when the
+        //  host's find covers more rows than those.
+        bool            isSearched = true;
+
         //  Whether the cells are text to read and select. A strip of glyphs,
         //  as a heat column's, is not, and the pointer is an arrow over it.
         bool            isText     = true;

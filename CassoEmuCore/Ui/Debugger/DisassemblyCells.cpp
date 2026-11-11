@@ -42,6 +42,11 @@ void DisassemblyCells::Configure (DxuiListView & list)
     columns[kHeatColumn].tipLineScales = HeatStrip::GetHeadingTip (false).lineScales;
     columns[kHeatColumn].isText        = false;
 
+    //  The annotation is worked out for the rows on screen alone, so it isn't
+    //  searched by a find, which covers every line while the machine is
+    //  paused.
+    columns[kOperandColumn].isSearched = false;
+
     list.SetColumns         (std::move (columns));
     list.SetGlyphCenterDip  (CodeMargins::kGlyphCenterDip);
     list.SetTextViewSurface (true);

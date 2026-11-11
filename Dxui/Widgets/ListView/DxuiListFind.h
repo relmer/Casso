@@ -27,11 +27,12 @@ public:
 
     DxuiFindResult  SelectMatch       (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount);
     DxuiFindResult  SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount);
-    void            ClearHighlights   () { m_needle.clear(); m_current.reset(); }
+    void            ClearHighlights   () { m_needle.clear(); m_current.reset(); m_isSelectedCurrent = false; }
 
-    //  Every match in the rows drawn on the match fill, with no row selected
-    //  and no current match, for a find that selects its matches itself.
-    void            HighlightMatches  (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex) { (void) SetSearch (needle, matchCase, wholeWord, isRegex); m_current.reset(); }
+    //  Every match in the rows drawn on the match fill, for a find that
+    //  selects its matches itself: no row is selected here, and the matches
+    //  on the row the host selected are drawn as the current one.
+    void            HighlightMatches  (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex) { (void) SetSearch (needle, matchCase, wholeWord, isRegex); m_current.reset(); m_isSelectedCurrent = true; }
     void            SetColors         (uint32_t matchArgb, uint32_t currentArgb) { m_matchArgb = matchArgb; m_currentArgb = currentArgb; }
 
     //  Every match of the last search, in row, column and character order.
@@ -58,10 +59,11 @@ private:
     DxuiListView  & m_list;
 
     std::wstring                                m_needle;
-    bool                                        m_matchCase   = false;
-    bool                                        m_wholeWord   = false;
-    bool                                        m_isRegex     = false;
-    uint32_t                                    m_matchArgb   = 0;
-    uint32_t                                    m_currentArgb = 0;
+    bool                                        m_matchCase         = false;
+    bool                                        m_wholeWord         = false;
+    bool                                        m_isRegex           = false;
+    uint32_t                                    m_matchArgb         = 0;
+    uint32_t                                    m_currentArgb       = 0;
     std::optional<DxuiListViewTypes::FindSpot>  m_current;
+    bool                                        m_isSelectedCurrent = false;   // HighlightMatches: the selected row's matches are current
 };

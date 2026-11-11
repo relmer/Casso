@@ -127,6 +127,7 @@ public:
     void  SetColumnVisible          (size_t idx, bool visible) { m_columnSizing.SetColumnVisible (idx, visible); }
     void  SetColumnTitle            (size_t idx, const std::wstring & title) { if (idx < m_columns.size()) { m_columns[idx].title = title; } }
     bool  IsColumnVisible           (size_t idx) const     { return (idx < m_columns.size()) && m_columns[idx].visible; }
+    void  SetColumnSearched         (size_t idx, bool isSearched) { if (idx < m_columns.size()) { m_columns[idx].isSearched = isSearched; } }
     void  SetColumnOverrideWidthPx  (size_t idx, int px) { m_columnSizing.SetColumnOverrideWidthPx (idx, px); }
 
     //  Sets a column's width to what its content wants, as a double-click on

@@ -71,7 +71,7 @@ std::vector<DxuiListViewTypes::FindSpot> DxuiListFind::GetSpots() const
 
         for (size_t c = 0; c < cells.size() && c < m_list.m_columns.size(); c++)
         {
-            if (!m_list.m_columns[c].visible)
+            if (!m_list.m_columns[c].visible || !m_list.m_columns[c].isSearched)
             {
                 continue;
             }
@@ -171,14 +171,15 @@ std::vector<std::tuple<int, int, uint32_t>> DxuiListFind::GetMatchBands (int row
         }
     }
 
-    if (m_needle.empty() || !m_list.m_columns[column].visible)
+    if (m_needle.empty() || !m_list.m_columns[column].visible || !m_list.m_columns[column].isSearched)
     {
         return bands;
     }
 
     for (const auto & [start, end] : DxuiTextFind::FindAll (cell.text, m_needle, m_matchCase, m_wholeWord, m_isRegex))
     {
-        bool  isCurrent = m_current.has_value() && m_current->row == row && m_current->column == column && m_current->start == start;
+        bool  isCurrent = (m_current.has_value() && m_current->row == row && m_current->column == column && m_current->start == start) ||
+                          (m_isSelectedCurrent && row == m_list.m_selectedRow);
 
         bands.push_back ({ start, end, isCurrent ? current : match });
     }
@@ -208,6 +209,8 @@ DxuiFindResult DxuiListFind::SelectMatch (const std::wstring & needle, bool matc
     bool                                      isNew = SetSearch (needle, matchCase, wholeWord, isRegex);
 
 
+
+    m_isSelectedCurrent = false;
 
     spots    = GetSpots();
     outIndex = 0;
@@ -262,6 +265,7 @@ DxuiFindResult DxuiListFind::SelectMatchInView (const std::wstring & needle, boo
 
 
     SetSearch (needle, matchCase, wholeWord, isRegex);
+    m_isSelectedCurrent = false;
 
     spots    = GetSpots();
     outIndex = 0;
