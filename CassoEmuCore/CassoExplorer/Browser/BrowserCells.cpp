@@ -5,6 +5,7 @@
 #include "CassoExplorer/Model/SearchExpression.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
 
@@ -841,9 +842,11 @@ std::wstring BrowserCells::FormatSelection (size_t selected, size_t total)
 
 std::wstring BrowserCells::GetLocationLabel (const Location & location)
 {
-    std::wstring  path  = location.path;
-    size_t        slash = 0;
-    std::string   inner = location.innerPath;
+    std::wstring  path      = location.path;
+    size_t        slash     = 0;
+    std::string   inner     = location.innerPath;
+    int           drive     = 0;
+    int           partition = 0;
 
 
 
@@ -879,6 +882,17 @@ std::wstring BrowserCells::GetLocationLabel (const Location & location)
 
         default:
             break;
+    }
+
+    //  A storage card's path is the device's, which means nothing to the user.
+    if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (path), drive, partition) == PhysicalCards::PathKind::Card)
+    {
+        return L"Storage card";
+    }
+
+    if (partition > 0)
+    {
+        return std::format (L"Partition {}", partition);
     }
 
     while (path.size() > 3 && path.back() == L'\\')
