@@ -3359,9 +3359,10 @@ count the blocks written. Repeat on a 1 GB HFS volume.
 - **FR-247**: ProDOS and HFS volumes MUST read blocks on demand from the
   file, card, hard drive image or CassoLink drive they are on, through a
   cache, rather than from a copy of the whole volume in memory.
-- **FR-248**: A write to such a volume MUST send only the blocks it
-  changes, committed together. After a failure before the commit, the
-  volume MUST be as it was.
+- **FR-248**: A write to a volume on a storage card MUST send only the
+  blocks it changes, committed together. An image file MUST be rewritten
+  whole through a temporary file that replaces it, so that after a failure
+  partway through, the image is as it was.
 - **FR-249**: DOS 3.3, Pascal and CP/M volumes MAY be read whole through
   the same block interface.
 
