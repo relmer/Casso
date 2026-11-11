@@ -24,6 +24,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/CassoExplorerCommands.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
 
@@ -442,9 +443,10 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         items.push_back (DxuiPopupMenuItem::ForSeparator());
     }
 
-    //  The list's background on a drive letter's root offers the drive's
-    //  card, as the drive's row in This PC does.
-    if (m_context.browser.GetSelectedRows().empty() && m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
+    //  The list's background on a storage card, or on a drive letter's root,
+    //  offers the card, as the drive's row in This PC does.
+    if (m_context.browser.GetSelectedRows().empty() &&
+        (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || PhysicalCards::IsCardPath (m_context.browser.GetLocation().path)))
     {
         m_context.opener.AddInitializeRow (items, m_context.browser.GetLocation().path);
     }

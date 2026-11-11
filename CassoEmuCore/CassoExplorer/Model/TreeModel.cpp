@@ -116,6 +116,7 @@ void TreeModel::SetStorageCards (std::vector<StorageCardTreeEntry> cards)
     m_storageCards = std::move (cards);
 
     m_children.erase (kThisPcRootId);
+    std::erase_if (m_children, [] (const auto & child) { return child.first.starts_with (kStorageCardTag); });
 }
 
 
@@ -1517,15 +1518,54 @@ HRESULT TreeModel::ListRoot (bool underCasso, std::vector<TreeNode> & outNodes)
     {
         TreeNode  node;
 
-        node.id       = kStorageCardTag + card.path;
-        node.kind     = TreeNode::Kind::DiskImage;
-        node.label    = card.label;
-        node.location = Location::MakeDiskImage (card.path);
+        node.id        = kStorageCardTag + card.path;
+        node.kind      = TreeNode::Kind::DiskImage;
+        node.label     = card.label;
+        node.location  = Location::MakeDiskImage (card.path);
+        node.canExpand = !card.partitions.empty();
 
         outNodes.push_back (node);
     }
 
     return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::ListStorageCard
+//
+//  An open card's partitions. Their directories are in the list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TreeModel::ListStorageCard (const std::wstring & path, std::vector<TreeNode> & outNodes) const
+{
+    outNodes.clear();
+
+    for (const StorageCardTreeEntry & card : m_storageCards)
+    {
+        if (_wcsicmp (card.path.c_str(), path.c_str()) != 0)
+        {
+            continue;
+        }
+
+        for (const StorageCardTreeEntry::Partition & partition : card.partitions)
+        {
+            std::wstring  partitionPath = card.path + kSeparator + partition.step;
+            TreeNode      node;
+
+            node.id       = MakeImageId (false, partitionPath);
+            node.kind     = TreeNode::Kind::DiskImage;
+            node.label    = partition.label;
+            node.location = Location::MakeDiskImage (partitionPath);
+
+            outNodes.push_back (node);
+        }
+    }
 }
 
 
@@ -1747,6 +1787,10 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     else if (id == kThisPcRootId)
     {
         hr = ListRoot (false, outNodes);
+    }
+    else if (id.starts_with (kStorageCardTag))
+    {
+        ListStorageCard (id.substr (wcslen (kStorageCardTag)), outNodes);
     }
     else if (id == kCassoLinkRootId)
     {

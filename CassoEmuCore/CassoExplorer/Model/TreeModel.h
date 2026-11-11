@@ -61,9 +61,20 @@ struct TreeNode
 
 struct StorageCardTreeEntry
 {
+    struct Partition
+    {
+        //  The partition's step, `#3.po`, and its label in the tree.
+        std::wstring  step;
+        std::wstring  label;
+    };
+
     //  The card's path, `\\.\PhysicalDrive2`.
-    std::wstring  path;
-    std::wstring  label;
+    std::wstring            path;
+    std::wstring            label;
+
+    //  The card's Apple partitions, once it is open. A card that is not open
+    //  has no expander, as opening it raises the UAC prompt.
+    std::vector<Partition>  partitions;
 };
 
 
@@ -323,6 +334,7 @@ private:
     static constexpr wchar_t          kSeparator       = L'|';
 
     HRESULT  ListRoot        (bool underCasso, std::vector<TreeNode> & outNodes);
+    void     ListStorageCard (const std::wstring & path, std::vector<TreeNode> & outNodes) const;
     HRESULT  ListLink        (const std::wstring & name, std::vector<TreeNode> & outNodes);
     HRESULT  ListLinkFolders (const std::wstring & driveId, std::vector<TreeNode> & outNodes) const;
     void     AppendLinkRoots (std::vector<TreeNode> & outNodes, bool copy) const;

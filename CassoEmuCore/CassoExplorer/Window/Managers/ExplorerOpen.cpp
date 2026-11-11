@@ -282,12 +282,27 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
     question = std::format (L"Initialize {} for use with an Apple CFFA adapter?", PhysicalCards::FormatDrive (found));
     contents = L"This card currently contains these partitions:";
 
+    //  A card with no partition table, as a CFFA card, is one volume to
+    //  Windows, which it can't read. Its Apple partitions are listed instead.
     for (const WindowsVolume & volume : volumes)
     {
         std::wstring  where = volume.letter.empty() ? std::wstring (L"No drive letter") : volume.letter;
-        std::wstring  label = volume.label.empty() ? std::wstring (L"no label") : volume.label;
 
-        contents += std::format (L"\r\n    {} {} ({})", where, label, volume.fileSystem.empty() ? std::wstring (L"no Windows file system") : volume.fileSystem);
+        if (volume.fileSystem.empty())
+        {
+            if (apple.empty())
+            {
+                contents += std::format (L"\r\n    {} (a file system Windows doesn't recognize)", where);
+            }
+        }
+        else if (volume.label.empty())
+        {
+            contents += std::format (L"\r\n    {} ({})", where, volume.fileSystem);
+        }
+        else
+        {
+            contents += std::format (L"\r\n    {} {} ({})", where, volume.label, volume.fileSystem);
+        }
     }
 
     for (const PartitionEntry & entry : apple)
@@ -506,12 +521,23 @@ void ExplorerOpen::AddInitializeRow (std::vector<DxuiPopupMenuItem> & items, con
 
 
 
-    if (!isRoot || m_context.app.cards == nullptr || !m_context.app.cards->TryGetVolumeCard (folder, number))
+    if (m_context.app.cards == nullptr)
     {
         return;
     }
 
-    card = TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (number));
+    if (PhysicalCards::IsCardPath (folder))
+    {
+        card = folder;
+    }
+    else if (isRoot && m_context.app.cards->TryGetVolumeCard (folder, number))
+    {
+        card = TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (number));
+    }
+    else
+    {
+        return;
+    }
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());
     m_context.menus.AddMenuCommand (items, L"&Initialize card for Apple...", [this, card]() { InitializeCard (card); });

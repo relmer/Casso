@@ -357,12 +357,36 @@ bool ExplorerFolderSync::UpdateStorageCards()
         std::wstring  path  = TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (card.drive.number));
         std::wstring  label = PhysicalCards::FormatCardLabel (card.drive);
 
+        StorageCardTreeEntry         entry { path, label };
+        PartitionLayoutKind          kind = PartitionLayoutKind::None;
+        std::vector<PartitionEntry>  partitions;
+        HRESULT                      hrPartitions = S_OK;
+
         drives.push_back (card.drive.number);
-        key += std::format (L"{}|{}|{}|{};", card.drive.number, card.drive.bytes, label, card.hasUnmounted ? 1 : 0);
+
+        //  An open card's partitions are listed from the read made when it
+        //  opened, so this reads nothing from the card.
+        if (m_context.app.cards->IsOpen (card.drive.number))
+        {
+            hrPartitions = m_context.app.cards->ListPartitions (card.drive.number, kind, partitions);
+            IGNORE_RETURN_VALUE (hrPartitions, S_OK);
+        }
+
+        for (const PartitionEntry & partition : partitions)
+        {
+            entry.partitions.push_back ({ TextEncoding::Utf8ToWide (partition.step), TextEncoding::NarrowToWide (PartitionAccess::GetLabel (partition, true)) });
+        }
+
+        key += std::format (L"{}|{}|{}|{}|{};", card.drive.number, card.drive.bytes, label, card.hasUnmounted ? 1 : 0, entry.partitions.size());
+
+        for (const StorageCardTreeEntry::Partition & partition : entry.partitions)
+        {
+            key += partition.label + L";";
+        }
 
         if (card.hasUnmounted)
         {
-            entries.push_back (StorageCardTreeEntry { path, label });
+            entries.push_back (std::move (entry));
         }
     }
 

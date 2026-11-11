@@ -156,6 +156,33 @@ public:
 
 
 
+    TEST_METHOD (ThisPc_AnOpenStorageCardHasItsPartitionsAsChildren)
+    {
+        InMemoryFileSystem     fs;
+        TreeModel              model (fs);
+        std::vector<TreeNode>  nodes;
+        StorageCardTreeEntry   card { L"\\\\.\\PhysicalDrive2", L"Storage card (Test, 64 MB)" };
+        std::wstring           cardId;
+
+        SeedHost (fs);
+        Configure (model);
+        card.partitions = { { L"#1.po", L"Partition 1: CARD1 (32 MB)" }, { L"#2.po", L"Partition 2: CARD2 (32 MB)" } };
+        model.SetStorageCards ({ card });
+
+        AssertSucceeded (model.GetChildren (TreeModel::kThisPcRootId, nodes));
+        Assert::IsTrue (nodes.back().canExpand);
+
+        cardId = nodes.back().id;
+        AssertSucceeded (model.GetChildren (cardId, nodes));
+
+        Assert::AreEqual ((size_t) 2, nodes.size());
+        Assert::AreEqual (std::wstring (L"Partition 2: CARD2 (32 MB)"), nodes[1].label);
+        Assert::IsTrue   (nodes[1].location == Location::MakeDiskImage (L"\\\\.\\PhysicalDrive2|#2.po"));
+        Assert::IsFalse  (nodes[1].canExpand);
+    }
+
+
+
     TEST_METHOD (Folder_ListsSubfoldersThenImagesAndNotPlainFiles)
     {
         InMemoryFileSystem     fs;

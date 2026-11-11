@@ -47,8 +47,8 @@ public:
     //  write ends, the tree and list reloaded and a failure reported.
     void  HandleCardProgress    ();
 
-    //  Initialize card for Apple, for the root of a drive letter on a storage
-    //  card. Nothing for any other folder.
+    //  Initialize card for Apple, for a storage card or for the root of a
+    //  drive letter on one. Nothing for any other folder.
     void  AddInitializeRow      (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);
 
     //  InitializeCard for the card open in the list, or for the card of the
