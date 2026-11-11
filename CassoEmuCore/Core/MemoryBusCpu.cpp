@@ -2,6 +2,7 @@
 
 #include "MemoryBusCpu.h"
 #include "Core/DramPowerOnPattern.h"
+#include "Disassembler.h"
 #include "Prng.h"
 #include "StateReader.h"
 #include "StateWriter.h"
@@ -46,9 +47,39 @@ MemoryBusCpu::MemoryBusCpu (MemoryBus & memoryBus)
     // virtual ReadByteSlow into the bus.
     m_readPages = m_memoryBus.GetReadPageTable();
 
+    //  Each opcode fetch sets the fetched byte's bit; a write clears the bits
+    //  of the instructions it lands in, by their opcodes' lengths.
+    m_fetchTable = m_memoryBus.GetFetchTable();
+    m_memoryBus.SetOpcodeLengths (MakeOpcodeLengths());
+
     // The trace reads operand bytes from the pages the MMU mapped, which a
     // watched page keeps in the shadow table while the read table holds null.
     m_tracePeekPages = m_memoryBus.GetShadowReadPageTable();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeOpcodeLengths
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::array<uint8_t, 256> MemoryBusCpu::MakeOpcodeLengths() const
+{
+    Disassembler              disassembler (GetInstructionSet());
+    std::array<uint8_t, 256>  lengths      = {};
+
+
+
+    for (int opcode = 0; opcode < 256; opcode++)
+    {
+        lengths[(size_t) opcode] = (uint8_t) disassembler.GetLength ((Byte) opcode);
+    }
+
+    return lengths;
 }
 
 

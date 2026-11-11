@@ -579,6 +579,11 @@ void Cpu::StepOne()
 
     m_instructionStart = start;
 
+    if (m_fetchTable != nullptr && m_fetchTable[start >> 8] != nullptr)
+    {
+        m_fetchTable[start >> 8][(start & 0xFF) >> 3] |= (uint8_t) (1u << (start & 7));
+    }
+
     if (m_isFetchObserved)
     {
         ObserveFetch (opcode);

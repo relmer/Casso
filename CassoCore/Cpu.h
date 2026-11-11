@@ -195,6 +195,10 @@ protected:
     }
 
     virtual Byte ReadByteSlow  (Word address);
+
+    //  A fetch bit for each byte a page maps, by page; null where none. Set
+    //  by a CPU on a bus that keeps them, and set at each opcode fetch.
+    uint8_t * const * m_fetchTable = nullptr;
     virtual Word ReadWord      (Word address);
 
     void InitializeInstructionSet ();

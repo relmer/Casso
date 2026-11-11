@@ -319,6 +319,12 @@ void MemoryBus::WriteByte (Word address, Byte value)
 
             *cell = value;
             *m_writeFlag[address >> 8] = 1;
+
+            if (m_writeFetch[address >> 8] != nullptr)
+            {
+                ClearFetchInPage (m_writeFetch[address >> 8], page, address & 0xFF);
+            }
+
             return;
         }
 
@@ -380,6 +386,11 @@ void MemoryBus::StoreToPage (Byte * page, Word address, Byte value)
 
     *cell = value;
     *m_writeFlag[address >> 8] = 1;
+
+    if (m_writeFetch[address >> 8] != nullptr)
+    {
+        ClearFetchInPage (m_writeFetch[address >> 8], page, address & 0xFF);
+    }
 }
 
 
@@ -536,6 +547,7 @@ void MemoryBus::SetReadPage (int pageIndex, Byte * page)
     {
         m_shadowReadPage[pageIndex] = page;
         m_readPage[pageIndex]       = m_pathWatched[pageIndex] ? nullptr : page;
+        m_readFetch[pageIndex]      = FindFetchPage (page);
     }
 }
 
@@ -546,6 +558,209 @@ void MemoryBus::SetWritePage (int pageIndex, Byte * page)
         m_shadowWritePage[pageIndex] = page;
         m_writePage[pageIndex]       = m_pathWatched[pageIndex] ? nullptr : page;
         m_writeFlag[pageIndex]       = FindPageFlag (page);
+        m_writeFetch[pageIndex]      = FindFetchPage (page);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindFetchPage
+//
+//  The fetch bits of the page a host pointer starts, made on first use; null
+//  for no page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint8_t * MemoryBus::FindFetchPage (const Byte * page)
+{
+    return (page != nullptr) ? m_fetchPages[page].data() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NoteFetch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::NoteFetch (Word address)
+{
+    uint8_t * bits = m_readFetch[address >> 8];
+
+
+
+    if (bits != nullptr)
+    {
+        bits[(address & 0xFF) >> 3] |= (uint8_t) (1u << (address & 7));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsFetched
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryBus::IsFetched (Word address) const
+{
+    const uint8_t * bits = m_readFetch[address >> 8];
+
+
+
+    return bits != nullptr && (bits[(address & 0xFF) >> 3] & (1u << (address & 7))) != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClearFetchInPage
+//
+//  The written byte's bit, then each of the two bytes before it in the page
+//  whose instruction, by its opcode's length, covers the written byte.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::ClearFetchInPage (uint8_t * bits, const Byte * page, int offset)
+{
+    auto  isSet = [bits] (int at) { return (bits[at >> 3] & (1u << (at & 7))) != 0; };
+    auto  clear = [bits] (int at) { bits[at >> 3] &= (uint8_t) ~(1u << (at & 7)); };
+
+
+
+    clear (offset);
+
+    for (int back = 1; back <= 2 && offset - back >= 0; back++)
+    {
+        if (isSet (offset - back) && m_opcodeLengths[page[offset - back]] > back)
+        {
+            clear (offset - back);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClearFetchOnWrite
+//
+//  A write made around the bus, as a debugger edit is, through the page the
+//  write table maps.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::ClearFetchOnWrite (Word address)
+{
+    Byte * page = m_shadowWritePage[address >> 8];
+
+
+
+    if (page != nullptr && m_writeFetch[address >> 8] != nullptr)
+    {
+        ClearFetchInPage (m_writeFetch[address >> 8], page, address & 0xFF);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MarkPointerWritten
+//
+//  A store straight into a registered buffer, as the language card's banks
+//  take: its page's written flag, and its fetch bits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::MarkPointerWritten (const Byte * cell)
+{
+    static constexpr size_t  kPageMask = 0xFF;
+
+
+
+    *FindPageFlag (cell) = 1;
+
+    for (const RamRegion & region : m_ramRegions)
+    {
+        if (cell >= region.base && cell < region.base + region.size)
+        {
+            size_t        offset = (size_t) (cell - region.base);
+            const Byte  * page   = region.base + (offset & ~kPageMask);
+            auto          found  = m_fetchPages.find (page);
+
+            if (found != m_fetchPages.end())
+            {
+                ClearFetchInPage (found->second.data(), page, (int) (offset & kPageMask));
+            }
+
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClearRamFetchBits
+//
+//  A power cycle and a state load clear the bits of the RAM buffers. The
+//  pages stay, so the tables' pointers stay good.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::ClearRamFetchBits()
+{
+    for (auto & [page, bits] : m_fetchPages)
+    {
+        bool  isRam = std::ranges::any_of (m_ramRegions, [page] (const RamRegion & region) { return page >= region.base && page < region.base + region.size; });
+
+
+
+        if (isRam)
+        {
+            bits.fill (0);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClearAllFetchBits
+//
+//  A machine switch clears every bit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::ClearAllFetchBits()
+{
+    for (auto & [page, bits] : m_fetchPages)
+    {
+        bits.fill (0);
     }
 }
 
@@ -942,6 +1157,7 @@ void MemoryBus::PowerCycleAll (Prng & prng)
     }
 
     m_floatingBusValue = 0xFF;
+    ClearRamFetchBits();
 }
 
 
@@ -1073,7 +1289,10 @@ HRESULT MemoryBus::LoadState (StateReader & reader)
     hr = reader.EndSection();
     CHR (hr);
 
+    //  The bits aren't saved: a seek loads a keyframe here, and its replay to
+    //  the target sets the bits of the code it runs again.
     m_videoDirty = true;
+    ClearRamFetchBits();
 
 Error:
     return hr;

@@ -148,8 +148,21 @@ public:
     // MarkWritten. The flags are the owner's to clear.
     void   RegisterRamPages   (RamPages * owner, const Byte * base, size_t size, Byte * pageFlags);
     void   UnregisterRamPages (const Byte * base);
-    void   MarkWritten        (Word address)            { *m_writeFlag[address >> 8] = 1; }
-    void   MarkPointerWritten (const Byte * cell)       { *FindPageFlag (cell) = 1; }
+    void   MarkWritten        (Word address)            { *m_writeFlag[address >> 8] = 1; ClearFetchOnWrite (address); }
+    void   MarkPointerWritten (const Byte * cell);
+
+    //  Fetch bits, one for each byte of each buffer a page maps: RAM, aux
+    //  RAM, the language card's banks and ROM. An opcode fetch sets the bit
+    //  of the byte the read page table reads from; a write clears the bit
+    //  of the byte written and of each of the two bytes before it whose
+    //  instruction covers it. A bank switch changes which bits an address
+    //  reads, not the bits. The CPU sets the bits through the fetch table.
+    void              NoteFetch          (Word address);
+    bool              IsFetched          (Word address) const;
+    uint8_t * const * GetFetchTable      () const      { return m_readFetch.data(); }
+    void              SetOpcodeLengths   (std::array<uint8_t, 256> lengths) { m_opcodeLengths = lengths; }
+    void              ClearRamFetchBits  ();
+    void              ClearAllFetchBits  ();
 
     // The instruction trace: while on, every page takes the watched path, so
     // every access reaches the trace sink as well as the watch sink's pages;
@@ -309,5 +322,20 @@ private:
     std::vector<RamRegion>  m_ramRegions;
     size_t                  m_lastRegion       = 0;     // where FindPageFlag last found a page
     std::vector<Byte *>     m_writeFlag;                // 256 entries, on the heap: the bus is often a test's local
+
+    //  The fetch bits of each page a buffer has mapped, by the page's host
+    //  pointer, and the bits the read and write tables' pages have now.
+    using FetchPage = std::array<uint8_t, 32>;
+
+    uint8_t * FindFetchPage     (const Byte * page);
+    void      ClearFetchOnWrite (Word address);
+    void      ClearFetchInPage  (uint8_t * bits, const Byte * page, int offset);
+
+    std::unordered_map<const Byte *, FetchPage>  m_fetchPages;
+    std::array<uint8_t *, 0x100>                 m_readFetch     = {};
+    std::array<uint8_t *, 0x100>                 m_writeFetch    = {};
+    std::array<uint8_t, 256>                     m_opcodeLengths = MakeDefaultLengths();
+
+    static std::array<uint8_t, 256>  MakeDefaultLengths () { std::array<uint8_t, 256> lengths; lengths.fill (3); return lengths; }
     Byte                    m_flagSink         = 0;
 };

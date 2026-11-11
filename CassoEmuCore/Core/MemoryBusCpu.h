@@ -49,6 +49,9 @@ public:
     // (and the per-boot seed log) cover the cold-init path too.
     void    InitForEmulation (Prng & prng);
 
+    //  Each opcode's instruction length, from this CPU's instruction set.
+    std::array<uint8_t, 256>  MakeOpcodeLengths () const;
+
     // Phase 4 split-reset (FR-034 / FR-035).
     //
     // SoftReset matches the //e CPU's reaction to /RESET: I=1, SP=0xFD,
