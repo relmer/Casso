@@ -53,4 +53,5 @@ enum class AppMessage : UINT
     ExplorerCutPasted      = WM_APP + 0x45,   // a target pasted the files a cut put on the clipboard
     ExplorerThumbnail      = WM_APP + 0x47,   // a disk image's thumbnail is built, posted to the Explorer window
     ExplorerCardProgress   = WM_APP + 0x48,   // a storage card's initialize reported progress or ended, posted to the Explorer window
+    ExplorerElevation      = WM_APP + 0x49,   // sent before the storage card broker starts: wParam bool * for OK, lParam the card's name
 };

@@ -353,6 +353,7 @@
     <ClCompile Include="CassoExplorer\CardCompatibilityGrid.cpp" />
     <ClCompile Include="CassoExplorer\Model\CardLayoutModel.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerInitializeCardDialog.cpp" />
+    <ClCompile Include="CassoExplorer\CassoExplorerElevationDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPromptDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkActivityDialog.cpp" />
     <ClCompile Include="CassoExplorer\KrunchMapDialog.cpp" />
@@ -1107,6 +1108,7 @@
     <ClInclude Include="CassoExplorer\CardCompatibilityGrid.h" />
     <ClInclude Include="CassoExplorer\Model\CardLayoutModel.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerInitializeCardDialog.h" />
+    <ClInclude Include="CassoExplorer\CassoExplorerElevationDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerPromptDialog.h" />
     <ClInclude Include="CassoExplorer\CassoLinkActivityDialog.h" />
     <ClInclude Include="CassoExplorer\KrunchMapDialog.h" />

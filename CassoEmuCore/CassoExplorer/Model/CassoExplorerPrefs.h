@@ -89,6 +89,10 @@ struct CassoExplorerPrefs
     //  CardLayoutModel::Adapter. 0 is "I'm not sure".
     int                    cffaAdapter     = 0;
 
+    //  Whether the explanation before the storage card broker's UAC prompt
+    //  was turned off with its "Don't show this again" checkbox.
+    bool                   skipElevationNotice = false;
+
     //  Whether a BASIC listing shows where each line starts in memory.
     bool                   lineAddresses   = false;
 

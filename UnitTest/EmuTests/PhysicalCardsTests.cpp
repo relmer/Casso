@@ -93,6 +93,10 @@ struct FakeCardHost : public IPhysicalCardHost
 
     std::function<void (const WriteProgress &)>  onInitialize;
 
+    bool IsBrokerRunning() override { return brokerRunning; }
+
+    bool  brokerRunning = false;
+
     HRESULT FindVolumeDrive (const std::wstring &, int & outNumber) override
     {
         outNumber = volumeDrive;
@@ -323,6 +327,28 @@ public:
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BUSY), openWhile);
         Assert::IsFalse (cards.TryGetWork (2, done, total));
         AssertSucceeded (cards.Open (2, nullptr));
+    }
+
+
+    TEST_METHOD (Open_ConfirmsBeforeStartingTheBrokerAndCancelsWhenDeclined)
+    {
+        FakeCardHost   host;
+        PhysicalCards  cards (host);
+        int            calls  = 0;
+        bool           accept = false;
+
+        cards.SetConfirmElevation ([&] (const PhysicalDrive &) { calls++; return accept; });
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANCELLED), cards.Open (2, nullptr));
+        Assert::AreEqual (1, calls);
+
+        accept = true;
+        AssertSucceeded (cards.Open (2, nullptr));
+        Assert::AreEqual (2, calls);
+
+        host.brokerRunning = true;
+        AssertSucceeded (cards.Open (2, nullptr));
+        Assert::AreEqual (2, calls);
     }
 
 

@@ -19,6 +19,7 @@
 #include "Seams/RawDevice/Fat32Format.h"
 #include "Seams/RawDevice/RawDeviceProtocol.h"
 #include "CassoExplorer/CassoExplorerInitializeCardDialog.h"
+#include "CassoExplorer/CassoExplorerElevationDialog.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
@@ -427,6 +428,40 @@ void ExplorerOpen::HandleCardProgress()
         IGNORE_RETURN_VALUE (hr, S_OK);
         m_context.listPane.FillList();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::ConfirmElevation
+//
+//  The "Don't show this again" checkbox takes effect only with OK, and is
+//  saved at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerOpen::ConfirmElevation (const std::wstring & card)
+{
+    bool  dontShow  = false;
+    bool  confirmed = m_context.prefs.skipElevationNotice;
+
+
+
+    if (!confirmed)
+    {
+        confirmed = CassoExplorerElevationDialog::Confirm (m_context.window.GetHwnd(), m_context.theme, card, dontShow);
+
+        if (confirmed && dontShow)
+        {
+            m_context.prefs.skipElevationNotice = true;
+            m_context.window.SaveSession();
+        }
+    }
+
+    return confirmed;
 }
 
 

@@ -33,6 +33,7 @@ public:
     HRESULT  ListVolumes           (int number, std::vector<WindowsVolume> & outVolumes) override;
     HRESULT  FindVolumeDrive       (const std::wstring & root, int & outNumber) override;
     HRESULT  InitializeDrive       (int number, HWND owner, uint64_t layout, const WriteProgress & progress) override;
+    bool     IsBrokerRunning       () override;
     HRESULT  FormatFirstPartition  (int number, const WriteProgress & progress, bool & outDone) override;
 
 private:

@@ -545,6 +545,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
     root.emplace_back ("cffaAdapter",    JsonValue ((double) cffaAdapter));
     root.emplace_back ("lineAddresses",  JsonValue (lineAddresses));
+    root.emplace_back ("skipElevationNotice", JsonValue (skipElevationNotice));
     root.emplace_back ("hexColumns",     JsonValue ((double) hexColumns));
     root.emplace_back ("hexShowValues",  JsonValue (hexShowValues));
     root.emplace_back ("hexFormat",      JsonValue (hexFormat));
@@ -731,6 +732,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     root.HasBool ("searchContents",    searchContents);
     root.HasBool ("autoPreview",    autoPreview);
     root.HasBool ("lineAddresses",  lineAddresses);
+    root.HasBool ("skipElevationNotice", skipElevationNotice);
     root.HasBool ("hexShowValues",  hexShowValues);
     root.HasBool ("treeCassoOpen",     treeCassoOpen);
     root.HasBool ("treeCassoLinkOpen", treeCassoLinkOpen);

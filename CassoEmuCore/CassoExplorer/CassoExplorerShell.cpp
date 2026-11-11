@@ -13,6 +13,7 @@
 #include "Seams/Win32FolderWatcher.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Seams/Win32IntentChannel.h"
+#include "Core/AppMessages.h"
 
 
 
@@ -76,6 +77,7 @@ CassoExplorerShell::CassoExplorerShell()
     });
 
     m_cards.SetConfirmWrite ([this] (const PhysicalDrive & drive) { return ConfirmCardWrite (drive); });
+    m_cards.SetConfirmElevation ([this] (const PhysicalDrive & drive) { return ConfirmElevation (drive); });
 }
 
 
@@ -1703,6 +1705,44 @@ bool CassoExplorerShell::ConfirmCardWrite (const PhysicalDrive & drive)
     }
 
     return choice == IDOK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::ConfirmElevation
+//
+//  Sent to the foreground window, or the first one open, so the explanation
+//  is a window of the UI thread whichever thread starts the broker. With no
+//  window open the broker starts without it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerShell::ConfirmElevation (const PhysicalDrive & drive)
+{
+    CassoExplorerWindow  * window    = GetWindowFor (GetForegroundWindow());
+    std::wstring           card      = PhysicalCards::FormatDrive (drive);
+    bool                   confirmed = true;
+
+
+
+    for (const std::unique_ptr<WindowSlot> & slot : m_windows)
+    {
+        if (window == nullptr && !slot->closed)
+        {
+            window = slot->window.get();
+        }
+    }
+
+    if (window != nullptr)
+    {
+        SendMessageW (window->GetHwnd(), (UINT) AppMessage::ExplorerElevation, (WPARAM) &confirmed, (LPARAM) &card);
+    }
+
+    return confirmed;
 }
 
 

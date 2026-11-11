@@ -176,6 +176,7 @@ public:
     static std::wstring  GetLocalizedFolderName (const std::wstring & path);
 
     bool                 ConfirmCardWrite       (const PhysicalDrive & drive);
+    bool                 ConfirmElevation       (const PhysicalDrive & drive);
     static void CALLBACK EndCardConfirmation    (HWND, UINT, UINT_PTR id, DWORD);
 
     static inline PhysicalCards * s_confirmedCards = nullptr;

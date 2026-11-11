@@ -49,6 +49,9 @@ public:
     //  drive with no such partition.
     virtual HRESULT  FormatFirstPartition  (int number, const WriteProgress & progress, bool & outDone) = 0;
 
+    //  True while the broker runs, so a drive opens without the UAC prompt.
+    virtual bool     IsBrokerRunning       () = 0;
+
     //  Fails with ERROR_CANCELLED when the user declines administrator access.
     //  Destroying `outStore` closes the drive.
     virtual HRESULT  OpenDrive  (int number, HWND owner, PhysicalDrive & outDrive, std::unique_ptr<IBlockStore> & outStore) = 0;
@@ -94,7 +97,8 @@ public:
         Other,
     };
 
-    using ConfirmWrite = std::function<bool (const PhysicalDrive &)>;
+    using ConfirmWrite     = std::function<bool (const PhysicalDrive &)>;
+    using ConfirmElevation = std::function<bool (const PhysicalDrive &)>;
 
     struct StorageCard
     {
@@ -123,6 +127,11 @@ public:
     static std::wstring  FormatCardLabel (const PhysicalDrive & drive, const std::wstring & letters = {});
 
     void     SetConfirmWrite     (ConfirmWrite confirm) { m_confirmWrite = std::move (confirm); }
+
+    //  Called before an open or an initialize that starts the broker, which
+    //  raises the UAC prompt, on the calling thread. False cancels with
+    //  ERROR_CANCELLED.
+    void     SetConfirmElevation (ConfirmElevation confirm) { m_confirmElevation = std::move (confirm); }
 
     //  While set, writes are sent without the confirmation callback, so one
     //  command that writes several times prompts once.
@@ -196,9 +205,11 @@ private:
     HRESULT  ListSession   (Session & session);
     HRESULT  FindPartition (Session & session, int partition, const PartitionEntry * & outEntry);
     HRESULT  StageWrite    (int number, int partition, std::span<const Byte> bytes, Session * & outSession);
+    HRESULT  CheckElevation (const PhysicalDrive & drive);
 
     IPhysicalCardHost       & m_host;
     ConfirmWrite              m_confirmWrite;
+    ConfirmElevation          m_confirmElevation;
     std::mutex                m_mutex;
     std::map<int, Session>    m_sessions;
     std::mutex                m_workMutex;

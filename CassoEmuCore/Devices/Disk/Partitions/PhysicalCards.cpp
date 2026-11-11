@@ -376,6 +376,15 @@ HRESULT PhysicalCards::Initialize (int number, HWND owner, uint64_t layout, cons
         BAIL_OUT_IF (done, S_OK);
     }
 
+    for (const PhysicalDrive & drive : drives)
+    {
+        if (drive.number == number)
+        {
+            hr = CheckElevation (drive);
+            CHR (hr);
+        }
+    }
+
     hr = m_host.InitializeDrive (number, owner, layout, report);
     CHR (hr);
 
@@ -386,6 +395,25 @@ Error:
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::CheckElevation
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::CheckElevation (const PhysicalDrive & drive)
+{
+    bool  isConfirming = !m_host.IsBrokerRunning() && m_confirmElevation;
+
+
+
+    return isConfirming && !m_confirmElevation (drive) ? HRESULT_FROM_WIN32 (ERROR_CANCELLED) : S_OK;
 }
 
 
@@ -504,6 +532,15 @@ HRESULT PhysicalCards::Open (int number, HWND owner)
 
     hr = CheckNotBusy (number);
     CHR (hr);
+
+    for (const PhysicalDrive & drive : drives)
+    {
+        if (drive.number == number)
+        {
+            hr = CheckElevation (drive);
+            CHR (hr);
+        }
+    }
 
     Close (number);
 
