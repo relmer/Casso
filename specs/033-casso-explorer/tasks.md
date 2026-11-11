@@ -1927,7 +1927,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 **Goal**: HFS read and write. **Independent test**: quickstart §7g steps 1 and 2.
 
 - [ ] T621 [US32] Add `HfsBTree` in `CassoEmuCore/Machines/Apple2/Common/HfsBTree.h/.cpp`: search, insert and delete with node splits and merges, as Inside Macintosh: Files specifies. Tests with a tree three levels deep
-- [ ] T622 [US32] Add `HfsVolume` implementing `IVolume` over an `IBlockStore`: the master directory block, bitmap, catalog and extents trees, both forks, Finder information, Mac OS Roman names of up to 31 characters, and dates, up to 2 GB, larger volumes read-only with the reason (FR-222)
+- [ ] T622 [US32] Add `HfsVolume` implementing `IVolume` over an `IBlockStore`: the master directory block, bitmap, catalog and extents trees, both forks, Finder information, Mac OS Roman names of up to 31 characters, and dates, up to 2 GB, larger volumes read-only with the reason (FR-222) Done: reading, over a `BlockImage`, both forks and Finder information, compared with CiderPress II on a GS/OS disk and a Disk Copy 4.2 disk. Open: writes, which need `HfsBTree` (T621), and volumes past 2 GB.
 - [ ] T623 [US32] Map types and creators between HFS and ProDOS by the File Type Note's table, and report a name the target can't store (FR-223)
 - [ ] T624 [US32] Create HFS images at 800K and hard disk sizes from the New disk dialog and `casso disk create` (FR-224)
 - [ ] T625 [US32] Scenario tests in `ScenarioTests/HfsTests.cpp` on GS/OS-made images; boot GS/OS in KEGS or GSplus on a changed image and record SC-061
@@ -1982,7 +1982,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [X] T663 [US39] Replace the `vector<Byte>` of `ProDosVolume` and its writer and remover with a block source (`IBlockStore` through `CachingBlockStore`) that reads each block on demand (FR-247)
 - [X] T664 [US39] Send a card's write as the blocks it changes, committed together through the card's cache, and rewrite an image file whole through a temporary file (FR-248)
 - [X] T665 [US39] Build volumes from a block source at every place one is created: the browser, preview, copy, `casso disk` and the emulator's mounts. DOS 3.3, Pascal and CP/M are read whole behind the same interface (FR-249)
-- [ ] T666 [US39] Read HFS volumes by the block (FR-247)
+- [X] T666 [US39] Read HFS volumes by the block (FR-247)
 - [ ] T667 [US39] Tests counting blocks read and written on a full 32 MB volume and a 1 GB HFS volume (SC-067)
 
 ## Phase 56: Roadmap validation and merge

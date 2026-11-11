@@ -102,7 +102,8 @@ $files = @(
     @{ Path = 'prodos/blank-800k.po';        Size = 819200  },
     @{ Path = 'prodos/simple-sparse.po';     Size = 819200  },
     @{ Path = '2img/prodos-disk.2mg';        Size = 143515  },
-    @{ Path = 'diskcopy/Installer Disk 1.image'; Size = 838484 }
+    @{ Path = 'diskcopy/Installer Disk 1.image'; Size = 838484 },
+    @{ Path = 'hfs/simple-gsos.po';          Size = 819200  }
 )
 
 $downloaded = 0
@@ -213,7 +214,8 @@ if ($Extract) {
         @{ Image = 'woz/dos32master_2.woz';       Raw = $false; Files = @() },
         @{ Image = 'prodos/simple-sparse.po';     Raw = $false; Files = @() },
         @{ Image = '2img/prodos-disk.2mg';        Raw = $false; Files = @() },
-        @{ Image = 'diskcopy/Installer Disk 1.image'; Raw = $false; Files = @() }
+        @{ Image = 'diskcopy/Installer Disk 1.image'; Raw = $false; Files = @() },
+        @{ Image = 'hfs/simple-gsos.po';          Raw = $false; Files = @() }
     )
 
     foreach ($disk in $disks) {

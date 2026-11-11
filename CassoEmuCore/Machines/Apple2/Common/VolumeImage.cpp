@@ -7,6 +7,7 @@
 #include "Machines/Apple2/Common/Dos33Geometry.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/HfsVolume.h"
 #include "Machines/Apple2/Common/GutenbergVolume.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
@@ -860,6 +861,11 @@ VolumeKind VolumeImage::DetectFilesystem (const vector<Byte> & sectors)
         return RdosVolume::IsFound (sectors) ? VolumeKind::Rdos : VolumeKind::Unknown;
     }
 
+    if (!sized && HfsVolume::IsFound (sectors))
+    {
+        return VolumeKind::Hfs;
+    }
+
     if (!sized)
     {
         return ProDosSkeleton::IsValidVolumeSize (sectors.size()) && LooksLikeProDos (sectors) ? VolumeKind::ProDos : VolumeKind::Unknown;
@@ -975,6 +981,12 @@ std::unique_ptr<IVolume> VolumeImage::CreateVolume (VolumeKind kind, const vecto
 
             rdos->SetReadObserver (observer);
             volume = std::move (rdos);
+            break;
+        }
+
+        case VolumeKind::Hfs:
+        {
+            volume = std::make_unique<HfsVolume> (sectors);
             break;
         }
 

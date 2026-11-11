@@ -6,7 +6,7 @@
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 class IDiskFileIo;
-class ProDosVolume;
+class IVolume;
 
 
 
@@ -16,13 +16,13 @@ class ProDosVolume;
 //
 //  BlockVolumeOpener
 //
-//  A large ProDOS volume of whole blocks, read through its file as its
-//  blocks are touched rather than read whole: a .po, a .hdv, a .2mg in
+//  A large ProDOS or HFS volume of whole blocks, read through its file as
+//  its blocks are touched rather than read whole: a .po, a .hdv, a .2mg in
 //  ProDOS order, or a partition on a storage card.
 //
 //  A path with a container step, as a file inside an archive, is read whole,
 //  as is an image smaller than kMinBytes, where a whole read costs nothing. A
-//  file system chosen for the image other than ProDOS is honored.
+//  file system chosen for the image other than ProDOS or HFS is honored.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,7 +37,8 @@ public:
                           const std::string              & imagePath,
                           VolumeKind                       choice,
                           std::unique_ptr<IBlockStore>   & outStore,
-                          std::unique_ptr<ProDosVolume>  & outVolume);
+                          std::unique_ptr<IVolume>       & outVolume,
+                          VolumeKind                     & outKind);
 
 private:
     //  The .2mg header's fields: the image format, where the volume starts

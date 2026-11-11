@@ -288,16 +288,15 @@ DiskOperations::Result DiskOperations::List (const std::string & imagePath, cons
     Result                         result;
     HRESULT                        hr     = S_OK;
     std::unique_ptr<IBlockStore>   store;
-    std::unique_ptr<ProDosVolume>  blockVolume;
+    std::unique_ptr<IVolume>       blockVolume;
 
 
 
     outListing = VolumeListing();
     outKind    = VolumeKind::Unknown;
 
-    if (BlockVolumeOpener::TryOpen (m_fileIo, imagePath, GetChoice (imagePath), store, blockVolume))
+    if (BlockVolumeOpener::TryOpen (m_fileIo, imagePath, GetChoice (imagePath), store, blockVolume, outKind))
     {
-        outKind = VolumeKind::ProDos;
         hr      = blockVolume->EnumerateDirectory (FilePath::Parse (directory), outListing);
 
         result.listingDamaged = !outListing.damage.empty();
@@ -346,22 +345,23 @@ DiskOperations::Result DiskOperations::Read (const std::string & imagePath, cons
 {
     DiskImageSession::OpenedImage  opened;
     Result                         result;
-    HRESULT                        hr     = S_OK;
+    HRESULT                        hr          = S_OK;
     std::unique_ptr<IBlockStore>   store;
-    std::unique_ptr<ProDosVolume>  blockVolume;
+    std::unique_ptr<IVolume>       blockVolume;
+    VolumeKind                     blockKind   = VolumeKind::Unknown;
 
 
 
     outPayload = FilePayload();
 
-    if (BlockVolumeOpener::TryOpen (m_fileIo, imagePath, GetChoice (imagePath), store, blockVolume))
+    if (BlockVolumeOpener::TryOpen (m_fileIo, imagePath, GetChoice (imagePath), store, blockVolume, blockKind))
     {
-        hr = blockVolume->Read (MakeEntryPath (VolumeKind::ProDos, name, catalogIndex), outPayload);
+        hr = blockVolume->Read (MakeEntryPath (blockKind, name, catalogIndex), outPayload);
 
         if (FAILED (hr))
         {
             result.hr      = hr;
-            result.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("Unable to read {}: {}", name, DescribeVolumeRefusal (hr, VolumeKind::ProDos)));
+            result.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("Unable to read {}: {}", name, DescribeVolumeRefusal (hr, blockKind)));
         }
 
         return result;

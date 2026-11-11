@@ -1,7 +1,9 @@
 #include "Pch.h"
 
 #include "EhmTestHelper.h"
+#include "FakeDiskFileIo.h"
 #include "FixtureProvider.h"
+#include "CassoExplorer/Model/DiskOperations.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/IVolume.h"
@@ -155,7 +157,7 @@ public:
         Assert::IsTrue (mismatches.empty(), TextEncoding::Utf8ToWide (mismatches).c_str());
     }
 
-    static void CompareWithExtraction (const std::string & image)
+    static void CompareWithExtraction (const std::string & image, VolumeKind kind = VolumeKind::ProDos)
     {
         FixtureProvider           fixtures;
         std::vector<Byte>         sectors;
@@ -175,9 +177,9 @@ public:
             return;
         }
 
-        Assert::IsTrue (VolumeImage::DetectFilesystem (sectors) == VolumeKind::ProDos);
+        Assert::IsTrue (VolumeImage::DetectFilesystem (sectors) == kind);
 
-        volume = VolumeImage::CreateVolume (VolumeKind::ProDos, sectors);
+        volume = VolumeImage::CreateVolume (kind, sectors);
         CompareTree (*volume, extracted, image);
     }
 
@@ -262,22 +264,53 @@ public:
         CompareWithExtraction ("2img/prodos-disk.2mg");
     }
 
-    //  The disk is HFS, which Casso doesn't read yet; its container decodes
-    //  to the 800K volume, with the HFS signature in block 2.
-    TEST_METHOD (DiskCopy42_DecodesToTheVolume)
+    //  An HFS disk in a Disk Copy 4.2 container.
+    TEST_METHOD (DiskCopy42Hfs_EachForkMatchesCiderPress)
     {
-        std::vector<Byte>  sectors;
+        CompareWithExtraction ("diskcopy/Installer Disk 1.image", VolumeKind::Hfs);
+    }
+
+    TEST_METHOD (GsOsHfs800K_EachForkMatchesCiderPress)
+    {
+        CompareWithExtraction ("hfs/simple-gsos.po", VolumeKind::Hfs);
+    }
+
+    //  An HFS volume over 1 MB is listed and read by the block: the GS/OS
+    //  disk with space after it, in a .po.
+    TEST_METHOD (GsOsHfsPastOneMegabyte_IsListedAndReadByTheBlock)
+    {
+        FixtureProvider     fixtures;
+        FakeDiskFileIo      io;
+        DiskOperations      ops (io);
+        std::vector<Byte>   bytes;
+        VolumeListing       listing;
+        VolumeKind          kind = VolumeKind::Unknown;
+        FilePayload         back;
+        HRESULT             hrOpen = fixtures.OpenFixture (std::string (kRoot) + "/hfs/simple-gsos.po", bytes);
 
 
 
-        if (!OpenImage ("diskcopy/Installer Disk 1.image", sectors))
+        if (FAILED (hrOpen))
         {
+            Logger::WriteMessage ("SKIPPED: hfs/simple-gsos.po is not on this machine; run scripts/FetchCiderPressTestFiles.ps1\n");
             return;
         }
 
-        Assert::AreEqual (k800KBytes, sectors.size());
-        Assert::AreEqual ((Byte) 'B', sectors[2 * 512]);
-        Assert::AreEqual ((Byte) 'D', sectors[2 * 512 + 1]);
+        bytes.resize (4 * 1024 * 1024, 0);
+
+        io.files["C:\gsos.po"]  = bytes;
+        io.stamps["C:\gsos.po"] = FileStamp { bytes.size(), 1 };
+
+        AssertSucceeded (ops.List ("C:\gsos.po", listing, kind).hr);
+
+        Assert::IsTrue   (kind == VolumeKind::Hfs);
+        Assert::IsTrue   (!listing.entries.empty());
+        Assert::AreEqual (0, io.wholeReads);
+        Assert::IsTrue   (io.bytesReadAt < (uint64_t) 512 * 1024);
+
+        AssertSucceeded (ops.Read ("C:\gsos.po", "SIZES/L131073", back, 0).hr);
+        Assert::AreEqual ((size_t) 131073, back.bytes.size());
+        Assert::AreEqual (0, io.wholeReads);
     }
 
     TEST_METHOD (Blank800KAndSparse800K_CopyInANewFolderAndOut)

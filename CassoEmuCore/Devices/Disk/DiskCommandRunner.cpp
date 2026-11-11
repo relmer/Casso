@@ -1288,18 +1288,16 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     std::string                    name;
     char                           note[128] = {};
     std::unique_ptr<IBlockStore>   store;
-    std::unique_ptr<ProDosVolume>  blockVolume;
+    std::unique_ptr<IVolume>       blockVolume;
 
 
 
     CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<name>", result));
 
-    //  A large ProDOS volume is read by the block, so a file is copied out
+    //  A large ProDOS or HFS volume is read by the block, so a file is copied out
     //  without reading the volume whole. --index applies to DOS 3.3 only.
-    if (!options.disk.hasIndex && BlockVolumeOpener::TryOpen (m_fileIo, options.disk.imagePath, m_session.GetChosenKind(), store, blockVolume))
+    if (!options.disk.hasIndex && BlockVolumeOpener::TryOpen (m_fileIo, options.disk.imagePath, m_session.GetChosenKind(), store, blockVolume, kind))
     {
-        kind = VolumeKind::ProDos;
-
         hr = ResolveEntryPath (options, kind, BlockImage (*store), path, name, result);
         CHR (hr);
 

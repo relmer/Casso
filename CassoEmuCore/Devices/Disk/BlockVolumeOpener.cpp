@@ -6,6 +6,7 @@
 #include "Devices/Disk/FileBlockStore.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Machines/Apple2/Common/HfsVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 
 
@@ -22,7 +23,8 @@ bool BlockVolumeOpener::TryOpen (IDiskFileIo                    & fileIo,
                                  const std::string              & imagePath,
                                  VolumeKind                       choice,
                                  std::unique_ptr<IBlockStore>   & outStore,
-                                 std::unique_ptr<ProDosVolume>  & outVolume)
+                                 std::unique_ptr<IVolume>       & outVolume,
+                                 VolumeKind                     & outKind)
 {
     HRESULT             hr       = S_OK;
     std::string         lower    = imagePath;
@@ -39,13 +41,14 @@ bool BlockVolumeOpener::TryOpen (IDiskFileIo                    & fileIo,
 
     outStore.reset();
     outVolume.reset();
+    outKind = VolumeKind::Unknown;
 
     std::transform (lower.begin(), lower.end(), lower.begin(), [] (char c) { return (char) std::tolower ((unsigned char) c); });
 
     is2mg    = lower.ends_with (".2mg");
     isBlocks = lower.ends_with (".po") || lower.ends_with (".hdv") || is2mg;
 
-    BAIL_OUT_IF (choice != VolumeKind::Unknown && choice != VolumeKind::ProDos, S_OK);
+    BAIL_OUT_IF (choice != VolumeKind::Unknown && choice != VolumeKind::ProDos && choice != VolumeKind::Hfs, S_OK);
     BAIL_OUT_IF (!isBlocks || (lower.find ('|') != std::string::npos && !isCard), S_OK);
 
     hr = fileIo.Stat (imagePath, stamp);
@@ -77,9 +80,15 @@ bool BlockVolumeOpener::TryOpen (IDiskFileIo                    & fileIo,
 
         isProDos = (image[s_kVolumeHeaderAt] & 0xF0) == s_kVolumeHeaderType;
 
-        if (isProDos)
+        if (isProDos && choice != VolumeKind::Hfs)
         {
             outVolume = std::make_unique<ProDosVolume> (image);
+            outKind   = VolumeKind::ProDos;
+        }
+        else if (choice != VolumeKind::ProDos && HfsVolume::IsFound (image))
+        {
+            outVolume = std::make_unique<HfsVolume> (image);
+            outKind   = VolumeKind::Hfs;
         }
     }
 

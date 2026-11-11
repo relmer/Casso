@@ -576,6 +576,7 @@
     <ClCompile Include="Devices\Disk\MemoryBlockStore.cpp" />
     <ClCompile Include="Devices\Disk\CachingBlockStore.cpp" />
     <ClCompile Include="Devices\Disk\BlockImage.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\HfsVolume.cpp" />
     <ClCompile Include="Devices\Disk\BlockVolumeOpener.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\CffaLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\DosMasterLayout.cpp" />
@@ -1280,6 +1281,7 @@
     <ClInclude Include="Devices\Disk\MemoryBlockStore.h" />
     <ClInclude Include="Devices\Disk\CachingBlockStore.h" />
     <ClInclude Include="Devices\Disk\BlockImage.h" />
+    <ClInclude Include="Machines\Apple2\Common\HfsVolume.h" />
     <ClInclude Include="Devices\Disk\BlockVolumeOpener.h" />
     <ClInclude Include="Devices\Disk\Partitions\CffaLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\DosMasterLayout.h" />

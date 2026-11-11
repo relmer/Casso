@@ -42,6 +42,9 @@ enum class VolumeKind
 
     //  A Strategic Simulations RDOS disk, which is read-only.
     Rdos,
+
+    //  A Macintosh HFS volume, as GS/OS writes on 800K disks and hard disks.
+    Hfs,
 };
 
 
