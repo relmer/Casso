@@ -612,6 +612,36 @@ void ExplorerTreePane::RevealLocationInTree()
         return;
     }
 
+    //  A storage card is its node under This PC, and a partition on it the
+    //  partition's node under the card, which is opened down to it.
+    if (PhysicalCards::IsOnCard (path))
+    {
+        std::wstring  cardPath = path.substr (0, path.find (L'|'));
+        std::wstring  cardId   = std::wstring (TreeModel::kStorageCardTag) + cardPath;
+        std::wstring  target   = cardPath == path ? cardId : TreeModel::MakeImageId (false, path);
+
+        if (target != cardId)
+        {
+            m_tree->SetRowExpanded (m_tree->FindRowById (TreeModel::kThisPcRootId), true);
+            m_tree->SetRowExpanded (m_tree->FindRowById (cardId), true);
+        }
+
+        if (m_tree->FindRowById (target) < 0)
+        {
+            target = cardId;
+        }
+
+        row = m_tree->FindRowById (target);
+
+        if (row >= 0 && current != target)
+        {
+            m_tree->HighlightRow (row);
+            ScrollTreeToRow (row);
+        }
+
+        return;
+    }
+
     if (location.kind == Location::Kind::None || path.size() < 2 || path[1] != L':')
     {
         return;

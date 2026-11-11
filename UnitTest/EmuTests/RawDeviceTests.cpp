@@ -964,6 +964,25 @@ public:
     }
 
 
+    TEST_METHOD (ListCard_LeavesOutEmptySlotsAfterTheLastVolume)
+    {
+        Session                      session;
+        PartitionLayoutKind          kind = PartitionLayoutKind::None;
+        std::vector<PartitionEntry>  entries;
+
+        session.drives.drives[kCard].bytes.assign ((size_t) RawDeviceServer::kSliceBlocks * 4 * kBlock, 0);
+        session.Start();
+
+        AssertSucceeded (session.connection->Initialize (kCard, 2));
+
+        MemoryBlockStore  store (session.drives.drives[kCard].bytes);
+
+        AssertSucceeded (PartitionAccess::ListCard (store, kind, entries));
+
+        Assert::AreEqual ((size_t) 2, entries.size());
+    }
+
+
     TEST_METHOD (Initialize_GivesA32MbCardOneVolumeThatCanBeWritten)
     {
         Session                      session;

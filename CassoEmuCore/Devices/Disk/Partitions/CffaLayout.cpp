@@ -70,9 +70,9 @@ HRESULT CffaLayout::TryDetect (IBlockStore & store, std::vector<Partition> & out
         }
     }
 
-    //  Past the first four, a slot with no volume after the last one that has
-    //  one is the card's unused space, not a partition.
-    while (found.size() > (size_t) s_kSliceCount && found.back().volumeKind != VolumeKind::ProDos && !found.back().isHfs)
+    //  A slot with no volume after the last one that has one is the card's
+    //  unused space, not a partition. At least one slot has a volume.
+    while (found.size() > 1 && found.back().volumeKind != VolumeKind::ProDos && !found.back().isHfs)
     {
         found.pop_back();
     }
