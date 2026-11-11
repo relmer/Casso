@@ -101,6 +101,7 @@ HRESULT RawDeviceServer::Run()
 Error:
     for (auto & [number, session] : m_sessions)
     {
+        LogTraffic (number, session, true);
         session.device->Close();
     }
 
@@ -232,11 +233,49 @@ HRESULT RawDeviceServer::ServeClose (int number)
 
     if (found != m_sessions.end())
     {
+        LogTraffic (number, found->second, true);
         found->second.device->Close();
         m_sessions.erase (found);
     }
 
     return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawDeviceServer::LogTraffic
+//
+//  The bytes moved, the requests, the time in the device and the time since
+//  the last line. Most of the time outside the device is the round trips.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RawDeviceServer::LogTraffic (int number, Session & session, bool closing)
+{
+    using std::chrono::duration_cast;
+    using std::chrono::milliseconds;
+
+    Clock::time_point  now     = Clock::now();
+    bool               isMoved = session.readBytes + session.writtenBytes > 0;
+
+
+
+    if (m_log && isMoved)
+    {
+        m_log (std::format (L"drive {} traffic{}: read {} bytes, wrote {} bytes, {} requests, {} ms in the device of {} ms",
+                            number, closing ? L" at close" : L"", session.readBytes, session.writtenBytes, session.requests,
+                            duration_cast<milliseconds> (session.deviceTime).count(), duration_cast<milliseconds> (now - session.since).count()));
+    }
+
+    session.since        = now;
+    session.readBytes    = 0;
+    session.writtenBytes = 0;
+    session.requests     = 0;
+    session.deviceTime   = {};
 }
 
 
@@ -267,8 +306,19 @@ HRESULT RawDeviceServer::ServeRead (int number, uint64_t first, uint32_t count)
 
     if (SUCCEEDED (result))
     {
+        Clock::time_point  start = Clock::now();
+
         blocks.resize ((size_t) count * IRawDevice::kBlockBytes);
         result = session->device->ReadBlocks (first, count, blocks);
+
+        session->deviceTime += Clock::now() - start;
+        session->readBytes  += blocks.size();
+        session->requests++;
+
+        if (session->readBytes + session->writtenBytes >= kTrafficLogBytes)
+        {
+            LogTraffic (number, *session, false);
+        }
     }
 
     if (FAILED (result))
@@ -322,7 +372,18 @@ HRESULT RawDeviceServer::ServeWrite (int number, uint64_t first, uint32_t count)
 
     if (SUCCEEDED (result))
     {
+        Clock::time_point  start = Clock::now();
+
         result = session->device->WriteBlocks (first, blocks);
+
+        session->deviceTime   += Clock::now() - start;
+        session->writtenBytes += blocks.size();
+        session->requests++;
+
+        if (session->readBytes + session->writtenBytes >= kTrafficLogBytes)
+        {
+            LogTraffic (number, *session, false);
+        }
     }
 
     hr = Reply (result, {});
@@ -385,13 +446,15 @@ int RawDeviceServer::CountInitialVolumes (uint64_t blocks)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT RawDeviceServer::ServeInitialize (int number, uint64_t layout)
+HRESULT RawDeviceServer::ServeInitialize (int number, uint64_t request)
 {
     HRESULT          hr       = S_OK;
     HRESULT          result   = S_OK;
     Session        * session  = nullptr;
     uint64_t         blocks   = 0;
     bool             valid    = false;
+    bool             zeroFill = (request & RawDeviceProtocol::kLayoutZeroFill) != 0;
+    uint64_t         layout   = request & ~RawDeviceProtocol::kLayoutZeroFill;
     WriteProgress    progress;
 
 
@@ -430,7 +493,7 @@ HRESULT RawDeviceServer::ServeInitialize (int number, uint64_t layout)
     if (SUCCEEDED (result))
     {
         result = layout == RawDeviceProtocol::kLayoutFat32 ? Fat32Format::Write (*session->device, blocks, progress)
-                                                            : WriteCffaLayout (*session, (int) layout, progress);
+                                                            : WriteCffaLayout (*session, (int) layout, zeroFill, progress);
         Log (L"initialize: write", result);
         session->device->UnlockVolumes();
 
@@ -459,7 +522,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT RawDeviceServer::WriteCffaLayout (Session & session, int volumes, const WriteProgress & progress)
+HRESULT RawDeviceServer::WriteCffaLayout (Session & session, int volumes, bool zeroFill, const WriteProgress & progress)
 {
     HRESULT            hr      = S_OK;
     uint64_t           total   = session.drive.bytes / IRawDevice::kBlockBytes;
@@ -478,7 +541,7 @@ HRESULT RawDeviceServer::WriteCffaLayout (Session & session, int volumes, const 
         hr = ProDosSkeleton::Write (volume, "CARD1");
         CHR (hr);
 
-        hr = WriteVolume (session, 0, volume, written, volume.size(), progress);
+        hr = WriteVolume (session, 0, volume, zeroFill, written, volume.size(), progress);
         CHR (hr);
 
         BAIL_OUT_IF (true, S_OK);
@@ -494,7 +557,7 @@ HRESULT RawDeviceServer::WriteCffaLayout (Session & session, int volumes, const 
         hr = ProDosSkeleton::Write (volume, std::format ("CARD{}", slice + 1));
         CHR (hr);
 
-        hr = WriteVolume (session, next, volume, written, toWrite, progress);
+        hr = WriteVolume (session, next, volume, zeroFill, written, toWrite, progress);
         CHR (hr);
 
         next += blocks;
@@ -536,31 +599,63 @@ Error:
 //  RawDeviceServer::WriteVolume
 //
 //  A volume's blocks, written kProgressBlocks at a time, with a report to
-//  `progress` after each.
+//  `progress` after each. Without `zeroFill`, only the blocks its bitmap
+//  marks used are written, which for a new volume are the boot blocks, the
+//  directory and the bitmap. The total reported is the volume's either way.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT RawDeviceServer::WriteVolume (Session & session, uint64_t first, std::span<const Byte> volume, uint64_t & ioWritten, uint64_t total, const WriteProgress & progress)
+HRESULT RawDeviceServer::WriteVolume (Session & session, uint64_t first, std::span<const Byte> volume, bool zeroFill, uint64_t & ioWritten, uint64_t total, const WriteProgress & progress)
 {
-    HRESULT  hr     = S_OK;
-    size_t   offset = 0;
+    HRESULT                                   hr      = S_OK;
+    bool                                      found   = false;
+    uint64_t                                  start   = ioWritten;
+    std::vector<PartitionAccess::BlockRun>    runs;
 
 
 
-    while (offset < volume.size())
+    if (!zeroFill)
     {
-        size_t  run = std::min (volume.size() - offset, (size_t) kProgressBlocks * IRawDevice::kBlockBytes);
-
-        hr = session.device->WriteBlocks (first + offset / IRawDevice::kBlockBytes, volume.subspan (offset, run));
+        hr = PartitionAccess::FindUsedRuns ([volume] (uint32_t block, std::span<Byte> outBlock)
+                                            {
+                                                std::copy_n (volume.begin() + (ptrdiff_t) block * IRawDevice::kBlockBytes, IRawDevice::kBlockBytes, outBlock.begin());
+                                                return S_OK;
+                                            },
+                                            (uint32_t) (volume.size() / IRawDevice::kBlockBytes), runs, found);
         CHR (hr);
+    }
 
-        offset    += run;
-        ioWritten += run;
+    if (!found)
+    {
+        runs = { PartitionAccess::BlockRun (0, (uint32_t) (volume.size() / IRawDevice::kBlockBytes)) };
+    }
 
-        if (progress)
+    for (const PartitionAccess::BlockRun & run : runs)
+    {
+        size_t  offset = (size_t) run.first * IRawDevice::kBlockBytes;
+        size_t  end    = offset + (size_t) run.second * IRawDevice::kBlockBytes;
+
+        while (offset < end)
         {
-            progress (ioWritten, total);
+            size_t  piece = std::min (end - offset, (size_t) kProgressBlocks * IRawDevice::kBlockBytes);
+
+            hr = session.device->WriteBlocks (first + offset / IRawDevice::kBlockBytes, volume.subspan (offset, piece));
+            CHR (hr);
+
+            offset += piece;
+
+            if (progress)
+            {
+                progress (start + offset, total);
+            }
         }
+    }
+
+    ioWritten = start + volume.size();
+
+    if (progress)
+    {
+        progress (ioWritten, total);
     }
 
 Error:

@@ -947,6 +947,23 @@ public:
     }
 
 
+    TEST_METHOD (Initialize_QuickLeavesFreeBlocksAndZeroFillClearsThem)
+    {
+        for (bool zeroFill : { false, true })
+        {
+            Session  session;
+            size_t   freeByte = ((size_t) RawDeviceServer::kSliceBlocks + 1000) * kBlock;
+
+            session.drives.drives[kCard].bytes.assign ((size_t) RawDeviceServer::kSliceBlocks * 2 * kBlock, 0xA5);
+            session.Start();
+
+            AssertSucceeded (session.connection->Initialize (kCard, 2 | (zeroFill ? RawDeviceProtocol::kLayoutZeroFill : 0)));
+
+            Assert::AreEqual ((Byte) (zeroFill ? 0x00 : 0xA5), session.drives.drives[kCard].bytes[freeByte]);
+        }
+    }
+
+
     TEST_METHOD (Initialize_GivesA32MbCardOneVolumeThatCanBeWritten)
     {
         Session                      session;

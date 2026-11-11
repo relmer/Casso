@@ -28,6 +28,7 @@ public:
         DxuiComboBox           * adapter      = nullptr;
         DxuiLabel              * layoutLabel  = nullptr;
         DxuiComboBox           * layout       = nullptr;
+        DxuiCheckbox           * quick        = nullptr;
         CardCompatibilityGrid  * grid         = nullptr;
         DxuiLabel              * contents     = nullptr;
         DxuiLabel              * warning      = nullptr;
@@ -72,7 +73,8 @@ public:
     explicit CassoExplorerInitializeCardDialog (const CardLayoutModel & model) : m_model (model), m_grid (model) {}
 
     //  False when canceled or the dialog could not open; otherwise the layout
-    //  code chosen. `ioAdapter` is the adapter selected first, and the adapter
+    //  code chosen, with RawDeviceProtocol::kLayoutZeroFill added when Quick
+    //  format is unchecked. `ioAdapter` is the adapter selected first, and the adapter
     //  chosen after, whether or not the erase ran.
     static bool  Confirm (HWND                         owner,
                           const IDxuiTheme           * theme,
@@ -102,6 +104,7 @@ private:
     DxuiComboBox                          m_adapterBox;
     DxuiLabel                             m_layoutLabel;
     DxuiComboBox                          m_layoutBox;
+    DxuiCheckbox                          m_quick;
     CardCompatibilityGrid                 m_grid;
     DxuiLabel                             m_contents;
     DxuiLabel                             m_warning;

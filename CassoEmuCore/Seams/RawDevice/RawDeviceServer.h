@@ -67,12 +67,24 @@ public:
     HRESULT  Run ();
 
 private:
+    using Clock = std::chrono::steady_clock;
+
     struct Session
     {
         std::unique_ptr<IRawDevice>  device;
         PhysicalDrive                drive;
         std::vector<BlockExtent>     writable;
+
+        //  The traffic since the last line logged for it.
+        Clock::time_point            since         = Clock::now();
+        uint64_t                     readBytes     = 0;
+        uint64_t                     writtenBytes  = 0;
+        uint64_t                     requests      = 0;
+        Clock::duration              deviceTime    = {};
     };
+
+    //  A line of traffic is logged after this many bytes, and at the close.
+    static constexpr uint64_t  kTrafficLogBytes = 16ull * 1024 * 1024;
 
     static void  FindApplePartitions (IRawDevice & device, uint64_t blocks, std::vector<BlockExtent> & outExtents);
 
@@ -80,13 +92,14 @@ private:
     HRESULT  ServeClose      (int number);
     HRESULT  ServeRead       (int number, uint64_t first, uint32_t count);
     HRESULT  ServeWrite      (int number, uint64_t first, uint32_t count);
-    HRESULT  ServeInitialize (int number, uint64_t layout);
-    HRESULT  WriteCffaLayout (Session & session, int volumes, const WriteProgress & progress);
-    HRESULT  WriteVolume     (Session & session, uint64_t first, std::span<const Byte> volume, uint64_t & ioWritten, uint64_t total, const WriteProgress & progress);
+    HRESULT  ServeInitialize (int number, uint64_t request);
+    HRESULT  WriteCffaLayout (Session & session, int volumes, bool zeroFill, const WriteProgress & progress);
+    HRESULT  WriteVolume     (Session & session, uint64_t first, std::span<const Byte> volume, bool zeroFill, uint64_t & ioWritten, uint64_t total, const WriteProgress & progress);
     HRESULT  ClearHeader     (Session & session, uint64_t at, uint64_t written, uint64_t total, std::span<const Byte> header);
     HRESULT  CheckRange      (int number, uint64_t first, uint32_t count, Session * & outSession);
     HRESULT  CheckWrite      (Session & session, uint64_t first, uint32_t count);
     HRESULT  Reply           (HRESULT result, std::span<const Byte> payload);
+    void     LogTraffic      (int number, Session & session, bool closing);
 
     void  Log (const std::wstring & step, HRESULT result) const { if (m_log) { m_log (std::format (L"{}: 0x{:08X}", step, (uint32_t) result)); } }
 

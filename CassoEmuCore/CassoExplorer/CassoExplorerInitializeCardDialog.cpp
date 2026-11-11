@@ -3,6 +3,7 @@
 #include "CassoExplorer/CassoExplorerInitializeCardDialog.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
+#include "Seams/RawDevice/RawDeviceProtocol.h"
 
 
 
@@ -23,6 +24,7 @@ void CassoExplorerInitializeCardPanel::Init (const Parts & parts)
     Adopt (*parts.adapter);
     Adopt (*parts.layoutLabel);
     Adopt (*parts.layout);
+    Adopt (*parts.quick);
     Adopt (*parts.grid);
     Adopt (*parts.contents);
     Adopt (*parts.warning);
@@ -59,7 +61,7 @@ void CassoExplorerInitializeCardPanel::Layout (const RECT & boundsDip, const Dxu
 
 bool CassoExplorerInitializeCardPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_parts.adapter->OnMouse (ev) || m_parts.layout->OnMouse (ev);
+    return m_parts.adapter->OnMouse (ev) || m_parts.layout->OnMouse (ev) || m_parts.quick->OnMouse (ev);
 }
 
 
@@ -151,6 +153,8 @@ int CassoExplorerInitializeCardPanel::Arrange (const RECT & bounds, const DxuiDp
         top += field + nearGap;
         m_parts.layoutLabel->Layout  (RECT { bounds.left, top, bounds.left + labelW, top + field }, scaler);
         m_parts.layout->Layout       (RECT { bounds.left + labelW, top, bounds.right, top + field }, scaler);
+        top += field + nearGap;
+        m_parts.quick->Layout        (RECT { bounds.left + labelW, top, bounds.right, top + field }, scaler);
         top += field + gap;
         m_parts.grid->Layout         (RECT { bounds.left, top, bounds.right, top + grid }, scaler);
         top += grid + gap;
@@ -161,7 +165,7 @@ int CassoExplorerInitializeCardPanel::Arrange (const RECT & bounds, const DxuiDp
     }
     else
     {
-        top += question + gap + field + nearGap + field + gap + grid + gap + contents + gap + warning;
+        top += question + gap + field + nearGap + field + nearGap + field + gap + grid + gap + contents + gap + warning;
     }
 
     return top - bounds.top;
@@ -214,6 +218,9 @@ void CassoExplorerInitializeCardDialog::OnCreate()
     m_layoutBox.SetPopupHost (GetPopupHost());
     m_layoutBox.SetSelect ([this] (int index) { ChooseLayout (index); });
 
+    m_quick.SetLabel (L"Quick format");
+    m_quick.SetChecked (true);
+
     m_contents.SetText (m_contentsText);
     ExplorerTextStyles::Apply (m_contents, ExplorerTextStyles::kFormLabel);
 
@@ -223,7 +230,7 @@ void CassoExplorerInitializeCardDialog::OnCreate()
 
     ChooseAdapter (m_adapter);
 
-    parts = { &m_question, &m_adapterLabel, &m_adapterBox, &m_layoutLabel, &m_layoutBox, &m_grid, &m_contents, &m_warning };
+    parts = { &m_question, &m_adapterLabel, &m_adapterBox, &m_layoutLabel, &m_layoutBox, &m_quick, &m_grid, &m_contents, &m_warning };
 
     m_body = CreateDialogContent<CassoExplorerInitializeCardPanel>();
     m_body->Init (parts);
@@ -236,6 +243,12 @@ void CassoExplorerInitializeCardDialog::OnCreate()
     {
         m_layout    = m_model.GetLayout (m_position);
         m_confirmed = true;
+
+        //  FAT32 is written as Windows' quick format is, its tables only.
+        if (!m_quick.IsChecked() && !m_model.IsFat32 (m_position))
+        {
+            m_layout |= RawDeviceProtocol::kLayoutZeroFill;
+        }
 
         EndDialog (IDOK);
     });
@@ -304,6 +317,7 @@ void CassoExplorerInitializeCardDialog::ChooseLayout (int index)
     }
 
     m_grid.SetChoice (m_position, m_adapter);
+    m_quick.SetEnabled (!m_model.IsFat32 (m_position));
 
     if (GetHwnd() != nullptr)
     {

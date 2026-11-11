@@ -36,8 +36,12 @@ public:
 
     //  The drive erased and given a new layout, which the broker builds: the
     //  header's block number is a count of CFFA volumes, or kLayoutFat32.
-    static constexpr Byte      kInitialize  = 5;
-    static constexpr uint64_t  kLayoutFat32 = 1000;
+    //  With kLayoutZeroFill added, every block of each CFFA volume is
+    //  zeroed; without it, only each volume's boot blocks, directory and
+    //  bitmap are written.
+    static constexpr Byte      kInitialize     = 5;
+    static constexpr uint64_t  kLayoutFat32    = 1000;
+    static constexpr uint64_t  kLayoutZeroFill = 1ull << 32;
 
     static constexpr size_t    kHeaderBytes = 17;
 
