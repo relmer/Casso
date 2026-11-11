@@ -98,7 +98,11 @@ $files = @(
     @{ Path = 'zip/GSHK11.zip';              Size = 76046   },
     @{ Path = 'zip/hello-as.zip';            Size = 262     },
     @{ Path = 'zip/new-init-po.zip';         Size = 7489    },
-    @{ Path = 'zip/unix-streamed.zip';       Size = 471     }
+    @{ Path = 'zip/unix-streamed.zip';       Size = 471     },
+    @{ Path = 'prodos/blank-800k.po';        Size = 819200  },
+    @{ Path = 'prodos/simple-sparse.po';     Size = 819200  },
+    @{ Path = '2img/prodos-disk.2mg';        Size = 143515  },
+    @{ Path = 'diskcopy/Installer Disk 1.image'; Size = 838484 }
 )
 
 $downloaded = 0
@@ -206,7 +210,10 @@ if ($Extract) {
         @{ Image = 'rdos/rdos32-shiloh-save.woz'; Raw = $true;  Files = @('MYSAVE') },
         @{ Image = 'dos32/3.2.1-master.d13';      Raw = $false; Files = @() },
         @{ Image = 'nib/dos321-master.nib';       Raw = $false; Files = @() },
-        @{ Image = 'woz/dos32master_2.woz';       Raw = $false; Files = @() }
+        @{ Image = 'woz/dos32master_2.woz';       Raw = $false; Files = @() },
+        @{ Image = 'prodos/simple-sparse.po';     Raw = $false; Files = @() },
+        @{ Image = '2img/prodos-disk.2mg';        Raw = $false; Files = @() },
+        @{ Image = 'diskcopy/Installer Disk 1.image'; Raw = $false; Files = @() }
     )
 
     foreach ($disk in $disks) {
