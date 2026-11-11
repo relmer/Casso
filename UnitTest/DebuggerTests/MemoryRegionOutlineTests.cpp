@@ -81,7 +81,7 @@ namespace DebuggerTests
         }
 
 
-        TEST_METHOD (TheShownBytesGiveTheirRegionsAndUnreadOnesNone)
+        TEST_METHOD (TheShownBytesGiveTheirRegionsAndUnreadOnesUnknown)
         {
             MemoryEditModel  model;
 
@@ -92,7 +92,7 @@ namespace DebuggerTests
             Assert::AreEqual (MemoryEditModel::kRegionIo, ReadRegion (model, 0xC07F));
             Assert::AreEqual ((uint16_t) (MemoryEditModel::kRegionSlotIo + 7), ReadRegion (model, 0xC0FF), L"slot 7's I/O is a separate range");
             Assert::AreEqual (MemoryEditModel::GetRegionKey (MemoryRegion::SlotRom, 0xC100), ReadRegion (model, 0xC100));
-            Assert::AreEqual ((uint16_t) 0, ReadRegion (model, 0x0300), L"a byte the window never read has a region");
+            Assert::AreEqual (IDxuiHexSource::kRegionUnknown, ReadRegion (model, 0x0300), L"a byte the window never read has an unknown region");
         }
 
 

@@ -78,14 +78,15 @@ public:
 private:
     //  A unit is one value of the hex column; a region is read at each value's
     //  first byte. Rows past either end are in no region.
-    int       GetUnitsPerRow () const;
-    uint16_t  GetUnitRegion  (int64_t row, int unit) const;
-    bool      IsRegionStart  (int64_t row, int unit) const;
-    float     GetUnitLeft    (int unit) const;
-    float     GetUnitRight   (int unit) const;
-    float     GetEdgeY       (int64_t row) const;
-    int       GetLabelLane   () const;
-    int       GetLabelWidth  (uint16_t region) const;
+    int       GetUnitsPerRow        () const;
+    uint16_t  GetUnitRegion         (int64_t row, int unit) const;
+    uint16_t  GetNearestKnownRegion (uint64_t offset) const;
+    bool      IsRegionStart         (int64_t row, int unit) const;
+    float     GetUnitLeft           (int unit) const;
+    float     GetUnitRight          (int unit) const;
+    float     GetEdgeY              (int64_t row) const;
+    int       GetLabelLane          () const;
+    int       GetLabelWidth         (uint16_t region) const;
     void      PaintRun       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme,
                               int64_t firstRow, int firstUnit, int64_t lastRow, int lastUnit, uint16_t region);
     void      DrawOutline    (IDxuiPainter & painter, const std::vector<DxuiPointF> & points, uint32_t argb) const;

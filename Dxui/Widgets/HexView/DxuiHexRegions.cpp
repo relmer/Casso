@@ -107,7 +107,56 @@ uint16_t DxuiHexRegions::GetUnitRegion (int64_t row, int unit) const
     }
 
     m_view.m_source->ReadRegions (offset, std::span<uint16_t> (&region, 1));
-    return region;
+
+    return (region == IDxuiHexSource::kRegionUnknown) ? GetNearestKnownRegion (offset) : region;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexRegions::GetNearestKnownRegion
+//
+//  The region of the first known byte after an unknown one, or before it
+//  when none after is known within kNearestBytes; none when neither is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint16_t DxuiHexRegions::GetNearestKnownRegion (uint64_t offset) const
+{
+    static constexpr uint64_t  kNearestBytes = 1024;
+    uint64_t                   bytes         = m_view.m_source->GetByteCount();
+    uint64_t                   after         = std::min (bytes, offset + kNearestBytes) - offset;
+    uint64_t                   before        = std::min (offset, kNearestBytes);
+    std::vector<uint16_t>      regions;
+
+
+
+    regions.resize ((size_t) after);
+    m_view.m_source->ReadRegions (offset, regions);
+
+    for (uint16_t each : regions)
+    {
+        if (each != IDxuiHexSource::kRegionUnknown)
+        {
+            return each;
+        }
+    }
+
+    regions.resize ((size_t) before);
+    m_view.m_source->ReadRegions (offset - before, regions);
+
+    for (auto each = regions.rbegin(); each != regions.rend(); ++each)
+    {
+        if (*each != IDxuiHexSource::kRegionUnknown)
+        {
+            return *each;
+        }
+    }
+
+    return 0;
 }
 
 

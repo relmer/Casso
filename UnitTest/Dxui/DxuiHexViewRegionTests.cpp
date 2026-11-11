@@ -213,6 +213,25 @@ public:
     }
 
 
+    //  Bytes whose region isn't known yet, as rows not read while a window
+    //  scrolls, are drawn in the nearest known region, so no edge or label
+    //  opens where the known bytes begin and closes once the rest arrive.
+    TEST_METHOD (UnknownBytesTakeTheNearestRegion)
+    {
+        RegionHexSource  source (256, { { 0, 32, IDxuiHexSource::kRegionUnknown }, { 32, 64, 1 } });
+        DxuiHexView      view;
+
+
+
+        view.SetSource      (&source);
+        view.SetShowRegions (true);
+        LayOut (view);
+
+        Assert::AreEqual (0,         view.GetLaneAbove (2), L"no edge where the known bytes begin");
+        Assert::AreEqual (kEdgeLane, view.GetLaneAbove (4), L"the edge below the region");
+    }
+
+
     TEST_METHOD (RowsMoveDownPastEachLane)
     {
         RegionHexSource  source (256, { { 32, 64, 1 } });

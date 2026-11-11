@@ -70,7 +70,11 @@ public:
     //  One region per byte at `offset`, zero for a byte in none. A run of
     //  bytes with the same nonzero region is one region, which the view
     //  outlines while its outlines are on. A source with no regions leaves
-    //  the default.
+    //  the default. kRegionUnknown is a byte whose region isn't known yet,
+    //  such as one not read; the view draws it in the nearest known region,
+    //  so a region's outline doesn't start where the known bytes end.
+    static constexpr uint16_t  kRegionUnknown = 0xFFFF;
+
     virtual void  ReadRegions (uint64_t offset, std::span<uint16_t> out) const
     {
         (void) offset;

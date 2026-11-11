@@ -522,7 +522,7 @@ bool MemoryEditModel::TryGetByteTip (uint64_t offset, std::wstring & tip) const
 //
 //  The region of each byte as the last read to reach it gave it, so a window
 //  scrolled past its read keeps the outlines it was shown there; a byte no
-//  read has reached is in none. The system ROM is split into its parts, so
+//  read has reached is unknown. The system ROM is split into its parts, so
 //  each is outlined and labeled apart.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -538,7 +538,7 @@ void MemoryEditModel::ReadRegions (uint64_t offset, std::span<uint16_t> out) con
     {
         Word  address = GetAddressOf (offset + i);
 
-        out[i] = TryGetKnown (address, value, region) ? GetRegionKey (region, address) : (uint16_t) 0;
+        out[i] = TryGetKnown (address, value, region) ? GetRegionKey (region, address) : kRegionUnknown;
 
         if (out[i] == kRegionRom)
         {
