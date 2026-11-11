@@ -12,7 +12,8 @@
 //
 //  The 64K the CPU sees, as the debugger reads it without side effects, taken
 //  at one moment: each byte a peek would read, whether a peek reads it at
-//  all (I/O is not read), and each 256-byte page's region.
+//  all (I/O is not read), each 256-byte page's region, and each byte's fetch
+//  bit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,5 +25,6 @@ struct DebugMemoryImage
 
     std::array<Byte, kBytes>          bytes    = {};
     std::bitset<kBytes>               readable;
+    std::bitset<kBytes>               fetched;     // the byte an opcode was fetched from, by the bus's fetch bits
     std::array<MemoryRegion, kPages>  regions  = {};
 };

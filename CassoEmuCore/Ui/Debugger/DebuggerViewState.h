@@ -3,6 +3,7 @@
 #include "Debugger/DataBlockTable.h"
 #include "Debugger/DebugFile.h"
 #include "Debugger/DebugMemoryImage.h"
+#include "Debugger/DisassemblyLineList.h"
 #include "Debugger/DiagnosticsSnapshot.h"
 #include "Debugger/HeatMapOptions.h"
 #include "Debugger/Reply.h"
@@ -1052,11 +1053,11 @@ private:
     //  disassembled backwards -- an instruction is only where the one before
     //  it ended -- so this walks forward from far enough back and takes the
     //  alignment that reaches `pc` exactly.
-    static Word  FindStartAbove  (DebugSession & session, Word pc, int before);
+    Word         FindStartAbove  (DebugSession & session, Word pc, int before) const;
 
     //  The top line of a pane of `lines` lines moved `count` instructions,
     //  kept within the ends of memory so the pane fills.
-    static Word  ScrollCodeTop   (DebugSession & session, Word top, int lines, int count);
+    Word         ScrollCodeTop   (DebugSession & session, Word top, int lines, int count) const;
 
     //  One disassembly view. `address` pins it; `centerOn` and `scrollLines`
     //  are moves the next build makes. `followAnchor` and `shown` are where a
@@ -1105,7 +1106,18 @@ private:
 
     //  The symbols as last read, and the symbol revision they were read at.
     mutable std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>   m_symbols;
+
     mutable uint64_t                                                    m_symbolsRevision = 0;
+
+    //  The disassembly's lines for the whole address space, built while the
+    //  machine is paused and again when what it is built from changes, and
+    //  what it was built from; the views scroll through it while it is.
+    void                                        RefreshLineList (DebugSession & session, bool isPaused) const;
+    std::optional<Word>                         StepLineList    (Word address, int count) const;
+    mutable std::mutex                          m_lineListMutex;
+    mutable DisassemblyLineList                 m_lineList;
+    mutable uint64_t                            m_lineListInputs = 0;
+    mutable bool                                m_isLineListLive = false;
 
     //  The heat map as last read, when, and whether the next build reads it
     //  again whatever the time.

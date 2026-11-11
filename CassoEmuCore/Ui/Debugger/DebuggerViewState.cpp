@@ -23,6 +23,7 @@
 #include "Debugger/ReplyJson.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/DataDirectiveHandlers.h"
+#include "Disassembler.h"
 #include "Debugger/Handlers/MemoryHandlers.h"
 #include "Debugger/Handlers/RegisterHandlers.h"
 #include "Debugger/Handlers/WatchHandlers.h"
@@ -130,6 +131,8 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
                                                      [this, &session, &snapshot] { BuildTrace       (session, snapshot); } };
 
 
+
+    RefreshLineList (session, isPaused);
 
     snapshot.isPaused       = isPaused;
     snapshot.isAssembling   = session.IsAssembling();
@@ -3937,7 +3940,7 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Word DebuggerViewState::ScrollCodeTop (DebugSession & session, Word top, int lines, int count)
+Word DebuggerViewState::ScrollCodeTop (DebugSession & session, Word top, int lines, int count) const
 {
     Word            from   = top;
     Word            last   = 0;
@@ -3946,6 +3949,17 @@ Word DebuggerViewState::ScrollCodeTop (DebugSession & session, Word top, int lin
     DataOrigin      origin = DataOrigin::None;
 
 
+
+    //  While the line list is built, a scroll is its lines after the top
+    //  line or before it, with the pane's lines filled at the end of memory.
+    if (StepLineList (top, count).has_value())
+    {
+        Word  lowest = *StepLineList (0xFFFF, -(std::max) (0, lines - 1));
+
+
+
+        return (std::min) (*StepLineList (top, count), lowest);
+    }
 
     for (int i = 0; i < count && top < 0xFFFF; i++)
     {
@@ -4010,6 +4024,124 @@ Word DebuggerViewState::ScrollCodeTop (DebugSession & session, Word top, int lin
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::RefreshLineList
+//
+//  While the machine runs, nothing builds the list and the views decode as
+//  they did. Paused, the list is built again only when what it is built
+//  from changed: memory, the fetch bits, the PC, the marks or the debug
+//  file, which a step, an edit, Load file and a seek all change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::RefreshLineList (DebugSession & session, bool isPaused) const
+{
+    static constexpr uint64_t    kFnvOffset   = 1469598103934665603ull;
+    static constexpr uint64_t    kFnvPrime    = 1099511628211ull;
+    auto                         image        = std::make_unique<DebugMemoryImage>();
+    Disassembler                 disassembler (session.GetTarget().GetInstructionSet());
+    DisassemblyLineList::Inputs  inputs;
+    uint64_t                     hash         = kFnvOffset;
+    Word                         pc           = session.GetTarget().GetRegisters().pc;
+    auto                         mix          = [&hash] (uint64_t value) { hash = (hash ^ value) * kFnvPrime; };
+    std::lock_guard<std::mutex>  held (m_lineListMutex);
+
+
+
+    m_isLineListLive = isPaused;
+
+    if (!isPaused)
+    {
+        return;
+    }
+
+    session.GetTarget().TakeMemoryImage (*image);
+
+    for (size_t at = 0; at < DebugMemoryImage::kBytes; at += 8)
+    {
+        uint64_t  word = 0;
+
+        std::memcpy (&word, &image->bytes[at], sizeof (word));
+        mix (word);
+    }
+
+    mix (std::hash<std::bitset<DebugMemoryImage::kBytes>> {} (image->fetched));
+    mix (pc);
+    mix (session.GetDataBlocks().GetAll().size());
+
+    for (const DataBlockEntry & block : session.GetDataBlocks().GetAll())
+    {
+        mix (((uint64_t) block.first << 16) | block.last);
+    }
+
+    mix (session.GetDebugFileLines().size());
+
+    if (m_lineList.IsBuilt() && hash == m_lineListInputs)
+    {
+        return;
+    }
+
+    for (int opcode = 0; opcode < 256; opcode++)
+    {
+        inputs.lengths[(size_t) opcode] = (uint8_t) disassembler.GetLength ((Byte) opcode);
+    }
+
+    inputs.image      = image.get();
+    inputs.debugLines = session.GetDebugFileLines();
+    inputs.starts     = { pc };
+    inputs.dataLine   = [&session] (Word address, bool & isMarked) -> int
+    {
+        DataBlockEntry   block;
+        DataOrigin       origin = DataOrigin::None;
+        DisassemblyData  data;
+
+
+
+        if (!session.TryFindData (address, block, origin))
+        {
+            return 0;
+        }
+
+        isMarked = origin != DataOrigin::DebugFile;
+        return (int) (DataDirectiveHandlers::Disassemble (session, address, std::nullopt, 1, data) - address);
+    };
+
+    m_lineList.Build (inputs);
+    m_lineListInputs = hash;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::StepLineList
+//
+//  The address `count` lines from the line holding an address, while the
+//  machine is paused and the list is built; none otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> DebuggerViewState::StepLineList (Word address, int count) const
+{
+    std::lock_guard<std::mutex>  held (m_lineListMutex);
+
+
+
+    if (!m_isLineListLive || !m_lineList.IsBuilt())
+    {
+        return std::nullopt;
+    }
+
+    return m_lineList.StepLines (address, count);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::FindStartAbove
 //
 //  The 6502 cannot be disassembled backwards: an instruction begins where the
@@ -4022,13 +4154,19 @@ Word DebuggerViewState::ScrollCodeTop (DebugSession & session, Word top, int lin
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Word DebuggerViewState::FindStartAbove (DebugSession & session, Word pc, int before)
+Word DebuggerViewState::FindStartAbove (DebugSession & session, Word pc, int before) const
 {
     Word             first = 0;
     DisassemblyData  data;
     int              index = 0;
 
 
+
+    //  The line list's lines above, where it is built: no guessed alignment.
+    if (StepLineList (pc, -before).has_value())
+    {
+        return *StepLineList (pc, -before);
+    }
 
     if (before <= 0 || pc < (Word) (before * 3))
     {

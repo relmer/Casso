@@ -275,6 +275,7 @@
     <ClCompile Include="Ui\Debugger\CommandCompletion.cpp" />
     <ClCompile Include="Ui\Debugger\ByteDialog.cpp" />
     <ClCompile Include="Ui\Debugger\FieldDialogPanel.cpp" />
+    <ClCompile Include="Debugger\DisassemblyLineList.cpp" />
     <ClCompile Include="Ui\Debugger\ReplayProgressDialog.cpp" />
     <ClCompile Include="Ui\Debugger\UndoText.cpp" />
     <ClCompile Include="Ui\Debugger\TextDialog.cpp" />
@@ -1099,6 +1100,7 @@
     <ClInclude Include="Ui\Debugger\CommandCompletion.h" />
     <ClInclude Include="Ui\Debugger\ByteDialog.h" />
     <ClInclude Include="Ui\Debugger\FieldDialogPanel.h" />
+    <ClInclude Include="Debugger\DisassemblyLineList.h" />
     <ClInclude Include="Ui\Debugger\ReplayProgressDialog.h" />
     <ClInclude Include="Ui\Debugger\UndoText.h" />
     <ClInclude Include="Ui\Debugger\TextDialog.h" />

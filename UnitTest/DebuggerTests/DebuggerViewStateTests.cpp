@@ -459,6 +459,48 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  Paused, the code pane scrolls through the line list: up over code
+        //  the CPU fetched, it lands on the fetched start where a guessed
+        //  alignment from three bytes a line would land inside the LDA; up
+        //  over a marked range, on the range's data lines.
+        TEST_METHOD (ScrollingUpLandsOnFetchedStartsAndDataLines)
+        {
+            std::unique_ptr<MachineRig>   held = std::make_unique<MachineRig>();
+            MachineRig                  & rig  = *held;
+            MemoryBus                   & bus  = rig.machine.GetMemoryBus();
+            DebuggerViewSnapshot          shown;
+
+
+
+            //  $2000: NOP, then LDA $EAEA whose operand is NOPs; the CPU ran
+            //  the NOP at $2002, so that is where an instruction starts.
+            for (Word at = 0x1F00; at < 0x2100; at++)
+            {
+                bus.WriteByte (at, 0xEA);
+            }
+
+            bus.WriteByte (0x2001, 0xAD);
+            bus.NoteFetch (0x2002);
+            bus.NoteFetch (0x2003);
+
+            rig.view.SetCodeLines   (10);
+            rig.view.SetCodeAddress (0x2003);
+            shown = rig.view.Build (rig.controller.GetSession());
+
+            rig.view.ScrollCode (-1);
+            shown = rig.view.Build (rig.controller.GetSession());
+            Assert::AreEqual ((int) 0x2002, (int) shown.code[0].address, L"the fetched NOP, not the LDA's operand");
+
+            rig.Run ("DB 2100:210F");
+            rig.view.SetCodeAddress (0x2110);
+            shown = rig.view.Build (rig.controller.GetSession());
+
+            rig.view.ScrollCode (-1);
+            shown = rig.view.Build (rig.controller.GetSession());
+            Assert::AreEqual ((int) 0x2108, (int) shown.code[0].address, L"the range's second line of eight bytes");
+        }
+
+
         TEST_METHOD (TheWheelScrollsTheCodePaneThroughMemory)
         {
             std::unique_ptr<MachineRig>   held     = std::make_unique<MachineRig>();

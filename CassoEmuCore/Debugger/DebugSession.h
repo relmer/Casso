@@ -216,6 +216,9 @@ public:
     void                           SetDebugFileLines       (std::vector<ProgramCheck::Entry> entries) { m_debugFileLines = std::move (entries); }
     std::set<std::pair<int, int>>  GetUnmatchedSourceLines () const;
 
+    // The debug file's instruction lines, as SetDebugFileLines set them.
+    const std::vector<ProgramCheck::Entry> &  GetDebugFileLines () const { return m_debugFileLines; }
+
     // The files whose program isn't in memory, by name, for the banners.
     std::vector<std::string>  GetStaleFileNames () const;
 

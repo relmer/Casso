@@ -93,6 +93,11 @@ void DebugMemoryView::CopyAll (DebugMemoryImage & image) const
 
 
 
+    for (size_t address = 0; address < DebugMemoryImage::kBytes; address++)
+    {
+        image.fetched[address] = bus.IsFetched ((Word) address);
+    }
+
     for (size_t index = 0; index < DebugMemoryImage::kPages; index++)
     {
         first                = index * DebugMemoryImage::kPageBytes;
