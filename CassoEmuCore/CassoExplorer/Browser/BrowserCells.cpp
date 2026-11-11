@@ -195,6 +195,10 @@ void BrowserCells::DescribeVolumeSpace (const std::wstring & imagePath, const Vo
     {
         outStatus.freeSpaceTip += L", RDOS volume";
     }
+    else if (kind == VolumeKind::Infocom)
+    {
+        outStatus.freeSpaceTip += L", Infocom disk";
+    }
 }
 
 

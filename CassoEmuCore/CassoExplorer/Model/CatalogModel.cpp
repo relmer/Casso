@@ -25,7 +25,7 @@
 
 uint64_t CatalogModel::GetUnitBytes (VolumeKind kind)
 {
-    bool  isSectors = kind == VolumeKind::Dos33 || kind == VolumeKind::Gutenberg || kind == VolumeKind::Rdos;
+    bool  isSectors = kind == VolumeKind::Dos33 || kind == VolumeKind::Gutenberg || kind == VolumeKind::Rdos || kind == VolumeKind::Infocom;
 
 
 
@@ -102,6 +102,12 @@ std::wstring CatalogModel::GetTypeText (Byte type, VolumeKind kind)
     if (kind == VolumeKind::Pascal)
     {
         return GetPascalKindText (type);
+    }
+
+    //  An Infocom disk's one file is its story.
+    if (kind == VolumeKind::Infocom)
+    {
+        return L"Story";
     }
 
     //  CP/M has no types, only names.

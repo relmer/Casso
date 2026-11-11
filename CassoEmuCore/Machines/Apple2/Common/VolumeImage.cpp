@@ -21,6 +21,7 @@
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
 #include "Devices/Disk/Archives/ArchiveVolume.h"
+#include "Machines/Apple2/Common/InfocomVolume.h"
 #include "Devices/Disk/Archives/GzipFile.h"
 #include "Devices/Disk/Partitions/HybridVolume.h"
 
@@ -821,6 +822,7 @@ const char * VolumeImage::GetSystemName (VolumeKind kind)
         case VolumeKind::Gutenberg: return "Gutenberg";
         case VolumeKind::Rdos:   return "RDOS";
         case VolumeKind::Hfs:    return "HFS";
+        case VolumeKind::Infocom: return "Infocom";
         default:                 return "";
     }
 }
@@ -901,6 +903,11 @@ VolumeKind VolumeImage::DetectFilesystem (const vector<Byte> & sectors)
     if (RdosVolume::IsFound (sectors))
     {
         return VolumeKind::Rdos;
+    }
+
+    if (InfocomVolume::IsFound (sectors))
+    {
+        return VolumeKind::Infocom;
     }
 
     //  Last, as the only one with no signature.
@@ -988,6 +995,15 @@ std::unique_ptr<IVolume> VolumeImage::CreateVolume (VolumeKind kind, const vecto
 
             rdos->SetReadObserver (observer);
             volume = std::move (rdos);
+            break;
+        }
+
+        case VolumeKind::Infocom:
+        {
+            auto  infocom = std::make_unique<InfocomVolume> (sectors);
+
+            infocom->SetReadObserver (observer);
+            volume = std::move (infocom);
             break;
         }
 

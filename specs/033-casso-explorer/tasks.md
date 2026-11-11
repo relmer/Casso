@@ -1974,7 +1974,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 ## Phase 55: Game data viewers (User Story 38)
 
 - [ ] T649 [P] [US38] `WizardryScenario` in `CassoEmuCore/FileTypes/`: monsters, items and characters as Lines, and each maze level as a Picture with walls, doors and special squares, from published community format notes (FR-240)
-- [ ] T650 [P] [US38] `ZMachineStory` in `CassoEmuCore/FileTypes/`: header, abbreviations, dictionary, object tree and decoded strings for versions 1 to 8, by the Z-Machine Standards Document 1.1, and an Infocom disk with no catalog opened as one file (FR-241)
+- [X] T650 [P] [US38] `ZMachineStory` in `CassoEmuCore/FileTypes/`: header, abbreviations, dictionary, object tree and decoded strings for versions 1 to 8, by the Z-Machine Standards Document 1.1, and an Infocom disk with no catalog opened as one file (FR-241) Done: `InfocomVolume`, `VolumeKind::Infocom`. The story's sector order isn't published, so each skewed order is tried and the one whose checksum verifies is used. Tested on stories built by the standard; no real disk is in the tree yet.
 - [ ] T651 [US38] Add both rows to `FileFormatTable`, with copy outs as text and PNG
 - [ ] T652 [US38] Scenario tests on Wizardry I to III and Infocom samples, checked against the games run in Casso and an interpreter (SC-066)
 

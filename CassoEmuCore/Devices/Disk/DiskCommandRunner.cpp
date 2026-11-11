@@ -647,7 +647,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
 
         snprintf (summary, sizeof (summary), "\n%u %s free of %u\n",
                   (unsigned) listing.freeUnits,
-                  (opened.kind == VolumeKind::Dos33 || opened.kind == VolumeKind::Gutenberg || opened.kind == VolumeKind::Rdos) ? "sectors" : "blocks",
+                  (opened.kind == VolumeKind::Dos33 || opened.kind == VolumeKind::Gutenberg || opened.kind == VolumeKind::Rdos || opened.kind == VolumeKind::Infocom) ? "sectors" : "blocks",
                   (unsigned) listing.totalUnits);
 
         result.output += summary;

@@ -45,6 +45,9 @@ enum class VolumeKind
 
     //  A Macintosh HFS volume, as GS/OS writes on 800K disks and hard disks.
     Hfs,
+
+    //  An Infocom game disk, whose story is its one file. Read-only.
+    Infocom,
 };
 
 

@@ -178,7 +178,7 @@ std::string DragPayload::EncodeCatalogEntries (
 
     bytes += sourceImage;
     bytes += '\n';
-    bytes += (kind == VolumeKind::Dos33) ? "dos33" : (kind == VolumeKind::Pascal) ? "pascal" : (kind == VolumeKind::Cpm) ? "cpm" : (kind == VolumeKind::Gutenberg) ? "gutenberg" : (kind == VolumeKind::Rdos) ? "rdos" : "prodos";
+    bytes += (kind == VolumeKind::Dos33) ? "dos33" : (kind == VolumeKind::Pascal) ? "pascal" : (kind == VolumeKind::Cpm) ? "cpm" : (kind == VolumeKind::Gutenberg) ? "gutenberg" : (kind == VolumeKind::Rdos) ? "rdos" : (kind == VolumeKind::Infocom) ? "infocom" : "prodos";
     bytes += '\n';
 
     for (const std::string & path : catalogPaths)
@@ -235,6 +235,7 @@ bool DragPayload::DecodeCatalogEntries (
     else if (lines[1] == "cpm")       { outKind = VolumeKind::Cpm; }
     else if (lines[1] == "gutenberg") { outKind = VolumeKind::Gutenberg; }
     else if (lines[1] == "rdos")      { outKind = VolumeKind::Rdos; }
+    else if (lines[1] == "infocom")   { outKind = VolumeKind::Infocom; }
     else                              { return false; }
 
     outCatalogPaths.assign (lines.begin() + 2, lines.end());
