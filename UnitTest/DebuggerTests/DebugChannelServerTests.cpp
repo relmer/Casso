@@ -726,6 +726,55 @@ namespace DebuggerTests
 
 
 
+        //  Lines a broken or hostile client might send: each gets one record
+        //  back, an error or a reply, and none throws or stops the next line
+        //  from being read.
+        TEST_METHOD (HostileLinesEachGetOneRecord)
+        {
+            static const std::vector<std::string>  kLines =
+            {
+                "", " ", "{", "}", "[]", "null", "true", "42", "\"text\"", "{}", "{\"type\":null}",
+                "{\"type\":\"command\"}", "{\"type\":\"command\",\"id\":1}", "{\"type\":\"command\",\"id\":-1,\"line\":\"r\"}",
+                "{\"type\":\"command\",\"id\":1.5,\"line\":\"r\"}", "{\"type\":\"command\",\"id\":1e300,\"line\":\"r\"}",
+                "{\"type\":\"command\",\"id\":9007199254740993,\"line\":\"r\"}", "{\"type\":\"command\",\"id\":\"1\",\"line\":\"r\"}",
+                "{\"type\":\"command\",\"id\":1,\"line\":42}", "{\"type\":\"command\",\"id\":1,\"line\":\"r\",\"mode\":\"nosuch\"}",
+                "{\"type\":\"command\",\"id\":1,\"line\":\"r\",\"budget\":0}", "{\"type\":\"command\",\"id\":1,\"line\":\"r\",\"budget\":-5}",
+                "{\"type\":\"command\",\"id\":1,\"line\":\"r\",\"overwrite\":\"yes\"}", "{\"type\":\"hello\",\"id\":1,\"allowPaths\":\"C:\\\\\"}",
+                "{\"type\":\"hello\",\"id\":1,\"allowPaths\":[1,2]}", "{\"type\":\"hello\",\"id\":1,\"protocol\":\"x\"}",
+                "{\"type\":\"hello\",\"id\":1,\"logs\":1}", "{\"type\":\"nosuch\",\"id\":1}", "{\"type\":\"pause\"}",
+                "{\"type\":\"command\",\"id\":1,\"line\":\"r\"", "{\"type\":\"command\",\"id\":1,\"line\":\"\\u00\"}",
+                "{\"type\":\"command\",\"id\":1,\"line\":\"\\uD800\"}", "{\"a\":" + std::string (200, '['),
+                std::string (500, '[') + std::string (500, ']'), "\xFF\xFE\x00\x01", "{\"type\":\"command\",\"id\":1,\"line\":\"\xC3\x28\"}",
+            };
+
+            InMemoryPipeTransport  transport;
+            RecordingRunner        runner;
+            DebugChannelServer     server (transport, runner);
+            ChannelConnectionId    client = 0;
+            size_t                 before = 0;
+
+
+
+            server.Open();
+            client = transport.Connect();
+
+            for (const std::string & line : kLines)
+            {
+                before = transport.Written (client).size();
+                transport.Send (client, line);
+                server.Pump();
+
+                Assert::AreEqual (before + 1, transport.Written (client).size(), (L"one record for: " + Widen (line)).c_str());
+            }
+
+            transport.Send (client, Command ("r", 2));
+            server.Pump();
+
+            Assert::AreEqual (std::string ("reply"), TypeOf (transport.Written (client).back()), L"a good line after them is answered");
+        }
+
+
+
         //  A per-line mode and budget reach the runner, which is where the
         //  contract says they apply: this line only.
         TEST_METHOD (APerLineModeAndBudgetReachTheRunner)
