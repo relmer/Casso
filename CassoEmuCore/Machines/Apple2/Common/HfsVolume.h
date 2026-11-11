@@ -132,7 +132,7 @@ private:
     static Word      GetWord (const vector<Byte> & bytes, size_t at) { return (Word) ((bytes[at] << 8) | bytes[at + 1]); }
     static uint32_t  GetLong (const vector<Byte> & bytes, size_t at) { return ((uint32_t) GetWord (bytes, at) << 16) | GetWord (bytes, at + 2); }
 
-    static std::string  DecodeName (const Byte * name, size_t length);
+    static std::string  DecodeName  (const Byte * name, size_t length);
     static void         ReadExtents (const vector<Byte> & bytes, size_t at, Extent (& outExtents)[3]);
 
     HRESULT  ReadMdb          (Mdb & outMdb) const;
