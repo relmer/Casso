@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/MemoryBarCommands.h"
 #include "Core/UnicodeSymbols.h"
+#include "Ui/Debugger/DebuggerIcons.h"
 
 
 
@@ -31,7 +32,7 @@ const std::vector<MemoryBarCommands::Row> & MemoryBarCommands::GetRows()
         { kUndo,      L"Undo",              s_kGlyphUndo,       L"Undo the last change made in this window",                                     DxuiToolbar::Kind::Command,  0, true  },
         { kRedo,      L"Redo",              s_kGlyphRedo,       L"Redo the change just undone",                                                  DxuiToolbar::Kind::Command,  0, true  },
         { kAddress,   L"Address",           nullptr,            L"Address: a hex address, a register, a symbol or an expression such as (3E),Y", DxuiToolbar::Kind::DropDown, 1, false },
-        { kHeat,      L"Heat",              nullptr,            L"Tint each byte by its heat, in the heat map's colors",                         DxuiToolbar::Kind::Toggle,   2, false },
+        { kHeat,      L"Heat",              nullptr,            L"Tint each byte by its heat, in the heat map's colors",                         DxuiToolbar::Kind::Toggle,   2, true  },
         { kRefresh,   L"Refresh",           s_kGlyphRefresh,    L"Read this window's bytes again",                                               DxuiToolbar::Kind::Command,  3, true  },
     };
 
@@ -124,6 +125,11 @@ std::vector<DxuiToolbar::Entry> MemoryBarCommands::BuildEntries (IDxuiToolbarCus
         entry.kind     = row.kind;
         entry.group    = row.group;
         entry.iconOnly = row.iconOnly;
+
+        if (row.id == kHeat)
+        {
+            entry.vectorIcon = &DebuggerIcons::s_kHeat;
+        }
 
         if (row.id == kAddress)
         {

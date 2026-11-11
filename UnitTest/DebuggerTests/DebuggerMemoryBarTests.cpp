@@ -4,6 +4,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/MemoryBarCommands.h"
+#include "Ui/Debugger/DebuggerIcons.h"
 
 #include "CppUnitTest.h"
 #include "Core/TextEncoding.h"
@@ -195,6 +196,28 @@ namespace DebuggerTests
             ev.positionDip = POINT { x, y };
             return ev;
         }
+
+        //  The Heat toggle is the flame icon alone, in the ink the bar's other
+        //  icons are drawn in.
+        TEST_METHOD (TheHeatToggleIsTheFlameIcon)
+        {
+            MemoryBarCommands                commands ({});
+            std::vector<DxuiToolbar::Entry>  entries  = commands.BuildEntries (nullptr);
+            auto                             heat     = std::ranges::find_if (entries, [] (const DxuiToolbar::Entry & each) { return each.command->id == MemoryBarCommands::kHeat; });
+
+
+
+            Assert::IsTrue (heat != entries.end());
+            Assert::IsTrue (heat->vectorIcon != nullptr && std::wstring (heat->vectorIcon->pathData) == DebuggerIcons::s_kHeat.pathData, L"the flame");
+            Assert::IsTrue (heat->iconOnly, L"without its label");
+            Assert::IsTrue (heat->kind == DxuiToolbar::Kind::Toggle);
+
+            for (size_t i = 0; i < DebuggerIcons::s_kHeat.layerCount; i++)
+            {
+                Assert::IsFalse (DebuggerIcons::s_kHeat.layers[i].accent, L"no accent ink");
+            }
+        }
+
 
         TEST_METHOD (TheBarHoldsVisualStudiosEntriesAndNoPokeOrCloseButton)
         {

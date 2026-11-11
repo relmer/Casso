@@ -279,6 +279,22 @@ namespace DebuggerIcons
     };
 
 
+    //  A flame, outlined in the foreground ink as the other monoline icons
+    //  are, for the heat toggles
+    static constexpr DxuiVectorIconLayer  s_kHeatLayers[] =
+    {
+        { 0x07u, false, 0.0f, 0.0f, 1.0f },
+    };
+
+    static constexpr DxuiVectorIcon  s_kHeat =
+    {
+        L"M11 1C12 5 16 7 16 12.5C16 16.5 13.3 19 10 19C6.7 19 4 16.5 4 12.8C4 10 5 7.8 6.5 6C6.8 7.6 7.4 8.7 8.3 9.4C8.4 6.3 9.4 3.4 11 1Z"
+        L"M10.76 3.4C9.54 5.32 8.78 7.64 8.71 10.12C8.02 9.56 7.57 8.68 7.34 7.4C6.2 8.84 5.44 10.6 5.44 12.84C5.44 15.8 7.49 17.8 10 17.8C12.51 17.8 14.56 15.8 14.56 12.6C14.56 8.2 11.52 6.6 10.76 3.4Z"
+        L"M10 11.6C11.3 13 12 14.3 11.6 15.6C11.3 16.6 8.7 16.6 8.4 15.6C8 14.3 8.7 13 10 11.6Z",
+        20.0f, s_kHeatLayers, std::size (s_kHeatLayers)
+    };
+
+
     //  An arrow pointing left, away from a bar
     static constexpr DxuiVectorIconLayer  s_kExportLayers[] =
     {
