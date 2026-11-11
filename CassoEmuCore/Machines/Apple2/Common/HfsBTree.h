@@ -67,12 +67,12 @@ public:
     static uint32_t  CountNodes (Kind kind, const std::vector<Record> & records);
 
 private:
-    static Byte      FoldName       (Byte character);
-    static size_t    GetRecordBytes (Kind kind, const Record & record, bool isIndex);
-    static void      PutWord        (std::vector<Byte> & bytes, size_t at, uint32_t value);
-    static void      PutLong        (std::vector<Byte> & bytes, size_t at, uint32_t value);
-    static uint32_t  GetLong        (const std::vector<Byte> & bytes, size_t at);
-    static std::vector<Byte>  MakeIndexKey (Kind kind, const std::vector<Byte> & key);
+    static Byte               FoldName       (Byte character);
+    static size_t             GetRecordBytes (Kind kind, const Record & record, bool isIndex);
+    static void               PutWord        (std::vector<Byte> & bytes, size_t at, uint32_t value);
+    static void               PutLong        (std::vector<Byte> & bytes, size_t at, uint32_t value);
+    static uint32_t           GetLong        (const std::vector<Byte> & bytes, size_t at);
+    static std::vector<Byte>  MakeIndexKey   (Kind kind, const std::vector<Byte> & key);
 
     static void  PackLevel (Kind kind, const std::vector<Record> & records, bool isIndex, std::vector<std::vector<size_t>> & outNodes);
 };

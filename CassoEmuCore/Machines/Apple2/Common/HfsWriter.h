@@ -106,9 +106,9 @@ private:
     static void      PutWord (std::vector<Byte> & bytes, size_t at, uint32_t value);
     static void      PutLong (std::vector<Byte> & bytes, size_t at, uint32_t value);
 
-    static uint32_t  GetMacNow       ();
-    static uint32_t  ToMacDate       (Word date, Word time);
-    static bool      EncodeName      (const std::string & name, std::vector<Byte> & outName);
+    static uint32_t           GetMacNow      ();
+    static uint32_t           ToMacDate      (Word date, Word time);
+    static bool               EncodeName     (const std::string & name, std::vector<Byte> & outName);
     static std::vector<Byte>  MakeCatalogKey (uint32_t parent, const std::vector<Byte> & name);
 
     static HRESULT   Load            (std::vector<Byte> & image, State & outState);
