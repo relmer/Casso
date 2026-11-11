@@ -146,10 +146,10 @@ private:
     HRESULT   AllocateNode   (uint32_t & outNumber);
     void      FreeNode       (uint32_t number);
 
-    HRESULT   InsertInto     (uint32_t number, const Record & record, Change & outChange);
-    HRESULT   SplitNode      (uint32_t number, Node & ioNode, Change & outChange);
-    HRESULT   RemoveFrom     (uint32_t number, const std::vector<Byte> & key, bool isRoot, Change & outChange);
-    HRESULT   Rebalance      (Node & ioParent, size_t child, Change & outChange);
+    HRESULT   InsertInto        (uint32_t number, const Record & record, Change & outChange);
+    HRESULT   SplitNode         (uint32_t number, Node & ioNode, Change & outChange);
+    HRESULT   RemoveFrom        (uint32_t number, const std::vector<Byte> & key, bool isRoot, Change & outChange);
+    HRESULT   Rebalance         (Node & ioParent, size_t child, Change & outChange);
     size_t    FindBalancedSplit (const std::vector<Record> & records, bool isIndex) const;
 
     void      CheckNode      (uint32_t number, int height, const std::vector<Byte> * lowKey, std::set<uint32_t> & ioSeen, std::vector<std::vector<uint32_t>> & ioLevels, uint32_t & ioRecords, std::string & outProblems) const;
