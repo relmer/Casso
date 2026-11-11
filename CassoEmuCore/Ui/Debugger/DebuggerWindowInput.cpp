@@ -784,9 +784,9 @@ void DebuggerWindow::RouteFindPlateMouse (const DxuiMouseEvent & ev)
         }
         else if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
         {
-            handled = handled || (IsRoutable (control) && control->IsVisible() && control->OnMouse (ev));
+            handled = handled || (control != nullptr && IsRoutable (control) && control->IsVisible() && control->OnMouse (ev));
         }
-        else if (ev.kind == DxuiMouseEventKind::Up && IsRoutable (control) && control->IsVisible())
+        else if (ev.kind == DxuiMouseEventKind::Up && control != nullptr && IsRoutable (control) && control->IsVisible())
         {
             (void) control->OnMouse (ev);
         }

@@ -320,9 +320,9 @@ void MemoryBus::WriteByte (Word address, Byte value)
             *cell = value;
             *m_writeFlag[address >> 8] = 1;
 
-            if (m_writeFetch[address >> 8] != nullptr)
+            if (m_fetchTables->write[address >> 8] != nullptr)
             {
-                ClearFetchInPage (m_writeFetch[address >> 8], page, address & 0xFF);
+                ClearFetchInPage (m_fetchTables->write[address >> 8], page, address & 0xFF);
             }
 
             return;
@@ -387,9 +387,9 @@ void MemoryBus::StoreToPage (Byte * page, Word address, Byte value)
     *cell = value;
     *m_writeFlag[address >> 8] = 1;
 
-    if (m_writeFetch[address >> 8] != nullptr)
+    if (m_fetchTables->write[address >> 8] != nullptr)
     {
-        ClearFetchInPage (m_writeFetch[address >> 8], page, address & 0xFF);
+        ClearFetchInPage (m_fetchTables->write[address >> 8], page, address & 0xFF);
     }
 }
 
@@ -547,7 +547,7 @@ void MemoryBus::SetReadPage (int pageIndex, Byte * page)
     {
         m_shadowReadPage[pageIndex] = page;
         m_readPage[pageIndex]       = m_pathWatched[pageIndex] ? nullptr : page;
-        m_readFetch[pageIndex]      = FindFetchPage (page);
+        m_fetchTables->read[pageIndex]      = FindFetchPage (page);
     }
 }
 
@@ -558,7 +558,7 @@ void MemoryBus::SetWritePage (int pageIndex, Byte * page)
         m_shadowWritePage[pageIndex] = page;
         m_writePage[pageIndex]       = m_pathWatched[pageIndex] ? nullptr : page;
         m_writeFlag[pageIndex]       = FindPageFlag (page);
-        m_writeFetch[pageIndex]      = FindFetchPage (page);
+        m_fetchTables->write[pageIndex]      = FindFetchPage (page);
     }
 }
 
@@ -592,7 +592,7 @@ uint8_t * MemoryBus::FindFetchPage (const Byte * page)
 
 void MemoryBus::NoteFetch (Word address)
 {
-    uint8_t * bits = m_readFetch[address >> 8];
+    uint8_t * bits = m_fetchTables->read[address >> 8];
 
 
 
@@ -614,7 +614,7 @@ void MemoryBus::NoteFetch (Word address)
 
 bool MemoryBus::IsFetched (Word address) const
 {
-    const uint8_t * bits = m_readFetch[address >> 8];
+    const uint8_t * bits = m_fetchTables->read[address >> 8];
 
 
 
@@ -671,9 +671,9 @@ void MemoryBus::ClearFetchOnWrite (Word address)
 
 
 
-    if (page != nullptr && m_writeFetch[address >> 8] != nullptr)
+    if (page != nullptr && m_fetchTables->write[address >> 8] != nullptr)
     {
-        ClearFetchInPage (m_writeFetch[address >> 8], page, address & 0xFF);
+        ClearFetchInPage (m_fetchTables->write[address >> 8], page, address & 0xFF);
     }
 }
 

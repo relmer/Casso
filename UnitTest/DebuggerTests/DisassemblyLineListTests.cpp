@@ -30,12 +30,14 @@ namespace DebuggerTests
         static constexpr Byte  kNop = 0xEA;    // one byte
 
 
-        //  Memory of NOPs with an opcode table where $AD is three bytes.
+        //  Memory of NOPs with an opcode table where $AD is three bytes. The
+        //  image is on the heap, as it is too large for a test's stack.
         struct Rig
         {
-            DebugMemoryImage               image;
-            DisassemblyLineList            list;
-            DisassemblyLineList::Inputs    inputs;
+            std::unique_ptr<DebugMemoryImage>  owned = std::make_unique<DebugMemoryImage>();
+            DebugMemoryImage                 & image = *owned;
+            DisassemblyLineList                list;
+            DisassemblyLineList::Inputs        inputs;
 
             Rig()
             {

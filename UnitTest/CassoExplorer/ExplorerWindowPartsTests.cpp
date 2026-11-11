@@ -365,7 +365,8 @@ public:
     //  tip: not one labeled with its path, nor a folder or image below one.
     TEST_METHOD (TreeTip_IsTheFullPathOfCassosFoldersShownByName)
     {
-        Rig                        rig;
+        auto                       owned = std::make_unique<Rig>();
+        Rig                      & rig   = *owned;
         std::vector<DxuiTreeNode>  roots;
         std::vector<DxuiTreeNode>  folders;
         std::wstring               disksId;
@@ -474,7 +475,8 @@ public:
     //  manifest as well.
     TEST_METHOD (Rename_OfAnImageInAFullSendFolder_RenamesItInTheManifest)
     {
-        Rig                rig;
+        auto               owned = std::make_unique<Rig>();
+        Rig              & rig   = *owned;
         DxuiKeyEvent       key;
         FullSendManifest   manifest;
         FullSendRow        row;
@@ -525,7 +527,8 @@ public:
     //  and put back when it is restored.
     TEST_METHOD (Delete_OfAnImageInAFullSendFolder_RemovesItFromTheManifestUntilRestored)
     {
-        Rig                rig;
+        auto               owned = std::make_unique<Rig>();
+        Rig              & rig   = *owned;
         FullSendManifest   manifest;
         FullSendRow        row;
         FullSendManifest   read;
@@ -560,7 +563,8 @@ public:
     //  its confirmation was canceled.
     TEST_METHOD (Delete_ThatLeftTheImage_LeavesTheManifest)
     {
-        Rig                rig;
+        auto               owned = std::make_unique<Rig>();
+        Rig              & rig   = *owned;
         FullSendManifest   manifest;
         FullSendRow        row;
         std::string        path  = "C:\\Sends\\" + std::string (FullSendManifest::kFileName);

@@ -223,7 +223,8 @@ namespace DebuggerTests
         //  first bytes there, an I/O byte as --; nothing without memory.
         TEST_METHOD (ThePointerExampleReadsTheAddressAndItsBytes)
         {
-            DebugMemoryImage  memory;
+            auto                owned  = std::make_unique<DebugMemoryImage>();
+            DebugMemoryImage  & memory = *owned;
 
 
 

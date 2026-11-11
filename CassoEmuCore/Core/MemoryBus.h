@@ -67,6 +67,10 @@ public:
     MemoryBus ();
     ~MemoryBus ();
 
+    //  A machine switch moves a new bus in; the fetch tables are not copied.
+    MemoryBus (MemoryBus &&)              = default;
+    MemoryBus & operator= (MemoryBus &&)  = default;
+
     // IMachineState: the floating-bus latch only. The page tables are derived
     // from the banking flags the MMU and language card restore, the watch and
     // trace masks are debugger configuration, and the attached devices save
@@ -159,7 +163,7 @@ public:
     //  reads, not the bits. The CPU sets the bits through the fetch table.
     void              NoteFetch          (Word address);
     bool              IsFetched          (Word address) const;
-    uint8_t * const * GetFetchTable      () const      { return m_readFetch.data(); }
+    uint8_t * const * GetFetchTable      () const      { return m_fetchTables->read.data(); }
     void              SetOpcodeLengths   (std::array<uint8_t, 256> lengths) { m_opcodeLengths = lengths; }
     void              ClearRamFetchBits  ();
     void              ClearAllFetchBits  ();
@@ -332,8 +336,17 @@ private:
     void      ClearFetchInPage  (uint8_t * bits, const Byte * page, int offset);
 
     std::unordered_map<const Byte *, FetchPage>  m_fetchPages;
-    std::array<uint8_t *, 0x100>                 m_readFetch     = {};
-    std::array<uint8_t *, 0x100>                 m_writeFetch    = {};
+
+    //  Each page's fetch bits for reads and for writes, through the current
+    //  mapping. They are on the heap so that tests can build machines on the
+    //  stack.
+    struct FetchTables
+    {
+        std::array<uint8_t *, 0x100>  read  = {};
+        std::array<uint8_t *, 0x100>  write = {};
+    };
+
+    std::unique_ptr<FetchTables>                 m_fetchTables   = std::make_unique<FetchTables>();
     std::array<uint8_t, 256>                     m_opcodeLengths = MakeDefaultLengths();
 
     static std::array<uint8_t, 256>  MakeDefaultLengths () { std::array<uint8_t, 256> lengths; lengths.fill (3); return lengths; }
