@@ -191,16 +191,16 @@ public:
 
     //  Whether the list is on a search that is being read, and stopping that
     //  read, so the list has the results found before the stop.
-    bool                              IsSearchRunning ();
-    void                              StopSearch      ();
-    bool                              IsTabPreview    () { return m_model.HasTabs() && m_model.GetActiveTab().previewOpen; }
+    bool                              IsSearchRunning       ();
+    void                              StopSearch            ();
+    bool                              IsTabPreview          () { return m_model.HasTabs() && m_model.GetActiveTab().previewOpen; }
     void                              SetTabPreviewExpanded (bool expanded) { if (m_model.HasTabs()) { m_model.GetActiveTab().previewExpanded = expanded; } }
     bool                              IsTabPreviewExpanded  () const { return m_model.HasTabs() && m_model.GetActiveTab().previewExpanded; }
-    void                              SetTabTopRow    (int row) { if (m_model.HasTabs()) { m_model.GetActiveTab().listTopRow = row; } }
-    int                               GetTabTopRow    () { return m_model.HasTabs() ? m_model.GetActiveTab().listTopRow : 0; }
-    void                              SetTabTreeRow   (int row) { if (m_model.HasTabs()) { m_model.GetActiveTab().treeTopRow = row; } }
-    int                               GetTabTreeRow   () { return m_model.HasTabs() ? m_model.GetActiveTab().treeTopRow : -1; }
-    void                              SetSelectedRows (const std::vector<int> & rows);
+    void                              SetTabTopRow          (int row) { if (m_model.HasTabs()) { m_model.GetActiveTab().listTopRow = row; } }
+    int                               GetTabTopRow          () { return m_model.HasTabs() ? m_model.GetActiveTab().listTopRow : 0; }
+    void                              SetTabTreeRow         (int row) { if (m_model.HasTabs()) { m_model.GetActiveTab().treeTopRow = row; } }
+    int                               GetTabTreeRow         () { return m_model.HasTabs() ? m_model.GetActiveTab().treeTopRow : -1; }
+    void                              SetSelectedRows       (const std::vector<int> & rows);
 
     //  The row at a place in the list, or the last row when the list ends
     //  before it; nothing for a negative place or an empty list.

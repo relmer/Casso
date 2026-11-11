@@ -108,30 +108,30 @@ public:
 
 private:
     ExplorerContext               & m_context;
-    PreviewListingView              m_listing     { *this, m_context };
-    PreviewPictureView              m_picture     { *this, m_context };
-    PreviewHexView                  m_hex         { *this, m_context };
-    PreviewTextView                 m_text        { *this, m_context };
-    PreviewShellView                m_shell       { *this, m_context };
-    PreviewFindBar                  m_find        { *this, m_context };
-    PreviewDiskThumbnail            m_thumbnail   { m_context };
-    std::array<PreviewView *, 5>    m_views       { &m_listing, &m_picture, &m_hex, &m_text, &m_shell };   // in creation order, which is drawing order
-    DxuiSelectableText            * m_message     = nullptr;
-    DxuiTextView                  * m_summary     = nullptr;   // a WOZ image's details, above its catalog
-    RECT                            m_ruleBand    = {};        // between them, empty without them
-    DxuiToolbar                   * m_toolbar     = nullptr;
-    int                             m_barMode     = CassoExplorerCommands::kPreviewBarNone;   // one of CassoExplorerCommands' preview bars
-    int                             m_barFocus    = 0;   // the toolbar's focused button
-    RECT                            m_rect        = {};   // the pane, its toolbar included
-    RECT                            m_content     = {};   // below the toolbar
-    int                             m_pictureZoom = 100;
-    PreviewContent::Kind            m_lastKind    = PreviewContent::Kind::Text;
-    bool                            m_pinned      = false;   // turned on manually, so automatic preview doesn't close it
-    bool                            m_shown       = false;   // on screen: turned on, with a file selected
+    PreviewListingView              m_listing       { *this, m_context };
+    PreviewPictureView              m_picture       { *this, m_context };
+    PreviewHexView                  m_hex           { *this, m_context };
+    PreviewTextView                 m_text          { *this, m_context };
+    PreviewShellView                m_shell         { *this, m_context };
+    PreviewFindBar                  m_find          { *this, m_context };
+    PreviewDiskThumbnail            m_thumbnail     { m_context };
+    std::array<PreviewView *, 5>    m_views         { &m_listing, &m_picture, &m_hex, &m_text, &m_shell };   // in creation order, which is drawing order
+    DxuiSelectableText            * m_message       = nullptr;
+    DxuiTextView                  * m_summary       = nullptr;   // a WOZ image's details, above its catalog
+    RECT                            m_ruleBand      = {};   // between them, empty without them
+    DxuiToolbar                   * m_toolbar       = nullptr;
+    int                             m_barMode       = CassoExplorerCommands::kPreviewBarNone;   // one of CassoExplorerCommands' preview bars
+    int                             m_barFocus      = 0;   // the toolbar's focused button
+    RECT                            m_rect          = {};   // the pane, its toolbar included
+    RECT                            m_content       = {};   // below the toolbar
+    int                             m_pictureZoom   = 100;
+    PreviewContent::Kind            m_lastKind      = PreviewContent::Kind::Text;
+    bool                            m_pinned        = false;   // turned on manually, so automatic preview doesn't close it
+    bool                            m_shown         = false;   // on screen: turned on, with a file selected
     bool                            m_isBarBuilt    = false;   // the toolbar's entries set at least once
     bool                            m_isBarExpanded = false;   // whether they have previous and next
     bool                            m_isStepping    = false;   // set during a step's selection, so the step set stays
-    std::vector<std::wstring>       m_stepSet;                 // the keys of the files a step goes through; empty for every file
+    std::vector<std::wstring>       m_stepSet       = {};   // the keys of the files a step goes through; empty for every file
     std::wstring                    m_autoKey;   // the file automatic preview last checked
     std::wstring                    m_autoAddress;
 
