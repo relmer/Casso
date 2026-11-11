@@ -16,7 +16,7 @@
 //  four are 32 MB each. The space after them is one or two 1 GB volumes, as
 //  the GS/OS driver of firmware 1.x lays out, or up to nine more of 32 MB, as
 //  CFFA 2.0's firmware maps up to 13, whichever has more recognizable
-//  volumes.
+//  volumes. Slots after the last volume past the first four are left out.
 //
 //  The search is CiderPress II's, under its Apache license, extended to the
 //  13 volumes of CFFA 2.0's manual.
