@@ -224,6 +224,12 @@ public:
     // runner print them.
     std::vector<std::string>                  TakeHitLogs       ();
 
+    // The last count messages, oldest first, of the last kRecentHitLogs
+    // written: the ones taken and the ones not taken yet. BPLOGS lists them,
+    // for a client that doesn't receive them as they are written.
+    static constexpr size_t                   kRecentHitLogs    = 1000;
+    std::vector<std::string>                  GetRecentHitLogs  (size_t count) const;
+
     // A count that goes up with each change to the debug file, its source
     // lines or the symbol table it loads into.
     uint64_t                                  GetFilesRevision  () const { return m_filesRevision; }
@@ -610,6 +616,7 @@ private:
     std::string                           m_debugFileKey;
     std::optional<SymbolTableId>          m_debugFileTable;
     uint64_t                              m_filesRevision = 0;
+    std::deque<std::string>               m_recentHitLogs;
     LineTable                             m_lineTable;
     std::shared_ptr<const ProgramChecks>  m_programChecks;
     std::vector<ProgramCheck::Entry>      m_debugFileLines;

@@ -763,6 +763,11 @@ after logging, which is `GO`.
 In `CassoCli debug`, each message is printed after the line whose run wrote it,
 before the stop; with `--json`, as `{"type":"log","text":"Breakpoint #3: A=$42"}`.
 
+`BPLOGS [n]` lists the last n messages, 20 by default, of the last 1000
+written. A debug channel client whose hello sets `"logs":true` receives each
+one as a `log` notification ([DebugChannel.md](DebugChannel.md)); the MCP
+server's `breakpoint_messages` tool lists them with `BPLOGS`.
+
 ### The Breakpoints pane
 
 The Breakpoints pane's **New** drop-down lists Execution's types (Address,

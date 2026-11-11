@@ -53,6 +53,7 @@ bool BreakpointHandlers::TryExecute (DebugSession & session, const DebugCommand 
     case DebugVerb::SaveBreakpoints:            Save          (session, command, reply);                         return true;
     case DebugVerb::SetBreakpointName:          SetName       (session, command, reply);                         return true;
     case DebugVerb::SetBreakpointLog:           SetLog        (session, command, reply);                         return true;
+    case DebugVerb::ListBreakpointLogs:         ListLogs      (session, command, reply);                         return true;
 
     case DebugVerb::ListBreakpoints:
         ListAll (session, list);
@@ -1716,6 +1717,49 @@ void BreakpointHandlers::SetLog (DebugSession & session, const DebugCommand & co
 
     reply.data = MessageData { { isClear ? std::format ("Breakpoint #{}: log cleared.", id)
                                          : std::format ("Breakpoint #{}: logs \"{}\" and {}.", id, text, isGo ? "runs on" : "stops") } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::ListLogs
+//
+//  BPLOGS [n]: the last n messages logging breakpoints wrote, oldest first,
+//  for a client that doesn't receive them as they are written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::ListLogs (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    static constexpr size_t   kDefaultCount = 20;
+    std::string               text          = command.text;
+    size_t                    count         = kDefaultCount;
+    std::vector<std::string>  logs;
+
+
+
+    text.erase (0, std::min (text.size(), text.find_first_not_of (" \t")));
+    text.erase (text.find_last_not_of (" \t") + 1);
+
+    if (!text.empty() &&
+        (std::from_chars (text.data(), text.data() + text.size(), count).ec != std::errc() || count == 0 || count > DebugSession::kRecentHitLogs ||
+         text.find_first_not_of ("0123456789") != std::string::npos))
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("BPLOGS takes a count from 1 to {}.", DebugSession::kRecentHitLogs));
+        return;
+    }
+
+    logs = session.GetRecentHitLogs (count);
+
+    if (logs.empty())
+    {
+        logs.push_back ("No breakpoint messages.");
+    }
+
+    reply.data = MessageData { logs };
 }
 
 

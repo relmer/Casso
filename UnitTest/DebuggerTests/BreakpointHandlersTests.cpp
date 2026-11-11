@@ -86,6 +86,40 @@ namespace DebuggerTests
         }
 
 
+        //  BPLOGS lists the last messages, before they are taken and after;
+        //  a count of 0, past the limit or not a number is an error.
+        TEST_METHOD (BplogsListsTheLastMessages)
+        {
+            auto  rig = std::make_unique<MachineHandlerRig<BreakpointHandlers>> ("Apple2e", TestMachine::Slots::Empty);
+
+
+
+            //  LDA #$42 / JMP $0300
+            for (Word at = 0; at < 5; at++)
+            {
+                (void) rig->session.GetTarget().TryPoke ((Word) (0x0300 + at), std::array<Byte, 5> { 0xA9, 0x42, 0x4C, 0x00, 0x03 }[at]);
+            }
+
+            rig->machine.GetCpu()->SetPC (0x0300);
+            rig->session.SetBudget (200);
+            rig->RunOk ("BP 0302");
+            rig->RunOk (std::format ("BPLOG {} GO \"A={{A}}\"", rig->session.GetBreakpoints().GetAll().at (0).id));
+            rig->RunOk ("G");
+
+            Assert::AreEqual ((size_t) 3, rig->RunOk ("BPLOGS 3").text.size(), L"the last three, not yet taken");
+            Assert::AreEqual (std::string ("Breakpoint #0: A=$42"), rig->RunOk ("BPLOGS 3").text.back());
+
+            (void) rig->session.TakeHitLogs();
+
+            Assert::AreEqual ((size_t) 3, rig->RunOk ("BPLOGS 3").text.size(), L"and once taken");
+
+            for (const char * bad : { "BPLOGS 0", "BPLOGS 1001", "BPLOGS x", "BPLOGS 99999999999999999999" })
+            {
+                rig->RunFails (bad, "invalid arguments");
+            }
+        }
+
+
         //  A hit's message has each {expression} evaluated in hex, and one that
         //  can't be evaluated left as {?expression}.
         TEST_METHOD (ALogsExpressionsAreEvaluatedAtTheHit)

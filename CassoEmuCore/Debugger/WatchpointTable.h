@@ -128,7 +128,8 @@ public:
 
     //  The messages logging watchpoints wrote at their hits since the last
     //  call, oldest first.
-    std::vector<std::string>  TakeLogs () { return std::exchange (m_logs, {}); }
+    std::vector<std::string>          TakeLogs () { return std::exchange (m_logs, {}); }
+    const std::vector<std::string> &  GetLogs  () const { return m_logs; }
 
     bool                             HasEnabled       () const;
     bool                             HasEnabledBefore () const;

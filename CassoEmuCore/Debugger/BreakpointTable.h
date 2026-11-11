@@ -118,7 +118,8 @@ public:
 
     //  The messages logging breakpoints wrote at their hits since the last
     //  call, oldest first.
-    std::vector<std::string>  TakeLogs () { return std::exchange (m_logs, {}); }
+    std::vector<std::string>          TakeLogs () { return std::exchange (m_logs, {}); }
+    const std::vector<std::string> &  GetLogs  () const { return m_logs; }
 
     //  A logging breakpoint's message at a hit: each {expression} evaluated
     //  and written in hex, or as {?expression} when it can't be.

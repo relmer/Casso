@@ -67,6 +67,9 @@ const McpTools::Tool McpTools::s_kTools[] =
     { "set_breakpoint", "Set an execution breakpoint at an address, a symbol or a source line (file:line), with an optional condition.",
       R"({"type":"object","properties":{"location":{"type":"string"},"condition":{"type":"string","description":"An expression, such as A == 41"}},"required":["location"]})", &McpTools::SetBreakpoint },
 
+    { "breakpoint_messages", "List the last messages logging breakpoints (BPLOG) wrote at their hits, oldest first.",
+      R"({"type":"object","properties":{"count":{"type":"integer","description":"Messages; 20 by default, at most 1000"}}})", &McpTools::BreakpointMessages },
+
     { "clear_breakpoint", "Clear a breakpoint by its id, or every breakpoint.",
       R"({"type":"object","properties":{"id":{"type":"integer"},"all":{"type":"boolean"}}})", &McpTools::ClearBreakpoint },
 
@@ -807,6 +810,29 @@ void McpTools::Step (const JsonValue & arguments, McpToolResult & result)
 void McpTools::Registers (const JsonValue &, McpToolResult & result)
 {
     RunLine ("R", result);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  McpTools::BreakpointMessages
+//
+//  This server reads the channel only during a call, so it doesn't take the
+//  log notifications a logging breakpoint sends; BPLOGS lists the session's
+//  recent messages.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void McpTools::BreakpointMessages (const JsonValue & arguments, McpToolResult & result)
+{
+    int  count = std::clamp (GetInt (arguments, "count", 20), 1, 1000);
+
+
+
+    RunLine (std::format ("BPLOGS {}", count), result);
 }
 
 

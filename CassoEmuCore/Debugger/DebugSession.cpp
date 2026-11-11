@@ -3883,7 +3883,45 @@ std::vector<std::string> DebugSession::TakeHitLogs()
 
 
     std::ranges::copy (watches, std::back_inserter (logs));
+
+    for (const std::string & log : logs)
+    {
+        m_recentHitLogs.push_back (log);
+    }
+
+    while (m_recentHitLogs.size() > kRecentHitLogs)
+    {
+        m_recentHitLogs.pop_front();
+    }
+
     return logs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::GetRecentHitLogs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> DebugSession::GetRecentHitLogs (size_t count) const
+{
+    std::vector<std::string>  all (m_recentHitLogs.begin(), m_recentHitLogs.end());
+
+
+
+    std::ranges::copy (m_breakpoints.GetLogs(), std::back_inserter (all));
+    std::ranges::copy (m_watchpoints.GetLogs(), std::back_inserter (all));
+
+    if (all.size() > count)
+    {
+        all.erase (all.begin(), all.end() - (ptrdiff_t) count);
+    }
+
+    return all;
 }
 
 
