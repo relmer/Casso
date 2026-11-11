@@ -83,7 +83,19 @@ DxuiMenuBar::DxuiMenuBar()
 
     m_dropdown.SetGrabsCapture (false);
     m_dropdown.SetReopenGuard  (false);
-    m_dropdown.SetOnClosed ([this] (bool) { m_isOpen = false; });
+    //  A command chosen from the menu ends the bar's use, as in Windows: no
+    //  title is highlighted after it. The dropdown is a separate window, so
+    //  the pointer leaving the title for it never cleared the title's hover.
+    m_dropdown.SetOnClosed ([this] (bool committed)
+    {
+        m_isOpen = false;
+
+        if (committed)
+        {
+            m_hoverIndex = -1;
+            m_hasFocus   = false;
+        }
+    });
 }
 
 
