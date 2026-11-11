@@ -1988,6 +1988,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 ## Phase 56: Roadmap validation and merge
 
 - [ ] T653 Walk quickstart §7e to §7h on Debug and Release, and write the results to `specs/033-casso-explorer/validation.md`
+- [ ] T668 Verify on an A2Pico with the A2retroNET storage firmware, as T620 does for CFFA: ProDOS images Casso Explorer and `casso disk create` make at 140K, 800K, 5M, 10M, 20M and 32M, as .po, .hdv and .2mg, each listed in `A2retroNET.txt` on the micro SD card, boot with `--bootable` and read and write on the Apple, and a file written there reads back in Casso Explorer; record the results in `validation.md`
 - [ ] T654 Run `scripts/CheckStyle.ps1 -Mode Tree`, the code-analysis rebuild, and the unit and scenario suites in Debug and Release before each master merge
 
 ### Dependencies for Phases 36 to 56
