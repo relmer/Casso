@@ -37,6 +37,8 @@ public:
 
     bool     Exists        (const std::string & path) override;
     HRESULT  ListFiles     (const std::string & folder, std::vector<std::string> & outNames) override;
+    HRESULT  ListFolders   (const std::string & folder, std::vector<std::string> & outNames) override;
+    bool     IsFolder      (const std::string & path) override;
     HRESULT  Remove        (const std::string & path) override;
 
     HRESULT  ReplaceAtomically (const std::string & tempPath,

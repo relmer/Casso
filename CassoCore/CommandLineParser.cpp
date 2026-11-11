@@ -70,6 +70,8 @@ static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
     { "blockwrite",  CommandLineOptions::DiskOptions::Command::BlockWrite  },
     { "krunch",      CommandLineOptions::DiskOptions::Command::Krunch      },
     { "test",        CommandLineOptions::DiskOptions::Command::Test        },
+    { "dupes",       CommandLineOptions::DiskOptions::Command::Dupes       },
+    { "search",      CommandLineOptions::DiskOptions::Command::Search      },
 };
 
 
@@ -1006,6 +1008,7 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::BlockRead:
         case CommandLineOptions::DiskOptions::Command::Krunch:
         case CommandLineOptions::DiskOptions::Command::Test:
+        case CommandLineOptions::DiskOptions::Command::Dupes:
             count = 1;
             break;
 
@@ -1020,6 +1023,7 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::Rmdir:
         case CommandLineOptions::DiskOptions::Command::SectorWrite:
         case CommandLineOptions::DiskOptions::Command::BlockWrite:
+        case CommandLineOptions::DiskOptions::Command::Search:
             count = 2;
             break;
 

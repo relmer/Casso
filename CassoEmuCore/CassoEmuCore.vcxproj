@@ -208,6 +208,9 @@
     <ClCompile Include="CassoExplorer\Model\KrunchMap.cpp" />
     <ClCompile Include="CassoExplorer\Model\IconSizeSteps.cpp" />
     <ClCompile Include="CassoExplorer\Model\ImageFileSearchSources.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CollectionWalk.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CollectionResults.cpp" />
+    <ClCompile Include="CassoExplorer\Model\DiskIdentity.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewSaveChoices.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewSteps.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewViewChoices.cpp" />
@@ -465,6 +468,7 @@
     <ClCompile Include="Devices\Disk\DurableCommit.cpp" />
     <ClCompile Include="Devices\Disk\DiskCommandResult.cpp" />
     <ClCompile Include="Devices\Disk\DiskCommandRunner.cpp" />
+    <ClCompile Include="Devices\Disk\DiskCollectionCommands.cpp" />
     <ClCompile Include="Devices\Disk\DiskHelpPage.cpp" />
     <ClCompile Include="Devices\Disk\DiskImageSession.cpp" />
     <ClCompile Include="Devices\Disk\Containers\DiskCopy42Container.cpp" />
@@ -1025,6 +1029,9 @@
     <ClInclude Include="CassoExplorer\Model\KrunchMap.h" />
     <ClInclude Include="CassoExplorer\Model\IconSizeSteps.h" />
     <ClInclude Include="CassoExplorer\Model\ImageFileSearchSources.h" />
+    <ClInclude Include="CassoExplorer\Model\CollectionWalk.h" />
+    <ClInclude Include="CassoExplorer\Model\CollectionResults.h" />
+    <ClInclude Include="CassoExplorer\Model\DiskIdentity.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewSaveChoices.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewSteps.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewViewChoices.h" />
@@ -1247,6 +1254,7 @@
     <ClInclude Include="Devices\Disk\DurableCommit.h" />
     <ClInclude Include="Devices\Disk\DiskCommandResult.h" />
     <ClInclude Include="Devices\Disk\DiskCommandRunner.h" />
+    <ClInclude Include="Devices\Disk\DiskCollectionCommands.h" />
     <ClInclude Include="Devices\Disk\DiskHelpPage.h" />
     <ClInclude Include="Devices\Disk\DiskImageSession.h" />
     <ClInclude Include="Devices\Disk\Containers\DiskCopy42Container.h" />

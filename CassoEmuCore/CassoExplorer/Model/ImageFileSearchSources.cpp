@@ -59,11 +59,7 @@ bool ImageFileSearchSources::ContainsText (const std::wstring & lowerText)
 bool ImageFileSearchSources::ReadText (DiskOperations & operations, const std::string & image, const std::string & catalogPath, const FileEntry & entry, VolumeKind kind, std::wstring & outLowerText)
 {
     FilePayload             payload;
-    PreviewContent          content;
-    MemoryBus               bus;
     DiskOperations::Result  result;
-    HRESULT                 hr      = S_OK;
-    bool                    isText  = false;
 
 
 
@@ -76,7 +72,31 @@ bool ImageFileSearchSources::ReadText (DiskOperations & operations, const std::s
 
     result = operations.Read (image, catalogPath, payload, entry.catalogIndex);
 
-    if (!result.Succeeded() || payload.bytes.size() > kLargestFile)
+    return result.Succeeded() && GetPayloadText (entry, kind, payload, outLowerText);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ImageFileSearchSources::GetPayloadText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ImageFileSearchSources::GetPayloadText (const FileEntry & entry, VolumeKind kind, const FilePayload & payload, std::wstring & outLowerText)
+{
+    PreviewContent  content;
+    MemoryBus       bus;
+    HRESULT         hr      = S_OK;
+    bool            isText  = false;
+
+
+
+    outLowerText.clear();
+
+    if (entry.isDirectory || payload.bytes.size() > kLargestFile)
     {
         return false;
     }

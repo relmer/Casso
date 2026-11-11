@@ -214,6 +214,39 @@ public:
         return S_OK;
     }
 
+    HRESULT  ListFolders (const std::string & folder, std::vector<std::string> & outNames) override
+    {
+        std::string  prefix = folder + "\\";
+        size_t       slash  = 0;
+
+
+
+        outNames.clear();
+
+        for (const auto & [path, bytes] : files)
+        {
+            slash = path.find ('\\', prefix.size());
+
+            if (path.starts_with (prefix) && slash != std::string::npos)
+            {
+                outNames.push_back (path.substr (prefix.size(), slash - prefix.size()));
+            }
+        }
+
+        std::sort (outNames.begin(), outNames.end());
+        outNames.erase (std::unique (outNames.begin(), outNames.end()), outNames.end());
+        return S_OK;
+    }
+
+    bool  IsFolder (const std::string & path) override
+    {
+        std::string  prefix = path + "\\";
+
+
+
+        return std::any_of (files.begin(), files.end(), [&prefix] (const auto & file) { return file.first.starts_with (prefix); });
+    }
+
     HRESULT  Remove (const std::string & path) override
     {
         removeCount++;

@@ -820,6 +820,7 @@ const char * VolumeImage::GetSystemName (VolumeKind kind)
         case VolumeKind::Archive: return "Archive";
         case VolumeKind::Gutenberg: return "Gutenberg";
         case VolumeKind::Rdos:   return "RDOS";
+        case VolumeKind::Hfs:    return "HFS";
         default:                 return "";
     }
 }

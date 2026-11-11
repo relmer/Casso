@@ -49,7 +49,10 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lfilesystem cpm        Read an image as CP/M when its file system is not recognized. It also applies to get, put, and delete\n",
         //  The columns still speak for themselves, and the paragraph says only
         //  what the rows cannot: where a directory goes, and the short forms.
-        "Naming a directory lists that one instead of the volume directory, on a ProDOS disk. -r and -s do what --recurse does.",
+        "A directory after the image lists that directory instead of the volume directory, on a ProDOS disk. -r and -s do what --recurse does."
+        " A folder in place of <image> lists every disk image in it and its subfolders as CSV: path, container, file system, volume name, file count,"
+        " free space, CRC-32 and SHA-256. Images in ZIP, gzip, ShrinkIt and Binary II files, in partitions and on other images are"
+        " listed too, with each container in the path.",
         "CassoCli disk list mydisk.dsk" 
     },
 
@@ -268,7 +271,29 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "Lists each problem found: blocks or sectors claimed twice or marked wrongly, catalog damage, and in a ShrinkIt archive each record whose data doesn't match its CRC.",
         "CassoCli disk test games.shk"
     },
-};
+
+    {
+        CommandLineOptions::DiskOptions::Command::Dupes,
+        "dupes",
+        "Find disks and files duplicated in a folder",
+        "CassoCli disk dupes <folder>",
+        nullptr,
+        "Walks the disk images in <folder> and its subfolders as list does, and writes each set of duplicates as CSV: set, kind,"
+        " path, name and SHA-256. Disks are the same when their volume data is, whatever their containers, so a .dsk and a WOZ of"
+        " one disk match. Files are the same when their data and type are, on disks that differ.",
+        "CassoCli disk dupes D:\\Apple"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::Search,
+        "search",
+        "Find files inside disk images that contain text",
+        "CassoCli disk search <folder> <text>",
+        nullptr,
+        "Walks the disk images in <folder> and its subfolders as list does, and writes the path of each file whose text contains"
+        " <text>, ignoring case. BASIC programs are searched as their listings and text files as text. Binary files are not searched.",
+        "CassoCli disk search D:\\Apple SCORE"
+    },};
 
 
 

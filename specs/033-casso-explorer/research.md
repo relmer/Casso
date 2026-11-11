@@ -1153,8 +1153,8 @@ CiderPress II's file viewer, from its GUI manual, was compared feature by featur
 **Decision**:
 
 - **Results**: a results location, `results:<id>`, as a search's is, so the list, groups and context menu are the ones a search has. Save as CSV writes the columns in [data-model.md](data-model.md).
-- **Walk**: a worker thread walks the folder and descends into every container the step list of R39 opens, reporting rows as they are found.
-- **Identity**: a disk's identity is the SHA-256 of its decoded volume buffer, so `.dsk`, `.do`, `.po`, 2IMG and a WOZ of the same disk match. A WOZ track with data its sectors don't decode, such as a protection track, sets `hasMore`. A file's identity is the SHA-256 of its data fork and its type.
+- **Walk**: a worker thread walks the folder and descends into every container the step list of R39 opens, reporting rows as they are found. An image with partitions is listed as a disk too, unless the partitions fill it, as on a CFFA card or a MicroDrive. A file set has members on disks whose data differs, so two copies of one disk don't form file sets.
+- **Identity**: a disk's identity is the SHA-256 of its decoded volume buffer, so `.dsk`, `.do`, `.po`, 2IMG and a WOZ of the same disk match. The CRC-32 is of the same buffer. A WOZ track with data its sectors don't decode, such as a protection track, sets `hasMore`. A file's identity is the SHA-256 of its data fork and its type.
 - **Content search**: the search walker passes each file inside an image through `FileFormatTable::Export` and searches the text.
 
 ## R55. BASIC tools (Story 37)

@@ -32,7 +32,8 @@ public:
     std::wstring               GetTypeText  () override                                     { return {}; }
 
     //  The file's searchable text, lowercased; false for a file with none.
-    static bool  ReadText (DiskOperations & operations, const std::string & image, const std::string & catalogPath, const FileEntry & entry, VolumeKind kind, std::wstring & outLowerText);
+    static bool  ReadText       (DiskOperations & operations, const std::string & image, const std::string & catalogPath, const FileEntry & entry, VolumeKind kind, std::wstring & outLowerText);
+    static bool  GetPayloadText (const FileEntry & entry, VolumeKind kind, const FilePayload & payload, std::wstring & outLowerText);
 
     static constexpr uint32_t  kLargestFile = 1024 * 1024;
 

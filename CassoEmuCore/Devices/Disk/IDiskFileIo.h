@@ -82,6 +82,10 @@ public:
     //  The names of the files in a folder, without its subfolders.
     virtual HRESULT  ListFiles     (const std::string & folder, std::vector<std::string> & outNames) = 0;
 
+    //  The names of a folder's subfolders.
+    virtual HRESULT  ListFolders   (const std::string & folder, std::vector<std::string> & outNames) { (void) folder; outNames.clear(); return S_OK; }
+    virtual bool     IsFolder      (const std::string & path) { (void) path; return false; }
+
     //  Replaces the target with the temporary in one step, so an interrupted
     //  write cannot leave a half-written image behind.
     virtual HRESULT  ReplaceAtomically (const std::string & tempPath,

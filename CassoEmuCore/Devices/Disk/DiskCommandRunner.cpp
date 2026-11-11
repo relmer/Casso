@@ -38,6 +38,7 @@
 #include "IntegerBasicTokenizer.h"
 #include "Utils.h"
 #include "Devices/Disk/BlockVolumeOpener.h"
+#include "Devices/Disk/DiskCollectionCommands.h"
 #include "Machines/Apple2/Common/HfsWriter.h"
 
 
@@ -155,6 +156,8 @@ std::vector<std::string> DiskCommandRunner::FindMissingParameters (const Command
     bool                      wantsName = command == Command::Get || command == Command::Delete
                                        || command == Command::Boot;
     bool                      wantsPath = command == Command::Mkdir || command == Command::Rmdir;
+    bool                      wantsText = command == Command::Search;
+    bool                      onFolder  = command == Command::Dupes || command == Command::Search;
 
 
 
@@ -169,7 +172,12 @@ std::vector<std::string> DiskCommandRunner::FindMissingParameters (const Command
 
     if (options.disk.imagePath.empty())
     {
-        missing.push_back ("<image>");
+        missing.push_back (onFolder ? "<folder>" : "<image>");
+    }
+
+    if (wantsText && options.disk.path.empty())
+    {
+        missing.push_back ("<text>");
     }
 
     if (wantsName && options.disk.path.empty())
@@ -2839,7 +2847,20 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
     switch (options.disk.command)
     {
         case CommandLineOptions::DiskOptions::Command::List:
-            RunList (options, result);
+            if (m_fileIo.IsFolder (options.disk.imagePath))
+            {
+                DiskCollectionCommands::RunList (m_fileIo, options.disk.imagePath, result);
+            }
+            else
+            {
+                RunList (options, result);
+            }
+
+            break;
+
+        case CommandLineOptions::DiskOptions::Command::Dupes:
+        case CommandLineOptions::DiskOptions::Command::Search:
+            DiskCollectionCommands::Run (m_fileIo, options, result);
             break;
 
         case CommandLineOptions::DiskOptions::Command::Get:

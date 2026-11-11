@@ -2,6 +2,8 @@
 
 #include "Update/Sha256Digest.h"
 
+#pragma comment(lib, "bcrypt.lib")
+
 
 
 
