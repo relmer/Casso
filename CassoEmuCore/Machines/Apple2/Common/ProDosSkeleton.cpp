@@ -698,6 +698,11 @@ HRESULT ProDosReader::ReadFork (
         }
     }
 
+    //  An end of file past the last block the storage type addresses, as a
+    //  seedling or sapling file whose end of file was set to 16 MB, reads as
+    //  zeros there, as ProDOS reads it.
+    data.resize ((size_t) eof, 0);
+
     complete = data.size() == (size_t) eof;
     CBREx (complete, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
 
