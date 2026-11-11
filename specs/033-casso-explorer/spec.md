@@ -1931,6 +1931,40 @@ interpreter's.
    written as text and each map as PNG.
 
 ---
+
+### User Story 39 - Volumes read and written by the block (Priority: P2)
+
+A user opens a 32 MB ProDOS volume on a storage card, a hard drive image or
+a CassoLink drive, and its catalog appears at once, however full the
+volume is. Copying one file onto it writes that file's blocks, not the
+volume.
+
+**Why this priority**: Every volume is read whole into memory before
+anything is listed, and every write builds a new image of the whole
+volume. That costs nothing for a floppy, seconds for a full volume on a
+card, minutes over a CassoLink connection, and rules out HFS volumes of a
+gigabyte or more.
+
+**Independent Test**: Open a full 32 MB volume on a card, a hard drive
+image and a CassoLink drive, and count the blocks read to list the root:
+about the directory and bitmap, not the volume. Copy one file to each and
+count the blocks written. Repeat on a 1 GB HFS volume.
+
+**Acceptance Scenarios**:
+
+1. **Given** a full 32 MB ProDOS volume on a storage card, **When** it is
+   opened, **Then** the root lists after reading its directory and bitmap
+   blocks only, and a subdirectory's blocks are read when it is opened.
+2. **Given** a file copied to that volume, **When** the copy ends, **Then**
+   only the blocks of the file, its directory entry and the bitmap are
+   written, in one commit. After a failure before the commit, the volume
+   is as it was.
+3. **Given** a 1 GB HFS volume, **When** it is opened, **Then** its root
+   lists without reading the volume whole.
+4. **Given** a DOS 3.3, Pascal or CP/M disk, **When** it is opened,
+   **Then** it reads as it does today.
+
+---
 ### Edge Cases
 
 - **A picture on a monochrome monitor**: green, amber and white show a
@@ -3313,6 +3347,23 @@ interpreter's.
   a new Apple layout, after a confirmation that lists the card's model,
   size and each volume erased with its drive letter and label. It MUST be
   the only command that writes outside an Apple partition.
+- **FR-245**: Initialize card for Apple MUST offer Quick format, checked by
+  default, which writes each ProDOS volume's boot blocks, directory and
+  bitmap only. Unchecked, every block of each volume MUST be zeroed.
+- **FR-246**: The storage card broker MUST log, for each card it opens, the
+  bytes read and written and the time spent in the device, so a slow card
+  and a slow connection can be distinguished.
+
+**Volumes read by the block**
+
+- **FR-247**: ProDOS and HFS volumes MUST read blocks on demand from the
+  file, card, hard drive image or CassoLink drive they are on, through a
+  cache, rather than from a copy of the whole volume in memory.
+- **FR-248**: A write to such a volume MUST send only the blocks it
+  changes, committed together. After a failure before the commit, the
+  volume MUST be as it was.
+- **FR-249**: DOS 3.3, Pascal and CP/M volumes MAY be read whole through
+  the same block interface.
 
 **HFS**
 
@@ -3653,6 +3704,10 @@ interpreter's.
   the same output.
 - **SC-066**: Each sample Wizardry and Infocom file lists the same
   monsters, items, words and text as the game or an interpreter has.
+- **SC-067**: Listing the root of a full 32 MB ProDOS volume reads fewer
+  than 64 blocks, and copying a 10 KB file onto it writes fewer than 64.
+- **SC-068**: Quick format initializes a 1 GB card with 13 volumes in
+  under 5 seconds.
 
 ## Assumptions
 

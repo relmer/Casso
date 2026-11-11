@@ -1916,6 +1916,10 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [X] T656 [US31] Guardrails in the broker: the storage card rule at every open, writes only inside a detected Apple partition and never over a mounted Windows volume, a pipe for elevated administrators only, the client process and server image checks, and the signature check for a signed broker. A test for each refusal (FR-243)
 - [X] T657 [US31] Detect storage cards on insertion, read MBR and GPT partition tables without elevation, and list storage card nodes under This PC; remove Open physical card (FR-221)
 - [X] T658 [US31] Add Initialize card for Apple to a storage card's context menu, with the confirmation of FR-244
+- [ ] T659 [US31] Log each card's bytes read and written and the device time in the broker, and raise the largest request above 64 KB if the log points at round trips (FR-246)
+- [ ] T660 [US31] Add Quick format, checked by default, to the Initialize card dialog; unchecked, zero every block of each volume (FR-245, SC-068)
+- [ ] T661 [US31] One tree node per card: a drive letter Windows can read and no storage card node, or the storage card node alone, labeled with the letter, for a card Windows can't read
+- [ ] T662 [US31] Gray a top-level removable drive that Windows can't read, as This PC does
 - [ ] T620 [US31] Scenario tests in `ScenarioTests/PartitionTests.cpp` on each layout's sample image, then a CFFA image written to a CF card in a USB reader and read back, with the results in `validation.md` (SC-060)
 
 ## Phase 49: HFS volumes (User Story 32)
@@ -1972,6 +1976,14 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [ ] T650 [P] [US38] `ZMachineStory` in `CassoEmuCore/FileTypes/`: header, abbreviations, dictionary, object tree and decoded strings for versions 1 to 8, by the Z-Machine Standards Document 1.1, and an Infocom disk with no catalog opened as one file (FR-241)
 - [ ] T651 [US38] Add both rows to `FileFormatTable`, with copy outs as text and PNG
 - [ ] T652 [US38] Scenario tests on Wizardry I to III and Infocom samples, checked against the games run in Casso and an interpreter (SC-066)
+
+## Phase 57: Volumes read and written by the block (User Story 39)
+
+- [ ] T663 [US39] Replace the `vector<Byte>` of `ProDosVolume` and its writer and remover with a block source (`IBlockStore` through `CachingBlockStore`) that reads each block on demand (FR-247)
+- [ ] T664 [US39] Write a change as the blocks it touches, committed together through the cache, for files, cards, hard drive images and CassoLink drives (FR-248)
+- [ ] T665 [US39] Build volumes from a block source at every place one is created: the browser, preview, copy, `casso disk` and the emulator's mounts. DOS 3.3, Pascal and CP/M are read whole behind the same interface (FR-249)
+- [ ] T666 [US39] Read HFS volumes by the block (FR-247)
+- [ ] T667 [US39] Tests counting blocks read and written on a full 32 MB volume and a 1 GB HFS volume (SC-067)
 
 ## Phase 56: Roadmap validation and merge
 
