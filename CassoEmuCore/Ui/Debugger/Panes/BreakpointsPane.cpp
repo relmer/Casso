@@ -985,7 +985,7 @@ bool BreakpointsPane::RouteEditMouse (const DxuiMouseEvent & ev)
 //
 //  The rename box takes every key: Enter commits what was typed, Escape
 //  cancels the rename. F2 on the list renames the selected breakpoint, as in
-//  Visual Studio.
+//  Visual Studio, and Delete, Ctrl+Z and Ctrl+Y on it delete, undo and redo.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1010,6 +1010,22 @@ bool BreakpointsPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focu
     {
         BeginNameEdit (m_list->GetSelectedRow());
         return true;
+    }
+
+    //  Delete, Ctrl+Z and Ctrl+Y run the bar's Delete, Undo and Redo, each
+    //  only while it is enabled, as the bar's entries are.
+    if (ev.kind == DxuiKeyEventKind::Down && focused == m_list && !ev.alt && !ev.shift)
+    {
+        int  id = (!ev.ctrl && ev.vk == VK_DELETE) ? BreakpointBarCommands::kDelete
+                : ( ev.ctrl && ev.vk == 'Z')       ? BreakpointBarCommands::kUndo
+                : ( ev.ctrl && ev.vk == 'Y')       ? BreakpointBarCommands::kRedo
+                :                                    -1;
+
+        if (id >= 0)
+        {
+            RunBarEntry (id);
+            return true;
+        }
     }
 
     return false;

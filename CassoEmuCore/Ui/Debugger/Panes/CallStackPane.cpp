@@ -214,7 +214,7 @@ std::vector<CallStackPane::Row> CallStackPane::GetBasicRows (const std::vector<B
         row.routine   = (frame.kind == BasicFrameKind::Gosub)
                       ? std::wstring (L"GOSUB")
                       : TextEncoding::NarrowToWide (std::format ("FOR {} TO {} STEP {}", frame.variable, frame.limit, frame.step));
-        row.foundBy   = L"Applesoft's stack";
+        row.foundBy   = L"BASIC stack";
         row.basicLine = frame.line;
         rows.push_back (row);
     }

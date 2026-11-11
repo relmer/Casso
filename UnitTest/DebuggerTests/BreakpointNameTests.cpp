@@ -260,6 +260,7 @@ namespace BreakpointNameTests
         using DebuggerWindow::OnKey;
         using DebuggerWindow::GetBreakpointsPane;
         using DebuggerWindow::TakeSnapshot;
+        using DebuggerWindow::FocusControl;
 
         DxuiListView * GetList() const { return GetBreakpointsPane().GetList(); }
 
@@ -320,6 +321,42 @@ namespace BreakpointNameTests
             Assert::AreEqual ((size_t) 1, host.actions.size());
             Assert::IsTrue   (host.actions[0].breakpointStep.has_value(), L"a step the pane can undo");
             Assert::AreEqual (std::string ("BPNAME 4 \"Loop top\""), host.actions[0].breakpointStep->actions.at (0).echo);
+        }
+
+        //  Delete, Ctrl+Z and Ctrl+Y on the list run the bar's Delete, Undo
+        //  and Redo: Delete is a step that clears the selected breakpoint.
+        TEST_METHOD (DeleteOnTheListClearsTheSelectedBreakpoint)
+        {
+            CassoTheme                            theme    = CassoTheme::MakeSkeuomorphic();
+            StepHost                              host;
+            NameWindow                            window   (theme, host);
+            DxuiDpiScaler                         scaler;
+            auto                                  snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::BreakpointLine  bp;
+            DxuiKeyEvent                          del      = { DxuiKeyEventKind::Down, VK_DELETE, false, false, false, false };
+
+
+
+            bp.id           = 4;
+            bp.address      = 0x0300;
+            bp.enabled      = true;
+            bp.info.id      = 4;
+            bp.info.address = 0x0300;
+            bp.info.last    = 0x0300;
+            snapshot->breakpoints = { bp };
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            window.FocusControl (window.GetList());
+            window.GetList()->SetSelectedRow (0);
+            (void) window.OnKey (del);
+
+            Assert::AreEqual ((size_t) 1, host.actions.size());
+            Assert::IsTrue   (host.actions[0].breakpointStep.has_value(), L"a step the pane can undo");
+            Assert::IsTrue   (host.actions[0].breakpointStep->actions.at (0).echo.starts_with ("BPC"), L"that clears the breakpoint");
         }
     };
 }

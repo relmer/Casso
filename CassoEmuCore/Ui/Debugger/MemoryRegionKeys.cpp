@@ -196,8 +196,8 @@ std::wstring MemoryRegionKeys::GetBuiltInIo (const std::string & machineId, int 
 {
     static constexpr std::array<const wchar_t *, kSlotCount>  kIo =
     {
-        L"", L"Serial port 1 (printer)", L"Serial port 2 (modem)", L"Unused",
-        L"Memory expansion", L"Unused", L"Disk port (IWM)", L"Unused",
+        L"", L"Serial port 1 (printer)", L"Serial port 2 (modem)", L"No device",
+        L"Memory expansion", L"No device", L"Disk port (IWM)", L"No device",
     };
 
 

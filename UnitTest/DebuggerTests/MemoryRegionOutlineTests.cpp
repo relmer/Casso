@@ -160,7 +160,7 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::wstring (L"Serial port 1 (printer)"),     MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC098), cards, "Apple2c"));
             Assert::AreEqual (std::wstring (L"Disk port (IWM)"),             MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0E0), cards, "Apple2c"));
-            Assert::AreEqual (std::wstring (L"Unused"),                      MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0F0), cards, "Apple2c"));
+            Assert::AreEqual (std::wstring (L"No device"),                   MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,      0xC0F0), cards, "Apple2c"));
             Assert::AreEqual (std::wstring (L"Slot 0: language card switches"), MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::Io,   0xC080), cards, "Apple2c"));
             Assert::AreEqual (std::wstring (L"ROM: mouse firmware"),         MemoryRegionKeys::GetLabel (MemoryRegionKeys::GetKey (MemoryRegion::SlotRom, 0xC700), cards, "Apple2c"));
             Assert::AreEqual (std::wstring (L"ROM: serial port 2 firmware"), MemoryRegionKeys::GetRomLabel (MemoryRegionKeys::kRegionRom, 0xC200, cards, "Apple2c"));
