@@ -53,6 +53,7 @@ class PascalVolume : public IVolume
 {
 public:
     static constexpr uint32_t  kUnitCount           = 280;
+    static constexpr size_t    kMaxBlocks           = 65535;
     static constexpr int       kFirstDirectoryBlock = 2;
     static constexpr int       kFirstDataBlock      = 6;
     static constexpr int       kMaxFiles            = 77;
@@ -102,6 +103,13 @@ public:
     //  characters, a block count that fits the disk and a file count the
     //  directory has room for.
     static bool  IsFound (const vector<Byte> & sectors);
+
+    //  140K in DOS order, or any whole number of blocks in block order, as
+    //  an 800K disk is.
+    static bool  IsValidSize (size_t bytes);
+
+    //  The volume's blocks: 280 on a 140K disk.
+    uint32_t  GetUnitCount () const { return (uint32_t) (m_sectors.size() / kBlockBytes); }
 
     //  1 to 15 printable characters with no space or any of $ = ? , : [ ].
     static bool  IsValidName (const std::string & name);

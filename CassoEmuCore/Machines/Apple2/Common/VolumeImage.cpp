@@ -866,9 +866,15 @@ VolumeKind VolumeImage::DetectFilesystem (const vector<Byte> & sectors)
         return VolumeKind::Hfs;
     }
 
+    if (!sized && ProDosSkeleton::IsValidVolumeSize (sectors.size()) && LooksLikeProDos (sectors))
+    {
+        return VolumeKind::ProDos;
+    }
+
+    //  An Apple Pascal 1.3 disk of 800K, in block order.
     if (!sized)
     {
-        return ProDosSkeleton::IsValidVolumeSize (sectors.size()) && LooksLikeProDos (sectors) ? VolumeKind::ProDos : VolumeKind::Unknown;
+        return PascalVolume::IsFound (sectors) ? VolumeKind::Pascal : VolumeKind::Unknown;
     }
 
     if (LooksLikeDos33 (sectors))

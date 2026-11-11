@@ -88,7 +88,7 @@ void PascalVolume::SetWord (std::span<Byte> bytes, size_t offset, Word value)
 bool PascalVolume::IsFound (const vector<Byte> & sectors)
 {
     std::array<Byte, kBlockBytes>  block   = {};
-    bool                           isFound = sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                           isFound = IsValidSize (sectors.size());
     size_t                         half    = 0;
     size_t                         length  = 0;
     int                            total   = 0;
@@ -97,7 +97,7 @@ bool PascalVolume::IsFound (const vector<Byte> & sectors)
 
     for (half = 0; isFound && half < block.size(); half += (size_t) NibblizationLayer::kSectorByteSize)
     {
-        std::copy_n (sectors.begin() + (ptrdiff_t) ProDosSkeleton::GetBlockByteOffset (kFirstDirectoryBlock, half), NibblizationLayer::kSectorByteSize, block.begin() + (ptrdiff_t) half);
+        std::copy_n (sectors.begin() + (ptrdiff_t) ProDosSkeleton::GetBlockByteOffset (sectors.size(), kFirstDirectoryBlock, half), NibblizationLayer::kSectorByteSize, block.begin() + (ptrdiff_t) half);
     }
 
     if (isFound)
@@ -106,7 +106,7 @@ bool PascalVolume::IsFound (const vector<Byte> & sectors)
         total   = GetWord (block, s_kOffVolumeBlocks);
         isFound = GetWord (block, s_kOffFirst) == 0 && GetWord (block, s_kOffNext) == kFirstDataBlock && GetWord (block, s_kOffKind) == 0
                && length >= 1 && length <= s_kVolumeNameMax
-               && total >= kFirstDataBlock && total <= (int) kUnitCount
+               && total >= kFirstDataBlock && total <= (int) (sectors.size() / kBlockBytes)
                && GetWord (block, s_kOffFileCount) <= kMaxFiles;
     }
 
@@ -116,6 +116,25 @@ bool PascalVolume::IsFound (const vector<Byte> & sectors)
     }
 
     return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PascalVolume::IsValidSize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PascalVolume::IsValidSize (size_t bytes)
+{
+    size_t  blocks = bytes / kBlockBytes;
+
+
+
+    return bytes == (size_t) NibblizationLayer::kImageByteSize || (bytes % kBlockBytes == 0 && blocks > (size_t) kFirstDataBlock && blocks <= kMaxBlocks);
 }
 
 
@@ -399,7 +418,7 @@ void PascalVolume::ReadBlock (int block, std::span<Byte> outBytes) const
 
     for (size_t half = 0; half < kBlockBytes; half += kSectorBytes)
     {
-        size_t  at = ProDosSkeleton::GetBlockByteOffset (block, half);
+        size_t  at = ProDosSkeleton::GetBlockByteOffset (m_sectors.size(), block, half);
 
         if (m_readObserver != nullptr)
         {
@@ -469,7 +488,7 @@ void PascalVolume::ReadEntries (const vector<Byte> & directory, vector<RawEntry>
         entry.lastBytes = GetWord (entry.bytes, s_kOffLastBytes);
         entry.date      = GetWord (entry.bytes, s_kOffDate);
         entry.isValid   = length >= 1 && length <= s_kFileNameMax
-                       && entry.first >= kFirstDataBlock && entry.next > entry.first && entry.next <= total && total <= (int) kUnitCount;
+                       && entry.first >= kFirstDataBlock && entry.next > entry.first && entry.next <= total && total <= (int) GetUnitCount();
 
         if (length >= 1 && length <= s_kFileNameMax)
         {
@@ -535,7 +554,7 @@ void PascalVolume::FillEntry (const RawEntry & raw, size_t index, FileEntry & ou
 HRESULT PascalVolume::Enumerate (VolumeListing & outListing) const
 {
     HRESULT                hr        = S_OK;
-    bool                   whole     = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   whole     = IsValidSize (m_sectors.size());
     size_t                 nameBytes = 0;
     vector<Byte>           directory;
     vector<RawEntry>       entries;
@@ -555,7 +574,7 @@ HRESULT PascalVolume::Enumerate (VolumeListing & outListing) const
 
     outListing.volumeName.assign ((const char *) directory.data() + s_kOffName, nameBytes);
     outListing.hasVolumeName = true;
-    outListing.totalUnits    = (std::min) ((uint32_t) GetWord (directory, s_kOffVolumeBlocks), kUnitCount);
+    outListing.totalUnits    = (std::min) ((uint32_t) GetWord (directory, s_kOffVolumeBlocks), GetUnitCount());
     outListing.directoryFiles = (uint32_t) entries.size();
 
     for (const RawEntry & raw : entries)
@@ -620,7 +639,7 @@ bool PascalVolume::TryFindEntry (const vector<RawEntry> & entries, const std::st
 HRESULT PascalVolume::Read (const FilePath & path, FilePayload & outPayload) const
 {
     HRESULT             hr     = S_OK;
-    bool                whole  = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                whole  = IsValidSize (m_sectors.size());
     bool                found  = false;
     size_t              index  = 0;
     vector<Byte>        directory;
@@ -683,7 +702,7 @@ Error:
 HRESULT PascalVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) const
 {
     HRESULT              hr    = S_OK;
-    bool                 whole = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                 whole = IsValidSize (m_sectors.size());
     vector<Byte>         directory;
     vector<RawEntry>     entries;
     vector<std::string>  damage;
@@ -695,7 +714,7 @@ HRESULT PascalVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) c
     ReadDirectory (directory);
     ReadEntries   (directory, entries, damage);
 
-    outReport.Reset (kUnitCount);
+    outReport.Reset (GetUnitCount());
     outReport.SetCatalogFullyParsed (damage.empty());
 
     for (uint32_t unit = 0; unit < (uint32_t) kFirstDataBlock; unit++)
@@ -717,7 +736,7 @@ HRESULT PascalVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) c
         }
     }
 
-    for (uint32_t unit = 0; unit < kUnitCount; unit++)
+    for (uint32_t unit = 0; unit < GetUnitCount(); unit++)
     {
         outReport.SetAllocatedInFreeMap (unit, outReport.IsClaimed (unit));
     }
@@ -776,7 +795,7 @@ void PascalVolume::WriteBlockPart (vector<Byte> & buffer, int block, size_t offs
 {
     for (size_t i = 0; i < bytes.size(); i++)
     {
-        buffer[ProDosSkeleton::GetBlockByteOffset (block, offset + i)] = bytes[i];
+        buffer[ProDosSkeleton::GetBlockByteOffset (buffer.size(), block, offset + i)] = bytes[i];
     }
 }
 
@@ -878,7 +897,7 @@ int PascalVolume::FindGap (const vector<RawEntry> & entries, int total, int bloc
 HRESULT PascalVolume::Krunch (vector<Byte> & outBuffer, int & outMoved) const
 {
     HRESULT                   hr       = S_OK;
-    bool                      whole    = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                      whole    = IsValidSize (m_sectors.size());
     vector<Byte>              directory;
     vector<Byte>              result;
     vector<PascalKrunchMove>  moves;
@@ -944,7 +963,7 @@ Error:
 HRESULT PascalVolume::PlanKrunch (vector<PascalKrunchMove> & outMoves, vector<Byte> & outDirectory, vector<PascalKrunchMove> * outFiles) const
 {
     HRESULT              hr      = S_OK;
-    bool                 whole   = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                 whole   = IsValidSize (m_sectors.size());
     bool                 isClean = false;
     int                  at      = kFirstDataBlock;
     vector<RawEntry>     entries;
@@ -1031,7 +1050,7 @@ HRESULT PascalVolume::Write (const FilePath & path, const FilePayload & payload,
 {
     HRESULT                hr         = S_OK;
     std::string            name       = path.ToString();
-    bool                   whole      = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   whole      = IsValidSize (m_sectors.size());
     bool                   nameOk     = IsValidName (name);
     bool                   hasRoom    = false;
     size_t                 size       = payload.bytes.size();
@@ -1058,7 +1077,7 @@ HRESULT PascalVolume::Write (const FilePath & path, const FilePayload & payload,
     ReadEntries   (directory, entries, damage);
 
     previous = (int) entries.size();
-    total    = (std::min) ((int) GetWord (directory, s_kOffVolumeBlocks), (int) kUnitCount);
+    total    = (std::min) ((int) GetWord (directory, s_kOffVolumeBlocks), (int) GetUnitCount());
 
     hr = BuildIntegrityReport (report);
     CHR (hr);
@@ -1158,7 +1177,7 @@ HRESULT PascalVolume::Delete (const FilePath & path, vector<Byte> & outBuffer) c
 HRESULT PascalVolume::Delete (const FilePath & path, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const
 {
     HRESULT                hr       = S_OK;
-    bool                   whole    = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   whole    = IsValidSize (m_sectors.size());
     bool                   found    = false;
     size_t                 index    = 0;
     int                    previous = 0;
@@ -1241,7 +1260,7 @@ HRESULT PascalVolume::SetStartupProgram (const FilePath & path, vector<Byte> & o
 HRESULT PascalVolume::EditEntry (const FilePath & path, const std::function<void (RawEntry &)> & edit, vector<Byte> & outBuffer) const
 {
     HRESULT                hr       = S_OK;
-    bool                   whole    = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   whole    = IsValidSize (m_sectors.size());
     bool                   found    = false;
     size_t                 index    = 0;
     int                    previous = 0;
