@@ -191,6 +191,7 @@
     <ClCompile Include="LongRunReplayTests.cpp" />
     <ClCompile Include="DebugEventReplayRateTests.cpp" />
     <ClCompile Include="Disk2SectorEventTests.cpp" />
+    <ClCompile Include="DiskBreakpointMachineTests.cpp" />
     <ClCompile Include="DiskReadProbeTests.cpp" />
     <ClCompile Include="DebugEventLogRebuildTests.cpp" />
     <ClCompile Include="MusicDemoReplayTests.cpp" />

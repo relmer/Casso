@@ -29,6 +29,7 @@ namespace DebuggerTests
     static constexpr Word      kRomSearch    = 0xC65E;    // the ROM's prologue search
     static constexpr Word      kRomChecksum  = 0xC6CB;    // its read of the data checksum nibble
     static constexpr uint64_t  kBudget       = 3'000'000;
+    static constexpr Word      kWriterStart  = 0x0300;
 
 
 
@@ -270,6 +271,58 @@ namespace DebuggerTests
             Assert::IsTrue (Go (*select).reason   == StopReason::Disk,   L"the ROM selects drive 1");
             Assert::IsTrue (Go (*change).reason   == StopReason::Budget, L"drive 1 was already the drive selected");
             Assert::IsTrue (Go (*driveTwo).reason == StopReason::Budget, L"and never drive 2");
+        }
+
+
+        //  A program that switches the drive to write mode and loads the
+        //  latch without checking the protect sense, at $0300: motor on, Q7
+        //  high, then a load (Q6 high) and a shift (Q6 low) over and over.
+        static void PutWriter (Rig & rig)
+        {
+            static constexpr Byte  kWriter[] = { 0xAD, 0xE9, 0xC0,     // LDA $C0E9   motor on
+                                                 0xA9, 0xFF,           // LDA #$FF
+                                                 0x8D, 0xEF, 0xC0,     // STA $C0EF   Q7 high
+                                                 0x8D, 0xED, 0xC0,     // STA $C0ED   Q6 high: load the latch
+                                                 0x0D, 0xEC, 0xC0,     // ORA $C0EC   Q6 low: shift
+                                                 0x4C, 0x08, 0x03 };   // JMP $0308
+
+            for (size_t at = 0; at < std::size (kWriter); at++)
+            {
+                Assert::IsTrue (rig.session.GetTarget().TryPoke ((Word) (kWriterStart + at), kWriter[at]));
+            }
+
+            rig.machine.GetCpu()->SetPC (kWriterStart);
+        }
+
+
+        //  Writing to a write-protected disk: the first load the protection
+        //  dropped stops BPDISK WRITE BLOCKED; on a disk that isn't
+        //  protected, write mode stops BPDISK WRITE and nothing is blocked.
+        TEST_METHOD (AWriteToAProtectedDiskStopsAsBlocked)
+        {
+            auto  blocked     = MakeRig();
+            auto  unprotected = MakeRig();
+            auto  writeMode   = MakeRig();
+
+
+
+            blocked->machine.GetDiskStore().GetImage (6, 0)->SetWriteProtected (true);
+
+            for (Rig * rig : { blocked.get(), unprotected.get(), writeMode.get() })
+            {
+                PutWriter (*rig);
+            }
+
+            blocked->RunOk     ("BPDISK WRITE BLOCKED");
+            unprotected->RunOk ("BPDISK WRITE BLOCKED");
+            writeMode->RunOk   ("BPDISK WRITE");
+
+            Assert::IsTrue   (Go (*blocked).reason == StopReason::Disk, L"the protection dropped a load");
+            Assert::IsTrue   (blocked->LastStop().disk.has_value() && blocked->LastStop().disk->event == DiskEvent::WriteBlocked);
+            Assert::AreEqual (1u, Entry (*blocked).hits);
+            Assert::IsTrue   (Go (*unprotected).reason == StopReason::Budget, L"nothing blocked on a disk that isn't protected");
+            Assert::IsTrue   (Go (*writeMode).reason == StopReason::Disk, L"write mode");
+            Assert::IsTrue   (writeMode->LastStop().disk->event == DiskEvent::WriteMode);
         }
 
 
