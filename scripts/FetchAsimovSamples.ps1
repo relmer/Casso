@@ -34,8 +34,7 @@ $destRoot  = Join-Path $repoRoot 'UnitTest/Fixtures/Asimov'
 $baseUrl   = 'https://www.apple.asimov.net/images'
 
 $files = @(
-    @{ Path = 'productivity/spreadsheet/Visicalc 1.27.dsk';                             Sha256 = 'D00E0606C4ACBB0D0A93AB15503529978F201AE2C366A13F23C9A1A250DB8794' },
-    @{ Path = 'productivity/spreadsheet/VisiCalc 1.37 - 1979.dsk';                      Sha256 = '5A4C6AC221B8C69D50204776A8D211F3554D70AD42BB7109F2B39A7979ABDBFC' },
+    @{ Path = 'productivity/spreadsheet/VisiCalc 2.08.nib';                            Sha256 = '6031C502DC8FE2D66A375AEAB6FF4057F9B010A6D43DB037CFAC19FBF8E9090F' },
     @{ Path = 'productivity/spreadsheet/Visicalc Home and Office Companion disk 1.dsk'; Sha256 = 'BF9CCF8044618A3701BAE4399C9AD05E961E132A5B7A52971D2F31031C001F97' },
     @{ Path = 'productivity/spreadsheet/Visicalc Home and Office Companion disk 2.dsk'; Sha256 = '70F826B189525AFB600F617B3187AEA0EDF08CEEC48902182E260273A75E14EF' }
 )
