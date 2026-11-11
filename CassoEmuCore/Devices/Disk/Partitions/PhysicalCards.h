@@ -198,13 +198,13 @@ private:
 
     static std::string  FormatDriveSize (const PhysicalDrive & drive);
 
-    HRESULT  FindSession   (int number, Session * & outSession);
-    HRESULT  CheckNotBusy  (int number);
-    void     SetWork       (int number, uint64_t done, uint64_t total);
-    void     EndWork       (int number);
-    HRESULT  ListSession   (Session & session);
-    HRESULT  FindPartition (Session & session, int partition, const PartitionEntry * & outEntry);
-    HRESULT  StageWrite    (int number, int partition, std::span<const Byte> bytes, Session * & outSession);
+    HRESULT  FindSession    (int number, Session * & outSession);
+    HRESULT  CheckNotBusy   (int number);
+    void     SetWork        (int number, uint64_t done, uint64_t total);
+    void     EndWork        (int number);
+    HRESULT  ListSession    (Session & session);
+    HRESULT  FindPartition  (Session & session, int partition, const PartitionEntry * & outEntry);
+    HRESULT  StageWrite     (int number, int partition, std::span<const Byte> bytes, Session * & outSession);
     HRESULT  CheckElevation (const PhysicalDrive & drive);
 
     IPhysicalCardHost       & m_host;
