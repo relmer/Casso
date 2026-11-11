@@ -154,9 +154,11 @@ bool VisiCalcEvaluator::ParseTerm (std::string_view text, size_t & ioAt, int dep
     if (first == '(')
     {
         ioAt++;
-        ok = ParseExpression (text, ioAt, depth + 1, outNode) && ioAt < text.size() && text[ioAt] == ')';
 
-        if (ok)
+        //  VisiCalc closes a parenthesis left open at the end of the formula.
+        ok = ParseExpression (text, ioAt, depth + 1, outNode) && (ioAt == text.size() || text[ioAt] == ')');
+
+        if (ok && ioAt < text.size())
         {
             ioAt++;
         }
@@ -375,12 +377,17 @@ bool VisiCalcEvaluator::ParseCall (std::string_view text, size_t & ioAt, int dep
     }
     while (ioAt < text.size() && text[ioAt] == ',');
 
-    if (ioAt >= text.size() || text[ioAt] != ')')
+    //  A call left open at the end of the formula is closed there, as a
+    //  parenthesis is.
+    if (ioAt < text.size() && text[ioAt] != ')')
     {
         return false;
     }
 
-    ioAt++;
+    if (ioAt < text.size())
+    {
+        ioAt++;
+    }
 
     return true;
 }

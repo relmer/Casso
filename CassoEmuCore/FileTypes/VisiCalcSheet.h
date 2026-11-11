@@ -78,6 +78,7 @@ private:
     static constexpr size_t  kEntryProbeBytes = 8;
 
     static std::string  FormatFixed      (double number, int decimals);
+    static double       RoundToDigits    (double number);
     static std::string  FormatGeneral    (double number, size_t limit);
     static std::string  FormatScientific (double number, size_t limit);
 

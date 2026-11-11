@@ -109,7 +109,7 @@ public:
         Assert::AreEqual (std::wstring (L"  12.5"), VisiCalcSheet::Draw (sheet, cell, value));
 
         cell.format = 'L';
-        Assert::AreEqual (std::wstring (L"12.5  "), VisiCalcSheet::Draw (sheet, cell, value));
+        Assert::AreEqual (std::wstring (L" 12.5 "), VisiCalcSheet::Draw (sheet, cell, value), L"a number leaves the column's first character blank");
 
         cell.format = '*';
         Assert::AreEqual (std::wstring (L"***** "), VisiCalcSheet::Draw (sheet, cell, value));
@@ -136,6 +136,19 @@ public:
     }
 
 
+    //  Each as VisiCalc 2.08 draws it in the Home and Office Companion's
+    //  sheets.
+    TEST_METHOD (FormatNumber_MatchesVisiCalc)
+    {
+        Assert::AreEqual (std::string ("0.27"),     VisiCalcSheet::FormatNumber (0.27, '$', 8));
+        Assert::AreEqual (std::string ("20.63"),    VisiCalcSheet::FormatNumber (20.625, '$', 8));
+        Assert::AreEqual (std::string (".9291020"), VisiCalcSheet::FormatNumber (0.92910199, 'G', 8));
+        Assert::AreEqual (std::string ("76.39917"), VisiCalcSheet::FormatNumber (76.399166666, 'G', 8));
+        Assert::AreEqual (std::string ("44"),       VisiCalcSheet::FormatNumber (44.444, 'G', 2));
+        Assert::AreEqual (std::string (".5"),       VisiCalcSheet::FormatNumber (0.5, 'G', 8));
+    }
+
+
     TEST_METHOD (FormatNumber_FitsTheLimit)
     {
         Assert::AreEqual (std::string ("0"),        VisiCalcSheet::FormatNumber (0, 'G', 8));
@@ -151,7 +164,7 @@ public:
         Assert::AreEqual (std::string ("3"),        VisiCalcSheet::FormatNumber (2.5, 'I', 8));
         Assert::AreEqual (std::string ("-3"),       VisiCalcSheet::FormatNumber (-2.5, 'I', 8));
         Assert::AreEqual (std::string ("1234.50"),  VisiCalcSheet::FormatNumber (1234.5, '$', 8));
-        Assert::AreEqual (std::string (".05"),      VisiCalcSheet::FormatNumber (0.049999, '$', 8));
+        Assert::AreEqual (std::string ("0.05"),     VisiCalcSheet::FormatNumber (0.049999, '$', 8));
         Assert::AreEqual (std::string (">>>>"),     VisiCalcSheet::FormatNumber (1234.5, '$', 4));
         Assert::AreEqual (std::string ("***"),      VisiCalcSheet::FormatNumber (3.9, '*', 8));
         Assert::AreEqual (std::string (""),         VisiCalcSheet::FormatNumber (-2, '*', 8));

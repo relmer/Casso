@@ -127,12 +127,21 @@ public:
     }
 
 
+    //  VisiCalc closes a parenthesis or a call left open at the end, as the
+    //  Home and Office Companion's sheets have them.
+    TEST_METHOD (Parentheses_LeftOpenAtTheEndAreClosed)
+    {
+        AssertNumber (5,   "(2+3");
+        AssertNumber (500, "(2+3)*(100");
+        AssertNumber (6,   "@SUM(1,2,3");
+    }
+
+
     TEST_METHOD (Faults_ComeFromBadArithmeticAndBadText)
     {
         AssertKind (Value::Kind::Error,        "1/0");
         AssertKind (Value::Kind::Error,        "1/A6");
         AssertKind (Value::Kind::Error,        "2+");
-        AssertKind (Value::Kind::Error,        "(2+3");
         AssertKind (Value::Kind::Error,        "@NOSUCH(1)");
         AssertKind (Value::Kind::Error,        "A1...A4");
         AssertKind (Value::Kind::Error,        "1E300*1E300");

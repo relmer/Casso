@@ -163,7 +163,9 @@ HRESULT VisiCalcSheet::Parse (std::span<const Byte> bytes, Sheet & outSheet, std
         Cell         cell;
         size_t       length = 0;
 
-        while (!line.empty() && (line.back() == ' ' || line.back() == '\0'))
+        //  Trailing spaces stay in a label, as VisiCalc draws them, and are cut
+        //  from a formula, which never contains a quote.
+        while (!line.empty() && (line.back() == '\0' || (line.back() == ' ' && line.find ('"') == std::string::npos)))
         {
             line.pop_back();
         }
@@ -267,7 +269,9 @@ std::wstring VisiCalcSheet::GetEntered (const Sheet & sheet, const Cell & cell)
 
 std::string VisiCalcSheet::FormatFixed (double number, int decimals)
 {
-    std::string  text   = std::format ("{:.{}f}", number, decimals);
+    double       scale  = std::pow (10.0, decimals);
+    double       half   = std::round (RoundToDigits (number) * scale) / scale;
+    std::string  text   = std::format ("{:.{}f}", half, decimals);
     bool         isZero = text.find_first_of ("123456789") == std::string::npos;
     size_t       zero   = 0;
 
@@ -352,8 +356,10 @@ std::string VisiCalcSheet::FormatScientific (double number, size_t limit)
 
 std::string VisiCalcSheet::FormatGeneral (double number, size_t limit)
 {
-    double  size  = std::fabs (number);
-    int     whole = (size < 1) ? 0 : (int) std::floor (std::log10 (size)) + 1;
+    double       size  = std::fabs (RoundToDigits (number));
+    int          whole = (size < 1) ? 0 : (int) std::floor (std::log10 (size)) + 1;
+    std::string  text;
+    size_t       point = 0;
 
 
 
@@ -362,28 +368,56 @@ std::string VisiCalcSheet::FormatGeneral (double number, size_t limit)
         return "0";
     }
 
-    for (int decimals = std::max (0, kDigits - whole); decimals >= 0; decimals--)
+    //  The number to VisiCalc's 11 digits, its trailing zeros dropped.
+    text = FormatFixed (number, std::max (0, kDigits - whole));
+
+    if (text.find ('.') != std::string::npos)
     {
-        std::string  text = FormatFixed (number, decimals);
+        text.erase (text.find_last_not_of ('0') + 1);
+        text.erase (text.find_last_not_of ('.') + 1);
+    }
 
-        if (text.find ('.') != std::string::npos)
-        {
-            text.erase (text.find_last_not_of ('0') + 1);
-            text.erase (text.find_last_not_of ('.') + 1);
-        }
+    point = text.find ('.');
 
-        if (text.empty() || text == "-")
-        {
-            break;
-        }
+    //  A number too long is rounded to the decimals that fit, keeping a zero
+    //  left at the end by the rounding, or to a whole number when the point
+    //  doesn't fit.
+    if (text.size() > limit && point != std::string::npos && point <= limit)
+    {
+        text = FormatFixed (number, (point + 1 < limit) ? (int) (limit - point - 1) : 0);
 
-        if (text.size() <= limit)
+        //  A number that rounds to no digit at all is drawn in scientific
+        //  notation instead.
+        if (text.find_first_of ("123456789") == std::string::npos)
         {
-            return text;
+            text.clear();
         }
     }
 
-    return FormatScientific (number, limit);
+    if (text.empty() || text == "-" || text.size() > limit)
+    {
+        return FormatScientific (number, limit);
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VisiCalcSheet::RoundToDigits
+//
+//  A number to the 11 significant digits VisiCalc's decimal arithmetic
+//  computes with, so a value such as 20.625 rounds as it does in VisiCalc.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double VisiCalcSheet::RoundToDigits (double number)
+{
+    return (number == 0 || !std::isfinite (number)) ? number : std::stod (std::format ("{:.{}e}", number, kDigits - 1));
 }
 
 
@@ -414,6 +448,13 @@ std::string VisiCalcSheet::FormatNumber (double number, char format, size_t limi
     text = (format == 'I') ? FormatFixed (std::round (number), 0)
          : (format == '$') ? FormatFixed (number, 2)
          :                   FormatGeneral (number, limit);
+
+    //  A dollar amount under 1 has a 0 before its point, where a general
+    //  number is drawn without it.
+    if (format == '$' && (text.starts_with ('.') || text.starts_with ("-.")))
+    {
+        text.insert (text.find ('.'), 1, '0');
+    }
 
     return (text.empty() || text.size() > limit) ? std::string (limit, '>') : text;
 }
@@ -456,6 +497,13 @@ std::wstring VisiCalcSheet::Draw (const Sheet & sheet, const Cell & cell, const 
     if (!cell.label && text.size() > limit)
     {
         text.resize (limit);
+    }
+
+    //  The column's first character is blank beside a number, so one drawn at
+    //  the left starts one character in.
+    if (!cell.label && format == 'L' && !text.empty())
+    {
+        text.insert (0, 1, ' ');
     }
 
     if (text.size() < width)
