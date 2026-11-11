@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Model/CollectionQuery.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
@@ -1397,7 +1398,7 @@ bool CassoExplorerBrowser::IsSearchRunning()
 
 
 
-    return location.kind == Location::Kind::ShellFolder && SearchQuery::IsId (location.path) && m_shellListings.IsReading (s_kListKey + location.path);
+    return location.kind == Location::Kind::ShellFolder && (SearchQuery::IsId (location.path) || CollectionQuery::IsId (location.path)) && m_shellListings.IsReading (s_kListKey + location.path);
 }
 
 
@@ -1442,7 +1443,7 @@ bool CassoExplorerBrowser::CanGoUp() const
             return true;
 
         case Location::Kind::ShellFolder:
-            return SearchQuery::IsId (location.path) || m_loader.m_shellParent.kind != Location::Kind::None;
+            return SearchQuery::IsId (location.path) || CollectionQuery::IsId (location.path) || m_loader.m_shellParent.kind != Location::Kind::None;
 
         default:
             return false;
@@ -1508,6 +1509,15 @@ bool CassoExplorerBrowser::TryGetUpTarget (Location & outTarget) const
         SearchQuery::TryParseId (location.path, scope, query);
         folders   = SearchQuery::SplitScopes (scope);
         outTarget = (folders.size() == 1) ? Location::MakeHostFolder (folders[0]) : Location::MakeRoot (TreeModel::kCassoRootId);
+    }
+    else if (location.kind == Location::Kind::ShellFolder && CollectionQuery::IsId (location.path))
+    {
+        CollectionQuery::Tool  tool = CollectionQuery::Tool::DiskList;
+        std::wstring           folder;
+
+        //  Disk list's results go up to the folder walked.
+        CollectionQuery::TryParseId (location.path, tool, folder);
+        outTarget = Location::MakeHostFolder (folder);
     }
     else if (location.kind == Location::Kind::ShellFolder)
     {

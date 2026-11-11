@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Model/CollectionCells.h"
+
 
 
 
@@ -88,6 +90,11 @@ public:
         std::wstring  activity;                // System.ActivityInfo
         int64_t       sharedUnix    = 0;
         bool          modifiedLocal = false;   // a file in a disk image, whose date has no time zone
+
+        //  A Disk list or Find duplicates row: a disk inside a container, as
+        //  a ContainerPath's text, and the row's columns.
+        std::wstring     containerPath;
+        CollectionCells  collection;
     };
 
     //  What a paste did: each item it took and the item it made, in the same

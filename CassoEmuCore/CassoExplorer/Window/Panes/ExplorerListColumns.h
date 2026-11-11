@@ -30,8 +30,8 @@ class ExplorerListColumns
 public:
     ExplorerListColumns (ExplorerListPane & pane, ExplorerContext & context);
 
-    static bool  IsListColumnShown          (size_t column, bool chosen, Location::Kind kind, bool searching = false);
-    static bool  IsListColumnOffered        (size_t column, Location::Kind kind, bool searching = false);
+    static bool  IsListColumnShown          (size_t column, bool chosen, Location::Kind kind, bool searching = false, bool results = false);
+    static bool  IsListColumnOffered        (size_t column, Location::Kind kind, bool searching = false, bool results = false);
     void         ApplyColumnOrder           ();
     void         ShowChosenColumns          ();
     void         ChooseAll                  (size_t count) { m_chosen.assign (count, true); }

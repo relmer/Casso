@@ -5,6 +5,7 @@
 
 #include "CassoExplorer/Window/Panes/ExplorerListColumns.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Model/CollectionQuery.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
@@ -53,7 +54,7 @@ void ExplorerListColumns::ShowChosenColumns()
 
     for (size_t c = 0; c < m_chosen.size(); c++)
     {
-        m_pane.GetListView()->SetColumnVisible (c, IsListColumnShown (c, m_chosen[c], location.kind, SearchQuery::IsId (location.path)));
+        m_pane.GetListView()->SetColumnVisible (c, IsListColumnShown (c, m_chosen[c], location.kind, SearchQuery::IsId (location.path), CollectionQuery::IsId (location.path)));
 
         //  File Explorer's filters, on a folder's or a disk's list.
         m_pane.GetListView()->SetColumnFilter (c, CassoExplorerBrowser::GetFilterField (c) != RowGrouping::Field::None && location.kind != Location::Kind::Root,
@@ -166,11 +167,11 @@ bool ExplorerListColumns::StepIconSize (int notches)
 //
 //  Whether a list column is visible: the user's choice from the header's
 //  menu, and the catalog's two columns only inside a disk image or on a
-//  linked drive.
+//  linked drive. Disk list's and Find duplicates' results are `results`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerListColumns::IsListColumnShown (size_t column, bool chosen, Location::Kind kind, bool searching)
+bool ExplorerListColumns::IsListColumnShown (size_t column, bool chosen, Location::Kind kind, bool searching, bool results)
 {
     bool  catalog     = column == (size_t) CatalogModel::Column::Address || column == (size_t) CatalogModel::Column::Locked;
     bool  recycled    = column == (size_t) CatalogModel::Column::OriginalLocation || column == (size_t) CatalogModel::Column::DateDeleted;
@@ -182,6 +183,11 @@ bool ExplorerListColumns::IsListColumnShown (size_t column, bool chosen, Locatio
     if (column == (size_t) CatalogModel::Column::Name)
     {
         return true;
+    }
+
+    if (CatalogModel::IsCollectionColumn (column))
+    {
+        return chosen && results;
     }
 
     //  The fork lengths, the total and the access flags, inside a disk image
@@ -202,10 +208,11 @@ bool ExplorerListColumns::IsListColumnShown (size_t column, bool chosen, Locatio
         return inBin;
     }
 
-    //  Search results show the folder each is in, as Explorer's do.
+    //  Search results have the folder each is in, as Explorer's do, and so
+    //  do Disk list's.
     if (column == (size_t) CatalogModel::Column::Folder)
     {
-        return searching && chosen;
+        return (searching || results) && chosen;
     }
 
     return chosen && (insideImage || !catalog);
@@ -224,9 +231,9 @@ bool ExplorerListColumns::IsListColumnShown (size_t column, bool chosen, Locatio
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerListColumns::IsListColumnOffered (size_t column, Location::Kind kind, bool searching)
+bool ExplorerListColumns::IsListColumnOffered (size_t column, Location::Kind kind, bool searching, bool results)
 {
-    return IsListColumnShown (column, true, kind, searching);
+    return IsListColumnShown (column, true, kind, searching, results);
 }
 
 
@@ -374,6 +381,17 @@ std::wstring ExplorerListColumns::GetFolderViewKey (FolderViews::FolderType * ou
         return SearchQuery::kPrefix;
     }
 
+    //  Disk list's results share one view, and Find duplicates' another.
+    if (CollectionQuery::IsId (location.path))
+    {
+        if (outType != nullptr)
+        {
+            *outType = FolderViews::FolderType::CollectionResults;
+        }
+
+        return location.path.substr (0, location.path.find (L'|'));
+    }
+
     return location.path + L"|" + TextEncoding::NarrowToWide (location.innerPath);
 }
 
@@ -467,6 +485,11 @@ void ExplorerListColumns::ApplyFolderView()
         {
             entry.groupBy = (int) RowGrouping::Field::Type;
         }
+        else if (folder == GroupChoices::Folder::Results && CollectionQuery::IsDuplicatesId (m_context.browser.GetLocation().path))
+        {
+            //  Each duplicate set is a group.
+            entry.groupBy = (int) RowGrouping::Field::DuplicateSet;
+        }
         else if (searching)
         {
             //  Search results open by relevance, as File Explorer's do.
@@ -509,6 +532,12 @@ void ExplorerListColumns::ApplyFolderView()
     else
     {
         ApplyChoiceIds (m_context.prefs.hiddenColumns, m_context.prefs.shownColumns);
+
+        //  The Folder column distinguishes Disk list's and Find duplicates' rows.
+        if (CollectionQuery::IsId (m_context.browser.GetLocation().path) && m_chosen.size() > (size_t) CatalogModel::Column::Folder)
+        {
+            m_chosen[(size_t) CatalogModel::Column::Folder] = true;
+        }
     }
 }
 
@@ -1083,6 +1112,7 @@ GroupChoices::Folder ExplorerListColumns::GetGroupFolder() const
     {
         case FolderViews::FolderType::Drives:        return GroupChoices::Folder::Drives;
         case FolderViews::FolderType::SearchResults: return GroupChoices::Folder::Search;
+        case FolderViews::FolderType::CollectionResults: return GroupChoices::Folder::Results;
         case FolderViews::FolderType::Documents:     return GroupChoices::Folder::Documents;
         case FolderViews::FolderType::Pictures:      return GroupChoices::Folder::Pictures;
         case FolderViews::FolderType::Music:         return GroupChoices::Folder::Music;
@@ -1150,6 +1180,7 @@ void ExplorerListColumns::ChooseDetails()
                                                           L"System.Recycle.DeletedFrom", L"System.Recycle.DateDeleted", L"System.ItemFolderPathDisplay" };
     const Location &                         location  = m_context.browser.GetLocation();
     bool                                     searching = SearchQuery::IsId (location.path);
+    bool                                     results   = CollectionQuery::IsId (location.path);
     std::vector<ChooseDetailsModel::Column>  columns;
     std::vector<std::wstring>                names     = m_context.prefs.propertyColumns;
     ChooseDetailsModel                       model;
@@ -1164,7 +1195,7 @@ void ExplorerListColumns::ChooseDetails()
         ChooseDetailsModel::Column  column;
 
         column.title    = m_listColumns[c].title;
-        column.offered  = IsListColumnOffered (c, location.kind, searching);
+        column.offered  = IsListColumnOffered (c, location.kind, searching, results);
         column.chosen   = c < m_chosen.size() && m_chosen[c];
         column.fixed    = c == (size_t) CatalogModel::Column::Name;
 

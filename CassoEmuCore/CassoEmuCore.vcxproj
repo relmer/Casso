@@ -211,6 +211,8 @@
     <ClCompile Include="CassoExplorer\Model\CollectionWalk.cpp" />
     <ClCompile Include="CassoExplorer\Model\CollectionResults.cpp" />
     <ClCompile Include="CassoExplorer\Model\DiskIdentity.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CollectionQuery.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CollectionResultsItems.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewSaveChoices.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewSteps.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewViewChoices.cpp" />
@@ -388,6 +390,7 @@
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerMenus.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerPreviewManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerPreviewOutput.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\ExplorerCollectionTools.cpp" />
     <ClCompile Include="CassoExplorer\Window\ExplorerWindowParts.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\Preview\PreviewArchiveView.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\Preview\PreviewListingView.cpp" />
@@ -1032,6 +1035,9 @@
     <ClInclude Include="CassoExplorer\Model\CollectionWalk.h" />
     <ClInclude Include="CassoExplorer\Model\CollectionResults.h" />
     <ClInclude Include="CassoExplorer\Model\DiskIdentity.h" />
+    <ClInclude Include="CassoExplorer\Model\CollectionQuery.h" />
+    <ClInclude Include="CassoExplorer\Model\CollectionResultsItems.h" />
+    <ClInclude Include="CassoExplorer\Model\CollectionCells.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewSaveChoices.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewSteps.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewViewChoices.h" />
@@ -1164,6 +1170,7 @@
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerMenus.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerPreviewManager.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerPreviewOutput.h" />
+    <ClInclude Include="CassoExplorer\Window\Managers\ExplorerCollectionTools.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\Preview\PreviewArchiveView.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\Preview\PreviewListingView.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\Preview\PreviewTextView.h" />

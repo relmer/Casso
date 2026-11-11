@@ -357,6 +357,8 @@ void CollectionWalk::WalkDisk (const std::string & path, const std::string & nam
     disk.sha256     = identity.sha256;
     disk.crc32      = identity.crc32;
     disk.hasMore    = identity.hasMore;
+    disk.bytes      = sectors.size();
+    disk.kind       = kind;
 
     volume = (kind == VolumeKind::Unknown) ? nullptr : VolumeImage::CreateVolume (kind, sectors);
     hr     = (volume != nullptr) ? volume->Enumerate (listing) : E_FAIL;
@@ -431,9 +433,10 @@ void CollectionWalk::WalkDirectory (const IVolume & volume, VolumeKind kind, con
             continue;
         }
 
-        file.path  = entryPath;
-        file.type  = entry.type;
-        file.bytes = payload.bytes.size();
+        file.path         = entryPath;
+        file.type         = entry.type;
+        file.bytes        = payload.bytes.size();
+        file.catalogIndex = entry.catalogIndex;
 
         hr = DiskIdentity::ComputeFile (payload.bytes, file.sha256);
         IGNORE_RETURN_VALUE (hr, S_OK);

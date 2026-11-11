@@ -1955,10 +1955,10 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 ## Phase 53: Collection tools (User Story 36)
 
-- [ ] T637 [US36] Add `CollectionWalk` in `CassoEmuCore/CassoExplorer/Model/`: a worker thread over a folder's subtree and every container `ContainerPath` opens, reporting rows as found (FR-232)
+- [X] T637 [US36] Add `CollectionWalk` in `CassoEmuCore/CassoExplorer/Model/`: a worker thread over a folder's subtree and every container `ContainerPath` opens, reporting rows as found (FR-232) Done: the walk runs on the shell listing's thread, through `CollectionResultsItems::Read`.
 - [X] T638 [US36] Add `DiskIdentity`: SHA-256 of the decoded volume buffer, and `hasMore` for a WOZ track whose data its sectors don't decode; a file's identity is the SHA-256 of its data fork and type (FR-233). Tests with one disk as `.dsk`, `.po`, 2IMG and WOZ Done: the CRC-32 is of the same buffer. `CollectionResults::FindDuplicates` forms the sets.
-- [ ] T639 [US36] Add `ResultsLocation`, `results:<id>`, with the Disk list and duplicate columns of data-model.md, each duplicate set a group, and the folder context menu on each row (FR-233a)
-- [ ] T640 [US36] Add Disk list and Find duplicates to a folder's context menu and Save as CSV to the results toolbar
+- [X] T639 [US36] Add `ResultsLocation`, `results:<id>`, with the Disk list and duplicate columns of data-model.md, each duplicate set a group, and the folder context menu on each row (FR-233a) Done: `CollectionQuery`, a shell folder id `casso-results:<tool>|<folder>`; the Type column has the container.
+- [X] T640 [US36] Add Disk list and Find duplicates to a folder's context menu and Save as CSV to the results toolbar Done: `ExplorerCollectionTools`; the menu rows are on a folder row and the open folder's background.
 - [X] T641 [US36] Search each file inside an image as `FileFormatTable::Export` writes it when File contents is on, BASIC detokenized and binary files skipped (FR-234) Done: `ImageFileSearchSources`, the text of the file's preview, in `Win32ShellSearch::SearchImage`.
 - [X] T642 [US36] Add `casso disk list`, `casso disk dupes` and `casso disk search` (FR-235) Done: `list` of a folder, in `DiskCollectionCommands`.
 - [ ] T643 [US36] Scenario test on a 5,000-image test set with known duplicates: under five minutes, every duplicate found and none false (SC-064)

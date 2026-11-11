@@ -44,6 +44,9 @@ std::vector<GroupChoices::Choice> GroupChoices::GetChoices (Folder folder)
             return { s_kName, s_kDateModified, s_kType, s_kSize, { L"Folder", Field::Folder, nullptr }, { L"Relevance", Field::Relevance, nullptr },
                      s_kDateCreated, s_kAuthors, s_kTags, s_kTitle };
 
+        case Folder::Results:
+            return { s_kName, s_kType, s_kSize, { L"Folder", Field::Folder, nullptr }, { L"Duplicate set", Field::DuplicateSet, nullptr } };
+
         case Folder::Drives:
             return { s_kName, s_kType, { L"Total Size", Field::None, L"System.Capacity" }, { L"Free Space", Field::None, L"System.FreeSpace" },
                      { L"File System", Field::None, L"System.Volume.FileSystem" }, s_kComments, { L"Network Location", Field::None, L"System.NetworkLocation" },

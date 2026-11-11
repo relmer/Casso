@@ -3,6 +3,7 @@
 #include "CassoExplorer/Model/FolderOptions.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
+#include "CassoExplorer/Model/CollectionQuery.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
@@ -552,6 +553,10 @@ void ExplorerToolbars::UpdateCommandBar()
     else if (SearchQuery::IsId (m_context.browser.GetLocation().path))
     {
         extra = Extra::Search;
+    }
+    else if (CollectionQuery::IsId (m_context.browser.GetLocation().path))
+    {
+        extra = Extra::Results;
     }
     else if (m_context.browser.IsAppleDriveLocation() || m_context.cassoLinkManager.IsOnLinkedMachine())
     {

@@ -25,11 +25,12 @@
 class RowGrouping
 {
 public:
-    enum class Field { None, Name, DateModified, Type, Size, Folder, OriginalLocation, DateDeleted, Relevance };
+    //  DuplicateSet is Find duplicates' set.
+    enum class Field { None, Name, DateModified, Type, Size, Folder, OriginalLocation, DateDeleted, Relevance, DuplicateSet };
 
     //  A field from here up groups by the shell property at that distance in
     //  the list's property columns.
-    static constexpr int  kFirstPropertyField = (int) Field::Relevance + 1;
+    static constexpr int  kFirstPropertyField = (int) Field::DuplicateSet + 1;
 
     static Field   MakePropertyField (size_t property) { return (Field) (kFirstPropertyField + (int) property); }
     static bool    IsPropertyField   (Field field)     { return (int) field >= kFirstPropertyField; }

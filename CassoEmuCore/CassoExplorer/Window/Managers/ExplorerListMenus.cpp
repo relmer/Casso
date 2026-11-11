@@ -7,6 +7,8 @@
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Model/CollectionQuery.h"
+#include "CassoExplorer/Window/Managers/ExplorerCollectionTools.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
@@ -62,6 +64,7 @@ void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
     std::vector<DxuiListView::Column>  columns   = m_pane.GetColumns().GetListColumns();
     Location                           location  = m_context.browser.GetLocation();
     bool                               searching = SearchQuery::IsId (location.path);
+    bool                               results   = CollectionQuery::IsId (location.path);
 
 
 
@@ -89,13 +92,13 @@ void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
     {
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
 
-        if (c >= columns.size() || c >= m_pane.GetColumns().GetChosen().size() || !ExplorerListColumns::IsListColumnOffered (c, location.kind, searching))
+        if (c >= columns.size() || c >= m_pane.GetColumns().GetChosen().size() || !ExplorerListColumns::IsListColumnOffered (c, location.kind, searching, results))
         {
             continue;
         }
 
         command->label     = columns[c].title;
-        command->isChecked = [this, c, location, searching]() { return ExplorerListColumns::IsListColumnShown (c, m_pane.GetColumns().GetChosen()[c], location.kind, searching); };
+        command->isChecked = [this, c, location, searching, results]() { return ExplorerListColumns::IsListColumnShown (c, m_pane.GetColumns().GetChosen()[c], location.kind, searching, results); };
         command->isEnabled = [c]() { return c != (size_t) CatalogModel::Column::Name; };
         command->dispatch  = [this, c]()
         {
@@ -675,6 +678,8 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (known ? L"windows.unpinfromhome" : L"windows.pintohome");
     }
 
+    ExplorerCollectionTools::AddMenuRows (m_context, items);
+
     //  From the current folder's background: Properties, then the commands
     //  installed apps add there, such as Open in Terminal, then the shell's
     //  own background menu.
@@ -1242,7 +1247,7 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSortChoices (bool commandBa
         int                           id      = CassoExplorerCommands::kSortByColumn + (int) column;
         std::shared_ptr<DxuiCommand>  command;
 
-        if (!ExplorerListColumns::IsListColumnShown (column, chosen, m_context.browser.GetLocation().kind, SearchQuery::IsId (m_context.browser.GetLocation().path)))
+        if (!ExplorerListColumns::IsListColumnShown (column, chosen, m_context.browser.GetLocation().kind, SearchQuery::IsId (m_context.browser.GetLocation().path), CollectionQuery::IsId (m_context.browser.GetLocation().path)))
         {
             continue;
         }

@@ -2,13 +2,12 @@
 
 #include "Pch.h"
 
+#include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
 class IDiskFileIo;
 class IVolume;
-class SectorDecodeReport;
 struct PartitionEntry;
-enum class VolumeKind;
 
 
 
@@ -26,9 +25,10 @@ enum class VolumeKind;
 struct CollectionFile
 {
     std::string  path;
-    Byte         type  = 0;
-    uint64_t     bytes = 0;
+    Byte         type         = 0;
+    uint64_t     bytes        = 0;
     std::string  sha256;
+    size_t       catalogIndex = 0;
 };
 
 
@@ -41,7 +41,8 @@ struct CollectionFile
 //
 //  A disk image the walk found, a row of Disk list. The path is a
 //  ContainerPath's text, so an image in a ZIP or on another image has the
-//  ZIP and the image in it. The container is the image file's form.
+//  ZIP and the image in it. The container is the image file's form, and
+//  the bytes are the volume's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +57,8 @@ struct CollectionDisk
     uint32_t                     crc32     = 0;
     std::string                  sha256;
     bool                         hasMore   = false;
+    uint64_t                     bytes     = 0;
+    VolumeKind                   kind      = VolumeKind::Unknown;
     std::vector<CollectionFile>  fileList;
 };
 

@@ -1,7 +1,10 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FakeDiskFileIo.h"
+#include "CassoExplorer/Model/CollectionQuery.h"
 #include "CassoExplorer/Model/CollectionResults.h"
+#include "CassoExplorer/Model/CollectionResultsItems.h"
+#include "CassoExplorer/Model/RowGrouping.h"
 #include "CassoExplorer/Model/CollectionWalk.h"
 #include "CassoExplorer/Model/DiskIdentity.h"
 #include "CassoExplorer/Model/DiskOperations.h"
@@ -423,5 +426,136 @@ public:
         Assert::IsTrue   (search.output.find ("C:\\Disks\\a.dsk|NOTES\n") != std::string::npos, TextEncoding::NarrowToWide (search.output).c_str());
         Assert::IsTrue   (search.output.find ("C:\\Disks\\c.zip|disks/d.dsk|NOTES\n") != std::string::npos);
         Assert::AreEqual (DiskCommandResult::kNoOutput, notFolder.exitStatus);
+    }
+
+
+    TEST_METHOD (Query_RoundTripsTheToolAndFolder)
+    {
+        CollectionQuery::Tool  tool = CollectionQuery::Tool::DiskList;
+        std::wstring           folder;
+        std::wstring           id   = CollectionQuery::MakeId (CollectionQuery::Tool::Duplicates, L"C:\\Disks");
+
+
+
+        Assert::IsTrue   (CollectionQuery::IsId (id));
+        Assert::IsTrue   (CollectionQuery::TryParseId (id, tool, folder));
+        Assert::IsTrue   (tool == CollectionQuery::Tool::Duplicates);
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), folder);
+        Assert::IsTrue   (CollectionQuery::IsDuplicatesId (id));
+        Assert::IsFalse  (CollectionQuery::IsDuplicatesId (CollectionQuery::MakeId (CollectionQuery::Tool::DiskList, L"C:\\Disks")));
+        Assert::AreEqual (std::wstring (L"Duplicates in Disks"), CollectionQuery::GetLabel (tool, folder));
+        Assert::AreEqual (std::wstring (L"Disk list of Disks"),  CollectionQuery::GetLabel (CollectionQuery::Tool::DiskList, L"C:\\Disks\\"));
+        Assert::IsFalse  (CollectionQuery::TryParseId (L"casso-results:other|C:\\Disks", tool, folder));
+    }
+
+
+    TEST_METHOD (Items_OpenEachDiskByItsPathOrItsContainerPath)
+    {
+        CollectionDisk                plain;
+        CollectionDisk                zipped;
+        CollectionResultsItems::Item  host;
+        CollectionResultsItems::Item  inner;
+
+
+
+        plain.path       = "C:\\Disks\\a.dsk";
+        plain.container  = "DOS-order disk image";
+        plain.fileSystem = "DOS 3.3";
+        plain.files      = 2;
+        plain.bytes      = 143360;
+        zipped.path      = "C:\\Disks\\c.zip|disks/d.dsk";
+
+        host  = CollectionResultsItems::MakeDiskItem (plain);
+        inner = CollectionResultsItems::MakeDiskItem (zipped);
+
+        Assert::AreEqual (std::wstring (L"a.dsk"),     host.name);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\a.dsk"), host.path);
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), host.folder);
+        Assert::IsTrue   (host.containerPath.empty());
+        Assert::AreEqual ((uint64_t) 143360,           host.sizeBytes);
+        Assert::AreEqual ((uint32_t) 2,                host.collection.files);
+        Assert::AreEqual (CollectionResults::FormatDiskRow (plain), host.collection.csvLine);
+
+        Assert::AreEqual (std::wstring (L"d.dsk"),                     inner.name);
+        Assert::IsTrue   (inner.path.empty());
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\c.zip|disks/d.dsk"), inner.containerPath);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\c.zip"),          inner.folder);
+    }
+
+
+    TEST_METHOD (Items_ListEachSetsMembersInTheirImages)
+    {
+        std::vector<CollectionDisk>                disks (2);
+        std::vector<DuplicateSet>                  sets;
+        std::vector<CollectionResultsItems::Item>  items;
+
+
+
+        disks[0].path     = "C:\\a.po";
+        disks[0].sha256   = "x";
+        disks[0].kind     = VolumeKind::ProDos;
+        disks[0].fileList = { { "GAMES/HELLO", kTypeBinary, 10, "f", 3 } };
+        disks[1].path     = "C:\\b.po";
+        disks[1].sha256   = "y";
+        disks[1].kind     = VolumeKind::ProDos;
+        disks[1].fileList = { { "HELLO", kTypeBinary, 10, "f", 1 } };
+
+        CollectionResults::FindDuplicates (disks, sets);
+        CollectionResultsItems::BuildDuplicates (disks, sets, items);
+
+        Assert::AreEqual ((size_t) 2, items.size());
+        Assert::AreEqual (std::wstring (L"HELLO"),   items[0].name);
+        Assert::AreEqual (std::wstring (L"C:\\a.po"), items[0].imagePath);
+        Assert::AreEqual (std::string ("GAMES"),     items[0].imageDirectory);
+        Assert::AreEqual ((size_t) 3,                items[0].catalogIndex);
+        Assert::AreEqual (std::wstring (L"BIN"),     items[0].typeText);
+        Assert::AreEqual (1,                         items[1].collection.set);
+        Assert::AreEqual (std::wstring (L"f"),       items[1].collection.sha256);
+    }
+
+
+    TEST_METHOD (Csv_FromTheRows_IsTheCommandLinesInTheWalksOrder)
+    {
+        std::vector<CollectionDisk>                disks (2);
+        std::vector<CollectionResultsItems::Item>  items;
+        std::vector<CatalogRow>                    rows (2);
+
+
+
+        disks[0].path = "C:\\a.dsk";
+        disks[1].path = "C:\\b.dsk";
+
+        items.push_back (CollectionResultsItems::MakeDiskItem (disks[0]));
+        items.push_back (CollectionResultsItems::MakeDiskItem (disks[1]));
+
+        //  The list sorts them in another order.
+        rows[0].collection  = items[1].collection;
+        rows[0].sourceIndex = 1;
+        rows[1].collection  = items[0].collection;
+        rows[1].sourceIndex = 0;
+
+        Assert::AreEqual (CollectionResults::FormatDiskList (disks), CollectionResultsItems::FormatCsv (CollectionQuery::Tool::DiskList, rows));
+    }
+
+
+    TEST_METHOD (Grouping_PutsEachSetInAGroupOfItsOwn)
+    {
+        CatalogRow          disk;
+        CatalogRow          file;
+        RowGrouping::Group  diskGroup;
+        RowGrouping::Group  fileGroup;
+
+
+
+        disk.collection.isDisk = true;
+        disk.collection.set    = 1;
+        file.collection.set    = 2;
+
+        diskGroup = RowGrouping::GetGroup (disk, RowGrouping::Field::DuplicateSet, RowGrouping::Today());
+        fileGroup = RowGrouping::GetGroup (file, RowGrouping::Field::DuplicateSet, RowGrouping::Today());
+
+        Assert::AreEqual (std::wstring (L"Set 1: disks"), diskGroup.label);
+        Assert::AreEqual (std::wstring (L"Set 2: files"), fileGroup.label);
+        Assert::IsTrue   (RowGrouping::IsBefore (diskGroup, fileGroup, false));
     }
 };

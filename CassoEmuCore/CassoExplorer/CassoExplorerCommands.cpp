@@ -87,6 +87,7 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
     ApplyToolbarRows (kCommandBarRows);
     ApplyToolbarRows (kRecycleBinRows);
     ApplyToolbarRows (kSearchRows);
+    ApplyToolbarRows (kResultsRows);
     ApplyToolbarRows (kArchiveRows);
     ApplyToolbarRows (kAppleDriveRows);
     ApplyToolbarRows (kPreviewToolbarRows);
@@ -416,6 +417,7 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildCommandBarEntries (C
         case CommandBarExtra::Archive:    added = BuildEntries (kArchiveRows);    break;
         case CommandBarExtra::AppleDrive: added = BuildEntries (kAppleDriveRows); break;
         case CommandBarExtra::Search:     added = BuildEntries (kSearchRows);     break;
+        case CommandBarExtra::Results:    added = BuildEntries (kResultsRows);    break;
         case CommandBarExtra::DiskImage:     added = BuildEntries (kDiskImageRows);     break;
         case CommandBarExtra::DiskImagePair: added = BuildEntries (kDiskImagePairRows); break;
         default:                                                                  break;

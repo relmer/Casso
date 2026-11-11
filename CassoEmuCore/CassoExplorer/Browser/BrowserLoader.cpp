@@ -237,6 +237,16 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
             row.isDiskImage   = !row.containerPath.empty();
         }
 
+        //  A disk Disk list found inside a container opens by its path through
+        //  the containers.
+        if (!items[index].containerPath.empty())
+        {
+            row.containerPath = items[index].containerPath;
+            row.isDiskImage   = true;
+        }
+
+        row.collection = items[index].collection;
+
         //  An image the shell lists with no file on the disk, as one inside a
         //  zip, has its kind's type text.
         row.typeText     = (!row.isDirectory && !CatalogModel::GetDiskImageTypeName (row.name).empty()) ? CatalogModel::GetDiskImageTypeName (row.name) : row.typeText;

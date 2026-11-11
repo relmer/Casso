@@ -116,6 +116,10 @@ public:
         Assert::IsTrue  (W::IsListColumnShown ((size_t) C::Folder, true,  K::ShellFolder, true), L"a search shows the folder");
         Assert::IsFalse (W::IsListColumnShown ((size_t) C::Folder, false, K::ShellFolder, true), L"unless unchosen");
         Assert::IsTrue  (W::IsListColumnOffered ((size_t) C::Folder, K::ShellFolder, true),      L"and the menu lists it");
+        Assert::IsTrue  (W::IsListColumnShown ((size_t) C::Sha256, true,  K::ShellFolder, false, true), L"Disk list's results have the checksums");
+        Assert::IsFalse (W::IsListColumnShown ((size_t) C::Sha256, true,  K::ShellFolder, true),        L"and a search doesn't");
+        Assert::IsFalse (W::IsListColumnShown ((size_t) C::Sha256, true,  K::HostFolder),               L"nor a folder");
+        Assert::IsTrue  (W::IsListColumnShown ((size_t) C::Folder, true,  K::ShellFolder, false, true), L"the results have the folder");
     }
 
 

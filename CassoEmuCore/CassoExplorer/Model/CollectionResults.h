@@ -59,6 +59,13 @@ public:
     static std::string  FormatDiskList   (const std::vector<CollectionDisk> & disks);
     static std::string  FormatDuplicates (const std::vector<CollectionDisk> & disks, const std::vector<DuplicateSet> & sets);
 
+    //  One row of each, with its line end; the set is numbered from 1.
+    static std::string  FormatDiskRow      (const CollectionDisk & disk);
+    static std::string  FormatDuplicateRow (int set, const DuplicateSet & duplicates, const DuplicateMember & member, const std::vector<CollectionDisk> & disks);
+
+    static constexpr const char *  kDiskListHeader   = "path,container,fileSystem,volumeName,files,freeBytes,crc32,sha256,hasMore\n";
+    static constexpr const char *  kDuplicatesHeader = "set,kind,path,name,sha256\n";
+
     static std::string  QuoteField (const std::string & field);
 
     static constexpr const char *  kLineEnd = "\n";

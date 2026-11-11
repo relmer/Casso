@@ -108,18 +108,33 @@ void CollectionResults::FindDuplicates (const std::vector<CollectionDisk> & disk
 
 std::string CollectionResults::FormatDiskList (const std::vector<CollectionDisk> & disks)
 {
-    std::string  text = std::string ("path,container,fileSystem,volumeName,files,freeBytes,crc32,sha256,hasMore") + kLineEnd;
+    std::string  text = kDiskListHeader;
 
 
 
     for (const CollectionDisk & disk : disks)
     {
-        text += std::format ("{},{},{},{},{},{},{},{},{}{}",
-                             QuoteField (disk.path), QuoteField (disk.container), QuoteField (disk.fileSystem), QuoteField (disk.volumeName),
-                             disk.files, disk.freeBytes, DiskIdentity::FormatCrc32 (disk.crc32), disk.sha256, disk.hasMore ? "yes" : "no", kLineEnd);
+        text += FormatDiskRow (disk);
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CollectionResults::FormatDiskRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CollectionResults::FormatDiskRow (const CollectionDisk & disk)
+{
+    return std::format ("{},{},{},{},{},{},{},{},{}{}",
+                        QuoteField (disk.path), QuoteField (disk.container), QuoteField (disk.fileSystem), QuoteField (disk.volumeName),
+                        disk.files, disk.freeBytes, DiskIdentity::FormatCrc32 (disk.crc32), disk.sha256, disk.hasMore ? "yes" : "no", kLineEnd);
 }
 
 
@@ -134,7 +149,7 @@ std::string CollectionResults::FormatDiskList (const std::vector<CollectionDisk>
 
 std::string CollectionResults::FormatDuplicates (const std::vector<CollectionDisk> & disks, const std::vector<DuplicateSet> & sets)
 {
-    std::string  text = std::string ("set,kind,path,name,sha256") + kLineEnd;
+    std::string  text = kDuplicatesHeader;
 
 
 
@@ -142,12 +157,27 @@ std::string CollectionResults::FormatDuplicates (const std::vector<CollectionDis
     {
         for (const DuplicateMember & member : sets[at].members)
         {
-            text += std::format ("{},{},{},{},{}{}", at + 1, sets[at].isFile ? "file" : "disk",
-                                 QuoteField (disks[member.disk].path), QuoteField (member.file), sets[at].sha256, kLineEnd);
+            text += FormatDuplicateRow ((int) at + 1, sets[at], member, disks);
         }
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CollectionResults::FormatDuplicateRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CollectionResults::FormatDuplicateRow (int set, const DuplicateSet & duplicates, const DuplicateMember & member, const std::vector<CollectionDisk> & disks)
+{
+    return std::format ("{},{},{},{},{}{}", set, duplicates.isFile ? "file" : "disk",
+                        QuoteField (disks[member.disk].path), QuoteField (member.file), duplicates.sha256, kLineEnd);
 }
 
 

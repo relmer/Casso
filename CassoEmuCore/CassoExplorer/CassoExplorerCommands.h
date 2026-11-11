@@ -190,6 +190,15 @@ public:
         kCopyPreview,
         kSavePreviewAs,
 
+        //  Disk list's and Find duplicates' results written to a CSV file, on
+        //  the command bar only there.
+        kSaveResultsCsv,
+
+        //  Disk list and Find duplicates on the folder row selected, or on
+        //  the folder open in the list, from their context menus.
+        kDiskList,
+        kFindDuplicates,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -230,7 +239,7 @@ public:
     //  preview pane's toggle.
     std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
     //  The buttons a location adds to the command bar, after View.
-    enum class CommandBarExtra { None, RecycleBin, Archive, AppleDrive, Search, DiskImage, DiskImagePair };
+    enum class CommandBarExtra { None, RecycleBin, Archive, AppleDrive, Search, DiskImage, DiskImagePair, Results };
 
     std::vector<DxuiToolbar::Entry>  BuildCommandBarEntries (CommandBarExtra extra = CommandBarExtra::None) const;
 
@@ -464,6 +473,9 @@ private:
         { kViewAsResourceFork, Menu::Count, L"&Resource fork",     nullptr,     true  },
         { kCopyPreview,       Menu::Count, L"&Copy",               nullptr,     false },
         { kSavePreviewAs,     Menu::Count, L"&Save as...",         nullptr,     false },
+        { kSaveResultsCsv,    Menu::Count, L"Save as CSV...",      nullptr,     false },
+        { kDiskList,          Menu::Count, L"Dis&k list",          nullptr,     false },
+        { kFindDuplicates,    Menu::Count, L"Find d&uplicates",    nullptr,     false },
 
         //  The hex view's own choices are on its context menu, and nowhere
         //  else at the top of the window.
@@ -519,6 +531,13 @@ private:
     {
         { kSearchOptions, DxuiToolbar::Kind::DropDown, 5, s_kpszMdl2Setting, L"Search options", L"Search options" },
         { kCloseSearch,   DxuiToolbar::Kind::Command,  5, s_kpszMdl2Cancel,  L"Close search",   L"Close search"   },
+    };
+
+    //  Disk list's and Find duplicates' button, after View while their
+    //  results are open.
+    static constexpr ToolbarRow  kResultsRows[] =
+    {
+        { kSaveResultsCsv, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Save, L"Save as CSV", L"Save as CSV" },
     };
 
     static constexpr ToolbarRow  kRecycleBinRows[] =

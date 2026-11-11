@@ -228,6 +228,12 @@ std::vector<DxuiListView::Column> BrowserCells::GetColumns()
     columns.push_back (DxuiListView::Column { L"Resource fork", kForkColumnDip,     false, DxuiTextHAlign::Right });
     columns.push_back (DxuiListView::Column { L"Total size",    kForkColumnDip,     false, DxuiTextHAlign::Right });
     columns.push_back (DxuiListView::Column { L"Access",        kAccessColumnDip,   false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"File system",   kForkColumnDip,     false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Volume name",   kTypeColumnDip,     false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Files",         kAccessColumnDip,   false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"Free space",    kForkColumnDip,     false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"CRC-32",        kForkColumnDip,     false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"SHA-256",       kOriginalColumnDip, false, DxuiTextHAlign::Left  });
 
     return columns;
 }
@@ -371,6 +377,12 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
     cells.push_back (DxuiListView::Cell { row.hasResourceFork ? FormatSizeColumn (row.resourceForkBytes) : std::wstring(), false });
     cells.push_back (DxuiListView::Cell { row.hasForks ? FormatSizeColumn (row.dataForkBytes + row.resourceForkBytes) : std::wstring(), false });
     cells.push_back (DxuiListView::Cell { row.accessText, false });
+    cells.push_back (DxuiListView::Cell { row.collection.fileSystem, false });
+    cells.push_back (DxuiListView::Cell { row.collection.volumeName, false });
+    cells.push_back (DxuiListView::Cell { row.collection.isDisk ? std::to_wstring (row.collection.files) : std::wstring(), false });
+    cells.push_back (DxuiListView::Cell { row.collection.isDisk && !row.collection.fileSystem.empty() ? FormatSizeColumn (row.collection.freeBytes) : std::wstring(), false });
+    cells.push_back (DxuiListView::Cell { row.collection.crc32, false });
+    cells.push_back (DxuiListView::Cell { row.collection.sha256, false });
 
     if (icons != nullptr && !cells.empty())
     {

@@ -540,6 +540,30 @@ bool CatalogModel::IsBefore (const CatalogRow & a, const CatalogRow & b, Column 
             if (a.accessText != b.accessText) { return a.accessText < b.accessText; }
             break;
 
+        case Column::FileSystem:
+            if (a.collection.fileSystem != b.collection.fileSystem) { return _wcsicmp (a.collection.fileSystem.c_str(), b.collection.fileSystem.c_str()) < 0; }
+            break;
+
+        case Column::VolumeName:
+            if (a.collection.volumeName != b.collection.volumeName) { return StrCmpLogicalW (a.collection.volumeName.c_str(), b.collection.volumeName.c_str()) < 0; }
+            break;
+
+        case Column::FileCount:
+            if (a.collection.files != b.collection.files) { return a.collection.files < b.collection.files; }
+            break;
+
+        case Column::FreeSpace:
+            if (a.collection.freeBytes != b.collection.freeBytes) { return a.collection.freeBytes < b.collection.freeBytes; }
+            break;
+
+        case Column::Crc32:
+            if (a.collection.crc32 != b.collection.crc32) { return a.collection.crc32 < b.collection.crc32; }
+            break;
+
+        case Column::Sha256:
+            if (a.collection.sha256 != b.collection.sha256) { return a.collection.sha256 < b.collection.sha256; }
+            break;
+
         case Column::Folder:
         {
             std::wstring  folderA = GetFolderColumnText (a.folderPath);
@@ -852,7 +876,22 @@ bool CatalogModel::TryGetColumn (int id, size_t & outColumn)
 
 bool CatalogModel::IsHiddenUntilChosen (size_t column)
 {
-    return column >= kOriginalColumnCount && column < kColumnCount;
+    return column >= kOriginalColumnCount && column <= (size_t) Column::Access;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::IsCollectionColumn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CatalogModel::IsCollectionColumn (size_t column)
+{
+    return column >= (size_t) Column::FileSystem && column < kColumnCount;
 }
 
 
@@ -864,7 +903,8 @@ bool CatalogModel::IsHiddenUntilChosen (size_t column)
 //  CatalogModel::GetDefaultOrder
 //
 //  The fork lengths and the total follow Size, and the access flags follow
-//  them, ahead of the catalog's Address and Locked.
+//  them, ahead of the catalog's Address and Locked. Disk list's columns
+//  come last.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -872,7 +912,8 @@ const std::vector<CatalogModel::Column> & CatalogModel::GetDefaultOrder()
 {
     static const std::vector<Column>  s_order = { Column::Name, Column::Modified, Column::Type, Column::Size,
                                                   Column::DataFork, Column::ResourceFork, Column::TotalSize, Column::Access,
-                                                  Column::Address, Column::Locked, Column::OriginalLocation, Column::DateDeleted, Column::Folder };
+                                                  Column::Address, Column::Locked, Column::OriginalLocation, Column::DateDeleted, Column::Folder,
+                                                  Column::FileSystem, Column::VolumeName, Column::FileCount, Column::FreeSpace, Column::Crc32, Column::Sha256 };
 
 
 

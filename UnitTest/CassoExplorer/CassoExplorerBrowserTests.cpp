@@ -12,6 +12,7 @@
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
+#include "CassoExplorer/Model/CollectionResultsItems.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/AppleSingleCodec.h"
 #include "Machines/Apple2/Common/AppleFileName.h"
@@ -805,6 +806,58 @@ public:
         Assert::IsTrue   (matches[0].kind == VolumeKind::Dos33);
     }
 
+
+    //  Disk list's results: a row for each image, with its columns, which
+    //  opens as the image and goes up to the folder walked.
+    TEST_METHOD (DiskListResults_ListEachImage_AndGoUpToTheFolder)
+    {
+        Host            host;
+        FakeRecycleBin  shell;
+        std::wstring    id   = CollectionQuery::MakeId (CollectionQuery::Tool::DiskList, kDisks);
+        Location        up;
+        int             row  = 0;
+
+
+
+        AssertSucceeded (CollectionResultsItems::Read (host.io, id, shell.shellItems));
+        host.browser.SetShellVerbs (&shell);
+
+        host.browser.NavigateToLocation (Location::MakeShellFolder (id, CollectionQuery::GetLabel (CollectionQuery::Tool::DiskList, kDisks)));
+
+        Assert::AreEqual ((size_t) 2, host.browser.GetRows().size());
+
+        row = FindRow (host.browser, L"prodos.po");
+
+        Assert::IsTrue   (host.browser.GetRows()[(size_t) row].isDiskImage);
+        Assert::AreEqual (std::wstring (L"ProDOS"), host.browser.GetRows()[(size_t) row].collection.fileSystem);
+        Assert::IsFalse  (host.browser.GetRows()[(size_t) row].collection.csvLine.empty());
+
+        Assert::IsTrue   (host.browser.TryGetUpTarget (up));
+        Assert::IsTrue   (up.kind == Location::Kind::HostFolder);
+        Assert::AreEqual (std::wstring (kDisks), up.path);
+    }
+
+
+    //  Find duplicates' results: two copies of one disk, in one set.
+    TEST_METHOD (DuplicateResults_PutTheCopiesInOneSet)
+    {
+        Host            host;
+        FakeRecycleBin  shell;
+        std::wstring    id = CollectionQuery::MakeId (CollectionQuery::Tool::Duplicates, kDisks);
+
+
+
+        host.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\copy.po");
+
+        AssertSucceeded (CollectionResultsItems::Read (host.io, id, shell.shellItems));
+        host.browser.SetShellVerbs (&shell);
+
+        host.browser.NavigateToLocation (Location::MakeShellFolder (id, CollectionQuery::GetLabel (CollectionQuery::Tool::Duplicates, kDisks)));
+
+        Assert::IsTrue   (host.browser.GetRows().size() >= 2);
+        Assert::AreEqual (1, host.browser.GetRows()[(size_t) FindRow (host.browser, L"copy.po")].collection.set);
+        Assert::AreEqual (1, host.browser.GetRows()[(size_t) FindRow (host.browser, L"prodos.po")].collection.set);
+    }
 
     //  A match in a directory inside an image is read from that directory.
     TEST_METHOD (SearchMatchInAnImagesDirectory_PreviewsAndCopiesFromThere)

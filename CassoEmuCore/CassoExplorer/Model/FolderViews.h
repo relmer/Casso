@@ -67,7 +67,8 @@ struct FolderViewEntry
 class FolderViews
 {
 public:
-    enum class FolderType { Generic, Documents, Pictures, Music, Videos, Drives, SearchResults };
+    //  CollectionResults is Disk list's and Find duplicates'.
+    enum class FolderType { Generic, Documents, Pictures, Music, Videos, Drives, SearchResults, CollectionResults };
 
     static DxuiListView::View  GetDefaultView (FolderType type);
 

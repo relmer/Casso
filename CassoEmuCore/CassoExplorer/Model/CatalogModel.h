@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Model/CollectionCells.h"
 #include "Config/IFileSystem.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
@@ -107,12 +108,16 @@ struct CatalogRow
     std::wstring  imagePath;
     size_t        imageCatalogIndex = 0;
 
-    //  A disk image inside a ZIP the shell lists, as a ContainerPath's text,
-    //  which it opens by; empty for every other row.
+    //  A disk image inside a ZIP the shell lists, or inside any container in
+    //  Disk list's results, as a ContainerPath's text, which it opens by;
+    //  empty for every other row.
     std::wstring  containerPath;
     std::string   imageDirectory;
     int64_t       deletedUnix       = 0;
     bool          hasDeleted        = false;
+
+    //  A Disk list or Find duplicates row's columns.
+    CollectionCells  collection;
 
     //  A shell folder's row: the shell's own name for the item, which opens it
     //  whether or not it is a file; hostPath holds its path when it has one.
@@ -164,7 +169,9 @@ public:
     //  In File Explorer's order: Name, Date modified, Type, Size, then the
     //  two only a disk catalog has.
     //  The last two are the Recycle Bin's, shown only there.
-    enum class Column { Name, Modified, Type, Size, Address, Locked, OriginalLocation, DateDeleted, Folder, DataFork, ResourceFork, TotalSize, Access };
+    //  The columns from FileSystem on are Disk list's and Find duplicates'.
+    enum class Column { Name, Modified, Type, Size, Address, Locked, OriginalLocation, DateDeleted, Folder, DataFork, ResourceFork, TotalSize, Access,
+                        FileSystem, VolumeName, FileCount, FreeSpace, Crc32, Sha256 };
 
     static CatalogRow  FromFileEntry (const FileEntry & entry, VolumeKind kind, size_t sourceIndex);
     static CatalogRow  FromHostEntry (const FileSystemEntry & entry, bool isDiskImage, size_t sourceIndex);
@@ -183,7 +190,7 @@ public:
     static void  Sort (std::vector<CatalogRow> & rows, Column column, bool descending);
 
     //  The count of fixed columns; a column after them is a shell property's.
-    static constexpr size_t  kColumnCount = (size_t) Column::Access + 1;
+    static constexpr size_t  kColumnCount = (size_t) Column::Sha256 + 1;
 
     //  A column's id, which the preferences and the session store. Through
     //  Folder, a column's id is its position, and a shell property's is its
@@ -201,6 +208,9 @@ public:
 
     //  The columns the header's menu offers that are hidden until chosen.
     static bool  IsHiddenUntilChosen (size_t column);
+
+    //  Disk list's and Find duplicates' columns, visible only in their results.
+    static bool  IsCollectionColumn  (size_t column);
 
     //  The columns in their order when none was dragged: each added column
     //  beside the ones it is like.
