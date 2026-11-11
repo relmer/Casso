@@ -141,6 +141,15 @@ public:
     static constexpr Word    kModuleCheck     = 0xFFFF;
     static constexpr size_t  kModuleChunk     = 240;
 
+    //  The capture module's request: the percentages at its start and end,
+    //  the drive and the quarter-track position. Its reply is each page of
+    //  the read as Capture data, the page's index, its 256 bytes and their
+    //  CRC-16/XMODEM, low byte first; then a Status.
+    static constexpr Byte    kCapture         = 0xEA;
+    static constexpr Byte    kCaptureData     = 0xEB;
+    static constexpr size_t  kCapturePages    = 56;
+    static constexpr int     kQuarterTracks   = 140;
+
     //  The longest row on the Session screen.
     static constexpr size_t  kSessionRowLength = 80;
 

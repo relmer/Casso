@@ -1832,7 +1832,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 **Goal**: protected disks become WOZ images that boot. **Independent test**: quickstart §7f step 2.
 
-- [ ] T575 [US24] Write `CassoLink/Apple/Modules/Capture.s`: quarter-track stepping, two revolutions per read with each byte's cycle count, an empty position reported once, and later reads sent as the ranges that differ from the first (R43, FR-196)
+- [X] T575 [US24] Write `CassoLink/Apple/Modules/Capture.s`: quarter-track stepping, two revolutions per read with each byte's cycle count, an empty position reported once, and later reads sent as the ranges that differ from the first (R43, FR-196) Done: per R43's revision, a whole read of two revolutions, each byte's timing read from the latch as a mark on the byte; `CaptureStream` cuts one revolution, which matches the emulated drive's track bit for bit.
 - [ ] T576 [US24] Add `CassoLinkCapture` in `CassoEmuCore/CassoLink/Session/`: request each position from 0 to 140, build each stream with two zero bits after each sync byte, cut one revolution where the stream repeats, and write differing ranges as zero bits. Tests on byte and timing sequences captured from an emulated //c
 - [ ] T577 [US24] Write the capture as WOZ 2 with TMAP and TRKS, INFO's creator "Casso Explorer" and its version, and META's capture date and drive, through the WOZ writer the image layer uses (FR-195, FR-198)
 - [ ] T578 [US24] Add Capture raw disk to an Apple drive's menu, with the report of differing positions, and Options' Capture raw on protected disks for Full Send, the manifest's `status` `raw-capture` (FR-197)

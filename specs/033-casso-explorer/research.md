@@ -1076,6 +1076,8 @@ files as they are fails SC-037.
 
 **Rationale**: comparisons on the Apple send most tracks once, which is how SC-055's five minutes is met: 141 positions times two revolutions is about 60 s of reading, and most positions are empty.
 
+**Revised (2026-11-11)**: the module has $5000 to $8FFF (R40's revision), so two revolutions fit once, and there's no room for a second read beside the first to compare on the Apple. The timing is read from the data latch rather than counted: by Sather's Table 9.5, a finished byte is in the latch for about 8 cycles, and 4 more for each zero bit after it. The capture loop reads the latch again 8 cycles after it finds a byte; when the latch has the same byte then, zero bits followed it, and the byte is stored with its top bit clear, which a disk byte never has, so one byte of the buffer is one byte of the disk. The PC writes two zero bits after each byte both revolutions of the read mark, since a mark is now and then set on a byte that isn't a sync byte. The loop is one copy per page of the buffer, so no page crossing adds cycles to a byte. The buffer is sent page by page, each page with its CRC. The PC compares each whole track's reads aligned by rotation, writes a range that differs as zero bits, and maps a quarter track whose first read matches a neighbor's stream to that stream in TMAP without reading it again.
+
 **Alternatives considered**: flux capture. The Disk II has no access to flux, and Applesauce exists for it. Out of scope.
 
 ## R44. Virtual drives (Story 25)

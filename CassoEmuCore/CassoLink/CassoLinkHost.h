@@ -308,6 +308,11 @@ public:
     HRESULT  LoadModule        (std::span<const Byte> module);
     HRESULT  EnsureModule      (std::span<const Byte> module);
 
+    //  A raw read of a quarter-track position by the capture module, which
+    //  must be loaded: the bytes as the Apple stored them, a sync byte with
+    //  its top bit clear. A page that fails its CRC fails the read.
+    HRESULT  CaptureQuarterTrack (Byte drive, Byte position, Byte startPercent, Byte endPercent, std::vector<Byte> & outBytes, CassoLinkStatus & outStatus);
+
     //  A request of the module loaded, and the first packet in reply.
     HRESULT  RequestModule     (Byte command, std::span<const Byte> payload, CassoLinkPacket & outReply);
 

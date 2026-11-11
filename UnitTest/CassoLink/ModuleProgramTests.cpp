@@ -140,4 +140,15 @@ public:
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CRC), hr);
     }
-};
+
+    TEST_METHOD (CaptureModule_Assembles)
+    {
+        std::vector<Byte>  module;
+        std::string        errors;
+        HRESULT            hr = LinkProgram::AssembleModule (LinkProgram::GetCaptureModuleSource(), module, errors);
+
+
+
+        Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
+        Assert::AreEqual ((Byte) 1, module[2], L"The capture module's id");
+    }};

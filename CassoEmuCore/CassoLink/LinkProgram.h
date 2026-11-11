@@ -157,6 +157,9 @@ public:
     //  filled in here, and end below kModuleAddress + kModuleLimit.
     static HRESULT      AssembleModule   (const std::string & source, std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia, bool faults = false);
 
+    //  The capture module, for the program built for `chip`.
+    static HRESULT      BuildCaptureModule (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
+
     static constexpr Word    kModuleAddress   = 0x5000;
     static constexpr size_t  kModuleLimit     = 0x4000;
     static constexpr size_t  kModuleCrcOffset = 8;
@@ -196,6 +199,7 @@ public:
     static std::string  GetProgramSource    ();
     static std::string  GetUniversalSource  ();
     static std::string  GetSlotFinderSource ();
+    static std::string  GetCaptureModuleSource ();
 
     //  The 6551 control byte for a speed: 8 data bits, 1 stop bit and the
     //  rate. False for a speed the //c's port does not have.

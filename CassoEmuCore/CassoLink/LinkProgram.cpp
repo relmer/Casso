@@ -11,6 +11,7 @@
 #include "Program.s.h"
 #include "Universal.s.h"
 #include "SlotFinder.s.h"
+#include "Capture.s.h"
 
 
 
@@ -332,6 +333,40 @@ std::string LinkProgram::GetProgramSource()
 std::string LinkProgram::GetUniversalSource()
 {
     return std::string (reinterpret_cast<const char *> (s_kUniversalSource), sizeof (s_kUniversalSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetCaptureModuleSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetCaptureModuleSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kCaptureModuleSource), sizeof (s_kCaptureModuleSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildCaptureModule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildCaptureModule (std::vector<Byte> & outModule, LinkChip chip, bool faults)
+{
+    std::string  errors;
+
+
+
+    return AssembleModule (GetCaptureModuleSource(), outModule, errors, chip, faults);
 }
 
 

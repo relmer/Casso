@@ -253,6 +253,7 @@
     <ClCompile Include="CassoLink\CassoLinkCodec.cpp" />
     <ClCompile Include="CassoLink\CassoLinkFolder.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHost.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkHostModules.cpp" />
     <ClCompile Include="CassoLink\CassoLinkPacketText.cpp" />
     <ClCompile Include="CassoLink\Host\CassoLinkAdtProServer.cpp" />
     <ClCompile Include="CassoLink\LinkProgram.cpp" />
@@ -261,6 +262,7 @@
     <ClCompile Include="CassoLink\Session\CassoLinkConnector.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkDiskTransfer.cpp" />
     <ClCompile Include="CassoLink\Session\TrackVerifier.cpp" />
+    <ClCompile Include="CassoLink\Session\CaptureStream.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkFullSend.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendDisk.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendManifest.cpp" />
@@ -1446,6 +1448,7 @@
     <ClInclude Include="CassoLink\Session\CassoLinkConnector.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkDiskTransfer.h" />
     <ClInclude Include="CassoLink\Session\TrackVerifier.h" />
+    <ClInclude Include="CassoLink\Session\CaptureStream.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
     <ClInclude Include="CassoLink\FullSend\FullSendDisk.h" />
     <ClInclude Include="CassoLink\FullSend\FullSendManifest.h" />
@@ -1798,6 +1801,7 @@
     <None Include="CassoLink\Apple\Shim.s" />
     <None Include="CassoLink\Apple\Universal.s" />
     <None Include="CassoLink\Apple\SlotFinder.s" />
+    <None Include="CassoLink\Apple\Modules\Capture.s" />
     <None Include="CassoLink\Apple\AppleSources.targets" />
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />
   </ItemGroup>
