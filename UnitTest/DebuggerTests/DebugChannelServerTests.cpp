@@ -770,7 +770,7 @@ namespace DebuggerTests
             transport.Send (client, Command ("r", 2));
             server.Pump();
 
-            Assert::AreEqual (std::string ("reply"), TypeOf (transport.Written (client).back()), L"a good line after them is answered");
+            Assert::AreEqual (std::string ("reply"), TypeOf (transport.Written (client).back()), L"a good line after them gets a reply");
         }
 
 
