@@ -282,7 +282,14 @@ public:
     //  in the text column each character is written as it is typed, in the
     //  view's text encoding. The caret moves on after a write the source
     //  takes. Escape or any caret move drops digits not yet written.
-    void                  SetEditable       (bool editable)     { m_editable = editable; m_pending.clear(); }
+    //
+    //  An edit of a value is under way from its first digit, from Enter and
+    //  from a double-click on it, until its last digit is typed, Enter writes
+    //  the digits typed or Escape drops them; a box is drawn over the value
+    //  while it is.
+    void                  SetEditable       (bool editable)     { m_editable = editable; m_pending.clear(); m_isEditing = false; }
+    bool                  IsEditing         () const            { return m_isEditing; }
+    uint64_t              GetEditStart      () const            { return m_editStart; }
     bool                  IsEditable        () const            { return m_editable; }
     const std::wstring &  GetPendingDigits  () const            { return m_pending; }
     void                  SetOnWriteRefused (WriteRefusedFn fn) { m_onWriteRefused = std::move (fn); }
@@ -365,6 +372,8 @@ private:
     //  Typing. Each returns whether it took the character.
     bool        TypeEditChar    (wchar_t ch);
     bool        TypeHexDigit    (wchar_t ch);
+    bool        BeginEdit       ();
+    bool        CommitEdit      ();
     bool        TypeCharacter   (wchar_t ch);
     void        WriteAndAdvance (uint64_t offset, std::span<const uint8_t> bytes);
     static int  GetDigitValue   (wchar_t ch);
@@ -393,11 +402,14 @@ private:
     BuildMenuFn                    m_onBuildMenu;
     SettingsFn                     m_onSettings;
     std::function<void ()>  m_onSelectionChanged;
-    bool                    m_editable  = false;
-    bool                    m_hasFocus  = false;
-    std::wstring            m_pending;
-    uint64_t                m_editStart = 0;
-    WriteRefusedFn          m_onWriteRefused;
+    bool            m_editable       = false;
+    bool            m_hasFocus       = false;
+    std::wstring    m_pending;
+    uint64_t        m_editStart      = 0;
+    bool            m_isEditing      = false;
+    uint64_t        m_pressMs        = 0;
+    uint64_t        m_pressOffset    = UINT64_MAX;
+    WriteRefusedFn  m_onWriteRefused;
 
     //  The view's parts, each with the state it uses.
     friend class      DxuiHexLayout;

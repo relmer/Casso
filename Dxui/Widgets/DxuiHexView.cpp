@@ -578,6 +578,20 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
         }
 
         m_selection.OnPress (ev, hit);
+
+        //  A second press on the same byte within the double-click time
+        //  begins an edit of its value.
+        if (m_pressOffset == hit.offset && GetTickCount64() - m_pressMs <= GetDoubleClickTime())
+        {
+            (void) BeginEdit();
+            m_pressOffset = UINT64_MAX;
+        }
+        else
+        {
+            m_pressOffset = hit.offset;
+            m_pressMs     = GetTickCount64();
+        }
+
         return true;
 
     case DxuiMouseEventKind::Move:
@@ -635,13 +649,19 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
     //  the view's, so a dialog can still take it.
     if (ev.vk == VK_ESCAPE)
     {
-        if (m_pending.empty())
+        if (m_pending.empty() && !m_isEditing)
         {
             return false;
         }
 
         m_pending.clear();
+        m_isEditing = false;
         return true;
+    }
+
+    if (ev.vk == VK_RETURN && !ev.ctrl && !ev.alt && !ev.shift)
+    {
+        return m_isEditing ? CommitEdit() : BeginEdit();
     }
 
     return m_selection.OnKey (ev);
@@ -699,11 +719,12 @@ bool DxuiHexView::TypeHexDigit (wchar_t ch)
         return false;
     }
 
-    if (m_pending.empty())
+    if (m_pending.empty() && !m_isEditing)
     {
         m_editStart = m_layout.SnapToValue (GetCaret(), false);
     }
 
+    m_isEditing = true;
     m_pending.push_back (DxuiHexPainter::GetHexDigit (digit));
 
     if (m_pending.size() < group * 2)
@@ -722,8 +743,79 @@ bool DxuiHexView::TypeHexDigit (wchar_t ch)
     }
 
     m_pending.clear();
+    m_isEditing = false;
     WriteAndAdvance (m_editStart, bytes);
 
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::BeginEdit
+//
+//  An edit of the value under the caret, with no digits yet. The hex values
+//  are the only ones edited this way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexView::BeginEdit()
+{
+    if (!m_editable || m_source == nullptr || IsLineMode() || GetRowCount() == 0 ||
+        GetActiveColumn() == Column::Text || m_format != ValueFormat::Hex)
+    {
+        return false;
+    }
+
+    m_pending.clear();
+    m_editStart = m_layout.SnapToValue (GetCaret(), false);
+    m_isEditing = true;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::CommitEdit
+//
+//  The digits typed so far are the value, as a short number typed into a
+//  register is; with none typed the value is left as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexView::CommitEdit()
+{
+    size_t                group = (size_t) (m_showValues ? m_grouping : 1);
+    uint64_t              value = 0;
+    std::vector<uint8_t>  bytes;
+
+
+
+    m_isEditing = false;
+
+    if (m_pending.empty())
+    {
+        return true;
+    }
+
+    for (wchar_t each : m_pending)
+    {
+        value = (value << 4) | (uint64_t) GetDigitValue (each);
+    }
+
+    for (size_t index = 0; index < group; index++)
+    {
+        bytes.push_back ((uint8_t) ((value >> (index * 8)) & 0xFF));
+    }
+
+    m_pending.clear();
+    WriteAndAdvance (m_editStart, bytes);
     return true;
 }
 

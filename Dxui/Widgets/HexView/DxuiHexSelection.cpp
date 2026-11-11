@@ -313,6 +313,7 @@ void DxuiHexSelection::NotifySelectionChanged()
 void DxuiHexSelection::MoveCaretTo (uint64_t offset, bool extend)
 {
     m_view.m_pending.clear();
+    m_view.m_isEditing = false;
 
     uint64_t  bytes = (m_view.m_source != nullptr) ? m_view.m_source->GetByteCount() : 0;
     uint64_t  last  = m_view.GetLastOffset();

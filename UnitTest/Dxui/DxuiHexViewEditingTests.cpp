@@ -153,6 +153,50 @@ namespace DxuiHexViewEditingTests
         }
 
 
+        //  A typed digit begins an edit of the value under the caret, and the
+        //  box is drawn over it until Escape drops the digits, which leaves
+        //  the byte as it was.
+        TEST_METHOD (ADigitBeginsAnEditThatEscapeDrops)
+        {
+            Rig  rig;
+
+
+
+            rig.view.GoToOffset (5);
+            Assert::IsFalse  (rig.view.IsEditing());
+
+            rig.Type (L"7");
+            Assert::IsTrue   (rig.view.IsEditing(), L"the digit begins an edit");
+            Assert::AreEqual ((uint64_t) 5, rig.view.GetEditStart(), L"of the byte under the caret");
+
+            Assert::IsTrue   (rig.Press (VK_ESCAPE));
+            Assert::IsFalse  (rig.view.IsEditing());
+            Assert::IsTrue   (rig.source.writes.empty(), L"nothing is written");
+            Assert::AreEqual ((uint8_t) 0, rig.source.bytes[5], L"the byte is as it was");
+        }
+
+
+        //  Enter begins an edit with no digits, and Enter again writes the
+        //  digits typed as the value, as a short number typed into a register.
+        TEST_METHOD (EnterBeginsAnEditAndEnterWritesIt)
+        {
+            Rig  rig;
+
+
+
+            rig.view.GoToOffset (2);
+            Assert::IsTrue   (rig.Press (VK_RETURN));
+            Assert::IsTrue   (rig.view.IsEditing());
+            Assert::IsTrue   (rig.view.GetPendingDigits().empty());
+
+            rig.Type (L"9");
+            Assert::IsTrue   (rig.Press (VK_RETURN));
+            Assert::IsFalse  (rig.view.IsEditing());
+            Assert::AreEqual ((size_t) 1, rig.source.writes.size());
+            Assert::AreEqual ((uint8_t) 0x09, rig.source.bytes[2]);
+        }
+
+
         TEST_METHOD (OneDigitWritesNothingYet)
         {
             Rig  rig;

@@ -359,6 +359,22 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
 
         shown = FormatValue (value, present);
 
+        //  A value being edited is drawn in a box, as the Registers pane's edit
+        //  box is: the view's background inside an accent outline.
+        if (m_view.m_isEditing && offset == m_view.m_editStart)
+        {
+            RECT  box  = m_view.m_layout.GetValueSelectionRect (offset, cell);
+            LONG  edge = std::max<LONG> (1, (box.bottom - box.top) / 12);
+
+
+
+            FillCell (text, box, theme.Accent());
+            FillCell (text, RECT { box.left + edge, box.top + edge, box.right - edge, box.bottom - edge }, theme.TextViewBackground());
+
+            argb     = theme.Foreground();
+            selected = false;
+        }
+
         //  The digits typed so far stand in for the value's leading ones, so the
         //  cell shows what will be written.
         if (!m_view.m_pending.empty() && offset == m_view.m_editStart && m_view.m_pending.size() <= shown.size())
