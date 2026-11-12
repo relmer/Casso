@@ -165,7 +165,7 @@ public:
 
 
         AssertSucceeded (LinkProgram::BuildCaptureModule (module));
-        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-11", [&reports] (const CassoLinkCapture::Progress & where) { reports.push_back (where); }, result, 1));
+        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-11T00:00:00Z", [&reports] (const CassoLinkCapture::Progress & where) { reports.push_back (where); }, result, 1));
         AssertSucceeded (WozLoader::Load (result.woz, woz));
 
         Assert::AreEqual ((size_t) 6, reports.size(),  L"Three reads of each whole track");

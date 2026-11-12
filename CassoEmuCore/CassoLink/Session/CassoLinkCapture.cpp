@@ -329,9 +329,10 @@ bool CassoLinkCapture::IsStandardTrack (const Position & position)
     Stream  stream;
     bool    unstable  = false;
     bool    thirteen  = false;
+    int     addressed = 0;
     bool    hasStream = MakeStream (position, stream, unstable);
     bool    clean     = hasStream && !unstable && std::find (stream.weak.begin(), stream.weak.end(), true) == stream.weak.end();
-    int     sectors   = clean ? CountSectors (stream.bytes, position.position / 4, thirteen) : 0;
+    int     sectors   = clean ? CountSectors (stream.bytes, position.position / 4, thirteen, addressed) : 0;
 
 
 
@@ -350,15 +351,18 @@ bool CassoLinkCapture::IsStandardTrack (const Position & position)
 //  checksum right, and a data field's prolog after it; a 16-sector data
 //  field must also decode. A field across the revolution's end is found in
 //  the revolution's start, which follows its end on the disk. outThirteen
-//  is set by the first address field found.
+//  is set by the first address field found, and outAddressed is the
+//  sectors with an address field for the track, whether or not their data
+//  decodes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int CassoLinkCapture::CountSectors (std::span<const Byte> revolution, int track, bool & outThirteen)
+int CassoLinkCapture::CountSectors (std::span<const Byte> revolution, int track, bool & outThirteen, int & outAddressed)
 {
     std::vector<Byte>  bytes;
     std::vector<Byte>  sector;
     std::set<int>      found;
+    std::set<int>      addressed;
     bool               kindKnown = false;
     size_t             wrap      = std::min (revolution.size(), (size_t) NibblizationLayer::kDataNibbleCount + 2 * s_kDataWithin);
 
@@ -399,6 +403,8 @@ int CassoLinkCapture::CountSectors (std::span<const Byte> revolution, int track,
             continue;
         }
 
+        addressed.insert (number);
+
         if (!kindKnown)
         {
             kindKnown   = true;
@@ -422,7 +428,40 @@ int CassoLinkCapture::CountSectors (std::span<const Byte> revolution, int track,
         }
     }
 
+    outAddressed = (int) addressed.size();
+
     return (int) found.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::IsCrosstalk
+//
+//  Whether a revolution read between two tracks has address fields for
+//  either one with sectors whose data fields don't decode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::IsCrosstalk (std::span<const Byte> revolution, int position)
+{
+    bool  crosstalk = false;
+
+
+
+    for (int track : { position / 4, position / 4 + 1 })
+    {
+        bool  thirteen  = false;
+        int   addressed = 0;
+        int   good      = CountSectors (revolution, track, thirteen, addressed);
+
+        crosstalk = crosstalk || addressed > good;
+    }
+
+    return crosstalk;
 }
 
 
@@ -459,13 +498,26 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
 
     for (const Position & position : positions)
     {
-        read.insert (position.position);
-
         Stream  stream;
         bool    unstable = false;
+        bool    hasWeak  = false;
+
+        read.insert (position.position);
 
         if (!MakeStream (position, stream, unstable))
         {
+            continue;
+        }
+
+        hasWeak = std::find (stream.weak.begin(), stream.weak.end(), true) != stream.weak.end();
+
+        //  A head between two tracks reads both at once: its reads differ, or
+        //  it has a neighbor's address fields with data fields that don't
+        //  decode. Such a stream is dropped, and the position has a standard
+        //  disk's entry. A stream a protection wrote there repeats cleanly.
+        if (position.position % 4 != 0 && (unstable || hasWeak || IsCrosstalk (stream.bytes, position.position)))
+        {
+            read.erase (position.position);
             continue;
         }
 
@@ -474,7 +526,7 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
             outResult.unstable.push_back (position.position);
         }
 
-        if (std::find (stream.weak.begin(), stream.weak.end(), true) != stream.weak.end())
+        if (hasWeak)
         {
             outResult.weak.push_back (position.position);
         }
@@ -624,10 +676,12 @@ bool CassoLinkCapture::MakeStream (const Position & position, Stream & outStream
 //
 //  CassoLinkCapture::CollectMarks
 //
-//  The first read's revolution, from a stable start (FindReference), and
-//  each later revolution of every read aligned to it (Align). A byte is weak
-//  where at least two alignments put it in a stretch that differs, longer
-//  than the few bytes a write splice frames differently on each pass. Each
+//  The first read's revolution, from a stable start (FindReference), made the
+//  consensus of every revolution of every read aligned to it (AlignAll,
+//  MakeConsensus), and every revolution aligned to that. A byte is weak
+//  where at least two alignments, and at least half of them, put it in a
+//  stretch that differs, longer than the few bytes a write splice frames
+//  differently on each pass. Each
 //  byte's marks come from the alignments that read it the same. A read with
 //  no revolution that aligns makes the stream unstable. False when the first
 //  read doesn't repeat.
@@ -636,9 +690,11 @@ bool CassoLinkCapture::MakeStream (const Position & position, Stream & outStream
 
 bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStream, Marks & outMarks, bool & outUnstable)
 {
-    size_t            start   = 0;
-    size_t            length  = 0;
-    std::vector<int>  differs;
+    size_t                  start  = 0;
+    size_t                  length = 0;
+    std::vector<Alignment>  alignments;
+    std::vector<Byte>       agreed;
+    std::vector<int>        differs;
 
 
 
@@ -652,6 +708,20 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
     }
 
     outStream.bytes.assign (position.reads[0].begin() + (ptrdiff_t) start, position.reads[0].begin() + (ptrdiff_t) (start + length));
+
+    AlignAll (position, outStream.bytes, alignments, outUnstable);
+    MakeConsensus (position, outStream.bytes, alignments, agreed);
+
+    //  Where most passes read a stretch otherwise than the first revolution
+    //  did, the stream has theirs, and everything is aligned to it again.
+    if (agreed != outStream.bytes)
+    {
+        outStream.bytes = std::move (agreed);
+
+        AlignAll (position, outStream.bytes, alignments, outUnstable);
+    }
+
+    length = outStream.bytes.size();
     outStream.weak.assign (length, false);
     differs.assign (length, 0);
 
@@ -661,34 +731,79 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
         outMarks.read[delay].assign (length, 0);
     }
 
+    for (const Alignment & alignment : alignments)
+    {
+        const std::vector<Byte>  & bytes = position.reads[alignment.read];
+        int                        delay = (alignment.read < position.delays.size() && position.delays[alignment.read] == 1) ? 1 : 0;
+
+        for (size_t at = 0; at < length; at++)
+        {
+            int  mine = alignment.map[at];
+
+            differs[at] += alignment.stretch[at] ? 1 : 0;
+
+            if (mine >= 0 && (bytes[(size_t) mine] | 0x80) == (outStream.bytes[at] | 0x80))
+            {
+                outMarks.set[delay][at]  += CaptureStream::IsSync (bytes[(size_t) mine]) ? 1 : 0;
+                outMarks.read[delay][at] += 1;
+            }
+        }
+    }
+
+    for (size_t at = 0; at < length; at++)
+    {
+        outStream.weak[at] = differs[at] >= s_kWeakAlignments && (size_t) differs[at] * 2 >= alignments.size();
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::AlignAll
+//
+//  The best alignment of each revolution of each read to a stream: a start
+//  a sector away can align too on a track of empty sectors, with more
+//  differences. A read none of whose revolutions aligns makes the stream
+//  unstable.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkCapture::AlignAll (const Position & position, const std::vector<Byte> & revolution, std::vector<Alignment> & outAlignments, bool & outUnstable)
+{
+    size_t  length = revolution.size();
+
+
+
+    outAlignments.clear();
+    outUnstable = false;
+
     for (size_t read = 0; read < position.reads.size(); read++)
     {
-        const std::vector<Byte>  & bytes   = position.reads[read];
-        int                        delay   = (read < position.delays.size() && position.delays[read] == 1) ? 1 : 0;
-        std::vector<Alignment>     found;
-        std::vector<size_t>        taken;
+        std::vector<Alignment>  found;
+        std::vector<size_t>     taken;
 
-        for (size_t from : FindAnchors (outStream.bytes, bytes))
+        for (size_t from : FindAnchors (revolution, position.reads[read]))
         {
             Alignment  alignment;
 
+            alignment.read = read;
             alignment.from = from;
 
-            if (Align (outStream.bytes, bytes, from, alignment.map, alignment.differ, alignment.stretch))
+            if (Align (revolution, position.reads[read], from, alignment.map, alignment.differ, alignment.stretch))
             {
                 found.push_back (std::move (alignment));
             }
         }
 
-        //  The best alignment of each revolution: a start a sector away can
-        //  align too on a track of empty sectors, with more differences.
         std::sort (found.begin(), found.end(), [] (const Alignment & a, const Alignment & b) { return a.differ < b.differ; });
 
-        for (const Alignment & alignment : found)
+        for (Alignment & alignment : found)
         {
-            const std::vector<int>   & map     = alignment.map;
-            const std::vector<bool>  & stretch = alignment.stretch;
-
             if (std::any_of (taken.begin(), taken.end(), [&alignment, length] (size_t from)
                 { return (alignment.from > from ? alignment.from - from : from - alignment.from) + s_kBand < length; }))
             {
@@ -696,30 +811,130 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
             }
 
             taken.push_back (alignment.from);
-
-            for (size_t at = 0; at < length; at++)
-            {
-                int  mine = map[at];
-
-                differs[at] += stretch[at] ? 1 : 0;
-
-                if (mine >= 0 && (bytes[(size_t) mine] | 0x80) == (outStream.bytes[at] | 0x80))
-                {
-                    outMarks.set[delay][at]  += CaptureStream::IsSync (bytes[(size_t) mine]) ? 1 : 0;
-                    outMarks.read[delay][at] += 1;
-                }
-            }
+            outAlignments.push_back (std::move (alignment));
         }
 
         outUnstable = outUnstable || taken.empty();
     }
+}
 
-    for (size_t at = 0; at < length; at++)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::MakeConsensus
+//
+//  The stream with each stretch most alignments differ on replaced by the
+//  bytes most of them read there, when more than half read the same. A
+//  stretch is the bytes the alignments mark as differing, read with more
+//  or fewer, or missing, within s_kConsensusGap of each other; each
+//  alignment's version is the read's bytes between those of the stretch's
+//  neighbors, when the alignment reads both neighbors the same.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkCapture::MakeConsensus (const Position & position, const std::vector<Byte> & revolution, const std::vector<Alignment> & alignments, std::vector<Byte> & outAgreed)
+{
+    size_t                  length = revolution.size();
+    std::vector<size_t>     marked (length, 0);
+    std::vector<size_t>     region;
+    size_t                  copied = 0;
+
+
+
+    outAgreed.clear();
+
+    for (const Alignment & alignment : alignments)
     {
-        outStream.weak[at] = differs[at] >= s_kWeakAlignments;
+        const std::vector<Byte>  & bytes = position.reads[alignment.read];
+
+        for (size_t at = 0; at < length; at++)
+        {
+            int   mine = alignment.map[at];
+            bool  odd  = mine < 0 || (bytes[(size_t) mine] | 0x80) != (revolution[at] | 0x80);
+
+            odd = odd || (at > 0 && mine >= 0 && alignment.map[at - 1] >= 0 && mine - alignment.map[at - 1] > 1);
+
+            marked[at] += odd ? 1 : 0;
+        }
     }
 
-    return true;
+    for (size_t at = 1; at + 1 < length; at++)
+    {
+        if (marked[at] * 2 > alignments.size())
+        {
+            region.push_back (at);
+        }
+    }
+
+    for (size_t first = 0; first < region.size(); )
+    {
+        size_t                                last   = first;
+        size_t                                before = 0;
+        size_t                                after  = 0;
+        std::map<std::vector<Byte>, size_t>   votes;
+        std::vector<Byte>                     mineBytes;
+        const std::vector<Byte>             * winner = nullptr;
+        size_t                                most   = 0;
+        size_t                                cast   = 0;
+
+        while (last + 1 < region.size() && region[last + 1] - region[last] <= s_kConsensusGap)
+        {
+            last++;
+        }
+
+        before = region[first] - 1;
+        after  = region[last] + 1;
+        first  = last + 1;
+
+        for (size_t at = before + 1; at < after; at++)
+        {
+            mineBytes.push_back (revolution[at] | 0x80);
+        }
+
+        for (const Alignment & alignment : alignments)
+        {
+            const std::vector<Byte>  & bytes = position.reads[alignment.read];
+            int                        lo    = alignment.map[before];
+            int                        hi    = alignment.map[after];
+            std::vector<Byte>          theirs;
+
+            if (lo < 0 || hi <= lo || (bytes[(size_t) lo] | 0x80) != (revolution[before] | 0x80) || (bytes[(size_t) hi] | 0x80) != (revolution[after] | 0x80))
+            {
+                continue;
+            }
+
+            for (int at = lo + 1; at < hi; at++)
+            {
+                theirs.push_back (bytes[(size_t) at] | 0x80);
+            }
+
+            votes[theirs]++;
+            cast++;
+        }
+
+        for (const auto & [bytes, count] : votes)
+        {
+            if (count > most)
+            {
+                most   = count;
+                winner = &bytes;
+            }
+        }
+
+        if (winner == nullptr || *winner == mineBytes || most * 2 <= cast)
+        {
+            continue;
+        }
+
+        outAgreed.insert (outAgreed.end(), revolution.begin() + (ptrdiff_t) copied, revolution.begin() + (ptrdiff_t) before + 1);
+        outAgreed.insert (outAgreed.end(), winner->begin(), winner->end());
+        copied = after;
+    }
+
+    outAgreed.insert (outAgreed.end(), revolution.begin() + (ptrdiff_t) copied, revolution.end());
 }
 
 

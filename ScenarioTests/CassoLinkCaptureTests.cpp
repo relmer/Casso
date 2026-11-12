@@ -96,7 +96,7 @@ public:
         AssertSucceeded (WozLoader::Load (source, original));
 
         AssertSucceeded (LinkProgram::BuildCaptureModule (module));
-        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-11", {}, result));
+        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-11T00:00:00Z", {}, result));
         AssertSucceeded (WozLoader::Load (result.woz, captured));
 
         for (int quarter = 0; quarter <= CassoLinkCapture::kLastPosition; quarter += 2)

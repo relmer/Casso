@@ -137,6 +137,7 @@ private:
     //  A revolution of a read aligned to a stream (Align).
     struct Alignment
     {
+        size_t             read   = 0;
         size_t             from   = 0;
         size_t             differ = 0;
         std::vector<int>   map;
@@ -161,6 +162,8 @@ private:
     static HRESULT              ReadOnce       (Run & run, int position, Byte delay, int read, int reads, std::vector<Byte> & outBytes);
     static HRESULT              ReadPosition   (Run & run, int position, int reads, Position & outPosition);
     static bool                 CollectMarks   (const Position & position, Stream & outStream, Marks & outMarks, bool & outUnstable);
+    static void                 AlignAll       (const Position & position, const std::vector<Byte> & revolution, std::vector<Alignment> & outAlignments, bool & outUnstable);
+    static void                 MakeConsensus  (const Position & position, const std::vector<Byte> & revolution, const std::vector<Alignment> & alignments, std::vector<Byte> & outAgreed);
     static bool                 FindReference  (std::span<const Byte> read, size_t & outStart, size_t & outLength);
     static size_t               FindLength     (std::span<const Byte> read);
     static size_t               CountDiffer    (std::span<const Byte> a, size_t aAt, std::span<const Byte> b, size_t bAt, size_t limit);
@@ -168,7 +171,8 @@ private:
     static std::vector<size_t>  FindAnchors    (std::span<const Byte> revolution, std::span<const Byte> read);
     static bool                 Align          (std::span<const Byte> revolution, std::span<const Byte> read, size_t from,
                                                 std::vector<int> & outMap, size_t & outDiffer, std::vector<bool> & outStretch);
-    static int                  CountSectors   (std::span<const Byte> revolution, int track, bool & outThirteen);
+    static int                  CountSectors   (std::span<const Byte> revolution, int track, bool & outThirteen, int & outAddressed);
+    static bool                 IsCrosstalk    (std::span<const Byte> revolution, int position);
     static void                 CountZeros     (const std::vector<Byte> & bytes, const Marks & marks, std::vector<uint8_t> & outZeros);
     static bool                 IsAboveBase    (double set, double read, double base);
     static bool                 MakeStream     (const Position & position, Stream & outStream, bool & outUnstable);
@@ -204,6 +208,7 @@ private:
     static constexpr size_t  s_kAlignShare         = 12;
     static constexpr size_t  s_kSpliceBytes        = 16;
     static constexpr int     s_kWeakAlignments     = 2;
+    static constexpr size_t  s_kConsensusGap       = 4;
     static constexpr Byte    s_kStepPair           = 1;
     static constexpr Byte    s_kStepFewer          = 2;
     static constexpr Byte    s_kStepMore           = 3;

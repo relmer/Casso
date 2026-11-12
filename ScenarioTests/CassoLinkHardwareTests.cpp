@@ -5,8 +5,13 @@
 #include "TestMachine.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskImage.h"
+#include "Devices/Disk/Inspector/DiskAnalyzer.h"
+#include "Devices/Disk/Inspector/FindingFormatter.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Seams/ByteStreamSettings.h"
@@ -91,7 +96,7 @@ public:
         CassoLinkHost  host (std::shared_ptr<IByteStream> (std::move (opened)), files, [] () { return std::array<Byte, 4> {}; });
 
         AssertSucceeded (host.BuildCaptureModule (module));
-        AssertSucceeded (CassoLinkCapture::Capture (host, (Byte) drive, module, "2026-11-11", [&log] (const CassoLinkCapture::Progress & where)
+        AssertSucceeded (CassoLinkCapture::Capture (host, (Byte) drive, module, "2026-11-11T00:00:00Z", [&log] (const CassoLinkCapture::Progress & where)
         {
             log << std::format ("pass {} position {} read {} of {}: {}%, {:.0f} s left\n", where.pass, where.position, where.read, where.reads, where.percent, where.secondsLeft);
             log.flush();
@@ -148,7 +153,7 @@ public:
             }
         }
 
-        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, last, "2026-11-11", 2, result));
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, last, "2026-11-11T00:00:00Z", 2, result));
         WriteFile (folder / "rebuilt.woz", result.woz);
 
         AssertSucceeded (VolumeImage::Load (result.woz, "rebuilt.woz", sectors, report));
@@ -170,6 +175,7 @@ public:
 
         Logger::WriteMessage ((log + "\n").c_str());
 
+        LogFindings (result.woz);
         LogBoot ("the WOZ", result.woz, sectors, true);
         LogBoot ("its sectors alone", result.woz, sectors, false);
     }
@@ -199,7 +205,26 @@ public:
             std::vector<std::string>  rows;
             uint32_t                  hash[2] = { 2166136261u, 2166136261u };
 
-            machine.RunCycles (s_kBootStep);
+            std::set<int>  heads;
+
+            for (int slice = 0; slice < s_kBootSlices; slice++)
+            {
+                machine.RunCycles (s_kBootStep / s_kBootSlices);
+
+                if (machine.GetRefs().diskController != nullptr)
+                {
+                    heads.insert (machine.GetRefs().diskController->GetQuarterTrack());
+                }
+            }
+
+            log += "  head at quarter tracks:";
+
+            for (int head : heads)
+            {
+                log += std::format (" {}", head);
+            }
+
+            log += "\n";
             GuestSession::CollectRows (machine, rows);
 
             for (int page = 0; page < 2; page++)
@@ -235,6 +260,55 @@ public:
         }
     }
 
-    static constexpr int       s_kBootSteps = 6;
-    static constexpr uint64_t  s_kBootStep  = 10'000'000ULL;
+    //  An image from CASSO_BOOT_IMAGE, a DOS-ordered sector image, booted as
+    //  LogBoot boots one: run only when CASSO_BOOT_IMAGE is set.
+    TEST_METHOD (AnImage_Boots)
+    {
+        std::string        path = GetSetting ("CASSO_BOOT_IMAGE", "");
+        std::vector<Byte>  sectors;
+
+
+
+        if (path.empty())
+        {
+            Logger::WriteMessage ("CASSO_BOOT_IMAGE isn't set; no image to boot.\n");
+            return;
+        }
+
+        {
+            std::ifstream  in (path, std::ios::binary);
+
+            sectors.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        LogBoot (path.c_str(), {}, sectors, false);
+    }
+
+    //  The disk inspector's summary and findings for the image, as its Issues
+    //  list has them.
+    static void  LogFindings (const std::vector<Byte> & woz)
+    {
+        DiskImage     image;
+        DiskAnalysis  analysis;
+        std::wstring  log;
+
+
+
+        AssertSucceeded (WozLoader::Load (woz, image));
+        DiskAnalyzer::Analyze (DiskCopy::MakeFromImage (image, 1, "rebuilt.woz", woz.size(), false), DecodeSettings::MakeStandard(), analysis);
+
+        log = std::format (L"Inspector: {} tracks with data, {} of {} sectors good, {} bad\n", analysis.summary.tracksWithData,
+                           analysis.summary.sectorsGood, analysis.summary.sectorsFound, analysis.summary.badSectors);
+
+        for (const Finding & finding : analysis.findings)
+        {
+            log += std::format (L"  {:6.2f}  {}\n", finding.quarterTrack / 4.0, FindingFormatter::Format (finding));
+        }
+
+        Logger::WriteMessage (log.c_str());
+    }
+
+    static constexpr int       s_kBootSteps  = 6;
+    static constexpr uint64_t  s_kBootStep   = 10'000'000ULL;
+    static constexpr int       s_kBootSlices = 100;
 };

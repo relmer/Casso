@@ -46,7 +46,7 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
     std::vector<Byte>         module;
     CassoLinkCapture::Result  result;
     CommitPlan::Progress      progress;
-    std::string               date     = std::format ("{:%Y-%m-%d}", std::chrono::system_clock::now());
+    std::string               date     = std::format ("{:%Y-%m-%dT%H:%M:%SZ}", std::chrono::floor<std::chrono::seconds> (std::chrono::system_clock::now()));
     auto                      listTracks = [] (const std::vector<int> & positions)
     {
         std::string  text;
