@@ -114,6 +114,7 @@ public:
             second = std::max (firstEnd + pad, static_cast<int> (boundsPx.left + boundsPx.right) - firstEnd);
             SetKindOptions (x, second, y, rows, sel, boundsPx, scaler);
         }
+
         LayoutTips (scaler);
         y += rows * rowH + pad;
 
