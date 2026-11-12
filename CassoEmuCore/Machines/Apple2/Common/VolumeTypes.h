@@ -133,6 +133,23 @@ struct FileEntry
 
 
 //
+//  Which computers a ProDOS volume starts. An Apple II starts from the
+//  Apple II loader in block 0 and the PRODOS file. An Apple /// starts from
+//  the SOS loader, in block 0 on a disk SOS formatted or in block 1 on one
+//  ProDOS formatted, and the SOS.KERNEL, SOS.DRIVER and SOS.INTERP files. A
+//  volume can start both, or neither.
+//
+struct StartupSystems
+{
+    bool  appleII  = false;
+    bool  appleIII = false;
+
+    bool  operator== (const StartupSystems & other) const = default;
+};
+
+
+
+//
 //  Everything a listing reports, including what could NOT be read. Damage is
 //  part of the result rather than an error, because a partial catalog is still
 //  worth having -- the developer this feature serves is recovering old disks.
@@ -150,6 +167,9 @@ struct VolumeListing
 
     //  Apple Pascal: the file count its directory records, valid entries or not.
     uint32_t                  directoryFiles  = 0;
+
+    //  ProDOS: the computers the volume starts.
+    StartupSystems            startup;
 };
 
 

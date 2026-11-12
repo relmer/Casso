@@ -45,6 +45,19 @@ enum class BlankDiskContents
 
 
 
+//
+//  The computers a bootable ProDOS volume starts: an Apple II with ProDOS,
+//  an Apple /// with SOS, or either.
+//
+enum class ProDosBootSystem
+{
+    AppleII,
+    AppleIII,
+    Both,
+};
+
+
+
 
 //
 //  Why a spec cannot be written, in precedence order: the first failing rule
@@ -80,6 +93,7 @@ struct BlankDiskSpec
     Byte               volumeNumber = NibblizationLayer::kDefaultVolume;
     std::string        volumeName   = "NEWDISK";   // ProDOS and Apple Pascal
     Word               pascalDate   = 0;           // Apple Pascal's date word
+    ProDosBootSystem   bootSystem   = ProDosBootSystem::AppleII;   // a bootable ProDOS volume
 
     //  Nibble containers only, and zero everywhere else. A new image has no
     //  file to measure, so the size its NAME implies is carried here from the
@@ -107,6 +121,9 @@ struct BootPayload
     //  In DOS logical order, whatever container each came from.
     vector<Byte>  pascalSystem;
     vector<Byte>  cpmSystem;
+
+    //  The user's SOS disk, for a ProDOS volume that starts an Apple ///.
+    vector<Byte>  sosSystemDisk;
 };
 
 
@@ -172,5 +189,5 @@ public:
 
 private:
     static void  ConvertTracksToFlux (uint64_t fluxTrackMask, DiskImage & inOutImage);
-    static void  ReorderDosToPo (const vector<Byte> & dosOrdered, vector<Byte> & outPo);
+    static void  ReorderDosToPo      (const vector<Byte> & dosOrdered, vector<Byte> & outPo);
 };

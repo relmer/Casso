@@ -162,7 +162,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Ltype <t>              The container type is taken from the name's extension by default; use this switch to override. "
                                    "If the name has no extension, the default extension for the type is appended. "
                                    "Valid types are: %C\n"
-        "  %Lformat <f>            The filesystem: dos33, prodos, pascal, cpm, hfs, or none. Defaults to dos33\n"
+        "  %Lformat <f>            The filesystem: dos33, prodos, sos, prodos+sos, pascal, cpm, hfs, or none. Defaults to dos33. sos is a ProDOS"
+                                   " volume that boots an Apple ///, and prodos+sos one that boots an Apple II and an Apple ///\n"
         "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS, Apple Pascal or HFS, the volume name"
                                    " (default NEWDISK, or Untitled for HFS). CP/M has no volume\n"
         "  %Lsize <s>              The size of a ProDOS or HFS volume: 140K, 800K, 5M, 10M, 20M or 32M. Defaults to 140K, or 800K for HFS"
@@ -170,7 +171,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
                                    " 800K only. HFS volumes are 800K or larger\n"
         "  %Lbootable [<image>]    Makes the disk bootable by copying operating system files to it. It automatically uses the master disk"
                                    " for the selected format, but this can be overridden by supplying an image of your own."
-                                   " For CP/M, the default is CP/AM 5.1, and softcard in place of <image> selects CP/M 2.23 for a Microsoft SoftCard\n"
+                                   " For CP/M, the default is CP/AM 5.1, and softcard in place of <image> selects CP/M 2.23 for a Microsoft SoftCard."
+                                   " For sos, the default is the Apple /// System Utilities disk; for prodos+sos, <image> is the ProDOS disk\n"
         "  %Lboot <file>           Loads and executes the binary <file> directly without copying or relying on operating system files\n"
         "  %Lload $XXXX            Where a %Lboot binary is loaded into memory. Valid addresses are $0900-$BFFF, inclusive\n"
         "  %Lexec $XXXX            Memory address to jump to after loading the %Lboot binary file. Defaults to the load"
@@ -185,12 +187,14 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "init | format",
         "Format an existing disk, erasing any existing files",
         "CassoCli disk init <image> [%Lformat <f>] [%Lvolume <v>] [%Lbootable [<image>]] [%Lflux [<tracks>]]",
-        "  %Lformat <f>            The filesystem: dos33, prodos, pascal, cpm, hfs, or none. Defaults to dos33. HFS is for 800K and larger images\n"
+        "  %Lformat <f>            The filesystem: dos33, prodos, sos, prodos+sos, pascal, cpm, hfs, or none. Defaults to dos33. HFS is for 800K"
+                                   " and larger images. sos is a ProDOS volume that boots an Apple ///, and prodos+sos one that boots both\n"
         "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS, Apple Pascal or HFS, the volume name"
                                    " (default NEWDISK, or Untitled for HFS). CP/M has no volume\n"
         "  %Lbootable [<image>]    Makes the disk bootable by copying operating system files to it. It automatically uses the master disk"
                                    " for the selected format, but this can be overridden by supplying an image of your own."
-                                   " For CP/M, the default is CP/AM 5.1, and softcard in place of <image> selects CP/M 2.23 for a Microsoft SoftCard\n"
+                                   " For CP/M, the default is CP/AM 5.1, and softcard in place of <image> selects CP/M 2.23 for a Microsoft SoftCard."
+                                   " For sos, the default is the Apple /// System Utilities disk; for prodos+sos, <image> is the ProDOS disk\n"
         "  %Lflux [<tracks>]       Stores tracks as flux rather than bits, in a WOZ image only. Every track by default, or only"
                                    " the whole tracks listed, such as 0-2,17. Without it, tracks already stored as flux stay flux\n",
         nullptr,

@@ -171,7 +171,10 @@ private:
     static constexpr const char *  kpszKernelName = "PRODOS";
 
     Byte  ReadByte        (int block, size_t offset) const;
-    bool  IsBitmapBitFree (uint32_t block) const;
+
+    //  A directory's entries a block, from the header in its key block.
+    int   GetEntriesPerBlock (int keyBlock) const;
+    bool  IsBitmapBitFree    (uint32_t block) const;
 
     //  The buffer, for a read of one block of it. Every read of the volume's
     //  own buffer goes through here, so the read observer has each sector.

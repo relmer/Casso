@@ -4,6 +4,7 @@
 #include "Utils.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/ProDosStartup.h"
 
 
 
@@ -130,6 +131,7 @@ void ProDosVolume::CollectEntries (
     int             dirBlock = keyBlock;
     int             n        = 0;
     size_t          i        = 0;
+    int             perBlock = GetEntriesPerBlock (keyBlock);
 
 
 
@@ -149,7 +151,7 @@ void ProDosVolume::CollectEntries (
             break;
         }
 
-        for (n = first; n < (int) ProDosSkeleton::kEntriesPerBlock; n++)
+        for (n = first; n < perBlock; n++)
         {
             RawEntry  entry;
             size_t    at      = ProDosSkeleton::kOffFirstEntry
@@ -576,16 +578,17 @@ Error:
 
 HRESULT ProDosVolume::Enumerate (VolumeListing & outListing) const
 {
-    HRESULT           hr          = S_OK;
-    size_t            bufferBytes = m_sectors.size();
-    bool              sizeOk      = ProDosSkeleton::IsValidVolumeSize (bufferBytes);
-    vector<RawEntry>  entries;
-    bool              fullyParsed = true;
-    size_t            i           = 0;
-    uint32_t          block       = 0;
-    uint32_t          freeBlocks  = 0;
-    Byte              headerType  = 0;
-    size_t            nameLen     = 0;
+    HRESULT                                                      hr          = S_OK;
+    size_t                                                       bufferBytes = m_sectors.size();
+    bool                                                         sizeOk      = ProDosSkeleton::IsValidVolumeSize (bufferBytes);
+    vector<RawEntry>                                             entries;
+    bool                                                         fullyParsed = true;
+    size_t                                                       i           = 0;
+    uint32_t                                                     block       = 0;
+    uint32_t                                                     freeBlocks  = 0;
+    Byte                                                         headerType  = 0;
+    size_t                                                       nameLen     = 0;
+    std::array<std::array<Byte, ProDosStartup::kBlockBytes>, 2>  bootBlocks  = {};
 
 
 
@@ -618,6 +621,16 @@ HRESULT ProDosVolume::Enumerate (VolumeListing & outListing) const
         FillExtendedSizes (entry, outListing.entries.back());
         outListing.entries.back().catalogIndex = outListing.entries.size() - 1;
     }
+
+    for (block = 0; block < 2; block++)
+    {
+        for (i = 0; i < ProDosStartup::kBlockBytes; i++)
+        {
+            bootBlocks[block][i] = ReadByte ((int) block, i);
+        }
+    }
+
+    outListing.startup = ProDosStartup::Detect (bootBlocks[0], bootBlocks[1], outListing.entries);
 
     // Volume bitmap: one bit per block, MSB of byte 0 is block 0, SET is free.
     for (block = 0; block < (uint32_t) GetBlockCount(); block++)
@@ -1223,4 +1236,19 @@ bool ProDosVolume::IsBitmapBitFree (uint32_t block) const
                                  (int) (at / (size_t) ProDosSkeleton::kBlockByteSize));
 
     return IsFreeInBitmap (m_sectors, block);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::GetEntriesPerBlock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ProDosVolume::GetEntriesPerBlock (int keyBlock) const
+{
+    return ProDosSkeleton::GetEntriesPerBlock (ReadByte (keyBlock, ProDosSkeleton::kEntriesPerBlockAt));
 }

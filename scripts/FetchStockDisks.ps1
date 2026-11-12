@@ -106,7 +106,26 @@ $assets = @(
        UrlPath   = '/images/communications/kermit_protocol.dsk'
        Size      = 143360
        Sha1      = '9928F056472E0F46F4652BB4C7FED9B52545572A'
-       Desc      = 'Kermit-65 3.87 for ProDOS' }
+       Desc      = 'Kermit-65 3.87 for ProDOS' },
+
+    #  SOS 1.1 for the Apple ///, for the SOS scenario cases. System Utilities
+    #  is the disk the emulator downloads for SOS; System Demo has directory
+    #  blocks of 12 entries.
+    @{ RepoName  = 'sos-utilities.dsk'
+       CacheName = 'Apple III System Utilities.dsk'
+       BaseUrl   = 'https://mirrors.apple2.org.za'
+       UrlPath   = '/Apple%20II%20Documentation%20Project/Computers/Apple%20III/Apple%20III/Disk%20Images/Apple%20III%20System%20Utilities.dsk'
+       Size      = 143360
+       Sha1      = 'B517DB1C50491B893D274B718C63F66DBA98FCD5'
+       Desc      = 'Apple /// System Utilities (SOS 1.1)' },
+
+    @{ RepoName  = 'sos-demo.dsk'
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za'
+       UrlPath   = '/Apple%20II%20Documentation%20Project/Computers/Apple%20III/Apple%20III/Disk%20Images/Apple%20III%20System%20Demo.dsk'
+       Size      = 143360
+       Sha1      = '4198E768EA0BE357675107A8A9E0FB9657E25568'
+       Desc      = 'Apple /// System Demo (SOS 1.1)' }
 )
 
 #

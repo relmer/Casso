@@ -491,6 +491,7 @@ HRESULT ProDosReader::ExtractForksFromDirectory (
     uint32_t        eof         = 0;
     bool            found       = false;
     bool            keyOk       = false;
+    int             perBlock    = 0;
     ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::GetBlockCount (volume.size()));
 
 
@@ -500,6 +501,8 @@ HRESULT ProDosReader::ExtractForksFromDirectory (
 
     keyOk = dirKeyBlock > 0 && IsBlockInRange (volume, (Word) dirKeyBlock);
     CBRAEx (keyOk, E_INVALIDARG);
+
+    perBlock = ProDosSkeleton::GetEntriesPerBlock (volume[ProDosSkeleton::GetBlockByteOffset (volume.size(), dirKeyBlock, ProDosSkeleton::kEntriesPerBlockAt)]);
 
     // Walk the directory's chain from its key block. The key block's first
     // record is the directory's own header, not a file, in a subdirectory as
@@ -523,7 +526,7 @@ HRESULT ProDosReader::ExtractForksFromDirectory (
 
         NoteBlockRead (observer, volume.size(), dirBlock);
 
-        for (n = first; !found && n < (int) ProDosSkeleton::kEntriesPerBlock; n++)
+        for (n = first; !found && n < perBlock; n++)
         {
             size_t  at      = ProDosSkeleton::kOffFirstEntry
                             + (size_t) n * ProDosSkeleton::kEntryLength;
@@ -974,6 +977,7 @@ HRESULT ProDosFileWriter::WriteFile (
     Word          keyBlock    = 0;
     Word          blocksUsed  = 0;
     size_t        i           = 0;
+    int           perBlock    = 0;
     vector<Word>  dataBlocks;
 
 
@@ -984,6 +988,7 @@ HRESULT ProDosFileWriter::WriteFile (
     CBRAEx (blockCount <= 256, E_INVALIDARG);
 
     seedling = (blockCount == 1);
+    perBlock = ProDosSkeleton::GetEntriesPerBlock (buffer[ProDosSkeleton::GetBlockByteOffset (bufferBytes, ProDosSkeleton::kDirKeyBlock, ProDosSkeleton::kEntriesPerBlockAt)]);
 
     // A free directory entry: the first record in the chain whose storage-type
     // nibble is zero, meaning never used or deleted.
@@ -994,7 +999,7 @@ HRESULT ProDosFileWriter::WriteFile (
         int  first = (dirBlock == ProDosSkeleton::kDirKeyBlock) ? 1 : 0;
         int  n     = 0;
 
-        for (n = first; !haveSlot && n < (int) ProDosSkeleton::kEntriesPerBlock; n++)
+        for (n = first; !haveSlot && n < perBlock; n++)
         {
             size_t  at      = ProDosSkeleton::kOffFirstEntry
                             + (size_t) n * ProDosSkeleton::kEntryLength;
@@ -1094,4 +1099,34 @@ HRESULT ProDosFileWriter::WriteFile (
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosSkeleton::IsEntriesPerBlockValid
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProDosSkeleton::IsEntriesPerBlockValid (Byte headerValue)
+{
+    return headerValue >= 1 && headerValue <= kEntriesPerBlock;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosSkeleton::GetEntriesPerBlock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ProDosSkeleton::GetEntriesPerBlock (Byte headerValue)
+{
+    return IsEntriesPerBlockValid (headerValue) ? headerValue : kEntriesPerBlock;
 }

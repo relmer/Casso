@@ -221,6 +221,18 @@ static constexpr BootDiskSpec s_kCpamDisk =
     s_kpszBootDiskMirrorHost
 };
 
+//  SOS 1.1 for the Apple ///: the System Utilities disk, whose SOS loader and
+//  SOS.KERNEL, SOS.DRIVER and SOS.INTERP make a disk start an Apple ///.
+static constexpr BootDiskSpec s_kSosDisk =
+{
+    StockBootDisks::kpszSosSystemDiskFile,
+    L"/Apple%20II%20Documentation%20Project/Computers/Apple%20III/Apple%20III/Disk%20Images/Apple%20III%20System%20Utilities.dsk",
+    143360,
+    "SOS",
+    "Apple /// System Utilities with SOS 1.1.",
+    s_kpszBootDiskMirrorHost
+};
+
 static constexpr BootDiskSpec s_kSoftCardDisk =
 {
     StockBootDisks::kpszSoftCardBootDiskFile,
@@ -2198,6 +2210,7 @@ static const BootDiskSpec & GetStockBootDiskSpec (AssetBootstrap::StockBootDisk 
         case AssetBootstrap::StockBootDisk::PascalBootDisk:   return s_kPascalDisk;
         case AssetBootstrap::StockBootDisk::CpamBootDisk:     return s_kCpamDisk;
         case AssetBootstrap::StockBootDisk::SoftCardBootDisk: return s_kSoftCardDisk;
+        case AssetBootstrap::StockBootDisk::SosSystemDisk:    return s_kSosDisk;
         default:                                              return s_kDos33Disk;
     }
 }

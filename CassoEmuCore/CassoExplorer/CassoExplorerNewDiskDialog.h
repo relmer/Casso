@@ -36,6 +36,8 @@ public:
         { L"Unformatted",  "none"   },
         { L"DOS 3.2",      "dos32"  },
         { L"HFS",          "hfs"    },
+        { L"SOS (Apple ///)", "sos" },
+        { L"ProDOS and SOS",  "prodos+sos" },
     };
 
     static constexpr Choice  kContainers[] =
@@ -104,6 +106,10 @@ public:
     //  volume number's three digits, or a ProDOS name's fifteen characters.
     static size_t        GetVolumeMaxLength (int formatIndex);
 
+    //  ProDOS, SOS, and ProDOS and SOS: one file system, which differ only in
+    //  the computers a bootable disk starts.
+    static bool          IsProDosFamily     (int formatIndex);
+
     static constexpr int     kFormatDos33           = 0;   // indices into kFormats
     static constexpr int     kFormatProDos          = 1;
     static constexpr int     kFormatPascal          = 2;
@@ -111,6 +117,8 @@ public:
     static constexpr int     kFormatNone            = 4;
     static constexpr int     kFormatDos32           = 5;
     static constexpr int     kFormatHfs             = 6;
+    static constexpr int     kFormatSos             = 7;
+    static constexpr int     kFormatProDosSos       = 8;
     static constexpr size_t  kMaxFileNameLength     = 200;
     static constexpr size_t  kMaxDos33VolumeLength  = 3;
     static constexpr size_t  kMaxProDosVolumeLength = 15;

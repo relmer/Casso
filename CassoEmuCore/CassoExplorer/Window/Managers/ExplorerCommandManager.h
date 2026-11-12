@@ -5,6 +5,7 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 #include "FileTypes/DecodedFile.h"
+#include "Machines/Apple2/Common/StockBootDisks.h"
 
 struct ExplorerContext;
 
@@ -67,6 +68,7 @@ public:
     bool                       IsRawTargetCurrent         (const std::wstring & target);
     void                       ReportOutcome              (const CassoExplorerActions::Outcome & outcome, const wchar_t * verbName);
     bool                       TryPrepareBootDisk         (const DiskOperations::NewDiskRequest & request);
+    bool                       TryDownloadBootDisk        (StockBootDisks::Which disk);
     void                       ExtractImageFiles          (const std::wstring & imagePath);
     void                       InspectDiskImages          (const std::vector<std::wstring> & paths);
     void                       CompareSelectedDiskImages  ();

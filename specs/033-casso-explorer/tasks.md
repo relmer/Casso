@@ -1941,9 +1941,9 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 ## Phase 50: SOS volumes (User Story 33)
 
-- [ ] T626 [US33] Add `SosVolume` in `CassoEmuCore/Machines/Apple2/Common/SosVolume.h/.cpp`, sharing `ProDosVolume`'s reader and writer with an SOS type table, on 140K disks and ProFile images (FR-225)
-- [ ] T627 [US33] Map types between SOS and ProDOS, and report a type the target lacks (FR-226); create 140K and ProFile 5 MB SOS images
-- [ ] T628 [US33] Scenario tests in `ScenarioTests/SosTests.cpp` on CiderPress II's and MAME's SOS images; boot a changed disk in MAME's Apple /// (SC-060)
+- [X] T626 [US33] Read and write SOS volumes as ProDOS volumes: each directory within the entries a block its header has, as SOS disks have 12, and no case word for an upper-case name, which SOS reads as a minimum version (FR-225)
+- [X] T627 [US33] Detect the computers a ProDOS volume starts, and make disks that start an Apple ///, or an Apple II and an Apple ///, from the user's SOS and ProDOS disks in New disk and `casso disk create`, with Apple's System Utilities disk as the stock SOS disk (FR-225, FR-226)
+- [X] T628 [US33] Scenario tests in `ScenarioTests/SosTests.cpp` on Apple's System Utilities and System Demo disks; boot a changed disk and new SOS and dual disks in MAME's Apple /// with `scripts/MameSnapshot.ps1`, and the dual disk in Casso's //e (SC-060)
 
 ## Phase 51: Gutenberg writes and RDOS (User Story 34)
 
