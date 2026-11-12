@@ -70,8 +70,10 @@ public:
     uint32_t          GetBlock      () const { return m_block; }
 
     //  Steps to a block, clamped to the image, and adds it to the history for
-    //  Back and Forward.
+    //  Back and Forward. ReplaceBlock steps in place of the current entry, as
+    //  while a block number is typed.
     void  SelectBlock  (uint32_t block);
+    void  ReplaceBlock (uint32_t block);
     void  StepBlock    (int64_t delta);
     bool  GoBack       ();
     bool  GoForward    ();

@@ -317,6 +317,7 @@
     <ClCompile Include="EmuTests\ProDosSyntheticShapeTests.cpp" />
     <ClCompile Include="EmuTests\VolumeOracleTests.cpp" />
     <ClCompile Include="EmuTests\BlockInspectorModelTests.cpp" />
+    <ClCompile Include="EmuTests\BlockInspectorPanelTests.cpp" />
     <ClCompile Include="EmuTests\BlockMapTests.cpp" />
     <ClCompile Include="EmuTests\BlankDiskBuilderTests.cpp" />
     <ClCompile Include="EmuTests\ProDosVolumeTests.cpp" />

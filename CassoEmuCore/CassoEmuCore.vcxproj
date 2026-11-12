@@ -808,6 +808,13 @@
     <ClCompile Include="Ui\Dialogs\DownloadContentPanel.cpp" />
     <ClCompile Include="Ui\Dialogs\DownloadDialog.cpp" />
     <ClCompile Include="Ui\Dialogs\StartupDownloadDialog.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockFieldsView.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockHexSource.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockHexView.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorPanel.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorWindow.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockMapGrid.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockMapView.cpp" />
     <ClCompile Include="Ui\DiskInspector\AnalysisScheduler.cpp" />
     <ClCompile Include="Ui\DiskInspector\CompareDialog.cpp" />
     <ClCompile Include="Ui\DiskInspector\ComparisonSession.cpp" />
@@ -914,6 +921,7 @@
     <ClCompile Include="Shell\Components\EmulatorUpdaterHost.cpp" />
     <ClCompile Include="Shell\Components\ShellUpdater.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerUpdaterHost.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerBlockInspectorWindow.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerInspectorHost.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerInspectorWindow.cpp" />
     <ClCompile Include="CassoExplorer\InspectorWindowSet.cpp" />
@@ -1662,6 +1670,13 @@
     <ClInclude Include="Ui\Settings\ScreenshotsPage.h" />
     <ClInclude Include="Ui\Settings\ThemePage.h" />
     <ClInclude Include="Ui\UiShell.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockFieldsView.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockHexSource.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockHexView.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorPanel.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorWindow.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockMapGrid.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockMapView.h" />
     <ClInclude Include="Ui\DiskInspector\AnalysisScheduler.h" />
     <ClInclude Include="Ui\DiskInspector\CompareDialog.h" />
     <ClInclude Include="Ui\DiskInspector\ComparisonSession.h" />
@@ -1779,6 +1794,7 @@
     <ClInclude Include="Shell\Components\EmulatorUpdaterHost.h" />
     <ClInclude Include="Shell\Components\ShellUpdater.h" />
     <ClInclude Include="CassoExplorer\ExplorerUpdaterHost.h" />
+    <ClInclude Include="CassoExplorer\ExplorerBlockInspectorWindow.h" />
     <ClInclude Include="CassoExplorer\ExplorerInspectorHost.h" />
     <ClInclude Include="CassoExplorer\ExplorerInspectorWindow.h" />
     <ClInclude Include="CassoExplorer\InspectorWindowSet.h" />

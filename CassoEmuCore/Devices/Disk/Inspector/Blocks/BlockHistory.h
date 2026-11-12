@@ -23,6 +23,7 @@ public:
     static constexpr size_t  kMaxEntries = 200;
 
     void  Record       (uint32_t block);
+    void  Replace      (uint32_t block);
     bool  GoBack       (uint32_t & outBlock);
     bool  GoForward    (uint32_t & outBlock);
     bool  CanGoBack    () const { return m_current > 0; }

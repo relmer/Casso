@@ -2,7 +2,13 @@
 
 #include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/ExplorerInspectorHost.h"
+#include "CassoExplorer/ExplorerBlockInspectorWindow.h"
+#include "CassoExplorer/ExplorerBlockInspectorWindow.h"
 #include "CassoExplorer/ExplorerInspectorWindow.h"
+#include "Core/TextEncoding.h"
+#include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
+#include "Core/TextEncoding.h"
+#include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
 #include "Seams/Win32IntentChannel.h"
 
 
@@ -57,6 +63,16 @@ InspectorWindowSet::InspectorWindowSet (IImageWatcher & watcher, DiskInspectorPr
     if (m_seams.fileIo == nullptr)
     {
         m_seams.fileIo = &m_fileIo;
+    }
+
+    if (!m_seams.makeBlockWindow)
+    {
+        m_seams.makeBlockWindow = [this] (const std::wstring & path) { return std::unique_ptr<Window> (std::make_unique<ExplorerBlockInspectorWindow> (path, *m_seams.fileIo)); };
+    }
+
+    if (!m_seams.isBlockImage)
+    {
+        m_seams.isBlockImage = [this] (const std::wstring & path) { return BlockImageFile::IsBlockImage (*m_seams.fileIo, TextEncoding::WideToUtf8 (path)); };
     }
 }
 
@@ -114,8 +130,8 @@ std::wstring InspectorWindowSet::MakeKey (const std::wstring & path)
 
 bool InspectorWindowSet::CanInspect (const std::wstring & path)
 {
-    static constexpr std::array<const wchar_t *, 6>  s_kExtensions = { L".dsk", L".do", L".po", L".nib", L".nb2", L".woz" };
-    std::wstring                                      extension     = fs::path (path).extension().wstring();
+    static constexpr std::array<const wchar_t *, 12>  s_kExtensions = { L".dsk", L".do", L".po", L".nib", L".nb2", L".woz", L".hdv", L".2mg", L".2img", L".dc", L".dc42", L".image" };
+    std::wstring                                       extension     = fs::path (path).extension().wstring();
 
 
 
@@ -141,10 +157,11 @@ bool InspectorWindowSet::CanInspect (const std::wstring & path)
 
 HRESULT InspectorWindowSet::Open (HINSTANCE hInstance, HWND anchor, const std::wstring & path, const DxuiTheme & theme)
 {
-    HRESULT                 hr    = S_OK;
-    std::wstring            key   = MakeKey (path);
-    Entry                 * found = Find (key);
-    std::unique_ptr<Entry>  entry;
+    HRESULT                   hr      = S_OK;
+    std::wstring              key     = MakeKey (path);
+    Entry                   * found   = Find (key);
+    std::unique_ptr<Entry>    entry;
+    bool                      isBlock = false;
 
 
 
@@ -160,7 +177,8 @@ HRESULT InspectorWindowSet::Open (HINSTANCE hInstance, HWND anchor, const std::w
     entry->key    = key;
     entry->folder = fs::path (path).parent_path().wstring();
     entry->host   = std::make_unique<ExplorerInspectorHost> (path, *m_seams.fileIo);
-    entry->window = m_seams.makeWindow();
+    isBlock       = m_seams.isBlockImage (path);
+    entry->window = isBlock ? m_seams.makeBlockWindow (path) : m_seams.makeWindow();
 
     hr = entry->window->Create (hInstance, anchor, m_theme, entry->host.get());
     CHR (hr);
@@ -176,7 +194,7 @@ HRESULT InspectorWindowSet::Open (HINSTANCE hInstance, HWND anchor, const std::w
 
     entry->window->ApplyPrefs (m_prefs);
 
-    if (!m_prefs.isWalkthroughSeen)
+    if (!m_prefs.isWalkthroughSeen && !isBlock)
     {
         entry->window->OpenWalkthrough();
         m_prefs.isWalkthroughSeen = true;
