@@ -798,3 +798,13 @@ Checked on screen in a separate window on the fixtures: the preview expands over
 
 A host text file can take about a second to appear after a step, docked or expanded: Casso Explorer starts the Windows preview handler for .txt first, and displays the file's bytes when the handler takes too long. Files in disk images don't take that path.
 
+## 16. Raw capture on a real //c, 2026-11-12 (T580, SC-055)
+
+Archon, the owner's original disk, captured from drive 1 of the owner's //c over CassoLink at 115,200 baud, synchronized:
+
+| Measure | Result |
+|---|---|
+| Time | 18 minutes 47 seconds: 321 reads, 306 seconds reading the disk and 606 seconds sending over the line. SC-055's 5 minutes isn't met |
+| Positions | Every whole track, and 96 of the 102 positions between whole tracks, as tracks 3 on aren't standard |
+| Sectors | Every sector of tracks 0 to 4 and 7 to 34 matches the reference's but six: track 1's sector 3 and one sector each of tracks 23, 27 and 29 differ with good checksums, as the owner's copy differs from the reference's; two sectors of track 30 have a bad nibble, and track 31's sector 12 is missing. Tracks 4.75 to 6.5 have no flux on the owner's disk |
+| Boot | In Casso's //c, the image boots to Archon's board and its options screen |
