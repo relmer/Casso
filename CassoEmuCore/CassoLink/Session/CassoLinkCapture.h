@@ -196,6 +196,9 @@ private:
     static bool                 MakeStream     (const Position & position, Stream & outStream, bool & outUnstable);
     static int                  FindWholeTrack (const std::map<int, Stream> & streams, int position);
     static bool                 IsSameStream   (std::span<const Byte> a, std::span<const Byte> b);
+    static size_t               FindDataField  (std::span<const Byte> bytes, size_t at);
+    static bool                 RepairFields   (const Position & position, std::vector<Byte> & ioRevolution);
+    static void                 UniteSyncZeros (std::map<int, Stream> & ioStreams);
     static void                 ToBits         (const Stream & stream, std::vector<uint8_t> & outBits, std::vector<size_t> & outStarts);
 
     static constexpr Byte    s_kSyncByte = 0xFF;

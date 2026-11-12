@@ -7,6 +7,7 @@
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/Session/CaptureStream.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImage.h"
@@ -286,6 +287,136 @@ public:
         Assert::IsTrue (checked > 0, L"The track has address fields");
     }
 
+
+    //  A track of 16 sectors read three times, with a nibble of sector 5
+    //  misread the same way in the first two reads, so most of the passes
+    //  have it wrong: the sector is taken from the read that decodes it.
+    TEST_METHOD (ASectorMisreadInMostReads_IsTakenFromTheReadThatDecodesIt)
+    {
+        static constexpr int     kSectors    = 16;
+        static constexpr int     kBad        = 5;
+        static constexpr size_t  kSyncs      = 8;
+        static constexpr size_t  kMisread    = 100;
+        static constexpr size_t  kAcrossEnd  = 70;      // past the misread, still in the field
+        static constexpr size_t  kReadBytes  = 14000;
+        static constexpr Byte    kVolume     = 254;
+
+        std::vector<Byte>                        revolution;
+        std::vector<Byte>                        misread;
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        CassoLinkCapture::Result                 result;
+        DiskImage                                image;
+        std::vector<Byte>                        framed;
+        std::vector<Byte>                        sector;
+        uint32_t                                 seed    = 4321;
+        size_t                                   badAt   = 0;
+        bool                                     decoded = false;
+
+
+
+        auto  oddEven = [&revolution] (Byte value)
+        {
+            revolution.push_back ((Byte) ((value >> 1) | 0xAA));
+            revolution.push_back ((Byte) (value | 0xAA));
+        };
+
+        for (int number = 0; number < kSectors; number++)
+        {
+            std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+            std::vector<Byte>  nibbles;
+
+            revolution.insert (revolution.end(), kSyncs, 0xFF);
+            revolution.insert (revolution.end(), { 0xD5, 0xAA, 0x96 });
+            oddEven (kVolume);
+            oddEven (0);
+            oddEven ((Byte) number);
+            oddEven ((Byte) (kVolume ^ number));
+            revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
+            revolution.insert (revolution.end(), kSyncs, 0xFF);
+            revolution.insert (revolution.end(), { 0xD5, 0xAA, 0xAD });
+
+            for (Byte & value : data)
+            {
+                seed  = seed * 1103515245u + 12345u;
+                value = (Byte) (seed >> 16);
+            }
+
+            NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+            badAt = number == kBad ? revolution.size() + kMisread : badAt;
+            revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
+            revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
+        }
+
+        misread        = revolution;
+        misread[badAt] = misread[badAt] == 0x96 ? 0x97 : 0x96;
+
+        //  The reads start at the track's first sync byte, and then in the
+        //  middle of sector 5's data field, so the field crosses the end of
+        //  the revolution the stream has.
+        for (size_t first : { (size_t) 0, badAt + kAcrossEnd })
+        {
+            positions.assign (1, CassoLinkCapture::Position());
+            decoded = false;
+
+            for (size_t read = 0; read < CassoLinkCapture::kWholeReads; read++)
+            {
+                const std::vector<Byte>  & source = read < 2 ? misread : revolution;
+                std::vector<Byte>          bytes;
+
+                for (size_t at = 0; at < kReadBytes; at++)
+                {
+                    bytes.push_back (source[(first + at) % source.size()]);
+                }
+
+                positions[0].reads.push_back (bytes);
+                positions[0].delays.push_back (CassoLinkCapture::kWholeDelays[read]);
+            }
+
+            AssertSucceeded (CassoLinkCapture::BuildWoz (positions, 0, "2026-11-12T00:00:00Z", 1, result));
+            AssertSucceeded (WozLoader::Load (result.woz, image));
+
+            FrameTrack (image, image.ResolveQuarterTrack (0), framed);
+
+            for (size_t at = 0; !decoded && at + 20 + NibblizationLayer::kDataNibbleCount < framed.size(); at++)
+            {
+                bool  address = framed[at] == 0xD5 && framed[at + 1] == 0xAA && framed[at + 2] == 0x96;
+                int   number  = address ? (((framed[at + 7] << 1) | 1) & framed[at + 8]) : -1;
+
+                if (number == kBad)
+                {
+                    size_t  data = at + 14 + kSyncs + 3;
+
+                    decoded = NibblizationLayer::DecodeDataNibbles (&framed[data], sector);
+                }
+            }
+
+            Assert::IsTrue (decoded, std::format (L"Sector 5 decodes, the reads starting at byte {}", first).c_str());
+        }
+    }
+
+    //  A track's bytes as a controller frames them from its bits.
+    static void  FrameTrack (DiskImage & image, int slot, std::vector<Byte> & outBytes)
+    {
+        size_t  count = image.GetTrackBitCount (slot);
+        size_t  at    = 0;
+        Byte    value = 0;
+
+
+
+        outBytes.clear();
+
+        for (size_t bit = 0; bit < 2 * count; bit++)
+        {
+            value = (Byte) ((value << 1) | image.ReadBit (slot, at));
+            at    = (at + 1) % count;
+
+            if (value & 0x80)
+            {
+                outBytes.push_back (value);
+                value = 0;
+            }
+        }
+    }
 
     //  A program just loaded has the arm's place as unknown: a first read of
     //  track 30 takes the arm to track 0 first and reads track 30, not the
