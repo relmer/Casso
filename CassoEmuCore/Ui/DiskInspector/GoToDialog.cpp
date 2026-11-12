@@ -86,7 +86,6 @@ public:
         int                           half    = (boundsPx.right - boundsPx.left - 2 * pad) / 2;
         int                           x       = boundsPx.left + pad;
         int                           y       = boundsPx.top  + pad;
-        int                           i       = 0;
         int                           count   = static_cast<int> (m_parts.kindList->size());
         int                           rows    = (count + 1) / 2;
         int                           sel     = (m_parts.kinds->GetSelected() >= 0) ? m_parts.kinds->GetSelected() : m_initial;
@@ -95,7 +94,7 @@ public:
         bool                          isFile  = kind == GoToKind::File;
         bool                          isTrack = kind == GoToKind::Track;
         int                           fieldW  = (boundsPx.right - boundsPx.left - 3 * pad - 2 * labelW) / 2;
-        std::vector<DxuiRadioOption>  options;
+        int                           second  = x + half;
 
 
 
@@ -103,15 +102,18 @@ public:
         m_boundsPx = boundsPx;
         m_scaler   = scaler;
 
-        for (i = 0; i < count; i++)
-        {
-            options.push_back ({ RECT { x + (i / rows) * half, y + (i % rows) * rowH, x + (i / rows + 1) * half, y + (i % rows + 1) * rowH - 4 },
-                                 InspectorGoTo::GetLabel ((*m_parts.kindList)[static_cast<size_t> (i)]) });
-        }
+        //  The gap between the columns is centered: the second column starts
+        //  as far right of the center as the first column's widest option
+        //  ends left of it.
+        SetKindOptions (x, second, y, rows, sel, boundsPx, scaler);
 
-        m_parts.kinds->SetOptions  (std::move (options));
-        m_parts.kinds->SetSelected (sel);
-        m_parts.kinds->Layout (RECT { x, y, boundsPx.right - pad, y + rows * rowH }, scaler);
+        if (m_parts.text != nullptr && count > rows)
+        {
+            int  firstEnd = x + MeasureColumn (0, rows, scaler);
+
+            second = std::max (firstEnd + pad, static_cast<int> (boundsPx.left + boundsPx.right) - firstEnd);
+            SetKindOptions (x, second, y, rows, sel, boundsPx, scaler);
+        }
         LayoutTips (scaler);
         y += rows * rowH + pad;
 
@@ -191,6 +193,48 @@ public:
     }
 
 private:
+    void  SetKindOptions (int first, int second, int top, int rows, int sel, const RECT & boundsPx, const DxuiDpiScaler & scaler)
+    {
+        int                           rowH  = scaler.ToPx (kRowDip);
+        int                           right = boundsPx.right - scaler.ToPx (kPadDip);
+        int                           count = static_cast<int> (m_parts.kindList->size());
+        int                           i     = 0;
+        std::vector<DxuiRadioOption>  options;
+
+
+
+        for (i = 0; i < count; i++)
+        {
+            options.push_back ({ RECT { (i < rows) ? first : second, top + (i % rows) * rowH, (i < rows) ? second : right, top + (i % rows + 1) * rowH - 4 },
+                                 InspectorGoTo::GetLabel ((*m_parts.kindList)[static_cast<size_t> (i)]) });
+        }
+
+        m_parts.kinds->SetOptions  (std::move (options));
+        m_parts.kinds->SetSelected (sel);
+        m_parts.kinds->Layout (RECT { first, top, right, top + rows * rowH }, scaler);
+    }
+
+    //  The width of the widest of the options from `from` up to `to`, from
+    //  its radio to the end of its label, or of its tip where it has one.
+    int  MeasureColumn (int from, int to, const DxuiDpiScaler & scaler) const
+    {
+        int  widest = 0;
+        int  i      = 0;
+
+
+
+        for (i = from; i < to; i++)
+        {
+            GoToKind  kind   = (*m_parts.kindList)[static_cast<size_t> (i)];
+            bool      hasTip = std::any_of (std::begin (s_kKindTips), std::end (s_kKindTips), [kind] (const GoToKindTip & tip) { return tip.kind == kind; });
+            int       width  = m_parts.kinds->GetLabelRight (i, *m_parts.text) - m_parts.kinds->GetOptions()[static_cast<size_t> (i)].rect.left;
+
+            widest = std::max (widest, width + (hasTip ? scaler.ToPx (kTipGapDip + kTipDip) : 0));
+        }
+
+        return widest;
+    }
+
     void  LayoutTips (const DxuiDpiScaler & scaler)
     {
         for (int i = 0; i < GoToDialog::kTipCount; i++)
