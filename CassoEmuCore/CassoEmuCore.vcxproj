@@ -651,6 +651,7 @@
     <ClCompile Include="Machines\Apple2\Common\DirectBootBuilder.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Dos33Skeleton.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosSkeleton.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\ProDosStartup.cpp" />
     <ClCompile Include="Devices\Disk\DiskImageStore.cpp" />
     <ClCompile Include="Devices\Disk\ImageIdentity.cpp" />
     <ClCompile Include="Devices\Disk\ChangePrompt.cpp" />
@@ -1398,6 +1399,7 @@
     <ClInclude Include="Machines\Apple2\Common\DirectBootBuilder.h" />
     <ClInclude Include="Machines\Apple2\Common\Dos33Skeleton.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosSkeleton.h" />
+    <ClInclude Include="Machines\Apple2\Common\ProDosStartup.h" />
     <ClInclude Include="Devices\Disk\DiskImageStore.h" />
     <ClInclude Include="Devices\Disk\ImageIdentity.h" />
     <ClInclude Include="Devices\Disk\ChangePrompt.h" />

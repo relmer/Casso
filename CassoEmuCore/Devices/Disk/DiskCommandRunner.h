@@ -25,6 +25,7 @@ enum class VolumeKind;
 //  project, which is the failure mode the note above is about.
 enum class DiskFormat;
 enum class BlankDiskContents;
+enum class ProDosBootSystem;
 struct BlankDiskSpec;
 struct BootPayload;
 struct ParsedHostName;
@@ -184,16 +185,17 @@ public:
     static std::string  GetAppleDoublePath (const std::string & hostFile);
     HRESULT             WriteAppleDouble   (const std::string & hostFile, const FilePayload & payload);
 
-    static bool          IsThirteenSectorImage  (const CommandLineOptions & options);
-    void                 BuildThirteenSector    (const CommandLineOptions & options, bool overExisting, DiskCommandResult & result);
-    static bool          IsLargeCreate          (const CommandLineOptions & options);
-    static bool          IsHfsFormat            (const CommandLineOptions & options);
-    static const char *  GetVolumeNameRule      (bool isHfs);
-    static bool          IsBlockOnlyExtension   (const std::string & imagePath);
-    static bool          IsProDosOrderExtension (const std::string & imagePath);
-    static bool          TryGetLargeBlockCount  (const std::string & sizeName, uint32_t & outBlocks);
-    void                 BuildLargeProDos       (const CommandLineOptions & options, DiskCommandResult & result);
-    void                 ReformatLargeProDos    (const CommandLineOptions & options, const FileStamp & stamp, DiskCommandResult & result);
+    static bool                IsThirteenSectorImage  (const CommandLineOptions & options);
+    void                       BuildThirteenSector    (const CommandLineOptions & options, bool overExisting, DiskCommandResult & result);
+    static bool                IsLargeCreate          (const CommandLineOptions & options);
+    static ProDosBootSystem    GetBootSystem          (const std::string & formatName);
+    static bool                IsHfsFormat            (const CommandLineOptions & options);
+    static const char        * GetVolumeNameRule      (bool isHfs);
+    static bool                IsBlockOnlyExtension   (const std::string & imagePath);
+    static bool                IsProDosOrderExtension (const std::string & imagePath);
+    static bool                TryGetLargeBlockCount  (const std::string & sizeName, uint32_t & outBlocks);
+    void                       BuildLargeProDos       (const CommandLineOptions & options, DiskCommandResult & result);
+    void                       ReformatLargeProDos    (const CommandLineOptions & options, const FileStamp & stamp, DiskCommandResult & result);
 
     void  RunInit   (const CommandLineOptions & options, DiskCommandResult & result);
 
@@ -234,6 +236,9 @@ public:
                           BlankDiskSpec            & inOutSpec,
                           BootPayload              & outPayload,
                           DiskCommandResult        & result);
+
+    //  The SOS disk a ProDOS volume that starts an Apple /// copies SOS from.
+    HRESULT  ResolveSosBoot   (const std::string & source, BootPayload & outPayload, DiskCommandResult & result);
 
     //  The disk a bootable Apple Pascal or CP/M disk is copied from.
     HRESULT  LoadSystemSource (const std::string   & path,
