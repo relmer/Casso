@@ -293,6 +293,18 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "Walks the disk images in <folder> and its subfolders as list does, and writes the path of each file whose text contains"
         " <text>, ignoring case. BASIC programs are searched as their listings and text files as text. Binary files are not searched.",
         "CassoCli disk search D:\\Apple SCORE"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::Inspect,
+        "inspect",
+        "Write the disk inspector's analysis of an image",
+        "CassoCli disk inspect <image>",
+        nullptr,
+        "Analyzes <image> as the disk inspector does. The first line is the summary the inspector's status bar has; each line"
+        " after it is one of its Issues, tab-separated: the track, the category, the sector, the cell and the finding. A field"
+        " the finding doesn't have is a hyphen.",
+        "CassoCli disk inspect Capture.woz"
     },};
 
 

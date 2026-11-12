@@ -114,7 +114,7 @@ struct CommandLineOptions
         //  and the help request is not one of the things being described.
         enum class Command      { None, List, Get, Put, Delete, Boot, Create, Init,
                                   Mkdir, Rmdir, SectorRead, SectorWrite, BlockRead,
-                                  BlockWrite, Krunch, Test, Dupes, Search, Help };
+                                  BlockWrite, Krunch, Test, Dupes, Search, Inspect, Help };
 
         //  How a payload's bytes relate to the file on the host. Verbatim means
         //  no CHARACTER conversion -- length and header semantics still apply,

@@ -39,6 +39,7 @@
 #include "Utils.h"
 #include "Devices/Disk/BlockVolumeOpener.h"
 #include "Devices/Disk/DiskCollectionCommands.h"
+#include "Devices/Disk/DiskInspectCommand.h"
 #include "Machines/Apple2/Common/HfsWriter.h"
 
 
@@ -2861,6 +2862,10 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
         case CommandLineOptions::DiskOptions::Command::Dupes:
         case CommandLineOptions::DiskOptions::Command::Search:
             DiskCollectionCommands::Run (m_fileIo, options, result);
+            break;
+
+        case CommandLineOptions::DiskOptions::Command::Inspect:
+            DiskInspectCommand::Run (m_fileIo, options.disk.imagePath, result);
             break;
 
         case CommandLineOptions::DiskOptions::Command::Get:

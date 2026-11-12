@@ -476,6 +476,7 @@
     <ClCompile Include="Devices\Disk\DiskCommandResult.cpp" />
     <ClCompile Include="Devices\Disk\DiskCommandRunner.cpp" />
     <ClCompile Include="Devices\Disk\DiskCollectionCommands.cpp" />
+    <ClCompile Include="Devices\Disk\DiskInspectCommand.cpp" />
     <ClCompile Include="Devices\Disk\DiskHelpPage.cpp" />
     <ClCompile Include="Devices\Disk\DiskImageSession.cpp" />
     <ClCompile Include="Devices\Disk\Containers\DiskCopy42Container.cpp" />
@@ -1268,6 +1269,7 @@
     <ClInclude Include="Devices\Disk\DiskCommandResult.h" />
     <ClInclude Include="Devices\Disk\DiskCommandRunner.h" />
     <ClInclude Include="Devices\Disk\DiskCollectionCommands.h" />
+    <ClInclude Include="Devices\Disk\DiskInspectCommand.h" />
     <ClInclude Include="Devices\Disk\DiskHelpPage.h" />
     <ClInclude Include="Devices\Disk\DiskImageSession.h" />
     <ClInclude Include="Devices\Disk\Containers\DiskCopy42Container.h" />

@@ -72,6 +72,7 @@ static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
     { "test",        CommandLineOptions::DiskOptions::Command::Test        },
     { "dupes",       CommandLineOptions::DiskOptions::Command::Dupes       },
     { "search",      CommandLineOptions::DiskOptions::Command::Search      },
+    { "inspect",     CommandLineOptions::DiskOptions::Command::Inspect     },
 };
 
 
@@ -1009,6 +1010,7 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::Krunch:
         case CommandLineOptions::DiskOptions::Command::Test:
         case CommandLineOptions::DiskOptions::Command::Dupes:
+        case CommandLineOptions::DiskOptions::Command::Inspect:
             count = 1;
             break;
 
