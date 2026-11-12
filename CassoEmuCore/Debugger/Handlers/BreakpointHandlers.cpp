@@ -2271,11 +2271,6 @@ std::string BreakpointHandlers::MakeScript (DebugSession & session)
         {
             script += std::format ("BPCHANGE {} {}\n", i, flags);
         }
-
-        if (!list.breakpoints[i].group.empty())
-        {
-            script += std::format ("BPGROUP \"{}\" {}\n", list.breakpoints[i].group, i);
-        }
     }
 
     if (session.HasUnwrittenBreak())

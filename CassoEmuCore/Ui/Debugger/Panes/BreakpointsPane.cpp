@@ -248,7 +248,8 @@ std::vector<IDxuiControl *> BreakpointsPane::GetControls() const
 //  BreakpointsPane::GroupOrder
 //
 //  A heading is the group's name and how many breakpoints are in it. With no
-//  group, no headings.
+//  group, no headings. A group collapsed before is collapsed again, found by
+//  its name, since the list finds a group by its heading, which has the count.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -256,8 +257,17 @@ std::vector<DxuiListView::Group> BreakpointsPane::GroupOrder (const DebuggerView
 {
     std::vector<DxuiListView::Group>  groups;
     std::vector<size_t>               order;
+    std::vector<std::string>          collapsed;
 
 
+
+    for (size_t i = 0; i < m_groupNames.size() && i < m_list->GetGroups().size(); i++)
+    {
+        if (m_list->IsGroupCollapsed ((int) i))
+        {
+            collapsed.push_back (m_groupNames[i]);
+        }
+    }
 
     m_groupNames.clear();
 
@@ -276,7 +286,8 @@ std::vector<DxuiListView::Group> BreakpointsPane::GroupOrder (const DebuggerView
         size_t  first = order.size();
 
         std::ranges::copy_if (m_order, std::back_inserter (order), [&snapshot, &group] (size_t index) { return BreakpointTable::IsSameGroup (snapshot.breakpoints[index].info.group, group); });
-        groups.push_back ({ std::format (L"{} ({})", TextEncoding::NarrowToWide (group), order.size() - first), (int) first, false });
+        groups.push_back ({ std::format (L"{} ({})", TextEncoding::NarrowToWide (group), order.size() - first), (int) first,
+                            std::ranges::any_of (collapsed, [&group] (const std::string & each) { return BreakpointTable::IsSameGroup (each, group); }) });
     }
 
     m_order = std::move (order);

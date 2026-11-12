@@ -163,9 +163,9 @@ namespace DebuggerTests
         }
 
 
-        //  BPSAVE's script puts each breakpoint back in its group, and after
-        //  BPEDIT a breakpoint is in the same group.
-        TEST_METHOD (TheGroupIsSavedAndIsTheSameAfterBpedit)
+        //  After BPEDIT a breakpoint is in the same group. BPSAVE writes
+        //  AppleWin's script, which has no groups; the debug project saves them.
+        TEST_METHOD (TheGroupIsTheSameAfterBpeditAndNotInTheAppleWinScript)
         {
             Rig          rig;
             int          id     = 0;
@@ -182,7 +182,7 @@ namespace DebuggerTests
 
             script = BreakpointHandlers::MakeScript (rig.session);
 
-            Assert::IsTrue (script.find ("BPGROUP \"Loop\" 0\n") != std::string::npos, TextEncoding::NarrowToWide (script).c_str());
+            Assert::IsTrue (script.find ("BPGROUP") == std::string::npos, TextEncoding::NarrowToWide (script).c_str());
         }
 
 

@@ -374,7 +374,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 
 ### Session 2026-11-11 (owner decision during the validation walkthrough: breakpoint groups)
 
-- Q: Do breakpoint groups, as Visual Studio's Breakpoints window has them, ship in 035? -> A: Yes ("1 yes", answering whether to build Add to breakpoint group). A breakpoint is in at most one group, which has a name; the pane lists each group under a heading; a row's menu adds the selected breakpoints to a group; a heading's menu enables, disables, renames, ungroups or deletes the group; BPGROUP does the same from the console; each pane action is one undo step; groups are saved with the project and the breakpoint files (FR-409 to FR-416).
+- Q: Do breakpoint groups, as Visual Studio's Breakpoints window has them, ship in 035? -> A: Yes ("1 yes", answering whether to build Add to breakpoint group). A breakpoint is in at most one group, which has a name; the pane lists each group under a heading; a row's menu adds the selected breakpoints to a group; a heading's menu enables, disables, renames, ungroups or deletes the group; BPGROUP does the same from the console; each pane action is one undo step; groups are saved with the debug project (FR-409 to FR-416).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -4102,9 +4102,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-414**: Each group action taken in the Breakpoints pane MUST be one step
   on the pane's undo list, as its other actions are.
 - **FR-415**: A breakpoint's group MUST be saved and restored by the debug
-  project and by the breakpoint list files, and a breakpoint MUST be in the
-  same group after BPEDIT. A project or breakpoint file with no groups MUST
-  load.
+  project, and a breakpoint MUST be in the same group after BPEDIT. A project
+  with no groups MUST load. BPSAVE's file is AppleWin's script and has no
+  groups.
 - **FR-416**: A group MUST cease to exist once it has no breakpoints.
 
 ### Key Entities

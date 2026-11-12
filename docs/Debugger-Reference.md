@@ -838,8 +838,9 @@ breakpoints**, after a confirmation. Each is one step on the pane's undo list.
 | `BPGROUP UNGROUP name` | Take every breakpoint out of a group |
 | `BPGROUP DELETE name` | Delete a group and its breakpoints |
 
-The debug project and `BPSAVE`'s file save each breakpoint's group, and a
-breakpoint is in the same group after `BPEDIT`.
+The debug project saves each breakpoint's group, and a breakpoint is in the
+same group after `BPEDIT`. `BPSAVE` writes AppleWin's script, which has no
+groups.
 
 ## Stepping and history
 

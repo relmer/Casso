@@ -203,6 +203,33 @@ namespace DebuggerBreakpointPaneContentTests
         }
 
 
+        //  A collapsed group is collapsed again after its count changes,
+        //  which changes its heading.
+        TEST_METHOD (ACollapsedGroupIsCollapsedAgainAfterItsCountChanges)
+        {
+            CassoTheme       theme;
+            BarHost          host;
+            ContentWindow    window (theme, host);
+            DxuiListView   * list     = nullptr;
+            auto             snapshot = MakeSnapshot();
+
+
+
+            window.OnCreate();
+            window.TakeSnapshot (snapshot);
+
+            list = window.GetBreakpointsPane().GetList();
+            list->SetGroupCollapsed (0, true);
+
+            snapshot = MakeSnapshot();
+            snapshot->breakpoints[1].info.group = "Loop";
+            window.TakeSnapshot (snapshot);
+
+            Assert::AreEqual (std::wstring (L"Loop (3)"), list->GetGroups()[0].label);
+            Assert::IsTrue   (list->IsGroupCollapsed (0), L"collapsed again");
+        }
+
+
         TEST_METHOD (AddToAGroupActsOnTheSelectionAsOneStep)
         {
             CassoTheme       theme;
