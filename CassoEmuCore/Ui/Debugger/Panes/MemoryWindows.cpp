@@ -1389,14 +1389,6 @@ bool MemoryWindowGroup::SubmitTextBox (DxuiTextInput * box)
 //  while heat is on, its counts and what its tint means.
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryWindowGroup::TryGetTipAt
-//
-//  Over a byte of an open window, in either column, its address, at once and
-//  following the pointer itself rather than snapping from byte to byte; and
-//  while heat is on, its counts and what its tint means.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 bool MemoryWindowGroup::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
