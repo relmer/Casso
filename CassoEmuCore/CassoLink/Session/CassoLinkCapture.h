@@ -199,10 +199,19 @@ private:
     static size_t               FindDataField  (std::span<const Byte> bytes, size_t at);
     static bool                 RepairFields   (const Position & position, std::vector<Byte> & ioRevolution);
     static void                 UniteSyncZeros (std::map<int, Stream> & ioStreams);
+    static bool                 FindGap        (const Stream & stream, size_t & outFirst, size_t & outEnd);
+    static void                 FitGap         (Stream & ioStream, double bits);
+    static void                 FindGapMarker  (const std::vector<Byte> & revolution, std::vector<Byte> & outMarker);
     static void                 ToBits         (const Stream & stream, std::vector<uint8_t> & outBits, std::vector<size_t> & outStarts);
 
     static constexpr Byte    s_kSyncByte = 0xFF;
     static constexpr size_t  s_kMaxZeros = 2;
+
+    //  The zero bits a sync byte may have, which a controller reads alike up
+    //  to three, and the sync bytes in a row that make a track's gap.
+    static constexpr uint8_t  s_kMaxSyncZeros = 3;
+    static constexpr size_t   s_kGapSyncs     = 32;
+    static constexpr size_t   s_kResyncBytes  = 8;
 
     //  The range of revolution lengths for FindLength, and its sample; the
     //  step between FindReference's starts, the values a start's bytes
@@ -254,6 +263,7 @@ private:
     static constexpr Byte    s_kData          = 0xAD;
     static constexpr Byte    s_kRdosProlog0   = 0xD4;
     static constexpr Byte    s_kRdosAddress   = 0xB7;
+    static constexpr Byte    s_kOtherProlog1  = 0xBB;      // a data field's, as Archon's D5 BB CF
     static constexpr size_t  s_kAddressValues = 8;      // volume, track, sector and checksum, two bytes each
 
     //  The bytes after an address field's prolog that its data field's prolog

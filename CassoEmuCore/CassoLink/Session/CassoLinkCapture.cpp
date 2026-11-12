@@ -406,7 +406,7 @@ HRESULT CassoLinkCapture::ReadPosition (Run & run, int position, int reads, Posi
             if (FindReference (bytes, start, length))
             {
                 revolution.assign (bytes.begin() + (ptrdiff_t) start, bytes.begin() + (ptrdiff_t) (start + length));
-                FindMarker (revolution, outPosition.syncMarker);
+                FindGapMarker (revolution, outPosition.syncMarker);
             }
 
             outPosition.syncFrom = outPosition.syncMarker.empty() ? -1 : position;
@@ -664,11 +664,12 @@ void CassoLinkCapture::Write32 (std::vector<Byte> & bytes, size_t at, uint32_t v
 //
 //  The cycles a revolution of the drive takes, from the track whose second
 //  read waited on a marker on that track: the read started s_kSelfSyncCycles
-//  after the marker passed, so the share of the stream's bits from the
-//  read's first byte to the marker passing again is the revolution less that
-//  delay. A drive's speed differs from the writer's by a few percent, and a
-//  bit's time at s_kBitCycles is the writer's. 0 when no track waited on
-//  itself or the result is more than s_kRevolutionSpread from that.
+//  after the marker passed, and the bits from the read's first byte to the
+//  marker passing again took s_kBitCycles each. The marker is the address
+//  field before the track's gap (FindGapMarker), so the gap passes during
+//  the delay and every bit counted is data: a gap's length in the stream
+//  isn't its time on the disk. 0 when no track waited on itself or the
+//  result is more than s_kRevolutionSpread from the track's bits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -720,7 +721,7 @@ double CassoLinkCapture::TimeRevolution (const std::vector<Position> & positions
         double          measured = 0.0;
 
         ahead    = ahead <= 0.0 ? ahead + bits : ahead;
-        measured = s_kSelfSyncCycles / (1.0 - ahead / bits);
+        measured = s_kSelfSyncCycles + s_kBitCycles * ahead;
 
         if (std::abs (measured - expected) <= s_kRevolutionSpread * expected)
         {
@@ -887,6 +888,12 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
     UniteSyncZeros (streams);
 
     outResult.revolutionCycles = TimeRevolution (positions, streams);
+
+    for (auto & [position, stream] : streams)
+    {
+        FitGap (stream, outResult.revolutionCycles / s_kBitCycles);
+    }
+
     PlaceTracks (positions, streams, outResult.revolutionCycles, rotations, outResult.synchronized);
 
     image.ClearQuarterTrackMap();
