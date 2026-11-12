@@ -462,16 +462,18 @@ mnokey: lda #OPIDLE
         lda #3                  ; and three for each byte of an operation
         sta tmolen
         bcc mreply
-        jsr motoroff            ; with no PC, the drive stops
         jsr nopc
-        jmp main
+        lda pcflag              ; the drive stops with no PC; a PC that
+        bne mnspin              ; replies later, as a capture's analysis
+        jsr motoroff            ; between reads does, finds it spinning
+mnspin: jmp main
 mreply: jsr getpayload
         ifdef FAULTS
         bcc mrgot               ; main is out of a branch's range
         jmp main
 mrgot:
         else
-        bcs main
+        bcs mnspin              ; main is out of a branch's range
         endif
         jsr pcok
         lda envcmd
