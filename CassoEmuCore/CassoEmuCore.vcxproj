@@ -297,6 +297,12 @@
     <ClCompile Include="Devices\Disk\DiskFieldFormat.cpp" />
     <ClCompile Include="Devices\Disk\SectorFieldWriter.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\FieldLocator.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockFieldList.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockMap.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockMapBuilder.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Blocks\HfsBlockLayout.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Blocks\PascalBlockLayout.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Blocks\ProDosBlockLayout.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\DecodeSettings.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\DiskAnalyzer.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\DiskCopy.cpp" />
@@ -1064,6 +1070,12 @@
     <ClInclude Include="Devices\Disk\SectorFieldWriter.h" />
     <ClInclude Include="Devices\Disk\SectorWrite.h" />
     <ClInclude Include="Devices\Disk\Inspector\FieldLocator.h" />
+    <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockFieldList.h" />
+    <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockMap.h" />
+    <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockMapBuilder.h" />
+    <ClInclude Include="Devices\Disk\Inspector\Blocks\HfsBlockLayout.h" />
+    <ClInclude Include="Devices\Disk\Inspector\Blocks\PascalBlockLayout.h" />
+    <ClInclude Include="Devices\Disk\Inspector\Blocks\ProDosBlockLayout.h" />
     <ClInclude Include="Devices\Disk\Inspector\DecodeSettings.h" />
     <ClInclude Include="Devices\Disk\Inspector\DiskAnalysis.h" />
     <ClInclude Include="Devices\Disk\Inspector\DiskAnalyzer.h" />
