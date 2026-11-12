@@ -11,6 +11,8 @@
 #include "Devices/Disk/Inspector/Blocks/BlockMap.h"
 #include "Devices/Disk/OffsetBlockStore.h"
 
+struct Partition;
+
 
 
 
@@ -139,20 +141,40 @@ public:
     HRESULT                      ReadRun         (const LeftoverRun & run, vector<Byte> & outBytes);
 
 private:
+    //  A volume of blocks, or of DOS sectors in track and sector order: two
+    //  to a block, or one in the first or second half of each block, by
+    //  `half`. A sector volume's map units are its sectors.
     struct Volume
     {
-        uint32_t                           first = 0;
-        uint32_t                           count = 0;
+        uint32_t                           first           = 0;
+        uint32_t                           count           = 0;
         std::unique_ptr<OffsetBlockStore>  store;
         std::unique_ptr<BlockImage>        image;
         BlockMap                           map;
+        bool                               isSectors       = false;
+        int                                half            = -1;
+        int                                sectorsPerTrack = 0;
+        int                                number          = 0;
+    };
+
+    //  Where a block is in a volume: its unit, and for a sector volume the
+    //  half of the block the sector is in, or -1 for a whole block.
+    struct Place
+    {
+        int       volume = -1;
+        uint32_t  unit   = 0;
+        int       half   = -1;
     };
 
     HRESULT  BuildVolumes       ();
     void     AddVolume          (uint32_t first, uint32_t count, const std::wstring & label);
+    void     AddSectorVolume    (const Partition & partition);
     void     AddPartitionMap    ();
     void     AddPartitions      ();
     int      FindVolume         (uint32_t block) const;
+    void     FindPlaces         (uint32_t block, vector<Place> & outPlaces) const;
+    uint32_t GetUnitBlock       (const Volume & volume, uint32_t unit) const;
+    void     AnnotateSector     (const Place & place, const Block & bytes, vector<BlockField> & ioFields) const;
     bool     IsMapBlock         (uint32_t block, bool & outIsDescriptor) const;
     HRESULT  ComputeDifferences ();
 

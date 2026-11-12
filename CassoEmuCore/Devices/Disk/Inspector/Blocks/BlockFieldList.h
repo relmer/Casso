@@ -67,6 +67,9 @@ public:
     void  AddSplitLink (uint32_t lowOffset, uint32_t highOffset, const std::wstring & label, uint32_t blockCount);
     void  AddName      (uint32_t offset, uint32_t length, const std::wstring & label, bool isHighBitStripped);
 
+    //  Replaces the value of the field added last.
+    void  SetLastValue (const std::wstring & value);
+
     //  A run of bytes as text: printable ASCII as it is, the rest as '.'.
     std::wstring  GetText (uint32_t offset, uint32_t length) const;
 

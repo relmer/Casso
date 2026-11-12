@@ -13,7 +13,8 @@
 //  BlockFileSystem / BlockStructure
 //
 //  The file systems block mode reads, and the structure a block is part of,
-//  which selects how its bytes are annotated.
+//  which selects how its bytes are annotated. A DOS 3.3 volume inside another
+//  is mapped by the sector rather than the block.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,6 +25,7 @@ enum class BlockFileSystem
     Sos,
     Pascal,
     Hfs,
+    Dos33,
 };
 
 
@@ -42,6 +44,9 @@ enum class BlockStructure
     HfsAlternateMasterDirectory,
     HfsVolumeBitmap,
     HfsNode,
+    Dos33Vtoc,
+    Dos33Catalog,
+    Dos33TsList,
     FileData,
 };
 
@@ -110,6 +115,12 @@ struct BlockMap
 
     //  The block an HFS B-tree node is in, or kNoBlock.
     uint32_t          GetNodeBlock (uint32_t tree, uint32_t node) const;
+
+    //  The more notable of two roles, for a block of several units: damage
+    //  first, then the volume's structures, then files' data, then free
+    //  space.
+    static SectorRole  PickRole    (SectorRole a, SectorRole b);
+    static int         GetPriority (SectorRole role);
 
     //  The first 512-byte block of an HFS allocation block.
     uint32_t          GetAllocationBlock (uint32_t allocationBlock) const { return allocationStart + allocationBlock * blocksPerAllocation; }

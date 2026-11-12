@@ -4,6 +4,7 @@
 #include "Devices/Disk/Inspector/Blocks/ApplePartitionMap.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Devices/Disk/Inspector/Blocks/BlockMapBuilder.h"
+#include "Devices/Disk/Inspector/Blocks/Dos33SectorLayout.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 
 
@@ -158,6 +159,64 @@ void BlockInspectorModel::AddVolume (uint32_t first, uint32_t count, const std::
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockInspectorModel::AddSectorVolume
+//
+//  A DOS volume of 32 sectors a track, as an 800K disk's are, or of 16, as
+//  DOS Master's are, by its VTOC.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorModel::AddSectorVolume (const Partition & partition)
+{
+    static constexpr int  kTrackSizes[] = { 32, 16 };
+
+
+
+    HRESULT                  hr      = S_OK;
+    vector<Byte>             sectors;
+    std::unique_ptr<Volume>  volume  = std::make_unique<Volume>();
+    int                      tracks  = 0;
+    int                      spt     = 0;
+    bool                     isFound = false;
+
+
+
+    hr = PartitionLayout::ReadPartition (m_file->GetStore(), partition, sectors);
+
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    for (int size : kTrackSizes)
+    {
+        isFound = isFound || Dos33SectorLayout::TryReadGeometry (sectors, size, tracks, spt);
+    }
+
+    if (!isFound)
+    {
+        return;
+    }
+
+    volume->first           = partition.firstBlock;
+    volume->count           = partition.blockCount;
+    volume->isSectors       = true;
+    volume->half            = partition.span == PartitionSpan::FirstHalves ? 0 : partition.span == PartitionSpan::SecondHalves ? 1 : -1;
+    volume->sectorsPerTrack = spt;
+    volume->number          = partition.index;
+
+    Dos33SectorLayout::Walk (sectors, tracks, spt, volume->map);
+
+    m_bands.back().volume = (int) m_volumes.size();
+    m_volumes.push_back (std::move (volume));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockInspectorModel::AddPartitionMap
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -211,8 +270,8 @@ void BlockInspectorModel::AddPartitionMap()
 //
 //  BlockInspectorModel::AddPartitions
 //
-//  CFFA slices, MicroDrive and FocusDrive partitions, and the DOS volumes of
-//  an 800K disk. A partition of DOS sectors is a band with no volume.
+//  CFFA slices, MicroDrive and FocusDrive partitions, DOS Master's DOS
+//  volumes, and the DOS volumes of an 800K UniDOS, AmDOS or OzDOS disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -241,7 +300,11 @@ void BlockInspectorModel::AddPartitions()
 
         m_bands.push_back (band);
 
-        if (entry.partition.span == PartitionSpan::WholeBlocks && !entry.partition.dosSectors)
+        if (entry.partition.dosSectors)
+        {
+            AddSectorVolume (entry.partition);
+        }
+        else if (entry.partition.span == PartitionSpan::WholeBlocks)
         {
             AddVolume (band.first, band.count, band.label);
         }
@@ -266,7 +329,7 @@ int BlockInspectorModel::FindVolume (uint32_t block) const
 
     for (i = 0; i < (int) m_volumes.size(); i++)
     {
-        if (block >= m_volumes[i]->first && block - m_volumes[i]->first < m_volumes[i]->count)
+        if (!m_volumes[i]->isSectors && block >= m_volumes[i]->first && block - m_volumes[i]->first < m_volumes[i]->count)
         {
             return i;
         }
@@ -473,18 +536,93 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockInspectorModel::FindPlaces
+//
+//  Every volume a block is in. An OzDOS block is in two, a sector in each
+//  half.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorModel::FindPlaces (uint32_t block, vector<Place> & outPlaces) const
+{
+    uint32_t  inner = 0;
+    int       i     = 0;
+    int       half  = 0;
+
+
+
+    outPlaces.clear();
+
+    for (i = 0; i < (int) m_volumes.size(); i++)
+    {
+        const Volume  & volume = *m_volumes[i];
+
+        if (block < volume.first || block - volume.first >= volume.count)
+        {
+            continue;
+        }
+
+        inner = block - volume.first;
+
+        if (!volume.isSectors)
+        {
+            outPlaces.push_back ({ i, inner, -1 });
+        }
+        else if (volume.half >= 0)
+        {
+            outPlaces.push_back ({ i, inner, volume.half });
+        }
+        else
+        {
+            for (half = 0; half < 2; half++)
+            {
+                outPlaces.push_back ({ i, inner * 2 + (uint32_t) half, half });
+            }
+        }
+    }
+
+    std::erase_if (outPlaces, [this] (const Place & place) { return place.unit >= m_volumes[place.volume]->map.GetBlockCount(); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::GetUnitBlock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t BlockInspectorModel::GetUnitBlock (const Volume & volume, uint32_t unit) const
+{
+    if (!volume.isSectors || volume.half >= 0)
+    {
+        return volume.first + unit;
+    }
+
+    return volume.first + unit / 2;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockInspectorModel::GetRole
 //
 //  A partition map's descriptor is boot area and its entries a key block,
-//  as the structures every other block of the disk is found from.
+//  as the structures every other block of the disk is found from. A block
+//  of two sectors takes the more notable role.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 SectorRole BlockInspectorModel::GetRole (uint32_t block) const
 {
-    bool              isDescriptor = false;
-    uint32_t          inner        = 0;
-    const BlockMap  * map          = nullptr;
+    bool           isDescriptor = false;
+    vector<Place>  places;
+    SectorRole     role         = SectorRole::Free;
 
 
 
@@ -493,9 +631,14 @@ SectorRole BlockInspectorModel::GetRole (uint32_t block) const
         return isDescriptor ? SectorRole::BootArea : SectorRole::VtocOrKeyBlock;
     }
 
-    map = FindMap (block, inner);
+    FindPlaces (block, places);
 
-    return map != nullptr ? map->blocks[inner].role : SectorRole::Free;
+    for (const Place & place : places)
+    {
+        role = BlockMap::PickRole (role, m_volumes[place.volume]->map.blocks[place.unit].role);
+    }
+
+    return role;
 }
 
 
@@ -510,12 +653,27 @@ SectorRole BlockInspectorModel::GetRole (uint32_t block) const
 
 std::wstring BlockInspectorModel::GetOwners (uint32_t block) const
 {
-    uint32_t          inner = 0;
-    const BlockMap  * map   = FindMap (block, inner);
+    vector<Place>  places;
+    std::wstring   text;
+    std::wstring   owners;
 
 
 
-    return map != nullptr ? map->DescribeOwners (inner) : std::wstring();
+    FindPlaces (block, places);
+
+    for (const Place & place : places)
+    {
+        owners = m_volumes[place.volume]->map.DescribeOwners (place.unit);
+
+        if (owners.empty() || text.find (owners) != std::wstring::npos)
+        {
+            continue;
+        }
+
+        text += (text.empty() ? L"" : L"\n") + owners;
+    }
+
+    return text;
 }
 
 
@@ -526,14 +684,16 @@ std::wstring BlockInspectorModel::GetOwners (uint32_t block) const
 //
 //  BlockInspectorModel::GetFields
 //
+//  A field's link is the image's block. A sector's fields are moved to the
+//  half of the block the sector is in.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockInspectorModel::GetFields (uint32_t block, const Block & bytes, vector<BlockField> & outFields) const
 {
-    bool              isDescriptor = false;
-    uint32_t          inner        = 0;
-    const BlockMap  * map          = nullptr;
-    int               volume       = FindVolume (block);
+    bool                isDescriptor = false;
+    vector<Place>       places;
+    vector<BlockField>  fields;
 
 
 
@@ -553,21 +713,71 @@ void BlockInspectorModel::GetFields (uint32_t block, const Block & bytes, vector
         return;
     }
 
-    map = FindMap (block, inner);
+    FindPlaces (block, places);
 
-    if (map == nullptr)
+    for (const Place & place : places)
     {
-        return;
+        if (place.half >= 0)
+        {
+            AnnotateSector (place, bytes, outFields);
+            continue;
+        }
+
+        BlockMapBuilder::Annotate (m_volumes[place.volume]->map, place.unit, bytes, fields);
+
+        for (BlockField & field : fields)
+        {
+            if (field.link != BlockField::kNoLink)
+            {
+                field.link += m_volumes[place.volume]->first;
+            }
+
+            outFields.push_back (std::move (field));
+        }
     }
+}
 
-    BlockMapBuilder::Annotate (*map, inner, bytes, outFields);
 
-    for (BlockField & field : outFields)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::AnnotateSector
+//
+//  Each label starts with the volume and the sector's track and sector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorModel::AnnotateSector (const Place & place, const Block & bytes, vector<BlockField> & ioFields) const
+{
+    const Volume        & volume = *m_volumes[place.volume];
+    uint32_t              shift  = (uint32_t) place.half * Dos33SectorLayout::kSectorBytes;
+    vector<BlockField>    fields;
+    std::wstring          head   = L"Volume " + std::to_wstring (volume.number) + L", T" + std::to_wstring (place.unit / volume.sectorsPerTrack)
+                                 + L" S" + std::to_wstring (place.unit % volume.sectorsPerTrack) + L": ";
+
+
+
+    Dos33SectorLayout::Annotate (volume.map, place.unit, volume.sectorsPerTrack,
+                                 BlockBytes (bytes).subspan (shift, Dos33SectorLayout::kSectorBytes), fields);
+
+    for (BlockField & field : fields)
     {
+        field.offset += shift;
+        field.label   = head + field.label;
+
+        if (field.pairOffset >= 0)
+        {
+            field.pairOffset += (int32_t) shift;
+        }
+
         if (field.link != BlockField::kNoLink)
         {
-            field.link += m_volumes[volume]->first;
+            field.link = GetUnitBlock (volume, (uint32_t) field.link);
         }
+
+        ioFields.push_back (std::move (field));
     }
 }
 
@@ -620,29 +830,26 @@ bool BlockInspectorModel::TryFollowLink (int offset)
 
 bool BlockInspectorModel::HighlightFileAt (uint32_t block)
 {
-    uint32_t  inner  = 0;
-    int       volume = FindVolume (block);
+    vector<Place>  places;
 
 
 
     ClearHighlight();
+    FindPlaces (block, places);
 
-    if (volume < 0)
+    for (const Place & place : places)
     {
-        return false;
+        const vector<int> &  owners = m_volumes[place.volume]->map.blocks[place.unit].owners;
+
+        if (!owners.empty())
+        {
+            m_highlightVolume = place.volume;
+            m_highlightFile   = owners[0];
+            return true;
+        }
     }
 
-    inner = block - m_volumes[volume]->first;
-
-    if (m_volumes[volume]->map.blocks[inner].owners.empty())
-    {
-        return false;
-    }
-
-    m_highlightVolume = volume;
-    m_highlightFile   = m_volumes[volume]->map.blocks[inner].owners[0];
-
-    return true;
+    return false;
 }
 
 
@@ -657,19 +864,28 @@ bool BlockInspectorModel::HighlightFileAt (uint32_t block)
 
 bool BlockInspectorModel::IsHighlighted (uint32_t block) const
 {
-    int                   volume = m_highlightFile >= 0 ? FindVolume (block) : -1;
-    const vector<int>   * owners = nullptr;
+    vector<Place>  places;
 
 
 
-    if (volume < 0 || volume != m_highlightVolume)
+    if (m_highlightFile < 0)
     {
         return false;
     }
 
-    owners = &m_volumes[volume]->map.blocks[block - m_volumes[volume]->first].owners;
+    FindPlaces (block, places);
 
-    return std::find (owners->begin(), owners->end(), m_highlightFile) != owners->end();
+    for (const Place & place : places)
+    {
+        const vector<int> &  owners = m_volumes[place.volume]->map.blocks[place.unit].owners;
+
+        if (place.volume == m_highlightVolume && std::find (owners.begin(), owners.end(), m_highlightFile) != owners.end())
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 

@@ -104,3 +104,56 @@ uint32_t BlockMap::GetNodeBlock (uint32_t tree, uint32_t node) const
 
     return (*nodes)[node];
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMap::GetPriority
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BlockMap::GetPriority (SectorRole role)
+{
+    static constexpr SectorRole  kOrder[] =
+    {
+        SectorRole::Free,
+        SectorRole::FileData,
+        SectorRole::UnusedCatalogSector,
+        SectorRole::IndexBlock,
+        SectorRole::Subdirectory,
+        SectorRole::CatalogOrDirectory,
+        SectorRole::VolumeBitmap,
+        SectorRole::BootArea,
+        SectorRole::VtocOrKeyBlock,
+        SectorRole::BadBlocksFile,
+        SectorRole::AllocatedUnowned,
+        SectorRole::OwnedMarkedFree,
+        SectorRole::CrossLinked,
+    };
+
+
+
+    const SectorRole  * found = std::find (std::begin (kOrder), std::end (kOrder), role);
+
+
+
+    return found == std::end (kOrder) ? 0 : (int) (found - std::begin (kOrder));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMap::PickRole
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SectorRole BlockMap::PickRole (SectorRole a, SectorRole b)
+{
+    return GetPriority (b) > GetPriority (a) ? b : a;
+}

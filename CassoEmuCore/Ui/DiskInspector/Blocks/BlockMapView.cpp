@@ -81,7 +81,7 @@ void BlockMapView::Refresh()
         cell = m_grid.GetCellOf (block);
         role = m_model->GetRole (block);
 
-        m_roles[cell] = BlockMapGrid::PickRole (m_roles[cell], role);
+        m_roles[cell] = BlockMap::PickRole (m_roles[cell], role);
 
         if (m_model->HasHighlight() && m_model->IsHighlighted (block))
         {

@@ -46,10 +46,6 @@ public:
     //  gap right of or below a cell is in that cell.
     int64_t   FindCellAt (int xPx, int yPx) const;
 
-    //  The more notable of two roles, for a cell of several blocks.
-    static SectorRole  PickRole    (SectorRole a, SectorRole b);
-    static int         GetPriority (SectorRole role);
-
     //  A role's name in the map's pointer text and status line.
     static LPCWSTR     GetRoleName (SectorRole role);
 

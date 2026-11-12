@@ -306,6 +306,7 @@
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockFieldList.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockMap.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockMapBuilder.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Blocks\Dos33SectorLayout.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\HfsBlockLayout.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\PascalBlockLayout.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\ProDosBlockLayout.cpp" />
@@ -1094,6 +1095,7 @@
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockFieldList.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockMap.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockMapBuilder.h" />
+    <ClInclude Include="Devices\Disk\Inspector\Blocks\Dos33SectorLayout.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\HfsBlockLayout.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\PascalBlockLayout.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\ProDosBlockLayout.h" />

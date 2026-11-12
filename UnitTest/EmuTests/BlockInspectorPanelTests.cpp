@@ -104,8 +104,8 @@ public:
 
     TEST_METHOD (Grid_PicksTheMoreNotableRole)
     {
-        Assert::IsTrue (BlockMapGrid::PickRole (SectorRole::FileData, SectorRole::CrossLinked) == SectorRole::CrossLinked);
-        Assert::IsTrue (BlockMapGrid::PickRole (SectorRole::IndexBlock, SectorRole::Free) == SectorRole::IndexBlock);
+        Assert::IsTrue (BlockMap::PickRole (SectorRole::FileData, SectorRole::CrossLinked) == SectorRole::CrossLinked);
+        Assert::IsTrue (BlockMap::PickRole (SectorRole::IndexBlock, SectorRole::Free) == SectorRole::IndexBlock);
     }
 
 

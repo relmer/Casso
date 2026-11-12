@@ -341,3 +341,21 @@ std::wstring BlockFieldList::GetText (uint32_t offset, uint32_t length) const
 
     return text;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockFieldList::SetLastValue
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockFieldList::SetLastValue (const std::wstring & value)
+{
+    if (!m_fields.empty())
+    {
+        m_fields.back().value = value;
+    }
+}
