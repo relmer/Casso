@@ -208,6 +208,8 @@ protected:
     //  force when the menu opened comes back if it closes without a choice.
     void                 PreviewTheme    (const std::string & name);
     void                 EndThemePreview ();
+    void                 PinMenuFont     ();
+    void                 UnpinMenuFont   ();
 
     //  Protected so a test can hand the window a snapshot as a frame does.
     void             TakeSnapshot    (std::shared_ptr<const DebuggerViewSnapshot> snapshot);
@@ -745,6 +747,12 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::optional<std::string>              m_themeBeforePreview;
     CassoTheme                              m_ownTheme;
     DxuiTextRenderer::Typography            m_typography;
+
+    //  While a theme is previewed, the menus open when it began are drawn in
+    //  a copy of the typography they opened with, so their text fits the rows
+    //  measured in it, and whether that copy is in use.
+    DxuiTextRenderer::Typography            m_menuTypography;
+    bool                                    m_isMenuFontPinned   = false;
     const DxuiTextRenderer::Typography    * m_typographyInForce  = &DxuiTextRenderer::GetDefaultTypography();
     DxuiLightTheme                          m_lightTheme;
     DxuiDarkTheme                           m_darkTheme;

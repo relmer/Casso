@@ -5627,6 +5627,57 @@ DxuiPopupHost * DxuiHwndSource::AcquirePopup()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PinPopupTypography
+//
+//  Each open popup's window has the typography, which its renderer then
+//  finds before this window's; with none, the popups go back to this one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::PinPopupTypography (const DxuiTextRenderer::Typography * typography)
+{
+    for (DxuiPopupHost * popup : m_popupActive)
+    {
+        HWND  hwnd = (popup != nullptr) ? popup->GetHwnd() : nullptr;
+
+        if (hwnd == nullptr)
+        {
+            continue;
+        }
+
+        DxuiTextRenderer::AttachTypography (hwnd, typography);
+        popup->SetTypographyWindow ((typography != nullptr) ? hwnd : m_hwnd);
+        popup->MarkDirty();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MarkPopupsDirty
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::MarkPopupsDirty()
+{
+    for (DxuiPopupHost * popup : m_popupActive)
+    {
+        if (popup != nullptr)
+        {
+            popup->MarkDirty();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReleasePopup
 //
 //  Returns a previously-acquired popup to the idle set. The popup

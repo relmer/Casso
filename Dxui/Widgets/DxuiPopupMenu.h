@@ -153,7 +153,7 @@ public:
     ~DxuiPopupMenu () override;
 
     void  SetDpi      (UINT dpi)                { m_scaler.SetDpi (dpi); RefreshMetrics(); }
-    void  SetTheme    (const IDxuiTheme * th)   { m_theme = th; }
+    void  SetTheme    (const IDxuiTheme * th)   { m_theme = th; if (m_child != nullptr) { m_child->SetTheme (th); } }
     void  SetOnSelect (SelectFn fn)             { m_onSelect = std::move (fn); }
 
     void  SetOnHighlightChange (SelectFn fn)    { m_onHighlight = std::move (fn); }

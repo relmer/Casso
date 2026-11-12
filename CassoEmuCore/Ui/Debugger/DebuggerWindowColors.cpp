@@ -136,6 +136,16 @@ void DebuggerWindow::ApplyTheme (const std::string & name)
 
     ApplyTypography();
 
+    //  A theme's face can be wider than the last one's, so the columns are
+    //  fitted again in it, or the widest text would be cut.
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        for (DxuiListView * list : pane->GetLists())
+        {
+            list->ResetAutoFit();
+        }
+    }
+
     SetTheme            (m_theme);
     m_focusMgr.SetTheme (m_theme);
 

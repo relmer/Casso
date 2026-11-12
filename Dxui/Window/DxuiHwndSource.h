@@ -713,6 +713,14 @@ public:
     DxuiPopupHost  *  AcquirePopup ();
     void              ReleasePopup (DxuiPopupHost * popup);
 
+    //  The popups open now are drawn in this typography, not this window's,
+    //  until it is called again with none, so a menu measured in one face is
+    //  drawn in it while the window's face changes.
+    void              PinPopupTypography (const DxuiTextRenderer::Typography * typography);
+
+    //  Each open popup is drawn again, as after a theme change.
+    void              MarkPopupsDirty    ();
+
     //
     //  Adopt-mode popup device. A full-ownership host seeds its popup
     //  pool from its own m_device/m_context, but an adopt-mode host

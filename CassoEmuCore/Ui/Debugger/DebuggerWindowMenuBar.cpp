@@ -333,6 +333,7 @@ void DebuggerWindow::SetWindowMenus()
         row = DebuggerMenuCommand::Make (choice.label, current, [this, name]
         {
             m_themeBeforePreview.reset();
+            UnpinMenuFont();
 
             if (m_host != nullptr)
             {
@@ -514,15 +515,67 @@ void DebuggerWindow::OpenOptions()
 
 void DebuggerWindow::PreviewTheme (const std::string & name)
 {
-    if (!m_themeBeforePreview.has_value())
+    if (!m_themeBeforePreview.has_value() && m_typographyInForce != nullptr)
     {
         m_themeBeforePreview = m_themeName;
+        m_menuTypography     = *m_typographyInForce;
     }
+
+    PinMenuFont();
 
     if (name != m_themeName)
     {
         ApplyTheme (name);
     }
+
+    if (GetPopupHost() != nullptr)
+    {
+        GetPopupHost()->MarkPopupsDirty();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PinMenuFont
+//
+//  The menus open when the preview began are drawn in a copy of the
+//  typography they opened with, so the preview's face doesn't change the
+//  text of rows measured in that one. A menu opened during the preview is
+//  measured and drawn in the preview's face.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PinMenuFont()
+{
+    if (GetPopupHost() != nullptr && !m_isMenuFontPinned)
+    {
+        GetPopupHost()->PinPopupTypography (&m_menuTypography);
+        m_isMenuFontPinned = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::UnpinMenuFont
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UnpinMenuFont()
+{
+    if (GetPopupHost() != nullptr && m_isMenuFontPinned)
+    {
+        GetPopupHost()->PinPopupTypography (nullptr);
+    }
+
+    m_isMenuFontPinned = false;
 }
 
 
@@ -549,6 +602,7 @@ void DebuggerWindow::EndThemePreview()
         return;
     }
 
+    UnpinMenuFont();
     restore = *m_themeBeforePreview;
     m_themeBeforePreview.reset();
 
