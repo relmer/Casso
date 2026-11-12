@@ -130,8 +130,30 @@ std::wstring InspectorWindowSet::MakeKey (const std::wstring & path)
 
 bool InspectorWindowSet::CanInspect (const std::wstring & path)
 {
-    static constexpr std::array<const wchar_t *, 12>  s_kExtensions = { L".dsk", L".do", L".po", L".nib", L".nb2", L".woz", L".hdv", L".2mg", L".2img", L".dc", L".dc42", L".image" };
-    std::wstring                                       extension     = fs::path (path).extension().wstring();
+    static constexpr std::array<const wchar_t *, 6>  s_kBlockExtensions = { L".hdv", L".2mg", L".2img", L".dc", L".dc42", L".image" };
+    std::wstring                                      extension         = fs::path (path).extension().wstring();
+
+
+
+    std::transform (extension.begin(), extension.end(), extension.begin(), [] (wchar_t c) { return static_cast<wchar_t> (towlower (c)); });
+
+    return HasTrackFormat (path) || std::any_of (s_kBlockExtensions.begin(), s_kBlockExtensions.end(), [&extension] (const wchar_t * known) { return extension == known; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorWindowSet::HasTrackFormat
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorWindowSet::HasTrackFormat (const std::wstring & path)
+{
+    static constexpr std::array<const wchar_t *, 6>  s_kExtensions = { L".dsk", L".do", L".po", L".nib", L".nb2", L".woz" };
+    std::wstring                                      extension     = fs::path (path).extension().wstring();
 
 
 
