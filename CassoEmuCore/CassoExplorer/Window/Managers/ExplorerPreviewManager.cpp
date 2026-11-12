@@ -272,13 +272,13 @@ void ExplorerPreviewManager::FillPreview()
     m_lastKind = preview.kind;
 
     //  The thumbnail of an image selected alone in a folder, in a format the
-    //  inspector reads; none for one that fails to open (FR-072).
+    //  track inspector reads; none for one that fails to open (FR-072).
     {
         bool          wasShown = m_thumbnail.IsShown();
         bool          isImage  = visible && !error && m_context.browser.AreSelectedRowsImages() && m_context.browser.GetSelectedRows().size() == 1;
         std::wstring  path     = isImage ? m_context.cassoTarget.GetSelectedImagePath() : std::wstring();
 
-        m_thumbnail.SetPath (InspectorWindowSet::CanInspect (path) ? path : std::wstring());
+        m_thumbnail.SetPath (InspectorWindowSet::HasTrackFormat (path) ? path : std::wstring());
 
         if (m_thumbnail.IsShown() != wasShown || m_thumbnail.IsShown())
         {
