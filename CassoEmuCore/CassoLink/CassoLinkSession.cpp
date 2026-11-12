@@ -332,6 +332,27 @@ std::shared_ptr<LinkOperation> CassoLinkSession::ReadDisk (int drive, const std:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkSession::CaptureDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<LinkOperation> CassoLinkSession::CaptureDisk (int drive, const std::string & imagePath)
+{
+    std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
+
+
+
+    operation->imagePath = imagePath;
+
+    return Queue (LinkOperationKind::CaptureDisk, drive, FilePath(), operation);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkSession::WriteDisk
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -935,6 +956,7 @@ std::string CassoLinkSession::DescribeOperation (const LinkOperation & operation
                                                       : operation.fullSendSummary.empty() ? std::string ("FULL SEND DONE")
                                                                                           : "FULL SEND: " + operation.fullSendSummary; break;
         case LinkOperationKind::Krunch:          text = std::format ("{} {}", finished ? "KRUNCHED" : "KRUNCHING", drive);                 break;
+        case LinkOperationKind::CaptureDisk:     text = std::format ("{} {} TO PC", finished ? "CAPTURED" : "CAPTURING", drive);            break;
         default:                                 text = "WORKING";                                                                          break;
     }
 
@@ -1041,7 +1063,8 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
     //  listing, so no error is drawn on the Apple for them.
     m_host->SetQuiet (operation.kind == LinkOperationKind::Enumerate || operation.kind == LinkOperationKind::CheckLinkDisk);
 
-    if (operation.kind != LinkOperationKind::ReadDisk && operation.kind != LinkOperationKind::WriteDisk && operation.kind != LinkOperationKind::CheckLinkDisk && operation.kind != LinkOperationKind::FullSend)
+    if (operation.kind != LinkOperationKind::ReadDisk && operation.kind != LinkOperationKind::WriteDisk && operation.kind != LinkOperationKind::CheckLinkDisk && operation.kind != LinkOperationKind::FullSend
+     && operation.kind != LinkOperationKind::CaptureDisk)
     {
         hr = Revalidate (operation.drive);
         CHR (hr);
@@ -1095,6 +1118,10 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
 
         case LinkOperationKind::ReadDisk:
             hr = m_diskTransfer.ReadWholeDisk (operation);
+            break;
+
+        case LinkOperationKind::CaptureDisk:
+            hr = m_diskTransfer.CaptureWholeDisk (operation);
             break;
 
         case LinkOperationKind::WriteDisk:

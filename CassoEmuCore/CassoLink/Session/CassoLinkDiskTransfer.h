@@ -56,6 +56,7 @@ public:
     static bool     IsDamaged   (Byte error);
 
     HRESULT  ReadWholeDisk      (LinkOperation & operation);
+    HRESULT  CaptureWholeDisk   (LinkOperation & operation);
     HRESULT  SaveUnreadableList (const LinkOperation & operation);
     HRESULT  WriteWholeDisk     (LinkOperation & operation);
     HRESULT  CompareWrittenDisk (LinkOperation & operation, const std::vector<Byte> & sectors);

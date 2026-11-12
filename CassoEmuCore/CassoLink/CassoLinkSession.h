@@ -117,6 +117,10 @@ public:
     //  its extension, replaced atomically and only when the read succeeds.
     std::shared_ptr<LinkOperation>  ReadDisk      (int drive, const std::string & imagePath, bool blankUnreadable, bool forceVerify = false);
 
+    //  A raw capture of the drive's disk into a WOZ 2 image, by the capture
+    //  module; the message lists the tracks whose reads differ.
+    std::shared_ptr<LinkOperation>  CaptureDisk   (int drive, const std::string & imagePath);
+
     //  Verified transfers for whole disks, unless an operation asks for them itself.
     void  SetVerifySettings (bool reads, bool writes, bool autoReads) { m_verifyReads = reads; m_verifyWrites = writes; m_autoVerify = autoReads; }
 

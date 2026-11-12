@@ -44,6 +44,7 @@ public:
 
     void          RefreshCassoLinkViews   ();
     void          ReadDiskToImage         (const Location & drive = Location(), bool forceVerify = false);
+    void          CaptureRawDisk          (const Location & drive);
     void          StartImageWrite         (const Location & drive, const std::wstring & imagePath, bool forceVerify = false);
     bool          TryGetSelectedLinkDrive (Location & outDrive) const;
     bool          TryGetTargetDrive       (const Location & drive, Location & outDrive, std::wstring & outLink, int & outNumber) const;

@@ -71,6 +71,7 @@ enum class LinkOperationKind
     SaveLink,
     FullSend,
     Krunch,
+    CaptureDisk,
 };
 
 enum class LinkOperationState

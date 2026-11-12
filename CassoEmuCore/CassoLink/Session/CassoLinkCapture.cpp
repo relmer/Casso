@@ -39,6 +39,9 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         hr = ReadPosition (host, drive, module, position, kWholeReads, read);
         CHR (hr);
 
+        hr = ReadMore (host, drive, module, read);
+        CHR (hr);
+
         positions.push_back (std::move (read));
 
         if (progress)
@@ -72,6 +75,9 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         if (MakeStream (read, stream, unstable) && !IsSameStream (stream.bytes, below.bytes) && !IsSameStream (stream.bytes, above.bytes))
         {
             hr = ReadPosition (host, drive, module, position, kWholeReads, read);
+            CHR (hr);
+
+            hr = ReadMore (host, drive, module, read);
             CHR (hr);
         }
 
@@ -117,20 +123,100 @@ HRESULT CassoLinkCapture::ReadPosition (CassoLinkHost & host, Byte drive, std::s
         std::vector<Byte>  bytes;
         CassoLinkStatus    status;
         Byte               percent = (Byte) (position * 100 / (kLastPosition + 1));
+        Byte               delay   = kWholeDelays[read % kWholeReads];
 
         hr = host.EnsureModule (module);
         CHR (hr);
 
-        hr = host.CaptureQuarterTrack (drive, (Byte) position, percent, percent, bytes, status);
+        hr = host.CaptureQuarterTrack (drive, (Byte) position, delay, percent, percent, bytes, status);
         CHR (hr);
 
         CBREx (status.error == 0, HRESULT_FROM_WIN32 (ERROR_READ_FAULT));
 
         outPosition.reads.push_back (std::move (bytes));
+        outPosition.delays.push_back (delay);
     }
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::ReadMore
+//
+//  More reads at 8 cycles while an FF byte's zero bits can't be counted
+//  from its marks, up to kExtraReads.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCapture::ReadMore (CassoLinkHost & host, Byte drive, std::span<const Byte> module, Position & ioPosition)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    for (int extra = 0; extra < kExtraReads; extra++)
+    {
+        Stream             stream;
+        Marks              marks;
+        bool               unstable = false;
+        std::vector<Byte>  bytes;
+        CassoLinkStatus    status;
+        Byte               percent  = (Byte) (ioPosition.position * 100 / (kLastPosition + 1));
+
+        if (!CollectMarks (ioPosition, stream, marks, unstable) || !IsUncertain (stream, marks))
+        {
+            break;
+        }
+
+        hr = host.EnsureModule (module);
+        CHR (hr);
+
+        hr = host.CaptureQuarterTrack (drive, (Byte) ioPosition.position, 0, percent, percent, bytes, status);
+        CHR (hr);
+
+        CBREx (status.error == 0, HRESULT_FROM_WIN32 (ERROR_READ_FAULT));
+
+        ioPosition.reads.push_back (std::move (bytes));
+        ioPosition.delays.push_back (0);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::IsUncertain
+//
+//  An FF byte with some of its marks at 8 cycles set, but not all, and fewer
+//  than kSureSamples of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::IsUncertain (const Stream & stream, const Marks & marks)
+{
+    for (size_t at = 0; at < stream.bytes.size(); at++)
+    {
+        int  set  = marks.set[0][at];
+        int  read = marks.read[0][at];
+
+        if ((stream.bytes[at] | 0x80) == s_kSyncByte && set > 0 && set < read && read < kSureSamples)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 
@@ -288,6 +374,37 @@ int CassoLinkCapture::FindWholeTrack (const std::map<int, Stream> & streams, int
 
 bool CassoLinkCapture::MakeStream (const Position & position, Stream & outStream, bool & outUnstable)
 {
+    Marks  marks;
+
+
+
+    if (!CollectMarks (position, outStream, marks, outUnstable))
+    {
+        return false;
+    }
+
+    CountZeros (outStream.bytes, marks, outStream.zeros);
+    ToBits (outStream, outStream.bits);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::CollectMarks
+//
+//  The first read's revolution, each byte weak where a later read of the
+//  same length differs, and each byte's marks from every revolution of every
+//  read. False when the first read doesn't repeat.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStream, Marks & outMarks, bool & outUnstable)
+{
     size_t  length = 0;
 
 
@@ -303,7 +420,12 @@ bool CassoLinkCapture::MakeStream (const Position & position, Stream & outStream
 
     outStream.bytes.assign (position.reads[0].begin(), position.reads[0].begin() + (ptrdiff_t) length);
     outStream.weak.assign (length, false);
-    outStream.sync.assign (length, true);
+
+    for (int delay = 0; delay < 2; delay++)
+    {
+        outMarks.set[delay].assign (length, 0);
+        outMarks.read[delay].assign (length, 0);
+    }
 
     for (size_t read = 0; read < position.reads.size(); read++)
     {
@@ -318,19 +440,138 @@ bool CassoLinkCapture::MakeStream (const Position & position, Stream & outStream
             continue;
         }
 
+        int  delay = (read < position.delays.size() && position.delays[read] == 1) ? 1 : 0;
+
         for (size_t at = 0; at < length; at++)
         {
             size_t  mine = offset + at;
-            size_t  next = mine + length;
 
             outStream.weak[at] = outStream.weak[at] || (outStream.bytes[at] | 0x80) != (bytes[mine] | 0x80);
-            outStream.sync[at] = outStream.sync[at] && CaptureStream::IsSync (bytes[mine]) && (next >= bytes.size() || CaptureStream::IsSync (bytes[next]));
+
+            //  Every revolution of the read that has this byte.
+            for (size_t each = mine; each < bytes.size(); each += length)
+            {
+                outMarks.set[delay][at]  += CaptureStream::IsSync (bytes[each]) ? 1 : 0;
+                outMarks.read[delay][at] += 1;
+            }
         }
     }
 
-    ToBits (outStream, outStream.bits);
-
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::CountZeros
+//
+//  Each run of FF is split into stretches of one count by the most likely
+//  sequence of counts, from each byte's marks and a cost for each change
+//  between neighbors: a run of sync bytes has one count, and a run that
+//  mixes 8-bit and 9-bit FF, as some 13-sector disks have, changes only
+//  between the kinds. Any other byte is counted from its marks alone, with
+//  no zero bits much the likeliest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const Marks & marks, std::vector<uint8_t> & outZeros)
+{
+    size_t  length = bytes.size();
+    size_t  at     = 0;
+
+
+
+    outZeros.assign (length, 0);
+
+    while (at < length)
+    {
+        size_t                               end   = at;
+        std::vector<std::array<double, 4>>   score;
+        std::vector<std::array<int, 4>>      from;
+        bool                                 isRun = (bytes[at] | 0x80) == s_kSyncByte;
+        int                                  best  = 0;
+
+        while (end < length && ((bytes[end] | 0x80) == s_kSyncByte) == isRun && (isRun || end == at))
+        {
+            end++;
+        }
+
+        score.resize (end - at);
+        from.resize (end - at);
+
+        for (size_t each = at; each < end; each++)
+        {
+            size_t  index = each - at;
+
+            for (int zeros = 0; zeros < 4; zeros++)
+            {
+                double  emit  = GetMarkScore (zeros, marks, each) + std::log (isRun ? s_kRunPrior[zeros] : s_kLonePrior[zeros]);
+                double  top   = -1e300;
+                int     arg   = zeros;
+
+                for (int prior = 0; index > 0 && prior < 4; prior++)
+                {
+                    double  path = score[index - 1][(size_t) prior] + std::log (prior == zeros ? 1.0 - s_kChange : s_kChange / 3.0);
+
+                    if (path > top)
+                    {
+                        top = path;
+                        arg = prior;
+                    }
+                }
+
+                score[index][(size_t) zeros] = emit + (index > 0 ? top : 0.0);
+                from[index][(size_t) zeros]  = arg;
+            }
+        }
+
+        for (int zeros = 1; zeros < 4; zeros++)
+        {
+            best = (score.back()[(size_t) zeros] > score.back()[(size_t) best]) ? zeros : best;
+        }
+
+        for (size_t index = end - at; index-- > 0; )
+        {
+            outZeros[at + index] = (uint8_t) best;
+            best                 = from[index][(size_t) best];
+        }
+
+        at = end;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::GetMarkScore
+//
+//  The log of the chance of a byte's marks if it has `zeros` zero bits
+//  after it, from the chance of a mark at each delay with that many.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double CassoLinkCapture::GetMarkScore (int zeros, const Marks & marks, size_t at)
+{
+    double  score = 0.0;
+
+
+
+    for (int delay = 0; delay < 2; delay++)
+    {
+        double  chance = s_kMarkChance[delay][zeros];
+        int     set    = marks.set[delay][at];
+        int     unset  = marks.read[delay][at] - set;
+
+        score += set * std::log (chance) + unset * std::log (1.0 - chance);
+    }
+
+    return score;
 }
 
 
@@ -459,10 +700,6 @@ void CassoLinkCapture::ToBits (const Stream & stream, std::vector<uint8_t> & out
             outBits.push_back ((uint8_t) ((value >> bit) & 1));
         }
 
-        if (stream.sync[at])
-        {
-            outBits.push_back (0);
-            outBits.push_back (0);
-        }
+        outBits.insert (outBits.end(), stream.zeros[at], (uint8_t) 0);
     }
 }

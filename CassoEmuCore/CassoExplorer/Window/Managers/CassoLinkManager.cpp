@@ -281,6 +281,66 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkManager::CaptureRawDisk
+//
+//  A linked drive's disk captured raw into a WOZ the user picks, for a
+//  copy-protected disk, and the tracks whose reads differ reported when
+//  it's done.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::CaptureRawDisk (const Location & drive)
+{
+    HRESULT                        hr     = S_OK;
+    std::filesystem::path          picked;
+    bool                           chosen = false;
+    Location                       target;
+    std::wstring                   link;
+    int                            number = 0;
+    bool                           found  = false;
+    FileDialogSpec                 spec;
+    CassoExplorerActions::Outcome  outcome;
+    HWND                           owner  = m_context.window.GetHwnd();
+
+
+
+    found = TryGetTargetDrive (drive, target, link, number);
+    BAIL_OUT_IF (!found, S_OK);
+
+    spec.filters          = { FileDialogFilter { L"WOZ disk images (*.woz)", L"*.woz" } };
+    spec.clientGuid       = s_kLinkDiskPickerGuid;
+    spec.defaultFileName  = std::filesystem::path (ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number)).replace_extension (L".woz").wstring();
+    spec.defaultExtension = L"woz";
+    spec.title            = std::format (L"Capture raw disk from {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
+
+    hr = m_context.dialogs.PickFileToSave (owner, spec, picked, chosen);
+    CHR (hr);
+    BAIL_OUT_IF (!chosen, S_OK);
+
+    outcome = m_context.actions.CaptureDisk (TextEncoding::WideToNarrow (link), number, picked.wstring(), [this, picked] (const std::wstring & report)
+    {
+        std::wstring  text = picked.filename().wstring() + L" was captured." + (report.empty() ? std::wstring() : L"\n\n" + report);
+
+        m_context.window.ShowMessage (text.c_str(), MB_ICONINFORMATION);
+    });
+
+    if (!outcome.Succeeded())
+    {
+        m_context.window.ShowMessage (outcome.message, MB_ICONERROR);
+    }
+
+    HandleConnectionChanged();
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkManager::GetDefaultFullSendFolder
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1765,6 +1825,7 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
 
         m_context.menus.AddMenuCommand (items, std::format (L"Create &image from {}...", title).c_str(), [this, location]() { ReadDiskToImage (location); });
         m_context.menus.AddMenuCommand (items, std::format (L"Create &verified image from {}...", title).c_str(), [this, location]() { ReadDiskToImage (location, true); });
+        m_context.menus.AddMenuCommand (items, std::format (L"Ca&pture raw disk from {}...", title).c_str(), [this, location]() { CaptureRawDisk (location); });
         m_context.menus.AddMenuCommand (items, std::format (L"&Write image to {}...", title).c_str(), [this, location]() { WriteImageToDisk (location); });
         m_context.menus.AddMenuCommand (items, std::format (L"Write image to {} and veri&fy...", title).c_str(), [this, location]() { WriteImageToDisk (location, true); });
         m_context.menus.AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { SaveLinkToDisk (location); });

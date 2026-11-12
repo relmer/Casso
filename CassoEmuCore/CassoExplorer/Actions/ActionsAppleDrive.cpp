@@ -1170,6 +1170,49 @@ ActionsTypes::Outcome ActionsAppleDrive::ReadDiskToImage (const std::string & li
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ActionsAppleDrive::CaptureDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsAppleDrive::CaptureDisk (const std::string & link, int drive, const std::wstring & imagePath, std::function<void (const std::wstring & report)> report)
+{
+    ActionsTypes::Outcome    outcome;
+    CassoLinkConnections   * links   = m_actions.m_browser.GetLinks();
+    std::string              path    = TextEncoding::WideToNarrow (imagePath);
+    HRESULT                  hr      = S_OK;
+
+
+
+    hr = links->Submit (link, [drive, path] (CassoLinkSession & session) { return session.CaptureDisk (drive, path); },
+                        Guard ([report] (const LinkOperation & operation) -> std::wstring
+    {
+        if (FAILED (operation.result))
+        {
+            return CassoLinkConnections::DescribeFailure (operation);
+        }
+
+        if (report)
+        {
+            report (TextEncoding::NarrowToWide (operation.message));
+        }
+
+        return std::wstring();
+    }));
+
+    if (FAILED (hr))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"CassoLink could not be started.");
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ActionsAppleDrive::WriteImageToDisk
 //
 ////////////////////////////////////////////////////////////////////////////////

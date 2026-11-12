@@ -152,10 +152,10 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::CaptureQuarterTrack (Byte drive, Byte position, Byte startPercent, Byte endPercent, std::vector<Byte> & outBytes, CassoLinkStatus & outStatus)
+HRESULT CassoLinkHost::CaptureQuarterTrack (Byte drive, Byte position, Byte delay, Byte startPercent, Byte endPercent, std::vector<Byte> & outBytes, CassoLinkStatus & outStatus)
 {
     HRESULT            hr        = S_OK;
-    const Byte         request[] = { startPercent, endPercent, drive, position };
+    const Byte         request[] = { startPercent, endPercent, drive, position, delay };
     CassoLinkPacket    packet;
     std::vector<bool>  received (CassoLinkCodec::kCapturePages, false);
     bool               whole     = false;
@@ -208,6 +208,21 @@ HRESULT CassoLinkHost::CaptureQuarterTrack (Byte drive, Byte position, Byte star
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::BuildCaptureModule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::BuildCaptureModule (std::vector<Byte> & outModule) const
+{
+    return LinkProgram::BuildCaptureModule (outModule, m_programChip, m_faultProgram);
 }
 
 

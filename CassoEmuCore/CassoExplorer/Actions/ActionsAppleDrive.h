@@ -73,6 +73,10 @@ public:
 
     ActionsTypes::Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, ActionsTypes::UnreadableFn onUnreadable);
     ActionsTypes::Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, ActionsTypes::UnreadableFn onUnreadable);
+
+    //  A raw capture of a linked drive's disk into a WOZ, for a copy-protected
+    //  disk; `report` is called with the tracks whose reads differ, if any.
+    ActionsTypes::Outcome  CaptureDisk      (const std::string & link, int drive, const std::wstring & imagePath, std::function<void (const std::wstring & report)> report);
     ActionsTypes::Outcome  WriteImageToDisk (const std::wstring & imagePath);
 
     ActionsTypes::Outcome  WriteImageToAppleDrive (const std::string & link, int drive, const std::wstring & imagePath, bool forceVerify = false);

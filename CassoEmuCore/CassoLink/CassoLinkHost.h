@@ -311,7 +311,11 @@ public:
     //  A raw read of a quarter-track position by the capture module, which
     //  must be loaded: the bytes as the Apple stored them, a sync byte with
     //  its top bit clear. A page that fails its CRC fails the read.
-    HRESULT  CaptureQuarterTrack (Byte drive, Byte position, Byte startPercent, Byte endPercent, std::vector<Byte> & outBytes, CassoLinkStatus & outStatus);
+    //  The delay is the second read of each byte's: 0 for 8 cycles, 1 for 12.
+    HRESULT  CaptureQuarterTrack (Byte drive, Byte position, Byte delay, Byte startPercent, Byte endPercent, std::vector<Byte> & outBytes, CassoLinkStatus & outStatus);
+
+    //  The capture module for the program this host loads.
+    HRESULT  BuildCaptureModule  (std::vector<Byte> & outModule) const;
 
     //  A request of the module loaded, and the first packet in reply.
     HRESULT  RequestModule     (Byte command, std::span<const Byte> payload, CassoLinkPacket & outReply);

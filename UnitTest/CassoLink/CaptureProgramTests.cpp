@@ -107,7 +107,7 @@ public:
 
         AssertSucceeded (LinkProgram::BuildCaptureModule (module));
         AssertSucceeded (rig.host->EnsureModule (module));
-        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 0, 0, 100, bytes, status));
+        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 0, 0, 0, 100, bytes, status));
 
         Assert::AreEqual ((Byte) 0, status.error);
 

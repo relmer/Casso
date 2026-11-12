@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
+#include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/TrackVerifier.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkSession.h"
@@ -23,6 +24,65 @@
 CassoLinkDiskTransfer::CassoLinkDiskTransfer (CassoLinkSession & session)
     : m_session (session)
 {
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::CaptureWholeDisk
+//
+//  The WOZ is written only once every position has been read. The message
+//  lists the tracks with bytes that differ between reads, as a protection's
+//  weak bits do, and those whose reads differ in length.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
+{
+    HRESULT                   hr       = S_OK;
+    std::vector<Byte>         module;
+    CassoLinkCapture::Result  result;
+    CommitPlan::Progress      progress;
+    std::string               date     = std::format ("{:%Y-%m-%d}", std::chrono::system_clock::now());
+    auto                      listTracks = [] (const std::vector<int> & positions)
+    {
+        std::string  text;
+
+        for (int position : positions)
+        {
+            text += (text.empty() ? "" : ", ") + (position % 4 == 0 ? std::to_string (position / 4) : std::format ("{:.2f}", position / 4.0));
+        }
+
+        return text;
+    };
+
+
+
+    hr = m_session.m_host->BuildCaptureModule (module);
+    CHR (hr);
+
+    hr = CassoLinkCapture::Capture (*m_session.m_host, (Byte) operation.drive, module, date,
+                                    [this, &operation] (int done, int total) { m_session.Report (operation, done * 100 / total); }, result);
+    CHR (hr);
+
+    hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, result.woz, m_commitTag++, CommitMode::Replace, progress);
+    CHR (hr);
+
+    if (!result.weak.empty())
+    {
+        operation.message = "Tracks whose reads differ, written as random bits: " + listTracks (result.weak) + ".";
+    }
+
+    if (!result.unstable.empty())
+    {
+        operation.message += (operation.message.empty() ? "" : " ") + std::string ("Tracks whose reads differ in length: ") + listTracks (result.unstable) + ".";
+    }
+
+Error:
+    return hr;
 }
 
 

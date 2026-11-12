@@ -3,7 +3,8 @@
 ; position of a 5.25" disk, for a WOZ of a copy-protected disk.
 ;
 ; Request (CMDCAPTURE): the percentages at the request's start and end, the
-; drive and the quarter-track position, 0 to 139. The arm goes to the
+; drive, the quarter-track position, 0 to 139, and the delay of the second
+; read of each byte: 0 for 8 cycles, 1 for 12. The arm goes to the
 ; position: to the half track with the program's stepto, and for an odd
 ; position, to the quarter between it and the next half track, with both
 ; their phases on while the read runs.
@@ -12,13 +13,16 @@
 ; with no gap between bytes: a little over two revolutions of a 16-sector
 ; track. By Sather's Table 9.5, a finished byte is about 8 cycles in the latch,
 ; and 4 more for each zero bit after it, so the loop reads the latch again
-; 8 cycles after it finds a byte; when the latch has the same byte then, the
-; byte is followed by zero bits, as a sync byte is, and it is stored with its
-; top bit clear. A disk byte always has its top bit set, so the bit is free.
+; 8 or 12 cycles after it finds a byte; when the latch has the same byte
+; then, the byte is followed by zero bits, as a sync byte is, and it is
+; stored with its top bit clear. A disk byte always has its top bit set, so
+; the bit is free. The read that finds a byte is up to 7 cycles after the
+; byte is finished, so one read at 8 marks a byte followed by one zero bit
+; about four times in seven, and one at 12 marks one followed by two zero
+; bits as often: the PC counts the zero bits from the marks of several reads.
 ;
 ; The loop is one copy per page, made by capbuild, so that no page crossing
-; adds cycles to a byte: from the read that finds a byte to the next poll is
-; 23 cycles, under the 32 of the next byte.
+; adds cycles to a byte.
 ;
 ; Reply: each page as Capture data (CMDCAPDATA): the page's index, its 256
 ; bytes and their CRC-16/XMODEM, low byte first; then a Status.
@@ -30,13 +34,12 @@ CAPBUF     = $5800
 CAPEND     = $9000
 CAPPAGES   = (CAPEND - CAPBUF) / 256
 CAPCODE    = $5200              ; the loop, a copy for each page
-COPYLEN    = 19                 ; the bytes of one copy
 
 ; The page index and the 256 bytes and the CRC: the payload's length.
 CAPLEN     = 1 + 256 + 2
 
         .org $5000
-        .byte 'C', 'M', 1, 1    ; capture, version 1
+        .byte 'C', 'M', 1, 2    ; capture, version 2
         .word PROGVER
         .word modend - $5000
         .word 0                 ; the CRC, which the PC fills in
@@ -47,6 +50,10 @@ CAPLEN     = 1 + 256 + 2
 ; Zero page the program doesn't use.
 cpos     = $40                  ; the position
 cpage    = $41                  ; capsend's page
+ctempl   = $42                  ; and $43: capbuild's copy of the loop
+clen     = $44                  ; its length
+ccmp     = $45                  ; the offset of its second read's address
+csta     = $46                  ; the offset of its store's page
 
 capture: lda #p_OPREAD
         sta p_op
@@ -56,6 +63,8 @@ capture: lda #p_OPREAD
         sta p_phi
         lda p_PKTBUF+2
         sta p_drive
+        lda p_PKTBUF+4          ; the second read's delay
+        jsr cpdelay
         lda p_PKTBUF+3
         sta cpos
         lsr a
@@ -139,6 +148,33 @@ cpoff:  ldx p_drive
         lda p_PHASEOFF,x
         rts
 
+; cpdelay: the copy of the loop for the delay in A, 0 for 8 cycles and 1 for
+; 12, into ctempl, clen, ccmp and csta.
+cpdelay: cmp #1
+        beq cpd12
+        lda #<copy8
+        sta ctempl
+        lda #>copy8
+        sta ctempl+1
+        lda #copy8end-copy8
+        sta clen
+        lda #cmp8+1-copy8
+        sta ccmp
+        lda #sta8+2-copy8
+        sta csta
+        rts
+cpd12:  lda #<copy12
+        sta ctempl
+        lda #>copy12
+        sta ctempl+1
+        lda #copy12end-copy12
+        sta clen
+        lda #cmp12+1-copy12
+        sta ccmp
+        lda #sta12+2-copy12
+        sta csta
+        rts
+
 ; capbuild: the loop's copy for each page at CAPCODE, each storing to its
 ; page, then an RTS. The latch's address is the slot's.
 capbuild: lda #<CAPCODE
@@ -148,24 +184,24 @@ capbuild: lda #<CAPCODE
         lda #>CAPBUF
         sta cpage
 cbpage: ldy #0
-cbbyte: lda copy,y
+cbbyte: lda (ctempl),y
         sta (p_ptr),y
         iny
-        cpy #COPYLEN
+        cpy clen
         bne cbbyte
         ldy #1                  ; the latch's address in the slot, twice
         lda p_diskx
         clc
         adc #<p_Q6L
         sta (p_ptr),y
-        ldy #7
+        ldy ccmp
         sta (p_ptr),y
-        ldy #15                 ; the page this copy stores to
+        ldy csta                ; the page this copy stores to
         lda cpage
         sta (p_ptr),y
         lda p_ptr
         clc
-        adc #COPYLEN
+        adc clen
         sta p_ptr
         bcc cbnext
         inc p_ptr+1
@@ -178,18 +214,37 @@ cbnext: inc cpage
         sta (p_ptr),y
         rts
 
-; One copy of the loop, with X = 0 as the latch's offset is in its address.
-copy:
-cpoll:  lda $C000               ; patched: the slot's latch
-        bpl cpoll
-        nop                     ; the second read 8 cycles after the first
-        cmp $C000               ; patched: the slot's latch
-        bne cplain
+; The loop, with the second read 8 cycles after the first: the BPL not
+; taken, a NOP and the CMP's four.
+copy8:
+cpoll8: lda $C000               ; patched: the slot's latch
+        bpl cpoll8
+        nop
+cmp8:   cmp $C000               ; patched: the slot's latch
+        bne cplain8
         and #$7F                ; zero bits followed it
-cplain: sta CAPBUF,y            ; patched: the copy's page
+cplain8:
+sta8:   sta CAPBUF,y            ; patched: the copy's page
         iny
-        bne cpoll
-copyend:
+        bne cpoll8
+copy8end:
+
+; And 12 cycles after it, with three NOPs. From the read that finds a byte
+; to the next poll is 26 cycles, under the 32 of the next byte.
+copy12:
+cpoll12: lda $C000              ; patched: the slot's latch
+        bpl cpoll12
+        nop
+        nop
+        nop
+cmp12:  cmp $C000               ; patched: the slot's latch
+        bne cplain12
+        and #$7F                ; zero bits followed it
+cplain12:
+sta12:  sta CAPBUF,y            ; patched: the copy's page
+        iny
+        bne cpoll12
+copy12end:
 
 ; capsend: each page as Capture data.
 capsend: lda #0

@@ -184,6 +184,7 @@
     <ClCompile Include="Dos32Tests.cpp" />
     <ClCompile Include="LargeVolumeTests.cpp" />
     <ClCompile Include="CollectionScaleTests.cpp" />
+    <ClCompile Include="CassoLinkCaptureTests.cpp" />
     <ClCompile Include="VisiCalcTests.cpp" />
     <ClCompile Include="PartitionTests.cpp" />
     <ClCompile Include="ResourceForkTests.cpp" />
