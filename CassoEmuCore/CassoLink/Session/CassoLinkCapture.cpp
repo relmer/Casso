@@ -61,7 +61,7 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         //  Each whole track after the first waits on a marker on the one
         //  before, so the tracks can be placed relative to each other. The
         //  first waits on a marker on itself, so the drive's revolution can
-        //  be timed (MeasureRevolution).
+        //  be timed (TimeRevolution).
         if (positions.empty())
         {
             read.syncFrom = position;
@@ -660,7 +660,7 @@ void CassoLinkCapture::Write32 (std::vector<Byte> & bytes, size_t at, uint32_t v
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkCapture::MeasureRevolution
+//  CassoLinkCapture::TimeRevolution
 //
 //  The cycles a revolution of the drive takes, from the track whose second
 //  read waited on a marker on that track: the read started s_kSelfSyncCycles
@@ -672,7 +672,7 @@ void CassoLinkCapture::Write32 (std::vector<Byte> & bytes, size_t at, uint32_t v
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-double CassoLinkCapture::MeasureRevolution (const std::vector<Position> & positions, const std::map<int, Stream> & streams)
+double CassoLinkCapture::TimeRevolution (const std::vector<Position> & positions, const std::map<int, Stream> & streams)
 {
     double  cycles = 0.0;
 
@@ -744,7 +744,7 @@ double CassoLinkCapture::MeasureRevolution (const std::vector<Position> & positi
 //  turned. A track whose first read waited on a marker on the track before
 //  is placed by it: the marker's last bit is at that track's angle for it,
 //  the read's first byte s_kSyncCycles later, a revolution being the
-//  drive's measured cycles (MeasureRevolution), or the track's bits at
+//  drive's measured cycles (TimeRevolution), or the track's bits at
 //  s_kBitCycles each when it wasn't measured, and the stream's first byte
 //  the bits of the read's bytes before it after that. A track without one starts at angle 0, and the
 //  tracks aren't synchronized.
@@ -884,7 +884,7 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
         streams.emplace (position.position, std::move (stream));
     }
 
-    outResult.revolutionCycles = MeasureRevolution (positions, streams);
+    outResult.revolutionCycles = TimeRevolution (positions, streams);
     PlaceTracks (positions, streams, outResult.revolutionCycles, rotations, outResult.synchronized);
 
     image.ClearQuarterTrackMap();
