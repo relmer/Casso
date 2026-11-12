@@ -22,7 +22,8 @@ public:
     static constexpr uint8_t  kMarkNone    = 0;
     static constexpr uint8_t  kMarkLink    = 1;
     static constexpr uint8_t  kMarkField   = 2;
-    static constexpr uint8_t  kMarkChanged = 3;
+    static constexpr uint8_t  kMarkDiffers = 3;
+    static constexpr uint8_t  kMarkChanged = 4;
 
     void  SetBytes   (std::span<const Byte> bytes);
     void  ClearMarks ();

@@ -73,6 +73,8 @@ void BlockMapView::Refresh()
 
     m_roles.assign (m_grid.GetCellCount(), SectorRole::Free);
     m_highlighted.assign (m_grid.GetCellCount(), false);
+    m_differs.assign (m_grid.GetCellCount(), false);
+    m_leftovers.assign (m_grid.GetCellCount(), false);
 
     for (block = 0; block < count && m_grid.GetCellCount() != 0; block++)
     {
@@ -84,6 +86,16 @@ void BlockMapView::Refresh()
         if (m_model->HasHighlight() && m_model->IsHighlighted (block))
         {
             m_highlighted[cell] = true;
+        }
+
+        if (m_model->IsDifferent (block))
+        {
+            m_differs[cell] = true;
+        }
+
+        if (m_model->HasLeftovers() && m_model->FindLeftoverRun (block) != nullptr)
+        {
+            m_leftovers[cell] = true;
         }
     }
 }
@@ -292,6 +304,7 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, const IDxuiTheme & theme,
     DiskInspectorPalette  palette = DiskInspectorPalette::MakeFallback (DiskInspectorPalette::IsDarkSurface (theme.Background()));
     float                 size    = (float) m_grid.GetCellPx();
     float                 inset   = std::max (1.0f, std::floor (size / 4.0f));
+    float                 corner  = std::max (2.0f, std::floor (size / 2.0f));
     float                 outline = m_scaler.ToPxf (kOutlineDip);
     uint32_t              cell    = 0;
     POINT                 at      = {};
@@ -312,6 +325,21 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, const IDxuiTheme & theme,
         {
             painter.FillRect ((float) (grid.left + at.x), (float) (grid.top + at.y), size, size,
                               palette.GetRoleColor (static_cast<MapRole> (m_roles[cell])));
+        }
+    }
+
+    for (cell = 0; cell < m_grid.GetCellCount(); cell++)
+    {
+        at = m_grid.GetCellOrigin (cell);
+
+        if (m_differs[cell])
+        {
+            painter.FillRect ((float) (grid.left + at.x) + size - corner, (float) (grid.top + at.y), corner, corner, theme.ErrorForeground());
+        }
+
+        if (m_leftovers[cell])
+        {
+            painter.FillRect ((float) (grid.left + at.x), (float) (grid.top + at.y) + size - corner, corner, corner, theme.Accent());
         }
     }
 

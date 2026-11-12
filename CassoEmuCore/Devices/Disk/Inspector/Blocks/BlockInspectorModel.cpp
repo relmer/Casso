@@ -775,6 +775,279 @@ HRESULT BlockInspectorModel::ApplyEdits (std::wstring & outError)
     hr = BuildVolumes();
     CHR (hr);
 
+    if (IsComparing())
+    {
+        hr = ComputeDifferences();
+        CHR (hr);
+    }
+
+    if (m_hasLeftovers)
+    {
+        FindLeftovers();
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::CompareWith
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlockInspectorModel::CompareWith (std::unique_ptr<BlockImageFile> other)
+{
+    HRESULT  hr      = S_OK;
+    bool     isOther = other != nullptr;
+
+
+
+    CBRAEx (isOther, E_INVALIDARG);
+
+    m_other = std::move (other);
+
+    hr = ComputeDifferences();
+    CHR (hr);
+
+Error:
+    if (FAILED (hr))
+    {
+        EndComparison();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::ComputeDifferences
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlockInspectorModel::ComputeDifferences()
+{
+    HRESULT   hr     = S_OK;
+    uint32_t  count  = std::max (GetBlockCount(), m_other->GetBlockCount());
+    uint32_t  block  = 0;
+    Block     mine   = {};
+    Block     theirs = {};
+
+
+
+    m_differs.assign (count, false);
+    m_differCount = 0;
+
+    for (block = 0; block < count; block++)
+    {
+        mine.fill (0);
+        theirs.fill (0);
+
+        if (block < GetBlockCount())
+        {
+            hr = ReadStoredBlock (block, mine);
+            CHR (hr);
+        }
+
+        if (block < m_other->GetBlockCount())
+        {
+            hr = ReadOtherBlock (block, theirs);
+            CHR (hr);
+        }
+
+        if (mine != theirs)
+        {
+            m_differs[block] = true;
+            m_differCount++;
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::EndComparison
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorModel::EndComparison()
+{
+    m_other.reset();
+    m_differs.clear();
+
+    m_differCount = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::ReadOtherBlock
+//
+//  A block past the other image's end is zeros.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlockInspectorModel::ReadOtherBlock (uint32_t block, Block & outBytes)
+{
+    HRESULT  hr      = S_OK;
+    bool     isOther = m_other != nullptr;
+    bool     isPast  = isOther && block >= m_other->GetBlockCount();
+
+
+
+    outBytes.fill (0);
+
+    CBRAEx (isOther, E_UNEXPECTED);
+    BAIL_OUT_IF (isPast, S_OK);
+
+    hr = m_other->GetStore().ReadBlocks (block, 1, outBytes);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::FindDifference
+//
+//  The next or previous block that differs from the current one, wrapping
+//  past either end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockInspectorModel::FindDifference (bool isForward, uint32_t & outBlock) const
+{
+    uint32_t  count = (uint32_t) m_differs.size();
+    uint32_t  step  = 0;
+    uint32_t  at    = 0;
+
+
+
+    for (step = 1; step <= count; step++)
+    {
+        at = isForward ? (m_block + step) % count : (m_block + count - step % count) % count;
+
+        if (m_differs[at])
+        {
+            outBlock = at;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::FindLeftovers
+//
+//  Each free block's bytes as the file has them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorModel::FindLeftovers()
+{
+    vector<LeftoverKind>  kinds (GetBlockCount(), LeftoverKind::None);
+    uint32_t              block = 0;
+    Block                 bytes = {};
+    HRESULT               hr    = S_OK;
+
+
+
+    for (block = 0; block < GetBlockCount(); block++)
+    {
+        if (GetRole (block) != SectorRole::Free)
+        {
+            continue;
+        }
+
+        hr = ReadStoredBlock (block, bytes);
+
+        if (SUCCEEDED (hr))
+        {
+            kinds[block] = BlockLeftovers::Classify (bytes);
+        }
+    }
+
+    m_leftovers    = BlockLeftovers::FindRuns (kinds);
+    m_hasLeftovers = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::FindLeftoverRun
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const LeftoverRun * BlockInspectorModel::FindLeftoverRun (uint32_t block) const
+{
+    for (const LeftoverRun & run : m_leftovers)
+    {
+        if (run.Contains (block))
+        {
+            return &run;
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::ReadRun
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlockInspectorModel::ReadRun (const LeftoverRun & run, vector<Byte> & outBytes)
+{
+    HRESULT   hr     = S_OK;
+    bool      inside = (uint64_t) run.first + run.count <= GetBlockCount();
+
+
+
+    outBytes.clear();
+
+    CBRAEx (inside, E_INVALIDARG);
+
+    outBytes.resize ((size_t) run.count * kBlockBytes);
+
+    hr = m_file->GetStore().ReadBlocks (run.first, run.count, outBytes);
+    CHR (hr);
+
 Error:
     return hr;
 }

@@ -124,6 +124,7 @@ void BlockInspectorWindow::OnCreate()
     m_panel->Init (&m_model, m_theme, GetHwnd(), GetTextRenderer());
     m_panel->SetOnChildPressed ([this] (IDxuiControl * child) { FocusControl (child); });
     m_panel->SetOnChanged      ([this]() { m_isDirty = true; UpdateButtons(); });
+    m_panel->SetOnSaveRun      ([this] (const LeftoverRun & run) { SaveRun (run); });
 
     m_apply->SetOnClick   ([this]() { Apply(); });
     m_discard->SetOnClick ([this]()
@@ -360,4 +361,100 @@ void BlockInspectorWindow::RenderIfChanged()
         m_isDirty = false;
         Invalidate();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::ShowMessage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::ShowMessage (const std::wstring & text)
+{
+    int  shown = DxuiMessageBox (GetHwnd(), m_theme, text.c_str(), L"Disk inspector", MB_OK | MB_ICONWARNING);
+
+
+
+    IGNORE_RETURN_VALUE (shown, 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::CompareWithFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::CompareWithFile (const std::wstring & path)
+{
+    HRESULT                          hr      = S_OK;
+    std::unique_ptr<BlockImageFile>  other;
+    std::wstring                     error;
+    bool                             isBlock = BlockImageFile::IsBlockImage (*m_fileIo, TextEncoding::WideToUtf8 (path));
+
+
+
+    CBRF (isBlock, ShowMessage (L"Only another image of blocks can be compared with this one."));
+
+    hr = BlockImageFile::Open (*m_fileIo, TextEncoding::WideToUtf8 (path), other, error);
+    CHRF (hr, ShowMessage (error.empty() ? L"The other image can't be read." : error));
+
+    hr = m_model.CompareWith (std::move (other));
+    CHRF (hr, ShowMessage (L"The other image's blocks can't be read."));
+
+    SetTitle (fs::path (m_path).filename().wstring() + L" compared with " + fs::path (path).filename().wstring() + L" - Disk inspector");
+    m_panel->Refresh();
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::SaveRun
+//
+//  A run of free blocks with leftover data, saved as a file the user picks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::SaveRun (const LeftoverRun & run)
+{
+    HRESULT                hr       = S_OK;
+    FileDialogSpec         spec;
+    std::filesystem::path  path;
+    bool                   isPicked = false;
+    vector<Byte>           bytes;
+    bool                   isText   = run.kind == LeftoverKind::Text;
+
+
+
+    spec.title            = L"Save leftover data";
+    spec.defaultExtension = isText ? L"txt" : L"bin";
+    spec.defaultFileName  = L"Blocks " + std::to_wstring (run.first) + L" to " + std::to_wstring (run.first + run.count - 1) + (isText ? L".txt" : L".bin");
+    spec.initialFolder    = fs::path (m_path).parent_path();
+    spec.filters          = { { isText ? L"Text" : L"Binary", isText ? L"*.txt" : L"*.bin" }, { L"All files", L"*.*" } };
+
+    hr = m_dialogs.PickFileToSave (GetHwnd(), spec, path, isPicked);
+    CHRF (hr, ShowMessage (L"The save dialog can't be shown."));
+    BAIL_OUT_IF (!isPicked, S_OK);
+
+    hr = m_model.ReadRun (run, bytes);
+    CHRF (hr, ShowMessage (L"The leftover blocks can't be read."));
+
+    hr = m_fileIo->WriteAllBytes (TextEncoding::WideToUtf8 (path.wstring()), bytes);
+    CHRF (hr, ShowMessage (L"The file can't be written."));
+
+Error:
+    return;
 }

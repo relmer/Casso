@@ -181,3 +181,18 @@ HWND ExplorerBlockInspectorWindow::GetHwnd() const
 {
     return m_window->GetHwnd();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBlockInspectorWindow::CompareWith
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBlockInspectorWindow::CompareWith (const std::wstring & pathB)
+{
+    m_window->CompareWithFile (pathB);
+}

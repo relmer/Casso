@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Seams/Win32HostDialogs.h"
 
 class BlockInspectorPanel;
 class IDiskFileIo;
@@ -51,7 +52,10 @@ public:
     //  edits pending, a note in the title.
     void  Reload       ();
     void  NoteFileGone ();
-    void  ChangeTheme  (const IDxuiTheme * theme);
+
+    //  Compares the window's image, as A, with another image of blocks.
+    void  CompareWithFile (const std::wstring & path);
+    void  ChangeTheme     (const IDxuiTheme * theme);
 
     //  Repaints after a change the panel reported.
     void  RenderIfChanged ();
@@ -66,8 +70,11 @@ private:
     void     UpdateButtons ();
     bool     ConfirmClose  ();
     void     Close         ();
+    void     SaveRun       (const LeftoverRun & run);
+    void     ShowMessage   (const std::wstring & text);
 
     BlockInspectorModel       m_model;
+    Win32HostDialogs          m_dialogs;
     BlockInspectorPanel     * m_panel   = nullptr;
     DxuiButton              * m_apply   = nullptr;
     DxuiButton              * m_discard = nullptr;

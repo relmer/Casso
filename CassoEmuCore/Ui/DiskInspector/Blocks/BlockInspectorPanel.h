@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/Inspector/Blocks/BlockLeftovers.h"
 #include "Ui/DiskInspector/Blocks/BlockHexSource.h"
 
 class BlockFieldsView;
@@ -24,7 +25,9 @@ struct BlockField;
 //  with what the pointer is on under it; on the right the hex and text
 //  panes of the block and its fields under them. The status line has the
 //  block's role, its files, a Disk Copy block's tag bytes, and the edits
-//  pending.
+//  pending. A second row has the previous and next difference while
+//  comparing with another image, Find leftover data, and Save leftover as
+//  file for the run of free blocks with text or code the block is in.
 //
 //  Page Up and Page Down step a block, Alt+Left and Alt+Right go back and
 //  forward, and a click on a linked field, or a Ctrl+click on a linked byte,
@@ -49,6 +52,7 @@ public:
 
     using PressedFn = std::function<void (IDxuiControl * child)>;
     using ChangedFn = std::function<void ()>;
+    using SaveRunFn = std::function<void (const LeftoverRun & run)>;
 
     BlockInspectorPanel  ();
     ~BlockInspectorPanel () override;
@@ -56,6 +60,7 @@ public:
     void  Init              (BlockInspectorModel * model, const IDxuiTheme * theme, HWND hwnd, IDxuiTextRenderer * text);
     void  SetOnChildPressed (PressedFn fn) { m_onPressed = std::move (fn); }
     void  SetOnChanged      (ChangedFn fn) { m_onChanged = std::move (fn); }
+    void  SetOnSaveRun      (SaveRunFn fn) { m_onSaveRun = std::move (fn); }
 
     //  Reads the model again after a change.
     void  Refresh ();
@@ -78,12 +83,14 @@ public:
 private:
     static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
 
-    bool  OnType        (uint64_t offset, bool isHexColumn, bool isHighNibble, wchar_t ch);
-    bool  OnNavigateKey (const DxuiKeyEvent & ev);
-    void  OnInputChange (const std::wstring & text);
-    void  MarkField     (const BlockField * field);
-    void  ShowBytes     ();
-    void  BuildStatus   ();
+    bool  OnType                (uint64_t offset, bool isHexColumn, bool isHighNibble, wchar_t ch);
+    bool  OnNavigateKey         (const DxuiKeyEvent & ev);
+    void  OnInputChange         (const std::wstring & text);
+    void  MarkField             (const BlockField * field);
+    void  ShowBytes             ();
+    void  BuildStatus           ();
+    void  InitSecondRow         ();
+    void  AppendSecondRowStatus (uint32_t block);
 
     BlockInspectorModel  * m_model      = nullptr;
     DxuiDpiScaler          m_scaler;
@@ -93,6 +100,11 @@ private:
     DxuiButton           * m_next       = nullptr;
     DxuiButton           * m_highlight  = nullptr;
     DxuiButton           * m_header     = nullptr;
+    DxuiButton           * m_prevDiff   = nullptr;
+    DxuiButton           * m_nextDiff   = nullptr;
+    DxuiButton           * m_leftovers  = nullptr;
+    DxuiButton           * m_saveRun    = nullptr;
+    SaveRunFn              m_onSaveRun;
     DxuiTextInput        * m_input      = nullptr;
     BlockMapView         * m_map        = nullptr;
     BlockHexView         * m_hex        = nullptr;

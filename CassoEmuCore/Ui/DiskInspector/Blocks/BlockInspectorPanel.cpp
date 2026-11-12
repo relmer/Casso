@@ -33,6 +33,7 @@ BlockInspectorPanel::~BlockInspectorPanel() = default;
 void BlockInspectorPanel::Init (BlockInspectorModel * model, const IDxuiTheme * theme, HWND hwnd, IDxuiTextRenderer * text)
 {
     constexpr uint32_t  kChangedColor = 0xFFE0A030;
+    constexpr uint32_t  kDiffersColor = 0xFFF06060;
     constexpr uint32_t  kFieldColor   = 0xFF60B0F0;
     constexpr uint32_t  kLinkColor    = 0xFF60D090;
     constexpr size_t    kInputChars   = 8;
@@ -113,6 +114,7 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, const IDxuiTheme * 
     m_hex->SetMarkColor ([] (uint8_t mark, uint32_t & outArgb)
     {
         outArgb = mark == BlockHexSource::kMarkChanged ? kChangedColor
+                : mark == BlockHexSource::kMarkDiffers ? kDiffersColor
                 : mark == BlockHexSource::kMarkField   ? kFieldColor
                 :                                        kLinkColor;
 
@@ -128,6 +130,7 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, const IDxuiTheme * 
             m_onChanged();
         }
     });
+
     m_fields->SetOnFollow ([this] (const BlockField * field)
     {
         if (field != nullptr && field->link != BlockField::kNoLink && !m_isHeader)
@@ -136,7 +139,65 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, const IDxuiTheme * 
         }
     });
 
+    InitSecondRow();
     Refresh();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::InitSecondRow
+//
+//  The differences while comparing, and the leftover data in free blocks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::InitSecondRow()
+{
+    m_prevDiff  = CreateChild<DxuiButton> (L"Previous difference");
+    m_nextDiff  = CreateChild<DxuiButton> (L"Next difference");
+    m_leftovers = CreateChild<DxuiButton> (L"Find leftover data");
+    m_saveRun   = CreateChild<DxuiButton> (L"Save leftover as file");
+
+    for (const auto & [button, isForward] : { std::pair<DxuiButton *, bool> (m_prevDiff, false), std::pair<DxuiButton *, bool> (m_nextDiff, true) })
+    {
+        button->SetOnClick ([this, isForward]()
+        {
+            uint32_t  block = 0;
+
+            if (m_model->FindDifference (isForward, block))
+            {
+                SelectBlock (block);
+            }
+        });
+    }
+
+    m_leftovers->SetOnClick ([this]()
+    {
+        if (m_model->HasLeftovers())
+        {
+            m_model->ClearLeftovers();
+        }
+        else
+        {
+            m_model->FindLeftovers();
+        }
+
+        Refresh();
+    });
+
+    m_saveRun->SetOnClick ([this]()
+    {
+        const LeftoverRun  * run = m_model->FindLeftoverRun (m_model->GetBlock());
+
+        if (run != nullptr && m_onSaveRun)
+        {
+            m_onSaveRun (*run);
+        }
+    });
 }
 
 
@@ -390,6 +451,7 @@ bool BlockInspectorPanel::OnType (uint64_t offset, bool isHexColumn, bool isHigh
 void BlockInspectorPanel::ShowBytes()
 {
     BlockInspectorModel::Block  bytes  = {};
+    BlockInspectorModel::Block  other  = {};
     vector<BlockField>          fields;
     uint32_t                    block  = m_model->GetBlock();
     int64_t                     shown  = m_isHeader ? -2 : (int64_t) block;
@@ -418,6 +480,20 @@ void BlockInspectorPanel::ShowBytes()
             if (m_model->GetEdits().IsChanged (block, (int) i))
             {
                 m_source.SetMark (i, BlockHexSource::kMarkChanged);
+            }
+        }
+
+        if (m_model->IsDifferent (block))
+        {
+            hr = m_model->ReadOtherBlock (block, other);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            for (i = 0; i < bytes.size(); i++)
+            {
+                if (bytes[i] != other[i])
+                {
+                    m_source.SetMark (i, BlockHexSource::kMarkDiffers);
+                }
             }
         }
     }
@@ -535,6 +611,45 @@ void BlockInspectorPanel::BuildStatus()
     {
         m_status += L". " + std::to_wstring (edits) + (edits == 1 ? L" byte changed" : L" bytes changed") + L", not written";
     }
+
+    AppendSecondRowStatus (block);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::AppendSecondRowStatus
+//
+//  Whether the block differs from the other image, and the leftover run it
+//  is in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::AppendSecondRowStatus (uint32_t block)
+{
+    const LeftoverRun  * run   = m_model->FindLeftoverRun (block);
+    std::wstring         other = m_model->IsComparing() ? fs::path (m_model->GetOther()->GetPath()).filename().wstring() : std::wstring();
+
+
+
+    if (m_model->IsComparing())
+    {
+        m_status += m_model->IsDifferent (block) ? L". Differs from " + other : L". Same as " + other;
+        m_status += L" (" + std::to_wstring (m_model->CountDifferent()) + L" blocks differ)";
+    }
+
+    if (run != nullptr)
+    {
+        m_status += L". Leftover " + std::wstring (BlockLeftovers::GetKindName (run->kind)) + L" in free blocks "
+                  + std::to_wstring (run->first) + L" to " + std::to_wstring (run->first + run->count - 1);
+    }
+    else if (m_model->HasLeftovers())
+    {
+        m_status += L". " + std::to_wstring (m_model->GetLeftovers().size()) + L" runs of leftover data";
+    }
 }
 
 
@@ -566,6 +681,12 @@ void BlockInspectorPanel::Refresh()
     m_forward->SetEnabled   (m_model->CanGoForward());
     m_previous->SetEnabled  (m_model->GetBlock() > 0);
     m_next->SetEnabled      (m_model->GetBlock() + 1 < m_model->GetBlockCount());
+    m_prevDiff->SetVisible  (m_model->IsComparing());
+    m_nextDiff->SetVisible  (m_model->IsComparing());
+    m_prevDiff->SetEnabled  (m_model->CountDifferent() > 0);
+    m_nextDiff->SetEnabled  (m_model->CountDifferent() > 0);
+    m_leftovers->SetLabel   (m_model->HasLeftovers() ? L"Clear leftover marks" : L"Find leftover data");
+    m_saveRun->SetEnabled   (m_model->FindLeftoverRun (m_model->GetBlock()) != nullptr);
     m_highlight->SetLabel   (m_model->HasHighlight() ? L"Clear highlight" : L"Highlight file's blocks");
     m_header->SetVisible    (!m_model->GetFile().GetHeader().empty());
     m_header->SetLabel      (m_isHeader ? L"Blocks" : L"Header");
@@ -599,6 +720,9 @@ void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     constexpr float  kStepDip      = 112.0f;
     constexpr float  kHighlightDip = 160.0f;
     constexpr float  kHeaderDip    = 72.0f;
+    constexpr float  kDiffDip      = 140.0f;
+    constexpr float  kLeftoverDip  = 150.0f;
+    constexpr float  kSaveDip      = 160.0f;
 
 
 
@@ -608,7 +732,7 @@ void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     LONG  line    = scaler.ToPx (kLineDip);
     LONG  x       = boundsPx.left;
     LONG  top     = boundsPx.top;
-    LONG  body    = top + toolbar + pad;
+    LONG  body    = top + (toolbar + pad) * 2;
     LONG  bottom  = boundsPx.bottom - line - pad;
     LONG  split   = boundsPx.left + (LONG) ((boundsPx.right - boundsPx.left) * kMapShare);
     LONG  hexEnd  = body + (LONG) ((bottom - body) * kHexShare);
@@ -641,6 +765,14 @@ void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     place (m_next,      kStepDip);
     place (m_highlight, kHighlightDip);
     place (m_header,    kHeaderDip);
+
+    x    = boundsPx.left;
+    top += toolbar + pad;
+
+    place (m_prevDiff,  kDiffDip);
+    place (m_nextDiff,  kDiffDip);
+    place (m_leftovers, kLeftoverDip);
+    place (m_saveRun,   kSaveDip);
 
     m_map->Layout    (RECT { boundsPx.left, body, split - pad, bottom - line }, scaler);
     m_hoverRect      = RECT { boundsPx.left, bottom - line, split - pad, bottom };

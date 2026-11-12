@@ -356,4 +356,131 @@ public:
 
         Assert::IsTrue (FindField (fields, L"Catalog file, extent 1 start")->link > (int64_t) kFirst, L"a link inside the partition is in the image's block numbers");
     }
+
+
+    static vector<Byte> MakeCodeBlock()
+    {
+        static constexpr Byte  kPattern[] = { 0xA9, 0x00, 0x8D, 0x00, 0xC0, 0x20, 0xED, 0xFD, 0xA2, 0x05, 0x8E, 0x10, 0x03, 0x60, 0x4C, 0x00, 0x20 };
+
+        vector<Byte>  bytes;
+
+
+
+        while (bytes.size() + sizeof (kPattern) <= kBlockBytes)
+        {
+            bytes.insert (bytes.end(), std::begin (kPattern), std::end (kPattern));
+        }
+
+        bytes.resize (kBlockBytes, 0xEA);
+
+        return bytes;
+    }
+
+
+    static vector<Byte> MakeTextBlock (bool isHighBit)
+    {
+        std::string   line  = "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG.\r";
+        vector<Byte>  bytes;
+
+
+
+        while (bytes.size() < kBlockBytes)
+        {
+            for (char ch : line)
+            {
+                bytes.push_back ((Byte) (isHighBit ? (ch | 0x80) : ch));
+            }
+        }
+
+        bytes.resize (kBlockBytes);
+
+        return bytes;
+    }
+
+
+    TEST_METHOD (Leftovers_ClassifiesTextCodeAndEmptyBlocks)
+    {
+        vector<Byte>  zeros (kBlockBytes, 0);
+        vector<Byte>  fill  (kBlockBytes, 0xFF);
+
+
+
+        Assert::IsTrue (BlockLeftovers::Classify (MakeTextBlock (false)) == LeftoverKind::Text);
+        Assert::IsTrue (BlockLeftovers::Classify (MakeTextBlock (true))  == LeftoverKind::Text);
+        Assert::IsTrue (BlockLeftovers::Classify (MakeCodeBlock())       == LeftoverKind::Code);
+        Assert::IsTrue (BlockLeftovers::Classify (zeros)                 == LeftoverKind::None);
+        Assert::IsTrue (BlockLeftovers::Classify (fill)                  == LeftoverKind::None);
+    }
+
+
+    TEST_METHOD (Leftovers_FindsRunsInFreeBlocksOnly)
+    {
+        FakeDiskFileIo       io;
+        BlockInspectorModel  model;
+        vector<Byte>         volume = MakeProDos();
+        vector<Byte>         text   = MakeTextBlock (true);
+        vector<Byte>         code   = MakeCodeBlock();
+        vector<Byte>         run;
+
+
+
+        std::copy (text.begin(), text.end(), volume.begin() + 1000 * kBlockBytes);
+        std::copy (text.begin(), text.end(), volume.begin() + 1001 * kBlockBytes);
+        std::copy (code.begin(), code.end(), volume.begin() + 1200 * kBlockBytes);
+        std::copy (text.begin(), text.end(), volume.begin() + 2 * kBlockBytes + 300);
+
+        Seed (io, "vol.po", volume);
+        OpenModel (io, "vol.po", model);
+
+        model.FindLeftovers();
+
+        Assert::AreEqual ((size_t) 2, model.GetLeftovers().size());
+        Assert::AreEqual (1000u, model.GetLeftovers()[0].first);
+        Assert::AreEqual (2u, model.GetLeftovers()[0].count);
+        Assert::IsTrue (model.GetLeftovers()[1].kind == LeftoverKind::Code);
+        Assert::IsNull (model.FindLeftoverRun (2), L"a directory block isn't free");
+
+        AssertSucceeded (model.ReadRun (model.GetLeftovers()[0], run));
+
+        Assert::AreEqual ((size_t) 2 * kBlockBytes, run.size());
+        Assert::IsTrue (std::equal (text.begin(), text.end(), run.begin()));
+    }
+
+
+    TEST_METHOD (CompareWith_FindsTheBlocksThatDiffer)
+    {
+        FakeDiskFileIo                   io;
+        BlockInspectorModel              model;
+        vector<Byte>                     volume = MakeProDos();
+        vector<Byte>                     other  = volume;
+        std::unique_ptr<BlockImageFile>  file;
+        std::wstring                     error;
+        uint32_t                         block  = 0;
+
+
+
+        other[500 * kBlockBytes + 7] ^= 0xFF;
+        other[900 * kBlockBytes]     ^= 0x01;
+
+        Seed (io, "a.po", volume);
+        Seed (io, "b.po", other);
+        OpenModel (io, "a.po", model);
+
+        AssertSucceeded (BlockImageFile::Open (io, "b.po", file, error));
+        AssertSucceeded (model.CompareWith (std::move (file)));
+
+        Assert::AreEqual ((size_t) 2, model.CountDifferent());
+        Assert::IsTrue (model.IsDifferent (500));
+        Assert::IsFalse (model.IsDifferent (501));
+
+        Assert::IsTrue (model.FindDifference (true, block));
+        Assert::AreEqual (500u, block);
+
+        model.SelectBlock (block);
+
+        Assert::IsTrue (model.FindDifference (true, block));
+        Assert::AreEqual (900u, block);
+        Assert::IsTrue (model.FindDifference (false, block));
+        Assert::AreEqual (900u, block, L"back from 500 wraps to the last difference");
+    }
 };

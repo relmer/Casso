@@ -17,7 +17,7 @@ class IDiskFileIo;
 //
 //  A BlockInspectorWindow as InspectorWindowSet drives it, for an image file
 //  of blocks: opened over the Explorer window with that window's icon. It
-//  has no walkthrough and no saved state, and Compare is not offered on it.
+//  has no walkthrough and no saved state.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +36,7 @@ public:
     HRESULT  RenderFrame     () override;
     void     ReloadDisk      () override;
     void     NoteFileGone    () override;
-    void     CompareWith     (const std::wstring & pathB) override { (void) pathB; }
+    void     CompareWith     (const std::wstring & pathB) override;
     void     ChangeTheme     (const DxuiTheme * theme) override;
     HWND     GetHwnd         () const override;
 

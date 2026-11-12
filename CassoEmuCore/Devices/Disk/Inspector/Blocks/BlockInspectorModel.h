@@ -7,6 +7,7 @@
 #include "Devices/Disk/Inspector/Blocks/BlockFieldList.h"
 #include "Devices/Disk/Inspector/Blocks/BlockHistory.h"
 #include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
+#include "Devices/Disk/Inspector/Blocks/BlockLeftovers.h"
 #include "Devices/Disk/Inspector/Blocks/BlockMap.h"
 #include "Devices/Disk/OffsetBlockStore.h"
 
@@ -117,6 +118,26 @@ public:
     //  nothing, when the file changed since it was opened.
     HRESULT  ApplyEdits (std::wstring & outError);
 
+    //  Another image compared block by block with this one: each block
+    //  whose bytes differ, a block past either image's end differing when it
+    //  isn't all zeros.
+    HRESULT           CompareWith    (std::unique_ptr<BlockImageFile> other);
+    void              EndComparison  ();
+    bool              IsComparing    () const { return m_other != nullptr; }
+    bool              IsDifferent    (uint32_t block) const { return block < m_differs.size() && m_differs[block]; }
+    size_t            CountDifferent () const { return m_differCount; }
+    HRESULT           ReadOtherBlock (uint32_t block, Block & outBytes);
+    bool              FindDifference (bool isForward, uint32_t & outBlock) const;
+    BlockImageFile  * GetOther       () const { return m_other.get(); }
+
+    //  The free blocks with text or code in them, and the run a block is in.
+    void                         FindLeftovers   ();
+    void                         ClearLeftovers  ()       { m_leftovers.clear(); m_hasLeftovers = false; }
+    bool                         HasLeftovers    () const { return m_hasLeftovers; }
+    const vector<LeftoverRun>  & GetLeftovers    () const { return m_leftovers; }
+    const LeftoverRun          * FindLeftoverRun (uint32_t block) const;
+    HRESULT                      ReadRun         (const LeftoverRun & run, vector<Byte> & outBytes);
+
 private:
     struct Volume
     {
@@ -127,12 +148,13 @@ private:
         BlockMap                           map;
     };
 
-    HRESULT  BuildVolumes    ();
-    void     AddVolume       (uint32_t first, uint32_t count, const std::wstring & label);
-    void     AddPartitionMap ();
-    void     AddPartitions   ();
-    int      FindVolume      (uint32_t block) const;
-    bool     IsMapBlock      (uint32_t block, bool & outIsDescriptor) const;
+    HRESULT  BuildVolumes       ();
+    void     AddVolume          (uint32_t first, uint32_t count, const std::wstring & label);
+    void     AddPartitionMap    ();
+    void     AddPartitions      ();
+    int      FindVolume         (uint32_t block) const;
+    bool     IsMapBlock         (uint32_t block, bool & outIsDescriptor) const;
+    HRESULT  ComputeDifferences ();
 
     std::unique_ptr<BlockImageFile>  m_file;
     vector<std::unique_ptr<Volume>>  m_volumes;
@@ -143,4 +165,9 @@ private:
     int                              m_highlightVolume = -1;
     int                              m_highlightFile   = -1;
     uint32_t                         m_mapBlocks       = 0;
+    std::unique_ptr<BlockImageFile>  m_other;
+    vector<bool>                     m_differs;
+    size_t                           m_differCount     = 0;
+    vector<LeftoverRun>              m_leftovers;
+    bool                             m_hasLeftovers    = false;
 };
