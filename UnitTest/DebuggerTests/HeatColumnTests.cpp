@@ -174,6 +174,10 @@ namespace DebuggerTests
             pane.Configure (nullptr);
             pane.SetHeat   (levels, MakePalette());
 
+            Assert::IsTrue (pane.IsHeatOn(), L"a memory window starts with heat on");
+
+            pane.SetHeatOn (false);
+
             Assert::IsTrue (pane.GetHeatTip (0).text.empty(), L"heat is off");
 
             pane.SetHeatOn (true);

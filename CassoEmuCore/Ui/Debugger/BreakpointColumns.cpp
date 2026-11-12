@@ -59,7 +59,7 @@ BreakpointColumns::Cells BreakpointColumns::GetCells (const DebuggerViewSnapshot
 
     cells[(size_t) Column::Name]      = info.name.empty() ? GetName (bp, sourceLine) : info.name;
     cells[(size_t) Column::Condition] = (info.kind == BreakpointKind::Register) ? std::string() : info.condition;
-    cells[(size_t) Column::HitCount]  = TextEncoding::WideToNarrow (DebuggerStatusText::FormatCount (info.hits)) + (info.stops ? "" : " (count only)");
+    cells[(size_t) Column::HitCount]  = TextEncoding::WideToNarrow (DebuggerStatusText::FormatCount (info.hits)) + (info.stops ? "" : " (don't break)");
     cells[(size_t) Column::Kind]      = GetKindText    (GetRowKind (info));
     cells[(size_t) Column::Trigger]   = GetTriggerText (GetRowKind (info));
     cells[(size_t) Column::Symbol]    = HasRoutine (info) ? bp.label : !HasAddress (info) ? std::string() : (info.symbol.empty() ? bp.label : info.symbol);
@@ -167,8 +167,8 @@ std::string BreakpointColumns::GetTriggerText (RowKind kind)
 {
     static constexpr const char *  kTexts[] = { "Execute", "Execute", "Read", "Write", "Read or write", "Value",
                                                 "Condition", "Execute", "Execute", "IRQ or NMI",
-                                                "Sector read", "Address field", "Head", "Write", "DOS sector", "ProDOS block",
-                                                "RWTS call", "Driver call", "Motor", "Drive select", "Insert", "Eject",
+                                                "Sector read", "Field read", "Head moved", "Disk written", "DOS sector", "ProDOS block",
+                                                "RWTS called", "Driver called", "Motor", "Drive selected", "Inserted", "Ejected",
                                                 "Line", "Variable change", "Error", "Uninitialized", "Scanline", "Beam position" };
 
 

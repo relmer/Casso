@@ -37,6 +37,12 @@ class DebugSession;
 //  change made before that snapshot by a statement that ends after it is
 //  not seen.
 //
+//  A stretch can be passed over when every enabled entry that stops is an
+//  address breakpoint on pages where no instruction in it started, or a
+//  disk breakpoint other than a call while the controller was untouched
+//  with its motor stopped. Any other entry that stops, and any watchpoint that stops,
+//  has the stretch replayed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ReverseStopTest : public IReverseStopTest,
@@ -50,6 +56,7 @@ public:
     bool              TakePendingStop  () override;
     IWatchSink      * GetWatchSink     () override { return this; }
     IDisk2EventSink * GetDiskSink      () override;
+    bool              CanStopIn        (const StretchSummary & summary) override;
 
     // IWatchSink
     void          OnWatchedAccess  (Word address, Byte value, BusAccess access, std::optional<Byte> previous) override;

@@ -230,6 +230,10 @@ public:
     //  it once it loads.
     virtual void                   OpenSymbolFile   (const std::wstring & thenShow) = 0;
 
+    //  A source file the user picks, opened as a file dropped on the window
+    //  is, for a debug file's source that wasn't found.
+    virtual void                   BrowseForSource  () {}
+
     //  Sets the steps to follow a view, by source line for a source document
     //  and by instruction for the disassembly.
     virtual void                   NoteViewFocus    (bool isSource) = 0;
@@ -515,6 +519,10 @@ public:
     //  A key scheme's action, such as Find, while a control of the pane has
     //  the focus; and Enter in one of the pane's boxes.
     virtual bool                         OnMappedAction    (DebuggerKeySchemes::Action action, IDxuiControl * focused) { (void) action; (void) focused; return false; }
+
+    //  Ctrl+G with the focus in the pane: true when the pane has a go-to and
+    //  started it.
+    virtual bool                         OnGoToKey         () { return false; }
     virtual bool                         SubmitTextBox     (DxuiTextInput * box) { (void) box; return false; }
 
     //  A press on one of the pane's lists ended at a point, the list having

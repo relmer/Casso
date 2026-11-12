@@ -52,6 +52,7 @@ HRESULT CpuManagerRunDriver::Start (const RunRequest & request)
 
     m_pauseRequested = false;
     m_isStep         = request.kind == RunKind::StepInto || request.kind == RunKind::Trace;
+    m_isStepRun      = request.kind == RunKind::StepOver || request.kind == RunKind::StepOut;
     m_spent          = 0;
     m_budget         = request.budget;
     m_previousHook   = m_host.GetDebugHook();
@@ -291,6 +292,7 @@ void CpuManagerRunDriver::Finish (StopReason reason, uint64_t cycles)
     m_pauseRequested = false;
     m_pauseFraction  = 0.0;
     m_isStep         = false;
+    m_isStepRun      = false;
 
     stop.reason    = reason;
     stop.registers = m_host.GetCpu()->GetCpu6502()->GetRegisters();

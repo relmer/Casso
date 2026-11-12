@@ -118,6 +118,7 @@ private:
     //  SEEK's text: -5s or -250ms back from live, CYCLE n, or POS n, each
     //  number in decimal.
     static bool            TryParseSeek      (const std::string & text, ReverseCommand & command, uint64_t & argument, std::string & error);
+    static bool            TryParseCount     (const std::string & text, uint64_t & outValue);
 
     void                RecordProfile     (DebugSession & session, Word pc);
     void                BillProfile       (DebugSession & session);

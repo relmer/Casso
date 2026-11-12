@@ -16,10 +16,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  BreakpointLogDialogTests
 //
-//  The breakpoint dialog's log message and Continue after logging check: the fields an
-//  existing breakpoint fills in, and the BPLOG line OK adds after the
-//  definition, on a new breakpoint's id or the edited one's, only when the
-//  message or whether a hit stops changed.
+//  The breakpoint dialog's log message and Don't break check: the fields an
+//  existing breakpoint fills in, and the BPLOG or BPCHANGE line OK adds
+//  after the definition, on a new breakpoint's id or the edited one's, only
+//  when the message or whether a hit stops changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +62,7 @@ namespace DebuggerTests
 
             info.log = "";
 
-            Assert::IsFalse  (BreakpointDialog::GetFields (info).isLogGo, L"a counting breakpoint has no log, so no Continue after logging");
+            Assert::IsTrue   (BreakpointDialog::GetFields (info).isLogGo, L"a breakpoint that doesn't break, with no message, has Don't break checked");
             Assert::IsTrue   (BreakpointDialog::GetVisibleFields (BreakpointDialog::Type::Disk).log);
             Assert::IsTrue   (BreakpointDialog::GetVisibleFields (BreakpointDialog::Type::Read).log);
         }
@@ -86,7 +86,7 @@ namespace DebuggerTests
         }
 
 
-        //  An edit adds BPLOG only for a change: a new message, Continue after logging
+        //  An edit adds BPLOG only for a change: a new message, Don't break
         //  switched, or the message taken off, which is BPLOG # CLEAR.
         TEST_METHOD (AnEditAddsBplogOnlyForAChange)
         {
@@ -104,6 +104,31 @@ namespace DebuggerTests
                               GetEchoes (BreakpointsPane::GetDialogActions (MakeResult ("other", false), 3, original, 9, CommandMode::AppleWin)).at (1));
             Assert::AreEqual (std::string ("BPLOG 3 CLEAR"),
                               GetEchoes (BreakpointsPane::GetDialogActions (MakeResult ("", false), 3, original, 9, CommandMode::AppleWin)).at (1));
+        }
+
+
+        //  Don't break with no message is the breakpoint's flag, set by
+        //  BPCHANGE: on a new breakpoint's id, on an edit that switches it,
+        //  and after BPLOG CLEAR, after which a breakpoint stops.
+        TEST_METHOD (DontBreakWithNoMessageIsSetByBpchange)
+        {
+            BreakpointInfo  original;
+
+
+
+            Assert::AreEqual (std::string ("BPCHANGE 7 Ets"),
+                              GetEchoes (BreakpointsPane::GetDialogActions (MakeResult ("", true), std::nullopt, BreakpointInfo {}, 7, CommandMode::AppleWin)).at (1));
+
+            original.stops = true;
+
+            Assert::AreEqual (std::string ("BPCHANGE 3 Ets"),
+                              GetEchoes (BreakpointsPane::GetDialogActions (MakeResult ("", true), 3, original, 9, CommandMode::AppleWin)).at (1));
+            Assert::AreEqual ((size_t) 1, BreakpointsPane::GetDialogActions (MakeResult ("", false), 3, original, 9, CommandMode::AppleWin).size(), L"no change");
+
+            original.log   = "hit";
+            original.stops = false;
+
+            Assert::AreEqual ((size_t) 3, BreakpointsPane::GetDialogActions (MakeResult ("", true), 3, original, 9, CommandMode::AppleWin).size(), L"BPLOG CLEAR, then BPCHANGE");
         }
 
 

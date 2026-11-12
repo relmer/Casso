@@ -13,6 +13,7 @@ static constexpr const char *  s_kDiskValues[] =
 {
     "DISK.DRIVE",   "DISK.QTRACK",    "DISK.QTRACK1",  "DISK.QTRACK2",
     "DISK.MOTOR",   "DISK.WRITING",   "DISK.PROTECTED", "DISK.INSERTED",
+    "DISK.ADDR.TRACK", "DISK.ADDR.SECTOR", "DISK.ADDR.VOLUME",
     "DISK.ATRACK",  "DISK.ASECTOR",   "DISK.AVOLUME",
 };
 
@@ -64,6 +65,12 @@ bool DiskValueSymbols::TryResolve (const std::string & name, const IDebugTarget 
     {
         return false;
     }
+
+    //  The address field's values; DISK.ATRACK and the others are older
+    //  words for them.
+    if      (upper == "DISK.ADDR.TRACK")  { upper = "DISK.ATRACK";  }
+    else if (upper == "DISK.ADDR.SECTOR") { upper = "DISK.ASECTOR"; }
+    else if (upper == "DISK.ADDR.VOLUME") { upper = "DISK.AVOLUME"; }
 
     if (upper.starts_with ("DISK.A"))
     {

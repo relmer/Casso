@@ -1,10 +1,13 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "Dxui/MockDxuiPainter.h"
+#include "Dxui/MockDxuiTextRenderer.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/HistoryBand.h"
+#include "Ui/Debugger/ReplayProgressDialog.h"
 
 #include "CppUnitTest.h"
 #include "Ui/Debugger/DebuggerCommands.h"
@@ -312,8 +315,46 @@ namespace ReplayProgressStatusTests
             Assert::IsFalse (ReplayProgressDialog::IsDue ({ true,  kLong,     ReplayControl::kNoProgress }), L"no progress to report");
             Assert::IsFalse (ReplayProgressDialog::IsDue ({ false, kLong,     0.25f }), L"no search");
 
-            Assert::AreEqual (std::wstring (L"Searching history for a breakpoint: 25%"), ReplayProgressDialog::GetText ({ true, kLong, 0.25f }, false));
-            Assert::AreEqual (std::wstring (L"Stopping the search..."),                  ReplayProgressDialog::GetText ({ true, kLong, 0.25f }, true));
+            Assert::AreEqual (std::wstring (L"Running backward to the previous breakpoint: 25%"), ReplayProgressDialog::GetText ({ true, kLong, 0.25f }, false));
+            Assert::AreEqual (std::wstring (L"Stopping..."),                                      ReplayProgressDialog::GetText ({ true, kLong, 0.25f }, true));
+        }
+
+
+        //  At a few percent the fill is the whole capsule cut off by a clip at
+        //  the fraction, so it has the capsule's rounded end and is inside the
+        //  outline.
+        TEST_METHOD (AShortFillStaysInsideTheCapsule)
+        {
+            static constexpr LONG   kWidth    = 400;
+            static constexpr float  kFraction = 0.02f;
+
+            ReplayProgressPanel   panel;
+            CassoTheme            theme;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            DxuiDpiScaler         scaler;
+            bool                  isFound = false;
+
+
+
+            scaler.SetDpi (96);
+            panel.Layout      (RECT { 0, 0, kWidth, 80 }, scaler);
+            panel.SetProgress (L"x", kFraction);
+            panel.Paint       (painter, text, theme);
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                if (call.kind == RecordedPaintKind::FillRoundedRect && call.argb == theme.Accent() && call.isClipped)
+                {
+                    isFound = true;
+
+                    Assert::AreEqual ((float) kWidth, call.width, L"the fill is drawn as the whole capsule");
+                    Assert::IsTrue   (call.isClipped, L"and clipped");
+                    Assert::AreEqual ((LONG) (kWidth * kFraction), call.clip.right - call.clip.left, L"at the fraction");
+                }
+            }
+
+            Assert::IsTrue (isFound, L"the fill was drawn");
         }
 
 

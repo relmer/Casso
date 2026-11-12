@@ -78,7 +78,10 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
 //  ConfigHandlers::RunScript
 //
 //  Each line's text is rendered as it runs and kept in order; the first line
-//  that fails sets the script's status, and the lines after it still run.
+//  that fails sets the script's status, and the lines after it run too.
+//  After a line that starts a run that goes on, as G does in the window,
+//  the rest of the script waits in the session, for the host to run once
+//  the machine stops.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,6 +125,13 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
             if (!mode.has_value() && session.GetMode() != modeBefore)
             {
                 lineMode = session.GetMode();
+            }
+
+            if (session.GetRunState() != RunState::Paused && end != std::string::npos && content.find_first_not_of (" \t\r\n", end + 1) != std::string::npos)
+            {
+                session.SetPendingScript ({ content.substr (end + 1), mode.has_value() ? mode : std::optional<CommandMode> (lineMode) });
+                result.data = MessageData { result.text };
+                return;
             }
         }
 

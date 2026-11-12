@@ -50,6 +50,7 @@ public:
     bool                             IsFixed             () const override { return m_windowId == 1; }
     void                             SetTextZoom         (float zoom) override;
     void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
+    bool                             OnGoToKey           () override;
 
 private:
     MemoryWindowGroup                   & m_group;
@@ -111,6 +112,7 @@ public:
 
     //  A window's menu on its bytes.
     void                                 AddWindowMenuItems (MemoryWindowPane & window, POINT clientPx, PaneMenuItems & items);
+    void                                 FocusAddressBox    () { m_host.FocusControl (m_box); }
 
     //  A DxuiHexView menu as the pane menu's rows, a submenu's under its label.
     static void                          AppendViewItems (const std::vector<DxuiPopupMenuItem> & from, const std::wstring & submenu, PaneMenuItems & items);

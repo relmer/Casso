@@ -193,6 +193,10 @@ public:
     bool      IsMotorOn               () const { return m_motorOn; }
     bool      IsMotorAtSpeed          () const { return m_motorOn && m_motorSpinupRemaining == 0; }
     uint32_t  GetMotorSpinupRemaining () const { return m_motorSpinupRemaining; }
+    // How many times a program has accessed the controller's switches since
+    // it was built. With the count the same and the motor stopped, no disk
+    // event happened in between.
+    uint64_t  GetSwitchAccessCount    () const { return m_switchAccesses; }
     // The selected drive's head, or a given drive's: each drive has a
     // stepper of its own.
     int      GetQuarterTrack () const          { return m_quarterTrack[m_activeDrive]; }
@@ -261,7 +265,8 @@ protected:
     int                  m_phase                     = 0;
     int                  m_quarterTrack[kDriveCount] = { 0, 0 };
 
-    bool                 m_motorOn      = false;
+    bool                 m_motorOn        = false;
+    uint64_t             m_switchAccesses = 0;   // not saved: only ever compared on one machine
 
     // Real Disk II hardware: writing $C0E8 (motor off) starts a ~1
     // second spindown timer; the disk physically keeps spinning during

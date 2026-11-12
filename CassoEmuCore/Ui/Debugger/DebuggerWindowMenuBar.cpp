@@ -378,7 +378,7 @@ void DebuggerWindow::SetWindowMenus()
 //
 //  DebuggerWindow::AddUnloadSymbolsRow
 //
-//  File's Unload symbol file: a row for each symbol or debug file loaded,
+//  File's Unload symbol or debug file: a row for each file loaded,
 //  which clears its table as SYM<table> CLEAR does; disabled with none loaded.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -401,7 +401,7 @@ void DebuggerWindow::AddUnloadSymbolsRow (std::vector<DxuiPopupMenuItem> & file)
         files.push_back (DxuiPopupMenuItem::ForCommand (row));
     }
 
-    row = DebuggerMenuCommand::Make (L"Unload symbol file", [] {});
+    row = DebuggerMenuCommand::Make (L"Unload symbol or debug file", [] {});
     m_menuCommands.push_back (row);
 
     if (files.empty())
@@ -802,6 +802,41 @@ void DebuggerWindow::OpenSourceFile()
     BAIL_OUT_IF (!picked, S_OK);
 
     m_sources->OpenSourcePath (chosen.wstring());
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::BrowseForSource
+//
+//  The file picked is taken as one dropped on the window, which matches it
+//  against the debug file's sources.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::BrowseForSource()
+{
+    HRESULT                hr     = S_OK;
+    FileDialogSpec         spec;
+    std::filesystem::path  chosen;
+    bool                   picked = false;
+
+
+
+    spec.filters = { { L"Source files", L"*.s;*.a65;*.asm;*.inc;*.a;*.src;*.txt" }, { L"All files", L"*.*" } };
+
+    hr = PickFileToOpen ("source", spec, chosen, picked);
+    CHR (hr);
+
+    BAIL_OUT_IF (!picked, S_OK);
+
+    (void) OnFilesDropped ({ chosen.wstring() });
 
 Error:
     return;

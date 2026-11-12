@@ -398,9 +398,14 @@ void DebuggerWindow::GoToDefinition (Word address)
 
 
 
-    if (m_snapshot != nullptr && m_snapshot->source.has_value() && m_snapshot->source->lineAddresses != nullptr)
+    if (m_snapshot != nullptr && m_snapshot->source.has_value() && m_snapshot->source->lineAddresses != nullptr && m_host != nullptr)
     {
-        place = SymbolComments::FindDefiningLine (*m_snapshot->source->lineAddresses, address);
+        m_symbolComments.SetSource (*m_snapshot->source);
+
+        place = m_symbolComments.FindLabelLine (address, [this] (const DebugSourceFile & record, const std::wstring & path, const std::string & key)
+        {
+            return m_host->FindDebuggerSource (record, path, key);
+        });
     }
 
     if (place.has_value())

@@ -15,6 +15,7 @@ class IReverseStopTest;
 class MachineHost;
 class ReverseStepSearch;
 struct ReplayControl;
+struct StretchSummary;
 
 
 
@@ -168,7 +169,7 @@ public:
     uint64_t  GetOldestPosition     () const;
     uint64_t  GetLiveEndPosition    () const;
     uint64_t  GetRecordedEnd        () const;
-    uint64_t  GetLiveEndCycle       () const { return m_liveEndCycle; }
+    uint64_t  GetLiveEndCycle       () const;
     uint64_t  GetWallTimeAt         (uint64_t cycle) const;
     uint64_t  GetWallTimeAtPosition (uint64_t position, uint64_t cycle) const;
     size_t    GetTableBuildCount    () const { return m_tableBuilds; }
@@ -222,6 +223,8 @@ private:
 
     bool      TryFindStretch     (uint64_t position, Stretch & outStretch) const;
     uint64_t  GetSegmentEnd      (size_t keyframe) const;
+    bool      TryGetSummary      (size_t keyframe, StretchSummary & outSummary) const;
+    void      NoteActivity       (bool isFirst);
 
     MachineHost                         & m_machine;
     std::unique_ptr<ReverseStepSearch>    m_search;   // where step back over and step back out land

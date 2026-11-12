@@ -1666,6 +1666,13 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         m_operandTips->Hide();
     }
 
+    //  Ctrl pressed or let go over a symbol turns the link cursor on or off
+    //  without waiting for the pointer to move.
+    if (ev.vk == VK_CONTROL && (ev.kind == DxuiKeyEventKind::Down || ev.kind == DxuiKeyEventKind::Up))
+    {
+        RefreshCursor();
+    }
+
     //  Escape cancels a pane's drag, as in Visual Studio, and every pane
     //  stays where it was.
     if (m_floating->GetRoutingPane().empty() && m_dockSite->OnDragKey (ev))
@@ -1731,6 +1738,13 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         {
             return true;
         }
+    }
+
+    //  Ctrl+G goes to an address: in a code view through a box for one, in
+    //  a Memory window through its Address box.
+    if (ev.kind == DxuiKeyEventKind::Down && ev.vk == 'G' && ev.ctrl && !ev.shift && !ev.alt && GoToAddressInPane())
+    {
+        return true;
     }
 
     //  Shift+Esc closes the pane that has the focus, as in Visual Studio.
@@ -1966,6 +1980,20 @@ LPCWSTR DebuggerWindow::GetCursorForPoint (POINT clientPx) const
         return cursor;
     }
 
+    //  With Ctrl down, a symbol a click would go to the definition of is a
+    //  link.
+    if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+    {
+        Word  address = 0;
+
+
+
+        if (TryGetDefinitionAt (clientPx, address))
+        {
+            return IDC_HAND;
+        }
+    }
+
     //  A code view's glyph margin and the lanes of its branch arrows are not
     //  text, though they lie among the code's cells.
     if (m_code->IsOverArrowsOrGutter (clientPx))
@@ -1991,6 +2019,147 @@ LPCWSTR DebuggerWindow::GetCursorForPoint (POINT clientPx) const
     }
 
     return GetCursorOutsideLists (*this, clientPx, GetLists());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GoToAddressInPane
+//
+//  Ctrl+G in the pane with the focus: in a code view a box takes an
+//  address and the view goes there; a Memory window's Address box takes the
+//  focus. False in any other pane, so the key goes on to the scheme.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::GoToAddressInPane()
+{
+    std::wstring                 pane    = GetFocusPane();
+    bool                         isCode  = false;
+    std::optional<std::wstring>  text;
+    Word                         address = 0;
+
+
+
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        isCode = isCode || pane == DebuggerLayout::GetCodePaneId (view);
+    }
+
+    if (!isCode)
+    {
+        return FindPane (pane) != nullptr && FindPane (pane)->OnGoToKey();
+    }
+
+    text = RunTextDialog (L"Go to", L"Address", L"A hex address, PC or a symbol", [this] (const std::wstring & typed, std::wstring & error)
+    {
+        Word  ignored = 0;
+
+
+
+        error = L"Type a hex address such as 0300, PC, or a symbol's name.";
+        return TryParseGoTo (typed, m_snapshot.get(), ignored);
+    });
+
+    if (text.has_value() && TryParseGoTo (*text, m_snapshot.get(), address))
+    {
+        ShowCode (address);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryParseGoTo
+//
+//  A hex address, with or without a $; PC; or a symbol's name, any case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryParseGoTo (const std::wstring & text, const DebuggerViewSnapshot * snapshot, Word & outAddress)
+{
+    std::string             typed  = TextEncoding::WideToNarrow (text);
+    std::string             digits;
+    uint32_t                value  = 0;
+    std::from_chars_result  parsed;
+
+
+
+    typed.erase (0, typed.find_first_not_of (" \t"));
+    typed.erase (typed.find_last_not_of (" \t") + 1);
+    digits = typed.starts_with ('$') ? typed.substr (1) : typed;
+
+    if (!digits.empty() && digits.size() <= 4)
+    {
+        parsed = std::from_chars (digits.data(), digits.data() + digits.size(), value, 16);
+
+        if (parsed.ec == std::errc() && parsed.ptr == digits.data() + digits.size())
+        {
+            outAddress = (Word) value;
+            return true;
+        }
+    }
+
+    if (snapshot == nullptr)
+    {
+        return false;
+    }
+
+    if (_stricmp (typed.c_str(), "PC") == 0)
+    {
+        outAddress = snapshot->pc;
+        return true;
+    }
+
+    for (const SymbolInfo & symbol : (snapshot->symbols != nullptr) ? snapshot->symbols->symbols : std::vector<SymbolInfo>())
+    {
+        if (_stricmp (symbol.name.c_str(), typed.c_str()) == 0)
+        {
+            outAddress = symbol.address;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RefreshCursor
+//
+//  The cursor for where the pointer is now, set at once, while the pointer
+//  is over the window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RefreshCursor()
+{
+    HWND     hwnd   = GetHwnd();
+    POINT    point  = {};
+    RECT     client = {};
+    LPCWSTR  cursor = nullptr;
+
+
+
+    if (hwnd == nullptr || !GetCursorPos (&point) || !ScreenToClient (hwnd, &point) || !GetClientRect (hwnd, &client) || !PtInRect (&client, point))
+    {
+        return;
+    }
+
+    cursor = GetCursorForPoint (point);
+    SetCursor (LoadCursorW (nullptr, (cursor != nullptr) ? cursor : IDC_ARROW));
 }
 
 

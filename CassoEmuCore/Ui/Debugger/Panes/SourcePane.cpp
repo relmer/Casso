@@ -56,7 +56,14 @@ void SourcePane::Configure (HWND hwnd)
     m_banner->SetSeverity         (DxuiInfoBanner::Severity::Info);
     m_banner->SetOnAction         ([this] (size_t)
     {
-        if (!m_isLoose)
+        if (m_isBrowseShown)
+        {
+            if (m_onBrowse)
+            {
+                m_onBrowse();
+            }
+        }
+        else if (!m_isLoose)
         {
             ToggleBody();
         }
@@ -423,6 +430,7 @@ void SourcePane::Rebuild()
     int                                   depth        = 0;
     int                                   level        = GetMacroLevel (*m_state, m_macroLevel);
     bool                                  holdsPc      = false;
+    bool                                  isBrowse     = false;
     std::pair<int, int>                   shown        = GetPlace (*m_state, (level > 0) ? level : -1);
     std::pair<int, int>                   invokedBy    = (level > 0) ? GetPlace (*m_state, level - 1) : std::pair<int, int> { -1, 0 };
     std::string                           invokedName;
@@ -547,20 +555,25 @@ void SourcePane::Rebuild()
 
     m_banner->SetText (bannerText);
 
-    if (depth > 0 && m_banner->GetAction (0) == nullptr)
+    //  The banner action: Browse... for a file not found, or the macro's body.
+    isBrowse = depth == 0 && m_match == SourceMatch::NotFound && m_lines.empty() && m_fileId >= 0 && m_onBrowse;
+
+    if ((depth > 0 || isBrowse) && m_banner->GetAction (0) == nullptr)
     {
         m_banner->SetActions ({ L"Show body" });
     }
-    else if (depth == 0 && m_banner->GetAction (0) != nullptr)
+    else if (depth == 0 && !isBrowse && m_banner->GetAction (0) != nullptr)
     {
         m_banner->SetActions ({});
     }
+
+    m_isBrowseShown = isBrowse;
 
     //  Relabeled rather than replaced: this can run inside the button's own
     //  click.
     if (m_banner->GetAction (0) != nullptr)
     {
-        m_banner->GetAction (0)->SetLabel (level > 0 ? L"Show invocation" : L"Show body");
+        m_banner->GetAction (0)->SetLabel (isBrowse ? L"Browse..." : level > 0 ? L"Show invocation" : L"Show body");
     }
 }
 
@@ -2170,7 +2183,7 @@ std::wstring SourcePane::GetBannerText (SourceMatch match, const std::string & f
 
     case SourceMatch::NotFound:
         text = hasText ? std::format ("{} matches no file in the debug file and has no line mapping.", fileName)
-                       : std::format ("{} was not found. Drop it on this window to open it.", fileName);
+                       : std::format ("{} was not found. Drop it on this window or browse for it.", fileName);
         break;
 
     default:

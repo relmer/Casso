@@ -14,6 +14,8 @@
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
+#include "Ui/Debugger/HistoryBand.h"
+#include "Core/TextEncoding.h"
 #include "resource.h"
 
 
@@ -314,6 +316,14 @@ void ShellDebugger::RunReverseCommand (
         m_debugConsolePending.push_back (s_kNoCallerText);
     }
 
+    if (m_isLandingReplyDue.exchange (false, memory_order_acq_rel))
+    {
+        std::string                  landing = GetLandingText (result.outcome);
+        std::lock_guard<std::mutex>  held (m_debugViewMutex);
+
+        m_debugConsolePending.push_back (landing);
+    }
+
     if (m_debugSession != nullptr)
     {
         m_debugSession->OnStopped (stop);
@@ -341,6 +351,52 @@ Error:
     {
         DEBUGMSG (L"Reverse execution command %d failed: 0x%08X\n", static_cast<int> (command), hr);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLandingText
+//
+//  Where a SEEK or LIVE left the machine: the time it was there, the cycle
+//  count as it is in the Registers pane, and the instruction count SEEK
+//  INSTR takes; then why the command stopped short, if it did.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ShellDebugger::GetLandingText (ReverseOutcome outcome)
+{
+    EmuCpu        * cpu      = m_machine.GetCpu();
+    uint64_t        position = m_machine.GetPosition();
+    uint64_t        wallTime = 0;
+    std::wstring    clock;
+    std::wstring    text;
+
+
+
+    if (cpu == nullptr)
+    {
+        return std::string();
+    }
+
+    if (m_reverseHost != nullptr && m_reverseHost->GetController().IsInHistory())
+    {
+        wallTime = m_reverseHost->GetController().GetWallTimeAtPosition (position, cpu->GetHistoryCycles());
+        clock    = DebuggerStatusText::FormatWallClock (wallTime, LOCALE_NAME_USER_DEFAULT);
+    }
+
+    text = clock.empty() ? std::wstring (L"Live") : L"At " + clock;
+    text += std::format (L", cycle {}, instruction {}.", DebuggerStatusText::FormatCount (cpu->GetTotalCycles()), DebuggerStatusText::FormatCount (position));
+
+    if (outcome != ReverseOutcome::Moved)
+    {
+        text += L" " + HistoryBand::GetOutcomeText (outcome);
+    }
+
+    return TextEncoding::WideToNarrow (text);
 }
 
 

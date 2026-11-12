@@ -17,7 +17,8 @@
 
 
 //  The words of an IDM_DEBUG_REVERSE payload. Seek is followed by its
-//  position in decimal, and SeekCycle by its cycle.
+//  position in decimal, SeekCycle and ScrubCycle by a cycle, and SeekBack by
+//  the milliseconds back from live.
 static constexpr std::pair<ReverseCommand, const char *>  s_kReverseWords[] =
 {
     { ReverseCommand::StepBack,        "back"       },
@@ -922,6 +923,25 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebu
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsSeek
+//
+//  The reverse commands with an argument: a position, a cycle, or the
+//  milliseconds back from live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuCommandDispatcher::IsSeek (ReverseCommand command)
+{
+    return command == ReverseCommand::Seek     || command == ReverseCommand::SeekCycle ||
+           command == ReverseCommand::ScrubCycle || command == ReverseCommand::SeekBack;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FormatReversePayload
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -942,7 +962,7 @@ std::string CpuCommandDispatcher::FormatReversePayload (
         }
     }
 
-    if (command == ReverseCommand::Seek || command == ReverseCommand::SeekCycle || command == ReverseCommand::ScrubCycle)
+    if (IsSeek (command))
     {
         payload += std::format (" {}", argument);
     }
@@ -993,7 +1013,7 @@ bool CpuCommandDispatcher::TryParseReversePayload (
         return false;
     }
 
-    isSeek = command == ReverseCommand::Seek || command == ReverseCommand::SeekCycle || command == ReverseCommand::ScrubCycle;
+    isSeek = IsSeek (command);
 
     if (isSeek != !rest.empty())
     {

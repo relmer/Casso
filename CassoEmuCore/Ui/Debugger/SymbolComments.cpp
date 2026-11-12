@@ -56,7 +56,7 @@ std::string SymbolComments::GetComment (Word address, const std::string & name, 
         return m_comments.at (address);
     }
 
-    place = FindDefiningLine (*m_state->lineAddresses, address);
+    place = FindLabelLine (address, find);
     lines = place.has_value() ? GetLines (place->first, find) : nullptr;
 
     if (lines != nullptr)
@@ -125,25 +125,80 @@ const std::vector<std::string> * SymbolComments::GetLines (int fileId, const Fin
 //
 //  SymbolComments::FindDefiningLine
 //
-//  The earliest line in the line table whose code starts at the address.
+//  The earliest line in the line table whose code starts at the address,
+//  preferring one isLabelLine accepts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<std::pair<int, int>> SymbolComments::FindDefiningLine (const std::map<std::pair<int, int>, Word> & lineAddresses, Word address)
+std::optional<std::pair<int, int>> SymbolComments::FindDefiningLine (
+    const std::map<std::pair<int, int>, Word>          & lineAddresses,
+    Word                                                 address,
+    const std::function<bool (int fileId, int line)>   & isLabelLine)
 {
     std::optional<std::pair<int, int>>  found;
+    std::optional<std::pair<int, int>>  labeled;
 
 
 
+    //  The map is ordered by place, so the first of each kind is the earliest.
     for (const auto & [place, first] : lineAddresses)
     {
-        if (first == address && (!found.has_value() || place < *found))
+        if (first != address)
         {
-            found = place;
+            continue;
+        }
+
+        found = found.has_value() ? found : place;
+
+        if (!labeled.has_value() && isLabelLine && isLabelLine (place.first, place.second))
+        {
+            labeled = place;
         }
     }
 
-    return found;
+    return labeled.has_value() ? labeled : found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolComments::FindLabelLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::pair<int, int>> SymbolComments::FindLabelLine (Word address, const FindFn & find)
+{
+    if (!m_state.has_value() || m_state->lineAddresses == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    return FindDefiningLine (*m_state->lineAddresses, address, [this, &find] (int fileId, int line)
+    {
+        const std::vector<std::string>  * lines = GetLines (fileId, find);
+
+
+
+        return lines != nullptr && line >= 1 && (size_t) line <= lines->size() && IsLabelLine ((*lines)[(size_t) line - 1]);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolComments::IsLabelLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolComments::IsLabelLine (const std::string & text)
+{
+    return !text.empty() && text[0] != ' ' && text[0] != '\t' && text[0] != ';' && text[0] != '*';
 }
 
 

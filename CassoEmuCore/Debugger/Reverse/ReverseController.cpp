@@ -11,6 +11,7 @@
 #include "Shell/MachineHost.h"
 #include "Debugger/Reverse/ReplayControl.h"
 #include "Debugger/Reverse/ReverseStepSearch.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 
 
 
@@ -698,7 +699,9 @@ Error:
 //  about every instruction, newest stretch first, and the latest hit wins; a
 //  breakpoint lands before its instruction and a watchpoint after the
 //  instruction that tripped it, as running forward would have. Nothing the
-//  replay runs reaches the debugger's own breakpoints or watchpoints.
+//  replay runs counts on the debugger's breakpoints or watchpoints. A
+//  stretch the stop test rules out is passed over without a replay, so a
+//  search through idle history costs little.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -706,13 +709,15 @@ HRESULT ReverseController::ReverseContinue (
     IReverseStopTest  & stopTest,
     ReverseResult     & result)
 {
-    HRESULT       hr      = S_OK;
-    uint64_t      from    = m_machine.GetPosition();
-    uint64_t      end     = from;
-    uint64_t      oldest  = 0;
-    Stretch       stretch;
-    ReplayTarget  target;
-    ReplayReport  report;
+    HRESULT         hr       = S_OK;
+    uint64_t        from     = m_machine.GetPosition();
+    uint64_t        end      = from;
+    uint64_t        oldest   = 0;
+    size_t          keyframe = 0;
+    Stretch         stretch;
+    StretchSummary  summary;
+    ReplayTarget    target;
+    ReplayReport    report;
 
 
 
@@ -732,6 +737,13 @@ HRESULT ReverseController::ReverseContinue (
             hr = LandAt (end, ReverseOutcome::Stopped, result);
             CHR (hr);
             BAIL_OUT_IF (true, S_OK);
+        }
+
+        //  A stretch nothing could stop in is passed over unreplayed.
+        if (m_keyframes.TryFindByPosition (end - 1, keyframe) && TryGetSummary (keyframe, summary) && !stopTest.CanStopIn (summary))
+        {
+            end = m_keyframes.GetInfo (keyframe).position;
+            continue;
         }
 
         hr = RestoreAtOrBefore (end - 1, 0, false, stretch);
@@ -945,6 +957,28 @@ uint64_t ReverseController::GetOldestPosition() const
 uint64_t ReverseController::GetLiveEndPosition() const
 {
     return m_isLive ? m_machine.GetPosition() : m_liveEndPosition;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLiveEndCycle
+//
+//  The cycle history ends at, as GetLiveEndPosition: the machine's cycle
+//  while live, since m_liveEndCycle is taken only on the way out of live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t ReverseController::GetLiveEndCycle() const
+{
+    EmuCpu  * cpu = m_machine.GetCpu();
+
+
+
+    return (m_isLive && cpu != nullptr) ? cpu->GetHistoryCycles() : m_liveEndCycle;
 }
 
 
@@ -1446,6 +1480,7 @@ HRESULT ReverseController::CaptureNow (bool isNotifying)
     uint64_t           cycle      = 0;
     size_t             journalEnd = 0;
     StateWriter      & writer     = m_writer;
+    bool               isFirst    = false;
     std::string_view   hostState;
 
 
@@ -1491,8 +1526,12 @@ HRESULT ReverseController::CaptureNow (bool isNotifying)
         m_observer->OnKeyframeAdding (position, m_side);
     }
 
+    isFirst = m_keyframes.GetCount() == 0;
+
     hr = m_keyframes.Add (position, cycle, journalEnd, writer, m_side);
     CHR (hr);
+
+    NoteActivity (isFirst);
 
     journal.DiscardBefore (m_keyframes.GetInfo (0).journalIndex);
 
@@ -1507,6 +1546,82 @@ Error:
     ScheduleCaptures();
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NoteActivity
+//
+//  The keyframe just added gets what the run did since the one before:
+//  the pages instructions started on, collected by HistoryRecorder, and
+//  the Disk II controller's switch count and motor. The pages start over
+//  for the next stretch. Pages the machine ran while in history, behind
+//  live, are counted in too, which only makes the stretch replayed more
+//  often.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReverseController::NoteActivity (bool isFirst)
+{
+    Disk2Controller  * controller = m_machine.GetRefs().diskController;
+    StretchActivity    activity;
+
+
+
+    activity.pagesRun       = m_pagesRun;
+    activity.isKnown        = !isFirst;
+    activity.diskSwitches   = (controller != nullptr) ? controller->GetSwitchAccessCount() : 0;
+    activity.isDiskSpinning = controller != nullptr && controller->IsMotorOn();
+
+    m_keyframes.SetNewestActivity (activity);
+    m_pagesRun = {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetSummary
+//
+//  What the stretch starting at keyframe did, from the keyframe after it:
+//  false for the newest, whose stretch runs on to live, and for a stretch
+//  with no record. The disk is quiet when the controller's switch count is
+//  the same at both ends and its motor was stopped at both.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ReverseController::TryGetSummary (
+    size_t            keyframe,
+    StretchSummary  & outSummary) const
+{
+    const KeyframeInfo  * at   = nullptr;
+    const KeyframeInfo  * next = nullptr;
+
+
+
+    if (keyframe + 1 >= m_keyframes.GetCount())
+    {
+        return false;
+    }
+
+    at   = &m_keyframes.GetInfo (keyframe);
+    next = &m_keyframes.GetInfo (keyframe + 1);
+
+    if (!next->activity.isKnown)
+    {
+        return false;
+    }
+
+    outSummary.pagesRun    = next->activity.pagesRun;
+    outSummary.isDiskQuiet = at->activity.diskSwitches == next->activity.diskSwitches && !at->activity.isDiskSpinning && !next->activity.isDiskSpinning;
+
+    return true;
 }
 
 

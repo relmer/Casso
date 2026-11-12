@@ -280,5 +280,39 @@ namespace DebuggerTests
 
             Assert::IsTrue (isFound, L"the new label");
         }
+
+
+        //  Bytes written while paused, as F writes them, are in the find
+        //  text, and what they replaced isn't.
+        TEST_METHOD (TheFindTextHasMemoryWrittenWhilePaused)
+        {
+            ControllerRig         rig;
+            DebugSession        & session = rig.controller.GetSession();
+            DebuggerViewSnapshot  snapshot;
+            bool                  isOld   = false;
+            bool                  isNew   = false;
+
+
+
+            rig.view.SetFindTextIdle (0);
+            (void) session.ExecuteLine ("F 6000,3 4C 34 12", CommandMode::AppleWin);
+            (void) rig.view.BuildCaptured (session, true);
+            snapshot = rig.view.BuildCaptured (session, true);
+
+            (void) session.ExecuteLine ("F 6000,3 4C 78 56", CommandMode::AppleWin);
+            (void) rig.view.BuildCaptured (session, true);
+            snapshot = rig.view.BuildCaptured (session, true);
+
+            Assert::IsTrue (snapshot.codeFind != nullptr);
+
+            for (const DebuggerViewSnapshot::CodeLine & line : *snapshot.codeFind)
+            {
+                isOld = isOld || (line.address == 0x6000 && line.bytes.find ("34 12") != std::string::npos);
+                isNew = isNew || (line.address == 0x6000 && line.bytes.find ("78 56") != std::string::npos);
+            }
+
+            Assert::IsTrue  (isNew, L"the bytes written");
+            Assert::IsFalse (isOld, L"not the ones they replaced");
+        }
     };
 }

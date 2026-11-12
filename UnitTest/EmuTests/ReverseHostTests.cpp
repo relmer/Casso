@@ -315,6 +315,45 @@ public:
     }
 
 
+    //  SEEK -Nms counts back from where the machine is while it is live, and
+    //  from where history ends after a trip into history and back.
+    TEST_METHOD (SeekBackCountsBackFromLive)
+    {
+        static constexpr uint64_t  kBackMs = 10;
+
+        TestMachine    machine ("Apple2e");
+        ReverseHost    host    (machine);
+        ReverseResult  result;
+        HRESULT        hr      = S_OK;
+        uint64_t       live    = 0;
+        uint64_t       target  = 0;
+
+
+
+        PrepareRecording (machine, host);
+
+        live   = machine.GetCpu()->GetHistoryCycles();
+        target = ReverseHost::GetCycleBack (live, kBackMs);
+
+        Assert::AreEqual (live, host.GetController().GetLiveEndCycle(), L"live, the live end is the machine's cycle");
+
+        hr = host.Execute (ReverseCommand::SeekBack, kBackMs, nullptr, result);
+        AssertSucceeded (hr, L"SeekBack");
+
+        Assert::IsTrue (machine.GetCpu()->GetHistoryCycles() >= target, L"at or after the cycle back");
+        Assert::IsTrue (machine.GetCpu()->GetHistoryCycles() < target + ReverseController::kScanlineCycles, L"within an instruction of it");
+
+        hr = host.Execute (ReverseCommand::GoLive, 0, nullptr, result);
+        AssertSucceeded (hr, L"GoLive");
+
+        hr = host.Execute (ReverseCommand::SeekBack, kBackMs, nullptr, result);
+        AssertSucceeded (hr, L"SeekBack after going live");
+
+        Assert::IsTrue (machine.GetCpu()->GetHistoryCycles() >= target, L"the same place again");
+        Assert::IsTrue (machine.GetCpu()->GetHistoryCycles() < target + ReverseController::kScanlineCycles, L"the same place again, within an instruction");
+    }
+
+
     //  Diverging is the yes to the question asked before a change behind
     //  live: the recorded future is dropped where the machine stands, which
     //  is live from then on, with the gate released and the callback told.

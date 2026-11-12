@@ -64,6 +64,26 @@ namespace DebuggerTests
         }
 
 
+        //  A macro's call and the lines of its body all start at the call's
+        //  address: the label is defined on the line with a label in its
+        //  first column, the call, not on the body's first line.
+        TEST_METHOD (ALabelOnAMacroCallIsDefinedOnTheCall)
+        {
+            std::map<std::pair<int, int>, Word>  lines  = { { { 0, 5 }, 0x0302 }, { { 0, 9 }, 0x0302 }, { { 0, 14 }, 0x0302 } };
+            std::vector<std::string>             source = { "", "", "", "clear   macro", "        lda #0", "        endm", "", "store   macro addr",
+                                                            "        clear", "        sta addr", "        endm", "", "start   ldx #3", "loop    store $0400" };
+            auto                                 isLabel = [&source] (int, int line) { return SymbolComments::IsLabelLine (source[(size_t) line - 1]); };
+
+
+
+            Assert::IsTrue (SymbolComments::FindDefiningLine (lines, 0x0302, isLabel) == std::optional<std::pair<int, int>> ({ 0, 14 }), L"the call, where loop is defined");
+            Assert::IsTrue (SymbolComments::FindDefiningLine (lines, 0x0302)          == std::optional<std::pair<int, int>> ({ 0, 5 }),  L"the earliest line with no source to read");
+            Assert::IsFalse (SymbolComments::IsLabelLine ("        lda #0"));
+            Assert::IsFalse (SymbolComments::IsLabelLine ("; a comment"));
+            Assert::IsTrue  (SymbolComments::IsLabelLine ("loop    store $0400"));
+        }
+
+
         //  A label's source comment is on the first line whose code starts at
         //  its address, or on the line above when that line is the label
         //  alone; a semicolon in quotes is not a comment.

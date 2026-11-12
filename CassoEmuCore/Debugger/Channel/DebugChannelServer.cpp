@@ -412,17 +412,13 @@ void DebugChannelServer::FlushNotifications()
         m_droppedLogs = 0;
     }
 
-    for (const std::string & record : records)
-    {
-        Broadcast (record);
-    }
-
     if (dropped > 0)
     {
         logs.push_back (ReplyJson::WriteHitLog (std::format ("{} more breakpoint messages were not sent.", dropped)));
     }
 
-    //  Only to the clients whose hello set logs.
+    //  The messages go first, only to the clients whose hello set logs, so a
+    //  stop a logging breakpoint made follows the message it wrote.
     for (const auto & [connection, client] : m_clients)
     {
         for (const std::string & log : logs)
@@ -432,6 +428,11 @@ void DebugChannelServer::FlushNotifications()
                 m_transport.WriteLine (connection, log);
             }
         }
+    }
+
+    for (const std::string & record : records)
+    {
+        Broadcast (record);
     }
 }
 

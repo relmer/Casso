@@ -227,6 +227,7 @@ private:
     void         RefindAfterOptionChange ();
 
     static std::wstring  GetStatusText  (DxuiFindResult result, int index, int count);
+    static uint32_t      GetMatchArgb   (uint32_t currentArgb);
 
     //  The find box's hint: where the text is looked for in the pane.
 

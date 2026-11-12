@@ -97,8 +97,8 @@ namespace DiskBreakpointPaneTests
         {
             static constexpr const char *  kTriggers[] =
             {
-                "Sector read", "Address field", "Head", "Write", "Write", "Write", "DOS sector",
-                "ProDOS block", "RWTS call", "Driver call", "Motor", "Drive select", "Insert", "Eject",
+                "Sector read", "Field read", "Head moved", "Disk written", "Disk written", "Disk written", "DOS sector",
+                "ProDOS block", "RWTS called", "Driver called", "Motor", "Drive selected", "Inserted", "Ejected",
             };
             BreakpointColumns::RowKind     previous = BreakpointColumns::RowKind::Interrupt;
 
@@ -137,7 +137,7 @@ namespace DiskBreakpointPaneTests
 
             Assert::AreEqual (std::string ("Disk RWTS call, track $11 sector $05"), rig.Cell (BreakpointColumns::Column::Name));
             Assert::AreEqual (std::string ("Disk"),                rig.Cell (BreakpointColumns::Column::Kind));
-            Assert::AreEqual (std::string ("RWTS call"),           rig.Cell (BreakpointColumns::Column::Trigger));
+            Assert::AreEqual (std::string ("RWTS called"),         rig.Cell (BreakpointColumns::Column::Trigger));
             Assert::AreEqual (std::string ("unresolved"),          rig.Cell (BreakpointColumns::Column::Address));
             Assert::AreEqual (std::string ("Slot 6, either drive"), rig.Cell (BreakpointColumns::Column::Data));
             Assert::IsFalse  (BreakpointColumns::HasRoutine (rig.List().at (0)), L"Go to disassembly has nowhere to go");

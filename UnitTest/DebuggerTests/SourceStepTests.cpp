@@ -223,6 +223,23 @@ namespace DebuggerTests
         }
 
 
+        //  SRC CLEAR unloads the debug file; a second one with no file loaded succeeds.
+        TEST_METHOD (SrcClearUnloadsTheDebugFile)
+        {
+            Rig      rig;
+            Program  program = Load (rig);
+
+
+
+            (void) program;
+
+            Assert::IsTrue  (rig.session.HasDebugFile(), L"loaded");
+            rig.RunOk ("SRC CLEAR");
+            Assert::IsFalse (rig.session.HasDebugFile(), L"unloaded");
+            rig.RunOk ("SRC CLEAR");
+        }
+
+
         TEST_METHOD (SourceStepIntoEntersAMacroBodyLineByLine)
         {
             Rig      rig;

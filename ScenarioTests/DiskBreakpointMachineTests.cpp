@@ -103,6 +103,7 @@ namespace DiskBreakpointMachineTests
             size_t  catalog  = 0;
             size_t  bootSide = 0;
             size_t  blocked  = 0;
+            size_t  logical  = 0;
 
 
 
@@ -114,6 +115,7 @@ namespace DiskBreakpointMachineTests
             catalog  = rig.Arm ("BPDISK WRITE T 11");
             bootSide = rig.Arm ("BPDISK WRITE T 0");
             blocked  = rig.Arm ("BPDISK WRITE BLOCKED");
+            logical  = rig.Arm ("BPDISK DOS 11 0 WRITTEN");
 
             (void) GuestSession::TypeAndCollect (rig.machine, "SAVE X");
 
@@ -122,6 +124,7 @@ namespace DiskBreakpointMachineTests
             Assert::IsTrue   (rig.Hits (catalog)  >= 1, L"the catalog track written");
             Assert::AreEqual (0u, rig.Hits (bootSide), L"nothing written on track 0");
             Assert::AreEqual (0u, rig.Hits (blocked),  L"the disk isn't write-protected");
+            Assert::IsTrue   (rig.Hits (logical)  >= 1, L"the VTOC, as a logical sector, written");
         }
 
 

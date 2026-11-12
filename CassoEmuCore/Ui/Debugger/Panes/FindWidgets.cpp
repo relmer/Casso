@@ -859,7 +859,7 @@ void FindWidgetSet::Find (bool forward)
     RecordHistory();
 
     view = m_window.GetFindView (m_activePane);
-    view->SetFindColors (m_host.GetPcRowArgb(), m_host.GetPcMarkerArgb());
+    view->SetFindColors (GetMatchArgb (m_host.GetPcMarkerArgb()), m_host.GetPcMarkerArgb());
 
     result               = view->SelectMatch (needle, m_active->matchCase, m_active->wholeWord, m_active->isRegex, forward, index, count);
     m_active->statusText = GetStatusText (result, index, count);
@@ -873,6 +873,25 @@ void FindWidgetSet::Find (bool forward)
     }
 
     m_host.Repaint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindWidgetSet::GetMatchArgb
+//
+//  The fill of a match the search is not at: the current match's yellow at
+//  half its brightness, dark enough for light text and far enough from the
+//  row colors to read on any row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t FindWidgetSet::GetMatchArgb (uint32_t currentArgb)
+{
+    return DxuiColor::Darken (currentArgb | 0xFF000000u, 0.5f);
 }
 
 
@@ -905,9 +924,9 @@ void FindWidgetSet::SearchAsTyped()
         return;
     }
 
-    //  The marks are the PC row's colors, the one the search is at the PC
-    //  arrow's yellow.
-    view->SetFindColors (m_host.GetPcRowArgb(), m_host.GetPcMarkerArgb());
+    //  The marks are the PC arrow's yellow, darkened for every match but the
+    //  one the search is at.
+    view->SetFindColors (GetMatchArgb (m_host.GetPcMarkerArgb()), m_host.GetPcMarkerArgb());
 
     if (needle.empty())
     {
@@ -997,6 +1016,23 @@ bool FindWidgetSet::RouteKey (const DxuiKeyEvent & ev, bool & handled)
     FindWidget    * widget  = nullptr;
 
 
+
+    //  Escape closes the find of the pane with the focus wherever in the pane
+    //  the focus is, as in its list after a click on a match.
+    if (owner.empty() && isDown && ev.vk == VK_ESCAPE && !ev.shift && !ev.ctrl && !ev.alt)
+    {
+        auto  found = m_widgets.find (m_window.GetFocusPane());
+
+
+
+        if (found != m_widgets.end() && found->second.isOpen)
+        {
+            (void) Activate (found->first);
+            Close();
+            handled = true;
+            return true;
+        }
+    }
 
     if (owner.empty())
     {

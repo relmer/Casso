@@ -510,7 +510,7 @@ namespace DisassemblyOptionsTests
                                  window.GetCodeList (0)->GetCellsOfRow (1)[DisassemblyCells::kHeatColumn].background, L"RTS: written, in another color");
 
             window.GetCodeGroup().ToggleOption (Option::Heat);
-            Assert::IsFalse  (host.isHeatShown);
+            Assert::IsFalse  (window.GetCodeList (0)->IsColumnVisible (DisassemblyCells::kHeatColumn), L"the column goes; the map is on for the memory windows' heat");
         }
 
 

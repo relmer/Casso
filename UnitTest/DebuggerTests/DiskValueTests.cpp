@@ -170,6 +170,9 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0x11, target.Resolve ("DISK.ATRACK"));
             Assert::AreEqual ((Word) 0x05, target.Resolve ("DISK.ASECTOR"));
             Assert::AreEqual ((Word) 0xFE, target.Resolve ("DISK.AVOLUME"));
+            Assert::AreEqual ((Word) 0x11, target.Resolve ("DISK.ADDR.TRACK"),  L"the address field's words");
+            Assert::AreEqual ((Word) 0x05, target.Resolve ("disk.addr.sector"), L"in any case");
+            Assert::AreEqual ((Word) 0xFE, target.Resolve ("DISK.ADDR.VOLUME"));
 
             target.state.selectedDrive = 1;
             Assert::AreEqual ((Word) 0x22, target.Resolve ("DISK.ATRACK"));

@@ -158,6 +158,7 @@ public:
     //  The payload of an IDM_DEBUG_REVERSE command, and back.
     static std::string  FormatReversePayload   (ReverseCommand command, uint64_t argument);
     static bool         TryParseReversePayload (const std::string & payload, ReverseCommand & command, uint64_t & argument);
+    static bool         IsSeek                 (ReverseCommand command);
 
     //  The payload of an IDM_DEBUG_REVERSE_OPTIONS command, and back.
     static std::string  FormatReverseOptionsPayload   (bool isRecording, int budgetMb);

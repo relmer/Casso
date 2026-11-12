@@ -1491,7 +1491,7 @@ void ShellDebugger::PublishDebuggerView()
     //  in the trace pane and the code views. Such a run gets no view for
     //  kStepHoldMs from the first pass during it, so a long one refreshes as
     //  a run does.
-    isStepping = m_debugRunDriver != nullptr && m_debugRunDriver->IsSilent();
+    isStepping = m_debugRunDriver != nullptr && m_debugRunDriver->IsStepping();
 
     if (isStepping && !m_wasStepping)
     {
@@ -1744,7 +1744,7 @@ void ShellDebugger::NotifyDebugDisksMounted()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::NotifyDebugMachineChanged (const std::string & machineName)
+void ShellDebugger::NotifyDebugMachineChanged (const std::string & machineName, bool isStateLoaded)
 {
     //  A debugger run on the old machine ends with it, announced as a pause,
     //  and gives back the speed it borrowed.
@@ -1755,7 +1755,7 @@ void ShellDebugger::NotifyDebugMachineChanged (const std::string & machineName)
 
     if (m_debugSession != nullptr)
     {
-        m_debugSession->OnMachineChanged (machineName, m_cpuManager.IsPaused());
+        m_debugSession->OnMachineChanged (machineName, m_cpuManager.IsPaused(), isStateLoaded);
     }
 
     //  The view is the old machine's, and a paused machine builds a new one
@@ -1923,6 +1923,46 @@ void ShellDebugger::ServiceHitLogs()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ServicePendingScript
+//
+//  A script whose line started a run goes on once the machine has stopped,
+//  its text going to the console as the lines before it did.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::ServicePendingScript()
+{
+    std::vector<std::string>  lines;
+
+
+
+    if (m_debugController->GetSession().GetRunState() != RunState::Paused || !m_debugController->GetSession().HasPendingScript())
+    {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+        lines = m_debugViewState.RunPendingScript (m_debugController->GetSession());
+    }
+
+    if (!lines.empty())
+    {
+        std::lock_guard<std::mutex>  held (m_debugViewMutex);
+
+        std::ranges::copy (lines, std::back_inserter (m_debugConsolePending));
+    }
+
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ServiceDebugger
 //
 //  The CPU manager's service tick: once per pass through its loop, paused or
@@ -1943,10 +1983,13 @@ void ShellDebugger::ServiceDebugger()
     {
         linesRun = m_debugController->GetLinesRun();
 
+        //  The messages written since the last pass are queued ahead of the
+        //  pump, so they go out with the stop the same run made.
+        ServiceHitLogs();
         m_debugController->Pump();
 
         m_isDebugViewDirty = m_isDebugViewDirty || m_debugController->GetLinesRun() != linesRun;
-        ServiceHitLogs();
+        ServicePendingScript();
         ServiceProject();
         ServiceCallHistory();
         ServiceEventLogs();
@@ -2040,6 +2083,8 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
 
         if (isRecording)
         {
+            m_isLandingReplyDue.store (command == ReverseCommand::Seek || command == ReverseCommand::SeekCycle ||
+                                       command == ReverseCommand::SeekBack || command == ReverseCommand::GoLive, memory_order_release);
             PostReverseCommand (command, argument);
         }
 

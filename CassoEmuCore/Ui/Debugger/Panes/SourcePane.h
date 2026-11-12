@@ -175,6 +175,9 @@ public:
     //  for every document.
     void  SetOnToggleBody (std::function<void ()> fn) { m_onToggleBody = std::move (fn); }
 
+    //  Called by the banner's Browse... for a file not found.
+    void  SetOnBrowse     (std::function<void ()> fn) { m_onBrowse = std::move (fn); }
+
     //  The 1-based line at the top of the view, and a line to put there, for
     //  a document saved and reopened.
     int   GetTopSourceLine () const;
@@ -327,6 +330,8 @@ private:
     RunFn             m_run;
 
     std::function<void ()>                            m_onToggleBody;
+    std::function<void ()>                            m_onBrowse;
+    bool                                              m_isBrowseShown = false;
     std::function<void ()>                            m_onLoadSymbols;
 
     std::optional<DebuggerViewSnapshot::SourceState>               m_state;

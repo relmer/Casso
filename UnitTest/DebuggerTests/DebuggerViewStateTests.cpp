@@ -501,6 +501,41 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  A jump into the middle of an instruction, as the BIT skip does:
+        //  the instruction before the PC is cut short, so the PC starts a row.
+        TEST_METHOD (ThePcStartsARowInsideAnInstruction)
+        {
+            static constexpr Byte  kCode[] = { 0x4C, 0x04, 0x60, 0x2C, 0xA9, 0x01, 0x60 };   // JMP $6004, BIT $01A9, RTS
+
+            std::unique_ptr<MachineRig>   held     = std::make_unique<MachineRig>();
+            MachineRig                  & rig      = *held;
+            DebuggerViewSnapshot          shown;
+            bool                          isPcRow  = false;
+            bool                          isCutRow = false;
+
+
+
+            for (size_t i = 0; i < sizeof (kCode); i++)
+            {
+                rig.machine.GetMemoryBus().WriteByte ((Word) (0x6000 + i), kCode[i]);
+            }
+
+            rig.Run ("R PC 6004");
+            rig.view.SetCodeLines   (10);
+            rig.view.SetCodeAddress (0x6000);
+            shown = rig.view.Build (rig.controller.GetSession());
+
+            for (const DebuggerViewSnapshot::CodeLine & line : shown.code)
+            {
+                isPcRow  = isPcRow  || line.address == 0x6004;
+                isCutRow = isCutRow || (line.address == 0x6003 && line.bytes == "2C");
+            }
+
+            Assert::IsTrue (isPcRow,  L"a row starts at the PC");
+            Assert::IsTrue (isCutRow, L"the BIT before it is its first byte alone");
+        }
+
+
         TEST_METHOD (TheWheelScrollsTheCodePaneThroughMemory)
         {
             std::unique_ptr<MachineRig>   held     = std::make_unique<MachineRig>();
@@ -4331,6 +4366,38 @@ namespace DebuggerViewStateTests
             (void) rig.view.ExecuteWindowLine (rig.controller.GetSession(), "RUN \"C:\\Work\\asm.txt\"", CommandMode::AppleWin);
 
             Assert::IsFalse (rig.controller.GetSession().IsAssembling(), L"the script's end ended the block");
+        }
+
+
+        //  After a script line that starts a run that goes on, as G does in
+        //  the window, the rest of the script waits and runs once the machine
+        //  has stopped.
+        TEST_METHOD (AScriptGoesOnAfterTheRunItStartedStops)
+        {
+            MachineRig                 rig;
+            DebugSession             & session = rig.controller.GetSession();
+            std::vector<std::string>   lines;
+            StopEvent                  stop;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\go.txt", "G\nR PC 6000\n");
+
+            (void) rig.view.ExecuteWindowLine (session, "RUN \"C:\\Work\\go.txt\"", CommandMode::AppleWin);
+
+            Assert::IsTrue   (session.GetRunState() != RunState::Paused, L"G left the machine running");
+            Assert::IsTrue   (session.HasPendingScript(), L"the rest of the script is waiting");
+            Assert::AreNotEqual ((Word) 0x6000, rig.machine.GetCpu()->GetPC(), L"and hasn't run");
+
+            stop.reason = StopReason::Step;
+            stop.pc     = rig.machine.GetCpu()->GetPC();
+            session.OnStopped (stop);
+
+            lines = rig.view.RunPendingScript (session);
+
+            Assert::IsFalse  (session.HasPendingScript(), L"the script was taken");
+            Assert::AreEqual ((Word) 0x6000, rig.machine.GetCpu()->GetPC(), L"its next line ran");
+            Assert::IsFalse  (lines.empty(), L"with its text for the console");
         }
 
 

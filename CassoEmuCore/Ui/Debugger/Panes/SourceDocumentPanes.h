@@ -165,6 +165,7 @@ public:
     void                             OpenLooseFile  (const std::wstring & path, const std::string & text, bool isSource);
     void                             ShowDropped    (const std::wstring & path);
     void                             LoadSymbolsFor (int slot);
+    void                             BrowseForSource();
     bool                             IsLoose        (int slot) const;
 
     //  One choice for every document: the body's file comes forward, or the

@@ -22,6 +22,7 @@
 #include "Debugger/SymbolDescriptions.h"
 #include "Debugger/ReplyJson.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/Handlers/ConfigHandlers.h"
 #include "Debugger/Handlers/DataDirectiveHandlers.h"
 #include "Disassembler.h"
 #include "Debugger/Handlers/MemoryHandlers.h"
@@ -2751,6 +2752,46 @@ std::vector<std::string> DebuggerViewState::ExecuteConsoleLine (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::RunPendingScript
+//
+//  The rest of a script a run interrupted, once the machine has stopped:
+//  its lines run through this window as the script's first lines did, and
+//  their text is returned for the console. Empty with no script waiting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> DebuggerViewState::RunPendingScript (DebugSession & session)
+{
+    DebugSession::ScriptLineRunner  previous = session.GetScriptLineRunner();
+    DebugSession::PendingScript     script;
+    Reply                           reply;
+
+
+
+    if (!session.TakePendingScript (script))
+    {
+        return {};
+    }
+
+    session.SetScriptLineRunner ([this, &session] (const std::string & scriptLine, CommandMode scriptMode)
+    {
+        return ExecuteWindowLine (session, scriptLine, scriptMode);
+    });
+
+    ConfigHandlers::RunScript (session, script.content, script.mode, reply);
+    session.SetScriptLineRunner (std::move (previous));
+
+    ConsoleLinks::LinkFiles (reply.text, reply.files);
+
+    return reply.text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::AddCommandGap
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3598,7 +3639,8 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
 
     //  As many lines as the pane has room for, stopping at $FFFF rather than
     //  wrapping below the start.
-    (void) DataDirectiveHandlers::Disassemble (session, ChooseCodeStart (session, snapshot.pc, view, !snapshot.isPaused), std::nullopt, v.lines, code);
+    (void) DataDirectiveHandlers::Disassemble (session, ChooseCodeStart (session, snapshot.pc, view, !snapshot.isPaused), std::nullopt, v.lines, code,
+                                               snapshot.isPaused ? std::optional<Word> (snapshot.pc) : std::nullopt);
 
     v.shown.clear();
 

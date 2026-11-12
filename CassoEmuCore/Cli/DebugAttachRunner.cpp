@@ -5,6 +5,7 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
 #include "Core/JsonWriter.h"
+#include "Debugger/Channel/ChannelProtocol.h"
 #include "Debugger/Channel/IInstanceDirectory.h"
 
 
@@ -85,6 +86,11 @@ void DebugAttachRunner::Run (IChannelClient                         & client,
     lines.insert (lines.end(), options.commands.begin(), options.commands.end());
 
     result = DebugAttachResult();
+
+    if (!SayHello (client, kHelloId, options, result))
+    {
+        return;
+    }
 
     for (const std::string & each : lines)
     {
@@ -215,6 +221,61 @@ void DebugAttachRunner::Run (IChannelClient                         & client,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugAttachRunner::SayHello
+//
+//  The hello sets "logs", so the messages logging breakpoints write are
+//  sent and each is printed where it arrives, after the line whose run
+//  wrote it. When no hello comes back in time the run goes ahead without
+//  them; false only when the channel closed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugAttachRunner::SayHello (
+    IChannelClient                          & client,
+    int64_t                                   id,
+    const CommandLineOptions::DebugOptions  & options,
+    DebugAttachResult                       & result)
+{
+    ChannelClient  hello;
+    JsonValue      reply;
+    Wait           wait  = Wait::Received;
+
+
+
+    hello.name      = "CassoCli debug";
+    hello.wantsLogs = true;
+
+    if (client.WriteLine (ChannelProtocol::WriteHelloRequest (id, hello)))
+    {
+        wait = ReadUntil (client, kHelloWaitMs,
+            [id] (const JsonValue & record, const std::string & type)
+            {
+                int  replyId = 0;
+
+                return type == "hello" && record.HasInt ("id", replyId) && replyId == id;
+            },
+            options, result, reply);
+    }
+    else
+    {
+        wait = Wait::Closed;
+    }
+
+    if (wait == Wait::Closed)
+    {
+        result.diagnostics += "Error: the debug channel closed.\n";
+        result.exitStatus   = kChannelClosed;
+    }
+
+    return wait != Wait::Closed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugAttachRunner::ReadUntil
 //
 //  Reads records until one is wanted, printing every record it reads --
@@ -259,7 +320,11 @@ DebugAttachRunner::Wait DebugAttachRunner::ReadUntil (
             continue;
         }
 
-        PrintRecord (record, raw, options, result);
+        //  The hello is not part of the script's output.
+        if (type != "hello")
+        {
+            PrintRecord (record, raw, options, result);
+        }
 
         if (type == "closing")
         {
@@ -336,6 +401,12 @@ void DebugAttachRunner::PrintRecord (const JsonValue                        & re
         }
 
         result.output += std::format ("Stopped: {} at ${:04X}\n", reason, pc);
+        return;
+    }
+
+    if (type == "log" && record.HasString ("text", reason))
+    {
+        result.output += reason + "\n";
         return;
     }
 

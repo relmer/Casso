@@ -535,6 +535,16 @@ bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::
         target  = (lines[i].address == ends.goesTo) ? DisassemblyOptions::GetFrontRowOfLine (rows, (int) i) : target;
     }
 
+    //  A target inside a line, as a jump into the middle of an instruction
+    //  is, points at the line it lies in.
+    for (size_t i = 0; target < 0 && i + 1 < lines.size(); i++)
+    {
+        if (lines[i].address < ends.goesTo && lines[i + 1].address > ends.goesTo)
+        {
+            target = DisassemblyOptions::GetFrontRowOfLine (rows, (int) i);
+        }
+    }
+
     if (current < 0 && !GetOutsideRow (list, lines, ends.from, current))
     {
         return false;

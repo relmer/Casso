@@ -437,6 +437,9 @@ protected:
     bool     TryGetDefinitionAt (POINT clientPx, Word & address) const;
     void     GoToDefinition     (Word address);
 
+    //  A go-to's address: hex, PC, or a symbol by name.
+    static bool  TryParseGoTo   (const std::wstring & text, const DebuggerViewSnapshot * snapshot, Word & outAddress);
+
 private:
     static constexpr int    kPreferredWidthDip  = 1100;
     static constexpr int    kPreferredHeightDip = 840;
@@ -523,6 +526,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                          OpenSourceFile       ();
     void                          OpenOptions          ();
     void                          OpenSymbolFile       (const std::wstring & thenShow = std::wstring()) override;
+    void                          BrowseForSource      () override;
     void                          LoadFileIntoMemory   ();
     HRESULT                       PickFileToOpen       (const std::string & kind, FileDialogSpec spec, std::filesystem::path & chosen, bool & picked);
 
@@ -722,6 +726,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::vector<DxuiListView *>  GetTextLists      () const;
 
     static LPCWSTR                 GetCursorOutsideLists (const IDxuiControl & node, POINT clientPx, const std::vector<DxuiListView *> & lists);
+    void                           RefreshCursor         ();
+    bool                           GoToAddressInPane     ();
     static bool                    HasListWithin         (const IDxuiControl & node, const std::vector<DxuiListView *> & lists);
     std::vector<IDxuiControl *>    GetPressTargets       () const;
     DxuiTextInput                * GetFocusedBox         () const;

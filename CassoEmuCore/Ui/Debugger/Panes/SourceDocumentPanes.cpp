@@ -95,6 +95,7 @@ void SourceDocumentPane::CreateControls()
 
     m_model->SetOnToggleBody   ([this] { m_group.ToggleMacroBody(); });
     m_model->SetOnLoadSymbols  ([this] { m_group.LoadSymbolsFor (m_slot); });
+    m_model->SetOnBrowse       ([this] { m_group.BrowseForSource(); });
     m_view->SetVisible         (false);
     m_banner->SetVisible       (false);
     m_banner->SetVerticalPaddingDip (kBannerPadDip);
@@ -1255,6 +1256,21 @@ void SourceDocumentGroup::LoadSymbolsFor (int slot)
 
 
     m_host.OpenSymbolFile (found != m_looseFiles.end() ? found->second : std::wstring());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceDocumentGroup::BrowseForSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourceDocumentGroup::BrowseForSource()
+{
+    m_host.BrowseForSource();
 }
 
 

@@ -662,16 +662,19 @@ the fields passed over as well.
 
 **Disk values.** Any expression (an `IF`, `CALC`, an address) can read
 `DISK.DRIVE`, `DISK.QTRACK`, `DISK.QTRACK1`, `DISK.QTRACK2`, `DISK.MOTOR`,
-`DISK.WRITING`, `DISK.PROTECTED`, `DISK.INSERTED`, and `DISK.ATRACK`,
-`DISK.ASECTOR` and `DISK.AVOLUME`, the selected drive's last address field
-with a good checksum ($FFFF until one is read). They come from the
+`DISK.WRITING`, `DISK.PROTECTED`, `DISK.INSERTED`, and `DISK.ADDR.TRACK`,
+`DISK.ADDR.SECTOR` and `DISK.ADDR.VOLUME`, the selected drive's last address
+field with a good checksum ($FFFF until one is read). `DISK.QTRACK` is where
+the head is; `DISK.ADDR.TRACK` is the track written on the disk, which a
+copy-protected disk can make differ. `DISK.ATRACK`, `DISK.ASECTOR` and
+`DISK.AVOLUME` are older names for the address field's values. They come from the
 controller, never through the bus, so reading them changes nothing, and they
 take precedence over a program symbol of the same name. On a machine with no
 Disk II they are unknown.
 
 ```text
 BPDISK MOTOR ON IF DISK.QTRACK == 0
-CALC DISK.ATRACK
+CALC DISK.ADDR.TRACK
 ```
 
 **RWTS and driver breakpoints follow their vectors.** DOS 3.3 can be loaded at
@@ -781,8 +784,10 @@ condition, and the info tip after the Condition label lists what it can use,
 with examples; the tip stays open while the pointer is over it or its tip, or
 while it has the focus. **Source line** takes a file of the loaded debug file
 and a line number in it, and is offered only while a debug file is loaded.
-Every type has **Log message** and **Continue after logging**, which set
-`BPLOG` (see [breakpoint logging](#breakpoint-logging)).
+Every type has **Log message**, which sets `BPLOG` (see [breakpoint logging](#breakpoint-logging)),
+and **Don't break**: a hit is counted, and logged when there is a message,
+and the machine runs on. The Breakpoints pane marks such a breakpoint's hit
+count "(don't break)".
 
 A field is checked when the focus moves off it, and OK checks the whole
 breakpoint first, against the debugger's symbols and breakpoints: a definition
@@ -1042,7 +1047,8 @@ command: `SYMMAIN`, `SYMBASIC`, `SYMUSER2`, `SYMSRC` and so on. Loading
 replaces the table's contents, so a second debug file loaded with `SYM LOAD`
 replaces the first; `SYMUSER2 LOAD` loads another file's symbols beside it. **File > Open symbol or debug file...**, or a
 file dropped on the window, loads a file as `SYM LOAD` does, and **File >
-Unload symbol file** clears one.
+Unload symbol or debug file** clears one. `SRC CLEAR` unloads the debug file
+and the symbols it loaded.
 
 A symbol file may be in any of these formats, recognized from its contents:
 

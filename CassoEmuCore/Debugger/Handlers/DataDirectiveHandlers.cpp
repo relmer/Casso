@@ -44,11 +44,12 @@ bool DataDirectiveHandlers::TryExecute (DebugSession & session, const DebugComma
 //
 //  Each address is an instruction, or, inside a data block, one line of
 //  that block's items: a block marked by a data directive, or one the debug
-//  file maps to a data directive.
+//  file maps to a data directive. An instruction running over pc is its
+//  bytes before pc instead, the way the line list cuts it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std::optional<Word> last, int count, DisassemblyData & data)
+Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std::optional<Word> last, int count, DisassemblyData & data, std::optional<Word> pc)
 {
     IDebugTarget  & target      = session.GetTarget();
     Disassembler    disassembler (target.GetInstructionSet());
@@ -79,6 +80,18 @@ Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std
 
             hr = disassembler.DisassembleOne ((Word) address, bytes, line.instruction);
             IGNORE_RETURN_VALUE (hr, S_OK);
+
+            if (pc.has_value() && *pc > address && *pc < address + line.instruction.bytes.size())
+            {
+                DataBlockEntry  cut;
+
+
+
+                cut.first = (Word) address;
+                cut.last  = (Word) (*pc - 1);
+                line      = DisassemblyLine();
+                MakeDataLine (session, cut, (Word) address, line);
+            }
 
             session.GetSymbols().TryFindName ((Word) address, line.label, symbolTable);
 

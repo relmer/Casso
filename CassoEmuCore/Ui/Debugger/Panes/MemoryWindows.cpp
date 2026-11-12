@@ -267,6 +267,24 @@ void MemoryWindowPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & item
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryWindowPane::OnGoToKey
+//
+//  The Address box takes the focus, as with Go to... on the menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryWindowPane::OnGoToKey()
+{
+    m_group.FocusAddressBox();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryWindowGroup::MemoryWindowGroup
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1325,32 +1343,16 @@ bool MemoryWindowGroup::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * fo
 //
 //  MemoryWindowGroup::OnMappedAction
 //
-//  In a window, Find searches memory and F3 and Shift+F3 walk the matches.
+//  Find, F3 and Shift+F3 are the window's find box's, as in every pane
+//  with one: the window's model is its find target.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MemoryWindowGroup::OnMappedAction (DebuggerKeySchemes::Action action, IDxuiControl *)
 {
-    MemoryWindowPane  * window = GetFocused();
+    (void) action;
 
-
-
-    if (window == nullptr || (action != DebuggerKeySchemes::Action::Find && action != DebuggerKeySchemes::Action::FindNext &&
-                              action != DebuggerKeySchemes::Action::FindPrevious))
-    {
-        return false;
-    }
-
-    if (action != DebuggerKeySchemes::Action::Find && m_find.window == window->GetWindowId())
-    {
-        StepFind (action == DebuggerKeySchemes::Action::FindNext);
-    }
-    else
-    {
-        FindIn (window);
-    }
-
-    return true;
+    return false;
 }
 
 
@@ -1378,6 +1380,14 @@ bool MemoryWindowGroup::SubmitTextBox (DxuiTextInput * box)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryWindowGroup::TryGetTipAt
+//
+//  Over a byte of an open window, in either column, its address, at once and
+//  following the pointer itself rather than snapping from byte to byte; and
+//  while heat is on, its counts and what its tint means.
+//
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MemoryWindowGroup::TryGetTipAt
@@ -1423,19 +1433,24 @@ bool MemoryWindowGroup::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 //
 //  MemoryWindowGroup::AddWindowMenuItems
 //
-//  On a selection: Fill and Copy write the machine, so only while it is
-//  stopped; Compare reads it, so at any time. The byte under the pointer and
-//  the one after it are a word to go to, and a byte in zero page can be the
-//  low byte of a pointer watch.
+//  Grouped: the two copies, then going and finding, then what acts on a
+//  selection (Fill and Copy write the machine, so only while it is
+//  stopped; Compare reads it, so at any time), then the byte's watch and
+//  bookmark. The view's format choices are under Display and the byte's
+//  last reader and writer under Last access. Undo and Redo are the bar's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT clientPx, PaneMenuItems & items)
 {
-    MemoryWindowPane                * each  = &window;
-    MemoryPane                      & model = window.GetModel();
+    MemoryWindowPane                * each     = &window;
+    MemoryPane                      & model    = window.GetModel();
     std::optional<Word>               byte;
     std::vector<DxuiPopupMenuItem>    viewItems;
+    std::vector<DxuiPopupMenuItem>    copyItems;
+    std::vector<DxuiPopupMenuItem>    displayItems;
+    PaneMenuItems                     access;
+    bool                              isPaused = m_isPaused;
 
 
 
@@ -1447,7 +1462,6 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
 
     m_active = each;
 
-    //  The hex view's menu, as Casso Explorer shows it, then the debugger's items.
     window.GetView()->SetOnSettingsChanged ([this, each]
     {
         each->GetModel().SyncFromView();
@@ -1456,40 +1470,30 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
         m_host.Repaint();
     });
 
+    //  The hex view's menu, Copy apart from its format choices.
     window.GetView()->BuildContextMenu (viewItems);
-    AppendViewItems (viewItems, std::wstring(), items);
-    items.push_back (PaneMenu::MakeSeparator());
-    items.push_back ({ L"Go to...", [this] { m_host.FocusControl (m_box); } });
-    items.push_back ({ L"Find...",  [this, each] { FindIn (each); } });
 
-    if (model.GetSelectedRange().has_value())
+    for (const DxuiPopupMenuItem & item : viewItems)
     {
-        if (m_isPaused)
-        {
-            items.push_back ({ L"Fill selection...",    [this, each] { FillSelection (each); } });
-            items.push_back ({ L"Copy selection to...", [this, each] { CopySelection (each); } });
-        }
+        std::wstring  label = (item.command != nullptr) ? item.command->label : std::wstring();
 
-        items.push_back ({ L"Compare with...", [this, each] { CompareSelection (each); } });
-    }
 
-    if (model.HasComparison())
-    {
-        items.push_back ({ model.IsShowingOther() ? L"View this range's values" : L"View the other range's values", [each] { each->GetModel().ToggleShowOther(); } });
-        items.push_back ({ L"Clear comparison", [each] { each->GetModel().ClearComparison(); } });
-    }
 
-    if (model.CanUndo())
-    {
-        items.push_back ({ UndoText::GetLabel (false, model.GetUndoText()), [this, each] { Undo (each, false); } });
-    }
-
-    if (model.CanRedo())
-    {
-        items.push_back ({ UndoText::GetLabel (true, model.GetRedoText()), [this, each] { Undo (each, true); } });
+        std::erase (label, L'&');
+        (label == L"Copy" ? copyItems : displayItems).push_back (item);
     }
 
     byte = model.GetAddressAt (clientPx);
+
+    AppendViewItems (copyItems, std::wstring(), items);
+
+    if (model.GetSelectedRange().has_value() && isPaused)
+    {
+        items.push_back ({ L"Copy selection to...", [this, each] { CopySelection (each); } });
+    }
+
+    items.push_back (PaneMenu::MakeSeparator());
+    items.push_back ({ L"Go to...", [this] { FocusAddressBox(); } });
 
     //  The word the byte and the one after it make, as a pointer: the window
     //  goes to where it points.
@@ -1503,6 +1507,29 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
         }
     }
 
+    items.push_back ({ L"Find...", [this, each] { m_host.FocusControl (each->GetView()); (void) m_host.RunKeyAction (DebuggerKeySchemes::Action::Find); } });
+
+    if (model.GetSelectedRange().has_value())
+    {
+        items.push_back (PaneMenu::MakeSeparator());
+
+        if (isPaused)
+        {
+            items.push_back ({ L"Fill selection...", [this, each] { FillSelection (each); } });
+        }
+
+        items.push_back ({ L"Compare with...", [this, each] { CompareSelection (each); } });
+    }
+
+    if (model.HasComparison())
+    {
+        items.push_back ({ model.IsShowingOther() ? L"View this range's values" : L"View the other range's values", [each] { each->GetModel().ToggleShowOther(); } });
+        items.push_back ({ L"Clear comparison", [each] { each->GetModel().ClearComparison(); } });
+    }
+
+    items.push_back (PaneMenu::MakeSeparator());
+    AppendViewItems (displayItems, L"Display", items);
+
     if (byte.has_value() && *byte < 0x100)
     {
         items.push_back ({ L"Add as pointer watch", [this, at = (Byte) *byte] { m_host.RunAction (DebuggerActions::GetAddZeroPagePointer (at, m_host.GetMode())); } });
@@ -1511,7 +1538,15 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
     if (byte.has_value())
     {
         m_host.AddBookmarkItem    (*byte, items);
-        m_host.AddHeatAccessItems (*byte, HeatMapOptions::Bank::Cpu, items);
+        m_host.AddHeatAccessItems (*byte, HeatMapOptions::Bank::Cpu, access);
+
+        for (auto & [label, action] : access)
+        {
+            if (!label.empty())
+            {
+                items.push_back ({ PaneMenu::MakeInSubmenu (L"Last access", label), action });
+            }
+        }
     }
 }
 
@@ -1546,7 +1581,7 @@ void MemoryWindowGroup::AppendViewItems (const std::vector<DxuiPopupMenuItem> & 
         }
         else if (each.kind == DxuiPopupMenuItem::Kind::Submenu)
         {
-            AppendViewItems (each.children, label, items);
+            AppendViewItems (each.children, submenu.empty() ? label : submenu, items);
         }
         else if (each.kind == DxuiPopupMenuItem::Kind::Command && each.command != nullptr)
         {

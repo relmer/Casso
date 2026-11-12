@@ -414,7 +414,7 @@ namespace DebuggerMenuBarTests
         }
 
 
-        //  File's Unload symbol file lists each symbol file loaded, by its
+        //  File's Unload symbol or debug file lists each symbol file loaded, by its
         //  file name, and a row clears its table; with none loaded the row
         //  is disabled.
         TEST_METHOD (UnloadSymbolFileListsEachLoadedFile)
@@ -430,7 +430,7 @@ namespace DebuggerMenuBarTests
 
             window.OnCreate();
 
-            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&File", L"Unload symbol file");
+            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&File", L"Unload symbol or debug file");
             Assert::IsNotNull (row);
             Assert::IsFalse   (row->command->isEnabled(), L"on with no file loaded");
 
@@ -440,7 +440,7 @@ namespace DebuggerMenuBarTests
             window.SetSnapshotForTest (snapshot);
             window.SetWindowMenus();
 
-            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&File", L"Unload symbol file");
+            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&File", L"Unload symbol or debug file");
             Assert::IsNotNull (row);
             Assert::IsTrue    (row->kind == DxuiPopupMenuItem::Kind::Submenu, L"no submenu of files");
             Assert::AreEqual  ((size_t) 1, row->children.size(), L"a machine table's file is listed");
@@ -627,9 +627,47 @@ namespace DebuggerMenuBarTests
             Assert::IsTrue   (window.GetConsolePane().GetModeBar().GetSlot().GetBar()->IsVisible(), L"the bar shows with the console");
         }
     };
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  GoToParseTests
+    //
+    //  Ctrl+G's address: hex with or without a dollar sign, PC, or a symbol's
+    //  name in any case.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    struct GoToProbe : public DebuggerWindow
+    {
+        using DebuggerWindow::TryParseGoTo;
+    };
+
+    TEST_CLASS (GoToParseTests)
+    {
+    public:
+
+        TEST_METHOD (AGoToTakesHexPcOrASymbol)
+        {
+            DebuggerViewSnapshot  snapshot;
+            auto                  symbols = std::make_shared<DebuggerViewSnapshot::SymbolsState>();
+            Word                  address = 0;
+
+
+
+            snapshot.pc = 0x1234;
+            symbols->symbols.push_back (SymbolInfo { "TXTPTR", 0x00B8 });
+            snapshot.symbols = symbols;
+
+            Assert::IsTrue   (GoToProbe::TryParseGoTo (L"0300", &snapshot, address));
+            Assert::AreEqual ((Word) 0x0300, address);
+            Assert::IsTrue   (GoToProbe::TryParseGoTo (L" $FD1B ", &snapshot, address));
+            Assert::AreEqual ((Word) 0xFD1B, address);
+            Assert::IsTrue   (GoToProbe::TryParseGoTo (L"pc", &snapshot, address));
+            Assert::AreEqual ((Word) 0x1234, address);
+            Assert::IsTrue   (GoToProbe::TryParseGoTo (L"txtptr", &snapshot, address));
+            Assert::AreEqual ((Word) 0x00B8, address);
+            Assert::IsFalse  (GoToProbe::TryParseGoTo (L"NOSUCH", &snapshot, address));
+            Assert::IsFalse  (GoToProbe::TryParseGoTo (L"12345", &snapshot, address), L"more than four digits");
+        }
+    };
 }
-
-
-
-
-

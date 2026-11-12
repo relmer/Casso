@@ -49,6 +49,15 @@ enum class DiskHeadFilter
     Half,
 };
 
+//  Which way a DOS 3.3 sector or ProDOS block breakpoint watches the data:
+//  read (the default), WRITTEN or EITHER.
+enum class DiskSectorAccess
+{
+    Read,
+    Written,
+    Either,
+};
+
 enum class DiskMotorFilter
 {
     Any,
@@ -99,6 +108,7 @@ struct DiskBreakSpec
     bool                            isWholeTracks  = false;
     DiskMotorFilter                 motor          = DiskMotorFilter::Any;
     std::optional<Byte>             command;
+    DiskSectorAccess                access         = DiskSectorAccess::Read;   // DOS and BLOCK: WRITTEN or EITHER
     bool                            isPassed       = false;     // PASSED: every data field read in full counts
     bool                            isBadChecksum  = false;     // BADSUM
     bool                            isWrongTrack   = false;     // WRONGTRACK

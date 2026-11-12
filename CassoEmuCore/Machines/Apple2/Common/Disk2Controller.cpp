@@ -288,6 +288,8 @@ void Disk2Controller::OnLatchLoad (int drive, Byte nibble, int quarterTrack, boo
 
 void Disk2Controller::HandleSwitch (int offset)
 {
+    m_switchAccesses++;
+
     switch (offset)
     {
         case 0x0: HandlePhase (0, false); break;

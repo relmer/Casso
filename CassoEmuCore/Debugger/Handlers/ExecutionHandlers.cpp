@@ -1595,6 +1595,13 @@ void ExecutionHandlers::RunReverse (DebugSession & session, const DebugCommand &
         return;
     }
 
+    //  The Registers pane counts cycles from the last power-on; history
+    //  counts on across power cycles.
+    if (reverse == ReverseCommand::SeekCycle)
+    {
+        argument += session.GetTarget().GetHistoryCycleCount() - session.GetTarget().GetCycleCount();
+    }
+
     if (session.GetRunState() != RunState::Paused)
     {
         reply.SetError (CommandStatus::Error, "machine running",
@@ -1642,18 +1649,68 @@ ReverseCommand ExecutionHandlers::GetReverseCommand (DebugVerb verb)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExecutionHandlers::TryParseCount
+//
+//  A decimal count as it appears in the debugger: digits grouped with
+//  commas, a 0n prefix, and a Cycles label copied from the Registers pane
+//  ahead of it are all taken. A count too large for 64 bits fails rather than throws.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExecutionHandlers::TryParseCount (const std::string & text, uint64_t & outValue)
+{
+    std::string             digits;
+    std::string             rest   = text;
+    std::from_chars_result  parsed;
+
+
+
+    rest.erase (0, rest.find_first_not_of (" \t"));
+
+    if (rest.size() >= 6 && _strnicmp (rest.c_str(), "cycles", 6) == 0)
+    {
+        rest.erase (0, 6);
+    }
+
+    for (char ch : rest)
+    {
+        if (ch != ',' && ch != ' ' && ch != '\t')
+        {
+            digits.push_back (ch);
+        }
+    }
+
+    if (digits.size() > 2 && digits[0] == '0' && (digits[1] == 'n' || digits[1] == 'N'))
+    {
+        digits.erase (0, 2);
+    }
+
+    parsed = std::from_chars (digits.data(), digits.data() + digits.size(), outValue);
+
+    return !digits.empty() && parsed.ec == std::errc() && parsed.ptr == digits.data() + digits.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExecutionHandlers::TryParseSeek
+//
+//  INSTR counts instructions from the start of history; POS is its older
+//  name. CYCLE takes the cycle count in the Registers pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExecutionHandlers::TryParseSeek (const std::string & text, ReverseCommand & command, uint64_t & argument, std::string & error)
 {
-    static constexpr const char * kUsage = "SEEK takes a time back from live, as -5s or -250ms, CYCLE n or POS n.";
+    static constexpr const char * kUsage = "SEEK takes a time back from live, as -5s or -250ms, CYCLE n or INSTR n.";
     static constexpr uint64_t     kMsPerS = 1000;
     static constexpr uint64_t     kMaxMs  = UINT64_MAX / kMsPerS;
     std::istringstream            words (text);
     std::string                   first;
-    std::string                   number;
+    std::string                   rest;
     std::string                   unit;
     uint64_t                      value   = 0;
     size_t                        digits  = 0;
@@ -1661,19 +1718,17 @@ bool ExecutionHandlers::TryParseSeek (const std::string & text, ReverseCommand &
 
 
 
-    words >> first >> number;
+    words >> first;
+    std::getline (words, rest);
 
     for (char & ch : first)
     {
         ch = (char) toupper ((unsigned char) ch);
     }
 
-    if (first == "CYCLE" || first == "POS")
+    if (first == "CYCLE" || first == "POS" || first == "INSTR")
     {
-        parsed = std::from_chars (number.data(), number.data() + number.size(), value);
-
-        //  A number too large for 64 bits is an error, not an exception.
-        if (number.empty() || parsed.ec != std::errc() || parsed.ptr != number.data() + number.size())
+        if (!TryParseCount (rest, value))
         {
             error = kUsage;
             return false;

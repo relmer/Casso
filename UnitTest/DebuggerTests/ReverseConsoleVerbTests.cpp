@@ -73,8 +73,9 @@ public:
     }
 
 
-    //  SEEK goes to a time back from live, a cycle or a position, as a
-    //  click on the history band does; anything else is an error.
+    //  SEEK goes to a time back from live, a cycle or an instruction, as a
+    //  click on the history band does, with counts written as they appear in
+    //  the debugger; anything else is an error.
     TEST_METHOD (SeekGoesToATimeACycleOrAPosition)
     {
         struct Case
@@ -86,10 +87,14 @@ public:
 
         static constexpr Case  kCases[] =
         {
-            { "SEEK -5s",          ReverseCommand::SeekBack,  5000   },
-            { "seek -250ms",       ReverseCommand::SeekBack,  250    },
-            { "SEEK CYCLE 646218", ReverseCommand::SeekCycle, 646218 },
-            { "SEEK pos 17",       ReverseCommand::Seek,      17     },
+            { "SEEK -5s",                          ReverseCommand::SeekBack,  5000       },
+            { "seek -250ms",                       ReverseCommand::SeekBack,  250        },
+            { "SEEK CYCLE 646218",                 ReverseCommand::SeekCycle, 646218     },
+            { "SEEK pos 17",                       ReverseCommand::Seek,      17         },
+            { "SEEK INSTR 17",                     ReverseCommand::Seek,      17         },
+            { "SEEK CYCLE 1,309,300,000",          ReverseCommand::SeekCycle, 1309300000 },
+            { "SEEK CYCLE 0n646218",               ReverseCommand::SeekCycle, 646218     },
+            { "SEEK CYCLE Cycles 1,309,300,000",   ReverseCommand::SeekCycle, 1309300000 },
         };
 
         HandlerRig<ExecutionHandlers>                       rig;
@@ -111,7 +116,7 @@ public:
             Assert::AreEqual (each.argument, taken.front().second, ToWide (each.line).c_str());
         }
 
-        for (const char * bad : { "SEEK", "SEEK 5s", "SEEK -5m", "SEEK CYCLE", "SEEK POS x1",
+        for (const char * bad : { "SEEK", "SEEK 5s", "SEEK -5m", "SEEK CYCLE", "SEEK POS x1", "SEEK INSTR",
                                   "SEEK CYCLE 99999999999999999999999", "SEEK -99999999999999999999s", "SEEK -18446744073709552s" })
         {
             taken.clear();

@@ -118,6 +118,7 @@ private:
     void                                               SetBarMenus      ();
     void                                               NewBreakpoint    (BreakpointDialog::Type type);
     BreakpointDialog::Validator                        MakeValidator    (std::optional<int> editedId);
+    void                                               EditInDialog     (const DebuggerViewSnapshot::BreakpointLine & bp);
     bool                                               ConfirmDeleteAll ();
     std::shared_ptr<DxuiCommand>                       MakeTypeCommand  (BreakpointDialog::Type type, const wchar_t * label);
     DebuggerAction                                     GetClearAction   (const DebuggerViewSnapshot::BreakpointLine & bp) const;

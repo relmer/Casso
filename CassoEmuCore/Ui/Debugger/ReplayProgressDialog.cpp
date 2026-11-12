@@ -52,7 +52,14 @@ void ReplayProgressPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     painter.FillRoundedRect    (left, barTop, width, barH, corner, theme.BackgroundElevated());
-    painter.FillRoundedRect    (left, barTop, width * std::clamp (m_fraction, 0.0f, 1.0f), barH, corner, theme.Accent());
+
+    //  The fill is the whole capsule cut off at the fraction, so a short fill
+    //  has the capsule's rounded end, not a rounded sliver that bulges past
+    //  the outline.
+    painter.PushClip           (left, barTop, width * std::clamp (m_fraction, 0.0f, 1.0f), barH);
+    painter.FillRoundedRect    (left, barTop, width, barH, corner, theme.Accent());
+    painter.PopClip            ();
+
     painter.OutlineRoundedRect (left, barTop, width, barH, corner, std::max (1.0f, m_scaler.ToPxf (1.0f)), theme.Border());
 }
 
@@ -89,10 +96,10 @@ std::wstring ReplayProgressDialog::GetText (const ReplayProgress & progress, boo
 
     if (isStopping)
     {
-        return L"Stopping the search...";
+        return L"Stopping...";
     }
 
-    return std::format (L"Searching history for a breakpoint: {}%", std::lround (std::clamp (progress.fraction, 0.0f, 1.0f) * kPercent));
+    return std::format (L"Running backward to the previous breakpoint: {}%", std::lround (std::clamp (progress.fraction, 0.0f, 1.0f) * kPercent));
 }
 
 

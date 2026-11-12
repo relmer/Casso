@@ -935,6 +935,7 @@ public:
     //  prompt of the mode it runs in, then the reply. It runs in `lineMode`
     //  when given, otherwise in the session's mode. CPU thread only.
     std::vector<std::string>  ExecuteConsoleLine (DebugSession & session, const std::string & line, std::optional<CommandMode> lineMode = std::nullopt);
+    std::vector<std::string>  RunPendingScript   (DebugSession & session);
 
     //  The lines the console shows for a control's action: its echo behind
     //  the prompt, then the reply. The command runs directly, never through a

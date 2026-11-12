@@ -203,7 +203,7 @@ private:
     uint32_t               m_ioArgb      = 0xFF909090;
     uint32_t               m_unreadArgb  = 0xFF707070;
     uint32_t               m_differsArgb = 0xFFE8A317;
-    bool                   m_isHeatOn    = false;
+    bool                   m_isHeatOn    = true;
 
     //  The heat the bytes are tinted by while Heat is on.
     std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>  m_heatLevels;

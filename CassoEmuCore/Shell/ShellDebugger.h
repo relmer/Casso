@@ -98,7 +98,7 @@ public:
     // Tells an attached session the machine was reset or replaced. CPU thread
     // only; each is a no-op when no session is attached.
     void NotifyDebugReset          (bool isPowerCycle);
-    void NotifyDebugMachineChanged (const std::string & machineName);
+    void NotifyDebugMachineChanged (const std::string & machineName, bool isStateLoaded = false);
 
     // A machine just built is power cycled with its drives empty and then
     // has its disks mounted, so the disk now in drive 1 is the one it boots,
@@ -532,11 +532,13 @@ private:
     void            AddConsoleLines     (const std::vector<std::string> & lines);
     void            PublishProject      ();
 
-    bool  TryPublishHistoryPlayhead ();
-    void  SyncHeatHistory           (bool isAttached);
-    void  ServiceCallHistory        ();
-    void  ServiceEventLogs          ();
-    void  ReportHistoryCuts         ();
+    bool         TryPublishHistoryPlayhead ();
+    std::string  GetLandingText            (ReverseOutcome outcome);
+    void         SyncHeatHistory           (bool isAttached);
+    void         ServiceCallHistory        ();
+    void         ServicePendingScript      ();
+    void         ServiceEventLogs          ();
+    void         ReportHistoryCuts         ();
 
     // The debug channel, when `--debugger` opened it. Built and torn down on
     // the CPU thread, and only ever touched there.
@@ -599,6 +601,7 @@ private:
     // while the debugger has the machine stopped.
     atomic<bool>      m_isBeamOverlayOn    {false};
     atomic<bool>      m_isReplayingHistory {false};   // set by the CPU thread while a reverse command runs
+    atomic<bool>      m_isLandingReplyDue  {false};   // a SEEK or LIVE typed at the console: its landing is reported there
     atomic<uint64_t>  m_replayStartedAt    {0};   // the tick count the running reverse command began at
     ReplayControl     m_replayControl;   // the running command's progress, and the UI thread's request to stop it
     atomic<uint64_t>  m_seekCyclePosted    {UINT64_MAX};   // the cycle the timeline last asked a seek to

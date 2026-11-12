@@ -225,8 +225,8 @@ public:
         Assert::IsFalse (execution.find (L"ACCESS") != std::wstring::npos, L"not for an execution breakpoint");
         Assert::IsFalse (disk.find      (L"ACCESS") != std::wstring::npos, L"or a disk breakpoint");
 
-        Assert::IsTrue  (disk.find      (L"DISK.AVOLUME") != std::wstring::npos, L"every disk value for a disk breakpoint");
-        Assert::IsTrue  (rule.find      (L"DISK.AVOLUME") != std::wstring::npos, L"and a condition breakpoint");
+        Assert::IsTrue  (disk.find      (L"DISK.ADDR.VOLUME") != std::wstring::npos, L"every disk value for a disk breakpoint");
+        Assert::IsTrue  (rule.find      (L"DISK.ADDR.VOLUME") != std::wstring::npos, L"and a condition breakpoint");
         Assert::IsFalse (memory.find    (L"DISK.") != std::wstring::npos,        L"not for a memory breakpoint");
     }
 

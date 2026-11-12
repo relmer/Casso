@@ -1825,12 +1825,22 @@ void DebugSession::OnWatchedFetch (Word pc, Byte sp, Byte opcode)
 //  ends, since its opcodes were the old CPU's, and so does what is left of a
 //  counted step. The new machine is paused or running as the caller says.
 //
+//  In a state loaded into the same kind of machine the addresses mean what
+//  they did, so with isKeepingStops the breakpoints and watchpoints stay,
+//  with their ids, and only what the old run built starts over.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugSession::OnMachineChanged (const std::string & machineName, bool isPaused)
+void DebugSession::OnMachineChanged (const std::string & machineName, bool isPaused, bool isKeepingStops)
 {
-    m_breakpoints.ClearAll();
-    m_watchpoints.ClearAll();
+    if (!isKeepingStops)
+    {
+        m_breakpoints.ClearAll();
+        m_watchpoints.ClearAll();
+        m_nextId = 0;
+        m_lastBreakpointId.reset();
+    }
+
     m_watchpoints.ClearPending();
     m_target.ClearUnwrittenStop();
     m_videoBreak.reset();
@@ -1839,10 +1849,8 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
     m_beamBreakHit  = false;
     m_frameBreak.reset();
     m_frameBreakHit = false;
-    m_nextId = 0;
     m_isUnwrittenBreak = false;
     m_target.SetUnwrittenBreak (false);
-    m_lastBreakpointId.reset();
     m_beforeHit.reset();
     m_monitorReturn.reset();
     m_monitorReturned = false;
@@ -1869,10 +1877,13 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
         SetCallRecording (false);
     }
 
+    //  The record starts over at the new machine's PC, which is not where
+    //  the debugger opened.
     if (m_callRecorder.IsActive())
     {
         m_callRecorder.End();
         SetCallRecording (true);
+        m_callRecorder.RelabelBottom (CallBreakKind::TrackingBegan, CallBreakKind::TrackingRestarted);
     }
 
     if (m_instructionObserver != nullptr)
@@ -1882,6 +1893,12 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
 
     UpdateHookInstalled();
     LoadRomSymbols();
+
+    if (isKeepingStops)
+    {
+        OnStopConditionsChanged();
+    }
+
     m_sink.OnMachineChanged (machineName);
 }
 
@@ -3235,7 +3252,8 @@ bool DebugSession::TryExecuteEngineCommand (const DebugCommand & command, Reply 
 //  DebugSession::ExecuteSource
 //
 //  SRC gives the source line at PC and how steps go; SRC ON and SRC OFF
-//  choose between source lines and instructions.
+//  choose between source lines and instructions. SRC CLEAR unloads the
+//  debug file and the symbols it put in its table.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3246,8 +3264,32 @@ void DebugSession::ExecuteSource (const DebugCommand & command, Reply & reply)
     int          line      = 0;
     Word         pc        = m_target.GetRegisters().pc;
     bool         hasSource = !m_lineTable.IsEmpty() && !IsDebugFileStale();
+    std::string  name;
 
 
+
+    if (command.verb == DebugVerb::ShowSource && command.text == "CLEAR")
+    {
+        name = TextEncoding::WideToNarrow (std::filesystem::path (m_debugFilePath).filename().wstring());
+
+        if (!HasDebugFile())
+        {
+            message.lines.push_back ("No debug file is loaded.");
+        }
+        else
+        {
+            if (m_debugFileTable.has_value())
+            {
+                m_symbols.Clear (*m_debugFileTable);
+            }
+
+            ClearDebugFile();
+            message.lines.push_back (std::format ("Unloaded the debug file {}.", name));
+        }
+
+        reply.data = message;
+        return;
+    }
 
     if (command.verb == DebugVerb::SetSourceStepping)
     {
@@ -3863,6 +3905,28 @@ CallStackData DebugSession::GetCallStack()
     }
 
     return data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::TakePendingScript
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::TakePendingScript (PendingScript & outScript)
+{
+    if (!m_pendingScript.has_value())
+    {
+        return false;
+    }
+
+    outScript = std::move (*m_pendingScript);
+    m_pendingScript.reset();
+    return true;
 }
 
 

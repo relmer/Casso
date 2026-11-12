@@ -198,8 +198,12 @@ public:
     //  the breakpoint's own type otherwise; the definition when OK. OK
     //  closes the dialog only once the validator, when given, accepts the
     //  definition; otherwise its reason is drawn under the fields.
+    //  A source file's name and a line in it, from 1.
+    using SourcePlace = std::pair<std::wstring, int>;
+
     static std::optional<Result>  RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type = std::nullopt,
-                                            Validator validator = {}, std::vector<std::wstring> sourceFiles = {});
+                                            Validator validator = {}, std::vector<std::wstring> sourceFiles = {},
+                                            std::optional<SourcePlace> sourcePlace = std::nullopt);
 
     //  A new breakpoint's dialog for the type chosen: an execution address
     //  starts at the PC, and every other type's fields start empty.
@@ -207,7 +211,8 @@ public:
                                             std::vector<std::wstring> sourceFiles = {});
 
     //  The log row's info tip text.
-    static const wchar_t *  GetLogTip ();
+    static std::wstring     GetLogTip         (Type type);
+    static const wchar_t *  GetDiskValuesLine ();
 
     //  The tip of the New drop-down's Source line row while no debug file is
     //  loaded, when the row is disabled.
@@ -272,6 +277,7 @@ private:
     DxuiComboBox                   m_drive;
     DxuiComboBox                   m_file;
     std::vector<std::wstring>      m_sourceFiles;
+    std::optional<SourcePlace>     m_sourcePlace;
     DxuiTextInput                  m_address;
     DxuiTextInput                  m_value;
     DxuiTextInput                  m_condition;

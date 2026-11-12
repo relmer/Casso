@@ -299,6 +299,7 @@ bool AppleWinParser::TryParseDiskOptions (const Tokens & tokens, size_t & at, Di
     bool       isField    = event == DiskEvent::SectorRead || event == DiskEvent::AddressField || event == DiskEvent::WritePrologue;
     bool       takesData  = event == DiskEvent::SectorRead || event == DiskEvent::WritePrologue;
     bool       isPassable = event == DiskEvent::SectorRead || event == DiskEvent::DosSector || event == DiskEvent::ProDosBlock;
+    bool       isLogical  = event == DiskEvent::DosSector || event == DiskEvent::ProDosBlock;
     bool       isOk       = true;
 
 
@@ -310,6 +311,8 @@ bool AppleWinParser::TryParseDiskOptions (const Tokens & tokens, size_t & at, Di
 
 
         if      (word == "PASSED"     && isPassable)                      { spec.isPassed      = true; }
+        else if (word == "WRITTEN"    && isLogical)                       { spec.access        = DiskSectorAccess::Written; }
+        else if (word == "EITHER"     && isLogical)                       { spec.access        = DiskSectorAccess::Either; }
         else if (word == "BADSUM"     && event == DiskEvent::AddressField) { spec.isBadChecksum = true; }
         else if (word == "WRONGTRACK" && event == DiskEvent::AddressField) { spec.isWrongTrack  = true; }
         else if (word == "BUMP"       && event == DiskEvent::Head)        { spec.isBump        = true; }
@@ -379,7 +382,7 @@ bool AppleWinParser::TryParseDiskMarks (const Tokens & tokens, size_t & at, std:
 bool AppleWinParser::IsDiskOptionWord (const std::string & token)
 {
     static constexpr const char * kWords[] = { "PASSED", "BADSUM", "WRONGTRACK", "BUMP", "EVERY", "ADDR", "DATA", "SECTORS",
-                                               "READ", "WRITE", "SEEK", "STATUS", "FORMAT" };
+                                               "READ", "WRITE", "SEEK", "STATUS", "FORMAT", "WRITTEN", "EITHER" };
     std::string                   upper    = ToUpper (token);
 
 

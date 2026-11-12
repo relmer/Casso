@@ -1567,6 +1567,14 @@ bool AppleWinParser::TryParseSymbolArguments (const Arguments & args, DebugComma
         return true;
     }
 
+    //  SYM name ! removes too, the way the command reads aloud.
+    if (args.tokens.size() == 2 && (args.tokens[1] == "!" || args.tokens[1] == "~"))
+    {
+        command.verb = DebugVerb::RemoveSymbol;
+        command.text = args.tokens[0];
+        return true;
+    }
+
     if (first == "!" || first == "~")
     {
         command.verb = DebugVerb::RemoveSymbol;
@@ -1692,9 +1700,16 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
     {
         mode = ToUpper (args.tokens[0]);
 
+        //  SRC CLEAR unloads the debug file.
+        if (mode == "CLEAR")
+        {
+            command.text = mode;
+            return true;
+        }
+
         if (mode != "ON" && mode != "OFF")
         {
-            error = "Use SRC ON for source mode, SRC OFF for disassembly mode, or SRC alone to show the line at PC.";
+            error = "Use SRC ON for source mode, SRC OFF for disassembly mode, SRC CLEAR to unload the debug file, or SRC alone for the line at PC.";
             return false;
         }
 

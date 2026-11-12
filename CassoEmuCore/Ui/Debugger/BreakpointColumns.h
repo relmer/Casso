@@ -112,6 +112,9 @@ public:
     static bool  TryGetSourcePlace (const DebuggerViewSnapshot & snapshot, const DebuggerViewSnapshot::BreakpointLine & bp,
                                     int & fileId, int & line);
 
+    //  The file and line a breakpoint was set on, for one set by source line.
+    static bool  TryGetSourceLine  (const DebuggerViewSnapshot & snapshot, int id, std::string & file, int & line);
+
     //  Whether a breakpoint stops at an address: an opcode, a register
     //  condition, BRK and an interrupt stop anywhere.
     static bool  HasAddress        (const BreakpointInfo & info);
@@ -136,7 +139,6 @@ private:
     static std::string  GetDiskAddress   (const BreakpointInfo & info);
     static std::string  GetRange         (const BreakpointInfo & info);
     static std::string  GetWhenHit       (const BreakpointInfo & info);
-    static bool         TryGetSourceLine (const DebuggerViewSnapshot & snapshot, int id, std::string & file, int & line);
     static bool         TryReadMask      (const std::string & token, const char * pszToken, unsigned & mask);
     static Shown        MakeShown        (unsigned mask);
     static Shown        MigrateShown     (unsigned mask);

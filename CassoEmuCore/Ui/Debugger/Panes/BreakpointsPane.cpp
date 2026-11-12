@@ -356,6 +356,11 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
 
     bp = *found;
 
+    //  In Visual Studio's order: Delete, the two Go to rows, Settings and the
+    //  name, then the rows Visual Studio doesn't have.
+    items.push_back ({ L"Delete", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { GetClearAction (bp) }, {} }); } });
+    items.push_back ({ L"", {} });
+
     if (BreakpointColumns::TryGetSourcePlace (*snapshot, bp, fileId, line))
     {
         items.push_back ({ L"Go to source code", [this, fileId, line] { m_host.OpenSource (fileId, line); } });
@@ -364,35 +369,30 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
     if (BreakpointColumns::HasAddress (bp.info))
     {
         items.push_back ({ L"Go to disassembly", [this, bp] { m_host.GoToCode (bp.address); } });
-        m_host.AddBookmarkItem (bp.address, items);
     }
 
-    //  A session stop is no table entry: it has no off state, no name and no
-    //  id, and a new definition replaces it.
-    if (bp.id >= 0)
-    {
-        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, m_host.GetMode()) }, {} }); } });
-        items.push_back ({ L"Rename",                           [this, bp] { BeginNameEdit (GetRowOfId (bp.id)); } });
-    }
-
-    items.push_back ({ L"Remove", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { GetClearAction (bp) }, {} }); } });
+    items.push_back ({ L"", {} });
 
     //  Its type and the fields of that type, in a dialog; the result is
     //  the definition BPEDIT takes, as a person could have typed it
     //  (FR-094).
     if (bp.info.kind != BreakpointKind::UnwrittenRead)
     {
-        items.push_back ({ L"Edit...", [this, bp]
-        {
-            std::optional<int>                       editedId = (bp.id >= 0) ? std::optional<int> (bp.id) : std::nullopt;
-            std::optional<BreakpointDialog::Result>  result   = BreakpointDialog::RunModal (m_host.GetOwnerHwnd(), m_host.GetTheme(), bp.info, std::nullopt, MakeValidator (editedId));
-            const DebuggerViewSnapshot             * snapshot = m_host.GetLatestSnapshot();
+        items.push_back ({ L"Settings...", [this, bp] { EditInDialog (bp); } });
+    }
 
-            if (result.has_value())
-            {
-                RunStep ({ BreakpointStep::Kind::Actions, GetDialogActions (*result, editedId, bp.info, (snapshot != nullptr) ? snapshot->nextBreakpointId : 0, m_host.GetMode()), {} });
-            }
-        } });
+    //  A session stop is no table entry: it has no off state, no name and no
+    //  id, and a new definition replaces it.
+    if (bp.id >= 0)
+    {
+        items.push_back ({ L"Rename", [this, bp] { BeginNameEdit (GetRowOfId (bp.id)); } });
+        items.push_back ({ L"", {} });
+        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, m_host.GetMode()) }, {} }); } });
+    }
+
+    if (BreakpointColumns::HasAddress (bp.info))
+    {
+        m_host.AddBookmarkItem (bp.address, items);
     }
 
     return true;
@@ -747,11 +747,52 @@ void BreakpointsPane::NewBreakpoint (BreakpointDialog::Type type)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointsPane::EditInDialog
+//
+//  The breakpoint's dialog, opened as a breakpoint set on a source line
+//  when it was one; OK runs the edit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointsPane::EditInDialog (const DebuggerViewSnapshot::BreakpointLine & bp)
+{
+    std::optional<int>                            editedId = (bp.id >= 0) ? std::optional<int> (bp.id) : std::nullopt;
+    const DebuggerViewSnapshot                  * snapshot = m_host.GetLatestSnapshot();
+    std::optional<BreakpointDialog::SourcePlace>  place;
+    std::optional<BreakpointDialog::Result>       result;
+    std::string                                   file;
+    int                                           line     = 0;
+
+
+
+    if (snapshot != nullptr && BreakpointColumns::TryGetSourceLine (*snapshot, bp.id, file, line))
+    {
+        place = BreakpointDialog::SourcePlace { SourcePathList::Utf8ToWide (file), line };
+    }
+
+    result   = BreakpointDialog::RunModal (m_host.GetOwnerHwnd(), m_host.GetTheme(), bp.info, std::nullopt, MakeValidator (editedId), GetSourceFiles (snapshot), place);
+    snapshot = m_host.GetLatestSnapshot();
+
+    if (result.has_value())
+    {
+        RunStep ({ BreakpointStep::Kind::Actions, GetDialogActions (*result, editedId, bp.info, (snapshot != nullptr) ? snapshot->nextBreakpointId : 0, m_host.GetMode()), {} });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointsPane::GetDialogActions
 //
 //  The definition, as an edit of the breakpoint or a new one, then BPLOG
-//  where the message or whether a hit goes on running changed. A new
-//  breakpoint's message is set on the id it takes.
+//  where the message changed, or whether a hit stops changed with a message
+//  set. Without a message, Don't break is the breakpoint's flag, set with
+//  BPCHANGE; a breakpoint stops after BPLOG CLEAR, so a cleared message is
+//  followed by BPCHANGE too. A new breakpoint's message and flag
+//  are set on the id it takes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -759,18 +800,25 @@ std::vector<DebuggerAction> BreakpointsPane::GetDialogActions (const BreakpointD
                                                                int nextId, CommandMode mode)
 {
     std::vector<DebuggerAction>  actions;
-    int                          id        = editedId.value_or (nextId);
-    bool                         wasGo     = !original.log.empty() && !original.stops;
-    bool                         isChanged = result.log != original.log || (!result.log.empty() && result.isLogGo != wasGo);
+    int                          id           = editedId.value_or (nextId);
+    bool                         wasStopping  = !editedId.has_value() || original.stops;
+    bool                         isStopping   = !result.isLogGo;
+    bool                         isLogChanged = result.log != original.log || (!result.log.empty() && isStopping != wasStopping);
+    bool                         isStopsAfter = isLogChanged ? true : wasStopping;
 
 
 
     actions.push_back (editedId.has_value() ? DebuggerActions::GetEditBreakpoint (*editedId, result.definition, mode)
                                             : DebuggerActions::GetDefineBreakpoint (result.definition, mode));
 
-    if (isChanged)
+    if (isLogChanged)
     {
         actions.push_back (DebuggerActions::GetLogBreakpoint (id, result.log, result.isLogGo, mode));
+    }
+
+    if (result.log.empty() && isStopping != isStopsAfter)
+    {
+        actions.push_back (DebuggerActions::GetChangeBreakpoint (id, !editedId.has_value() || original.enabled, editedId.has_value() && original.temporary, isStopping, mode));
     }
 
     return actions;

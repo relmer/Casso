@@ -1286,7 +1286,9 @@ void DisassemblyGroup::ApplyView (int view)
 
             //  An instruction with a source line is dimmed under it, whatever else
             //  is in view, so the dimming doesn't change as the view scrolls.
-            if (theme != nullptr && DisassemblyCells::IsDimmed (m_options, source && line->sourceFileId >= 0, false, at == current))
+            //  There is no source row for a line whose file isn't found, so its
+            //  instruction isn't dimmed.
+            if (theme != nullptr && DisassemblyCells::IsDimmed (m_options, source && line->sourceFileId >= 0 && TryGetSourceText (line->sourceFileId, line->sourceLine, text), false, at == current))
             {
                 DisassemblyCells::DimRow (cells, theme->Foreground(), theme->TextViewBackground());
             }

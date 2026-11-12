@@ -291,7 +291,10 @@ bool DiskBreakpointMonitor::IsFieldMatch (const DiskBreakSpec & spec, const Cand
     int                     track    = 0;
     int                     first    = -1;
     int                     second   = -1;
-    bool                    isData   = field.kind == DiskFieldEventKind::DataChecksum && (spec.isPassed || !field.isPassed);
+    bool                    isRead   = field.kind == DiskFieldEventKind::DataChecksum && (spec.isPassed || !field.isPassed);
+    bool                    isWrite  = field.kind == DiskFieldEventKind::WritePrologue;
+    bool                    isData   = (spec.access != DiskSectorAccess::Written && isRead) || (spec.access != DiskSectorAccess::Read && isWrite);
+    uint16_t                done     = 0;
     bool                    isSet    = FindMarkSet (spec) == candidate.markSet && IsDrive (spec, field.drive);
     bool                    isPlace  = (!spec.track.has_value() || *spec.track == field.track) && (!spec.sector.has_value() || *spec.sector == field.sector);
     bool                    isVolume = !spec.volume.has_value() || *spec.volume == field.volume;
@@ -315,13 +318,15 @@ bool DiskBreakpointMonitor::IsFieldMatch (const DiskBreakSpec & spec, const Cand
         return isSet && isData && (!spec.track.has_value() || *spec.track == field.track) &&
                spec.sector.has_value() && field.sector == DiskLogicalMap::GetDosPhysical (*spec.sector);
 
-    //  A block stops once both its sectors are read during one visit to its
-    //  track, on the second of them.
+    //  A block stops once both its sectors are read, or written, during one
+    //  visit to its track, on the second of them.
     case DiskEvent::ProDosBlock:
         DiskLogicalMap::GetBlockPhysical (spec.block.value_or (0), track, first, second);
 
+        done = isWrite ? candidate.writeMask : (spec.isPassed ? candidate.anyMask : candidate.readMask);
+
         return isSet && isData && field.track == track && (field.sector == first || field.sector == second) &&
-               ((spec.isPassed ? candidate.anyMask : candidate.readMask) & ((1 << first) | (1 << second))) == ((1 << first) | (1 << second));
+               (done & ((1 << first) | (1 << second))) == ((1 << first) | (1 << second));
 
     default:
         return false;
@@ -350,13 +355,20 @@ void DiskBreakpointMonitor::NoteVisit (Candidate & candidate)
 
     if (field.kind == DiskFieldEventKind::DataChecksum)
     {
-        visit          = (visit.track == field.track) ? visit : Visit { field.track, 0, 0 };
+        visit          = (visit.track == field.track) ? visit : Visit { field.track, 0, 0, 0 };
         visit.anyMask  = static_cast<uint16_t> (visit.anyMask | bit);
         visit.readMask = static_cast<uint16_t> (visit.readMask | (field.isPassed ? 0 : bit));
     }
 
-    candidate.readMask = visit.readMask;
-    candidate.anyMask  = visit.anyMask;
+    if (field.kind == DiskFieldEventKind::WritePrologue)
+    {
+        visit           = (visit.track == field.track) ? visit : Visit { field.track, 0, 0, 0 };
+        visit.writeMask = static_cast<uint16_t> (visit.writeMask | bit);
+    }
+
+    candidate.readMask  = visit.readMask;
+    candidate.anyMask   = visit.anyMask;
+    candidate.writeMask = visit.writeMask;
 }
 
 

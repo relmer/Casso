@@ -52,8 +52,13 @@ public:
     static constexpr int  kChannelClosed = 2;
     static constexpr int  kRunUnfinished = 3;
 
-    //  How long to wait for a paused machine to report its stop.
+    //  How long to wait for a paused machine to report its stop, and for
+    //  the hello in reply to the runner's.
     static constexpr DWORD  kPauseWaitMs = 5000;
+    static constexpr DWORD  kHelloWaitMs = 2000;
+
+    //  The hello's request id, below the commands', which count from 1.
+    static constexpr int64_t  kHelloId = 0;
 
     static void  Run (IChannelClient                         & client,
                       const CommandLineOptions::DebugOptions & options,
@@ -71,6 +76,7 @@ private:
         Closed,
     };
 
+    static bool  SayHello       (IChannelClient & client, int64_t id, const CommandLineOptions::DebugOptions & options, DebugAttachResult & result);
     static Wait  ReadUntil      (IChannelClient & client, DWORD timeoutMs, const std::function<bool (const JsonValue &, const std::string &)> & isWanted,
                                  const CommandLineOptions::DebugOptions & options, DebugAttachResult & result, JsonValue & found);
     static void  PrintRecord    (const JsonValue & record, const std::string & raw,

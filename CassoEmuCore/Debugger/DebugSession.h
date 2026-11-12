@@ -132,7 +132,7 @@ public:
     void  ClearAllBreakpoints     ();
 
     // Machine events the host reports.
-    void   OnMachineChanged      (const std::string & machineName, bool isPaused = true);
+    void   OnMachineChanged      (const std::string & machineName, bool isPaused = true, bool isKeepingStops = false);
     void   OnReset               (bool isPowerCycle);
 
     //  Takes each RWTS and driver breakpoint's routine from its vector again,
@@ -444,6 +444,19 @@ public:
     void                       SetScriptLineRunner (ScriptLineRunner runner)       { m_scriptLineRunner = std::move (runner); }
     const ScriptLineRunner   & GetScriptLineRunner () const                        { return m_scriptLineRunner; }
 
+    // The rest of a script whose line started a run that goes on after the
+    // line returns, as G does in the window: the host runs it once the
+    // machine stops. TakePendingScript returns false with no script waiting.
+    struct PendingScript
+    {
+        std::string                 content;
+        std::optional<CommandMode>  mode;
+    };
+
+    void                       SetPendingScript    (PendingScript script)          { m_pendingScript = std::move (script); }
+    bool                       TakePendingScript   (PendingScript & outScript);
+    bool                       HasPendingScript    () const                        { return m_pendingScript.has_value(); }
+
     // Reverse execution, where the host records the machine's history: the
     // requester carries a reverse command to the machine and returns whether
     // it was taken. Empty where nothing is recorded.
@@ -669,6 +682,7 @@ private:
     std::optional<Word>           m_assemblyAddress;
     std::unique_ptr<OpcodeTable>  m_assemblyOpcodes;
     ScriptLineRunner              m_scriptLineRunner;
+    std::optional<PendingScript>  m_pendingScript;
     ReverseRequester              m_reverseRequester;
     StateFileRequester            m_stateFileRequester;
     ProjectRequester              m_projectRequester;
