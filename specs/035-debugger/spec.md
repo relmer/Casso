@@ -372,6 +372,10 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Which font does the debugger draw in? -> A: The debugger's theme's. With Same as Casso it follows the emulator's theme; a Casso theme chosen for the debugger draws in that theme's face and glow; the system themes draw in the system face. A tab's mark is drawn in the system face, which no theme replaces (FR-406).
 - Q: Which project does a launch open with a disk in drive 1? -> A: The boot disk's, as a restart does. The machine is power cycled before its disks are mounted, so the disk mounted after that power cycle is the boot disk (FR-407).
 
+### Session 2026-11-11 (owner decision during the validation walkthrough: breakpoint groups)
+
+- Q: Do breakpoint groups, as Visual Studio's Breakpoints window has them, ship in 035? -> A: Yes ("1 yes", answering whether to build Add to breakpoint group). A breakpoint is in at most one group, which has a name; the pane lists each group under a heading; a row's menu adds the selected breakpoints to a group; a heading's menu enables, disables, renames, ungroups or deletes the group; BPGROUP does the same from the console; each pane action is one undo step; groups are saved with the project and the breakpoint files (FR-409 to FR-416).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -4074,6 +4078,34 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   [GO] "text"` sets the message, GO making the hit run on, and `BPLOG # CLEAR`
   removes it. The message and whether a hit stops MUST be saved in the debug
   project, and the Breakpoints pane's When hit column MUST list the message.
+- **FR-409**: A breakpoint MUST be in at most one group, which has a name. A
+  group's name MUST match without regard to case and MUST be displayed as
+  first typed.
+- **FR-410**: While any group exists, the Breakpoints pane MUST list each
+  group's breakpoints under a heading with the group's name and its number of
+  breakpoints, then the ungrouped breakpoints with no heading. A heading MUST
+  collapse and expand its rows. With no group, the pane MUST list the
+  breakpoints with no headings.
+- **FR-411**: A breakpoint row's context menu MUST have Add to breakpoint
+  group, a submenu of the existing groups, New group..., and Remove from group
+  when any selected breakpoint is in a group; each MUST act on every selected
+  breakpoint.
+- **FR-412**: A group heading's context menu MUST have Enable all, Disable all,
+  Rename group..., Ungroup, after which the breakpoints are in place with no
+  group, and Delete group and its breakpoints, which MUST be confirmed first.
+- **FR-413**: The console MUST have BPGROUP: `BPGROUP` lists each group and its
+  breakpoint ids; `BPGROUP name id[,id...]` puts breakpoints in a group,
+  creating it; `BPGROUP ! id[,id...]` takes them out of their groups; `BPGROUP
+  ENABLE name`, `BPGROUP DISABLE name`, `BPGROUP RENAME old new`, `BPGROUP
+  UNGROUP name` and `BPGROUP DELETE name` act on a group. An unknown group or id
+  MUST be an error whose text has the name or id.
+- **FR-414**: Each group action taken in the Breakpoints pane MUST be one step
+  on the pane's undo list, as its other actions are.
+- **FR-415**: A breakpoint's group MUST be saved and restored by the debug
+  project and by the breakpoint list files, and a breakpoint MUST be in the
+  same group after BPEDIT. A project or breakpoint file with no groups MUST
+  load.
+- **FR-416**: A group MUST cease to exist once it has no breakpoints.
 
 ### Key Entities
 
