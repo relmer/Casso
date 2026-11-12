@@ -112,6 +112,181 @@ public:
     }
 
 
+    //  A track of disk bytes with a C0 in it, as a read at a write splice
+    //  has, built into a WOZ: no run of zero bits is longer than a
+    //  controller reads reliably.
+    TEST_METHOD (ASpliceByte_IsWrittenWithNoLongRunOfZeros)
+    {
+        static constexpr size_t  kRevolution = 6000;
+        static constexpr size_t  kReadBytes  = 14000;
+        static constexpr size_t  kMaxZeros   = 2;
+
+        std::vector<Byte>                        revolution;
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        CassoLinkCapture::Result                 result;
+        DiskImage                                image;
+        uint32_t                                 seed    = 12345;
+        size_t                                   run     = 0;
+        size_t                                   longest = 0;
+
+
+
+        for (size_t at = 0; at < kRevolution; at++)
+        {
+            seed = seed * 1103515245u + 12345u;
+            revolution.push_back (s_kDiskBytes[(seed >> 16) % std::size (s_kDiskBytes)]);
+        }
+
+        revolution[kRevolution / 2] = 0xC0;
+
+        for (Byte delay : CassoLinkCapture::kWholeDelays)
+        {
+            std::vector<Byte>  read;
+
+            for (size_t at = 0; at < kReadBytes; at++)
+            {
+                read.push_back (revolution[at % kRevolution]);
+            }
+
+            positions[0].reads.push_back (read);
+            positions[0].delays.push_back (delay);
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, 0, "2026-11-12T00:00:00Z", 1, result));
+        AssertSucceeded (WozLoader::Load (result.woz, image));
+
+        int  slot = image.ResolveQuarterTrack (0);
+
+        Assert::IsTrue (image.GetTrackBitCount (slot) > 0, L"Track 0 has a stream");
+
+        for (size_t at = 0; at < image.GetTrackBitCount (slot); at++)
+        {
+            run     = image.ReadBit (slot, at) != 0 ? 0 : run + 1;
+            longest = std::max (longest, run);
+        }
+
+        Assert::IsTrue (longest <= kMaxZeros);
+    }
+
+
+    //  A track whose address fields end in a checksum of $FF, read with
+    //  its sync bytes marked as two zero bits follow them: the sync bytes
+    //  are written with two zero bits, and the checksum's FF FF with none,
+    //  so a read of the field doesn't read an FF twice.
+    TEST_METHOD (AnAddressFieldsFFs_AreWrittenWithNoZeroBits)
+    {
+        static constexpr size_t  kSectors   = 16;
+        static constexpr size_t  kSyncs     = 6;
+        static constexpr size_t  kDataBytes = 343;
+        static constexpr size_t  kReadBytes = 14000;
+        static constexpr Byte    kMarked    = 0x7F;
+
+        std::vector<Byte>                        revolution;
+        std::vector<bool>                        sync;
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        CassoLinkCapture::Result                 result;
+        DiskImage                                image;
+        std::vector<std::pair<Byte, size_t>>     framed;
+        uint32_t                                 seed    = 12345;
+        size_t                                   checked = 0;
+
+
+
+        auto  add = [&revolution, &sync] (std::initializer_list<Byte> values, bool isSync)
+        {
+            for (Byte value : values)
+            {
+                revolution.push_back (value);
+                sync.push_back (isSync);
+            }
+        };
+
+        for (size_t sector = 0; sector < kSectors; sector++)
+        {
+            for (size_t each = 0; each < kSyncs; each++)
+            {
+                add ({ 0xFF }, true);
+            }
+
+            add ({ 0xD5, 0xAA, 0x96, 0xFF, 0xFE, 0xAA, 0xAA, (Byte) (0xAA | (sector >> 1)), (Byte) (0xAA | sector), 0xFF, 0xFF, 0xDE, 0xAA, 0xEB }, false);
+
+            for (size_t each = 0; each < kSyncs; each++)
+            {
+                add ({ 0xFF }, true);
+            }
+
+            add ({ 0xD5, 0xAA, 0xAD }, false);
+
+            for (size_t each = 0; each < kDataBytes; each++)
+            {
+                seed = seed * 1103515245u + 12345u;
+                add ({ s_kDiskBytes[(seed >> 16) % (std::size (s_kDiskBytes) - 1)] }, false);
+            }
+
+            add ({ 0xDE, 0xAA, 0xEB }, false);
+        }
+
+        for (Byte delay : CassoLinkCapture::kWholeDelays)
+        {
+            std::vector<Byte>  read;
+
+            for (size_t at = 0; at < kReadBytes; at++)
+            {
+                size_t  in = at % revolution.size();
+
+                read.push_back ((delay == 1 && sync[in]) ? kMarked : revolution[in]);
+            }
+
+            positions[0].reads.push_back (read);
+            positions[0].delays.push_back (delay);
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, 0, "2026-11-12T00:00:00Z", 1, result));
+        AssertSucceeded (WozLoader::Load (result.woz, image));
+
+        int     slot  = image.ResolveQuarterTrack (0);
+        size_t  count = image.GetTrackBitCount (slot);
+        size_t  at    = 0;
+
+        while (at < count && image.ReadBit (slot, at) == 0)
+        {
+            at++;
+        }
+
+        while (at + 8 <= count)
+        {
+            Byte    value = 0;
+            size_t  zeros = 0;
+
+            for (int bit = 0; bit < 8; bit++)
+            {
+                value = (Byte) ((value << 1) | image.ReadBit (slot, at++));
+            }
+
+            while (at < count && image.ReadBit (slot, at) == 0)
+            {
+                zeros++;
+                at++;
+            }
+
+            framed.push_back ({ value, zeros });
+        }
+
+        for (size_t each = 1; each + 11 < framed.size(); each++)
+        {
+            if (framed[each].first == 0xD5 && framed[each + 1].first == 0xAA && framed[each + 2].first == 0x96)
+            {
+                Assert::AreEqual ((size_t) 2, framed[each - 1].second, L"The sync byte before the field");
+                Assert::AreEqual ((size_t) 0, framed[each + 9].second,  L"The checksum's first FF");
+                Assert::AreEqual ((size_t) 0, framed[each + 10].second, L"The checksum's second FF");
+                checked++;
+            }
+        }
+
+        Assert::IsTrue (checked > 0, L"The track has address fields");
+    }
+
+
     TEST_METHOD (WholeTrack_IsReadBitForBit)
     {
         ProgramRig            rig (LoadFixture());
@@ -314,4 +489,13 @@ public:
             Assert::IsTrue (IsRotationOf (captured, GetTrackBits (rig, (quarter + 1) / 4 * 4)), std::format (L"Quarter track {}", quarter).c_str());
         }
     }
+
+    //  The disk bytes a 16-sector track's data fields use.
+    static constexpr Byte  s_kDiskBytes[] =
+    {
+        0x96, 0x97, 0x9A, 0x9B, 0x9D, 0x9E, 0x9F, 0xA6, 0xA7, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF, 0xB2, 0xB3,
+        0xB4, 0xB5, 0xB6, 0xB7, 0xB9, 0xBA, 0xBB, 0xBC, 0xBD, 0xBE, 0xBF, 0xCB, 0xCD, 0xCE, 0xCF, 0xD3,
+        0xD6, 0xD7, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDE, 0xDF, 0xE5, 0xE6, 0xE7, 0xE9, 0xEA, 0xEB, 0xEC,
+        0xED, 0xEE, 0xEF, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF,
+    };
 };

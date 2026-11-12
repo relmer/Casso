@@ -131,6 +131,7 @@ private:
         std::vector<bool>     weak;
         std::vector<uint8_t>  zeros;          // the zero bits after each byte
         std::vector<uint8_t>  bits;
+        std::vector<size_t>   starts;         // each byte's first bit in bits
     };
 
     //  The marks of each byte, at each delay: the count set and the count read.
@@ -176,6 +177,7 @@ private:
     static void                 MakeConsensus  (const Position & position, const std::vector<Byte> & revolution, const std::vector<Alignment> & alignments, std::vector<Byte> & outAgreed);
     static bool                 FindReference  (std::span<const Byte> read, size_t & outStart, size_t & outLength);
     static size_t               FindLength     (std::span<const Byte> read);
+    static size_t               FindRepeat     (std::span<const Byte> read);
     static size_t               CountDiffer    (std::span<const Byte> a, size_t aAt, std::span<const Byte> b, size_t bAt, size_t limit);
     static bool                 IsUnique       (std::span<const Byte> read, size_t start, size_t length);
     static std::vector<size_t>  FindAnchors    (std::span<const Byte> revolution, std::span<const Byte> read);
@@ -188,9 +190,10 @@ private:
     static bool                 MakeStream     (const Position & position, Stream & outStream, bool & outUnstable);
     static int                  FindWholeTrack (const std::map<int, Stream> & streams, int position);
     static bool                 IsSameStream   (std::span<const Byte> a, std::span<const Byte> b);
-    static void                 ToBits         (const Stream & stream, std::vector<uint8_t> & outBits);
+    static void                 ToBits         (const Stream & stream, std::vector<uint8_t> & outBits, std::vector<size_t> & outStarts);
 
     static constexpr Byte    s_kSyncByte = 0xFF;
+    static constexpr size_t  s_kMaxZeros = 2;
 
     //  The range of revolution lengths for FindLength, and its sample; the
     //  step between FindReference's starts, the values a start's bytes
@@ -235,13 +238,14 @@ private:
     //  A field's marks: D5 AA, then 96 for a 16-sector address field, B5 for
     //  a 13-sector one and AD for a data field. RDOS begins its address
     //  fields D4 AA B7.
-    static constexpr Byte    s_kProlog0      = 0xD5;
-    static constexpr Byte    s_kProlog1      = 0xAA;
-    static constexpr Byte    s_kAddress16    = 0x96;
-    static constexpr Byte    s_kAddress13    = 0xB5;
-    static constexpr Byte    s_kData         = 0xAD;
-    static constexpr Byte    s_kRdosProlog0  = 0xD4;
-    static constexpr Byte    s_kRdosAddress  = 0xB7;
+    static constexpr Byte    s_kProlog0       = 0xD5;
+    static constexpr Byte    s_kProlog1       = 0xAA;
+    static constexpr Byte    s_kAddress16     = 0x96;
+    static constexpr Byte    s_kAddress13     = 0xB5;
+    static constexpr Byte    s_kData          = 0xAD;
+    static constexpr Byte    s_kRdosProlog0   = 0xD4;
+    static constexpr Byte    s_kRdosAddress   = 0xB7;
+    static constexpr size_t  s_kAddressValues = 8;      // volume, track, sector and checksum, two bytes each
 
     //  The bytes after an address field's prolog that its data field's prolog
     //  must start within; and the reads a pace is estimated after.

@@ -590,22 +590,13 @@ void CassoLinkCapture::FindMarker (const std::vector<Byte> & revolution, std::ve
 //
 //  CassoLinkCapture::GetBitOffset
 //
-//  The bits of a stream before one of its bytes, with each byte's zero bits.
+//  The bits of a stream before one of its bytes, as ToBits writes them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 size_t CassoLinkCapture::GetBitOffset (const Stream & stream, size_t byte)
 {
-    size_t  bits = 0;
-
-
-
-    for (size_t at = 0; at < byte && at < stream.bytes.size(); at++)
-    {
-        bits += 8 + (stream.weak[at] ? 0 : stream.zeros[at]);
-    }
-
-    return bits;
+    return byte < stream.starts.size() ? stream.starts[byte] : stream.bits.size();
 }
 
 
@@ -919,7 +910,7 @@ bool CassoLinkCapture::MakeStream (const Position & position, Stream & outStream
     }
 
     CountZeros (outStream.bytes, marks, outStream.zeros);
-    ToBits (outStream, outStream.bits);
+    ToBits (outStream, outStream.bits, outStream.starts);
 
     return true;
 }
@@ -1270,7 +1261,9 @@ bool CassoLinkCapture::FindReference (std::span<const Byte> read, size_t & outSt
 //
 //  CassoLinkCapture::FindLength
 //
-//  The revolution's length, near enough: of the lengths from
+//  The revolution's length, near enough: the distance from an address
+//  field to the same field again (FindRepeat) when the read has one;
+//  otherwise, of the lengths from
 //  s_kShortestRevolution to s_kLongestRevolution, the one at which the
 //  fewest of every s_kSampleStep'th byte of the read's first s_kSampleBytes
 //  differ from all the bytes within s_kSampleDrift of the byte that length
@@ -1282,11 +1275,16 @@ bool CassoLinkCapture::FindReference (std::span<const Byte> read, size_t & outSt
 
 size_t CassoLinkCapture::FindLength (std::span<const Byte> read)
 {
-    size_t  best    = 0;
+    size_t  best    = FindRepeat (read);
     size_t  fewest  = SIZE_MAX;
     size_t  samples = 0;
 
 
+
+    if (best != 0)
+    {
+        return best;
+    }
 
     for (size_t length = s_kShortestRevolution; length <= s_kLongestRevolution && length < read.size(); length++)
     {
@@ -1316,6 +1314,58 @@ size_t CassoLinkCapture::FindLength (std::span<const Byte> read)
     }
 
     return (fewest * s_kNoiseShare <= samples) ? best : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::FindRepeat
+//
+//  The bytes from the read's first address field to the same s_kMarkerBytes
+//  bytes again, marks ignored, between s_kShortestRevolution and
+//  s_kLongestRevolution later: a revolution, as an address field is once on
+//  its track. A shift-tolerant sample matches at almost any length on a
+//  track of one value repeated, which a protected disk's filler is. 0 for a
+//  read with no address field that repeats.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CassoLinkCapture::FindRepeat (std::span<const Byte> read)
+{
+    size_t  length = 0;
+
+
+
+    for (size_t at = 0; length == 0 && at + s_kLongestRevolution + s_kMarkerBytes <= read.size(); at++)
+    {
+        Byte  first  = read[at]     | 0x80;
+        Byte  second = read[at + 1] | 0x80;
+        Byte  third  = read[at + 2] | 0x80;
+        bool  disk   = first == s_kProlog0     && second == s_kProlog1 && (third == s_kAddress16 || third == s_kAddress13);
+        bool  rdos   = first == s_kRdosProlog0 && second == s_kProlog1 && third == s_kRdosAddress;
+
+        if (!disk && !rdos)
+        {
+            continue;
+        }
+
+        for (size_t later = s_kShortestRevolution; length == 0 && later <= s_kLongestRevolution; later++)
+        {
+            size_t  same = 0;
+
+            while (same < s_kMarkerBytes && (read[at + same] | 0x80) == (read[at + later + same] | 0x80))
+            {
+                same++;
+            }
+
+            length = same == s_kMarkerBytes ? later : 0;
+        }
+    }
+
+    return length;
 }
 
 
@@ -1658,7 +1708,10 @@ bool CassoLinkCapture::IsSameStream (std::span<const Byte> a, std::span<const By
 //  single run has too few marks: three zero bits when nearly all are set at
 //  12 cycles, two when more are set at 12 than the baseline allows, one when
 //  more are set at 8, and none otherwise. Runs with no read at 12 and more
-//  set at 8 are runs of sync bytes, two. Any other byte is counted as 0.
+//  set at 8 are runs of sync bytes, two. Any other byte is counted as 0,
+//  as is an FF among an address field's values, which a volume or checksum
+//  of $FF has: a byte the latch reads again before the next one starts is
+//  read twice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1671,10 +1724,25 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const Marks 
     size_t                                  at      = 0;
     int                                     zeros   = 0;
     std::vector<std::pair<size_t, size_t>>  runs;
+    std::vector<bool>                       values (length, false);
 
 
 
     outZeros.assign (length, 0);
+
+    for (size_t each = 0; each + 2 < length; each++)
+    {
+        Byte  first  = bytes[each]     | 0x80;
+        Byte  second = bytes[each + 1] | 0x80;
+        Byte  third  = bytes[each + 2] | 0x80;
+        bool  disk   = first == s_kProlog0     && second == s_kProlog1 && (third == s_kAddress16 || third == s_kAddress13);
+        bool  rdos   = first == s_kRdosProlog0 && second == s_kProlog1 && third == s_kRdosAddress;
+
+        if (disk || rdos)
+        {
+            std::fill (values.begin() + (ptrdiff_t) each + 3, values.begin() + (ptrdiff_t) std::min (length, each + 3 + s_kAddressValues), true);
+        }
+    }
 
     for (int delay = 0; delay < 2; delay++)
     {
@@ -1697,7 +1765,7 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const Marks 
     {
         size_t  end = at;
 
-        while (end < length && (bytes[end] | 0x80) == s_kSyncByte)
+        while (end < length && (bytes[end] | 0x80) == s_kSyncByte && !values[end])
         {
             end++;
         }
@@ -1747,29 +1815,44 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const Marks 
 //  CassoLinkCapture::ToBits
 //
 //  Each byte's eight bits, two zero bits after a sync byte, and a weak byte
-//  as eight zero bits.
+//  as eight zero bits. Outside a weak byte, a run of more than s_kMaxZeros
+//  zero bits is cut to s_kMaxZeros: a controller reads a longer run as
+//  random bits, and a byte read at a write splice, such as C0, ends in six.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkCapture::ToBits (const Stream & stream, std::vector<uint8_t> & outBits)
+void CassoLinkCapture::ToBits (const Stream & stream, std::vector<uint8_t> & outBits, std::vector<size_t> & outStarts)
 {
+    size_t  zeros = 0;
+
+
+
     outBits.clear();
+    outStarts.clear();
 
     for (size_t at = 0; at < stream.bytes.size(); at++)
     {
         Byte  value = stream.bytes[at] | 0x80;
 
+        outStarts.push_back (outBits.size());
+
         if (stream.weak[at])
         {
             outBits.insert (outBits.end(), 8, (uint8_t) 0);
+            zeros = 0;
             continue;
         }
 
-        for (int bit = 7; bit >= 0; bit--)
+        for (int bit = 0; bit < 8 + stream.zeros[at]; bit++)
         {
-            outBits.push_back ((uint8_t) ((value >> bit) & 1));
-        }
+            uint8_t  one = bit >= 8 ? 0 : (uint8_t) ((value >> (7 - bit)) & 1);
 
-        outBits.insert (outBits.end(), stream.zeros[at], (uint8_t) 0);
+            zeros = one != 0 ? 0 : zeros + 1;
+
+            if (zeros <= s_kMaxZeros)
+            {
+                outBits.push_back (one);
+            }
+        }
     }
 }
