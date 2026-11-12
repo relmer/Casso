@@ -940,9 +940,12 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const Marks 
 //  CassoLinkCapture::ToBits
 //
 //  Each byte's eight bits, two zero bits after a sync byte, and a weak byte
-//  as eight zero bits. Outside a weak byte, a run of more than s_kMaxZeros
-//  zero bits is cut to s_kMaxZeros: a controller reads a longer run as
-//  random bits, and a byte read at a write splice, such as C0, ends in six.
+//  as eight zero bits. A controller reads a run of more than s_kMaxZeros
+//  zero bits as random bits. A byte read at a write splice, such as C0,
+//  ends in six: the zero bit of its eight after s_kMaxZeros in a row is
+//  written as a one, so the splice is as long as on the disk and every byte after
+//  it on the track is the same time from the bytes before it as on the
+//  disk. A sync byte's zero bits past s_kMaxZeros are left out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -972,7 +975,11 @@ void CassoLinkCapture::ToBits (const Stream & stream, std::vector<uint8_t> & out
         {
             uint8_t  one = bit >= 8 ? 0 : (uint8_t) ((value >> (7 - bit)) & 1);
 
+            bool     inByte = bit < 8;
+
             zeros = one != 0 ? 0 : zeros + 1;
+            one   = (inByte && zeros > s_kMaxZeros) ? 1 : one;
+            zeros = one != 0 ? 0 : zeros;
 
             if (zeros <= s_kMaxZeros)
             {
