@@ -59,6 +59,12 @@ public:
     //  It contains Apple's ProDOS, so it is fetched rather than committed too.
     static std::vector<Byte>  RequireKermitDisk();
 
+    //  The Apple /// System Utilities and System Demo disks with SOS 1.1, or a
+    //  FAILED test, on the same grounds. scripts/FetchStockDisks.ps1 fetches
+    //  both.
+    static std::vector<Byte>  RequireSosUtilitiesDisk ();
+    static std::vector<Byte>  RequireSosDemoDisk      ();
+
     //  An image committed to the repo, such as a readout disk under
     //  Disks/Casso, found from the working directory up; or a FAILED test.
     static std::vector<Byte>  RequireRepoImage (const char * repoPath);
@@ -230,6 +236,9 @@ private:
     static constexpr const wchar_t *  kpszProDosCacheName = L"ProDOS Users Disk.dsk";
     static constexpr const char *     kpszProDosRepoPath  = "Disks/Apple/prodos-users.dsk";
     static constexpr const char *     kpszKermitRepoPath  = "Disks/ThirdParty/kermit-65.dsk";
+    static constexpr const wchar_t *  kpszSosCacheName    = L"Apple III System Utilities.dsk";
+    static constexpr const char *     kpszSosRepoPath     = "Disks/Apple/sos-utilities.dsk";
+    static constexpr const char *     kpszSosDemoRepoPath = "Disks/Apple/sos-demo.dsk";
 
     //  How far up from the working directory the repo-path search climbs. The
     //  test host's directory is not fixed, so the walk covers a binary run from
