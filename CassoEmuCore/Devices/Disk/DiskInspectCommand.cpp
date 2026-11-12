@@ -28,14 +28,18 @@ void DiskInspectCommand::Run (IDiskFileIo & io, const std::string & imagePath, D
     std::shared_ptr<const DiskCopy>  copy;
     std::wstring                     reason;
     DiskAnalysis                     analysis;
+    bool                             read   = false;
+    bool                             loaded = false;
 
 
 
-    hr = io.ReadAllBytes (imagePath, bytes);
-    CBRF (SUCCEEDED (hr), result.FailAction (imagePath, "read the image", "the file couldn't be read"));
+    hr   = io.ReadAllBytes (imagePath, bytes);
+    read = SUCCEEDED (hr);
+    CBRF (read, result.FailAction (imagePath, "read the image", "the file couldn't be read"));
 
-    hr = InspectorImageLoader::LoadBytes (bytes, imagePath, true, copy, reason);
-    CBRF (SUCCEEDED (hr), result.FailAction (imagePath, "inspect the image", TextEncoding::WideToNarrow (reason)));
+    hr     = InspectorImageLoader::LoadBytes (bytes, imagePath, true, copy, reason);
+    loaded = SUCCEEDED (hr);
+    CBRF (loaded, result.FailAction (imagePath, "inspect the image", TextEncoding::WideToNarrow (reason)));
 
     DiskAnalyzer::Analyze (copy, DecodeSettings::MakeStandard(), analysis);
 
