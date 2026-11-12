@@ -95,8 +95,14 @@ public:
 
     //  Once a request is over, the host's Idle clears the label, and the
     //  program draws the connection, the link's speed and an idle drive.
+    //  The Idle is the reply to the program's next Ready. An Idle sent
+    //  before the Ready arrives while the program draws and sends, and each
+    //  byte is overwritten by the next in the //c's serial chip, which has a
+    //  one-byte receive register.
     TEST_METHOD (AfterARequest_TheLabelIsClear_AndTheConnectionShown)
     {
+        static constexpr DWORD  kReadyTimeoutMs = 2000;   // the program sends a Ready each second
+
         ProgramRig         rig (Dos33());
         const Byte         sector[] = { 0 };
         std::vector<Byte>  data;
@@ -109,7 +115,7 @@ public:
         AssertRow (rig, kRowLabel, "READING THE CATALOG OF D1", L"the label");
 
         AssertSucceeded (rig.host->ReadSectors (1, kCatalogTrack, sector, data, status));
-        AssertSucceeded (rig.host->PromptReady());
+        AssertSucceeded (rig.host->ServeOne (kReadyTimeoutMs));
 
         AssertRow (rig, kRowStatus, "CASSOLINK: CONNECTED",  L"the status");
         AssertRow (rig, kRowPort,   "SERIAL PORT 2, 115200", L"the link's speed");
