@@ -222,6 +222,7 @@ DxuiFindResult CodeViewFind::SelectMatch (const std::wstring & needle, bool matc
 
     if (found.empty())
     {
+        SetMarks (found, -1);
         return result;
     }
 
@@ -239,6 +240,7 @@ DxuiFindResult CodeViewFind::SelectMatch (const std::wstring & needle, bool matc
     chosen   = (chosen >= 0) ? chosen : (forward ? 0 : outCount - 1);
     outIndex = chosen + 1;
     m_select (found[(size_t) chosen]);
+    SetMarks (found, chosen);
     return result;
 }
 
@@ -277,6 +279,7 @@ DxuiFindResult CodeViewFind::SelectMatchInView (const std::wstring & needle, boo
 
     if (found.empty())
     {
+        SetMarks (found, -1);
         return DxuiFindResult::NotFound;
     }
 
@@ -288,7 +291,36 @@ DxuiFindResult CodeViewFind::SelectMatchInView (const std::wstring & needle, boo
     chosen   = (chosen < outCount) ? chosen : 0;
     outIndex = chosen + 1;
     m_select (found[(size_t) chosen]);
+    SetMarks (found, chosen);
     return DxuiFindResult::Found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CodeViewFind::SetMarks
+//
+//  The view scrolls through the address space, so each match is marked down
+//  the scrollbar where its address is in it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CodeViewFind::SetMarks (const std::vector<Word> & found, int chosen)
+{
+    constexpr float                   kAddresses = 65536.0f;
+    std::vector<DxuiScrollbar::Mark>  marks;
+
+
+
+    for (size_t hit = 0; hit < found.size(); hit++)
+    {
+        marks.push_back ({ ((float) found[hit] + 0.5f) / kAddresses, (int) hit == chosen });
+    }
+
+    m_list.SetScrollMarks (std::move (marks));
 }
 
 

@@ -680,13 +680,21 @@ public:
     IDxuiControl  * GetFindControl          () override       { return this; }
     RECT            GetFindBounds           () const override { return GetBounds(); }
     bool            IsFindVisible           () const override { return IsVisible(); }
-    DxuiFindResult  SelectMatch             (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount) override { return m_find.SelectMatch (needle, matchCase, wholeWord, isRegex, forward, outIndex, outCount); }
-    DxuiFindResult  SelectMatchInView       (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount) override { return m_find.SelectMatchInView (needle, matchCase, wholeWord, isRegex, outIndex, outCount); }
+    DxuiFindResult  SelectMatch             (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount) override;
+    DxuiFindResult  SelectMatchInView       (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount) override;
     void            SetFindScopeToSelection () override {}
     void            ClearFindScope          () override {}
-    void            ClearFindHighlights     () override { m_find.ClearHighlights(); }
-    void            HighlightFindMatches    (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex) { m_find.HighlightMatches (needle, matchCase, wholeWord, isRegex); }
+    void            ClearFindHighlights     () override;
+    void            HighlightFindMatches    (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex);
     void            SetFindColors           (uint32_t matchArgb, uint32_t currentArgb) override { m_find.SetColors (matchArgb, currentArgb); }
+
+    //  The vertical scrollbar has a mark for each row with a match while a
+    //  find is open. For a list that scrolls through more than its rows, as
+    //  a code view does, the host sets the marks, as fractions of what it
+    //  scrolls through; any other list marks the rows its find matched.
+    void            SetScrollMarks          (std::vector<DxuiScrollbar::Mark> marks);
+
+    const std::vector<DxuiScrollbar::Mark> &  GetScrollMarks () const { return m_scrollbars.m_vertScroll.GetMarks(); }
 
     //  Every match of the last search, in row, column and character order.
     std::vector<FindSpot>            GetFindSpots   () const { return m_find.GetSpots(); }
@@ -796,6 +804,10 @@ private:
     // Clamp m_topRow / sticky-tail after the row count changes (shared by
     // SetRows / AppendRows / SetVirtualRowCount / SetRowProvider).
     void         ClampTopAfterCountChange (bool wasSticky);
+
+    // The scrollbar's marks for the find's matches, found again after a
+    // search and after the rows change.
+    void         RefreshFindMarks         ();
 
     // Sets the selection to the rows from the anchor to `row`, inclusive.
     void    SelectRangeFromAnchor    (int row);

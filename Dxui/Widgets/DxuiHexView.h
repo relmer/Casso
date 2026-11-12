@@ -192,6 +192,10 @@ public:
     void      ScrollRows        (int64_t delta) { m_scroll.ScrollRows (delta); }
     void      EnsureByteVisible (uint64_t offset) { m_scroll.EnsureByteVisible (offset); }
 
+    //  A find's matches marked down the vertical scrollbar, as fractions of
+    //  the bytes; see DxuiScrollbar::SetMarks.
+    void      SetScrollMarks    (std::vector<DxuiScrollbar::Mark> marks, uint32_t matchArgb, uint32_t currentArgb) { m_scroll.m_vertScroll.SetMarks (std::move (marks), matchArgb, currentArgb); }
+
     //  Where a byte is drawn, in the same DIPs as the bounds. An off-screen
     //  byte or an absent column comes back empty.
     RECT       GetByteRect      (uint64_t offset, Column column) const { return m_layout.GetByteRect (offset, column); }

@@ -104,6 +104,22 @@ public:
 
     void     Paint (IDxuiPainter & painter, uint32_t foregroundArgb) const;
 
+    //  A find's matches, each as how far along the content it is, from 0 to
+    //  1, and whether it is the selected one. While there are marks, the bar
+    //  is drawn wide, as under the pointer, with a line across it for each
+    //  mark, so the matches can be seen across the whole content; with none,
+    //  it goes back to its resting width.
+    struct Mark
+    {
+        float  at        = 0.0f;
+        bool   isCurrent = false;
+    };
+
+    void                       SetMarks   (std::vector<Mark> marks, uint32_t matchArgb, uint32_t currentArgb);
+    void                       ClearMarks ()       { m_marks.clear(); }
+    bool                       HasMarks   () const { return !m_marks.empty(); }
+    const std::vector<Mark> &  GetMarks   () const { return m_marks; }
+
     //  Widened at once, as Windows widens a scrollbar the pointer is over: the
     //  puck thickens and the arrows come back. The grab band is the same
     //  either way.
@@ -143,6 +159,7 @@ private:
     int    GetPosAt           (int xPx, int yPx) const;
     void   PaintThumb         (IDxuiPainter & painter, float x, float y, float w, float h, uint32_t argb) const;
     void   PaintArrow         (IDxuiPainter & painter, const RECT & rect, bool less, uint32_t argb) const;
+    void   PaintMarks         (IDxuiPainter & painter, const Metrics & m) const;
 
     Orientation                            m_orientation = Orientation::Vertical;
     int                                    m_thicknessPx = 0;
@@ -161,5 +178,8 @@ private:
     float                                  m_dragGrab    = 0.0f;
     float                                  m_dragOffset  = 0.0f;
     int                                    m_hoverArrow  = 0;
+    std::vector<Mark>                      m_marks;
+    uint32_t                               m_matchArgb   = 0;
+    uint32_t                               m_currentArgb = 0;
     std::function<void (int sbCode, int pos)>  m_onScroll;
 };

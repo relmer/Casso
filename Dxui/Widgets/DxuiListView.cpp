@@ -114,6 +114,7 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
     m_columnSizing.m_measureDirty = m_columnSizing.m_measureDirty || m_refitOnSetRows;
 
     ClampTopAfterCountChange (wasSticky);
+    RefreshFindMarks();
 }
 
 
@@ -206,6 +207,140 @@ void DxuiListView::SetRowProvider (int rowCount, RowProvider provider)
     m_rowData.clear();
 
     ClampTopAfterCountChange (wasSticky);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::SelectMatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiFindResult DxuiListView::SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount)
+{
+    DxuiFindResult  result = m_find.SelectMatch (needle, matchCase, wholeWord, isRegex, forward, outIndex, outCount);
+
+
+
+    RefreshFindMarks();
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::SelectMatchInView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiFindResult DxuiListView::SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount)
+{
+    DxuiFindResult  result = m_find.SelectMatchInView (needle, matchCase, wholeWord, isRegex, outIndex, outCount);
+
+
+
+    RefreshFindMarks();
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::ClearFindHighlights
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ClearFindHighlights()
+{
+    m_find.ClearHighlights();
+    m_scrollbars.m_vertScroll.ClearMarks();
+    RefreshFindMarks();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HighlightFindMatches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::HighlightFindMatches (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex)
+{
+    m_find.HighlightMatches (needle, matchCase, wholeWord, isRegex);
+    RefreshFindMarks();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::SetScrollMarks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SetScrollMarks (std::vector<DxuiScrollbar::Mark> marks)
+{
+    m_scrollbars.m_vertScroll.SetMarks (std::move (marks), m_find.GetMatchArgb(), m_find.GetCurrentArgb());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::RefreshFindMarks
+//
+//  A mark for each row with a match, at the row's middle down the rows, and
+//  the selected match's row marked as the current one. The marks of a list
+//  whose host scrolls it are the host's, and aren't changed here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::RefreshFindMarks()
+{
+    std::vector<DxuiScrollbar::Mark>  marks;
+    int                               rows    = GetRowCount();
+    int                               last    = -1;
+    int                               current = m_find.GetCurrent().has_value() ? m_find.GetCurrent()->row : (m_find.IsActive() ? m_selectedRow : -1);
+
+
+
+    if (m_scrollbars.m_vertModel.has_value())
+    {
+        return;
+    }
+
+    if (!m_find.IsActive() || rows <= 0)
+    {
+        m_scrollbars.m_vertScroll.ClearMarks();
+        return;
+    }
+
+    for (const FindSpot & spot : m_find.GetSpots())
+    {
+        if (spot.row != last)
+        {
+            marks.push_back ({ ((float) spot.row + 0.5f) / (float) rows, spot.row == current });
+            last = spot.row;
+        }
+    }
+
+    SetScrollMarks (std::move (marks));
 }
 
 

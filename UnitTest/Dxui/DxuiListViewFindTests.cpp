@@ -47,6 +47,31 @@ public:
     }
 
 
+    //  While a find has matches, the scrollbar has a mark for each row with
+    //  one, the selected match's as the current one; closing the find
+    //  clears them.
+    TEST_METHOD (EachRowWithAMatchIsMarkedOnTheScrollbar)
+    {
+        DxuiListView  list;
+        int           index = 0;
+        int           count = 0;
+
+        ConfigureList (list);
+
+        (void) list.SelectMatch (L"step", false, false, false, true, index, count);
+
+        Assert::AreEqual ((size_t) 2, list.GetScrollMarks().size(), L"rows 0 and 2");
+        Assert::AreEqual (0.5f / 3.0f, list.GetScrollMarks()[0].at, 0.001f);
+        Assert::AreEqual (2.5f / 3.0f, list.GetScrollMarks()[1].at, 0.001f);
+        Assert::IsTrue   (list.GetScrollMarks()[0].isCurrent, L"the selected match");
+        Assert::IsFalse  (list.GetScrollMarks()[1].isCurrent);
+
+        list.ClearFindHighlights();
+
+        Assert::IsTrue (list.GetScrollMarks().empty(), L"no marks once the find closes");
+    }
+
+
     TEST_METHOD (FindGoesFromMatchToMatchRoundTheEnd)
     {
         DxuiListView  list;

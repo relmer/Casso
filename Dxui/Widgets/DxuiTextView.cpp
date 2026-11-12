@@ -2010,6 +2010,7 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     if (IsScrollbarVisible())
     {
+        SetFindMarks();
         m_vertScroll.Paint (painter, theme.ForegroundMuted());
     }
 
@@ -2017,6 +2018,54 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     {
         m_horzScroll.Paint (painter, theme.ForegroundMuted());
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::SetFindMarks
+//
+//  A mark on the scrollbar for each line drawn with a find's match, at the
+//  line's middle down the text, and the selected match's line marked as the
+//  current one; none once the find's highlights are cleared.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::SetFindMarks()
+{
+    std::vector<DxuiScrollbar::Mark>  marks;
+    Position                          selected = (m_caret < m_anchor) ? m_caret : m_anchor;
+    int                               rows     = (int) m_lines.size();
+    int                               last     = -1;
+
+
+
+    if (m_highlights.empty() || rows <= 0)
+    {
+        m_vertScroll.ClearMarks();
+        return;
+    }
+
+    for (const FindMatch & match : m_highlights)
+    {
+        bool  isCurrent = match.start == selected && HasSelection();
+        int   line      = GetLineOfPosition (match.start);
+
+        if (line >= 0 && line != last)
+        {
+            marks.push_back ({ ((float) line + 0.5f) / (float) rows, isCurrent });
+            last = line;
+        }
+        else if (isCurrent && !marks.empty())
+        {
+            marks.back().isCurrent = true;
+        }
+    }
+
+    m_vertScroll.SetMarks (std::move (marks), m_findMatchArgb, m_findCurrentArgb);
 }
 
 

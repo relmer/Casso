@@ -58,6 +58,7 @@ public:
 private:
     Visible            GetVisible () const;
     std::vector<Word>  Search     (const Lines & lines, const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex);
+    void               SetMarks   (const std::vector<Word> & found, int chosen);
 
     DxuiListView               & m_list;
     const DisassemblyOptions   & m_options;

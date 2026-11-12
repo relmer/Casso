@@ -34,6 +34,9 @@ public:
     //  on the row the host selected are drawn as the current one.
     void            HighlightMatches  (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex) { (void) SetSearch (needle, matchCase, wholeWord, isRegex); m_current.reset(); m_isSelectedCurrent = true; }
     void            SetColors         (uint32_t matchArgb, uint32_t currentArgb) { m_matchArgb = matchArgb; m_currentArgb = currentArgb; }
+    uint32_t        GetMatchArgb      () const { return m_matchArgb; }
+    uint32_t        GetCurrentArgb    () const { return m_currentArgb; }
+    bool            IsActive          () const { return !m_needle.empty(); }
 
     //  Every match of the last search, in row, column and character order.
     std::vector<DxuiListViewTypes::FindSpot>            GetSpots   () const;

@@ -442,6 +442,7 @@ private:
     void          SelectWordAt      (Position pos);
     void          GetWordBounds     (Position pos, Position & outFirst, Position & outLast) const;
     int           GetLineOfPosition (Position pos) const;
+    void          SetFindMarks      ();
     static bool   TryFindOnce       (const std::vector<std::wstring> & rows, const std::wstring & needle, bool wholeWord, bool forward, Position from, Position & outStart);
     static bool   IsWordChar        (wchar_t ch) { return iswalnum (ch) || ch == L'_'; }
     static bool   IsWholeWordAt     (const std::wstring & text, size_t at, size_t length);

@@ -123,7 +123,7 @@ public:
     DxuiFindResult    SelectMatchInView       (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount) override;
     void              SetFindScopeToSelection () override {}
     void              ClearFindScope          () override {}
-    void              ClearFindHighlights     () override { m_findHits.clear(); m_findCurrent = -1; }
+    void              ClearFindHighlights     () override { m_findHits.clear(); m_findCurrent = -1; SetFindMarks(); }
     void              SetFindColors           (uint32_t matchArgb, uint32_t currentArgb) override { m_matchArgb = matchArgb; m_currentArgb = currentArgb; }
 
     //  The last find's hits, and the one selected; -1 for none.
@@ -181,7 +181,8 @@ public:
     static constexpr int  kDefaultColumns = 0;
 
 private:
-    void  ShowFindHit (Word address);
+    void  ShowFindHit  (Word address);
+    void  SetFindMarks ();
 
     static constexpr int  kBytesPerRow = DebuggerViewState::kMemoryRowBytes;
 

@@ -802,6 +802,7 @@ DxuiFindResult MemoryPane::SelectMatch (const std::wstring & needle, bool matchC
 
     if (m_findHits.empty())
     {
+        SetFindMarks();
         return result;
     }
 
@@ -851,6 +852,7 @@ DxuiFindResult MemoryPane::SelectMatchInView (const std::wstring & needle, bool 
 
     if (m_findHits.empty())
     {
+        SetFindMarks();
         return DxuiFindResult::NotFound;
     }
 
@@ -884,4 +886,40 @@ void MemoryPane::ShowFindHit (Word address)
 
     m_view->GoToOffset (offset);
     m_view->SelectByte (offset, DxuiHexViewTypes::Column::Hex);
+    SetFindMarks();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::SetFindMarks
+//
+//  A mark down the scrollbar for each hit, where it is in the window's
+//  bytes, the selected hit as the current one; none with no hits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryPane::SetFindMarks()
+{
+    std::vector<DxuiScrollbar::Mark>  marks;
+    uint64_t                          bytes = m_model.GetByteCount();
+
+
+
+    if (m_view == nullptr)
+    {
+        return;
+    }
+
+    for (size_t hit = 0; hit < m_findHits.size() && bytes > 0; hit++)
+    {
+        uint64_t  offset = (uint64_t) (Word) (m_findHits[hit] - m_model.GetAddressOf (0));
+
+        marks.push_back ({ ((float) offset + 0.5f) / (float) bytes, (int) hit == m_findCurrent });
+    }
+
+    m_view->SetScrollMarks (std::move (marks), m_matchArgb, m_currentArgb);
 }
