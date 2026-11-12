@@ -72,13 +72,20 @@ public:
         std::function<HRESULT (CassoLinkHost &)>  run;
     };
 
-    //  The packets in `bytes`, Ready left out, each as its text.
-    static std::vector<std::string>  Packets (const std::vector<Byte> & bytes)
+    //  The packets in `bytes`, Ready left out, each as its text, decoded
+    //  after `pending`, the incomplete packet the step before ended with. The
+    //  host reads every byte that has arrived, so a step can end partway into
+    //  the program's next Ready; that packet is left in `pending` for the next
+    //  step.
+    static std::vector<std::string>  Packets (const std::vector<Byte> & bytes, std::vector<Byte> & pending)
     {
         std::vector<std::string>  packets;
-        std::vector<Byte>         rest = bytes;
+        std::vector<Byte>         rest = pending;
 
 
+
+        rest.insert (rest.end(), bytes.begin(), bytes.end());
+        pending.clear();
 
         while (!rest.empty())
         {
@@ -87,7 +94,13 @@ public:
             bool             complete = false;
             HRESULT          decoded  = CassoLinkCodec::Decode (rest, consumed, packet, complete);
 
-            if (FAILED (decoded) || consumed == 0)
+            if (SUCCEEDED (decoded) && consumed == 0)
+            {
+                pending = rest;
+                break;
+            }
+
+            if (FAILED (decoded))
             {
                 packets.push_back (std::format ("undecoded byte ${:02X}", rest[0]));
                 rest.erase (rest.begin());
@@ -156,7 +169,9 @@ public:
         fake = std::make_shared<RecordingStream> (pcEnd);
 
         {
-            CassoLinkHost  fakeHost (fake, folder, [] () { return std::array<Byte, 4> {}; });
+            CassoLinkHost      fakeHost (fake, folder, [] () { return std::array<Byte, 4> {}; });
+            std::vector<Byte>  programPending;
+            std::vector<Byte>  fakePending;
 
             for (const Step & step : steps)
             {
@@ -169,8 +184,8 @@ public:
                 AssertSucceeded (step.run (realHost));
                 AssertSucceeded (step.run (fakeHost));
 
-                fromProgram = Packets (real->received);
-                fromFake    = Packets (fake->received);
+                fromProgram = Packets (real->received, programPending);
+                fromFake    = Packets (fake->received, fakePending);
 
                 Assert::IsFalse (fromProgram.empty(), std::format (L"{}: the program's reply", step.what).c_str());
 

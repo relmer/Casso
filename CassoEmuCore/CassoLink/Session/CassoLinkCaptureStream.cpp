@@ -945,7 +945,7 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const Marks 
 //  ends in six: the zero bit of its eight after s_kMaxZeros in a row is
 //  written as a one, so the splice is as long as on the disk and every byte after
 //  it on the track is the same time from the bytes before it as on the
-//  disk. A sync byte's zero bits past s_kMaxZeros are left out.
+//  disk. A sync byte's zero bits past s_kMaxSyncZeros are left out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -981,7 +981,7 @@ void CassoLinkCapture::ToBits (const Stream & stream, std::vector<uint8_t> & out
             one   = (inByte && zeros > s_kMaxZeros) ? 1 : one;
             zeros = one != 0 ? 0 : zeros;
 
-            if (zeros <= s_kMaxZeros)
+            if (zeros <= s_kMaxSyncZeros)
             {
                 outBits.push_back (one);
             }
@@ -998,8 +998,9 @@ void CassoLinkCapture::ToBits (const Stream & stream, std::vector<uint8_t> & out
 //  CassoLinkCapture::FindDataField
 //
 //  The first nibble of the data field after the 16-sector address field at
-//  `at`: the bytes after the first prolog byte within s_kDataWithin of the
-//  address field's end, marks ignored. SIZE_MAX when `at` isn't an address
+//  `at`: the bytes after the first prolog within s_kDataWithin of the
+//  address field's end, D5 then AA, or BB as Archon's, marks ignored. A
+//  byte read at the data field's write splice can be a D5. SIZE_MAX when `at` isn't an address
 //  field or the data field doesn't fit.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1015,7 +1016,10 @@ size_t CassoLinkCapture::FindDataField (std::span<const Byte> bytes, size_t at)
     {
         bool  fits = each + 3 + NibblizationLayer::kDataNibbleCount <= bytes.size();
 
-        data = (fits && (bytes[each] | 0x80) == s_kProlog0) ? each + 3 : data;
+        Byte  second = fits ? (Byte) (bytes[each + 1] | 0x80) : 0;
+        bool  prolog = fits && (bytes[each] | 0x80) == s_kProlog0 && (second == s_kProlog1 || second == s_kOtherProlog1);
+
+        data = prolog ? each + 3 : data;
     }
 
     return data;
@@ -1145,5 +1149,207 @@ void CassoLinkCapture::UniteSyncZeros (std::map<int, Stream> & ioStreams)
         }
 
         ToBits (stream, stream.bits, stream.starts);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::FindGap
+//
+//  The track's gap: its longest run of sync bytes, s_kGapSyncs or more,
+//  where the formatter's write began and ended. outEnd is past outFirst, and
+//  past the stream's end for a run across it. False for a track without
+//  one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::FindGap (const Stream & stream, size_t & outFirst, size_t & outEnd)
+{
+    size_t  length  = stream.bytes.size();
+    size_t  run     = 0;
+    size_t  longest = 0;
+
+
+
+    outFirst = 0;
+    outEnd   = 0;
+
+    for (size_t at = 0; at < 2 * length; at++)
+    {
+        size_t  here = at % length;
+        bool    sync = (stream.bytes[here] | 0x80) == s_kSyncByte && !stream.weak[here];
+
+        run = (sync && run < length) ? run + 1 : 0;
+
+        if (run > longest)
+        {
+            longest  = run;
+            outEnd   = at + 1;
+            outFirst = outEnd - run;
+        }
+    }
+
+    outEnd   = outEnd - (outFirst / length) * length;
+    outFirst = outFirst % length;
+
+    return longest >= s_kGapSyncs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::FitGap
+//
+//  The track made `bits` long, the bits a revolution of the drive has
+//  (TimeRevolution), by the zero bits of the sync bytes in its runs of
+//  s_kGapSyncs or more, up to s_kMaxSyncZeros each, the longest run first.
+//  A sync byte may have none but the last s_kResyncBytes of a run, which
+//  frame the bytes after it again: a gap's noise and sync bytes are read in another time than they
+//  take on the disk, and every byte after the gap is that much off. A gap
+//  is often two runs with a stray byte between. Nothing changes for a track
+//  without a gap, or with no revolution timed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkCapture::FitGap (Stream & ioStream, double bits)
+{
+    size_t                                  first   = 0;
+    size_t                                  end     = 0;
+    size_t                                  length  = ioStream.bytes.size();
+    size_t                                  run     = 0;
+    ptrdiff_t                               missing = 0;
+    std::vector<std::pair<size_t, size_t>>  runs;
+
+
+
+    if (bits <= 0.0 || !FindGap (ioStream, first, end))
+    {
+        return;
+    }
+
+    //  Each run, as its length and its first byte, starting after the gap so
+    //  a run across the stream's end is whole.
+    for (size_t at = end; at < end + length + 1; at++)
+    {
+        size_t  here = at % length;
+        bool    sync = at < end + length && (ioStream.bytes[here] | 0x80) == s_kSyncByte && !ioStream.weak[here];
+
+        if (sync)
+        {
+            run++;
+            continue;
+        }
+
+        if (run >= s_kGapSyncs)
+        {
+            runs.push_back ({ run, at - run });
+        }
+
+        run = 0;
+    }
+
+    std::sort (runs.rbegin(), runs.rend());
+
+    missing = (ptrdiff_t) std::llround (bits) - (ptrdiff_t) ioStream.bits.size();
+
+    for (const auto & [count, start] : runs)
+    {
+        bool  changed = true;
+
+        while (missing != 0 && changed)
+        {
+            changed = false;
+
+            for (size_t at = start; at < start + count && missing != 0; at++)
+            {
+                uint8_t  & zeros = ioStream.zeros[at % length];
+
+                if (missing > 0 && zeros < s_kMaxSyncZeros)
+                {
+                    zeros++;
+                    missing--;
+                    changed = true;
+                }
+                else if (missing < 0 && zeros > (at + s_kResyncBytes >= start + count ? 1 : 0))
+                {
+                    zeros--;
+                    missing++;
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    ToBits (ioStream, ioStream.bits, ioStream.starts);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::FindGapMarker
+//
+//  The address field before the revolution's gap, all s_kMarkerBytes of it,
+//  when it is nowhere else in the revolution: a read that waits on it starts
+//  after the gap. FindMarker's when the revolution has no gap or the field
+//  isn't unique.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkCapture::FindGapMarker (const std::vector<Byte> & revolution, std::vector<Byte> & outMarker)
+{
+    Stream  stream;
+    size_t  first  = 0;
+    size_t  end    = 0;
+    size_t  length = revolution.size();
+
+
+
+    outMarker.clear();
+
+    stream.bytes = revolution;
+    stream.weak.assign (length, false);
+
+    if (FindGap (stream, first, end))
+    {
+        std::vector<Byte>  bytes;
+
+        for (Byte value : revolution)
+        {
+            bytes.push_back (value | 0x80);
+        }
+
+        bytes.insert (bytes.end(), bytes.begin(), bytes.begin() + (ptrdiff_t) std::min (length, s_kMarkerBytes));
+
+        for (size_t back = 1; outMarker.empty() && back < length; back++)
+        {
+            size_t  at     = (first + length - back) % length;
+            bool    prolog = bytes[at] == s_kProlog0 && bytes[at + 1] == s_kProlog1 && (bytes[at + 2] == s_kAddress16 || bytes[at + 2] == s_kAddress13);
+            size_t  count  = 0;
+
+            for (size_t other = 0; prolog && other < length; other++)
+            {
+                count += std::equal (bytes.begin() + (ptrdiff_t) at, bytes.begin() + (ptrdiff_t) (at + s_kMarkerBytes), bytes.begin() + (ptrdiff_t) other) ? 1 : 0;
+            }
+
+            if (prolog && count == 1)
+            {
+                outMarker.assign (bytes.begin() + (ptrdiff_t) at, bytes.begin() + (ptrdiff_t) (at + s_kMarkerBytes));
+            }
+        }
+    }
+
+    if (outMarker.empty())
+    {
+        FindMarker (revolution, outMarker);
     }
 }

@@ -298,10 +298,11 @@ public:
             AssertSucceeded (VolumeImage::Load (file, "d.dsk", sectors, decode));
 
             //  A torn directory sector can fail to parse, or parse with a name
-            //  no file had.
+            //  no file had or with fewer files.
             HRESULT  listed = PascalVolume (sectors).Enumerate (listing);
 
             if (FAILED (listed) ||
+                listing.entries.size() != before.size() ||
                 std::any_of (listing.entries.begin(), listing.entries.end(), [&] (const FileEntry & e) { return !before.contains (e.name); }))
             {
                 Assert::AreEqual (1, report.sectorsLost + report.sectorsRecovered, (where + L": the directory is damaged with no sector damaged").c_str());
@@ -316,7 +317,6 @@ public:
                 changed += (FAILED (read) || payload.bytes != before.at (entry.name)) ? 1 : 0;
             }
 
-            Assert::AreEqual (before.size(), listing.entries.size(), (where + L": every file is listed").c_str());
             Assert::IsTrue (changed <= 1, (where + std::format (L": {} files changed", changed)).c_str());
             whole++;
         }

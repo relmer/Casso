@@ -277,7 +277,7 @@ public:
         {
             if (framed[each].first == 0xD5 && framed[each + 1].first == 0xAA && framed[each + 2].first == 0x96)
             {
-                Assert::AreEqual ((size_t) 2, framed[each - 1].second, L"The sync byte before the field");
+                Assert::IsTrue (framed[each - 1].second >= 2, L"The sync byte before the field");
                 Assert::AreEqual ((size_t) 0, framed[each + 9].second,  L"The checksum's first FF");
                 Assert::AreEqual ((size_t) 0, framed[each + 10].second, L"The checksum's second FF");
                 checked++;
@@ -290,7 +290,9 @@ public:
 
     //  A track of 16 sectors read three times, with a nibble of sector 5
     //  misread the same way in the first two reads, so most of the passes
-    //  have it wrong: the sector is taken from the read that decodes it.
+    //  have it wrong: the sector is taken from the read that decodes it. A
+    //  byte read at the data field's write splice there is a D5, which
+    //  isn't taken as the data field's prolog.
     TEST_METHOD (ASectorMisreadInMostReads_IsTakenFromTheReadThatDecodesIt)
     {
         static constexpr int     kSectors    = 16;
@@ -332,6 +334,12 @@ public:
             oddEven ((Byte) number);
             oddEven ((Byte) (kVolume ^ number));
             revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
+
+            if (number == kBad)
+            {
+                revolution.insert (revolution.end(), { 0xD5, 0xFE, 0x9F });
+            }
+
             revolution.insert (revolution.end(), kSyncs, 0xFF);
             revolution.insert (revolution.end(), { 0xD5, 0xAA, 0xAD });
 
@@ -382,16 +390,101 @@ public:
                 bool  address = framed[at] == 0xD5 && framed[at + 1] == 0xAA && framed[at + 2] == 0x96;
                 int   number  = address ? (((framed[at + 7] << 1) | 1) & framed[at + 8]) : -1;
 
-                if (number == kBad)
+                for (size_t data = at + 14; number == kBad && data < at + 40; data++)
                 {
-                    size_t  data = at + 14 + kSyncs + 3;
+                    bool  prolog = framed[data] == 0xD5 && framed[data + 1] == 0xAA && framed[data + 2] == 0xAD;
 
-                    decoded = NibblizationLayer::DecodeDataNibbles (&framed[data], sector);
+                    decoded = decoded || (prolog && NibblizationLayer::DecodeDataNibbles (&framed[data + 3], sector));
                 }
             }
 
             Assert::IsTrue (decoded, std::format (L"Sector 5 decodes, the reads starting at byte {}", first).c_str());
         }
+    }
+
+    //  A track whose second read waited on the track's sector 15 address field, so
+    //  the revolution is timed from bits that are all data: the track is made
+    //  that long by its gap's sync bytes, and the sectors' bytes are those
+    //  the reads have.
+    TEST_METHOD (ATrack_IsMadeARevolutionLong_ByItsGap)
+    {
+        static constexpr int     kSectors   = 16;
+        static constexpr size_t  kSyncs     = 8;
+        static constexpr size_t  kGapSyncs  = 120;
+        static constexpr size_t  kAfter     = 790;     // the bytes from the marker's end to the second read's start
+        static constexpr size_t  kReadBytes = 14000;
+        static constexpr Byte    kVolume    = 254;
+
+        std::vector<Byte>                        revolution;
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        CassoLinkCapture::Result                 result;
+        DiskImage                                image;
+        std::vector<Byte>                        marker;
+        uint32_t                                 seed    = 777;
+        size_t                                   markAt  = 0;
+
+
+
+        auto  oddEven = [&revolution] (Byte value)
+        {
+            revolution.push_back ((Byte) ((value >> 1) | 0xAA));
+            revolution.push_back ((Byte) (value | 0xAA));
+        };
+
+        for (int number = 0; number < kSectors; number++)
+        {
+            std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+            std::vector<Byte>  nibbles;
+
+            revolution.insert (revolution.end(), number == 0 ? kGapSyncs : kSyncs, 0xFF);
+            markAt = number == kSectors - 1 ? revolution.size() : markAt;
+            revolution.insert (revolution.end(), { 0xD5, 0xAA, 0x96 });
+            oddEven (kVolume);
+            oddEven (0);
+            oddEven ((Byte) number);
+            oddEven ((Byte) (kVolume ^ number));
+            revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
+            revolution.insert (revolution.end(), kSyncs, 0xFF);
+            revolution.insert (revolution.end(), { 0xD5, 0xAA, 0xAD });
+
+            for (Byte & value : data)
+            {
+                seed  = seed * 1103515245u + 12345u;
+                value = (Byte) (seed >> 16);
+            }
+
+            NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+            revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
+            revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
+        }
+
+        marker.assign (revolution.begin() + (ptrdiff_t) markAt, revolution.begin() + (ptrdiff_t) markAt + 11);
+
+        positions[0].syncFrom   = 0;
+        positions[0].syncMarker = marker;
+
+        for (size_t read = 0; read < CassoLinkCapture::kWholeReads; read++)
+        {
+            size_t             first = read == 1 ? (markAt + marker.size() + kAfter) % revolution.size() : 0;
+            std::vector<Byte>  bytes;
+
+            for (size_t at = 0; at < kReadBytes; at++)
+            {
+                bytes.push_back (revolution[(first + at) % revolution.size()]);
+            }
+
+            positions[0].reads.push_back (bytes);
+            positions[0].delays.push_back (CassoLinkCapture::kWholeDelays[read]);
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, 0, "2026-11-12T00:00:00Z", 1, result));
+        AssertSucceeded (WozLoader::Load (result.woz, image));
+
+        size_t  bits = image.GetTrackBitCount (image.ResolveQuarterTrack (0));
+
+        Assert::IsTrue (result.revolutionCycles > 0.0, L"The revolution is timed");
+        Assert::AreEqual ((size_t) std::llround (result.revolutionCycles / 4.0), bits, L"The track is a revolution long");
+        Assert::AreNotEqual (revolution.size() * 8, bits, L"The gap's sync bytes changed");
     }
 
     //  A track's bytes as a controller frames them from its bits.
