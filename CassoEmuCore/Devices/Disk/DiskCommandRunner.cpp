@@ -3521,6 +3521,24 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::IsProDosFamilyFormat
+//
+//  The `--format` words for a ProDOS volume: one file system, which differ in
+//  the computers a bootable disk starts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::IsProDosFamilyFormat (const std::string & formatName)
+{
+    return _stricmp (formatName.c_str(), "prodos") == 0 || _stricmp (formatName.c_str(), "sos") == 0 || _stricmp (formatName.c_str(), "prodos+sos") == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::GetBootSystem
 //
 //  The computers a bootable ProDOS volume of a `--format` word starts.
@@ -4173,7 +4191,7 @@ void DiskCommandRunner::BuildLargeProDos (const CommandLineOptions & options, Di
     uint32_t                       blocks     = 0;
     bool                           sizeKnown  = TryGetLargeBlockCount (options.disk.sizeName, blocks);
     bool                           isHfs      = IsHfsFormat (options);
-    bool                           isProDos   = isHfs || options.disk.formatName.empty() || options.disk.formatName == "prodos";
+    bool                           isProDos   = isHfs || options.disk.formatName.empty() || IsProDosFamilyFormat (options.disk.formatName);
     std::string                    name       = options.disk.volumeName.empty() ? std::string (isHfs ? "Untitled" : "NEWDISK") : options.disk.volumeName;
     bool                           nameOk     = isHfs ? HfsWriter::IsValidVolumeName (name) : ProDosVolume::IsValidName (name);
     bool                           hfsFits    = false;
@@ -4297,7 +4315,7 @@ void DiskCommandRunner::ReformatLargeProDos (const CommandLineOptions & options,
 {
     HRESULT                        hr       = S_OK;
     bool                           isHfs    = IsHfsFormat (options);
-    bool                           isProDos = isHfs || options.disk.formatName.empty() || options.disk.formatName == "prodos";
+    bool                           isProDos = isHfs || options.disk.formatName.empty() || IsProDosFamilyFormat (options.disk.formatName);
     std::string                    name     = options.disk.volumeName.empty() ? std::string (isHfs ? "Untitled" : "NEWDISK") : options.disk.volumeName;
     bool                           nameOk   = isHfs ? HfsWriter::IsValidVolumeName (name) : ProDosVolume::IsValidName (name);
     vector<Byte>                   original;

@@ -364,7 +364,7 @@ std::wstring CassoExplorerNewDiskChoices::ValidateSize (int formatIndex, int con
     {
         error = L"An HFS volume is 800K or larger.";
     }
-    else if ((isLarge || blockOnly) && formatIndex != kFormatProDos && formatIndex != kFormatHfs)
+    else if ((isLarge || blockOnly) && !IsProDosFamily (formatIndex) && formatIndex != kFormatHfs)
     {
         error = L"Disks larger than 140K, and hard disk, 2IMG and Disk Copy 4.2 images, are ProDOS or HFS volumes.";
     }
@@ -410,13 +410,28 @@ std::vector<std::wstring> CassoExplorerNewDiskChoices::GetSizeLabels()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerNewDiskChoices::IsProDosFamily
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerNewDiskChoices::IsProDosFamily (int formatIndex)
+{
+    return formatIndex == kFormatProDos || formatIndex == kFormatSos || formatIndex == kFormatProDosSos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerNewDiskChoices::GetVolumeMaxLength
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 size_t CassoExplorerNewDiskChoices::GetVolumeMaxLength (int formatIndex)
 {
-    return (formatIndex == kFormatProDos) ? kMaxProDosVolumeLength
+    return IsProDosFamily (formatIndex)   ? kMaxProDosVolumeLength
          : (formatIndex == kFormatPascal) ? kMaxPascalVolumeLength
          : (formatIndex == kFormatHfs)    ? kMaxHfsVolumeLength
                                           : kMaxDos33VolumeLength;
@@ -886,7 +901,7 @@ void CassoExplorerNewDiskDialog::OnCreate()
         {
             int  format = m_format.GetSelectedIndex();
 
-            tip = (format == CassoExplorerNewDiskChoices::kFormatProDos) ? s_kpszProDosVolumeTip
+            tip = CassoExplorerNewDiskChoices::IsProDosFamily (format) ? s_kpszProDosVolumeTip
                 : (format == CassoExplorerNewDiskChoices::kFormatPascal) ? s_kpszPascalVolumeTip
                 : (format == CassoExplorerNewDiskChoices::kFormatDos32)  ? s_kpszDos32VolumeTip
                 : (format == CassoExplorerNewDiskChoices::kFormatHfs)    ? s_kpszHfsVolumeTip
@@ -1012,7 +1027,7 @@ void CassoExplorerNewDiskDialog::Revalidate()
 {
     int   format    = m_format.GetSelectedIndex();
     bool  hasVolume = format != CassoExplorerNewDiskChoices::kFormatNone && format != CassoExplorerNewDiskChoices::kFormatCpm;
-    bool  hasName   = format == CassoExplorerNewDiskChoices::kFormatProDos || format == CassoExplorerNewDiskChoices::kFormatPascal;
+    bool  hasName   = CassoExplorerNewDiskChoices::IsProDosFamily (format) || format == CassoExplorerNewDiskChoices::kFormatPascal;
     bool  valid     = false;
 
 

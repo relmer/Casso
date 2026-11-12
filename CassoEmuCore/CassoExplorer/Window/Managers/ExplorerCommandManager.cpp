@@ -1616,27 +1616,56 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 //  ExplorerCommandManager::TryPrepareBootDisk
 //
 //  A bootable disk with no image supplied copies a stock disk, which is asked
-//  about and downloaded here when it isn't in the cache. False when the user
-//  declined or the download failed, and nothing further should happen.
+//  about and downloaded here when it isn't in the cache. A disk that starts
+//  an Apple II and an Apple /// copies two. False when the user declined or
+//  a download failed, and nothing further should happen.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExplorerCommandManager::TryPrepareBootDisk (const DiskOperations::NewDiskRequest & request)
 {
-    StockBootDisks::Which  disk   = StockBootDisks::Which::Dos33Master;
-    std::wstring           label;
-    std::wstring           path;
-    std::string            error;
-    HRESULT                hr     = S_OK;
+    std::vector<StockBootDisks::Which>  disks;
+    std::wstring                        label;
+    std::wstring                        path;
+    std::string                         error;
+    HRESULT                             hr     = S_OK;
 
 
 
-    if (!request.bootable || !StockBootDisks::TryGetStockDisk (request.formatName, request.bootableFrom, disk) || StockBootDisks::IsCached (disk))
+    if (!request.bootable || !StockBootDisks::TryGetStockDisks (request.formatName, request.bootableFrom, disks))
     {
         return true;
     }
 
-    label = StockBootDisks::GetLabel (disk);
+    for (StockBootDisks::Which disk : disks)
+    {
+        if (!StockBootDisks::IsCached (disk) && !TryDownloadBootDisk (disk))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerCommandManager::TryDownloadBootDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerCommandManager::TryDownloadBootDisk (StockBootDisks::Which disk)
+{
+    std::wstring  label = StockBootDisks::GetLabel (disk);
+    std::wstring  path;
+    std::string   error;
+    HRESULT       hr    = S_OK;
+
+
 
     if (DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme,
                         std::format (L"A bootable disk copies the {} boot disk, which hasn't been downloaded. Download it now?", label).c_str(),

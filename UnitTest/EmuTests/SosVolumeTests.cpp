@@ -1,6 +1,8 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
+#include "CassoExplorer/Browser/BrowserCells.h"
+#include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/FilePath.h"
@@ -331,5 +333,44 @@ public:
         Assert::AreEqual (std::string ("Not bootable: no PRODOS file on the volume"), ProDosStartup::DescribeListingNote ({ false, false }, false));
         Assert::AreEqual (std::string ("Starts an Apple II with ProDOS and an Apple /// with SOS"), ProDosStartup::DescribeListingNote ({ true, true }, true));
         Assert::IsTrue (ProDosStartup::DescribeListingNote ({ false, true }, false).starts_with ("Starts an Apple /// with SOS."));
+    }
+
+
+    TEST_METHOD (StatusTip_SaysWhatAVolumeStarts)
+    {
+        VolumeListing  listing;
+        BrowserStatus  status;
+
+
+
+        listing.volumeName = "UTILITIES";
+        listing.startup    = { false, true };
+
+        BrowserCells::DescribeVolumeSpace (L"C:\\disks\\utilities.dsk", listing, VolumeKind::ProDos, status);
+        Assert::AreEqual (std::wstring (L"utilities.dsk, ProDOS volume /UTILITIES, starts an Apple ///"), status.freeSpaceTip);
+
+        listing.startup = { true, true };
+
+        BrowserCells::DescribeVolumeSpace (L"C:\\disks\\utilities.dsk", listing, VolumeKind::ProDos, status);
+        Assert::IsTrue (status.freeSpaceTip.ends_with (L", starts an Apple II and an Apple ///"));
+    }
+
+
+    TEST_METHOD (NewDiskChoices_SosFormatsAreProDosVolumes)
+    {
+        using Choices = CassoExplorerNewDiskChoices;
+
+        constexpr int  k800K   = 1;
+        constexpr int  kHdv    = 5;
+
+
+
+        Assert::IsTrue (Choices::IsProDosFamily (Choices::kFormatSos));
+        Assert::IsTrue (Choices::IsProDosFamily (Choices::kFormatProDosSos));
+        Assert::AreEqual (std::string ("sos"),        Choices::MakeRequest (Choices::kFormatSos, 0, L"", true).formatName);
+        Assert::AreEqual (std::string ("prodos+sos"), Choices::MakeRequest (Choices::kFormatProDosSos, 0, L"", true).formatName);
+        Assert::IsTrue (Choices::ValidateSize (Choices::kFormatSos, kHdv, k800K).empty(), L"an SOS volume can be a hard disk image");
+        Assert::IsTrue (Choices::ValidateVolume (Choices::kFormatSos, L"UTILITIES").empty());
+        Assert::AreEqual ((size_t) 15, Choices::GetVolumeMaxLength (Choices::kFormatProDosSos));
     }
 };

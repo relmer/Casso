@@ -189,6 +189,7 @@ public:
     void                       BuildThirteenSector    (const CommandLineOptions & options, bool overExisting, DiskCommandResult & result);
     static bool                IsLargeCreate          (const CommandLineOptions & options);
     static ProDosBootSystem    GetBootSystem          (const std::string & formatName);
+    static bool                IsProDosFamilyFormat   (const std::string & formatName);
     static bool                IsHfsFormat            (const CommandLineOptions & options);
     static const char        * GetVolumeNameRule      (bool isHfs);
     static bool                IsBlockOnlyExtension   (const std::string & imagePath);
