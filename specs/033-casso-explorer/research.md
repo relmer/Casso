@@ -1087,6 +1087,8 @@ files as they are fails SC-037.
 - A track between two standard tracks isn't read. With the two changes above, 34 of the 35 whole tracks are standard, every sector decodes, and a capture is 105 reads plus the gaps beside the one other track.
 - The first encoding, with a count before each run of literal bytes, cost about 275 cycles a literal byte on the Apple, 3.8 KB/s, slower than the 130 cycles of sending bytes raw. The encoding is now escaped (0 begins a token), with the CRC from the program's tables inline.
 
+**Track alignment (2026-11-12)**: Wizardry I checks where data on one track is relative to the track before. A reference WOZ made by Applesauce, whose drive has an index sensor, boots in Casso; turning its track 13 or 14 half a revolution stops the boot on track 14, as the unsynchronized capture stops. The //c's drive has no index sensor, so each track's first read waits on a marker, an address field of the track before, and steps and starts the read a fixed number of cycles after it, as a nibble copier's synchronized tracks do. The PC turns each track's stream so that a bit's place is the same angle on every track, from the marker's place on the track before and that delay, 50,400 cycles, measured on Casso's //c: six tracks of a DOS 3.3 disk captured there come out at the same angle within a bit. The WOZ's INFO chunk is marked synchronized. A capture of the reference image on Casso's //c boots, and so does a capture of the owner's disk.
+
 **Alternatives considered**: flux capture. The Disk II has no access to flux, and Applesauce exists for it. Out of scope.
 
 ## R44. Virtual drives (Story 25)

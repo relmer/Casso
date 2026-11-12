@@ -322,8 +322,13 @@ public:
     //  must be loaded: the bytes as the Apple stored them, a sync byte with
     //  its top bit clear. A packet that fails its CRC, arrives out of order
     //  or doesn't decode fails the read. The delay is the second read of each
-    //  byte's: 0 for 8 cycles, 1 for 12.
-    HRESULT  CaptureQuarterTrack (Byte drive, Byte position, Byte delay, Byte startPercent, Byte endPercent, std::vector<Byte> & outBytes, CassoLinkStatus & outStatus, CaptureTiming & outTiming);
+    //  byte's: 0 for 8 cycles, 1 for 12. With a position to wait on, not
+    //  kNoSync, the read starts a fixed time after the marker passes there
+    //  (Capture.s); a marker that doesn't pass is the Status's error.
+    static constexpr Byte  kNoSync = 0xFF;
+
+    HRESULT  CaptureQuarterTrack (Byte drive, Byte position, Byte delay, Byte startPercent, Byte endPercent, Byte syncPosition, std::span<const Byte> marker,
+                                  std::vector<Byte> & outBytes, CassoLinkStatus & outStatus, CaptureTiming & outTiming);
 
     //  The capture module for the program this host loads.
     HRESULT  BuildCaptureModule  (std::vector<Byte> & outModule) const;

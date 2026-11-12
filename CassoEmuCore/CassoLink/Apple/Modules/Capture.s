@@ -4,10 +4,19 @@
 ;
 ; Request (CMDCAPTURE): the percentages at the request's start and end, the
 ; drive, the quarter-track position, 0 to 139, and the delay of the second
-; read of each byte: 0 for 8 cycles, 1 for 12. The arm goes to the
-; position: to the half track with the program's stepto, and for an odd
-; position, to the quarter between it and the next half track, with both
-; their phases on while the read runs.
+; read of each byte: 0 for 8 cycles, 1 for 12; then the position to wait on,
+; $FF for none, the marker's length, up to CMARKMAX, and its bytes. The arm
+; goes to the position: to the half track with the program's stepto, and for
+; an odd position, to the quarter between it and the next half track, with
+; both their phases on while the read runs.
+;
+; With a position to wait on, the arm goes there first and the latch is read
+; until the marker passes (cpfind), and the arm then steps to the position and
+; the read starts. Every instruction from the marker's last byte to the read's
+; first is the same each time, so the read starts a fixed number of cycles
+; after the marker passes, and the PC can place the track's data relative to
+; the track the marker is on, as a nibble copier's synchronized tracks are
+; placed. Interrupts are off from before the wait to the end of the read.
 ;
 ; The read fills CAPBUF to CAPEND with the bytes as the data latch has them,
 ; with no gap between bytes: a little over two revolutions of a 16-sector
@@ -57,10 +66,12 @@ SAMPLE     = 1024
 SAMPLEN    = 32
 
 RUNMAX     = 129                ; the most bytes in a repeat or a copy
+CMARKMAX   = 16                 ; the longest marker
+CFMAX      = 20000              ; the bytes cpfind reads before giving up, about 3 revolutions
 CAPPAGE1   = CAPBUF / 256 + 1   ; the page after CAPBUF's first
 
         .org $5000
-        .byte 'C', 'M', 1, 4    ; capture, version 4
+        .byte 'C', 'M', 1, 5    ; capture, version 5
         .word PROGVER
         .word modend - $5000
         .word 0                 ; the CRC, which the PC fills in
@@ -91,6 +102,9 @@ evalid   = $5C                  ; $80 once copies are allowed
 etmp     = $5D
 evpage   = $5E                  ; the page copies are allowed from
 eend     = $5F                  ; nonzero once every byte is given
+csync    = $60                  ; the position to wait on, $FF for none
+cmlen    = $61                  ; the marker's length
+cfcnt    = $62                  ; and $63: the bytes cpfind may still read
 
 capture: lda #p_OPCAPT
         sta p_op
@@ -124,10 +138,38 @@ cpbaddrive: lda #p_ERRDRIVE
 cpdrive: lda cpos
         cmp #140
         bcs cpbaddrive
-        jsr p_showop
+        lda p_PKTBUF+5          ; the position to wait on and the marker
+        sta csync
+        lda p_PKTBUF+6
+        cmp #CMARKMAX+1
+        bcc cpmlen
+        lda #CMARKMAX
+cpmlen: sta cmlen
+        ldy #0
+cpmark: cpy cmlen
+        beq cpshow
+        lda p_PKTBUF+7,y
+        sta cmark,y
+        iny
+        bne cpmark
+cpshow: jsr p_showop
         jsr capbuild
         jsr p_motoron
-        lda cpos
+        php                     ; no interrupt from here to the read's end:
+        sei                     ; one costs bytes, and the wait's timing
+        lda csync
+        cmp #$FF
+        beq cpgo
+        lsr a
+        sta p_target
+        jsr p_stepto
+        jsr cpfind
+        bcc cpgo
+        plp
+        lda #p_ERRNOTFND
+        sta p_err
+        jmp p_opdone
+cpgo:   lda cpos
         lsr a
         sta p_target
         jsr p_stepto
@@ -139,8 +181,6 @@ cpread: ldx p_diskx
         lda p_Q6L,x
         lda p_Q7L,x
         ldy #0
-        php                     ; no interrupt during the read: one costs bytes
-        sei
         jsr CAPCODE
         plp
         lda cpos                ; the quarter's two phases off
@@ -149,6 +189,40 @@ cpread: ldx p_diskx
         jsr cpoff
 cpsend: jsr encode
         jmp p_opdone
+
+; cpfind: the latch read until the cmlen bytes of cmark pass in a row,
+; returning with C clear right after the last; with C set after CFMAX bytes
+; without them. From the read that finds a byte to the next poll is 26 cycles
+; on each path, so the same byte is never read twice and the next is never
+; missed.
+cpfind: ldx p_diskx
+        lda p_Q6L,x
+        lda p_Q7L,x
+        lda #<CFMAX
+        sta cfcnt
+        lda #>CFMAX
+        sta cfcnt+1
+        ldy #0
+cfpoll: lda p_Q6L,x
+        bpl cfpoll
+        cmp cmark,y
+        bne cfmiss
+        iny
+        cpy cmlen
+        beq cffound
+        bne cfnext
+cfmiss: ldy #0                  ; the byte may start the marker again
+        cmp cmark
+        bne cfnext
+        iny
+cfnext: dec cfcnt
+        bne cfpoll
+        dec cfcnt+1
+        bne cfpoll
+        sec
+        rts
+cffound: clc
+        rts
 
 ; cpquarter: the half track's phase and the next one's on, and a pause
 ; while the arm settles between them.
@@ -583,5 +657,7 @@ pktend: lda p_crclo
         lda #0
         sta eopen
         rts
+
+cmark:  .byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 
 modend:

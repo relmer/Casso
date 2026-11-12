@@ -55,11 +55,15 @@ public:
     static constexpr size_t  kSameShare        = 33;
 
     //  The reads of a quarter-track position.
+    //  The reads of a quarter-track position. With syncFrom a position, not
+    //  -1, the first read started s_kSyncCycles after syncMarker passed there.
     struct Position
     {
         int                             position = 0;
         std::vector<std::vector<Byte>>  reads;
         std::vector<Byte>               delays;       // each read's: 0 for 8 cycles, 1 for 12
+        int                             syncFrom = -1;
+        std::vector<Byte>               syncMarker;
     };
 
     //  The delays of a whole track's reads.
@@ -79,6 +83,7 @@ public:
         size_t                 sentBytes    = 0;  // the encoded bytes over the line
         size_t                 storedBytes  = 0;  // and the bytes they decoded to
         std::vector<Position>  positions;         // every read, for SerializeReads
+        bool                   synchronized = false;  // every whole track placed relative to track 0
     };
 
     //  Where a capture is: the position of its last read, that read's number
@@ -121,6 +126,7 @@ private:
     struct Stream
     {
         int                   position = 0;
+        size_t                start    = 0;   // the first read's byte the revolution starts at
         std::vector<Byte>     bytes;          // one revolution, as the first read has it
         std::vector<bool>     weak;
         std::vector<uint8_t>  zeros;          // the zero bits after each byte
@@ -159,8 +165,12 @@ private:
         int                      percent = 0;
     };
 
-    static HRESULT              ReadOnce       (Run & run, int position, Byte delay, int read, int reads, std::vector<Byte> & outBytes);
+    static HRESULT              ReadOnce       (Run & run, int position, Byte delay, int read, int reads, Byte syncPosition, std::span<const Byte> marker, std::vector<Byte> & outBytes, bool & outMissed);
     static HRESULT              ReadPosition   (Run & run, int position, int reads, Position & outPosition);
+    static void                 FindMarker     (const std::vector<Byte> & revolution, std::vector<Byte> & outMarker);
+    static void                 PlaceTracks    (const std::vector<Position> & positions, const std::map<int, Stream> & streams, std::map<int, size_t> & outRotations, bool & outSynchronized);
+    static size_t               GetBitOffset   (const Stream & stream, size_t byte);
+    static void                 Write32        (std::vector<Byte> & bytes, size_t at, uint32_t value);
     static bool                 CollectMarks   (const Position & position, Stream & outStream, Marks & outMarks, bool & outUnstable);
     static void                 AlignAll       (const Position & position, const std::vector<Byte> & revolution, std::vector<Alignment> & outAlignments, bool & outUnstable);
     static void                 MakeConsensus  (const Position & position, const std::vector<Byte> & revolution, const std::vector<Alignment> & alignments, std::vector<Byte> & outAgreed);
@@ -239,5 +249,19 @@ private:
     static constexpr int     s_kPaceReads    = 3;
 
     static constexpr Byte    s_kReadsMagic[] = { 'C', 'R', 'A', 'W' };
-    static constexpr Word    s_kReadsVersion = 1;
+    static constexpr Word    s_kReadsVersion = 2;
+
+    //  The cycles from a marker's last byte to the first byte of a read that
+    //  waited on it (Capture.s), as measured on Casso's //c; the cycles a bit
+    //  takes; and the marker: an address field's prolog and its eight bytes.
+    static constexpr double  s_kSyncCycles   = 50400.0;
+    static constexpr double  s_kBitCycles    = 4.0;
+    static constexpr size_t  s_kMarkerBytes  = 11;
+    static constexpr int     s_kReadAttempts = 3;
+
+    //  A version 2 WOZ's header, its CRC's place in it, and the INFO chunk's
+    //  synchronized flag's place in the file.
+    static constexpr size_t  s_kWozHeaderBytes   = 12;
+    static constexpr size_t  s_kWozCrcOffset     = 8;
+    static constexpr size_t  s_kInfoSynchronized = 23;
 };

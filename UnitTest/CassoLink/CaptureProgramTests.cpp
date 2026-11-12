@@ -128,7 +128,7 @@ public:
 
         AssertSucceeded (LinkProgram::BuildCaptureModule (module));
         AssertSucceeded (rig.host->EnsureModule (module));
-        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 0, 0, 0, 100, bytes, status, timing));
+        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 0, 0, 0, 100, CassoLinkHost::kNoSync, {}, bytes, status, timing));
 
         Assert::AreEqual ((Byte) 0, status.error);
 
@@ -147,6 +147,120 @@ public:
 
         Assert::IsTrue (IsRotationOf (bits, track), L"One revolution is the drive's track");
     }
+
+    //  A read that waits on a marker the track doesn't have ends with the
+    //  Status's not-found error, and a read after it, with no marker, works.
+    TEST_METHOD (AMarkerThatDoesntPass_FailsTheRead_AndTheNextReadWorks)
+    {
+        ProgramRig         rig (LoadFixture());
+        std::vector<Byte>  module;
+        std::vector<Byte>  bytes;
+        CassoLinkStatus    status;
+        CaptureTiming      timing;
+        const Byte         marker[] = { 0xD5, 0xAA, 0x96, 0xFF, 0xFE, 0xAA, 0xAA, 0xAA, 0xAA, 0xFF, 0xFE };
+
+
+
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        AssertSucceeded (rig.host->EnsureModule (module));
+        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 4, 0, 0, 100, 0, marker, bytes, status, timing));
+        Assert::AreEqual (CassoLinkHost::kErrorNotFound, status.error, L"The marker didn't pass");
+
+        AssertSucceeded (rig.host->EnsureModule (module));
+        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 4, 0, 0, 100, CassoLinkHost::kNoSync, {}, bytes, status, timing));
+        Assert::AreEqual ((Byte) 0, status.error);
+        Assert::IsFalse (bytes.empty());
+    }
+
+    //  Where in `track` a window of `captured` is, as a share of a
+    //  revolution: the angle of the captured track's bit 0 in the track's
+    //  frame. -1 when the window isn't there once.
+    static double  FindAngle (const std::vector<uint8_t> & captured, const std::vector<uint8_t> & track)
+    {
+        static constexpr uint8_t  kProlog[] = { 1,1,0,1,0,1,0,1, 1,0,1,0,1,0,1,0, 1,0,0,1,0,1,1,0 };
+        size_t                    n         = track.size();
+        size_t                    window    = 0;
+        size_t                    found     = SIZE_MAX;
+        int                       count     = 0;
+
+
+
+        //  The window starts at the first address field, which has its sector's
+        //  number, so it is in the track once.
+        while (window + kWindowBits < captured.size() && !std::equal (std::begin (kProlog), std::end (kProlog), captured.begin() + (ptrdiff_t) window))
+        {
+            window++;
+        }
+
+        for (size_t start = 0; start < n && window + kWindowBits < captured.size(); start++)
+        {
+            size_t  at = 0;
+
+            while (at < kWindowBits && track[(start + at) % n] == captured[window + at])
+            {
+                at++;
+            }
+
+            if (at == kWindowBits)
+            {
+                found = start;
+                count++;
+            }
+        }
+
+        return (count == 1) ? (double) ((found + n - window % n) % n) / (double) n : -1.0;
+    }
+
+    //  Six tracks captured with each waiting on a marker on the one before:
+    //  every track's bit 0 is at the same angle of the drive's tracks, as an
+    //  index-synchronized capture's are, within a few bytes.
+    TEST_METHOD (SixTracks_ArePlacedAsTheDrivesTracksAre)
+    {
+        ProgramRig                 rig (LoadFixture());
+        std::vector<Byte>          module;
+        CassoLinkCapture::Result   result;
+        DiskImage                  woz;
+        std::vector<double>        angles;
+        std::string                log;
+
+
+
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-11T00:00:00Z", {}, result, 5));
+        AssertSucceeded (WozLoader::Load (result.woz, woz));
+
+        Assert::IsTrue (result.synchronized, L"Every track waited on its marker");
+
+        for (int track = 0; track <= 5; track++)
+        {
+            std::vector<uint8_t>  captured;
+            int                   slot  = woz.ResolveQuarterTrack (track * 4);
+            double                angle = 0.0;
+
+            for (size_t at = 0; at < woz.GetTrackBitCount (slot); at++)
+            {
+                captured.push_back (woz.ReadBit (slot, at));
+            }
+
+            angle = FindAngle (captured, GetTrackBits (rig, track * 4));
+            Assert::IsTrue (angle >= 0.0, std::format (L"Track {} is found in the drive's track", track).c_str());
+            angles.push_back (angle);
+            log  += std::format ("track {}: angle {:.5f}, {:+.5f} from track 0\n", track, angle, angle - angles[0]);
+        }
+
+        Logger::WriteMessage (log.c_str());
+
+        for (int track = 1; track <= 5; track++)
+        {
+            double  drift = std::abs (angles[(size_t) track] - angles[0]);
+
+            Assert::IsTrue (std::min (drift, 1.0 - drift) < kAngleTolerance, std::format (L"Track {}", track).c_str());
+        }
+    }
+
+    static constexpr size_t  kWindowBits     = 200;
+    static constexpr double  kAngleTolerance = 0.005;    // about 30 bytes
+
 
     //  Tracks 0 and 1 captured into a WOZ: both are standard, so the
     //  positions between them aren't read; each quarter track reads what the

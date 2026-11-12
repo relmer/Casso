@@ -10,6 +10,8 @@
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
+#include "CassoLink/LinkProgram.h"
+#include "CassoLink/ProgramRig.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
@@ -260,8 +262,48 @@ public:
         }
     }
 
-    //  An image from CASSO_BOOT_IMAGE, a DOS-ordered sector image, booted as
-    //  LogBoot boots one: run only when CASSO_BOOT_IMAGE is set.
+    //  A WOZ from CASSO_CAPTURE_WOZ mounted in an emulated //c and captured
+    //  over the link, as a real Apple's disk is, into emulated.woz in
+    //  CASSO_LINK_OUT, then booted: run only when CASSO_CAPTURE_WOZ is set.
+    TEST_METHOD (AnEmulatedWoz_IsCapturedAndBoots)
+    {
+        std::string                path   = GetSetting ("CASSO_CAPTURE_WOZ", "");
+        std::filesystem::path      folder = GetSetting ("CASSO_LINK_OUT", ".");
+        std::vector<Byte>          source;
+        std::vector<Byte>          module;
+        std::vector<Byte>          sectors;
+        SectorDecodeReport         report;
+        CassoLinkCapture::Result   result;
+
+
+
+        if (path.empty())
+        {
+            Logger::WriteMessage ("CASSO_CAPTURE_WOZ isn't set; no image to capture.\n");
+            return;
+        }
+
+        {
+            std::ifstream  in (path, std::ios::binary);
+
+            source.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        ProgramRig  rig (std::vector<Byte> (143360, 0));
+
+        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, source));
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-11T00:00:00Z", {}, result));
+        WriteFile (folder / "emulated.woz", result.woz);
+
+        Logger::WriteMessage (std::format ("{} reads, synchronized {}\n", result.reads, result.synchronized).c_str());
+
+        AssertSucceeded (VolumeImage::Load (result.woz, "emulated.woz", sectors, report));
+        LogBoot ("the emulated capture", result.woz, sectors, true);
+    }
+
+    //  An image from CASSO_BOOT_IMAGE, a WOZ or a DOS-ordered sector image,
+    //  booted as LogBoot boots one: run only when CASSO_BOOT_IMAGE is set.
     TEST_METHOD (AnImage_Boots)
     {
         std::string        path = GetSetting ("CASSO_BOOT_IMAGE", "");
@@ -281,7 +323,18 @@ public:
             sectors.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
         }
 
-        LogBoot (path.c_str(), {}, sectors, false);
+        if (path.ends_with (".woz"))
+        {
+            std::vector<Byte>   woz = std::move (sectors);
+            SectorDecodeReport  report;
+
+            AssertSucceeded (VolumeImage::Load (woz, "image.woz", sectors, report));
+            LogBoot (path.c_str(), woz, sectors, true);
+        }
+        else
+        {
+            LogBoot (path.c_str(), {}, sectors, false);
+        }
     }
 
     //  The disk inspector's summary and findings for the image, as its Issues

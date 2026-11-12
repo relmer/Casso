@@ -153,11 +153,11 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::CaptureQuarterTrack (Byte drive, Byte position, Byte delay, Byte startPercent, Byte endPercent, std::vector<Byte> & outBytes,
-                                            CassoLinkStatus & outStatus, CaptureTiming & outTiming)
+HRESULT CassoLinkHost::CaptureQuarterTrack (Byte drive, Byte position, Byte delay, Byte startPercent, Byte endPercent, Byte syncPosition, std::span<const Byte> marker,
+                                            std::vector<Byte> & outBytes, CassoLinkStatus & outStatus, CaptureTiming & outTiming)
 {
     HRESULT            hr        = S_OK;
-    const Byte         request[] = { startPercent, endPercent, drive, position, delay };
+    std::vector<Byte>  request   = { startPercent, endPercent, drive, position, delay, syncPosition, (Byte) marker.size() };
     CassoLinkPacket    packet;
     std::vector<Byte>  encoded;
     LARGE_INTEGER      frequency = {};
@@ -172,6 +172,8 @@ HRESULT CassoLinkHost::CaptureQuarterTrack (Byte drive, Byte position, Byte dela
     outStatus = {};
     outTiming = {};
     outBytes.clear();
+
+    request.insert (request.end(), marker.begin(), marker.end());
 
     QueryPerformanceFrequency (&frequency);
 

@@ -151,4 +151,11 @@ public:
 
         Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
         Assert::AreEqual ((Byte) 1, module[2], L"The capture module's id");
-    }};
+
+        Logger::WriteMessage (std::format ("capture module: {} bytes\n", module.size()).c_str());
+        Assert::IsTrue (module.size() <= kCaptureCodeOffset, L"and it ends before CAPCODE, where capbuild writes the loop's copies");
+    }
+
+    //  Capture.s's CAPCODE less the module's .
+    static constexpr size_t  kCaptureCodeOffset = 0x470;
+};
