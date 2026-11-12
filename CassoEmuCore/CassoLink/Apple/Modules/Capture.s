@@ -24,22 +24,43 @@
 ; The loop is one copy per page, made by capbuild, so that no page crossing
 ; adds cycles to a byte.
 ;
-; Reply: each page as Capture data (CMDCAPDATA): the page's index, its 256
-; bytes and their CRC-16/XMODEM, low byte first; then a Status.
+; Reply: the bytes encoded (encode), in Capture data packets (CMDCAPDATA) of
+; a sequence number, 256 bytes of the encoding and their CRC-16/XMODEM, low
+; byte first; then a Status. The last packet is padded with zeros.
+;
+; The encoding begins with the revolution's length in bytes, low byte first,
+; 0 when findrev doesn't find one. Then each byte other than 0 is itself, and
+; 0 begins a token, until every byte is given:
+;
+;   0 0      a 0
+;   0 n      n of 1 to 127: n + 2 bytes the same as those a revolution earlier
+;   0 $80+n  n of 0 to 127: the next byte, repeated n + 3 times
+;
+; A byte is the same only with its mark the same, so the PC has every byte
+; as the read stored it.
 ; ---------------------------------------------------------------------------
 
 CMDCAPTURE = $EA
 CMDCAPDATA = $EB
-CAPBUF     = $5800
+CAPBUF     = $5900
 CAPEND     = $9000
 CAPPAGES   = (CAPEND - CAPBUF) / 256
-CAPCODE    = $5200              ; the loop, a copy for each page
+CAPCODE    = $5470              ; the loop, a copy for each page, up to CAPBUF
 
-; The page index and the 256 bytes and the CRC: the payload's length.
+; The sequence number and the 256 bytes and the CRC: the payload's length.
 CAPLEN     = 1 + 256 + 2
 
+; The range of revolution lengths for findrev, and its second sample's offset.
+LMIN       = 4800
+LMAX       = 7000
+SAMPLE     = 1024
+SAMPLEN    = 32
+
+RUNMAX     = 129                ; the most bytes in a repeat or a copy
+CAPPAGE1   = CAPBUF / 256 + 1   ; the page after CAPBUF's first
+
         .org $5000
-        .byte 'C', 'M', 1, 2    ; capture, version 2
+        .byte 'C', 'M', 1, 4    ; capture, version 4
         .word PROGVER
         .word modend - $5000
         .word 0                 ; the CRC, which the PC fills in
@@ -49,13 +70,29 @@ CAPLEN     = 1 + 256 + 2
 
 ; Zero page the program doesn't use.
 cpos     = $40                  ; the position
-cpage    = $41                  ; capsend's page
+cpage    = $41                  ; capbuild's page
 ctempl   = $42                  ; and $43: capbuild's copy of the loop
 clen     = $44                  ; its length
 ccmp     = $45                  ; the offset of its second read's address
 csta     = $46                  ; the offset of its store's page
+esrc     = $47                  ; and $48: the next byte to encode
+epred    = $49                  ; and $4A: the byte a revolution before it
+elen     = $4B                  ; and $4C: the revolution's length, or 0
+ecount   = $51                  ; the bytes left in the open packet
+eopen    = $52                  ; nonzero while a packet is open
+eseq     = $53                  ; the next packet's sequence number
+ecap     = $54                  ; the most bytes a token can have here
+en       = $55                  ; a token's count
+etp      = $56                  ; and $57: a token's first byte
+etq      = $58                  ; and $59: the byte a revolution before it
+eyy      = $5A                  ; esrc's offset of the byte being encoded
+ebyte    = $5B                  ; that byte
+evalid   = $5C                  ; $80 once copies are allowed
+etmp     = $5D
+evpage   = $5E                  ; the page copies are allowed from
+eend     = $5F                  ; nonzero once every byte is given
 
-capture: lda #p_OPREAD
+capture: lda #p_OPCAPT
         sta p_op
         lda p_PKTBUF
         sta p_plo
@@ -67,6 +104,9 @@ capture: lda #p_OPREAD
         jsr cpdelay
         lda p_PKTBUF+3
         sta cpos
+        and #3
+        sta p_sector            ; the bar's quarter
+        lda cpos
         lsr a
         lsr a
         sta p_track
@@ -99,12 +139,15 @@ cpread: ldx p_diskx
         lda p_Q6L,x
         lda p_Q7L,x
         ldy #0
+        php                     ; no interrupt during the read: one costs bytes
+        sei
         jsr CAPCODE
+        plp
         lda cpos                ; the quarter's two phases off
         and #1
         beq cpsend
         jsr cpoff
-cpsend: jsr capsend
+cpsend: jsr encode
         jmp p_opdone
 
 ; cpquarter: the half track's phase and the next one's on, and a pause
@@ -246,14 +289,269 @@ sta12:  sta CAPBUF,y            ; patched: the copy's page
         bne cpoll12
 copy12end:
 
-; capsend: each page as Capture data.
-capsend: lda #0
-        sta cpage
-        lda #<CAPBUF
-        sta p_ptr
+; encode: CAPBUF's bytes in the encoding above: at each byte, a copy of
+; the revolution before when the next 3 match it, else a repeat when the next
+; 3 are the same, else the byte as it is. Copies start only from the page
+; after the one with the first byte a revolution in, so the check costs a
+; BIT. Each byte of the encoding goes out as it is made, so the work overlaps
+; the chip's sending.
+encode: lda #0
+        sta eopen
+        sta eseq
+        sta evalid
+        sta eend
+        jsr findrev
+        lda elen
+        jsr emitb
+        lda elen+1
+        jsr emitb
+        lda #$FF                ; no copies without a revolution
+        sta evpage
+        lda elen
+        ora elen+1
+        beq ensrc
+        lda elen+1
+        clc
+        adc #CAPPAGE1
+        sta evpage
+ensrc:  lda #<CAPBUF
+        sta esrc
+        sec
+        sbc elen
+        sta epred
         lda #>CAPBUF
-        sta p_ptr+1
-csloop: lda #$C1
+        sta esrc+1
+        sbc elen+1
+        sta epred+1
+        ldy #0
+enloop: bit evalid
+        bpl enrun
+        lda (esrc),y            ; a copy may start here
+        cmp (epred),y
+        bne enrun
+        sty eyy
+        jsr tokcopy
+        bcs ennext
+        ldy eyy
+enrun:  sty eyy                 ; a repeat may start here; at a page's end
+        lda (esrc),y            ; the check is skipped
+        sta ebyte
+        iny
+        beq enlit
+        cmp (esrc),y
+        bne enlit
+        iny
+        beq enlit
+        cmp (esrc),y
+        bne enlit
+        ldy eyy
+        jsr tokrun
+        bcs ennext
+enlit:  ldy eyy
+        lda ebyte               ; the byte as it is, a 0 as 0 0
+        bne enone
+        jsr emitb
+        lda #0
+enone:  jsr emitb
+        iny
+        bne enloop
+        jsr newpage
+        beq enpad
+        jmp enloop
+ennext: lda eend
+        beq enloop
+enpad:  lda eopen               ; zeros to the end of the last packet
+        beq endone
+        lda #0
+        jsr emitb
+        jmp enpad
+endone: rts
+
+; tokcopy: from esrc+eyy, a copy token when 3 or more bytes match those a
+; revolution before, returning with C set and Y past them; else C clear.
+tokcopy: jsr setptrs
+        ldy #0
+tcloop: cpy ecap
+        beq tcend
+        lda (etp),y
+        cmp (etq),y
+        bne tcend
+        iny
+        bne tcloop
+tcend:  cpy #3
+        bcc tcnone
+        sty en
+        lda #0
+        jsr emitb
+        lda en
+        sec
+        sbc #2
+        jsr emitb
+        jmp advance
+tcnone: clc
+        rts
+
+; tokrun: from esrc+eyy, a repeat token when 3 or more bytes are ebyte,
+; returning with C set and Y past them; else C clear.
+tokrun: jsr setptrs
+        ldy #1
+trloop: cpy ecap
+        beq trend
+        lda (etp),y
+        cmp ebyte
+        bne trend
+        iny
+        bne trloop
+trend:  cpy #3
+        bcc trnone
+        sty en
+        lda #0
+        jsr emitb
+        lda en
+        sec
+        sbc #3
+        ora #$80
+        jsr emitb
+        lda ebyte
+        jsr emitb
+        jmp advance
+trnone: clc
+        rts
+
+; setptrs: etp at esrc+eyy, etq at epred+eyy, and ecap the most a token can
+; have here: RUNMAX, or the bytes left.
+setptrs: lda esrc
+        clc
+        adc eyy
+        sta etp
+        lda esrc+1
+        adc #0
+        sta etp+1
+        lda epred
+        clc
+        adc eyy
+        sta etq
+        lda epred+1
+        adc #0
+        sta etq+1
+        lda #>CAPEND
+        sec
+        sbc esrc+1
+        cmp #2
+        bcs spmax
+        lda #0                  ; the last page: 256 less eyy
+        sec
+        sbc eyy
+        beq spmax
+        cmp #RUNMAX
+        bcc spset
+spmax:  lda #RUNMAX
+spset:  sta ecap
+        rts
+
+; advance: Y at eyy plus en, onto the next page when it passes one,
+; returning with C set.
+advance: lda eyy
+        clc
+        adc en
+        tay
+        bcc avdone
+        jsr newpage
+        bne avdone
+        lda #1
+        sta eend
+avdone: sec
+        rts
+
+; newpage: esrc and epred on a page, copies allowed from evpage, and Z set
+; at CAPEND.
+newpage: inc esrc+1
+        inc epred+1
+        lda esrc+1
+        cmp evpage
+        bcc npend
+        lda #$80
+        sta evalid
+npend:  lda esrc+1
+        cmp #>CAPEND
+        rts
+
+; findrev: in elen, the first length from LMIN to LMAX at which CAPBUF's
+; first SAMPLEN bytes repeat, and those from SAMPLE too, with the marks
+; ignored; 0 when none does. A wrong length makes the encoding longer, not
+; wrong.
+findrev: lda #<LMIN
+        sta elen
+        lda #>LMIN
+        sta elen+1
+frloop: lda #<CAPBUF
+        clc
+        adc elen
+        sta etp
+        lda #>CAPBUF
+        adc elen+1
+        sta etp+1
+        ldy #0
+fr1:    lda CAPBUF,y
+        eor (etp),y
+        and #$7F
+        bne frnext
+        iny
+        cpy #SAMPLEN
+        bne fr1
+        lda etp+1
+        clc
+        adc #>SAMPLE
+        sta etp+1
+        ldy #0
+fr2:    lda CAPBUF+SAMPLE,y
+        eor (etp),y
+        and #$7F
+        bne frnext
+        iny
+        cpy #SAMPLEN
+        bne fr2
+        rts
+frnext: inc elen
+        bne fr3
+        inc elen+1
+fr3:    lda elen
+        cmp #<(LMAX+1)
+        bne frloop
+        lda elen+1
+        cmp #>(LMAX+1)
+        bne frloop
+        lda #0
+        sta elen
+        sta elen+1
+        rts
+
+; emitb: A as the encoding's next byte, in the open packet or a new one,
+; with the CRC by the program's tables; a full packet is ended. Y is saved.
+emitb:  sta etmp
+        lda eopen
+        bne ebopen
+        jsr pktbegin
+ebopen: lda etmp
+        eor p_peor
+        sta p_peor
+        lda etmp
+        eor p_crchi
+        tax
+        lda p_crclo
+        eor p_CRCHI,x
+        sta p_crchi
+        lda p_CRCLO,x
+        sta p_crclo
+        lda etmp
+        jsr p_putb
+        dec ecount
+        bne ebdone
+        jsr pktend
+ebdone: rts
+
+; pktbegin: a Capture data packet's header and sequence number.
+pktbegin: lda #$C1
         jsr p_putb
         lda #<CAPLEN
         jsr p_putb
@@ -264,29 +562,26 @@ csloop: lda #$C1
         lda #$C1 ^ <CAPLEN ^ >CAPLEN ^ CMDCAPDATA
         jsr p_putb
         lda #0
-        sta p_peor
         sta p_crclo
         sta p_crchi
-        lda cpage
-        jsr p_putpe
-        ldy #0
-csbyte: lda (p_ptr),y
-        jsr p_crcupd
-        lda (p_ptr),y
-        jsr p_putpe
-        iny
-        bne csbyte
-        lda p_crclo
+        sta ecount              ; 256 bytes
+        lda eseq
+        sta p_peor
+        jsr p_putb
+        lda #1
+        sta eopen
+        rts
+
+; pktend: the packet's CRC and check byte.
+pktend: lda p_crclo
         jsr p_putpe
         lda p_crchi
         jsr p_putpe
         lda p_peor
         jsr p_putb
-        inc p_ptr+1
-        inc cpage
-        lda cpage
-        cmp #CAPPAGES
-        bne csloop
+        inc eseq
+        lda #0
+        sta eopen
         rts
 
 modend:

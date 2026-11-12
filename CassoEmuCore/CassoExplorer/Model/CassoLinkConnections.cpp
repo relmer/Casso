@@ -1431,6 +1431,7 @@ std::wstring CassoLinkConnections::DescribeJobs (const std::vector<std::shared_p
         case LinkOperationKind::CheckLinkDisk:   what = L"Checking the disk"; break;
         case LinkOperationKind::FullSend:        what = L"Full Send";         break;
         case LinkOperationKind::Krunch:          what = L"Krunching";         break;
+        case LinkOperationKind::CaptureDisk:     what = L"Capturing";         break;
         default:                                 what = L"Working";           break;
     }
 
@@ -1445,6 +1446,10 @@ std::wstring CassoLinkConnections::DescribeJobs (const std::vector<std::shared_p
     else if (jobs[0]->kind == LinkOperationKind::FullSend)
     {
         text = std::format (L"Full Send: sending the disk in drive {}: {}%", jobs[0]->drive, jobs[0]->progress.load());
+    }
+    else if (jobs[0]->kind == LinkOperationKind::CaptureDisk && !jobs[0]->GetDetail().empty())
+    {
+        text = std::format (L"Capturing drive {}: {}%, {}", jobs[0]->drive, jobs[0]->progress.load(), TextEncoding::NarrowToWide (jobs[0]->GetDetail()));
     }
     else
     {

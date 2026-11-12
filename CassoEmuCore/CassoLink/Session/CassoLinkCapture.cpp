@@ -5,6 +5,7 @@
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/Session/CaptureStream.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
 
@@ -15,8 +16,9 @@
 //
 //  CassoLinkCapture::Capture
 //
-//  The whole tracks first, so each other position has its neighbor's
-//  stream to compare its first read with.
+//  The whole tracks first, so each other position has its neighbors'
+//  streams to compare its first read with, and so the gaps to read are
+//  known.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,30 +27,35 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
 {
     HRESULT                hr        = S_OK;
     std::vector<Position>  positions;
+    std::vector<bool>      standard;
     int                    last      = std::clamp (lastTrack, 0, kTracks - 1) * 4;
-    int                    done      = 0;
+    Run                    run       { host, drive, module, progress, outResult };
 
 
 
-    outResult = Result();
+    outResult   = Result();
+    run.started = GetTickCount64();
+    run.planned = (last / 4 + 1) * kWholeReads;
 
     for (int position = 0; position <= last; position += 4)
     {
         Position  read;
 
-        hr = ReadPosition (host, drive, module, position, kWholeReads, read);
+        hr = ReadPosition (run, position, kWholeReads, read);
         CHR (hr);
 
-        hr = ReadMore (host, drive, module, read);
-        CHR (hr);
-
+        standard.push_back (IsStandardTrack (read));
         positions.push_back (std::move (read));
 
-        if (progress)
+        //  The gap below this track is read when either track beside it isn't
+        //  standard, so its three positions count as soon as both are known.
+        if (standard.size() >= 2 && !(standard[standard.size() - 2] && standard.back()))
         {
-            progress (++done, last + 1);
+            run.planned += 3;
         }
     }
+
+    run.pass = 2;
 
     for (int position = 1; position <= last; position++)
     {
@@ -65,7 +72,16 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
             continue;
         }
 
-        hr = ReadPosition (host, drive, module, position, 1, read);
+        outResult.betweenTotal++;
+
+        if (standard[(size_t) lower / 4] && standard[(size_t) upper / 4])
+        {
+            continue;
+        }
+
+        outResult.betweenRead++;
+
+        hr = ReadPosition (run, position, 1, read);
         CHR (hr);
 
         MakeStream (positions[(size_t) lower / 4], below, unstable);
@@ -74,23 +90,190 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         //  A position with a separate stream is read again.
         if (MakeStream (read, stream, unstable) && !IsSameStream (stream.bytes, below.bytes) && !IsSameStream (stream.bytes, above.bytes))
         {
-            hr = ReadPosition (host, drive, module, position, kWholeReads, read);
+            run.planned += kWholeReads;
+
+            hr = ReadPosition (run, position, kWholeReads, read);
             CHR (hr);
 
-            hr = ReadMore (host, drive, module, read);
-            CHR (hr);
         }
 
         positions.push_back (std::move (read));
-
-        if (progress)
-        {
-            progress (++done, last + 1);
-        }
     }
 
-    hr = BuildWoz (positions, imageDate, drive, outResult);
+    hr = BuildWoz (positions, last, imageDate, drive, outResult);
     CHR (hr);
+
+    outResult.positions = std::move (positions);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::SerializeReads
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkCapture::SerializeReads (const std::vector<Position> & positions, std::vector<Byte> & outFile)
+{
+    auto  put = [&outFile] (uint32_t value, int bytes)
+    {
+        for (int each = 0; each < bytes; each++)
+        {
+            outFile.push_back ((Byte) (value >> (each * 8)));
+        }
+    };
+
+
+
+    outFile.assign (std::begin (s_kReadsMagic), std::end (s_kReadsMagic));
+    put (s_kReadsVersion, 2);
+    put ((uint32_t) positions.size(), 4);
+
+    for (const Position & position : positions)
+    {
+        put ((uint32_t) position.position, 2);
+        put ((uint32_t) position.reads.size(), 4);
+
+        for (size_t read = 0; read < position.reads.size(); read++)
+        {
+            put ((read < position.delays.size()) ? position.delays[read] : 0, 1);
+            put ((uint32_t) position.reads[read].size(), 4);
+            outFile.insert (outFile.end(), position.reads[read].begin(), position.reads[read].end());
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::ParseReads
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCapture::ParseReads (std::span<const Byte> file, std::vector<Position> & outPositions)
+{
+    HRESULT   hr    = S_OK;
+    size_t    at    = 0;
+    uint32_t  count = 0;
+    bool      valid = file.size() >= sizeof (s_kReadsMagic) + 6 && std::equal (std::begin (s_kReadsMagic), std::end (s_kReadsMagic), file.begin());
+    auto      get   = [&file, &at, &valid] (int bytes)
+    {
+        uint32_t  value = 0;
+
+        valid = valid && at + (size_t) bytes <= file.size();
+
+        for (int each = 0; valid && each < bytes; each++)
+        {
+            value |= (uint32_t) file[at++] << (each * 8);
+        }
+
+        return value;
+    };
+
+
+
+    outPositions.clear();
+
+    at    = sizeof (s_kReadsMagic);
+    valid = valid && get (2) == s_kReadsVersion;
+    count = get (4);
+
+    for (uint32_t each = 0; valid && each < count; each++)
+    {
+        Position  position;
+        uint32_t  reads = 0;
+
+        position.position = (int) get (2);
+        reads             = get (4);
+
+        for (uint32_t read = 0; valid && read < reads; read++)
+        {
+            Byte      delay  = (Byte) get (1);
+            uint32_t  length = get (4);
+
+            valid = valid && at + length <= file.size();
+
+            if (valid)
+            {
+                position.delays.push_back (delay);
+                position.reads.emplace_back (file.begin() + (ptrdiff_t) at, file.begin() + (ptrdiff_t) (at + length));
+                at += length;
+            }
+        }
+
+        outPositions.push_back (std::move (position));
+    }
+
+    valid = valid && at == file.size();
+    CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::ReadOnce
+//
+//  The module is loaded again before the read when a read of the drive
+//  overwrote it. The Apple's bar has the capture's share done.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCapture::ReadOnce (Run & run, int position, Byte delay, int read, int reads, std::vector<Byte> & outBytes)
+{
+    HRESULT          hr       = S_OK;
+    CassoLinkStatus  status;
+    CaptureTiming    timing;
+    Progress         report;
+    ULONGLONG        elapsed  = 0;
+
+
+
+    hr = run.host.EnsureModule (run.module);
+    CHR (hr);
+
+    hr = run.host.CaptureQuarterTrack (run.drive, (Byte) position, delay, (Byte) run.percent, (Byte) run.percent, outBytes, status, timing);
+    CHR (hr);
+
+    CBREx (status.error == 0, HRESULT_FROM_WIN32 (ERROR_READ_FAULT));
+
+    run.done++;
+    run.result.reads++;
+    run.result.diskMs      += timing.diskMs;
+    run.result.lineMs      += timing.lineMs;
+    run.result.sentBytes   += timing.sentBytes;
+    run.result.storedBytes += outBytes.size();
+
+    //  The share never goes back, though the plan grows when a position has a
+    //  separate stream, and it is 100 only when the capture ends.
+    run.percent = std::max (run.percent, std::min (99, run.done * 100 / std::max (run.planned, run.done)));
+    elapsed     = GetTickCount64() - run.started;
+
+    report.position    = position;
+    report.read        = read;
+    report.reads       = reads;
+    report.pass        = run.pass;
+    report.percent     = run.percent;
+    report.secondsLeft = (run.done >= s_kPaceReads) ? (double) elapsed / 1000.0 / run.done * std::max (0, run.planned - run.done) : -1.0;
+
+    if (run.progress)
+    {
+        run.progress (report);
+    }
 
 Error:
     return hr;
@@ -104,12 +287,9 @@ Error:
 //
 //  CassoLinkCapture::ReadPosition
 //
-//  The module is loaded again before each read when a read of the drive
-//  overwrote it.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkCapture::ReadPosition (CassoLinkHost & host, Byte drive, std::span<const Byte> module, int position, int reads, Position & outPosition)
+HRESULT CassoLinkCapture::ReadPosition (Run & run, int position, int reads, Position & outPosition)
 {
     HRESULT  hr = S_OK;
 
@@ -121,17 +301,10 @@ HRESULT CassoLinkCapture::ReadPosition (CassoLinkHost & host, Byte drive, std::s
     for (int read = 0; read < reads; read++)
     {
         std::vector<Byte>  bytes;
-        CassoLinkStatus    status;
-        Byte               percent = (Byte) (position * 100 / (kLastPosition + 1));
-        Byte               delay   = kWholeDelays[read % kWholeReads];
+        Byte               delay = kWholeDelays[read % kWholeReads];
 
-        hr = host.EnsureModule (module);
+        hr = ReadOnce (run, position, delay, read + 1, reads, bytes);
         CHR (hr);
-
-        hr = host.CaptureQuarterTrack (drive, (Byte) position, delay, percent, percent, bytes, status);
-        CHR (hr);
-
-        CBREx (status.error == 0, HRESULT_FROM_WIN32 (ERROR_READ_FAULT));
 
         outPosition.reads.push_back (std::move (bytes));
         outPosition.delays.push_back (delay);
@@ -147,47 +320,22 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkCapture::ReadMore
-//
-//  More reads at 8 cycles while an FF byte's zero bits can't be counted
-//  from its marks, up to kExtraReads.
+//  CassoLinkCapture::IsStandardTrack
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkCapture::ReadMore (CassoLinkHost & host, Byte drive, std::span<const Byte> module, Position & ioPosition)
+bool CassoLinkCapture::IsStandardTrack (const Position & position)
 {
-    HRESULT  hr = S_OK;
+    Stream  stream;
+    bool    unstable  = false;
+    bool    thirteen  = false;
+    bool    hasStream = MakeStream (position, stream, unstable);
+    bool    clean     = hasStream && !unstable && std::find (stream.weak.begin(), stream.weak.end(), true) == stream.weak.end();
+    int     sectors   = clean ? CountSectors (stream.bytes, position.position / 4, thirteen) : 0;
 
 
 
-    for (int extra = 0; extra < kExtraReads; extra++)
-    {
-        Stream             stream;
-        Marks              marks;
-        bool               unstable = false;
-        std::vector<Byte>  bytes;
-        CassoLinkStatus    status;
-        Byte               percent  = (Byte) (ioPosition.position * 100 / (kLastPosition + 1));
-
-        if (!CollectMarks (ioPosition, stream, marks, unstable) || !IsUncertain (stream, marks))
-        {
-            break;
-        }
-
-        hr = host.EnsureModule (module);
-        CHR (hr);
-
-        hr = host.CaptureQuarterTrack (drive, (Byte) ioPosition.position, 0, percent, percent, bytes, status);
-        CHR (hr);
-
-        CBREx (status.error == 0, HRESULT_FROM_WIN32 (ERROR_READ_FAULT));
-
-        ioPosition.reads.push_back (std::move (bytes));
-        ioPosition.delays.push_back (0);
-    }
-
-Error:
-    return hr;
+    return clean && sectors == (thirteen ? 13 : 16);
 }
 
 
@@ -196,27 +344,85 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkCapture::IsUncertain
+//  CassoLinkCapture::CountSectors
 //
-//  An FF byte with some of its marks at 8 cycles set, but not all, and fewer
-//  than kSureSamples of them.
+//  The sectors of a revolution with an address field for the track, its
+//  checksum right, and a data field's prolog after it; a 16-sector data
+//  field must also decode. A field across the revolution's end is found in
+//  the revolution's start, which follows its end on the disk. outThirteen
+//  is set by the first address field found.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoLinkCapture::IsUncertain (const Stream & stream, const Marks & marks)
+int CassoLinkCapture::CountSectors (std::span<const Byte> revolution, int track, bool & outThirteen)
 {
-    for (size_t at = 0; at < stream.bytes.size(); at++)
-    {
-        int  set  = marks.set[0][at];
-        int  read = marks.read[0][at];
+    std::vector<Byte>  bytes;
+    std::vector<Byte>  sector;
+    std::set<int>      found;
+    bool               kindKnown = false;
+    size_t             wrap      = std::min (revolution.size(), (size_t) NibblizationLayer::kDataNibbleCount + 2 * s_kDataWithin);
 
-        if ((stream.bytes[at] | 0x80) == s_kSyncByte && set > 0 && set < read && read < kSureSamples)
+
+
+    outThirteen = false;
+
+    for (Byte value : revolution)
+    {
+        bytes.push_back (value | 0x80);
+    }
+
+    bytes.insert (bytes.end(), bytes.begin(), bytes.begin() + (ptrdiff_t) wrap);
+
+    for (size_t at = 0; at + 11 < bytes.size() && at < revolution.size(); at++)
+    {
+        bool    is16    = bytes[at] == s_kProlog0     && bytes[at + 1] == s_kProlog1 && bytes[at + 2] == s_kAddress16;
+        bool    is13    = (bytes[at] == s_kProlog0    && bytes[at + 1] == s_kProlog1 && bytes[at + 2] == s_kAddress13) ||
+                          (bytes[at] == s_kRdosProlog0 && bytes[at + 1] == s_kProlog1 && bytes[at + 2] == s_kRdosAddress);
+        auto    decode  = [&bytes, at] (size_t field) { return (Byte) (((bytes[at + 3 + field * 2] << 1) | 1) & bytes[at + 4 + field * 2]); };
+        Byte    volume  = 0;
+        Byte    onTrack = 0;
+        Byte    number  = 0;
+        size_t  data    = 0;
+        bool    hasData = false;
+
+        if (!is16 && !is13)
         {
-            return true;
+            continue;
+        }
+
+        volume  = decode (0);
+        onTrack = decode (1);
+        number  = decode (2);
+
+        if ((volume ^ onTrack ^ number) != decode (3) || onTrack != track || number >= (is13 ? 13 : 16))
+        {
+            continue;
+        }
+
+        if (!kindKnown)
+        {
+            kindKnown   = true;
+            outThirteen = is13;
+        }
+
+        for (data = at + 11; data + 3 + NibblizationLayer::kDataNibbleCount <= bytes.size() && data < at + 11 + s_kDataWithin && !hasData; data++)
+        {
+            hasData = bytes[data] == s_kProlog0 && bytes[data + 1] == s_kProlog1 && bytes[data + 2] == s_kData;
+        }
+
+        //  The loop has gone one past the prolog.
+        if (hasData && is16)
+        {
+            hasData = NibblizationLayer::DecodeDataNibbles (&bytes[data + 2], sector);
+        }
+
+        if (hasData && is13 == outThirteen)
+        {
+            found.insert (number);
         }
     }
 
-    return false;
+    return (int) found.size();
 }
 
 
@@ -228,25 +434,33 @@ bool CassoLinkCapture::IsUncertain (const Stream & stream, const Marks & marks)
 //  CassoLinkCapture::BuildWoz
 //
 //  Each whole track's stream, then each other position's: a separate one when it
-//  has one, or its nearest whole track's when it reads the same.
+//  has one, or its nearest whole track's when it reads the same. A position
+//  up to one past lastPosition that wasn't read has a standard disk's entry:
+//  a quarter track its nearer whole track's stream, a half track none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, const std::string & imageDate, Byte drive, Result & outResult)
+HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int lastPosition, const std::string & imageDate, Byte drive, Result & outResult)
 {
     HRESULT                 hr      = S_OK;
     DiskImage               image;
     std::map<int, Stream>   streams;
     std::map<int, int>      slots;
+    std::set<int>           read;
     WozLoader::Edits        edits;
     int                     slot    = 0;
 
 
 
-    outResult = Result();
+    outResult.woz.clear();
+    outResult.unstable.clear();
+    outResult.weak.clear();
+    outResult.streams.clear();
 
     for (const Position & position : positions)
     {
+        read.insert (position.position);
+
         Stream  stream;
         bool    unstable = false;
 
@@ -305,6 +519,19 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, con
         }
 
         image.SetQuarterTrackSlot (position, target);
+    }
+
+    for (int position = 1; position <= lastPosition + 1 && position < CassoLinkCodec::kQuarterTracks; position++)
+    {
+        int   nearer = (position % 4 == 1) ? position - 1 : position + 1;
+        auto  found  = slots.find (nearer);
+
+        if (position % 4 == 0 || position % 4 == 2 || read.contains (position) || found == slots.end())
+        {
+            continue;
+        }
+
+        image.SetQuarterTrackSlot (position, found->second);
     }
 
     hr = WozLoader::Serialize (image, outResult.woz);
@@ -397,15 +624,21 @@ bool CassoLinkCapture::MakeStream (const Position & position, Stream & outStream
 //
 //  CassoLinkCapture::CollectMarks
 //
-//  The first read's revolution, each byte weak where a later read of the
-//  same length differs, and each byte's marks from every revolution of every
-//  read. False when the first read doesn't repeat.
+//  The first read's revolution, from a stable start (FindReference), and
+//  each later revolution of every read aligned to it (Align). A byte is weak
+//  where at least two alignments put it in a stretch that differs, longer
+//  than the few bytes a write splice frames differently on each pass. Each
+//  byte's marks come from the alignments that read it the same. A read with
+//  no revolution that aligns makes the stream unstable. False when the first
+//  read doesn't repeat.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStream, Marks & outMarks, bool & outUnstable)
 {
-    size_t  length = 0;
+    size_t            start   = 0;
+    size_t            length  = 0;
+    std::vector<int>  differs;
 
 
 
@@ -413,13 +646,14 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
     outStream.position = position.position;
     outUnstable        = false;
 
-    if (position.reads.empty() || !CaptureStream::FindRevolution (position.reads[0], length))
+    if (position.reads.empty() || !FindReference (position.reads[0], start, length))
     {
         return false;
     }
 
-    outStream.bytes.assign (position.reads[0].begin(), position.reads[0].begin() + (ptrdiff_t) length);
+    outStream.bytes.assign (position.reads[0].begin() + (ptrdiff_t) start, position.reads[0].begin() + (ptrdiff_t) (start + length));
     outStream.weak.assign (length, false);
+    differs.assign (length, 0);
 
     for (int delay = 0; delay < 2; delay++)
     {
@@ -429,32 +663,60 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
 
     for (size_t read = 0; read < position.reads.size(); read++)
     {
-        const std::vector<Byte>  & bytes  = position.reads[read];
-        size_t                     other  = 0;
-        size_t                     offset = 0;
-        bool                       found  = read == 0 || CaptureStream::FindRevolution (bytes, other);
+        const std::vector<Byte>  & bytes   = position.reads[read];
+        int                        delay   = (read < position.delays.size() && position.delays[read] == 1) ? 1 : 0;
+        std::vector<Alignment>     found;
+        std::vector<size_t>        taken;
 
-        if (read > 0 && (!found || other != length || !FindRotation (outStream.bytes, bytes, offset)))
+        for (size_t from : FindAnchors (outStream.bytes, bytes))
         {
-            outUnstable = true;
-            continue;
-        }
+            Alignment  alignment;
 
-        int  delay = (read < position.delays.size() && position.delays[read] == 1) ? 1 : 0;
+            alignment.from = from;
 
-        for (size_t at = 0; at < length; at++)
-        {
-            size_t  mine = offset + at;
-
-            outStream.weak[at] = outStream.weak[at] || (outStream.bytes[at] | 0x80) != (bytes[mine] | 0x80);
-
-            //  Every revolution of the read that has this byte.
-            for (size_t each = mine; each < bytes.size(); each += length)
+            if (Align (outStream.bytes, bytes, from, alignment.map, alignment.differ, alignment.stretch))
             {
-                outMarks.set[delay][at]  += CaptureStream::IsSync (bytes[each]) ? 1 : 0;
-                outMarks.read[delay][at] += 1;
+                found.push_back (std::move (alignment));
             }
         }
+
+        //  The best alignment of each revolution: a start a sector away can
+        //  align too on a track of empty sectors, with more differences.
+        std::sort (found.begin(), found.end(), [] (const Alignment & a, const Alignment & b) { return a.differ < b.differ; });
+
+        for (const Alignment & alignment : found)
+        {
+            const std::vector<int>   & map     = alignment.map;
+            const std::vector<bool>  & stretch = alignment.stretch;
+
+            if (std::any_of (taken.begin(), taken.end(), [&alignment, length] (size_t from)
+                { return (alignment.from > from ? alignment.from - from : from - alignment.from) + s_kBand < length; }))
+            {
+                continue;
+            }
+
+            taken.push_back (alignment.from);
+
+            for (size_t at = 0; at < length; at++)
+            {
+                int  mine = map[at];
+
+                differs[at] += stretch[at] ? 1 : 0;
+
+                if (mine >= 0 && (bytes[(size_t) mine] | 0x80) == (outStream.bytes[at] | 0x80))
+                {
+                    outMarks.set[delay][at]  += CaptureStream::IsSync (bytes[(size_t) mine]) ? 1 : 0;
+                    outMarks.read[delay][at] += 1;
+                }
+            }
+        }
+
+        outUnstable = outUnstable || taken.empty();
+    }
+
+    for (size_t at = 0; at < length; at++)
+    {
+        outStream.weak[at] = differs[at] >= s_kWeakAlignments;
     }
 
     return true;
@@ -466,165 +728,405 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkCapture::CountZeros
+//  CassoLinkCapture::FindReference
 //
-//  Each run of FF is split into stretches of one count by the most likely
-//  sequence of counts, from each byte's marks and a cost for each change
-//  between neighbors: a run of sync bytes has one count, and a run that
-//  mixes 8-bit and 9-bit FF, as some 13-sector disks have, changes only
-//  between the kinds. Any other byte is counted from its marks alone, with
-//  no zero bits much the likeliest.
+//  A revolution of a read that starts and ends in stretches every pass reads
+//  nearly the same. The length is the one at which the read differs from
+//  itself least (FindLength), then from the first start, in steps of
+//  s_kStartStep, whose kAlignBytes bytes have several values, once in the
+//  revolution (IsUnique), the start repeats within s_kAnchorMismatch bytes
+//  within s_kWindowDrift of that length, the drift a write splice between
+//  the two can add. A start in a write splice, whose bytes are
+//  framed differently on each pass, doesn't repeat and is skipped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const Marks & marks, std::vector<uint8_t> & outZeros)
+bool CassoLinkCapture::FindReference (std::span<const Byte> read, size_t & outStart, size_t & outLength)
 {
-    size_t  length = bytes.size();
-    size_t  at     = 0;
+    size_t  estimate = FindLength (read);
+    bool    found    = false;
 
 
 
-    outZeros.assign (length, 0);
+    outStart  = 0;
+    outLength = 0;
 
-    while (at < length)
+    for (size_t start = 0; estimate > 0 && !found && start + estimate + s_kWindowDrift + kAlignBytes <= read.size(); start += s_kStartStep)
     {
-        size_t                               end   = at;
-        std::vector<std::array<double, 4>>   score;
-        std::vector<std::array<int, 4>>      from;
-        bool                                 isRun = (bytes[at] | 0x80) == s_kSyncByte;
-        int                                  best  = 0;
+        std::set<Byte>  values;
+        size_t          fewest = SIZE_MAX;
 
-        while (end < length && ((bytes[end] | 0x80) == s_kSyncByte) == isRun && (isRun || end == at))
+        for (size_t at = 0; at < kAlignBytes; at++)
         {
-            end++;
+            values.insert (read[start + at] | 0x80);
         }
 
-        score.resize (end - at);
-        from.resize (end - at);
-
-        for (size_t each = at; each < end; each++)
-        {
-            size_t  index = each - at;
-
-            for (int zeros = 0; zeros < 4; zeros++)
-            {
-                double  emit  = GetMarkScore (zeros, marks, each) + std::log (isRun ? s_kRunPrior[zeros] : s_kLonePrior[zeros]);
-                double  top   = -1e300;
-                int     arg   = zeros;
-
-                for (int prior = 0; index > 0 && prior < 4; prior++)
-                {
-                    double  path = score[index - 1][(size_t) prior] + std::log (prior == zeros ? 1.0 - s_kChange : s_kChange / 3.0);
-
-                    if (path > top)
-                    {
-                        top = path;
-                        arg = prior;
-                    }
-                }
-
-                score[index][(size_t) zeros] = emit + (index > 0 ? top : 0.0);
-                from[index][(size_t) zeros]  = arg;
-            }
-        }
-
-        for (int zeros = 1; zeros < 4; zeros++)
-        {
-            best = (score.back()[(size_t) zeros] > score.back()[(size_t) best]) ? zeros : best;
-        }
-
-        for (size_t index = end - at; index-- > 0; )
-        {
-            outZeros[at + index] = (uint8_t) best;
-            best                 = from[index][(size_t) best];
-        }
-
-        at = end;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkCapture::GetMarkScore
-//
-//  The log of the chance of a byte's marks if it has `zeros` zero bits
-//  after it, from the chance of a mark at each delay with that many.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-double CassoLinkCapture::GetMarkScore (int zeros, const Marks & marks, size_t at)
-{
-    double  score = 0.0;
-
-
-
-    for (int delay = 0; delay < 2; delay++)
-    {
-        double  chance = s_kMarkChance[delay][zeros];
-        int     set    = marks.set[delay][at];
-        int     unset  = marks.read[delay][at] - set;
-
-        score += set * std::log (chance) + unset * std::log (1.0 - chance);
-    }
-
-    return score;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkCapture::FindRotation
-//
-//  Where in a read's first revolution the revolution starts: of the places
-//  its first kAlignBytes bytes are, the one with the fewest bytes that
-//  differ over the whole revolution. A track of blank sectors has long runs
-//  of one byte, so its first bytes are in many places.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoLinkCapture::FindRotation (std::span<const Byte> revolution, std::span<const Byte> read, size_t & outOffset)
-{
-    size_t  fewest = SIZE_MAX;
-
-
-
-    outOffset = 0;
-
-    for (size_t offset = 0; offset < revolution.size() && offset + revolution.size() <= read.size() && fewest > 0; offset++)
-    {
-        size_t  at     = 0;
-        size_t  differ = 0;
-
-        while (at < kAlignBytes && (revolution[at] | 0x80) == (read[offset + at] | 0x80))
-        {
-            at++;
-        }
-
-        if (at < kAlignBytes)
+        if (values.size() < s_kAnchorValues)
         {
             continue;
         }
 
-        for (; at < revolution.size() && differ < fewest; at++)
+        for (size_t length = estimate - s_kWindowDrift; length <= estimate + s_kWindowDrift; length++)
         {
-            differ += ((revolution[at] | 0x80) != (read[offset + at] | 0x80)) ? 1 : 0;
+            size_t  differ = CountDiffer (read, start, read, start + length, s_kAnchorMismatch);
+
+            if (differ <= s_kAnchorMismatch && differ < fewest)
+            {
+                fewest    = differ;
+                outLength = length;
+            }
+        }
+
+        found    = fewest != SIZE_MAX && IsUnique (read, start, outLength);
+        outStart = start;
+    }
+
+    if (!found)
+    {
+        outStart  = 0;
+        outLength = 0;
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::FindLength
+//
+//  The revolution's length, near enough: of the lengths from
+//  s_kShortestRevolution to s_kLongestRevolution, the one at which the
+//  fewest of every s_kSampleStep'th byte of the read's first s_kSampleBytes
+//  differ from all the bytes within s_kSampleDrift of the byte that length
+//  later, as each write splice can shift the rest by a byte. 0 when even
+//  that one differs in more than one sample in s_kNoiseShare, as noise from
+//  an unformatted track does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CassoLinkCapture::FindLength (std::span<const Byte> read)
+{
+    size_t  best    = 0;
+    size_t  fewest  = SIZE_MAX;
+    size_t  samples = 0;
+
+
+
+    for (size_t length = s_kShortestRevolution; length <= s_kLongestRevolution && length < read.size(); length++)
+    {
+        size_t  end    = std::min (s_kSampleBytes, read.size() - length);
+        size_t  differ = 0;
+        size_t  count  = 0;
+
+        for (size_t at = s_kSampleDrift; at < end && differ < fewest; at += s_kSampleStep)
+        {
+            bool  same = false;
+
+            for (size_t other = at + length - s_kSampleDrift; !same && other <= at + length + s_kSampleDrift && other < read.size(); other++)
+            {
+                same = (read[at] | 0x80) == (read[other] | 0x80);
+            }
+
+            differ += same ? 0 : 1;
+            count++;
         }
 
         if (differ < fewest)
         {
-            fewest    = differ;
-            outOffset = offset;
+            fewest  = differ;
+            best    = length;
+            samples = count;
         }
     }
 
-    return fewest != SIZE_MAX;
+    return (fewest * s_kNoiseShare <= samples) ? best : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::CountDiffer
+//
+//  The bytes of kAlignBytes from `a` at aAt that differ from those of `b`
+//  at bAt, marks ignored, counting no further than one past `limit`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CassoLinkCapture::CountDiffer (std::span<const Byte> a, size_t aAt, std::span<const Byte> b, size_t bAt, size_t limit)
+{
+    size_t  differ = 0;
+
+
+
+    for (size_t at = 0; at < kAlignBytes && differ <= limit; at++)
+    {
+        differ += ((a[aAt + at] | 0x80) != (b[bAt + at] | 0x80)) ? 1 : 0;
+    }
+
+    return differ;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::IsUnique
+//
+//  Whether a start's kAlignBytes bytes are nowhere else in its revolution,
+//  so each revolution of a read has one place to align from. A window in an
+//  empty sector, or in a sector with the same data as another, isn't. Two
+//  address fields can differ in as few as two bytes, so the test is exact;
+//  FindAnchors' looser match can find a window more than once, and
+//  CollectMarks takes the best alignment of each revolution.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::IsUnique (std::span<const Byte> read, size_t start, size_t length)
+{
+    bool  unique = true;
+
+
+
+    for (size_t other = start + kAlignBytes / 2; unique && other + s_kWindowDrift < start + length && other + kAlignBytes <= read.size(); other++)
+    {
+        unique = CountDiffer (read, start, read, other, 0) > 0;
+    }
+
+    return unique;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::FindAnchors
+//
+//  The places in a read a revolution may start, in order, each with room
+//  for the whole revolution after it: where its first kAlignBytes bytes
+//  are, and where the windows s_kWindowStep apart in it are, less their
+//  offset, for a read that framed the first bytes differently; each within
+//  s_kAnchorMismatch bytes. A window found elsewhere in the revolution too
+//  is passed over. Places within s_kWindowDrift of one already found are
+//  the same place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<size_t> CassoLinkCapture::FindAnchors (std::span<const Byte> revolution, std::span<const Byte> read)
+{
+    std::vector<size_t>  anchors;
+
+
+
+    for (size_t window = 0; window + kAlignBytes <= revolution.size(); window += s_kWindowStep)
+    {
+        if (window > 0 && !IsUnique (revolution, window, revolution.size() - window))
+        {
+            continue;
+        }
+
+        for (size_t at = window; at + kAlignBytes <= read.size(); at++)
+        {
+            size_t  start = at - window;
+
+            if (start + revolution.size() + s_kBand > read.size() || CountDiffer (revolution, window, read, at, s_kAnchorMismatch) > s_kAnchorMismatch)
+            {
+                continue;
+            }
+
+            if (std::none_of (anchors.begin(), anchors.end(), [start] (size_t known) { return (start > known ? start - known : known - start) <= s_kWindowDrift; }))
+            {
+                anchors.push_back (start);
+            }
+        }
+    }
+
+    std::sort (anchors.begin(), anchors.end());
+
+    return anchors;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::Align
+//
+//  A revolution aligned with a read from `from`, allowing bytes the read has
+//  more or fewer within s_kBand of the diagonal, at least cost: a byte read
+//  differently, one more or one fewer each cost one. The map has each byte's
+//  place in the read, -1 for one the read doesn't have. A byte in a stretch
+//  of differences longer than s_kSpliceBytes, with no more than
+//  s_kSpliceBytes alike between them, is marked in outStretch. False when
+//  more than one byte in s_kAlignShare differs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::Align (std::span<const Byte> revolution, std::span<const Byte> read, size_t from,
+                              std::vector<int> & outMap, size_t & outDiffer, std::vector<bool> & outStretch)
+{
+    const int              band   = (int) s_kBand;
+    const int              width  = 2 * band + 1;
+    size_t                 n      = revolution.size();
+    size_t                 m      = std::min (n + s_kBand, read.size() - from);
+    std::vector<int>       cost  ((n + 1) * (size_t) width, INT_MAX / 2);
+    std::vector<Byte>      step  ((n + 1) * (size_t) width, 0);
+    std::vector<size_t>    marked;
+    auto                   cell   = [width, band] (size_t i, int j) { return i * (size_t) width + (size_t) (j - (int) i + band); };
+    int                    bestJ  = -1;
+    int                    best   = INT_MAX;
+    size_t                 i      = n;
+    int                    j      = 0;
+
+
+
+    outMap.assign (n, -1);
+    outStretch.assign (n, false);
+    outDiffer = 0;
+
+    for (int column = 0; column <= band && column <= (int) m; column++)
+    {
+        cost[cell (0, column)] = column;
+        step[cell (0, column)] = s_kStepMore;
+    }
+
+    for (size_t row = 1; row <= n; row++)
+    {
+        for (int column = std::max (0, (int) row - band); column <= std::min ((int) m, (int) row + band); column++)
+        {
+            int   here = INT_MAX / 2;
+            Byte  how  = 0;
+
+            if (column > 0)
+            {
+                bool  same = (revolution[row - 1] | 0x80) == (read[from + (size_t) column - 1] | 0x80);
+
+                here = cost[cell (row - 1, column - 1)] + (same ? 0 : 1);
+                how  = s_kStepPair;
+            }
+
+            if (column - (int) row + 1 <= band && cost[cell (row - 1, column)] + 1 < here)
+            {
+                here = cost[cell (row - 1, column)] + 1;
+                how  = s_kStepFewer;
+            }
+
+            if (column > 0 && column - 1 - (int) row >= -band && cost[cell (row, column - 1)] + 1 < here)
+            {
+                here = cost[cell (row, column - 1)] + 1;
+                how  = s_kStepMore;
+            }
+
+            cost[cell (row, column)] = here;
+            step[cell (row, column)] = how;
+        }
+    }
+
+    for (int column = std::max (0, (int) n - band); column <= std::min ((int) m, (int) n + band); column++)
+    {
+        if (cost[cell (n, column)] < best)
+        {
+            best  = cost[cell (n, column)];
+            bestJ = column;
+        }
+    }
+
+    outDiffer = (size_t) best;
+
+    if (bestJ < 0 || outDiffer * s_kAlignShare > n)
+    {
+        return false;
+    }
+
+    for (j = bestJ; i > 0; )
+    {
+        Byte  how = step[cell (i, j)];
+
+        if (how == s_kStepPair)
+        {
+            outMap[i - 1] = (int) from + j - 1;
+
+            if ((revolution[i - 1] | 0x80) != (read[from + (size_t) j - 1] | 0x80))
+            {
+                marked.push_back (i - 1);
+            }
+
+            i--;
+            j--;
+        }
+        else if (how == s_kStepFewer)
+        {
+            marked.push_back (i - 1);
+            i--;
+        }
+        else
+        {
+            marked.push_back ((i > 0) ? i - 1 : 0);
+            j--;
+        }
+    }
+
+    std::sort (marked.begin(), marked.end());
+
+    for (size_t first = 0; first < marked.size(); )
+    {
+        size_t  last = first;
+
+        while (last + 1 < marked.size() && marked[last + 1] - marked[last] <= s_kSpliceBytes)
+        {
+            last++;
+        }
+
+        if (marked[last] - marked[first] + 1 > s_kSpliceBytes)
+        {
+            std::fill (outStretch.begin() + (ptrdiff_t) marked[first], outStretch.begin() + (ptrdiff_t) marked[last] + 1, true);
+        }
+
+        first = last + 1;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::IsAboveBase
+//
+//  Whether `set` marks of `read` are more than a byte with no zero bits
+//  after it has, by s_kMinimumGain and by s_kDeviations standard deviations.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::IsAboveBase (double set, double read, double base)
+{
+    double  margin = 0.0;
+
+
+
+    if (read < s_kMinimumReads)
+    {
+        return false;
+    }
+
+    margin = std::max (s_kMinimumGain, s_kDeviations * std::sqrt (base * (1.0 - base) / read));
+
+    return set / read > base + margin;
 }
 
 
@@ -635,37 +1137,130 @@ bool CassoLinkCapture::FindRotation (std::span<const Byte> revolution, std::span
 //
 //  CassoLinkCapture::IsSameStream
 //
-//  Two revolutions of one length, the second a rotation of the first but
-//  for one byte in kSameShare.
+//  Two revolutions, the second the first started elsewhere, aligned with
+//  bytes more or fewer allowed, but for one byte in kSameShare.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CassoLinkCapture::IsSameStream (std::span<const Byte> a, std::span<const Byte> b)
 {
-    std::vector<Byte>  twice (b.begin(), b.end());
-    size_t             offset = 0;
-    size_t             differ = 0;
+    std::vector<Byte>    twice (b.begin(), b.end());
+    std::vector<size_t>  anchors;
+    std::vector<int>     map;
+    std::vector<bool>    stretch;
+    size_t               differ = 0;
 
 
 
-    if (a.size() != b.size() || a.size() < kAlignBytes)
+    if (a.size() < kAlignBytes || b.size() < kAlignBytes || a.size() > b.size() + s_kBand || b.size() > a.size() + s_kBand)
     {
         return false;
     }
 
     twice.insert (twice.end(), b.begin(), b.end());
 
-    if (!FindRotation (a, twice, offset))
+    for (size_t from : FindAnchors (a, twice))
     {
-        return false;
+        if (Align (a, twice, from, map, differ, stretch) && differ * kSameShare <= a.size())
+        {
+            return true;
+        }
     }
 
-    for (size_t at = 0; at < a.size(); at++)
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::CountZeros
+//
+//  The marks of a byte with no zero bits after it are measured on the
+//  track's bytes that aren't FF, as a controller's timing sets them:
+//  a Disk II marks such a byte about one time in a hundred at 8 cycles and
+//  a //c's IWM about one time in four. Each run of s_kShortestRun or more FF
+//  is counted from its marks pooled: three zero bits when nearly all are set
+//  at 12 cycles, two when more are set at 12 than the baseline allows, one
+//  when more are set at 8, and none otherwise. A run with no read at 12 and
+//  more set at 8 is a run of sync bytes, two. Any other byte is counted
+//  as 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const Marks & marks, std::vector<uint8_t> & outZeros)
+{
+    size_t  length  = bytes.size();
+    double  base[2] = {};
+    size_t  at      = 0;
+
+
+
+    outZeros.assign (length, 0);
+
+    for (int delay = 0; delay < 2; delay++)
     {
-        differ += ((a[at] | 0x80) != (twice[offset + at] | 0x80)) ? 1 : 0;
+        double  set  = 0.0;
+        double  read = 0.0;
+
+        for (size_t each = 0; each < length; each++)
+        {
+            if ((bytes[each] | 0x80) != s_kSyncByte)
+            {
+                set  += marks.set[delay][each];
+                read += marks.read[delay][each];
+            }
+        }
+
+        base[delay] = (set + 1.0) / (read + 2.0);
     }
 
-    return differ * kSameShare <= a.size();
+    while (at < length)
+    {
+        size_t  end      = at;
+        double  set[2]   = {};
+        double  read[2]  = {};
+        int     zeros    = 0;
+
+        while (end < length && (bytes[end] | 0x80) == s_kSyncByte)
+        {
+            end++;
+        }
+
+        if (end - at < s_kShortestRun)
+        {
+            at = std::max (end, at + 1);
+            continue;
+        }
+
+        for (size_t each = at; each < end; each++)
+        {
+            for (int delay = 0; delay < 2; delay++)
+            {
+                set[delay]  += marks.set[delay][each];
+                read[delay] += marks.read[delay][each];
+            }
+        }
+
+        if (read[1] > 0.0 && set[1] / read[1] >= s_kThreeZeroShare)
+        {
+            zeros = 3;
+        }
+        else if (IsAboveBase (set[1], read[1], base[1]))
+        {
+            zeros = 2;
+        }
+        else if (IsAboveBase (set[0], read[0], base[0]))
+        {
+            zeros = (read[1] > 0.0) ? 1 : 2;
+        }
+
+        std::fill (outZeros.begin() + (ptrdiff_t) at, outZeros.begin() + (ptrdiff_t) end, (uint8_t) zeros);
+
+        at = end;
+    }
 }
 
 

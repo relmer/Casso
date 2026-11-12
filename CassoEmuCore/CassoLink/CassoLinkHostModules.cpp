@@ -3,6 +3,7 @@
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkProgram.h"
+#include "CassoLink/Session/CaptureStream.h"
 
 
 
@@ -152,18 +153,27 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::CaptureQuarterTrack (Byte drive, Byte position, Byte delay, Byte startPercent, Byte endPercent, std::vector<Byte> & outBytes, CassoLinkStatus & outStatus)
+HRESULT CassoLinkHost::CaptureQuarterTrack (Byte drive, Byte position, Byte delay, Byte startPercent, Byte endPercent, std::vector<Byte> & outBytes,
+                                            CassoLinkStatus & outStatus, CaptureTiming & outTiming)
 {
     HRESULT            hr        = S_OK;
     const Byte         request[] = { startPercent, endPercent, drive, position, delay };
     CassoLinkPacket    packet;
-    std::vector<bool>  received (CassoLinkCodec::kCapturePages, false);
-    bool               whole     = false;
+    std::vector<Byte>  encoded;
+    LARGE_INTEGER      frequency = {};
+    LARGE_INTEGER      sent      = {};
+    LARGE_INTEGER      first     = {};
+    LARGE_INTEGER      last      = {};
+    size_t             sequence  = 0;
+    bool               decoded   = false;
 
 
 
     outStatus = {};
-    outBytes.assign (CassoLinkCodec::kCapturePages * CassoLinkCodec::kPageSize, 0);
+    outTiming = {};
+    outBytes.clear();
+
+    QueryPerformanceFrequency (&frequency);
 
     hr = AwaitReady();
     CHR (hr);
@@ -171,9 +181,10 @@ HRESULT CassoLinkHost::CaptureQuarterTrack (Byte drive, Byte position, Byte dela
     hr = SendPacket (CassoLinkCodec::kCapture, request);
     CHR (hr);
 
+    QueryPerformanceCounter (&sent);
+
     for (;;)
     {
-        size_t                 page  = 0;
         std::span<const Byte>  data;
         Word                   crc   = 0;
         bool                   valid = false;
@@ -189,22 +200,34 @@ HRESULT CassoLinkHost::CaptureQuarterTrack (Byte drive, Byte position, Byte dela
         }
 
         valid = packet.command == CassoLinkCodec::kCaptureData && packet.payload.size() == 1 + CassoLinkCodec::kPageSize + 2
-             && packet.payload[0] < CassoLinkCodec::kCapturePages;
+             && packet.payload[0] == (Byte) sequence;
         CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-        page = packet.payload[0];
         data = std::span<const Byte> (packet.payload).subspan (1, CassoLinkCodec::kPageSize);
         crc  = (Word) (packet.payload[1 + CassoLinkCodec::kPageSize] | (packet.payload[2 + CassoLinkCodec::kPageSize] << 8));
 
         valid = CassoLinkCodec::ComputeCrc (data) == crc;
         CBREx (valid, HRESULT_FROM_WIN32 (ERROR_CRC));
 
-        std::copy (data.begin(), data.end(), outBytes.begin() + (ptrdiff_t) (page * CassoLinkCodec::kPageSize));
-        received[page] = true;
+        if (sequence == 0)
+        {
+            QueryPerformanceCounter (&first);
+        }
+
+        encoded.insert (encoded.end(), data.begin(), data.end());
+        sequence++;
     }
 
-    whole = outStatus.error != 0 || std::all_of (received.begin(), received.end(), [] (bool got) { return got; });
-    CBREx (whole, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    QueryPerformanceCounter (&last);
+
+    BAIL_OUT_IF (outStatus.error != 0, S_OK);
+
+    decoded = CaptureStream::Decode (encoded, CassoLinkCodec::kCapturePages * CassoLinkCodec::kPageSize, outBytes);
+    CBREx (decoded, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    outTiming.diskMs    = (double) (first.QuadPart - sent.QuadPart)  * 1000.0 / (double) frequency.QuadPart;
+    outTiming.lineMs    = (double) (last.QuadPart  - first.QuadPart) * 1000.0 / (double) frequency.QuadPart;
+    outTiming.sentBytes = encoded.size();
 
 Error:
     return hr;

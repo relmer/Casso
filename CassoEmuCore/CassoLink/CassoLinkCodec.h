@@ -142,12 +142,13 @@ public:
     static constexpr size_t  kModuleChunk     = 240;
 
     //  The capture module's request: the percentages at its start and end,
-    //  the drive and the quarter-track position. Its reply is each page of
-    //  the read as Capture data, the page's index, its 256 bytes and their
+    //  the drive, the quarter-track position and the delay. Its reply is the
+    //  read's kCapturePages pages encoded (CaptureStream::Decode), in Capture
+    //  data packets of a sequence number, 256 bytes of the encoding and their
     //  CRC-16/XMODEM, low byte first; then a Status.
     static constexpr Byte    kCapture         = 0xEA;
     static constexpr Byte    kCaptureData     = 0xEB;
-    static constexpr size_t  kCapturePages    = 56;
+    static constexpr size_t  kCapturePages    = 55;
     static constexpr int     kQuarterTracks   = 140;
 
     //  The longest row on the Session screen.

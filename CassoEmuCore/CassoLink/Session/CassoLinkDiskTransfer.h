@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
 
 class CassoLinkHost;
@@ -65,8 +66,14 @@ public:
     HRESULT  ReadVerifiedTrack  (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable, std::vector<SectorMark> & marks);
     HRESULT  TimeDriveForFormat (int drive, Byte & outGap);
 
+    static std::string  FormatCaptureTimes (const CassoLinkCapture::Result & result);
+    static std::string  FormatPosition     (int position);
+    static std::string  FormatDuration     (double seconds);
+
 private:
     friend class CassoLinkSession;
+
+    void  ReportCapture (LinkOperation & operation, const CassoLinkCapture::Progress & where);
 
     CassoLinkSession  & m_session;
 

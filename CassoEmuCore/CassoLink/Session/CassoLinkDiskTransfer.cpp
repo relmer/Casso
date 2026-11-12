@@ -53,7 +53,7 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
 
         for (int position : positions)
         {
-            text += (text.empty() ? "" : ", ") + (position % 4 == 0 ? std::to_string (position / 4) : std::format ("{:.2f}", position / 4.0));
+            text += (text.empty() ? "" : ", ") + FormatPosition (position);
         }
 
         return text;
@@ -65,8 +65,10 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
     CHR (hr);
 
     hr = CassoLinkCapture::Capture (*m_session.m_host, (Byte) operation.drive, module, date,
-                                    [this, &operation] (int done, int total) { m_session.Report (operation, done * 100 / total); }, result);
+                                    [this, &operation] (const CassoLinkCapture::Progress & where) { ReportCapture (operation, where); }, result);
     CHR (hr);
+
+    m_session.Report (operation, 100);
 
     hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, result.woz, m_commitTag++, CommitMode::Replace, progress);
     CHR (hr);
@@ -81,8 +83,99 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
         operation.message += (operation.message.empty() ? "" : " ") + std::string ("Tracks whose reads differ in length: ") + listTracks (result.unstable) + ".";
     }
 
+    operation.message += (operation.message.empty() ? "" : " ") + FormatCaptureTimes (result);
+
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::ReportCapture
+//
+//  The status bar's text: the track and read, the pass, and the time left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkDiskTransfer::ReportCapture (LinkOperation & operation, const CassoLinkCapture::Progress & where)
+{
+    std::string  left;
+
+
+
+    if (where.secondsLeft >= 0.0)
+    {
+        left = std::format (", about {} left", FormatDuration (where.secondsLeft));
+    }
+
+    operation.SetDetail (std::format ("{}, track {}, read {} of {}{}", where.pass == 1 ? "whole tracks" : "between tracks",
+                                      FormatPosition (where.position), where.read, where.reads, left));
+
+    m_session.Report (operation, where.percent);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::FormatCaptureTimes
+//
+//  The time on the disk and on the line, and the line's pace, so the slower
+//  of the two is plain in a slow capture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkDiskTransfer::FormatCaptureTimes (const CassoLinkCapture::Result & result)
+{
+    double  pace = (result.lineMs > 0.0) ? (double) result.sentBytes / (result.lineMs / 1000.0) : 0.0;
+
+
+
+    return std::format ("{} reads: {} stepping and reading, {} sending {} KB encoded from {} KB at {:.1f} KB/s. {} of {} positions between tracks read.",
+                        result.reads, FormatDuration (result.diskMs / 1000.0), FormatDuration (result.lineMs / 1000.0),
+                        result.sentBytes / 1024, result.storedBytes / 1024, pace / 1024.0, result.betweenRead, result.betweenTotal);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::FormatPosition
+//
+//  A whole track as its number, any other position with two decimals.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkDiskTransfer::FormatPosition (int position)
+{
+    return (position % 4 == 0) ? std::to_string (position / 4) : std::format ("{:.2f}", position / 4.0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::FormatDuration
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkDiskTransfer::FormatDuration (double seconds)
+{
+    int  whole = (int) std::lround (seconds);
+
+
+
+    return (whole < 60) ? std::format ("{} s", whole) : std::format ("{} min {} s", whole / 60, whole % 60);
 }
 
 

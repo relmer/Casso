@@ -88,6 +88,16 @@ struct CassoLinkStatus
     Byte  error     = 0;
 };
 
+//  A capture read's times: from its request to its first packet, which is
+//  mostly the arm's step and the read, and from its first packet to its
+//  Status, which is mostly the line; and the bytes of the encoding.
+struct CaptureTiming
+{
+    double  diskMs    = 0.0;
+    double  lineMs    = 0.0;
+    size_t  sentBytes = 0;
+};
+
 
 
 
@@ -310,9 +320,10 @@ public:
 
     //  A raw read of a quarter-track position by the capture module, which
     //  must be loaded: the bytes as the Apple stored them, a sync byte with
-    //  its top bit clear. A page that fails its CRC fails the read.
-    //  The delay is the second read of each byte's: 0 for 8 cycles, 1 for 12.
-    HRESULT  CaptureQuarterTrack (Byte drive, Byte position, Byte delay, Byte startPercent, Byte endPercent, std::vector<Byte> & outBytes, CassoLinkStatus & outStatus);
+    //  its top bit clear. A packet that fails its CRC, arrives out of order
+    //  or doesn't decode fails the read. The delay is the second read of each
+    //  byte's: 0 for 8 cycles, 1 for 12.
+    HRESULT  CaptureQuarterTrack (Byte drive, Byte position, Byte delay, Byte startPercent, Byte endPercent, std::vector<Byte> & outBytes, CassoLinkStatus & outStatus, CaptureTiming & outTiming);
 
     //  The capture module for the program this host loads.
     HRESULT  BuildCaptureModule  (std::vector<Byte> & outModule) const;

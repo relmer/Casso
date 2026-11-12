@@ -92,6 +92,26 @@ public:
     }
 
 
+    //  Each token: bytes as they are, a repeat, and a copy of a revolution
+    //  before, with the padding after the last ignored.
+    TEST_METHOD (Decode_TokensGiveTheBytes)
+    {
+        const Byte         encoded[]  = { 3, 0, 0xD5, 0xAA, 0x96, 0x00, 0x81, 0x7F, 0x00, 0x02, 0x00, 0x00 };
+        const Byte         expected[] = { 0xD5, 0xAA, 0x96, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x00 };
+        std::vector<Byte>  bytes;
+
+
+
+        Assert::IsTrue  (CaptureStream::Decode (encoded, std::size (expected), bytes));
+        Assert::IsTrue  (bytes == std::vector<Byte> (std::begin (expected), std::end (expected)));
+        Assert::IsFalse (CaptureStream::Decode (encoded, std::size (expected) + 3, bytes), L"Too few bytes");
+
+        const Byte         early[] = { 3, 0, 0x00, 0x01 };
+
+        Assert::IsFalse (CaptureStream::Decode (early, 3, bytes), L"A copy from before the first byte");
+    }
+
+
     TEST_METHOD (WholeTrack_IsReadBitForBit)
     {
         ProgramRig            rig (LoadFixture());
@@ -100,6 +120,7 @@ public:
         std::vector<uint8_t>  bits;
         std::vector<uint8_t>  track;
         CassoLinkStatus       status;
+        CaptureTiming         timing;
         size_t                length = 0;
         size_t                syncs  = 0;
 
@@ -107,7 +128,7 @@ public:
 
         AssertSucceeded (LinkProgram::BuildCaptureModule (module));
         AssertSucceeded (rig.host->EnsureModule (module));
-        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 0, 0, 0, 100, bytes, status));
+        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 0, 0, 0, 100, bytes, status, timing));
 
         Assert::AreEqual ((Byte) 0, status.error);
 
@@ -127,29 +148,42 @@ public:
         Assert::IsTrue (IsRotationOf (bits, track), L"One revolution is the drive's track");
     }
 
-    //  Tracks 0 and 1 captured into a WOZ: each quarter-track position reads
-    //  what the emulated drive reads there, and only the whole tracks have
-    //  streams.
+    //  Tracks 0 and 1 captured into a WOZ: both are standard, so the
+    //  positions between them aren't read; each quarter track reads what the
+    //  emulated drive reads there, and the half track has no stream, as a
+    //  standard WOZ's doesn't.
     TEST_METHOD (TwoTracks_CaptureToAWozOfTheSameTracks)
     {
-        ProgramRig                 rig (LoadFixture());
-        std::vector<Byte>          module;
-        CassoLinkCapture::Result   result;
-        DiskImage                  woz;
-        int                        reads = 0;
+        ProgramRig                               rig (LoadFixture());
+        std::vector<Byte>                        module;
+        CassoLinkCapture::Result                 result;
+        DiskImage                                woz;
+        std::vector<CassoLinkCapture::Progress>  reports;
+        std::vector<Byte>                        file;
+        std::vector<CassoLinkCapture::Position>  parsed;
 
 
 
         AssertSucceeded (LinkProgram::BuildCaptureModule (module));
-        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-11", [&reads] (int, int) { reads++; }, result, 1));
+        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-11", [&reports] (const CassoLinkCapture::Progress & where) { reports.push_back (where); }, result, 1));
         AssertSucceeded (WozLoader::Load (result.woz, woz));
 
-        Assert::AreEqual (5, reads, L"Positions 0 to 4");
+        Assert::AreEqual ((size_t) 6, reports.size(),  L"Three reads of each whole track");
+        Assert::AreEqual (99, reports.back().percent,  L"The share stops short of 100 until the capture ends");
+        Assert::AreEqual (0, result.betweenRead,       L"Nothing between two standard tracks is read");
+        Assert::AreEqual (3, result.betweenTotal);
+        Assert::IsTrue   (result.sentBytes < result.storedBytes, L"The encoding is shorter");
         Assert::AreEqual ((size_t) 2, result.streams.size(), L"The two whole tracks");
         Assert::IsTrue   (result.unstable.empty());
         Assert::IsTrue   (result.weak.empty());
+        Assert::AreEqual (-1, woz.ResolveQuarterTrack (2), L"The half track");
 
-        for (int quarter = 0; quarter <= 4; quarter++)
+        CassoLinkCapture::SerializeReads (result.positions, file);
+        AssertSucceeded (CassoLinkCapture::ParseReads (file, parsed));
+        Assert::AreEqual (result.positions.size(), parsed.size(), L"The reads round-trip");
+        Assert::IsTrue   (parsed[1].reads == result.positions[1].reads);
+
+        for (int quarter : { 0, 1, 3, 4 })
         {
             std::vector<uint8_t>  captured;
             int                   slot = woz.ResolveQuarterTrack (quarter);
@@ -161,7 +195,9 @@ public:
                 captured.push_back (woz.ReadBit (slot, at));
             }
 
-            Assert::IsTrue (IsRotationOf (captured, GetTrackBits (rig, quarter)), std::format (L"Quarter track {}", quarter).c_str());
+            //  A WOZ has a quarter track as its nearer whole track; Casso's image
+            //  has quarter tracks 0 to 3 as track 0.
+            Assert::IsTrue (IsRotationOf (captured, GetTrackBits (rig, (quarter + 1) / 4 * 4)), std::format (L"Quarter track {}", quarter).c_str());
         }
     }
 };

@@ -233,6 +233,7 @@ OPWRITE  = 2
 OPFORMAT = 3
 OPSPEED  = 4
 OPDISK   = 5                    ; a Full Send's pause, on the status row alone
+OPCAPT   = 6                    ; a raw capture: the bar has the quarter track
 
 QUIETDRIVE = $80                ; the drive's bit for a check the PC reports itself
 
@@ -3909,6 +3910,8 @@ sdidle: lda pcsum+1
         bne sdput
         lda op
         beq sdput
+        cmp #OPCAPT
+        beq sdcapt
         cmp #OPSPEED
         bcs sdput
         asl a
@@ -3924,6 +3927,11 @@ sdidle: lda pcsum+1
         lda #>overify
         sta ptr+1
 sdput:  jmp puttext
+sdcapt: lda #<ocapt
+        sta ptr
+        lda #>ocapt
+        sta ptr+1
+        jmp puttext
 
 ; drawbar: drive X + 1's bar, with the track and sector over it when A is
 ; nonzero, or FAILED after the drive's operation failed, and the percentage
@@ -3991,6 +3999,9 @@ dbtrack: lda #'T'
         jsr putch
         lda track
         jsr putdec2
+        lda op                  ; a capture's quarter, as .25, .50 or .75
+        cmp #OPCAPT
+        beq dbquart
         lda vflag
         bne dbtext
         lda #' '
@@ -3999,6 +4010,20 @@ dbtrack: lda #'T'
         jsr putch
         lda sector
         jsr putdec2
+        jmp dbtext
+dbquart: ldx sector
+        beq dbtext
+        lda #'.'
+        jsr putch
+        ldx sector
+        lda qtens-1,x
+        jsr putch
+        lda #'5'
+        ldx sector
+        cpx #2
+        bne dbq5
+        lda #'0'
+dbq5:   jsr putch
 dbtext: lda #0
         sta barcells
         ldy barwidth
@@ -4064,6 +4089,9 @@ oformat: .text "FORMATTING"
          .byte 0
 overify: .text "VERIFYING"
          .byte 0
+ocapt:   .text "CAPTURING"
+         .byte 0
+qtens:   .text "257"            ; a quarter's tens digit
 ofailed: .text "FAILED"
          .byte 0
 

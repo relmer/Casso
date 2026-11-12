@@ -53,6 +53,70 @@ bool CaptureStream::FindRevolution (std::span<const Byte> bytes, size_t & outLen
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CaptureStream::Decode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CaptureStream::Decode (std::span<const Byte> encoded, size_t count, std::vector<Byte> & outBytes)
+{
+    size_t  at       = 2;
+    size_t  distance = 0;
+    bool    valid    = encoded.size() >= 2;
+
+
+
+    outBytes.clear();
+    outBytes.reserve (count);
+
+    distance = valid ? (size_t) (encoded[0] | (encoded[1] << 8)) : 0;
+
+    while (valid && outBytes.size() < count && at < encoded.size())
+    {
+        Byte  value = encoded[at++];
+        Byte  token = 0;
+
+        if (value != s_kEscape)
+        {
+            outBytes.push_back (value);
+            continue;
+        }
+
+        valid = at < encoded.size();
+        token = valid ? encoded[at++] : 0;
+
+        if (valid && token == s_kEscape)
+        {
+            outBytes.push_back (s_kEscape);
+        }
+        else if (valid && token < s_kRepeatToken)
+        {
+            valid = distance > 0 && outBytes.size() >= distance;
+
+            for (size_t each = 0; valid && each < (size_t) token + s_kCopyBase; each++)
+            {
+                outBytes.push_back (outBytes[outBytes.size() - distance]);
+            }
+        }
+        else if (valid)
+        {
+            valid = at < encoded.size();
+
+            if (valid)
+            {
+                outBytes.insert (outBytes.end(), (size_t) (token & s_kCountMask) + s_kRepeatBase, encoded[at++]);
+            }
+        }
+    }
+
+    return valid && outBytes.size() == count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CaptureStream::BuildRevolution
 //
 ////////////////////////////////////////////////////////////////////////////////

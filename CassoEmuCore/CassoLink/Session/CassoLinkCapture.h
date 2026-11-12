@@ -4,6 +4,7 @@
 
 class CassoLinkHost;
 class DiskImage;
+struct CaptureTiming;
 
 
 
@@ -14,28 +15,33 @@ class DiskImage;
 //  CassoLinkCapture
 //
 //  A raw capture of a 5.25" disk over the link, as a WOZ 2 image, by the
-//  capture module. Each whole track is read kWholeReads times. Each other
-//  quarter-track position is read once: when its revolution is the whole
-//  track's below or above it, its TMAP entry is that track's stream; when it has a
-//  separate stream, as a half track of a protected disk has, it is read
-//  kWholeReads times too; and when it doesn't repeat, it has no stream.
+//  capture module. Each whole track is read kWholeReads times. The other
+//  quarter-track positions between two whole tracks are read only when one
+//  of the two isn't a standard track (IsStandardTrack): a head between two
+//  standard tracks reads one of them, and data written between them would
+//  have damaged both. A position not read has the TMAP entry a standard disk
+//  has: a quarter track its nearer whole track's stream, a half track none.
 //
-//  The reads of a stream are aligned by rotation, and each byte that isn't
-//  the same in all of them is written as eight zero bits, which a WOZ reader
-//  reads as random bits. A stream whose reads differ in length is written as
-//  the first read is and listed as unstable.
+//  A position that is read is read once: when its revolution is the whole
+//  track's below or above it, its TMAP entry is that track's stream; when it
+//  has a separate stream, as a half track of a protected disk has, it is
+//  read kWholeReads times too; and when it doesn't repeat, it has no stream.
+//
+//  A stream is the first read's revolution, and every other revolution of
+//  every read is aligned to it with bytes more or fewer allowed, as a write
+//  splice's partial bytes are framed differently on each pass. A byte that
+//  two alignments put in a longer stretch of differences is written as
+//  eight zero bits, which a WOZ reader reads as random bits. A stream with
+//  a read none of whose revolutions aligns is written as the first read is
+//  and listed as unstable.
 //
 //  A whole track's reads mark each byte followed by zero bits at 8 cycles,
-//  12 and 8 again (Capture.s). A mark at 8 is on a byte followed by no zero
-//  bit about one time in a hundred, by one about four times in seven, and
-//  by two or more always; at 12, on a byte followed by two about four times
-//  in seven, and by three always. Sync bytes come in runs of FF; a byte with
-//  kSureSamples marks at 8 cycles is counted from them, and with fewer, a
-//  run's marks are pooled, as a run of sync bytes has one count, and a byte
-//  outside a run has zero bits after it only when nearly every one of its
-//  marks is set. When an FF byte has some of its marks set and too few to
-//  count from, as a 13-sector disk's 9-bit sync bytes have, the track is
-//  read up to kExtraReads more times at 8 cycles.
+//  12 and 8 again (Capture.s). How often a mark is set depends on the
+//  controller: a Disk II sets one at 8 cycles on a byte with no zero bits
+//  after it about one time in a hundred, and a //c's IWM about one time in
+//  four. So the track's bytes that aren't FF set the baseline, and each run
+//  of FF, which a run of sync bytes is, is counted from its marks pooled
+//  against it (CountZeros).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,12 +49,10 @@ class CassoLinkCapture
 {
 public:
     static constexpr int     kWholeReads       = 3;
-    static constexpr int     kExtraReads       = 4;
-    static constexpr int     kSureSamples      = 8;
     static constexpr int     kTracks           = 35;
     static constexpr int     kLastPosition     = (kTracks - 1) * 4;
     static constexpr size_t  kAlignBytes       = 64;
-    static constexpr size_t  kSameShare        = 100;
+    static constexpr size_t  kSameShare        = 33;
 
     //  The reads of a quarter-track position.
     struct Position
@@ -63,20 +67,55 @@ public:
 
     struct Result
     {
-        std::vector<Byte>  woz;
-        std::vector<int>   unstable;     // positions whose reads differ in length
-        std::vector<int>   weak;         // positions with bytes that differ between reads
-        std::vector<int>   streams;      // positions with a stream, in order
+        std::vector<Byte>      woz;
+        std::vector<int>       unstable;          // positions with a read that doesn't align
+        std::vector<int>       weak;              // positions with bytes that differ between reads
+        std::vector<int>       streams;           // positions with a stream, in order
+        int                    betweenRead  = 0;  // positions between whole tracks that were read
+        int                    betweenTotal = 0;  // and all of them
+        int                    reads        = 0;
+        double                 diskMs       = 0.0;
+        double                 lineMs       = 0.0;
+        size_t                 sentBytes    = 0;  // the encoded bytes over the line
+        size_t                 storedBytes  = 0;  // and the bytes they decoded to
+        std::vector<Position>  positions;         // every read, for SerializeReads
     };
 
-    using ProgressFn = std::function<void (int done, int total)>;
+    //  Where a capture is: the position of its last read, that read's number
+    //  and the reads the position has, the pass (1 for the whole tracks, 2
+    //  for the positions between them), the share of the reads done, and the
+    //  seconds left at the pace so far, -1 before there is a pace.
+    struct Progress
+    {
+        int     position    = 0;
+        int     read        = 0;
+        int     reads       = 0;
+        int     pass        = 1;
+        int     percent     = 0;
+        double  secondsLeft = -1.0;
+    };
+
+    using ProgressFn = std::function<void (const Progress & progress)>;
 
     //  Every position from 0 to the last whole track's, `lastTrack` for a
     //  shorter capture.
     static HRESULT  Capture  (CassoLinkHost & host, Byte drive, std::span<const Byte> module, const std::string & imageDate,
                               const ProgressFn & progress, Result & outResult, int lastTrack = kTracks - 1);
 
-    static HRESULT  BuildWoz (const std::vector<Position> & positions, const std::string & imageDate, Byte drive, Result & outResult);
+    static HRESULT  BuildWoz (const std::vector<Position> & positions, int lastPosition, const std::string & imageDate, Byte drive, Result & outResult);
+
+    //  A capture's reads as a file, so a WOZ can be built from them again:
+    //  "CRAW", a version, then each position, its reads and each read's delay
+    //  and bytes, little-endian. Parsing fails with ERROR_INVALID_DATA for
+    //  any other file.
+    static void     SerializeReads (const std::vector<Position> & positions, std::vector<Byte> & outFile);
+    static HRESULT  ParseReads     (std::span<const Byte> file, std::vector<Position> & outPositions);
+
+    //  Whether a whole track's reads are a standard 16-sector or 13-sector
+    //  track: one stream with no weak bytes, of the same length in every
+    //  read, with every sector's address field for the track and a data
+    //  field after it, a 16-sector one with its checksum right.
+    static bool     IsStandardTrack (const Position & position);
 
 private:
     struct Stream
@@ -95,27 +134,105 @@ private:
         std::vector<int>  read[2];
     };
 
-    static HRESULT ReadPosition   (CassoLinkHost & host, Byte drive, std::span<const Byte> module, int position, int reads, Position & outPosition);
-    static HRESULT ReadMore       (CassoLinkHost & host, Byte drive, std::span<const Byte> module, Position & ioPosition);
-    static bool    CollectMarks   (const Position & position, Stream & outStream, Marks & outMarks, bool & outUnstable);
-    static bool    IsUncertain    (const Stream & stream, const Marks & marks);
-    static void    CountZeros     (const std::vector<Byte> & bytes, const Marks & marks, std::vector<uint8_t> & outZeros);
-    static double  GetMarkScore   (int zeros, const Marks & marks, size_t at);
-    static bool    MakeStream     (const Position & position, Stream & outStream, bool & outUnstable);
-    static int     FindWholeTrack (const std::map<int, Stream> & streams, int position);
-    static bool    FindRotation   (std::span<const Byte> revolution, std::span<const Byte> read, size_t & outOffset);
-    static bool    IsSameStream   (std::span<const Byte> a, std::span<const Byte> b);
-    static void    ToBits         (const Stream & stream, std::vector<uint8_t> & outBits);
+    //  A revolution of a read aligned to a stream (Align).
+    struct Alignment
+    {
+        size_t             from   = 0;
+        size_t             differ = 0;
+        std::vector<int>   map;
+        std::vector<bool>  stretch;
+    };
+
+    //  A capture's state between its reads.
+    struct Run
+    {
+        CassoLinkHost          & host;
+        Byte                     drive;
+        std::span<const Byte>    module;
+        const ProgressFn       & progress;
+        Result                 & result;
+        ULONGLONG                started = 0;
+        int                      done    = 0;
+        int                      planned = 0;
+        int                      pass    = 1;
+        int                      percent = 0;
+    };
+
+    static HRESULT ReadOnce       (Run & run, int position, Byte delay, int read, int reads, std::vector<Byte> & outBytes);
+    static HRESULT              ReadPosition   (Run & run, int position, int reads, Position & outPosition);
+    static bool                 CollectMarks   (const Position & position, Stream & outStream, Marks & outMarks, bool & outUnstable);
+    static bool                 FindReference  (std::span<const Byte> read, size_t & outStart, size_t & outLength);
+    static size_t               FindLength     (std::span<const Byte> read);
+    static size_t               CountDiffer    (std::span<const Byte> a, size_t aAt, std::span<const Byte> b, size_t bAt, size_t limit);
+    static bool                 IsUnique       (std::span<const Byte> read, size_t start, size_t length);
+    static std::vector<size_t>  FindAnchors    (std::span<const Byte> revolution, std::span<const Byte> read);
+    static bool                 Align          (std::span<const Byte> revolution, std::span<const Byte> read, size_t from,
+                                                std::vector<int> & outMap, size_t & outDiffer, std::vector<bool> & outStretch);
+    static int                  CountSectors   (std::span<const Byte> revolution, int track, bool & outThirteen);
+    static void                 CountZeros     (const std::vector<Byte> & bytes, const Marks & marks, std::vector<uint8_t> & outZeros);
+    static bool                 IsAboveBase    (double set, double read, double base);
+    static bool                 MakeStream     (const Position & position, Stream & outStream, bool & outUnstable);
+    static int                  FindWholeTrack (const std::map<int, Stream> & streams, int position);
+    static bool                 IsSameStream   (std::span<const Byte> a, std::span<const Byte> b);
+    static void                 ToBits         (const Stream & stream, std::vector<uint8_t> & outBits);
 
     static constexpr Byte    s_kSyncByte = 0xFF;
 
-    //  The chance of a mark at 8 and at 12 cycles on a byte with 0 to 3 zero
-    //  bits after it, as the capture tests measure them.
-    static constexpr double  s_kMarkChance[2][4] = { { 0.01, 0.45, 0.97, 0.99 }, { 0.005, 0.01, 0.45, 0.97 } };
+    //  The range of revolution lengths for FindLength, and its sample; the
+    //  step between FindReference's starts, the values a start's bytes
+    //  must have, so a run of sync bytes, which repeats at any length, isn't
+    //  one, and the bytes of a start or a window that may differ where it
+    //  repeats; and the step between FindAnchors' windows, and the drift a
+    //  write splice between two places can add.
+    static constexpr size_t  s_kShortestRevolution = 4800;
+    static constexpr size_t  s_kLongestRevolution  = 7000;
+    static constexpr size_t  s_kSampleBytes        = 4096;
+    static constexpr size_t  s_kSampleStep         = 3;
+    static constexpr size_t  s_kSampleDrift        = 2;
+    static constexpr size_t  s_kNoiseShare         = 4;
+    static constexpr size_t  s_kStartStep          = 13;    // prime and short, to fall on every part of a sector in turn
+    static constexpr size_t  s_kAnchorValues       = 8;
+    static constexpr size_t  s_kAnchorMismatch     = 2;
+    static constexpr size_t  s_kWindowStep         = 997;
+    static constexpr size_t  s_kWindowDrift        = 8;
 
-    //  The counts before any mark: an FF byte is a sync byte as often as
-    //  not, and any other byte almost never; and a change between neighbors.
-    static constexpr double  s_kRunPrior[4]  = { 0.3, 0.3, 0.39, 0.01 };
-    static constexpr double  s_kLonePrior[4] = { 1.0 - 3e-7, 1e-7, 1e-7, 1e-7 };
-    static constexpr double  s_kChange       = 0.002;
+    //  Align's allowance of bytes more or fewer, the share of a revolution
+    //  that may differ, and the longest stretch of differences a write splice
+    //  has; and the alignments that must put a byte in a longer one for it to
+    //  be weak.
+    static constexpr size_t  s_kBand               = 24;
+    static constexpr size_t  s_kAlignShare         = 12;
+    static constexpr size_t  s_kSpliceBytes        = 16;
+    static constexpr int     s_kWeakAlignments     = 2;
+    static constexpr Byte    s_kStepPair           = 1;
+    static constexpr Byte    s_kStepFewer          = 2;
+    static constexpr Byte    s_kStepMore           = 3;
+
+    //  CountZeros: the shortest run of FF counted as sync bytes, the share of
+    //  marks at 12 cycles for three zero bits, and how far above the baseline
+    //  a run's share must be.
+    static constexpr size_t  s_kShortestRun        = 2;
+    static constexpr double  s_kThreeZeroShare     = 0.8;
+    static constexpr double  s_kMinimumGain        = 0.05;
+    static constexpr double  s_kDeviations         = 3.0;
+    static constexpr double  s_kMinimumReads       = 4.0;
+
+    //  A field's marks: D5 AA, then 96 for a 16-sector address field, B5 for
+    //  a 13-sector one and AD for a data field. RDOS begins its address
+    //  fields D4 AA B7.
+    static constexpr Byte    s_kProlog0      = 0xD5;
+    static constexpr Byte    s_kProlog1      = 0xAA;
+    static constexpr Byte    s_kAddress16    = 0x96;
+    static constexpr Byte    s_kAddress13    = 0xB5;
+    static constexpr Byte    s_kData         = 0xAD;
+    static constexpr Byte    s_kRdosProlog0  = 0xD4;
+    static constexpr Byte    s_kRdosAddress  = 0xB7;
+
+    //  The bytes after an address field's prolog that its data field's prolog
+    //  must start within; and the reads a pace is estimated after.
+    static constexpr size_t  s_kDataWithin   = 48;
+    static constexpr int     s_kPaceReads    = 3;
+
+    static constexpr Byte    s_kReadsMagic[] = { 'C', 'R', 'A', 'W' };
+    static constexpr Word    s_kReadsVersion = 1;
 };

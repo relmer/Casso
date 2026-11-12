@@ -128,6 +128,11 @@ struct LinkOperation
     std::atomic<bool>                fullSendChecking { false };
     std::string                      fullSendSummary;
 
+    //  What a long operation is doing, for the status bar, as a capture's
+    //  track and read; set on the session's thread and read on the UI's.
+    void         SetDetail (const std::string & text) { std::lock_guard<std::mutex> lock (m_detailLock); m_detail = text; }
+    std::string  GetDetail () const                   { std::lock_guard<std::mutex> lock (m_detailLock); return m_detail; }
+
     //  Write disk for a format: the new volume, as VOL 254 or /NAME, so the
     //  label for a format differs from one for an image written.
     std::string                      formatted;
@@ -145,6 +150,10 @@ struct LinkOperation
     std::atomic<bool>                krunchTaken   { false };
     std::atomic<int>                 krunchParts   { 0 };
     std::atomic<int>                 krunchMoved   { 0 };
+
+private:
+    mutable std::mutex               m_detailLock;
+    std::string                      m_detail;
 };
 
 
