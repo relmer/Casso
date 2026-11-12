@@ -92,6 +92,7 @@ namespace DebuggerWatchAddRowTests
         using DebuggerWindow::RouteMappedKey;
         using DebuggerWindow::GetWatchesPane;
         using DebuggerWindow::TakeSnapshot;
+        using DebuggerWindow::FocusControl;
 
         void  Press (WPARAM vk)
         {
@@ -562,6 +563,63 @@ namespace DebuggerWatchAddRowTests
 
             window.GetWatchesPane().Undo (true);
             Assert::IsTrue   (host.actions.back().command.verb == DebugVerb::ClearWatch, L"the redo removes it again");
+        }
+
+
+        //  Shift or Ctrl selects several watches, and Delete removes them all
+        //  in one step: the higher id first, so the clear of one doesn't move
+        //  the other. The undo adds both back, the lower id first. An
+        //  automatic watch in the selection is left alone.
+        TEST_METHOD (DeleteRemovesEverySelectedWatchInOneStep)
+        {
+            CassoTheme                        theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                 host;
+            WatchWindow                       window   (theme, host);
+            DxuiDpiScaler                     scaler;
+            auto                              snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::WatchLine   first;
+            DebuggerViewSnapshot::WatchLine   second;
+            DxuiListView                    * list     = nullptr;
+            size_t                            before   = 0;
+
+
+
+            first.id          = 1;
+            first.expression  = "X";
+            first.isRegister  = true;
+            first.value       = "00";
+            second            = first;
+            second.id         = 3;
+            second.expression = "Y";
+            snapshot->watches = { first, second };
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            list = window.GetWatchesPane().GetList();
+
+            Assert::IsTrue (list->IsMultiSelect(), L"the watches take a selection of several rows");
+
+            list->SetSelectedRows ({ FindRow (window, L"1"), FindRow (window, L"3") }, FindRow (window, L"1"));
+            window.FocusControl (list);
+
+            before = host.actions.size();
+            window.Press (VK_DELETE);
+
+            Assert::AreEqual (before + 2, host.actions.size(), L"a clear for each watch");
+            Assert::IsTrue   (host.actions[before].command.verb == DebugVerb::ClearWatch);
+            Assert::AreEqual ((uint32_t) 3, host.actions[before].command.count, L"the higher id first");
+            Assert::AreEqual ((uint32_t) 1, host.actions[before + 1].command.count, L"then the lower");
+
+            window.TakeSnapshot (std::make_shared<DebuggerViewSnapshot>());
+            before = host.actions.size();
+            window.GetWatchesPane().Undo (false);
+
+            Assert::AreEqual (before + 2, host.actions.size(), L"one undo adds both back");
+            Assert::AreEqual (std::string ("X"), host.actions[before].operand, L"the lower id first");
+            Assert::AreEqual (std::string ("Y"), host.actions[before + 1].operand);
         }
 
 

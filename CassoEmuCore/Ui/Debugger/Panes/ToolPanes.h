@@ -53,6 +53,11 @@ protected:
     //  Scrolls to a row added since the last call.
     void                         ShowNewListRow ();
 
+    //  The rows a menu's Delete acts on: every selected row when the one
+    //  clicked is among them, otherwise the one clicked. With no row given,
+    //  the selection.
+    std::vector<int>             GetActedRows   (int row) const;
+
     std::wstring                         m_id;
     std::wstring                         m_title;
     DxuiListView                       * m_list = nullptr;
@@ -163,6 +168,7 @@ public:
     void  Configure    () override;
     void  Apply        (const DebuggerViewSnapshot & snapshot) override;
     bool  AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items) override;
+    bool  RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
 
     //  The bookmark a row has, none for no such row.
     std::optional<DebuggerViewSnapshot::WatchLine>  GetBookmark (int row) const;
@@ -181,7 +187,11 @@ public:
                                                                      const DebuggerViewSnapshot::SymbolsState     * symbols, int column, bool isReverse);
 
 private:
-    void  SortBy (int column);
+    void  SortBy     (int column);
+
+    //  The bookmarks of the rows, from the highest number down, so no clear
+    //  moves another one's number first.
+    void  DeleteRows (const std::vector<int> & rows);
 
     std::vector<DebuggerViewSnapshot::WatchLine>      m_bookmarks;
     int                                               m_sort      = -1;
@@ -210,6 +220,7 @@ public:
     void  Configure    () override;
     void  Apply        (const DebuggerViewSnapshot & snapshot) override;
     bool  AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items) override;
+    bool  RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
 
     //  The block a row has, none for no such row.
     std::optional<DataBlockEntry>  GetBlock (int row) const;
@@ -228,7 +239,8 @@ public:
 private:
     static constexpr size_t  kKindColumn = 2;
 
-    void  SortBy (int column);
+    void  SortBy     (int column);
+    void  DeleteRows (const std::vector<int> & rows);
 
     std::vector<DataBlockEntry>    m_blocks;
     ListValueFilters               m_filters;

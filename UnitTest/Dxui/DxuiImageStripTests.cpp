@@ -713,9 +713,10 @@ public:
     }
 
 
-    //  Near the playhead line, the hover line's labels give way to the
-    //  playhead's, which keep their place; away from it, both show.
-    TEST_METHOD (HoverLabelsGiveWayToThePlayheads)
+    //  Near the playhead line, the playhead's labels are cleared and the
+    //  hover line's are drawn, so the time under the pointer is visible right
+    //  at the line; away from it, both are drawn.
+    TEST_METHOD (PlayheadLabelsAreClearedNearTheHover)
     {
         DxuiImageStrip                 strip;
         RecordingStripSource           source;
@@ -753,10 +754,10 @@ public:
         text.Reset();
         strip.Paint (painter, text, theme, false, false, true);
 
-        Assert::IsNotNull (FindText (text, source.playheadTop),    L"the playhead's time keeps its place");
-        Assert::IsNotNull (FindText (text, source.playheadBottom), L"and its time since power-on");
-        Assert::IsNull    (FindText (text, source.cellTop),        L"the hover's time gives way");
-        Assert::IsNull    (FindText (text, source.cellBottom),     L"and its time since power-on");
+        Assert::IsNotNull (FindText (text, source.cellTop),        L"the time under the pointer is drawn");
+        Assert::IsNotNull (FindText (text, source.cellBottom),     L"and its time since power-on");
+        Assert::IsNull    (FindText (text, source.playheadTop),    L"the playhead's time is cleared");
+        Assert::IsNull    (FindText (text, source.playheadBottom), L"and its time since power-on");
         Assert::AreEqual  (1, GetIconBounds (text, theme.PlayheadHoverLine(), 1.5f, hoverLine), L"the hover line is still drawn");
 
         strip.OnMouseMove (farX, y);

@@ -5,6 +5,7 @@
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 #include "Debugger/WatchTable.h"
+#include "Ui/Debugger/UndoBarCommands.h"
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
@@ -95,7 +96,31 @@ bool WatchesPane::RouteContentMouse (const DxuiMouseEvent & ev)
 
 void WatchesPane::Configure()
 {
+    std::vector<DxuiToolbar::Entry>  entries;
+    DxuiToolbar::Entry               remove;
+
+
+
     UndoListPane::Configure();
+
+    //  Delete, then the pane's Undo and Redo.
+    m_deleteCommand            = std::make_shared<DxuiCommand>();
+    m_deleteCommand->id        = kDeleteId;
+    m_deleteCommand->label     = L"Delete";
+    m_deleteCommand->glyph     = s_kpszMdl2Delete;
+    m_deleteCommand->tip       = L"Delete the selected watches";
+    m_deleteCommand->dispatch  = [this] { RemoveSelected(); m_host.Repaint(); };
+    m_deleteCommand->isEnabled = [this] { return !GetRemovableSelection().empty(); };
+
+    remove.command  = m_deleteCommand;
+    remove.kind     = DxuiToolbar::Kind::Command;
+    remove.iconOnly = true;
+
+    entries = m_commands->BuildEntries();
+    entries.insert (entries.begin(), std::move (remove));
+    m_bar.GetBar()->SetEntries (std::move (entries));
+
+    m_list->SetMultiSelect (true);
 
     m_list->SetOnActivateRow ([this] (int row)
     {
@@ -910,27 +935,153 @@ void WatchesPane::SetError (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WatchesPane::RemoveSelected
+//  WatchesPane::GetRemovableSelection
 //
-//  Delete on a manual watch removes it. Automatic watches come and go with
-//  the instruction, so there is nothing of theirs to remove.
+//  Automatic watches come and go with the instruction, so there is nothing
+//  of theirs to remove; nor of a heading or a BASIC variable.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<WatchesPane::Row> WatchesPane::GetRemovableSelection() const
+{
+    std::vector<int>  selected = m_list->GetSelectedRows();
+    std::vector<Row>  rows;
+
+
+
+    if (selected.empty() && m_list->GetSelectedRow() >= 0)
+    {
+        selected.push_back (m_list->GetSelectedRow());
+    }
+
+    for (int row : selected)
+    {
+        if (row >= 0 && row < (int) m_rows.size() && (m_rows[(size_t) row].kind == RowKind::Manual || m_rows[(size_t) row].kind == RowKind::ZeroPage))
+        {
+            rows.push_back (m_rows[(size_t) row]);
+        }
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::RemoveSelected
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WatchesPane::RemoveSelected()
 {
-    int  row = m_list->GetSelectedRow();
+    RemoveRows (GetRemovableSelection());
+}
 
 
 
-    if (row >= 0 && row < (int) m_rows.size() && m_rows[(size_t) row].kind == RowKind::Manual)
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::RemoveRows
+//
+//  One row is removed as RemoveWatch or RemovePointer removes it. Several are
+//  one step: the clears run from the highest id and slot down, so no clear
+//  moves a row another one is for, and the undo adds them back from the
+//  lowest up, each where it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchesPane::RemoveRows (const std::vector<Row> & rows)
+{
+    const DebuggerViewSnapshot      * snapshot = m_host.GetLatestSnapshot();
+    std::vector<int>                  ids;
+    std::vector<int>                  slots;
+    std::vector<DebuggerAction>       clears;
+    DebuggerViewState::WatchUndo      undo;
+
+
+
+    if (rows.size() == 1 && rows[0].kind == RowKind::Manual)
     {
-        RemoveWatch (m_rows[(size_t) row].index);
+        RemoveWatch (rows[0].index);
+        return;
     }
-    else if (row >= 0 && row < (int) m_rows.size() && m_rows[(size_t) row].kind == RowKind::ZeroPage)
+
+    if (rows.size() == 1)
     {
-        RemovePointer (m_rows[(size_t) row].index);
+        RemovePointer (rows[0].index);
+        return;
     }
+
+    if (rows.empty() || snapshot == nullptr)
+    {
+        return;
+    }
+
+    for (const Row & row : rows)
+    {
+        (row.kind == RowKind::Manual ? ids : slots).push_back (row.index);
+    }
+
+    std::ranges::sort (ids);
+    std::ranges::sort (slots);
+
+    for (const DebuggerViewSnapshot::WatchLine & watch : snapshot->watches)
+    {
+        if (std::ranges::binary_search (ids, watch.id))
+        {
+            undo.actions.push_back (DebuggerActions::GetAddWatchAt (watch.id, GetRestoreText (watch), m_host.GetMode()));
+        }
+    }
+
+    for (const DebuggerViewSnapshot::WatchLine & pointer : snapshot->zeroPagePointers)
+    {
+        if (std::ranges::binary_search (slots, pointer.id))
+        {
+            undo.actions.push_back (DebuggerActions::GetAddZeroPagePointerAt (pointer.id, (Byte) pointer.address, m_host.GetMode()));
+        }
+    }
+
+    for (auto id = ids.rbegin(); id != ids.rend(); ++id)
+    {
+        clears.push_back (DebuggerActions::GetClearWatch (*id, m_host.GetMode()));
+    }
+
+    for (auto slot = slots.rbegin(); slot != slots.rend(); ++slot)
+    {
+        clears.push_back (DebuggerActions::GetClearZeroPagePointer (*slot, m_host.GetMode()));
+    }
+
+    m_history.Record (std::move (undo), clears, L"remove watches");
+
+    for (const DebuggerAction & clear : clears)
+    {
+        m_host.RunAction (clear);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::RemoveFromMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchesPane::RemoveFromMenu (const Row & row)
+{
+    std::vector<Row>  selected = GetRemovableSelection();
+    bool              isIn     = std::ranges::any_of (selected, [&row] (const Row & each) { return each.kind == row.kind && each.index == row.index; });
+
+
+
+    RemoveRows ((isIn && selected.size() > 1) ? selected : std::vector<Row> { row });
 }
 
 
@@ -1023,7 +1174,7 @@ std::string WatchesPane::GetRestoreText (const DebuggerViewSnapshot::WatchLine &
 //  WatchesPane::RouteEditKey
 //
 //  The grid has every key while a watch is edited. In the list, Delete
-//  removes a manual watch and F2 edits the selected one's value, as in
+//  removes the selected watches and F2 edits the selected one's value, as in
 //  Visual Studio's watch window; Ctrl+Z undoes the pane's own last edit, and
 //  nothing of any memory window's.
 //
@@ -1112,12 +1263,12 @@ bool WatchesPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
             const DebuggerViewSnapshot::WatchLine  watch = *found;
 
             m_host.AddShowInMemoryItems (std::format (L"${:04X}", watch.address), std::format ("{:04X}", watch.address), items);
-            items.push_back ({ L"Remove", [this, id = watch.id] { RemoveWatch (id); } });
+            items.push_back ({ L"Remove", [this, id = watch.id] { RemoveFromMenu ({ RowKind::Manual, id }); } });
         }
     }
     else if (what.kind == RowKind::ZeroPage)
     {
-        items.push_back ({ L"Remove", [this, slot = what.index] { RemovePointer (slot); } });
+        items.push_back ({ L"Remove", [this, what] { RemoveFromMenu (what); } });
     }
     else if (what.kind == RowKind::Automatic && what.index < (int) snapshot->autoWatches.size() &&
              snapshot->autoWatches[(size_t) what.index].key.starts_with ("M:"))

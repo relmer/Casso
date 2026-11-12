@@ -394,6 +394,47 @@ namespace DebuggerToolPanesTests
 
 
 
+        //  Several bookmarks selected go with one Delete, the higher number
+        //  first so no clear moves the other's number.
+        TEST_METHOD (DeleteRemovesEverySelectedBookmark)
+        {
+            CassoTheme                        theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                 host;
+            ToolWindow                        window   (theme, host);
+            auto                              snapshot = std::make_shared<DebuggerViewSnapshot>();
+            BookmarksPane                   * pane     = nullptr;
+            DebuggerViewSnapshot::WatchLine   first;
+            DebuggerViewSnapshot::WatchLine   second;
+            DxuiKeyEvent                      remove   = { DxuiKeyEventKind::Down, VK_DELETE, false, false, false, false };
+
+
+
+            first.id            = 1;
+            first.address       = 0x0300;
+            second.id           = 2;
+            second.address      = 0x0400;
+            snapshot->bookmarks = { first, second };
+
+            window.OnCreate();
+
+            pane = dynamic_cast<BookmarksPane *> (window.FindPaneForTest (DebuggerLayout::kBookmarks));
+            Assert::IsNotNull (pane);
+
+            window.TakeSnapshot (snapshot);
+            pane->Apply (*snapshot);
+
+            Assert::IsTrue (pane->GetList()->IsMultiSelect(), L"the bookmarks take a selection of several rows");
+
+            pane->GetList()->SetSelectedRows ({ 0, 1 }, 0);
+            host.commands.clear();
+
+            Assert::IsTrue   (pane->RouteEditKey (remove, pane->GetList()), L"Delete is taken");
+            Assert::AreEqual ((size_t) 2, host.commands.size());
+            Assert::AreEqual (DebuggerActions::GetClearBookmark (2, CommandMode::AppleWin).echo, host.commands[0], L"the higher number first");
+            Assert::AreEqual (DebuggerActions::GetClearBookmark (1, CommandMode::AppleWin).echo, host.commands[1]);
+        }
+
+
         TEST_METHOD (DataRangesLeaveOutAHiddenKind)
         {
             CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();

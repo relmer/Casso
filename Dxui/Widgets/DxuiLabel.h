@@ -57,6 +57,14 @@ public:
     void  SetTextAlign   (DxuiTextHAlign h, DxuiTextVAlign v) { m_hAlign = h; m_vAlign = v; }
     void  SetFontWeight  (DxuiFontWeight w) { m_weight = w; }
 
+    //  A field's label that the field must be filled in for: a red * follows
+    //  the text, in the theme's error color. A dialog marks its required
+    //  fields only when it also has fields that may be left empty.
+    static constexpr const wchar_t *  kRequiredMark = L" *";
+
+    void  SetRequired    (bool isRequired) { m_isRequired = isRequired; }
+    bool  IsRequired     () const { return m_isRequired; }
+
     //  One line, cut to the label's width as the elision says, rather than
     //  wrapped onto lines below; None, the default, wraps.
     void  SetElide       (DxuiElide elide) { m_elide = elide; }
@@ -98,7 +106,8 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
 private:
-    void  DrawResolved (IDxuiTextRenderer & text, uint32_t argb, float fontDip) const;
+    void  DrawResolved     (IDxuiTextRenderer & text, uint32_t argb, float fontDip) const;
+    void  DrawRequiredMark (IDxuiTextRenderer & text, uint32_t argb, float fontDip) const;
 
 
     static constexpr float  s_kFallbackFontDip = 13.0f;
@@ -114,6 +123,7 @@ private:
     DxuiFontWeight  m_weight       = DxuiFontWeight::Normal;
     DxuiElide       m_elide        = DxuiElide::None;
     DxuiTextRole    m_role         = DxuiTextRole::Body;
+    bool            m_isRequired   = false;
 
     // Theme resolution is the DEFAULT, including for the default-constructed
     // label. It was once opt-in, set only by the text-taking constructor and

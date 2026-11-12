@@ -303,3 +303,58 @@ public:
     }
 };
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiLabelRequiredTests
+//
+//  A required field's label has a red * just past its text, in the theme's
+//  error color; a label that isn't required, or is disabled, doesn't have one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiLabelRequiredTests)
+{
+public:
+
+    TEST_METHOD (ARequiredLabelHasARedMarkPastItsText)
+    {
+        DxuiLabel                 label (L"Address");
+        MockDxuiPainter           painter;
+        MockDxuiTextRenderer      text;
+        MockDxuiTheme             theme;
+        DxuiDpiScaler             scaler;
+        const RecordedTextCall  * mark = nullptr;
+        const RecordedTextCall  * name = nullptr;
+
+
+
+        scaler.SetDpi (96);
+        label.Layout      (RECT { 10, 0, 200, 20 }, scaler);
+        label.SetRequired (true);
+        label.Paint       (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            mark = (call.kind == RecordedTextKind::DrawString && call.text == DxuiLabel::kRequiredMark) ? &call : mark;
+            name = (call.kind == RecordedTextKind::DrawString && call.text == L"Address")               ? &call : name;
+        }
+
+        Assert::IsNotNull (name, L"the text is drawn");
+        Assert::IsNotNull (mark, L"the mark is drawn");
+        Assert::AreEqual  (theme.ErrorForeground(), mark->argb, L"in the error color");
+        Assert::IsTrue    (mark->x > name->x, L"past the text");
+
+        text.Reset();
+        label.SetRequired (false);
+        label.Paint       (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            Assert::IsTrue (call.text != DxuiLabel::kRequiredMark, L"a label not required has no mark");
+        }
+    }
+};

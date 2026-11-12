@@ -292,6 +292,30 @@ void ToolListPane::ShowNewListRow()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ToolListPane::GetActedRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> ToolListPane::GetActedRows (int row) const
+{
+    std::vector<int>  selected = m_list->GetSelectedRows();
+
+
+
+    if (row < 0 || std::ranges::find (selected, row) != selected.end())
+    {
+        return selected;
+    }
+
+    return { row };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SymbolsPane::Apply
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -678,6 +702,7 @@ void BookmarksPane::Configure()
                           { L"Address",  0, false, DxuiTextHAlign::Left },
                           { L"Symbol",   0, true,  DxuiTextHAlign::Left } });
 
+    m_list->SetMultiSelect           (true);
     m_list->SetActivateOnDoubleClick (true);
     m_list->SetOnSortColumn          ([this] (int column) { SortBy (column); });
 
@@ -830,11 +855,66 @@ bool BookmarksPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & 
     if (bookmark.has_value())
     {
         items.push_back ({ L"Go to",  [this, at = bookmark->address] { m_host.GoToCode (at); } });
-        items.push_back ({ L"Delete", [this, id = bookmark->id]      { m_host.RunAction (DebuggerActions::GetClearBookmark (id, m_host.GetMode())); } });
+        items.push_back ({ L"Delete", [this, rows = GetActedRows (row)] { DeleteRows (rows); } });
     }
 
     AddCopyItem (items);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BookmarksPane::RouteEditKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BookmarksPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused)
+{
+    if (focused != m_list || ev.kind != DxuiKeyEventKind::Down || ev.ctrl || ev.alt || ev.vk != VK_DELETE)
+    {
+        return false;
+    }
+
+    DeleteRows (GetActedRows (-1));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BookmarksPane::DeleteRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BookmarksPane::DeleteRows (const std::vector<int> & rows)
+{
+    std::vector<int>  ids;
+
+
+
+    for (int row : rows)
+    {
+        std::optional<DebuggerViewSnapshot::WatchLine>  bookmark = GetBookmark (row);
+
+        if (bookmark.has_value())
+        {
+            ids.push_back (bookmark->id);
+        }
+    }
+
+    std::ranges::sort (ids, std::greater<>());
+
+    for (int id : ids)
+    {
+        m_host.RunAction (DebuggerActions::GetClearBookmark (id, m_host.GetMode()));
+    }
 }
 
 
@@ -944,6 +1024,7 @@ void DataBlocksPane::Configure()
                           { L"Range", 0, false, DxuiTextHAlign::Left },
                           { L"Kind",  0, true,  DxuiTextHAlign::Left } });
 
+    m_list->SetMultiSelect           (true);
     m_list->SetActivateOnDoubleClick (true);
     m_list->SetOnSortColumn          ([this] (int column) { SortBy (column); });
 
@@ -1143,11 +1224,64 @@ bool DataBlocksPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems &
     if (block.has_value())
     {
         items.push_back ({ L"Go to",  [this, at = block->first] { m_host.GoToCode (at); } });
-        items.push_back ({ L"Delete", [this, from = block->first, to = block->last] { m_host.RunAction (DebuggerActions::GetClearData (from, to, m_host.GetMode())); } });
+        items.push_back ({ L"Delete", [this, rows = GetActedRows (row)] { DeleteRows (rows); } });
     }
 
     AddCopyItem (items);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataBlocksPane::RouteEditKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DataBlocksPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused)
+{
+    if (focused != m_list || ev.kind != DxuiKeyEventKind::Down || ev.ctrl || ev.alt || ev.vk != VK_DELETE)
+    {
+        return false;
+    }
+
+    DeleteRows (GetActedRows (-1));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataBlocksPane::DeleteRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DataBlocksPane::DeleteRows (const std::vector<int> & rows)
+{
+    std::vector<DataBlockEntry>  blocks;
+
+
+
+    for (int row : rows)
+    {
+        std::optional<DataBlockEntry>  block = GetBlock (row);
+
+        if (block.has_value())
+        {
+            blocks.push_back (*block);
+        }
+    }
+
+    for (const DataBlockEntry & block : blocks)
+    {
+        m_host.RunAction (DebuggerActions::GetClearData (block.first, block.last, m_host.GetMode()));
+    }
 }
 
 

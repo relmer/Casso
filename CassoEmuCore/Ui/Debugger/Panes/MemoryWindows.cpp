@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/MemoryWindows.h"
-#include "Ui/Debugger/ToolbarLabelEntry.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -522,14 +521,13 @@ void MemoryWindowGroup::Configure()
                                  L"Addresses entered before");
 
     m_bar->SetTextRenderer  (m_host.GetPaneTextRenderer());
+    m_box->SetTextRenderer  (m_host.GetPaneTextRenderer());
     m_bar->SetPopupHost     (m_host.GetPanePopupHost());
     m_bar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
     m_bar->SetCompact       (true);
     m_bar->SetPaneTextInset (true);
     m_bar->SetBottomEdge    (false);
     m_bar->EnableSeeMore    (s_kpszMdl2More, L"See more");
-    m_findCount    = std::make_unique<ToolbarLabelEntry> (std::wstring());
-    m_findCount->SetTip (L"The match selected and the number of matches, after Find and each F3 or Shift+F3");
     SetBarEntries();
     m_bar->SetVisible       (false);
 
@@ -897,7 +895,6 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
 
     m_isPaused    = snapshot.isPaused;
     m_hasSnapshot = true;
-    m_searchHits  = snapshot.searchHits;
 
     ApplyResults (snapshot);
 
@@ -973,14 +970,7 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
 
 void MemoryWindowGroup::ApplyResults (const DebuggerViewSnapshot & snapshot)
 {
-    m_searchSerial  = snapshot.searchSerial;
     m_compareSerial = snapshot.compareSerial;
-
-    if (m_find.isAwaiting && snapshot.searchSerial != m_find.awaited)
-    {
-        m_find.isAwaiting = false;
-        StepFind (true);
-    }
 
     if (m_compare.isAwaiting && snapshot.compareSerial != m_compare.awaited && GetWindow (m_compare.window) != nullptr)
     {
@@ -1108,6 +1098,7 @@ void MemoryWindowGroup::PlaceBar()
     bounds = slot->GetBounds();
 
     m_bar->SetTextRenderer   (host->GetTextRenderer());
+    m_box->SetTextRenderer   (host->GetTextRenderer());
     m_bar->SetPopupHost      (host->GetPopupHost());
     m_bar->SetHostClientRect (host->GetBounds());
     m_bar->Layout            (m_host.GetBarStrip (m_barPane, bounds), m_host.GetPaneScaler());
@@ -1593,174 +1584,15 @@ void MemoryWindowGroup::AppendViewItems (const std::vector<DxuiPopupMenuItem> & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryWindowGroup::GetSearchLength
-//
-//  How many bytes a match of S's items covers: each character of a quoted
-//  text, a byte or a wildcard for each other item, and two for a value of
-//  more than two hex digits, which S matches as a word.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-size_t MemoryWindowGroup::GetSearchLength (const std::wstring & items)
-{
-    size_t  length = 0;
-    size_t  at     = 0;
-
-
-
-    while (at < items.size())
-    {
-        size_t  end = 0;
-
-        if (iswspace (items[at]) || items[at] == L',')
-        {
-            at++;
-            continue;
-        }
-
-        if (items[at] == L'"' || items[at] == L'\'')
-        {
-            end     = items.find (items[at], at + 1);
-            end     = (end == std::wstring::npos) ? items.size() : end;
-            length += end - at - 1;
-            at      = end + 1;
-            continue;
-        }
-
-        end     = items.find_first_of (L" \t,", at);
-        end     = (end == std::wstring::npos) ? items.size() : end;
-        length += (end - at > 2 && items[at] != L'$') || (end - at > 3) ? 2 : 1;
-        at      = end;
-    }
-
-    return std::max<size_t> (length, 1);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryWindowGroup::FindIn
-//
-//  S over all memory with the items typed: hex bytes, a word, text in
-//  quotes, ?? for any byte and ?n or n? for half of one. The window goes to
-//  the first match when the hits arrive.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MemoryWindowGroup::FindIn (MemoryWindowPane * window)
-{
-    std::optional<std::wstring>  items;
-
-
-
-    if (window == nullptr || !m_hasSnapshot)
-    {
-        return;
-    }
-
-    items = m_host.RunTextDialog (L"Find in memory", L"Find", L"A9 00 ?? \"HELLO\"", [] (const std::wstring & text, std::wstring & error)
-    {
-        error = L"Type hex bytes, text in quotes, or ?? for any byte.";
-        return text.find_first_not_of (L" \t") != std::wstring::npos;
-    });
-
-    //  F3 and Shift+F3 walk the matches from the window, which the dialog
-    //  took the focus from.
-    m_host.FocusControl (window->GetView());
-
-    if (!items.has_value())
-    {
-        return;
-    }
-
-    m_find = Find { window->GetWindowId(), GetSearchLength (*items), -1, m_searchSerial, true };
-    m_host.RunAction (DebuggerActions::GetSearchMemory (TextEncoding::WideToNarrow (*items), m_host.GetMode()));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryWindowGroup::StepFind
-//
-//  The next match, or the one before, round to the other end.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MemoryWindowGroup::StepFind (bool forward)
-{
-    int  count = (int) m_searchHits.size();
-
-
-
-    if (count == 0 || GetWindow (m_find.window) == nullptr)
-    {
-        m_host.AppendConsole ({ "No matches in memory." });
-        ShowFindCount (L"No matches");
-        return;
-    }
-
-    if (m_find.at < 0)
-    {
-        m_find.at = forward ? 0 : count - 1;
-    }
-    else
-    {
-        m_find.at = (m_find.at + (forward ? 1 : count - 1)) % count;
-    }
-
-    GetWindow (m_find.window)->GetModel().SelectRange (m_searchHits[(size_t) m_find.at], m_find.length);
-    ShowFindCount (std::format (L"{} of {}", m_find.at + 1, count));
-    m_host.Repaint();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  MemoryWindowGroup::SetBarEntries
 //
-//  The bar's commands, then the Find count at its end.
+//  The bar's commands.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryWindowGroup::SetBarEntries()
 {
-    std::vector<DxuiToolbar::Entry>  entries = m_commands->BuildEntries (m_addressEntry.get());
-    DxuiToolbar::Entry               count;
-
-
-
-    count.command       = m_findCount->GetCommand();
-    count.custom        = m_findCount.get();
-    count.trailing      = true;
-    count.pinned        = true;
-    entries.push_back (std::move (count));
-
-    m_bar->SetEntries (std::move (entries));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryWindowGroup::ShowFindCount
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MemoryWindowGroup::ShowFindCount (const std::wstring & text)
-{
-    m_findCount->SetLabel (text);
-    SetBarEntries();
+    m_bar->SetEntries (m_commands->BuildEntries (m_addressEntry.get()));
 }
 
 

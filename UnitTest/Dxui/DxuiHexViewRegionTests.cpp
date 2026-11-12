@@ -363,6 +363,21 @@ public:
     }
 
 
+    //  A label is centered on its segment when it fits there. One wider than
+    //  its segment starts a lead past the segment's left, so a bit of the edge
+    //  leads into it, and may extend right past the segment; at the row's right
+    //  it moves back, never left of the row's first value plus the lead.
+    TEST_METHOD (ALabelStaysInsideTheRowWithTheEdgeLeadingIntoIt)
+    {
+        constexpr float  kLead = 6.0f;
+
+        Assert::AreEqual (40.0f,  DxuiHexRegions::PlaceLabel (20.0f, 120.0f, 60.0f, kLead, 10.0f, 400.0f), L"centered when it fits");
+        Assert::AreEqual (16.0f,  DxuiHexRegions::PlaceLabel (10.0f, 40.0f, 200.0f, kLead, 10.0f, 400.0f), L"a lead past the segment's left");
+        Assert::AreEqual (200.0f, DxuiHexRegions::PlaceLabel (300.0f, 380.0f, 200.0f, kLead, 10.0f, 400.0f), L"back from the row's right");
+        Assert::AreEqual (16.0f,  DxuiHexRegions::PlaceLabel (10.0f, 40.0f, 500.0f, kLead, 10.0f, 400.0f), L"never left of the row");
+    }
+
+
     //  An outline's edge gets a gutter of its own: the offsets keep the usual
     //  gap to the box, rather than the box's edge taking the middle of it.
     TEST_METHOD (OutlinesWidenTheGuttersRatherThanTakeThem)

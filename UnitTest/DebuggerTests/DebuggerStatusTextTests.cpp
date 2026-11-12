@@ -161,6 +161,20 @@ public:
         Assert::IsTrue   (DebuggerStatusText::GetReplayText (replaying, "No call").starts_with (L"Replaying history"));
     }
 
+    //  An action's reply from the window takes the run notice's place, its
+    //  lines on one line; a replay's progress takes the place of both.
+    TEST_METHOD (ReplayText_ShowsAnActionsReplyInPlaceOfTheRunNotice)
+    {
+        ReplayProgress  idle;
+        ReplayProgress  replaying;
+
+        replaying.isReplaying = true;
+
+        Assert::AreEqual (std::wstring (L"Not found.  No range."), DebuggerStatusText::GetReplayText (idle, "No call", { "Not found.", "No range." }));
+        Assert::AreEqual (std::wstring (L"No call"),              DebuggerStatusText::GetReplayText (idle, "No call", {}));
+        Assert::IsTrue   (DebuggerStatusText::GetReplayText (replaying, "No call", { "Not found." }).starts_with (L"Replaying history"));
+    }
+
 
     TEST_METHOD (FillBudget_BeginMovesForwardOnceTheBudgetDropsOldSnapshots)
     {

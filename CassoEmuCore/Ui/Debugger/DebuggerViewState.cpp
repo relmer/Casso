@@ -142,6 +142,10 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     snapshot.goTo           = m_goTo;
     snapshot.showPane       = m_showPane;
     snapshot.showPaneSerial = m_showPaneSerial;
+
+    snapshot.actionReply       = m_actionReply;
+    snapshot.actionReplySerial = m_actionReplySerial;
+
     snapshot.suggestion       = m_suggestion;
     snapshot.suggestionSerial = m_suggestionSerial;
     snapshot.canUndoBreakpoints  = m_breakpointHistory.CanUndo();
@@ -2853,8 +2857,9 @@ std::vector<std::string> DebuggerViewState::ExecuteAction (DebugSession & sessio
 //
 //  DebuggerViewState::AddActionLines
 //
-//  An echoed action's prompt, echo and reply. Otherwise only the reply, and
-//  only when it is an error or the action's result.
+//  An echoed action's prompt, echo and reply go in the console. An action
+//  from the window that isn't echoed has no console line: its reply, when it
+//  is an error or the action's result, goes in the snapshot for the window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2867,14 +2872,21 @@ void DebuggerViewState::AddActionLines (DebugSession & session, const DebuggerAc
     if (action.isEchoed)
     {
         lines.push_back (DebugSession::GetPrompt (mode) + action.echo);
-    }
 
-    if (action.isEchoed || action.isResult || reply.hasNotice || reply.status != CommandStatus::Ok)
-    {
         for (const std::string & text : reply.text)
         {
             lines.push_back (ConsoleLinks::LinkFiles (text, reply.files));
         }
+
+        return;
+    }
+
+    m_actionReply.clear();
+    m_actionReplySerial++;
+
+    if (action.isResult || reply.hasNotice || reply.status != CommandStatus::Ok)
+    {
+        m_actionReply = reply.text;
     }
 }
 

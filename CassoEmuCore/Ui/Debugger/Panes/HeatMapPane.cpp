@@ -151,6 +151,7 @@ void HeatMapPane::Configure()
     //  The set of ranges and the bank, beside the map's tabs, as tall as
     //  their row.
     m_viewBar->SetTextRenderer (m_host.GetPaneTextRenderer());
+    m_box->SetTextRenderer     (m_host.GetPaneTextRenderer());
     m_viewBar->SetPopupHost    (m_host.GetPanePopupHost());
     m_viewBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_viewBar->SetCompact      (true);
@@ -677,6 +678,7 @@ void HeatMapPane::PlaceBar()
     host = m_host.GetPaneWindow (GetId());
 
     m_viewBar->SetTextRenderer   (host->GetTextRenderer());
+    m_box->SetTextRenderer       (host->GetTextRenderer());
     m_viewBar->SetPopupHost      (host->GetPopupHost());
     m_viewBar->SetHostClientRect (host->GetBounds());
     m_viewBar->Layout            (row, m_host.GetPaneScaler());

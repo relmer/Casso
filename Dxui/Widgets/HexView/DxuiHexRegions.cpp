@@ -714,7 +714,6 @@ void DxuiHexRegions::PaintRun (
     LabelSegment             segment;
     DxuiFontHandle           font   = theme.MonospaceFont();
     float                    left   = 0.0f;
-    float                    right  = 0.0f;
     float                    edgeY  = 0.0f;
     float                    width  = 0.0f;
     float                    height = 0.0f;
@@ -780,18 +779,41 @@ void DxuiHexRegions::PaintRun (
 
     width  = (float) GetLabelWidth (region);
     height = (float) GetLabelLane();
-    left   = GetUnitLeft (segment.first);
-    right  = GetUnitRight (segment.last);
     edgeY  = GetEdgeY ((int64_t) segment.row);
+    left   = PlaceLabel (GetUnitLeft (segment.first), GetUnitRight (segment.last), width,
+                         m_view.m_scaler.ToPxf ((float) kLabelLeadDip), GetUnitLeft (0), GetUnitRight (units - 1));
 
     font.sizeDip = m_view.m_scaler.ToPxf (font.sizeDip * m_view.m_painter.m_zoom) * kLabelScale;
 
-    DxuiHexPainter::FillCell (text, RECT { (LONG) ((left + right - width) / 2.0f), (LONG) (edgeY - height / 2.0f),
-                                           (LONG) ((left + right + width) / 2.0f), (LONG) (edgeY + height / 2.0f) }, theme.TextViewBackground());
+    DxuiHexPainter::FillCell (text, RECT { (LONG) left, (LONG) (edgeY - height / 2.0f),
+                                           (LONG) (left + width), (LONG) (edgeY + height / 2.0f) }, theme.TextViewBackground());
 
-    hr = text.DrawString (label.c_str(), (left + right - width) / 2.0f, edgeY - height / 2.0f, width, height, argb,
+    hr = text.DrawString (label.c_str(), left, edgeY - height / 2.0f, width, height, argb,
                           font.sizeDip, font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexRegions::PlaceLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiHexRegions::PlaceLabel (float left, float right, float width, float lead, float rowLeft, float rowRight)
+{
+    float  place = (left + right - width) / 2.0f;
+
+
+
+    place = (std::max) (place, left + lead);
+    place = (std::min) (place, rowRight - width);
+    place = (std::max) (place, rowLeft + lead);
+
+    return place;
 }
 
 

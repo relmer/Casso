@@ -839,6 +839,13 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
     bool                                  m_isHistoryFitted     = false;
 
+    //  The reply to the last action run from the window, displayed in the status
+    //  bar's first field until the machine runs, and the snapshot serial it
+    //  came with; none until the first snapshot, whose reply is older than
+    //  the window.
+    std::vector<std::string>              m_actionReply;
+    std::optional<uint32_t>               m_actionReplySerial;
+
     std::shared_ptr<const DxuiIconImage>  m_breakpointIcons[2];
     uint32_t                              m_breakpointIconArgb  = 0;
     std::shared_ptr<const DxuiIconImage>  m_hoverBreakpointIcon;

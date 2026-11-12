@@ -238,7 +238,8 @@ public:
         lines            = rig.view.ExecuteAction (rig.controller.GetSession(), actions.at (0));
 
         Assert::AreEqual (held, Peek (rig, 0x0400));
-        Assert::IsTrue   (lines.size() > 1, L"the reply says why");
+        Assert::IsTrue   (lines.empty(), L"the console has no line of it");
+        Assert::IsFalse  (rig.view.Build (rig.controller.GetSession()).actionReply.empty(), L"the reply has the reason");
     }
 
 

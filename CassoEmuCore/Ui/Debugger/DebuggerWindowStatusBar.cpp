@@ -146,12 +146,23 @@ void DebuggerWindow::UpdateStatusBar()
 
     SyncReplayDialog (progress);
 
+    if (m_snapshot != nullptr && m_actionReplySerial != m_snapshot->actionReplySerial)
+    {
+        m_actionReply       = m_actionReplySerial.has_value() ? m_snapshot->actionReply : std::vector<std::string>();
+        m_actionReplySerial = m_snapshot->actionReplySerial;
+    }
+
+    if (!isPaused)
+    {
+        m_actionReply.clear();
+    }
+
     if (m_statusBar == nullptr)
     {
         return;
     }
 
-    m_statusBar->SetText  (kStatusReplay,  DebuggerStatusText::GetReplayText (progress, (m_snapshot != nullptr) ? m_snapshot->runNotice : std::string()));
+    m_statusBar->SetText  (kStatusReplay,  DebuggerStatusText::GetReplayText (progress, (m_snapshot != nullptr) ? m_snapshot->runNotice : std::string(), m_actionReply));
     m_statusBar->SetText  (kStatusBeam,    DebuggerStatusText::GetBeamText (beam, isPaused));
     m_statusBar->SetText  (kStatusHistory, DebuggerStatusText::GetHistoryText (status));
     m_statusBar->SetBar   (kStatusHistory, fill, DebuggerStatusText::kEmptyArgb, DebuggerStatusText::GetBudgetColor (fill));

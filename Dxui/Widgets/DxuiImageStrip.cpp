@@ -427,12 +427,14 @@ void DxuiImageStrip::Paint (
         }
     }
 
+    //  Near the playhead its labels are cleared and the pointer's are drawn,
+    //  so the time under the pointer is visible right up to and over the line.
     if (isOn)
     {
         if (isLabeled)
         {
-            HideOverlap (text, cellTop,    hoverX, top,    GetLineAlong (line));
-            HideOverlap (text, cellBottom, hoverX, bottom, GetLineAlong (line));
+            HideOverlap (text, top,    GetLineAlong (line), cellTop,    hoverX);
+            HideOverlap (text, bottom, GetLineAlong (line), cellBottom, hoverX);
         }
 
         PaintPlayhead (painter, text, theme, line, top, bottom);

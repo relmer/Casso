@@ -55,6 +55,60 @@ void DxuiLabel::Paint (IDxuiPainter & /*painter*/, IDxuiTextRenderer & text, con
 
 
     DrawResolved (text, argb, dip);
+
+    if (m_isRequired && IsEnabled())
+    {
+        DrawRequiredMark (text, theme.ErrorForeground(), dip);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiLabel::DrawRequiredMark
+//
+//  The mark is drawn just past the text, where the text ends on its line,
+//  for a label aligned left; the text is one line in every dialog that
+//  marks its fields.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiLabel::DrawRequiredMark (IDxuiTextRenderer & text, uint32_t argb, float fontDip) const
+{
+    HRESULT  hr     = S_OK;
+    float    fontPx = m_scaler.ToPxf (fontDip);
+    float    width  = 0.0f;
+    float    height = 0.0f;
+    float    left   = 0.0f;
+
+
+
+    if (m_hAlign != DxuiTextHAlign::Left || m_text.empty())
+    {
+        return;
+    }
+
+    hr = text.MeasureString (m_text.c_str(), fontPx, m_fontFace.c_str(), width, height);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    left = (float) m_boundsDip.left + width;
+
+    hr = text.DrawString (kRequiredMark,
+                          left,
+                          (float) m_boundsDip.top,
+                          (std::max) (0.0f, (float) m_boundsDip.right - left),
+                          (float) (m_boundsDip.bottom - m_boundsDip.top),
+                          argb,
+                          fontPx,
+                          m_fontFace.c_str(),
+                          DxuiTextHAlign::Left,
+                          m_vAlign,
+                          m_weight,
+                          false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

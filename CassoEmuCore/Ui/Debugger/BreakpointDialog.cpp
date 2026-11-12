@@ -198,14 +198,16 @@ int BreakpointDialogPanel::GetErrorHeightPx (const DxuiFieldError & error, const
 //
 //  BreakpointDialogPanel::GetTextWidthPx
 //
-//  The label's text in the theme's body font, as the label draws it; the
-//  whole label column until the text renderer and the theme are set.
+//  The label's text in the theme's body font, as the label draws it, with
+//  its required mark; the whole label column until the text renderer and
+//  the theme are set.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int BreakpointDialogPanel::GetTextWidthPx (const DxuiLabel & label, const DxuiDpiScaler & scaler) const
 {
     DxuiFontHandle  font;
+    std::wstring    marked = label.GetText() + (label.IsRequired() ? DxuiLabel::kRequiredMark : L"");
     float           width  = 0.0f;
     float           height = 0.0f;
     HRESULT         hr     = S_OK;
@@ -219,7 +221,7 @@ int BreakpointDialogPanel::GetTextWidthPx (const DxuiLabel & label, const DxuiDp
 
     font         = m_theme->BodyFont();
     font.sizeDip = scaler.ToPxf (font.sizeDip);
-    hr           = m_text->MeasureString (label.GetText().c_str(), font, width, height);
+    hr           = m_text->MeasureString (marked.c_str(), font, width, height);
 
     return SUCCEEDED (hr) ? (int) std::ceil (width) : scaler.ToPx (kLabelDip);
 }
@@ -983,7 +985,13 @@ void BreakpointDialog::ShowFieldsForType()
         break;
     }
 
-    m_condition.SetPlaceholder (type == Type::Condition ? L"An expression: A == 41" : L"Optional: A == 41");
+    m_condition.SetPlaceholder (L"An expression: A == 41");
+
+    //  The fields the type can't do without are marked, as IsCheckedOnFocusLoss
+    //  finds them.
+    m_addressLabel.SetRequired   (shown.address);
+    m_valueLabel.SetRequired     (shown.value);
+    m_conditionLabel.SetRequired (type == Type::Condition);
 
     //  The rows close up over the hidden fields, and the dialog fits them.
     Resize();
@@ -1144,9 +1152,10 @@ void BreakpointDialog::ShowDiskFields (bool isDisk)
     m_diskNumberLabel.SetText (fieldSet.numberLabel != nullptr ? fieldSet.numberLabel : L"");
     m_diskChoiceLabel.SetText (fieldSet.choiceLabel != nullptr ? fieldSet.choiceLabel : L"");
 
-    m_diskTrack.SetPlaceholder  (fieldSet.isRange || (word == "WRITE" && choice != 1) ? L"A hex track or range: 11 or 10:12" : L"A hex track number. Optional.");
-    m_diskSector.SetPlaceholder (L"A hex sector number. Optional.");
-    m_diskNumber.SetPlaceholder ((word == "ADDRESS") ? L"A decimal volume, as in CATALOG. Optional." : L"A hex block number. Optional.");
+    m_diskTrack.SetPlaceholder   (fieldSet.isRange || (word == "WRITE" && choice != 1) ? L"A hex track or range: 11 or 10:12" : L"A hex track number");
+    m_diskSector.SetPlaceholder  (L"A hex sector number");
+    m_diskNumber.SetPlaceholder  ((word == "ADDRESS") ? L"A decimal volume, as in CATALOG" : L"A hex block number");
+    m_diskTrackLabel.SetRequired (fieldSet.isRange || (word == "WRITE" && choice != 1));
 
     m_choiceTip.SetText ((word == "HEAD")  ? L"Any position\tevery move of the head\n"
                                              L"Whole tracks\tthe head arriving on a track in the range\n"
@@ -1240,7 +1249,7 @@ void BreakpointDialog::OnCreate()
     m_logLabel.SetText       (L"Log message");
     m_logGo.SetLabel         (L"Don't break");
     m_logGo.SetChecked       (fields.isLogGo);
-    m_log.SetPlaceholder     (L"Text with {expressions}. Optional.");
+    m_log.SetPlaceholder     (L"Text with {expressions}");
 
     m_accessRead.SetLabel    (L"Read");
     m_accessWrite.SetLabel   (L"Write");
@@ -1277,8 +1286,8 @@ void BreakpointDialog::OnCreate()
 
         m_diskAddressMarksLabel.SetText   (L"Address prologue");
         m_diskDataMarksLabel.SetText      (L"Data prologue");
-        m_diskAddressMarks.SetPlaceholder (L"Three hex bytes, ?? for any. Optional.");
-        m_diskDataMarks.SetPlaceholder    (L"Three hex bytes, ?? for any. Optional.");
+        m_diskAddressMarks.SetPlaceholder (L"Three hex bytes, ?? for any");
+        m_diskDataMarks.SetPlaceholder    (L"Three hex bytes, ?? for any");
 
         m_diskTrack.SetText        (SourcePathList::Utf8ToWide (disk.track));
         m_diskSector.SetText       (SourcePathList::Utf8ToWide (disk.sector));

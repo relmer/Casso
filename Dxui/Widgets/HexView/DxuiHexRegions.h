@@ -38,10 +38,12 @@ public:
         int       last  = 0;
     };
 
-    //  Edge lanes and the space each side of a label, in DIPs.
-    static constexpr int    kEdgeLaneDip = 6;
-    static constexpr int    kLabelPadDip = 4;
-    static constexpr int    kCornerDip   = 4;
+    //  Edge lanes, the space each side of a label, and the length of edge
+    //  drawn before a label that cannot be centered on its segment, in DIPs.
+    static constexpr int    kEdgeLaneDip  = 6;
+    static constexpr int    kLabelPadDip  = 4;
+    static constexpr int    kCornerDip    = 4;
+    static constexpr int    kLabelLeadDip = 6;
 
     //  The label's size against the values', and how far the outline's color
     //  is taken from the background toward the region's.
@@ -64,6 +66,12 @@ public:
     //  The segment the label of the region that starts at a row's value goes
     //  on. False when no region starts there.
     bool  TryGetLabelSegment (uint64_t row, int unit, LabelSegment & out) const;
+
+    //  A label's left: centered on its segment, but at least lead past the
+    //  segment's left, and past the row's left when the row's right moves it
+    //  back. It can extend past the segment's right, never past the row's
+    //  right while the row is wide enough for it.
+    static float  PlaceLabel (float left, float right, float width, float lead, float rowLeft, float rowRight);
 
     //  The rows that fit with the lanes above each and the one below the last.
     int       GetRowCapWithLanes    () const;

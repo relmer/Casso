@@ -654,6 +654,10 @@ void CassoExplorerNewDiskDialog::OnCreate()
     m_fileLabel.SetText      (m_appleDrive ? L"Drive:" : L"File:");
     m_systemLabel.SetText    (L"CP/M system:");
     m_imageLabel.SetText     (L"Boot disk image:");
+
+    //  The volume and the boot disk image may be left empty; the name may not.
+    m_nameLabel.SetRequired (true);
+
     m_fileName.SetText       (m_target);
 
     for (DxuiTextInput * input : { &m_name, &m_volume, &m_image })

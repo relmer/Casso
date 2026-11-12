@@ -160,16 +160,26 @@ HeatStrip::Tip MemoryPane::GetHeatTip (uint64_t offset) const
 //
 //  MemoryPane::GetHeatFill
 //
-//  Halfway, so the byte's own ink stays readable over it.
+//  Halfway from the page to the heat color. On a light page, the dark heat
+//  colors are mixed in less, until the fill is within kMostContrast of the
+//  page, so the dark byte text reads over it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 uint32_t MemoryPane::GetHeatFill (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word address, const HeatMapView::Palette & palette)
 {
-    constexpr float  kTint   = 0.5f;
-    Byte             execute = 0;
-    Byte             read    = 0;
-    Byte             write   = 0;
+    constexpr float  kTint         = 0.5f;
+    constexpr float  kStep         = 0.05f;
+    constexpr float  kLeastTint    = 0.1f;
+    constexpr float  kMostContrast = 2.0f;
+    constexpr float  kLightPage    = 0.5f;
+    uint32_t         page          = palette.background | 0xFF000000u;
+    uint32_t         heat          = 0;
+    uint32_t         fill          = 0;
+    float            tint          = kTint;
+    Byte             execute       = 0;
+    Byte             read          = 0;
+    Byte             write         = 0;
 
 
 
@@ -187,7 +197,21 @@ uint32_t MemoryPane::GetHeatFill (const DebuggerViewSnapshot::HeatColumnLevels &
         return 0;
     }
 
-    return DxuiColor::Mix (palette.background | 0xFF000000u, HeatMapView::GetColor (HeatMapView::Mode::All, execute, read, write, palette), kTint) | 0xFF000000u;
+    heat = HeatMapView::GetColor (HeatMapView::Mode::All, execute, read, write, palette);
+    fill = DxuiColor::Mix (page, heat, tint) | 0xFF000000u;
+
+    if (DxuiColor::ComputeRelativeLuminance (page) < kLightPage)
+    {
+        return fill;
+    }
+
+    while (tint > kLeastTint && DxuiColor::ComputeContrastRatio (fill, page) > kMostContrast)
+    {
+        tint -= kStep;
+        fill  = DxuiColor::Mix (page, heat, tint) | 0xFF000000u;
+    }
+
+    return fill;
 }
 
 

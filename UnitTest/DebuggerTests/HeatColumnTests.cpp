@@ -206,6 +206,29 @@ namespace DebuggerTests
 
 
 
+        //  On a white page, a byte run hot in a dark blue is tinted lightly
+        //  enough that black text has at least 10:1 over it, and has some tint.
+        TEST_METHOD (OnALightPageTheTintIsLightEnoughForDarkText)
+        {
+            DebuggerViewSnapshot::HeatColumnLevels  levels  = MakeLevels();
+            HeatMapView::Palette                    palette = MakePalette();
+            uint32_t                                fill    = 0;
+
+
+
+            palette.background     = 0xFFFFFFFF;
+            palette.cold           = 0xFF808080;
+            palette.execute        = 0xFF1A237E;
+            levels.execute[0x0400] = 255;
+
+            fill = MemoryPane::GetHeatFill (levels, 0x0400, palette);
+
+            Assert::IsTrue (DxuiColor::ComputeContrastRatio (fill, 0xFF000000) >= 10.0f, L"black reads over it");
+            Assert::AreNotEqual (0xFFFFFFFFu, fill, L"a tint is left");
+        }
+
+
+
         //  Each kind has a separate scale: no color is on two scales, a scale
         //  starts at its first stop and ends at its last, and a hotter level
         //  is redder on the run scale and brighter on the others.

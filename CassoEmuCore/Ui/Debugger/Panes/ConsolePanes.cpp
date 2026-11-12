@@ -733,10 +733,11 @@ void CommandLine::Create()
 
 void CommandLine::Configure()
 {
-    m_box->SetHwnd        (m_host.GetOwnerHwnd());
-    m_box->SetMaxLength   (256);
-    m_box->SetPrompt      (ConsoleModeBar::GetPromptText (CommandMode::AppleWin));
-    m_box->SetPlaceholder (L"Command (Enter to run, HELP for help)");
+    m_box->SetHwnd         (m_host.GetOwnerHwnd());
+    m_box->SetTextRenderer (m_host.GetPaneTextRenderer());
+    m_box->SetMaxLength    (256);
+    m_box->SetPrompt       (ConsoleModeBar::GetPromptText (CommandMode::AppleWin));
+    m_box->SetPlaceholder  (L"Command (Enter to run, HELP for help)");
 }
 
 
