@@ -158,7 +158,7 @@ private:
         int                      percent = 0;
     };
 
-    static HRESULT ReadOnce       (Run & run, int position, Byte delay, int read, int reads, std::vector<Byte> & outBytes);
+    static HRESULT              ReadOnce       (Run & run, int position, Byte delay, int read, int reads, std::vector<Byte> & outBytes);
     static HRESULT              ReadPosition   (Run & run, int position, int reads, Position & outPosition);
     static bool                 CollectMarks   (const Position & position, Stream & outStream, Marks & outMarks, bool & outUnstable);
     static bool                 FindReference  (std::span<const Byte> read, size_t & outStart, size_t & outLength);

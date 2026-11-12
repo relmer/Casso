@@ -4,6 +4,7 @@
 #include "GuestSession.h"
 #include "TestMachine.h"
 #include "CassoLink/CassoLinkHost.h"
+#include "Core/TextEncoding.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
@@ -35,9 +36,9 @@ public:
 
     static std::string  GetSetting (const char * name, const char * fallback)
     {
-        char    * value  = nullptr;
-        size_t    length = 0;
-        std::string  text = fallback;
+        char         * value  = nullptr;
+        size_t         length = 0;
+        std::string    text   = fallback;
 
 
 
@@ -85,7 +86,7 @@ public:
 
         log.open (folder / "capture.log");
 
-        AssertSucceeded (factory.OpenComPort (std::wstring (port.begin(), port.end()), settings, opened));
+        AssertSucceeded (factory.OpenComPort (TextEncoding::NarrowToWide (port), settings, opened));
 
         CassoLinkHost  host (std::shared_ptr<IByteStream> (std::move (opened)), files, [] () { return std::array<Byte, 4> {}; });
 
@@ -119,7 +120,7 @@ public:
         std::vector<Byte>                        sectors;
         SectorDecodeReport                       report;
         std::string                              log;
-        int                                      last   = 0;
+        int                                      last     = 0;
         int                                      standard = 0;
 
 
