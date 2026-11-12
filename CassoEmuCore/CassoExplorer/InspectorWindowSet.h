@@ -61,16 +61,19 @@ public:
         virtual HWND     GetHwnd         () const                              = 0;
     };
 
-    //  The functions for the window, the file check, the clock and the
-    //  channel to Casso, and the file access the windows read and save
-    //  through. Each one left empty is the real one.
+    //  The functions for the window, the block mode window and the check
+    //  for an image of blocks, the file check, the clock and the channel to
+    //  Casso, and the file access the windows read and save through. Each
+    //  one left empty is the real one.
     struct Seams
     {
-        std::function<std::unique_ptr<Window> ()>                  makeWindow;
-        std::function<bool (const std::wstring &)>                 fileExists;
-        std::function<ULONGLONG ()>                                nowMs;
-        std::function<std::unique_ptr<IIntentChannel> (HWND)>      makeIntents;
-        IDiskFileIo                                              * fileIo = nullptr;
+        std::function<std::unique_ptr<Window> ()>                      makeWindow;
+        std::function<std::unique_ptr<Window> (const std::wstring &)>  makeBlockWindow;
+        std::function<bool (const std::wstring &)>                     isBlockImage;
+        std::function<bool (const std::wstring &)>                     fileExists;
+        std::function<ULONGLONG ()>                                    nowMs;
+        std::function<std::unique_ptr<IIntentChannel> (HWND)>          makeIntents;
+        IDiskFileIo                                                  * fileIo = nullptr;
     };
 
     InspectorWindowSet (IImageWatcher & watcher, DiskInspectorPrefs & prefs, Seams seams = {});
@@ -96,8 +99,10 @@ public:
     static std::wstring  MakeKey    (const std::wstring & path);
 
     //  Whether a file is in a format the inspector opens, by its extension
-    //  (FR-003, FR-073).
-    static bool          CanInspect (const std::wstring & path);
+    //  (FR-003, FR-073), and whether it is one of the track inspector's
+    //  formats, which have a platter thumbnail. Block images are the rest.
+    static bool          CanInspect       (const std::wstring & path);
+    static bool          HasTrackFormat   (const std::wstring & path);
 
 private:
     struct Entry

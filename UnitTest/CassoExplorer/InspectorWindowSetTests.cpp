@@ -102,6 +102,8 @@ public:
         FakeImageWatcher                                  watcher;
         DiskInspectorPrefs                                prefs;
         vector<std::unique_ptr<FakeInspectorWindowLog>>   logs;
+        vector<std::unique_ptr<FakeInspectorWindowLog>>   blockLogs;
+        vector<std::wstring>                              blockPaths;
         ULONGLONG                                         nowMs = 1000;
         std::set<std::wstring>                            missing;
         FakeDiskFileIo                                    fileIo;
@@ -117,6 +119,12 @@ public:
                 logs.push_back (std::make_unique<FakeInspectorWindowLog>());
                 return std::unique_ptr<InspectorWindowSet::Window> (std::make_unique<FakeInspectorWindow> (*logs.back()));
             };
+            seams.makeBlockWindow = [this] (const std::wstring & path)
+            {
+                blockPaths.push_back (path);
+                blockLogs.push_back (std::make_unique<FakeInspectorWindowLog>());
+                return std::unique_ptr<InspectorWindowSet::Window> (std::make_unique<FakeInspectorWindow> (*blockLogs.back()));
+            };
             seams.fileExists = [this] (const std::wstring & path) { return missing.count (path) == 0; };
             seams.nowMs      = [this] () { return nowMs; };
             seams.fileIo     = &fileIo;
@@ -127,6 +135,28 @@ public:
         HRESULT  Open (const wchar_t * path) { return set->Open (nullptr, nullptr, path, dark); }
     };
 
+
+
+    TEST_METHOD (AnImageOfBlocksOpensInBlockModeWithNoWalkthrough)
+    {
+        constexpr size_t  k800KBytes = 819200;
+
+        Rig           rig;
+        std::string   path = "C:\\Disks\\Big.hdv";
+
+
+
+        rig.fileIo.files[path]  = vector<Byte> (k800KBytes);
+        rig.fileIo.stamps[path] = { k800KBytes, 1 };
+
+        Assert::AreEqual (S_OK, rig.Open (L"C:\\Disks\\Big.hdv"));
+        Assert::AreEqual (S_OK, rig.Open (kMist));
+
+        Assert::AreEqual ((size_t) 1, rig.blockPaths.size());
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\Big.hdv"), rig.blockPaths[0]);
+        Assert::AreEqual (0, rig.blockLogs[0]->walkthroughs);
+        Assert::AreEqual ((size_t) 1, rig.logs.size(), L"the 140K image opens in the track inspector");
+    }
 
 
     TEST_METHOD (OpeningAnImageAgainFrontsItsWindow)
@@ -409,12 +439,12 @@ public:
 
     TEST_METHOD (OnlyTheFormatsTheInspectorReadsCanBeInspected)
     {
-        for (const wchar_t * path : { L"a.dsk", L"a.DO", L"a.po", L"a.nib", L"a.nb2", L"a.woz" })
+        for (const wchar_t * path : { L"a.dsk", L"a.DO", L"a.po", L"a.nib", L"a.nb2", L"a.woz", L"a.2mg", L"a.hdv", L"a.dc42", L"a.image" })
         {
             Assert::IsTrue (InspectorWindowSet::CanInspect (path), path);
         }
 
-        for (const wchar_t * path : { L"a.2mg", L"a.hdv", L"a.zip", L"a", L"dsk" })
+        for (const wchar_t * path : { L"a.zip", L"a.shk", L"a", L"dsk" })
         {
             Assert::IsFalse (InspectorWindowSet::CanInspect (path), path);
         }
