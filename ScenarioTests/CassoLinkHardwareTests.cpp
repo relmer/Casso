@@ -509,9 +509,115 @@ public:
         Logger::WriteMessage (log.c_str());
     }
 
+    //  The bytes from a step to the next track's sector 0, as a protection
+    //  that checks track alignment counts them: for each track of
+    //  CASSO_STEP_TRACKS, the address field of sector CASSO_STEP_MARKER, 0
+    //  when unset, is the marker, and CASSO_STEP_READS reads of the track
+    //  CASSO_STEP_BY on, 1 when unset, wait on it, each the bytes before that
+    //  track's sector 0 address field. On the real Apple
+    //  when CASSO_LINK_PORT is set, and on an emulated //c with the WOZ from
+    //  CASSO_CAPTURE_WOZ otherwise; run only when CASSO_STEP_TRACKS is set.
+    TEST_METHOD (StepToSectorZero_IsCounted)
+    {
+        std::string                    tracks = GetSetting ("CASSO_STEP_TRACKS", "");
+        std::string                    port   = GetSetting ("CASSO_LINK_PORT", "");
+        int                            drive  = std::stoi (GetSetting ("CASSO_LINK_DRIVE", "1"));
+        int                            reads  = std::stoi (GetSetting ("CASSO_STEP_READS", "20"));
+        int                            from   = std::stoi (GetSetting ("CASSO_STEP_MARKER", "0"));
+        int                            step   = std::stoi (GetSetting ("CASSO_STEP_BY", "1"));
+        Win32ByteStreamFactory         factory;
+        ComSettings                    settings;
+        std::unique_ptr<IByteStream>   opened;
+        InMemoryCassoLinkFolder        files;
+        std::unique_ptr<CassoLinkHost> real;
+        std::unique_ptr<ProgramRig>    rig;
+        CassoLinkHost                * host   = nullptr;
+        std::vector<Byte>              module;
+        std::string                    log;
+
+
+
+        if (tracks.empty())
+        {
+            Logger::WriteMessage ("CASSO_STEP_TRACKS isn't set; no steps to count.\n");
+            return;
+        }
+
+        if (!port.empty())
+        {
+            OpenPort (factory, port, settings, opened);
+            real = std::make_unique<CassoLinkHost> (std::shared_ptr<IByteStream> (std::move (opened)), files, [] () { return std::array<Byte, 4> {}; });
+            host = real.get();
+        }
+        else
+        {
+            std::vector<Byte>  source;
+            std::ifstream      in (GetSetting ("CASSO_CAPTURE_WOZ", ""), std::ios::binary);
+
+            source.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+            rig = std::make_unique<ProgramRig> (std::vector<Byte> (143360, 0));
+            AssertSucceeded (rig->machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, source));
+            host  = rig->host.get();
+            drive = 1;
+        }
+
+        AssertSucceeded (host->BuildCaptureModule (module));
+
+        for (size_t at = 0; at < tracks.size(); )
+        {
+            size_t             comma  = std::min (tracks.find (',', at), tracks.size());
+            int                track  = std::stoi (tracks.substr (at, comma - at));
+            std::vector<Byte>  first;
+            std::vector<Byte>  marker;
+            std::vector<int>   counts;
+            size_t             found  = SIZE_MAX;
+            CassoLinkStatus    status;
+            CaptureTiming      timing;
+
+            at = comma + 1;
+
+            AssertSucceeded (host->EnsureModule (module));
+            AssertSucceeded (host->CaptureQuarterTrack ((Byte) drive, (Byte) (track * 4), CassoLinkHost::kRecalibrate, 0, 0, CassoLinkHost::kNoSync, {}, first, status, timing));
+
+            found = FindSector (first, 0, from);
+            Assert::IsTrue (found != SIZE_MAX, L"The track has the marker's sector");
+
+            std::transform (first.begin() + (std::ptrdiff_t) found, first.begin() + (std::ptrdiff_t) found + s_kMarkerBytes, std::back_inserter (marker), [] (Byte value) { return (Byte) (value | 0x80); });
+
+            for (int read = 0; read < reads; read++)
+            {
+                std::vector<Byte>  bytes;
+
+                AssertSucceeded (host->EnsureModule (module));
+                AssertSucceeded (host->CaptureQuarterTrack ((Byte) drive, (Byte) ((track + step) * 4), 0, 0, 0, (Byte) (track * 4), marker, bytes, status, timing));
+
+                found = status.error == 0 ? FindSectorZero (bytes, 0) : SIZE_MAX;
+                counts.push_back (found == SIZE_MAX ? -1 : (int) found);
+            }
+
+            log += std::format ("track {} sector {} to track {} sector 0:", track, from, track + step);
+
+            for (int count : counts)
+            {
+                log += std::format (" {}", count);
+            }
+
+            log += "\n";
+        }
+
+        Logger::WriteMessage (log.c_str());
+    }
+
     //  The first address field of sector 0 at or after `from`, SIZE_MAX for
     //  none, with each byte's mark ignored.
     static size_t  FindSectorZero (const std::vector<Byte> & bytes, size_t from)
+    {
+        return FindSector (bytes, from, 0);
+    }
+
+    //  The first address field of `sector` at or after `from`, SIZE_MAX for
+    //  none, with each byte's mark ignored.
+    static size_t  FindSector (const std::vector<Byte> & bytes, size_t from, int sector)
     {
         auto  get = [&bytes] (size_t at) { return (Byte) (bytes[at] | 0x80); };
 
@@ -521,7 +627,7 @@ public:
         {
             bool  prolog = get (at) == 0xD5 && get (at + 1) == 0xAA && get (at + 2) == 0x96;
 
-            if (prolog && (((get (at + 7) << 1) | 1) & get (at + 8)) == 0)
+            if (prolog && (((get (at + 7) << 1) | 1) & get (at + 8)) == sector)
             {
                 return at;
             }
