@@ -3,6 +3,7 @@
 #include "EhmTestHelper.h"
 #include "GuestSession.h"
 #include "TestMachine.h"
+#include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImage.h"
@@ -68,6 +69,19 @@ public:
         file.write ((const char *) bytes.data(), (std::streamsize) bytes.size());
     }
 
+    //  The port opened, and an Idle sent on it: the program sends Ready only
+    //  after a packet from the PC arrives.
+    static void  OpenPort (Win32ByteStreamFactory & factory, const std::string & port, const ComSettings & settings, std::unique_ptr<IByteStream> & outStream)
+    {
+        std::vector<Byte>  idle;
+
+
+
+        AssertSucceeded (factory.OpenComPort (TextEncoding::NarrowToWide (port), settings, outStream));
+        AssertSucceeded (CassoLinkCodec::Encode (CassoLinkCodec::kIdle, {}, idle));
+        AssertSucceeded (outStream->Write (idle.data(), idle.size()));
+    }
+
     //  The disk captured into capture.woz, its reads into capture.reads, and
     //  each read's progress and the totals into capture.log as they come.
     TEST_METHOD (RealApple_CapturesTheDisk)
@@ -94,7 +108,7 @@ public:
 
         log.open (folder / "capture.log");
 
-        AssertSucceeded (factory.OpenComPort (TextEncoding::NarrowToWide (port), settings, opened));
+        OpenPort (factory, port, settings, opened);
 
         CassoLinkHost  host (std::shared_ptr<IByteStream> (std::move (opened)), files, [] () { return std::array<Byte, 4> {}; });
 
@@ -312,6 +326,141 @@ public:
         LogBoot ("the emulated capture", result.woz, sectors, true);
     }
 
+    //  The time from a marker to a read that waited on it, measured without a
+    //  step: each track of CASSO_SYNC_TRACKS is read, its sector 0 address
+    //  field is the marker, and the track is read again waiting on it there.
+    //  The share of a revolution from the marker to the read is computed from
+    //  the marker's place in that read, a revolution after it passed. On the real
+    //  Apple when CASSO_LINK_PORT is set, and on an emulated //c with the
+    //  WOZ from CASSO_CAPTURE_WOZ otherwise; run only when CASSO_SYNC_TRACKS
+    //  is set.
+    TEST_METHOD (SyncDelay_IsMeasuredOnEachTrack)
+    {
+        std::string                    tracks = GetSetting ("CASSO_SYNC_TRACKS", "");
+        std::string                    port   = GetSetting ("CASSO_LINK_PORT", "");
+        int                            drive  = std::stoi (GetSetting ("CASSO_LINK_DRIVE", "1"));
+        Win32ByteStreamFactory         factory;
+        ComSettings                    settings;
+        std::unique_ptr<IByteStream>   opened;
+        InMemoryCassoLinkFolder        files;
+        std::ofstream                  trace;
+        std::unique_ptr<CassoLinkHost> real;
+        std::unique_ptr<ProgramRig>    rig;
+        CassoLinkHost                * host   = nullptr;
+        std::vector<Byte>              module;
+        std::string                    log;
+
+
+
+        if (tracks.empty())
+        {
+            Logger::WriteMessage ("CASSO_SYNC_TRACKS isn't set; no tracks to measure.\n");
+            return;
+        }
+
+        if (!port.empty())
+        {
+            OpenPort (factory, port, settings, opened);
+            real = std::make_unique<CassoLinkHost> (std::shared_ptr<IByteStream> (std::move (opened)), files, [] () { return std::array<Byte, 4> {}; });
+            host = real.get();
+
+            trace.open (std::filesystem::path (GetSetting ("CASSO_LINK_OUT", ".")) / "trace.log");
+            host->SetTraceSink ([&trace] (bool sent, const std::string & text)
+            {
+                trace << (sent ? "> " : "< ") << text << "\n";
+                trace.flush();
+            });
+        }
+        else
+        {
+            std::vector<Byte>  source;
+            std::ifstream      in (GetSetting ("CASSO_CAPTURE_WOZ", ""), std::ios::binary);
+
+            source.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+            rig = std::make_unique<ProgramRig> (std::vector<Byte> (143360, 0));
+            AssertSucceeded (rig->machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, source));
+            host  = rig->host.get();
+            drive = 1;
+        }
+
+        AssertSucceeded (host->BuildCaptureModule (module));
+
+        for (size_t at = 0; at < tracks.size(); )
+        {
+            size_t             comma    = std::min (tracks.find (',', at), tracks.size());
+            int                track    = std::stoi (tracks.substr (at, comma - at));
+            Byte               position = (Byte) (track * 4);
+            std::vector<Byte>  first;
+            std::vector<Byte>  marker;
+            size_t             found    = SIZE_MAX;
+            size_t             again    = SIZE_MAX;
+            CassoLinkStatus    status;
+            CaptureTiming      timing;
+
+            at = comma + 1;
+
+            AssertSucceeded (host->EnsureModule (module));
+            AssertSucceeded (host->CaptureQuarterTrack ((Byte) drive, position, 0, 0, 0, CassoLinkHost::kNoSync, {}, first, status, timing));
+
+            found = FindSectorZero (first, 0);
+            again = found == SIZE_MAX ? SIZE_MAX : FindSectorZero (first, found + 1);
+
+            if (again == SIZE_MAX)
+            {
+                log += std::format ("track {}: sector 0's address field doesn't repeat\n", track);
+                continue;
+            }
+
+            //  A byte the read marked has its top bit clear; the latch has it set.
+            std::transform (first.begin() + (std::ptrdiff_t) found, first.begin() + (std::ptrdiff_t) found + s_kMarkerBytes, std::back_inserter (marker), [] (Byte value) { return (Byte) (value | 0x80); });
+            log += std::format ("track {}: a revolution is {} bytes\n", track, again - found);
+
+            for (int read = 0; read < s_kSyncReads; read++)
+            {
+                std::vector<Byte>  synced;
+                size_t             passed = SIZE_MAX;
+
+                AssertSucceeded (host->EnsureModule (module));
+                AssertSucceeded (host->CaptureQuarterTrack ((Byte) drive, position, 0, 0, 0, position, marker, synced, status, timing));
+
+                passed = status.error == 0 ? FindSectorZero (synced, 0) : SIZE_MAX;
+
+                if (passed == SIZE_MAX)
+                {
+                    log += std::format ("  read {}: error {:02X}, no marker\n", read, status.error);
+                    continue;
+                }
+
+                log += std::format ("  read {}: the marker ends {} bytes before the read starts, {:.4f} of a revolution\n", read,
+                                    again - found - passed - s_kMarkerBytes,
+                                    (double) (again - found - passed - s_kMarkerBytes) / (double) (again - found));
+            }
+        }
+
+        Logger::WriteMessage (log.c_str());
+    }
+
+    //  The first address field of sector 0 at or after `from`, SIZE_MAX for
+    //  none, with each byte's mark ignored.
+    static size_t  FindSectorZero (const std::vector<Byte> & bytes, size_t from)
+    {
+        auto  get = [&bytes] (size_t at) { return (Byte) (bytes[at] | 0x80); };
+
+
+
+        for (size_t at = from; at + s_kMarkerBytes <= bytes.size(); at++)
+        {
+            bool  prolog = get (at) == 0xD5 && get (at + 1) == 0xAA && get (at + 2) == 0x96;
+
+            if (prolog && (((get (at + 7) << 1) | 1) & get (at + 8)) == 0)
+            {
+                return at;
+            }
+        }
+
+        return SIZE_MAX;
+    }
+
     //  An image from CASSO_BOOT_IMAGE, a WOZ or a DOS-ordered sector image,
     //  booted as LogBoot boots one: run only when CASSO_BOOT_IMAGE is set.
     TEST_METHOD (AnImage_Boots)
@@ -371,7 +520,9 @@ public:
         Logger::WriteMessage (log.c_str());
     }
 
-    static constexpr int       s_kBootSteps  = 6;
-    static constexpr uint64_t  s_kBootStep   = 10'000'000ULL;
-    static constexpr int       s_kBootSlices = 100;
+    static constexpr int       s_kBootSteps   = 6;
+    static constexpr uint64_t  s_kBootStep    = 10'000'000ULL;
+    static constexpr int       s_kBootSlices  = 100;
+    static constexpr size_t    s_kMarkerBytes = 11;
+    static constexpr int       s_kSyncReads   = 3;
 };
