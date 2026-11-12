@@ -1995,14 +1995,16 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 ## Phase 58: Block mode in the disk inspector (User Story 40)
 
-- [ ] T669 [US40] Add a block view to the disk inspector over a `BlockImage`: block number field and arrows in place of track and sector, the hex and text panes of one block, editing through the sector editor's write path, and no nibble or flux panes; open block images, 800K disks, hard drive images and card partitions in it (FR-250)
-- [ ] T670 [US40] Color the block map from the volume's integrity report: free, data, index, directory, bitmap, boot, unclaimed and cross-linked, with the owning file's path on hover (FR-252)
-- [ ] T671 [US40] Follow a block number in an index block, a directory link or a B-tree link on click, with Back and Forward, and Highlight file's blocks (FR-253)
-- [ ] T672 [US40] Annotate ProDOS, SOS, Pascal and HFS blocks by structure, and 2MG and Disk Copy 4.2 headers, checksums and tag bytes (FR-251)
-- [ ] T673 [US40] Draw partition bands for the Apple Partition Map, CFFA slices, MicroDrive and FocusDrive (FR-254)
-- [ ] T674 [US40] Compare two block images block by block, and mark leftover data in free blocks with Save as file (FR-255)
-- [ ] T676 [US40] Address and annotate a volume inside another over the outer blocks: the DOS 3.3 volumes of UniDOS, AmDOS and OzDOS 800K disks by track and sector, and a hybrid disk's second file system (FR-256)
-- [ ] T675 [US40] Tests on CiderPress II's ProDOS, HFS and partitioned images: each block's annotation matches its catalog use, and a step on a 32 MB volume takes under 100 ms (SC-069)
+- [X] T669 [US40] Add a block view to the disk inspector over a `BlockImage`: block number field and arrows in place of track and sector, the hex and text panes of one block, editing through the sector editor's write path, and no nibble or flux panes; open block images, 800K disks, hard drive images and card partitions in it (FR-250)
+- [X] T670 [US40] Color the block map from the volume's integrity report: free, data, index, directory, bitmap, boot, unclaimed and cross-linked, with the owning file's path on hover (FR-252)
+- [X] T671 [US40] Follow a block number in an index block, a directory link or a B-tree link on click, with Back and Forward, and Highlight file's blocks (FR-253)
+- [X] T672 [US40] Annotate ProDOS, SOS, Pascal and HFS blocks by structure, and 2MG and Disk Copy 4.2 headers, checksums and tag bytes (FR-251)
+- [X] T673 [US40] Draw partition bands for the Apple Partition Map, CFFA slices, MicroDrive and FocusDrive (FR-254)
+- [X] T674 [US40] Compare two block images block by block, and mark leftover data in free blocks with Save as file (FR-255)
+- [X] T676 [US40] Address and annotate a volume inside another over the outer blocks: the DOS 3.3 volumes of UniDOS, AmDOS and OzDOS 800K disks by track and sector, and a hybrid disk's second file system (FR-256) A hybrid disk is 140K and opens in the track inspector, whose file map has both file systems.
+- [X] T675 [US40] Tests on CiderPress II's ProDOS, HFS and partitioned images: each block's annotation matches its catalog use, and a step on a 32 MB volume takes under 100 ms (SC-069)
+- [ ] T677 [US40] Open a partition of a card in a reader in block mode, through the card's block store as Explorer browses it. Card images (CFFA, MicroDrive and FocusDrive files) open with their partitions as bands; a card in a reader isn't offered Inspect
+- [ ] T678 [US40] Walk block mode on screen in Casso Explorer with the serial link off: open an 800K ProDOS, an HFS and a partitioned image, follow links, edit and apply, compare, and save leftover data. Verified so far through the window parts' headless tests only
 
 ## Phase 56: Roadmap validation and merge
 
