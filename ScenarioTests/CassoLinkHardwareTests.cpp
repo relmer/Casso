@@ -32,7 +32,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  A real Apple on a serial port, with the link program running and no
 //  other program on the port: run only when CASSO_LINK_PORT is set, as
 //  COM3, and pass with nothing done otherwise. CASSO_LINK_DRIVE is the drive,
-//  2 when unset, and CASSO_LINK_OUT the folder the files go to. The host
+//  2 when unset, CASSO_LINK_LAST the last track, 34 when unset, and
+//  CASSO_LINK_OUT the folder the files go to, with every packet in trace.log. The host
 //  loads this build's program when the Apple runs another version.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,12 +98,21 @@ public:
 
         CassoLinkHost  host (std::shared_ptr<IByteStream> (std::move (opened)), files, [] () { return std::array<Byte, 4> {}; });
 
+        std::ofstream  trace (folder / "trace.log");
+        int            last  = std::stoi (GetSetting ("CASSO_LINK_LAST", "34"));
+
+        host.SetTraceSink ([&trace] (bool sent, const std::string & text)
+        {
+            trace << (sent ? "> " : "< ") << text << "\n";
+            trace.flush();
+        });
+
         AssertSucceeded (host.BuildCaptureModule (module));
         AssertSucceeded (CassoLinkCapture::Capture (host, (Byte) drive, module, "2026-11-11T00:00:00Z", [&log] (const CassoLinkCapture::Progress & where)
         {
             log << std::format ("pass {} position {} read {} of {}: {}%, {:.0f} s left\n", where.pass, where.position, where.read, where.reads, where.percent, where.secondsLeft);
             log.flush();
-        }, result));
+        }, result, last));
 
         CassoLinkCapture::SerializeReads (result.positions, reads);
         WriteFile (folder / "capture.woz",   result.woz);

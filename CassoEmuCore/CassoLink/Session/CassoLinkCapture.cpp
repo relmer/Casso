@@ -273,10 +273,15 @@ HRESULT CassoLinkCapture::ReadOnce (Run & run, int position, Byte delay, int rea
     CaptureTiming    timing;
     Progress         report;
     ULONGLONG        elapsed  = 0;
+    Byte             after    = 0;
 
 
 
     outMissed = false;
+
+    //  The Apple's bar has the share the capture has once this read is done,
+    //  so the last read draws it full.
+    after = (Byte) std::max (run.percent, std::min (100, (run.done + 1) * 100 / std::max (run.planned, run.done + 1)));
 
     //  A request the line drops is made again, with the module loaded again
     //  when the program no longer has it.
@@ -286,7 +291,7 @@ HRESULT CassoLinkCapture::ReadOnce (Run & run, int position, Byte delay, int rea
 
         if (SUCCEEDED (hr))
         {
-            hr = run.host.CaptureQuarterTrack (run.drive, (Byte) position, delay, (Byte) run.percent, (Byte) run.percent, syncPosition, marker, outBytes, status, timing);
+            hr = run.host.CaptureQuarterTrack (run.drive, (Byte) position, delay, after, after, syncPosition, marker, outBytes, status, timing);
         }
 
         if (SUCCEEDED (hr) || hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))

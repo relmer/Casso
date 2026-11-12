@@ -71,6 +71,39 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::DiscardReceived
+//
+//  The bytes received and not yet read, and those the line has now, up to
+//  kDiscardReads reads of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::DiscardReceived()
+{
+    HRESULT  hr  = S_OK;
+    Byte     chunk[4096];
+    size_t   got = sizeof (chunk);
+
+
+
+    m_adtProServer.m_buffer.clear();
+
+    for (int read = 0; read < kDiscardReads && got > 0; read++)
+    {
+        hr = m_stream->Read (chunk, sizeof (chunk), 0, got);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::GetSilenceMs
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,6 +187,8 @@ HRESULT CassoLinkHost::Send (std::span<const Byte> bytes)
     std::lock_guard<std::mutex>  lock (m_sendLock);
 
 
+
+    m_lastSentMs = GetTickCount64();
 
     if (m_pcFault.IsArmed())
     {
@@ -1287,6 +1322,17 @@ HRESULT CassoLinkHost::AwaitReady()
     //  this operation waits for.
     current        = m_readyPending;
     m_readyPending = false;
+
+    //  After this PC has been quiet longer than the client waits for a
+    //  reply, its Readies have piled up here, and the client is sending
+    //  another: a request sent on an old one never arrives, as the client's
+    //  chip doesn't take a byte while it sends. They are dropped, and the
+    //  next one, just sent, is waited for.
+    if (!current && m_lastSentMs != 0 && GetTickCount64() - m_lastSentMs > kStaleReadyMs)
+    {
+        hr = DiscardReceived();
+        CHR (hr);
+    }
 
     while (!current)
     {

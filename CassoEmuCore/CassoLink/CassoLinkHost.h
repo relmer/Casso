@@ -141,6 +141,11 @@ public:
     //  which the link fails with HRESULT_FROM_WIN32 (ERROR_CRC).
     static constexpr int     kMaxProgramReloads  = 2;
 
+    //  The quiet after which the client's Readies are stale (AwaitReady), as
+    //  it sends one a second, and the reads of the line that drop them.
+    static constexpr DWORD   kStaleReadyMs       = 1500;
+    static constexpr int     kDiscardReads       = 64;
+
     //  A request the client did not take: it sent Ready again, idle, in
     //  place of a reply. HRESULT_FROM_WIN32 (ERROR_RETRY).
     static constexpr HRESULT kLostRequest        = (HRESULT) 0x800704D5;
@@ -365,6 +370,7 @@ public:
 
 private:
     HRESULT  Fill            (size_t count, DWORD timeoutMs, bool & outFilled);
+    HRESULT  DiscardReceived ();
     void     Consume         (size_t count);
     HRESULT  ReadPacket      (DWORD timeoutMs, CassoLinkPacket & outPacket);
     void     TraceReceived   (const CassoLinkPacket & packet);
@@ -446,6 +452,7 @@ private:
     bool                            m_verifyToggle    = false;
     bool                            m_awaitingKey     = false;
     std::atomic<uint64_t>           m_lastHeardMs     { GetTickCount64() };
+    std::atomic<uint64_t>           m_lastSentMs      { 0 };
     Byte                            m_progressStart   = 0;
     Byte                            m_progressEnd     = 0;
     bool                            m_quiet           = false;
