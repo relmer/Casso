@@ -143,8 +143,11 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     snapshot.showPane       = m_showPane;
     snapshot.showPaneSerial = m_showPaneSerial;
 
-    snapshot.actionReply       = m_actionReply;
-    snapshot.actionReplySerial = m_actionReplySerial;
+    snapshot.actionReply        = m_actionReply;
+    snapshot.actionReplySerial  = m_actionReplySerial;
+    snapshot.actionReplyPane    = m_actionReplyPane;
+    snapshot.isActionReplyBoxed = m_isActionReplyBoxed;
+    snapshot.isActionReplyError = m_isActionReplyError;
 
     snapshot.suggestion       = m_suggestion;
     snapshot.suggestionSerial = m_suggestionSerial;
@@ -2883,6 +2886,9 @@ void DebuggerViewState::AddActionLines (DebugSession & session, const DebuggerAc
 
     m_actionReply.clear();
     m_actionReplySerial++;
+    m_actionReplyPane    = action.replyPane;
+    m_isActionReplyBoxed = action.isReplyBoxed;
+    m_isActionReplyError = reply.status != CommandStatus::Ok;
 
     if (action.isResult || reply.hasNotice || reply.status != CommandStatus::Ok)
     {

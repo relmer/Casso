@@ -1752,14 +1752,8 @@ void BreakpointHandlers::ListLogs (DebugSession & session, const DebugCommand & 
         return;
     }
 
-    logs = session.GetRecentHitLogs (count);
-
-    if (logs.empty())
-    {
-        logs.push_back ("No breakpoint messages.");
-    }
-
-    reply.data = MessageData { logs };
+    logs       = session.GetRecentHitLogs (count);
+    reply.data = BreakpointMessagesData { logs };
 }
 
 

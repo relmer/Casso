@@ -291,12 +291,15 @@ struct DebuggerViewSnapshot
     std::string                  machine;
 
     //  The error or result of the last action run from the window, not the
-    //  console. The status bar displays it; the console has no line of it.
-    //  The serial changes with each action, so an action with no reply
-    //  clears an older one, and a second action's same text is displayed
-    //  again.
+    //  console, and where the window displays it: over a pane, or in a
+    //  message box. The console has no line of it. The serial changes with
+    //  each action, so an action with no reply clears an older one, and a
+    //  second action's same text is displayed again.
     std::vector<std::string>     actionReply;
-    uint32_t                     actionReplySerial = 0;
+    uint32_t                     actionReplySerial  = 0;
+    std::wstring                 actionReplyPane;
+    bool                         isActionReplyBoxed = false;
+    bool                         isActionReplyError = false;
 
     //  The cards' and ports' bus registers, for the operand tips.
     std::vector<DiagnosticsIoRegister>  ioRegisters;
@@ -1170,7 +1173,10 @@ private:
     uint32_t      m_suggestionSerial = 0;
 
     std::vector<std::string>  m_actionReply;
-    uint32_t                  m_actionReplySerial = 0;
+    uint32_t                  m_actionReplySerial  = 0;
+    std::wstring              m_actionReplyPane;
+    bool                      m_isActionReplyBoxed = false;
+    bool                      m_isActionReplyError = false;
 
     std::array<std::optional<Word>, kMaxMemoryWindows - 1>  m_extraWindows;
 

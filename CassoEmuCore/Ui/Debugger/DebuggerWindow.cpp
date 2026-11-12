@@ -888,10 +888,25 @@ void DebuggerWindow::RunToCursor (Word address)
 
 void DebuggerWindow::RunAction (const DebuggerAction & action)
 {
-    if (m_host != nullptr)
+    DebuggerAction  placed = action;
+
+
+
+    if (m_host == nullptr)
     {
-        m_host->RunDebuggerAction (action);
+        return;
     }
+
+    //  An action run right after a modal dialog closed, in the same input
+    //  event, is the dialog's; any other is the focused pane's.
+    placed.isReplyBoxed = placed.isReplyBoxed || m_isAfterDialog;
+
+    if (!placed.isReplyBoxed && placed.replyPane.empty())
+    {
+        placed.replyPane = GetPaneOfControl (GetFocusedControl());
+    }
+
+    m_host->RunDebuggerAction (placed);
 }
 
 
@@ -1233,6 +1248,7 @@ void DebuggerWindow::RenderFrame()
 
     m_consolePane->GetCommandLine().RefreshGhost();
     UpdateStatusBar();
+    PlaceReplyBanner (now);
 
     for (DxuiListView * list : GetLists())
     {

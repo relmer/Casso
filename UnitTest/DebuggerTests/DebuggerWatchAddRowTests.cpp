@@ -2,6 +2,7 @@
 
 #include "CaptureTests/FakeHostDialogs.h"
 #include "Ui/Chrome/CassoTheme.h"
+#include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
@@ -93,6 +94,7 @@ namespace DebuggerWatchAddRowTests
         using DebuggerWindow::GetWatchesPane;
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::FocusControl;
+        using DebuggerWindow::OnWindowEnabled;
 
         void  Press (WPARAM vk)
         {
@@ -620,6 +622,44 @@ namespace DebuggerWatchAddRowTests
             Assert::AreEqual (before + 2, host.actions.size(), L"one undo adds both back");
             Assert::AreEqual (std::string ("X"), host.actions[before].operand, L"the lower id first");
             Assert::AreEqual (std::string ("Y"), host.actions[before + 1].operand);
+        }
+
+
+        //  An action is placed where its reply goes: over the pane it came
+        //  from, or, for one run right after a modal dialog closed, in a
+        //  message box.
+        TEST_METHOD (AnActionsReplyGoesToItsPaneOrAfterADialogToABox)
+        {
+            CassoTheme                        theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                 host;
+            WatchWindow                       window   (theme, host);
+            DxuiDpiScaler                     scaler;
+            auto                              snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::WatchLine   watch;
+
+
+
+            watch.id          = 3;
+            watch.expression  = "X";
+            watch.isRegister  = true;
+            watch.value       = "00";
+            snapshot->watches = { watch };
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.TakeSnapshot (snapshot);
+            window.FocusControl (window.GetWatchesPane().GetList());
+
+            RunMenuItem (window, FindRow (window, L"3"), L"Remove");
+
+            Assert::AreEqual (std::wstring (DebuggerLayout::kWatches), host.actions.back().replyPane, L"over the Watches pane");
+            Assert::IsFalse  (host.actions.back().isReplyBoxed);
+
+            window.OnWindowEnabled (true);
+            RunMenuItem (window, FindRow (window, L"3"), L"Remove");
+
+            Assert::IsTrue (host.actions.back().isReplyBoxed, L"in a box after a dialog");
         }
 
 

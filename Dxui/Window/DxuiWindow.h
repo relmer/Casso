@@ -390,6 +390,10 @@ protected:
     //
     virtual void  OnWindowFocusChanged (bool focused) { UNREFERENCED_PARAMETER (focused); }
 
+    //  The window disabled or enabled again, as a modal dialog it owns does
+    //  when it opens and closes.
+    virtual void  OnWindowEnabled      (bool enabled) { UNREFERENCED_PARAMETER (enabled); }
+
     //
     //  The user finished dragging or resizing this window by its caption or
     //  border. A programmatic move never gets here, so this is the moment
@@ -542,6 +546,7 @@ private:
     DxuiMessageResult  OnSetFocus       () override;
     DxuiMessageResult  OnKillFocus      () override;
     DxuiMessageResult  OnCancelMode     () override;
+    DxuiMessageResult  OnEnable         (bool enabled) override { OnWindowEnabled (enabled); return DxuiMessageResult::NotHandled; }
     DxuiMessageResult  OnCaptureChanged (HWND newCapture) override;
     DxuiMessageResult  OnGetMinMax      (MINMAXINFO * info) override;
     DxuiMessageResult  OnTimer          (UINT_PTR timerId) override;

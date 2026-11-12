@@ -83,6 +83,11 @@ struct DebuggerAction
     //  For a memory window's undo or redo: the bytes memory must contain from
     //  the command's address, or nothing is written.
     std::vector<Byte>              required;
+
+    //  Where the window displays the action's error or result: over the pane
+    //  it came from, or, for an action a dialog ran, in a message box.
+    std::wstring                   replyPane;
+    bool                           isReplyBoxed = false;
 };
 
 //  Builds an action in the session's mode, for a pane that does not know it.

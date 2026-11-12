@@ -101,6 +101,13 @@ struct MessageData
     std::vector<std::string>  lines;
 };
 
+// BPLOGS: the messages logging breakpoints wrote, oldest first; none is an
+// empty list.
+struct BreakpointMessagesData
+{
+    std::vector<std::string>  messages;
+};
+
 struct RegistersData
 {
     Cpu6502Registers  registers = {};
@@ -677,7 +684,8 @@ using ReplyData = std::variant<MessageData,
                                BasicStackData,
                                ProjectData,
                                TextScreenData,
-                               ScreenshotData>;
+                               ScreenshotData,
+                               BreakpointMessagesData>;
 
 
 

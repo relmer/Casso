@@ -364,6 +364,15 @@ void AppleWinFormatter::FormatData (const ReplyData & data, Lines & lines)
     else if (auto * v = std::get_if<ScreenshotData>     (&data)) { lines.push_back (std::format ("Saved a {}x{} screenshot to {}", v->width, v->height, v->path)); }
     else if (auto * v = std::get_if<CallStackModeData>  (&data)) { lines.push_back (std::format ("Call stack: {}", CallStack::GetMechanismName (v->mechanism))); }
     else if (auto * v = std::get_if<MessageData>        (&data)) { lines.insert (lines.end(), v->lines.begin(), v->lines.end()); }
+    else if (auto * v = std::get_if<BreakpointMessagesData> (&data))
+    {
+        lines.insert (lines.end(), v->messages.begin(), v->messages.end());
+
+        if (v->messages.empty())
+        {
+            lines.push_back ("No breakpoint messages.");
+        }
+    }
     else if (auto * v = std::get_if<CyclesData>         (&data)) { lines.push_back (std::format ("Cycles: {}", v->count)); }
     else if (auto * v = std::get_if<ModeData>           (&data)) { lines.push_back ("Mode: " + CommandModeNames::GetUpperName (v->mode)); }
     else if (auto * v = std::get_if<VideoInfoData>      (&data)) { lines.push_back (std::format ("Scanline ${:X}, cycle ${:X}", v->scanline, v->cycleInLine)); }

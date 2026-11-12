@@ -73,10 +73,6 @@ public:
     //  The same, or the run's notice while nothing is replaying.
     static std::wstring  GetReplayText   (const ReplayProgress & progress, const std::string & runNotice);
 
-    //  The same, with the reply to an action from the window in place of the
-    //  run's notice when there is one: its lines run together on one line.
-    static std::wstring  GetReplayText   (const ReplayProgress & progress, const std::string & runNotice, const std::vector<std::string> & actionReply);
-
     //  Emulated time for a cycle count: seconds to a tenth under a minute,
     //  then minutes and seconds, then hours, minutes and seconds, with the
     //  locale's decimal separator.

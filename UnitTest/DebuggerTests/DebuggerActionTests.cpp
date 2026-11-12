@@ -275,6 +275,33 @@ public:
 
 
 
+    //  The snapshot has where the window displays the reply: the action's
+    //  pane, or a message box, and whether the reply is an error.
+    TEST_METHOD (TheSnapshotHasWhereTheReplyGoes)
+    {
+        ControllerRig         rig;
+        DebuggerAction        failing = DebuggerActions::GetClearWatch (7, CommandMode::AppleWin);
+        DebuggerViewSnapshot  snapshot;
+
+
+
+        failing.replyPane = L"Watches";
+        rig.view.ExecuteAction (rig.controller.GetSession(), failing);
+        snapshot = rig.view.Build (rig.controller.GetSession());
+
+        Assert::AreEqual (std::wstring (L"Watches"), snapshot.actionReplyPane);
+        Assert::IsFalse  (snapshot.isActionReplyBoxed);
+        Assert::IsTrue   (snapshot.isActionReplyError);
+
+        failing.replyPane.clear();
+        failing.isReplyBoxed = true;
+        rig.view.ExecuteAction (rig.controller.GetSession(), failing);
+
+        Assert::IsTrue (rig.view.Build (rig.controller.GetSession()).isActionReplyBoxed);
+    }
+
+
+
     //  An action whose reply is its result, as a search's matches are, has
     //  the reply in the snapshot and no console line.
     TEST_METHOD (AnActionsResultIsInTheSnapshot)

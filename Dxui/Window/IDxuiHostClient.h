@@ -378,6 +378,14 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
+    // WM_ENABLE: the window disabled, as a modal dialog it owns does while it
+    // runs, or enabled again. Default returns NotHandled.
+    virtual DxuiMessageResult  OnEnable         (bool enabled)
+    {
+        UNREFERENCED_PARAMETER (enabled);
+        return DxuiMessageResult::NotHandled;
+    }
+
     // WM_CAPTURECHANGED: the window lost the mouse capture to `newCapture`,
     // which is null when it was released. Default returns NotHandled.
     virtual DxuiMessageResult  OnCaptureChanged (HWND newCapture)

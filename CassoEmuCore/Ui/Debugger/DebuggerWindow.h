@@ -171,6 +171,7 @@ protected:
     void  PaintDragLayer       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  HasDragLayer         () const override;
     void  OnWindowFocusChanged (bool focused) override;
+    void  OnWindowEnabled      (bool enabled) override { m_isAfterDialog = m_isAfterDialog || enabled; }
 
     //  Protected so a test can apply one as the status bar's slider does, and
     //  step one pane's as the keys and Ctrl+wheel do.
@@ -847,12 +848,22 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
     bool                                  m_isHistoryFitted     = false;
 
-    //  The reply to the last action run from the window, displayed in the status
-    //  bar's first field until the machine runs, and the snapshot serial it
-    //  came with; none until the first snapshot, whose reply is older than
-    //  the window.
-    std::vector<std::string>              m_actionReply;
+    //  The reply to an action run from the window: the serial of the last one
+    //  seen, none until the first snapshot, whose reply is older than the
+    //  window; the infobar over the pane it came from, laid over that pane's
+    //  top until it times out; and a reply waiting for its message box.
+    //  m_isAfterDialog is set once a modal dialog closes, until the next
+    //  input event, so an action the dialog ran is known as the dialog's.
     std::optional<uint32_t>               m_actionReplySerial;
+    DxuiTimedInfoBanner                 * m_replyBanner         = nullptr;
+    std::wstring                          m_replyBannerPane;
+    std::optional<std::wstring>           m_pendingReplyBox;
+    bool                                  m_isReplyBoxUp        = false;
+    bool                                  m_isAfterDialog       = false;
+
+    void  ShowActionReply     (const DebuggerViewSnapshot & snapshot);
+    void  PlaceReplyBanner    (int64_t nowMs);
+    void  ShowPendingReplyBox ();
 
     std::shared_ptr<const DxuiIconImage>  m_breakpointIcons[2];
     uint32_t                              m_breakpointIconArgb  = 0;

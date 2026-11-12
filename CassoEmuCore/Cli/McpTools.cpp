@@ -67,7 +67,7 @@ const McpTools::Tool McpTools::s_kTools[] =
     { "set_breakpoint", "Set an execution breakpoint at an address, a symbol or a source line (file:line), with an optional condition.",
       R"({"type":"object","properties":{"location":{"type":"string"},"condition":{"type":"string","description":"An expression, such as A == 41"}},"required":["location"]})", &McpTools::SetBreakpoint },
 
-    { "breakpoint_messages", "List the last messages logging breakpoints (BPLOG) wrote at their hits, oldest first.",
+    { "breakpoint_messages", "List the last messages logging breakpoints (BPLOG) wrote at their hits, oldest first. The structured result has them as data.messages.",
       R"({"type":"object","properties":{"count":{"type":"integer","description":"Messages; 20 by default, at most 1000"}}})", &McpTools::BreakpointMessages },
 
     { "clear_breakpoint", "Clear a breakpoint by its id, or every breakpoint.",

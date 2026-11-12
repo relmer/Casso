@@ -178,7 +178,7 @@ the only one running.
 | `run`, `resume`, `pause`, `step` | `run` runs to a stop, the address given, its cycle budget or its timeout, and pauses a run past the timeout; `resume` lets a paused machine run on and returns at once |
 | `registers`, `read_memory`, `write_memory`, `disassemble` | the CPU and memory |
 | `set_breakpoint`, `clear_breakpoint`, `list_breakpoints` | breakpoints, by address, symbol or `file:line` |
-| `breakpoint_messages` | the last messages logging breakpoints (`BPLOG`) wrote, as `BPLOGS` lists them |
+| `breakpoint_messages` | the last messages logging breakpoints (`BPLOG`) wrote, as `BPLOGS` lists them; the structured result has them as `data.messages`, oldest first |
 | `reset`, `type_text`, `press_keys` | Ctrl+Reset or a power cycle, text typed as a paste, and keys by name, `Ctrl+Reset` among them |
 | `insert_disk`, `eject_disk` | the disk drives |
 | `read_screen`, `screenshot` | the text screen, and the picture as a PNG image |

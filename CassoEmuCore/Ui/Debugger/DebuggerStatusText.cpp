@@ -316,35 +316,6 @@ std::wstring DebuggerStatusText::GetReplayText (const ReplayProgress & progress,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerStatusText::GetReplayText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DebuggerStatusText::GetReplayText (const ReplayProgress & progress, const std::string & runNotice, const std::vector<std::string> & actionReply)
-{
-    std::string  joined;
-
-
-
-    if (progress.isReplaying || actionReply.empty())
-    {
-        return GetReplayText (progress, runNotice);
-    }
-
-    for (const std::string & line : actionReply)
-    {
-        joined += (joined.empty() ? "" : "  ") + line;
-    }
-
-    return TextEncoding::NarrowToWide (joined);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerStatusText::FormatTime
 //
 //  Tenths of a second, rounded down, so a time never reads later than the

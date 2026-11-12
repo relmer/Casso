@@ -933,9 +933,12 @@ bool DebuggerWindow::RouteFloatingBarMouse (const DxuiMouseEvent & ev)
 
 bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 {
-    bool  handled = RouteWindowMouse (ev);
+    bool  handled = false;
 
 
+
+    m_isAfterDialog = false;
+    handled         = RouteWindowMouse (ev);
 
     if (ev.kind == DxuiMouseEventKind::Wheel)
     {
@@ -1652,6 +1655,8 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     bool            handled = false;
 
 
+
+    m_isAfterDialog = false;
 
     if (ev.kind == DxuiKeyEventKind::Down || ev.kind == DxuiKeyEventKind::Char)
     {

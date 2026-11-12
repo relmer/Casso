@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/TextEncoding.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DebuggerWindow.h"
@@ -148,13 +149,12 @@ void DebuggerWindow::UpdateStatusBar()
 
     if (m_snapshot != nullptr && m_actionReplySerial != m_snapshot->actionReplySerial)
     {
-        m_actionReply       = m_actionReplySerial.has_value() ? m_snapshot->actionReply : std::vector<std::string>();
-        m_actionReplySerial = m_snapshot->actionReplySerial;
-    }
+        if (m_actionReplySerial.has_value() && !m_snapshot->actionReply.empty())
+        {
+            ShowActionReply (*m_snapshot);
+        }
 
-    if (!isPaused)
-    {
-        m_actionReply.clear();
+        m_actionReplySerial = m_snapshot->actionReplySerial;
     }
 
     if (m_statusBar == nullptr)
@@ -162,7 +162,7 @@ void DebuggerWindow::UpdateStatusBar()
         return;
     }
 
-    m_statusBar->SetText  (kStatusReplay,  DebuggerStatusText::GetReplayText (progress, (m_snapshot != nullptr) ? m_snapshot->runNotice : std::string(), m_actionReply));
+    m_statusBar->SetText  (kStatusReplay,  DebuggerStatusText::GetReplayText (progress, (m_snapshot != nullptr) ? m_snapshot->runNotice : std::string()));
     m_statusBar->SetText  (kStatusBeam,    DebuggerStatusText::GetBeamText (beam, isPaused));
     m_statusBar->SetText  (kStatusHistory, DebuggerStatusText::GetHistoryText (status));
     m_statusBar->SetBar   (kStatusHistory, fill, DebuggerStatusText::kEmptyArgb, DebuggerStatusText::GetBudgetColor (fill));
@@ -530,4 +530,118 @@ bool DebuggerWindow::TryStopReplay()
     }
 
     return isReplaying;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowActionReply
+//
+//  Over the pane the action came from, in an infobar that times out; in a
+//  message box for an action a dialog ran, or when that pane isn't on
+//  screen. The box waits for the next frame, so it doesn't open in the
+//  middle of applying a snapshot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowActionReply (const DebuggerViewSnapshot & snapshot)
+{
+    IDebuggerPane  * pane    = snapshot.isActionReplyBoxed ? nullptr : FindPane (snapshot.actionReplyPane);
+    IDxuiControl   * content = (pane != nullptr) ? pane->GetContent() : nullptr;
+    std::wstring     text;
+
+
+
+    for (const std::string & line : snapshot.actionReply)
+    {
+        text += (text.empty() ? L"" : L"  ") + TextEncoding::NarrowToWide (line);
+    }
+
+    if (content == nullptr || !content->IsVisible())
+    {
+        m_pendingReplyBox = text;
+        return;
+    }
+
+    if (m_replyBanner == nullptr)
+    {
+        m_replyBanner = CreateChild<DxuiTimedInfoBanner>();
+    }
+
+    m_replyBannerPane = snapshot.actionReplyPane;
+    m_replyBanner->SetSeverity (snapshot.isActionReplyError ? DxuiInfoBanner::Severity::Warning : DxuiInfoBanner::Severity::Info);
+    m_replyBanner->Show        (text, (int64_t) GetTickCount64());
+    m_replyBanner->SetVisible  (true);
+    PlaceReplyBanner ((int64_t) GetTickCount64());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PlaceReplyBanner
+//
+//  Along the top of its pane, as tall as its text, each frame, since the
+//  pane can move; hidden once it times out or the pane goes. Then the
+//  message box opens for any reply waiting for one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PlaceReplyBanner (int64_t nowMs)
+{
+    IDebuggerPane  * pane    = (m_replyBanner != nullptr && m_replyBanner->IsVisible()) ? FindPane (m_replyBannerPane) : nullptr;
+    IDxuiControl   * content = (pane != nullptr) ? pane->GetContent() : nullptr;
+    RECT             bounds  = {};
+    float            height  = 0.0f;
+
+
+
+    if (m_replyBanner != nullptr && m_replyBanner->IsVisible() && (content == nullptr || !content->IsVisible() || !m_replyBanner->IsShowing (nowMs)))
+    {
+        m_replyBanner->SetVisible (false);
+        Invalidate();
+    }
+    else if (content != nullptr)
+    {
+        bounds = content->GetBounds();
+        height = m_replyBanner->GetPreferredHeightPx ((float) (bounds.right - bounds.left), m_scaler);
+
+        m_replyBanner->SetDpi (m_scaler.GetDpi());
+        m_replyBanner->Layout (RECT { bounds.left, bounds.top, bounds.right, bounds.top + (LONG) std::ceil (height) }, m_scaler);
+    }
+
+    ShowPendingReplyBox();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowPendingReplyBox
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowPendingReplyBox()
+{
+    std::wstring  text;
+
+
+
+    if (!m_pendingReplyBox.has_value() || m_isReplyBoxUp || GetHwnd() == nullptr)
+    {
+        return;
+    }
+
+    text = std::exchange (m_pendingReplyBox, std::nullopt).value();
+
+    m_isReplyBoxUp = true;
+    (void) ShowMessageBox (GetHwnd(), text, L"Debugger", MB_ICONINFORMATION | MB_OK);
+    m_isReplyBoxUp = false;
 }
