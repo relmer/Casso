@@ -56,7 +56,9 @@ public:
 
     //  The reads of a quarter-track position.
     //  The reads of a quarter-track position. With syncFrom a position, not
-    //  -1, the first read started s_kSyncCycles after syncMarker passed there.
+    //  -1, the first read started s_kSyncCycles after syncMarker passed there;
+    //  with syncFrom the position itself, the second read started
+    //  s_kSelfSyncCycles after syncMarker, from the first read, passed.
     struct Position
     {
         int                             position = 0;
@@ -84,6 +86,9 @@ public:
         size_t                 storedBytes  = 0;  // and the bytes they decoded to
         std::vector<Position>  positions;         // every read, for SerializeReads
         bool                   synchronized = false;  // every whole track placed relative to track 0
+
+        //  The drive's revolution as MeasureRevolution timed it, 0 when it wasn't.
+        double                 revolutionCycles = 0.0;
     };
 
     //  Where a capture is: the position of its last read, that read's number
@@ -169,7 +174,8 @@ private:
     static HRESULT              ReadOnce       (Run & run, int position, Byte delay, int read, int reads, Byte syncPosition, std::span<const Byte> marker, std::vector<Byte> & outBytes, bool & outMissed);
     static HRESULT              ReadPosition   (Run & run, int position, int reads, Position & outPosition);
     static void                 FindMarker     (const std::vector<Byte> & revolution, std::vector<Byte> & outMarker);
-    static void                 PlaceTracks    (const std::vector<Position> & positions, const std::map<int, Stream> & streams, std::map<int, size_t> & outRotations, bool & outSynchronized);
+    static void                 PlaceTracks    (const std::vector<Position> & positions, const std::map<int, Stream> & streams, double revolution, std::map<int, size_t> & outRotations, bool & outSynchronized);
+    static double               MeasureRevolution (const std::vector<Position> & positions, const std::map<int, Stream> & streams);
     static size_t               GetBitOffset   (const Stream & stream, size_t byte);
     static void                 Write32        (std::vector<Byte> & bytes, size_t at, uint32_t value);
     static bool                 CollectMarks   (const Position & position, Stream & outStream, Marks & outMarks, bool & outUnstable);
@@ -262,6 +268,13 @@ private:
     static constexpr double  s_kBitCycles    = 4.0;
     static constexpr size_t  s_kMarkerBytes  = 11;
     static constexpr int     s_kReadAttempts = 3;
+
+    //  The cycles from a marker's last byte to the first byte of a read of
+    //  the same track that waited on it, with no step, as measured on Casso's
+    //  //c (MeasureRevolution), and how far a measured revolution may be from
+    //  the track's bits at s_kBitCycles.
+    static constexpr double  s_kSelfSyncCycles   = 25680.0;
+    static constexpr double  s_kRevolutionSpread = 0.1;
 
     //  A version 2 WOZ's header, its CRC's place in it, and the INFO chunk's
     //  synchronized flag's place in the file.

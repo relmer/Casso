@@ -287,8 +287,41 @@ public:
     }
 
 
-    TEST_METHOD (WholeTrack_IsReadBitForBit)
+    //  A program just loaded has the arm's place as unknown: a first read of
+    //  track 30 takes the arm to track 0 first and reads track 30, not the
+    //  track the arm stops at.
+    TEST_METHOD (AFirstRead_WithTheArmUnknown_ReadsItsTrack)
     {
+        static constexpr Byte  kTrack = 30;
+
+        ProgramRig         rig (LoadFixture());
+        std::vector<Byte>  module;
+        std::vector<Byte>  bytes;
+        CassoLinkStatus    status;
+        CaptureTiming      timing;
+        int                track    = -1;
+
+
+
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        AssertSucceeded (rig.host->EnsureModule (module));
+        AssertSucceeded (rig.host->CaptureQuarterTrack (1, kTrack * 4, 0, 0, 0, CassoLinkHost::kNoSync, {}, bytes, status, timing));
+
+        for (size_t at = 0; track < 0 && at + 7 <= bytes.size(); at++)
+        {
+            bool  prolog = (bytes[at] | 0x80) == 0xD5 && (bytes[at + 1] | 0x80) == 0xAA && (bytes[at + 2] | 0x80) == 0x96;
+
+            if (prolog)
+            {
+                track = (((bytes[at + 5] | 0x80) << 1) | 1) & (bytes[at + 6] | 0x80);
+            }
+        }
+
+        Assert::AreEqual ((int) kTrack, track);
+    }
+
+
+    TEST_METHOD (WholeTrack_IsReadBitForBit)    {
         ProgramRig            rig (LoadFixture());
         std::vector<Byte>     module;
         std::vector<Byte>     bytes;
@@ -467,6 +500,13 @@ public:
         Assert::IsTrue   (result.weak.empty());
         Assert::AreEqual (-1, woz.ResolveQuarterTrack (2), L"The half track");
 
+        //  Casso's drive turns a bit in 4 cycles, so the revolution track 0's
+        //  second read timed is its bits at 4 cycles each.
+        double  expected = 4.0 * (double) woz.GetTrackBitCount (woz.ResolveQuarterTrack (0));
+
+        Logger::WriteMessage (std::format ("revolution {:.1f} cycles, expected {:.1f}\n", result.revolutionCycles, expected).c_str());
+        Assert::IsTrue (std::abs (result.revolutionCycles - expected) <= s_kRevolutionTolerance * expected, L"The drive's revolution is measured");
+
         CassoLinkCapture::SerializeReads (result.positions, file);
         AssertSucceeded (CassoLinkCapture::ParseReads (file, parsed));
         Assert::AreEqual (result.positions.size(), parsed.size(), L"The reads round-trip");
@@ -489,6 +529,8 @@ public:
             Assert::IsTrue (IsRotationOf (captured, GetTrackBits (rig, (quarter + 1) / 4 * 4)), std::format (L"Quarter track {}", quarter).c_str());
         }
     }
+
+    static constexpr double  s_kRevolutionTolerance = 0.002;
 
     //  The disk bytes a 16-sector track's data fields use.
     static constexpr Byte  s_kDiskBytes[] =

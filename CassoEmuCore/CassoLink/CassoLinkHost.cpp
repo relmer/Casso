@@ -158,6 +158,7 @@ HRESULT CassoLinkHost::ReadPacket (DWORD timeoutMs, CassoLinkPacket & outPacket)
 
         if (complete)
         {
+            m_lastPacketMs = GetTickCount64();
             TraceReceived (outPacket);
         }
 
@@ -188,7 +189,7 @@ HRESULT CassoLinkHost::Send (std::span<const Byte> bytes)
 
 
 
-    m_lastSentMs = GetTickCount64();
+    m_lastPacketMs = GetTickCount64();
 
     if (m_pcFault.IsArmed())
     {
@@ -1323,12 +1324,13 @@ HRESULT CassoLinkHost::AwaitReady()
     current        = m_readyPending;
     m_readyPending = false;
 
-    //  After this PC has been quiet longer than the client waits for a
-    //  reply, its Readies have piled up here, and the client is sending
-    //  another: a request sent on an old one never arrives, as the client's
-    //  chip doesn't take a byte while it sends. They are dropped, and the
-    //  next one, just sent, is waited for.
-    if (!current && m_lastSentMs != 0 && GetTickCount64() - m_lastSentMs > kStaleReadyMs)
+    //  After this PC has neither sent nor read a packet for longer than the
+    //  client waits for a reply, its Readies have piled up here, and the
+    //  client is sending another: a request sent on an old one never arrives,
+    //  as the client's chip doesn't take a byte while it sends. They are
+    //  dropped, and the next one, just sent, is waited for. A read's Status
+    //  counts, so the Ready right after it is used.
+    if (!current && m_lastPacketMs != 0 && GetTickCount64() - m_lastPacketMs > kStaleReadyMs)
     {
         hr = DiscardReceived();
         CHR (hr);

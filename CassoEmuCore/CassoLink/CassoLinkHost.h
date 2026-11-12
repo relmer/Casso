@@ -141,8 +141,9 @@ public:
     //  which the link fails with HRESULT_FROM_WIN32 (ERROR_CRC).
     static constexpr int     kMaxProgramReloads  = 2;
 
-    //  The quiet after which the client's Readies are stale (AwaitReady), as
-    //  it sends one a second, and the reads of the line that drop them.
+    //  The time after the last packet sent or decoded at which the client's
+    //  Readies are stale (AwaitReady), as it sends one a second, and the
+    //  reads of the line that drop them.
     static constexpr DWORD   kStaleReadyMs       = 1500;
     static constexpr int     kDiscardReads       = 64;
 
@@ -327,10 +328,12 @@ public:
     //  must be loaded: the bytes as the Apple stored them, a sync byte with
     //  its top bit clear. A packet that fails its CRC, arrives out of order
     //  or doesn't decode fails the read. The delay is the second read of each
-    //  byte's: 0 for 8 cycles, 1 for 12. With a position to wait on, not
-    //  kNoSync, the read starts a fixed time after the marker passes there
+    //  byte's: 0 for 8 cycles, 1 for 12, with kRecalibrate added to take
+    //  the arm to track 0 first. With a position to wait on, not kNoSync,
+    //  the read starts a fixed time after the marker passes there
     //  (Capture.s); a marker that doesn't pass is the Status's error.
-    static constexpr Byte  kNoSync = 0xFF;
+    static constexpr Byte  kNoSync      = 0xFF;
+    static constexpr Byte  kRecalibrate = 0x80;
 
     HRESULT  CaptureQuarterTrack (Byte drive, Byte position, Byte delay, Byte startPercent, Byte endPercent, Byte syncPosition, std::span<const Byte> marker,
                                   std::vector<Byte> & outBytes, CassoLinkStatus & outStatus, CaptureTiming & outTiming);
@@ -452,7 +455,7 @@ private:
     bool                            m_verifyToggle    = false;
     bool                            m_awaitingKey     = false;
     std::atomic<uint64_t>           m_lastHeardMs     { GetTickCount64() };
-    std::atomic<uint64_t>           m_lastSentMs      { 0 };
+    std::atomic<uint64_t>           m_lastPacketMs    { 0 };   // the last packet sent or decoded
     Byte                            m_progressStart   = 0;
     Byte                            m_progressEnd     = 0;
     bool                            m_quiet           = false;

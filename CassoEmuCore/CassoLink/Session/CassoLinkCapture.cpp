@@ -29,8 +29,22 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
     HRESULT                hr        = S_OK;
     std::vector<Position>  positions;
     std::vector<bool>      standard;
+    std::map<int, Stream>  wholes;     // each whole track's stream, made once for pass 2
     int                    last      = std::clamp (lastTrack, 0, kTracks - 1) * 4;
     Run                    run       { host, drive, module, progress, outResult };
+    auto                   whole     = [&positions, &wholes] (int position) -> const Stream &
+    {
+        auto  found    = wholes.find (position);
+        bool  unstable = false;
+
+        if (found == wholes.end())
+        {
+            found = wholes.emplace (position, Stream()).first;
+            MakeStream (positions[(size_t) position / 4], found->second, unstable);
+        }
+
+        return found->second;
+    };
 
 
 
@@ -45,11 +59,18 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         bool      unstable = false;
 
         //  Each whole track after the first waits on a marker on the one
-        //  before, so the tracks can be placed relative to each other.
-        if (!positions.empty() && MakeStream (positions.back(), previous, unstable))
+        //  before, so the tracks can be placed relative to each other. The
+        //  first waits on a marker on itself, so the drive's revolution can
+        //  be timed (MeasureRevolution).
+        if (positions.empty())
+        {
+            read.syncFrom = position;
+        }
+        else if (MakeStream (positions.back(), previous, unstable))
         {
             FindMarker (previous.bytes, read.syncMarker);
             read.syncFrom = read.syncMarker.empty() ? -1 : positions.back().position;
+            wholes.emplace (positions.back().position, std::move (previous));
         }
 
         hr = ReadPosition (run, position, kWholeReads, read);
@@ -72,8 +93,6 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
     {
         Position  read;
         Stream    stream;
-        Stream    below;
-        Stream    above;
         bool      unstable = false;
         int       lower    = position / 4 * 4;
         int       upper    = std::min (lower + 4, last);
@@ -97,11 +116,8 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         hr = ReadPosition (run, position, 1, read);
         CHR (hr);
 
-        MakeStream (positions[(size_t) lower / 4], below, unstable);
-        MakeStream (positions[(size_t) upper / 4], above, unstable);
-
         //  A position with a separate stream is read again.
-        if (MakeStream (read, stream, unstable) && !IsSameStream (stream.bytes, below.bytes) && !IsSameStream (stream.bytes, above.bytes))
+        if (MakeStream (read, stream, unstable) && !IsSameStream (stream.bytes, whole (lower).bytes) && !IsSameStream (stream.bytes, whole (upper).bytes))
         {
             run.planned += kWholeReads;
 
@@ -358,12 +374,16 @@ HRESULT CassoLinkCapture::ReadPosition (Run & run, int position, int reads, Posi
 
     for (int read = 0; read < reads; read++)
     {
+        //  A capture's first read takes the arm to track 0 first, as the
+        //  program's record of its place can be wrong.
         std::vector<Byte>  bytes;
-        Byte               delay  = kWholeDelays[read % kWholeReads];
-        bool               sync   = read == 0 && outPosition.syncFrom >= 0;
-        bool               missed = false;
+        Byte               delay   = kWholeDelays[read % kWholeReads];
+        Byte               request = (Byte) (delay | ((position == 0 && read == 0) ? CassoLinkHost::kRecalibrate : 0));
+        bool               self    = outPosition.syncFrom == position;
+        bool               sync    = outPosition.syncFrom >= 0 && read == (self ? 1 : 0) && !outPosition.syncMarker.empty();
+        bool               missed  = false;
 
-        hr = ReadOnce (run, position, delay, read + 1, reads, sync ? (Byte) outPosition.syncFrom : CassoLinkHost::kNoSync,
+        hr = ReadOnce (run, position, request, read + 1, reads, sync ? (Byte) outPosition.syncFrom : CassoLinkHost::kNoSync,
                        sync ? std::span<const Byte> (outPosition.syncMarker) : std::span<const Byte>(), bytes, missed);
         CHR (hr);
 
@@ -373,6 +393,23 @@ HRESULT CassoLinkCapture::ReadPosition (Run & run, int position, int reads, Posi
 
             hr = ReadOnce (run, position, delay, read + 1, reads, CassoLinkHost::kNoSync, {}, bytes, missed);
             CHR (hr);
+        }
+
+        //  For a track that waits on a marker on itself, the marker is taken
+        //  from its first read.
+        if (self && read == 0)
+        {
+            size_t             start  = 0;
+            size_t             length = 0;
+            std::vector<Byte>  revolution;
+
+            if (FindReference (bytes, start, length))
+            {
+                revolution.assign (bytes.begin() + (ptrdiff_t) start, bytes.begin() + (ptrdiff_t) (start + length));
+                FindMarker (revolution, outPosition.syncMarker);
+            }
+
+            outPosition.syncFrom = outPosition.syncMarker.empty() ? -1 : position;
         }
 
         outPosition.reads.push_back (std::move (bytes));
@@ -623,6 +660,83 @@ void CassoLinkCapture::Write32 (std::vector<Byte> & bytes, size_t at, uint32_t v
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkCapture::MeasureRevolution
+//
+//  The cycles a revolution of the drive takes, from the track whose second
+//  read waited on a marker on that track: the read started s_kSelfSyncCycles
+//  after the marker passed, so the share of the stream's bits from the
+//  read's first byte to the marker passing again is the revolution less that
+//  delay. A drive's speed differs from the writer's by a few percent, and a
+//  bit's time at s_kBitCycles is the writer's. 0 when no track waited on
+//  itself or the result is more than s_kRevolutionSpread from that.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double CassoLinkCapture::MeasureRevolution (const std::vector<Position> & positions, const std::map<int, Stream> & streams)
+{
+    double  cycles = 0.0;
+
+
+
+    for (const Position & position : positions)
+    {
+        auto                         mine = streams.find (position.position);
+        std::vector<Byte>            bytes;
+        std::vector<Byte>            read;
+        std::vector<Byte>::iterator  inStream;
+        std::vector<Byte>::iterator  inRead;
+
+        if (cycles > 0.0 || position.syncFrom != position.position || position.reads.size() < 2 || position.syncMarker.empty() || mine == streams.end())
+        {
+            continue;
+        }
+
+        for (Byte value : mine->second.bytes)
+        {
+            bytes.push_back (value | 0x80);
+        }
+
+        for (Byte value : position.reads[1])
+        {
+            read.push_back (value | 0x80);
+        }
+
+        inStream = std::search (bytes.begin(), bytes.end(), position.syncMarker.begin(), position.syncMarker.end());
+        inRead   = std::search (read.begin(),  read.end(),  position.syncMarker.begin(), position.syncMarker.end());
+
+        if (inStream == bytes.end() || inRead == read.end())
+        {
+            continue;
+        }
+
+        const Stream  & stream   = mine->second;
+        size_t          length   = stream.bytes.size();
+        size_t          end      = ((size_t) (inStream - bytes.begin()) + position.syncMarker.size()) % length;
+        size_t          before   = ((size_t) (inRead - read.begin()) + position.syncMarker.size()) % length;
+        size_t          first    = (end + length - before) % length;
+        double          bits     = (double) stream.bits.size();
+        double          ahead    = (double) GetBitOffset (stream, end) - (double) GetBitOffset (stream, first);
+        double          expected = s_kBitCycles * bits;
+        double          measured = 0.0;
+
+        ahead    = ahead <= 0.0 ? ahead + bits : ahead;
+        measured = s_kSelfSyncCycles / (1.0 - ahead / bits);
+
+        if (std::abs (measured - expected) <= s_kRevolutionSpread * expected)
+        {
+            cycles = measured;
+        }
+    }
+
+    return cycles;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkCapture::PlaceTracks
 //
 //  Each whole track's rotation: the bits its stream is turned by in the WOZ,
@@ -630,13 +744,14 @@ void CassoLinkCapture::Write32 (std::vector<Byte> & bytes, size_t at, uint32_t v
 //  turned. A track whose first read waited on a marker on the track before
 //  is placed by it: the marker's last bit is at that track's angle for it,
 //  the read's first byte s_kSyncCycles later, a revolution being the
-//  track's bits at s_kBitCycles each, and the stream's first byte the bytes
-//  before it after that. A track without one starts at angle 0, and the
+//  drive's measured cycles (MeasureRevolution), or the track's bits at
+//  s_kBitCycles each when it wasn't measured, and the stream's first byte
+//  the bits of the read's bytes before it after that. A track without one starts at angle 0, and the
 //  tracks aren't synchronized.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkCapture::PlaceTracks (const std::vector<Position> & positions, const std::map<int, Stream> & streams, std::map<int, size_t> & outRotations, bool & outSynchronized)
+void CassoLinkCapture::PlaceTracks (const std::vector<Position> & positions, const std::map<int, Stream> & streams, double revolution, std::map<int, size_t> & outRotations, bool & outSynchronized)
 {
     std::map<int, double>  angles;     // each placed track's angle of its stream's first bit
 
@@ -657,7 +772,7 @@ void CassoLinkCapture::PlaceTracks (const std::vector<Position> & positions, con
             continue;
         }
 
-        if (position.syncFrom >= 0 && previous != streams.end() && placed != angles.end())
+        if (position.syncFrom >= 0 && position.syncFrom != position.position && previous != streams.end() && placed != angles.end())
         {
             const Stream                 & before = previous->second;
             const Stream                 & stream = mine->second;
@@ -665,6 +780,8 @@ void CassoLinkCapture::PlaceTracks (const std::vector<Position> & positions, con
             std::vector<Byte>::iterator    found;
             double                         marker = 0.0;
             double                         bits   = (double) stream.bits.size();
+            double                         cycles = revolution > 0.0 ? revolution : s_kBitCycles * bits;
+            size_t                         lead   = (stream.bytes.size() - stream.start % std::max<size_t> (stream.bytes.size(), 1)) % std::max<size_t> (stream.bytes.size(), 1);
 
             for (Byte value : before.bytes)
             {
@@ -678,7 +795,7 @@ void CassoLinkCapture::PlaceTracks (const std::vector<Position> & positions, con
                 size_t  last = (size_t) (found - bytes.begin()) + position.syncMarker.size();
 
                 marker = placed->second + (double) (GetBitOffset (before, last - 1) + 8) / (double) before.bits.size();
-                angle  = marker + s_kSyncCycles / (s_kBitCycles * bits) + (double) stream.start / (double) stream.bytes.size();
+                angle  = marker + s_kSyncCycles / cycles + (bits - (double) GetBitOffset (stream, lead)) / bits;
             }
             else
             {
@@ -767,7 +884,8 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
         streams.emplace (position.position, std::move (stream));
     }
 
-    PlaceTracks (positions, streams, rotations, outResult.synchronized);
+    outResult.revolutionCycles = MeasureRevolution (positions, streams);
+    PlaceTracks (positions, streams, outResult.revolutionCycles, rotations, outResult.synchronized);
 
     image.ClearQuarterTrackMap();
 

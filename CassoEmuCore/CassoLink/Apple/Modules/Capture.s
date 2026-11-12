@@ -4,7 +4,8 @@
 ;
 ; Request (CMDCAPTURE): the percentages at the request's start and end, the
 ; drive, the quarter-track position, 0 to 139, and the delay of the second
-; read of each byte: 0 for 8 cycles, 1 for 12; then the position to wait on,
+; read of each byte: 0 for 8 cycles, 1 for 12, with $80 added to take the arm
+; to track 0 first (cpknown); then the position to wait on,
 ; $FF for none, the marker's length, up to CMARKMAX, and its bytes. The arm
 ; goes to the position: to the half track with the program's stepto, and for
 ; an odd position, to the quarter between it and the next half track, with
@@ -73,7 +74,7 @@ CFMAX      = 20000              ; the bytes cpfind reads before giving up, about
 CAPPAGE1   = CAPBUF / 256 + 1   ; the page after CAPBUF's first
 
         .org $5000
-        .byte 'C', 'M', 1, 6    ; capture, version 6
+        .byte 'C', 'M', 1, 8    ; capture, version 8
         .word PROGVER
         .word modend - $5000
         .word 0                 ; the CRC, which the PC fills in
@@ -108,6 +109,7 @@ csync    = $60                  ; the position to wait on, $FF for none
 cmlen    = $61                  ; the marker's length
 cfcnt    = $62                  ; and $63: the bytes cpfind may still read
 cspun    = $64                  ; the drive whose motor ran before the request
+crecal   = $65                  ; $80 when the arm is taken to track 0 first
 
 capture: lda #p_OPCAPT
         sta p_op
@@ -117,7 +119,11 @@ capture: lda #p_OPCAPT
         sta p_phi
         lda p_PKTBUF+2
         sta p_drive
-        lda p_PKTBUF+4          ; the second read's delay
+        lda p_PKTBUF+4          ; the second read's delay, and in its top
+        and #$80                ; bit the arm taken to track 0 first
+        sta crecal
+        lda p_PKTBUF+4
+        and #$7F
         jsr cpdelay
         lda p_PKTBUF+3
         sta cpos
@@ -172,7 +178,7 @@ cpshow: jsr p_showop
         jsr p_delayms
         lda #250
         jsr p_delayms
-cpsafe:
+cpsafe: jsr cpknown
         php                     ; no interrupt from here to the read's end:
         sei                     ; one costs bytes, and the wait's timing
         lda csync
@@ -241,6 +247,23 @@ cfnext: dec cfcnt
         rts
 cffound: clc
         rts
+
+; cpknown: the arm taken to track 0 when the request has $80 in its delay, as
+; a capture's first read has, or when its place is $FF, as after the program
+; is loaded. A step from a wrong place in curhalf ends at the stop or on
+; another track, and curhalf is then wrong too.
+cpknown: ldx p_drive
+        lda crecal
+        bne ckzero
+        lda p_curhalf-1,x
+        cmp #$FF
+        bne ckdone
+ckzero: lda #80
+        sta p_curhalf-1,x
+        lda #0
+        sta p_target
+        jmp p_stepto
+ckdone: rts
 
 ; cpquarter: the half track's phase and the next one's on, and a pause
 ; while the arm settles between them.

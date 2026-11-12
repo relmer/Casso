@@ -115,9 +115,11 @@ public:
         std::ofstream  trace (folder / "trace.log");
         int            last  = std::stoi (GetSetting ("CASSO_LINK_LAST", "34"));
 
-        host.SetTraceSink ([&trace] (bool sent, const std::string & text)
+        ULONGLONG      began = GetTickCount64();
+
+        host.SetTraceSink ([&trace, began] (bool sent, const std::string & text)
         {
-            trace << (sent ? "> " : "< ") << text << "\n";
+            trace << std::format ("{:8} ", GetTickCount64() - began) << (sent ? "> " : "< ") << text << "\n";
             trace.flush();
         });
 
@@ -136,6 +138,73 @@ public:
                             result.reads, result.diskMs / 1000.0, result.lineMs / 1000.0, result.sentBytes, result.storedBytes,
                             result.betweenRead, result.betweenTotal);
         log << std::format ("{} streams, {} weak, {} unstable\n", result.streams.size(), result.weak.size(), result.unstable.size());
+        log << std::format ("revolution {:.0f} cycles\n", result.revolutionCycles);
+    }
+
+    //  The positions of CASSO_READ_POSITIONS, as 120,124, each read
+    //  CassoLinkCapture::kWholeReads times without waiting on a marker, into
+    //  positions.reads and positions.woz in CASSO_LINK_OUT: run only when
+    //  both CASSO_LINK_PORT and CASSO_READ_POSITIONS are set.
+    TEST_METHOD (RealApple_ReadsThePositions)
+    {
+        std::string                              port   = GetSetting ("CASSO_LINK_PORT", "");
+        std::string                              list   = GetSetting ("CASSO_READ_POSITIONS", "");
+        int                                      drive  = std::stoi (GetSetting ("CASSO_LINK_DRIVE", "1"));
+        std::filesystem::path                    folder = GetSetting ("CASSO_LINK_OUT", ".");
+        Win32ByteStreamFactory                   factory;
+        ComSettings                              settings;
+        std::unique_ptr<IByteStream>             opened;
+        InMemoryCassoLinkFolder                  files;
+        std::vector<Byte>                        module;
+        std::vector<CassoLinkCapture::Position>  positions;
+        std::vector<Byte>                        reads;
+        CassoLinkCapture::Result                 result;
+        int                                      last   = 0;
+
+
+
+        if (port.empty() || list.empty())
+        {
+            Logger::WriteMessage ("CASSO_LINK_PORT or CASSO_READ_POSITIONS isn't set; no positions to read.\n");
+            return;
+        }
+
+        OpenPort (factory, port, settings, opened);
+
+        CassoLinkHost  host (std::shared_ptr<IByteStream> (std::move (opened)), files, [] () { return std::array<Byte, 4> {}; });
+
+        AssertSucceeded (host.BuildCaptureModule (module));
+
+        for (size_t at = 0; at < list.size(); )
+        {
+            size_t                      comma = std::min (list.find (',', at), list.size());
+            CassoLinkCapture::Position  position;
+
+            position.position = std::stoi (list.substr (at, comma - at));
+            last              = std::max (last, position.position);
+            at                = comma + 1;
+
+            for (Byte delay : CassoLinkCapture::kWholeDelays)
+            {
+                std::vector<Byte>  bytes;
+                CassoLinkStatus    status;
+                CaptureTiming      timing;
+
+                AssertSucceeded (host.EnsureModule (module));
+                AssertSucceeded (host.CaptureQuarterTrack ((Byte) drive, (Byte) position.position, (Byte) (delay | (positions.empty() && position.reads.empty() ? CassoLinkHost::kRecalibrate : 0)), 0, 0, CassoLinkHost::kNoSync, {}, bytes, status, timing));
+
+                position.reads.push_back (bytes);
+                position.delays.push_back (delay);
+            }
+
+            positions.push_back (std::move (position));
+        }
+
+        CassoLinkCapture::SerializeReads (positions, reads);
+        WriteFile (folder / "positions.reads", reads);
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, last, "2026-11-12T00:00:00Z", (Byte) drive, result));
+        WriteFile (folder / "positions.woz", result.woz);
     }
 
     //  A real capture's reads, from CASSO_CAPTURE_READS, built into a WOZ
@@ -496,8 +565,7 @@ public:
         }
     }
 
-    //  The disk inspector's summary and findings for the image, as its Issues
-    //  list has them.
+    //  The disk inspector's summary and findings for the image, as its Issues    //  list has them.
     static void  LogFindings (const std::vector<Byte> & woz)
     {
         DiskImage     image;
