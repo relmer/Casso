@@ -34,7 +34,7 @@ public:
     GoToKind             GetKind   () const { return m_kind; }
     const GoToTarget &   GetTarget () const { return m_target; }
 
-    static constexpr SIZE  kSizeDip = { 480, 400 };
+    static constexpr SIZE  kSizeDip = { 480, 350 };
 
 protected:
     void  OnCreate     () override;
