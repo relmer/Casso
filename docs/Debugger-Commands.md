@@ -49,6 +49,8 @@ AppleWin commands:
                               Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     BPE #|*                   Enable a breakpoint, or all of them
     BPEDIT # definition       Replace a breakpoint with a new definition
+    BPGROUP [name #[,#...]|! #[,#...]|cmd name]
+                              List breakpoint groups, put breakpoints in one or take them out, or act on one
     BPL                       List the breakpoints
     BPLOG # [GO] "text {expr}" | CLEAR
                               Write a message at each hit, {expr} evaluated; GO runs on instead of stopping
@@ -394,6 +396,8 @@ Casso commands:
                               Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     /BPE #|*                  Enable a breakpoint, or all of them
     /BPEDIT # definition      Replace a breakpoint with a new definition
+    /BPGROUP [name #[,#...]|! #[,#...]|cmd name]
+                              List breakpoint groups, put breakpoints in one or take them out, or act on one
     /BPL                      List the breakpoints
     /BPLOG # [GO] "text {expr}" | CLEAR
                               Write a message at each hit, {expr} evaluated; GO runs on instead of stopping
@@ -691,6 +695,8 @@ Casso commands:
                               Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     BPE #|*                   Enable a breakpoint, or all of them
     BPEDIT # definition       Replace a breakpoint with a new definition
+    BPGROUP [name #[,#...]|! #[,#...]|cmd name]
+                              List breakpoint groups, put breakpoints in one or take them out, or act on one
     BPL                       List the breakpoints
     BPLOG # [GO] "text {expr}" | CLEAR
                               Write a message at each hit, {expr} evaluated; GO runs on instead of stopping
@@ -941,6 +947,8 @@ Casso commands:
     !BPDISK [D1|D2] event [arguments] [IF expr]
                               Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     !BPEDIT # definition      Replace a breakpoint with a new definition
+    !BPGROUP [name #[,#...]|! #[,#...]|cmd name]
+                              List breakpoint groups, put breakpoints in one or take them out, or act on one
     !BPLOG # [GO] "text {expr}" | CLEAR
                               Write a message at each hit, {expr} evaluated; GO runs on instead of stopping
     !BPLOGS [n]               List the last n messages logging breakpoints wrote, 20 by default, up to 1000
@@ -1174,6 +1182,8 @@ Casso commands:
                               Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     BPE #|*                   Enable a breakpoint, or all of them
     BPEDIT # definition       Replace a breakpoint with a new definition
+    BPGROUP [name #[,#...]|! #[,#...]|cmd name]
+                              List breakpoint groups, put breakpoints in one or take them out, or act on one
     BPL                       List the breakpoints
     BPLOG # [GO] "text {expr}" | CLEAR
                               Write a message at each hit, {expr} evaluated; GO runs on instead of stopping

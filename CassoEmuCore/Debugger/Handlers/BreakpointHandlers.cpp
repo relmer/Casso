@@ -54,6 +54,7 @@ bool BreakpointHandlers::TryExecute (DebugSession & session, const DebugCommand 
     case DebugVerb::SetBreakpointName:          SetName       (session, command, reply);                         return true;
     case DebugVerb::SetBreakpointLog:           SetLog        (session, command, reply);                         return true;
     case DebugVerb::ListBreakpointLogs:         ListLogs      (session, command, reply);                         return true;
+    case DebugVerb::GroupBreakpoints:           Group         (session, command, reply);                         return true;
 
     case DebugVerb::ListBreakpoints:
         ListAll (session, list);
@@ -125,6 +126,7 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Breakpoint & entry)
     info.symbol    = entry.symbol;
     info.name      = entry.name;
     info.log       = entry.log;
+    info.group     = entry.group;
     info.disk      = entry.disk;
     info.resolved  = entry.resolved;
     info.basicName = entry.basicName;
@@ -160,6 +162,7 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Watchpoint & entry)
     info.hits      = entry.hits;
     info.name      = entry.name;
     info.log       = entry.log;
+    info.group     = entry.group;
     return info;
 }
 
@@ -1510,12 +1513,14 @@ bool BreakpointHandlers::TryMakeEntry (
     breakpoint.stops     = old.stops;
     breakpoint.name      = old.name;
     breakpoint.log       = old.log;
+    breakpoint.group     = old.group;
     watchpoint.id        = id;
     watchpoint.enabled   = old.enabled;
     watchpoint.temporary = old.temporary;
     watchpoint.stops     = old.stops;
     watchpoint.name      = old.name;
     watchpoint.log       = old.log;
+    watchpoint.group     = old.group;
     watchpoint.first     = definition.a1;
     watchpoint.last      = last;
     watchpoint.mode      = GetMode (definition);
@@ -1762,6 +1767,371 @@ void BreakpointHandlers::ListLogs (DebugSession & session, const DebugCommand & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointHandlers::Group
+//
+//  BPGROUP lists the groups and their breakpoints; BPGROUP name #[,#...]
+//  puts breakpoints in a group, making it; BPGROUP ! #[,#...] takes them out
+//  of theirs; ENABLE, DISABLE, UNGROUP and DELETE with a name act on a
+//  group, and RENAME old new renames it. A name with spaces is quoted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::Group (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    std::vector<std::string>  words = SplitGroupWords (command.text);
+    std::vector<int>          ids;
+    MessageData               message;
+    BreakpointListData        list;
+    bool                      isOut = false;
+
+
+
+    if (words.empty())
+    {
+        ListAll (session, list);
+
+        for (const std::string & group : GetGroups (session))
+        {
+            std::string  line = std::format ("Group \"{}\":", group);
+
+            for (const BreakpointInfo & info : list.breakpoints)
+            {
+                line += BreakpointTable::IsSameGroup (info.group, group) ? std::format (" #{}", info.id) : std::string();
+            }
+
+            message.lines.push_back (line);
+        }
+
+        if (message.lines.empty())
+        {
+            message.lines.push_back ("No breakpoint groups.");
+        }
+
+        reply.data = message;
+        return;
+    }
+
+    if (words.size() >= 2 && words[0] != "!" && !std::isdigit ((unsigned char) words[1][0]) && words[1][0] != '#')
+    {
+        ActOnGroup (session, words, reply);
+        return;
+    }
+
+    if (!TryParseIds (session, words, 1, ids, reply))
+    {
+        return;
+    }
+
+    isOut = words[0] == "!";
+
+    for (int id : ids)
+    {
+        (void) SetGroup (session, id, isOut ? std::string() : words[0]);
+    }
+
+    session.OnStopConditionsChanged();
+
+    reply.data = MessageData { { isOut ? std::format ("{} breakpoint{} taken out of {} group.", ids.size(), (ids.size() == 1) ? "" : "s", (ids.size() == 1) ? "its" : "their")
+                                       : std::format ("{} breakpoint{} put in group \"{}\".", ids.size(), (ids.size() == 1) ? "" : "s", FindGroup (session, words[0])) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::ActOnGroup
+//
+//  ENABLE, DISABLE, UNGROUP or DELETE name, or RENAME old new.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::ActOnGroup (DebugSession & session, const std::vector<std::string> & words, Reply & reply)
+{
+    BreakpointListData  list;
+    std::string         action   = words[0];
+    std::string         group    = FindGroup (session, words[1]);
+    std::vector<int>    ids;
+    std::string         done;
+    bool                isRename = false;
+    bool                isKnown  = false;
+
+
+
+    std::ranges::transform (action, action.begin(), [] (char ch) { return (char) toupper ((unsigned char) ch); });
+
+    isRename = action == "RENAME";
+    isKnown  = action == "ENABLE" || action == "DISABLE" || action == "UNGROUP" || action == "DELETE" || isRename;
+
+    if (!isKnown || words.size() != (isRename ? 3u : 2u))
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "BPGROUP takes a name and breakpoint ids, ! and ids, ENABLE, DISABLE, UNGROUP or DELETE and a name, or RENAME and two names.");
+        return;
+    }
+
+    if (group.empty())
+    {
+        reply.SetError (CommandStatus::Error, "no such group", std::format ("There is no breakpoint group \"{}\". BPGROUP lists them.", words[1]));
+        return;
+    }
+
+    if (isRename && !FindGroup (session, words[2]).empty() && !BreakpointTable::IsSameGroup (group, words[2]))
+    {
+        reply.SetError (CommandStatus::Error, "group exists", std::format ("There is a breakpoint group \"{}\" already.", FindGroup (session, words[2])));
+        return;
+    }
+
+    ListAll (session, list);
+
+    for (const BreakpointInfo & info : list.breakpoints)
+    {
+        if (BreakpointTable::IsSameGroup (info.group, group))
+        {
+            ids.push_back (info.id);
+        }
+    }
+
+    //  A rename takes every breakpoint out of the group first, so the new
+    //  name is written as typed, even when it differs from the old in case
+    //  alone.
+    for (int id : ids)
+    {
+        if (action == "ENABLE" || action == "DISABLE")
+        {
+            (void) (session.GetBreakpoints().TrySetEnabled (id, action == "ENABLE") || session.GetWatchpoints().TrySetEnabled (id, action == "ENABLE"));
+        }
+        else if (action == "DELETE")
+        {
+            (void) (session.GetBreakpoints().TryClear (id) || session.GetWatchpoints().TryClear (id));
+        }
+        else
+        {
+            (void) SetGroup (session, id, std::string());
+        }
+    }
+
+    for (int id : ids)
+    {
+        if (isRename)
+        {
+            (void) SetGroup (session, id, words[2]);
+        }
+    }
+
+    session.OnStopConditionsChanged();
+
+    done = (action == "ENABLE")  ? std::string ("enabled")
+         : (action == "DISABLE") ? std::string ("disabled")
+         : (action == "UNGROUP") ? std::string ("ungrouped")
+         : (action == "DELETE")  ? std::string ("deleted")
+         :                         std::format ("renamed \"{}\"", words[2]);
+
+    reply.data = MessageData { { std::format ("Group \"{}\" {}: {} breakpoint{}.", group, done, ids.size(), (ids.size() == 1) ? "" : "s") } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::TryParseIds
+//
+//  Decimal ids, each with or without #, apart by spaces or commas, every one
+//  a breakpoint's; otherwise the reply has an error for the first that isn't.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHandlers::TryParseIds (DebugSession & session, const std::vector<std::string> & words, size_t first, std::vector<int> & ids, Reply & reply)
+{
+    BreakpointInfo  info;
+
+
+
+    for (size_t i = first; i < words.size(); i++)
+    {
+        std::string  word = words[i];
+        size_t       at   = 0;
+
+        std::ranges::replace (word, ',', ' ');
+
+        while (at < word.size())
+        {
+            size_t  end = word.find (' ', at);
+            size_t  num = (word[at] == '#') ? at + 1 : at;
+            int     id  = 0;
+
+            end = (end == std::string::npos) ? word.size() : end;
+
+            if (end == at)
+            {
+                at++;
+                continue;
+            }
+
+            if (num == end || std::from_chars (word.data() + num, word.data() + end, id).ptr != word.data() + end)
+            {
+                reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("\"{}\" is not a breakpoint id.", word.substr (at, end - at)));
+                return false;
+            }
+
+            if (!TryFindInfo (session, id, info))
+            {
+                SetNoSuch (session, reply, id);
+                return false;
+            }
+
+            ids.push_back (id);
+            at = end + 1;
+        }
+    }
+
+    if (ids.empty())
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "BPGROUP takes the ids of the breakpoints to group.");
+        return false;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::GetGroups
+//
+//  Every group a breakpoint or watchpoint is in, in id order of the first
+//  one in each.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> BreakpointHandlers::GetGroups (DebugSession & session)
+{
+    BreakpointListData        list;
+    std::vector<std::string>  groups;
+
+
+
+    ListAll (session, list);
+
+    for (const BreakpointInfo & info : list.breakpoints)
+    {
+        if (!info.group.empty() && std::ranges::none_of (groups, [&info] (const std::string & each) { return BreakpointTable::IsSameGroup (each, info.group); }))
+        {
+            groups.push_back (info.group);
+        }
+    }
+
+    return groups;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::FindGroup
+//
+//  The group a name matches without regard to case, as its breakpoints have
+//  it; empty for none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BreakpointHandlers::FindGroup (DebugSession & session, const std::string & group)
+{
+    for (const std::string & each : GetGroups (session))
+    {
+        if (BreakpointTable::IsSameGroup (each, group))
+        {
+            return each;
+        }
+    }
+
+    return std::string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::SetGroup
+//
+//  A name that matches a group is written as that group has it, so the
+//  group's name is as first typed. False for no such breakpoint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHandlers::SetGroup (DebugSession & session, int id, const std::string & group)
+{
+    std::string  written = FindGroup (session, group);
+
+
+
+    written = written.empty() ? group : written;
+
+    return session.GetBreakpoints().TrySetGroup (id, written) || session.GetWatchpoints().TrySetGroup (id, written);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::SplitGroupWords
+//
+//  Words apart by spaces, a quoted run being one word without its quotes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> BreakpointHandlers::SplitGroupWords (const std::string & text)
+{
+    std::vector<std::string>  words;
+    size_t                    at    = 0;
+
+
+
+    while (at < text.size())
+    {
+        size_t  end = 0;
+
+        if (isspace ((unsigned char) text[at]))
+        {
+            at++;
+            continue;
+        }
+
+        if (text[at] == '"')
+        {
+            end = text.find ('"', at + 1);
+            end = (end == std::string::npos) ? text.size() : end;
+            words.push_back (text.substr (at + 1, end - at - 1));
+            at  = end + 1;
+            continue;
+        }
+
+        end = text.find_first_of (" \t", at);
+        end = (end == std::string::npos) ? text.size() : end;
+        words.push_back (text.substr (at, end - at));
+        at  = end;
+    }
+
+    return words;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointHandlers::Change
 //
 //  BPCHANGE # flags: E or e for enabled, T or t for temporary, S or s for
@@ -1901,6 +2271,11 @@ std::string BreakpointHandlers::MakeScript (DebugSession & session)
         {
             script += std::format ("BPCHANGE {} {}\n", i, flags);
         }
+
+        if (!list.breakpoints[i].group.empty())
+        {
+            script += std::format ("BPGROUP \"{}\" {}\n", list.breakpoints[i].group, i);
+        }
     }
 
     if (session.HasUnwrittenBreak())
@@ -2015,11 +2390,13 @@ void BreakpointHandlers::SetState (DebugSession & session, int id, const Breakpo
     {
         session.GetBreakpoints().TrySetFlags (id, info.temporary, info.stops);
         session.GetBreakpoints().TrySetName  (id, info.name);
+        session.GetBreakpoints().TrySetGroup (id, info.group);
     }
     else if (session.GetWatchpoints().TrySetEnabled (id, info.enabled))
     {
         session.GetWatchpoints().TrySetFlags (id, info.temporary, info.stops);
         session.GetWatchpoints().TrySetName  (id, info.name);
+        session.GetWatchpoints().TrySetGroup (id, info.group);
     }
 
     session.OnStopConditionsChanged();

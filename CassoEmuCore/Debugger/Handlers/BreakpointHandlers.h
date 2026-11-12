@@ -35,6 +35,13 @@ public:
     static BreakpointInfo  MakeInfo (const Breakpoint & entry);
     static BreakpointInfo  MakeInfo (const Watchpoint & entry);
 
+    //  The breakpoint groups, in the order of the first breakpoint in each;
+    //  the group a name matches without regard to case, empty for none; and
+    //  a breakpoint or watchpoint put in a group, the name matched to one.
+    static std::vector<std::string>  GetGroups (DebugSession & session);
+    static std::string               FindGroup (DebugSession & session, const std::string & group);
+    static bool                      SetGroup  (DebugSession & session, int id, const std::string & group);
+
     // The command line that recreates an entry, and the script that
     // recreates the whole table, as BPSAVE writes them.
     static std::string     MakeDefinition (const BreakpointInfo & info);
@@ -100,7 +107,12 @@ private:
     static void                SetName        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void                SetLog         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void                ListLogs       (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void                Group          (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void                ActOnGroup     (DebugSession & session, const std::vector<std::string> & words, Reply & reply);
+    static bool                TryParseIds    (DebugSession & session, const std::vector<std::string> & words, size_t first, std::vector<int> & ids, Reply & reply);
     static void                Save           (DebugSession & session, const DebugCommand & command, Reply & reply);
+
+    static std::vector<std::string>  SplitGroupWords (const std::string & text);
 
     static bool  TryParseBrkArguments (const std::string & text, int & selector, std::optional<bool> & isOn, std::string & error);
     static void  AddInvalidOpcodes    (DebugSession & session, int length, BreakpointListData & added);

@@ -232,6 +232,30 @@ bool WatchpointTable::TrySetFlags (int id, bool temporary, bool stops)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+bool WatchpointTable::TrySetGroup (int id, const std::string & group)
+{
+    auto  found = std::ranges::find_if (m_entries, [id] (const Watchpoint & entry) { return entry.id == id; });
+
+
+
+    if (found != m_entries.end())
+    {
+        found->group = group;
+    }
+
+    return found != m_entries.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::TrySetLog
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool WatchpointTable::TrySetLog (int id, const std::string & log)
 {
     auto  found = std::ranges::find_if (m_entries, [id] (const Watchpoint & entry) { return entry.id == id; });

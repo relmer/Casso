@@ -182,6 +182,7 @@ struct BreakpointInfo
     std::string          symbol;                    // the symbol an address breakpoint was set by
     std::string          name;                      // BPNAME's; empty for the default
     std::string          log;                       // BPLOG's message; empty for none
+    std::string          group;                     // BPGROUP's group; empty for none
 
     // Kind Disk: what BPDISK was given, and the routine an RWTS or driver
     // breakpoint stops at now, absent while its vector has no target.

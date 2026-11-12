@@ -215,6 +215,7 @@ std::wstring BreakpointHistory::DescribeStep (const Step & step)
     size_t        enabled  = 0;
     size_t        disabled = 0;
     size_t        renamed  = 0;
+    size_t        grouped  = 0;
     size_t        changed  = 0;
     int           id       = -1;
     auto          what     = [&id] (const wchar_t * verb, size_t count)
@@ -228,6 +229,7 @@ std::wstring BreakpointHistory::DescribeStep (const Step & step)
     {
         bool  isFlags = entry.before.has_value() && entry.after.has_value() && entry.before->enabled != entry.after->enabled;
         bool  isName  = entry.before.has_value() && entry.after.has_value() && entry.before->name != entry.after->name;
+        bool  isGroup = entry.before.has_value() && entry.after.has_value() && entry.before->group != entry.after->group;
 
         id = entry.after.has_value() ? entry.after->id : entry.before.has_value() ? entry.before->id : id;
 
@@ -236,6 +238,7 @@ std::wstring BreakpointHistory::DescribeStep (const Step & step)
         else if (isFlags && entry.after->enabled)                      { enabled++; }
         else if (isFlags)                                              { disabled++; }
         else if (isName)                                               { renamed++; }
+        else if (isGroup)                                              { grouped++; }
         else                                                           { changed++; }
     }
 
@@ -244,6 +247,7 @@ std::wstring BreakpointHistory::DescribeStep (const Step & step)
     if (enabled == step.size()) { return what (L"enable", enabled); }
     if (disabled == step.size()) { return what (L"disable", disabled); }
     if (renamed == step.size()) { return what (L"rename", renamed); }
+    if (grouped == step.size()) { return what (L"regroup", grouped); }
 
     return (step.size() == 1) ? what (L"edit", 1) : what (L"change", step.size());
 }
@@ -524,7 +528,7 @@ bool BreakpointHistory::IsSame (const BreakpointInfo & left, const BreakpointInf
 
 bool BreakpointHistory::HasSameFlags (const BreakpointInfo & left, const BreakpointInfo & right)
 {
-    return left.enabled == right.enabled && left.temporary == right.temporary && left.stops == right.stops && left.name == right.name;
+    return left.enabled == right.enabled && left.temporary == right.temporary && left.stops == right.stops && left.name == right.name && left.group == right.group;
 }
 
 
@@ -601,8 +605,8 @@ std::string BreakpointHistory::ToText() const
 //  BreakpointHistory::FormatSide
 //
 //  Empty where the breakpoint did not exist; else its definition, its
-//  enabled, temporary and stops flags as 1 or 0, and its name, apart at
-//  colons.
+//  enabled, temporary and stops flags as 1 or 0, its name, and its group
+//  when it is in one, apart at colons.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -613,8 +617,9 @@ std::string BreakpointHistory::FormatSide (const std::optional<BreakpointInfo> &
         return std::string();
     }
 
-    return std::format ("{}:{}{}{}:{}", UndoText::FormatText (BreakpointHandlers::MakeDefinition (*info)),
-                        info->enabled ? 1 : 0, info->temporary ? 1 : 0, info->stops ? 1 : 0, UndoText::FormatText (info->name));
+    return std::format ("{}:{}{}{}:{}{}", UndoText::FormatText (BreakpointHandlers::MakeDefinition (*info)),
+                        info->enabled ? 1 : 0, info->temporary ? 1 : 0, info->stops ? 1 : 0, UndoText::FormatText (info->name),
+                        info->group.empty() ? std::string() : ":" + UndoText::FormatText (info->group));
 }
 
 
@@ -727,6 +732,7 @@ bool BreakpointHistory::TryParseSide (DebugSession & session, const std::string 
     std::vector<std::string>  fields = UndoText::Split (text, ':');
     std::string               definition;
     std::string               name;
+    std::string               group;
     BreakpointInfo            rebuilt;
     Saved                     entry;
 
@@ -740,8 +746,9 @@ bool BreakpointHistory::TryParseSide (DebugSession & session, const std::string 
         return true;
     }
 
-    if (fields.size() != 3 || fields[1].size() != 3 || !std::ranges::all_of (fields[1], [] (char ch) { return ch == '0' || ch == '1'; }) ||
+    if ((fields.size() != 3 && fields.size() != 4) || fields[1].size() != 3 || !std::ranges::all_of (fields[1], [] (char ch) { return ch == '0' || ch == '1'; }) ||
         !UndoText::TryParseText (fields[0], definition) || !UndoText::TryParseText (fields[2], name) ||
+        (fields.size() == 4 && !UndoText::TryParseText (fields[3], group)) ||
         !TryRebuild (session, definition, rebuilt, entry))
     {
         return false;
@@ -751,6 +758,7 @@ bool BreakpointHistory::TryParseSide (DebugSession & session, const std::string 
     rebuilt.temporary = fields[1][1] == '1';
     rebuilt.stops     = fields[1][2] == '1';
     rebuilt.name      = name;
+    rebuilt.group     = group;
 
     if (entry.isWatchpoint)
     {
@@ -758,6 +766,7 @@ bool BreakpointHistory::TryParseSide (DebugSession & session, const std::string 
         entry.watchpoint.temporary = rebuilt.temporary;
         entry.watchpoint.stops     = rebuilt.stops;
         entry.watchpoint.name      = name;
+        entry.watchpoint.group     = group;
     }
     else
     {
@@ -765,6 +774,7 @@ bool BreakpointHistory::TryParseSide (DebugSession & session, const std::string 
         entry.breakpoint.temporary = rebuilt.temporary;
         entry.breakpoint.stops     = rebuilt.stops;
         entry.breakpoint.name      = name;
+        entry.breakpoint.group     = group;
     }
 
     info  = rebuilt;

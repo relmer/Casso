@@ -120,6 +120,7 @@ void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandler
     BreakpointHandlers::ListAll (session, list);
     breakpointNames.clear();
     breakpointLogs.clear();
+    breakpointGroups.clear();
 
     for (size_t i = 0; i < list.breakpoints.size(); i++)
     {
@@ -131,6 +132,11 @@ void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandler
         if (!list.breakpoints[i].log.empty())
         {
             breakpointLogs[i] = list.breakpoints[i].log;
+        }
+
+        if (!list.breakpoints[i].group.empty())
+        {
+            breakpointGroups[i] = list.breakpoints[i].group;
         }
     }
 
@@ -256,6 +262,14 @@ void DebugProject::ApplyEngine (DebugSession & session, std::vector<std::string>
         if (index < created.size() && created[index] >= 0 && !session.GetBreakpoints().TrySetLog (created[index], log))
         {
             session.GetWatchpoints().TrySetLog (created[index], log);
+        }
+    }
+
+    for (const auto & [index, group] : breakpointGroups)
+    {
+        if (index < created.size() && created[index] >= 0)
+        {
+            (void) BreakpointHandlers::SetGroup (session, created[index], group);
         }
     }
 
@@ -520,6 +534,7 @@ std::string DebugProject::ToJson (const std::wstring & directory) const
     std::vector<JsonValue>  script;
     std::vector<JsonValue>  named;
     std::vector<JsonValue>  logged;
+    std::vector<JsonValue>  grouped;
     std::vector<JsonValue>  startup;
     Members                 window;
     Members                 root;
@@ -548,6 +563,11 @@ std::string DebugProject::ToJson (const std::wstring & directory) const
         logged.push_back (JsonValue (Members { { "index", JsonValue ((double) index) }, { "log", JsonValue (log) } }));
     }
 
+    for (const auto & [index, group] : breakpointGroups)
+    {
+        grouped.push_back (JsonValue (Members { { "index", JsonValue ((double) index) }, { "group", JsonValue (group) } }));
+    }
+
     for (const StartupCommand & command : startupCommands)
     {
         startup.push_back (JsonValue (Members { { "mode", JsonValue (std::string (CommandModeNames::GetName (command.mode))) },
@@ -563,6 +583,7 @@ std::string DebugProject::ToJson (const std::wstring & directory) const
     root.emplace_back ("engineScript",    JsonValue (std::move (script)));
     root.emplace_back ("names",           JsonValue (std::move (named)));
     root.emplace_back ("logs",            JsonValue (std::move (logged)));
+    root.emplace_back ("groups",          JsonValue (std::move (grouped)));
     window.emplace_back ("layout",             JsonValue (layout));
     window.emplace_back ("rangeSets",          JsonValue (rangeSets));
     window.emplace_back ("disassemblyOptions", JsonValue (disassemblyOptions));
@@ -676,6 +697,22 @@ bool DebugProject::TryParse (const std::string & text, const std::wstring & dire
             if (array->GetArrayElement (i).HasInt ("index", index) && array->GetArrayElement (i).HasString ("log", log) && index >= 0)
             {
                 project.breakpointLogs[(size_t) index] = log;
+            }
+        }
+    }
+
+    if (root.HasArray ("groups", array))
+    {
+        for (size_t i = 0; i < array->GetArraySize(); i++)
+        {
+            int          index = -1;
+            std::string  group;
+
+
+
+            if (array->GetArrayElement (i).HasInt ("index", index) && array->GetArrayElement (i).HasString ("group", group) && index >= 0)
+            {
+                project.breakpointGroups[(size_t) index] = group;
             }
         }
     }

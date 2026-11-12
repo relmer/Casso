@@ -103,6 +103,38 @@ namespace BreakpointHistoryTests
         }
 
 
+        //  Grouping two breakpoints is one step: one Undo takes both out of
+        //  the group and Redo puts them back; deleting a group is undone with
+        //  its breakpoints back in it.
+        TEST_METHOD (AGroupActionIsOneStep)
+        {
+            HistoryRig   rig;
+            CommandMode  aw = CommandMode::AppleWin;
+
+
+
+            rig.Run ("BP 0300");
+            rig.Run ("BP 0310");
+
+            rig.Step ({ DebuggerActions::GetGroupBreakpoints (std::format ("\"Loop\" {},{}", rig.List().at (0).id, rig.List().at (1).id), aw) });
+            Assert::AreEqual (std::string ("Loop"), rig.List().at (1).group);
+            Assert::AreEqual (std::wstring (L"regroup 2 breakpoints"), rig.view.Build (rig.controller.GetSession()).undoBreakpointsText);
+
+            rig.Do (BreakpointStep::Kind::Undo);
+            Assert::IsTrue (rig.List().at (0).group.empty() && rig.List().at (1).group.empty(), L"one undo takes both out");
+
+            rig.Do (BreakpointStep::Kind::Redo);
+            Assert::AreEqual (std::string ("Loop"), rig.List().at (0).group);
+
+            rig.Step ({ DebuggerActions::GetGroupBreakpoints ("DELETE \"Loop\"", aw) });
+            Assert::AreEqual ((size_t) 0, rig.List().size());
+
+            rig.Do (BreakpointStep::Kind::Undo);
+            Assert::AreEqual ((size_t) 2, rig.List().size(), L"both back");
+            Assert::AreEqual (std::string ("Loop"), rig.List().at (1).group, L"in the group");
+        }
+
+
         //  The snapshot has the step Undo and Redo would act on, as their tips
         //  read it.
         TEST_METHOD (UndoAndRedoTextsNameTheStep)

@@ -129,6 +129,7 @@ enum class DebugVerb
     SetBreakpointName,
     SetBreakpointLog,
     ListBreakpointLogs,
+    GroupBreakpoints,
 
     // Registers and stack
     ShowRegisters,

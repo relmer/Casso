@@ -102,6 +102,10 @@ public:
     static std::vector<DebuggerAction>  GetDialogActions (const BreakpointDialog::Result & result, std::optional<int> editedId, const BreakpointInfo & original,
                                                           int nextId, CommandMode mode);
 
+    //  A group heading's menu: Enable all, Disable all, Rename group...,
+    //  Ungroup, and Delete group and its breakpoints.
+    void  AddHeadingItems (const std::string & group, PaneMenuItems & items);
+
 private:
     static constexpr int  kNoId = INT_MIN;     // GetIdOfRow's id for no row; a session stop's id is negative
 
@@ -115,6 +119,15 @@ private:
     void                                               SetColumns       ();
     void                                               ApplyRows        ();
     void                                               FilterOrder      (const std::vector<BreakpointColumns::Cells> & allCells);
+
+    //  The rows in groups: the breakpoints in no group first, then each
+    //  group's, in the order of each group's first breakpoint; and each
+    //  group's heading and the name it is for.
+    std::vector<DxuiListView::Group>                   GroupOrder       (const DebuggerViewSnapshot & snapshot);
+    void                                               AddGroupItems    (const std::vector<DebuggerViewSnapshot::BreakpointLine> & selected, PaneMenuItems & items);
+    void                                               RunGroupAction   (const std::string & arguments);
+    std::optional<std::string>                         AskGroupName     (const std::wstring & title, const std::wstring & placeholder);
+    static std::string                                 MakeIdList       (const std::vector<DebuggerViewSnapshot::BreakpointLine> & lines);
     void                                               SetBarMenus      ();
     void                                               NewBreakpoint    (BreakpointDialog::Type type);
     BreakpointDialog::Validator                        MakeValidator    (std::optional<int> editedId);
@@ -138,6 +151,7 @@ private:
     ListValueFilters                         m_filters;
     std::vector<size_t>                      m_order;
     std::vector<int>                         m_rowIds;          // each row's breakpoint id, as the rows were last set
+    std::vector<std::string>                 m_groupNames;      // each heading's group, as the rows were last set
     int                                      m_sort       = -1;
     bool                                     m_isReverse  = false;
 };

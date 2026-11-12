@@ -673,8 +673,10 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
     case DebugVerb::SetBreakpointLog:
         return TryParseNameArguments (args, command, error);
 
-    // A file name keeps its case; BRK's and BRKINT's keywords do not.
+    // A file name and a group's name are taken in the case typed; BRK's and
+    // BRKINT's keywords are not.
     case DebugVerb::SaveBreakpoints:
+    case DebugVerb::GroupBreakpoints:
         command.text = args.rest;
         return true;
 

@@ -76,6 +76,7 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "BPNAME",      V::SetBreakpointName,        F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BPLOG",       V::SetBreakpointLog,         F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BPLOGS",      V::ListBreakpointLogs,       F::Breakpoints, A::Headless,     nullptr,     nullptr },
+    { "BPGROUP",     V::GroupBreakpoints,         F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BP",          V::SetBreakpoint,            F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BPA",         V::SetBreakpointAndWatchpoint, F::Breakpoints, A::Headless,   nullptr,     nullptr },
     { "BPR",         V::SetRegisterBreakpoint,    F::Breakpoints, A::Headless,     nullptr,     nullptr },

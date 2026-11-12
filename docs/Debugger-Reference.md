@@ -812,6 +812,35 @@ does. A filtered heading has a funnel, and **Clear filter** on its menu lists
 every row again. Hiding a column clears its filter. The filters last until the
 debugger window closes.
 
+### Breakpoint groups
+
+As in Visual Studio, breakpoints can be put in groups, each with a name.
+A breakpoint or a data breakpoint is in at most one group, and a group
+exists while something is in it. A group's name matches without regard to
+case and is displayed as first typed.
+
+While any group exists, the Breakpoints pane lists the breakpoints in no group
+first, then each group under a heading with its name and how many breakpoints
+it has; a click on a heading collapses or expands it. A row's **Add to
+breakpoint group** submenu has each group and **New group...**, and acts on
+every selected breakpoint; **Remove from group** takes them out. A heading's
+menu has **Enable all**, **Disable all**, **Rename group...**, **Ungroup**,
+after which the breakpoints are in no group, and **Delete group and its
+breakpoints**, after a confirmation. Each is one step on the pane's undo list.
+
+| Command | Effect |
+|---|---|
+| `BPGROUP` | List each group and its breakpoint ids |
+| `BPGROUP name #[,#...]` | Put breakpoints in a group, making it; a name with spaces is quoted |
+| `BPGROUP ! #[,#...]` | Take breakpoints out of their groups |
+| `BPGROUP ENABLE name`, `BPGROUP DISABLE name` | Enable or disable every breakpoint in a group |
+| `BPGROUP RENAME old new` | Rename a group |
+| `BPGROUP UNGROUP name` | Take every breakpoint out of a group |
+| `BPGROUP DELETE name` | Delete a group and its breakpoints |
+
+The debug project and `BPSAVE`'s file save each breakpoint's group, and a
+breakpoint is in the same group after `BPEDIT`.
+
 ## Stepping and history
 
 ### Running and stopping

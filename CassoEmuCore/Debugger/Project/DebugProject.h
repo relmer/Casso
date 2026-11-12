@@ -59,6 +59,7 @@ struct DebugProject
     std::vector<std::string>       engineScript;
     std::map<size_t, std::string>  breakpointNames;   // by the breakpoint's place in BPL's order
     std::map<size_t, std::string>  breakpointLogs;    // BPLOG's messages, by the same place
+    std::map<size_t, std::string>  breakpointGroups;  // BPGROUP's groups, by the same place
     std::string                    layout;
     std::string                    rangeSets;
     std::string                    disassemblyOptions;

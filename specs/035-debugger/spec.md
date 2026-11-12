@@ -4081,11 +4081,11 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-409**: A breakpoint MUST be in at most one group, which has a name. A
   group's name MUST match without regard to case and MUST be displayed as
   first typed.
-- **FR-410**: While any group exists, the Breakpoints pane MUST list each
-  group's breakpoints under a heading with the group's name and its number of
-  breakpoints, then the ungrouped breakpoints with no heading. A heading MUST
-  collapse and expand its rows. With no group, the pane MUST list the
-  breakpoints with no headings.
+- **FR-410**: While any group exists, the Breakpoints pane MUST list the
+  ungrouped breakpoints first with no heading, then each group's breakpoints
+  under a heading with the group's name and its number of breakpoints. A
+  heading MUST collapse and expand its rows. With no group, the pane MUST list
+  the breakpoints with no headings.
 - **FR-411**: A breakpoint row's context menu MUST have Add to breakpoint
   group, a submenu of the existing groups, New group..., and Remove from group
   when any selected breakpoint is in a group; each MUST act on every selected

@@ -309,6 +309,45 @@ bool BreakpointTable::TrySetFlags (int id, bool temporary, bool stops)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+bool BreakpointTable::TrySetGroup (int id, const std::string & group)
+{
+    auto  found = std::ranges::find_if (m_entries, [id] (const Breakpoint & entry) { return entry.id == id; });
+
+
+
+    if (found != m_entries.end())
+    {
+        found->group = group;
+    }
+
+    return found != m_entries.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::IsSameGroup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::IsSameGroup (const std::string & left, const std::string & right)
+{
+    return left.size() == right.size() && _stricmp (left.c_str(), right.c_str()) == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::TrySetName
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool BreakpointTable::TrySetName (int id, const std::string & name)
 {
     auto  found = std::ranges::find_if (m_entries, [id] (const Breakpoint & entry) { return entry.id == id; });

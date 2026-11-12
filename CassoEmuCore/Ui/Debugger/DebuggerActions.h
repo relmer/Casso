@@ -234,6 +234,10 @@ public:
     //  name.
     static DebuggerAction  GetNameBreakpoint       (int id, const std::string & name, CommandMode mode);
 
+    //  BPGROUP with its arguments as typed: a quoted name and ids, ! and ids,
+    //  or a word and a quoted name.
+    static DebuggerAction  GetGroupBreakpoints     (const std::string & arguments, CommandMode mode);
+
     //  BPLOG # [GO] "text", GO when a hit goes on running; an empty text is
     //  BPLOG # CLEAR.
     static DebuggerAction  GetLogBreakpoint        (int id, const std::string & message, bool isGo, CommandMode mode);

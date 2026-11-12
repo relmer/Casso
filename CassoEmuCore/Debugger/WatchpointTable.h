@@ -32,6 +32,7 @@ struct Watchpoint
     uint32_t     hits      = 0;
     std::string  name;                            // BPNAME's; empty for the default
     std::string  log;                             // BPLOG's message; empty for none
+    std::string  group;                           // BPGROUP's group; empty for none
 };
 
 
@@ -116,6 +117,7 @@ public:
     bool   TrySetFlags      (int id, bool temporary, bool stops);
     bool   TrySetName       (int id, const std::string & name);
     bool   TrySetLog        (int id, const std::string & log);
+    bool   TrySetGroup      (int id, const std::string & group);
     bool   TryAdopt         (const Watchpoint & entry);
     bool   TryChangeId      (int from, int to);
     bool   TryFind          (int id, Watchpoint & entry) const;

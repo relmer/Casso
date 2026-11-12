@@ -37,6 +37,7 @@ struct Breakpoint
     std::string          symbol;                  // the symbol an address breakpoint was set by
     std::string          name;                    // BPNAME's; empty for the default
     std::string          log;                     // BPLOG's message; empty for none
+    std::string          group;                   // BPGROUP's group; empty for none
 
     // Kind Disk: what BPDISK was given, and the routine an RWTS or driver
     // breakpoint stops at now, absent while its vector has no target.
@@ -99,11 +100,18 @@ public:
     bool  TrySetSymbol     (int id, const std::string & symbol);
     bool  TrySetName       (int id, const std::string & name);
     bool  TrySetLog        (int id, const std::string & log);
+
     bool  TrySetCondition  (int id, const Expression & condition);
     bool  TryMove          (int id, Word first);
     bool  TrySetResolved   (int id, std::optional<Word> routine);
     bool  HasBrk           () const;
     bool  HasOpcode        (Byte opcode) const;
+
+    //  Puts a breakpoint in a group, or with an empty name in none, the name
+    //  written as given; BreakpointHandlers::SetGroup matches it to a group
+    //  first. A group's name matches without regard to case.
+    bool         TrySetGroup (int id, const std::string & group);
+    static bool  IsSameGroup (const std::string & left, const std::string & right);
 
     //  Inserts an entry under the id it carries, for BPEDIT, which keeps a
     //  breakpoint's id across its new definition. Fails if the id is taken.

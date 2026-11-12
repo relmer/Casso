@@ -245,6 +245,220 @@ std::vector<IDxuiControl *> BreakpointsPane::GetControls() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointsPane::GroupOrder
+//
+//  A heading is the group's name and how many breakpoints are in it. With no
+//  group, no headings.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiListView::Group> BreakpointsPane::GroupOrder (const DebuggerViewSnapshot & snapshot)
+{
+    std::vector<DxuiListView::Group>  groups;
+    std::vector<size_t>               order;
+
+
+
+    m_groupNames.clear();
+
+    for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
+    {
+        if (!bp.info.group.empty() && std::ranges::none_of (m_groupNames, [&bp] (const std::string & each) { return BreakpointTable::IsSameGroup (each, bp.info.group); }))
+        {
+            m_groupNames.push_back (bp.info.group);
+        }
+    }
+
+    std::ranges::copy_if (m_order, std::back_inserter (order), [&snapshot] (size_t index) { return snapshot.breakpoints[index].info.group.empty(); });
+
+    for (const std::string & group : m_groupNames)
+    {
+        size_t  first = order.size();
+
+        std::ranges::copy_if (m_order, std::back_inserter (order), [&snapshot, &group] (size_t index) { return BreakpointTable::IsSameGroup (snapshot.breakpoints[index].info.group, group); });
+        groups.push_back ({ std::format (L"{} ({})", TextEncoding::NarrowToWide (group), order.size() - first), (int) first, false });
+    }
+
+    m_order = std::move (order);
+    return groups;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::AddGroupItems
+//
+//  Add to breakpoint group, a submenu of the groups there are, New group...,
+//  and Remove from group while a selected breakpoint is in one; each acts on
+//  every selected breakpoint, as one undo step.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointsPane::AddGroupItems (const std::vector<DebuggerViewSnapshot::BreakpointLine> & selected, PaneMenuItems & items)
+{
+    static constexpr const wchar_t *  kSubmenu = L"Add to breakpoint group";
+    std::string                       ids      = MakeIdList (selected);
+    bool                              isIn     = std::ranges::any_of (selected, [] (const DebuggerViewSnapshot::BreakpointLine & each) { return !each.info.group.empty(); });
+
+
+
+    if (ids.empty())
+    {
+        return;
+    }
+
+    for (const std::string & group : m_groupNames)
+    {
+        items.push_back ({ PaneMenu::MakeInSubmenu (kSubmenu, TextEncoding::NarrowToWide (group)), [this, group, ids] { RunGroupAction (std::format ("\"{}\" {}", group, ids)); } });
+    }
+
+    items.push_back ({ PaneMenu::MakeInSubmenu (kSubmenu, L"New group..."), [this, ids]
+    {
+        std::optional<std::string>  name = AskGroupName (L"New breakpoint group", L"A name for the group");
+
+        if (name.has_value())
+        {
+            RunGroupAction (std::format ("\"{}\" {}", *name, ids));
+        }
+    } });
+
+    if (isIn)
+    {
+        items.push_back ({ L"Remove from group", [this, ids] { RunGroupAction ("! " + ids); } });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::AddHeadingItems
+//
+//  A group heading's menu: Enable all, Disable all, Rename group...,
+//  Ungroup, and Delete group and its breakpoints, after a confirmation.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointsPane::AddHeadingItems (const std::string & group, PaneMenuItems & items)
+{
+    items.push_back ({ L"Enable all",  [this, group] { RunGroupAction (std::format ("ENABLE \"{}\"", group)); } });
+    items.push_back ({ L"Disable all", [this, group] { RunGroupAction (std::format ("DISABLE \"{}\"", group)); } });
+    items.push_back ({ L"", {} });
+
+    items.push_back ({ L"Rename group...", [this, group]
+    {
+        std::optional<std::string>  name = AskGroupName (L"Rename breakpoint group", TextEncoding::NarrowToWide (group));
+
+        if (name.has_value())
+        {
+            RunGroupAction (std::format ("RENAME \"{}\" \"{}\"", group, *name));
+        }
+    } });
+
+    items.push_back ({ L"Ungroup", [this, group] { RunGroupAction (std::format ("UNGROUP \"{}\"", group)); } });
+
+    items.push_back ({ L"Delete group and its breakpoints", [this, group]
+    {
+        DxuiWindow  * window = m_host.GetPaneWindow (DebuggerLayout::kBreakpoints);
+        int           answer = m_host.ShowMessageBox ((window != nullptr) ? window->GetHwnd() : m_host.GetOwnerHwnd(),
+                                                      std::format (L"Delete group \"{}\" and its breakpoints?", TextEncoding::NarrowToWide (group)), L"Delete breakpoint group",
+                                                      MB_ICONWARNING, { { L"&Delete", IDYES }, { L"&Cancel", IDCANCEL } }, IDCANCEL);
+
+        if (answer == IDYES)
+        {
+            RunGroupAction (std::format ("DELETE \"{}\"", group));
+        }
+    } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::RunGroupAction
+//
+//  BPGROUP as one step on the pane's undo list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointsPane::RunGroupAction (const std::string & arguments)
+{
+    RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetGroupBreakpoints (arguments, m_host.GetMode()) }, {} });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::AskGroupName
+//
+//  A name with no quote in it, since BPGROUP takes a quoted name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::string> BreakpointsPane::AskGroupName (const std::wstring & title, const std::wstring & placeholder)
+{
+    std::optional<std::wstring>  typed = m_host.RunTextDialog (title, L"Name", placeholder, [] (const std::wstring & text, std::wstring & error)
+    {
+        error = L"Type a name with no quotes in it.";
+        return text.find_first_not_of (L" \t") != std::wstring::npos && text.find (L'"') == std::wstring::npos;
+    });
+
+
+
+    if (!typed.has_value())
+    {
+        return std::nullopt;
+    }
+
+    return TextEncoding::WideToNarrow (*typed);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::MakeIdList
+//
+//  The ids of the table entries among the lines, apart by commas; a
+//  session stop has no id and isn't listed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BreakpointsPane::MakeIdList (const std::vector<DebuggerViewSnapshot::BreakpointLine> & lines)
+{
+    std::string  ids;
+
+
+
+    for (const DebuggerViewSnapshot::BreakpointLine & line : lines)
+    {
+        if (line.id >= 0)
+        {
+            ids += (ids.empty() ? "" : ",") + std::to_string (line.id);
+        }
+    }
+
+    return ids;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointsPane::GetColorKey
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -341,12 +555,21 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
     DebuggerViewSnapshot::BreakpointLine          bp;
     int                                           fileId   = -1;
     int                                           line     = 0;
+    POINT                                         press    = m_host.GetLastPressPx();
+    int                                           heading  = (row < 0) ? m_list->HitTestGroupHeader (press.x - m_list->GetBounds().left, press.y - m_list->GetBounds().top) : -1;
 
 
 
     if (list != m_list)
     {
         return false;
+    }
+
+    //  A right-click on a group's heading.
+    if (found == nullptr && heading >= 0 && heading < (int) m_groupNames.size())
+    {
+        AddHeadingItems (m_groupNames[(size_t) heading], items);
+        return true;
     }
 
     if (found == nullptr)
@@ -386,6 +609,7 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
     if (bp.id >= 0)
     {
         items.push_back ({ L"Rename", [this, bp] { BeginNameEdit (GetRowOfId (bp.id)); } });
+        AddGroupItems (GetSelected(), items);
         items.push_back ({ L"", {} });
         items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, m_host.GetMode()) }, {} }); } });
     }
@@ -1278,6 +1502,7 @@ void BreakpointsPane::ApplyRows()
     std::vector<BreakpointColumns::Cells>           allCells;
     std::vector<int>                                selectedIds;
     std::vector<int>                                selectedRows;
+    std::vector<DxuiListView::Group>                groups;
     int                                             anchorId = GetIdOfRow (m_list->GetAnchorRow());
     int                                             rowId    = GetIdOfRow (m_list->GetSelectedRow());
     const DxuiTheme                               * theme    = m_host.GetTheme();
@@ -1317,6 +1542,7 @@ void BreakpointsPane::ApplyRows()
     }
 
     FilterOrder (allCells);
+    groups = GroupOrder (*snapshot);
 
     for (size_t index : m_order)
     {
@@ -1350,7 +1576,8 @@ void BreakpointsPane::ApplyRows()
         m_rowIds.push_back (snapshot->breakpoints[index].id);
     }
 
-    m_list->SetRows (std::move (rows));
+    m_list->SetRows   (std::move (rows));
+    m_list->SetGroups (groups);
     m_list->ShowNewRow (GetRowKeys());
 
     for (int id : selectedIds)
