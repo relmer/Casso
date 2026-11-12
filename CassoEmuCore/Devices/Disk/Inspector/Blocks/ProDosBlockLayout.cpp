@@ -2,6 +2,7 @@
 
 #include "Devices/Disk/BlockImage.h"
 #include "Devices/Disk/Inspector/Blocks/ProDosBlockLayout.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 
 
@@ -61,7 +62,7 @@ bool ProDosBlockLayout::IsFound (const BlockImage & image, uint32_t & outBlocks)
                && (key[kFirstEntry] >> kStorageShift) == kVolumeHeader
                && (key[kFirstEntry] & kNameLengthMask) != 0
                && key[kFirstEntry + kOffEntryLength] == kEntryLength
-               && key[kFirstEntry + kOffEntriesPerBlock] == kEntriesPerBlock;
+               && ProDosSkeleton::IsEntriesPerBlockValid (key[kFirstEntry + kOffEntriesPerBlock]);
     }
 
     outBlocks = isFound ? GetWord (&key[kTotalBlocks]) : 0;
@@ -189,6 +190,7 @@ void ProDosBlockLayout::WalkDirectory (
     const Byte    * at    = nullptr;
     bool            isKey = true;
     SectorRole      role  = SectorRole::CatalogOrDirectory;
+    uint32_t        count = kEntriesPerBlock;
 
 
 
@@ -213,7 +215,12 @@ void ProDosBlockLayout::WalkDirectory (
         MarkBlock (walker, block, role, BlockStructure::ProDosDirectory, owner);
         ReadBlock (walker.image, block, bytes);
 
-        for (entry = isKey ? 1 : 0; entry < kEntriesPerBlock; entry++)
+        if (isKey)
+        {
+            count = (uint32_t) ProDosSkeleton::GetEntriesPerBlock (bytes[kFirstEntry + kOffEntriesPerBlock]);
+        }
+
+        for (entry = isKey ? 1 : 0; entry < count; entry++)
         {
             at = &bytes[kFirstEntry + entry * kEntryLength];
 

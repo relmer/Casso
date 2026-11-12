@@ -313,6 +313,7 @@ bool ProDosVolumeWriter::TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlo
     ChainWalkGuard  guard ((uint32_t) m_volume.GetBlockCount());
     int             dirBlock = dirKeyBlock;
     int             n        = 0;
+    int             perBlock = m_volume.GetEntriesPerBlock (dirKeyBlock);
 
 
 
@@ -327,7 +328,7 @@ bool ProDosVolumeWriter::TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlo
             break;
         }
 
-        for (n = first; n < (int) ProDosSkeleton::kEntriesPerBlock; n++)
+        for (n = first; n < perBlock; n++)
         {
             size_t  at      = ProDosSkeleton::kOffFirstEntry
                             + (size_t) n * ProDosSkeleton::kEntryLength;

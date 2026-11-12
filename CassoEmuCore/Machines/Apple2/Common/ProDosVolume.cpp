@@ -130,6 +130,7 @@ void ProDosVolume::CollectEntries (
     int             dirBlock = keyBlock;
     int             n        = 0;
     size_t          i        = 0;
+    int             perBlock = GetEntriesPerBlock (keyBlock);
 
 
 
@@ -149,7 +150,7 @@ void ProDosVolume::CollectEntries (
             break;
         }
 
-        for (n = first; n < (int) ProDosSkeleton::kEntriesPerBlock; n++)
+        for (n = first; n < perBlock; n++)
         {
             RawEntry  entry;
             size_t    at      = ProDosSkeleton::kOffFirstEntry
@@ -1223,4 +1224,19 @@ bool ProDosVolume::IsBitmapBitFree (uint32_t block) const
                                  (int) (at / (size_t) ProDosSkeleton::kBlockByteSize));
 
     return IsFreeInBitmap (m_sectors, block);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::GetEntriesPerBlock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ProDosVolume::GetEntriesPerBlock (int keyBlock) const
+{
+    return ProDosSkeleton::GetEntriesPerBlock (ReadByte (keyBlock, ProDosSkeleton::kEntriesPerBlockAt));
 }

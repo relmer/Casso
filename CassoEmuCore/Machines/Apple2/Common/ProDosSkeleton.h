@@ -55,6 +55,14 @@ public:
     static int      GetReservedBlockCount (size_t bufferBytes);
     static size_t   GetBitmapByteOffset   (const BlockImage & buffer, uint32_t block);
 
+    //  A directory's entries a block, from its header: 13 as ProDOS writes,
+    //  or fewer, as some SOS disks have. A value outside 1 to 13 is 13.
+    static int   GetEntriesPerBlock     (Byte headerValue);
+    static bool  IsEntriesPerBlockValid (Byte headerValue);
+
+    //  Where the header's entries-a-block byte is in a directory's key block.
+    static constexpr size_t  kEntriesPerBlockAt = 0x04 + 0x20;
+
     static constexpr int     kBlockByteSize   = 512;
 
     //  The volume directory's blocks and the volume bitmap's.

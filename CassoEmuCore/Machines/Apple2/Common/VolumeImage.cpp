@@ -795,7 +795,7 @@ bool VolumeImage::LooksLikeProDos (const vector<Byte> & sectors)
                   | (sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 2, 0x04 + 0x24)] << 8));
 
     return sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 2, 0x04 + 0x1F)] == 0x27   // entry length
-        && sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 2, 0x04 + 0x20)] == 0x0D   // entries per block
+        && ProDosSkeleton::IsEntriesPerBlockValid (sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 2, ProDosSkeleton::kEntriesPerBlockAt)])
         && total  > 0 && total  <= (Word) ProDosSkeleton::GetBlockCount (sectors.size())
         && bitmap > 0 && bitmap <  (Word) ProDosSkeleton::GetBlockCount (sectors.size());
 }
