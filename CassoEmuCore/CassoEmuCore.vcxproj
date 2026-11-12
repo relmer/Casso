@@ -704,6 +704,7 @@
     <ClCompile Include="Machines\Apple2\Common\VideoTiming.cpp" />
     <ClCompile Include="Audio\AudioEndpointNotifier.cpp" />
     <ClCompile Include="Audio\AudioGenerator.cpp" />
+    <ClCompile Include="Audio\SpeakerFilter.cpp" />
     <ClCompile Include="Audio\DriveAudioMixer.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Disk2AudioSource.cpp" />
     <ClCompile Include="Audio\PrinterAudioSource.cpp" />
@@ -1548,6 +1549,7 @@
     <ClInclude Include="Machines\Apple2\Common\CharacterRom.h" />
     <ClInclude Include="Audio\AudioEndpointNotifier.h" />
     <ClInclude Include="Audio\AudioGenerator.h" />
+    <ClInclude Include="Audio\SpeakerFilter.h" />
     <ClInclude Include="Audio\IDriveAudioSink.h" />
     <ClInclude Include="Audio\IDriveAudioEventSink.h" />
     <ClInclude Include="Audio\IDriveAudioSource.h" />
