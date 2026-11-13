@@ -198,6 +198,11 @@ public:
     void                       BuildLargeProDos       (const CommandLineOptions & options, DiskCommandResult & result);
     void                       ReformatLargeProDos    (const CommandLineOptions & options, const FileStamp & stamp, DiskCommandResult & result);
 
+    //  --bootable on a volume larger than 140K, as on a 140K one: PRODOS and
+    //  BASIC.SYSTEM from the master, and SOS for a format that starts an
+    //  Apple ///. `outBootWords` is what the summary line adds, or empty.
+    HRESULT                    InstallLargeBoot       (const CommandLineOptions & options, bool isHfs, vector<Byte> & ioVolume, std::string & outBootWords, DiskCommandResult & result);
+
     void  RunInit   (const CommandLineOptions & options, DiskCommandResult & result);
 
     //

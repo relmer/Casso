@@ -354,6 +354,7 @@ HRESULT ProDosSkeleton::InstallBoot (vector<Byte> & buffer, const vector<Byte> &
     HRESULT       hr          = S_OK;
     size_t        bufferBytes = buffer.size();
     size_t        usersBytes  = usersDisk.size();
+    bool          sizeValid   = IsValidVolumeSize (bufferBytes);
     int           block       = 0;
     size_t        i           = 0;
     Byte          fileType    = 0;
@@ -362,14 +363,16 @@ HRESULT ProDosSkeleton::InstallBoot (vector<Byte> & buffer, const vector<Byte> &
 
 
 
-    CBRA (bufferBytes == (size_t) NibblizationLayer::kImageByteSize);
+    //  The volume is a 140K disk in DOS order or a larger one in block order,
+    //  and the master a 140K disk in DOS order.
+    CBRA (sizeValid);
     CBRAEx (usersBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
 
     for (block = 0; block < 2; block++)
     {
         for (i = 0; i < (size_t) kBlockByteSize; i++)
         {
-            buffer[GetBlockByteOffset (block, i)] = usersDisk[GetBlockByteOffset (block, i)];
+            buffer[GetBlockByteOffset (bufferBytes, block, i)] = usersDisk[GetBlockByteOffset (block, i)];
         }
     }
 
@@ -916,16 +919,19 @@ bool ProDosReader::IsBlockInRange (const BlockImage   & volume, Word block)
 
 HRESULT ProDosFileWriter::AllocateBlock (vector<Byte> & buffer, Word & outBlock)
 {
-    HRESULT  hr    = S_OK;
-    int      block = 0;
-    bool     found = false;
+    HRESULT     hr     = S_OK;
+    BlockImage  image (buffer);
+    int         blocks = ProDosSkeleton::GetBlockCount (buffer.size());
+    int         block  = 0;
+    bool        found  = false;
 
 
 
-    for (block = 0; !found && block < ProDosSkeleton::kTotalBlocks; block++)
+    //  The bitmap of a 140K volume or of a larger one, wherever its volume
+    //  header has it.
+    for (block = 0; !found && block < blocks; block++)
     {
-        size_t  at   = ProDosSkeleton::GetBlockByteOffset (
-                           ProDosSkeleton::kBitmapBlock, (size_t) (block / 8));
+        size_t  at   = ProDosSkeleton::GetBitmapByteOffset (image, (uint32_t) block);
         Byte    mask = (Byte) (0x80 >> (block % 8));
 
         if ((buffer[at] & mask) != 0)
@@ -967,6 +973,7 @@ HRESULT ProDosFileWriter::WriteFile (
 {
     HRESULT       hr          = S_OK;
     size_t        bufferBytes = buffer.size();
+    bool          sizeValid   = ProDosSkeleton::IsValidVolumeSize (bufferBytes);
     size_t        nameBytes   = fileName.size();
     size_t        dataBytes   = bytes.size();
     size_t        blockCount  = (dataBytes + 511) / 512;
@@ -982,7 +989,7 @@ HRESULT ProDosFileWriter::WriteFile (
 
 
 
-    CBRAEx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBRAEx (sizeValid, E_INVALIDARG);
     CBRAEx (nameBytes >= 1 && nameBytes <= ProDosSkeleton::kVolumeNameBytes, E_INVALIDARG);
     CBRAEx (dataBytes > 0, E_INVALIDARG);
     CBRAEx (blockCount <= 256, E_INVALIDARG);

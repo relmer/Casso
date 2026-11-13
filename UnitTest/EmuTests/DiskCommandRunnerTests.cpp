@@ -1995,6 +1995,47 @@ public:
         Assert::IsTrue (damaged.output.find ("CRC") != std::string::npos);
     }
 
+    //  --bootable on a disk larger than 140K was dropped without a word, so a
+    //  32 MB volume had no PRODOS and didn't start from a hard drive card.
+    //  Found booting one on Apple's SCSI card in MAME.
+    TEST_METHOD (Create_MakesALargeProDosVolumeBootable)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("big.hdv");
+        DiskCommandResult   made;
+        DiskCommandResult   listed;
+
+
+
+        SeedRealDisk (io, "Disks/Merlin-proProdos2.33-b.dsk", "master.dsk");
+
+        for (const char * size : { "800K", "32M" })
+        {
+            options.disk.sizeName     = size;
+            options.disk.formatName   = "prodos";
+            options.disk.bootable     = true;
+            options.disk.bootableFrom = "master.dsk";
+
+            made = runner.Run (options);
+            Assert::AreEqual (DiskCommandResult::kClean, made.exitStatus, TextEncoding::NarrowToWide (made.output + made.diagnostics).c_str());
+            Assert::IsTrue   (made.output.find (", bootable") != std::string::npos, TextEncoding::NarrowToWide (made.output).c_str());
+            Assert::AreNotEqual ((int) io.files["big.hdv"][0], 0, L"block 0 has the ProDOS loader");
+
+            listed = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List, "big.hdv"));
+            Assert::IsTrue (listed.output.find ("PRODOS") != std::string::npos, TextEncoding::NarrowToWide (listed.output).c_str());
+            Assert::IsTrue (listed.output.find ("Not bootable") == std::string::npos);
+
+            io.files.erase ("big.hdv");
+            io.stamps.erase ("big.hdv");
+        }
+
+        options.disk.formatName = "hfs";
+        made = runner.Run (options);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, made.exitStatus, L"an HFS volume isn't made bootable");
+        Assert::IsFalse  (io.Exists ("big.hdv"));
+    }
+
     TEST_METHOD (Create_RefusesALargeDosDisk)
     {
         FakeDiskFileIo      io;
