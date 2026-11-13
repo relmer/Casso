@@ -1163,6 +1163,11 @@ public:
         Assert::IsTrue   (bar.GetText().starts_with (L"A2Pico card. 1 of its 2 A2retroNET drives have an image."), bar.GetText().c_str());
         Assert::AreEqual ((size_t) 2, bar.GetActionCount(), L"A2retroNET drives and Repair");
 
+        //  After a second fill the buttons are laid out. New buttons were
+        //  made on each fill before, with no bounds, and weren't drawn.
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (bar.GetAction (0)->GetBounds().right > bar.GetAction (0)->GetBounds().left, L"the button has a place in the bar");
+
         bar.GetAction (1)->Click();
 
         Assert::AreEqual (std::string ("[drives]\nnumber=2\n1=system.po\n"), std::string (rig.io.files["E:\\A2retroNET.txt"].begin(), rig.io.files["E:\\A2retroNET.txt"].end()));
@@ -1189,7 +1194,9 @@ public:
         FixtureProvider    fixtures;
         std::vector<Byte>  po;
         std::vector<Byte>  dsk (NibblizationLayer::kImageByteSize, 0);
-        std::string        text = "[drives]\n";
+        std::string        text   = "[drives]\n";
+        RECT               button = {};
+        DxuiMouseEvent     mouse;
 
 
 
@@ -1216,7 +1223,16 @@ public:
         Assert::AreEqual (std::wstring (L"zork.dsk has a ProDOS volume in a form A2retroNET doesn't read. Write as .po makes a copy it reads."), bar.GetText());
         Assert::AreEqual ((size_t) 1, bar.GetActionCount());
 
-        bar.GetAction (0)->Click();
+        //  Clicked through the window's input, as a real click arrives.
+        button            = bar.GetAction (0)->GetBounds();
+        mouse.button      = DxuiMouseButton::Left;
+        mouse.positionDip = { (button.left + button.right) / 2, (button.top + button.bottom) / 2 };
+
+        for (DxuiMouseEventKind kind : { DxuiMouseEventKind::Move, DxuiMouseEventKind::Down, DxuiMouseEventKind::Up })
+        {
+            mouse.kind = kind;
+            rig.parts->input.HandleMouse (mouse);
+        }
 
         Assert::IsTrue (rig.io.files["E:\\games\\zork.po"] == po);
     }

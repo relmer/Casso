@@ -109,6 +109,46 @@ RECT ExplorerListBars::Layout (const RECT & rect)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListBars::HandleMouse
+//
+//  A move is offered to every visible bar, so the hover on a button the
+//  pointer left is cleared. Any other event is offered to the bars until one
+//  takes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListBars::HandleMouse (const DxuiMouseEvent & ev)
+{
+    bool  handled = false;
+    bool  shown   = false;
+    bool  hover   = ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave;
+
+
+
+    for (DxuiInfoBanner * bar : { m_searchBar, m_cardBar })
+    {
+        shown = shown || bar->IsVisible();
+
+        if (bar->IsVisible() && (hover || !handled))
+        {
+            handled = bar->OnMouse (ev) || handled;
+        }
+    }
+
+    if (handled || (hover && shown))
+    {
+        m_context.window.Invalidate();
+    }
+
+    return handled && !hover;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListBars::FillSearchBar
 //
 //  A search's query is parsed again here, on the window's thread, for its
@@ -158,16 +198,17 @@ bool ExplorerListBars::FillSearchBar()
 
 bool ExplorerListBars::FillCardBar()
 {
-    const Location             & location = m_context.browser.GetLocation();
-    std::wstring                 root     = std::filesystem::path (location.path).root_path().wstring();
+    const Location             & location  = m_context.browser.GetLocation();
+    std::wstring                 root      = std::filesystem::path (location.path).root_path().wstring();
     std::vector<std::wstring>    labels;
     std::wstring                 text;
-    HRESULT                      hr       = S_OK;
-    bool                         visible  = m_cardBar->IsVisible();
-    bool                         onCard   = false;
-    bool                         atRoot   = false;
-    bool                         problem  = false;
-    bool                         show     = false;
+    HRESULT                      hr        = S_OK;
+    bool                         visible   = m_cardBar->IsVisible();
+    bool                         onCard    = false;
+    bool                         atRoot    = false;
+    bool                         problem   = false;
+    bool                         show      = false;
+    bool                         relabeled = false;
 
 
 
@@ -217,19 +258,28 @@ bool ExplorerListBars::FillCardBar()
 
     for (CardAction action : m_cardActions)
     {
-        labels.push_back (action == CardAction::Drives ? L"A2retroNET drives..." : action == CardAction::Repair ? L"Repair" : L"Write as .po");
+        labels.push_back (action == CardAction::Drives ? L"Drives..." : action == CardAction::Repair ? L"Repair" : L"Write as .po");
     }
+
+    //  New buttons have no place until the bar is laid out, so they are
+    //  replaced only when their labels change, and the pane is laid out again.
+    relabeled = show && labels != m_cardLabels;
 
     if (show)
     {
         m_cardBar->SetText     (text);
         m_cardBar->SetSeverity (problem ? DxuiInfoBanner::Severity::Warning : DxuiInfoBanner::Severity::Info);
-        m_cardBar->SetActions  (labels);
+    }
+
+    if (relabeled)
+    {
+        m_cardBar->SetActions (labels);
+        m_cardLabels = labels;
     }
 
     m_cardBar->SetVisible (show);
 
-    return show != visible;
+    return show != visible || relabeled;
 }
 
 
