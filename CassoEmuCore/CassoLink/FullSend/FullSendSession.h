@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoLink/FullSend/FullSendManifest.h"
+#include "CassoLink/FullSend/FullSendStatus.h"
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
 
 class IDiskFileIo;
@@ -203,8 +204,9 @@ public:
     using ClockFn = std::function<std::string()>;
 
     //  A chosen extension has its leading period; empty is .po for ProDOS and
-    //  Pascal and .dsk for any other.
-    FullSendSession (IFullSendLink & link, IDiskFileIo & fileIo, ClockFn clock, std::string folder, std::string extension, std::string prefix);
+    //  Pascal and .dsk for any other. The status is the Full Send window's
+    //  model, written as the session goes; nullptr for none.
+    FullSendSession (IFullSendLink & link, IDiskFileIo & fileIo, ClockFn clock, std::string folder, std::string extension, std::string prefix, FullSendStatus * status = nullptr);
 
     //  Returns when the session ends. Q returns kQuit and Cancel
     //  ERROR_CANCELLED; no session ends in S_OK.
@@ -263,6 +265,8 @@ private:
     HRESULT  CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw);
     HRESULT  WriteImage       (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile);
     HRESULT  WriteManifest    ();
+    void     Report           (const std::string & text);
+    void     MarkTracks       (int drive, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report);
     HRESULT  FindMovedImages  (const std::function<bool (const FullSendRow & row)> & matches);
     HRESULT  HashUnlisted     ();
     bool     HasImage         (const FullSendRow & row);
@@ -283,6 +287,8 @@ private:
     std::string                 m_folder;
     std::string                 m_extension;
     std::string                 m_prefix;
+    FullSendStatus              m_unread;        // the status when the session was given none
+    FullSendStatus            & m_status;
     FullSendManifest            m_manifest;
     FullSendScreen              m_screen;
     State                       m_state      = State::Starting;

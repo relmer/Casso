@@ -136,6 +136,9 @@ public:
     //  this with the sink's folder and extension, after what is queued already.
     std::shared_ptr<LinkOperation>  FullSend      (const std::string & folder, const std::string & extension, const std::string & prefix);
 
+    //  The Full Send window's model of this connection's session.
+    const FullSendStatus &  GetFullSendStatus () const { return m_fullSend.GetStatus(); }
+
     //  Whether the drive has the link's boot disk, by its boot sector: a write
     //  over it, the Apple has no disk to start the link from.
     std::shared_ptr<LinkOperation>  CheckLinkDisk (int drive);

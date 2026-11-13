@@ -41,7 +41,7 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
 {
     HRESULT            hr      = S_OK;
     HRESULT            cleared = S_OK;
-    FullSendSession    session (*this, m_session.m_fileIo, GetUtcTime, operation.imagePath, operation.newName, operation.imagePrefix);
+    FullSendSession    session (*this, m_session.m_fileIo, GetUtcTime, operation.imagePath, operation.newName, operation.imagePrefix, &m_status);
 
 
 
@@ -229,6 +229,7 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
 {
     HRESULT  hr      = S_OK;
     size_t   before  = 0;
+    size_t   marked  = 0;
     bool     stop    = false;
     int      damaged = 0;
 
@@ -252,6 +253,7 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
         m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
 
         before = outUnreadable.size();
+        marked = outReport.marks.size();
 
         //  With no file system and a track with unreadable sectors, the rest is
         //  read once. Retries don't recover a copy-protected disk's nonstandard
@@ -274,6 +276,11 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
         }
 
         CHR (hr);
+
+        m_status.MarkTrack (drive, track, outUnreadable.size() > before     ? FullSendTrackMark::Unreadable
+                                        : outReport.marks.size() > marked   ? FullSendTrackMark::Unreliable
+                                        : m_verifying                       ? FullSendTrackMark::Verified
+                                                                            : FullSendTrackMark::Read);
 
         outReport.emptyTracks += outUnreadable.size() - before == NibblizationLayer::kSectorsPerTrack ? 1 : 0;
         damaged               += outUnreadable.size() > before ? 1 : 0;
@@ -480,9 +487,20 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz)
     CHR (hr);
 
     hr = CassoLinkCapture::Capture (*m_session.m_host, (Byte) drive, module, date,
-                                    [this] (const CassoLinkCapture::Progress & where) { m_session.m_diskTransfer.ReportCapture (*m_operation, where); }, result);
+                                    [this, drive] (const CassoLinkCapture::Progress & where) { NoteCapture (drive, where); }, result);
     CHR (hr);
 
+    for (int position : result.weak)
+    {
+        m_status.MarkPosition (drive, position, FullSendPositionMark::Weak);
+    }
+
+    for (int position : result.unstable)
+    {
+        m_status.MarkPosition (drive, position, FullSendPositionMark::Unstable);
+    }
+
+    m_status.SetCaptureTime (drive, result.diskMs / 1000.0, result.lineMs / 1000.0);
     m_operation->SetDetail (std::string());
     m_session.m_sink.OnActivity (CassoLinkDiskTransfer::FormatCaptureTimes (result));
 
@@ -490,6 +508,76 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::NoteCapture
+//
+//  A capture's progress to the status bar and the Full Send window. In the
+//  second pass, a position below the one read that has no read was skipped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkFullSend::NoteCapture (int drive, const CassoLinkCapture::Progress & where)
+{
+    m_session.m_diskTransfer.ReportCapture (*m_operation, where);
+    m_status.SetCapture (drive, where.pass, where.position, where.read, where.reads, where.percent, where.secondsLeft);
+
+    if (where.pass == 2 && where.read == 1)
+    {
+        FullSendSnapshot  snapshot = m_status.GetSnapshot();
+
+        for (int position = 0; position < where.position; position++)
+        {
+            if (snapshot.drives[(size_t) drive - 1].positions[(size_t) position] == FullSendPositionMark::Unread)
+            {
+                m_status.MarkPosition (drive, position, FullSendPositionMark::Skipped);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::GetSeconds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double CassoLinkFullSend::GetSeconds()
+{
+    return (double) GetTickCount64() / 1000.0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::GetClockTime
+//
+//  The time of an activity line, as 14:05:09.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkFullSend::GetClockTime()
+{
+    SYSTEMTIME  now = {};
+
+
+
+    ::GetLocalTime (&now);
+
+    return std::format ("{:02}:{:02}:{:02}", now.wHour, now.wMinute, now.wSecond);
 }
 
 

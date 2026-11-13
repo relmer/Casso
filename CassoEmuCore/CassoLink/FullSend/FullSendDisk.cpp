@@ -345,3 +345,18 @@ std::string FullSendDisk::GetImageExtension (const std::vector<Byte> & image, co
 
     return kind == VolumeKind::ProDos || kind == VolumeKind::Pascal ? ".po" : ".dsk";
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDisk::GetSystemName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string FullSendDisk::GetSystemName (const std::vector<Byte> & image)
+{
+    return VolumeImage::GetSystemName (VolumeImage::DetectFilesystem (image));
+}

@@ -2052,7 +2052,7 @@ back, and edit a byte and see it written.
     annotated by the inner volume's structure.
 
 ---
-### User Story 41 - A Full Send status window (Priority: P2)
+### User Story 42 - A Full Send status window (Priority: P2)
 
 A user feeding a box of floppies to the Apple glances at the PC and reads,
 in one window, what each drive is doing, how long the disk in progress has
@@ -3379,17 +3379,17 @@ status bar, and compare the list with the manifest when the session ends.
   sector image rarely runs, and a raw capture of a damaged disk assessed
   alike has more of it than a sector image. A disk whose protection isn't
   detected is captured with Capture raw disk on its drive's menu.
-- **FR-258**: Casso Explorer MUST have a Full Send window. It MUST open
+- **FR-265**: Casso Explorer MUST have a Full Send window. It MUST open
   when a Full Send session starts, without taking the keyboard focus, and
   MUST reopen where the user last put it. Closing it MUST NOT end the
   session. Open on the Full Send row's menu and a click on the status bar's
   Full Send summary MUST open it, with every event since the session began.
-- **FR-259**: The window MUST have a state line with what the session is
+- **FR-266**: The window MUST have a state line with what the session is
   doing or what it waits for, in a sentence: a disk being sent and its
   drive, a raw capture, a new disk in either drive and Space on the Apple,
   the Apple's reply and for how long, a prefix being typed on the Apple, or
   the session's end and its reason.
-- **FR-260**: The window MUST have a panel for each drive of each
+- **FR-267**: The window MUST have a panel for each drive of each
   connection in a session, with the drive's state, the disk's title and
   file system once read, a track map, a progress bar, the time elapsed and
   the time left. The track map MUST mark each track as not yet read, read,
@@ -3397,32 +3397,32 @@ status bar, and compare the list with the manifest when the session ends.
   it MUST have a cell per quarter track, marked as read, skipped as beside a
   standard track, weak or unstable, and the panel MUST have the pass, the
   reads done and the capture's two times, on the disk and on the line.
-- **FR-261**: The time left for a sector image MUST come from the rate of
+- **FR-268**: The time left for a sector image MUST come from the rate of
   the tracks read so far on this disk, and before two tracks are read, from
   the session's average for a disk read the same way, verified or not. The
   time left for a raw capture MUST come from the capture's count of reads
   left. With neither, the field MUST be blank.
-- **FR-262**: The window MUST have the session's totals: disks sent,
+- **FR-269**: The window MUST have the session's totals: disks sent,
   duplicates skipped, raw captures, disks with unreadable or unreliable
   sectors, the time elapsed, the average time for a disk, and the bytes
   written to the folder.
-- **FR-263**: The window MUST list the disks done, newest first, each with
+- **FR-270**: The window MUST list the disks done, newest first, each with
   its sequence number, file name, file system, status and the time it took,
   matching the manifest's row. A double-click on a row MUST open the Full
   Send folder in Casso Explorer with that image selected, and a row's menu
   MUST have Open, Inspect and Disk properties as the image's menu in the
   folder has them.
-- **FR-264**: The window MUST have an activity list with a line and a time
+- **FR-271**: The window MUST have an activity list with a line and a time
   for each event of the session: a disk recognized, sent, skipped as a
   duplicate or captured raw, a pause and its end, a time the Apple didn't
   reply and its return, verification turned on or off on the Apple, and an
   error with its reason. Copy on the list's menu MUST copy the selected
   lines as text.
-- **FR-265**: The window MUST have End session, which ends the session as
+- **FR-272**: The window MUST have End session, which ends the session as
   Cancel does after a confirmation, and Open folder. After a session ends,
   the window MUST have that session's totals, disks and activity until it
   is closed or another session starts.
-- **FR-266**: During a Full Send the status bar MUST have a one-line
+- **FR-273**: During a Full Send the status bar MUST have a one-line
   summary: the drive, the disk's sequence number, the percentage, the time
   left and the count of disks done. The detail that the status bar had for
   a raw capture moves to the window.
@@ -3947,7 +3947,7 @@ status bar, and compare the list with the manifest when the session ends.
   annotated with its use in the catalog, and a step to a block on a 32 MB
   volume or a card's partition takes under 100 ms.
 
-- **SC-070**: Through a Full Send of a DOS 3.3 disk, a duplicate and a
+- **SC-071**: Through a Full Send of a DOS 3.3 disk, a duplicate and a
   copy-protected disk on a //c, the Full Send window's state line is
   correct at every pause and wait, the time left for each disk after its
   first quarter is within 20% of the time it then takes, and the list of

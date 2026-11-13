@@ -218,10 +218,11 @@ public:
         FakeDiskFileIo  io;
         std::string     extension;
         std::string     prefix;
+        FullSendStatus  status { [] () { return 0.0; }, [] () { return std::string(); } };
 
         std::unique_ptr<FullSendSession>  Run (HRESULT result = HRESULT_FROM_WIN32 (ERROR_CANCELLED))
         {
-            auto  session = std::make_unique<FullSendSession> (link, io, [] () { return std::string ("2026-10-30T12:00:00Z"); }, kFolder, extension, prefix);
+            auto  session = std::make_unique<FullSendSession> (link, io, [] () { return std::string ("2026-10-30T12:00:00Z"); }, kFolder, extension, prefix, &status);
 
             Assert::AreEqual (result, session->Run());
             Assert::IsTrue (session->GetState() == FullSendSession::State::Ended);
@@ -824,6 +825,13 @@ public:
         Assert::IsTrue (session->GetScreen().maps[0].empty(), L"No map of bad sectors");
         Assert::IsFalse (rig.io.files.contains ("C:\\Box\\0001.woz.unreadable.txt"), L"No list of unreadable sectors");
 
+        FullSendSnapshot  snapshot = rig.status.GetSnapshot();
+
+        Assert::AreEqual (1, snapshot.totals.rawCaptures);
+        Assert::AreEqual (std::string ("0001.woz"), snapshot.disks[0].row.file);
+        Assert::IsFalse (snapshot.drives[0].positions.empty(), L"The drive's panel has the capture's positions");
+        Assert::IsTrue (snapshot.drives[0].tracks[5] == FullSendTrackMark::Unreadable);
+
         Rig  damaged;
 
         damaged.link.drives[0]  = Dos ("HELLO");
@@ -835,6 +843,31 @@ public:
 
         Assert::IsTrue (damaged.link.captures.empty(), L"A damaged disk isn't captured");
         Assert::AreEqual (std::string (FullSendManifest::kStatusDamaged), other->GetManifest().GetRows()[0].status);
+    }
+
+    //  The Full Send window's model after a disk: its row, title, file
+    //  system and tracks, the totals, the session's end and the lines.
+    TEST_METHOD (Session_ADiskSent_IsInTheStatus_WithItsTitleTracksAndRow)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = Dos ("HELLO");
+        rig.link.present[1] = false;
+
+        auto              session  = rig.Run();
+        FullSendSnapshot  snapshot = rig.status.GetSnapshot();
+
+        Assert::IsTrue (snapshot.activity == FullSendActivity::Ended);
+        Assert::IsFalse (snapshot.reason.empty());
+        Assert::AreEqual ((size_t) 1, snapshot.disks.size());
+        Assert::AreEqual (session->GetManifest().GetRows()[0].file, snapshot.disks[0].row.file);
+        Assert::AreEqual (std::string ("DOS 3.3"), snapshot.disks[0].fileSystem);
+        Assert::AreEqual (1, snapshot.totals.sent);
+        Assert::AreEqual ((uint64_t) NibblizationLayer::kImageByteSize, snapshot.totals.bytes);
+        Assert::IsTrue (snapshot.drives[0].state == FullSendDiskState::Sent);
+        Assert::AreEqual (std::string ("0001 HELLO"), snapshot.drives[0].title);
+        Assert::IsTrue (std::all_of (snapshot.drives[0].tracks.begin(), snapshot.drives[0].tracks.end(), [] (FullSendTrackMark mark) { return mark == FullSendTrackMark::Read; }));
+        Assert::IsTrue (std::any_of (snapshot.lines.begin(), snapshot.lines.end(), [] (const FullSendLine & line) { return line.text.find ("0001 HELLO.dsk") != std::string::npos; }));
     }
 
     TEST_METHOD (Session_DoesNotReadADisk_UntilSpaceBegins)
