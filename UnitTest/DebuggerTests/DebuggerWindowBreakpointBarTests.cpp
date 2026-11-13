@@ -215,7 +215,7 @@ namespace DebuggerBreakpointBarTests
 
             items[4].command->dispatch();
             Assert::AreEqual ((size_t) 1, host.actions.size());
-            Assert::IsTrue   (host.actions[0].breakpointStep.has_value() && host.actions[0].breakpointStep->actions.at (0).definition == "BRK OFF");
+            Assert::IsTrue   (host.actions[0].breakpointStep.has_value() && host.actions[0].breakpointStep->actions.at (0).echo == "BRK OFF" && host.actions[0].breakpointStep->actions.at (0).breakpoint->isOff);
         }
 
 

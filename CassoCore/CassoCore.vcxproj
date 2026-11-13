@@ -166,6 +166,7 @@
     <ClCompile Include="Debugger\DebugExpressionEvaluator.cpp" />
     <ClCompile Include="Debugger\AppleWinCommandTable.cpp" />
     <ClCompile Include="Debugger\AppleWinParser.cpp" />
+    <ClCompile Include="Debugger\AppleWinParserDefinition.cpp" />
     <ClCompile Include="Debugger\AppleWinParserDisk.cpp" />
     <ClCompile Include="Debugger\CassoCommandReference.cpp" />
     <ClCompile Include="Debugger\DebugCommandPayload.cpp" />
@@ -246,6 +247,7 @@
     <ClInclude Include="Debugger\DebugExpressionEvaluator.h" />
     <ClInclude Include="Debugger\IDebugExpressionContext.h" />
     <ClInclude Include="Debugger\DebugCommand.h" />
+    <ClInclude Include="Debugger\BreakpointDefinition.h" />
     <ClInclude Include="Debugger\DiskBreakSpec.h" />
     <ClInclude Include="Debugger\DiskBreakSpecText.h" />
     <ClInclude Include="Debugger\AppleWinCommandTable.h" />

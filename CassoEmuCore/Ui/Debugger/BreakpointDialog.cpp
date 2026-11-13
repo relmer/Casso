@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/BreakpointDialog.h"
+#include "Ui/Debugger/DebuggerActions.h"
 #include "Debugger/DiskBreakSpecText.h"
 #include "Debugger/Source/SourcePathList.h"
 
@@ -746,40 +747,36 @@ BreakpointDialog::VisibleFields BreakpointDialog::GetVisibleFields (Type type)
 
 std::string BreakpointDialog::MakeDefinition (const Fields & fields)
 {
-    std::string  clause = fields.condition.empty() ? std::string() : " IF " + fields.condition;
-    std::string  mode   = (fields.mode == WatchMode::Before) ? " BEFORE" : "";
+    return DebuggerActions::GetBreakpointEcho (ToDefinition (fields));
+}
 
 
 
-    switch (fields.type)
-    {
-    case Type::Read:      return "BPMR " + fields.address + mode + clause;
-    case Type::Write:     return "BPMW " + fields.address + mode + clause;
-    case Type::ReadWrite: return "BPM " + fields.address + mode + clause;
-    case Type::Value:     return "BPMV " + fields.address + " " + fields.value + clause;
-    case Type::Condition: return "BPR IF " + fields.condition;
-    case Type::Opcode:    return "BRKOP " + fields.value + clause;
-    case Type::Brk:       return "BRK ON" + clause;
-    case Type::Interrupt: return "BRKINT ON" + clause;
-    case Type::Disk:      return std::format ("BPDISK {}{}{}{}", s_kDrivePrefixes[std::clamp (fields.drive, 0, 2)],
-                                              DiskBreakSpecText::GetEventWords()[std::clamp<size_t> (fields.event, 0, DiskBreakSpecText::GetEventWords().size() - 1)].word,
-                                              fields.arguments.empty() ? std::string() : " " + fields.arguments, clause);
-    case Type::BasicLine:
-        return "BPBASIC " + fields.address + clause;
-    case Type::BasicVariable:
-        return "BPBASICVAR " + fields.address + clause;
-    case Type::BasicError:
-        return "BRKBASIC ON" + clause;
-    case Type::UnwrittenRead:
-        return "BRKUNINIT ON";
-    case Type::VideoLine:
-        return "BPV " + fields.address;
-    case Type::SourceLine:
-        return "BP " + fields.file + ":" + fields.address + clause;
-    case Type::Beam:
-        return (_stricmp (fields.address.c_str(), "VBL") == 0) ? std::string ("BPBEAM VBL") : "BPBEAM " + fields.address + " " + fields.value;
-    default:              return "BP " + fields.address + clause;
-    }
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointDialog::ToDefinition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BreakpointDefinition BreakpointDialog::ToDefinition (const Fields & fields)
+{
+    BreakpointDefinition  definition;
+
+
+
+    definition.type      = fields.type;
+    definition.isBefore  = fields.mode == WatchMode::Before;
+    definition.address   = fields.address;
+    definition.value     = fields.value;
+    definition.condition = fields.condition;
+    definition.event     = fields.event;
+    definition.drive     = fields.drive;
+    definition.arguments = fields.arguments;
+    definition.file      = fields.file;
+
+    return definition;
 }
 
 
@@ -1418,8 +1415,8 @@ void BreakpointDialog::OnCreate()
 
 void BreakpointDialog::Confirm()
 {
-    std::string  definition = MakeEditedDefinition();
-    std::string  reason     = m_validator ? m_validator (definition) : std::string();
+    BreakpointDefinition  definition = MakeEditedDefinition();
+    std::string           reason     = m_validator ? m_validator (definition) : std::string();
 
 
 
@@ -1445,9 +1442,9 @@ void BreakpointDialog::Confirm()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string BreakpointDialog::MakeEditedDefinition() const
+BreakpointDefinition BreakpointDialog::MakeEditedDefinition() const
 {
-    return MakeDefinition (GetEditedFields());
+    return ToDefinition (GetEditedFields());
 }
 
 
@@ -1497,7 +1494,7 @@ BreakpointDialog::Fields BreakpointDialog::GetEditedFields() const
 void BreakpointDialog::CheckFields()
 {
     Fields        edited = GetEditedFields();
-    std::wstring  reason = (m_validator && IsCheckedOnFocusLoss (edited)) ? SourcePathList::Utf8ToWide (m_validator (MakeDefinition (edited))) : std::wstring();
+    std::wstring  reason = (m_validator && IsCheckedOnFocusLoss (edited)) ? SourcePathList::Utf8ToWide (m_validator (ToDefinition (edited))) : std::wstring();
 
 
 

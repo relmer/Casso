@@ -2960,7 +2960,9 @@ Reply DebuggerViewState::ExecuteActionCommand (DebugSession & session, const Deb
 //
 //  DebuggerViewState::TryResolveCommand
 //
-//  A definition is parsed as the AppleWin line it is. What the user typed is
+//  A breakpoint's definition is evaluated into the command that sets it, or
+//  into an edit's new definition, and a search's items into its bytes; no
+//  command text is parsed. What the user typed is
 //  evaluated in the session's mode: one address or register value, or the
 //  values to write, each split at spaces as a typed deposit's are, a byte
 //  where it fits and a word, low byte first, where it does not or where the
@@ -2972,7 +2974,7 @@ Reply DebuggerViewState::ExecuteActionCommand (DebugSession & session, const Deb
 bool DebuggerViewState::TryResolveCommand (DebugSession & session, const DebuggerAction & action, DebugCommand & command, std::string & error)
 {
     static constexpr Word  kMaxByte = 0xFF;
-    AppleWinParseResult    parsed;
+    DebugCommand           made;
     std::istringstream     tokens (action.operand);
     std::string            token;
     Word                   value    = 0;
@@ -2982,18 +2984,25 @@ bool DebuggerViewState::TryResolveCommand (DebugSession & session, const Debugge
 
     command = action.command;
 
-    if (!action.definition.empty())
+    if (action.breakpoint.has_value() && command.verb == DebugVerb::EditBreakpoint)
     {
-        parsed = AppleWinParser::Parse (action.definition, session);
-
-        if (parsed.status != ParseStatus::Ok)
+        if (!AppleWinParser::TryMakeBreakpoint (*action.breakpoint, session, made, error))
         {
-            error = parsed.error.empty() ? std::format ("{} is not a breakpoint definition.", action.definition) : parsed.error;
             return false;
         }
 
-        command = parsed.command;
+        command.definition = std::make_shared<const DebugCommand> (made);
         return true;
+    }
+
+    if (action.breakpoint.has_value())
+    {
+        return AppleWinParser::TryMakeBreakpoint (*action.breakpoint, session, command, error);
+    }
+
+    if (command.verb == DebugVerb::SearchMemory)
+    {
+        return AppleWinParser::TryParseSearchItems (action.operand, session, command, error);
     }
 
     if (action.operand.empty())

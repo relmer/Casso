@@ -16,27 +16,27 @@
 //
 //  BreakpointDefinitionCheck::GetError
 //
-//  The parse first, then the limits the command's handler checks, then the
+//  The fields first, then the limits the command's handler checks, then the
 //  condition, as the handler would evaluate it once, and last a duplicate.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string BreakpointDefinitionCheck::GetError (const std::string & definition, const DebuggerViewSnapshot & snapshot, std::optional<int> editedId)
+std::string BreakpointDefinitionCheck::GetError (const BreakpointDefinition & definition, const DebuggerViewSnapshot & snapshot, std::optional<int> editedId)
 {
     SnapshotContext      context (snapshot);
-    AppleWinParseResult  parsed  = AppleWinParser::Parse (definition, context);
-    const DebugCommand & command = parsed.command;
+    DebugCommand         command;
+    std::string          error;
+    bool                 isMade  = AppleWinParser::TryMakeBreakpoint (definition, context, command, error);
     bool                 isWatch = command.verb == DebugVerb::SetMemoryWatchpoint || command.verb == DebugVerb::SetReadWatchpoint ||
                                    command.verb == DebugVerb::SetWriteWatchpoint;
     bool                 isValue = command.verb == DebugVerb::SetValueBreakpoint;
-    std::string          error;
     HRESULT              hr      = S_OK;
 
 
 
-    if (parsed.status != ParseStatus::Ok)
+    if (!isMade)
     {
-        return parsed.error.empty() ? std::string ("The breakpoint cannot be read.") : parsed.error;
+        return error.empty() ? std::string ("The breakpoint cannot be read.") : error;
     }
 
     error = GetRangeError (command, snapshot);

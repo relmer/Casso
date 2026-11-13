@@ -888,10 +888,6 @@ std::shared_ptr<DxuiCommand> BreakpointsPane::MakeTypeCommand (BreakpointDialog:
                                            : (type == Type::Interrupt)     ? BreakpointKind::Interrupt
                                            : (type == Type::UnwrittenRead) ? BreakpointKind::UnwrittenRead
                                            :                                 BreakpointKind::BasicError;
-    const char                  * verb     = (type == Type::Brk)           ? "BRK"
-                                           : (type == Type::Interrupt)     ? "BRKINT"
-                                           : (type == Type::UnwrittenRead) ? "BRKUNINIT"
-                                           :                                 "BRKBASIC";
     bool                          isToggle = type == Type::Brk || type == Type::Interrupt || type == Type::UnwrittenRead || type == Type::BasicError;
     bool                          isOn     = snapshot != nullptr && std::ranges::any_of (snapshot->breakpoints,
                                                  [kind] (const DebuggerViewSnapshot::BreakpointLine & bp) { return bp.info.kind == kind; });
@@ -915,9 +911,9 @@ std::shared_ptr<DxuiCommand> BreakpointsPane::MakeTypeCommand (BreakpointDialog:
         return DebuggerMenuCommand::Make (std::wstring (label) + L"...", [this, type] { NewBreakpoint (type); });
     }
 
-    return DebuggerMenuCommand::Make (label, isOn, [this, verb, isOn]
+    return DebuggerMenuCommand::Make (label, isOn, [this, type, isOn]
     {
-        RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetDefineBreakpoint (std::format ("{} {}", verb, isOn ? "OFF" : "ON"), m_host.GetMode()) }, {} });
+        RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (type, !isOn), m_host.GetMode()) }, {} });
     });
 }
 
@@ -935,13 +931,14 @@ std::shared_ptr<DxuiCommand> BreakpointsPane::MakeTypeCommand (BreakpointDialog:
 
 DebuggerAction BreakpointsPane::GetClearAction (const DebuggerViewSnapshot::BreakpointLine & bp) const
 {
-    const char  * off = (bp.info.kind == BreakpointKind::UnwrittenRead) ? "BRKUNINIT OFF"
-                      : (bp.info.kind == BreakpointKind::VideoLine)     ? "BPV OFF"
-                      :                                                   "BPBEAM OFF";
+    BreakpointDefinition::Type  type = (bp.info.kind == BreakpointKind::UnwrittenRead) ? BreakpointDefinition::Type::UnwrittenRead
+                                     : (bp.info.kind == BreakpointKind::VideoLine)     ? BreakpointDefinition::Type::VideoLine
+                                     :                                                   BreakpointDefinition::Type::Beam;
 
 
 
-    return (bp.id >= 0) ? DebuggerActions::GetClearBreakpoint (bp.id, m_host.GetMode()) : DebuggerActions::GetDefineBreakpoint (off, m_host.GetMode());
+    return (bp.id >= 0) ? DebuggerActions::GetClearBreakpoint (bp.id, m_host.GetMode())
+                        : DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (type, false), m_host.GetMode());
 }
 
 
@@ -1074,7 +1071,7 @@ std::vector<DebuggerAction> BreakpointsPane::GetDialogActions (const BreakpointD
 
 BreakpointDialog::Validator BreakpointsPane::MakeValidator (std::optional<int> editedId)
 {
-    return [this, editedId] (const std::string & definition)
+    return [this, editedId] (const BreakpointDefinition & definition)
     {
         const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
 

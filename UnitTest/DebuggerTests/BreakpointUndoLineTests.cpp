@@ -83,7 +83,7 @@ namespace BreakpointUndoLineTests
             id = rig.List().at (0).id;
             rig.Run (std::format ("BPCHANGE {} eTs", id));
 
-            rig.Step ({ DebuggerActions::GetEditBreakpoint (id, "BPMW 0400", CommandMode::AppleWin) });
+            rig.Step ({ DebuggerActions::GetEditBreakpoint (id, { BreakpointDefinition::Type::Write, false, false, "0400" }, CommandMode::AppleWin) });
             lines = rig.Do (BreakpointStep::Kind::Undo);
 
             Assert::AreEqual ((size_t) 1, lines.size(), L"one line, no echoed command");
@@ -111,7 +111,7 @@ namespace BreakpointUndoLineTests
             rig.Run ("BP 0300");
             id = rig.List().at (0).id;
 
-            rig.Step ({ DebuggerActions::GetEditBreakpoint (id, "BP 0302", CommandMode::AppleWin) });
+            rig.Step ({ DebuggerActions::GetEditBreakpoint (id, BreakpointDefinition::MakeExecute ("0302"), CommandMode::AppleWin) });
             rig.Do (BreakpointStep::Kind::Undo);
             lines = rig.Do (BreakpointStep::Kind::Redo);
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Debugger/BreakpointDefinition.h"
 #include "Debugger/Reply.h"
 
 
@@ -66,7 +67,8 @@ private:
 //  BreakpointDialog
 //
 //  Edits a breakpoint's type and the fields that type takes, and returns
-//  the definition BPEDIT reads: BP, BPMR, BPMW, BPM, BPMV or BRKOP with its
+//  them as a BreakpointDefinition, which the session evaluates with no
+//  command text in between. In the console's words the types are: BP, BPMR, BPMW, BPM, BPMV or BRKOP with its
 //  arguments, a data breakpoint's BEFORE and any IF condition, BPR IF and a
 //  condition, BRK ON or BRKINT ON, BPDISK with its drive, event, arguments
 //  and condition, or BPBASIC, BPBASICVAR or BRKBASIC ON. The dialog makes
@@ -80,8 +82,7 @@ class BreakpointDialog : public DxuiDialogWindow
 {
 public:
     //  The types offered, in the order the list shows them.
-    enum class Type { Execute, Read, Write, ReadWrite, Value, Condition, Opcode, Brk, Interrupt, Disk, BasicLine, BasicVariable, BasicError,
-                      UnwrittenRead, VideoLine, Beam, SourceLine };
+    using Type = BreakpointDefinition::Type;
 
     //  A row of the New drop-down: a heading when type is empty.
     struct TypeRow
@@ -115,13 +116,13 @@ public:
         bool         isLogGo   = false;
     };
 
-    //  What OK returns: the definition BPEDIT takes, and the message each
+    //  What OK returns: the breakpoint's definition, and the message each
     //  hit writes, empty for none, with whether a hit goes on running.
     struct Result
     {
-        std::string  definition;
-        std::string  log;
-        bool         isLogGo = false;
+        BreakpointDefinition  definition;
+        std::string           log;
+        bool                  isLogGo = false;
     };
 
     //  The fields a type uses, which are the dialog's only visible fields
@@ -187,8 +188,10 @@ public:
     static std::string   MakeDiskArguments  (int event, const DiskFields & fields);
     static DiskFields    ParseDiskArguments (int event, const std::string & arguments);
 
-    //  The definition for a type and its fields, as BPEDIT takes it.
-    static std::string  MakeDefinition (const Fields & fields);
+    //  The fields as the definition the session sets, and that definition
+    //  as the line the console echoes.
+    static BreakpointDefinition  ToDefinition   (const Fields & fields);
+    static std::string           MakeDefinition (const Fields & fields);
 
     //  The fields an existing breakpoint fills in.
     static Fields  GetFields (const BreakpointInfo & info);
@@ -197,7 +200,7 @@ public:
     static Type  GetType (const BreakpointInfo & info);
 
     //  Why a definition cannot be set, or nothing when it can.
-    using Validator = std::function<std::string (const std::string & definition)>;
+    using Validator = std::function<std::string (const BreakpointDefinition & definition)>;
 
     //  Runs the dialog modally over `owner`, on `type` when given and on
     //  the breakpoint's own type otherwise; the definition when OK. OK
@@ -241,15 +244,15 @@ protected:
     bool  TryGetMaxClientSizePx (SIZE & outSizePx) const override;
 
 private:
-    void         ShowFieldsForType    ();
-    void         ShowDiskFields       (bool isDisk);
-    void         Resize               ();
-    void         Confirm              ();
-    std::string  MakeEditedDefinition () const;
-    Fields       GetEditedFields      () const;
-    void         CheckFields          ();
-    Type         GetSelectedType      () const;
-    DiskFields   ReadDiskFields       () const;
+    void                  ShowFieldsForType    ();
+    void                  ShowDiskFields       (bool isDisk);
+    void                  Resize               ();
+    void                  Confirm              ();
+    BreakpointDefinition  MakeEditedDefinition () const;
+    Fields                GetEditedFields      () const;
+    void                  CheckFields          ();
+    Type                  GetSelectedType      () const;
+    DiskFields            ReadDiskFields       () const;
 
     static std::string  ToDecimal (const std::string & hex);
     static std::string  ToHex     (const std::string & decimal);

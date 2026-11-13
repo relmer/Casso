@@ -331,10 +331,10 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ("BP 300",       aw));
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ("BRKUNINIT ON", aw));
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ("BPV 64:6B",    aw));
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ("BPBEAM 10 1A", aw));
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("300"),       aw));
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (BreakpointDefinition::Type::UnwrittenRead, true), aw));
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ({ BreakpointDefinition::Type::VideoLine, false, false, "64:6B" }, aw));
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ({ BreakpointDefinition::Type::Beam, false, false, "10", "1A" }, aw));
 
         snapshot = rig.view.Build (rig.controller.GetSession());
         Assert::AreEqual ((size_t) 4, snapshot.breakpoints.size());
@@ -352,9 +352,9 @@ public:
         Assert::IsTrue   (BreakpointDialog::GetType (snapshot.breakpoints[3].info) == BreakpointDialog::Type::Beam);
         Assert::AreEqual (std::string ("BPBEAM 10 1A"), BreakpointDialog::MakeDefinition (BreakpointDialog::GetFields (snapshot.breakpoints[3].info)));
 
-        for (const char * off : { "BRKUNINIT OFF", "BPV OFF", "BPBEAM OFF" })
+        for (BreakpointDefinition::Type off : { BreakpointDefinition::Type::UnwrittenRead, BreakpointDefinition::Type::VideoLine, BreakpointDefinition::Type::Beam })
         {
-            rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint (off, aw));
+            rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (off, false), aw));
         }
 
         Assert::AreEqual ((size_t) 1, rig.view.Build (rig.controller.GetSession()).breakpoints.size(), L"an OFF form left its row");
@@ -372,7 +372,7 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ("BPBASIC 0", CommandMode::AppleWin));
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ({ BreakpointDefinition::Type::BasicLine, false, false, "0" }, CommandMode::AppleWin));
 
         snapshot = rig.view.Build (rig.controller.GetSession());
         Assert::AreEqual ((size_t) 1, snapshot.breakpoints.size());

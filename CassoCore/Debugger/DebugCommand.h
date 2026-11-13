@@ -315,4 +315,8 @@ struct DebugCommand
     OutputFormat             output             = OutputFormat::AppleWin;
 
     std::optional<DiskBreakSpec>  disk;    // BPDISK
+
+    //  BPEDIT from the debugger window: the breakpoint's new definition as
+    //  the command that would set it, in place of text to parse.
+    std::shared_ptr<const DebugCommand>  definition;
 };

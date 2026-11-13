@@ -4,6 +4,7 @@
 #include "Ui/Debugger/BreakpointDefinitionCheck.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/DebuggerActions.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -48,6 +49,8 @@ namespace BreakpointDefinitionCheckTests
     TEST_CLASS (BreakpointDefinitionCheckTests)
     {
     public:
+        using Type = BreakpointDefinition::Type;
+
         //  Good definitions of each kind pass, with symbols, flags and the
         //  memory breakpoint's ACCESS and VALUE in their conditions.
         TEST_METHOD (GoodDefinitionsPass)
@@ -56,11 +59,23 @@ namespace BreakpointDefinitionCheckTests
 
 
 
-            for (const char * definition : { "BP COUT", "BP C283 IF A == 1", "BPM 300:3FF IF ACCESS == 300", "BPMV 300:30F 41 IF VALUE == 41",
-                                             "BRK ON IF P.C", "BPBASIC 100", "BPBASICVAR D(3,4)", "BPV 64:6B", "BPBEAM 64 1A", "BPBEAM VBL",
-                                             "BPR IF *FB == 0" })
+            for (const BreakpointDefinition & definition : std::vector<BreakpointDefinition>
+                 {
+                     { Type::Execute,       false, false, "COUT" },
+                     { Type::Execute,       false, false, "C283", "", "A == 1" },
+                     { Type::ReadWrite,     false, false, "300:3FF", "", "ACCESS == 300" },
+                     { Type::Value,         false, false, "300:30F", "41", "VALUE == 41" },
+                     { Type::Brk,           false, false, "", "", "P.C" },
+                     { Type::BasicLine,     false, false, "100" },
+                     { Type::BasicVariable, false, false, "D(3,4)" },
+                     { Type::VideoLine,     false, false, "64:6B" },
+                     { Type::Beam,          false, false, "64", "1A" },
+                     { Type::Beam,          false, false, "VBL" },
+                     { Type::Condition,     false, false, "", "", "*FB == 0" },
+                 })
             {
-                Assert::AreEqual (std::string(), BreakpointDefinitionCheck::GetError (definition, snapshot, std::nullopt), TextEncoding::NarrowToWide (definition).c_str());
+                Assert::AreEqual (std::string(), BreakpointDefinitionCheck::GetError (definition, snapshot, std::nullopt),
+                                  TextEncoding::NarrowToWide (DebuggerActions::GetBreakpointEcho (definition)).c_str());
             }
         }
 
@@ -74,8 +89,8 @@ namespace BreakpointDefinitionCheckTests
 
 
 
-            Assert::AreEqual (std::string ("Breakpoint #2 is already set at $C283."), BreakpointDefinitionCheck::GetError ("BP C283", snapshot, std::nullopt));
-            Assert::AreEqual (std::string(), BreakpointDefinitionCheck::GetError ("BP C283", snapshot, 2));
+            Assert::AreEqual (std::string ("Breakpoint #2 is already set at $C283."), BreakpointDefinitionCheck::GetError (BreakpointDefinition::MakeExecute ("C283"), snapshot, std::nullopt));
+            Assert::AreEqual (std::string(), BreakpointDefinitionCheck::GetError (BreakpointDefinition::MakeExecute ("C283"), snapshot, 2));
         }
 
 
@@ -88,14 +103,29 @@ namespace BreakpointDefinitionCheckTests
 
 
 
-            for (const char * definition : { "BP 300 IF NOSUCH == 1", "BP 300 IF A ==", "BPBASIC 64000", "BPBASIC ABC", "BPBASICVAR 2X",
-                                             "BPV 106", "BPBEAM 10 41", "BPDISK READ 11 0", "BPMV 300 100", "BP" })
+            BreakpointDefinition  disk = { Type::Disk, false, false, "", "", "", 0, 0, "11 0" };
+
+            for (const BreakpointDefinition & definition : std::vector<BreakpointDefinition>
+                 {
+                     { Type::Execute,       false, false, "300", "", "NOSUCH == 1" },
+                     { Type::Execute,       false, false, "300", "", "A ==" },
+                     { Type::BasicLine,     false, false, "64000" },
+                     { Type::BasicLine,     false, false, "ABC" },
+                     { Type::BasicVariable, false, false, "2X" },
+                     { Type::VideoLine,     false, false, "106" },
+                     { Type::Beam,          false, false, "10", "41" },
+                     disk,
+                     { Type::Value,         false, false, "300", "100" },
+                     { Type::Execute },
+                 })
             {
-                Assert::AreNotEqual (std::string(), BreakpointDefinitionCheck::GetError (definition, snapshot, std::nullopt), TextEncoding::NarrowToWide (definition).c_str());
+                Assert::AreNotEqual (std::string(), BreakpointDefinitionCheck::GetError (definition, snapshot, std::nullopt),
+                                     TextEncoding::NarrowToWide (DebuggerActions::GetBreakpointEcho (definition)).c_str());
             }
 
             snapshot.diskSlot = 6;
-            Assert::AreEqual (std::string(), BreakpointDefinitionCheck::GetError ("BPDISK READ 11 0 IF DISK.QTRACK == 0", snapshot, std::nullopt));
+            disk.condition = "DISK.QTRACK == 0";
+            Assert::AreEqual (std::string(), BreakpointDefinitionCheck::GetError (disk, snapshot, std::nullopt));
         }
     };
 }

@@ -4,6 +4,7 @@
 #include "Debugger/IDebugExpressionContext.h"
 
 struct AppleWinCommand;
+struct BreakpointDefinition;
 class AppleWinCommandTable;
 
 
@@ -65,6 +66,9 @@ public:
     static bool  TryParseSearchItems (const std::string & items, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
     static bool  TryParseIdOrAll     (const Tokens & tokens, DebugCommand & command, std::string & error, NumberSyntax syntax = NumberSyntax::AppleWin);
     static bool  TryParseIfClause    (Tokens & tokens, DebugCommand & command, std::string & error, NumberSyntax syntax = NumberSyntax::AppleWin);
+    //  A breakpoint the debugger window's controls define, as the command
+    //  that sets it. No command text is built or parsed.
+    static bool  TryMakeBreakpoint   (const BreakpointDefinition & definition, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
     static bool  TryParseCondition   (const std::string & subject, const Tokens & tokens, size_t first, DebugCommand & command, std::string & error, NumberSyntax syntax = NumberSyntax::AppleWin);
 
 private:
@@ -98,6 +102,10 @@ private:
     static bool         TryParseFlagArguments       (const Arguments & args, DebugCommand & command, std::string & error);
     static bool         TryParseBreakpointArguments (const Arguments & source, DebugCommand & command, std::string & error);
     static bool         TryParseValueBreakpoint     (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool         TryMakeExecute              (const BreakpointDefinition & definition, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
+    static bool         TryMakeSwitchOff            (const BreakpointDefinition & definition, DebugCommand & command, std::string & error);
+    static bool         TryMakeDiskSpec             (const BreakpointDefinition & definition, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
+    static bool         IsLiveRange                 (const DebugCommand & command, std::string & error);
     static bool         TryParseOpcodes             (const Arguments & args, DebugCommand & command, std::string & error);
     static std::string  CutIfClause                 (const std::string & text);
     static void         NoteSymbol                  (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command);

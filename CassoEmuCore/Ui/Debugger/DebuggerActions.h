@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Debugger/BreakpointDefinition.h"
 #include "Debugger/DebugCommand.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 
@@ -58,10 +59,10 @@ struct DebuggerAction
     //  bytes, which are what its undo puts back.
     bool                           isOneValue = false;
 
-    //  A breakpoint definition as BP, BPM or another setting command takes
-    //  it in AppleWin's words, parsed once when the action runs, in place of
-    //  `command`.
-    std::string                    definition;
+    //  A breakpoint as the window's controls define it, evaluated into the
+    //  command when the action runs: the command itself, or the new
+    //  definition of the breakpoint an EditBreakpoint command edits.
+    std::optional<BreakpointDefinition>  breakpoint;
 
     //  A breakpoints pane action, which runs in place of `command` and goes
     //  on the pane's undo list (FR-120).
@@ -229,9 +230,13 @@ public:
     //  The breakpoints pane's changes, where `*` is every breakpoint.
     static DebuggerAction  GetEnableAllBreakpoints (bool enable, CommandMode mode);
     static DebuggerAction  GetClearAllBreakpoints  (CommandMode mode);
-    static DebuggerAction  GetEditBreakpoint       (int id, const std::string & definition, CommandMode mode);
+    static DebuggerAction  GetEditBreakpoint       (int id, const BreakpointDefinition & definition, CommandMode mode);
     static DebuggerAction  GetChangeBreakpoint     (int id, bool enabled, bool temporary, bool stops, CommandMode mode);
-    static DebuggerAction  GetDefineBreakpoint     (const std::string & definition, CommandMode mode);
+    static DebuggerAction  GetDefineBreakpoint     (const BreakpointDefinition & definition, CommandMode mode);
+
+    //  A definition as the line that would set it, for the console's echo.
+    //  Nothing parses it.
+    static std::string     GetBreakpointEcho       (const BreakpointDefinition & definition);
 
     //  BPNAME # "text"; an empty text returns the breakpoint to its default
     //  name.

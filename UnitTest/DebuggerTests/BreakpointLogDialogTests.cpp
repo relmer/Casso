@@ -31,7 +31,7 @@ namespace DebuggerTests
 
         static BreakpointDialog::Result  MakeResult (const char * log, bool isGo)
         {
-            return BreakpointDialog::Result { "BP 0300", log, isGo };
+            return BreakpointDialog::Result { BreakpointDefinition::MakeExecute ("0300"), log, isGo };
         }
 
 

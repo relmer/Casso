@@ -480,8 +480,9 @@ bool BasicProgramController::RouteEarlyMouse (const DxuiMouseEvent & ev)
 
 void BasicProgramController::ToggleBreakpoint (Word line)
 {
-    std::optional<int>  id = FindBreakpoint (line);
-    DebuggerAction      action;
+    std::optional<int>    id = FindBreakpoint (line);
+    DebuggerAction        action;
+    BreakpointDefinition  definition;
 
 
 
@@ -490,8 +491,11 @@ void BasicProgramController::ToggleBreakpoint (Word line)
         return;
     }
 
+    definition.type    = BreakpointDefinition::Type::BasicLine;
+    definition.address = std::to_string (line);
+
     action = id.has_value() ? DebuggerActions::GetClearBreakpoint (*id, m_host.GetMode())
-                            : DebuggerActions::GetDefineBreakpoint (std::format ("BPBASIC {}", line), m_host.GetMode());
+                            : DebuggerActions::GetDefineBreakpoint (definition, m_host.GetMode());
 
     m_host.RunAction (DebuggerActions::GetBreakpointStep ({ BreakpointStep::Kind::Actions, { action }, {} }));
 }

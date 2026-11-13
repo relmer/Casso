@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Debugger/DiskBreakSpecText.h"
 #include "Ui/Debugger/UndoText.h"
 
 #include "Debugger/CommandModeNames.h"
@@ -772,13 +773,18 @@ DebuggerAction DebuggerActions::GetEnableZeroPagePointer (int slot, bool enable,
 
 DebuggerAction DebuggerActions::GetSearchMemory (const std::string & items, CommandMode mode)
 {
-    std::string     line   = "S 0000:FFFF " + items;
-    DebuggerAction  action = Make (DebugVerb::SearchMemory, line, mode);
+    static constexpr Word  kLastAddress = 0xFFFF;
+    DebuggerAction         action       = Make (DebugVerb::SearchMemory, "S 0000:FFFF " + items, mode);
 
 
 
-    action.definition = line;
-    action.isResult   = true;
+    //  The whole address space; the items are evaluated when the action runs.
+    action.command.a1    = 0;
+    action.command.a2    = kLastAddress;
+    action.command.hasA1 = true;
+    action.command.hasA2 = true;
+    action.operand       = items;
+    action.isResult      = true;
     return action;
 }
 
@@ -1654,18 +1660,19 @@ DebuggerAction DebuggerActions::GetClearAllBreakpoints (CommandMode mode)
 //
 //  DebuggerActions::GetEditBreakpoint
 //
-//  The handler reads the new definition as its own line.
+//  The definition is evaluated into the command the handler takes it as
+//  when the action runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DebuggerAction DebuggerActions::GetEditBreakpoint (int id, const std::string & definition, CommandMode mode)
+DebuggerAction DebuggerActions::GetEditBreakpoint (int id, const BreakpointDefinition & definition, CommandMode mode)
 {
-    DebuggerAction  action = Make (DebugVerb::EditBreakpoint, std::format ("BPEDIT {} {}", id, definition), mode);
+    DebuggerAction  action = Make (DebugVerb::EditBreakpoint, std::format ("BPEDIT {} {}", id, GetBreakpointEcho (definition)), mode);
 
 
 
     action.command.count = (uint32_t) id;
-    action.command.text  = definition;
+    action.breakpoint    = definition;
     return action;
 }
 
@@ -1702,18 +1709,68 @@ DebuggerAction DebuggerActions::GetChangeBreakpoint (int id, bool enabled, bool 
 //
 //  DebuggerActions::GetDefineBreakpoint
 //
-//  The verb is the definition's own, which only parsing it can tell.
+//  The verb is set from the definition's type when the action runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DebuggerAction DebuggerActions::GetDefineBreakpoint (const std::string & definition, CommandMode mode)
+DebuggerAction DebuggerActions::GetDefineBreakpoint (const BreakpointDefinition & definition, CommandMode mode)
 {
-    DebuggerAction  action = Make (DebugVerb::SetBreakpoint, definition, mode);
+    DebuggerAction  action = Make (DebugVerb::SetBreakpoint, GetBreakpointEcho (definition), mode);
 
 
 
-    action.definition = definition;
+    action.breakpoint = definition;
     return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetBreakpointEcho
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerActions::GetBreakpointEcho (const BreakpointDefinition & definition)
+{
+    using Type = BreakpointDefinition::Type;
+
+    static constexpr const char *                  kDrivePrefixes[] = { "", "D1 ", "D2 " };
+    std::span<const DiskBreakSpecText::EventWord>  words            = DiskBreakSpecText::GetEventWords();
+    std::string                                    clause           = definition.condition.empty() ? std::string() : " IF " + definition.condition;
+    std::string                                    mode             = definition.isBefore ? " BEFORE" : "";
+    std::string                                    state            = definition.isOff ? " OFF" : " ON";
+
+
+
+    switch (definition.type)
+    {
+    case Type::Read:          return "BPMR " + definition.address + mode + clause;
+    case Type::Write:         return "BPMW " + definition.address + mode + clause;
+    case Type::ReadWrite:     return "BPM " + definition.address + mode + clause;
+    case Type::Value:         return "BPMV " + definition.address + " " + definition.value + clause;
+    case Type::Condition:     return "BPR IF " + definition.condition;
+    case Type::Opcode:        return "BRKOP " + definition.value + clause;
+    case Type::Brk:           return "BRK" + state + (definition.isOff ? std::string() : clause);
+    case Type::Interrupt:     return "BRKINT" + state + (definition.isOff ? std::string() : clause);
+    case Type::BasicError:    return "BRKBASIC" + state + (definition.isOff ? std::string() : clause);
+    case Type::UnwrittenRead: return "BRKUNINIT" + state;
+    case Type::BasicLine:     return "BPBASIC " + definition.address + clause;
+    case Type::BasicVariable: return "BPBASICVAR " + definition.address + clause;
+    case Type::VideoLine:     return definition.isOff ? std::string ("BPV OFF") : "BPV " + definition.address;
+    case Type::SourceLine:    return "BP " + definition.file + ":" + definition.address + clause;
+    case Type::Disk:
+        return std::format ("BPDISK {}{}{}{}", kDrivePrefixes[std::clamp (definition.drive, 0, 2)],
+                            words[std::clamp<size_t> ((size_t) (std::max) (definition.event, 0), 0, words.size() - 1)].word,
+                            definition.arguments.empty() ? std::string() : " " + definition.arguments, clause);
+    case Type::Beam:
+        return definition.isOff                                    ? std::string ("BPBEAM OFF")
+             : (_stricmp (definition.address.c_str(), "VBL") == 0) ? std::string ("BPBEAM VBL")
+             :                                                       "BPBEAM " + definition.address + " " + definition.value;
+    default:                  return "BP " + definition.address + clause;
+    }
 }
 
 

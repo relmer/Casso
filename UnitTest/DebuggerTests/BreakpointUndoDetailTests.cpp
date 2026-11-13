@@ -137,7 +137,7 @@ namespace BreakpointUndoDetailTests
             id = rig.List().at (0).id;
             rig.SetHits (id, 7);
 
-            rig.Step ({ DebuggerActions::GetEditBreakpoint (id, "BP 0302", CommandMode::AppleWin) });
+            rig.Step ({ DebuggerActions::GetEditBreakpoint (id, BreakpointDefinition::MakeExecute ("0302"), CommandMode::AppleWin) });
             Assert::AreEqual ((uint32_t) 0, rig.List().at (0).hits, L"an edit starts the count afresh");
 
             rig.Do (BreakpointStep::Kind::Undo);

@@ -1440,7 +1440,8 @@ void BreakpointHandlers::Enable (DebugSession & session, const DebugCommand & co
 //  BreakpointHandlers::Edit
 //
 //  BPEDIT # definition: the definition is parsed as its own line and must be
-//  one of the setting commands. A source line's definition is the address
+//  one of the setting commands. An edit from the debugger window has the
+//  definition as a command, and nothing is parsed. A source line's definition is the address
 //  its line's code starts at, the first where a macro body line has several.
 //  The old entry is removed and the new one takes its id, enabled state and
 //  flags, with its hit count at zero.
@@ -1460,18 +1461,25 @@ void BreakpointHandlers::Edit (DebugSession & session, const DebugCommand & comm
 
 
 
-    if (command.text == "*" || !TryFindInfo (session, id, old))
+    if ((command.definition == nullptr && command.text == "*") || !TryFindInfo (session, id, old))
     {
         SetNoSuch (session, reply, id);
         return;
     }
 
-    parsed = AppleWinParser::Parse (command.text, session);
-
-    if (parsed.status != ParseStatus::Ok)
+    if (command.definition != nullptr)
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", parsed.error.empty() ? "BPEDIT # takes the breakpoint's new definition." : parsed.error);
-        return;
+        parsed.command = *command.definition;
+    }
+    else
+    {
+        parsed = AppleWinParser::Parse (command.text, session);
+
+        if (parsed.status != ParseStatus::Ok)
+        {
+            reply.SetError (CommandStatus::Error, "invalid arguments", parsed.error.empty() ? "BPEDIT # takes the breakpoint's new definition." : parsed.error);
+            return;
+        }
     }
 
     if (parsed.command.verb == DebugVerb::SetSourceBreakpoint)
@@ -1492,6 +1500,12 @@ void BreakpointHandlers::Edit (DebugSession & session, const DebugCommand & comm
 
     if (!TryMakeEntry (parsed.command, id, old, breakpoint, watchpoint, isWatchpoint))
     {
+        if (command.definition != nullptr)
+        {
+            reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("Breakpoint #{} can't be changed to this type.", id));
+            return;
+        }
+
         reply.SetError (CommandStatus::Error, "invalid arguments",
                         "BPEDIT # takes one definition as BP, BPX, BPR, BPM, BPMR, BPMW, BPMV, BPDISK, BPBASIC, BPBASICVAR or BRKOP would take it, "
                         "or BRK ON, BRKINT ON or BRKBASIC ON.");

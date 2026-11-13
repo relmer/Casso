@@ -145,10 +145,10 @@ namespace BreakpointHistoryTests
 
 
 
-            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 300", aw) });
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("300"), aw) });
             Assert::AreEqual (std::wstring (L"add breakpoint #0"), rig.view.Build (rig.controller.GetSession()).undoBreakpointsText);
 
-            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 301", aw) });
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("301"), aw) });
             rig.Step ({ DebuggerActions::GetEnableAllBreakpoints (false, aw) });
             Assert::AreEqual (std::wstring (L"disable 2 breakpoints"), rig.view.Build (rig.controller.GetSession()).undoBreakpointsText);
 
@@ -211,11 +211,11 @@ namespace BreakpointHistoryTests
 
 
 
-            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("0300"), CommandMode::AppleWin) });
             rig.Do   (BreakpointStep::Kind::Undo);
             Assert::IsTrue (rig.CanRedo());
 
-            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0302", CommandMode::AppleWin) });
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("0302"), CommandMode::AppleWin) });
             Assert::IsFalse (rig.CanRedo());
         }
 
@@ -229,7 +229,7 @@ namespace BreakpointHistoryTests
 
             rig.Run ("BP 0300");
             id = rig.List().at (0).id;
-            rig.Step ({ DebuggerActions::GetEditBreakpoint (id, "BP 0302", CommandMode::AppleWin) });
+            rig.Step ({ DebuggerActions::GetEditBreakpoint (id, BreakpointDefinition::MakeExecute ("0302"), CommandMode::AppleWin) });
             rig.Do   (BreakpointStep::Kind::Undo);
 
             Assert::AreEqual ((Word) 0x0300, rig.List().at (0).address);
@@ -268,7 +268,7 @@ namespace BreakpointHistoryTests
 
 
 
-            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("0300"), CommandMode::AppleWin) });
             id = rig.List().at (0).id;
             rig.Run (std::format ("BPC {}", id));
             rig.Run ("BP 0302");
@@ -290,7 +290,7 @@ namespace BreakpointHistoryTests
 
 
 
-            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("0300"), CommandMode::AppleWin) });
             id = rig.List().at (0).id;
             rig.Step ({ DebuggerActions::GetClearBreakpoint (id, CommandMode::AppleWin) });
 
@@ -318,7 +318,7 @@ namespace BreakpointHistoryTests
 
 
 
-            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("0300"), CommandMode::AppleWin) });
             id = rig.List().at (0).id;
             rig.Run (std::format ("BPC {}", id));
             rig.Run ("BP 0300");
@@ -337,7 +337,7 @@ namespace BreakpointHistoryTests
 
 
 
-            lines = rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
+            lines = rig.Step ({ DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("0300"), CommandMode::AppleWin) });
             Assert::IsTrue (std::ranges::find (lines, DebugSession::GetPrompt (CommandMode::AppleWin) + std::string ("BP 0300")) != lines.end());
         }
     };
