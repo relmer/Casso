@@ -357,4 +357,32 @@ public:
             Assert::IsTrue (call.text != DxuiLabel::kRequiredMark, L"a label not required has no mark");
         }
     }
+
+    TEST_METHOD (TheRequiredMarkHasATip)
+    {
+        DxuiLabel                 label (L"Address");
+        MockDxuiPainter           painter;
+        MockDxuiTextRenderer      text;
+        MockDxuiTheme             theme;
+        DxuiDpiScaler             scaler;
+        DxuiTip                   tip;
+        const RecordedTextCall  * mark = nullptr;
+
+
+
+        scaler.SetDpi (96);
+        label.Layout      (RECT { 10, 0, 200, 20 }, scaler);
+        label.SetRequired (true);
+        label.Paint       (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            mark = (call.kind == RecordedTextKind::DrawString && call.text == DxuiLabel::kRequiredMark) ? &call : mark;
+        }
+
+        Assert::IsNotNull (mark, L"the mark is drawn");
+        Assert::IsTrue    (label.TryGetTip (POINT { (LONG) mark->x + 1, 10 }, tip), L"over the mark");
+        Assert::AreEqual  (std::wstring (DxuiLabel::kRequiredTip), tip.text);
+        Assert::IsFalse   (label.TryGetTip (POINT { 11, 10 }, tip), L"not over the text");
+    }
 };

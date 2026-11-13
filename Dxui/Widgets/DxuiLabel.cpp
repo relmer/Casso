@@ -2,6 +2,7 @@
 
 #include "Widgets/DxuiLabel.h"
 
+#include "Core/DxuiTip.h"
 #include "Render/DxuiTextRenderer.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
@@ -88,6 +89,8 @@ void DxuiLabel::DrawRequiredMark (IDxuiTextRenderer & text, uint32_t argb, float
 
 
 
+    m_markRect = {};
+
     if (m_hAlign != DxuiTextHAlign::Left || m_text.empty())
     {
         return;
@@ -100,6 +103,8 @@ void DxuiLabel::DrawRequiredMark (IDxuiTextRenderer & text, uint32_t argb, float
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     left = (float) m_boundsDip.left + width;
+
+    m_markRect = { (LONG) left, m_boundsDip.top, (LONG) std::ceil (left + markWidth) + 1, m_boundsDip.bottom };
 
     hr = text.DrawString (kRequiredMark,
                           left,
@@ -191,4 +196,30 @@ HRESULT DxuiLabel::MeasureWrappedDip (float widthDip, float & outHeightDip) cons
 
 
     return DxuiTextRenderer::MeasureWrappedDip (m_text.c_str(), fontDip, m_fontFace.c_str(), m_weight, widthDip, outHeightDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiLabel::TryGetTip
+//
+//  The required mark's tip over the mark as it was last drawn; elsewhere,
+//  the label's tip text or function.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiLabel::TryGetTip (POINT pointPx, DxuiTip & tip) const
+{
+    if (m_isRequired && IsVisible() && IsEnabled() && PtInRect (&m_markRect, pointPx))
+    {
+        tip        = DxuiTip();
+        tip.text   = kRequiredTip;
+        tip.anchor = m_markRect;
+        return true;
+    }
+
+    return IDxuiControl::TryGetTip (pointPx, tip);
 }
