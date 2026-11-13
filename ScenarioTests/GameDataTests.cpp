@@ -2,6 +2,8 @@
 
 #include "EhmTestHelper.h"
 #include "GuestSession.h"
+#include "KeystrokeInjector.h"
+#include "TestMachine.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/FilePath.h"
 #include "FileTypes/FileFormatTable.h"
@@ -69,6 +71,31 @@ public:
     static bool HasLineStarting (const DecodedFile & file, const std::wstring & start)
     {
         return std::any_of (file.lines.begin(), file.lines.end(), [&] (const std::wstring & line) { return line.starts_with (start); });
+    }
+
+
+    //  Runs the machine a slice at a time until a row of the text screen
+    //  contains `needle`, or until `cycleCap` cycles have run.
+    static bool RunUntilScreenShows (MachineHost & host, const std::string & needle, uint64_t cycleCap)
+    {
+        constexpr uint64_t  kSlice = 1'000'000ULL;
+
+        std::vector<std::string>  rows;
+        uint64_t                  spent    = 0;
+        bool                      onScreen = false;
+
+
+
+        while (!onScreen && spent < cycleCap)
+        {
+            spent += host.RunCycles (kSlice);
+
+            rows.clear();
+            GuestSession::CollectRows (host, rows);
+            onScreen = GuestSession::AnyRowContains (rows, needle);
+        }
+
+        return onScreen;
     }
 
 
@@ -152,5 +179,38 @@ public:
         Assert::IsTrue (text.find (L"Release 88, serial number 840726") != std::wstring::npos);
         Assert::IsTrue (text.find (L"which matches") != std::wstring::npos);
         Assert::IsTrue (text.find (L"[180] West of House\n      [181] door\n      [160] small mailbox\n        [161] leaflet") != std::wstring::npos);
+    }
+
+
+    //  The disk booted as a user boots it: mounted, then the power cycled.
+    //  On a //e the interpreter prints an 80-column prompt, and N selects the
+    //  40-column screen, where the room the game opens in is read back.
+    TEST_METHOD (ZorkI_BootsToWestOfHouse)
+    {
+        constexpr uint64_t  kBootCap = 200'000'000ULL;
+
+        TestMachine               machine ("Apple2eEnhanced");
+        std::vector<Byte>         image    = GuestSession::RequireFetchedDisk ("zork1.dsk");
+        std::vector<std::string>  rows;
+        bool                      atPrompt = false;
+        bool                      opened   = false;
+
+
+
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "zork1.dsk", DiskFormat::Dsk, image));
+        machine.PowerCycle();
+
+        atPrompt = RunUntilScreenShows (machine, "80-COLUMN DISPLAY?", kBootCap);
+        Assert::IsTrue (atPrompt, L"the interpreter loads and prints the 80-column prompt");
+
+        AssertSucceeded (KeystrokeInjector::InjectKey (machine, (Byte) 'N'));
+
+        opened = RunUntilScreenShows (machine, "SMALL MAILBOX", kBootCap);
+        Assert::IsTrue (opened, L"the story loads and prints the first room");
+
+        GuestSession::CollectRows (machine, rows);
+        Assert::IsTrue (GuestSession::AnyRowContains (rows, "REVISION 88 / SERIAL NUMBER 840726"));
+        Assert::IsTrue (GuestSession::AnyRowIs       (rows, "WEST OF HOUSE"));
+        Assert::IsTrue (GuestSession::AnyRowIs       (rows, "THERE IS A SMALL MAILBOX HERE."));
     }
 };
