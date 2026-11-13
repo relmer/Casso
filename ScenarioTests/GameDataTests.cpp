@@ -182,23 +182,17 @@ public:
     }
 
 
-    //  The disk booted as a user boots it: mounted, then the power cycled.
     //  On a //e the interpreter prints an 80-column prompt, and N selects the
     //  40-column screen, where the room the game opens in is read back.
-    TEST_METHOD (ZorkI_BootsToWestOfHouse)
+    static void AssertZorkReachesWestOfHouse (MachineHost & machine)
     {
         constexpr uint64_t  kBootCap = 200'000'000ULL;
 
-        TestMachine               machine ("Apple2eEnhanced");
-        std::vector<Byte>         image    = GuestSession::RequireFetchedDisk ("zork1.dsk");
         std::vector<std::string>  rows;
         bool                      atPrompt = false;
         bool                      opened   = false;
 
 
-
-        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "zork1.dsk", DiskFormat::Dsk, image));
-        machine.PowerCycle();
 
         atPrompt = RunUntilScreenShows (machine, "80-COLUMN DISPLAY?", kBootCap);
         Assert::IsTrue (atPrompt, L"the interpreter loads and prints the 80-column prompt");
@@ -212,5 +206,35 @@ public:
         Assert::IsTrue (GuestSession::AnyRowContains (rows, "REVISION 88 / SERIAL NUMBER 840726"));
         Assert::IsTrue (GuestSession::AnyRowIs       (rows, "WEST OF HOUSE"));
         Assert::IsTrue (GuestSession::AnyRowIs       (rows, "THERE IS A SMALL MAILBOX HERE."));
+    }
+
+
+    //  The disk booted as a user boots it: mounted, then the power cycled.
+    TEST_METHOD (ZorkI_BootsToWestOfHouse)
+    {
+        TestMachine        machine ("Apple2eEnhanced");
+        std::vector<Byte>  image = GuestSession::RequireFetchedDisk ("zork1.dsk");
+
+
+
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "zork1.dsk", DiskFormat::Dsk, image));
+        machine.PowerCycle();
+
+        AssertZorkReachesWestOfHouse (machine);
+    }
+
+
+    //  The interpreter relies on the text window the monitor's RESET sets up,
+    //  so this boot goes through RESET as a real machine's does.
+    TEST_METHOD (ZorkI_BootsThroughGuestSessionMount)
+    {
+        TestMachine        machine ("Apple2eEnhanced");
+        std::vector<Byte>  image = GuestSession::RequireFetchedDisk ("zork1.dsk");
+
+
+
+        GuestSession::Mount (machine, image);
+
+        AssertZorkReachesWestOfHouse (machine);
     }
 };

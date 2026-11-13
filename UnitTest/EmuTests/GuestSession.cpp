@@ -834,10 +834,7 @@ void GuestSession::Mount (MachineHost              & host,
     AssertTheDrivePresentsWhatWasMounted (*image, bytes, L"the image this gate mounts");
     AssertTheDriveCanReadTheBootSector   (*image,        L"the image this gate mounts");
 
-    RunOldMonitorReset (host);
-
-    host.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
-    host.GetCpu()->SetPC (kBootRomEntry);
+    StartFromPowerOn (host);
 }
 
 
@@ -846,18 +843,22 @@ void GuestSession::Mount (MachineHost              & host,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GuestSession::RunOldMonitorReset
+//  GuestSession::StartFromPowerOn
 //
-//  The boot starts at the controller ROM straight from power-on, which skips
-//  the monitor's RESET. The Autostart ROM's BASIC sets up its own text flags,
-//  but Integer BASIC on the original ][ does not, and without RESET the
-//  inverse mask at $32 is whatever power-on left in RAM; every character is
-//  then written to the screen as an inverse @. So on that machine RESET runs
-//  to the * prompt first, as it does before a user types C600G.
+//  Puts the processor where a real machine is at power-on. On an Autostart
+//  machine that is the reset vector: RESET runs the monitor's INIT, which sets
+//  the text window at $20-$23 and the normal-video mask at $32, and then boots
+//  the disk in slot 6. A disk whose boot code relies on that setup, as Zork's
+//  interpreter does, fails when the boot starts at $C600 over the power-on
+//  fill instead.
+//
+//  The original ][ monitor does not boot a disk. Its RESET sets up the screen
+//  and waits at the * prompt, so on that machine RESET runs first and the boot
+//  starts at $C600, as when a user types C600G.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GuestSession::RunOldMonitorReset (MachineHost & host)
+void GuestSession::StartFromPowerOn (MachineHost & host)
 {
     MemoryBus &  bus    = host.GetMemoryBus();
     Word         vector = static_cast<Word> (bus.ReadByte (kResetVector) | (bus.ReadByte (kResetVector + 1) << 8));
@@ -869,6 +870,8 @@ void GuestSession::RunOldMonitorReset (MachineHost & host)
     {
         ran = MachineIdle::RunUntilIdle (host, kMonitorResetCycles);
         IGNORE_RETURN_VALUE (ran, 0);
+
+        host.GetCpu()->SetPC (kBootRomEntry);
     }
 }
 
@@ -949,10 +952,7 @@ void GuestSession::MountWoz (MachineHost              & host,
     AssertTheDrivePresentsWhatWasMounted (*image, expectedSectors, L"the WOZ this gate mounts");
     AssertTheDriveCanReadTheBootSector   (*image,                  L"the WOZ this gate mounts");
 
-    RunOldMonitorReset (host);
-
-    host.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
-    host.GetCpu()->SetPC (kBootRomEntry);
+    StartFromPowerOn (host);
 }
 
 
