@@ -7,19 +7,17 @@
 ## Summary
 
 Add the cards and drives that boot ProDOS volumes larger than 140K: the Apple
-II SCSI Card with an HD20SC, the ProFile on its interface card, the A2Pico
-running A2retroNET, the UniDisk 3.5 (on the //c disk
+II SCSI Card with an HD20SC, the ProFile on its interface card, the UniDisk 3.5 (on the //c disk
 port and on the Liron card), the Apple 3.5 Drive (on the 3.5 controller card),
 and the //c Plus as a new machine. Every device runs its real firmware over
-emulated hardware: an NCR 5380 and a SCSI target, the A2Pico's register
-window, the IWM and SWIM, a variable-speed Sony 3.5-inch
+emulated hardware: an NCR 5380 and a SCSI target, the IWM and SWIM, a variable-speed Sony 3.5-inch
 mechanism, the SmartPort bus at signal level, and a second and third 65C02 for
 the UniDisk 3.5 and the 3.5 controller card. Each external drive gets a CAD
 model, sounds, and an event feed, as the Disk II has.
 
 The approach, from [research.md](research.md): build bottom-up in three
 stacks that share only the media layer and the event feed. The block stack
-(SCSI, ProFile, A2Pico) presents an `IBlockStore` behind a bus chip. The
+(SCSI, ProFile) presents an `IBlockStore` behind a bus chip. The
 3.5-inch stack (IWM, SWIM, Sony mechanism, GCR and WOZ tracks) is driven by
 host firmware or by a drive's internal 65C02. The machine stack adds the //c
 Plus. The desk scene, audio and configuration work lands per device as each
@@ -34,11 +32,10 @@ with CadQuery for the CAD models, PowerShell 7 for scripts.
 its ca65 dialect), `CassoEmuCore` (MemoryBus, slot and expansion ROM buses,
 ComponentRegistry, Disk II controller, the block store and partition readers
 from spec 033, the desk scene, the drive audio mixer), Dxui for settings UI.
-No new third-party code. A2retroNET's `6502/SMARTPORT.S` (MIT) is vendored as
-source and assembled by Casso's assembler at build time.
+No new third-party code.
 
 **Storage**: Disk images on the host: `.po`, `.hdv`, `.2mg`, DiskCopy 4.2
-(`.dc42`, `.image`), WOZ 2 3.5-inch, and A2Pico card folders.
+(`.dc42`, `.image`) and WOZ 2 3.5-inch.
 Writes go through spec 033's `CachingBlockStore` and the durable commit path.
 
 **Testing**: `UnitTest` (Microsoft Native CppUnitTest) for chips, buses,
@@ -59,7 +56,7 @@ off is faster than MAME's.
 No serial port is opened and none of the CassoLink capture files are touched
 by this work. Each `.cpp` file stays under the CS0026 size limit.
 
-**Scale/Scope**: Five slot cards, the //c disk port chain, one new machine,
+**Scale/Scope**: Four slot cards, the //c disk port chain, one new machine,
 four drive models, two audio sources, one event feed.
 
 ## Constitution Check
@@ -112,8 +109,7 @@ CassoEmuCore/
 │   │   ├── ScsiBus.*                # phases, arbitration, selection
 │   │   ├── ScsiHardDisk.*           # SCSI target: INQUIRY, READ(6/10), WRITE, MODE SENSE
 │   │   ├── AppleScsiCard.*          # 341-0437-A, 5380, RAM, bank latch
-│   │   ├── ProFileDrive.*, ProFileCard.*
-│   │   └── A2PicoCard.*             # A2retroNET register window and Pico side
+│   │   └── ProFileDrive.*, ProFileCard.*
 │   └── Floppy35/                    # new: the 3.5-inch stack
 │       ├── Iwm.*                    # factored out of Disk2Controller's IWM mode
 │       ├── Swim.*                   # IWM plus ISM mode for the 3.5 controller card
@@ -131,12 +127,11 @@ CassoEmuCore/
 ├── Audio/
 │   ├── Floppy35AudioSource.*
 │   └── HardDiskAudioSource.*
-├── Ui/Scene/                        # DeskDeviceKind additions, drive band indicator
+├── Ui/Scene/                        # DeskDeviceKind additions
 ├── Ui/Settings/                     # device tree: cards, IDs, drives, real-timing switch
 └── Core/                            # ComponentRegistry, MachineConfig, CLI flags
 
 Resources/
-├── Firmware/A2retroNET/             # SMARTPORT.S, LICENSE (MIT), assembled at build
 ├── Machines/Apple2cPlus/Apple2cPlus.json
 └── Models/{UniDisk35,Apple35Drive,HardDisk20SC,ProFile}/
 
@@ -160,14 +155,14 @@ the //c Plus, the Liron card and the UniDisk 3.5 run one IWM.
 Each step ends at a boot that a scenario test can check.
 
 1. Shared: ROM catalog, media layer, event feed, registry and config plumbing.
-2. Block stack: A2Pico first (firmware in the tree, unblocks spec 033's
-   T573), then the SCSI card (MAME reference), then the ProFile.
+2. Block stack: the SCSI card (MAME reference, and the card spec 033's T573
+   runs on), then the ProFile.
 3. 3.5-inch stack: IWM factor-out with the Disk II tests green, the Sony
    mechanism and GCR tracks, the 3.5 controller card with the Apple 3.5
    Drive, then the SmartPort bus, the UniDisk 3.5 on the //c and on the Liron
    card.
 4. The //c Plus.
-5. Desk models, audio, drive band indicator, Machine tab and command line,
+5. Desk models, audio, Machine tab and command line,
    per device as it boots.
 
 ## Complexity Tracking

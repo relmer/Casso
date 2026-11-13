@@ -17,10 +17,6 @@ the user has not configured that slot.
     // ProFile interface card: one drive, the card ROM matches the model
     { "slot": 5, "device": "profile-card", "rom": "341-0271-A.rom",
       "ports": [ { "device": "profile-5mb", "image": "...", "realTiming": false } ] },
-
-    // A2Pico: a card folder with A2retroNET.txt
-    { "slot": 4, "device": "a2pico", "folder": "C:/A2Pico" },
-
     // UniDisk 3.5 interface card: a SmartPort chain
     { "slot": 5, "device": "liron-card", "rom": "Liron.rom",
       "ports": [ { "device": "unidisk35", "image": "..." },

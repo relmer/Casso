@@ -11,7 +11,7 @@ drive lamps, the audio sources, and the debugger's log.
 struct BlockDeviceEvent
 {
     uint64_t           cycle;
-    BlockDeviceKind    kind;        // Scsi, ProFile, A2Pico, SmartPort
+    BlockDeviceKind    kind;        // Scsi, ProFile, SmartPort
     Byte               slot;
     Byte               unit;
     BlockDeviceOp      op;          // Status, Read, Write, Format, Control, Init, SpinUp, Seek

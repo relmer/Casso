@@ -61,14 +61,6 @@ Handshake states: `Idle -> CommandWait ($01) -> CommandReceive (6 bytes) ->
 ReadyForData ($02 or $03) -> Transfer (532 bytes) -> Status ($04, 4 bytes) ->
 Idle`.
 
-### A2PicoCard
-
-| Field | Type | Rule |
-|---|---|---|
-| `folder` | path | The card folder; `A2retroNET.txt` is read at the card's reset (FR-012). |
-| `drives[]` | `BlockDeviceMedia` | In the order the file lists them. A missing file is an offline unit. |
-| `ctrl`, `data` | registers | `CTRL` write starts a command; bit 7 of a `CTRL` read indicates done. |
-
 ## 3.5-inch stack
 
 ### Iwm

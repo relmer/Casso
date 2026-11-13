@@ -19,7 +19,6 @@ the reference.
 | ProFile interface card, 5 MB | `Apple II Interface 341-0271-A ROM 2716 for 5MB Profile.bin` | 2 KB | none |
 | ProFile interface card, 10 MB | `Apple II Interface 341-0299-B ROM 2716 for 10MB Profile.bin` | 2 KB | none |
 | //c Plus | `Apple IIc plus ROM 05 - 342-0625-A - 1988.bin` | 32 KB | `apple2cp` (`341-0625-a.256`), SHA-1 `1a27ae26...` |
-| A2Pico | A2retroNET `6502/SMARTPORT.S` and its slot page source, MIT | source | none |
 
 The UniDisk 3.5 drive ROM is cross-checked against Eric Smith's 2018
 disassembly (`git.applefritter.com/Apple-2-SW/a2-liron`, `liron.asm`, origin
@@ -37,30 +36,14 @@ checksums make a wrong file fail loudly.
 depends on the `asl` assembler, an executable download, which the security rules
 forbid. Writing firmware for Casso was ruled out by the owner.
 
-## R2. A2retroNET firmware and the Pico side
+## R2. A2Pico: dropped
 
-**Decision**: Vendor A2retroNET's 6502 sources under
-`Resources/Firmware/A2retroNET/` with the MIT notice, and assemble them with
-Casso's Merlin dialect at build time into an embedded resource. Emulate the
-Pico side as a command processor behind the card's register window: the
-firmware writes a command to `CTRL`, polls bit 7 of `CTRL`, and streams
-parameters and data through `DATA`. Command `$01` runs a ProDOS call and
-returns a status code, `$40` runs the configuration menu (the Pico supplies
-the 40 by 24 screen text).
-
-**Rationale**: The 6502 side is the real firmware, unmodified. The Pico side
-is a microcontroller program whose behavior is in MIT-licensed C, so it can be
-read and its behavior reproduced with attribution; Casso does not run
-RP2040 code.
-
-**Open item for implementation**: only `SMARTPORT.S` (the `$C800-$CEFF`
-space) and `incbin.S` are downloaded. The slot page (`$Cn00`), the register
-addresses `CTRL` and `DATA`, and the full command set come from the rest of
-the repository, fetched into `%USERPROFILE%\Downloads\Casso\a2retronet`.
-
-**Alternatives considered**: Emulating the RP2040 running A2retroNET's binary
-was ruled out: two ARM cores and PIO state machines to run a mailbox whose
-behavior is documented in source.
+**Owner's decision (2026-11-13)**: the A2Pico is out of scope. No other
+emulator models it (MAME 0.289, MAME's current source and AppleWin have no
+A2Pico or A2retroNET device), so there is no reference boot. A2retroNET's 6502
+firmware is MIT licensed, and the Pico side is a command processor behind a
+`CTRL` and `DATA` register pair, which is the starting point if the card is
+added later.
 
 ## R3 and R4. CFFA cards: dropped
 
@@ -212,9 +195,7 @@ and `cad_profile.py` replacing `gen_profile.py`), with proportions measured
 from reference photographs and written in each script, previewed with
 `preview.py` before wiring. They are baked by `MeshCreator` and placed by
 `DeskSceneLayout`'s automatic placement. The //c Plus's internal drive is drawn
-as an Apple 3.5 Drive in its colors. An A2Pico card gets a drive band
-indicator, a 2D strip with a lamp and a tip, in every theme (the owner's
-answer on the desk). User arrangement stays with spec 009.
+as an Apple 3.5 Drive in its colors. User arrangement stays with spec 009.
 
 ## R17. Command line
 
