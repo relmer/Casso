@@ -14,7 +14,7 @@ Errors use the fixed error layout:
 
 ```
 Error: no block device in slot 6
-       The --hd flag attaches to a SCSI, ProFile, CFFA, A2Pico or UniDisk 3.5
+       The --hd flag attaches to a SCSI, ProFile, A2Pico or UniDisk 3.5
        interface card. Slot 6 has a Disk II.
 ```
 

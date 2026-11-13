@@ -12,7 +12,7 @@ An image attached to a block device unit.
 | Field | Type | Rule |
 |---|---|---|
 | `path` | file path | One writer per path across all drives (FR-018). |
-| `format` | `Po`, `Hdv`, `TwoImg`, `DiskCopy42`, `Woz35`, `CffaCard` | Detected from the header, then the extension. |
+| `format` | `Po`, `Hdv`, `TwoImg`, `DiskCopy42`, `Woz35` | Detected from the header, then the extension. |
 | `store` | `IBlockStore` | Spec 033's `CachingBlockStore` over `FileBlockStore` or `OffsetBlockStore`. |
 | `blockCount` | uint32 | At most 65,535 (32 MB) per ProDOS unit; at most the ProFile model's capacity. |
 | `writeProtected` | bool | Host file read-only, 2IMG locked flag, or a write-protect tab on 3.5-inch media. |
@@ -60,13 +60,6 @@ ID times out back to `BusFree`.
 Handshake states: `Idle -> CommandWait ($01) -> CommandReceive (6 bytes) ->
 ReadyForData ($02 or $03) -> Transfer (532 bytes) -> Status ($04, 4 bytes) ->
 Idle`.
-
-### AtaDevice
-
-| Field | Type | Rule |
-|---|---|---|
-| `media` | `BlockDeviceMedia` | The whole card image; `CffaLayout` defines partitions. |
-| task file | registers | Data, error, sector count, LBA 0-27, device, status, command. |
 
 ### A2PicoCard
 

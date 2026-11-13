@@ -14,7 +14,6 @@ after download. A file that fails its checksum is deleted and the fetch fails.
 | `341-0299-B.rom` | `Devices/ProFileCard` | 2048 | same |
 | `Apple2cPlus.rom` | `Machines/Apple2cPlus` | 32768 | Computers/Apple II/Apple IIc plus/ROM Images |
 | `Apple2cPlus_Video.rom` | `Machines/Apple2cPlus` | 4096 | same |
-| `cffa20eec02.rom` | `Devices/Cffa2` | 4096 | dreher.net Run6 CD package, extracted |
 
 `-Fixtures` gains the subset the unit and scenario tests use. A2retroNET is
 built from source, so it is not fetched.

@@ -19,7 +19,6 @@ the reference.
 | ProFile interface card, 5 MB | `Apple II Interface 341-0271-A ROM 2716 for 5MB Profile.bin` | 2 KB | none |
 | ProFile interface card, 10 MB | `Apple II Interface 341-0299-B ROM 2716 for 10MB Profile.bin` | 2 KB | none |
 | //c Plus | `Apple IIc plus ROM 05 - 342-0625-A - 1988.bin` | 32 KB | `apple2cp` (`341-0625-a.256`), SHA-1 `1a27ae26...` |
-| CFFA 2.0 | `cffa20eec02.bin` (dreher.net Run6 CD package) | 4 KB | `a2cffa2`, SHA-1 `080ff88f...` |
 | A2Pico | A2retroNET `6502/SMARTPORT.S` and its slot page source, MIT | source | none |
 
 The UniDisk 3.5 drive ROM is cross-checked against Eric Smith's 2018
@@ -63,37 +62,13 @@ the repository, fetched into `%USERPROFILE%\Downloads\Casso\a2retronet`.
 was ruled out: two ARM cores and PIO state machines to run a mailbox whose
 behavior is documented in source.
 
-## R3. CFFA 2.0
+## R3 and R4. CFFA cards: dropped
 
-**Decision**: Emulate the CFFA 2.0's bus side: its EEPROM at `$C800`, the
-`$C0n0-$C0nF` register window with the 16-bit data latch, and an ATA device
-(`AtaDevice`) with the task file, IDENTIFY DEVICE, READ SECTORS and WRITE
-SECTORS. Partitions are presented as spec 033's `CffaLayout` defines them.
-
-**Rationale**: The CFFA 2.0's firmware is 6502 code in an EEPROM, so the card
-is a register window over an ATA device. MAME's `a2cffa2` provides a reference
-boot for every image in spec 033's table.
-
-## R4. CFFA 3000: scope risk for the owner
-
-**Finding**: The CFFA 3000's firmware is `CFFA.bin`, a program for its AVR
-microcontroller, plus `CFFA.xsv` logic for its CPLD. The 6502 code the Apple
-runs is served by the AVR, and the firmware is only on dreher.net's CD
-packages (v1.3 has 3.1, v1.5 has 3.1.1). Running it faithfully means emulating
-an AVR core with its USB host and CompactFlash interfaces.
-
-**Options for the owner**:
-
-1. Emulate the AVR and run `CFFA.bin`: faithful, and the largest single item in
-   the spec.
-2. Extract the 6502 code from `CFFA.bin` and emulate the AVR's register
-   interface from the CFFA 3000 reference manual: the Apple runs real code, the
-   card's microcontroller is modeled.
-3. Move the CFFA 3000 to a later spec, keeping the CFFA 2.0.
-
-**Recommendation**: Option 2. The reference manual (v1.3) documents the
-register interface and the menu behavior, which is what software on the Apple
-can access.
+**Owner's decision (2026-11-13)**: the CFFA 2.0 and CFFA 3000 are out of
+scope. The CFFA 3000's firmware is `CFFA.bin` for its AVR microcontroller
+plus `CFFA.xsv` CPLD logic, on dreher.net's CD packages, and running it
+means emulating the AVR. Either card can be added later; spec 033's CFFA
+layout reader stays in Casso Explorer.
 
 ## R5. Apple II SCSI Card
 
@@ -217,8 +192,8 @@ sweep for the 3.5-inch eject. The audio sources work with either.
 `Disk2EventRing` has, and attach them through `MachineHost::AttachObservers`.
 The log view itself goes into 035's debugger after 035 merges.
 
-**Open item for the owner**: FR-022 requires a debug window. Either 048 waits
-for 035 to supply the window, or 048 adds a simple log window now.
+**Owner's decision (2026-11-13)**: the log view goes into 035's debugger. This
+spec adds the feeds and no standalone window.
 
 ## R15. Real timing setting
 
@@ -237,9 +212,9 @@ and `cad_profile.py` replacing `gen_profile.py`), with proportions measured
 from reference photographs and written in each script, previewed with
 `preview.py` before wiring. They are baked by `MeshCreator` and placed by
 `DeskSceneLayout`'s automatic placement. The //c Plus's internal drive is drawn
-as an Apple 3.5 Drive in its colors. CFFA and A2Pico cards get a drive band
-indicator, a 2D strip with a lamp and a tip, in every theme (clarification Q2
-on the desk). User arrangement stays with spec 009.
+as an Apple 3.5 Drive in its colors. An A2Pico card gets a drive band
+indicator, a 2D strip with a lamp and a tip, in every theme (the owner's
+answer on the desk). User arrangement stays with spec 009.
 
 ## R17. Command line
 

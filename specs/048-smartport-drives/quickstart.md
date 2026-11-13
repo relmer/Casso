@@ -31,11 +31,10 @@ menu, matching the MAME screenshots in spec 033's `validation.md`.
 |---|---|---|
 | US1 | SCSI card in slot 7, `b32.hdv` at ID 6 | ProDOS boots; HD20SC on the desk, lamp on access |
 | US2 | A2Pico in slot 4 over a Casso Explorer card folder | First drive boots, all drives online |
-| US3 | CFFA 2.0 in slot 7 with the four-volume card | STARTUP catalogs CARD2 to CARD4 |
-| US4 | //c with a UniDisk 3.5 on the disk port, `b800.po` | ProDOS boots; eject sound and model empty after eject |
-| US5 | 3.5 controller card in slot 5, Apple 3.5 Drive, a WOZ 3.5 image | Boots, protection check passes |
-| US6 | //c Plus, `b800.po` in the internal drive | Boots at 4 MHz |
-| US7 | ProFile card, 5 MB image | Boots; the ProFile spins up on the desk |
+| US3 | //c with a UniDisk 3.5 on the disk port, `b800.po` | ProDOS boots; eject sound and model empty after eject |
+| US4 | 3.5 controller card in slot 5, Apple 3.5 Drive, a WOZ 3.5 image | Boots, protection check passes |
+| US5 | //c Plus, `b800.po` in the internal drive | Boots at 4 MHz |
+| US6 | ProFile card, 5 MB image | Boots; the ProFile spins up on the desk |
 
 Launch per the workspace rules:
 

@@ -18,10 +18,6 @@ the user has not configured that slot.
     { "slot": 5, "device": "profile-card", "rom": "341-0271-A.rom",
       "ports": [ { "device": "profile-5mb", "image": "...", "realTiming": false } ] },
 
-    // CFFA 2.0: one card image, partitioned as CffaLayout reads it
-    { "slot": 7, "device": "cffa2", "rom": "cffa20eec02.rom",
-      "ports": [ { "device": "cf-card", "image": "C:/Disks/card.img" } ] },
-
     // A2Pico: a card folder with A2retroNET.txt
     { "slot": 4, "device": "a2pico", "folder": "C:/A2Pico" },
 
