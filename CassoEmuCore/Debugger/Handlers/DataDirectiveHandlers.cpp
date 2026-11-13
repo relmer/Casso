@@ -46,8 +46,9 @@ bool DataDirectiveHandlers::TryExecute (DebugSession & session, const DebugComma
 //  that block's items: a block marked by a data directive, or one the debug
 //  file maps to a data directive. An instruction running over pc is its
 //  bytes before pc instead, the way the line list cuts it; so is one
-//  running over a label, unless it starts at pc, so a symbol's address has
-//  its row.
+//  running over a label or the target of an executed branch, unless it
+//  starts at pc, so a symbol's address and a branch's target each have a
+//  row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,7 +90,8 @@ Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std
             for (uint32_t inside = 1; inside < line.instruction.bytes.size() && cutAt == 0 && address + inside <= 0xFFFF; inside++)
             {
                 bool  isPc    = pc.has_value() && *pc == address + inside;
-                bool  isLabel = !(pc.has_value() && *pc == address) && IsCodeLabel (session, (Word) (address + inside));
+                bool  isLabel = !(pc.has_value() && *pc == address) &&
+                                (IsCodeLabel (session, (Word) (address + inside)) || session.IsBranchTarget ((Word) (address + inside)));
 
                 cutAt = (isPc || isLabel) ? address + inside : 0;
             }

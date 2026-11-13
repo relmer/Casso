@@ -664,8 +664,9 @@ public:
 
     //  The line list's known starts besides the debug file's and the fetch
     //  bits: the PC, and each call frame's JSR where memory has it.
-    static std::vector<Word>  GetKnownStarts (const CallStackData & calls, Word pc, const DebugMemoryImage & image);
-    static std::vector<Word>  GetCodeLabels  (const DebugSession & session);
+    static std::vector<Word>  GetKnownStarts   (const CallStackData & calls, Word pc, const DebugMemoryImage & image);
+    static std::vector<Word>  GetCodeLabels    (const DebugSession & session);
+    static std::vector<Word>  GetBranchTargets (const Disassembler & disassembler, const DebugMemoryImage & image);
 
     //  Scrolls a code view by instructions, down when positive, up when
     //  negative, through the whole address space.

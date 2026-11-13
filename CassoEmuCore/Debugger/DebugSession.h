@@ -470,6 +470,11 @@ public:
     void                       SetReversePending   (bool isPending)                { m_isReversePending = isPending; }
     bool                       IsReversePending    () const                        { return m_isReversePending; }
 
+    //  The addresses executed branches, jumps and calls go to, sorted, as
+    //  the debugger window last found them. A listing starts a row at each.
+    void                       SetBranchTargets    (std::vector<Word> targets)     { m_branchTargets = std::move (targets); }
+    bool                       IsBranchTarget      (Word address) const            { return std::ranges::binary_search (m_branchTargets, address); }
+
     // SAVESTATE and LOADSTATE: the host saves the whole machine to a state
     // file, or replaces it with one, as File > Save state and Load state do,
     // and returns whether it took the request. Empty where there is no host.
@@ -690,6 +695,7 @@ private:
     std::optional<PendingScript>  m_pendingScript;
     ReverseRequester              m_reverseRequester;
     bool                          m_isReversePending = false;
+    std::vector<Word>             m_branchTargets;
     StateFileRequester            m_stateFileRequester;
     ProjectRequester              m_projectRequester;
     HistoryGuard                  m_historyGuard;

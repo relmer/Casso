@@ -4148,6 +4148,61 @@ std::vector<Word> DebuggerViewState::GetCodeLabels (const DebugSession & session
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::GetBranchTargets
+//
+//  Where each executed relative branch, JMP and JSR goes, outside the I/O
+//  page, sorted. Only an instruction the machine fetched is read, so data
+//  that decodes as a branch adds nothing. An indirect jump's operand is a
+//  pointer and is left out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Word> DebuggerViewState::GetBranchTargets (const Disassembler & disassembler, const DebugMemoryImage & image)
+{
+    static constexpr Byte    kJmp     = 0x4C;
+    static constexpr Byte    kJsr     = 0x20;
+    static constexpr Word    kIoFirst = 0xC000;
+    static constexpr Word    kIoLast  = 0xC0FF;
+    static constexpr size_t  kBranch  = 2;
+    std::vector<Word>        targets;
+
+
+
+    for (size_t at = 0; at + Disassembler::kMaxInstructionBytes <= DebugMemoryImage::kBytes; at++)
+    {
+        DisassembledInstruction  instruction;
+        Byte                     opcode      = image.bytes[at];
+        HRESULT                  hr          = S_OK;
+        bool                     isCandidate = image.fetched[at] && (opcode == kJmp || opcode == kJsr || disassembler.GetLength (opcode) == kBranch);
+
+
+
+        if (!isCandidate)
+        {
+            continue;
+        }
+
+        hr = disassembler.DisassembleOne ((Word) at, std::span<const Byte> (&image.bytes[at], Disassembler::kMaxInstructionBytes), instruction);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        if (instruction.hasTarget && (instruction.target < kIoFirst || instruction.target > kIoLast))
+        {
+            targets.push_back (instruction.target);
+        }
+    }
+
+    std::ranges::sort (targets);
+    targets.erase (std::unique (targets.begin(), targets.end()), targets.end());
+
+    return targets;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::RefreshLineList
 //
 //  While the machine runs, nothing builds the list and the views decode as
@@ -4165,6 +4220,7 @@ void DebuggerViewState::RefreshLineList (DebugSession & session, bool isPaused, 
     auto                         image        = std::make_unique<DebugMemoryImage>();
     Disassembler                 disassembler (session.GetTarget().GetInstructionSet());
     DisassemblyLineList::Inputs  inputs;
+    std::vector<Word>            targets;
     uint64_t                     hash         = kFnvOffset;
     Word                         pc           = session.GetTarget().GetRegisters().pc;
     auto                         mix          = [&hash] (uint64_t value) { hash = (hash ^ value) * kFnvPrime; };
@@ -4225,6 +4281,15 @@ void DebuggerViewState::RefreshLineList (DebugSession & session, bool isPaused, 
     {
         inputs.lengths[(size_t) opcode] = (uint8_t) disassembler.GetLength ((Byte) opcode);
     }
+
+    //  The targets are found from the bytes and the fetch marks, which the
+    //  hash above has, so they are found only when the list is built.
+    targets = GetBranchTargets (disassembler, *image);
+    session.SetBranchTargets (targets);
+
+    inputs.labels.insert (inputs.labels.end(), targets.begin(), targets.end());
+    std::ranges::sort (inputs.labels);
+    inputs.labels.erase (std::unique (inputs.labels.begin(), inputs.labels.end()), inputs.labels.end());
 
     inputs.image      = image.get();
     inputs.debugLines = session.GetDebugFileLines();

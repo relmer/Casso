@@ -2,6 +2,8 @@
 
 #include "Debugger/DisassemblyLineList.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Disassembler.h"
+#include "TestHelpers.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -195,6 +197,66 @@ namespace DebuggerTests
             Assert::IsTrue   (rig.StartsAt (0x0801), L"the label's row");
             Assert::AreEqual ((int) 1, (int) rig.LineAt (0x0800).length, L"the decode before it, cut short");
             Assert::AreEqual ((int) 3, (int) rig.LineAt (0x0900).length, L"the PC's instruction is whole");
+        }
+
+
+        //  An executed jump into the middle of an instruction, as JMP $6004
+        //  into the BIT at $6003: its target starts a line before the PC
+        //  gets there. A jump the machine never fetched, an indirect jump
+        //  and a jump into the I/O page add no target.
+        TEST_METHOD (AnExecutedJumpsTargetStartsALine)
+        {
+            static constexpr Byte  kBit     = 0x2C;
+            static constexpr Byte  kJmp     = 0x4C;
+            static constexpr Byte  kJmpInd  = 0x6C;
+            static constexpr Byte  kBne     = 0xD0;
+            Rig                    rig;
+            TestCpu                cpu;
+            std::vector<Word>      targets;
+
+
+
+            cpu.InitForTest();
+
+            rig.inputs.lengths[kBit] = 3;
+            rig.inputs.lengths[kJmp] = 3;
+
+            //  $6000: JMP $6004   $6003: BIT $00A9, with LDA #$00 at $6004
+            rig.image.bytes[0x6000] = kJmp;
+            rig.image.bytes[0x6001] = 0x04;
+            rig.image.bytes[0x6002] = 0x60;
+            rig.image.bytes[0x6003] = kBit;
+            rig.image.bytes[0x6004] = 0xA9;
+            rig.image.bytes[0x6005] = 0x00;
+            rig.image.fetched.set (0x6000);
+
+            //  Never fetched: JMP $7004.  Fetched: JMP ($7104), JMP $C050 and BNE *+4.
+            rig.image.bytes[0x7000] = kJmp;
+            rig.image.bytes[0x7001] = 0x04;
+            rig.image.bytes[0x7002] = 0x70;
+            rig.image.bytes[0x7100] = kJmpInd;
+            rig.image.bytes[0x7101] = 0x04;
+            rig.image.bytes[0x7102] = 0x71;
+            rig.image.bytes[0x7200] = kJmp;
+            rig.image.bytes[0x7201] = 0x50;
+            rig.image.bytes[0x7202] = 0xC0;
+            rig.image.bytes[0x7300] = kBne;
+            rig.image.bytes[0x7301] = 0x02;
+            rig.image.fetched.set (0x7100);
+            rig.image.fetched.set (0x7200);
+            rig.image.fetched.set (0x7300);
+
+            targets = DebuggerViewState::GetBranchTargets (Disassembler (cpu.GetInstructionSet()), rig.image);
+
+            Assert::IsTrue (targets == std::vector<Word> { 0x6004, 0x7304 }, L"the executed JMP's and the executed branch's targets");
+
+            rig.inputs.pc     = 0x6000;
+            rig.inputs.starts = { 0x6000 };
+            rig.inputs.labels = targets;
+            rig.list.Build (rig.inputs);
+
+            Assert::IsTrue   (rig.StartsAt (0x6004), L"the target's row");
+            Assert::AreEqual ((int) 1, (int) rig.LineAt (0x6003).length, L"the BIT before it, cut short");
         }
 
 
