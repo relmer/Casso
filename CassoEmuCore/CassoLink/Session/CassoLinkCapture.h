@@ -125,9 +125,8 @@ public:
     static HRESULT  ParseReads     (std::span<const Byte> file, std::vector<Position> & outPositions);
 
     //  Whether a whole track's reads are a standard 16-sector or 13-sector
-    //  track: one stream with no weak bytes, of the same length in every
-    //  read, with every sector's address field for the track and a data
-    //  field after it, a 16-sector one with its checksum right.
+    //  track: a stream with every sector's address field for the track, its
+    //  checksum right.
     static bool     IsStandardTrack (const Position & position);
 
 private:
