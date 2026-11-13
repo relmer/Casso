@@ -595,6 +595,10 @@ hardware.
 - Q: Do the collection tools look inside archives? -> A: Yes, at any depth Story 21 opens, with the archive and the image inside it in the row's path.
 - Q: How long may a raw capture of a 5.25" disk take on a //c at 115,200 baud? -> A: Under 5 minutes, so a quarter track with no data is read once, and a repeated read is sent only where it differs from the first.
 
+### Session 2026-11-13
+
+- Q: Is Full Send's raw capture of a likely copy-protected disk a setting in Options? -> A: No. It always happens, and the setting first built for it is removed. A protected disk's sector image rarely runs, so a Full Send without the capture writes an image nobody can use, and a raw capture of a damaged disk assessed alike has more of it than a sector image. The capture's minutes are the cost. The Full Send page's intro is rewritten: many protections are detected and imaged, and Capture raw disk is for the rest.
+
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
 
@@ -3307,9 +3311,12 @@ back, and edit a byte and see it written.
   readers read as random bits, and the capture's report MUST list each such track. A quarter track with
   no data on its first read MUST NOT be read again, and a later read MUST
   be sent only where it differs from the first.
-- **FR-197**: Options MUST offer Capture raw on protected disks for Full
-  Send. With it on, a disk assessed as likely copy-protected MUST be
-  captured raw, and its manifest row MUST indicate a raw capture.
+- **FR-197**: In a Full Send, a disk assessed as likely copy-protected MUST
+  be captured raw, with no setting to turn it off, its image MUST be the
+  WOZ, and its manifest row MUST indicate a raw capture. A protected disk's
+  sector image rarely runs, and a raw capture of a damaged disk assessed
+  alike has more of it than a sector image. A disk whose protection isn't
+  detected is captured with Capture raw disk on its drive's menu.
 - **FR-198**: A capture's INFO chunk MUST list Casso Explorer and its
   version as the creator, and its META chunk the capture's date and the
   drive. The image MUST open in the Disk properties window of FR-133.

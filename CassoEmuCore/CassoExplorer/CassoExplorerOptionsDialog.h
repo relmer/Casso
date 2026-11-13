@@ -157,8 +157,11 @@ public:
     static constexpr int  kLimitDip        = 64;
     static constexpr int  kNoteGapDip      = 8;
 
-private:
+    //  A note's wrapped height at the page's width plus a gap below it, and no
+    //  less than its minimum; the Full Send page's intro is measured alike.
     static int  GetNoteHeightPx (const DxuiLabel & note, int widthPx, const DxuiDpiScaler & scaler, int minDip);
+
+private:
 
     DxuiLabel           * m_intro        = nullptr;
     std::array<Row, 3>  * m_rows         = nullptr;

@@ -227,7 +227,8 @@ void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel,
 
 void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int                           noteEnd        = boundsDip.top + scaler.ToPx (kNoteHeightDip);
+    int                           width          = boundsDip.right - boundsDip.left;
+    int                           noteEnd        = boundsDip.top + CassoExplorerVerifyPage::GetNoteHeightPx (*m_note, width, scaler, kNoteHeightDip);
     int                           labelH         = scaler.ToPx (kLabelHeightDip);
     int                           folderLabelTop = noteEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip);
     int                           folderTop      = folderLabelTop + labelH;
@@ -237,7 +238,6 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
     int                           formatTop      = formatLabelTop + labelH;
     int                           minOptionH     = scaler.ToPx (kOptionLabelHeightDip + kOptionDescHeightDip);
     int                           optionGap      = scaler.ToPx (kOptionGapDip);
-    int                           width          = boundsDip.right - boundsDip.left;
     std::vector<DxuiRadioOption>  options        = m_format->GetOptions();
     int                           esotericaTop   = 0;
     int                           esotericaEnd   = 0;
@@ -563,8 +563,10 @@ void CassoExplorerOptionsDialog::WireFullSend()
     m_fullSendFormat.SetOptions  (options);
     m_fullSendFormat.SetSelected (selected);
 
-    m_fullSendNote.SetText      (L"Full Send archives a stack of floppies. Each disk you put in the Apple's drives is saved here as a disk image, "
-                                 L"with no steps on the PC between disks. Just keep feeding the drives on the Apple.");
+    m_fullSendNote.SetText      (L"Full Send quickly archives a stack of floppies. Just keep feeding the drives on the Apple after each disk is completed "
+                                 L"and find your disk images in the Full Send folder. Full Send detects duplicates, and can detect and image many "
+                                 L"copy-protection schemes. If a particular copy-protection scheme isn't auto-detected, capture the disk with "
+                                 L"Capture raw disk on its drive's menu instead.");
     ExplorerTextStyles::Apply (m_fullSendNote, ExplorerTextStyles::kFormNote);
     m_fullSendNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 

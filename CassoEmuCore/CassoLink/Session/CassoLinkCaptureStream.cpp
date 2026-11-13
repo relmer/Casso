@@ -325,13 +325,15 @@ void CassoLinkCapture::MakeConsensus (const Position & position, const std::vect
 //  revolution (IsUnique), the start repeats within s_kAnchorMismatch bytes
 //  within s_kWindowDrift of that length, the drift a write splice between
 //  the two can add. A start in a write splice, whose bytes are
-//  framed differently on each pass, doesn't repeat and is skipped.
+//  framed differently on each pass, doesn't repeat and is skipped. The
+//  starts begin at the read's first byte framed as on the disk (FindFramed).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CassoLinkCapture::FindReference (std::span<const Byte> read, size_t & outStart, size_t & outLength)
 {
     size_t  estimate = FindLength (read);
+    size_t  room     = estimate + s_kWindowDrift + kAlignBytes;
     bool    found    = false;
 
 
@@ -339,7 +341,7 @@ bool CassoLinkCapture::FindReference (std::span<const Byte> read, size_t & outSt
     outStart  = 0;
     outLength = 0;
 
-    for (size_t start = 0; estimate > 0 && !found && start + estimate + s_kWindowDrift + kAlignBytes <= read.size(); start += s_kStartStep)
+    for (size_t start = FindFramed (read, read.size() > room ? read.size() - room : 0); estimate > 0 && !found && start + room <= read.size(); start += s_kStartStep)
     {
         std::set<Byte>  values;
         size_t          fewest = SIZE_MAX;
@@ -376,6 +378,41 @@ bool CassoLinkCapture::FindReference (std::span<const Byte> read, size_t & outSt
     }
 
     return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::FindFramed
+//
+//  The first byte after the read's first run of s_kFramingSyncs or more sync
+//  bytes that ends before `limit`. A read begins wherever the disk is when
+//  the program starts it, so the latch frames its first bytes from a bit in
+//  the middle of a byte, until sync bytes frame them as on the disk. 1, past
+//  the first byte, when the read has no such run.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CassoLinkCapture::FindFramed (std::span<const Byte> read, size_t limit)
+{
+    size_t  end    = std::min (limit, read.size());
+    size_t  framed = 0;
+    size_t  run    = 0;
+
+
+
+    for (size_t at = 0; framed == 0 && at < end; at++)
+    {
+        bool  sync = (read[at] | 0x80) == s_kSyncByte;
+
+        framed = (!sync && run >= s_kFramingSyncs) ? at : 0;
+        run    = sync ? run + 1 : 0;
+    }
+
+    return framed == 0 ? 1 : framed;
 }
 
 
