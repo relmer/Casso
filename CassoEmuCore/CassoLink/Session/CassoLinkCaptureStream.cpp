@@ -46,9 +46,10 @@ bool CassoLinkCapture::MakeStream (const Position & position, Stream & outStream
 //  The first read's revolution, from a stable start (FindReference), made the
 //  consensus of every revolution of every read aligned to it (AlignAll,
 //  MakeConsensus), and every revolution aligned to that. A byte is weak
-//  where at least two alignments, and at least half of them, put it in a
-//  stretch that differs, longer than the few bytes a write splice frames
-//  differently on each pass. Each
+//  where at least half of the alignments, from at least two reads, put it
+//  in a stretch that differs, longer than the few bytes a write splice
+//  frames differently on each pass. Both revolutions of one read off speed
+//  don't make a stretch weak. Each
 //  byte's marks come from the alignments that read it the same. A read with
 //  no revolution that aligns makes the stream unstable. False when the first
 //  read doesn't repeat.
@@ -62,6 +63,8 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
     std::vector<Alignment>  alignments;
     std::vector<Byte>       agreed;
     std::vector<int>        differs;
+    std::vector<int>        differing;
+    std::vector<size_t>     counted;
     bool                    repaired   = false;
 
 
@@ -97,6 +100,8 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
     length = outStream.bytes.size();
     outStream.weak.assign (length, false);
     differs.assign (length, 0);
+    differing.assign (length, 0);
+    counted.assign (length, SIZE_MAX);
 
     for (int delay = 0; delay < 2; delay++)
     {
@@ -115,6 +120,12 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
 
             differs[at] += alignment.stretch[at] ? 1 : 0;
 
+            if (alignment.stretch[at] && counted[at] != alignment.read)
+            {
+                differing[at]++;
+                counted[at] = alignment.read;
+            }
+
             if (mine >= 0 && (bytes[(size_t) mine] | 0x80) == (outStream.bytes[at] | 0x80))
             {
                 outMarks.set[delay][at]  += CaptureStream::IsSync (bytes[(size_t) mine]) ? 1 : 0;
@@ -125,7 +136,7 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
 
     for (size_t at = 0; at < length; at++)
     {
-        outStream.weak[at] = differs[at] >= s_kWeakAlignments && (size_t) differs[at] * 2 >= alignments.size();
+        outStream.weak[at] = differing[at] >= s_kWeakReads && (size_t) differs[at] * 2 >= alignments.size();
     }
 
     return true;

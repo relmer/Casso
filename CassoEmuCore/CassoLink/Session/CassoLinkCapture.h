@@ -245,7 +245,7 @@ private:
     static constexpr size_t  s_kBand               = 24;
     static constexpr size_t  s_kAlignShare         = 12;
     static constexpr size_t  s_kSpliceBytes        = 16;
-    static constexpr int     s_kWeakAlignments     = 2;
+    static constexpr int     s_kWeakReads          = 2;
     static constexpr size_t  s_kConsensusGap       = 4;
     static constexpr Byte    s_kStepPair           = 1;
     static constexpr Byte    s_kStepFewer          = 2;

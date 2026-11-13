@@ -58,6 +58,9 @@ public:
     //  the name cleaned by the host file name rules.
     static std::string  MakeImageTitle (int sequence, const std::string & catalogTitle, const std::string & prefix);
 
+    //  The file system's name, as DOS 3.3, or empty when it isn't recognized.
+    static std::string  GetSystemName (const std::vector<Byte> & image);
+
     //  With a leading period: the one chosen, or .po for ProDOS and Apple Pascal,
     //  whose blocks are in the same order, and .dsk for any other.
     static std::string  GetImageExtension (const std::vector<Byte> & image, const std::string & chosen);

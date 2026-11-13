@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoLink/FullSend/FullSendSession.h"
+#include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
 
 class CassoLinkSession;
@@ -44,9 +45,16 @@ public:
     //  The time for a manifest's row: UTC, in ISO 8601.
     static std::string  GetUtcTime ();
 
+    //  The Full Send window's model of this connection's session.
+    const FullSendStatus &  GetStatus () const { return m_status; }
+
 private:
     HRESULT  CheckStop     ();
+    void     NoteCapture   (int drive, const CassoLinkCapture::Progress & where);
     HRESULT  ReadTrackOnce (int drive, int track, std::vector<Byte> & ioImage, std::vector<std::pair<int, int>> & outUnreadable);
+
+    static double       GetSeconds   ();
+    static std::string  GetClockTime ();
 
     CassoLinkSession   & m_session;
     LinkOperation      * m_operation = nullptr;
@@ -54,4 +62,5 @@ private:
     bool                 m_verifying = false;
     bool                 m_barFull   = false;   // the next request draws the drive's bar full
     FullSendScreen       m_lastScreen;
+    FullSendStatus       m_status    { GetSeconds, GetClockTime };
 };

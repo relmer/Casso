@@ -183,13 +183,15 @@ const char * FullSendScreen::GetQuipText (Byte quip)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-FullSendSession::FullSendSession (IFullSendLink & link, IDiskFileIo & fileIo, ClockFn clock, std::string folder, std::string extension, std::string prefix) :
+FullSendSession::FullSendSession (IFullSendLink & link, IDiskFileIo & fileIo, ClockFn clock, std::string folder, std::string extension, std::string prefix, FullSendStatus * status) :
     m_link      (link),
     m_fileIo    (fileIo),
     m_clock     (std::move (clock)),
     m_folder    (std::move (folder)),
     m_extension (std::move (extension)),
-    m_prefix    (std::move (prefix))
+    m_prefix    (std::move (prefix)),
+    m_unread    ([] () { return 0.0; }, [] () { return std::string(); }),
+    m_status    (status != nullptr ? *status : m_unread)
 {
 }
 
@@ -208,6 +210,8 @@ HRESULT FullSendSession::Run()
     HRESULT  hr = S_OK;
 
 
+
+    m_status.Begin();
 
     hr = LoadManifest();
     CHR (hr);
@@ -354,6 +358,7 @@ HRESULT FullSendSession::AwaitBegin()
 
         m_screen.verify = m_link.IsVerifying();
         m_screen.prefix = m_prefix;
+        m_status.SetActivity (FullSendActivity::Starting);
 
         hr = m_link.ShowScreen (m_screen);
         CHR (hr);
@@ -401,6 +406,8 @@ HRESULT FullSendSession::EditPrefix()
     char         ch   = 0;
 
 
+
+    m_status.SetActivity (FullSendActivity::EditingPrefix);
 
     for (;;)
     {
@@ -528,6 +535,7 @@ HRESULT FullSendSession::Pause()
     for (;;)
     {
         m_state         = State::Paused;
+        m_status.SetActivity (FullSendActivity::WaitingForDisk);
         m_screen.quip   = PickQuip();
         m_screen.verify = m_link.IsVerifying();
         m_screen.prefix = m_prefix;
@@ -671,13 +679,13 @@ void FullSendSession::ReportRepeat (int drive, const CheckedDisk & disk)
 
     if (match == nullptr)
     {
-        m_link.Report (std::format ("The disk in drive {} changed while it was read. Press {} on the Apple to read it again.", drive, drive));
+        Report (std::format ("The disk in drive {} changed while it was read. Press {} on the Apple to read it again.", drive, drive));
     }
     else
     {
         m_screen.names[(size_t) drive - 1] = file;
 
-        m_link.Report (std::format ("The disk in drive {} matches {}. A match compares only a few tracks, so different disks can match. Press {} on the Apple to send it anyway.", drive, file, drive));
+        Report (std::format ("The disk in drive {} matches {}. A match compares only a few tracks, so different disks can match. Press {} on the Apple to send it anyway.", drive, file, drive));
     }
 }
 
@@ -746,6 +754,8 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
 
     m_state = State::Checking;
     SetDriveState (drive, FullSendDriveState::Checking);
+    m_status.SetActivity (FullSendActivity::Checking, drive);
+    m_status.ClearDisk (drive, FullSendDiskState::Checking);
 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);
@@ -803,6 +813,8 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
                         : swapped                            ? FullSendDriveState::Changed
                         : outDisk.check == DiskCheck::Repeat ? FullSendDriveState::Repeat
                                                              : FullSendDriveState::Idle);
+
+    m_status.ClearDisk (drive, outDisk.check == DiskCheck::None ? FullSendDiskState::Empty : outDisk.check == DiskCheck::Repeat ? FullSendDiskState::Duplicate : FullSendDiskState::None);
 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);
@@ -960,6 +972,10 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     m_screen.maps[(size_t) drive - 1].clear();
     SetDriveState (drive, FullSendDriveState::Sending);
 
+    m_status.SetActivity (FullSendActivity::Sending, drive);
+    m_status.BeginDisk (drive, m_link.IsVerifying(), m_link.IsVerifying() ? std::span<const int>() : std::span<const int> (checked.wholeTracks));
+    m_status.SetTitle (drive, title, FullSendDisk::GetSystemName (checked.image));
+
     //  A drive's first time on deck has the instruction, and later ones a line.
     if (m_link.HasDrive (other))
     {
@@ -979,6 +995,8 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
 
     hr = m_link.ReadDisk (drive, image, checked.wholeTracks, unreadable, report);
     CHR (hr);
+
+    MarkTracks (drive, unreadable, report);
 
     hr = FullSendDisk::ComputeFingerprint (image, imageFingerprint);
     CHR (hr);
@@ -1011,9 +1029,10 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     if (!same)
     {
         m_changed.insert (fingerprint);
-        m_link.Report (std::format ("The disk in drive {} changed while it was read, so no image was written", drive));
+        Report (std::format ("The disk in drive {} changed while it was read, so no image was written", drive));
 
         SetDriveState (drive, FullSendDriveState::Idle);
+        m_status.ClearDisk (drive, FullSendDiskState::None);
         m_screen.names[(size_t) drive - 1].clear();
 
         hr = m_link.ShowScreen (m_screen);
@@ -1086,7 +1105,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
 
         if (isProtected)
         {
-            m_link.Report (std::format ("{} is likely copy-protected, so its image {} is a raw capture.", title, row.file));
+            Report (std::format ("{} is likely copy-protected, so its image {} is a raw capture.", title, row.file));
         }
 
         row.duplicateOf = (match != nullptr) ? match->file : std::string();
@@ -1097,11 +1116,13 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
         m_screen.recovered += (row.recovered != 0 || row.unreliable != 0) ? 1 : 0;
     }
 
-    m_link.Report (earlier != nullptr          ? std::format ("Disk {:04} is {}, a duplicate of {}", sequence, row.file, row.duplicateOf)
+    Report (earlier != nullptr          ? std::format ("Disk {:04} is {}, a duplicate of {}", sequence, row.file, row.duplicateOf)
                  : !row.duplicateOf.empty()    ? std::format ("Disk {:04} is {}, sent again though it matches {}", sequence, row.file, row.duplicateOf)
                                                : std::format ("Disk {:04} is {}, with {} unreadable sectors", sequence, row.file, row.unreadable));
 
     m_manifest.Add (row);
+    m_status.SetTitle (drive, title, FullSendDisk::GetSystemName (image));
+    m_status.EndDisk (drive, row, earlier != nullptr ? 0 : raw.empty() ? image.size() : raw.size());
 
     hr = WriteManifest();
     CHRF (hr, m_fileFailed = true);
@@ -1190,9 +1211,11 @@ HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & 
     capture = capture && std::string (FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size())) == FullSendManifest::kStatusProtected;
     BAIL_OUT_IF (!capture, S_OK);
 
-    m_link.Report (std::format ("The disk in drive {} is likely copy-protected, so it is captured raw", drive));
+    Report (std::format ("The disk in drive {} is likely copy-protected, so it is captured raw", drive));
 
     SetDriveState (drive, FullSendDriveState::Capturing);
+    m_status.SetActivity (FullSendActivity::Capturing, drive);
+    m_status.BeginCapture (drive);
 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);
@@ -1201,6 +1224,7 @@ HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & 
     CHR (hr);
 
     SetDriveState (drive, FullSendDriveState::Sending);
+    m_status.SetActivity (FullSendActivity::Sending, drive);
 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);
@@ -1324,7 +1348,7 @@ HRESULT FullSendSession::FindMovedImages (const std::function<bool (const FullSe
             }
         }
 
-        m_link.Report (std::format ("{} was renamed {}, and its row in the manifest is updated", old, row.file));
+        Report (std::format ("{} was renamed {}, and its row in the manifest is updated", old, row.file));
     }
 
     if (changed)
@@ -1496,6 +1520,68 @@ void FullSendSession::End (HRESULT hr)
     }
 
     m_message = std::format ("Full Send ended with {} sent, {} duplicates and {} with bad sectors. {}", m_screen.sent, m_screen.duplicates, m_screen.bad, why);
+
+    m_status.End (why);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::Report
+//
+//  A line for the PC's activity log and the Full Send window's list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendSession::Report (const std::string & text)
+{
+    m_link.Report (text);
+    m_status.AddLine (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::MarkTracks
+//
+//  Each track of a disk read: unreadable with a sector that wasn't read,
+//  unreliable with one read once or recovered, and otherwise read, or
+//  verified when the session's reads are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendSession::MarkTracks (int drive, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report)
+{
+    std::vector<FullSendTrackMark>  marks (FullSendDriveStatus::kTracks, report.tracksVerified != 0 ? FullSendTrackMark::Verified : FullSendTrackMark::Read);
+
+
+
+    for (const SectorMark & mark : report.marks)
+    {
+        if (mark.track >= 0 && mark.track < FullSendDriveStatus::kTracks)
+        {
+            marks[(size_t) mark.track] = mark.mark == 'X' ? FullSendTrackMark::Unreadable : FullSendTrackMark::Unreliable;
+        }
+    }
+
+    for (const auto & [track, sector] : unreadable)
+    {
+        if (track >= 0 && track < FullSendDriveStatus::kTracks)
+        {
+            marks[(size_t) track] = FullSendTrackMark::Unreadable;
+        }
+    }
+
+    for (int track = 0; track < FullSendDriveStatus::kTracks; track++)
+    {
+        m_status.MarkTrack (drive, track, marks[(size_t) track]);
+    }
 }
 
 

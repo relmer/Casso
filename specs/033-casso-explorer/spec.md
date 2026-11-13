@@ -610,6 +610,7 @@ hardware.
 - Q: Which Infocom views does Casso Explorer take? -> A: None beyond what the story listing has. DiskBrowser's grammar, globals and Z-code disassembly are outside Casso Explorer's scope. The owner asked for a summary of a saved game where it identifies the save for the user (FR-264, T697). Neither DiskBrowser nor WizardryApp reads an Infocom save.
 - Q: What does an A2Pico card contain, and what are its size limits? -> A: Loose files on one FAT12, FAT16, FAT32 or exFAT volume: `A2retroNET.txt` in the root, and ProDOS block images of up to 32 MB each (65,535 blocks) in the root or in folders, with long file names. Up to eight are drives at one time, and the card can have any number more. The firmware's FatFs build has exFAT and 64-bit block addresses on (`ffconf.h` in FarLeftLane/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico, which its CMakeLists.txt fetches), so the card's size isn't limited by the firmware. It mounts the first volume on the card, so the card has one partition.
 - Q: Is Full Send's raw capture of a likely copy-protected disk a setting in Options? -> A: No. It always happens, and the setting first built for it is removed. A protected disk's sector image rarely runs, so a Full Send without the capture writes an image nobody can use, and a raw capture of a damaged disk assessed alike has more of it than a sector image. The capture's minutes are the cost. The Full Send page's intro is rewritten: many protections are detected and imaged, and Capture raw disk is for the rest.
+- Q: Where is a Full Send's progress on the PC? -> A: In a Full Send window, since one line in the status bar can't list both drives, the disks done and the time left. It opens without taking focus when a session starts, and closing it doesn't end the session. It has a state line with what the session is doing or what it waits for, a panel per drive with the disk's title, a track map, a progress bar, the time elapsed and the time left, the session's totals, a list of the disks done, and an activity list with each event's time. The status bar has a one-line summary, and a click on it opens the window.
 
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -2118,6 +2119,56 @@ The owner has no A2Pico, so nothing is checked on the hardware.
    `A2retroNET.txt` of the firmware's defaults and no drives set.
 
 ---
+### User Story 42 - A Full Send status window (Priority: P2)
+
+A user feeding a box of floppies to the Apple glances at the PC and reads,
+in one window, what each drive is doing, how long the disk in progress has
+left, how many disks are done, and whether the session waits for them.
+
+**Why this priority**: A Full Send runs for an hour or more with nobody at
+the PC's keyboard. One line in the status bar has room for one drive's
+track number. A raw capture of a protected disk takes minutes, pauses
+between its passes, and until now looked the same as a stalled session.
+
+**Independent Test**: Start a Full Send on a //c with a DOS 3.3 disk, a
+duplicate of it and a copy-protected disk. Read the window through each
+disk: the drive panels, the time left, the totals, the list of disks done
+and the activity list. Close the window during a disk, reopen it from the
+status bar, and compare the list with the manifest when the session ends.
+
+**Acceptance Scenarios**:
+
+1. **Given** Casso Explorer is open, **When** F and Space on the Apple
+   start a Full Send, **Then** the Full Send window opens without taking
+   the keyboard focus, and its state line reads that the disk in drive 1 is
+   being sent.
+2. **Given** a disk is being sent, **When** the window is read, **Then**
+   that drive's panel has the disk's title once the catalog is read, a
+   track map with each track marked as it is read, a progress bar, the time
+   elapsed and the time left.
+3. **Given** a likely copy-protected disk, **When** its raw capture starts,
+   **Then** the drive's panel reads that the disk is likely copy-protected
+   and is being captured raw, with the pass, the quarter track, the reads
+   done and the time left, and the track map has a mark for each track
+   position read and each one skipped.
+4. **Given** neither drive has a new disk, **When** the session pauses,
+   **Then** the state line reads that the session waits for a new disk in
+   either drive and that Space on the Apple sends the disks anyway.
+5. **Given** the Apple stops replying, **When** the PC waits for it,
+   **Then** the state line reads that the PC waits for the Apple and for
+   how long, and the activity list gets a line when the Apple replies again.
+6. **Given** several disks are done, **When** the list of disks is read,
+   **Then** each has its sequence number, file name, file system, status
+   and the time it took, as in the manifest, and a double-click on a row
+   opens the Full Send folder with that image selected.
+7. **Given** a session in progress, **When** the window is closed,
+   **Then** the session goes on, the status bar has a one-line summary, and
+   a click on the summary or Open on the Full Send row's menu opens the
+   window again with everything since the session began.
+8. **Given** a session in progress, **When** End session in the window is
+   clicked and confirmed, **Then** the session ends as Cancel ends it, and
+   the window has the session's totals until it is closed.
+
 ### Edge Cases
 
 - **A picture on a monochrome monitor**: green, amber and white show a
@@ -2331,6 +2382,17 @@ The owner has no A2Pico, so nothing is checked on the hardware.
   as BASIC would store it, with a warning that BASIC can't enter it.
 - **A Wizardry or Infocom file from a version the decoder doesn't decode**: it
   falls to hex, with the reason.
+- **A Full Send window with no session**: opened from the Full Send row
+  with no session in progress, it has the last session's totals and disks
+  from the folder's manifest, and its state line reads how a session starts
+  on the Apple.
+- **Two connections in Full Send at once**: the window has one section per
+  connection, each with its drives, and the totals and the list of disks
+  cover both, as both write to one folder.
+- **A time left before anything is measured**: the first disk of a session
+  has no estimate until two tracks are read, and the field is blank until
+  then rather than a guess.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -3384,6 +3446,53 @@ The owner has no A2Pico, so nothing is checked on the hardware.
   sector image rarely runs, and a raw capture of a damaged disk assessed
   alike has more of it than a sector image. A disk whose protection isn't
   detected is captured with Capture raw disk on its drive's menu.
+- **FR-265**: Casso Explorer MUST have a Full Send window. It MUST open
+  when a Full Send session starts, without taking the keyboard focus, and
+  MUST reopen where the user last put it. Closing it MUST NOT end the
+  session. Open on the Full Send row's menu and a click on the status bar's
+  Full Send summary MUST open it, with every event since the session began.
+- **FR-266**: The window MUST have a state line with what the session is
+  doing or what it waits for, in a sentence: a disk being sent and its
+  drive, a raw capture, a new disk in either drive and Space on the Apple,
+  the Apple's reply and for how long, a prefix being typed on the Apple, or
+  the session's end and its reason.
+- **FR-267**: The window MUST have a panel for each drive of each
+  connection in a session, with the drive's state, the disk's title and
+  file system once read, a track map, a progress bar, the time elapsed and
+  the time left. The track map MUST mark each track as not yet read, read,
+  verified, read with unreliable sectors, or unreadable. In a raw capture
+  it MUST have a cell per quarter track, marked as read, skipped as beside a
+  standard track, weak or unstable, and the panel MUST have the pass, the
+  reads done and the capture's two times, on the disk and on the line.
+- **FR-268**: The time left for a sector image MUST come from the rate of
+  the tracks read so far on this disk, and before two tracks are read, from
+  the session's average for a disk read the same way, verified or not. The
+  time left for a raw capture MUST come from the capture's count of reads
+  left. With neither, the field MUST be blank.
+- **FR-269**: The window MUST have the session's totals: disks sent,
+  duplicates skipped, raw captures, disks with unreadable or unreliable
+  sectors, the time elapsed, the average time for a disk, and the bytes
+  written to the folder.
+- **FR-270**: The window MUST list the disks done, newest first, each with
+  its sequence number, file name, file system, status and the time it took,
+  matching the manifest's row. A double-click on a row MUST open the Full
+  Send folder in Casso Explorer with that image selected, and a row's menu
+  MUST have Open, Inspect and Disk properties as the image's menu in the
+  folder has them.
+- **FR-271**: The window MUST have an activity list with a line and a time
+  for each event of the session: a disk recognized, sent, skipped as a
+  duplicate or captured raw, a pause and its end, a time the Apple didn't
+  reply and its return, verification turned on or off on the Apple, and an
+  error with its reason. Copy on the list's menu MUST copy the selected
+  lines as text.
+- **FR-272**: The window MUST have End session, which ends the session as
+  Cancel does after a confirmation, and Open folder. After a session ends,
+  the window MUST have that session's totals, disks and activity until it
+  is closed or another session starts.
+- **FR-273**: During a Full Send the status bar MUST have a one-line
+  summary: the drive, the disk's sequence number, the percentage, the time
+  left and the count of disks done. The detail that the status bar had for
+  a raw capture moves to the window.
 - **FR-198**: A capture's INFO chunk MUST list Casso Explorer and its
   version as the creator, and its META chunk the capture's date and the
   drive. The image MUST open in the Disk properties window of FR-133.
@@ -3940,6 +4049,12 @@ The owner has no A2Pico, so nothing is checked on the hardware.
 - **SC-070**: Every drive of a card initialized for an A2Pico and filled
   through Casso Explorer passes `A2retroNetConfig::CheckImage`, and its
   image boots or mounts in Casso as a SmartPort drive.
+
+- **SC-071**: Through a Full Send of a DOS 3.3 disk, a duplicate and a
+  copy-protected disk on a //c, the Full Send window's state line is
+  correct at every pause and wait, the time left for each disk after its
+  first quarter is within 20% of the time it then takes, and the list of
+  disks matches the manifest row for row.
 
 ## Assumptions
 
