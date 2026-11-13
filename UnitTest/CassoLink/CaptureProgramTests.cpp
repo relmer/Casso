@@ -487,6 +487,35 @@ public:
         Assert::AreNotEqual (revolution.size() * 8, bits, L"The gap's sync bytes changed");
     }
 
+    //  A write-protected disk's capture is a write-protected WOZ, as a
+    //  program that writes to the disk it runs from takes another path when the write
+    //  fails; an unprotected disk's isn't; and the reads file has it.
+    TEST_METHOD (AWriteProtectedDisk_IsAWriteProtectedWoz)
+    {
+        static constexpr size_t  kInfoProtected = 22;
+
+        for (bool protect : { true, false })
+        {
+            ProgramRig                               rig (LoadFixture());
+            std::vector<Byte>                        module;
+            std::vector<Byte>                        file;
+            std::vector<CassoLinkCapture::Position>  parsed;
+            CassoLinkCapture::Result                 result;
+
+            rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0)->SetWriteProtected (protect);
+
+            AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+            AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-12T00:00:00Z", {}, result, 0));
+
+            Assert::AreEqual (protect, result.writeProtected, L"The capture found the disk's protection");
+            Assert::AreEqual ((Byte) (protect ? 1 : 0), result.woz[kInfoProtected], L"The WOZ's INFO has it");
+
+            CassoLinkCapture::SerializeReads (result.positions, file);
+            AssertSucceeded (CassoLinkCapture::ParseReads (file, parsed));
+            Assert::AreEqual (protect, parsed[0].writeProtected, L"The reads file has it");
+        }
+    }
+
     //  A track's bytes as a controller frames them from its bits.
     static void  FrameTrack (DiskImage & image, int slot, std::vector<Byte> & outBytes)
     {
