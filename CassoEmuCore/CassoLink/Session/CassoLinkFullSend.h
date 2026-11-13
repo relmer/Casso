@@ -51,10 +51,10 @@ public:
 private:
     HRESULT  CheckStop     ();
     void     NoteCapture   (int drive, const CassoLinkCapture::Progress & where);
+    HRESULT  ReadTrackOnce (int drive, int track, std::vector<Byte> & ioImage, std::vector<std::pair<int, int>> & outUnreadable);
 
     static double       GetSeconds   ();
     static std::string  GetClockTime ();
-    HRESULT  ReadTrackOnce (int drive, int track, std::vector<Byte> & ioImage, std::vector<std::pair<int, int>> & outUnreadable);
 
     CassoLinkSession   & m_session;
     LinkOperation      * m_operation = nullptr;
