@@ -391,6 +391,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::FullSend (const std::string & f
     operation->imagePrefix = prefix;
     operation->verifyReads = m_verifyReads;
     operation->autoVerify  = m_autoVerify;
+    operation->captureRaw  = m_captureRaw;
 
     return Queue (LinkOperationKind::FullSend, 1, FilePath(), operation);
 }

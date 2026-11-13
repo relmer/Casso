@@ -112,12 +112,14 @@ struct LinkOperation
     std::vector<SectorMark>          marks;
 
     //  Full Send: imagePath is the folder, newName the chosen extension and
-    //  imagePrefix what begins each image's file name.
+    //  imagePrefix what begins each image's file name; captureRaw is Options'
+    //  Capture raw on protected disks.
     //  Read disk and Write disk: the image file, and for a read, whether an
     //  unreadable sector is written as zeros rather than failing the read.
     //  unreadable lists those sectors, as track and DOS 3.3 sector.
     std::string                      imagePath;
     std::string                      imagePrefix;
+    bool                             captureRaw      = false;
     bool                             blankUnreadable = false;
 
     //  Full Send: set while the Apple waits for a disk and a key, and while a

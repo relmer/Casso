@@ -136,6 +136,9 @@ public:
     //  this with the sink's folder and extension, after what is queued already.
     std::shared_ptr<LinkOperation>  FullSend      (const std::string & folder, const std::string & extension, const std::string & prefix);
 
+    //  Options' Capture raw on protected disks, for each Full Send after this.
+    void  SetCaptureRaw (bool capture) { m_captureRaw = capture; }
+
     //  Whether the drive has the link's boot disk, by its boot sector: a write
     //  over it, the Apple has no disk to start the link from.
     std::shared_ptr<LinkOperation>  CheckLinkDisk (int drive);
@@ -173,6 +176,7 @@ private:
     std::atomic<bool>  m_verifyReads  { false };
     std::atomic<bool>  m_verifyWrites { false };
     std::atomic<bool>  m_autoVerify   { true };
+    std::atomic<bool>  m_captureRaw   { false };
 
 
     std::shared_ptr<LinkOperation>  Queue (LinkOperationKind kind, int drive, const FilePath & path, std::shared_ptr<LinkOperation> operation = nullptr);

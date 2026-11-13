@@ -70,10 +70,11 @@ public:
     static std::string  FormatPosition     (int position);
     static std::string  FormatDuration     (double seconds);
 
+    //  A capture's progress on the status bar.
+    void  ReportCapture (LinkOperation & operation, const CassoLinkCapture::Progress & where);
+
 private:
     friend class CassoLinkSession;
-
-    void  ReportCapture (LinkOperation & operation, const CassoLinkCapture::Progress & where);
 
     CassoLinkSession  & m_session;
 

@@ -79,20 +79,44 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerToggleRow
+//
+//  A setting as a row: its label, its toggle, On or Off after the toggle, and
+//  a note below.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct CassoExplorerToggleRow
+{
+    DxuiLabel   label;
+    DxuiToggle  toggle;
+    DxuiLabel   state;
+    DxuiLabel   note;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerFullSendPage
 //
-//  A Full Send's folder, with its Browse button, and its image format. A Full
-//  Send starts from the Apple's keyboard, so these are set here ahead of time;
-//  the file name prefix is typed on the Apple.
+//  A Full Send's folder and Browse button, the toggle and note for capturing
+//  likely copy-protected disks raw, and the image format. A Full Send starts
+//  from the Apple's keyboard, so these are set here ahead of time; the file
+//  name prefix is typed on the Apple.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class CassoExplorerFullSendPage : public DxuiPropertyPage
 {
 public:
+    using RawRow = CassoExplorerToggleRow;
+
     explicit CassoExplorerFullSendPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel);
+    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel, RawRow & raw);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
@@ -103,6 +127,7 @@ public:
     static constexpr int  kOptionDescHeightDip   = 18;
     static constexpr int  kOptionGapDip          = 4;
     static constexpr int  kCommonFormatCount     = 3;
+    static constexpr int  kRawNoteDip            = 64;
 
 private:
     DxuiLabel       * m_note           = nullptr;
@@ -112,6 +137,7 @@ private:
     DxuiLabel       * m_folder         = nullptr;
     DxuiButton      * m_browse         = nullptr;
     DxuiRadioGroup  * m_format         = nullptr;
+    RawRow          * m_raw            = nullptr;
 };
 
 
@@ -131,13 +157,7 @@ private:
 class CassoExplorerVerifyPage : public DxuiPropertyPage
 {
 public:
-    struct Row
-    {
-        DxuiLabel   label;
-        DxuiToggle  toggle;
-        DxuiLabel   state;
-        DxuiLabel   note;
-    };
+    using Row = CassoExplorerToggleRow;
 
     explicit CassoExplorerVerifyPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
@@ -157,9 +177,9 @@ public:
     static constexpr int  kLimitDip        = 64;
     static constexpr int  kNoteGapDip      = 8;
 
-private:
     static int  GetNoteHeightPx (const DxuiLabel & note, int widthPx, const DxuiDpiScaler & scaler, int minDip);
 
+private:
     DxuiLabel           * m_intro        = nullptr;
     std::array<Row, 3>  * m_rows         = nullptr;
     DxuiLabel           * m_overrideHead = nullptr;
@@ -206,6 +226,7 @@ public:
         //  A Full Send's folder and its extension, each empty for the default.
         std::wstring  fullSendFolder;
         std::string   fullSendExtension;
+        bool          captureRaw   = false;        // Full Send's Capture raw on protected disks
 
         //  Verified transfers.
         bool          verifyReads  = false;
@@ -279,6 +300,7 @@ private:
     DxuiLabel                                      m_fullSendFolderLabel;
     DxuiLabel                                      m_fullSendFormatLabel;
     DxuiLabel                                      m_fullSendEsotericaLabel;
+    CassoExplorerToggleRow                         m_fullSendRaw;
     DxuiLabel                                      m_fullSendFolder;
     DxuiButton                                     m_fullSendBrowse;
     DxuiRadioGroup                                 m_fullSendFormat;

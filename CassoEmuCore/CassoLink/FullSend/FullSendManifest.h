@@ -76,6 +76,7 @@ public:
     static constexpr const char *  kStatusSent      = "sent";
     static constexpr const char *  kStatusDuplicate = "duplicate";
     static constexpr const char *  kStatusProtected = "likely-copy-protected";
+    static constexpr const char *  kStatusRawCapture = "raw-capture";     // likely copy-protected, and its image a raw capture
     static constexpr const char *  kStatusDamaged   = "likely-damaged";
     static constexpr const char *  kStatusUnclear   = "unclear";
     static constexpr const char *  kStatusLegacyProtected = "possibly-protected";

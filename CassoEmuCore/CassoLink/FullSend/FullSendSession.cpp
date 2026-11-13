@@ -933,6 +933,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     std::string                         fingerprint      = checked.fingerprint;
     std::vector<Byte>                   image            = checked.image;
     std::vector<Byte>                   after;
+    std::vector<Byte>                   raw;
     std::vector<std::pair<int, int>>    unreadable;
     FullSendReadReport                  report;
     bool                                isProtected      = false;
@@ -1019,6 +1020,10 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
         BAIL_OUT_IF (true, S_OK);
     }
 
+    //  The capture comes before the folder's lock, as it takes minutes.
+    hr = CaptureProtected (drive, image, unreadable, report, raw);
+    CHR (hr);
+
     //  The disk is numbered, written and listed under the folder's lock, from
     //  the manifest as it is now: another Apple may have sent to this folder
     //  during the read.
@@ -1055,7 +1060,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
 
     title = FullSendDisk::MakeImageTitle (sequence, FullSendDisk::GetCatalogTitle (image), m_prefix);
 
-    hr = WriteImage (title, image, unreadable, report.marks, row.file);
+    hr = WriteImage (title, image, earlier == nullptr ? raw : std::vector<Byte>(), unreadable, report.marks, row.file);
     CHRF (hr, m_fileFailed = true);
 
     //  The disk just sent isn't a duplicate while it stays in its drive.
@@ -1074,12 +1079,14 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     {
         row.status    = unreadable.empty() ? FullSendManifest::kStatusSent : FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size());
         isProtected   = row.status == FullSendManifest::kStatusProtected;
+        row.status    = raw.empty() ? row.status : FullSendManifest::kStatusRawCapture;
         m_screen.tone = unreadable.empty() ? FullSendTone::Done : isProtected ? FullSendTone::Protected : FullSendTone::BadSectors;
         m_screen.prot += isProtected ? 1 : 0;
 
         if (isProtected)
         {
-            m_link.Report (std::format ("{} is likely copy-protected, so it was read once with no retries. The image may not run. Use a flux tool such as Applesauce for a working copy.", title));
+            m_link.Report (raw.empty() ? std::format ("{} is likely copy-protected, so it was read once with no retries. The image may not run. Use a flux tool such as Applesauce for a working copy.", title)
+                                       : std::format ("{} is likely copy-protected, so its image {} is a raw capture.", title, row.file));
         }
 
         row.duplicateOf = (match != nullptr) ? match->file : std::string();
@@ -1159,31 +1166,73 @@ std::string FullSendSession::GetScreenName (int sequence, const std::string & ca
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendSession::CaptureProtected
+//
+//  A disk assessed from its read as likely copy-protected, captured raw into
+//  outRaw when Options' Capture raw on protected disks is on; outRaw is
+//  empty otherwise. The capture draws on the Apple's screen, so the session's
+//  screen is drawn again after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw)
+{
+    HRESULT  hr      = S_OK;
+    bool     capture = !unreadable.empty() && m_link.IsCapturingRaw();
+
+
+
+    outRaw.clear();
+
+    capture = capture && std::string (FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size())) == FullSendManifest::kStatusProtected;
+    BAIL_OUT_IF (!capture, S_OK);
+
+    m_link.Report (std::format ("The disk in drive {} is likely copy-protected, so it is captured raw", drive));
+
+    hr = m_link.CaptureRaw (drive, outRaw);
+    CHR (hr);
+
+    hr = m_link.ShowScreen (m_screen);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendSession::WriteImage
 //
 //  CreateNew, so an existing file is never overwritten. When a file from another
 //  session or the user is already at the title, the next number in parentheses
 //  is added. The list of unreadable sectors goes beside the image, as for
-//  Read disk to image.
+//  Read disk to image. A raw capture is written as the image, a WOZ.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT FullSendSession::WriteImage (const std::string & title, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile)
+HRESULT FullSendSession::WriteImage (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile)
 {
     HRESULT               hr        = S_OK;
-    std::string           extension = FullSendDisk::GetImageExtension (image, m_extension);
+    std::string           extension = raw.empty() ? FullSendDisk::GetImageExtension (image, m_extension) : std::string (kRawExtension);
     std::string           text;
-    std::vector<Byte>     bytes;
+    std::vector<Byte>     bytes     = raw;
     DiskFormat            format    = DiskFormat::Dsk;
     CommitPlan::Progress  progress;
 
 
 
-    hr = DiskImageStore::GetSourceFormatByExtension (extension, format);
-    CHR (hr);
+    if (raw.empty())
+    {
+        hr = DiskImageStore::GetSourceFormatByExtension (extension, format);
+        CHR (hr);
 
-    hr = BlankDiskBuilder::WrapInContainer (format, NibbleImageCodec::GetTrackSizeForPath (extension), false, 0, image, bytes);
-    CHR (hr);
+        hr = BlankDiskBuilder::WrapInContainer (format, NibbleImageCodec::GetTrackSizeForPath (extension), false, 0, image, bytes);
+        CHR (hr);
+    }
 
     outFile = title + extension;
 

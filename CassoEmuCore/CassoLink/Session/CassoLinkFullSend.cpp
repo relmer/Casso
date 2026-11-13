@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CassoLink/Session/CassoLinkFullSend.h"
+#include "CassoLink/Session/CassoLinkCapture.h"
+#include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoLink/CassoLinkSession.h"
@@ -444,6 +446,50 @@ Error:
 bool CassoLinkFullSend::IsBootstrapped()
 {
     return m_session.m_connector.WasBootstrapped();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::CaptureRaw
+//
+//  The status bar has the capture's track, pass and time left, as for
+//  Capture raw disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz)
+{
+    HRESULT                   hr     = S_OK;
+    std::vector<Byte>         module;
+    CassoLinkCapture::Result  result;
+    std::string               date   = std::format ("{:%Y-%m-%dT%H:%M:%SZ}", std::chrono::floor<std::chrono::seconds> (std::chrono::system_clock::now()));
+
+
+
+    outWoz.clear();
+    m_operation->drive = drive;
+
+    hr = CheckStop();
+    CHR (hr);
+
+    hr = m_session.m_host->BuildCaptureModule (module);
+    CHR (hr);
+
+    hr = CassoLinkCapture::Capture (*m_session.m_host, (Byte) drive, module, date,
+                                    [this] (const CassoLinkCapture::Progress & where) { m_session.m_diskTransfer.ReportCapture (*m_operation, where); }, result);
+    CHR (hr);
+
+    m_operation->SetDetail (std::string());
+    m_session.m_sink.OnActivity (CassoLinkDiskTransfer::FormatCaptureTimes (result));
+
+    outWoz = std::move (result.woz);
+
+Error:
+    return hr;
 }
 
 

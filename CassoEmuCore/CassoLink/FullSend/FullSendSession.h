@@ -151,6 +151,11 @@ public:
     //  Whether this PC bootstrapped the Apple, so no CassoLink disk was booted.
     virtual bool     IsBootstrapped () = 0;
 
+    //  Whether Options' Capture raw on protected disks is on, and a drive's
+    //  disk captured raw as a WOZ.
+    virtual bool     IsCapturingRaw () = 0;
+    virtual HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz) = 0;
+
     //  A line for the activity log.
     virtual void     Report     (const std::string & text) = 0;
 };
@@ -244,22 +249,25 @@ private:
     static constexpr int     kFingerprintReads = 3;
     static constexpr size_t  kPrefixLength     = 16;
 
-    HRESULT  LoadManifest    ();
-    HRESULT  ReloadManifest  ();
-    HRESULT  AwaitBegin      ();
-    HRESULT  EditPrefix      ();
-    HRESULT  RunRound        ();
-    HRESULT  Pause           ();
-    HRESULT  CheckDrive      (int drive, CheckedDisk & outDisk);
-    HRESULT  ReadFingerprint (int drive, CheckedDisk & outDisk, bool & outStable);
-    HRESULT  ReadStableTrack (int drive, int track, CheckedDisk & ioDisk, bool & outHasDisk, bool & outStable);
-    HRESULT  SendDisk        (int drive, const CheckedDisk & checked, bool anyway);
-    HRESULT  WriteImage      (const std::string & title, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile);
-    HRESULT  WriteManifest   ();
-    HRESULT  FindMovedImages (const std::function<bool (const FullSendRow & row)> & matches);
-    HRESULT  HashUnlisted    ();
-    bool     HasImage        (const FullSendRow & row);
-    void     End             (HRESULT hr);
+    static constexpr const char *  kRawExtension = ".woz";    // a raw capture's
+
+    HRESULT  LoadManifest     ();
+    HRESULT  ReloadManifest   ();
+    HRESULT  AwaitBegin       ();
+    HRESULT  EditPrefix       ();
+    HRESULT  RunRound         ();
+    HRESULT  Pause            ();
+    HRESULT  CheckDrive       (int drive, CheckedDisk & outDisk);
+    HRESULT  ReadFingerprint  (int drive, CheckedDisk & outDisk, bool & outStable);
+    HRESULT  ReadStableTrack  (int drive, int track, CheckedDisk & ioDisk, bool & outHasDisk, bool & outStable);
+    HRESULT  SendDisk         (int drive, const CheckedDisk & checked, bool anyway);
+    HRESULT  CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw);
+    HRESULT  WriteImage       (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile);
+    HRESULT  WriteManifest    ();
+    HRESULT  FindMovedImages  (const std::function<bool (const FullSendRow & row)> & matches);
+    HRESULT  HashUnlisted     ();
+    bool     HasImage         (const FullSendRow & row);
+    void     End              (HRESULT hr);
 
     void                             ReportRepeat  (int drive, const CheckedDisk & disk);
     const FullSendRow              * FindWithImage (const std::function<bool (const FullSendRow & row)> & matches);
