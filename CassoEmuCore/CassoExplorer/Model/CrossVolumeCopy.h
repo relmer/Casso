@@ -17,8 +17,9 @@ enum class VolumeKind;
 //  A file read from one file system, made ready to write on another.
 //
 //  Text is converted: Apple Pascal's header and indent codes, the high bits and
-//  $8D line ends of DOS 3.3 and ProDOS, and CP/M's CR LF and $1A end. Anything
-//  else keeps its bytes, with the type that means the same thing on the target.
+//  $8D line ends of DOS 3.3, ProDOS and a Gutenberg document, and CP/M's CR LF
+//  and $1A end. Anything else is copied as it is, with the type that means the
+//  same thing on the target.
 //  Apple Pascal and CP/M binaries have no load address, so on DOS 3.3 they are
 //  type S, which isn't runnable, rather than a type B that loads at 0.
 //

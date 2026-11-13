@@ -396,6 +396,7 @@ UnitTest/rockwell65c02/
 /Disks/Apple/sos-utilities.dsk
 /Disks/Apple/sos-demo.dsk
 /Disks/ThirdParty/kermit-65.dsk
+/Disks/ThirdParty/gutenberg-jr.dsk
 
 # Third-party network software for the Uthernet II scenario cases, fetched by
 # scripts/FetchNetworkDisks.ps1.

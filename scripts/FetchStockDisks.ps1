@@ -10,9 +10,10 @@
     guest-visible case FAILS, which is the intended signal but a poor
     welcome for a fresh clone, so `RunTests.ps1 -Scenario` runs this first.
 
-    The Kermit-65 3.87 disk is fetched the same way, into
-    `Disks/ThirdParty/`, for the scenario case that runs Kermit. It is not
-    Apple's, but it contains ProDOS, so it is not committed either.
+    The Kermit-65 3.87 and Gutenberg, Jr. disks are fetched the same way, into
+    `Disks/ThirdParty/`, for the scenario cases that run them. Neither is
+    Apple's, and neither is committed: Kermit contains ProDOS, and Gutenberg,
+    Jr. is its publisher's.
 
     LOOKS BEFORE IT FETCHES, in the two places the tests themselves read, so
     a machine that already has an image never touches the network:
@@ -107,6 +108,17 @@ $assets = @(
        Size      = 143360
        Sha1      = '9928F056472E0F46F4652BB4C7FED9B52545572A'
        Desc      = 'Kermit-65 3.87 for ProDOS' },
+
+    #  Gutenberg, Jr.'s side A, the word processor the Gutenberg scenario
+    #  cases run. It is a third party's, so it isn't committed.
+    @{ RepoName  = 'gutenberg-jr.dsk'
+       RepoDir   = 'Disks/ThirdParty'
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
+       UrlPath   = '/images/productivity/word_processing/gutenberg/Gutenberg_Jr_f1.dsk'
+       Size      = 143360
+       Sha1      = '8B6BF2E62A935A07DE3E4FDFE809EFAA10594F1D'
+       Desc      = 'Gutenberg, Jr. side A' },
 
     #  SOS 1.1 for the Apple ///, for the SOS scenario cases. System Utilities
     #  is the disk the emulator downloads for SOS; System Demo has directory
