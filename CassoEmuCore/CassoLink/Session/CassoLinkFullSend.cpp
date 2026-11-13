@@ -490,6 +490,16 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz)
                                     [this, drive] (const CassoLinkCapture::Progress & where) { NoteCapture (drive, where); }, result);
     CHR (hr);
 
+    //  The second pass ends at the last position it read, so the positions
+    //  after that one are marked here.
+    for (int position = 0; position < FullSendDriveStatus::kPositions; position++)
+    {
+        if (m_status.GetSnapshot().drives[(size_t) drive - 1].positions[(size_t) position] == FullSendPositionMark::Unread)
+        {
+            m_status.MarkPosition (drive, position, FullSendPositionMark::Skipped);
+        }
+    }
+
     for (int position : result.weak)
     {
         m_status.MarkPosition (drive, position, FullSendPositionMark::Weak);

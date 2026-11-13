@@ -35,11 +35,11 @@ public:
 
         snapshot.activity = FullSendActivity::Capturing;
         snapshot.drive    = 1;
-        Assert::AreEqual (std::wstring (L"The disk in drive 1 is likely copy-protected. Capturing it raw."), FullSendPanel::DescribeActivity (snapshot));
+        Assert::AreEqual (std::wstring (L"The disk in drive 1 is likely copy-protected; using raw capture mode."), FullSendPanel::DescribeActivity (snapshot));
 
         snapshot.activity = FullSendActivity::WaitingForApple;
         snapshot.waited   = 7.2;
-        Assert::AreEqual (std::wstring (L"Waiting for the Apple to reply, 0:07 so far."), FullSendPanel::DescribeActivity (snapshot));
+        Assert::AreEqual (std::wstring (L"Waiting for the Apple to reply, 0:07."), FullSendPanel::DescribeActivity (snapshot));
 
         snapshot.activity = FullSendActivity::Ended;
         snapshot.reason   = "Q was pressed on the Apple.";
@@ -62,7 +62,7 @@ public:
         drive.verified   = true;
         drive.fileSystem = "DOS 3.3";
         drive.elapsed    = 21.0;
-        Assert::AreEqual (std::wstring (L"Sending, verified, DOS 3.3"), FullSendPanel::DescribeDrive (drive));
+        Assert::AreEqual (std::wstring (L"Sending, with verification, DOS 3.3"), FullSendPanel::DescribeDrive (drive));
         Assert::AreEqual (std::wstring (L"0:21 elapsed"), FullSendPanel::DescribeTimes (drive), L"no time left before there is a rate");
 
         drive.secondsLeft = 74.0;
