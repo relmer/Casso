@@ -769,6 +769,7 @@ void EmulatorShell::ExecuteCpuSlices()
                                        sliceActual,
                                        m_machine.GetRefs().speaker->GetFrameInitialState(),
                                        numSamples,
+                                       cyclesPerSample,
                                        m_machine.GetCpu()->GetTotalCycles());
             IGNORE_RETURN_VALUE (hr, S_OK);
 

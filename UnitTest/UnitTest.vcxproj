@@ -583,6 +583,7 @@
     <ClCompile Include="Audio\Disk2AudioSourcePlaybackTests.cpp" />
     <ClCompile Include="Audio\Disk2AudioSourceSeekTests.cpp" />
     <ClCompile Include="Audio\DriveAudioMixerTests.cpp" />
+    <ClCompile Include="Audio\SpeakerFilterTests.cpp" />
     <ClCompile Include="Audio\DriveAudioMixerMechanismTests.cpp" />
     <ClCompile Include="Audio\Disk2AudioSourceEventSinkTests.cpp" />
     <ClCompile Include="Devices\Disk2ControllerAudioTests.cpp" />

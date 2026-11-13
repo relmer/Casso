@@ -74,12 +74,14 @@ public:
                            uint32_t                      sliceCycles,
                            float                         speakerState,
                            uint32_t                      numSamples,
+                           double                        cyclesPerSample,
                            uint64_t                      totalCycles)
     {
         return m_wasapiAudio.SubmitFrame (toggleTimestamps,
                                           sliceCycles,
                                           speakerState,
                                           numSamples,
+                                          cyclesPerSample,
                                           &m_driveAudioMixer,
                                           totalCycles,
                                           &m_mockingboardAudioMixer,

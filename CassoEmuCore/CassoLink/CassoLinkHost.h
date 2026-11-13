@@ -335,6 +335,10 @@ public:
     static constexpr Byte  kNoSync      = 0xFF;
     static constexpr Byte  kRecalibrate = 0x80;
 
+    //  A capture's Status's count of sectors done when the disk is
+    //  write-protected.
+    static constexpr Byte  kCaptureProtected = 1;
+
     HRESULT  CaptureQuarterTrack (Byte drive, Byte position, Byte delay, Byte startPercent, Byte endPercent, Byte syncPosition, std::span<const Byte> marker,
                                   std::vector<Byte> & outBytes, CassoLinkStatus & outStatus, CaptureTiming & outTiming);
 

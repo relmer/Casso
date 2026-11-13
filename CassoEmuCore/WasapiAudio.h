@@ -3,6 +3,8 @@
 #include "Pch.h"
 
 #include "Audio/AudioEndpointNotifier.h"
+#include "Audio/AudioGenerator.h"
+#include "Audio/SpeakerFilter.h"
 
 
 class DriveAudioMixer;
@@ -50,6 +52,7 @@ public:
         uint32_t                        totalCyclesThisSlice,
         float                           currentSpeakerState,
         uint32_t                        numSamplesToGenerate,
+        double                          cyclesPerSample,
         DriveAudioMixer *               driveMixer         = nullptr,
         uint64_t                        currentCycleCount  = 0,
         DriveAudioMixer *               mockingboardMixer  = nullptr,
@@ -143,6 +146,12 @@ private:
     vector<float> m_speakerScratch;
     vector<float> m_driveScratch;
     vector<float> m_mixScratch;
+
+    // The speaker's samples, generated on one grid across slices, and its
+    // frequency response, applied before they are mixed. Initialize
+    // configures the filter for the device rate.
+    AudioGenerator m_speakerGenerator;
+    SpeakerFilter  m_speakerFilter;
 
     std::atomic<float>  m_masterGain { 1.0f };   // see SetMasterGain
     std::atomic<bool>   m_isSuppressed { false }; // see SetSuppressed

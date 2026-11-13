@@ -38,7 +38,8 @@
 ;
 ; Reply: the bytes encoded (encode), in Capture data packets (CMDCAPDATA) of
 ; a sequence number, 256 bytes of the encoding and their CRC-16/XMODEM, low
-; byte first; then a Status. The last packet is padded with zeros.
+; byte first; then a Status, whose count of sectors done is 1 when the disk
+; is write-protected. The last packet is padded with zeros.
 ;
 ; The encoding begins with the revolution's length in bytes, low byte first,
 ; 0 when findrev doesn't find one. Then each byte other than 0 is itself, and
@@ -74,7 +75,7 @@ CFMAX      = 20000              ; the bytes cpfind reads before giving up, about
 CAPPAGE1   = CAPBUF / 256 + 1   ; the page after CAPBUF's first
 
         .org $5000
-        .byte 'C', 'M', 1, 8    ; capture, version 8
+        .byte 'C', 'M', 1, 9    ; capture, version 9
         .word PROGVER
         .word modend - $5000
         .word 0                 ; the CRC, which the PC fills in
@@ -207,6 +208,14 @@ cpread: ldx p_diskx
         ldy #0
         jsr CAPCODE
         plp
+        ldx p_diskx
+        lda p_Q6H,x             ; the write-protect sense, as the program's
+        lda p_Q7L,x             ; protected reads it: 1 in the Status's count
+        asl a                   ; of sectors done when the disk is protected
+        lda p_Q6L,x
+        lda #0
+        rol a
+        sta p_index
         lda cpos                ; the quarter's two phases off
         and #1
         beq cpsend

@@ -61,11 +61,12 @@ public:
     //  s_kSelfSyncCycles after syncMarker, from the first read, passed.
     struct Position
     {
-        int                             position = 0;
+        int                             position       = 0;
         std::vector<std::vector<Byte>>  reads;
-        std::vector<Byte>               delays;       // each read's: 0 for 8 cycles, 1 for 12
-        int                             syncFrom = -1;
+        std::vector<Byte>               delays;   // each read's: 0 for 8 cycles, 1 for 12
+        int                             syncFrom       = -1;
         std::vector<Byte>               syncMarker;
+        bool                            writeProtected = false;   // a read found the disk write-protected
     };
 
     //  The delays of a whole track's reads.
@@ -87,8 +88,10 @@ public:
         std::vector<Position>  positions;         // every read, for SerializeReads
         bool                   synchronized = false;  // every whole track placed relative to track 0
 
-        //  The drive's revolution as TimeRevolution timed it, 0 when it wasn't.
+        //  The drive's revolution as TimeRevolution timed it, 0 when it wasn't,
+        //  and whether the disk is write-protected, which the WOZ's INFO has.
         double                 revolutionCycles = 0.0;
+        bool                   writeProtected   = false;
     };
 
     //  Where a capture is: the position of its last read, that read's number
@@ -164,11 +167,12 @@ private:
         std::span<const Byte>    module;
         const ProgressFn       & progress;
         Result                 & result;
-        ULONGLONG                started = 0;
-        int                      done    = 0;
-        int                      planned = 0;
-        int                      pass    = 1;
-        int                      percent = 0;
+        ULONGLONG                started        = 0;
+        int                      done           = 0;
+        int                      planned        = 0;
+        int                      pass           = 1;
+        int                      percent        = 0;
+        bool                     writeProtected = false;
     };
 
     static HRESULT              ReadOnce       (Run & run, int position, Byte delay, int read, int reads, Byte syncPosition, std::span<const Byte> marker, std::vector<Byte> & outBytes, bool & outMissed);
@@ -272,7 +276,7 @@ private:
     static constexpr int     s_kPaceReads    = 3;
 
     static constexpr Byte    s_kReadsMagic[] = { 'C', 'R', 'A', 'W' };
-    static constexpr Word    s_kReadsVersion = 2;
+    static constexpr Word    s_kReadsVersion = 3;
 
     //  The cycles from a marker's last byte to the first byte of a read that
     //  waited on it (Capture.s), as measured on Casso's //c; the cycles a bit
@@ -294,4 +298,5 @@ private:
     static constexpr size_t  s_kWozHeaderBytes   = 12;
     static constexpr size_t  s_kWozCrcOffset     = 8;
     static constexpr size_t  s_kInfoSynchronized = 23;
+    static constexpr size_t  s_kInfoProtected    = 22;
 };

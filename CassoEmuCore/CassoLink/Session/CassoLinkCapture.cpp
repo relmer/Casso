@@ -171,6 +171,7 @@ void CassoLinkCapture::SerializeReads (const std::vector<Position> & positions, 
         put ((uint32_t) (uint16_t) position.syncFrom, 2);
         put ((uint32_t) position.syncMarker.size(), 1);
         outFile.insert (outFile.end(), position.syncMarker.begin(), position.syncMarker.end());
+        put (position.writeProtected ? 1 : 0, 1);
 
         for (size_t read = 0; read < position.reads.size(); read++)
         {
@@ -218,7 +219,7 @@ HRESULT CassoLinkCapture::ParseReads (std::span<const Byte> file, std::vector<Po
 
     at      = sizeof (s_kReadsMagic);
     version = get (2);
-    valid   = valid && (version == 1 || version == s_kReadsVersion);
+    valid   = valid && version >= 1 && version <= s_kReadsVersion;
     count   = get (4);
 
     for (uint32_t each = 0; valid && each < count; each++)
@@ -242,6 +243,11 @@ HRESULT CassoLinkCapture::ParseReads (std::span<const Byte> file, std::vector<Po
                 position.syncMarker.assign (file.begin() + (ptrdiff_t) at, file.begin() + (ptrdiff_t) (at + marker));
                 at += marker;
             }
+        }
+
+        if (version >= 3)
+        {
+            position.writeProtected = get (1) != 0;
         }
 
         for (uint32_t read = 0; valid && read < reads; read++)
@@ -323,6 +329,8 @@ HRESULT CassoLinkCapture::ReadOnce (Run & run, int position, Byte delay, int rea
     BAIL_OUT_IF (outMissed, S_OK);
 
     CBREx (status.error == 0, HRESULT_FROM_WIN32 (ERROR_READ_FAULT));
+
+    run.writeProtected = run.writeProtected || status.done == CassoLinkHost::kCaptureProtected;
 
     run.done++;
     run.result.reads++;
@@ -414,6 +422,7 @@ HRESULT CassoLinkCapture::ReadPosition (Run & run, int position, int reads, Posi
 
         outPosition.reads.push_back (std::move (bytes));
         outPosition.delays.push_back (delay);
+        outPosition.writeProtected = run.writeProtected;
     }
 
 Error:
@@ -961,11 +970,16 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
     hr = WozLoader::ApplyEdits (outResult.woz, edits);
     CHR (hr);
 
-    //  The INFO chunk's synchronized flag, which Serialize writes as 0, and
-    //  the header's CRC of everything after the header again.
-    if (outResult.synchronized && outResult.woz.size() > s_kInfoSynchronized)
+    //  The INFO chunk's synchronized and write-protected flags, which
+    //  Serialize writes as 0, and the header's CRC of everything after the
+    //  header again. A program that writes to the disk it runs from takes
+    //  another path when the write fails, as Wizardry I's does after its title.
+    outResult.writeProtected = std::any_of (positions.begin(), positions.end(), [] (const Position & position) { return position.writeProtected; });
+
+    if (outResult.woz.size() > s_kInfoSynchronized)
     {
-        outResult.woz[s_kInfoSynchronized] = 1;
+        outResult.woz[s_kInfoSynchronized] = outResult.synchronized   ? 1 : 0;
+        outResult.woz[s_kInfoProtected]    = outResult.writeProtected ? 1 : 0;
         Write32 (outResult.woz, s_kWozCrcOffset, ZipArchive::ComputeCrc32 (std::span<const Byte> (outResult.woz).subspan (s_kWozHeaderBytes)));
     }
 

@@ -48,6 +48,8 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- Speaker music made with pulse-width modulation, such as Archon's, sounds
+  like music rather than white noise. Low notes are no longer broken up.
 - The //c switch bar no longer flashes while the window is resized.
 - The auto-hide drives reveal area is one inch tall, or the lower half of the space under the monitor when that is over two inches.
 - A submenu opens beside its parent menu, not on top of it, when the parent
