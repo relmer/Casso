@@ -7,6 +7,7 @@
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/GutenbergVolume.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -48,11 +49,12 @@ bool CrossVolumeCopy::IsText (VolumeKind kind, const std::string & name, const F
 
     switch (kind)
     {
-        case VolumeKind::Pascal: isText = payload.type == PascalVolume::kKindText;  break;
-        case VolumeKind::Dos33:  isText = payload.type == Dos33Volume::kTypeText;   break;
-        case VolumeKind::ProDos: isText = payload.type == ProDosVolume::kTypeText;  break;
-        case VolumeKind::Cpm:    isText = EndsWith (name, ".TXT") || PreviewDecoder::DecideCpm (payload) == PreviewContent::Kind::Text; break;
-        default:                 break;
+        case VolumeKind::Pascal:    isText = payload.type == PascalVolume::kKindText;  break;
+        case VolumeKind::Dos33:     isText = payload.type == Dos33Volume::kTypeText;   break;
+        case VolumeKind::ProDos:    isText = payload.type == ProDosVolume::kTypeText;  break;
+        case VolumeKind::Cpm:       isText = EndsWith (name, ".TXT") || PreviewDecoder::DecideCpm (payload) == PreviewContent::Kind::Text; break;
+        case VolumeKind::Gutenberg: isText = GutenbergVolume::IsDocumentType (payload.type); break;
+        default:                    break;
     }
 
     return isText;
@@ -133,6 +135,12 @@ bool CrossVolumeCopy::TryEncodeText (const std::string & text, VolumeKind target
             CpmVolume::EncodeText (text, encoded);
             inOutPayload.type     = 0;
             inOutPayload.textForm = PayloadTextForm::CpmRecords;
+            break;
+
+        case VolumeKind::Gutenberg:
+            hr = AppleTextCodec::Encode (text, AppleTextConvention::HighAscii, encoded, badOffset);
+            inOutPayload.type     = GutenbergVolume::kTypeDocument;
+            inOutPayload.textForm = PayloadTextForm::AppleHighAscii;
             break;
 
         case VolumeKind::Dos33:

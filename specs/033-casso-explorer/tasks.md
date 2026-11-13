@@ -1857,11 +1857,13 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [ ] T582 [US25] Add Make CassoLink ProDOS disk: a 140K ProDOS image with `CASSOLINK.SYSTEM`, the user's `PRODOS` and `BASIC.SYSTEM`, from an image the user picks (FR-199)
 - [ ] T583 [US25] Serve Virtual block on the PC: each write to a one-block journal beside the image, then the image, then the journal cleared, each flushed before the reply, and a leftover journal applied on the next open (FR-201). Tests with a crash between each step
 - [ ] T584 [US25] Add `VirtualDriveSettings` to a link's saved settings, "`drive1` and `drive2`, each an image path or empty", and the connection page's two image pickers
-- [ ] T585 [US25] Scenario test in `ScenarioTests/CassoLinkVirtualDriveTests.cpp` on an emulated //c: SAVE a file to each drive from BASIC.SYSTEM and compare the images; repeat on the owner's //c and record SC-056
+- [ ] T585 [US25] Scenario test in `ScenarioTests/CassoLinkVirtualDriveTests.cpp` on an emulated //c: SAVE a file to each drive from BASIC.SYSTEM and compare the images. Only once that passes in Casso, repeat it on the owner's //c and record SC-056
 
 ## Phase 43: Whole disks over cassette audio (User Story 26)
 
 **Goal**: disks both ways through the cassette ports. **Independent test**: quickstart §7f step 4.
+
+**Verified in Casso only**: the owner has no Apple with a cassette jack, so the audio link is tested on Casso's emulated ][+ and //e, and a real Apple's cassette ports aren't verified.
 
 - [ ] T586 [US26] Add `WasapiCapture` in `CassoEmuCore/Audio/WasapiCapture.h/.cpp`, shared-mode capture from a chosen input device, behind a seam for the tests
 - [ ] T587 [US26] Write `CassoLink/Apple/Modules/Cassette.s` in ADTPro's published audio encoding: each track a packet with a CRC, sent by toggling $C020 and received by reading $C060 (R45)
@@ -1950,10 +1952,10 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 ## Phase 51: Gutenberg writes and RDOS (User Story 34)
 
-- [ ] T629 [US34] Work out Gutenberg's free-space map from disks Gutenberg saves in Casso, blank, after one document, after a delete and after a long document, and document it in `contracts/file-types.md` (FR-227)
-- [ ] T630 [US34] Add writes, renames and deletes to `GutenbergVolume`, updating the map as Gutenberg does, and remove the read-only rule (FR-227)
+- [X] T629 [US34] Work out Gutenberg's free-space map from disks Gutenberg saves in Casso, blank, after one document, after a delete and after a long document, and document it in `contracts/file-types.md` (FR-227)
+- [X] T630 [US34] Add writes, renames and deletes to `GutenbergVolume`, updating the map as Gutenberg does, and remove the read-only rule (FR-227)
 - [X] T631 [P] [US34] Add a read-only `RdosVolume` for RDOS 2.1, 3.2 and 3.3 in `CassoEmuCore/Machines/Apple2/Common/RdosVolume.h/.cpp` (FR-228)
-- [ ] T632 [US34] Scenario tests: a document written by Casso Explorer opens and saves again in Gutenberg in Casso (SC-062); each RDOS sample file matches CiderPress II's extraction
+- [X] T632 [US34] Scenario tests: a document written by Casso Explorer opens and saves again in Gutenberg in Casso (SC-062); each RDOS sample file matches CiderPress II's extraction
 
 ## Phase 52: An expanded preview (User Story 35)
 
@@ -2012,7 +2014,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 ## Phase 56: Roadmap validation and merge
 
 - [ ] T653 Walk quickstart §7e to §7h on Debug and Release, and write the results to `specs/033-casso-explorer/validation.md`
-- [ ] T668 Verify on an A2Pico with the A2retroNET storage firmware, as T620 does for CFFA: ProDOS images Casso Explorer and `casso disk create` make at 140K, 800K, 5M, 10M, 20M and 32M, as .po, .hdv and .2mg, each listed in `A2retroNET.txt` on the micro SD card, boot with `--bootable` and read and write on the Apple, and a file written there reads back in Casso Explorer; record the results in `validation.md`
+- [ ] T668 Research the A2Pico's A2retroNET storage firmware from its published documentation, write the findings into `research.md`, and support it: ProDOS images Casso Explorer and `casso disk create` make at 140K, 800K, 5M, 10M, 20M and 32M, as .po, .hdv and .2mg, in the forms A2retroNET accepts, listed in `A2retroNET.txt` on the micro SD card, bootable with `--bootable`, and a file written there read back in Casso Explorer. The owner has no A2Pico, so the checks are against the documentation and in Casso, not on the hardware
 - [ ] T654 Run `scripts/CheckStyle.ps1 -Mode Tree`, the code-analysis rebuild, and the unit and scenario suites in Debug and Release before each master merge
 
 ### Dependencies for Phases 36 to 56

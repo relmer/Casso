@@ -59,6 +59,10 @@ public:
     //  It contains Apple's ProDOS, so it is fetched rather than committed too.
     static std::vector<Byte>  RequireKermitDisk();
 
+    //  Gutenberg, Jr.'s side A, or a FAILED test, on the same grounds. It is a
+    //  third party's, so it is fetched rather than committed.
+    static std::vector<Byte>  RequireGutenbergJrDisk();
+
     //  The Apple /// System Utilities and System Demo disks with SOS 1.1, or a
     //  FAILED test, on the same grounds. scripts/FetchStockDisks.ps1 fetches
     //  both.
@@ -236,6 +240,7 @@ private:
     static constexpr const wchar_t *  kpszProDosCacheName = L"ProDOS Users Disk.dsk";
     static constexpr const char *     kpszProDosRepoPath  = "Disks/Apple/prodos-users.dsk";
     static constexpr const char *     kpszKermitRepoPath  = "Disks/ThirdParty/kermit-65.dsk";
+    static constexpr const char *     kpszGutenbergRepoPath = "Disks/ThirdParty/gutenberg-jr.dsk";
     static constexpr const wchar_t *  kpszSosCacheName    = L"Apple III System Utilities.dsk";
     static constexpr const char *     kpszSosRepoPath     = "Disks/Apple/sos-utilities.dsk";
     static constexpr const char *     kpszSosDemoRepoPath = "Disks/Apple/sos-demo.dsk";

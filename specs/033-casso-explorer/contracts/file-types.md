@@ -103,3 +103,62 @@ writes RTF, CSV, text or PNG by the `DecodedFile`'s kind.
 | `casso basic xref IN` | a tokenized program | the cross-reference, as the preview lists it |
 
 Cross-reference listing: one section each for variables, line references, and CALL, PEEK and POKE addresses, each entry followed by the lines it is on, in ascending order.
+
+## Gutenberg volumes (Story 34)
+
+Worked out from disks Gutenberg, Jr. formatted and wrote in Casso on a //e:
+a disk FORMAT had just made, the same disk after one short document, after
+a long document, after a delete, and after enough documents to fill the
+first directory sector. AVAILABLE SPACE reported 480, 479 and 440 empty
+sectors for the first three. The sector and directory layout is from
+CiderPress II's Gutenberg notes.
+
+**The map** is track 17, sector 6. It covers tracks 3 to 34, eight bytes a
+track, one byte for each pair of sectors. Bit 7 is set when the even sector
+is in use, and bit 0 when the odd one is. The byte for track `t`, sector `s`
+is at `(t - 3) * 8 + s / 2`. Tracks 0 to 2 aren't in the map, and Gutenberg
+never allocates them on a data disk. A free sector is one whose bit is
+clear, and the free count is the number of clear bits.
+
+| Sectors | FORMAT writes | Meaning |
+|---|---|---|
+| Track 17, sectors 0 and 1 | `$FF` | reserved |
+| Track 17, sectors 2 to 7 | `$81` | in use: the map, the directory, and four reserved for it |
+| Track 33, sector 8 to track 34, sector 15 | `$FF` | reserved |
+| Everything else | `$00` | free |
+
+Gutenberg's master disks have other bit patterns in some bytes, such as
+`$95` and `$9F`. Only bits 7 and 0 are read, and a write doesn't change the
+other bits.
+
+**Allocation** takes the lowest free sector in map order, from track 3,
+sector 0. A deleted file's sectors are reused by the next write.
+
+**A sector header** is the previous, current and next track and sector. A
+track or sector of 0 is stored as `$00` in a header and as `$40` in a
+directory entry. A link to the file's first sector has bit 7 set in its
+sector byte, except the last sector's next link, which points to the first
+sector with bit 7 set in its track byte instead. A one-sector file at track
+3, sector 0 has the header `03 80 03 80 83 00`.
+
+**A document** is high ASCII with `$8D` line ends, and ends at its first
+`$00`. The rest of its last sector is `$00`.
+
+**The directory** grows by one sector, from the map like any other, when a
+new file has no empty slot. The new sector repeats the volume name and
+`$8D` markers, and is allocated before the file's data. The old last
+sector's next link points to it, and the new sector's next link points back to
+track 17, sector 7 with the end flag. Gutenberg doesn't change the first
+sector's previous link.
+
+**A delete** clears the file's map bits and fills the entry's first 15
+bytes with spaces (`$A0`). The data sectors are left as they were.
+
+**Casso's rules.** `GutenbergVolume` writes, renames, deletes, locks and
+unlocks as above. A name is 1 to 12 printable characters with no space or
+slash. A locked document (`L`), DIR among them, can't be replaced,
+renamed or deleted. A type Gutenberg doesn't store becomes a document, a
+document without a `$00` gains one, and text copied from another file system
+is converted to high ASCII with `$8D` line ends. The integrity check counts
+tracks 0 to 2, `$FF` bytes, and the in-use sectors of track 17, sectors 0
+to 7, as the volume's.

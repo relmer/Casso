@@ -254,6 +254,33 @@ std::vector<Byte> GuestSession::RequireProDosUsersDisk()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GuestSession::RequireGutenbergJrDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::RequireGutenbergJrDisk()
+{
+    std::vector<Byte>  bytes = FindInRepo (kpszGutenbergRepoPath);
+
+
+
+    Assert::IsFalse (bytes.empty(),
+        L"the Gutenberg, Jr. side A disk is REQUIRED by this gate and was not found as "
+        L"Disks/ThirdParty/gutenberg-jr.dsk in a parent of the working directory. To get "
+        L"it, run scripts/FetchStockDisks.ps1, which RunTests.ps1 -Scenario also runs");
+
+    Assert::AreEqual (kImageBytes, bytes.size(),
+        L"and it must be a whole 5.25-inch sector image");
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GuestSession::RequireKermitDisk
 //
 ////////////////////////////////////////////////////////////////////////////////
