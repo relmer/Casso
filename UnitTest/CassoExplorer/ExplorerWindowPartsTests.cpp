@@ -1121,9 +1121,9 @@ public:
         Assert::IsTrue   (bar.IsVisible(), rig.browser.GetLocation().path.c_str());
         Assert::IsTrue   (bar.GetSeverity() == DxuiInfoBanner::Severity::Warning, bar.GetText().c_str());
         Assert::IsTrue   (bar.GetText().starts_with (L"A2Pico card. 1 of its 2 A2retroNET drives have an image."), bar.GetText().c_str());
-        Assert::AreEqual ((size_t) 1, bar.GetActionCount());
+        Assert::AreEqual ((size_t) 2, bar.GetActionCount(), L"A2retroNET drives and Repair");
 
-        bar.GetAction (0)->Click();
+        bar.GetAction (1)->Click();
 
         Assert::AreEqual (std::string ("[drives]\nnumber=2\n1=system.po\n"), std::string (rig.io.files["E:\\A2retroNET.txt"].begin(), rig.io.files["E:\\A2retroNET.txt"].end()));
 
@@ -1132,7 +1132,7 @@ public:
         AssertSucceeded (rig.fs.WriteAllText (L"E:\\A2retroNET.txt", "[drives]\nnumber=2\n1=system.po\n"));
         rig.parts->listPane.FillList();
         Assert::IsTrue   (bar.GetSeverity() == DxuiInfoBanner::Severity::Info, bar.GetText().c_str());
-        Assert::AreEqual ((size_t) 0, bar.GetActionCount());
+        Assert::AreEqual ((size_t) 1, bar.GetActionCount(), L"A2retroNET drives alone");
 
         Assert::IsTrue  (rig.browser.NavigateToAddress (L"C:\\Disks"));
         rig.parts->listPane.FillList();

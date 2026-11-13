@@ -73,6 +73,13 @@ public:
     //  current image, if any, is commented out in that line's place.
     bool  SwitchToAlternative (int drive, const std::string & path);
 
+    //  Swaps two drives' images, from 0, and the images commented out for
+    //  each.
+    void  SwapDrives (int first, int second);
+
+    //  Whether the file's extension is .po, .hdv or .2mg, in any case.
+    static bool  IsImageName (const std::string & fileName);
+
     //  Whether the firmware reads the image as a drive, and when it doesn't,
     //  why, in a sentence.
     static bool  CheckImage (const std::string & fileName, std::span<const Byte> bytes, std::string & outProblem);

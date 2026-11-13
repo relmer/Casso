@@ -43,7 +43,7 @@ public:
     DxuiInfoBanner & GetCardBar () { return *m_cardBar; }
 
 private:
-    enum CardAction : size_t { kRepair };
+    enum CardAction : size_t { kDrives, kRepair };
 
     bool  FillSearchBar ();
     bool  FillCardBar   ();

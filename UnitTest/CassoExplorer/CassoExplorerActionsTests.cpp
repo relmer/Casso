@@ -1169,6 +1169,55 @@ public:
     }
 
 
+    //  The images A2retroNET drives offers for a drive: each .po, .hdv and
+    //  .2mg on the card, in its folders too, as the path the file has.
+    TEST_METHOD (ListA2PicoImages_FindsTheImagesOnTheCard)
+    {
+        Host                      host;
+        std::vector<std::string>  images;
+        std::vector<Byte>         image (280 * 512, 0);
+
+
+
+        host.SeedBytes (Bytes ("[drives]\n"), L"E:\\A2retroNET.txt");
+        host.SeedBytes (image, L"E:\\system.po");
+        host.SeedBytes (image, L"E:\\Games\\zork.PO");
+        host.SeedBytes (image, L"E:\\Games\\Infocom\\deadline.hdv");
+        host.SeedBytes (image, L"E:\\Games\\notes.txt");
+        host.SeedBytes (image, L"E:\\Big.2mg");
+        host.SeedBytes (image, L"E:\\dos33.dsk");
+
+        AssertSucceeded (host.actions.ListA2PicoImages (L"E:\\", images));
+
+        Assert::AreEqual ((size_t) 4, images.size());
+        Assert::AreEqual (std::string ("Big.2mg"),                    images[0]);
+        Assert::AreEqual (std::string ("Games/Infocom/deadline.hdv"), images[1]);
+        Assert::AreEqual (std::string ("Games/zork.PO"),              images[2]);
+        Assert::AreEqual (std::string ("system.po"),                  images[3]);
+    }
+
+
+    TEST_METHOD (SaveA2retroNetConfig_WritesTheDrivesAndTheComments)
+    {
+        Host                           host;
+        A2retroNetConfig               config = A2retroNetConfig::Parse ("# mine\n[drives]\n1=a.po\n");
+        CassoExplorerActions::Outcome  outcome;
+        std::string                    text;
+
+
+
+        host.SeedBytes (Bytes ("# mine\n[drives]\n1=a.po\n"), L"E:\\A2retroNET.txt");
+
+        config.paths[1] = "b.po";
+        config.number   = 4;
+        outcome         = host.actions.SaveA2retroNetConfig (L"E:\\", config);
+
+        Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
+        text.assign (host.io.files["E:\\A2retroNET.txt"].begin(), host.io.files["E:\\A2retroNET.txt"].end());
+        Assert::AreEqual (std::string ("# mine\n[drives]\nnumber=4\n1=a.po\n2=b.po\n"), text);
+    }
+
+
     //  A card just initialized for an A2Pico gets the firmware's defaults. A
     //  card that has the file already is left as it is.
     TEST_METHOD (CreateA2retroNetConfig_WritesTheDefaultsOnce)

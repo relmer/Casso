@@ -195,26 +195,13 @@ bool ActionsA2retroNet::IsCard (const std::wstring & folder) const
 //
 //  ActionsA2retroNet::ReadCard
 //
-//  Each image is checked from its size and its first bytes, so a card of
-//  32 MB images is listed without reading them.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ActionsA2retroNet::ReadCard (const std::wstring & root, Card & outCard)
 {
-    HRESULT              hr         = S_OK;
-    HRESULT              hrStat     = S_OK;
-    HRESULT              hrRead     = S_OK;
-    HRESULT              hrReadOnly = S_OK;
-    IDiskFileIo        & io         = m_actions.m_browser.GetOperations().GetFileIo();
+    HRESULT              hr = S_OK;
+    IDiskFileIo        & io = m_actions.m_browser.GetOperations().GetFileIo();
     std::vector<Byte>    text;
-    std::string          relative;
-    std::string          problem;
-    std::wstring         host;
-    FileStamp            stamp;
-    bool                 hasDevice  = false;
-    bool                 readOnly   = false;
-    bool                 isReadable = false;
 
 
 
@@ -228,50 +215,94 @@ HRESULT ActionsA2retroNet::ReadCard (const std::wstring & root, Card & outCard)
 
     for (int index = 0; index < outCard.config.number; index++)
     {
-        Drive  drive;
-
-
-
-        drive.number = index + 1;
-        drive.path   = outCard.config.paths[index];
-
-        if (!drive.path.empty())
-        {
-            hasDevice       = A2retroNetConfig::SplitDevice (drive.path, relative);
-            host            = (std::filesystem::path (root) / std::filesystem::path (TextEncoding::NarrowToWide (relative)).make_preferred()).wstring();
-            hrStat          = io.Stat (TextEncoding::WideToNarrow (host), stamp);
-            drive.isPresent = SUCCEEDED (hrStat);
-
-            if (drive.isPresent)
-            {
-                std::vector<Byte>  header ((size_t) std::min<uint64_t> (stamp.sizeBytes, A2retroNetConfig::kTwoImgHeader));
-
-                drive.bytes = stamp.sizeBytes;
-                problem.clear();
-
-                hrRead     = io.ReadAt (TextEncoding::WideToNarrow (host), 0, header);
-                isReadable = SUCCEEDED (hrRead) && A2retroNetConfig::CheckImage (relative, header, stamp.sizeBytes, problem);
-
-                if (!isReadable)
-                {
-                    drive.problem = problem.empty() ? std::format (L"{} could not be read.", TextEncoding::NarrowToWide (drive.path)) : TextEncoding::NarrowToWide (problem);
-                }
-
-                hrReadOnly             = m_actions.m_fs.GetReadOnlyAttribute (host, readOnly);
-                drive.isWriteProtected = SUCCEEDED (hrReadOnly) && readOnly;
-            }
-            else
-            {
-                drive.problem = hasDevice ? std::format (L"{} isn't on this card. It may be on the other storage device.", TextEncoding::NarrowToWide (drive.path))
-                                          : std::format (L"{} isn't on the card.", TextEncoding::NarrowToWide (drive.path));
-            }
-        }
-
-        outCard.drives.push_back (std::move (drive));
+        outCard.drives.push_back (CheckDrive (root, index + 1, outCard.config.paths[index]));
     }
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::CheckDrive
+//
+//  The image is checked from its size and its first bytes, so a card of
+//  32 MB images is listed without reading them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsA2retroNet::Drive ActionsA2retroNet::CheckDrive (const std::wstring & root, int number, const std::string & path)
+{
+    Drive               drive;
+    IDiskFileIo       & io         = m_actions.m_browser.GetOperations().GetFileIo();
+    HRESULT             hrStat     = S_OK;
+    HRESULT             hrRead     = S_OK;
+    HRESULT             hrReadOnly = S_OK;
+    std::string         relative;
+    std::string         problem;
+    std::wstring        host;
+    std::vector<Byte>   header;
+    FileStamp           stamp;
+    bool                hasDevice  = false;
+    bool                readOnly   = false;
+    bool                isReadable = false;
+
+
+
+    drive.number = number;
+    drive.path   = path;
+
+    if (path.empty())
+    {
+        return drive;
+    }
+
+    hasDevice       = A2retroNetConfig::SplitDevice (path, relative);
+    host            = (std::filesystem::path (root) / std::filesystem::path (TextEncoding::NarrowToWide (relative)).make_preferred()).wstring();
+    hrStat          = io.Stat (TextEncoding::WideToNarrow (host), stamp);
+    drive.isPresent = SUCCEEDED (hrStat);
+
+    if (!drive.isPresent)
+    {
+        drive.problem = hasDevice ? std::format (L"{} isn't on this card. It may be on the other storage device.", TextEncoding::NarrowToWide (path))
+                                  : std::format (L"{} isn't on the card.", TextEncoding::NarrowToWide (path));
+        return drive;
+    }
+
+    header.resize ((size_t) std::min<uint64_t> (stamp.sizeBytes, A2retroNetConfig::kTwoImgHeader));
+
+    drive.bytes = stamp.sizeBytes;
+    hrRead      = io.ReadAt (TextEncoding::WideToNarrow (host), 0, header);
+    isReadable  = SUCCEEDED (hrRead) && A2retroNetConfig::CheckImage (relative, header, stamp.sizeBytes, problem);
+
+    if (!isReadable)
+    {
+        drive.problem = problem.empty() ? std::format (L"{} could not be read.", TextEncoding::NarrowToWide (path)) : TextEncoding::NarrowToWide (problem);
+    }
+
+    hrReadOnly             = m_actions.m_fs.GetReadOnlyAttribute (host, readOnly);
+    drive.isWriteProtected = SUCCEEDED (hrReadOnly) && readOnly;
+
+    return drive;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::GetConfigStamp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ActionsA2retroNet::GetConfigStamp (const std::wstring & root, FileStamp & outStamp)
+{
+    return m_actions.m_browser.GetOperations().GetFileIo().Stat (TextEncoding::WideToNarrow (GetConfigPath (root)), outStamp);
 }
 
 
@@ -354,4 +385,107 @@ std::wstring ActionsA2retroNet::Summarize (const Card & card)
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::Save
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsA2retroNet::Save (const std::wstring & root, const A2retroNetConfig & config)
+{
+    ActionsTypes::Outcome  outcome;
+    IDiskFileIo          & io      = m_actions.m_browser.GetOperations().GetFileIo();
+    std::string            written = config.Write();
+    std::vector<Byte>      text (written.begin(), written.end());
+    HRESULT                hr      = S_OK;
+
+
+
+    hr = io.WriteAllBytes (TextEncoding::WideToNarrow (GetConfigPath (root)), text);
+
+    if (FAILED (hr))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"A2retroNET.txt could not be written.");
+        return outcome;
+    }
+
+    ActionsCopy::AppendMessage (outcome, S_OK, L"A2retroNET.txt is saved.");
+    outcome.written = 1;
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::ListImages
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ActionsA2retroNet::ListImages (const std::wstring & root, std::vector<std::string> & outPaths)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    outPaths.clear();
+
+    hr = ListImagesIn (root, std::string(), outPaths);
+    CHR (hr);
+
+    std::sort (outPaths.begin(), outPaths.end(), [] (const std::string & a, const std::string & b) { return _stricmp (a.c_str(), b.c_str()) < 0; });
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::ListImagesIn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ActionsA2retroNet::ListImagesIn (const std::wstring & folder, const std::string & prefix, std::vector<std::string> & ioPaths)
+{
+    HRESULT                       hr = S_OK;
+    std::vector<FileSystemEntry>  entries;
+    std::string                   name;
+
+
+
+    hr = m_actions.m_fs.EnumerateEntries (folder, entries);
+    CHR (hr);
+
+    for (const FileSystemEntry & entry : entries)
+    {
+        BAIL_OUT_IF (ioPaths.size() >= kImagesMax, S_OK);
+
+        name = prefix + TextEncoding::WideToNarrow (entry.name);
+
+        if (entry.isFolder)
+        {
+            hr = ListImagesIn ((std::filesystem::path (folder) / entry.name).wstring(), name + "/", ioPaths);
+            CHR (hr);
+        }
+        else if (A2retroNetConfig::IsImageName (name))
+        {
+            ioPaths.push_back (name);
+        }
+    }
+
+Error:
+    return hr;
 }

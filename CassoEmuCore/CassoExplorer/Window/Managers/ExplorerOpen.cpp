@@ -20,6 +20,7 @@
 #include "Seams/RawDevice/Fat32Format.h"
 #include "Seams/RawDevice/RawDeviceProtocol.h"
 #include "CassoExplorer/CassoExplorerInitializeCardDialog.h"
+#include "CassoExplorer/A2retroNetDrivesDialog.h"
 #include "CassoExplorer/CassoExplorerElevationDialog.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 
@@ -633,6 +634,42 @@ void ExplorerOpen::FinishInitialize()
         m_context.folderSync.CheckDrives();
         m_context.treePane.ExpandNode (std::wstring (TreeModel::kStorageCardTag) + m_initCard);
         m_context.treePane.RevealLocationInTree();
+    }
+
+    m_context.listPane.FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::EditA2retroNetDrives
+//
+//  Edit as text opens the file in the program Windows opens .txt files
+//  with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerOpen::EditA2retroNetDrives (const std::wstring & root)
+{
+    ActionsTypes::Outcome  outcome;
+    HWND                   owner = m_context.window.GetHwnd();
+    bool                   saved = false;
+
+
+
+    saved = A2retroNetDrivesDialog::Edit (owner, m_context.theme, m_context.actions.GetA2retroNet(), root, [this, owner] (const std::wstring & path)
+    {
+        HRESULT  hr = m_context.shellVerbs.Open (owner, path);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }, outcome);
+
+    if (saved)
+    {
+        m_context.commandManager.ReportOutcome (outcome, L"A2retroNET drives");
     }
 
     m_context.listPane.FillList();

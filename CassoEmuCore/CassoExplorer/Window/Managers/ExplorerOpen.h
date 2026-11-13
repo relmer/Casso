@@ -69,6 +69,10 @@ public:
     //  drive letter open in it. Nothing for any other location.
     void  InitializeShownCard   ();
 
+    //  A2retroNET drives for the A2Pico card at `root`, and the list filled
+    //  again after a save.
+    void  EditA2retroNetDrives  (const std::wstring & root);
+
 private:
     static constexpr ULONGLONG  kProgressPostMs = 250;
 

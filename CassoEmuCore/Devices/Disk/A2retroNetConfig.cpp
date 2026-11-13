@@ -422,7 +422,7 @@ bool A2retroNetConfig::CheckImage (const std::string & fileName, std::span<const
     isTwoImg = extension == ".2mg";
     offset   = isTwoImg ? kTwoImgHeader : 0;
 
-    if (extension != ".po" && extension != ".hdv" && !isTwoImg)
+    if (!IsImageName (fileName))
     {
         outProblem = "A2retroNET reads only .po, .hdv and .2mg images.";
     }
@@ -501,4 +501,57 @@ bool A2retroNetConfig::SplitDevice (const std::string & path, std::string & outP
     }
 
     return hasDevice;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::SwapDrives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void A2retroNetConfig::SwapDrives (int first, int second)
+{
+    Section      section = Section::None;
+    int          found   = 0;
+    std::string  path;
+
+
+
+    std::swap (paths[first], paths[second]);
+
+    for (std::string & line : m_lines)
+    {
+        section = GetSection (line, section);
+
+        if (section == Section::Drives && !line.empty() && line[0] == kComment && TryReadDrive (std::string_view (line).substr (1), found, path))
+        {
+            found = found == first ? second : found == second ? first : found;
+            line  = std::format ("{}{}={}", kComment, found + 1, path);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::IsImageName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool A2retroNetConfig::IsImageName (const std::string & fileName)
+{
+    std::string  extension = std::filesystem::path (fileName).extension().string();
+
+
+
+    std::transform (extension.begin(), extension.end(), extension.begin(), [] (char c) { return (char) std::tolower ((unsigned char) c); });
+
+    return extension == ".po" || extension == ".hdv" || extension == ".2mg";
 }

@@ -75,6 +75,11 @@ public:
     Outcome  RepairA2retroNetConfig (const std::wstring & root)                                       { return m_a2retroNet.Repair (root); }
     bool     IsA2PicoCard           (const std::wstring & folder) const                              { return m_a2retroNet.IsCard (folder); }
     HRESULT  ReadA2PicoCard         (const std::wstring & root, ActionsA2retroNet::Card & outCard)   { return m_a2retroNet.ReadCard (root, outCard); }
+    Outcome  SaveA2retroNetConfig   (const std::wstring & root, const A2retroNetConfig & config)    { return m_a2retroNet.Save (root, config); }
+    HRESULT  ListA2PicoImages       (const std::wstring & root, std::vector<std::string> & outPaths) { return m_a2retroNet.ListImages (root, outPaths); }
+
+    //  The A2Pico card actions, for A2retroNET drives.
+    ActionsA2retroNet & GetA2retroNet () { return m_a2retroNet; }
 
     //  One partition of a card image: the one selected or open, its copy as
     //  an image file beside the card image, and an image file written over it

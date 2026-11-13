@@ -139,6 +139,24 @@ public:
     }
 
 
+    //  Reordering two drives swaps their images and the images commented out
+    //  for each, so each drive's alternatives follow it.
+    TEST_METHOD (SwapDrives_MovesTheImagesAndTheirAlternatives)
+    {
+        A2retroNetConfig  config = A2retroNetConfig::Parse ("[drives]\n1=system.po\n#1=old.po\n2=games.po\n#2=a.po\n#2=b.po\n");
+
+
+
+        config.SwapDrives (0, 1);
+
+        Assert::AreEqual (std::string ("games.po"),  config.paths[0]);
+        Assert::AreEqual (std::string ("system.po"), config.paths[1]);
+        Assert::AreEqual ((size_t) 2, config.GetAlternatives (0).size());
+        Assert::AreEqual (std::string ("old.po"), config.GetAlternatives (1)[0]);
+        Assert::AreEqual (std::string ("[drives]\n1=games.po\n#2=old.po\n2=system.po\n#1=a.po\n#1=b.po\n"), config.Write());
+    }
+
+
     TEST_METHOD (CheckImage_TakesWhatTheFirmwareReads)
     {
         std::vector<Byte>  blocks (280 * 512, 0);

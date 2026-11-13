@@ -8,6 +8,7 @@
 #include "CassoExplorer/Model/SearchExpression.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 
 
 
@@ -176,7 +177,7 @@ bool ExplorerListBars::FillCardBar()
 
         m_cardBar->SetText     (ActionsA2retroNet::Summarize (m_card));
         m_cardBar->SetSeverity (problem ? DxuiInfoBanner::Severity::Warning : DxuiInfoBanner::Severity::Info);
-        m_cardBar->SetActions  (m_card.config.hasCarriageReturns ? std::vector<std::wstring> { L"Repair" } : std::vector<std::wstring>());
+        m_cardBar->SetActions  (m_card.config.hasCarriageReturns ? std::vector<std::wstring> { L"A2retroNET drives...", L"Repair" } : std::vector<std::wstring> { L"A2retroNET drives..." });
     }
 
     m_cardBar->SetVisible (show);
@@ -196,7 +197,11 @@ bool ExplorerListBars::FillCardBar()
 
 void ExplorerListBars::RunCardAction (size_t index)
 {
-    if (index == kRepair)
+    if (index == kDrives)
+    {
+        m_context.opener.EditA2retroNetDrives (m_card.root);
+    }
+    else if (index == kRepair)
     {
         m_context.commandManager.ReportOutcome (m_context.actions.RepairA2retroNetConfig (m_card.root), L"Repair A2retroNET.txt");
     }
