@@ -63,7 +63,7 @@ void CommLogController::CreateControls()
 
     m_graph = m_host.GetControlParent().CreateChild<CommSignalGraph>();
     m_graph->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
-    m_model = std::make_unique<CommLogPane> (m_list, [this] (const std::string & request)
+    m_model = std::make_unique<CommLogPane> (m_list, [this] (const DebugLogRequest & request)
     {
         if (GetWindowHost() != nullptr)
         {

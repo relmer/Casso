@@ -229,7 +229,7 @@ void ShellDebugger::PostReverseCommand (
 {
     m_replayControl.isStopRequested.store (false, memory_order_release);
 
-    m_host.PostCommand (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (command, argument));
+    m_cpuManager.PostCommand (IDM_DEBUG_REVERSE, [command, argument] (IDebugCommandTarget & target) { target.RunReverseCommand (command, argument); });
 }
 
 
@@ -768,7 +768,7 @@ void ShellDebugger::ResumeAfterHeldInput()
     }
 
     m_cpuManager.SetPaused (false);
-    m_cpuManager.PostCommand (IDM_DEBUG_PAUSE_CHANGED, "0");
+    m_cpuManager.PostCommand (IDM_DEBUG_PAUSE_CHANGED, [] (IDebugCommandTarget & target) { target.NotifyDebugPauseChanged (false); });
 
     m_host.UpdateWindowTitle();
 }

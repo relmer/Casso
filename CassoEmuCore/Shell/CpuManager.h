@@ -16,13 +16,22 @@
 //  execute. Carries the menu/command id plus an opaque payload string
 //  (typically a file path) the dispatcher unpacks per id.
 //
+//  A debugger request has a call in place of a payload: the function the
+//  CPU thread runs on the debugger, with its arguments bound as values, so
+//  no text is built on one thread and parsed on the other.
+//
 ////////////////////////////////////////////////////////////////////////////////
+
+class IDebugCommandTarget;
+
+using DebugCall = std::function<void (IDebugCommandTarget &)>;
 
 struct EmulatorCommand
 {
     WORD                                   id       = 0;
     std::string                            payload;
     std::chrono::steady_clock::time_point  postedAt = {};    // when the UI asked, for a pause's landing point
+    DebugCall                              call;
 };
 
 
@@ -69,6 +78,7 @@ public:
     void    Stop  ();
 
     void    PostCommand    (WORD id, const std::string & payload = {});
+    void    PostCommand    (WORD id, DebugCall call);
 
     //  Asked about every command before it is queued, on the posting thread;
     //  false drops it. Set before Start.
@@ -139,6 +149,8 @@ public:
     static double  ComputeTickFraction (TimePoint tickStart, TimePoint requestedAt);
 
 private:
+    void    Enqueue        (EmulatorCommand command);
+
     void  ThreadProc        ();
     void  WaitWhilePaused   ();
     void  DrainCommandQueue ();

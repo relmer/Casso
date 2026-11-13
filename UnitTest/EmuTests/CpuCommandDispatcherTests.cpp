@@ -376,7 +376,7 @@ public:
 
         Dispatch (IDM_DEBUG_OPEN,  "", target);
         Dispatch (IDM_DEBUG_PAUSE, "", target);
-        Dispatch (IDM_DEBUG_CLOSE, "", target);
+        Dispatch (IDM_DEBUG_CLOSE, [] (IDebugCommandTarget & debug) { debug.CloseDebugChannel (false); }, target);
 
         Assert::AreEqual (std::string ("OpenDebugChannel"),  target.calls[0]);
         Assert::AreEqual (std::string ("PauseDebugRun"),     target.calls[1]);
@@ -384,154 +384,32 @@ public:
     }
 
 
-    TEST_METHOD (APaneMovesOnlyToAnAddressItCanRead)
+    //  A request from the debugger window is queued as the call to make on
+    //  the debugger, with its arguments as values; no text is parsed.
+    TEST_METHOD (ADebuggerRequestIsTheCallItWasPostedWith)
     {
-        Notebook  target;
+        for (WORD id : { IDM_DEBUG_VIEW, IDM_DEBUG_REVERSE, IDM_DEBUG_REVERSE_OPTIONS, IDM_DEBUG_CLOSE, IDM_DEBUG_PAUSE_CHANGED })
+        {
+            Notebook  target;
 
-        Dispatch (IDM_DEBUG_VIEW, "code 03f0",  target);
-        Dispatch (IDM_DEBUG_VIEW, "memory C000", target);
-        Dispatch (IDM_DEBUG_VIEW, "code pc",    target);
+            Dispatch (id, [] (IDebugCommandTarget & debug) { debug.GoToDebugMemory (2, "($3E),Y"); }, target);
 
-        //  None of these names a pane and an address, so none moves anything.
-        Dispatch (IDM_DEBUG_VIEW, "code",        target);
-        Dispatch (IDM_DEBUG_VIEW, "code 12345",  target);
-        Dispatch (IDM_DEBUG_VIEW, "code zz",     target);
-        Dispatch (IDM_DEBUG_VIEW, "stack 0100",  target);
-
-        Assert::AreEqual ((size_t) 3, target.calls.size());
-        Assert::AreEqual (std::string ("SetDebugView code 03F0"),   target.calls[0]);
-        Assert::AreEqual (std::string ("SetDebugView memory C000"), target.calls[1]);
-        Assert::AreEqual (std::string ("SetDebugView code pc"),     target.calls[2]);
+            Assert::AreEqual ((size_t) 1, target.calls.size());
+            Assert::AreEqual (std::string ("GoToDebugMemory 2 ($3E),Y"), target.calls[0]);
+        }
     }
 
 
-    TEST_METHOD (ACodeViewReopensWithItsTopLineWhereItWas)
+    TEST_METHOD (ADebuggerRequestWithNoCallAsksForNothing)
     {
-        Notebook  target;
+        for (WORD id : { IDM_DEBUG_VIEW, IDM_DEBUG_REVERSE, IDM_DEBUG_REVERSE_OPTIONS, IDM_DEBUG_CLOSE, IDM_DEBUG_PAUSE_CHANGED })
+        {
+            Notebook  target;
 
-        Dispatch (IDM_DEBUG_VIEW, "codetop2 E000", target);
-        Dispatch (IDM_DEBUG_VIEW, "codetop4 0300", target);
+            Dispatch (id, "code 0300", target);
 
-        //  A fifth view does not exist, and the top needs an address.
-        Dispatch (IDM_DEBUG_VIEW, "codetop5 E000", target);
-        Dispatch (IDM_DEBUG_VIEW, "codetop2 zz",   target);
-
-        Assert::AreEqual ((size_t) 2, target.calls.size());
-        Assert::AreEqual (std::string ("SetDebugView codetop2 E000"), target.calls[0]);
-        Assert::AreEqual (std::string ("SetDebugView codetop4 0300"), target.calls[1]);
-    }
-
-
-    TEST_METHOD (ACodeViewIsHeldWhileItsMenuIsOpen)
-    {
-        Notebook  target;
-
-        Dispatch (IDM_DEBUG_VIEW, "codehold 1",  target);
-        Dispatch (IDM_DEBUG_VIEW, "codehold3 0", target);
-
-        //  Only 1 or 0, and only for a view there is.
-        Dispatch (IDM_DEBUG_VIEW, "codehold 2",  target);
-        Dispatch (IDM_DEBUG_VIEW, "codehold5 1", target);
-
-        Assert::AreEqual ((size_t) 2, target.calls.size());
-        Assert::AreEqual (std::string ("HoldDebugCode 1 0"), target.calls[0]);
-        Assert::AreEqual (std::string ("HoldDebugCode 0 2"), target.calls[1]);
-    }
-
-
-    TEST_METHOD (MemoryWindowsTwoToFourOpenMoveAndClose)
-    {
-        Notebook  target;
-
-        Dispatch (IDM_DEBUG_VIEW, "memory2 0300", target);
-        Dispatch (IDM_DEBUG_VIEW, "memory4 F800", target);
-        Dispatch (IDM_DEBUG_VIEW, "memory3 close", target);
-
-        //  There is no fifth window, no closing the first, and no other word.
-        Dispatch (IDM_DEBUG_VIEW, "memory5 0300", target);
-        Dispatch (IDM_DEBUG_VIEW, "memory close", target);
-        Dispatch (IDM_DEBUG_VIEW, "memory2 shut", target);
-
-        Assert::AreEqual ((size_t) 3, target.calls.size());
-        Assert::AreEqual (std::string ("SetDebugView memory2 0300"), target.calls[0]);
-        Assert::AreEqual (std::string ("SetDebugView memory4 F800"), target.calls[1]);
-        Assert::AreEqual (std::string ("SetDebugView memory3 pc"),   target.calls[2], L"no address closes the window");
-    }
-
-
-    TEST_METHOD (TraceViewTakesAnEntryOrTheEnd)
-    {
-        Notebook  target;
-
-        Dispatch (IDM_DEBUG_VIEW, "trace 123456", target);
-        Dispatch (IDM_DEBUG_VIEW, "trace end",    target);
-
-        //  Neither a hex entry nor no entry at all moves the pane.
-        Dispatch (IDM_DEBUG_VIEW, "trace 1F",     target);
-        Dispatch (IDM_DEBUG_VIEW, "trace",        target);
-
-        Assert::AreEqual ((size_t) 2, target.calls.size());
-        Assert::AreEqual (std::string ("SetDebugTraceView 123456"), target.calls[0]);
-        Assert::AreEqual (std::string ("SetDebugTraceView end"),    target.calls[1]);
-    }
-
-
-    TEST_METHOD (AGoToCarriesItsWindowAndTextAsTyped)
-    {
-        Notebook  target;
-
-
-
-        Dispatch (IDM_DEBUG_VIEW, "goto 2 ($3E),Y", target);
-        Dispatch (IDM_DEBUG_VIEW, "goto 5 PC",      target);
-        Dispatch (IDM_DEBUG_VIEW, "goto",           target);
-        Dispatch (IDM_DEBUG_VIEW, "goto 0 HOME",    target);
-
-        Assert::AreEqual ((size_t) 2, target.calls.size(), L"only windows 0 to 4");
-        Assert::AreEqual (std::string ("GoToDebugMemory 2 ($3E),Y"), target.calls[0]);
-        Assert::AreEqual (std::string ("GoToDebugMemory 0 HOME"),    target.calls[1], L"the heat map's address box");
-    }
-
-
-    TEST_METHOD (ACodeSelectionGoesToItsViewAndAddress)
-    {
-        Notebook  target;
-
-
-
-        Dispatch (IDM_DEBUG_VIEW, "codeselect 2 D00F", target);
-        Dispatch (IDM_DEBUG_VIEW, "codeselect 5 D00F", target);
-        Dispatch (IDM_DEBUG_VIEW, "codeselect 1 G00F", target);
-        Dispatch (IDM_DEBUG_VIEW, "codeselect 1 12345", target);
-        Dispatch (IDM_DEBUG_VIEW, "codeselect",        target);
-
-        Assert::AreEqual ((size_t) 1, target.calls.size(), L"views 1 to 4, and a hex address of four digits at most");
-        Assert::AreEqual (std::string ("SelectDebugCode 1 D00F"), target.calls[0]);
-    }
-
-
-    TEST_METHOD (ABeamChangeRedrawsTheStoppedFrame)
-    {
-        Notebook  target;
-
-        //  A stopped machine runs no frame, so turning the beam mark on or
-        //  off has to ask for the picture to be drawn again.
-        Dispatch (IDM_DEBUG_VIEW, "beam", target);
-
-        Assert::AreEqual ((size_t) 1, target.calls.size());
-        Assert::AreEqual (std::string ("RedrawDebugFrame"), target.calls[0]);
-    }
-
-
-    TEST_METHOD (APauseChangeSaysWhichWay)
-    {
-        Notebook  target;
-
-        Dispatch (IDM_DEBUG_PAUSE_CHANGED, "1", target);
-        Dispatch (IDM_DEBUG_PAUSE_CHANGED, "0", target);
-
-        Assert::AreEqual (std::string ("NotifyDebugPauseChanged paused"),  target.calls[0]);
-        Assert::AreEqual (std::string ("NotifyDebugPauseChanged resumed"), target.calls[1]);
+            Assert::IsTrue (target.calls.empty(), L"a payload is not read");
+        }
     }
 
 
@@ -543,49 +421,6 @@ public:
 
         Assert::AreEqual ((size_t) 1, target.calls.size());
         Assert::AreEqual (std::string ("DivergeHistory"), target.calls[0]);
-    }
-
-
-    TEST_METHOD (ASeekByCycleHoldsItsCycle)
-    {
-        Notebook  target;
-
-        Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::SeekCycle, 12345).c_str(), target);
-
-        Assert::AreEqual (std::format ("RunReverseCommand {} 12345", static_cast<int> (ReverseCommand::SeekCycle)), target.calls[0]);
-    }
-
-
-    TEST_METHOD (TheHeatMapsHoverAndAccessRequestsReachTheTarget)
-    {
-        Notebook  target;
-
-        Dispatch (IDM_DEBUG_VIEW, "heatmap hover 2000",             target);
-        Dispatch (IDM_DEBUG_VIEW, "heatmap hover none",             target);
-        Dispatch (IDM_DEBUG_VIEW, "heatmap rewind write main C123", target);
-        Dispatch (IDM_DEBUG_VIEW, "heatmap code read cpu 0400",     target);
-        Dispatch (IDM_DEBUG_VIEW, "heatmap rewind write main",      target);
-
-        Assert::AreEqual ((size_t) 4, target.calls.size(), L"the request with no address asks for nothing");
-        Assert::AreEqual (std::string ("SetDebugHeatMapHover 2000"),                       target.calls[0]);
-        Assert::AreEqual (std::string ("SetDebugHeatMapHover none"),                       target.calls[1]);
-        Assert::AreEqual (std::string ("RunDebugHeatMapAccess rewind write main C123"),    target.calls[2]);
-        Assert::AreEqual (std::string ("RunDebugHeatMapAccess code read cpu 0400"),        target.calls[3]);
-    }
-
-
-    TEST_METHOD (TheSoundMuteRequestsReachTheTarget)
-    {
-        Notebook  target;
-
-        Dispatch (IDM_DEBUG_VIEW, "soundmute 3 on",  target);
-        Dispatch (IDM_DEBUG_VIEW, "soundmute 6 off", target);
-        Dispatch (IDM_DEBUG_VIEW, "soundmute x on",  target);
-        Dispatch (IDM_DEBUG_VIEW, "soundmute 3",     target);
-
-        Assert::AreEqual ((size_t) 2, target.calls.size(), L"nothing for a request without a channel and a state");
-        Assert::AreEqual (std::string ("SetDebugSoundMuted 3 on"),  target.calls[0]);
-        Assert::AreEqual (std::string ("SetDebugSoundMuted 6 off"), target.calls[1]);
     }
 
 
@@ -742,11 +577,13 @@ private:
             calls.push_back ("RunDebugHeatMapAccess " + HeatAccessJump::FormatWords (request));
         }
 
-        void     SetDebugView (const std::string & view, std::optional<Word> address) override
-        {
-            calls.push_back (address.has_value() ? std::format ("SetDebugView {} {:04X}", view, *address)
-                                                 : std::format ("SetDebugView {} pc", view));
-        }
+        void     SetDebugFollowView   (int) override {}
+        void     CloseDebugCodeView   (int) override {}
+        void     OpenDebugCodeViewAt  (int, Word) override {}
+        void     SetDebugCodeLines    (int, int) override {}
+        void     SetDebugCodeShown    (int, int) override {}
+        void     ShowDebugCode        (int, std::optional<Word>) override {}
+        void     SetDebugMemoryWindow (int, std::optional<Word>) override {}
 
         void     SetDebugTraceView (std::optional<uint64_t> first) override
         {
@@ -808,6 +645,17 @@ private:
             calls.push_back (std::format ("ControlTape {}", (int) command));
         }
     };
+
+
+    static void Dispatch (WORD id, DebugCall call, Notebook & target)
+    {
+        EmulatorCommand  cmd;
+
+        cmd.id   = id;
+        cmd.call = std::move (call);
+
+        CpuCommandDispatcher::Dispatch (cmd, { target, target, target, target, target });
+    }
 
 
     static void Dispatch (WORD id, const char * payload, Notebook & target)

@@ -94,7 +94,7 @@ namespace HistoryNetworkTests
 
             shell->GetDebugger().PrepareFramebuffers();
 
-            Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (true, kBudgetMb));
+            Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (true, kBudgetMb); });
 
             machine.GetMemoryBus().WriteByte (kMode, 0x80);
             machine.GetMemoryBus().WriteByte (kMode, 0x03);
@@ -103,6 +103,20 @@ namespace HistoryNetworkTests
 
 
         //  A command, dispatched as the CPU thread dispatches one.
+        void Dispatch (WORD id, DebugCall call)
+        {
+            EmulatorCommand  command;
+
+
+
+            command.id   = id;
+            command.call = std::move (call);
+
+            shell->DispatchCpuCommand (command);
+        }
+
+
+
         void Dispatch (WORD id, const std::string & payload)
         {
             EmulatorCommand  command;
@@ -225,7 +239,7 @@ namespace HistoryNetworkTests
             rig.OpenSocket();
             position = rig.shell->GetMachine().GetPosition();
 
-            rig.Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::StepBack, 0));
+            rig.Dispatch (IDM_DEBUG_REVERSE, [=] (IDebugCommandTarget & debug) { debug.RunReverseCommand (ReverseCommand::StepBack, 0); });
 
             Assert::IsTrue (rig.shell->GetMachine().GetPosition() < position, L"the machine steps back");
             Assert::IsTrue (rig.IsRecording(), L"and history is on");
@@ -240,12 +254,12 @@ namespace HistoryNetworkTests
 
 
 
-            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (false, kBudgetMb));
+            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (false, kBudgetMb); });
 
             rig.OpenSocket();
             rig.RunFrames (1);
 
-            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (true, kBudgetMb));
+            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (true, kBudgetMb); });
             Assert::IsTrue (rig.IsRecording(), L"history starts while the socket is open");
         }
     };

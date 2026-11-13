@@ -130,7 +130,8 @@ private:
     std::vector<std::shared_ptr<DxuiCommand>>    m_viewCommands;
     std::vector<std::shared_ptr<DxuiCommand>>    m_bankCommands;
     std::vector<std::shared_ptr<DxuiCommand>>    m_ignoreCommands;
-    std::string                                  m_ignoreWords;
+    std::vector<std::pair<Word, Word>>           m_ignoreSpans;
+    bool                                         m_isIgnoreSent  = false;
     std::vector<HeatMapOptions::Bank>            m_banks;
     uint64_t                                     m_appliedSerial = 0;
 

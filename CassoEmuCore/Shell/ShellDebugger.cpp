@@ -246,7 +246,7 @@ void ShellDebugger::OnDebuggerWindowClosed()
 
 
     SetDebugWindowShown (false);
-    m_cpuManager.PostCommand (IDM_DEBUG_CLOSE, isDetach ? "detach" : "");
+    m_cpuManager.PostCommand (IDM_DEBUG_CLOSE, [isDetach] (IDebugCommandTarget & target) { target.CloseDebugChannel (isDetach); });
 }
 
 
@@ -276,7 +276,7 @@ void ShellDebugger::DetachDebugger()
 
 void ShellDebugger::ResetDebuggerHeatMap()
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap reset");
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [] (IDebugCommandTarget & target) { target.ResetDebugHeatMap(); });
 }
 
 
@@ -285,13 +285,49 @@ void ShellDebugger::ResetDebuggerHeatMap()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SendDebuggerHeatMapRequest
+//  SetDebuggerHeatMapHover
+//
+//  UI thread. The heat map cell the mouse is over, or none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::SendDebuggerHeatMapRequest (const std::string & words)
+void ShellDebugger::SetDebuggerHeatMapHover (std::optional<Word> address)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap " + words);
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [address] (IDebugCommandTarget & target) { target.SetDebugHeatMapHover (address); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunDebuggerHeatMapAccess
+//
+//  UI thread. A cell's last write or read, to list or to go back to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::RunDebuggerHeatMapAccess (const HeatAccessRequest & request)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [request] (IDebugCommandTarget & target) { target.RunDebugHeatMapAccess (request); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerHeatMapIgnore
+//
+//  UI thread. The spans whose reads before written the map omits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerHeatMapIgnore (const std::vector<std::pair<Word, Word>> & spans)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [spans] (IDebugCommandTarget & target) { target.SetDebugHeatMapIgnore (spans); });
 }
 
 
@@ -405,37 +441,19 @@ SpeedMode ShellDebugger::GetEmulatorSpeed()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetCodeViewSuffix
-//
-//  Nothing for the first code view, 2 to 4 for the others, as the CPU
-//  thread's view names read.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetCodeViewSuffix (int view)
-{
-    return (view <= 0) ? std::string() : std::to_string (view + 1);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SetDebuggerFollowView / CloseDebuggerCodeView
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::SetDebuggerFollowView (int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("follow {}", view + 1));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [view] (IDebugCommandTarget & target) { target.SetDebugFollowView (view); });
 }
 
 
 void ShellDebugger::CloseDebuggerCodeView (int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codeclose {}", view + 1));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [view] (IDebugCommandTarget & target) { target.CloseDebugCodeView (view); });
 }
 
 
@@ -450,7 +468,7 @@ void ShellDebugger::CloseDebuggerCodeView (int view)
 
 void ShellDebugger::SetDebuggerCodeLines (int lines, int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("lines{} {:04X}", GetCodeViewSuffix (view), (Word) lines));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [lines, view] (IDebugCommandTarget & target) { target.SetDebugCodeLines (lines, view); });
 }
 
 
@@ -465,8 +483,7 @@ void ShellDebugger::SetDebuggerCodeLines (int lines, int view)
 
 void ShellDebugger::SetDebuggerCodeAddress (std::optional<Word> address, int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("code{} {:04X}", GetCodeViewSuffix (view), *address)
-                                                                 : std::format ("code{} pc", GetCodeViewSuffix (view)));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [address, view] (IDebugCommandTarget & target) { target.ShowDebugCode (view, address); });
 }
 
 
@@ -481,7 +498,7 @@ void ShellDebugger::SetDebuggerCodeAddress (std::optional<Word> address, int vie
 
 void ShellDebugger::SetDebuggerCodeTop (Word top, int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codetop{} {:04X}", GetCodeViewSuffix (view), top));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [top, view] (IDebugCommandTarget & target) { target.OpenDebugCodeViewAt (view, top); });
 }
 
 
@@ -499,12 +516,10 @@ void ShellDebugger::SetDebuggerCodeTop (Word top, int view)
 
 void ShellDebugger::SetDebuggerMemoryWindow (int id, std::optional<Word> address)
 {
-    std::string  view = (id == 1) ? std::string ("memory") : std::format ("memory{}", id);
 
 
 
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("{} {:04X}", view, *address)
-                                                                 : view + " close");
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [id, address] (IDebugCommandTarget & target) { target.SetDebugMemoryWindow (id, address); });
 }
 
 
@@ -519,8 +534,7 @@ void ShellDebugger::SetDebuggerMemoryWindow (int id, std::optional<Word> address
 
 void ShellDebugger::SetDebuggerTraceTop (std::optional<uint64_t> first)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, first.has_value() ? std::format ("trace {}", *first)
-                                                               : std::string ("trace end"));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [first] (IDebugCommandTarget & target) { target.SetDebugTraceView (first); });
 }
 
 
@@ -534,10 +548,10 @@ void ShellDebugger::SetDebuggerTraceTop (std::optional<uint64_t> first)
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::SendDebuggerEventLogRequest (
-    DebugLogKind          kind,
-    const std::string   & request)
+    DebugLogKind              kind,
+    const DebugLogRequest   & request)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("{} {}", GetDebugLogName (kind), request));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [kind, request] (IDebugCommandTarget & target) { target.SetDebugEventLog (kind, request); });
 }
 
 
@@ -583,7 +597,7 @@ void ShellDebugger::TakeDebuggerEventLogs (DebugLogDeltas & deltas)
 
 void ShellDebugger::SetDebuggerHeatMapShown (bool shown)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, shown ? std::string ("heatmap on") : std::string ("heatmap off"));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [shown] (IDebugCommandTarget & target) { target.SetDebugHeatMapShown (shown); });
 }
 
 
@@ -598,7 +612,7 @@ void ShellDebugger::SetDebuggerHeatMapShown (bool shown)
 
 void ShellDebugger::SetDebuggerHeatColumnsShown (bool shown)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, shown ? std::string ("heatcolumns on") : std::string ("heatcolumns off"));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [shown] (IDebugCommandTarget & target) { target.SetDebugHeatColumnsShown (shown); });
 }
 
 
@@ -613,7 +627,7 @@ void ShellDebugger::SetDebuggerHeatColumnsShown (bool shown)
 
 void ShellDebugger::SetDebuggerTraceShown (bool shown)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, shown ? std::string ("trace on") : std::string ("trace off"));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [shown] (IDebugCommandTarget & target) { target.SetDebugTraceShown (shown); });
 }
 
 
@@ -628,7 +642,7 @@ void ShellDebugger::SetDebuggerTraceShown (bool shown)
 
 void ShellDebugger::SetDebuggerSoundMuted (int channel, bool isMuted)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("soundmute {} {}", channel, isMuted ? "on" : "off"));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [channel, isMuted] (IDebugCommandTarget & target) { target.SetDebugSoundMuted (channel, isMuted); });
 }
 
 
@@ -643,7 +657,7 @@ void ShellDebugger::SetDebuggerSoundMuted (int channel, bool isMuted)
 
 void ShellDebugger::SetDebuggerBasicShown (bool isVisible)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, isVisible ? std::string ("basic on") : std::string ("basic off"));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [isVisible] (IDebugCommandTarget & target) { target.SetDebugBasicShown (isVisible); });
 }
 
 
@@ -662,7 +676,7 @@ void ShellDebugger::SetDebuggerBasicShown (bool isVisible)
 void ShellDebugger::SetBeamOverlayOn (bool on)
 {
     m_isBeamOverlayOn.store (on, memory_order_release);
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "beam");
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [] (IDebugCommandTarget & target) { target.RedrawDebugFrame(); });
 }
 
 
@@ -677,7 +691,7 @@ void ShellDebugger::SetBeamOverlayOn (bool on)
 
 void ShellDebugger::SetDebuggerCodeShown (int lines, int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("shown{} {:04X}", GetCodeViewSuffix (view), (Word) lines));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [lines, view] (IDebugCommandTarget & target) { target.SetDebugCodeShown (lines, view); });
 }
 
 
@@ -692,7 +706,7 @@ void ShellDebugger::SetDebuggerCodeShown (int lines, int view)
 
 void ShellDebugger::ScrollDebuggerCode (int lines, int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codescroll{} {}", GetCodeViewSuffix (view), lines));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [lines, view] (IDebugCommandTarget & target) { target.ScrollDebugCode (lines, view); });
 }
 
 
@@ -707,7 +721,7 @@ void ShellDebugger::ScrollDebuggerCode (int lines, int view)
 
 void ShellDebugger::HoldDebuggerCode (int view, bool isHeld)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codehold{} {}", GetCodeViewSuffix (view), isHeld ? 1 : 0));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [isHeld, view] (IDebugCommandTarget & target) { target.HoldDebugCode (isHeld, view); });
 }
 
 
@@ -722,7 +736,7 @@ void ShellDebugger::HoldDebuggerCode (int view, bool isHeld)
 
 void ShellDebugger::GoToDebuggerMemory (int window, const std::string & text)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("goto {} {}", window, text));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [window, text] (IDebugCommandTarget & target) { target.GoToDebugMemory (window, text); });
 }
 
 
@@ -737,7 +751,7 @@ void ShellDebugger::GoToDebuggerMemory (int window, const std::string & text)
 
 void ShellDebugger::SelectDebuggerCode (int view, Word address)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codeselect {} {:04X}", view + 1, address));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [view, address] (IDebugCommandTarget & target) { target.SelectDebugCode (view, address); });
 }
 
 
@@ -975,65 +989,212 @@ void ShellDebugger::RunDebugActions()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetDebugView
+//  SetDebugFollowView
+//
+//  CPU thread. The code view that follows the PC.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::SetDebugView (const std::string & view, std::optional<Word> address)
+void ShellDebugger::SetDebugFollowView (int view)
 {
-    int                          index = 0;
     std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
 
 
 
-    if (view == "follow" && address.has_value())
+    if (view < 0 || view >= DebuggerViewState::kMaxCodeViews)
     {
-        m_debugViewState.SetFollowView ((int) *address);
+        return;
     }
-    else if (view == "codeclose" && address.has_value())
+
+    m_debugViewState.SetFollowView (view);
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CloseDebugCodeView
+//
+//  CPU thread. The first view is never closed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::CloseDebugCodeView (int view)
+{
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
+    if (view < 1 || view >= DebuggerViewState::kMaxCodeViews)
     {
-        m_debugViewState.CloseCodeView ((int) *address);
+        return;
     }
-    else if (CpuCommandDispatcher::TryGetCodeView (view, "codetop", index) && address.has_value())
+
+    m_debugViewState.CloseCodeView (view);
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OpenDebugCodeViewAt
+//
+//  CPU thread. A code view opened with an address on its top line, as it
+//  was when Casso last closed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::OpenDebugCodeViewAt (int view, Word top)
+{
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
+    if (view < 0 || view >= DebuggerViewState::kMaxCodeViews)
     {
-        m_debugViewState.OpenCodeViewAt (index, *address);
+        return;
     }
-    else if (CpuCommandDispatcher::TryGetCodeView (view, "lines", index) && address.has_value())
+
+    m_debugViewState.OpenCodeViewAt (view, top);
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebugCodeLines
+//
+//  CPU thread. The lines a code view fits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebugCodeLines (int lines, int view)
+{
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
+    if (view < 0 || view >= DebuggerViewState::kMaxCodeViews)
     {
-        m_debugViewState.SetCodeLines ((int) *address, index);
+        return;
     }
-    else if (CpuCommandDispatcher::TryGetCodeView (view, "shown", index) && address.has_value())
+
+    m_debugViewState.SetCodeLines (lines, view);
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebugCodeShown
+//
+//  CPU thread. The lines a code view has on screen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebugCodeShown (int lines, int view)
+{
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
+    if (view < 0 || view >= DebuggerViewState::kMaxCodeViews)
     {
-        m_debugViewState.SetCodeShown ((int) *address, index);
+        return;
     }
-    else if (CpuCommandDispatcher::TryGetCodeView (view, "code", index) && address.has_value() && !m_debugViewState.IsCodeViewOpen (index))
+
+    m_debugViewState.SetCodeShown (lines, view);
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowDebugCode
+//
+//  CPU thread. A code view centered on an address, opened there when it
+//  isn't open, or brought back to the PC with no address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::ShowDebugCode (int view, std::optional<Word> address)
+{
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
+    if (view < 0 || view >= DebuggerViewState::kMaxCodeViews)
     {
-        m_debugViewState.OpenCodeView (index, *address);
+        return;
     }
-    else if (CpuCommandDispatcher::TryGetCodeView (view, "code", index) && address.has_value())
+
+    if (address.has_value() && !m_debugViewState.IsCodeViewOpen (view))
     {
-        m_debugViewState.CenterCodeOn (*address, index);
+        m_debugViewState.OpenCodeView (view, *address);
     }
-    else if (CpuCommandDispatcher::TryGetCodeView (view, "code", index))
+    else if (address.has_value())
     {
-        m_debugViewState.ShowPcIn (index);
+        m_debugViewState.CenterCodeOn (*address, view);
     }
-    else if (view == "memory" && address.has_value())
+    else
+    {
+        m_debugViewState.ShowPcIn (view);
+    }
+
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebugMemoryWindow
+//
+//  CPU thread. The first memory window is never closed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebugMemoryWindow (int id, std::optional<Word> address)
+{
+    static constexpr int         kFirstWindow = 1;
+    static constexpr int         kLastWindow  = 4;
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
+    if (id < kFirstWindow || id > kLastWindow || (id == kFirstWindow && !address.has_value()))
+    {
+        return;
+    }
+
+    if (id == kFirstWindow)
     {
         m_debugViewState.SetMemoryAddress (*address);
     }
-    else if (view.starts_with ("memory") && view.size() == 7)
+    else if (address.has_value())
     {
-        int  id = view.back() - '0';
-
-        if (address.has_value())
-        {
-            m_debugViewState.OpenMemoryWindow (id, *address);
-        }
-        else
-        {
-            m_debugViewState.CloseMemoryWindow (id);
-        }
+        m_debugViewState.OpenMemoryWindow (id, *address);
+    }
+    else
+    {
+        m_debugViewState.CloseMemoryWindow (id);
     }
 
     m_isDebugViewDirty = true;
@@ -1257,13 +1418,13 @@ void ShellDebugger::SetDebugBasicShown (bool isVisible)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::SetDebugHeatMapOptions (const std::string & text)
+void ShellDebugger::SetDebugHeatMapOptions (const HeatMapOptions & options)
 {
     std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
 
 
 
-    m_debugViewState.SetHeatMapOptions (HeatMapOptions::FromText (text));
+    m_debugViewState.SetHeatMapOptions (options);
     m_isDebugViewDirty = true;
 }
 
@@ -2221,20 +2382,23 @@ void ShellDebugger::DestroyWindow()
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::SetDebugEventLog (
-    DebugLogKind          kind,
-    const std::string   & request)
+    DebugLogKind              kind,
+    const DebugLogRequest   & request)
 {
-    if (request == "open" || request == "close")
+    switch (request.kind)
     {
-        m_eventLogs.SetOpen (kind, request == "open");
-    }
-    else if (request == "earlier")
-    {
+    case DebugLogRequest::Kind::Open:
+    case DebugLogRequest::Kind::Close:
+        m_eventLogs.SetOpen (kind, request.kind == DebugLogRequest::Kind::Open);
+        break;
+
+    case DebugLogRequest::Kind::Earlier:
         m_eventLogs.RequestEarlier (kind);
-    }
-    else if (request.starts_with ("from "))
-    {
-        m_eventLogs.DropBefore (kind, std::strtoull (request.c_str() + 5, nullptr, 10));
+        break;
+
+    case DebugLogRequest::Kind::DropBefore:
+        m_eventLogs.DropBefore (kind, request.from);
+        break;
     }
 }
 

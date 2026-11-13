@@ -80,15 +80,17 @@
 //  thread that owns the machine, and never race it.
 //
 //  IDM_DEBUG_COMMAND carries one command line and the id of the client its
-//  reply goes back to (see DebugCommandPayload). IDM_DEBUG_PAUSE_CHANGED
-//  carries "1" when the user paused the machine and "0" when they resumed it.
+//  reply goes back to (see DebugCommandPayload). IDM_DEBUG_PAUSE_CHANGED is
+//  queued with the call that passes the debugger whether the user paused
+//  the machine or resumed it.
 #define IDM_DEBUG_COMMAND           40155
 #define IDM_DEBUG_PAUSE_CHANGED     40156
 
 //  The debugger window, opened from the Debug menu. Opening it opens the
 //  debug channel; closing it closes the channel. IDM_DEBUG_OPEN, _CLOSE, _PAUSE
-//  and _VIEW carry the window's requests to the CPU thread; _VIEW's payload is
-//  "code <hex>", "code pc" or "memory <hex>".
+//  and _VIEW are the window's requests to the CPU thread. _CLOSE and _VIEW are
+//  queued with the call the CPU thread makes on the debugger (DebugCall), so
+//  they have no payload.
 #define IDM_VIEW_DEBUGGER           40150
 #define IDM_DEBUG_OPEN              40151
 #define IDM_DEBUG_CLOSE             40152
@@ -103,13 +105,11 @@
 //  is recorded from the first instruction the machine runs.
 #define IDM_DEBUG_RESTART           40157
 
-//  A reverse execution command for the CPU thread; the payload is the
-//  command's word (see CpuCommandDispatcher::FormatReversePayload).
+//  A reverse execution command for the CPU thread, queued with its call.
 #define IDM_DEBUG_REVERSE           40180
 
-//  Tools > Options' reverse execution settings for the CPU thread; the payload
-//  is "on" or "off" and the budget in MB (see
-//  CpuCommandDispatcher::FormatReverseOptionsPayload).
+//  Tools > Options' reverse execution settings for the CPU thread, queued
+//  with their call.
 #define IDM_DEBUG_REVERSE_OPTIONS   40181
 
 //  Behind live, the yes to discarding the recorded history after where the

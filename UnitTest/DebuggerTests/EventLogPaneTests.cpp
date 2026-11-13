@@ -104,6 +104,20 @@ namespace EventLogPaneTests
     //
     ////////////////////////////////////////////////////////////////////////////////
 
+    //  A pane's request as a line, for the tests to compare.
+    static std::string GetRequestText (const DebugLogRequest & request)
+    {
+        switch (request.kind)
+        {
+        case DebugLogRequest::Kind::Open:    return "open";
+        case DebugLogRequest::Kind::Close:   return "close";
+        case DebugLogRequest::Kind::Earlier: return "earlier";
+        default:                             return std::format ("from {}", request.from);
+        }
+    }
+
+
+
     TEST_CLASS (EventLogPaneTests)
     {
     public:
@@ -111,7 +125,7 @@ namespace EventLogPaneTests
         TEST_METHOD (RowsComeInPositionOrderUnderTheStartRow)
         {
             DxuiListView   list;
-            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogPane    pane (&list, [] (const DebugLogRequest &) {});
             DiskLogDelta   delta;
 
 
@@ -141,7 +155,7 @@ namespace EventLogPaneTests
         TEST_METHOD (TheEventColumnFitsItsTextAndDetailStretches)
         {
             DxuiListView   list;
-            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogPane    pane (&list, [] (const DebugLogRequest &) {});
 
 
 
@@ -162,7 +176,7 @@ namespace EventLogPaneTests
             constexpr uint32_t  kWarning = 0xFF806000u;
             constexpr uint32_t  kError   = 0xFF800000u;
             DxuiListView        list;
-            DiskLogPane         pane (&list, [] (const std::string &) {});
+            DiskLogPane         pane (&list, [] (const DebugLogRequest &) {});
             DiskLogDelta                     delta;
             std::vector<DxuiListView::Cell>  cells;
 
@@ -208,7 +222,7 @@ namespace EventLogPaneTests
         TEST_METHOD (TheColumnFiltersShowOnlyTheRowsTheyLetThrough)
         {
             DxuiListView       list;
-            DiskLogPane        pane (&list, [] (const std::string &) {});
+            DiskLogPane        pane (&list, [] (const DebugLogRequest &) {});
             IEventLogFilter  & filter = pane;
             DiskLogDelta       delta;
 
@@ -248,8 +262,8 @@ namespace EventLogPaneTests
         TEST_METHOD (TheColumnFiltersRoundTripThroughTheOptions)
         {
             DxuiListView       list;
-            DiskLogPane        pane  (&list, [] (const std::string &) {});
-            DiskLogPane        other (&list, [] (const std::string &) {});
+            DiskLogPane        pane  (&list, [] (const DebugLogRequest &) {});
+            DiskLogPane        other (&list, [] (const DebugLogRequest &) {});
             IEventLogFilter  & from  = pane;
             IEventLogFilter  & to    = other;
 
@@ -275,7 +289,7 @@ namespace EventLogPaneTests
         TEST_METHOD (ASectorRowHasItsBytes)
         {
             DxuiListView                      list;
-            DiskLogPane                       pane (&list, [] (const std::string &) {});
+            DiskLogPane                       pane (&list, [] (const DebugLogRequest &) {});
             DiskLogDelta                      delta;
             DiskLogRow                        row  = MakeDiskRow (10, Disk2EventType::DataRead, 0, 0);
             std::vector<Byte>                 bytes (256);
@@ -319,7 +333,7 @@ namespace EventLogPaneTests
         TEST_METHOD (ColumnsSavedForOtherColumnsAreLeftOut)
         {
             DxuiListView   list;
-            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogPane    pane (&list, [] (const DebugLogRequest &) {});
 
 
 
@@ -338,7 +352,7 @@ namespace EventLogPaneTests
         {
             DxuiListView               list;
             std::vector<std::string>   requests;
-            DiskLogPane                pane (&list, [&requests] (const std::string & request) { requests.push_back (request); });
+            DiskLogPane                pane (&list, [&requests] (const DebugLogRequest & request) { requests.push_back (GetRequestText (request)); });
             DiskLogDelta               delta;
 
 
@@ -377,7 +391,7 @@ namespace EventLogPaneTests
         TEST_METHOD (OlderRowsGoInFrontAndTheSelectionStays)
         {
             DxuiListView   list;
-            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogPane    pane (&list, [] (const DebugLogRequest &) {});
             DiskLogDelta   delta;
 
 
@@ -413,7 +427,7 @@ namespace EventLogPaneTests
         TEST_METHOD (ARangeExtendsFromTheSameAnchorAsRowsArrive)
         {
             DxuiListView   list;
-            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogPane    pane (&list, [] (const DebugLogRequest &) {});
             DiskLogDelta   delta;
 
 
@@ -458,7 +472,7 @@ namespace EventLogPaneTests
         TEST_METHOD (ACutDropsTheRowsFromItsPosition)
         {
             DxuiListView   list;
-            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogPane    pane (&list, [] (const DebugLogRequest &) {});
             DiskLogDelta   delta;
 
 
@@ -483,7 +497,7 @@ namespace EventLogPaneTests
         TEST_METHOD (RowsFromTheMachinesPositionAreHiddenBehindLive)
         {
             DxuiListView   list;
-            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogPane    pane (&list, [] (const DebugLogRequest &) {});
             DiskLogDelta   delta;
 
 
@@ -509,7 +523,7 @@ namespace EventLogPaneTests
         TEST_METHOD (TheTrackListMatchesMarksByTrackAndStepsByQuarterTrack)
         {
             DxuiListView   list;
-            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogPane    pane (&list, [] (const DebugLogRequest &) {});
             DiskLogDelta               delta;
             std::vector<std::wstring>  details;
 
@@ -542,7 +556,7 @@ namespace EventLogPaneTests
         TEST_METHOD (TheKindAndDriveFiltersHideRows)
         {
             DxuiListView   list;
-            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogPane    pane (&list, [] (const DebugLogRequest &) {});
             DiskLogDelta   delta;
             DiskLogRow     second = MakeDiskRow (20, Disk2EventType::MotorEngaged);
 
@@ -570,7 +584,7 @@ namespace EventLogPaneTests
         TEST_METHOD (TheInvalidTextListsTheTokensNotTaken)
         {
             DxuiListView   list;
-            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogPane    pane (&list, [] (const DebugLogRequest &) {});
 
 
 
@@ -586,7 +600,7 @@ namespace EventLogPaneTests
         TEST_METHOD (AHeaderSortsThenReversesThenRestoresPositionOrder)
         {
             DxuiListView   list;
-            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogPane    pane (&list, [] (const DebugLogRequest &) {});
             DiskLogDelta   delta;
 
 
@@ -617,7 +631,7 @@ namespace EventLogPaneTests
         TEST_METHOD (NewerRowsGoInTheirPlacesInASortedView)
         {
             DxuiListView   list;
-            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogPane    pane (&list, [] (const DebugLogRequest &) {});
             DiskLogDelta   delta;
             size_t         builds = 0;
 
@@ -653,7 +667,7 @@ namespace EventLogPaneTests
         TEST_METHOD (CopyGivesTheShownColumnsOfEachRow)
         {
             DxuiListView   list;
-            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogPane    pane (&list, [] (const DebugLogRequest &) {});
             DiskLogDelta   delta;
 
 
@@ -683,7 +697,7 @@ namespace EventLogPaneTests
         TEST_METHOD (TheTrackSectorAndVolumeColumnsHaveTheEventsPlace)
         {
             DxuiListView   list;
-            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogPane    pane (&list, [] (const DebugLogRequest &) {});
             Disk2Event     event;
             std::wstring   track;
             std::wstring   sector;
@@ -724,8 +738,8 @@ namespace EventLogPaneTests
         {
             DxuiListView   list;
             DxuiListView   other;
-            DiskLogPane    pane  (&list,  [] (const std::string &) {});
-            DiskLogPane    again (&other, [] (const std::string &) {});
+            DiskLogPane    pane  (&list,  [] (const DebugLogRequest &) {});
+            DiskLogPane    again (&other, [] (const DebugLogRequest &) {});
 
 
 
@@ -752,7 +766,7 @@ namespace EventLogPaneTests
         TEST_METHOD (APairsViewNamesItsAxesAndPicksItsFilter)
         {
             DxuiListView   list;
-            InputLogPane   pane (&list, [] (const std::string &) {});
+            InputLogPane   pane (&list, [] (const DebugLogRequest &) {});
             InputLogDelta  delta;
 
 
@@ -779,7 +793,7 @@ namespace EventLogPaneTests
         TEST_METHOD (TheMouseButtonOnACIsPressedWhenBitSevenIsClear)
         {
             DxuiListView              list;
-            InputLogPane              pane (&list, [] (const std::string &) {});
+            InputLogPane              pane (&list, [] (const DebugLogRequest &) {});
             InputLogPane::EventText   text;
             InputEvent                event = MakeInputRow (10, InputEventType::ButtonRead, 0xC063, 0x00).event;
 
@@ -797,7 +811,7 @@ namespace EventLogPaneTests
         TEST_METHOD (ASerialByteShowsThePortAndTheByte)
         {
             DxuiListView              list;
-            InputLogPane              pane (&list, [] (const std::string &) {});
+            InputLogPane              pane (&list, [] (const DebugLogRequest &) {});
             InputLogPane::EventText   text;
             InputEvent                card    = MakeInputRow (10, InputEventType::HostSerialByte, 2, 'A').event;
             InputEvent                builtIn = MakeInputRow (10, InputEventType::HostSerialByte, Acia6551::kCommPortBuiltIn | 2, 'A').event;
@@ -822,7 +836,7 @@ namespace EventLogPaneTests
         TEST_METHOD (TheInputColumnMatchesAHostPressToTheGuestsRead)
         {
             DxuiListView              list;
-            InputLogPane              pane (&list, [] (const std::string &) {});
+            InputLogPane              pane (&list, [] (const DebugLogRequest &) {});
             InputLogPane::EventText   press;
             InputLogPane::EventText   read;
 
@@ -845,7 +859,7 @@ namespace EventLogPaneTests
         TEST_METHOD (ThePaddleStrobeShowsUnderEitherGamePortFilter)
         {
             DxuiListView   list;
-            InputLogPane   pane (&list, [] (const std::string &) {});
+            InputLogPane   pane (&list, [] (const DebugLogRequest &) {});
             InputLogDelta  delta;
 
 
@@ -873,7 +887,7 @@ namespace EventLogPaneTests
         TEST_METHOD (OnlyAStrobeAReadFollowsShows)
         {
             DxuiListView               list;
-            InputLogPane               pane (&list, [] (const std::string &) {});
+            InputLogPane               pane (&list, [] (const DebugLogRequest &) {});
             InputLogDelta              delta;
             std::vector<std::wstring>  cycles;
 
@@ -900,7 +914,7 @@ namespace EventLogPaneTests
         TEST_METHOD (AStrobeIsListedWhenTheNextDeltasReadFollowsIt)
         {
             DxuiListView               list;
-            InputLogPane               pane (&list, [] (const std::string &) {});
+            InputLogPane               pane (&list, [] (const DebugLogRequest &) {});
             InputLogDelta              delta;
             std::vector<std::wstring>  cycles;
 
@@ -932,7 +946,7 @@ namespace EventLogPaneTests
         TEST_METHOD (NewerRowsLeaveTheSelectionOnItsRows)
         {
             DxuiListView   list;
-            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogPane    pane (&list, [] (const DebugLogRequest &) {});
             DiskLogDelta   delta;
 
 
@@ -964,7 +978,7 @@ namespace EventLogPaneTests
         {
             DxuiListView               list;
             std::vector<std::string>   requests;
-            DiskLogPane                pane (&list, [&requests] (const std::string & request) { requests.push_back (request); });
+            DiskLogPane                pane (&list, [&requests] (const DebugLogRequest & request) { requests.push_back (GetRequestText (request)); });
             DiskLogDelta               delta;
             size_t                     i        = 0;
             size_t                     past     = DiskLogPane::kMaxRows + 1;
@@ -1010,7 +1024,7 @@ namespace EventLogPaneTests
             constexpr size_t           kOlder   = 5000;
             DxuiListView               list;
             std::vector<std::string>   requests;
-            DiskLogPane                pane (&list, [&requests] (const std::string & request) { requests.push_back (request); });
+            DiskLogPane                pane (&list, [&requests] (const DebugLogRequest & request) { requests.push_back (GetRequestText (request)); });
             DiskLogDelta               delta;
             size_t                     i        = 0;
             uint64_t                   first    = kOlder * 10;
@@ -1059,7 +1073,7 @@ namespace EventLogPaneTests
         {
             DxuiListView               list;
             std::vector<std::string>   requests;
-            DiskLogPane                pane (&list, [&requests] (const std::string & request) { requests.push_back (request); });
+            DiskLogPane                pane (&list, [&requests] (const DebugLogRequest & request) { requests.push_back (GetRequestText (request)); });
             DiskLogDelta               delta;
             size_t                     i        = 0;
             uint64_t                   first    = 1000;
@@ -1103,7 +1117,7 @@ namespace EventLogPaneTests
             constexpr size_t           kRows   = 100;
             constexpr size_t           kOlder  = 10;
             DxuiListView               list;
-            DiskLogPane                pane (&list, [] (const std::string &) {});
+            DiskLogPane                pane (&list, [] (const DebugLogRequest &) {});
             DiskLogDelta               delta;
             size_t                     i       = 0;
             uint64_t                   first   = 1000;
@@ -1233,7 +1247,7 @@ namespace EventLogPaneTests
         TEST_METHOD (WidthsSavedForTheOldHeadingsAreDropped)
         {
             DxuiListView  list;
-            IoLogPane     pane (&list, [] (const std::string &) {}, true);
+            IoLogPane     pane (&list, [] (const DebugLogRequest &) {}, true);
 
 
 
@@ -1253,7 +1267,7 @@ namespace EventLogPaneTests
         TEST_METHOD (AVideoRowHasItsFrameBeamAndModes)
         {
             DxuiListView  list;
-            IoLogPane     pane (&list, [] (const std::string &) {}, true);
+            IoLogPane     pane (&list, [] (const DebugLogRequest &) {}, true);
             IoLogDelta    delta;
             IoLogRow      row = MakeIoRow (10, 1000, IoEventKind::VideoMode, 0xC057);
 
@@ -1287,7 +1301,7 @@ namespace EventLogPaneTests
         TEST_METHOD (ASoundRowsSinceIsFromTheLastOfTheSame)
         {
             DxuiListView                list;
-            IoLogPane                   pane (&list, [] (const std::string &) {}, false);
+            IoLogPane                   pane (&list, [] (const DebugLogRequest &) {}, false);
             IoLogDelta                  delta;
             std::vector<std::wstring>   since;
 
@@ -1325,7 +1339,7 @@ namespace EventLogPaneTests
         TEST_METHOD (SinceSortsByNumberAndCountsAreGrouped)
         {
             DxuiListView                list;
-            IoLogPane                   pane (&list, [] (const std::string &) {}, false);
+            IoLogPane                   pane (&list, [] (const DebugLogRequest &) {}, false);
             IoLogDelta                  delta;
             std::vector<std::wstring>   since;
 
@@ -1356,7 +1370,7 @@ namespace EventLogPaneTests
         TEST_METHOD (TheSoundLogsFilterLeavesOutASource)
         {
             DxuiListView  list;
-            IoLogPane     pane (&list, [] (const std::string &) {}, false);
+            IoLogPane     pane (&list, [] (const DebugLogRequest &) {}, false);
             IoLogDelta    delta;
 
 
@@ -1381,7 +1395,7 @@ namespace EventLogPaneTests
         TEST_METHOD (TheSoundLogFiltersAndLabelsTheSpeechChip)
         {
             DxuiListView  list;
-            IoLogPane     pane (&list, [] (const std::string &) {}, false);
+            IoLogPane     pane (&list, [] (const DebugLogRequest &) {}, false);
             IoLogDelta    delta;
 
 
@@ -1412,8 +1426,8 @@ namespace EventLogPaneTests
         TEST_METHOD (SavedOptionsWithoutTheSpeechChipLeaveItShown)
         {
             DxuiListView  list;
-            IoLogPane     pane (&list, [] (const std::string &) {}, false);
-            IoLogPane     read (&list, [] (const std::string &) {}, false);
+            IoLogPane     pane (&list, [] (const DebugLogRequest &) {}, false);
+            IoLogPane     read (&list, [] (const DebugLogRequest &) {}, false);
             std::string   text;
             size_t        at = 0;
 
@@ -1435,8 +1449,8 @@ namespace EventLogPaneTests
         TEST_METHOD (TheSoundLogsOptionsRoundTrip)
         {
             DxuiListView  list;
-            IoLogPane     pane (&list, [] (const std::string &) {}, false);
-            IoLogPane     read (&list, [] (const std::string &) {}, false);
+            IoLogPane     pane (&list, [] (const DebugLogRequest &) {}, false);
+            IoLogPane     read (&list, [] (const DebugLogRequest &) {}, false);
 
 
 

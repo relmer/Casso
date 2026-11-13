@@ -95,7 +95,7 @@ class EventLogPane : public IEventLogFilter
 public:
     using Row       = DebugLogRow<T>;
     using Cells     = std::vector<DxuiListView::Cell>;
-    using RequestFn = std::function<void (const std::string & request)>;
+    using RequestFn = std::function<void (const DebugLogRequest & request)>;
 
     //  A column's heading, alignment, starting width (0 to take the room
     //  left, kFit to fit the text NoteFitTexts notes for it), whether it is
@@ -179,7 +179,7 @@ public:
         m_requestedAt      = UINT64_MAX;
         m_isEarlierPending = false;
 
-        m_request (isShown ? "open" : "close");
+        m_request ({ isShown ? DebugLogRequest::Kind::Open : DebugLogRequest::Kind::Close });
     }
 
     bool  IsShown () const { return m_isShown; }
@@ -645,7 +645,7 @@ public:
         {
             m_requestedAt      = m_rows.GetHeldFrom();
             m_isEarlierPending = true;
-            m_request ("earlier");
+            m_request ({ DebugLogRequest::Kind::Earlier });
         }
     }
 
@@ -1077,7 +1077,7 @@ private:
         dropped       = m_rows.TrimFront (kRetainedRows);
         m_requestedAt = UINT64_MAX;
 
-        m_request (std::format ("from {}", m_rows.GetHeldFrom()));
+        m_request ({ DebugLogRequest::Kind::DropBefore, m_rows.GetHeldFrom() });
 
         return dropped;
     }

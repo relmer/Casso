@@ -41,23 +41,34 @@ public:
     //  The user paused or resumed the machine, told to an attached debugger.
     virtual void     NotifyDebugPauseChanged  (bool paused)                                     = 0;
 
-    //  The debugger window's requests: open and close the channel, pause a run,
-    //  and move a pane. `view` is "code" or "memory"; an empty address means
-    //  the code pane follows the PC again.
+    //  The debugger window's requests: open and close the channel, and pause
+    //  a run.
     virtual void     OpenDebugChannel         ()                                                = 0;
     virtual void     CloseDebugChannel        (bool isDetach)                                   = 0;
     virtual void     PauseDebugRun            ()                                                = 0;
 
     //  Runs the debugger window's queued actions, each directly.
     virtual void     RunDebugActions          ()                                                = 0;
-    virtual void     SetDebugView             (const std::string & view, std::optional<Word> address) = 0;
+
+    //  The code views, 0 to 3: which one follows the PC; one closed; one
+    //  opened with an address on its top line; the lines one fits and has;
+    //  and one brought to an address, or to the PC with none. A view that
+    //  isn't open is opened there.
+    virtual void     SetDebugFollowView       (int view)                                        = 0;
+    virtual void     CloseDebugCodeView       (int view)                                        = 0;
+    virtual void     OpenDebugCodeViewAt      (int view, Word top)                              = 0;
+    virtual void     SetDebugCodeLines        (int lines, int view)                             = 0;
+    virtual void     SetDebugCodeShown        (int lines, int view)                             = 0;
+    virtual void     ShowDebugCode            (int view, std::optional<Word> address)           = 0;
+
+    //  A memory window, 1 to 4, at an address; with none, windows 2 to 4 close.
+    virtual void     SetDebugMemoryWindow     (int id, std::optional<Word> address)             = 0;
 
     //  Where the trace pane reads from: an entry, or the newest when empty.
     virtual void     SetDebugTraceView        (std::optional<uint64_t> first)                   = 0;
 
-    //  An event log pane's request: "open", "close", or "earlier" for the
-    //  rows before its oldest.
-    virtual void     SetDebugEventLog         (DebugLogKind kind, const std::string & request)  { (void) kind; (void) request; }
+    //  An event log pane's request.
+    virtual void     SetDebugEventLog         (DebugLogKind kind, const DebugLogRequest & request) { (void) kind; (void) request; }
 
     //  Whether the heat map pane is shown, which is whether the machine
     //  records its accesses.
@@ -70,9 +81,9 @@ public:
     //  snapshot includes the Applesoft program.
     virtual void     SetDebugBasicShown       (bool isVisible)                                  { (void) isVisible; }
 
-    //  The heat map pane's options, in HeatMapOptions' text, and its Reset,
-    //  which zeroes what the map has counted.
-    virtual void     SetDebugHeatMapOptions   (const std::string & text)                        { (void) text; }
+    //  The heat map pane's options, and its Reset, which zeroes what the
+    //  map has counted.
+    virtual void     SetDebugHeatMapOptions   (const HeatMapOptions & options)                  { (void) options; }
     virtual void     ResetDebugHeatMap        ()                                                { }
 
     //  The heat map cell the mouse is over, none when it is over none; and a
@@ -118,7 +129,8 @@ public:
 //
 //  Turns a queued command into calls on its targets, on the CPU thread.
 //
-//  This is the whole of the payload grammar: which id means which drive,
+//  A debugger request is queued as the call to make, so it has no payload.
+//  For the rest, this is the whole of the payload grammar: which id means which drive,
 //  what "50,60,70" is a triple of, where the path starts in a change
 //  resolution. A payload that does not parse asks for nothing, which is what
 //  it did when this was a switch statement inside the shell -- the difference
@@ -132,37 +144,12 @@ public:
 
     static void  Dispatch (const EmulatorCommand & cmd, const CpuCommandTargets & targets);
 
-    //  A code view's name: `base` for the first, `base` with 2 to 4 after it
-    //  for the others; index is 0 to 3.
-    static bool  TryGetCodeView (const std::string & view, const std::string & base, int & index);
-
     //  Whether the command is a host input the input journal records, and
     //  the kind, drive or flags, and path to record for it.
     static bool  TryGetJournalInput (const EmulatorCommand & cmd, InputRecord & input);
 
-    //  "on" or "off" after "heatmap": whether the heat map pane is shown.
-    static bool  TryGetHeatMapShown (const std::string & where, bool & shown);
-    static bool  TryGetSoundMute    (const std::string & where, int & channel, bool & isMuted);
-
-    //  "options <text>" after "heatmap": the options' text.
-    static bool  TryGetHeatMapOptions (const std::string & where, std::string & text);
-
-    //  "hover <hex>" or "hover none" after "heatmap": the cell under the mouse.
-    static bool  TryGetHeatMapHover (const std::string & where, std::optional<Word> & address);
-
-    //  "ignore " and HeatMapRangeSets' span words after "heatmap": the spans
-    //  whose reads before written are left out.
-    static bool  TryGetHeatMapIgnore (const std::string & where, std::vector<std::pair<Word, Word>> & spans);
-    static void  SetHeatMapIgnore    (const std::string & where, IDebugCommandTarget & target);
-
-    //  The payload of an IDM_DEBUG_REVERSE command, and back.
-    static std::string  FormatReversePayload   (ReverseCommand command, uint64_t argument);
-    static bool         TryParseReversePayload (const std::string & payload, ReverseCommand & command, uint64_t & argument);
-    static bool         IsSeek                 (ReverseCommand command);
-
-    //  The payload of an IDM_DEBUG_REVERSE_OPTIONS command, and back.
-    static std::string  FormatReverseOptionsPayload   (bool isRecording, int budgetMb);
-    static bool         TryParseReverseOptionsPayload (const std::string & payload, bool & isRecording, int & budgetMb);
+    //  The reverse commands with an argument.
+    static bool  IsSeek (ReverseCommand command);
 
     //  A file path as a command payload, in UTF-8, and back.
     static std::string            PathToPayload (const std::filesystem::path & path);
@@ -178,9 +165,6 @@ private:
     static void  DispatchDriveVolumes       (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
     static void  DispatchDrivePan           (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
     static void  DispatchDriveTest          (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
-    static void  DispatchDebugView          (const std::string & payload, IDebugCommandTarget & target);
-    static void  DispatchReverse            (const std::string & payload, IDebugCommandTarget & target);
-    static void  DispatchReverseOptions     (const std::string & payload, IDebugCommandTarget & target);
     static void  DispatchSerialConnect      (const std::string & payload, ICpuMachineCommands & machine);
     static void  DispatchParallelPrinter    (const std::string & payload, ICpuMachineCommands & machine);
     static void  DispatchNetworkConfigure   (const std::string & payload, ICpuMachineCommands & machine);

@@ -26,8 +26,19 @@ enum class DebugLogKind
     Network,
 };
 
-//  Each log's name in the requests its pane sends the machine's thread
-//  (`disklog earlier`), and back.
+//  An event log pane's request for the machine's thread: its log opened or
+//  closed, the rows before its oldest, or the rows before `from` dropped.
+struct DebugLogRequest
+{
+    enum class Kind { Open, Close, Earlier, DropBefore };
+
+    Kind      kind = Kind::Open;
+    uint64_t  from = 0;
+
+    bool  operator== (const DebugLogRequest &) const = default;
+};
+
+//  Each log's name in the settings and in the LOG command, and back.
 inline constexpr std::pair<DebugLogKind, const char *>  s_kDebugLogNames[] =
 {
     { DebugLogKind::Disk,  "disklog"  },

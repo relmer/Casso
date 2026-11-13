@@ -232,17 +232,23 @@ public:
     bool    IsDebuggerMessage  (const MSG & msg) const;
 
     // The window's requests, carried out on the CPU thread (ICpuCommandTarget).
-    void    OpenDebugChannel   () override;
-    void    CloseDebugChannel  (bool isDetach) override;
-    void    PauseDebugRun      () override;
-    void    SetDebugView       (const std::string & view, std::optional<Word> address) override;
-    void    SetDebugTraceView  (std::optional<uint64_t> first) override;
-    void    SetDebugEventLog   (DebugLogKind kind, const std::string & request) override;
-    void    GoToDebugMemory    (int window, const std::string & text) override;
-    void    SelectDebugCode    (int view, Word address) override;
-    void    ScrollDebugCode    (int lines, int view) override;
-    void    HoldDebugCode      (bool isHeld, int view) override;
-    void    RunDebugActions    () override;
+    void    OpenDebugChannel     () override;
+    void    CloseDebugChannel    (bool isDetach) override;
+    void    PauseDebugRun        () override;
+    void    SetDebugFollowView   (int view) override;
+    void    CloseDebugCodeView   (int view) override;
+    void    OpenDebugCodeViewAt  (int view, Word top) override;
+    void    SetDebugCodeLines    (int lines, int view) override;
+    void    SetDebugCodeShown    (int lines, int view) override;
+    void    ShowDebugCode        (int view, std::optional<Word> address) override;
+    void    SetDebugMemoryWindow (int id, std::optional<Word> address) override;
+    void    SetDebugTraceView    (std::optional<uint64_t> first) override;
+    void    SetDebugEventLog     (DebugLogKind kind, const DebugLogRequest & request) override;
+    void    GoToDebugMemory      (int window, const std::string & text) override;
+    void    SelectDebugCode      (int view, Word address) override;
+    void    ScrollDebugCode      (int lines, int view) override;
+    void    HoldDebugCode        (bool isHeld, int view) override;
+    void    RunDebugActions      () override;
 
     // Whether the heat map pane is shown, and so recording.
     void  SetDebugHeatMapShown     (bool shown) override;
@@ -250,7 +256,7 @@ public:
     void  SetDebugTraceShown       (bool shown) override;
     void  SetDebugSoundMuted       (int channel, bool isMuted) override;
     void  SetDebugBasicShown       (bool isVisible) override;
-    void  SetDebugHeatMapOptions   (const std::string & text) override;
+    void  SetDebugHeatMapOptions   (const HeatMapOptions & options) override;
     void  ResetDebugHeatMap        () override;
     void  SetDebugHeatMapHover     (std::optional<Word> address) override;
     void  RunDebugHeatMapAccess    (const HeatAccessRequest & request) override;
@@ -280,10 +286,9 @@ public:
     void                SetDebuggerCodeTop          (Word top, int view) override;
     void                SetDebuggerFollowView       (int view) override;
     void                CloseDebuggerCodeView       (int view) override;
-    static std::string  GetCodeViewSuffix           (int view);
     void                SetDebuggerMemoryWindow     (int id, std::optional<Word> address) override;
     void                SetDebuggerTraceTop         (std::optional<uint64_t> first) override;
-    void                SendDebuggerEventLogRequest (DebugLogKind kind, const std::string & request) override;
+    void                SendDebuggerEventLogRequest (DebugLogKind kind, const DebugLogRequest & request) override;
     void                TakeDebuggerEventLogs       (DebugLogDeltas & deltas) override;
     std::string         GetDebuggerEventLogOptions  (DebugLogKind kind) override { return m_prefs.GetDebuggerEventLogOptions (kind); }
     void                SetDebuggerEventLogOptions  (DebugLogKind kind, const std::string & text) override { m_prefs.SetDebuggerEventLogOptions (kind, text); }
@@ -338,13 +343,15 @@ public:
     std::string                           GetDebuggerDisassemblyOptions    () override { return m_prefs.GetDebuggerDisassemblyOptions(); }
     void                                  SetDebuggerDisassemblyOptions    (const std::string & text) override { m_prefs.SetDebuggerDisassemblyOptions (text); }
     std::string                           GetDebuggerHeatMapOptions        () override { return m_prefs.GetDebuggerHeatMapOptions(); }
-    void                                  SetDebuggerHeatMapOptions        (const std::string & text) override { m_prefs.SetDebuggerHeatMapOptions (text); }
+    void                                  SetDebuggerHeatMapOptions        (const HeatMapOptions & options) override { m_prefs.SetDebuggerHeatMapOptions (options); }
     std::string                           GetDebuggerDiskDrives            () override { return m_prefs.GetDebuggerDiskDrives(); }
     void                                  SetDebuggerDiskDrives            (const std::string & text) override { m_prefs.SetDebuggerDiskDrives (text); }
     std::string                           GetDebuggerProfilerPeriod        () override { return m_prefs.GetDebuggerProfilerPeriod(); }
     void                                  SetDebuggerProfilerPeriod        (const std::string & text) override { m_prefs.SetDebuggerProfilerPeriod (text); }
     void                                  ResetDebuggerHeatMap             () override;
-    void                                  SendDebuggerHeatMapRequest       (const std::string & words) override;
+    void                                  SetDebuggerHeatMapHover          (std::optional<Word> address) override;
+    void                                  RunDebuggerHeatMapAccess         (const HeatAccessRequest & request) override;
+    void                                  SetDebuggerHeatMapIgnore         (const std::vector<std::pair<Word, Word>> & spans) override;
     std::string                           GetDebuggerHeatMapRanges         () override { return m_prefs.GetDebuggerHeatMapRanges(); }
     void                                  SetDebuggerHeatMapRanges         (const std::string & text) override { m_prefs.SetDebuggerHeatMapRanges (text); }
     std::string                           GetDebuggerOpenViews             () override { return m_prefs.GetDebuggerOpenViews(); }

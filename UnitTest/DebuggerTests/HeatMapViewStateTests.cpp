@@ -214,21 +214,5 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("STA $0400"), snapshot.heatMap.hover->writer.instruction);
             Assert::IsFalse  (snapshot.heatMap.hover->reader.has, L"nothing read it");
         }
-
-
-
-        TEST_METHOD (TheViewMessageReadsOnAndOff)
-        {
-            bool  shown = false;
-
-
-
-            Assert::IsTrue  (CpuCommandDispatcher::TryGetHeatMapShown ("on",  shown));
-            Assert::IsTrue  (shown);
-            Assert::IsTrue  (CpuCommandDispatcher::TryGetHeatMapShown ("off", shown));
-            Assert::IsFalse (shown);
-            Assert::IsFalse (CpuCommandDispatcher::TryGetHeatMapShown ("",    shown));
-            Assert::IsFalse (CpuCommandDispatcher::TryGetHeatMapShown ("ON1", shown));
-        }
     };
 }

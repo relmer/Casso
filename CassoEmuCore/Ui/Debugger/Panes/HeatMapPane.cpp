@@ -287,7 +287,7 @@ void HeatMapPane::SaveOptions (const HeatMapOptions & options)
 
     if (windowHost != nullptr)
     {
-        windowHost->SetDebuggerHeatMapOptions (options.ToText());
+        windowHost->SetDebuggerHeatMapOptions (options);
     }
 }
 
@@ -312,7 +312,7 @@ void HeatMapPane::SendHover (std::optional<Word> address)
 
     if (windowHost != nullptr)
     {
-        windowHost->SendDebuggerHeatMapRequest (address.has_value() ? std::format ("hover {:04X}", *address) : std::string ("hover none"));
+        windowHost->SetDebuggerHeatMapHover (address);
     }
 }
 
@@ -549,7 +549,6 @@ void HeatMapPane::SendIgnore()
 {
     IDebuggerWindowHost                 * windowHost = m_host.GetWindowHost();
     std::vector<std::pair<Word, Word>>    spans;
-    std::string                           words;
 
 
 
@@ -558,15 +557,14 @@ void HeatMapPane::SendIgnore()
         spans.emplace_back (span.first, span.last);
     }
 
-    words = HeatMapRangeSets::FormatSpanWords (spans);
-
-    if (windowHost == nullptr || words == m_ignoreWords)
+    if (windowHost == nullptr || (m_isIgnoreSent && spans == m_ignoreSpans))
     {
         return;
     }
 
-    m_ignoreWords = words;
-    windowHost->SendDebuggerHeatMapRequest ("ignore " + words);
+    m_ignoreSpans  = spans;
+    m_isIgnoreSent = true;
+    windowHost->SetDebuggerHeatMapIgnore (spans);
 }
 
 
@@ -1096,7 +1094,7 @@ void HeatMapPane::RequestAccess (Word address, HeatMapView::PickAction action, H
     request.bank     = bank;
     request.address  = address;
 
-    windowHost->SendDebuggerHeatMapRequest (HeatAccessJump::FormatWords (request));
+    windowHost->RunDebuggerHeatMapAccess (request);
 }
 
 

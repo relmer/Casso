@@ -95,7 +95,7 @@ namespace CallHistoryShellTests
             shell->GetDebugger().PrepareFramebuffers();
             shell->GetDebugger().GetCallReplayer().SetWorkQueue (&queue);
 
-            Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (true, kBudgetMb));
+            Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (true, kBudgetMb); });
 
             RunTo (kOpenAt);
 
@@ -154,6 +154,20 @@ namespace CallHistoryShellTests
 
 
         //  A command as the CPU thread hands one to the shell.
+        void Dispatch (WORD id, DebugCall call)
+        {
+            EmulatorCommand  command;
+
+
+
+            command.id   = id;
+            command.call = std::move (call);
+
+            shell->DispatchCpuCommand (command);
+        }
+
+
+
         void Dispatch (WORD id, const std::string & payload)
         {
             EmulatorCommand  command;
@@ -318,7 +332,7 @@ namespace CallHistoryShellTests
 
             generation = rig.GetGeneration();
 
-            rig.Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::Seek, landing));
+            rig.Dispatch (IDM_DEBUG_REVERSE, [=] (IDebugCommandTarget & debug) { debug.RunReverseCommand (ReverseCommand::Seek, landing); });
 
             Assert::AreEqual    (landing, rig.shell->GetMachine().GetPosition(), L"the seek lands at the position given");
             Assert::AreNotEqual (generation, rig.GetGeneration(),                L"and the record starts again there");
@@ -347,13 +361,13 @@ namespace CallHistoryShellTests
 
 
             rig.Rebuild();
-            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (false, ShellRig::kBudgetMb));
+            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (false, ShellRig::kBudgetMb); });
 
             position   = rig.shell->GetMachine().GetPosition();
             generation = rig.GetGeneration();
             before     = rig.GetRecord();
 
-            rig.Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::Seek, ShellRig::kOpenAt / 2));
+            rig.Dispatch (IDM_DEBUG_REVERSE, [=] (IDebugCommandTarget & debug) { debug.RunReverseCommand (ReverseCommand::Seek, ShellRig::kOpenAt / 2); });
 
             Assert::AreEqual (position,   rig.shell->GetMachine().GetPosition(), L"the machine did not move");
             Assert::AreEqual (generation, rig.GetGeneration(),                  L"and the record did not start again");
@@ -380,12 +394,12 @@ namespace CallHistoryShellTests
             rig.Rebuild();
             rig.RunTo (end);
 
-            rig.Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::Seek, landing));
+            rig.Dispatch (IDM_DEBUG_REVERSE, [=] (IDebugCommandTarget & debug) { debug.RunReverseCommand (ReverseCommand::Seek, landing); });
             rig.Rebuild();
 
             Assert::AreEqual (landing, rig.shell->GetMachine().GetPosition(), L"behind live, where the seek landed");
 
-            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (false, ShellRig::kBudgetMb));
+            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (false, ShellRig::kBudgetMb); });
             rig.shell->GetDebugger().ServiceDebugger();
 
             bottom = rig.debugger->GetSession().GetCallRecordBottom();
@@ -414,12 +428,12 @@ namespace CallHistoryShellTests
 
 
             rig.RunTo (ShellRig::kOpenAt * 2);
-            rig.Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::Seek, landing));
+            rig.Dispatch (IDM_DEBUG_REVERSE, [=] (IDebugCommandTarget & debug) { debug.RunReverseCommand (ReverseCommand::Seek, landing); });
             rig.shell->GetDebugger().UpdateReplayCaption();
 
             Assert::IsFalse (rig.shell->GetDebugger().GetReplayCaption().empty(), L"behind live, the caption notes the replay");
 
-            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (false, ShellRig::kBudgetMb));
+            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (false, ShellRig::kBudgetMb); });
 
             Assert::IsTrue (rig.shell->GetDebugger().GetReplayCaption().empty(), L"with history off, the note is gone");
         }

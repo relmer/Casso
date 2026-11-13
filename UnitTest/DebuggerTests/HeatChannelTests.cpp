@@ -405,7 +405,6 @@ namespace DebuggerTests
             HeatMapRangeSet                      set     = HeatMapRangeSets::MakeSet ("Boot probes");
             std::shared_ptr<HeatMapSymbols>      symbols = std::make_shared<HeatMapSymbols>();
             std::vector<std::pair<Word, Word>>   spans;
-            std::vector<std::pair<Word, Word>>   parsed;
             std::string                          words;
 
 
@@ -426,14 +425,8 @@ namespace DebuggerTests
             words = HeatMapRangeSets::FormatSpanWords (spans);
 
             Assert::AreEqual (std::string ("0000-00FF 03F2-03F4"), words);
-            Assert::IsTrue   (CpuCommandDispatcher::TryGetHeatMapIgnore ("ignore " + words, parsed));
-            Assert::IsTrue   (parsed == spans);
 
             Assert::AreEqual (std::string ("none"), HeatMapRangeSets::FormatSpanWords ({}));
-            Assert::IsTrue   (CpuCommandDispatcher::TryGetHeatMapIgnore ("ignore none", parsed));
-            Assert::IsTrue   (parsed.empty());
-            Assert::IsFalse  (CpuCommandDispatcher::TryGetHeatMapIgnore ("ignore 0400-03FF", parsed), L"first after last");
-            Assert::IsFalse  (CpuCommandDispatcher::TryGetHeatMapIgnore ("ignore $0400-$0500", parsed));
             Assert::IsTrue   (sets.GetSpans ("No such set", *symbols).empty());
         }
 

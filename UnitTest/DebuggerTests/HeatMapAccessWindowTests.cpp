@@ -47,8 +47,15 @@ namespace HeatMapAccessWindowTests
         void  SetDebuggerPlacement    (const RECT &)                             override {}
 
         std::string  GetDebuggerHeatMapOptions()                            override { return heatMapOptions; }
-        void         SetDebuggerHeatMapOptions  (const std::string & text)  override { heatMapOptions = text; }
-        void         SendDebuggerHeatMapRequest (const std::string & words) override { requests.push_back (words); }
+        void         SetDebuggerHeatMapOptions  (const HeatMapOptions & options) override { heatMapOptions = options.ToText(); }
+
+        //  Each request is written down as a line, for the tests to compare.
+        void         SetDebuggerHeatMapHover    (std::optional<Word> address) override
+        {
+            requests.push_back (address.has_value() ? std::format ("hover {:04X}", *address) : std::string ("hover none"));
+        }
+
+        void         RunDebuggerHeatMapAccess   (const HeatAccessRequest & request) override { requests.push_back (HeatAccessJump::FormatWords (request)); }
 
         void  RunDebuggerCommandInMode (const std::string &, CommandMode) override {}
 

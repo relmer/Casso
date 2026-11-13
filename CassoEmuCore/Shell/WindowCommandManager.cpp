@@ -514,7 +514,8 @@ void WindowCommandManager::OnMachineCommand (int id)
 
             // An attached debugger hears about it on the CPU thread, where the
             // session and any run in progress live.
-            m_shell.m_cpuManager.PostCommand (IDM_DEBUG_PAUSE_CHANGED, m_shell.m_cpuManager.IsPaused() ? "1" : "0");
+            m_shell.m_cpuManager.PostCommand (IDM_DEBUG_PAUSE_CHANGED,
+                                              [isPaused = m_shell.m_cpuManager.IsPaused()] (IDebugCommandTarget & target) { target.NotifyDebugPauseChanged (isPaused); });
 
             m_shell.m_window->UpdateWindowTitle();
             break;

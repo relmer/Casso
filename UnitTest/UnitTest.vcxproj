@@ -1141,8 +1141,6 @@
     <ClCompile Include="EmuTests\ReversePowerCycleReplayTests.cpp" />
     <ClCompile Include="EmuTests\ReverseHostTests.cpp" /><ClCompile Include="EmuTests\DivergenceGateTests.cpp" /><ClCompile Include="EmuTests\HeldInputReadTests.cpp" /><ClCompile Include="DebuggerTests\HistoryGuardTests.cpp" /><ClCompile Include="EmuTests\ReplayStopTests.cpp" /><ClCompile Include="EmuTests\HistoryTraceTests.cpp" />
     <ClCompile Include="EmuTests\ReverseDebuggerEditTests.cpp" />
-    <ClCompile Include="EmuTests\ReverseCommandPayloadTests.cpp" />
-    <ClCompile Include="EmuTests\ReverseOptionsPayloadTests.cpp" />
     <ClCompile Include="EmuTests\ReverseReplayTests.cpp" />
     <ClCompile Include="EmuTests\ReverseSerialTests.cpp" />
     <ClCompile Include="EmuTests\SharedCheckpointTests.cpp" />

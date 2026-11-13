@@ -49,7 +49,7 @@ namespace HeatMapPaneWindowTests
         void  SetDebuggerHeatMapShown (bool shown) override { recording.push_back (shown); }
 
         std::string  GetDebuggerHeatMapOptions()                           override { return heatMapOptions; }
-        void         SetDebuggerHeatMapOptions (const std::string & text)  override { heatMapOptions = text; optionsSent.push_back (text); }
+        void         SetDebuggerHeatMapOptions (const HeatMapOptions & options) override { heatMapOptions = options.ToText(); optionsSent.push_back (heatMapOptions); }
         void         ResetDebuggerHeatMap      ()                          override { resets++; }
 
         void  RunDebuggerCommandInMode (const std::string &, CommandMode) override {}

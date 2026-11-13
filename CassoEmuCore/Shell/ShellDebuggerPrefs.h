@@ -60,7 +60,7 @@ public:
     std::string     GetDebuggerDisassemblyOptions    ();
     void            SetDebuggerDisassemblyOptions    (const std::string & text);
     std::string     GetDebuggerHeatMapOptions        ();
-    void            SetDebuggerHeatMapOptions        (const std::string & text);
+    void            SetDebuggerHeatMapOptions        (const HeatMapOptions & options);
     std::string     GetDebuggerDiskDrives            ();
     void            SetDebuggerDiskDrives            (const std::string & text);
     std::string     GetDebuggerProfilerPeriod        ();

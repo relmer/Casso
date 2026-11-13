@@ -638,7 +638,7 @@ void DiskLogController::CreateControls()
     m_error = parent.CreateChild<DxuiLabel>();
 
 
-    m_model = std::make_unique<DiskLogPane> (m_list, [this] (const std::string & request)
+    m_model = std::make_unique<DiskLogPane> (m_list, [this] (const DebugLogRequest & request)
     {
         if (GetWindowHost() != nullptr)
         {
@@ -897,7 +897,7 @@ void InputLogController::CreateControls()
 {
     CreateListAndBar();
 
-    m_model = std::make_unique<InputLogPane> (m_list, [this] (const std::string & request)
+    m_model = std::make_unique<InputLogPane> (m_list, [this] (const DebugLogRequest & request)
     {
         if (GetWindowHost() != nullptr)
         {
@@ -1139,7 +1139,7 @@ void IoLogController::CreateControls()
 {
     CreateListAndBar();
 
-    m_model = std::make_unique<IoLogPane> (m_list, [this] (const std::string & request)
+    m_model = std::make_unique<IoLogPane> (m_list, [this] (const DebugLogRequest & request)
     {
         if (GetWindowHost() != nullptr)
         {

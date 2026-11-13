@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Debugger/Events/DebugLogDelta.h"
+#include "Debugger/HeatAccessJump.h"
+#include "Debugger/HeatMapOptions.h"
 #include "Debugger/Project/DebugProject.h"
 #include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Debugger/Reverse/ReplayControl.h"
@@ -61,11 +63,10 @@ public:
     //  Where the trace pane reads from: an entry, or the newest when empty.
     virtual void  SetDebuggerTraceTop     (std::optional<uint64_t> first) = 0;
 
-    //  An event log pane's request for the machine: "open", "close", or
-    //  "earlier" for the rows before its oldest. And every delta for the
+    //  An event log pane's request for the machine. And every delta for the
     //  panes made since the last call. A host with no machine, as a test's
     //  is, sends nothing and has none.
-    virtual void  SendDebuggerEventLogRequest (DebugLogKind kind, const std::string & request) { (void) kind; (void) request; }
+    virtual void  SendDebuggerEventLogRequest (DebugLogKind kind, const DebugLogRequest & request) { (void) kind; (void) request; }
     virtual void  TakeDebuggerEventLogs       (DebugLogDeltas & deltas)                         { (void) deltas; }
 
     //  An event log pane's options text, saved the same way. A host with no
@@ -216,7 +217,7 @@ public:
     //  passed on to the machine; and its Reset, which zeroes what the machine
     //  counted. A host with no machine, as a test's is, keeps nothing.
     virtual std::string  GetDebuggerHeatMapOptions ()                      { return {}; }
-    virtual void         SetDebuggerHeatMapOptions (const std::string &)   {}
+    virtual void         SetDebuggerHeatMapOptions (const HeatMapOptions &) {}
 
     //  The Disk II panel's choice of drives, saved as the other options are.
     virtual std::string  GetDebuggerDiskDrives ()                          { return {}; }
@@ -227,10 +228,12 @@ public:
     virtual std::string  GetDebuggerProfilerPeriod ()                      { return {}; }
     virtual void         SetDebuggerProfilerPeriod (const std::string &)   {}
 
-    //  A heat map request for the machine, in the words after "heatmap" of
-    //  its command: the cell the mouse is over ("hover 2000", "hover none"),
-    //  or an access to show or go back to (HeatAccessJump::FormatWords).
-    virtual void         SendDebuggerHeatMapRequest (const std::string & words) { (void) words; }
+    //  The heat map's requests for the machine: the cell the mouse is over,
+    //  or none; an access to list or go back to; and the spans whose reads
+    //  before written the map omits.
+    virtual void         SetDebuggerHeatMapHover    (std::optional<Word> address)                        { (void) address; }
+    virtual void         RunDebuggerHeatMapAccess   (const HeatAccessRequest & request)                  { (void) request; }
+    virtual void         SetDebuggerHeatMapIgnore   (const std::vector<std::pair<Word, Word>> & spans)   { (void) spans; }
 
     //  The heat map's sets of ranges and the set it shows, in HeatMapRangeSets'
     //  text, kept the same way. Empty until the ranges pane first opens, so the
