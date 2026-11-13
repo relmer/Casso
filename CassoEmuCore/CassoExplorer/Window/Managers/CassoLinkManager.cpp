@@ -2220,6 +2220,7 @@ void CassoLinkManager::HandleConnectionChanged()
     messages = m_context.app.links->RunCompletions();
     m_context.app.links->ProbeDrives();
     SaveConnectionState();
+    OpenFullSendOnStart();
 
     if (m_context.app.host != nullptr)
     {
@@ -2238,6 +2239,167 @@ void CassoLinkManager::HandleConnectionChanged()
     if (!text.empty())
     {
         m_context.window.ShowMessage (text, MB_ICONERROR);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::FillFullSendView
+//
+//  The view of the connection with a session in progress, or with none, of
+//  one whose session ended. False, and the view as it was, when no
+//  connection has either.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkManager::FillFullSendView (FullSendPanel::View & ioView)
+{
+    bool  found   = false;
+    bool  running = false;
+
+
+
+    if (m_context.app.links == nullptr)
+    {
+        return false;
+    }
+
+    for (const LinkTreeEntry & entry : m_context.app.links->BuildTreeEntries())
+    {
+        CassoLinkSession  * session = m_context.app.links->GetSession (TextEncoding::WideToNarrow (entry.name));
+        FullSendSnapshot    snapshot;
+
+        if (session == nullptr || running)
+        {
+            continue;
+        }
+
+        snapshot = session->GetFullSendStatus().GetSnapshot();
+
+        if (snapshot.activity == FullSendActivity::None)
+        {
+            continue;
+        }
+
+        running = FullSendDialog::IsRunning (snapshot);
+
+        if (running || !found)
+        {
+            ioView.connection = entry.name;
+            ioView.snapshot   = std::move (snapshot);
+            found             = true;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::OpenFullSendOnStart
+//
+//  The Full Send window opens once for each session, in the first window
+//  whose connections change after it starts, without taking the keyboard
+//  focus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::OpenFullSendOnStart()
+{
+    static bool          s_opened = false;
+    FullSendPanel::View  view;
+    bool                 running  = FillFullSendView (view) && FullSendDialog::IsRunning (view.snapshot);
+
+
+
+    if (!running)
+    {
+        s_opened         = m_fullSendOpened ? false : s_opened;
+        m_fullSendOpened = false;
+    }
+    else if (!s_opened)
+    {
+        s_opened         = true;
+        m_fullSendOpened = true;
+
+        ShowFullSendWindow (false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::ShowFullSendWindow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::ShowFullSendWindow (bool activate)
+{
+    if (m_fullSendWindow != nullptr && m_fullSendWindow->IsCreated())
+    {
+        m_fullSendWindow->ShowModelessDialog (IDCANCEL, activate);
+        return;
+    }
+
+    m_fullSendWindow = FullSendDialog::Open (m_context.window.GetHwnd(), m_context.theme, activate,
+                                             [this] (FullSendPanel::View & ioView) { return FillFullSendView (ioView); },
+                                             [this]() { EndFullSend(); },
+                                             [this]()
+    {
+        std::wstring  folder = m_context.prefs.fullSendFolder.empty() ? GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
+
+        m_context.addressBar.GoToLocation (Location::MakeHostFolder (folder));
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::EndFullSend
+//
+//  The session in the window is canceled after a confirmation, as Cancel
+//  ends it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::EndFullSend()
+{
+    FullSendPanel::View  view;
+    CassoLinkSession   * session = nullptr;
+    HWND                 owner   = (m_fullSendWindow != nullptr) ? m_fullSendWindow->GetHwnd() : m_context.window.GetHwnd();
+
+
+
+    if (!FillFullSendView (view) || !FullSendDialog::IsRunning (view.snapshot))
+    {
+        return;
+    }
+
+    if (DxuiMessageBox (owner, m_context.theme, L"End the Full Send session? A disk being read is not saved.", L"Full Send",
+                        MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"End session", L"Cancel" }) != IDOK)
+    {
+        return;
+    }
+
+    session = m_context.app.links->GetSession (TextEncoding::WideToNarrow (view.connection));
+
+    if (session != nullptr)
+    {
+        session->Cancel();
     }
 }
 

@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/FullSendDialog.h"
 #include "CassoExplorer/Model/Location.h"
 
 class FirewallMonitor;
@@ -103,11 +104,18 @@ public:
     uint32_t     GetAnnouncedChanges    () const { return m_announcedChanges; }
 
     void  HandleConnectionChanged ();
+
+    //  The Full Send window, opened or brought to the front. Without
+    //  activation the keyboard focus is where it was.
+    void  ShowFullSendWindow      (bool activate);
     void  HandleRunningChanged    ();
     bool  HandleListActionMouse   (const DxuiMouseEvent & ev);
 
 private:
     void  UpdateUnseenFiles    ();
+    void  OpenFullSendOnStart  ();
+    bool  FillFullSendView     (FullSendPanel::View & ioView);
+    void  EndFullSend          ();
     void  UpdateTransferTimer  ();
 
     static constexpr UINT  kTransferFrameMs = 150;
@@ -142,4 +150,9 @@ private:
 
     //  The last krunch's window, which stays open after the krunch ends.
     std::unique_ptr<KrunchMapDialog>  m_krunchMap;
+
+    //  The Full Send window, and whether it was opened for the session in
+    //  progress, so closing it during a session doesn't open it again.
+    std::unique_ptr<FullSendDialog>   m_fullSendWindow;
+    bool                              m_fullSendOpened = false;
 };

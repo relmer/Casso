@@ -740,6 +740,25 @@ For the spec, after the real //c works; not part of the current fixes.
   drive 2, is a second mechanism on the same IWM; a //e with a Disk II card
   would test the Disk II controller path.
 
+## Drive observations, 2026-11-13
+
+Hardware, not CassoLink faults, written down so a later failure isn't
+taken for a software one.
+
+- **Drive 2 failed mechanically.** During a sector read of a Wizardry II
+  scenario disk the owner reported the motor running slow and unevenly, and every
+  track returned NOT FOUND for all 16 sectors. An hour earlier the same
+  drive captured Wizardry I twice with every sector. The owner took the
+  drive out of service.
+- **Track 23 in drive 1, on two disks.** A Wizardry I scenario disk with saved characters
+  read clean on 34 tracks, each read twice with the same data, and on
+  track 23 had no address field for 12 or 13 of 16 sectors in six attempts.
+  The Full Send of Archon with a missing sector was missing it on track 23 too, in
+  the same drive, while three raw captures of Archon in that drive have
+  all of track 23. Two disks are not enough to separate the drive from the
+  disks. A third disk read in drive 1 with trouble on track 23 would point
+  at the drive.
+
 ## Probe method
 
 The probes are throwaway `TEST_METHOD`s in

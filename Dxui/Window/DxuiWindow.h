@@ -152,7 +152,7 @@ public:
     //  call did not block). Use for a live overlay whose backdrop must
     //  keep animating (e.g. Settings over the running emulator).
     //
-    void  ShowModelessDialog (int defaultButtonId);
+    void  ShowModelessDialog (int defaultButtonId, bool activate = true);
     void  EndDialog          (int result);
 
     //
