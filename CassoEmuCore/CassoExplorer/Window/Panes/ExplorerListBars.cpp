@@ -174,6 +174,9 @@ bool ExplorerListBars::FillCardBar()
     m_cardActions.clear();
     m_convertible.clear();
 
+    //  Files dropped on or from a card that Windows has moved since.
+    m_context.actions.GetA2retroNet().ResolveMoves();
+
     onCard = location.kind == Location::Kind::HostFolder && !root.empty() && m_context.actions.IsA2PicoCard (root) && location.path != m_cardBarClosed;
     atRoot = onCard && location.path == root;
 

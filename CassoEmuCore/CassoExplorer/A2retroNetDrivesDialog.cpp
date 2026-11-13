@@ -5,6 +5,93 @@
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
+#include "Seams/IShellIcons.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetDriveRow::Init
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void A2retroNetDriveRow::Init (int number, std::shared_ptr<const DxuiIconImage> icon, DxuiHwndSource * popupHost)
+{
+    m_icon = std::move (icon);
+
+    m_number.SetText      (std::to_wstring (number));
+    m_number.SetTextRole  (DxuiTextRole::Muted);
+    m_number.SetTextAlign (DxuiTextHAlign::Right, DxuiTextVAlign::Center);
+
+    m_image.SetPopupHost (popupHost);
+
+    m_status.SetTextRole  (DxuiTextRole::Muted);
+    m_status.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+
+    Adopt (m_number);
+    Adopt (m_image);
+    Adopt (m_status);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetDriveRow::Layout
+//
+//  The number, the icon and the dropdown on a line, and the status below
+//  the dropdown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void A2retroNetDriveRow::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    int  field   = scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  gap     = scaler.ToPx (kGapDip);
+    int  icon    = scaler.ToPx (kIconDip);
+    int  number  = boundsDip.left + scaler.ToPx (kNumberDip);
+    int  boxLeft = number + gap + icon + gap;
+
+
+
+    SetBounds (boundsDip);
+
+    m_iconRect = RECT { number + gap, boundsDip.top + (field - icon) / 2, number + gap + icon, boundsDip.top + (field + icon) / 2 };
+
+    m_number.Layout (RECT { boundsDip.left, boundsDip.top, number, boundsDip.top + field }, scaler);
+    m_image.Layout  (RECT { boxLeft, boundsDip.top, boundsDip.right, boundsDip.top + field }, scaler);
+    m_status.Layout (RECT { boxLeft, boundsDip.top + field, boundsDip.right, boundsDip.bottom }, scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetDriveRow::Paint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void A2retroNetDriveRow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_icon && !m_icon->bgraPremul.empty())
+    {
+        hr = text.DrawIconBitmap (m_icon->bgraPremul.data(), m_icon->width, m_icon->height,
+                                  (float) m_iconRect.left, (float) m_iconRect.top, (float) (m_iconRect.right - m_iconRect.left), (float) (m_iconRect.bottom - m_iconRect.top));
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    DxuiPanel::Paint (painter, text, theme);
+}
 
 
 
@@ -20,18 +107,11 @@ void A2retroNetDrivesPanel::Init (const Parts & parts)
 {
     m_parts = parts;
 
-    for (const Row & row : parts.rows)
-    {
-        Adopt (*row.name);
-        Adopt (*row.image);
-        Adopt (*row.up);
-        Adopt (*row.status);
-    }
-
     Adopt (*parts.numberLabel);
     Adopt (*parts.number);
     Adopt (*parts.delayLabel);
     Adopt (*parts.delay);
+    Adopt (*parts.drives);
     Adopt (*parts.notice);
 }
 
@@ -62,22 +142,25 @@ void A2retroNetDrivesPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler 
 //
 //  A2retroNetDrivesPanel::OnMouse
 //
+//  The settings' dropdowns first, then the drives, whose stack takes a
+//  drag anywhere once a gripper is pressed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool A2retroNetDrivesPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    for (const Row & row : m_parts.rows)
+    bool  taken = false;
+
+
+
+    taken = (m_parts.drives->GetDraggedRow() < 0 && (m_parts.number->OnMouse (ev) || m_parts.delay->OnMouse (ev))) || m_parts.drives->OnMouse (ev);
+
+    if (taken && m_handled)
     {
-        for (IDxuiControl * control : std::initializer_list<IDxuiControl *> { row.image, row.up })
-        {
-            if (control->IsEnabled() && control->OnMouse (ev))
-            {
-                return true;
-            }
-        }
+        m_handled();
     }
 
-    return m_parts.number->OnMouse (ev) || m_parts.delay->OnMouse (ev);
+    return taken;
 }
 
 
@@ -112,51 +195,34 @@ bool A2retroNetDrivesPanel::TryMeasureHeightPx (IDxuiTextRenderer & text, const 
 //
 //  A2retroNetDrivesPanel::Arrange
 //
-//  Returns the height of the stack. Each drive is a line of its number, its
-//  dropdown and its button, with its status below the dropdown.
+//  Returns the height of the stack: the two settings on a line, the drives,
+//  and two lines for the notice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int A2retroNetDrivesPanel::Arrange (const RECT & bounds, const DxuiDpiScaler & scaler, bool place)
 {
-    int  nearGap  = scaler.ToPx (ExplorerMetrics::kStackGapDip);
-    int  gap      = scaler.ToPx (kSettingsGapDip);
-    int  field    = scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  line     = scaler.ToPx (ExplorerMetrics::kStackLabelHeightDip);
-    int  nameW    = scaler.ToPx (kNameWidthDip);
-    int  upW      = scaler.ToPx (kUpWidthDip);
-    int  boxLeft  = bounds.left + nameW;
-    int  boxRight = bounds.right - upW - nearGap;
-    int  half     = (bounds.right - bounds.left) / 2;
-    int  top      = bounds.top;
+    int  field  = scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  line   = scaler.ToPx (ExplorerMetrics::kStackLabelHeightDip);
+    int  gap    = scaler.ToPx (kSectionGapDip);
+    int  labelW = scaler.ToPx (kLabelWidthDip);
+    int  half   = (bounds.left + bounds.right) / 2;
+    int  drives = m_parts.drives->MeasureHeightPx (scaler);
+    int  top    = bounds.top;
 
 
-
-    for (const Row & row : m_parts.rows)
-    {
-        if (place)
-        {
-            row.name->Layout   (RECT { bounds.left, top, boxLeft, top + field }, scaler);
-            row.image->Layout  (RECT { boxLeft, top, boxRight, top + field }, scaler);
-            row.up->Layout     (RECT { bounds.right - upW, top, bounds.right, top + field }, scaler);
-            row.status->Layout (RECT { boxLeft, top + field, boxRight, top + field + line }, scaler);
-        }
-
-        top += field + line + nearGap;
-    }
-
-    top += gap - nearGap;
 
     if (place)
     {
-        m_parts.numberLabel->Layout (RECT { bounds.left, top, bounds.left + nameW * 2, top + field }, scaler);
-        m_parts.number->Layout      (RECT { bounds.left + nameW * 2, top, bounds.left + half - nearGap, top + field }, scaler);
-        m_parts.delayLabel->Layout  (RECT { bounds.left + half, top, bounds.left + half + nameW * 2, top + field }, scaler);
-        m_parts.delay->Layout       (RECT { bounds.left + half + nameW * 2, top, bounds.right, top + field }, scaler);
-        m_parts.notice->Layout      (RECT { bounds.left, top + field + gap, bounds.right, top + field + gap + line * 2 }, scaler);
+        m_parts.numberLabel->Layout (RECT { bounds.left, top, bounds.left + labelW, top + field }, scaler);
+        m_parts.number->Layout      (RECT { bounds.left + labelW, top, half - gap, top + field }, scaler);
+        m_parts.delayLabel->Layout  (RECT { half, top, half + labelW, top + field }, scaler);
+        m_parts.delay->Layout       (RECT { half + labelW, top, bounds.right, top + field }, scaler);
+        m_parts.drives->Layout      (RECT { bounds.left, top + field + gap, bounds.right, top + field + gap + drives }, scaler);
+        m_parts.notice->Layout      (RECT { bounds.left, top + field + gap + drives + gap, bounds.right, top + field + gap + drives + gap + line * 2 }, scaler);
     }
 
-    top += field + gap + line * 2;
+    top += field + gap + drives + gap + line * 2;
 
     return top - bounds.top;
 }
@@ -175,11 +241,12 @@ bool A2retroNetDrivesDialog::Edit (HWND                        owner,
                                    const IDxuiTheme          * theme,
                                    ActionsA2retroNet         & actions,
                                    const std::wstring        & root,
+                                   IShellIcons               * icons,
                                    EditAsTextFn                editAsText,
                                    ActionsTypes::Outcome     & outOutcome)
 {
     HRESULT                   hr = S_OK;
-    A2retroNetDrivesDialog    dialog (actions, root, std::move (editAsText));
+    A2retroNetDrivesDialog    dialog (actions, root, icons, std::move (editAsText));
     DxuiWindow::CreateParams  params;
 
 
@@ -187,8 +254,8 @@ bool A2retroNetDrivesDialog::Edit (HWND                        owner,
     params.title                    = L"A2retroNET drives";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
-    params.initialSizeDip           = { 560, 640 };
-    params.minSizeDip               = { 460, 520 };
+    params.initialSizeDip           = { 520, 720 };
+    params.minSizeDip               = { 440, 600 };
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
@@ -221,33 +288,33 @@ bool A2retroNetDrivesDialog::Edit (HWND                        owner,
 
 void A2retroNetDrivesDialog::OnCreate()
 {
-    A2retroNetDrivesPanel::Parts  parts;
-    std::vector<std::wstring>     numbers;
-    std::vector<std::wstring>     delays;
-    DxuiButton                  * save   = nullptr;
-    DxuiButton                  * cancel = nullptr;
-    DxuiButton                  * text   = nullptr;
+    A2retroNetDrivesPanel::Parts           parts;
+    std::vector<IDxuiControl *>            rows;
+    std::vector<std::wstring>              numbers;
+    std::vector<std::wstring>              delays;
+    std::shared_ptr<const DxuiIconImage>   icon;
+    DxuiButton                           * save   = nullptr;
+    DxuiButton                           * cancel = nullptr;
+    DxuiButton                           * text   = nullptr;
 
 
+
+    if (m_icons != nullptr)
+    {
+        icon = m_icons->GetForKind (IShellIcons::Kind::DiskImage);
+    }
 
     for (int drive = 0; drive < A2retroNetConfig::kDrivesMax; drive++)
     {
-        m_names[drive].SetText (std::format (L"Drive {}", drive + 1));
-        ExplorerTextStyles::Apply (m_names[drive], ExplorerTextStyles::kFormLabel);
-        m_names[drive].SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+        m_rows[drive].Init (drive + 1, icon, GetPopupHost());
+        m_rows[drive].GetImageBox().SetSelect ([this, drive] (int index) { ChooseImage (drive, index); });
 
-        m_imageBoxes[drive].SetPopupHost (GetPopupHost());
-        m_imageBoxes[drive].SetSelect ([this, drive] (int index) { ChooseImage (drive, index); });
-
-        m_upButtons[drive].SetLabel   (L"Move up");
-        m_upButtons[drive].SetEnabled (drive > 0);
-        m_upButtons[drive].SetOnClick ([this, drive]() { MoveUp (drive); });
-
-        m_statuses[drive].SetTextRole  (DxuiTextRole::Muted);
-        m_statuses[drive].SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
-
-        parts.rows[drive] = { &m_names[drive], &m_imageBoxes[drive], &m_upButtons[drive], &m_statuses[drive] };
+        rows.push_back (&m_rows[drive]);
     }
+
+    m_drives.SetRowHeightDip (A2retroNetDriveRow::kHeightDip);
+    m_drives.SetRows         (rows);
+    m_drives.SetOnReorder    ([this] (size_t from, size_t to) { MoveDrive (from, to); });
 
     for (int count = 2; count <= A2retroNetConfig::kDrivesMax; count += 2)
     {
@@ -279,16 +346,13 @@ void A2retroNetDrivesDialog::OnCreate()
     m_notice.SetTextRole  (DxuiTextRole::Error);
     m_notice.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
-    parts.numberLabel = &m_numberLabel;
-    parts.number      = &m_numberBox;
-    parts.delayLabel  = &m_delayLabel;
-    parts.delay       = &m_delayBox;
-    parts.notice      = &m_notice;
+    parts = { &m_numberLabel, &m_numberBox, &m_delayLabel, &m_delayBox, &m_drives, &m_notice };
 
     Load();
 
     m_body = CreateDialogContent<A2retroNetDrivesPanel>();
     m_body->Init (parts);
+    m_body->SetOnMouseHandled ([this]() { UpdateTick(); Invalidate(); });
 
     text   = AddDialogButton (L"Edit as text", 0, DxuiButtonRow::Anchor::Left);
     save   = AddDialogButton (L"Save", IDOK);
@@ -324,9 +388,10 @@ void A2retroNetDrivesDialog::OnCreate()
 //
 //  A2retroNetDrivesDialog::OnDialogTick
 //
-//  A save in another program, as Edit as text opens, changes the file's
-//  size or time. The file is then read again, unless the dialog has
-//  unsaved changes, which Save would write over the other program's.
+//  While a drive moves, each tick repaints. Otherwise, a save in another
+//  program, as Edit as text opens, changes the file's size or time, and the
+//  file is read again, unless the dialog has unsaved changes, which Save
+//  would write over the other program's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -337,6 +402,14 @@ void A2retroNetDrivesDialog::OnDialogTick()
     bool       changed = false;
 
 
+
+    UpdateTick();
+
+    if (m_sliding)
+    {
+        Invalidate();
+        return;
+    }
 
     hr      = m_actions.GetConfigStamp (m_root, stamp);
     changed = SUCCEEDED (hr) && (stamp.sizeBytes != m_stamp.sizeBytes || stamp.modifiedUnix != m_stamp.modifiedUnix);
@@ -357,6 +430,29 @@ void A2retroNetDrivesDialog::OnDialogTick()
     }
 
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetDrivesDialog::UpdateTick
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void A2retroNetDrivesDialog::UpdateTick()
+{
+    bool  sliding = m_drives.IsAnimating();
+
+
+
+    if (sliding != m_sliding)
+    {
+        m_sliding = sliding;
+        SetDialogTickIntervalMs (sliding ? kSlideTickMs : kIdleTickMs);
+    }
 }
 
 
@@ -415,8 +511,9 @@ void A2retroNetDrivesDialog::Fill()
         FillDrive (drive);
     }
 
-    m_numberBox.SetSelected (m_config.number / 2 - 1);
-    m_delayBox.SetSelected  (m_config.bootDelay);
+    m_drives.SetMovableCount ((size_t) m_config.number);
+    m_numberBox.SetSelected  (m_config.number / 2 - 1);
+    m_delayBox.SetSelected   (m_config.bootDelay);
 }
 
 
@@ -427,9 +524,10 @@ void A2retroNetDrivesDialog::Fill()
 //
 //  A2retroNetDrivesDialog::FillDrive
 //
-//  The dropdown has no image first, then each image on the card, and the
+//  A drive in use has no image first, then each image on the card, and the
 //  drive's image and its commented-out images when they aren't among them,
-//  as a path on the other device is not.
+//  as a path on the other device is not. A drive past the number in use is
+//  not configured, and is disabled.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -438,11 +536,23 @@ void A2retroNetDrivesDialog::FillDrive (int drive)
     std::vector<std::string>  & choices = m_choices[drive];
     std::vector<std::wstring>   labels;
     ActionsA2retroNet::Drive    status;
+    DxuiComboBox              & box     = m_rows[drive].GetImageBox();
+    DxuiLabel                 & under   = m_rows[drive].GetStatus();
     const std::string         & current = m_config.paths[drive];
-    bool                        inUse   = drive < m_config.number;
     int                         index   = 0;
 
 
+
+    if (drive >= m_config.number)
+    {
+        choices.clear();
+
+        box.SetItems    ({ kpszNotConfigured });
+        box.SetSelected (0);
+        box.SetEnabled  (false);
+        under.SetText   (std::wstring());
+        return;
+    }
 
     choices = { std::string() };
     choices.insert (choices.end(), m_images.begin(), m_images.end());
@@ -462,32 +572,25 @@ void A2retroNetDrivesDialog::FillDrive (int drive)
 
     for (const std::string & path : choices)
     {
-        labels.push_back (path.empty() ? std::wstring (L"No image") : TextEncoding::NarrowToWide (path));
+        labels.push_back (path.empty() ? std::wstring (kpszNoImage) : TextEncoding::NarrowToWide (path));
     }
 
-    index = (int) (std::find (choices.begin(), choices.end(), current) - choices.begin());
-
-    m_imageBoxes[drive].SetItems    (labels);
-    m_imageBoxes[drive].SetSelected (index);
-    m_imageBoxes[drive].SetEnabled  (inUse);
-    m_upButtons[drive].SetEnabled   (inUse && drive > 0);
-
+    index  = (int) (std::find (choices.begin(), choices.end(), current) - choices.begin());
     status = m_actions.CheckDrive (m_root, drive + 1, current);
 
-    //  A drive past the number in use is dimmed, with no status.
-    if (!inUse)
+    box.SetItems    (labels);
+    box.SetSelected (index);
+    box.SetEnabled  (true);
+
+    if (!status.problem.empty())
     {
-        m_statuses[drive].SetText (std::wstring());
-    }
-    else if (!status.problem.empty())
-    {
-        m_statuses[drive].SetText     (status.problem);
-        m_statuses[drive].SetTextRole (DxuiTextRole::Error);
+        under.SetText     (status.problem);
+        under.SetTextRole (DxuiTextRole::Error);
     }
     else
     {
-        m_statuses[drive].SetText     (current.empty() ? std::wstring() : std::format (L"{}{}", TextEncoding::NarrowToWide (PartitionAccess::FormatSize (status.bytes)), status.isWriteProtected ? L", write-protected" : L""));
-        m_statuses[drive].SetTextRole (DxuiTextRole::Muted);
+        under.SetText     (current.empty() ? std::wstring() : std::format (L"{}{}", TextEncoding::NarrowToWide (PartitionAccess::FormatSize (status.bytes)), status.isWriteProtected ? L", write-protected" : L""));
+        under.SetTextRole (DxuiTextRole::Muted);
     }
 }
 
@@ -499,35 +602,22 @@ void A2retroNetDrivesDialog::FillDrive (int drive)
 //
 //  A2retroNetDrivesDialog::ChooseImage
 //
-//  An image commented out for the drive is switched to, so the image it
-//  replaces is commented out in its place.
+//  An image already on another drive is taken from that drive, so every
+//  drive is filled again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void A2retroNetDrivesDialog::ChooseImage (int drive, int index)
 {
-    std::vector<std::string>  alternatives  = m_config.GetAlternatives (drive);
-    std::string               path;
-    bool                      isAlternative = false;
-
-
-
     if (index < 0 || (size_t) index >= m_choices[drive].size() || m_choices[drive][(size_t) index] == m_config.paths[drive])
     {
         return;
     }
 
-    path          = m_choices[drive][(size_t) index];
-    isAlternative = std::find (alternatives.begin(), alternatives.end(), path) != alternatives.end();
-
-    if (!isAlternative || !m_config.SwitchToAlternative (drive, path))
-    {
-        m_config.paths[drive] = path;
-    }
-
+    m_config.SetDrive (drive, m_choices[drive][(size_t) index]);
     m_dirty = true;
 
-    FillDrive (drive);
+    Fill();
     Invalidate();
 }
 
@@ -537,23 +627,19 @@ void A2retroNetDrivesDialog::ChooseImage (int drive, int index)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  A2retroNetDrivesDialog::MoveUp
+//  A2retroNetDrivesDialog::MoveDrive
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void A2retroNetDrivesDialog::MoveUp (int drive)
+void A2retroNetDrivesDialog::MoveDrive (size_t from, size_t to)
 {
-    if (drive <= 0 || drive >= m_config.number)
-    {
-        return;
-    }
-
-    m_config.SwapDrives (drive - 1, drive);
+    m_config.MoveDrive ((int) from, (int) to);
     m_dirty = true;
 
-    FillDrive (drive - 1);
-    FillDrive (drive);
-    Invalidate();
+    for (int drive = 0; drive < A2retroNetConfig::kDrivesMax; drive++)
+    {
+        FillDrive (drive);
+    }
 }
 
 

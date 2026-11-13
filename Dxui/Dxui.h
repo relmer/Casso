@@ -150,6 +150,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiShimmer.h"
 #include "Widgets/DxuiSlider.h"
 #include "Widgets/DxuiTabDragModel.h"
+#include "Widgets/DxuiReorderStack.h"
 #include "Widgets/DxuiTabDragVisual.h"
 #include "Widgets/DxuiZoomControl.h"
 #include "Widgets/DxuiSegmentedControl.h"

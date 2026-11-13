@@ -841,3 +841,65 @@ ActionsTypes::Outcome ActionsA2retroNet::ConvertToPo (const std::wstring & path,
 
     return outcome;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::ExpectMoves
+//
+//  Only a file dropped to or from an A2Pico card is listed, since only a
+//  card has drives to update.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ActionsA2retroNet::ExpectMoves (const std::vector<std::wstring> & sources, const std::wstring & folder)
+{
+    ULONGLONG  untilMs = GetTickCount64() + kExpectedMoveMs;
+    bool       toCard  = IsCard (std::filesystem::path (folder).root_path().wstring());
+
+
+
+    for (const std::wstring & source : sources)
+    {
+        std::wstring  target = (std::filesystem::path (folder) / std::filesystem::path (source).filename()).wstring();
+
+        if (toCard || IsCard (std::filesystem::path (source).root_path().wstring()))
+        {
+            m_expected.push_back (ExpectedMove { source, target, untilMs });
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::ResolveMoves
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ActionsA2retroNet::ResolveMoves()
+{
+    ULONGLONG  now = GetTickCount64();
+
+
+
+    std::erase_if (m_expected, [this, now] (const ExpectedMove & move)
+    {
+        bool  sourceGone = !m_actions.m_fs.Exists (move.from) && !m_actions.m_fs.DirectoryExists (move.from);
+        bool  targetHere = m_actions.m_fs.Exists (move.to) || m_actions.m_fs.DirectoryExists (move.to);
+
+        if (sourceGone && targetHere)
+        {
+            NoteMove (move.from, move.to);
+            return true;
+        }
+
+        return now >= move.untilMs;
+    });
+}
