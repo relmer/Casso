@@ -88,9 +88,9 @@ std::wstring FullSendPanel::DescribeActivity (const FullSendSnapshot & snapshot)
         case FullSendActivity::Starting:        return L"Waiting for Space on the Apple to begin.";
         case FullSendActivity::Checking:        return std::format (L"Checking the disk in drive {}.", snapshot.drive);
         case FullSendActivity::Sending:         return std::format (L"Sending the disk in drive {}.", snapshot.drive);
-        case FullSendActivity::Capturing:       return std::format (L"The disk in drive {} is likely copy-protected. Capturing it raw.", snapshot.drive);
+        case FullSendActivity::Capturing:       return std::format (L"The disk in drive {} is likely copy-protected; using raw capture mode.", snapshot.drive);
         case FullSendActivity::WaitingForDisk:  return L"Waiting for a new disk. Insert one and press Space on the Apple.";
-        case FullSendActivity::WaitingForApple: return std::format (L"Waiting for the Apple to reply, {} so far.", FormatSeconds (snapshot.waited));
+        case FullSendActivity::WaitingForApple: return std::format (L"Waiting for the Apple to reply, {}.", FormatSeconds (snapshot.waited));
         case FullSendActivity::EditingPrefix:   return L"A file name prefix is being typed on the Apple.";
         case FullSendActivity::Ended:           return L"The session ended. " + TextEncoding::NarrowToWide (snapshot.reason);
         default:                                return L"No Full Send is in progress. Press F on the Apple's CassoLink screen to start one.";
@@ -116,7 +116,7 @@ std::wstring FullSendPanel::DescribeDrive (const FullSendDriveStatus & drive)
     switch (drive.state)
     {
         case FullSendDiskState::Checking:  state = L"Checking";                              break;
-        case FullSendDiskState::Sending:   state = drive.verified ? L"Sending, verified" : L"Sending"; break;
+        case FullSendDiskState::Sending:   state = drive.verified ? L"Sending, with verification" : L"Sending"; break;
         case FullSendDiskState::Capturing: state = L"Capturing raw";                         break;
         case FullSendDiskState::Sent:      state = L"Sent";                                  break;
         case FullSendDiskState::Duplicate: state = L"Duplicate";                             break;
@@ -365,9 +365,21 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
     top += m_scaler.ToPxf (kHeadingDip) + section;
 
-    first  = PaintDrive (painter, text, theme, 1, m_view.snapshot.drives[0], left, top, column);
-    second = PaintDrive (painter, text, theme, 2, m_view.snapshot.drives[1], left + column + gap, top, column);
-    top    = std::max (first, second) + section * 0.5f;
+    //  A drive the Apple lacks is omitted, and the other one is at the left.
+    first  = top;
+    second = top;
+
+    if (m_view.snapshot.present[0])
+    {
+        first = PaintDrive (painter, text, theme, 1, m_view.snapshot.drives[0], left, top, column);
+    }
+
+    if (m_view.snapshot.present[1])
+    {
+        second = PaintDrive (painter, text, theme, 2, m_view.snapshot.drives[1], m_view.snapshot.present[0] ? left + column + gap : left, top, column);
+    }
+
+    top = std::max (first, second) + section * 0.5f;
 
     top = PaintLegend (painter, text, theme, top) + section;
 
@@ -425,10 +437,18 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
     top += cellH + space;
 
-    //  A quarter track's cell is under its track, track 34 having one.
+    //  A position between two tracks has a cell under its track only when it
+    //  was read. Most disks have nothing there, and the row is empty.
     for (size_t position = 0; position < drive.positions.size(); position++)
     {
-        painter.FillRect (left + position * quarter, top, std::max (1.0f, quarter - space), rawH, GetColor (drive.positions[position], theme));
+        FullSendPositionMark  mark = drive.positions[position];
+
+        if (position % 4 == 0 || mark == FullSendPositionMark::Unread || mark == FullSendPositionMark::Skipped)
+        {
+            continue;
+        }
+
+        painter.FillRect (left + position * quarter, top, std::max (1.0f, quarter - space), rawH, GetColor (mark, theme));
     }
 
     top += rawH + space * 4.0f;
@@ -477,7 +497,6 @@ float FullSendPanel::PaintLegend (IDxuiPainter & painter, IDxuiTextRenderer & te
         { GetColor (FullSendTrackMark::Verified, theme),      L"Verified" },
         { GetColor (FullSendTrackMark::Unreliable, theme),    L"Unreliable or weak" },
         { GetColor (FullSendTrackMark::Unreadable, theme),    L"Unreadable" },
-        { GetColor (FullSendPositionMark::Skipped, theme),    L"Skipped" },
         { GetColor (FullSendPositionMark::Unstable, theme),   L"Reads differ in length" },
     };
 

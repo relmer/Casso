@@ -1445,7 +1445,7 @@ std::wstring CassoLinkConnections::DescribeJobs (const std::vector<std::shared_p
     }
     else if (jobs[0]->kind == LinkOperationKind::FullSend && !jobs[0]->GetDetail().empty())
     {
-        text = std::format (L"Full Send: the disk in drive {} is likely copy-protected, capturing it raw: {}%, {}", jobs[0]->drive, jobs[0]->progress.load(),
+        text = std::format (L"Full Send: the disk in drive {} is likely copy-protected; using raw capture mode: {}%, {}", jobs[0]->drive, jobs[0]->progress.load(),
                             TextEncoding::NarrowToWide (jobs[0]->GetDetail()));
     }
     else if (jobs[0]->kind == LinkOperationKind::FullSend)

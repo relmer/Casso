@@ -218,6 +218,8 @@ HRESULT FullSendSession::Run()
 
     for (int drive : { 1, 2 })
     {
+        m_status.SetPresent (drive, m_link.HasDrive (drive));
+
         if (!m_link.HasDrive (drive))
         {
             SetDriveState (drive, FullSendDriveState::Off);
@@ -1118,6 +1120,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
 
     Report (earlier != nullptr          ? std::format ("Disk {:04} is {}, a duplicate of {}", sequence, row.file, row.duplicateOf)
                  : !row.duplicateOf.empty()    ? std::format ("Disk {:04} is {}, sent again though it matches {}", sequence, row.file, row.duplicateOf)
+                 : !raw.empty()                ? std::format ("Disk {:04} is {}, a raw capture", sequence, row.file)
                                                : std::format ("Disk {:04} is {}, with {} unreadable sectors", sequence, row.file, row.unreadable));
 
     m_manifest.Add (row);
@@ -1211,7 +1214,7 @@ HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & 
     capture = capture && std::string (FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size())) == FullSendManifest::kStatusProtected;
     BAIL_OUT_IF (!capture, S_OK);
 
-    Report (std::format ("The disk in drive {} is likely copy-protected, so it is captured raw", drive));
+    Report (std::format ("The disk in drive {} is likely copy-protected; using raw capture mode.", drive));
 
     SetDriveState (drive, FullSendDriveState::Capturing);
     m_status.SetActivity (FullSendActivity::Capturing, drive);

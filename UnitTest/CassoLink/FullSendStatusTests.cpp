@@ -60,6 +60,25 @@ public:
 
 
 
+    TEST_METHOD (ADriveTheAppleLacks_IsNotPresent_UntilTheNextSession)
+    {
+        Rig  rig;
+
+
+
+        rig.status.Begin();
+        Assert::IsTrue (rig.status.GetSnapshot().present[1], L"present until reported absent");
+
+        rig.status.SetPresent (2, false);
+        Assert::IsTrue  (rig.status.GetSnapshot().present[0]);
+        Assert::IsFalse (rig.status.GetSnapshot().present[1]);
+
+        rig.status.Begin();
+        Assert::IsTrue (rig.status.GetSnapshot().present[1]);
+    }
+
+
+
     TEST_METHOD (ADiskBeingSent_HasItsTitleTracksAndPercent)
     {
         Rig               rig;

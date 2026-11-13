@@ -18,8 +18,8 @@ class IDxuiTheme;
 //  or waits for, a panel for each drive with its disk's title, a map of its
 //  tracks, a progress bar and its times, the map's legend, the session's
 //  totals, the disks done, newest first, and the latest activity lines.
-//  In a raw capture a drive's map has a second row, a cell per quarter
-//  track.
+//  In a raw capture a drive's map has a second row, a cell for each
+//  position between two tracks that was read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +54,7 @@ public:
     //  What the session is doing or what it waits for, as a sentence.
     static std::wstring  DescribeActivity (const FullSendSnapshot & snapshot);
 
-    //  A drive's state, as Sending, verified; its times, as 0:21 elapsed,
+    //  A drive's state, as Sending, with verification; its times, as 0:21 elapsed,
     //  about 0:14 left; and where its raw capture is.
     static std::wstring  DescribeDrive    (const FullSendDriveStatus & drive);
     static std::wstring  DescribeTimes    (const FullSendDriveStatus & drive);

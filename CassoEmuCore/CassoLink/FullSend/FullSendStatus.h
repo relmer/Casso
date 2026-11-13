@@ -152,6 +152,7 @@ struct FullSendSnapshot
     double                              waited   = 0.0;     // seconds waiting for the Apple
     std::string                         reason;             // why the session ended
     std::array<FullSendDriveStatus, 2>  drives;
+    std::array<bool, 2>                 present  = { true, true };  // clear for a drive the Apple lacks
     FullSendTotals                      totals;
     std::vector<FullSendDoneDisk>       disks;              // newest first
     std::vector<FullSendLine>           lines;
@@ -193,6 +194,9 @@ public:
     void  End            (const std::string & reason);
 
     void  SetActivity    (FullSendActivity activity, int drive = 0);
+
+    //  Whether the Apple has the drive. The window omits a drive it lacks.
+    void  SetPresent     (int drive, bool present);
 
     //  The Apple's reply is awaited, or has come after a wait.
     void  SetWaiting     (bool waiting);

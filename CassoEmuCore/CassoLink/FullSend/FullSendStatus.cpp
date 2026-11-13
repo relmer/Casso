@@ -109,6 +109,31 @@ void FullSendStatus::SetActivity (FullSendActivity activity, int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendStatus::SetPresent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::SetPresent (int drive, bool present)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    if (drive < 1 || drive > (int) m_snapshot.present.size())
+    {
+        return;
+    }
+
+    m_snapshot.present[(size_t) drive - 1] = present;
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendStatus::SetWaiting
 //
 //  A wait for the Apple's reply begins over the activity it interrupts, and
@@ -374,7 +399,7 @@ void FullSendStatus::EndDisk (int drive, const FullSendRow & row, uint64_t bytes
     totals.duplicates  += isDuplicate ? 1 : 0;
     totals.sent        += isDuplicate ? 0 : 1;
     totals.rawCaptures += isRaw ? 1 : 0;
-    totals.badSectors  += (row.unreadable != 0 || row.unreliable != 0) ? 1 : 0;
+    totals.badSectors  += (!isRaw && (row.unreadable != 0 || row.unreliable != 0)) ? 1 : 0;
     totals.bytes       += bytes;
 
     if (!isDuplicate)
