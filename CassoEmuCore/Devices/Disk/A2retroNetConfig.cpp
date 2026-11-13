@@ -22,8 +22,9 @@ A2retroNetConfig A2retroNetConfig::Parse (const std::string & text)
     A2retroNetConfig    config;
     std::istringstream  in (text);
     std::string         line;
-    bool                inSettings = false;
-    bool                inDrives   = false;
+    std::string         path;
+    Section             section = Section::None;
+    int                 drive   = 0;
 
 
 
@@ -34,35 +35,26 @@ A2retroNetConfig A2retroNetConfig::Parse (const std::string & text)
             line.pop_back();
         }
 
-        if (line.empty() || line[0] == '#')
-        {
-            continue;
-        }
+        config.m_lines.push_back (line);
+        section = GetSection (line, section);
 
-        if (line[0] == '[')
-        {
-            inSettings = _strnicmp (line.c_str(), kSettings.data(), kSettings.size()) == 0;
-            inDrives   = _strnicmp (line.c_str(), kDrives.data(),   kDrives.size())   == 0;
-            continue;
-        }
-
-        if (inSettings && line.size() > kBootDelay.size() && _strnicmp (line.c_str(), kBootDelay.data(), kBootDelay.size()) == 0)
+        if (section == Section::Settings && HasKey (line, kBootDelay))
         {
             int  value = line[kBootDelay.size()] - '0';
 
             config.bootDelay = (value >= 0 && value <= kBootDelayMax) ? value : config.bootDelay;
         }
 
-        if (inDrives && line.size() > kNumber.size() && _strnicmp (line.c_str(), kNumber.data(), kNumber.size()) == 0)
+        if (section == Section::Drives && HasKey (line, kNumber))
         {
             int  value = line[kNumber.size()] - '0';
 
             config.number = (value >= 2 && value <= kDrivesMax && value % 2 == 0) ? value : config.number;
         }
 
-        if (inDrives && line.size() >= 2 && line[0] >= '1' && line[0] <= '0' + kDrivesMax && line[1] == '=')
+        if (section == Section::Drives && TryReadDrive (line, drive, path))
         {
-            config.paths[line[0] - '1'] = line.substr (2);
+            config.paths[drive] = path;
         }
     }
 
@@ -75,14 +67,281 @@ A2retroNetConfig A2retroNetConfig::Parse (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  A2retroNetConfig::GetSection
+//
+//  As the firmware reads it: a line starting with [ starts a section, and
+//  one other than [settings] or [drives] is ignored to its end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+A2retroNetConfig::Section A2retroNetConfig::GetSection (const std::string & line, Section section)
+{
+    if (line.empty() || line[0] != '[')
+    {
+        return section;
+    }
+
+    if (_strnicmp (line.c_str(), kSettings.data(), kSettings.size()) == 0)
+    {
+        return Section::Settings;
+    }
+
+    return _strnicmp (line.c_str(), kDrives.data(), kDrives.size()) == 0 ? Section::Drives : Section::Other;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::HasKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool A2retroNetConfig::HasKey (const std::string & line, std::string_view key)
+{
+    return line.size() > key.size() && _strnicmp (line.c_str(), key.data(), key.size()) == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::TryReadDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool A2retroNetConfig::TryReadDrive (std::string_view line, int & outDrive, std::string & outPath)
+{
+    if (line.size() < 2 || line[0] < '1' || line[0] > '0' + kDrivesMax || line[1] != '=')
+    {
+        return false;
+    }
+
+    outDrive = line[0] - '1';
+    outPath  = std::string (line.substr (2));
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  A2retroNetConfig::Write
+//
+//  Of several lines for one drive, the firmware takes the last, so that one
+//  is set. A missing number= goes just after the [drives] header, and a
+//  missing drive line at the end of [drives]. Additions are listed in their
+//  order in the text, then inserted from the last position back, so no
+//  insertion moves a position found before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string A2retroNetConfig::Write() const
+{
+    std::vector<std::string>  lines        = m_lines;
+    std::vector<Addition>     additions;
+    Section                   section      = Section::None;
+    size_t                    settingsAt   = SIZE_MAX;
+    size_t                    drivesAt     = SIZE_MAX;
+    size_t                    drivesEnd    = SIZE_MAX;
+    size_t                    driveLine[kDrivesMax];
+    bool                      hasBootDelay = false;
+    bool                      hasNumber    = false;
+    bool                      addsDrives   = number != kDrivesMax;
+    int                       drive        = 0;
+    std::string               path;
+    std::string               text;
+
+
+
+    if (m_lines.empty())
+    {
+        return WriteCanonical();
+    }
+
+    std::fill (std::begin (driveLine), std::end (driveLine), SIZE_MAX);
+
+    for (size_t i = 0; i < lines.size(); i++)
+    {
+        section = GetSection (lines[i], section);
+
+        settingsAt = (section == Section::Settings && settingsAt == SIZE_MAX) ? i : settingsAt;
+        drivesAt   = (section == Section::Drives   && drivesAt   == SIZE_MAX) ? i : drivesAt;
+        drivesEnd  = section == Section::Drives ? i + 1 : drivesEnd;
+
+        if (section == Section::Settings && HasKey (lines[i], kBootDelay))
+        {
+            lines[i]     = std::format ("{}{}", kBootDelay, bootDelay);
+            hasBootDelay = true;
+        }
+
+        if (section == Section::Drives && HasKey (lines[i], kNumber))
+        {
+            lines[i]  = std::format ("{}{}", kNumber, number);
+            hasNumber = true;
+        }
+
+        if (section == Section::Drives && TryReadDrive (lines[i], drive, path))
+        {
+            driveLine[drive] = i;
+        }
+    }
+
+    if (!hasBootDelay && bootDelay != kBootDelayDefault)
+    {
+        if (settingsAt == SIZE_MAX)
+        {
+            additions.push_back (Addition { 0, std::string (kSettings) });
+        }
+
+        additions.push_back (Addition { settingsAt == SIZE_MAX ? 0 : settingsAt + 1, std::format ("{}{}", kBootDelay, bootDelay) });
+    }
+
+    for (drive = 0; drive < kDrivesMax; drive++)
+    {
+        addsDrives = addsDrives || (driveLine[drive] == SIZE_MAX && !paths[drive].empty());
+    }
+
+    //  With no [drives] in the text, its lines go after a new header at the
+    //  end.
+    if (drivesAt == SIZE_MAX && addsDrives)
+    {
+        additions.push_back (Addition { lines.size(), std::string (kDrives) });
+    }
+
+    if (!hasNumber && number != kDrivesMax)
+    {
+        additions.push_back (Addition { drivesAt == SIZE_MAX ? lines.size() : drivesAt + 1, std::format ("{}{}", kNumber, number) });
+    }
+
+    for (drive = 0; drive < kDrivesMax; drive++)
+    {
+        if (driveLine[drive] != SIZE_MAX)
+        {
+            lines[driveLine[drive]] = std::format ("{}={}", drive + 1, paths[drive]);
+        }
+        else if (!paths[drive].empty())
+        {
+            additions.push_back (Addition { drivesEnd == SIZE_MAX ? lines.size() : drivesEnd, std::format ("{}={}", drive + 1, paths[drive]) });
+        }
+    }
+
+    std::stable_sort (additions.begin(), additions.end(), [] (const Addition & a, const Addition & b) { return a.at < b.at; });
+
+    //  Of additions at one position, the last listed is inserted first, so
+    //  they end up in the order listed.
+    for (auto it = additions.rbegin(); it != additions.rend(); ++it)
+    {
+        lines.insert (lines.begin() + (ptrdiff_t) it->at, it->line);
+    }
+
+    for (const std::string & line : lines)
+    {
+        text += line + "\n";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::GetAlternatives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> A2retroNetConfig::GetAlternatives (int drive) const
+{
+    std::vector<std::string>  alternatives;
+    Section                   section = Section::None;
+    int                       found   = 0;
+    std::string               path;
+
+
+
+    for (const std::string & line : m_lines)
+    {
+        section = GetSection (line, section);
+
+        if (section == Section::Drives && !line.empty() && line[0] == kComment && TryReadDrive (std::string_view (line).substr (1), found, path) && found == drive)
+        {
+            alternatives.push_back (path);
+        }
+    }
+
+    return alternatives;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::SwitchToAlternative
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool A2retroNetConfig::SwitchToAlternative (int drive, const std::string & path)
+{
+    Section      section  = Section::None;
+    int          found    = 0;
+    std::string  existing;
+
+
+
+    for (size_t i = 0; i < m_lines.size(); i++)
+    {
+        section = GetSection (m_lines[i], section);
+
+        if (section != Section::Drives || m_lines[i].empty() || m_lines[i][0] != kComment)
+        {
+            continue;
+        }
+
+        if (TryReadDrive (std::string_view (m_lines[i]).substr (1), found, existing) && found == drive && existing == path)
+        {
+            if (paths[drive].empty())
+            {
+                m_lines.erase (m_lines.begin() + (ptrdiff_t) i);
+            }
+            else
+            {
+                m_lines[i] = std::format ("{}{}={}", kComment, drive + 1, paths[drive]);
+            }
+
+            paths[drive] = path;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::WriteCanonical
 //
 //  A line for each drive in use, empty for a drive with no image, as the
 //  firmware's configuration utility writes the file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string A2retroNetConfig::Write() const
+std::string A2retroNetConfig::WriteCanonical() const
 {
     std::string  text = std::format ("[settings]\nbootdelay={}\n[drives]\nnumber={}\n", bootDelay, number);
 

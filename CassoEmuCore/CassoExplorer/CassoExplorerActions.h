@@ -65,12 +65,13 @@ public:
 
     //  A ShrinkIt archive of files on the PC, a ShrinkIt disk of an image, and
     //  the test of an image or an archive.
-    Outcome  MakeArchive        (const std::vector<std::wstring> & hostPaths, std::wstring & outPath) { return m_archiver.MakeArchive (hostPaths, outPath); }
-    Outcome  MakeShrinkItDisk   (const std::wstring & imagePath, std::wstring & outPath)              { return m_archiver.MakeShrinkItDisk (imagePath, outPath); }
-    Outcome  TestImage          (const std::wstring & imagePath, std::wstring & outReport)            { return m_archiver.Test (imagePath, outReport); }
-    Outcome  MakeTapeRecording  (const std::wstring & target)                                         { return m_tapes.MakeRecording (target); }
-    Outcome  AddToA2retroNet    (const std::wstring & imagePath)                                      { return m_a2retroNet.Add (imagePath); }
-    bool     CanAddToA2retroNet (const std::wstring & imagePath) const                              { return m_a2retroNet.CanAdd (imagePath); }
+    Outcome  MakeArchive            (const std::vector<std::wstring> & hostPaths, std::wstring & outPath) { return m_archiver.MakeArchive (hostPaths, outPath); }
+    Outcome  MakeShrinkItDisk       (const std::wstring & imagePath, std::wstring & outPath)              { return m_archiver.MakeShrinkItDisk (imagePath, outPath); }
+    Outcome  TestImage              (const std::wstring & imagePath, std::wstring & outReport)            { return m_archiver.Test (imagePath, outReport); }
+    Outcome  MakeTapeRecording      (const std::wstring & target)                                         { return m_tapes.MakeRecording (target); }
+    Outcome  AddToA2retroNet        (const std::wstring & imagePath)                                      { return m_a2retroNet.Add (imagePath); }
+    bool     CanAddToA2retroNet     (const std::wstring & imagePath) const                              { return m_a2retroNet.CanAdd (imagePath); }
+    Outcome  CreateA2retroNetConfig (const std::wstring & root)                                       { return m_a2retroNet.CreateConfig (root); }
 
     //  One partition of a card image: the one selected or open, its copy as
     //  an image file beside the card image, and an image file written over it

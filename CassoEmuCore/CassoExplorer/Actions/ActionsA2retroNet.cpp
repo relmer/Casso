@@ -126,3 +126,44 @@ ActionsTypes::Outcome ActionsA2retroNet::Add (const std::wstring & imagePath)
 
     return outcome;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::CreateConfig
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsA2retroNet::CreateConfig (const std::wstring & root)
+{
+    ActionsTypes::Outcome  outcome;
+    IDiskFileIo          & io     = m_actions.m_browser.GetOperations().GetFileIo();
+    std::wstring           path   = (std::filesystem::path (root) / A2retroNetConfig::kpszFileName).wstring();
+    std::string            text   = A2retroNetConfig().Write();
+    std::vector<Byte>      bytes (text.begin(), text.end());
+    HRESULT                hr     = S_OK;
+
+
+
+    if (m_actions.m_fs.Exists (path))
+    {
+        ActionsCopy::AppendMessage (outcome, S_OK, L"The card has an A2retroNET.txt already.");
+        return outcome;
+    }
+
+    hr = io.WriteAllBytes (TextEncoding::WideToNarrow (path), bytes);
+
+    if (FAILED (hr))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"A2retroNET.txt could not be written.");
+        return outcome;
+    }
+
+    ActionsCopy::AppendMessage (outcome, S_OK, L"The card has an A2retroNET.txt with no drives set.");
+    outcome.written = 1;
+
+    return outcome;
+}

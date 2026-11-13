@@ -31,6 +31,10 @@ public:
 
     ActionsTypes::Outcome  Add (const std::wstring & imagePath);
 
+    //  An A2retroNET.txt of the firmware's defaults in the root, for a card
+    //  just initialized for an A2Pico. A root that has one is left as it is.
+    ActionsTypes::Outcome  CreateConfig (const std::wstring & root);
+
 private:
     static std::wstring  GetConfigPath (const std::wstring & imagePath);
 

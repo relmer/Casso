@@ -1094,7 +1094,7 @@ public:
         Assert::AreEqual (std::wstring (L"prodos.po is drive 2."), outcome.message);
 
         text.assign (host.io.files["C:\\A2retroNET.txt"].begin(), host.io.files["C:\\A2retroNET.txt"].end());
-        Assert::AreEqual (std::string ("[settings]\nbootdelay=5\n[drives]\nnumber=4\n1=system.hdv\n2=Disks/prodos.po\n3=\n4=\n"), text);
+        Assert::AreEqual (std::string ("[settings]\nbootdelay=5\n[drives]\nnumber=4\n1=system.hdv\n2=Disks/prodos.po\n"), text, L"no lines added for drives with no image");
 
         outcome = host.actions.AddToA2retroNet (L"C:\\Disks\\prodos.po");
         Assert::AreEqual (std::wstring (L"prodos.po is drive 2 already."), outcome.message);
@@ -1102,6 +1102,32 @@ public:
         outcome = host.actions.AddToA2retroNet (L"C:\\Disks\\dos33.dsk");
         Assert::IsFalse  (outcome.Succeeded());
         Assert::IsTrue   (outcome.message.find (L"A2retroNET reads only .po, .hdv and .2mg images.") != std::wstring::npos, outcome.message.c_str());
+    }
+
+
+    //  A card just initialized for an A2Pico gets the firmware's defaults. A
+    //  card that has the file already is left as it is.
+    TEST_METHOD (CreateA2retroNetConfig_WritesTheDefaultsOnce)
+    {
+        Host                           host;
+        CassoExplorerActions::Outcome  outcome;
+        std::string                    text;
+
+
+
+        outcome = host.actions.CreateA2retroNetConfig (L"E:\\");
+
+        Assert::IsTrue (outcome.Succeeded(), outcome.message.c_str());
+        text.assign (host.io.files["E:\\A2retroNET.txt"].begin(), host.io.files["E:\\A2retroNET.txt"].end());
+        Assert::AreEqual (std::string ("[settings]\nbootdelay=3\n[drives]\nnumber=8\n1=\n2=\n3=\n4=\n5=\n6=\n7=\n8=\n"), text);
+
+        host.SeedBytes (Bytes ("# mine\n[drives]\n1=a.po\n"), L"E:\\A2retroNET.txt");
+        outcome = host.actions.CreateA2retroNetConfig (L"E:\\");
+
+        Assert::IsTrue   (outcome.Succeeded());
+        Assert::AreEqual (0, outcome.written);
+        text.assign (host.io.files["E:\\A2retroNET.txt"].begin(), host.io.files["E:\\A2retroNET.txt"].end());
+        Assert::AreEqual (std::string ("# mine\n[drives]\n1=a.po\n"), text);
     }
 
     //  HELLO, INTPROG and ODD as a recording that opens as a folder of the

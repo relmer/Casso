@@ -60,7 +60,8 @@ private:
 //  CassoExplorerInitializeCardDialog
 //
 //  The confirmation of an erase. The adapter chosen selects the layout
-//  recommended and the grid's rows; FAT32 is offered for a CFFA3000 only.
+//  recommended and the grid's rows. FAT32 is offered for a CFFA3000, and is
+//  the only layout for an A2Pico.
 //  Cancel is the default and has the focus, so Enter and Escape cancel; the
 //  erase runs only from its button, which is drawn in the theme's error
 //  color, when it is clicked or focused with Tab.
@@ -109,4 +110,5 @@ private:
     DxuiLabel                             m_contents;
     DxuiLabel                             m_warning;
     CassoExplorerInitializeCardPanel    * m_body      = nullptr;
+    DxuiButton                          * m_erase     = nullptr;
 };

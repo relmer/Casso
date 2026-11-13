@@ -410,7 +410,7 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
         return;
     }
 
-    StartInitialize (cardPath, found, layout, std::move (volumes));
+    StartInitialize (cardPath, found, layout, adapter, std::move (volumes));
 }
 
 
@@ -427,7 +427,7 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerOpen::StartInitialize (const std::wstring & cardPath, const PhysicalDrive & drive, uint64_t layout, std::vector<WindowsVolume> volumes)
+void ExplorerOpen::StartInitialize (const std::wstring & cardPath, const PhysicalDrive & drive, uint64_t layout, CardLayoutModel::Adapter adapter, std::vector<WindowsVolume> volumes)
 {
     HWND             window = m_context.window.GetHwnd();
     PhysicalCards  * cards  = m_context.app.cards;
@@ -438,6 +438,7 @@ void ExplorerOpen::StartInitialize (const std::wstring & cardPath, const Physica
     m_initCard        = cardPath;
     m_initDrive       = drive;
     m_initLayout      = layout;
+    m_initAdapter     = adapter;
     m_initVolumes     = std::move (volumes);
     m_initDone        = false;
     m_initResult      = S_OK;
@@ -547,9 +548,10 @@ bool ExplorerOpen::ConfirmElevation (const std::wstring & card)
 
 void ExplorerOpen::FinishInitialize()
 {
-    HRESULT       hr        = m_initResult;
-    HRESULT       hrRefresh = S_OK;
-    std::wstring  root;
+    HRESULT                hr        = m_initResult;
+    HRESULT                hrRefresh = S_OK;
+    std::wstring           root;
+    ActionsTypes::Outcome  outcome;
 
 
 
@@ -597,6 +599,27 @@ void ExplorerOpen::FinishInitialize()
     m_context.browser.GetTreeModel().Invalidate (TreeModel::kThisPcRootId);
     m_context.treePane.ReloadChildren (TreeModel::kThisPcRootId);
 
+    if (m_initLayout == RawDeviceProtocol::kLayoutFat32)
+    {
+        root = FindInitializedRoot (root);
+    }
+
+    //  A card for an A2Pico is given the firmware's settings file, with no
+    //  drives set.
+    if (m_initLayout == RawDeviceProtocol::kLayoutFat32 && m_initAdapter == CardLayoutModel::Adapter::A2Pico)
+    {
+        outcome = root.empty() ? ActionsTypes::Outcome() : m_context.actions.CreateA2retroNetConfig (root);
+
+        if (root.empty())
+        {
+            m_context.window.ShowMessage (L"The card is initialized, but Windows hasn't given it a drive letter, so A2retroNET.txt wasn't written.", MB_ICONWARNING);
+        }
+        else if (!outcome.Succeeded())
+        {
+            m_context.window.ShowMessage (outcome.message, MB_ICONWARNING);
+        }
+    }
+
     //  A FAT32 card is opened at its drive letter, and a CFFA card as a card.
     if (m_initLayout == RawDeviceProtocol::kLayoutFat32 && !root.empty())
     {
@@ -613,6 +636,37 @@ void ExplorerOpen::FinishInitialize()
     }
 
     m_context.listPane.FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::FindInitializedRoot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ExplorerOpen::FindInitializedRoot (const std::wstring & before)
+{
+    std::vector<WindowsVolume>  volumes;
+    HRESULT                     hr = S_OK;
+
+
+
+    hr = m_context.app.cards->ListVolumes (m_initDrive.number, volumes);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (const WindowsVolume & volume : volumes)
+    {
+        if (!volume.letter.empty())
+        {
+            return volume.letter + L"\\";
+        }
+    }
+
+    return before;
 }
 
 

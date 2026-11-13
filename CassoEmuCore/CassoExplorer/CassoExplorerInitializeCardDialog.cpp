@@ -185,7 +185,6 @@ int CassoExplorerInitializeCardPanel::Arrange (const RECT & bounds, const DxuiDp
 
 void CassoExplorerInitializeCardDialog::OnCreate()
 {
-    DxuiButton                               * erase  = nullptr;
     DxuiButton                               * cancel = nullptr;
     std::vector<std::wstring>                  adapters;
     CassoExplorerInitializeCardPanel::Parts    parts;
@@ -202,7 +201,7 @@ void CassoExplorerInitializeCardDialog::OnCreate()
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     }
 
-    m_adapterLabel.SetText (L"Which CFFA adapter do you have?");
+    m_adapterLabel.SetText (L"Which adapter do you have?");
     m_layoutLabel.SetText (L"Layout:");
 
     for (int index = 0; index < (int) CardLayoutModel::Adapter::Count; index++)
@@ -235,11 +234,12 @@ void CassoExplorerInitializeCardDialog::OnCreate()
     m_body = CreateDialogContent<CassoExplorerInitializeCardPanel>();
     m_body->Init (parts);
 
-    erase  = AddDialogButton (L"Erase and initialize", IDOK);
-    cancel = AddDialogButton (L"Cancel", IDCANCEL);
+    m_erase = AddDialogButton (L"Erase and initialize", IDOK);
+    cancel  = AddDialogButton (L"Cancel", IDCANCEL);
 
-    erase->SetVariant (DxuiButton::Variant::Danger);
-    erase->SetOnClick ([this]()
+    m_erase->SetVariant (DxuiButton::Variant::Danger);
+    m_erase->SetEnabled (!m_positions.empty());
+    m_erase->SetOnClick ([this]()
     {
         m_layout    = m_model.GetLayout (m_position);
         m_confirmed = true;
@@ -291,6 +291,18 @@ void CassoExplorerInitializeCardDialog::ChooseAdapter (CardLayoutModel::Adapter 
         }
 
         labels.push_back (std::move (label));
+    }
+
+    //  An A2Pico takes FAT32 only, which a card under about 33 MB is too
+    //  small for, so nothing can be erased.
+    if (m_positions.empty())
+    {
+        labels.push_back (L"None. The card is too small for FAT32");
+    }
+
+    if (m_erase != nullptr)
+    {
+        m_erase->SetEnabled (!m_positions.empty());
     }
 
     m_layoutBox.SetItems (labels);

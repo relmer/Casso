@@ -52,7 +52,8 @@ public:
     }
 
 
-    TEST_METHOD (Rows_AllWorkUpToFourVolumes)
+    //  Every CFFA adapter. The A2Pico doesn't read a CFFA layout.
+    TEST_METHOD (Rows_AllCffaWorkUpToFourVolumes)
     {
         CardLayoutModel                    model (kCard, 13, true);
         std::vector<CardLayoutModel::Row>  rows;
@@ -61,7 +62,10 @@ public:
 
         for (const CardLayoutModel::Row & row : rows)
         {
-            Assert::IsTrue (row.support == CardLayoutModel::Support::Works || row.support == CardLayoutModel::Support::Unknown);
+            bool  isCffa = row.adapter.starts_with (L"CFFA");
+
+            Assert::IsTrue (!isCffa || row.support == CardLayoutModel::Support::Works || row.support == CardLayoutModel::Support::Unknown, row.adapter.c_str());
+            Assert::IsTrue (isCffa  || row.support == CardLayoutModel::Support::Fails, row.adapter.c_str());
         }
     }
 
@@ -134,7 +138,11 @@ public:
         Assert::AreEqual ((size_t) 2, rows.size());
 
         model.GetRows (6, CardLayoutModel::Adapter::Unsure, rows);
-        Assert::AreEqual ((size_t) 6, rows.size());
+        Assert::AreEqual ((size_t) 7, rows.size());
+
+        model.GetRows (6, CardLayoutModel::Adapter::A2Pico, rows);
+        Assert::AreEqual ((size_t) 1, rows.size());
+        Assert::IsTrue (rows[0].support == CardLayoutModel::Support::Fails, L"an A2Pico reads a FAT volume only");
     }
 
 
@@ -152,15 +160,39 @@ public:
     }
 
 
-    TEST_METHOD (Rows_Fat32WorksOnlyOnTheCffa3000)
+    TEST_METHOD (Rows_Fat32WorksOnTheCffa3000AndTheA2Pico)
     {
         CardLayoutModel                    model (kCard, 13, true);
         std::vector<CardLayoutModel::Row>  rows;
 
         model.GetRows (14, rows);
 
-        Assert::AreEqual ((size_t) 3, rows.size());
+        Assert::AreEqual ((size_t) 4, rows.size());
         Assert::IsTrue (rows[0].support == CardLayoutModel::Support::Fails);
         Assert::IsTrue (rows[2].support == CardLayoutModel::Support::Works);
+        Assert::IsTrue (rows[3].support == CardLayoutModel::Support::Works);
+
+        model.GetRows (14, CardLayoutModel::Adapter::A2Pico, rows);
+        Assert::AreEqual ((size_t) 1, rows.size());
+        Assert::AreEqual (std::wstring (L"A2Pico, A2retroNET"), rows[0].adapter);
+    }
+
+
+    //  An A2Pico reads disk images from one FAT volume, so FAT32 is its only
+    //  layout. A card too small for FAT32 has no layout for it.
+    TEST_METHOD (Choices_OfferOnlyFat32ForAnA2Pico)
+    {
+        CardLayoutModel   model (kCard, 13, true);
+        CardLayoutModel   tiny  (16ull * 1024 * 1024, 1, false);
+        std::vector<int>  positions;
+
+        model.GetChoices (CardLayoutModel::Adapter::A2Pico, positions);
+        Assert::AreEqual ((size_t) 1, positions.size());
+        Assert::IsTrue   (model.IsFat32 (positions[0]));
+        Assert::AreEqual (positions[0], model.GetRecommendedPosition (CardLayoutModel::Adapter::A2Pico));
+        Assert::AreEqual (std::wstring (L"A2Pico with the A2retroNET firmware"), CardLayoutModel::GetAdapterLabel (CardLayoutModel::Adapter::A2Pico));
+
+        tiny.GetChoices (CardLayoutModel::Adapter::A2Pico, positions);
+        Assert::IsTrue (positions.empty());
     }
 };

@@ -81,6 +81,64 @@ public:
     }
 
 
+    //  The README suggests commenting out a drive's other images to switch
+    //  between them, so a change rewrites only the lines it sets.
+    TEST_METHOD (Write_ChangesOnlyTheLinesItSets)
+    {
+        std::string       text   = "# my card\r\n[settings]\r\nbootdelay=5\r\n[drives]\r\nnumber=4\r\n1=system.hdv\r\n#2=old.po\r\n2=work.hdv\r\n#3=games/a.po\r\n";
+        A2retroNetConfig  config = A2retroNetConfig::Parse (text);
+
+
+
+        Assert::AreEqual (std::string ("# my card\n[settings]\nbootdelay=5\n[drives]\nnumber=4\n1=system.hdv\n#2=old.po\n2=work.hdv\n#3=games/a.po\n"), config.Write(), L"the same text without CRs");
+
+        config.bootDelay = 2;
+        config.paths[1]  = "new.po";
+        config.paths[2]  = "games/c.po";
+
+        Assert::AreEqual (std::string ("# my card\n[settings]\nbootdelay=2\n[drives]\nnumber=4\n1=system.hdv\n#2=old.po\n2=new.po\n#3=games/a.po\n3=games/c.po\n"), config.Write());
+    }
+
+
+    TEST_METHOD (Write_AddsAMissingLineToItsSection)
+    {
+        A2retroNetConfig  config = A2retroNetConfig::Parse ("[drives]\n1=a.po\n[other]\nx=1\n");
+        A2retroNetConfig  bare   = A2retroNetConfig::Parse ("# drives only\n[drives]\n1=a.po\n");
+
+
+
+        config.paths[1] = "b.po";
+        Assert::AreEqual (std::string ("[drives]\n1=a.po\n2=b.po\n[other]\nx=1\n"), config.Write(), L"defaults aren't added");
+
+        bare.bootDelay = 7;
+        bare.number    = 2;
+        Assert::AreEqual (std::string ("[settings]\nbootdelay=7\n# drives only\n[drives]\nnumber=2\n1=a.po\n"), bare.Write());
+    }
+
+
+    TEST_METHOD (Alternatives_AreADrivesCommentedOutImages)
+    {
+        A2retroNetConfig          config = A2retroNetConfig::Parse ("[drives]\n#3=games/a.po\n#3=games/b.po\n3=games/x.po\n#4=empty.po\n");
+        std::vector<std::string>  alternatives;
+
+
+
+        alternatives = config.GetAlternatives (2);
+        Assert::AreEqual ((size_t) 2, alternatives.size());
+        Assert::AreEqual (std::string ("games/a.po"), alternatives[0]);
+        Assert::AreEqual (std::string ("games/b.po"), alternatives[1]);
+
+        Assert::IsTrue  (config.SwitchToAlternative (2, "games/b.po"));
+        Assert::AreEqual (std::string ("games/b.po"), config.paths[2]);
+        Assert::AreEqual (std::string ("[drives]\n#3=games/a.po\n#3=games/x.po\n3=games/b.po\n#4=empty.po\n"), config.Write(), L"the image switched from is commented out in its place");
+
+        Assert::IsTrue  (config.SwitchToAlternative (3, "empty.po"));
+        Assert::AreEqual (std::string ("[drives]\n#3=games/a.po\n#3=games/x.po\n3=games/b.po\n4=empty.po\n"), config.Write(), L"a drive with no image has nothing to comment out");
+
+        Assert::IsFalse (config.SwitchToAlternative (2, "games/none.po"));
+    }
+
+
     TEST_METHOD (CheckImage_TakesWhatTheFirmwareReads)
     {
         std::vector<Byte>  blocks (280 * 512, 0);
