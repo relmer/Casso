@@ -165,6 +165,7 @@
     <ClCompile Include="EmuTests\TapeRecordScannerTests.cpp" />
     <ClCompile Include="EmuTests\TapeRecordingWriterTests.cpp" />
     <ClCompile Include="EmuTests\TapeRecordingVolumeTests.cpp" />
+    <ClCompile Include="EmuTests\A2retroNetConfigTests.cpp" />
     <ClCompile Include="EmuTests\TapeRomLoadTests.cpp" />
     <ClCompile Include="EmuTests\TapeDeckTests.cpp" />
     <ClCompile Include="EmuTests\CassettePortTests.cpp" />

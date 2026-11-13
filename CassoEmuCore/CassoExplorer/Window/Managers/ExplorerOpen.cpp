@@ -5,6 +5,7 @@
 #include "CassoExplorer/Window/IExplorerWindow.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
+#include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
@@ -242,17 +243,21 @@ bool ExplorerOpen::PickTapeRecording (std::wstring & outTarget)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerOpen::ConvertToTapeAudio
+//  ExplorerOpen::RunFileVerb
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerOpen::ConvertToTapeAudio()
+void ExplorerOpen::RunFileVerb (ActionsTypes::Verb verb)
 {
     std::wstring  target;
 
 
 
-    if (PickTapeRecording (target))
+    if (verb == CassoExplorerActions::Verb::AddToA2retroNet)
+    {
+        m_context.commandManager.ReportOutcome (m_context.actions.AddToA2retroNet (m_context.cassoTarget.GetSelectedImagePath()), L"Add to A2retroNET drives");
+    }
+    else if (PickTapeRecording (target))
     {
         m_context.commandManager.ReportOutcome (m_context.actions.MakeTapeRecording (target), L"Convert to tape audio");
         m_context.folderSync.RefreshAfterHostChange();

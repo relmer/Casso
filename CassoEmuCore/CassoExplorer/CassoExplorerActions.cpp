@@ -200,6 +200,11 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
             verbs.push_back (Verb::MakeShrinkItDisk);
         }
 
+        if (imagePaths.size() == 1 && m_a2retroNet.CanAdd (imagePaths[0]))
+        {
+            verbs.push_back (Verb::AddToA2retroNet);
+        }
+
         verbs.push_back (Verb::Test);
     }
     else if (m_browser.AreSelectedRowsImages() && CanInspectSelected())

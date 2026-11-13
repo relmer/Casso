@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Actions/ActionsTypes.h"
 #include "Seams/RawDevice/IRawDevice.h"
 
 struct ExplorerContext;
@@ -40,8 +41,9 @@ public:
     //  the image by default. False when canceled.
     bool  PickTapeRecording   (std::wstring & outTarget);
 
-    //  A tape recording of the selected files, to the file picked.
-    void  ConvertToTapeAudio  ();
+    //  Convert to tape audio, a tape recording of the selected files to the
+    //  file picked, or Add to A2retroNET drives for the selected image.
+    void  RunFileVerb         (ActionsTypes::Verb verb);
 
     void  SetCardWriteConfirmed (bool confirmed);
 

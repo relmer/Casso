@@ -1182,8 +1182,14 @@ CiderPress II's file viewer, from its GUI manual, was compared feature by featur
 
 **Finding**: Wizardry I to III scenarios are Pascal files on Pascal disks; Infocom story files are Z-machine images, specified by the Z-Machine Standards Document 1.1.
 
-**Decision**: `WizardryScenario` and `ZMachineStory` decoders in `FileTypes/`, which return Lines and Picture. The Wizardry layout is taken from community format notes published for it, checked against the game run in Casso. DiskBrowser's source is read for behavior only, under FR-171.
+**Decision**: `WizardryScenario` and `ZMachineStory` decoders in `FileTypes/`. The Wizardry layout is the record types of Thomas William Ewers' re-engineered Pascal source of Wizardry I, from the Asimov archive, which reproduces WIZARDRY.CODE exactly; I to III have the same record sizes. The lists and a text map of each level are Lines; a level as a Picture is open, since a decode has one output. A real Zork I, release 88, has its story in the inverse of the physical-to-DOS sector order, one of the orders `InfocomVolume` reads; MAME boots that disk, and Casso doesn't yet. DiskBrowser's source is read for behavior only, under FR-171.
 
 ## R57. VisiCalc recalculation (Story 22)
 
 **Decision**: `VisiCalcEvaluator` parses each formula into a tree and evaluates the sheet in the file's order, one pass per recalculation, with the functions in the VisiCalc User's Guide's reference section. Values are formatted as VisiCalc formats them: general, integer, dollars and cents, left, right and the graph format.
+
+## R58. A2Pico and A2retroNET (T668)
+
+**Finding**: The A2retroNET firmware (oliverschmidt/a2retronet, MIT license; its README, `config.c` and `hdd.c`) is a SmartPort controller of up to eight drives, set by `A2retroNET.txt` in the card's root: `[settings]` with `bootdelay=0` to `9`, and `[drives]` with `number=2`, `4`, `6` or `8` and `n=path` for drives 1 to 8, the path from the root. A line starting with `#` is a comment. The firmware removes only the `\n` ending a line, so in a file with CR LF line ends each path ends in a CR and no image opens. It reads `.po`, `.hdv` and `.2mg` images of ProDOS blocks; a `.2mg` is read from a fixed offset of 64, without its header's fields, and the block count is the bytes after that over 512, at most 65,535. A read-only file is a write-protected drive.
+
+**Decision**: `A2retroNetConfig` reads and writes the file as the firmware does, with LF line ends, and checks an image as the firmware opens it. Casso Explorer's Add to A2retroNET drives sets the selected image as the first drive without one, on a card whose root has the file. The ProDOS images `casso disk create` and Casso Explorer make at 140K, 800K, 5M, 10M, 20M and 32M, as `.po`, `.hdv` and `.2mg`, are already in the form the firmware reads: a `.2mg`'s blocks start at 64, with nothing after them, and 32M is 65,535 blocks. Nothing is checked on an A2Pico, since the owner doesn't have one.

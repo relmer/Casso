@@ -82,6 +82,9 @@ struct ActionsTypes
         //  The selected BASIC programs and binaries as a tape recording.
         ConvertToTapeAudio,
 
+        //  The selected image set as a drive in an A2Pico card's A2retroNET.txt.
+        AddToA2retroNet,
+
         //  A partition's blocks as an image file, and an image file over a
         //  partition.
         CopyPartitionToImage,
