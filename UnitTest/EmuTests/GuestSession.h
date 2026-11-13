@@ -96,6 +96,10 @@ public:
     static void  Mount        (MachineHost              & host,
                                const std::vector<Byte>  & bytes);
 
+    //  The second half of Mount, for a test that mounts an image itself: run
+    //  after the power cycle and the mount, before the processor starts.
+    static void  StartFromPowerOn (MachineHost & host);
+
     //  Mounts the bytes in slot 6 drive 1 and runs the boot ROM until the
     //  machine settles or the ceiling is spent.
     static void  MountAndBoot (MachineHost              & host,
@@ -280,8 +284,6 @@ private:
     static constexpr Word      kResetVector        = 0xFFFC;
     static constexpr Word      kOldMonitorReset    = 0xFF59;
     static constexpr uint64_t  kMonitorResetCycles = 2'000'000ULL;
-
-    static void  StartFromPowerOn (MachineHost & host);
 
     static constexpr int  kSlot6  = 6;
     static constexpr int  kDrive1 = 0;
