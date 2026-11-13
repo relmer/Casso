@@ -60,11 +60,12 @@ public:
     static std::vector<Byte>  RequireKermitDisk();
 
     //  Gutenberg, Jr.'s side A, or a FAILED test, on the same grounds. It is a
-    //  third party's, so it is fetched rather than committed.
+    //  third party's, so it is fetched outside the tree.
     static std::vector<Byte>  RequireGutenbergJrDisk();
 
-    //  A third party's disk scripts/FetchStockDisks.ps1 fetches into
-    //  Disks/ThirdParty, by its name there, or a FAILED test.
+    //  A third party's commercial disk scripts/FetchStockDisks.ps1 fetches
+    //  outside the tree, by its name there, or a FAILED test. The folder is
+    //  the one CASSO_TEST_DISKS is set to, or Casso\TestDisks under Downloads.
     static std::vector<Byte>  RequireFetchedDisk (const char * fileName);
 
     //  The Apple /// System Utilities and System Demo disks with SOS 1.1, or a
@@ -244,7 +245,7 @@ private:
     static constexpr const wchar_t *  kpszProDosCacheName = L"ProDOS Users Disk.dsk";
     static constexpr const char *     kpszProDosRepoPath  = "Disks/Apple/prodos-users.dsk";
     static constexpr const char *     kpszKermitRepoPath  = "Disks/ThirdParty/kermit-65.dsk";
-    static constexpr const char *     kpszGutenbergRepoPath = "Disks/ThirdParty/gutenberg-jr.dsk";
+    static constexpr const char *     kpszGutenbergDiskName = "gutenberg-jr.dsk";
     static constexpr const wchar_t *  kpszSosCacheName    = L"Apple III System Utilities.dsk";
     static constexpr const char *     kpszSosRepoPath     = "Disks/Apple/sos-utilities.dsk";
     static constexpr const char *     kpszSosDemoRepoPath = "Disks/Apple/sos-demo.dsk";
