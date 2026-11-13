@@ -1214,7 +1214,7 @@ HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & 
     capture = capture && std::string (FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size())) == FullSendManifest::kStatusProtected;
     BAIL_OUT_IF (!capture, S_OK);
 
-    Report (std::format ("The disk in drive {} is likely copy-protected; using raw capture mode.", drive));
+    Report (std::format ("Unreadable sectors were found on the disk in drive {} during the normal transfer, so it appears to be copy-protected. Restarting the capture using raw mode.", drive));
 
     SetDriveState (drive, FullSendDriveState::Capturing);
     m_status.SetActivity (FullSendActivity::Capturing, drive);
