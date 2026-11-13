@@ -68,6 +68,7 @@ public:
         return std::vector<Byte> (text, text + strlen (text));
     }
 
+
     //  An image on a card with A2retroNET.txt in its root, set as the first
     //  drive with no image. A .dsk isn't offered.
     TEST_METHOD (AddToA2retroNet_SetsTheFirstFreeDrive)
@@ -235,6 +236,40 @@ public:
         host.actions.GetA2retroNet().NoteDelete (L"E:\\system.po");
 
         Assert::AreEqual (std::string ("# card\n[drives]\nnumber=4\n1=\n2=infocom/zork1.po\n3=\n"), std::string (host.io.files["E:\\A2retroNET.txt"].begin(), host.io.files["E:\\A2retroNET.txt"].end()));
+    }
+
+
+    //  A drop onto a folder is done by Windows, which may move the files
+    //  after the drop returns. A file whose source is gone and whose target
+    //  is there is a move, and its drive takes the new path. A copy changes
+    //  nothing.
+    TEST_METHOD (ExpectedMoves_SetTheDrivesOnceTheFilesMove)
+    {
+        Host                      host;
+        std::vector<Byte>         image (280 * 512, 0);
+        A2retroNetConfig          config;
+        ActionsA2retroNet::Card   card;
+
+
+
+        host.SeedBytes (Bytes ("[drives]\n1=games/zork.po\n2=other.po\n"), L"E:\\A2retroNET.txt");
+        host.SeedBytes (image, L"E:\\games\\zork.po");
+        host.SeedBytes (image, L"E:\\other.po");
+
+        host.actions.GetA2retroNet().ExpectMoves ({ L"E:\\games\\zork.po", L"E:\\other.po" }, L"E:\\infocom");
+        host.actions.GetA2retroNet().ResolveMoves();
+
+        AssertSucceeded  (host.actions.ReadA2PicoCard (L"E:\\", card));
+        Assert::AreEqual (std::string ("games/zork.po"), card.config.paths[0], L"nothing has moved yet");
+
+        AssertSucceeded (host.fs.Delete (L"E:\\games\\zork.po"));
+        host.SeedBytes  (image, L"E:\\infocom\\zork.po");
+        host.SeedBytes  (image, L"E:\\infocom\\other.po");
+        host.actions.GetA2retroNet().ResolveMoves();
+
+        AssertSucceeded  (host.actions.ReadA2PicoCard (L"E:\\", card));
+        Assert::AreEqual (std::string ("infocom/zork.po"), card.config.paths[0]);
+        Assert::AreEqual (std::string ("other.po"),        card.config.paths[1], L"a copy");
     }
 
 

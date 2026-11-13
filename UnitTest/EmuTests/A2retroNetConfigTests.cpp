@@ -193,6 +193,46 @@ public:
     }
 
 
+    //  A drive dragged from one place to another: the drives between move
+    //  up or down a place, each with its commented-out images.
+    TEST_METHOD (MoveDrive_ShiftsTheDrivesBetween)
+    {
+        A2retroNetConfig  config = A2retroNetConfig::Parse ("[drives]\n1=a.po\n#1=a-old.po\n2=b.po\n3=c.po\n4=d.po\n");
+
+
+
+        config.MoveDrive (0, 2);
+        Assert::AreEqual (std::string ("b.po"), config.paths[0]);
+        Assert::AreEqual (std::string ("c.po"), config.paths[1]);
+        Assert::AreEqual (std::string ("a.po"), config.paths[2]);
+        Assert::AreEqual (std::string ("a-old.po"), config.GetAlternatives (2)[0]);
+
+        config.MoveDrive (3, 0);
+        Assert::AreEqual (std::string ("d.po"), config.paths[0]);
+        Assert::AreEqual (std::string ("a.po"), config.paths[3]);
+    }
+
+
+    //  An image is on one drive at a time: setting it on a drive empties the
+    //  drive it was on. An image commented out for the drive is switched to.
+    TEST_METHOD (SetDrive_TakesTheImageFromTheDriveItWasOn)
+    {
+        A2retroNetConfig  config = A2retroNetConfig::Parse ("[drives]\n1=a.po\n2=b.po\n#2=c.po\n");
+
+
+
+        config.SetDrive (1, "/A.PO");
+        Assert::AreEqual (std::string (""),     config.paths[0]);
+        Assert::AreEqual (std::string ("/A.PO"), config.paths[1]);
+
+        config.SetDrive (1, "c.po");
+        Assert::AreEqual (std::string ("[drives]\n1=\n2=c.po\n#2=/A.PO\n"), config.Write(), L"the image switched from is commented out in the alternative's place");
+
+        config.SetDrive (1, std::string());
+        Assert::IsTrue (config.paths[1].empty());
+    }
+
+
     TEST_METHOD (CheckImage_TakesWhatTheFirmwareReads)
     {
         std::vector<Byte>  blocks (280 * 512, 0);

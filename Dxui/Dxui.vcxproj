@@ -219,6 +219,7 @@
     <ClCompile Include="Widgets\DxuiTextView.cpp" />
     <ClCompile Include="Widgets\DxuiToolbarEditBox.cpp" />
     <ClCompile Include="Widgets\DxuiTabDragModel.cpp" />
+    <ClCompile Include="Widgets\DxuiReorderStack.cpp" />
     <ClCompile Include="Widgets\DxuiTabDragVisual.cpp" />
     <ClCompile Include="Widgets\DxuiZoomControl.cpp" />
     <ClCompile Include="Widgets\DxuiShimmer.cpp" />
@@ -360,6 +361,7 @@
     <ClInclude Include="Widgets\DxuiTextView.h" />
     <ClInclude Include="Widgets\DxuiToolbarEditBox.h" />
     <ClInclude Include="Widgets\DxuiTabDragModel.h" />
+    <ClInclude Include="Widgets\DxuiReorderStack.h" />
     <ClInclude Include="Widgets\DxuiTabDragVisual.h" />
     <ClInclude Include="Widgets\DxuiShimmer.h" />
     <ClInclude Include="Widgets\DxuiTabSlides.h" />

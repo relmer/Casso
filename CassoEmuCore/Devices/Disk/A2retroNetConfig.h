@@ -77,6 +77,15 @@ public:
     //  each.
     void  SwapDrives (int first, int second);
 
+    //  A drive, from 0, moved to another place, with the drives between it
+    //  and there moved a place toward where it was.
+    void  MoveDrive (int from, int to);
+
+    //  Sets a drive's image, from 0, or empties it for an empty path. An
+    //  image is on one drive at a time, so any other drive with it is
+    //  emptied. An image commented out for the drive is switched to.
+    void  SetDrive (int drive, const std::string & path);
+
     //  The drives, from 0, set to the file at `path`, a path from the root.
     //  A drive's path matches in any case, with or without a device or a
     //  leading /.

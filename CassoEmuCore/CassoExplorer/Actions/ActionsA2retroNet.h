@@ -69,6 +69,16 @@ public:
     //  moved off the card, each drive with it is emptied.
     void  NoteMove   (const std::wstring & from, const std::wstring & to);
 
+    //  Files dropped onto a folder, which Windows moves or copies, perhaps
+    //  after the drop returns. Each is listed as a possible move from its path
+    //  to the folder, for a while.
+    void  ExpectMoves  (const std::vector<std::wstring> & sources, const std::wstring & folder);
+
+    //  Each listed move whose source is gone and whose target is there is
+    //  noted as a move. One that hasn't happened and hasn't run out of time
+    //  is checked again on the next call.
+    void  ResolveMoves ();
+
     //  A file deleted in Casso Explorer: each drive with it is emptied.
     void  NoteDelete (const std::wstring & path);
 
@@ -109,6 +119,17 @@ private:
     //  images makes too long to use anyway.
     static constexpr size_t  kImagesMax = 2000;
 
+    //  How long a dropped file is listed as a possible move, which covers a
+    //  slow copy of a large image to a card.
+    static constexpr ULONGLONG  kExpectedMoveMs = 120'000;
+
+    struct ExpectedMove
+    {
+        std::wstring  from;
+        std::wstring  to;
+        ULONGLONG     untilMs = 0;
+    };
+
     //  The .2mg header's fields, little-endian longs.
     static constexpr size_t    k2mgFormatAt = 0x0C;
     static constexpr size_t    k2mgOffsetAt = 0x18;
@@ -146,5 +167,6 @@ private:
     //  each path.
     HRESULT  ListImagesIn (const std::wstring & folder, const std::string & prefix, std::vector<std::string> & ioPaths);
 
-    CassoExplorerActions & m_actions;
+    CassoExplorerActions        & m_actions;
+    std::vector<ExpectedMove>     m_expected;
 };

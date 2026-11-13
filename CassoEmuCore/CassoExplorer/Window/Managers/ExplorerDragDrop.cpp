@@ -1201,8 +1201,10 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
     DWORD                          effect     = DROPEFFECT_NONE;
     BOOL                           posted     = FALSE;
     HRESULT                        recycled   = S_OK;
+    HRESULT                        hrPaths    = S_OK;
     std::wstring                   hostFolder;
     std::wstring                   driveId;
+    std::vector<std::wstring>      dropped;
     POINTL                         at         = { screen.x, screen.y };
 
 
@@ -1260,6 +1262,16 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
         if (SUCCEEDED (hr) && effect != DROPEFFECT_NONE && !names.empty())
         {
             m_context.listPane.SelectWhenListed (hostFolder, std::move (names));
+        }
+
+        //  Windows may move the files after the drop returns, and it doesn't
+        //  report a move it does that way, so an A2Pico card's drives are
+        //  updated once a listing finds the files moved.
+        hrPaths = SUCCEEDED (hr) ? DxuiDragDropTarget::ExtractHDropPaths (data, dropped) : hr;
+
+        if (SUCCEEDED (hrPaths))
+        {
+            m_context.actions.GetA2retroNet().ExpectMoves (dropped, hostFolder);
         }
 
         m_hostDrop.Reset();

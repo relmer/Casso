@@ -709,3 +709,61 @@ bool A2retroNetConfig::ClearPath (const std::string & path)
 
     return !drives.empty();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::MoveDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void A2retroNetConfig::MoveDrive (int from, int to)
+{
+    int  step = to > from ? 1 : -1;
+
+
+
+    for (int drive = from; drive != to; drive += step)
+    {
+        SwapDrives (drive, drive + step);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::SetDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void A2retroNetConfig::SetDrive (int drive, const std::string & path)
+{
+    std::vector<std::string>  alternatives = GetAlternatives (drive);
+    bool                      switched     = false;
+
+
+
+    for (int other = 0; !path.empty() && other < kDrivesMax; other++)
+    {
+        if (other != drive && IsSamePath (paths[other], path))
+        {
+            paths[other].clear();
+        }
+    }
+
+    if (std::find (alternatives.begin(), alternatives.end(), path) != alternatives.end())
+    {
+        switched = SwitchToAlternative (drive, path);
+    }
+
+    if (!switched)
+    {
+        paths[drive] = path;
+    }
+}

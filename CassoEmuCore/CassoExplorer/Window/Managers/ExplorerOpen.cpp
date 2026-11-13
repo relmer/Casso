@@ -660,7 +660,7 @@ void ExplorerOpen::EditA2retroNetDrives (const std::wstring & root)
 
 
 
-    saved = A2retroNetDrivesDialog::Edit (owner, m_context.theme, m_context.actions.GetA2retroNet(), root, [this, owner] (const std::wstring & path)
+    saved = A2retroNetDrivesDialog::Edit (owner, m_context.theme, m_context.actions.GetA2retroNet(), root, &m_context.shellIcons, [this, owner] (const std::wstring & path)
     {
         HRESULT  hr = m_context.shellVerbs.Open (owner, path);
 

@@ -608,6 +608,7 @@ hardware.
 - Q: Is a Wizardry scenario a saved game? -> A: It is both. The scenario disk has the game's fixed data (maze levels, monsters, items) and the player's roster of characters, which the game saves to the same disk. The roster is the part that differs from one player's disk to another. The owner's use for the viewer is the saved game: which characters a disk has and their state. A reference to the game's fixed data doesn't fit Casso Explorer, so the output is the roster and the party's place in the maze (T695, T696).
 - Q: Which parts of DiskBrowser's and WizardryApp's Wizardry views does Casso Explorer take? -> A: The saved game only (owner, 2026-11-13). The roster with a list of each character's inventory, and one map: the level the party is on, with its square marked. Not taken: detail pages for monsters and items, rewards, encounters, a map of every level, and WizardryApp's walk through the maze with a 3D view, since mapping the whole game isn't a use for Casso Explorer. Inventory is per character in the game's records, eight items each, so it is listed under each character.
 - Q: Which Infocom views does Casso Explorer take? -> A: None beyond what the story listing has. DiskBrowser's grammar, globals and Z-code disassembly are outside Casso Explorer's scope. The owner asked for a summary of a saved game where it identifies the save for the user (FR-264, T697). Neither DiskBrowser nor WizardryApp reads an Infocom save.
+- Q: What does the A2Pico do with the card's files that aren't set as drives? -> A: Nothing. ProDOS on the Apple reads only the eight drives' images, as volumes. The firmware's configuration utility on the Apple lists the card's folders and the .po, .hdv and .2mg files in them, for setting a drive, and hides every other file. With the A2retroNET-Link firmware the A2Pico is also a card reader for a PC or a phone over USB, which lists every file. So other files on the card are storage, such as images to switch to.
 - Q: What does an A2Pico card contain, and what are its size limits? -> A: Loose files on one FAT12, FAT16, FAT32 or exFAT volume: `A2retroNET.txt` in the root, and ProDOS block images of up to 32 MB each (65,535 blocks) in the root or in folders, with long file names. Up to eight are drives at one time, and the card can have any number more. The firmware's FatFs build has exFAT and 64-bit block addresses on (`ffconf.h` in FarLeftLane/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico, which its CMakeLists.txt fetches), so the card's size isn't limited by the firmware. It mounts the first volume on the card, so the card has one partition.
 - Q: Is Full Send's raw capture of a likely copy-protected disk a setting in Options? -> A: No. It always happens, and the setting first built for it is removed. A protected disk's sector image rarely runs, so a Full Send without the capture writes an image nobody can use, and a raw capture of a damaged disk assessed alike has more of it than a sector image. The capture's minutes are the cost. The Full Send page's intro is rewritten: many protections are detected and imaged, and Capture raw disk is for the rest.
 - Q: Where is a Full Send's progress on the PC? -> A: In a Full Send window, since one line in the status bar can't list both drives, the disks done and the time left. It opens without taking focus when a session starts, and closing it doesn't end the session. It has a state line with what the session is doing or what it waits for, a panel per drive with the disk's title, a track map, a progress bar, the time elapsed and the time left, the session's totals, a list of the disks done, and an activity list with each event's time. The status bar has a one-line summary, and a click on it opens the window.
@@ -3731,9 +3732,11 @@ status bar, and compare the list with the manifest when the session ends.
   drive's other images commented out with `#`, and lines Casso Explorer
   doesn't read MUST remain in place, unlike the firmware's configuration
   utility, which writes the file again without them. A2retroNET drives, a
-  dialog, MUST set a drive's image from the card, list a drive's `sd:` or
+  dialog, MUST list the number of drives and the boot delay first, then the
+  eight drives, the drives past the number in use disabled and not
+  configured. It MUST set a drive's image from the card, list a drive's `sd:` or
   `usb:` path, which may be on the Drive firmware's other device, without
-  changing it, clear a drive, reorder
+  changing it, clear a drive, reorder by dragging
   the drives, switch a drive to one of its commented-out images, and set
   the number of drives (2, 4, 6 or 8) and the boot delay (0 to 9 seconds).
   Edit as text MUST open the file in the user's text editor, and the
@@ -3743,7 +3746,7 @@ status bar, and compare the list with the manifest when the session ends.
   folder the copy is in. An image with no
   block volume MUST be copied as it is, and MUST NOT be offered as a drive.
 - **FR-262**: Renaming or moving a drive's image on the card in Casso
-  Explorer MUST update the drive's path, and deleting it MUST clear the
+  Explorer, by dragging too, MUST update the drive's path, and deleting it MUST clear the
   drive after a confirmation that lists the drive.
 - **FR-263**: Initialize card for Apple MUST offer an A2Pico adapter: one
   FAT32 partition and an `A2retroNET.txt` of the firmware's defaults, with
