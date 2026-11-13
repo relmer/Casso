@@ -4206,6 +4206,7 @@ void DiskCommandRunner::BuildLargeProDos (const CommandLineOptions & options, Di
     bool                           fitsDc42   = false;
     vector<Byte>                   volume;
     vector<Byte>                   imageBytes;
+    std::string                    bootWords;
     TwoImgHeader                   twoImg;
     DiskCopy42Header               diskCopy;
     DiskImageSession::OpenedImage  target;
@@ -4250,6 +4251,9 @@ void DiskCommandRunner::BuildLargeProDos (const CommandLineOptions & options, Di
     hr = isHfs ? HfsWriter::Format (volume, blocks, name) : ProDosSkeleton::Write (volume, name);
     CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be built"));
 
+    hr = InstallLargeBoot (options, isHfs, volume, bootWords, result);
+    CHR (hr);
+
     //  A 140K volume is built in DOS logical order, and every container here
     //  has its blocks in order.
     if (!ProDosSkeleton::IsBlockOrder (volume.size()))
@@ -4279,7 +4283,7 @@ void DiskCommandRunner::BuildLargeProDos (const CommandLineOptions & options, Di
     hr = m_session.CommitImage (target, imageBytes, result);
     CHR (hr);
 
-    result.output     += std::format ("{}: {} volume {}, {} blocks\n", options.disk.imagePath, isHfs ? "HFS" : "ProDOS", name, blocks);
+    result.output     += std::format ("{}: {} volume {}, {} blocks{}\n", options.disk.imagePath, isHfs ? "HFS" : "ProDOS", name, blocks, bootWords);
     result.exitStatus  = DiskCommandResult::kClean;
 
 Error:
@@ -4328,6 +4332,7 @@ void DiskCommandRunner::ReformatLargeProDos (const CommandLineOptions & options,
     vector<Byte>                   original;
     vector<Byte>                   sectors;
     vector<Byte>                   imageBytes;
+    std::string                    bootWords;
     SectorDecodeReport             report;
     std::string                    refusal;
     DiskImageSession::OpenedImage  target;
@@ -4351,6 +4356,9 @@ void DiskCommandRunner::ReformatLargeProDos (const CommandLineOptions & options,
     hr = isHfs ? HfsWriter::Format (sectors, sectors.size() / ProDosSkeleton::kBlockByteSize, name) : ProDosSkeleton::Write (sectors, name);
     CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be built"));
 
+    hr = InstallLargeBoot (options, isHfs, sectors, bootWords, result);
+    CHR (hr);
+
     hr = VolumeImage::Save (original, options.disk.imagePath, sectors, imageBytes, refusal);
     CHRF (hr, result.Fail (options.disk.imagePath, "", refusal.empty() ? std::string ("could not be written") : refusal));
 
@@ -4362,11 +4370,69 @@ void DiskCommandRunner::ReformatLargeProDos (const CommandLineOptions & options,
     hr = m_session.CommitImage (target, imageBytes, result);
     CHR (hr);
 
-    result.output     += std::format ("{}: {} volume {}, {} blocks\n", options.disk.imagePath, isHfs ? "HFS" : "ProDOS", name, ProDosSkeleton::GetBlockCount (sectors.size()));
+    result.output     += std::format ("{}: {} volume {}, {} blocks{}\n", options.disk.imagePath, isHfs ? "HFS" : "ProDOS", name, ProDosSkeleton::GetBlockCount (sectors.size()), bootWords);
     result.exitStatus  = DiskCommandResult::kClean;
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::InstallLargeBoot
+//
+//  The volume is in block order, which ProDosSkeleton addresses by the
+//  buffer's size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::InstallLargeBoot (const CommandLineOptions & options, bool isHfs, vector<Byte> & ioVolume, std::string & outBootWords, DiskCommandResult & result)
+{
+    HRESULT        hr = S_OK;
+    BlankDiskSpec  spec;
+    BootPayload    payload;
+    std::string    sosError;
+
+
+
+    outBootWords.clear();
+
+    BAIL_OUT_IF (!options.disk.bootable, S_OK);
+
+    CBRFEx (!isHfs, E_INVALIDARG,
+            (result.diagnostics    += ApplyPrefix ("Error: an HFS volume can't be made bootable\n"
+                                                   "       %Lbootable copies ProDOS onto a ProDOS volume.\n"),
+             result.exitStatus      = DiskCommandResult::kNoOutput,
+             result.badCommandLine  = true));
+
+    spec.contents   = BlankDiskContents::ProDos;
+    spec.bootSystem = GetBootSystem (options.disk.formatName);
+
+    hr = ResolveBoot (options, spec, payload, result);
+    CHR (hr);
+
+    if (spec.bootSystem != ProDosBootSystem::AppleIII)
+    {
+        hr = ProDosSkeleton::InstallBoot (ioVolume, payload.proDosUsersDisk);
+        CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be made bootable: the master has no PRODOS and BASIC.SYSTEM to copy"));
+    }
+
+    if (spec.bootSystem != ProDosBootSystem::AppleII)
+    {
+        hr = ProDosStartup::InstallSos (ioVolume, payload.sosSystemDisk, sosError);
+        CHRF (hr, result.Fail (options.disk.imagePath, "", "could not be made bootable on an Apple ///: " + sosError));
+    }
+
+    outBootWords = spec.bootSystem == ProDosBootSystem::AppleIII ? ", bootable on an Apple ///"
+                 : spec.bootSystem == ProDosBootSystem::Both     ? ", bootable on an Apple II and an Apple ///"
+                 :                                                 ", bootable";
+
+Error:
+    return hr;
 }
 
 
