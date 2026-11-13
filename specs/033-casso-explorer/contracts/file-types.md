@@ -47,7 +47,7 @@ its decoder is written. The table is the test list for
 | Print Shop font | $F8/$C316 for Print Shop GS | B at $6000 or $5FF4, more than 576 bytes | sheet | `NAME.Font.png` | no | PrintShop |
 | IIgs bitmap font | $C8 | none | sheet | `NAME.Font.png` | no | BitmapFont |
 | Wizardry scenario | Pascal file `SCENARIO.DATA` on a Wizardry I to III disk | Pascal kind 5, the same name | lists, and each level as a text map | `NAME.Wizardry.txt`; `NAME.Level N.png` is open (T649) | no | R56 |
-| Infocom story | BIN, or a host `.z1` to `.z8` or `.dat`, with a Z-machine header: version 1 to 8 at $00, the high memory, dictionary and object table addresses inside the file | the story's sectors on an Infocom disk with no catalog, from track 3 on, opened as one file | listing | `NAME.Infocom.txt` | no | Z-Machine Standards Document 1.1 |
+| Infocom story | BIN, or a host `.z1` to `.z8` or `.dat`, with a Z-machine header: version 1 to 8 at $00, the high memory, dictionary and object table addresses inside the file | the story's sectors on an Infocom disk with no catalog, from track 3 on, opened as one file | listing | `NAME.Z-machine.txt` | no | Z-Machine Standards Document 1.1 |
 
 Import rows: a host file whose suffix is the row's Out suffix is put as
 that format with no dialog, and the suffix is stripped from the catalog

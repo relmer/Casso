@@ -597,7 +597,13 @@ hardware.
 
 ### Session 2026-11-13
 
-- Q: Is Full Send's raw capture of a likely copy-protected disk a setting in Options? -> A: No. It always happens, and the setting first built for it is removed. A protected disk's sector image rarely runs, so a Full Send without the capture writes an image nobody can use, and a raw capture of a damaged disk assessed alike has more of it than a sector image. The capture's minutes are the cost. The Full Send page's intro is rewritten: many protections are detected and imaged, and Capture raw disk is for the rest.
+- Q: Is the cassette audio link (Story 26) checked on a real Apple? -> A: No. The owner has no Apple with a cassette jack, so it is tested on Casso's emulated ][+ and //e only, as stated in the phase's header in tasks.md.
+- Q: Is A2Pico support dropped with its hardware check? -> A: No. Only the check on an A2Pico is dropped, since the owner doesn't have one. The A2retroNET firmware was researched from its README and source (R58), and support is built and checked against that and in Casso (T668).
+- Q: Where are virtual drives (Story 25) checked first? -> A: In Casso, on an emulated //c. The run on the owner's //c comes only after that passes (T585).
+- Q: Where do the commercial disks the scenario tests download go? -> A: Outside the tree, in `Downloads\Casso\TestDisks` or the folder `CASSO_TEST_DISKS` is set to, so they can't be committed: Gutenberg, Jr., the Wizardry I to III scenario disks and Zork I. Kermit and Apple's disks stay in the gitignored `Disks` folders.
+- Q: Casso doesn't boot Zork I, release 88, which MAME boots. Who fixes that? -> A: A separate session in a separate worktree, branch `zork-boot`, started 2026-11-13. The owner called it a major problem because of Zork's popularity. T652's check of the Infocom viewer against the running game waits on it.
+- Q: How are Wizardry maze levels shown? -> A: As text maps in the scenario's one text output, for now. A level as a picture with a PNG copy out requires a decode with several outputs, which the owner hasn't decided on (T649). DiskBrowser and WizardryApp are being surveyed, by behavior only since they are GPL, for the game data feature list and its cost.
+- Q: Does Initialize card make an A2Pico card? -> A: Not yet. An A2Pico adapter, FAT32 with a starter A2retroNET.txt, is proposed and the owner hasn't decided (T688). A card is identified by its content each time it is opened: a FAT volume with A2retroNET.txt is an A2Pico card, and a raw partitioned card is a CFFA card. -> A: No. It always happens, and the setting first built for it is removed. A protected disk's sector image rarely runs, so a Full Send without the capture writes an image nobody can use, and a raw capture of a damaged disk assessed alike has more of it than a sector image. The capture's minutes are the cost. The Full Send page's intro is rewritten: many protections are detected and imaged, and Capture raw disk is for the rest.
 
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -1806,7 +1812,7 @@ in MAME's Apple /// and the dual disk in Casso's //e, scripted.
 A user copies documents onto a Gutenberg disk, and pulls files off an SSI
 game's RDOS disk.
 
-**Why this priority**: Gutenberg volumes open read-only today, and RDOS is
+**Why this priority**: Gutenberg volumes opened read-only before this story, and RDOS is
 the last Apple II file system CiderPress II reads that Casso Explorer
 doesn't.
 

@@ -2015,6 +2015,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 - [ ] T653 Walk quickstart §7e to §7h on Debug and Release, and write the results to `specs/033-casso-explorer/validation.md`
 - [X] T668 Research the A2Pico's A2retroNET storage firmware from its published documentation, write the findings into `research.md`, and support it: ProDOS images Casso Explorer and `casso disk create` make at 140K, 800K, 5M, 10M, 20M and 32M, as .po, .hdv and .2mg, in the forms A2retroNET accepts, listed in `A2retroNET.txt` on the micro SD card, bootable with `--bootable`, and a file written there read back in Casso Explorer. The owner has no A2Pico, so the checks are against the documentation and in Casso, not on the hardware. Done: R58, `A2retroNetConfig` and Add to A2retroNET drives; Casso's images were already in the firmware's form
+- [ ] T688 Add an A2Pico adapter to Initialize card: FAT32 and a starter `A2retroNET.txt` written by `A2retroNetConfig`, with its row in the compatibility grid. Proposed 2026-11-13; the owner hasn't decided
 - [ ] T654 Run `scripts/CheckStyle.ps1 -Mode Tree`, the code-analysis rebuild, and the unit and scenario suites in Debug and Release before each master merge
 
 ### Dependencies for Phases 36 to 56
