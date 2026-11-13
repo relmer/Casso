@@ -158,7 +158,16 @@ void SourceDocumentPane::AddToDock (DxuiDockSite & dock)
     m_frame = std::make_unique<DebuggerPaneFrame> (L"Source");
     m_frame->AddPart (m_bar.GetSlot(), PaneBarSlot::GetHeightPx);
     m_frame->AddPart (m_banner,
-                      [this] (int width, const DxuiDpiScaler & scaler) { return (int) m_banner->GetPreferredHeightPx ((float) width, scaler); },
+                      [this] (int width, const DxuiDpiScaler & scaler)
+                      {
+                          IDxuiTextRenderer  * text = m_host.GetPaneTextRenderer();
+
+                          //  Measured where a renderer exists: the estimate is from an
+                          //  average glyph width, and a long path in a wide face ran
+                          //  past it, so the banner's last line was cut off.
+                          return (text != nullptr) ? (int) std::ceil (m_banner->GetMeasuredHeightPx (*text, (float) width, scaler))
+                                                   : (int) m_banner->GetPreferredHeightPx ((float) width, scaler);
+                      },
                       [this] { return m_isBannerShown; });
     m_frame->AddPart (m_view);
 
@@ -664,9 +673,12 @@ void SourceDocumentGroup::Open (int fileId, int line, bool activate)
         m_documents[(size_t) slot]->GetModel().SetTopSourceLine (line);
     }
 
+    //  A document opened by the user's choice, such as Go to definition, has
+    //  the keyboard too, so its line is marked as the selection is.
     if (activate)
     {
         Activate (slot);
+        m_host.FocusControl (m_documents[(size_t) slot]->GetView());
     }
 }
 

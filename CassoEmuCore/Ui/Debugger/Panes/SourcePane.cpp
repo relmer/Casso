@@ -844,6 +844,32 @@ std::optional<Word> SourcePane::GetAddressAt (POINT atDip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourcePane::GetFocusAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> SourcePane::GetFocusAddress() const
+{
+    int   row  = m_view->GetFocusRow();
+    auto  map  = (m_state.has_value()) ? m_state->lineAddresses : nullptr;
+    int   line = (row >= 0 && row < (int) m_rowLines.size()) ? m_rowLines[(size_t) row] : 0;
+
+
+
+    if (m_fileId < 0 || line <= 0 || map == nullptr || !map->contains ({ m_fileId, line }))
+    {
+        return std::nullopt;
+    }
+
+    return map->at ({ m_fileId, line });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourcePane::OnDoubleClick
 //
 ////////////////////////////////////////////////////////////////////////////////

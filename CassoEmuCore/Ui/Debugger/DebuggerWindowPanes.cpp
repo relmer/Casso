@@ -1151,7 +1151,8 @@ void DebuggerWindow::EditStepFilters()
 //
 //  DebuggerWindow::GetCursorAddress
 //
-//  The selected disassembly line's address, or the PC's.
+//  In a source document that has the keyboard, the address of its selected
+//  line; otherwise the selected disassembly line's address, or the PC's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1160,6 +1161,18 @@ Word DebuggerWindow::GetCursorAddress() const
     int  line = GetCodeLineOfRow (m_code->GetActive(), m_code->GetCodeList (m_code->GetActive())->GetSelectedRow());
 
 
+
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        const SourceDocumentPane  & document = m_sources->GetDocument (slot);
+        std::optional<Word>         address  = (document.GetView() != nullptr && GetFocused() == document.GetView()) ? document.GetModel().GetFocusAddress()
+                                                                                                                      : std::nullopt;
+
+        if (address.has_value())
+        {
+            return *address;
+        }
+    }
 
     if (line >= 0)
     {

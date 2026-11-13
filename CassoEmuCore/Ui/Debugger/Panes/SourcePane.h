@@ -208,8 +208,11 @@ public:
 
     //  The address of the line under a point, for Go to disassembly; a
     //  double click toggles a breakpoint on the line.
-    std::optional<Word>  GetAddressAt  (POINT atDip) const;
-    void                 OnDoubleClick (POINT atDip);
+    std::optional<Word>  GetAddressAt    (POINT atDip) const;
+
+    //  The address of the line the keyboard is on, when it has code.
+    std::optional<Word>  GetFocusAddress () const;
+    void                 OnDoubleClick   (POINT atDip);
 
     //  The glyph margin, as the disassembly's gutter: the pointer over it
     //  puts the gray breakpoint on a line with code, true when that line

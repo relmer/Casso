@@ -95,15 +95,24 @@ void MemoryPane::Configure (HWND hwnd)
     //  A find's hits, the selected one in the current-match color.
     m_view->SetMatchFill ([this] (uint64_t offset) -> uint32_t
     {
-        Word  address = m_model.GetAddressOf (offset);
+        Word  address   = m_model.GetAddressOf (offset);
+        bool  isCurrent = m_findCurrent >= 0 && (size_t) m_findCurrent < m_findHits.size() &&
+                          (Word) (address - m_findHits[(size_t) m_findCurrent]) < m_findLength;
 
 
 
-        for (size_t hit = 0; hit < m_findHits.size(); hit++)
+        //  Hits can overlap, as A0 A0 does in a run of A0s, so the selected
+        //  hit is tested first: all of its bytes are in its color.
+        if (isCurrent)
         {
-            if ((Word) (address - m_findHits[hit]) < m_findLength)
+            return m_currentArgb;
+        }
+
+        for (Word hit : m_findHits)
+        {
+            if ((Word) (address - hit) < m_findLength)
             {
-                return ((int) hit == m_findCurrent) ? m_currentArgb : m_matchArgb;
+                return m_matchArgb;
             }
         }
 
