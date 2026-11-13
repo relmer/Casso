@@ -1985,7 +1985,8 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 ## Phase 55: Game data viewers (User Story 38)
 
-- [ ] T649 [P] [US38] `WizardryScenario` in `CassoEmuCore/FileTypes/`: monsters, items and characters as Lines, and each maze level as a Picture with walls, doors and special squares, from published community format notes (FR-240). Done: the lists, and each level as a text map, from the record types of Thomas William Ewers' re-engineered Wizardry I source, on Wizardry I to III. Open: each level as a picture and a PNG copy out, since a decode has one output
+- [X] T649 [P] [US38] `WizardryScenario` in `CassoEmuCore/FileTypes/`: monsters, items and characters as Lines, and each maze level as a Picture with walls, doors and special squares, from published community format notes (FR-240). Done: the lists, and each level as a text map, from the record types of Thomas William Ewers' re-engineered Wizardry I source, on Wizardry I to III. Each level as a picture is not planned: on 2026-11-13 the owner set the purpose of the viewer as the saved roster, which T695 puts first
+- [ ] T695 [US38] List the roster first in the Wizardry output, with each character's class, level, status, hit points, gold, experience, equipment by item name, spells and place in the maze, and the game's fixed data after it. Tests first on a scenario disk with saved characters
 - [X] T650 [P] [US38] `ZMachineStory` in `CassoEmuCore/FileTypes/`: header, abbreviations, dictionary, object tree and decoded strings for versions 1 to 8, by the Z-Machine Standards Document 1.1, and an Infocom disk with no catalog opened as one file (FR-241) Done: `InfocomVolume`, `VolumeKind::Infocom`. The story's sector order isn't published, so each skewed order is tried and the one whose checksum verifies is used. Tested on stories built by the standard; no real disk is in the tree yet.
 - [X] T651 [US38] Add both rows to `FileFormatTable`, with copy outs as text and PNG. Done: the Wizardry row; the Infocom row came with T650
 - [ ] T652 [US38] Scenario tests on Wizardry I to III and Infocom samples, checked against the games run in Casso and an interpreter (SC-066). Done: `ScenarioTests/GameDataTests` on Wizardry I to III and Zork I, release 88, whose story is read in the order its interpreter uses. Open: the check against the games running, since Casso doesn't boot Zork I, release 88, which MAME boots, and Wizardry draws its screens on the hi-res page
@@ -2011,11 +2012,22 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [ ] T677 [US40] Open a partition of a card in a reader in block mode, through the card's block store as Explorer browses it. Card images (CFFA, MicroDrive and FocusDrive files) open with their partitions as bands; a card in a reader isn't offered Inspect
 - [ ] T678 [US40] Walk block mode on screen in Casso Explorer with the serial link off: open an 800K ProDOS, an HFS and a partitioned image, follow links, edit and apply, compare, and save leftover data. Verified so far through the window parts' headless tests only
 
+## Phase 59: A2Pico cards (User Story 41)
+
+Checked against the firmware's README and source (R58) and in Casso only. The owner has no A2Pico.
+
+- [ ] T689 [US41] Tests first in `UnitTest/EmuTests/A2retroNetConfigTests.cpp` and `CassoExplorerActionsTests.cpp`: a card recognized by its content, each drive problem of FR-259, a path updated on rename and move, a drive cleared on delete, drives reordered, and the conversion offered for each image kind of FR-261
+- [ ] T688 [US41] Add an A2Pico adapter to Initialize card: `CardLayoutModel::Adapter::A2Pico` at the end of the enum, FAT32 as its only layout, its row in the compatibility grid, and a starter `A2retroNET.txt` written by `A2retroNetConfig` once the new volume has its drive letter (FR-263)
+- [ ] T690 [US41] List a FAT volume with `A2retroNET.txt` as an A2Pico card in the tree and the file list, with each drive's number, image, size, write protection and problem, and Repair for a file with CR LF line ends (FR-258, FR-259)
+- [ ] T691 [US41] A2retroNET drives dialog: set and clear a drive's image, reorder the drives, and set the number of drives and the boot delay (FR-260)
+- [ ] T692 [US41] On a copy of a disk image to an A2Pico card, offer to write a block volume the firmware can't read as a `.po`, and copy an image with no block volume as it is (FR-261)
+- [ ] T693 [US41] Update a drive's path when its image is renamed or moved on the card, and clear the drive when it is deleted, with the drive listed in the confirmation (FR-262)
+- [ ] T694 [US41] Scenario test in `ScenarioTests/A2PicoCardTests.cpp`: a card folder filled through the actions, and each drive's image mounted in Casso as a SmartPort drive and booted, with the results in `validation.md` (SC-070)
+
 ## Phase 56: Roadmap validation and merge
 
 - [ ] T653 Walk quickstart §7e to §7h on Debug and Release, and write the results to `specs/033-casso-explorer/validation.md`
 - [X] T668 Research the A2Pico's A2retroNET storage firmware from its published documentation, write the findings into `research.md`, and support it: ProDOS images Casso Explorer and `casso disk create` make at 140K, 800K, 5M, 10M, 20M and 32M, as .po, .hdv and .2mg, in the forms A2retroNET accepts, listed in `A2retroNET.txt` on the micro SD card, bootable with `--bootable`, and a file written there read back in Casso Explorer. The owner has no A2Pico, so the checks are against the documentation and in Casso, not on the hardware. Done: R58, `A2retroNetConfig` and Add to A2retroNET drives; Casso's images were already in the firmware's form
-- [ ] T688 Add an A2Pico adapter to Initialize card: FAT32 and a starter `A2retroNET.txt` written by `A2retroNetConfig`, with its row in the compatibility grid. Proposed 2026-11-13; the owner hasn't decided
 - [ ] T654 Run `scripts/CheckStyle.ps1 -Mode Tree`, the code-analysis rebuild, and the unit and scenario suites in Debug and Release before each master merge
 
 ### Dependencies for Phases 36 to 56
