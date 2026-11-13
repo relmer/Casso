@@ -82,8 +82,10 @@ public:
     //  the repo; empty when it isn't there, and the test skips.
     static std::vector<Byte>  FindGameImage    (const wchar_t * fileName);
 
-    //  Mounts the bytes in slot 6 drive 1 and parks the processor on the boot
-    //  ROM's entry, having executed nothing.
+    //  Mounts the bytes in slot 6 drive 1 and puts the processor where a real
+    //  machine is at power-on: on the reset vector of an Autostart
+    //  machine, whose RESET boots the disk, and on the boot ROM's entry after
+    //  RESET on the original ][, whose monitor waits for C600G.
     //
     //  Separate from MountAndBoot so a caller that wants to COUNT what the
     //  boot costs can drive the processor itself. Idling to quiet is the
@@ -270,7 +272,6 @@ private:
     static constexpr int  kBootSector = 0;
 
     static constexpr Word  kBootRomEntry = 0xC600;
-    static constexpr Word  kIntCxRomOff  = 0xC006;
 
     //  The original ][ monitor's RESET entry, the value of its reset vector
     //  at $FFFC; the Autostart ROM's is elsewhere. That monitor does not boot
@@ -280,7 +281,7 @@ private:
     static constexpr Word      kOldMonitorReset    = 0xFF59;
     static constexpr uint64_t  kMonitorResetCycles = 2'000'000ULL;
 
-    static void  RunOldMonitorReset (MachineHost & host);
+    static void  StartFromPowerOn (MachineHost & host);
 
     static constexpr int  kSlot6  = 6;
     static constexpr int  kDrive1 = 0;

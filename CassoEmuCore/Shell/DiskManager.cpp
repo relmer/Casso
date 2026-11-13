@@ -643,7 +643,9 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
 //  Re-reads every currently mounted slot-6 disk image from the host
 //  filesystem so that an external regeneration of the .dsk file (e.g.
 //  a developer iterating on a demo image) is picked up by the next
-//  boot. Used by the Reset and Power Cycle menu commands. Snapshots
+//  boot. Used by the Reset and Power Cycle menu commands. A power cycle
+//  reconnects the drives to their mounts without this call, so a disk
+//  with no file behind it is skipped and remains in its drive. Snapshots
 //  paths first because the re-mount path goes through Eject + Mount
 //  internally, which transiently blanks the source-path slot.
 //

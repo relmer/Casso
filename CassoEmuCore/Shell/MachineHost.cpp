@@ -4,6 +4,7 @@
 #include "CassoLink/RunningCassoRegistry.h"
 
 #include "Core/Prng.h"
+#include "Devices/Disk/DiskImageStore.h"
 #include "Devices/RamDevice.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/VideoScanner.h"
@@ -938,7 +939,9 @@ void MachineHost::SoftReset()
 
 void MachineHost::PowerCycle()
 {
-    HRESULT  hrFlush = S_OK;
+    constexpr int  kDiskSlot = 6;
+    HRESULT        hrFlush   = S_OK;
+    int            drive     = 0;
 
 
 
@@ -958,6 +961,14 @@ void MachineHost::PowerCycle()
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     m_memoryBus->PowerCycleAll (*m_prng);
+
+    // The Disk II controller's power cycle selects its empty disks, so the
+    // drives are pointed back at the store's mounts. Without this, a disk
+    // mounted from memory, which has no file to remount, is disconnected.
+    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+    {
+        ConnectDiskToController (kDiskSlot, drive);
+    }
 
     if (m_mmu != nullptr)
     {
