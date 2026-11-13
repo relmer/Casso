@@ -172,6 +172,7 @@
     <ClCompile Include="GutenbergTests.cpp" />
     <ClCompile Include="TapeRecordingTests.cpp" />
     <ClCompile Include="GameDataTests.cpp" />
+    <ClCompile Include="A2PicoCardTests.cpp" />
     <ClCompile Include="SosTests.cpp" />
     <ClCompile Include="CatalogReproductionTest.cpp" />
     <ClCompile Include="FileMapStockDiskTests.cpp" />
