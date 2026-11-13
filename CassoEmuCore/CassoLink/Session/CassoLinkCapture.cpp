@@ -27,6 +27,7 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
                                    const ProgressFn & progress, Result & outResult, int lastTrack)
 {
     HRESULT                hr        = S_OK;
+    HRESULT                built     = S_OK;
     std::vector<Position>  positions;
     std::vector<bool>      standard;
     std::map<int, Stream>  wholes;     // each whole track's stream, made once for pass 2
@@ -56,7 +57,9 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
     {
         Position  read;
         Stream    previous;
-        bool      unstable = false;
+        bool      unstable   = false;
+        bool      made       = false;
+        bool      isStandard = false;
 
         //  Each whole track after the first waits on a marker on the one
         //  before, so the tracks can be placed relative to each other. The
@@ -66,7 +69,13 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         {
             read.syncFrom = position;
         }
-        else if (MakeStream (positions.back(), previous, unstable))
+        else
+        {
+            hr = Analyze (run, [&] () { made = MakeStream (positions.back(), previous, unstable); });
+            CHR (hr);
+        }
+
+        if (made)
         {
             FindMarker (previous.bytes, read.syncMarker);
             read.syncFrom = read.syncMarker.empty() ? -1 : positions.back().position;
@@ -76,7 +85,10 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         hr = ReadPosition (run, position, kWholeReads, read);
         CHR (hr);
 
-        standard.push_back (IsStandardTrack (read));
+        hr = Analyze (run, [&] () { isStandard = IsStandardTrack (read); });
+        CHR (hr);
+
+        standard.push_back (isStandard);
         positions.push_back (std::move (read));
 
         //  The gap below this track is read when either track beside it isn't
@@ -94,6 +106,7 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         Position  read;
         Stream    stream;
         bool      unstable = false;
+        bool      separate = false;
         int       lower    = position / 4 * 4;
         int       upper    = std::min (lower + 4, last);
 
@@ -117,7 +130,10 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         CHR (hr);
 
         //  A position with a separate stream is read again.
-        if (MakeStream (read, stream, unstable) && !IsSameStream (stream.bytes, whole (lower).bytes) && !IsSameStream (stream.bytes, whole (upper).bytes))
+        hr = Analyze (run, [&] () { separate = MakeStream (read, stream, unstable) && !IsSameStream (stream.bytes, whole (lower).bytes) && !IsSameStream (stream.bytes, whole (upper).bytes); });
+        CHR (hr);
+
+        if (separate)
         {
             run.planned += kWholeReads;
 
@@ -129,7 +145,10 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         positions.push_back (std::move (read));
     }
 
-    hr = BuildWoz (positions, last, imageDate, drive, outResult);
+    hr = Analyze (run, [&] () { built = BuildWoz (positions, last, imageDate, drive, outResult); });
+    CHR (hr);
+
+    hr = built;
     CHR (hr);
 
     outResult.positions = std::move (positions);
@@ -426,6 +445,40 @@ HRESULT CassoLinkCapture::ReadPosition (Run & run, int position, int reads, Posi
     }
 
 Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::Analyze
+//
+//  `work`, the PC's analysis between reads, on another thread, with a busy
+//  Idle sent after each Ready the program sends (CassoLinkHost::AnswerBusy). The program counts the PC as gone after a
+//  few seconds with no packet, and then turns the motor off, so the next read
+//  waits for the disk to come up to speed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCapture::Analyze (Run & run, const std::function<void()> & work)
+{
+    HRESULT            hr       = S_OK;
+    std::atomic<bool>  finished { false };
+    std::thread        worker   ([&work, &finished] () { work(); finished = true; });
+
+
+
+    while (!finished)
+    {
+        hr = run.host.AnswerBusy (s_kBusyPollMs);
+        CHR (hr);
+    }
+
+Error:
+    worker.join();
     return hr;
 }
 
