@@ -97,7 +97,7 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     params.minSizeDip               = { kMinWindowWidthDip, 400 };
     params.resizable                = true;
     params.insetContentBelowCaption = true;
-    params.classNameOverride        = CassoExplorerShell::kWindowClass;
+    params.classNameOverride        = CassoExplorerShell::GetWindowClass();
     params.appIconBig               = LoadIconW (instance, MAKEINTRESOURCEW (IDI_CASSO_EXPLORER));
     params.appIconSmall             = params.appIconBig;
     params.micaBackdrop             = true;

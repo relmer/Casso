@@ -198,6 +198,14 @@ fs::path PathResolver::GetLocalAppDataDir (const std::wstring & appName)
 
 
 
+    envLen = GetEnvironmentVariableW (kpszProfileVariable, env, MAX_PATH);
+    if (envLen > 0 && envLen < MAX_PATH)
+    {
+        result = fs::path (env);
+        fs::create_directories (result, ec);
+        return result;
+    }
+
     hr = SHGetKnownFolderPath (FOLDERID_LocalAppData, 0, nullptr, &pszPath);
     if (SUCCEEDED (hr) && pszPath != nullptr)
     {
@@ -233,6 +241,21 @@ fs::path PathResolver::GetLocalAppDataDir (const std::wstring & appName)
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsProfileFolderSet
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PathResolver::IsProfileFolderSet()
+{
+    return GetEnvironmentVariableW (kpszProfileVariable, nullptr, 0) > 0;
 }
 
 

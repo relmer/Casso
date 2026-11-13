@@ -452,6 +452,21 @@ CassoExplorerWindowRequest CassoExplorerShell::PlanForwardedLaunch (const CassoE
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerShell::GetWindowClass
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * CassoExplorerShell::GetWindowClass()
+{
+    return PathResolver::IsProfileFolderSet() ? kTestCopyClass : kWindowClass;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerShell::FindWindowForOwner
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -470,7 +485,7 @@ HWND CassoExplorerShell::FindWindowForOwner (HWND owner)
 
     do
     {
-        next = FindWindowExW (nullptr, next, kWindowClass, nullptr);
+        next = FindWindowExW (nullptr, next, GetWindowClass(), nullptr);
 
         if (next != nullptr && (HWND) GetPropW (next, kOwnerProperty) == owner)
         {
@@ -1170,7 +1185,7 @@ BOOL CALLBACK CassoExplorerShell::CloseDialog (HWND hwnd, LPARAM)
 
     GetClassNameW (hwnd, className, (int) std::size (className));
 
-    if (IsWindowVisible (hwnd) && wcscmp (className, kWindowClass) != 0)
+    if (IsWindowVisible (hwnd) && wcscmp (className, GetWindowClass()) != 0)
     {
         PostMessageW (hwnd, WM_CLOSE, 0, 0);
     }
