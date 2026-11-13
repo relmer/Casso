@@ -855,8 +855,8 @@ MAME 0.289's enhanced //e, headless through `scripts/MameSnapshot.ps1`, with
 a hard disk on a card in slot 7: the Apple II SCSI Card with Apple's ROM
 341-0437-A, and the CFFA 2.0 with its 65C02 firmware EEC02. Both ROMs are from
 the apple2.org.za Documentation Project mirror, and their checksums match
-MAME's. Casso has no SmartPort or hard drive card yet, which is a separate
-spec after 033.
+MAME's. Casso has no SmartPort or hard drive card yet. It is a separate spec,
+begun in a worktree cut from 033.
 
 | Image | Made by | SCSI Card | CFFA 2.0 |
 |---|---|---|---|
