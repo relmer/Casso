@@ -127,6 +127,38 @@ public:
 
 
 
+    //  A PC busy longer than the program waits for it, as a capture's analysis
+    //  in a Debug build can be, sends a busy Idle after each Ready: the motor
+    //  runs on and the PC isn't counted as gone.
+    TEST_METHOD (ABusyPC_SendsABusyIdleAfterEachReady_AndTheMotorRunsOn)
+    {
+        static constexpr uint64_t  kStep  = kClockHz / 4;
+        static constexpr int       kSteps = 40;     // ten seconds, twice the program's wait
+
+        ProgramRig         rig (Dos33());
+        const Byte         sector[] = { 0 };
+        std::vector<Byte>  data;
+        CassoLinkStatus    status;
+
+
+
+        AssertSucceeded (rig.host->SetSpeed (kFastControl));
+        AssertSucceeded (rig.host->ReadSectors (1, 0, sector, data, status));
+
+        for (int step = 0; step < kSteps; step++)
+        {
+            rig.machine.RunCycles (kStep);
+            AssertSucceeded (rig.host->AnswerBusy (0));
+        }
+
+        Assert::IsTrue (rig.machine.GetRefs().diskController->IsMotorOn(), L"the motor runs while the PC is busy");
+
+        AssertSucceeded (rig.host->ReadSectors (1, 0, sector, data, status));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, L"the next request is served");
+    }
+
+
+
     //  Drive 1's catalog, then a failed read of the empty drive 2, then drive
     //  1's catalog again. The drive 2 read steps drive 2's head to track 0;
     //  drive 1's position is stored apart from drive 2's, so the second read of

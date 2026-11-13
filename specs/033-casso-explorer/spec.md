@@ -597,6 +597,15 @@ hardware.
 
 ### Session 2026-11-13
 
+- Q: Is the cassette audio link (Story 26) checked on a real Apple? -> A: No. The owner has no Apple with a cassette jack, so it is tested on Casso's emulated ][+ and //e only, as stated in the phase's header in tasks.md.
+- Q: Is A2Pico support dropped with its hardware check? -> A: No. Only the check on an A2Pico is dropped, since the owner doesn't have one. The A2retroNET firmware was researched from its README and source (R58), and support is built and checked against that and in Casso (T668).
+- Q: Where are virtual drives (Story 25) checked first? -> A: In Casso, on an emulated //c. The run on the owner's //c comes only after that passes (T585).
+- Q: Where do the commercial disks the scenario tests download go? -> A: Outside the tree, in `Downloads\Casso\TestDisks` or the folder `CASSO_TEST_DISKS` is set to, so they can't be committed: Gutenberg, Jr., the Wizardry I to III scenario disks and Zork I. Kermit and Apple's disks stay in the gitignored `Disks` folders.
+- Q: Casso doesn't boot Zork I, release 88, which MAME boots. Who fixes that? -> A: A separate session in a separate worktree, branch `zork-boot`, started 2026-11-13. The owner called it a major problem because of Zork's popularity. T652's check of the Infocom viewer against the running game waits on it.
+- Q: How are Wizardry maze levels shown? -> A: As text maps in the scenario's one text output, for now. A level as a picture with a PNG copy out requires a decode with several outputs, which the owner hasn't decided on (T649). DiskBrowser and WizardryApp are being surveyed, by behavior only since they are GPL, for the game data feature list and its cost.
+- Q: Does Initialize card make an A2Pico card? -> A: Yes, planned as Story 41 (T688): an A2Pico adapter that writes one FAT32 partition and a starter A2retroNET.txt. The owner agreed on 2026-11-13.
+- Q: An A2Pico card and a CFFA card are different layouts. How is a card's kind tracked, and how do copies and moves stay within what its adapter reads? -> A: The kind is read from the card's content at each open and never saved: a FAT volume with A2retroNET.txt is an A2Pico card, and a raw card of ProDOS partitions is a CFFA card. On an A2Pico card, a copied image is offered as a .po when the firmware can't read its form, and a rename, move or delete of a drive's image updates A2retroNET.txt (Story 41, FR-258 to FR-263). A CFFA card's partitions are volumes, so files copy into them as into any ProDOS volume and no settings file exists.
+- Q: Is a Wizardry scenario a saved game? -> A: It is both. The scenario disk has the game's fixed data (maze levels, monsters, items) and the player's roster of characters, which the game saves to the same disk. The roster is the part that differs from one player's disk to another. The owner's use for the viewer is the saved game: which characters a disk has and their state. A reference to the game's fixed data doesn't fit Casso Explorer, so the roster comes first in the output, and maze levels as pictures aren't planned (T649).
 - Q: Is Full Send's raw capture of a likely copy-protected disk a setting in Options? -> A: No. It always happens, and the setting first built for it is removed. A protected disk's sector image rarely runs, so a Full Send without the capture writes an image nobody can use, and a raw capture of a damaged disk assessed alike has more of it than a sector image. The capture's minutes are the cost. The Full Send page's intro is rewritten: many protections are detected and imaged, and Capture raw disk is for the rest.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -1806,7 +1815,7 @@ in MAME's Apple /// and the dual disk in Casso's //e, scripted.
 A user copies documents onto a Gutenberg disk, and pulls files off an SSI
 game's RDOS disk.
 
-**Why this priority**: Gutenberg volumes open read-only today, and RDOS is
+**Why this priority**: Gutenberg volumes opened read-only before this story, and RDOS is
 the last Apple II file system CiderPress II reads that Casso Explorer
 doesn't.
 
@@ -2049,6 +2058,57 @@ back, and edit a byte and see it written.
     hybrid, **When** a block of it is selected, **Then** the block is also
     addressed in the inner volume's terms, track and sector for DOS 3.3, and
     annotated by the inner volume's structure.
+
+---
+
+### User Story 41 - A2Pico cards (Priority: P3)
+
+A user puts an A2Pico's micro SD card or USB drive in the PC. Casso Explorer
+lists it as an A2Pico card, with the image of each A2retroNET drive, and
+the user sets, clears and reorders the drives there. Initialize card for
+Apple makes a new card for an A2Pico. An image copied to the card is
+converted to a form the firmware reads, and renaming, moving or deleting a
+drive's image in Casso Explorer updates the card's `A2retroNET.txt`.
+
+**Why this priority**: An A2Pico with the A2retroNET firmware is a current,
+inexpensive hard drive card. Its card is a FAT volume of image files and a
+settings file edited in a text editor, and a CR LF line end or a DOS-order
+image results in an empty drive with no message on the Apple.
+
+**Independent Test**: Initialize a card image for an A2Pico, copy a ProDOS
+`.po`, a DOS-order `.dsk` with a ProDOS volume and a DOS 3.3 disk to it, set
+drives, rename and delete an image, and read `A2retroNET.txt` after each
+step. Mount each drive's image in Casso as a SmartPort drive and boot it.
+The owner has no A2Pico, so nothing is checked on the hardware.
+
+**Acceptance Scenarios**:
+
+1. **Given** a FAT volume with `A2retroNET.txt` in its root, **When** it is
+   listed, **Then** it is labeled as an A2Pico card, and its drives are
+   listed with their number, image and size, and write-protected for a
+   read-only file. A CFFA card is a raw card of ProDOS partitions and is
+   never listed this way. The card's kind is read from its content at each
+   open and isn't saved on the PC.
+2. **Given** a drive whose image is missing or isn't a form the firmware
+   reads, or a settings file with CR LF line ends, **When** the drives are
+   listed, **Then** the problem is listed with the drive, and Repair
+   rewrites the file with LF line ends.
+3. **Given** a disk image copied to an A2Pico card, **When** it has a block
+   volume in a form the firmware doesn't read, as a ProDOS volume in a
+   DOS-order `.dsk` or a `.2mg` with a longer header, **Then** Casso
+   Explorer offers to write it as a `.po`. An image with no block volume,
+   as a DOS 3.3 disk or a WOZ, is copied as it is and can't be set as a
+   drive.
+4. **Given** an image set as a drive, **When** it is renamed or moved on
+   the card in Casso Explorer, **Then** the drive's path is updated.
+   **When** it is deleted, **Then** the confirmation lists the drive, and
+   the drive is cleared.
+5. **Given** an A2Pico card, **When** A2retroNET drives is opened, **Then**
+   an image is set for a drive, a drive is cleared, drives are reordered,
+   and the number of drives and the boot delay are set.
+6. **Given** a storage card, **When** Initialize card for Apple is run with
+   the A2Pico adapter, **Then** the card is one FAT32 partition with an
+   `A2retroNET.txt` of the firmware's defaults and no drives set.
 
 ---
 ### Edge Cases
@@ -3534,6 +3594,32 @@ back, and edit a byte and see it written.
   conversions the file's type and contents allow, text and hex, and its
   resource fork when it has one. Each file MUST open in its default view.
 
+**A2Pico cards**
+
+- **FR-258**: A FAT volume with `A2retroNET.txt` in its root MUST be listed
+  as an A2Pico card. The card's kind MUST be read from its content at each
+  open and MUST NOT be saved on the PC, so a card initialized again for
+  another adapter is listed as what it now is.
+- **FR-259**: An A2Pico card's drives MUST be listed with their number,
+  image, size and write protection, and with the problem of a drive the
+  firmware can't open: a missing image, an extension other than `.po`,
+  `.hdv` and `.2mg`, a `.2mg` in DOS order or with blocks that don't start
+  at byte 64, more than 65,535 blocks, or a path that ends in a CR.
+- **FR-260**: `A2retroNET.txt` MUST be written in the firmware's form, with
+  LF line ends. Comment lines aren't written again, as in the firmware's
+  configuration utility. A2retroNET drives MUST set and clear a drive's
+  image, reorder the drives, and set the number of drives and the boot
+  delay.
+- **FR-261**: A copy of a disk image to an A2Pico card MUST offer to write
+  a block volume the firmware can't read as a `.po`. An image with no
+  block volume MUST be copied as it is, and MUST NOT be offered as a drive.
+- **FR-262**: Renaming or moving a drive's image on the card in Casso
+  Explorer MUST update the drive's path, and deleting it MUST clear the
+  drive after a confirmation that lists the drive.
+- **FR-263**: Initialize card for Apple MUST offer an A2Pico adapter: one
+  FAT32 partition and an `A2retroNET.txt` of the firmware's defaults, with
+  the adapter's row in the compatibility grid.
+
 **Collection tools**
 
 - **FR-232**: Disk list MUST list each disk image in a folder's subtree with
@@ -3837,6 +3923,9 @@ back, and edit a byte and see it written.
 - **SC-069**: Every block of CiderPress II's ProDOS and HFS sample images is
   annotated with its use in the catalog, and a step to a block on a 32 MB
   volume or a card's partition takes under 100 ms.
+- **SC-070**: Every drive of a card initialized for an A2Pico and filled
+  through Casso Explorer passes `A2retroNetConfig::CheckImage`, and its
+  image boots or mounts in Casso as a SmartPort drive.
 
 ## Assumptions
 

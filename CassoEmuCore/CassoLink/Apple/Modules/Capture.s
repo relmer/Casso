@@ -11,9 +11,10 @@
 ; an odd position, to the quarter between it and the next half track, with
 ; both their phases on while the read runs.
 ;
+; A read that starts the motor waits another 750 ms, as a disk coming up to
+; speed would make the read's bytes and the wait's timing wrong.
+;
 ; With a position to wait on, the arm goes there first and the latch is read
-; (after another 750 ms when the motor has just started, as a disk coming up
-; to speed would make the wait's timing wrong)
 ; until the marker passes (cpfind), and the arm then steps to the position and
 ; the read starts. Every instruction from the marker's last byte to the read's
 ; first is the same each time, so the read starts a fixed number of cycles
@@ -75,7 +76,7 @@ CFMAX      = 20000              ; the bytes cpfind reads before giving up, about
 CAPPAGE1   = CAPBUF / 256 + 1   ; the page after CAPBUF's first
 
         .org $5000
-        .byte 'C', 'M', 1, 9    ; capture, version 9
+        .byte 'C', 'M', 1, 10   ; capture, version 10
         .word PROGVER
         .word modend - $5000
         .word 0                 ; the CRC, which the PC fills in
@@ -167,12 +168,9 @@ cpshow: jsr p_showop
         lda p_spinning          ; whether the motor runs already
         sta cspun
         jsr p_motoron
-        lda csync               ; a wait just after the motor starts is timed
-        cmp #$FF                ; while the disk comes up to speed
-        beq cpsafe
-        lda cspun
-        cmp p_drive
-        beq cpsafe
+        lda cspun               ; a read just after the motor starts would
+        cmp p_drive             ; read the disk below speed, so it waits
+        beq cpsafe              ; another 750 ms
         lda #250
         jsr p_delayms
         lda #250

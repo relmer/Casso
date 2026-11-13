@@ -177,6 +177,7 @@ private:
 
     static HRESULT              ReadOnce       (Run & run, int position, Byte delay, int read, int reads, Byte syncPosition, std::span<const Byte> marker, std::vector<Byte> & outBytes, bool & outMissed);
     static HRESULT              ReadPosition   (Run & run, int position, int reads, Position & outPosition);
+    static HRESULT              Analyze        (Run & run, const std::function<void()> & work);
     static void                 FindMarker     (const std::vector<Byte> & revolution, std::vector<Byte> & outMarker);
     static void                 PlaceTracks    (const std::vector<Position> & positions, const std::map<int, Stream> & streams, double revolution, std::map<int, size_t> & outRotations, bool & outSynchronized);
     static double               TimeRevolution (const std::vector<Position> & positions, const std::map<int, Stream> & streams);
@@ -287,6 +288,7 @@ private:
     static constexpr double  s_kBitCycles    = 4.0;
     static constexpr size_t  s_kMarkerBytes  = 11;
     static constexpr int     s_kReadAttempts = 3;
+    static constexpr DWORD   s_kBusyPollMs   = 200;     // Analyze's wait for a Ready, between checks that the work is done
 
     //  The cycles from a marker's last byte to the first byte of a read of
     //  the same track that waited on it, with no step, as measured on Casso's
