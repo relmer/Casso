@@ -605,7 +605,10 @@ hardware.
 - Q: How are Wizardry maze levels shown? -> A: As text maps in the scenario's one text output, for now. A level as a picture with a PNG copy out requires a decode with several outputs, which the owner hasn't decided on (T649). DiskBrowser and WizardryApp are being surveyed, by behavior only since they are GPL, for the game data feature list and its cost.
 - Q: Does Initialize card make an A2Pico card? -> A: Yes, planned as Story 41 (T688): an A2Pico adapter that writes one FAT32 partition and a starter A2retroNET.txt. The owner agreed on 2026-11-13.
 - Q: An A2Pico card and a CFFA card are different layouts. How is a card's kind tracked, and how do copies and moves stay within what its adapter reads? -> A: The kind is read from the card's content at each open and never saved: a FAT volume with A2retroNET.txt is an A2Pico card, and a raw card of ProDOS partitions is a CFFA card. On an A2Pico card, a copied image is offered as a .po when the firmware can't read its form, and a rename, move or delete of a drive's image updates A2retroNET.txt (Story 41, FR-258 to FR-263). A CFFA card's partitions are volumes, so files copy into them as into any ProDOS volume and no settings file exists.
-- Q: Is a Wizardry scenario a saved game? -> A: It is both. The scenario disk has the game's fixed data (maze levels, monsters, items) and the player's roster of characters, which the game saves to the same disk. The roster is the part that differs from one player's disk to another. The owner's use for the viewer is the saved game: which characters a disk has and their state. A reference to the game's fixed data doesn't fit Casso Explorer, so the roster comes first in the output, and maze levels as pictures aren't planned (T649).
+- Q: Is a Wizardry scenario a saved game? -> A: It is both. The scenario disk has the game's fixed data (maze levels, monsters, items) and the player's roster of characters, which the game saves to the same disk. The roster is the part that differs from one player's disk to another. The owner's use for the viewer is the saved game: which characters a disk has and their state. A reference to the game's fixed data doesn't fit Casso Explorer, so the output is the roster and the party's place in the maze (T695, T696).
+- Q: Which parts of DiskBrowser's and WizardryApp's Wizardry views does Casso Explorer take? -> A: The saved game only (owner, 2026-11-13). The roster with a list of each character's inventory, and one map: the level the party is on, with its square marked. Not taken: detail pages for monsters and items, rewards, encounters, a map of every level, and WizardryApp's walk through the maze with a 3D view, since mapping the whole game isn't a use for Casso Explorer. Inventory is per character in the game's records, eight items each, so it is listed under each character.
+- Q: Which Infocom views does Casso Explorer take? -> A: None beyond what the story listing has. DiskBrowser's grammar, globals and Z-code disassembly are outside Casso Explorer's scope. The owner asked for a summary of a saved game where it identifies the save for the user (FR-264, T697). Neither DiskBrowser nor WizardryApp reads an Infocom save.
+- Q: What does an A2Pico card contain, and what are its size limits? -> A: Loose files on one FAT12, FAT16, FAT32 or exFAT volume: `A2retroNET.txt` in the root, and ProDOS block images of up to 32 MB each (65,535 blocks) in the root or in folders, with long file names. Up to eight are drives at one time, and the card can have any number more. The firmware's FatFs build has exFAT and 64-bit block addresses on (`ffconf.h` in FarLeftLane/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico, which its CMakeLists.txt fetches), so the card's size isn't limited by the firmware. It mounts the first volume on the card, so the card has one partition.
 - Q: Is Full Send's raw capture of a likely copy-protected disk a setting in Options? -> A: No. It always happens, and the setting first built for it is removed. A protected disk's sector image rarely runs, so a Full Send without the capture writes an image nobody can use, and a raw capture of a damaged disk assessed alike has more of it than a sector image. The capture's minutes are the cost. The Full Send page's intro is rewritten: many protections are detected and imaged, and Capture raw disk is for the rest.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -1942,9 +1945,10 @@ with GOTO, GOSUB, ON and THEN targets, run both in Casso, and compare.
 
 ### User Story 38 - Game data viewers (Priority: P3)
 
-A user selects a Wizardry scenario disk's files and finds its monsters,
-items, characters and maze maps, and an Infocom story file's header,
-dictionary, objects and text.
+A user selects a Wizardry scenario disk's files and finds the saved game:
+the roster of characters, each one's inventory, and where the party is in
+the maze. An Infocom story file lists its header, dictionary, objects and
+text, and an Infocom saved game is summarized.
 
 **Why this priority**: These two are the game data collectors open most,
 and DiskBrowser is the only tool that reads them.
@@ -1957,14 +1961,17 @@ interpreter's.
 **Acceptance Scenarios**:
 
 1. **Given** a Wizardry scenario file, **When** it is selected, **Then**
-   its monsters, items, characters and each maze level are drawn: lists for
-   the first three, and a map with walls, doors and special squares for each
-   level.
+   its roster is listed, each character with the items in that character's
+   inventory, and the maze level the party is on is drawn as one map with
+   the party's square marked.
 2. **Given** an Infocom story file, **When** it is selected, **Then** its
    header, abbreviations, dictionary, object tree and decoded strings are
    listed.
 3. **Given** either, **When** it is dragged out, **Then** the lists are
-   written as text and each map as PNG.
+   written as text and the map as PNG.
+4. **Given** an Infocom saved game, **When** it is selected, **Then** the
+   story's release and serial number, the score, the moves and the room are
+   listed.
 
 ---
 
@@ -3596,7 +3603,7 @@ The owner has no A2Pico, so nothing is checked on the hardware.
 
 **A2Pico cards**
 
-- **FR-258**: A FAT volume with `A2retroNET.txt` in its root MUST be listed
+- **FR-258**: A FAT or exFAT volume with `A2retroNET.txt` in its root MUST be listed
   as an A2Pico card. The card's kind MUST be read from its content at each
   open and MUST NOT be saved on the PC, so a card initialized again for
   another adapter is listed as what it now is.
@@ -3657,13 +3664,20 @@ The owner has no A2Pico, so nothing is checked on the hardware.
 
 **Game data**
 
-- **FR-240**: Wizardry I, II and III scenario files MUST be drawn as lists
-  of monsters, items and characters, and as a map of each maze level with
-  walls, doors and special squares. A copy out MUST write the lists as text
-  and each map as PNG.
+- **FR-240**: Wizardry I, II and III scenario files MUST be drawn as the
+  saved game: the roster, each character with class, level, status, hit
+  points, gold, experience and a list of the items in that character's
+  inventory, and one map of the maze level the party is on with the
+  party's square marked, when characters are in the maze. The game's fixed
+  data MUST NOT be listed: monsters, items and the other maze levels. A
+  copy out MUST write the roster as text and the map as PNG.
 - **FR-241**: Infocom story files of each Z-machine version MUST list their
   header, abbreviations, dictionary, object tree and decoded strings, and a
   copy out MUST write the listing as text.
+- **FR-264**: An Infocom saved game MUST be summarized where its layout
+  allows: the story's release and serial number, the score, the moves and
+  the room, read from the saved memory's header, globals and objects. The
+  story's grammar, globals and Z-code MUST NOT be listed.
 - **FR-242**: Every format and protocol in FR-190 to FR-241 MUST be
   implemented by the rule FR-171 sets.
 
