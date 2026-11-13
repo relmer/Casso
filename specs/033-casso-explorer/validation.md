@@ -849,6 +849,34 @@ in-memory card through Casso Explorer's actions with Apple's ProDOS Users Disk.
 Casso has no SmartPort card, so a drive's image is booted from a Disk II, which
 takes only a 140K image. Larger images are checked by `CheckImage` alone.
 
+### On a real card (T708)
+
+Walked 2026-11-13 on a 1 GB micro SD card in a USB reader, in a copy of Casso
+Explorer started with `CASSO_PROFILE_DIR` set to a profile with no links, so no
+serial port was opened. Input was posted to the window and checked by capture.
+
+| Step | Result |
+|---|---|
+| Initialize card, A2Pico adapter, on a card with four CFFA volumes | one FAT32 volume labeled A2PICO, and a starter `A2retroNET.txt` with LF line ends |
+| The card's root | an infobar with the drives in a sentence and Drives... |
+| `users.dsk` in a folder | the Write as .po offer; the button wrote `users.po`, a ProDOS volume USERS.DISK |
+| Drives... | 8 rows with grippers, disk icons and image lists of the card's `.po`, `.hdv` and `.2mg` files |
+| One image picked for a second drive | the first drive emptied |
+| A row dragged by its gripper | the row lifted with an outline, the others slid, and the drives renumbered on the drop |
+| Drives in use set to 4 | drives 5 to 8 disabled, each `<not configured>` |
+| Save | `A2retroNET.txt` rewritten with LF line ends, in the order on screen |
+| Rename of drive 3's image | drive 3 renamed with it |
+| Cut and paste of drive 2's image into a folder | drive 2 moved with it |
+| Delete of drive 3's image | Casso Explorer's confirmation, then Windows'; drive 3 emptied |
+
+Two bugs were found and fixed. A click on the buttons in the infobars above the list
+went nowhere, because the window's input didn't route to the bars. A move
+within one volume left a drive's line and the undo behind, because the
+file operation reports such a move with `COPYENGINE_S_DONT_PROCESS_CHILDREN`,
+and that code was dropped as a skip. Edit as text and a drag between Casso
+Explorer's windows were not walked: the one opens Notepad, and posted input
+can't start an OLE drag.
+
 ## Block devices in MAME (T709)
 
 MAME 0.289's enhanced //e, headless through `scripts/MameSnapshot.ps1`, with
