@@ -2011,6 +2011,23 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [ ] T677 [US40] Open a partition of a card in a reader in block mode, through the card's block store as Explorer browses it. Card images (CFFA, MicroDrive and FocusDrive files) open with their partitions as bands; a card in a reader isn't offered Inspect
 - [ ] T678 [US40] Walk block mode on screen in Casso Explorer with the serial link off: open an 800K ProDOS, an HFS and a partitioned image, follow links, edit and apply, compare, and save leftover data. Verified so far through the window parts' headless tests only
 
+## Phase 59: A Full Send status window (User Story 41)
+
+**Goal**: A window with each drive's state, a track map, the time left, the session's totals, the disks done and an activity list, in place of the status bar's one line.
+
+**Independent Test**: A scripted Full Send of a DOS 3.3 disk, a duplicate and a likely copy-protected disk fills the window's model as the acceptance scenarios list, and a real session on the //c is read on screen.
+
+- [ ] T688 [US41] Add `FullSendStatus` in `CassoEmuCore/CassoLink/FullSend/FullSendStatus.h/.cpp`: a model of one session with the state (sending, capturing raw, waiting for a disk, waiting for the Apple, prefix entry, ended and its reason), a record per drive (state, title, file system, per-track marks, per-quarter-track marks in a raw capture, pass, reads done, disk and line seconds, start time), totals, the disks done as manifest rows with their durations, and activity lines with times. It is filled from `FullSendSession`'s reports and `CassoLinkCapture`'s progress, and read under a lock (FR-259, FR-260, FR-262, FR-263, FR-264)
+- [ ] T689 [US41] Tests first in `UnitTest/CassoLink/FullSendStatusTests.cpp`: after a scripted session of a disk, a duplicate and a protected disk the model has the states, track marks, totals, rows and activity lines of the acceptance scenarios, and they are readable after the session's end (FR-259 to FR-265)
+- [ ] T690 [US41] Estimate the time left in `FullSendStatus`: the rate of this disk's tracks after two are read, the session's average for a disk read the same way before that, a raw capture's count of reads left, and blank with neither. Test each case with a scripted clock (FR-261)
+- [ ] T691 [US41] Report what `FullSendStatus` lacks from the session: per-track results from `FullSendSession::SendDisk`, a wait for the Apple's reply and its end from `CassoLinkHost`, and skipped, weak and unstable positions from `CassoLinkCapture::Capture`'s progress (FR-259, FR-260)
+- [ ] T692 [US41] Add `FullSendWindow`, a `DxuiWindow`, in `CassoEmuCore/CassoExplorer/Window/FullSendWindow.h/.cpp`: the state line, a section per connection with a panel per drive (title, track map, progress bar, times), the totals, the list of disks and the activity list, themed, and redrawn from the model on a timer while a session runs (FR-258 to FR-264)
+- [ ] T693 [US41] Open the window without activation when a session starts, at a saved position (a new `fullSendWindow` placement in `CassoExplorerPrefs`), and from Open on the Full Send row's menu and a click on the status bar's summary. With no session, fill it from the folder's manifest (FR-258)
+- [ ] T694 [US41] Add End session with a confirmation and Open folder to the window; open the folder with the image selected on a row's double-click, and add Open, Inspect, Disk properties and the activity list's Copy (FR-263, FR-264, FR-265)
+- [ ] T695 [US41] Replace the status bar's Full Send text in `CassoEmuCore/CassoExplorer/Model/CassoLinkConnections.cpp` with the one-line summary: drive, sequence number, percentage, time left, disks done (FR-266)
+- [ ] T696 [US41] Window-part tests in `UnitTest/CassoExplorerTests/FullSendWindowTests.cpp`: the layout at 100% and 150% from a filled model, the row menu and double-click, and End session's confirmation
+- [ ] T697 [US41] Walk the window on screen through a real Full Send on the //c of a DOS 3.3 disk, a duplicate and Archon; compare each time left with the time taken, and the list with the manifest (SC-070)
+
 ## Phase 56: Roadmap validation and merge
 
 - [ ] T653 Walk quickstart §7e to §7h on Debug and Release, and write the results to `specs/033-casso-explorer/validation.md`
