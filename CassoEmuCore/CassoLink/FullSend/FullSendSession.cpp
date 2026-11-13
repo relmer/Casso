@@ -65,7 +65,8 @@ std::vector<std::string> FullSendScreen::GetRows() const
             case FullSendDriveState::Empty:    row += "EMPTY OR NO RECOGNIZED SECTORS";   break;
             case FullSendDriveState::Repeat:    row += GetDuplicateText (names[i], "?"); break;
             case FullSendDriveState::Sent:     row += "SENT " + names[i];   break;
-            case FullSendDriveState::Protected: row += "LIKELY COPY-PROTECTED " + names[i]; break;
+            case FullSendDriveState::Protected: row += "PROTECTED, CAPTURED RAW " + names[i]; break;
+            case FullSendDriveState::Capturing: row += "PROTECTED, CAPTURING RAW " + names[i]; break;
             case FullSendDriveState::Changed:  row += "CHANGED WHILE IT WAS READ"; break;
             case FullSendDriveState::OnDeck:
                 row += "ON DECK--";
@@ -1107,7 +1108,8 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
 
     folderLock.unlock();
 
-    if (!unreadable.empty() || !report.marks.empty())
+    //  A raw capture has every track, so its row has no map of bad sectors.
+    if (raw.empty() && (!unreadable.empty() || !report.marks.empty()))
     {
         std::string  & map = FullSendScreen::MakeTrackRuler (m_screen.maps[(size_t) drive - 1]);
 
@@ -1190,8 +1192,15 @@ HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & 
 
     m_link.Report (std::format ("The disk in drive {} is likely copy-protected, so it is captured raw", drive));
 
+    SetDriveState (drive, FullSendDriveState::Capturing);
+
+    hr = m_link.ShowScreen (m_screen);
+    CHR (hr);
+
     hr = m_link.CaptureRaw (drive, outRaw);
     CHR (hr);
+
+    SetDriveState (drive, FullSendDriveState::Sending);
 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);
@@ -1211,7 +1220,8 @@ Error:
 //  CreateNew, so an existing file is never overwritten. When a file from another
 //  session or the user is already at the title, the next number in parentheses
 //  is added. The list of unreadable sectors goes beside the image, as for
-//  Read disk to image. A raw capture is written as the image, a WOZ.
+//  Read disk to image. A raw capture is written as the image, a WOZ, with
+//  no list, as it has every sector the disk has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1245,7 +1255,7 @@ HRESULT FullSendSession::WriteImage (const std::string & title, const std::vecto
     hr = DurableCommit::Commit (m_fileIo, GetPath (outFile), bytes, m_commitTag++, CommitMode::CreateNew, progress);
     CHR (hr);
 
-    if (!unreadable.empty() || !marks.empty())
+    if (raw.empty() && (!unreadable.empty() || !marks.empty()))
     {
         text = CassoLinkDiskTransfer::FormatUnreadableList (unreadable, marks);
 

@@ -32,6 +32,7 @@ enum class FullSendDriveState : Byte
     OnDeck,
     Protected,
     Changed,
+    Capturing,
 };
 
 enum class FullSendTone : Byte

@@ -819,6 +819,10 @@ public:
         Assert::AreEqual (0, session->GetScreen().bad);
         Assert::IsTrue (session->GetScreen().drives[0] == FullSendDriveState::Protected);
         Assert::IsTrue (std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & s) { return s.tone == FullSendTone::Protected; }));
+        Assert::IsTrue (std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & s) { return s.drives[0] == FullSendDriveState::Capturing; }),
+                        L"The Apple's screen has the capture while it runs");
+        Assert::IsTrue (session->GetScreen().maps[0].empty(), L"No map of bad sectors");
+        Assert::IsFalse (rig.io.files.contains ("C:\\Box\\0001.woz.unreadable.txt"), L"No list of unreadable sectors");
 
         Rig  damaged;
 

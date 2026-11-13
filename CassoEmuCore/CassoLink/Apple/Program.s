@@ -4,7 +4,9 @@
 ; its drive map, the ROM's identification and a CRC of the program as loaded,
 ; and the host's reply is the next operation:
 ;
-;   Idle            nothing to do; Ready again after 100 ms
+;   Idle            nothing to do; Ready again after 100 ms. With a byte,
+;                   the PC is at work between an operation's requests,
+;                   and the label and the motor stay.
 ;   Set speed       a 6551 control byte; ACK, then the new speed
 ;   Read sectors    drive, track, count, sectors: Sector data for each
 ;   Write sectors   drive, track, count, sectors: for each, an Acknowledge
@@ -479,6 +481,8 @@ mrgot:
         lda envcmd
         cmp #CMDIDLE
         bne notidle
+        lda lenlo               ; an Idle with a byte is the PC at work between
+        bne mnwait              ; an operation's requests: the label and motor stay
         jsr clrlabel            ; the user's operation is over
         lda idles               ; the motor runs on for IDLEOFF Idles, about
         cmp #IDLEOFF            ; two seconds, so the user's next operation

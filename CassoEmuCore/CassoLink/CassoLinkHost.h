@@ -311,6 +311,12 @@ public:
     //  Ready is sent again.
     HRESULT  PromptReady  () { return SendPacket (CassoLinkCodec::kIdle, {}); }
 
+    //  The program's next Ready, within timeoutMs, and an Idle with a byte sent
+    //  after it: the PC is at work between an operation's requests, so the
+    //  operation's label and the drive's motor stay on, and the PC isn't
+    //  counted as gone. S_OK with nothing sent when no Ready arrives.
+    HRESULT  AnswerBusy   (DWORD timeoutMs);
+
     //  A Full Send's screen, in the Session screen packet: whether the session
     //  is active, its tone, and its rows' text. Not active clears the rows and
     //  ends the session.

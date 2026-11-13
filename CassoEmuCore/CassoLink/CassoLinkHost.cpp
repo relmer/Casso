@@ -1384,6 +1384,50 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::AnswerBusy
+//
+//  No Idle is sent after a Ready from another program version: the program
+//  sends Ready again each second, and the next AwaitReady loads the program. A
+//  damaged packet is passed over.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::AnswerBusy (DWORD timeoutMs)
+{
+    HRESULT          hr      = S_OK;
+    const Byte       busy[]  = { 1 };
+    CassoLinkPacket  packet;
+    bool             current = false;
+
+
+
+    hr = ReadPacket (timeoutMs, packet);
+    BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_TIMEOUT) || hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), S_OK);
+    CHR (hr);
+
+    if (IsKeyReport (packet))
+    {
+        NoteKey (packet);
+    }
+
+    current = packet.command == CassoLinkCodec::kReady && IsWholeReady (packet) && (Word) (packet.payload[0] | (packet.payload[1] << 8)) == LinkProgram::kProgramVersion;
+
+    if (current)
+    {
+        hr = SendPacket (CassoLinkCodec::kIdle, busy);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::ReadReply
 //
 //  The client's next packet in an operation, past a Ready sent before the
