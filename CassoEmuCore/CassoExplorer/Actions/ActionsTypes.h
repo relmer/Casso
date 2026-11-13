@@ -79,6 +79,9 @@ struct ActionsTypes
         MakeShrinkItDisk,
         Test,
 
+        //  The selected BASIC programs and binaries as a tape recording.
+        ConvertToTapeAudio,
+
         //  A partition's blocks as an image file, and an image file over a
         //  partition.
         CopyPartitionToImage,

@@ -10,18 +10,19 @@
 //
 //  One record the scanner found: where its leader starts, where its data
 //  starts and ends, in fractional samples at the recording's rate, how many
-//  bytes it holds (the checksum byte included), and whether that checksum
-//  matches.
+//  bytes it has (the checksum byte included), whether that checksum
+//  matches, and its bytes without the checksum.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TapeRecord
 {
-    double  leaderStart = 0.0;
-    double  dataStart   = 0.0;
-    double  dataEnd     = 0.0;
-    size_t  byteCount   = 0;
-    bool    isValid     = false;
+    double             leaderStart = 0.0;
+    double             dataStart   = 0.0;
+    double             dataEnd     = 0.0;
+    size_t             byteCount   = 0;
+    bool               isValid     = false;
+    std::vector<Byte>  bytes;
 };
 
 

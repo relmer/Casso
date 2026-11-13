@@ -1,0 +1,3 @@
+libvorbis 1.3.7, from https://downloads.xiph.org/releases/vorbis/libvorbis-1.3.7.tar.gz
+SHA-256 0e982409a9c3fc82ee06e08205b1355e5c6aa4c36bca58146ef399621b0ce5ab
+Only the library sources and headers are here, without barkmel.c, psytune.c and tone.c. BSD-style license in COPYING.

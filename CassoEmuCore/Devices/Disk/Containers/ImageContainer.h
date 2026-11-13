@@ -29,6 +29,9 @@ enum class ImageContainerKind
     Archive,
     ShrinkItDisk,
     Gzip,
+
+    //  A tape recording, read as the files on it.
+    TapeRecording,
 };
 
 

@@ -48,6 +48,9 @@ enum class VolumeKind
 
     //  An Infocom game disk, whose story is its one file. Read-only.
     Infocom,
+
+    //  A tape recording, whose bytes are the buffer. Read-only.
+    Tape,
 };
 
 

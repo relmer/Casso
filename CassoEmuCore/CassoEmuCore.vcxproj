@@ -147,6 +147,12 @@
     <ClCompile Include="Ui\Chrome\TapeDeckWidget.cpp" />
     <ClCompile Include="Shell\TapeManager.cpp" />
     <ClCompile Include="Devices\Tape\MfTapeAudioDecoder.cpp" />
+    <ClCompile Include="Devices\Tape\MfTapeAudioEncoder.cpp" />
+    <ClCompile Include="Devices\Tape\OggVorbisCodec.cpp">
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <ClCompile Include="Devices\Tape\TapeRecordingWriter.cpp" />
+    <ClCompile Include="Devices\Tape\TapeRecordingVolume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\CassettePort.cpp" />
     <ClCompile Include="Devices\Tape\TapeDeck.cpp" />
     <ClCompile Include="Devices\Tape\WavCodec.cpp" />
@@ -365,6 +371,7 @@
     <ClCompile Include="CassoExplorer\Actions\ActionsAppleDrive.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsCopy.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsArchive.cpp" />
+    <ClCompile Include="CassoExplorer\Actions\ActionsTape.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsPartition.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsGoTo.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowser.cpp" />
@@ -531,6 +538,246 @@
     <ClCompile Include="Devices\Disk\Archives\ZipAppleDouble.cpp" />
     <ClCompile Include="Devices\Disk\Archives\ContainerDiskFileIo.cpp" />
     <ClCompile Include="Devices\Disk\Archives\Bzip2Decoder.cpp" />
+    <ClCompile Include="..\External\libogg\src\bitwise.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libogg\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libogg\src\framing.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libogg\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\analysis.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\bitrate.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\block.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\codebook.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\envelope.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\floor0.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\floor1.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\info.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\lookup.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\lpc.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\lsp.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\mapping0.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\mdct.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\psy.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\registry.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\res0.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\sharedbook.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\smallft.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\synthesis.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\vorbisenc.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\vorbisfile.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\External\libvorbis\lib\window.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <SDLCheck>false</SDLCheck>
+      <EnablePREfast>false</EnablePREfast>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalIncludeDirectories>..\External\libogg\include;..\External\libvorbis\include;..\External\libvorbis\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ObjectFileName>$(IntDir)libvorbis\</ObjectFileName>
+    </ClCompile>
     <ClCompile Include="..\External\bzip2\blocksort.c">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <CompileAs>CompileAsC</CompileAs>
@@ -985,6 +1232,11 @@
     <ClInclude Include="Ui\Chrome\TapeDeckWidget.h" />
     <ClInclude Include="Shell\TapeManager.h" />
     <ClInclude Include="Devices\Tape\MfTapeAudioDecoder.h" />
+    <ClInclude Include="Devices\Tape\ITapeAudioEncoder.h" />
+    <ClInclude Include="Devices\Tape\MfTapeAudioEncoder.h" />
+    <ClInclude Include="Devices\Tape\OggVorbisCodec.h" />
+    <ClInclude Include="Devices\Tape\TapeRecordingWriter.h" />
+    <ClInclude Include="Devices\Tape\TapeRecordingVolume.h" />
     <ClInclude Include="Machines\Apple2\Common\CassettePort.h" />
     <ClInclude Include="Devices\Tape\ITapeDeckPort.h" />
     <ClInclude Include="Devices\Tape\TapeDeck.h" />
@@ -1162,6 +1414,7 @@
     <ClInclude Include="CassoExplorer\Actions\ActionsAppleDrive.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsCopy.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsArchive.h" />
+    <ClInclude Include="CassoExplorer\Actions\ActionsTape.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsPartition.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsGoTo.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsTypes.h" />

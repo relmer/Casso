@@ -36,6 +36,13 @@ public:
     //  empty path for a partition of an image file. False when canceled.
     bool  PickPartitionImage  (const std::wstring & partition, std::wstring & outTarget);
 
+    //  The file a tape recording of the selected files is written to, beside
+    //  the image by default. False when canceled.
+    bool  PickTapeRecording   (std::wstring & outTarget);
+
+    //  A tape recording of the selected files, to the file picked.
+    void  ConvertToTapeAudio  ();
+
     void  SetCardWriteConfirmed (bool confirmed);
 
     //  A storage card erased and given the layout the user picks, after a

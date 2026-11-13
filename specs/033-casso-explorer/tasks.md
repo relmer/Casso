@@ -1876,11 +1876,11 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 **Goal**: tape recordings as files and folders. **Independent test**: quickstart §7f step 5.
 
-- [ ] T593 [P] [US27] Vendor libogg and libvorbis under `External/` with their license files, encode only
-- [ ] T594 [US27] Add `TapeRecordingWriter` in `CassoEmuCore/Devices/Tape/TapeRecordingWriter.h/.cpp`: the monitor's format, a BASIC program's length record, two-second gaps, and WAV, MP3 through Media Foundation and Ogg Vorbis at 44.1 kHz mono, with the `NAME.tape.txt` sidecar of data-model.md (FR-205)
-- [ ] T595 [US27] Add `TapeRecordingVolume`, a read-only `IVolume` over `TapeRecordScanner`'s records, each file's checksum checked and a failure listed with its reason (FR-206)
-- [ ] T596 [US27] Add Convert to tape audio and Convert to disk audio to the context menu, disk audio being the cassette module's stream written to a file (FR-207)
-- [ ] T597 [US27] Scenario tests in `ScenarioTests/TapeRecordingTests.cpp`: each format loaded and run in an emulated ][+, read back and compared (SC-058)
+- [X] T593 [P] [US27] Vendor libogg and libvorbis under `External/` with their license files, encode only. Done: libogg 1.3.5 and libvorbis 1.3.7, decode included, since a recording in Ogg is also read as a folder and played in the tape deck
+- [X] T594 [US27] Add `TapeRecordingWriter` in `CassoEmuCore/Devices/Tape/TapeRecordingWriter.h/.cpp`: the monitor's format, a BASIC program's length record, two-second gaps, and WAV, MP3 through Media Foundation and Ogg Vorbis at 44.1 kHz mono, with the `NAME.tape.txt` sidecar of data-model.md (FR-205)
+- [X] T595 [US27] Add `TapeRecordingVolume`, a read-only `IVolume` over `TapeRecordScanner`'s records, each file's checksum checked and a failure listed with its reason (FR-206)
+- [ ] T596 [US27] Add Convert to tape audio and Convert to disk audio to the context menu, disk audio being the cassette module's stream written to a file (FR-207). Done: Convert to tape audio, on a disk image's BASIC programs and binaries. Open: Convert to disk audio, since the cassette module's stream (T587, T588) isn't written yet
+- [X] T597 [US27] Scenario tests in `ScenarioTests/TapeRecordingTests.cpp`: each format loaded and run in an emulated ][+, read back and compared (SC-058)
 
 ## Phase 45: More Apples and interfaces (User Story 28)
 

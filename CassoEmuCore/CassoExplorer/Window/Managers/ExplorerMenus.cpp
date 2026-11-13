@@ -124,6 +124,7 @@ const wchar_t * ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::Lock:           return L"&Lock";
         case CassoExplorerActions::Verb::Unlock:         return L"&Unlock";
         case CassoExplorerActions::Verb::ConvertTo:      return L"Con&vert to";
+        case CassoExplorerActions::Verb::ConvertToTapeAudio: return L"Convert to tap&e audio...";
         case CassoExplorerActions::Verb::MakeArchive:    return L"Add to &ShrinkIt archive";
         case CassoExplorerActions::Verb::MakeShrinkItDisk: return L"Make a ShrinkIt &disk";
         case CassoExplorerActions::Verb::Test:           return L"&Test";

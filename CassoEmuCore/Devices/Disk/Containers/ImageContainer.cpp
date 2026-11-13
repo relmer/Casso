@@ -42,6 +42,11 @@ ImageContainerKind ImageContainer::GetKind (const std::string & path, size_t fil
         return ImageContainerKind::Archive;
     }
 
+    if (extension == ".wav" || extension == ".mp3" || extension == ".ogg")
+    {
+        return ImageContainerKind::TapeRecording;
+    }
+
     if (extension == ".sdk")
     {
         return ImageContainerKind::ShrinkItDisk;
@@ -81,7 +86,7 @@ ImageContainerKind ImageContainer::GetKind (const std::string & path, size_t fil
 
 bool ImageContainer::IsListedExtension (const std::string & extension)
 {
-    static constexpr const char *  kpszListed[] = { "d13", "hdv", "2mg", "2img", "dc", "dc42", "image", "shk", "sdk", "bxy", "bny", "bqy", "sea", "bse" };
+    static constexpr const char *  kpszListed[] = { "d13", "hdv", "2mg", "2img", "dc", "dc42", "image", "shk", "sdk", "bxy", "bny", "bqy", "sea", "bse", "wav", "mp3", "ogg" };
 
 
 
