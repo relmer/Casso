@@ -848,3 +848,32 @@ in-memory card through Casso Explorer's actions with Apple's ProDOS Users Disk.
 
 Casso has no SmartPort card, so a drive's image is booted from a Disk II, which
 takes only a 140K image. Larger images are checked by `CheckImage` alone.
+
+## Block devices in MAME (T709)
+
+MAME 0.289's enhanced //e, headless through `scripts/MameSnapshot.ps1`, with
+a hard disk on a card in slot 7: the Apple II SCSI Card with Apple's ROM
+341-0437-A, and the CFFA 2.0 with its 65C02 firmware EEC02. Both ROMs are from
+the apple2.org.za Documentation Project mirror, and their checksums match
+MAME's. Casso has no SmartPort or hard drive card yet, which is a separate
+spec after 033.
+
+| Image | Made by | SCSI Card | CFFA 2.0 |
+|---|---|---|---|
+| Apple's ProDOS Users Disk in ProDOS order | the disk, reordered | Users Disk menu | Users Disk menu |
+| 800K `.po` | `casso disk create --size 800K --bootable` | ProDOS BASIC prompt | ProDOS BASIC prompt |
+| 5 MB `.hdv` | `--size 5M --bootable` | ProDOS BASIC prompt | ProDOS BASIC prompt |
+| 32 MB `.hdv` | `--size 32M --bootable` | ProDOS BASIC prompt | ProDOS BASIC prompt |
+| 32 MB `.2mg` | `--size 32M --bootable` | ProDOS BASIC prompt | ProDOS BASIC prompt |
+| CFFA card of four 32 MB volumes | Initialize card's layout, with volume 1 from `--bootable` with ProDOS 2.4.2 | - | volume 1 boots, and its STARTUP catalogs CARD2, CARD3 and CARD4 |
+
+The first run found that `--bootable` was dropped without a word for a volume
+larger than 140K: the 32 MB image had no PRODOS, and neither card started it.
+The fix installs PRODOS and BASIC.SYSTEM as on a 140K disk.
+`DiskCommandRunnerTests` tests it. With ProDOS 1.x on volume 1, the CFFA card
+read CARD2 and not CARD3, since ProDOS 8 before 2.0 reads two drives in a
+slot.
+
+The 800K, 32 MB `.hdv` and 32 MB `.2mg` images are the forms an A2Pico's
+drives take, so these boots also check what A2retroNET reads, short of an
+A2Pico.
