@@ -481,6 +481,7 @@
     <ClCompile Include="CassoExplorer\ExplorerWindowPartsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommandsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerActionsTests.cpp" />
+    <ClCompile Include="CassoExplorer\A2PicoCardActionsTests.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerPartitionTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerAboutTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerDragOutTests.cpp" />

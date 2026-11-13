@@ -81,6 +81,118 @@ public:
     }
 
 
+    //  The README suggests commenting out a drive's other images to switch
+    //  between them, so a change rewrites only the lines it sets.
+    TEST_METHOD (Write_ChangesOnlyTheLinesItSets)
+    {
+        std::string       text   = "# my card\r\n[settings]\r\nbootdelay=5\r\n[drives]\r\nnumber=4\r\n1=system.hdv\r\n#2=old.po\r\n2=work.hdv\r\n#3=games/a.po\r\n";
+        A2retroNetConfig  config = A2retroNetConfig::Parse (text);
+
+
+
+        Assert::AreEqual (std::string ("# my card\n[settings]\nbootdelay=5\n[drives]\nnumber=4\n1=system.hdv\n#2=old.po\n2=work.hdv\n#3=games/a.po\n"), config.Write(), L"the same text without CRs");
+
+        config.bootDelay = 2;
+        config.paths[1]  = "new.po";
+        config.paths[2]  = "games/c.po";
+
+        Assert::AreEqual (std::string ("# my card\n[settings]\nbootdelay=2\n[drives]\nnumber=4\n1=system.hdv\n#2=old.po\n2=new.po\n#3=games/a.po\n3=games/c.po\n"), config.Write());
+    }
+
+
+    TEST_METHOD (Write_AddsAMissingLineToItsSection)
+    {
+        A2retroNetConfig  config = A2retroNetConfig::Parse ("[drives]\n1=a.po\n[other]\nx=1\n");
+        A2retroNetConfig  bare   = A2retroNetConfig::Parse ("# drives only\n[drives]\n1=a.po\n");
+
+
+
+        config.paths[1] = "b.po";
+        Assert::AreEqual (std::string ("[drives]\n1=a.po\n2=b.po\n[other]\nx=1\n"), config.Write(), L"defaults aren't added");
+
+        bare.bootDelay = 7;
+        bare.number    = 2;
+        Assert::AreEqual (std::string ("[settings]\nbootdelay=7\n# drives only\n[drives]\nnumber=2\n1=a.po\n"), bare.Write());
+    }
+
+
+    TEST_METHOD (Alternatives_AreADrivesCommentedOutImages)
+    {
+        A2retroNetConfig          config = A2retroNetConfig::Parse ("[drives]\n#3=games/a.po\n#3=games/b.po\n3=games/x.po\n#4=empty.po\n");
+        std::vector<std::string>  alternatives;
+
+
+
+        alternatives = config.GetAlternatives (2);
+        Assert::AreEqual ((size_t) 2, alternatives.size());
+        Assert::AreEqual (std::string ("games/a.po"), alternatives[0]);
+        Assert::AreEqual (std::string ("games/b.po"), alternatives[1]);
+
+        Assert::IsTrue  (config.SwitchToAlternative (2, "games/b.po"));
+        Assert::AreEqual (std::string ("games/b.po"), config.paths[2]);
+        Assert::AreEqual (std::string ("[drives]\n#3=games/a.po\n#3=games/x.po\n3=games/b.po\n#4=empty.po\n"), config.Write(), L"the image switched from is commented out in its place");
+
+        Assert::IsTrue  (config.SwitchToAlternative (3, "empty.po"));
+        Assert::AreEqual (std::string ("[drives]\n#3=games/a.po\n#3=games/x.po\n3=games/b.po\n4=empty.po\n"), config.Write(), L"a drive with no image has nothing to comment out");
+
+        Assert::IsFalse (config.SwitchToAlternative (2, "games/none.po"));
+    }
+
+
+    //  Reordering two drives swaps their images and the images commented out
+    //  for each, so each drive's alternatives follow it.
+    TEST_METHOD (SwapDrives_MovesTheImagesAndTheirAlternatives)
+    {
+        A2retroNetConfig  config = A2retroNetConfig::Parse ("[drives]\n1=system.po\n#1=old.po\n2=games.po\n#2=a.po\n#2=b.po\n");
+
+
+
+        config.SwapDrives (0, 1);
+
+        Assert::AreEqual (std::string ("games.po"),  config.paths[0]);
+        Assert::AreEqual (std::string ("system.po"), config.paths[1]);
+        Assert::AreEqual ((size_t) 2, config.GetAlternatives (0).size());
+        Assert::AreEqual (std::string ("old.po"), config.GetAlternatives (1)[0]);
+        Assert::AreEqual (std::string ("[drives]\n1=games.po\n#2=old.po\n2=system.po\n#1=a.po\n#1=b.po\n"), config.Write());
+    }
+
+
+    //  A file renamed or moved on the card: each drive and commented-out
+    //  image with its path, in any case and with or without a device or a
+    //  leading /, takes the new path.
+    TEST_METHOD (MovePath_SetsTheNewPathOnEachDrive)
+    {
+        A2retroNetConfig  config = A2retroNetConfig::Parse ("[drives]\n1=Games/Zork.po\n#2=/games/zork.po\n2=other.po\n3=sd:games/zork.po\n");
+
+
+
+        Assert::IsTrue  (config.MovePath ("games/zork.po", "infocom/zork1.po"));
+        Assert::AreEqual (std::string ("[drives]\n1=infocom/zork1.po\n#2=infocom/zork1.po\n2=other.po\n3=infocom/zork1.po\n"), config.Write());
+        Assert::IsFalse (config.MovePath ("nothing.po", "else.po"));
+
+        Assert::IsTrue   (config.MovePath ("INFOCOM", "games/infocom"), L"a folder renamed or moved");
+        Assert::AreEqual (std::string ("games/infocom/zork1.po"), config.paths[0]);
+    }
+
+
+    TEST_METHOD (ClearPath_EmptiesTheDrivesWithThePath)
+    {
+        A2retroNetConfig  config = A2retroNetConfig::Parse ("[drives]\n1=system.po\n2=games.po\n3=/SYSTEM.PO\n");
+        std::vector<int>  drives;
+
+
+
+        drives = config.FindDrives ("system.po");
+        Assert::AreEqual ((size_t) 2, drives.size());
+        Assert::AreEqual (0, drives[0]);
+        Assert::AreEqual (2, drives[1]);
+
+        Assert::IsTrue  (config.ClearPath ("system.po"));
+        Assert::AreEqual (std::string ("[drives]\n1=\n2=games.po\n3=\n"), config.Write());
+        Assert::IsFalse (config.ClearPath ("system.po"));
+    }
+
+
     TEST_METHOD (CheckImage_TakesWhatTheFirmwareReads)
     {
         std::vector<Byte>  blocks (280 * 512, 0);
@@ -100,6 +212,47 @@ public:
         Assert::IsFalse (A2retroNetConfig::CheckImage ("disk.2mg", MakeTwoImg (280, 1, 128), problem), L"data after a longer header");
         Assert::IsFalse (A2retroNetConfig::CheckImage ("big.hdv",  huge, problem));
         Assert::AreEqual (std::string ("A2retroNET reads at most 65535 blocks, and this image has 65536."), problem);
+    }
+
+
+    //  An image on the card is checked from its first 64 bytes and its size,
+    //  so a 32 MB image isn't read to list the drives.
+    TEST_METHOD (CheckImage_TakesTheHeaderAndTheSize)
+    {
+        std::vector<Byte>  twoImg = MakeTwoImg (0, 1, 64);
+        std::string        problem;
+
+
+
+        Assert::IsTrue  (A2retroNetConfig::CheckImage ("disk.2mg", twoImg, 64 + 1600 * 512, problem));
+        Assert::IsFalse (A2retroNetConfig::CheckImage ("big.po",   {},     65536ull * 512,  problem));
+        Assert::AreEqual (std::string ("A2retroNET reads at most 65535 blocks, and this image has 65536."), problem);
+    }
+
+
+    TEST_METHOD (Parse_NotesCarriageReturns)
+    {
+        Assert::IsTrue  (A2retroNetConfig::Parse ("[drives]\r\n1=a.po\r\n").hasCarriageReturns);
+        Assert::IsFalse (A2retroNetConfig::Parse ("[drives]\n1=a.po\n").hasCarriageReturns);
+    }
+
+
+    //  The firmware reads sd: and usb: as the device, and a leading / as the
+    //  root.
+    TEST_METHOD (SplitDevice_RemovesThePrefixAndTheRootSlash)
+    {
+        std::string  path;
+
+
+
+        Assert::IsFalse  (A2retroNetConfig::SplitDevice ("games/zork.po", path));
+        Assert::AreEqual (std::string ("games/zork.po"), path);
+        Assert::IsFalse  (A2retroNetConfig::SplitDevice ("/system.hdv", path));
+        Assert::AreEqual (std::string ("system.hdv"), path);
+        Assert::IsTrue   (A2retroNetConfig::SplitDevice ("usb:/floppy.po", path));
+        Assert::AreEqual (std::string ("floppy.po"), path);
+        Assert::IsTrue   (A2retroNetConfig::SplitDevice ("SD:work.hdv", path));
+        Assert::AreEqual (std::string ("work.hdv"), path);
     }
 
 

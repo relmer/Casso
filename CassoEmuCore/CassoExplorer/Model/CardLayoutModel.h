@@ -11,9 +11,9 @@
 //  CardLayoutModel
 //
 //  The choices for initializing a storage card, as positions along a bar:
-//  1 to GetVolumeLimit() CFFA volumes of 32 MB, then FAT32 for a CFFA3000
-//  when the card is large enough. For a position, the kind of each part of
-//  the bar and each CFFA adapter's support.
+//  1 to GetVolumeLimit() CFFA volumes of 32 MB, then FAT32 for a CFFA3000 or
+//  an A2Pico when the card is large enough. For a position, the kind of each
+//  part of the bar and each adapter's support.
 //
 //  The adapters' support is from the CFFA 1.x and 2.0 manuals: CFFA 1.x
 //  maps four volumes, or eight with the 8-drive version of firmware 1.2, and
@@ -21,7 +21,9 @@
 //  2.0 maps up to 13 with its 65C02 firmware once its partition count is
 //  set, and two, or four in slot 5, with its 6502 firmware. A CFFA3000 reads
 //  the same layout with no MBR, as many partitions as its menu's # 32MB
-//  partitions setting, 4 in its v1.3 manual.
+//  partitions setting, 4 in its v1.3 manual. An A2Pico with the A2retroNET
+//  firmware reads disk image files from one FAT or exFAT volume, by its
+//  README.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +38,7 @@ public:
 
     //  The adapter the card is for. Saved in the preferences by its value, so
     //  new values go at the end.
-    enum class Adapter { Unsure, Cffa1ProDos, Cffa1Gsos, Cffa12EightDrive, Cffa2Enhanced, Cffa2Original, Cffa3000, Count };
+    enum class Adapter { Unsure, Cffa1ProDos, Cffa1Gsos, Cffa12EightDrive, Cffa2Enhanced, Cffa2Original, Cffa3000, A2Pico, Count };
     enum class Support { Works, Step, Fails, Unknown };
 
     struct Row
@@ -71,12 +73,12 @@ public:
 
     //  The layout an adapter is best served by: as many volumes as it maps
     //  without a step, or as fit for a CFFA 2.0 on an enhanced Apple, and
-    //  FAT32 for a CFFA3000.
+    //  FAT32 for a CFFA3000 or an A2Pico.
     int   GetRecommendedPosition (Adapter adapter) const;
 
     //  The positions the layout dropdown offers for an adapter, in its order:
-    //  FAT32 first for a CFFA3000 and never for another, then each volume
-    //  count.
+    //  FAT32 first for a CFFA3000 and never for a CFFA card, then each volume
+    //  count. FAT32 alone for an A2Pico, which reads only a FAT volume.
     void  GetChoices (Adapter adapter, std::vector<int> & outPositions) const;
 
     std::wstring  DescribePosition (int position) const;

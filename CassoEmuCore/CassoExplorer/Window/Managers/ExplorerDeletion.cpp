@@ -144,6 +144,13 @@ void ExplorerDeletion::DeleteHostSelection()
     }
     else if (m_context.browser.TryGetSelectedShellIds (hostPaths))
     {
+        //  Before an A2Pico card's drive image is deleted, a message lists
+        //  its drive, since deleting it empties the drive.
+        if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder && !ConfirmA2PicoDrives (hostPaths))
+        {
+            return;
+        }
+
         hr = (m_context.browser.GetLocation().kind == Location::Kind::ShellFolder)
            ? m_context.shellVerbs.RunItemVerb (m_context.window.GetHwnd(), hostPaths, "delete")
            : m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), hostPaths);
@@ -158,9 +165,42 @@ void ExplorerDeletion::DeleteHostSelection()
     {
         m_context.undo.Push (ExplorerUndoStep { ExplorerUndoStep::Kind::Recycle, Location(), hostPaths });
         m_context.manifestSync.NoteDeletes (hostPaths);
+
+        for (const std::wstring & path : hostPaths)
+        {
+            m_context.actions.GetA2retroNet().NoteDelete (path);
+        }
     }
 
     m_context.folderSync.RefreshAfterHostChange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerDeletion::ConfirmA2PicoDrives
+//
+//  True when none of the files is an A2Pico card's drive image, or the user
+//  goes on with the delete.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerDeletion::ConfirmA2PicoDrives (const std::vector<std::wstring> & paths)
+{
+    std::wstring  drives = m_context.actions.GetA2retroNet().DescribeDrives (paths);
+    int           choice = IDYES;
+
+
+
+    if (!drives.empty())
+    {
+        choice = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, drives.c_str(), L"Delete A2Pico drive images", MB_YESNO | MB_DEFBUTTON2, { L"Delete", L"Cancel" });
+    }
+
+    return choice == IDYES;
 }
 
 

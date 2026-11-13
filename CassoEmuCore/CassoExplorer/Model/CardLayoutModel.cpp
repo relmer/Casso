@@ -171,9 +171,10 @@ void CardLayoutModel::GetRows (int position, std::vector<Row> & outRows) const
 
     if (IsFat32 (position))
     {
-        outRows.push_back (Row { L"CFFA 1.x",  Support::Fails, L"Reads only its fixed layout" });
-        outRows.push_back (Row { L"CFFA 2.0",  Support::Fails, L"Reads only its fixed layout" });
-        outRows.push_back (Row { L"CFFA3000",  Support::Works, L"Copy disk images to the card in Casso Explorer, then assign them to drives in the CFFA3000's menu" });
+        outRows.push_back (Row { L"CFFA 1.x",           Support::Fails, L"Reads only its fixed layout" });
+        outRows.push_back (Row { L"CFFA 2.0",           Support::Fails, L"Reads only its fixed layout" });
+        outRows.push_back (Row { L"CFFA3000",           Support::Works, L"Copy disk images to the card in Casso Explorer, then assign them to drives in the CFFA3000's menu" });
+        outRows.push_back (Row { L"A2Pico, A2retroNET", Support::Works, L"Copy disk images to the card in Casso Explorer, then set them as drives in A2retroNET drives" });
         return;
     }
 
@@ -187,6 +188,7 @@ void CardLayoutModel::GetRows (int position, std::vector<Row> & outRows) const
     outRows.push_back (Row { L"CFFA 2.0, 6502 firmware",     n <= 2 ? Support::Works : Support::Step,  n <= 2 ? L"" : L"Reads volumes 1 to 2 only, or 1 to 4 in slot 5" });
     outRows.push_back (Row { L"CFFA3000, raw CF mode",       n <= 4 ? Support::Works : Support::Step,
                              n <= 4 ? std::wstring() : std::format (L"Set # 32MB partitions to {} in Other Settings, Raw CF Card Settings. Its manual's example has 4", n) });
+    outRows.push_back (Row { L"A2Pico, A2retroNET",          Support::Fails,                           L"Reads disk image files on a FAT or exFAT volume only" });
 }
 
 
@@ -235,6 +237,7 @@ std::wstring CardLayoutModel::GetAdapterLabel (Adapter adapter)
         case Adapter::Cffa2Enhanced:    return L"CFFA 2.0 on an enhanced IIe or a IIgs";
         case Adapter::Cffa2Original:    return L"CFFA 2.0 on a II, II+ or unenhanced IIe";
         case Adapter::Cffa3000:         return L"CFFA3000";
+        case Adapter::A2Pico:           return L"A2Pico with the A2retroNET firmware";
         default:                        return L"I'm not sure";
     }
 }
@@ -263,7 +266,7 @@ int CardLayoutModel::GetRecommendedPosition (Adapter adapter) const
         default:                        most = kUniversalVolumes; break;
     }
 
-    if (adapter == Adapter::Cffa3000 && m_canFat32)
+    if ((adapter == Adapter::Cffa3000 || adapter == Adapter::A2Pico) && m_canFat32)
     {
         return m_volumeLimit + 1;
     }
@@ -285,12 +288,12 @@ void CardLayoutModel::GetChoices (Adapter adapter, std::vector<int> & outPositio
 {
     outPositions.clear();
 
-    if (adapter == Adapter::Cffa3000 && m_canFat32)
+    if ((adapter == Adapter::Cffa3000 || adapter == Adapter::A2Pico) && m_canFat32)
     {
         outPositions.push_back (m_volumeLimit + 1);
     }
 
-    for (int count = 1; count <= m_volumeLimit; count++)
+    for (int count = 1; adapter != Adapter::A2Pico && count <= m_volumeLimit; count++)
     {
         outPositions.push_back (count);
     }
@@ -327,7 +330,14 @@ void CardLayoutModel::GetRows (int position, Adapter adapter, std::vector<Row> &
 
     if (IsFat32 (position))
     {
-        selectedRows = adapter == Adapter::Cffa3000 ? std::vector<int> { 2 } : adapter == Adapter::Cffa2Enhanced || adapter == Adapter::Cffa2Original ? std::vector<int> { 1 } : std::vector<int> { 0 };
+        switch (adapter)
+        {
+            case Adapter::Cffa3000:      selectedRows = { 2 }; break;
+            case Adapter::A2Pico:        selectedRows = { 3 }; break;
+            case Adapter::Cffa2Enhanced:
+            case Adapter::Cffa2Original: selectedRows = { 1 }; break;
+            default:                     selectedRows = { 0 }; break;
+        }
     }
     else
     {
@@ -338,6 +348,7 @@ void CardLayoutModel::GetRows (int position, Adapter adapter, std::vector<Row> &
             case Adapter::Cffa12EightDrive: selectedRows = { 1, 2 }; break;
             case Adapter::Cffa2Enhanced:    selectedRows = { 3 };    break;
             case Adapter::Cffa2Original:    selectedRows = { 4 };    break;
+            case Adapter::A2Pico:           selectedRows = { 6 };    break;
             default:                        selectedRows = { 5 };    break;
         }
     }

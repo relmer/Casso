@@ -831,3 +831,20 @@ FOUND": a case word of `` put `` in the byte SOS reads as the file's
 minimum version. Apple's System Demo disk stops at "SYSTEM FAILURE = ``"
 in MAME as downloaded, so it was left out of the boots; Casso reads it, with its
 12 entries a block, and writes to it (`SosTests`).
+
+## A2Pico cards (Story 41, SC-070)
+
+The owner has no A2Pico, so the card is checked against the A2retroNET
+firmware's README and source (R58) and in Casso. `A2PicoCardTests` fills an
+in-memory card through Casso Explorer's actions with Apple's ProDOS Users Disk.
+
+| Step | Result |
+|---|---|
+| The starter A2retroNET.txt Initialize card writes | the firmware's defaults: boot delay 3, 8 drives, none set |
+| The Users Disk copied as it is distributed, a ProDOS volume in DOS order | offered for Write as .po |
+| Write as .po | `users.po`, the same 280 blocks in ProDOS order |
+| `users.po` set as drive 1 | the drive passes `A2retroNetConfig::CheckImage`, with no problem listed |
+| `users.po` mounted in a Disk II on an enhanced //e in Casso | boots ProDOS |
+
+Casso has no SmartPort card, so a drive's image is booted from a Disk II, which
+takes only a 140K image. Larger images are checked by `CheckImage` alone.

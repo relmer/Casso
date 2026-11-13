@@ -265,6 +265,12 @@ void ExplorerClipboard::PasteHere (const std::wstring & folder)
         m_context.listPane.ClearCutPaths();
     }
 
+    //  A file cut from an A2Pico card is a drive's image there no longer.
+    for (size_t i = 0; pasted.moved && i < pasted.sources.size() && i < pasted.created.size(); i++)
+    {
+        m_context.actions.GetA2retroNet().NoteMove (pasted.sources[i], pasted.created[i]);
+    }
+
     if (!pasted.created.empty())
     {
         ExplorerUndoStep  step;

@@ -90,7 +90,7 @@ struct CassoExplorerPrefs
     //  Bytes between the spaces in a hex preview: 1, 2, 4 or 8.
     int                    hexGrouping     = kDefaultHexGrouping;
 
-    //  The CFFA adapter Initialize card for Apple last had chosen, as a
+    //  The adapter Initialize card for Apple last had chosen, as a
     //  CardLayoutModel::Adapter. 0 is "I'm not sure".
     int                    cffaAdapter     = 0;
 
@@ -232,7 +232,7 @@ struct CassoExplorerPrefs
 
     static constexpr int  kViewCount              = 8;
     static constexpr int  kDefaultHexGrouping     = 1;
-    static constexpr int  kCffaAdapterCount       = 7;
+    static constexpr int  kCffaAdapterCount       = 8;
     static constexpr int  kDefaultPreviewZoom     = 100;
     static constexpr int  kMinPreviewZoom         = 50;
     static constexpr int  kMaxPreviewZoom         = 300;

@@ -18,6 +18,8 @@
 #include "Core/AppMessages.h"
 #include "Core/AppTimerIds.h"
 #include "Core/TextEncoding.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -475,6 +477,44 @@ public:
 
     //  An image renamed in a Full Send folder is renamed in the folder's
     //  manifest as well.
+    //  When an A2Pico card's drive image is renamed in the list, A2retroNET.txt
+    //  is written with the drive set to the new name.
+    TEST_METHOD (Rename_OfAnA2PicoDriveImage_RenamesItsDrive)
+    {
+        Rig           rig;
+        DxuiKeyEvent  key;
+        std::string   text = "# card\n[drives]\n1=games/zork.po\n";
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"E:\\games\\zork.po");
+        AssertSucceeded (rig.fs.WriteAllText (L"E:\\A2retroNET.txt", text));
+        rig.io.files["E:\\A2retroNET.txt"].assign (text.begin(), text.end());
+        rig.verbs->onRename = [] (const std::wstring &, const std::wstring &) { return S_OK; };
+
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"E:\\games"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"zork.po"));
+
+        //  The name without its extension is selected, as in File Explorer.
+        rig.parts->rename.BeginRename();
+
+        for (wchar_t ch : std::wstring (L"zork1"))
+        {
+            key.kind = DxuiKeyEventKind::Char;
+            key.vk   = ch;
+            rig.parts->rename.HandleRenameKey (key);
+        }
+
+        key.kind = DxuiKeyEventKind::Down;
+        key.vk   = VK_RETURN;
+        rig.parts->rename.HandleRenameKey (key);
+
+        Assert::AreEqual (std::string ("# card\n[drives]\n1=games/zork1.po\n"), std::string (rig.io.files["E:\\A2retroNET.txt"].begin(), rig.io.files["E:\\A2retroNET.txt"].end()));
+    }
+
+
     TEST_METHOD (Rename_OfAnImageInAFullSendFolder_RenamesItInTheManifest)
     {
         Rig                rig;
@@ -1094,6 +1134,91 @@ public:
 
         Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Listing, L"An exported BASIC program lists");
         Assert::IsTrue (rig.browser.GetPreview().viewAs == ViewChoice::Default, L"Another file opens in its default view");
+    }
+
+
+    //  At an A2Pico card's root, the infobar has its drives in a sentence,
+    //  and Repair for a settings file with CR LF line ends writes it with LF
+    //  line ends. Another folder has no such bar.
+    TEST_METHOD (CardBar_SummarizesAnA2PicoCardAndRepairsItsSettings)
+    {
+        Rig          rig;
+        std::string  text = "[drives]\r\nnumber=2\r\n1=system.po\r\n";
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"E:\\system.po");
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        AssertSucceeded (rig.fs.WriteAllText (L"E:\\A2retroNET.txt", text));
+        rig.io.files["E:\\A2retroNET.txt"].assign (text.begin(), text.end());
+
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"E:\\"));
+        rig.parts->listPane.FillList();
+
+        DxuiInfoBanner &  bar = rig.parts->listPane.GetBars().GetCardBar();
+
+        Assert::IsTrue   (bar.IsVisible(), rig.browser.GetLocation().path.c_str());
+        Assert::IsTrue   (bar.GetSeverity() == DxuiInfoBanner::Severity::Warning, bar.GetText().c_str());
+        Assert::IsTrue   (bar.GetText().starts_with (L"A2Pico card. 1 of its 2 A2retroNET drives have an image."), bar.GetText().c_str());
+        Assert::AreEqual ((size_t) 2, bar.GetActionCount(), L"A2retroNET drives and Repair");
+
+        bar.GetAction (1)->Click();
+
+        Assert::AreEqual (std::string ("[drives]\nnumber=2\n1=system.po\n"), std::string (rig.io.files["E:\\A2retroNET.txt"].begin(), rig.io.files["E:\\A2retroNET.txt"].end()));
+
+        //  The repaired file isn't on the in-memory file system the bar reads
+        //  through IsA2PicoCard, so it is written there too.
+        AssertSucceeded (rig.fs.WriteAllText (L"E:\\A2retroNET.txt", "[drives]\nnumber=2\n1=system.po\n"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue   (bar.GetSeverity() == DxuiInfoBanner::Severity::Info, bar.GetText().c_str());
+        Assert::AreEqual ((size_t) 1, bar.GetActionCount(), L"A2retroNET drives alone");
+
+        Assert::IsTrue  (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        rig.parts->listPane.FillList();
+        Assert::IsFalse (bar.IsVisible());
+    }
+
+
+    //  In a folder on an A2Pico card, where a copy lands, an image with a
+    //  ProDOS volume in DOS order is offered as a .po, which Write as .po
+    //  writes beside it.
+    TEST_METHOD (CardBar_OffersAPoForAnImageA2retroNetDoesntRead)
+    {
+        Rig                rig;
+        FixtureProvider    fixtures;
+        std::vector<Byte>  po;
+        std::vector<Byte>  dsk (NibblizationLayer::kImageByteSize, 0);
+        std::string        text = "[drives]\n";
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/prodos.po", po));
+
+        for (size_t at = 0; at < po.size(); at++)
+        {
+            dsk[ProDosSkeleton::GetBlockByteOffset ((int) (at / 512), at % 512)] = po[at];
+        }
+
+        AssertSucceeded (rig.fs.WriteAllText (L"E:\\A2retroNET.txt", text));
+        rig.io.files["E:\\A2retroNET.txt"].assign (text.begin(), text.end());
+        AssertSucceeded (rig.fs.WriteAllText (L"E:\\games\\zork.dsk", std::string (dsk.begin(), dsk.end())));
+        rig.io.files["E:\\games\\zork.dsk"]  = dsk;
+        rig.io.stamps["E:\\games\\zork.dsk"] = FileStamp { dsk.size(), 100 };
+
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"E:\\games"));
+        rig.parts->listPane.FillList();
+
+        DxuiInfoBanner &  bar = rig.parts->listPane.GetBars().GetCardBar();
+
+        Assert::IsTrue   (bar.IsVisible());
+        Assert::AreEqual (std::wstring (L"zork.dsk has a ProDOS volume in a form A2retroNET doesn't read. Write as .po makes a copy it reads."), bar.GetText());
+        Assert::AreEqual ((size_t) 1, bar.GetActionCount());
+
+        bar.GetAction (0)->Click();
+
+        Assert::IsTrue (rig.io.files["E:\\games\\zork.po"] == po);
     }
 
 

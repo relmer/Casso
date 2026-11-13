@@ -390,6 +390,7 @@
     <ClCompile Include="CassoExplorer\CardCompatibilityGrid.cpp" />
     <ClCompile Include="CassoExplorer\Model\CardLayoutModel.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerInitializeCardDialog.cpp" />
+    <ClCompile Include="CassoExplorer\A2retroNetDrivesDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerElevationDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPromptDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkActivityDialog.cpp" />
@@ -415,6 +416,7 @@
     <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerListPane.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerListColumns.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Panes\ExplorerListBars.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerListMenus.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerMenus.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerPreviewManager.cpp" />
@@ -1441,6 +1443,7 @@
     <ClInclude Include="CassoExplorer\CardCompatibilityGrid.h" />
     <ClInclude Include="CassoExplorer\Model\CardLayoutModel.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerInitializeCardDialog.h" />
+    <ClInclude Include="CassoExplorer\A2retroNetDrivesDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerElevationDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerPromptDialog.h" />
     <ClInclude Include="CassoExplorer\CassoLinkActivityDialog.h" />
@@ -1471,6 +1474,7 @@
     <ClInclude Include="CassoExplorer\Window\Managers\CassoLinkManager.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerListPane.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerListColumns.h" />
+    <ClInclude Include="CassoExplorer\Window\Panes\ExplorerListBars.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerListMenus.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerPane.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerMenus.h" />

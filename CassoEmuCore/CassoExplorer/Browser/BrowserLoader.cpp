@@ -5,6 +5,7 @@
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/A2retroNetConfig.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -539,6 +540,12 @@ HRESULT BrowserLoader::LoadRoot (const std::wstring & id)
                 row.isDrive   = true;
                 row.sizeBytes = drive.totalBytes;
                 row.freeBytes = drive.freeBytes;
+
+                //  A drive with no media has a size of 0, and isn't read.
+                if (drive.totalBytes > 0 && m_browser.m_fs.Exists (m_rootChildren[index].location.path + A2retroNetConfig::kpszWideFileName))
+                {
+                    row.typeText = L"A2Pico card";
+                }
             }
         }
     }

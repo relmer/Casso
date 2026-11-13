@@ -3720,7 +3720,8 @@ status bar, and compare the list with the manifest when the session ends.
   as an A2Pico card. The card's kind MUST be read from its content at each
   open and MUST NOT be saved on the PC, so a card initialized again for
   another adapter is listed as what it now is.
-- **FR-259**: An A2Pico card's drives MUST be listed with their number,
+- **FR-259**: An A2Pico card's drives MUST be listed, in an infobar at the
+  card's root and in A2retroNET drives, with their number,
   image, size and write protection, and with the problem of a drive the
   firmware can't open: a missing image, an extension other than `.po`,
   `.hdv` and `.2mg`, a `.2mg` in DOS order or with blocks that don't start
@@ -3730,14 +3731,16 @@ status bar, and compare the list with the manifest when the session ends.
   drive's other images commented out with `#`, and lines Casso Explorer
   doesn't read MUST remain in place, unlike the firmware's configuration
   utility, which writes the file again without them. A2retroNET drives, a
-  dialog, MUST set a drive's image from the card or, on the Drive firmware,
-  from the other device as an `sd:` or `usb:` path, clear a drive, reorder
+  dialog, MUST set a drive's image from the card, list a drive's `sd:` or
+  `usb:` path, which may be on the Drive firmware's other device, without
+  changing it, clear a drive, reorder
   the drives, switch a drive to one of its commented-out images, and set
   the number of drives (2, 4, 6 or 8) and the boot delay (0 to 9 seconds).
   Edit as text MUST open the file in the user's text editor, and the
   drives MUST be read again when it is saved.
 - **FR-261**: A copy of a disk image to an A2Pico card MUST offer to write
-  a block volume the firmware can't read as a `.po`. An image with no
+  a block volume the firmware can't read as a `.po`, in an infobar in the
+  folder the copy is in. An image with no
   block volume MUST be copied as it is, and MUST NOT be offered as a drive.
 - **FR-262**: Renaming or moving a drive's image on the card in Casso
   Explorer MUST update the drive's path, and deleting it MUST clear the
@@ -4057,8 +4060,8 @@ status bar, and compare the list with the manifest when the session ends.
   annotated with its use in the catalog, and a step to a block on a 32 MB
   volume or a card's partition takes under 100 ms.
 - **SC-070**: Every drive of a card initialized for an A2Pico and filled
-  through Casso Explorer passes `A2retroNetConfig::CheckImage`, and its
-  image boots or mounts in Casso as a SmartPort drive.
+  through Casso Explorer passes `A2retroNetConfig::CheckImage`, and a 140K
+  image boots from a Disk II in Casso, which has no SmartPort card.
 
 - **SC-071**: Through a Full Send of a DOS 3.3 disk, a duplicate and a
   copy-protected disk on a //c, the Full Send window's state line is

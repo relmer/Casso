@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Actions/ActionsTypes.h"
+#include "CassoExplorer/Model/CardLayoutModel.h"
 #include "Seams/RawDevice/IRawDevice.h"
 
 struct ExplorerContext;
@@ -68,11 +69,19 @@ public:
     //  drive letter open in it. Nothing for any other location.
     void  InitializeShownCard   ();
 
+    //  A2retroNET drives for the A2Pico card at `root`, and the list filled
+    //  again after a save.
+    void  EditA2retroNetDrives  (const std::wstring & root);
+
 private:
     static constexpr ULONGLONG  kProgressPostMs = 250;
 
-    void  StartInitialize  (const std::wstring & cardPath, const PhysicalDrive & drive, uint64_t layout, std::vector<WindowsVolume> volumes);
-    void  FinishInitialize ();
+    void          StartInitialize     (const std::wstring & cardPath, const PhysicalDrive & drive, uint64_t layout, CardLayoutModel::Adapter adapter, std::vector<WindowsVolume> volumes);
+    void          FinishInitialize    ();
+
+    //  The root of the card's first volume with a drive letter after the
+    //  erase, or of the one it had before, or empty.
+    std::wstring  FindInitializedRoot (const std::wstring & before);
 
     ExplorerContext             & m_context;
     std::thread                   m_initThread;
@@ -83,5 +92,6 @@ private:
     std::wstring                  m_initCard;
     PhysicalDrive                 m_initDrive;
     uint64_t                      m_initLayout      = 0;
+    CardLayoutModel::Adapter      m_initAdapter     = CardLayoutModel::Adapter::Unsure;
     std::vector<WindowsVolume>    m_initVolumes;
 };
