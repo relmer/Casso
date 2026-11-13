@@ -37,7 +37,7 @@ enum class VolumeKind
     //  A NuFX or Binary II archive, whose bytes are the buffer.
     Archive,
 
-    //  A Gutenberg word processor disk, which is read-only.
+    //  A Gutenberg word processor disk.
     Gutenberg,
 
     //  A Strategic Simulations RDOS disk, which is read-only.

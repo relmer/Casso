@@ -7,6 +7,8 @@
 
 
 
+static constexpr size_t  s_kOffPreviousTrack  = 0;
+static constexpr size_t  s_kOffPreviousSector = 1;
 static constexpr size_t  s_kOffCurrentTrack  = 2;
 static constexpr size_t  s_kOffCurrentSector = 3;
 static constexpr size_t  s_kOffNextTrack     = 4;
@@ -24,6 +26,8 @@ static constexpr Byte    s_kEmptySlot        = 0xA0;
 static constexpr Byte    s_kHighBit          = 0x80;
 static constexpr Byte    s_kLowBits          = 0x7F;
 static constexpr Byte    s_kStoredZero       = 0x40;
+static constexpr char    s_kDelete           = 0x7F;
+static constexpr uint32_t  s_kSectorsPerMapByte = 2;
 
 
 
@@ -261,7 +265,8 @@ void GutenbergVolume::CollectFiles (vector<RawFile> & outFiles, Chain & outDirec
             file.name   = ReadText (m_sectors, entry, s_kNameBytes);
             file.track  = DecodeLink (m_sectors[entry + s_kOffStartTrack]);
             file.sector = DecodeLink (m_sectors[entry + s_kOffStartSector]);
-            file.type   = (Byte) (m_sectors[entry + s_kOffType] & s_kLowBits);
+            file.type    = (Byte) (m_sectors[entry + s_kOffType] & s_kLowBits);
+            file.entryAt = entry;
 
             outFiles.push_back (file);
         }
@@ -325,20 +330,19 @@ void GutenbergVolume::NoteRead (const Chain & chain) const
 //
 //  GutenbergVolume::Enumerate
 //
-//  The format of the allocation map is unknown, so the free count is the
-//  sectors from track 3 on that aren't in the directory or a file.
+//  The free count is the sectors the map marks free, the count Gutenberg's
+//  AVAILABLE SPACE reports.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT GutenbergVolume::Enumerate (VolumeListing & outListing) const
 {
-    HRESULT                hr    = S_OK;
-    bool                   whole = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
-    uint32_t               spare = 0;
-    vector<RawFile>        files;
-    Chain                  directory;
-    std::string            volumeName;
-    VolumeIntegrityReport  report;
+    HRESULT          hr    = S_OK;
+    bool             whole = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    uint32_t         spare = 0;
+    vector<RawFile>  files;
+    Chain            directory;
+    std::string      volumeName;
 
 
 
@@ -380,12 +384,11 @@ HRESULT GutenbergVolume::Enumerate (VolumeListing & outListing) const
         }
     }
 
-    hr = BuildIntegrityReport (report);
-    CHR (hr);
-
-    for (uint32_t unit = (uint32_t) (kFirstDataTrack * kSectorsPerTrack); unit < kUnitCount; unit++)
+    for (uint32_t unit = 0; unit < kUnitCount; unit++)
     {
-        spare += report.IsClaimed (unit) ? 0u : 1u;
+        bool  allocated = IsAllocatedInMap (m_sectors, unit);
+
+        spare += allocated ? 0u : 1u;
     }
 
     outListing.totalUnits = kUnitCount;
@@ -458,10 +461,164 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GutenbergVolume::IsNameValid
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool GutenbergVolume::IsNameValid (const std::string & name)
+{
+    bool  isValid = !name.empty() && name.size() <= kNameBytesMax;
+
+
+
+    for (size_t i = 0; isValid && i < name.size(); i++)
+    {
+        isValid = name[i] > ' ' && name[i] < s_kDelete && name[i] != '/';
+    }
+
+    return isValid;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GutenbergVolume::IsInMap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool GutenbergVolume::IsInMap (uint32_t unit)
+{
+    return unit >= (uint32_t) (kFirstDataTrack * kSectorsPerTrack) && unit < kUnitCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GutenbergVolume::LocateInMap
+//
+//  Eight bytes a track from track 3, one byte for each pair of sectors.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GutenbergVolume::LocateInMap (uint32_t unit, size_t & outAt, Byte & outBit)
+{
+    uint32_t  track  = unit / (uint32_t) kSectorsPerTrack;
+    uint32_t  sector = unit % (uint32_t) kSectorsPerTrack;
+
+
+
+    outAt  = (size_t) (kDirectoryTrack * kSectorsPerTrack + kMapSector) * kSectorBytes;
+    outAt += (size_t) (track - (uint32_t) kFirstDataTrack) * kMapBytesPerTrack + sector / s_kSectorsPerMapByte;
+    outBit = (sector % s_kSectorsPerMapByte == 0) ? kMapEvenSector : kMapOddSector;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GutenbergVolume::IsAllocatedInMap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool GutenbergVolume::IsAllocatedInMap (const vector<Byte> & sectors, uint32_t unit)
+{
+    bool    allocated = true;
+    size_t  at        = 0;
+    Byte    bit       = 0;
+
+
+
+    if (IsInMap (unit))
+    {
+        LocateInMap (unit, at, bit);
+
+        allocated = (sectors[at] & bit) != 0;
+    }
+
+    return allocated;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GutenbergVolume::SetAllocatedInMap
+//
+//  The byte's other bits are left as they are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GutenbergVolume::SetAllocatedInMap (vector<Byte> & sectors, uint32_t unit, bool allocated)
+{
+    size_t  at  = 0;
+    Byte    bit = 0;
+
+
+
+    if (IsInMap (unit))
+    {
+        LocateInMap (unit, at, bit);
+
+        sectors[at] = allocated ? (Byte) (sectors[at] | bit) : (Byte) (sectors[at] & ~bit);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GutenbergVolume::IsReserved
+//
+//  A sector reserved for the volume rather than a file: tracks 0 to 2, a
+//  sector whose map byte is $FF, and the sectors of track 17 FORMAT marks in
+//  use.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool GutenbergVolume::IsReserved (const vector<Byte> & sectors, uint32_t unit)
+{
+    bool      reserved  = !IsInMap (unit);
+    bool      allocated = IsAllocatedInMap (sectors, unit);
+    uint32_t  first     = (uint32_t) (kDirectoryTrack * kSectorsPerTrack);
+    size_t    at        = 0;
+    Byte      bit       = 0;
+
+
+
+    if (!reserved)
+    {
+        LocateInMap (unit, at, bit);
+
+        reserved = sectors[at] == kMapReserved;
+        reserved = reserved || (allocated && unit >= first && unit < first + (uint32_t) kDirectorySectorsFormatted);
+    }
+
+    return reserved;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GutenbergVolume::BuildIntegrityReport
 //
-//  The allocation map isn't read, so an allocated sector is one in the
-//  directory or a file, and the map sector.
+//  The directory, the map sector and the reserved sectors are the volume's,
+//  and the map indicates what is allocated. A file's sector in track 17 or in a
+//  $FF byte is the file's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -469,6 +626,8 @@ HRESULT GutenbergVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport
 {
     HRESULT          hr    = S_OK;
     bool             whole = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    uint32_t         map   = (uint32_t) (kDirectoryTrack * kSectorsPerTrack + kMapSector);
+    vector<bool>     claimed (kUnitCount, false);
     vector<RawFile>  files;
     Chain            directory;
     std::string      volumeName;
@@ -481,11 +640,13 @@ HRESULT GutenbergVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport
 
     outReport.Reset (kUnitCount);
     outReport.SetCatalogFullyParsed (directory.damage.empty());
-    outReport.AddClaim ((uint32_t) (kDirectoryTrack * kSectorsPerTrack + kMapSector), VolumeIntegrityReport::kVolumeOwner);
+    outReport.AddClaim (map, VolumeIntegrityReport::kVolumeOwner);
+    claimed[map] = true;
 
     for (uint32_t unit : directory.units)
     {
         outReport.AddClaim (unit, VolumeIntegrityReport::kVolumeOwner);
+        claimed[unit] = true;
     }
 
     //  The first entry is DIR, whose sectors are the directory's.
@@ -499,6 +660,7 @@ HRESULT GutenbergVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport
         for (size_t at = 0; !isDirectory && at < chain.units.size(); at++)
         {
             outReport.AddClaim (chain.units[at], (uint16_t) i);
+            claimed[chain.units[at]] = true;
         }
 
         if (!chain.damage.empty())
@@ -509,7 +671,15 @@ HRESULT GutenbergVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport
 
     for (uint32_t unit = 0; unit < kUnitCount; unit++)
     {
-        outReport.SetAllocatedInFreeMap (unit, outReport.IsClaimed (unit));
+        bool  reserved  = !claimed[unit] && IsReserved (m_sectors, unit);
+        bool  allocated = IsAllocatedInMap (m_sectors, unit);
+
+        if (reserved)
+        {
+            outReport.AddClaim (unit, VolumeIntegrityReport::kVolumeOwner);
+        }
+
+        outReport.SetAllocatedInFreeMap (unit, allocated);
     }
 
     outReport.Finish();
@@ -524,17 +694,410 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GutenbergVolume::WriteHeader
+//
+//  A link to the first sector has bit 7 set in its sector, except the last
+//  sector's next link, which has bit 7 set in its track.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GutenbergVolume::WriteHeader (vector<Byte> & sectors, uint32_t unit, uint32_t previous, uint32_t next, uint32_t first, bool isLast)
+{
+    size_t    at          = (size_t) unit * kSectorBytes;
+    uint32_t  perTrack    = (uint32_t) kSectorsPerTrack;
+    Byte      previousTag = (previous == first) ? s_kHighBit : (Byte) 0;
+    Byte      currentTag  = (unit == first) ? s_kHighBit : (Byte) 0;
+
+
+
+    sectors[at + s_kOffPreviousTrack]  = (Byte) (previous / perTrack);
+    sectors[at + s_kOffPreviousSector] = (Byte) ((previous % perTrack) | previousTag);
+    sectors[at + s_kOffCurrentTrack]   = (Byte) (unit / perTrack);
+    sectors[at + s_kOffCurrentSector]  = (Byte) ((unit % perTrack) | currentTag);
+
+    if (isLast)
+    {
+        sectors[at + s_kOffNextTrack]  = (Byte) ((first / perTrack) | s_kHighBit);
+        sectors[at + s_kOffNextSector] = (Byte) (first % perTrack);
+    }
+    else
+    {
+        sectors[at + s_kOffNextTrack]  = (Byte) (next / perTrack);
+        sectors[at + s_kOffNextSector] = (Byte) (next % perTrack);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GutenbergVolume::WriteName
+//
+//  High ASCII, padded with spaces.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GutenbergVolume::WriteName (vector<Byte> & sectors, size_t at, const std::string & name)
+{
+    for (size_t i = 0; i < s_kNameBytes; i++)
+    {
+        sectors[at + i] = (i < name.size()) ? (Byte) (name[i] | s_kHighBit) : s_kEmptySlot;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GutenbergVolume::WriteEntry
+//
+//  The directory stores a track or sector of 0 as $40.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GutenbergVolume::WriteEntry (vector<Byte> & sectors, size_t at, const std::string & name, uint32_t first, Byte type)
+{
+    Byte  track  = (Byte) (first / (uint32_t) kSectorsPerTrack);
+    Byte  sector = (Byte) (first % (uint32_t) kSectorsPerTrack);
+
+
+
+    WriteName (sectors, at, name);
+
+    sectors[at + s_kOffStartTrack]  = (track  == 0) ? s_kStoredZero : track;
+    sectors[at + s_kOffStartSector] = (sector == 0) ? s_kStoredZero : sector;
+    sectors[at + s_kOffType]        = (Byte) (type | s_kHighBit);
+    sectors[at + s_kOffMarker]      = s_kMarker;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GutenbergVolume::ClearEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GutenbergVolume::ClearEntry (vector<Byte> & sectors, size_t at)
+{
+    std::fill_n (sectors.begin() + (ptrdiff_t) at, s_kOffMarker, s_kEmptySlot);
+
+    sectors[at + s_kOffMarker] = s_kMarker;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GutenbergVolume::AddDirectorySector
+//
+//  The new sector has the volume name and empty slots, and is linked after
+//  the directory's last sector. The first sector's previous link isn't
+//  changed, and Gutenberg doesn't change it either.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GutenbergVolume::AddDirectorySector (vector<Byte> & sectors, const Chain & directory, uint32_t unit)
+{
+    uint32_t  first   = directory.units.front();
+    uint32_t  last    = directory.units.back();
+    size_t    at      = (size_t) unit  * kSectorBytes;
+    size_t    firstAt = (size_t) first * kSectorBytes;
+    size_t    lastAt  = (size_t) last  * kSectorBytes;
+
+
+
+    for (size_t i = s_kOffVolumeName; i < s_kOffEntries; i++)
+    {
+        sectors[at + i] = sectors[firstAt + i];
+    }
+
+    for (size_t i = s_kOffEntries; i < kSectorBytes; i += kEntryBytes)
+    {
+        ClearEntry (sectors, at + i);
+    }
+
+    WriteHeader (sectors, unit, last, first, first, true);
+
+    sectors[lastAt + s_kOffNextTrack]  = (Byte) (unit / (uint32_t) kSectorsPerTrack);
+    sectors[lastAt + s_kOffNextSector] = (Byte) (unit % (uint32_t) kSectorsPerTrack);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GutenbergVolume::TryAllocate
+//
+//  The lowest sector the map marks free that no file or directory has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool GutenbergVolume::TryAllocate (const vector<Byte> & sectors, vector<bool> & ioTaken, uint32_t & outUnit)
+{
+    bool  found = false;
+
+
+
+    for (uint32_t unit = (uint32_t) (kFirstDataTrack * kSectorsPerTrack); !found && unit < kUnitCount; unit++)
+    {
+        bool  allocated = IsAllocatedInMap (sectors, unit);
+
+        if (!allocated && !ioTaken[unit])
+        {
+            ioTaken[unit] = true;
+            outUnit       = unit;
+            found         = true;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GutenbergVolume::TryFindEmptySlot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool GutenbergVolume::TryFindEmptySlot (const vector<Byte> & sectors, const Chain & directory, size_t & outAt)
+{
+    bool  found = false;
+
+
+
+    for (size_t i = 0; !found && i < directory.units.size(); i++)
+    {
+        for (int slot = 0; !found && slot < kEntriesPerSector; slot++)
+        {
+            size_t  at = (size_t) directory.units[i] * kSectorBytes + s_kOffEntries + (size_t) slot * kEntryBytes;
+
+            if (sectors[at] == s_kEmptySlot)
+            {
+                outAt = at;
+                found = true;
+            }
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GutenbergVolume::GetStoredType
+//
+//  A type Gutenberg doesn't store becomes a document, and a locked document
+//  is L.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte GutenbergVolume::GetStoredType (const FilePayload & payload)
+{
+    Byte  type = IsKnownType (payload.type) ? payload.type : kTypeDocument;
+
+
+
+    if (type == kTypeDocument && payload.IsLocked())
+    {
+        type = kTypeLocked;
+    }
+
+    return type;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GutenbergVolume::HandBackResult
+//
+//  A computed buffer is returned only after it passes the same integrity pass
+//  as the volume it came from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT GutenbergVolume::HandBackResult (const VolumeIntegrityReport & before, const vector<Byte> & result, vector<Byte> & outBuffer)
+{
+    HRESULT                hr     = S_OK;
+    GutenbergVolume        volume (result);
+    bool                   safe   = false;
+    VolumeIntegrityReport  after;
+
+
+
+    hr = volume.BuildIntegrityReport (after);
+    CHRA (hr);
+
+    safe = after.IsSafeToCommitAfter (before);
+    CBRAEx (safe, E_UNEXPECTED);
+
+    outBuffer = result;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GutenbergVolume::Write
+//
+//  A new file takes an empty slot, or a directory sector added for it. A
+//  replaced file's sectors are freed first, so the new contents can reuse
+//  them. The data is 250 bytes a sector, padded with $00, and an empty file
+//  has one sector. A document without a $00 has one added, since Gutenberg
+//  ends a document there. A locked file fails with ERROR_ACCESS_DENIED.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT GutenbergVolume::Write (const FilePath & path, const FilePayload & payload, vector<Byte> & outBuffer) const
 {
-    UNREFERENCED_PARAMETER (path);
-    UNREFERENCED_PARAMETER (payload);
-    UNREFERENCED_PARAMETER (outBuffer);
+    HRESULT                hr         = S_OK;
+    bool                   whole      = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    std::string            name       = path.ToString();
+    bool                   nameOk     = IsNameValid (name);
+    bool                   intact     = false;
+    bool                   exists     = false;
+    bool                   locked     = false;
+    bool                   hasSlot    = false;
+    bool                   hasRoom    = true;
+    bool                   isDocument = false;
+    bool                   hasEnd     = false;
+    size_t                 length     = 0;
+    size_t                 index      = 0;
+    size_t                 entryAt    = 0;
+    size_t                 count      = 0;
+    uint32_t               unit       = 0;
+    vector<RawFile>        files;
+    Chain                  directory;
+    std::string            volumeName;
+    VolumeIntegrityReport  before;
+    vector<Byte>           result;
+    vector<bool>           taken (kUnitCount, false);
+    vector<uint32_t>       units;
 
-    return kReadOnly;
+
+
+    CBREx (whole,  E_INVALIDARG);
+    CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    CollectFiles (files, directory, volumeName);
+
+    intact = directory.damage.empty();
+    CBREx (intact, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
+    exists = TryFindFile (files, name, index);
+    locked = exists && files[index].type == kTypeLocked;
+    CBREx (!locked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+
+    hr = BuildIntegrityReport (before);
+    CHR (hr);
+
+    result = m_sectors;
+
+    for (uint32_t i = 0; i < kUnitCount; i++)
+    {
+        taken[i] = before.IsClaimed (i);
+    }
+
+    if (exists)
+    {
+        entryAt = files[index].entryAt;
+
+        for (uint32_t owned : before.GetClaimsOf ((uint16_t) index))
+        {
+            bool  isOnly = before.IsUniquelyOwnedBy (owned, (uint16_t) index);
+
+            if (isOnly)
+            {
+                taken[owned] = false;
+                SetAllocatedInMap (result, owned, false);
+            }
+        }
+    }
+    else
+    {
+        hasSlot = TryFindEmptySlot (result, directory, entryAt);
+
+        if (!hasSlot)
+        {
+            hasRoom = directory.units.size() < (size_t) kDirectorySectorsMax;
+            hasRoom = hasRoom && TryAllocate (result, taken, unit);
+            CBREx (hasRoom, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
+
+            AddDirectorySector (result, directory, unit);
+            SetAllocatedInMap  (result, unit, true);
+
+            entryAt = (size_t) unit * kSectorBytes + s_kOffEntries;
+        }
+    }
+
+    //  A document ends at its first $00, so one without it gains a byte.
+    isDocument = IsDocumentType (GetStoredType (payload));
+    hasEnd     = std::find (payload.bytes.begin(), payload.bytes.end(), kDocumentEnd) != payload.bytes.end();
+    length     = payload.bytes.size() + ((isDocument && !hasEnd) ? 1 : 0);
+    count      = std::max ((size_t) 1, (length + kDataBytes - 1) / kDataBytes);
+
+    for (size_t i = 0; hasRoom && i < count; i++)
+    {
+        hasRoom = TryAllocate (result, taken, unit);
+
+        if (hasRoom)
+        {
+            units.push_back (unit);
+        }
+    }
+
+    CBREx (hasRoom, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
+
+    for (size_t i = 0; i < count; i++)
+    {
+        size_t  at       = (size_t) units[i] * kSectorBytes;
+        size_t  from     = i * kDataBytes;
+        size_t  length   = std::min (kDataBytes, payload.bytes.size() - std::min (from, payload.bytes.size()));
+        bool    isLast   = i + 1 == count;
+        size_t  previous = (i == 0) ? count - 1 : i - 1;
+        size_t  next     = isLast ? 0 : i + 1;
+
+        WriteHeader (result, units[i], units[previous], units[next], units[0], isLast);
+
+        std::fill_n (result.begin() + (ptrdiff_t) (at + kHeaderBytes), kDataBytes, kDocumentEnd);
+        std::copy_n (payload.bytes.begin() + (ptrdiff_t) std::min (from, payload.bytes.size()), length, result.begin() + (ptrdiff_t) (at + kHeaderBytes));
+
+        SetAllocatedInMap (result, units[i], true);
+    }
+
+    WriteEntry (result, entryAt, name, units[0], GetStoredType (payload));
+
+    hr = HandBackResult (before, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
 }
 
 
@@ -549,10 +1112,11 @@ HRESULT GutenbergVolume::Write (const FilePath & path, const FilePayload & paylo
 
 HRESULT GutenbergVolume::Delete (const FilePath & path, vector<Byte> & outBuffer) const
 {
-    UNREFERENCED_PARAMETER (path);
-    UNREFERENCED_PARAMETER (outBuffer);
+    DeleteOutcome  outcome;
 
-    return kReadOnly;
+
+
+    return Delete (path, outBuffer, outcome);
 }
 
 
@@ -563,15 +1127,77 @@ HRESULT GutenbergVolume::Delete (const FilePath & path, vector<Byte> & outBuffer
 //
 //  GutenbergVolume::Delete
 //
+//  Clears the map bits of the sectors only the file has and fills its entry
+//  with spaces, as Gutenberg's DELETE does. The sectors' contents are left.
+//  A locked file, DIR among them, fails with ERROR_ACCESS_DENIED.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT GutenbergVolume::Delete (const FilePath & path, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const
 {
-    UNREFERENCED_PARAMETER (path);
-    UNREFERENCED_PARAMETER (outBuffer);
-    UNREFERENCED_PARAMETER (outOutcome);
+    HRESULT                hr     = S_OK;
+    bool                   whole  = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   found  = false;
+    bool                   locked = false;
+    size_t                 index  = 0;
+    vector<RawFile>        files;
+    Chain                  directory;
+    Chain                  chain;
+    std::string            volumeName;
+    VolumeIntegrityReport  before;
+    vector<Byte>           result;
 
-    return kReadOnly;
+
+
+    outOutcome = DeleteOutcome();
+
+    CBREx (whole, E_INVALIDARG);
+
+    CollectFiles (files, directory, volumeName);
+
+    found = TryFindFile (files, path.ToString(), index);
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    locked = files[index].type == kTypeLocked;
+    CBREx (!locked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+
+    hr = BuildIntegrityReport (before);
+    CHR (hr);
+
+    WalkChain (m_sectors, files[index].track, files[index].sector, chain);
+
+    outOutcome.catalogFullyParsed = directory.damage.empty();
+    outOutcome.chainWasDamaged    = !chain.damage.empty();
+
+    result = m_sectors;
+
+    for (uint32_t unit : before.GetClaimsOf ((uint16_t) index))
+    {
+        bool  isOnly = before.IsUniquelyOwnedBy (unit, (uint16_t) index);
+
+        if (isOnly)
+        {
+            outOutcome.freedUnits.push_back (unit);
+            SetAllocatedInMap (result, unit, false);
+        }
+        else
+        {
+            outOutcome.leakedUnits.push_back (unit);
+        }
+    }
+
+    if (!outOutcome.leakedUnits.empty())
+    {
+        outOutcome.warnings.push_back (std::format ("{} sectors of {} are also in another file and stay allocated", outOutcome.leakedUnits.size(), files[index].name));
+    }
+
+    ClearEntry (result, files[index].entryAt);
+
+    hr = HandBackResult (before, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
 }
 
 
@@ -589,7 +1215,7 @@ HRESULT GutenbergVolume::SetStartupProgram (const FilePath & path, vector<Byte> 
     UNREFERENCED_PARAMETER (path);
     UNREFERENCED_PARAMETER (outBuffer);
 
-    return kReadOnly;
+    return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
 }
 
 
@@ -600,15 +1226,55 @@ HRESULT GutenbergVolume::SetStartupProgram (const FilePath & path, vector<Byte> 
 //
 //  GutenbergVolume::Rename
 //
+//  Rewrites the entry's name. A locked file fails with ERROR_ACCESS_DENIED,
+//  and a name another entry has with ERROR_FILE_EXISTS.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT GutenbergVolume::Rename (const FilePath & from, const std::string & to, vector<Byte> & outBuffer) const
 {
-    UNREFERENCED_PARAMETER (from);
-    UNREFERENCED_PARAMETER (to);
-    UNREFERENCED_PARAMETER (outBuffer);
+    HRESULT                hr     = S_OK;
+    bool                   whole  = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   nameOk = IsNameValid (to);
+    bool                   found  = false;
+    bool                   locked = false;
+    bool                   taken  = false;
+    size_t                 index  = 0;
+    size_t                 other  = 0;
+    vector<RawFile>        files;
+    Chain                  directory;
+    std::string            volumeName;
+    VolumeIntegrityReport  before;
+    vector<Byte>           result;
 
-    return kReadOnly;
+
+
+    CBREx (whole,  E_INVALIDARG);
+    CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    CollectFiles (files, directory, volumeName);
+
+    found = TryFindFile (files, from.ToString(), index);
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    locked = files[index].type == kTypeLocked;
+    CBREx (!locked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+
+    taken = TryFindFile (files, to, other) && other != index;
+    CBREx (!taken, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
+
+    hr = BuildIntegrityReport (before);
+    CHR (hr);
+
+    result = m_sectors;
+
+    WriteName (result, files[index].entryAt, to);
+
+    hr = HandBackResult (before, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
 }
 
 
@@ -619,13 +1285,73 @@ HRESULT GutenbergVolume::Rename (const FilePath & from, const std::string & to, 
 //
 //  GutenbergVolume::SetAttributes
 //
+//  The type and the lock, which is the L type of a document, as Gutenberg's
+//  LOCK and UNLOCK set it. A program can't be locked, and the volume stores
+//  no aux type or dates. DIR can't be changed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT GutenbergVolume::SetAttributes (const FilePath & path, const FileAttributes & attributes, vector<Byte> & outBuffer) const
 {
-    UNREFERENCED_PARAMETER (path);
-    UNREFERENCED_PARAMETER (attributes);
-    UNREFERENCED_PARAMETER (outBuffer);
+    HRESULT                hr          = S_OK;
+    bool                   whole       = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   supported   = !attributes.hasAuxType && !attributes.hasCreated && !attributes.hasModified;
+    bool                   found       = false;
+    bool                   isDirectory = false;
+    bool                   typeOk      = true;
+    bool                   lockOk      = true;
+    size_t                 index       = 0;
+    Byte                   type        = 0;
+    vector<RawFile>        files;
+    Chain                  directory;
+    std::string            volumeName;
+    VolumeIntegrityReport  before;
+    vector<Byte>           result;
 
-    return kReadOnly;
+
+
+    CBREx (whole,     E_INVALIDARG);
+    CBREx (supported, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+    CollectFiles (files, directory, volumeName);
+
+    found = TryFindFile (files, path.ToString(), index);
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    isDirectory = files[index].track == kDirectoryTrack && files[index].sector == kDirectorySector;
+    CBREx (!isDirectory, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+
+    type = files[index].type;
+
+    if (attributes.hasType)
+    {
+        typeOk = IsKnownType (attributes.type);
+        type   = attributes.type;
+    }
+
+    CBREx (typeOk, HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER));
+
+    if (attributes.hasAccess)
+    {
+        bool  wantLocked = (attributes.access & FilePayload::kAccessWriteEnable) == 0;
+        bool  isDocument = IsDocumentType (type);
+
+        lockOk = isDocument || !wantLocked;
+        type   = isDocument ? (wantLocked ? kTypeLocked : kTypeDocument) : type;
+    }
+
+    CBREx (lockOk, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+    hr = BuildIntegrityReport (before);
+    CHR (hr);
+
+    result = m_sectors;
+
+    result[files[index].entryAt + s_kOffType] = (Byte) (type | s_kHighBit);
+
+    hr = HandBackResult (before, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
 }

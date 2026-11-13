@@ -2249,8 +2249,8 @@ back, and edit a byte and see it written.
 - **An HFS name with a slash or a colon**: it is copied to the PC with the
   character replaced as FR-017 sets for any host-illegal character.
 - **An HFS volume larger than 2 GB**: it opens read-only, with the reason.
-- **A Gutenberg volume before the free-space map is worked out**: it stays
-  read-only as FR-156 sets.
+- **A Gutenberg volume whose map marks a file's sector free**: the integrity
+  check reports it, and a write doesn't allocate the sector.
 - **The viewer at the last file when Right is pressed**: the file stays, and
   the next arrow is disabled.
 - **Two disks of the same data in different containers, one with a WOZ
@@ -3093,7 +3093,7 @@ back, and edit a byte and see it written.
   LISA source, in each version of its tokens; Business BASIC; Pascal
   codefiles; OMF; AppleWorks word processor, database and spreadsheet
   files; AppleWorks GS word processor files; VisiCalc; Teach; Gutenberg, from a
-  read-only Gutenberg volume; Magic Window; super hi-res pictures, plain,
+  Gutenberg volume; Magic Window; super hi-res pictures, plain,
   packed, Apple Preferred and Paintworks; 3200-color pictures, plain,
   DreamGrafix and `.3201`; the first frame of IIgs animation files; LZ4FH
   pictures; Print Shop and Print Shop GS clip art, in color and monochrome;
@@ -3497,8 +3497,8 @@ back, and edit a byte and see it written.
 
 **Gutenberg writes and RDOS**
 
-- **FR-227**: Gutenberg volumes MUST be written once the free-space map's
-  format is worked out from disks Gutenberg saves in Casso, documented in the
+- **FR-227**: Gutenberg volumes MUST be written. The free-space map's format,
+  worked out from disks Gutenberg saved in Casso, is documented in the
   feature's contracts. A file copied in, renamed or deleted MUST update the
   map as Gutenberg does.
 - **FR-228**: RDOS volumes MUST be read, read-only, with each file listed

@@ -1947,10 +1947,10 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 ## Phase 51: Gutenberg writes and RDOS (User Story 34)
 
-- [ ] T629 [US34] Work out Gutenberg's free-space map from disks Gutenberg saves in Casso, blank, after one document, after a delete and after a long document, and document it in `contracts/file-types.md` (FR-227)
-- [ ] T630 [US34] Add writes, renames and deletes to `GutenbergVolume`, updating the map as Gutenberg does, and remove the read-only rule (FR-227)
+- [X] T629 [US34] Work out Gutenberg's free-space map from disks Gutenberg saves in Casso, blank, after one document, after a delete and after a long document, and document it in `contracts/file-types.md` (FR-227)
+- [X] T630 [US34] Add writes, renames and deletes to `GutenbergVolume`, updating the map as Gutenberg does, and remove the read-only rule (FR-227)
 - [X] T631 [P] [US34] Add a read-only `RdosVolume` for RDOS 2.1, 3.2 and 3.3 in `CassoEmuCore/Machines/Apple2/Common/RdosVolume.h/.cpp` (FR-228)
-- [ ] T632 [US34] Scenario tests: a document written by Casso Explorer opens and saves again in Gutenberg in Casso (SC-062); each RDOS sample file matches CiderPress II's extraction
+- [X] T632 [US34] Scenario tests: a document written by Casso Explorer opens and saves again in Gutenberg in Casso (SC-062); each RDOS sample file matches CiderPress II's extraction
 
 ## Phase 52: An expanded preview (User Story 35)
 
