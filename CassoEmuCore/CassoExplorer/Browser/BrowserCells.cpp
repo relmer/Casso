@@ -178,6 +178,11 @@ void BrowserCells::DescribeVolumeSpace (const std::wstring & imagePath, const Vo
     else if (kind == VolumeKind::ProDos && !listing.volumeName.empty())
     {
         outStatus.freeSpaceTip += L", ProDOS volume /" + TextEncoding::NarrowToWide (listing.volumeName);
+
+        if (listing.startup.appleIII)
+        {
+            outStatus.freeSpaceTip += listing.startup.appleII ? L", starts an Apple II and an Apple ///" : L", starts an Apple ///";
+        }
     }
     else if (kind == VolumeKind::Pascal)
     {

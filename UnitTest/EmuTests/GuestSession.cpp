@@ -283,6 +283,61 @@ std::vector<Byte> GuestSession::RequireKermitDisk()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GuestSession::RequireSosUtilitiesDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::RequireSosUtilitiesDisk()
+{
+    std::vector<Byte>  bytes = FindStockImage (kpszSosRepoPath, kpszSosCacheName);
+
+
+
+    Assert::IsFalse (bytes.empty(),
+        L"the Apple /// System Utilities disk is REQUIRED by this gate and was not found, "
+        L"either as Disks/Apple/sos-utilities.dsk in a parent of the working directory or "
+        L"as %LOCALAPPDATA%\\Casso\\Disks\\Apple III System Utilities.dsk. To get it, run "
+        L"scripts/FetchStockDisks.ps1, which RunTests.ps1 -Scenario also runs");
+
+    Assert::AreEqual (kImageBytes, bytes.size(),
+        L"and it must be a whole 5.25-inch sector image");
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::RequireSosDemoDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::RequireSosDemoDisk()
+{
+    std::vector<Byte>  bytes = FindInRepo (kpszSosDemoRepoPath);
+
+
+
+    Assert::IsFalse (bytes.empty(),
+        L"the Apple /// System Demo disk is REQUIRED by this gate and was not found as "
+        L"Disks/Apple/sos-demo.dsk in a parent of the working directory. To get it, run "
+        L"scripts/FetchStockDisks.ps1, which RunTests.ps1 -Scenario also runs");
+
+    Assert::AreEqual (kImageBytes, bytes.size(),
+        L"and it must be a whole 5.25-inch sector image");
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GuestSession::TrimTrailingBlanks
 //
 ////////////////////////////////////////////////////////////////////////////////

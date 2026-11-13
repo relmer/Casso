@@ -1771,25 +1771,29 @@ II's Test; boot GS/OS on the changed image and open each file.
 ### User Story 33 - SOS volumes (Priority: P3)
 
 A user opens an Apple /// disk or ProFile image and works with it as with a
-ProDOS volume.
+ProDOS volume, which it is: SOS and ProDOS share one file system, and a disk
+differs only in the computers it starts.
 
 **Why this priority**: Apple /// software is on SOS volumes, and Story 29's
 client sends them whole.
 
-**Independent Test**: Open SOS images from MAME's Apple /// software lists
-and from CiderPress II's samples, copy files each way, and run CiderPress
-II's Test; boot the changed disk in MAME's Apple ///, scripted.
+**Independent Test**: Open Apple's SOS disks, list and read every file, write
+a file, and copy files each way; make a disk that starts an Apple /// and one
+that starts an Apple II and an Apple ///, and boot them and a changed SOS disk
+in MAME's Apple /// and the dual disk in Casso's //e, scripted.
 
 **Acceptance Scenarios**:
 
 1. **Given** an SOS image, **When** it is opened, **Then** its directories
-   and files are listed with their SOS file types, and its files are read
-   and written.
+   and files are listed with their types, its files are read and written,
+   and the status bar's tip lists the Apple /// among the computers the
+   volume starts.
 2. **Given** a file copied between SOS and ProDOS, **When** it arrives,
-   **Then** its type and aux type are copied where both file systems define
-   them, and a type ProDOS lacks is reported.
-3. **Given** the New disk dialog, **When** SOS is chosen, **Then** a
-   formatted 140K SOS image is created.
+   **Then** it has the type and aux type it had, since the two share one
+   table of file types.
+3. **Given** the New disk dialog or `casso disk create`, **When** SOS, or
+   ProDOS and SOS, is chosen with Bootable, **Then** the disk starts an
+   Apple ///, or an Apple II and an Apple ///, from the user's system disks.
 
 ---
 
@@ -3484,10 +3488,12 @@ back, and edit a byte and see it written.
 **SOS**
 
 - **FR-225**: SOS volumes MUST be read and written on 140K disks and ProFile
-  images, with their file types, and created from the New disk dialog and
-  `casso disk create`.
-- **FR-226**: A copy between SOS and ProDOS MUST copy the type and aux type
-  where both file systems define them, and report a type the target lacks.
+  images as the ProDOS volumes they are, including directories with fewer
+  than 13 entries a block, and the listing and the status bar's tip MUST
+  list the computers a volume starts.
+- **FR-226**: The New disk dialog and `casso disk create` MUST make a disk
+  that starts an Apple ///, or an Apple II and an Apple ///, by copying the
+  loaders and system files from the user's ProDOS and SOS disks.
 
 **Gutenberg writes and RDOS**
 

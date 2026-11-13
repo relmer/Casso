@@ -42,6 +42,7 @@ public:
         PascalBootDisk,
         CpamBootDisk,
         SoftCardBootDisk,
+        SosSystemDisk,
     };
 
     //  The names the two masters are cached under, and the ONE place either
@@ -61,6 +62,7 @@ public:
     static constexpr const wchar_t *  kpszPascalBootDiskFile  = L"Apple Pascal Boot Disk.dsk";
     static constexpr const wchar_t *  kpszCpamBootDiskFile    = L"CPAM 5.1 Boot Disk.dsk";
     static constexpr const wchar_t *  kpszSoftCardBootDiskFile = L"CPM 2.23 SoftCard Boot Disk.dsk";
+    static constexpr const wchar_t *  kpszSosSystemDiskFile    = L"Apple III System Utilities.dsk";
 
     //  The word that selects CP/M for a Microsoft SoftCard over the default,
     //  CP/AM for Applied Engineering's card, in place of an image's path.
@@ -69,6 +71,10 @@ public:
     //  The stock disk for a `--format` word and the value of `--bootable`, or
     //  false when the value is an image's path or the format has no system.
     static bool  TryGetStockDisk (const std::string & format, const std::string & source, Which & outDisk);
+
+    //  Every stock disk for a format and source: two for "prodos+sos",
+    //  which starts an Apple II and an Apple ///, and none for an image's path.
+    static bool  TryGetStockDisks (const std::string & format, const std::string & source, std::vector<Which> & outDisks);
 
     //  What a message or prompt calls it.
     static const wchar_t *  GetLabel (Which disk);

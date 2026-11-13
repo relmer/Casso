@@ -28,6 +28,7 @@ const wchar_t * StockBootDisks::GetFileName (Which disk)
         case Which::PascalBootDisk:   return kpszPascalBootDiskFile;
         case Which::CpamBootDisk:     return kpszCpamBootDiskFile;
         case Which::SoftCardBootDisk: return kpszSoftCardBootDiskFile;
+        case Which::SosSystemDisk:    return kpszSosSystemDiskFile;
     }
 
     return L"";
@@ -52,6 +53,7 @@ const wchar_t * StockBootDisks::GetLabel (Which disk)
         case Which::PascalBootDisk:   return L"Apple Pascal";
         case Which::CpamBootDisk:     return L"CP/AM 5.1";
         case Which::SoftCardBootDisk: return L"CP/M 2.23";
+        case Which::SosSystemDisk:    return L"SOS";
     }
 
     return L"";
@@ -87,9 +89,13 @@ bool StockBootDisks::TryGetStockDisk (const std::string & format, const std::str
     {
         outDisk = Which::PascalBootDisk;
     }
-    else if (_stricmp (format.c_str(), "prodos") == 0)
+    else if (_stricmp (format.c_str(), "prodos") == 0 || _stricmp (format.c_str(), "prodos+sos") == 0)
     {
         outDisk = Which::ProDosUsersDisk;
+    }
+    else if (_stricmp (format.c_str(), "sos") == 0)
+    {
+        outDisk = Which::SosSystemDisk;
     }
     else if (format.empty() || _strnicmp (format.c_str(), "dos", strlen ("dos")) == 0)
     {
@@ -98,6 +104,39 @@ bool StockBootDisks::TryGetStockDisk (const std::string & format, const std::str
     else
     {
         return false;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StockBootDisks::TryGetStockDisks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool StockBootDisks::TryGetStockDisks (const std::string & format, const std::string & source, std::vector<Which> & outDisks)
+{
+    Which  disk = Which::Dos33Master;
+
+
+
+    outDisks.clear();
+
+    if (!TryGetStockDisk (format, source, disk))
+    {
+        return false;
+    }
+
+    outDisks.push_back (disk);
+
+    if (_stricmp (format.c_str(), "prodos+sos") == 0)
+    {
+        outDisks.push_back (Which::SosSystemDisk);
     }
 
     return true;

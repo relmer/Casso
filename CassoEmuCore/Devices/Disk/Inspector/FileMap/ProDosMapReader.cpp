@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/FileMap/ProDosMapReader.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 
 
@@ -59,7 +60,7 @@ bool ProDosMapReader::IsFound (const SectorSource & source, int & outBlocks)
     {
         outBlocks = GetWord (&key[s_kTotalBlocks]);
         isFound   = GetWord (&key[0]) == 0 && (key[s_kFirstEntry] >> 4) == s_kVolumeHeader && key[s_kHeaderLength] == s_kEntryLength &&
-                    key[s_kHeaderPerBlk] == s_kEntriesPerBlk;
+                    ProDosSkeleton::IsEntriesPerBlockValid (key[s_kHeaderPerBlk]);
     }
 
     return isFound;
@@ -143,6 +144,7 @@ void ProDosMapReader::ReadDirectory (Walk & walk, int keyBlock, const std::wstri
     int            at     = keyBlock;
     int            e      = 0;
     bool           isKey  = true;
+    int            count  = s_kEntriesPerBlk;
 
 
 
@@ -180,7 +182,12 @@ void ProDosMapReader::ReadDirectory (Walk & walk, int keyBlock, const std::wstri
             walk.writer.SetStructure (at, role);
         }
 
-        for (e = isKey ? 1 : 0; e < s_kEntriesPerBlk; e++)
+        if (isKey)
+        {
+            count = ProDosSkeleton::GetEntriesPerBlock (block[s_kHeaderPerBlk]);
+        }
+
+        for (e = isKey ? 1 : 0; e < count; e++)
         {
             ReadEntry (walk, &block[s_kFirstEntry + e * s_kEntryLength], prefix);
         }

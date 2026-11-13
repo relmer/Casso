@@ -9,6 +9,7 @@
 #include "Devices/Disk/Partitions/PpmLayout.h"
 #include "Devices/Disk/Partitions/UniDosLayout.h"
 #include "Machines/Apple2/Common/Dos33Geometry.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 
 
@@ -409,7 +410,6 @@ bool PartitionLayout::IsProDosDirectory (const std::vector<Byte> & blocks, uint3
     static constexpr size_t  kOffBitmap       = 0x23;
     static constexpr size_t  kOffTotalBlocks  = 0x25;
     static constexpr Byte    kEntryLength     = 0x27;
-    static constexpr Byte    kEntriesPerBlock = 0x0D;
 
 
 
@@ -436,7 +436,7 @@ bool PartitionLayout::IsProDosDirectory (const std::vector<Byte> & blocks, uint3
     return (typeLength & 0xF0) == 0xF0
         && nameOk
         && blocks[kHeader + kOffEntryLength] == kEntryLength
-        && blocks[kHeader + kOffPerBlock]    == kEntriesPerBlock
+        && ProDosSkeleton::IsEntriesPerBlockValid (blocks[kHeader + kOffPerBlock])
         && total  > 0 && total  <= blockCount
         && bitmap > 0 && bitmap <  total;
 }

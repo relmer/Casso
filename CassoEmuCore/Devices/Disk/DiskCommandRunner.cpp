@@ -41,6 +41,7 @@
 #include "Devices/Disk/DiskCollectionCommands.h"
 #include "Devices/Disk/DiskInspectCommand.h"
 #include "Machines/Apple2/Common/HfsWriter.h"
+#include "Machines/Apple2/Common/ProDosStartup.h"
 
 
 
@@ -593,6 +594,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
     std::string                    directory;
     char                           summary[128] = {};
     bool                           isFlat       = false;
+    std::string                    note;
 
 
 
@@ -664,9 +666,14 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
                 result.output += "\nNot bootable: no DOS on tracks 0 to 2\n";
             }
         }
-        else if (opened.kind == VolumeKind::ProDos && !HasProDosSystemFile (listing))
+        else if (opened.kind == VolumeKind::ProDos)
         {
-            result.output += "\nNot bootable: no PRODOS file on the volume\n";
+            note = ProDosStartup::DescribeListingNote (listing.startup, HasProDosSystemFile (listing));
+
+            if (!note.empty())
+            {
+                result.output += "\n" + note + "\n";
+            }
         }
     }
 
@@ -3257,7 +3264,7 @@ HRESULT DiskCommandRunner::ResolveContents (const CommandLineOptions & options,
     {
         outContents = BlankDiskContents::Dos33;
     }
-    else if (asked == "prodos")
+    else if (asked == "prodos" || asked == "sos" || asked == "prodos+sos")
     {
         outContents = BlankDiskContents::ProDos;
     }
@@ -3429,6 +3436,18 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
     //  Not asked for at all is the ordinary case, not a failure.
     BAIL_OUT_IF (!options.disk.bootable, S_OK);
 
+    //  SOS for an Apple ///. A disk that starts only an Apple /// takes it from
+    //  the image given; one that starts both takes ProDOS from the image given
+    //  and SOS from the stock disk.
+    if (isProDos && inOutSpec.bootSystem != ProDosBootSystem::AppleII)
+    {
+        hr = ResolveSosBoot (inOutSpec.bootSystem == ProDosBootSystem::AppleIII ? master : std::string(), outPayload, result);
+        CHR (hr);
+
+        inOutSpec.bootable = true;
+        BAIL_OUT_IF (inOutSpec.bootSystem == ProDosBootSystem::AppleIII, S_OK);
+    }
+
     //  A stock Apple Pascal or CP/M disk comes from the same cache, and neither
     //  goes in the repository. The choice between CP/M's two is a word in place
     //  of the image's path.
@@ -3491,6 +3510,95 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
     }
 
     inOutSpec.bootable = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::IsProDosFamilyFormat
+//
+//  The `--format` words for a ProDOS volume: one file system, which differ in
+//  the computers a bootable disk starts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::IsProDosFamilyFormat (const std::string & formatName)
+{
+    return _stricmp (formatName.c_str(), "prodos") == 0 || _stricmp (formatName.c_str(), "sos") == 0 || _stricmp (formatName.c_str(), "prodos+sos") == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::GetBootSystem
+//
+//  The computers a bootable ProDOS volume of a `--format` word starts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProDosBootSystem DiskCommandRunner::GetBootSystem (const std::string & formatName)
+{
+    if (_stricmp (formatName.c_str(), "sos") == 0)
+    {
+        return ProDosBootSystem::AppleIII;
+    }
+
+    return _stricmp (formatName.c_str(), "prodos+sos") == 0 ? ProDosBootSystem::Both : ProDosBootSystem::AppleII;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ResolveSosBoot
+//
+//  The SOS disk to copy SOS from: the image given, or with none the stock
+//  System Utilities disk, which must have been downloaded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ResolveSosBoot (const std::string & source, BootPayload & outPayload, DiskCommandResult & result)
+{
+    HRESULT             hr      = S_OK;
+    std::string         path    = source;
+    bool                cached  = false;
+    vector<Byte>        bytes;
+    vector<Byte>        sectors;
+    SectorDecodeReport  report;
+
+
+
+    if (path.empty())
+    {
+        cached = StockBootDisks::IsCached (StockBootDisks::Which::SosSystemDisk);
+        CBRFEx (cached, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND),
+                (result.diagnostics    += "Error: the SOS system disk has not been downloaded\n"
+                                        + ApplyPrefix ("       Select Bootable for SOS in Casso Explorer's New disk image to download it,\n"
+                                                       "       or supply an SOS disk image with %Lbootable <image>.\n"),
+                 result.exitStatus      = DiskCommandResult::kNoOutput,
+                 result.badCommandLine  = true));
+
+        path = StockBootDisks::GetPath (StockBootDisks::Which::SosSystemDisk);
+    }
+
+    hr = m_fileIo.ReadAllBytes (path, bytes);
+    CHRF (hr, result.Fail (path, "", "cannot be read, so there is no SOS to copy"));
+
+    hr = VolumeImage::Load (bytes, path, sectors, report);
+    CHRF (hr, result.Fail (path, "", "is not a disk image SOS can be copied from"));
+
+    outPayload.sosSystemDisk = std::move (sectors);
 
 Error:
     return hr;
@@ -3592,7 +3700,11 @@ std::string DiskCommandRunner::DescribeNewDisk (const BlankDiskSpec & spec)
         text += ", volume " + spec.volumeName;
     }
 
-    text += spec.bootable ? ", bootable" : ", not bootable";
+    text += !spec.bootable                                       ? ", not bootable"
+          : spec.contents != BlankDiskContents::ProDos           ? ", bootable"
+          : spec.bootSystem == ProDosBootSystem::AppleIII     ? ", bootable on an Apple ///"
+          : spec.bootSystem == ProDosBootSystem::Both         ? ", bootable on an Apple II and an Apple ///"
+          :                                                       ", bootable";
 
     if (spec.fluxTrackMask != 0)
     {
@@ -3659,6 +3771,8 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
 
     hr = ResolveContents (options, spec.contents, result);
     CHR (hr);
+
+    spec.bootSystem = GetBootSystem (options.disk.formatName);
 
     hr = ResolveVolume (options, spec, result);
     CHR (hr);
@@ -4077,7 +4191,7 @@ void DiskCommandRunner::BuildLargeProDos (const CommandLineOptions & options, Di
     uint32_t                       blocks     = 0;
     bool                           sizeKnown  = TryGetLargeBlockCount (options.disk.sizeName, blocks);
     bool                           isHfs      = IsHfsFormat (options);
-    bool                           isProDos   = isHfs || options.disk.formatName.empty() || options.disk.formatName == "prodos";
+    bool                           isProDos   = isHfs || options.disk.formatName.empty() || IsProDosFamilyFormat (options.disk.formatName);
     std::string                    name       = options.disk.volumeName.empty() ? std::string (isHfs ? "Untitled" : "NEWDISK") : options.disk.volumeName;
     bool                           nameOk     = isHfs ? HfsWriter::IsValidVolumeName (name) : ProDosVolume::IsValidName (name);
     bool                           hfsFits    = false;
@@ -4201,7 +4315,7 @@ void DiskCommandRunner::ReformatLargeProDos (const CommandLineOptions & options,
 {
     HRESULT                        hr       = S_OK;
     bool                           isHfs    = IsHfsFormat (options);
-    bool                           isProDos = isHfs || options.disk.formatName.empty() || options.disk.formatName == "prodos";
+    bool                           isProDos = isHfs || options.disk.formatName.empty() || IsProDosFamilyFormat (options.disk.formatName);
     std::string                    name     = options.disk.volumeName.empty() ? std::string (isHfs ? "Untitled" : "NEWDISK") : options.disk.volumeName;
     bool                           nameOk   = isHfs ? HfsWriter::IsValidVolumeName (name) : ProDosVolume::IsValidName (name);
     vector<Byte>                   original;

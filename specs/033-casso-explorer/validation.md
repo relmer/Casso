@@ -808,3 +808,26 @@ Archon, the owner's original disk, captured from drive 1 of the owner's //c over
 | Positions | Every whole track, and 96 of the 102 positions between whole tracks, as tracks 3 on aren't standard |
 | Sectors | Every sector of tracks 0 to 4 and 7 to 34 matches the reference's but six: track 1's sector 3 and one sector each of tracks 23, 27 and 29 differ with good checksums, as the owner's copy differs from the reference's; two sectors of track 30 have a bad nibble, and track 31's sector 12 is missing. Tracks 4.75 to 6.5 have no flux on the owner's disk |
 | Boot | In Casso's //c, the image boots to Archon's board and its options screen |
+
+## 17. SOS disks in MAME's Apple ///, 2026-11-12 (T626 to T628, SC-060)
+
+MAME 0.289's `apple3` with the Apple /// ROM from the apple2.org.za
+Documentation Project mirror, booted headlessly by `scripts/MameSnapshot.ps1`.
+Casso has no Apple ///, so these boots are in MAME.
+
+| Disk | Machine | Result |
+|---|---|---|
+| Apple's System Utilities | Apple /// | Utilities main menu |
+| System Utilities with a file written by `casso disk put` | Apple /// | Utilities main menu |
+| `disk create --format sos --bootable` | Apple /// | SOS 1.1 starts, and the Utilities interpreter prompts for its Pascal system disk, as on the original |
+| `disk create --format prodos+sos --bootable` | Apple /// | the same |
+| `disk create --format prodos+sos --bootable` | //e in MAME | ProDOS BASIC prompt |
+| `disk create --format prodos+sos --bootable` | //e in Casso | BASIC prompt, and CAT lists the SOS files (`SosTests`) |
+| System Utilities with block 0 the ProDOS Apple II loader and block 1 the SOS loader | Apple /// | Utilities main menu |
+| the same with block 1 zeroed | Apple /// | doesn't start |
+
+Before the case word fix, disks Casso made stopped at "INTERPRETER FILE NOT
+FOUND": a case word of `` put `` in the byte SOS reads as the file's
+minimum version. Apple's System Demo disk stops at "SYSTEM FAILURE = ``"
+in MAME as downloaded, so it was left out of the boots; Casso reads it, with its
+12 entries a block, and writes to it (`SosTests`).

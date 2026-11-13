@@ -199,6 +199,15 @@ bool ProDosVolumeWriter::TryEncodeDirectoryName (const std::string & name, std::
         outName += (char) ((c >= 'a' && c <= 'z') ? (c - 'a' + 'A') : c);
     }
 
+    //  An upper-case name has no case word, as ProDOS 8 and SOS write it. SOS
+    //  reads the word's high byte as the file's minimum version and fails to
+    //  open a file whose minimum version is past the version of SOS, so with
+    //  only the present bit set an Apple /// failed to start.
+    if (outCaseFlags == ProDosSkeleton::kCaseFlagsPresent)
+    {
+        outCaseFlags = 0;
+    }
+
     return true;
 }
 
@@ -313,6 +322,7 @@ bool ProDosVolumeWriter::TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlo
     ChainWalkGuard  guard ((uint32_t) m_volume.GetBlockCount());
     int             dirBlock = dirKeyBlock;
     int             n        = 0;
+    int             perBlock = m_volume.GetEntriesPerBlock (dirKeyBlock);
 
 
 
@@ -327,7 +337,7 @@ bool ProDosVolumeWriter::TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlo
             break;
         }
 
-        for (n = first; n < (int) ProDosSkeleton::kEntriesPerBlock; n++)
+        for (n = first; n < perBlock; n++)
         {
             size_t  at      = ProDosSkeleton::kOffFirstEntry
                             + (size_t) n * ProDosSkeleton::kEntryLength;

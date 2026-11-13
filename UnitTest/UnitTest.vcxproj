@@ -231,6 +231,7 @@
     <ClCompile Include="EmuTests\DeviceTests.cpp" />
     <ClCompile Include="EmuTests\GamePortTests.cpp" />
     <ClCompile Include="EmuTests\AnnunciatorTests.cpp" />
+    <ClCompile Include="EmuTests\SosVolumeTests.cpp" />
     <ClCompile Include="EmuTests\SiriusJoyportTests.cpp" />
     <ClCompile Include="EmuTests\JoyportMachineTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerTokensTests.cpp" />
