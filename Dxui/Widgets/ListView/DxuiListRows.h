@@ -28,6 +28,7 @@ public:
     //  and the columns after the name are drawn at this strength, as
     //  Explorer's are against its full white.
     static constexpr int       s_kRowBoxEndInsetDip    = 4;
+    static constexpr int       s_kCheckBoxRowMarginDip = 1;
     static constexpr uint32_t  s_kSecondaryColumnAlpha = 0xCC000000u;
 
     //  A press on a row, the drag that extends the selection from it, and the

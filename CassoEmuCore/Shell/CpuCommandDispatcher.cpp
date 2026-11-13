@@ -884,7 +884,8 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebu
     {
         space = where.find (' ');
 
-        if (space == 1 && where[0] >= '1' && where[0] <= '4')
+        //  Window 0 is the heat map's address box.
+        if (space == 1 && where[0] >= '0' && where[0] <= '4')
         {
             target.GoToDebugMemory (where[0] - '0', where.substr (2));
         }

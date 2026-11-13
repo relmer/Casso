@@ -344,6 +344,10 @@ void DxuiListRows::PaintCheckBox (IDxuiPainter                     & painter,
     }
     else
     {
+        //  A details row shorter than the box with its margin has a smaller
+        //  box, so the box is inside the row's fill.
+        sizePx = std::min (sizePx, std::floor (rowH - 2.0f * m_list.m_scaler.ToPxf ((float) s_kCheckBoxRowMarginDip)));
+
         DxuiCheckbox::PaintBox (painter, text, left, rowTop + (rowH - sizePx) * 0.5f, sizePx, m_list.m_scaler.ToPxf (1.0f),
                                 isOn, theme.ButtonIdle(), outline, fill, DxuiTheme::GetContrastingText (fill));
     }

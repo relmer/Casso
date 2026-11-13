@@ -1011,6 +1011,7 @@ void DebuggerWindow::ApplyKeyScheme (DebuggerKeyScheme scheme)
 //  would have its pane's text showing through its plate; it goes in the top
 //  layer, whose fills cover the page's text. A slid-out pane lies over the
 //  others, so then only its own widget joins it, painted after its controls.
+//  A reply over a pane is in the layer for the same reason.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1026,6 +1027,11 @@ void DebuggerWindow::UpdateTopLayer()
     }
 
     std::ranges::copy (m_finds->GetLayerControls (m_slidPane), std::back_inserter (layer));
+
+    if (m_replyBanner != nullptr && m_replyBanner->IsVisible())
+    {
+        layer.push_back (m_replyBanner);
+    }
 
     SetTopLayer (std::move (layer));
 }

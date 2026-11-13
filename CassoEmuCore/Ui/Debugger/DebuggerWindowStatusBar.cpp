@@ -594,12 +594,14 @@ void DebuggerWindow::ShowPaneReply (const std::wstring & paneName, const std::ve
     if (m_replyBanner == nullptr)
     {
         m_replyBanner = CreateChild<DxuiTimedInfoBanner>();
+        m_replyBanner->SetOverContent (true);
     }
 
     m_replyBannerPane = paneName;
     m_replyBanner->SetSeverity (isError ? DxuiInfoBanner::Severity::Warning : DxuiInfoBanner::Severity::Info);
     m_replyBanner->Show        (text, (int64_t) GetTickCount64());
     m_replyBanner->SetVisible  (true);
+    UpdateTopLayer();
     PlaceReplyBanner ((int64_t) GetTickCount64());
 }
 
@@ -675,6 +677,7 @@ void DebuggerWindow::PlaceReplyBanner (int64_t nowMs)
     if (m_replyBanner != nullptr && m_replyBanner->IsVisible() && (content == nullptr || !content->IsVisible() || !m_replyBanner->IsShowing (nowMs)))
     {
         m_replyBanner->SetVisible (false);
+        UpdateTopLayer();
         Invalidate();
     }
     else if (content != nullptr)

@@ -485,9 +485,11 @@ public:
         Dispatch (IDM_DEBUG_VIEW, "goto 2 ($3E),Y", target);
         Dispatch (IDM_DEBUG_VIEW, "goto 5 PC",      target);
         Dispatch (IDM_DEBUG_VIEW, "goto",           target);
+        Dispatch (IDM_DEBUG_VIEW, "goto 0 HOME",    target);
 
-        Assert::AreEqual ((size_t) 1, target.calls.size(), L"only windows 1 to 4");
+        Assert::AreEqual ((size_t) 2, target.calls.size(), L"only windows 0 to 4");
         Assert::AreEqual (std::string ("GoToDebugMemory 2 ($3E),Y"), target.calls[0]);
+        Assert::AreEqual (std::string ("GoToDebugMemory 0 HOME"),    target.calls[1], L"the heat map's address box");
     }
 
 

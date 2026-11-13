@@ -536,6 +536,11 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     // reads as a notice, not a button. A warning carries its own hue rather
     // than the theme accent -- caution should not depend on what the accent
     // happens to be.
+    if (m_isOverContent)
+    {
+        painter.FillRect (left, top, width, height, theme.Background());
+    }
+
     if (m_severity == Severity::Warning)
     {
         painter.FillRect    (left, top, width, height, theme.InfoBannerWarningBackground());

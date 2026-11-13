@@ -637,6 +637,7 @@ void DxuiTextRenderer::SyncTypography()
         m_formatCache.clear();
         m_capMidCache.clear();
         m_layoutCache.clear();
+        m_oldLayoutCache.clear();
         m_typographyGeneration = m_typography->generation;
     }
 }

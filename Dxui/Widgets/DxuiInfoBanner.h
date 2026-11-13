@@ -55,6 +55,10 @@ public:
 
     void  SetSeverity (Severity severity) { m_severity = severity; }
 
+    //  For a banner drawn over other content: the theme's panel fill is
+    //  painted under the tint, so the content under it isn't visible through it.
+    void  SetOverContent (bool isOverContent) { m_isOverContent = isOverContent; }
+
     Severity              GetSeverity () const { return m_severity; }
     const std::wstring  & GetText     () const { return m_text; }
 
@@ -148,7 +152,8 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
 private:
-    Severity  m_severity = Severity::Info;
+    Severity  m_severity      = Severity::Info;
+    bool      m_isOverContent = false;
 
     // Geometry (DIP; scaled into the layout space via the scaler).
     static constexpr float  s_kPadXDip      = 12.0f;   // left / right inner padding

@@ -1375,9 +1375,9 @@ bool HeatMapPane::SubmitTextBox (DxuiTextInput * box)
 //
 //  HeatMapPane::ApplyGoTo
 //
-//  The address box's text as the CPU thread evaluated it, once: the address
-//  shown, or the reason it isn't one in the box's tip, the map left where
-//  it is.
+//  The address box's text as the CPU thread evaluated it, once: the map
+//  moves to the address, or the reason it isn't one is over the pane and in
+//  the box's tip, the map left where it is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1403,4 +1403,5 @@ void HeatMapPane::ApplyGoTo (const DebuggerViewSnapshot & snapshot)
 
     reason = std::format (L"\"{}\" is not an address. {}", TextEncoding::NarrowToWide (snapshot.goTo->text), TextEncoding::NarrowToWide (snapshot.goTo->error));
     m_addressEntry->SetTooltips (reason, reason);
+    m_host.ShowPaneReply (GetId(), { std::format ("\"{}\" is not an address.", snapshot.goTo->text), snapshot.goTo->error }, true);
 }

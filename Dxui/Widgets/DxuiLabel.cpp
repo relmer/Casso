@@ -72,17 +72,19 @@ void DxuiLabel::Paint (IDxuiPainter & /*painter*/, IDxuiTextRenderer & text, con
 //
 //  The mark is drawn just past the text, where the text ends on its line,
 //  for a label aligned left; the text is one line in every dialog that
-//  marks its fields.
+//  marks its fields. The mark has its measured width, so a label as wide
+//  as its text has the mark too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiLabel::DrawRequiredMark (IDxuiTextRenderer & text, uint32_t argb, float fontDip) const
 {
-    HRESULT  hr     = S_OK;
-    float    fontPx = m_scaler.ToPxf (fontDip);
-    float    width  = 0.0f;
-    float    height = 0.0f;
-    float    left   = 0.0f;
+    HRESULT  hr        = S_OK;
+    float    fontPx    = m_scaler.ToPxf (fontDip);
+    float    width     = 0.0f;
+    float    height    = 0.0f;
+    float    markWidth = 0.0f;
+    float    left      = 0.0f;
 
 
 
@@ -94,12 +96,15 @@ void DxuiLabel::DrawRequiredMark (IDxuiTextRenderer & text, uint32_t argb, float
     hr = text.MeasureString (m_text.c_str(), fontPx, m_fontFace.c_str(), width, height);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
+    hr = text.MeasureString (kRequiredMark, fontPx, m_fontFace.c_str(), markWidth, height);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
     left = (float) m_boundsDip.left + width;
 
     hr = text.DrawString (kRequiredMark,
                           left,
                           (float) m_boundsDip.top,
-                          (std::max) (0.0f, (float) m_boundsDip.right - left),
+                          std::ceil (markWidth) + 1.0f,
                           (float) (m_boundsDip.bottom - m_boundsDip.top),
                           argb,
                           fontPx,
