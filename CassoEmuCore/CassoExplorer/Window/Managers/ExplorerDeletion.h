@@ -32,6 +32,7 @@ public:
 private:
     void  DeleteHostSelection ();
     void  DeleteFromVolume    ();
+    bool  ConfirmA2PicoDrives (const std::vector<std::wstring> & paths);
 
     ExplorerContext  & m_context;
 };

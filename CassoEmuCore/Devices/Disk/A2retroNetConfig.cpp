@@ -555,3 +555,157 @@ bool A2retroNetConfig::IsImageName (const std::string & fileName)
 
     return extension == ".po" || extension == ".hdv" || extension == ".2mg";
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::IsSamePath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool A2retroNetConfig::IsSamePath (const std::string & drivePath, const std::string & path)
+{
+    std::string  driveRelative;
+    std::string  relative;
+
+
+
+    SplitDevice (drivePath, driveRelative);
+    SplitDevice (path, relative);
+
+    return !driveRelative.empty() && _stricmp (driveRelative.c_str(), relative.c_str()) == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::FindDrives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> A2retroNetConfig::FindDrives (const std::string & path) const
+{
+    std::vector<int>  drives;
+
+
+
+    for (int drive = 0; drive < kDrivesMax; drive++)
+    {
+        if (IsSamePath (paths[drive], path))
+        {
+            drives.push_back (drive);
+        }
+    }
+
+    return drives;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::MovePath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool A2retroNetConfig::MovePath (const std::string & from, const std::string & to)
+{
+    Section      section = Section::None;
+    int          drive   = 0;
+    std::string  path;
+    std::string  moved;
+    bool         isMoved = false;
+
+
+
+    for (std::string & each : paths)
+    {
+        if (TryMovePath (each, from, to, moved))
+        {
+            each    = moved;
+            isMoved = true;
+        }
+    }
+
+    for (std::string & line : m_lines)
+    {
+        section = GetSection (line, section);
+
+        if (section == Section::Drives && !line.empty() && line[0] == kComment && TryReadDrive (std::string_view (line).substr (1), drive, path) && TryMovePath (path, from, to, moved))
+        {
+            line    = std::format ("{}{}={}", kComment, drive + 1, moved);
+            isMoved = true;
+        }
+    }
+
+    return isMoved;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::TryMovePath
+//
+//  The drive's path is the file moved, or is in the folder moved, whose
+//  path the new one replaces.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool A2retroNetConfig::TryMovePath (const std::string & drivePath, const std::string & from, const std::string & to, std::string & outPath)
+{
+    std::string  relative;
+    std::string  folder = from + "/";
+
+
+
+    SplitDevice (drivePath, relative);
+
+    if (IsSamePath (relative, from))
+    {
+        outPath = to;
+        return true;
+    }
+
+    if (relative.size() > folder.size() && _strnicmp (relative.c_str(), folder.c_str(), folder.size()) == 0)
+    {
+        outPath = to + "/" + relative.substr (folder.size());
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::ClearPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool A2retroNetConfig::ClearPath (const std::string & path)
+{
+    std::vector<int>  drives = FindDrives (path);
+
+
+
+    for (int drive : drives)
+    {
+        paths[drive].clear();
+    }
+
+    return !drives.empty();
+}

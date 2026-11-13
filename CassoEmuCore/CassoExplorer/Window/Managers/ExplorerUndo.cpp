@@ -197,6 +197,7 @@ HRESULT ExplorerUndo::UndoHostRename (const ExplorerUndoStep & step)
     if (SUCCEEDED (hr))
     {
         m_context.manifestSync.NoteRename (step.paths[0], step.oldName);
+        m_context.actions.GetA2retroNet().NoteMove (step.paths[0], (std::filesystem::path (step.paths[0]).parent_path() / step.oldName).wstring());
     }
 
     return hr;
@@ -231,7 +232,16 @@ HRESULT ExplorerUndo::UndoHostCreate (const ExplorerUndoStep & step)
 
 HRESULT ExplorerUndo::UndoHostMove (const ExplorerUndoStep & step)
 {
-    return m_context.shellVerbs.MoveItemsTo (m_context.window.GetHwnd(), step.paths, step.sources);
+    HRESULT  hr = m_context.shellVerbs.MoveItemsTo (m_context.window.GetHwnd(), step.paths, step.sources);
+
+
+
+    for (size_t i = 0; SUCCEEDED (hr) && i < step.paths.size() && i < step.sources.size(); i++)
+    {
+        m_context.actions.GetA2retroNet().NoteMove (step.paths[i], step.sources[i]);
+    }
+
+    return hr;
 }
 
 

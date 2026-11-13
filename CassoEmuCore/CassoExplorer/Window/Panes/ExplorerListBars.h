@@ -43,17 +43,21 @@ public:
     DxuiInfoBanner & GetCardBar () { return *m_cardBar; }
 
 private:
-    enum CardAction : size_t { kDrives, kRepair };
+    enum class CardAction { Drives, Repair, WritePo };
+
+    static std::wstring  DescribeFiles (const std::vector<std::wstring> & paths);
 
     bool  FillSearchBar ();
     bool  FillCardBar   ();
     void  RunCardAction (size_t index);
 
-    ExplorerContext          & m_context;
-    RelayoutFn                 m_relayout;
-    DxuiInfoBanner           * m_searchBar = nullptr;
-    DxuiInfoBanner           * m_cardBar   = nullptr;
-    std::wstring               m_searchBarClosed;   // the search whose infobar was closed
-    std::wstring               m_cardBarClosed;     // the card whose infobar was closed
-    ActionsA2retroNet::Card    m_card;
+    ExplorerContext            & m_context;
+    RelayoutFn                   m_relayout;
+    DxuiInfoBanner             * m_searchBar = nullptr;
+    DxuiInfoBanner             * m_cardBar   = nullptr;
+    std::wstring                 m_searchBarClosed;   // the search whose infobar was closed
+    std::wstring                 m_cardBarClosed;     // the folder whose card infobar was closed
+    ActionsA2retroNet::Card      m_card;
+    std::vector<CardAction>      m_cardActions;       // the card infobar's buttons, in order
+    std::vector<std::wstring>    m_convertible;       // the images Write as .po writes
 };

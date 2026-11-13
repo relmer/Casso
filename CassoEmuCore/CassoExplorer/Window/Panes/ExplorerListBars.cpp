@@ -8,6 +8,7 @@
 #include "CassoExplorer/Model/SearchExpression.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 
 
@@ -43,7 +44,7 @@ void ExplorerListBars::Create (RelayoutFn relayout)
 
     m_cardBar->SetOnDismiss ([this]()
     {
-        m_cardBarClosed = m_card.root;
+        m_cardBarClosed = m_context.browser.GetLocation().path;
         m_cardBar->SetVisible (false);
         m_relayout();
     });
@@ -148,41 +149,110 @@ bool ExplorerListBars::FillSearchBar()
 //
 //  ExplorerListBars::FillCardBar
 //
-//  At an A2Pico card's root, its drives in a sentence, drawn as a warning
-//  when a drive has a problem or the settings file has CR LF line ends.
+//  At an A2Pico card's root, its drives in a sentence. In any folder on the
+//  card, where a copy to the card lands, its images with a ProDOS volume in
+//  a form A2retroNET doesn't read, with Write as .po. A warning when a drive has a
+//  problem, the settings file has CR LF line ends, or an image is offered.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExplorerListBars::FillCardBar()
 {
-    const Location  & location = m_context.browser.GetLocation();
-    HRESULT           hr       = S_OK;
-    bool              visible  = m_cardBar->IsVisible();
-    bool              show     = false;
-    bool              problem  = false;
+    const Location             & location = m_context.browser.GetLocation();
+    std::wstring                 root     = std::filesystem::path (location.path).root_path().wstring();
+    std::vector<std::wstring>    labels;
+    std::wstring                 text;
+    HRESULT                      hr       = S_OK;
+    bool                         visible  = m_cardBar->IsVisible();
+    bool                         onCard   = false;
+    bool                         atRoot   = false;
+    bool                         problem  = false;
+    bool                         show     = false;
 
 
 
-    show = location.kind == Location::Kind::HostFolder && m_context.actions.IsA2PicoCard (location.path) && location.path != m_cardBarClosed;
+    m_cardActions.clear();
+    m_convertible.clear();
 
-    if (show)
+    onCard = location.kind == Location::Kind::HostFolder && !root.empty() && m_context.actions.IsA2PicoCard (root) && location.path != m_cardBarClosed;
+    atRoot = onCard && location.path == root;
+
+    if (onCard)
     {
-        hr   = m_context.actions.ReadA2PicoCard (location.path, m_card);
-        show = SUCCEEDED (hr);
+        hr     = m_context.actions.ReadA2PicoCard (root, m_card);
+        onCard = SUCCEEDED (hr);
+    }
+
+    if (onCard)
+    {
+        hr = m_context.actions.GetA2retroNet().FindConvertible (location.path, m_convertible);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (atRoot)
+    {
+        text    = ActionsA2retroNet::Summarize (m_card);
+        problem = m_card.config.hasCarriageReturns || std::any_of (m_card.drives.begin(), m_card.drives.end(), [] (const ActionsA2retroNet::Drive & drive) { return !drive.problem.empty(); });
+
+        m_cardActions.push_back (CardAction::Drives);
+
+        if (m_card.config.hasCarriageReturns)
+        {
+            m_cardActions.push_back (CardAction::Repair);
+        }
+    }
+
+    if (!m_convertible.empty())
+    {
+        text   += std::format (L"{}{} {} a ProDOS volume in a form A2retroNET doesn't read. Write as .po makes a copy it reads.", text.empty() ? L"" : L" ", DescribeFiles (m_convertible), m_convertible.size() == 1 ? L"has" : L"have");
+        problem = true;
+
+        m_cardActions.push_back (CardAction::WritePo);
+    }
+
+    show = !text.empty();
+
+    for (CardAction action : m_cardActions)
+    {
+        labels.push_back (action == CardAction::Drives ? L"A2retroNET drives..." : action == CardAction::Repair ? L"Repair" : L"Write as .po");
     }
 
     if (show)
     {
-        problem = m_card.config.hasCarriageReturns || std::any_of (m_card.drives.begin(), m_card.drives.end(), [] (const ActionsA2retroNet::Drive & drive) { return !drive.problem.empty(); });
-
-        m_cardBar->SetText     (ActionsA2retroNet::Summarize (m_card));
+        m_cardBar->SetText     (text);
         m_cardBar->SetSeverity (problem ? DxuiInfoBanner::Severity::Warning : DxuiInfoBanner::Severity::Info);
-        m_cardBar->SetActions  (m_card.config.hasCarriageReturns ? std::vector<std::wstring> { L"A2retroNET drives...", L"Repair" } : std::vector<std::wstring> { L"A2retroNET drives..." });
+        m_cardBar->SetActions  (labels);
     }
 
     m_cardBar->SetVisible (show);
 
     return show != visible;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListBars::DescribeFiles
+//
+//  "a.dsk", "a.dsk and b.dsk", or "a.dsk, b.dsk and c.dsk".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ExplorerListBars::DescribeFiles (const std::vector<std::wstring> & paths)
+{
+    std::wstring  text;
+
+
+
+    for (size_t i = 0; i < paths.size(); i++)
+    {
+        text += std::format (L"{}{}", i == 0 ? L"" : i + 1 == paths.size() ? L" and " : L", ", std::filesystem::path (paths[i]).filename().wstring());
+    }
+
+    return text;
 }
 
 
@@ -197,13 +267,32 @@ bool ExplorerListBars::FillCardBar()
 
 void ExplorerListBars::RunCardAction (size_t index)
 {
-    if (index == kDrives)
+    CardAction    action = index < m_cardActions.size() ? m_cardActions[index] : CardAction::Drives;
+    std::wstring  written;
+
+
+
+    if (index >= m_cardActions.size())
+    {
+        return;
+    }
+
+    if (action == CardAction::Drives)
     {
         m_context.opener.EditA2retroNetDrives (m_card.root);
     }
-    else if (index == kRepair)
+    else if (action == CardAction::Repair)
     {
         m_context.commandManager.ReportOutcome (m_context.actions.RepairA2retroNetConfig (m_card.root), L"Repair A2retroNET.txt");
+    }
+    else
+    {
+        for (const std::wstring & path : m_convertible)
+        {
+            m_context.commandManager.ReportOutcome (m_context.actions.GetA2retroNet().ConvertToPo (path, written), L"Write as .po");
+        }
+
+        m_context.folderSync.RefreshAfterHostChange();
     }
 
     FillCardBar();

@@ -157,6 +157,42 @@ public:
     }
 
 
+    //  A file renamed or moved on the card: each drive and commented-out
+    //  image with its path, in any case and with or without a device or a
+    //  leading /, takes the new path.
+    TEST_METHOD (MovePath_SetsTheNewPathOnEachDrive)
+    {
+        A2retroNetConfig  config = A2retroNetConfig::Parse ("[drives]\n1=Games/Zork.po\n#2=/games/zork.po\n2=other.po\n3=sd:games/zork.po\n");
+
+
+
+        Assert::IsTrue  (config.MovePath ("games/zork.po", "infocom/zork1.po"));
+        Assert::AreEqual (std::string ("[drives]\n1=infocom/zork1.po\n#2=infocom/zork1.po\n2=other.po\n3=infocom/zork1.po\n"), config.Write());
+        Assert::IsFalse (config.MovePath ("nothing.po", "else.po"));
+
+        Assert::IsTrue   (config.MovePath ("INFOCOM", "games/infocom"), L"a folder renamed or moved");
+        Assert::AreEqual (std::string ("games/infocom/zork1.po"), config.paths[0]);
+    }
+
+
+    TEST_METHOD (ClearPath_EmptiesTheDrivesWithThePath)
+    {
+        A2retroNetConfig  config = A2retroNetConfig::Parse ("[drives]\n1=system.po\n2=games.po\n3=/SYSTEM.PO\n");
+        std::vector<int>  drives;
+
+
+
+        drives = config.FindDrives ("system.po");
+        Assert::AreEqual ((size_t) 2, drives.size());
+        Assert::AreEqual (0, drives[0]);
+        Assert::AreEqual (2, drives[1]);
+
+        Assert::IsTrue  (config.ClearPath ("system.po"));
+        Assert::AreEqual (std::string ("[drives]\n1=\n2=games.po\n3=\n"), config.Write());
+        Assert::IsFalse (config.ClearPath ("system.po"));
+    }
+
+
     TEST_METHOD (CheckImage_TakesWhatTheFirmwareReads)
     {
         std::vector<Byte>  blocks (280 * 512, 0);

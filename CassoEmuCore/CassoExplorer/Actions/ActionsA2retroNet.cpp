@@ -5,6 +5,8 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/A2retroNetConfig.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 
 
@@ -488,4 +490,354 @@ HRESULT ActionsA2retroNet::ListImagesIn (const std::wstring & folder, const std:
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::TryReadConfigFor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ActionsA2retroNet::TryReadConfigFor (const std::wstring & path, A2retroNetConfig & outConfig)
+{
+    IDiskFileIo        & io     = m_actions.m_browser.GetOperations().GetFileIo();
+    std::wstring         config = GetConfigPath (path);
+    std::vector<Byte>    text;
+    HRESULT              hr     = S_OK;
+
+
+
+    if (path.empty() || !m_actions.m_fs.Exists (config))
+    {
+        return false;
+    }
+
+    hr = io.ReadAllBytes (TextEncoding::WideToNarrow (config), text);
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    outConfig = A2retroNetConfig::Parse (std::string (text.begin(), text.end()));
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::NoteMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ActionsA2retroNet::NoteMove (const std::wstring & from, const std::wstring & to)
+{
+    A2retroNetConfig       config;
+    std::filesystem::path  root     = std::filesystem::path (from).root_path();
+    std::string            relative;
+    bool                   changed  = false;
+    bool                   sameCard = false;
+
+
+
+    if (!TryReadConfigFor (from, config))
+    {
+        return;
+    }
+
+    relative = A2retroNetConfig::MakePath (root, from);
+    sameCard = _wcsicmp (root.wstring().c_str(), std::filesystem::path (to).root_path().wstring().c_str()) == 0;
+    changed  = sameCard ? config.MovePath (relative, A2retroNetConfig::MakePath (root, to)) : config.ClearPath (relative);
+
+    if (changed)
+    {
+        Save (root.wstring(), config);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::NoteDelete
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ActionsA2retroNet::NoteDelete (const std::wstring & path)
+{
+    A2retroNetConfig       config;
+    std::filesystem::path  root = std::filesystem::path (path).root_path();
+
+
+
+    if (TryReadConfigFor (path, config) && config.ClearPath (A2retroNetConfig::MakePath (root, path)))
+    {
+        Save (root.wstring(), config);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::DescribeDrives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ActionsA2retroNet::DescribeDrives (const std::vector<std::wstring> & paths)
+{
+    std::wstring  text;
+    size_t        files = 0;
+
+
+
+    for (const std::wstring & path : paths)
+    {
+        A2retroNetConfig  config;
+        std::vector<int>  drives;
+        std::wstring      numbers;
+
+
+
+        if (!TryReadConfigFor (path, config))
+        {
+            continue;
+        }
+
+        drives = config.FindDrives (A2retroNetConfig::MakePath (std::filesystem::path (path).root_path(), path));
+
+        for (size_t i = 0; i < drives.size(); i++)
+        {
+            numbers += std::format (L"{}{}", i == 0 ? L"" : i + 1 == drives.size() ? L" and " : L", ", drives[i] + 1);
+        }
+
+        if (!drives.empty())
+        {
+            text += std::format (L"{}{} is drive{} {} of this A2Pico card.", text.empty() ? L"" : L" ", CassoExplorerActions::GetLeafName (path), drives.size() == 1 ? L"" : L"s", numbers);
+            files++;
+        }
+    }
+
+    if (!text.empty())
+    {
+        text += files == 1 ? L" Deleting it empties the drive." : L" Deleting them empties those drives.";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::ReadLong
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t ActionsA2retroNet::ReadLong (std::span<const Byte> bytes, size_t at)
+{
+    return (uint32_t) bytes[at] | ((uint32_t) bytes[at + 1] << 8) | ((uint32_t) bytes[at + 2] << 16) | ((uint32_t) bytes[at + 3] << 24);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::TryGetConvertibleLayout
+//
+//  A .2mg in ProDOS order whose blocks start elsewhere than byte 64 is
+//  converted without looking further. A 140K volume in DOS order is
+//  converted when its block 2 is a ProDOS volume directory's key block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ActionsA2retroNet::TryGetConvertibleLayout (const std::wstring & path, Layout & outLayout)
+{
+    IDiskFileIo        & io        = m_actions.m_browser.GetOperations().GetFileIo();
+    std::string          narrow    = TextEncoding::WideToNarrow (path);
+    std::wstring         extension = std::filesystem::path (path).extension().wstring();
+    std::vector<Byte>    header (A2retroNetConfig::kTwoImgHeader);
+    std::vector<Byte>    key (ProDosSkeleton::kBlockByteSize / 2);
+    FileStamp            stamp;
+    HRESULT              hr        = S_OK;
+    bool                 isTwoImg  = false;
+    uint32_t             format    = 0;
+
+
+
+    outLayout = Layout();
+
+    std::transform (extension.begin(), extension.end(), extension.begin(), [] (wchar_t c) { return (wchar_t) towlower (c); });
+
+    isTwoImg = extension == L".2mg";
+
+    if (!isTwoImg && extension != L".dsk" && extension != L".do")
+    {
+        return false;
+    }
+
+    hr = io.Stat (narrow, stamp);
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    outLayout.length     = stamp.sizeBytes;
+    outLayout.isDosOrder = true;
+
+    if (isTwoImg)
+    {
+        hr = stamp.sizeBytes >= header.size() ? io.ReadAt (narrow, 0, header) : HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF);
+
+        if (FAILED (hr))
+        {
+            return false;
+        }
+
+        format               = ReadLong (header, k2mgFormatAt);
+        outLayout.start      = ReadLong (header, k2mgOffsetAt);
+        outLayout.length     = ReadLong (header, k2mgLengthAt);
+        outLayout.isDosOrder = format == k2mgDosOrder;
+
+        if (format == k2mgProDos)
+        {
+            return outLayout.start != A2retroNetConfig::kTwoImgHeader && outLayout.start + outLayout.length <= stamp.sizeBytes && outLayout.length >= A2retroNetConfig::kBlockBytes;
+        }
+    }
+
+    if (!outLayout.isDosOrder || outLayout.length != (uint64_t) NibblizationLayer::kImageByteSize || outLayout.start + outLayout.length > stamp.sizeBytes)
+    {
+        return false;
+    }
+
+    hr = io.ReadAt (narrow, outLayout.start + ProDosSkeleton::GetBlockByteOffset (kVolumeKeyBlock, 0), key);
+
+    return SUCCEEDED (hr) && key[0] == 0 && key[1] == 0 && (key[kStorageTypeAt] & kVolumeHeaderType) == kVolumeHeaderType;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::FindConvertible
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ActionsA2retroNet::FindConvertible (const std::wstring & folder, std::vector<std::wstring> & outPaths)
+{
+    HRESULT                       hr = S_OK;
+    std::vector<FileSystemEntry>  entries;
+    Layout                        layout;
+
+
+
+    outPaths.clear();
+
+    hr = m_actions.m_fs.EnumerateEntries (folder, entries);
+    CHR (hr);
+
+    for (const FileSystemEntry & entry : entries)
+    {
+        std::wstring  po        = std::filesystem::path (entry.name).replace_extension (L".po").wstring();
+        bool          hasPo     = std::any_of (entries.begin(), entries.end(), [&po] (const FileSystemEntry & each) { return _wcsicmp (each.name.c_str(), po.c_str()) == 0; });
+        std::wstring  path      = (std::filesystem::path (folder) / entry.name).wstring();
+
+
+
+        if (!entry.isFolder && !hasPo && TryGetConvertibleLayout (path, layout))
+        {
+            outPaths.push_back (path);
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::ConvertToPo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsA2retroNet::ConvertToPo (const std::wstring & path, std::wstring & outPath)
+{
+    ActionsTypes::Outcome  outcome;
+    IDiskFileIo          & io     = m_actions.m_browser.GetOperations().GetFileIo();
+    std::wstring           leaf   = CassoExplorerActions::GetLeafName (path);
+    std::vector<Byte>      bytes;
+    std::vector<Byte>      blocks;
+    Layout                 layout;
+    HRESULT                hr     = S_OK;
+
+
+
+    outPath = std::filesystem::path (path).replace_extension (L".po").wstring();
+
+    if (!TryGetConvertibleLayout (path, layout))
+    {
+        ActionsCopy::AppendMessage (outcome, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), std::format (L"{} has no ProDOS volume to write as a .po.", leaf));
+        return outcome;
+    }
+
+    if (m_actions.m_fs.Exists (outPath))
+    {
+        ActionsCopy::AppendMessage (outcome, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS), std::format (L"{} is there already.", CassoExplorerActions::GetLeafName (outPath)));
+        return outcome;
+    }
+
+    hr = io.ReadAllBytes (TextEncoding::WideToNarrow (path), bytes);
+
+    if (SUCCEEDED (hr) && layout.start + layout.length > bytes.size())
+    {
+        hr = HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF);
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        blocks.assign (bytes.begin() + (ptrdiff_t) layout.start, bytes.begin() + (ptrdiff_t) (layout.start + layout.length));
+
+        //  A DOS-order image has each block's halves in two sectors of its
+        //  track.
+        for (size_t at = 0; layout.isDosOrder && at < blocks.size(); at++)
+        {
+            blocks[at] = bytes[layout.start + ProDosSkeleton::GetBlockByteOffset ((int) (at / ProDosSkeleton::kBlockByteSize), at % ProDosSkeleton::kBlockByteSize)];
+        }
+
+        hr = io.WriteAllBytes (TextEncoding::WideToNarrow (outPath), blocks);
+    }
+
+    if (FAILED (hr))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, std::format (L"{} could not be written as a .po.", leaf));
+        return outcome;
+    }
+
+    ActionsCopy::AppendMessage (outcome, S_OK, std::format (L"{} is written as {}.", leaf, CassoExplorerActions::GetLeafName (outPath)));
+    outcome.written = 1;
+
+    return outcome;
 }

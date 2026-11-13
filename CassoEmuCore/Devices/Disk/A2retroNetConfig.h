@@ -77,6 +77,20 @@ public:
     //  each.
     void  SwapDrives (int first, int second);
 
+    //  The drives, from 0, set to the file at `path`, a path from the root.
+    //  A drive's path matches in any case, with or without a device or a
+    //  leading /.
+    std::vector<int>  FindDrives (const std::string & path) const;
+
+    //  Each drive and commented-out image with the file at `from` set to
+    //  `to`, for a file renamed or moved on the card. False when none has
+    //  it.
+    bool  MovePath  (const std::string & from, const std::string & to);
+
+    //  Each drive with the file at `path` emptied, for a file deleted from
+    //  the card. False when none has it.
+    bool  ClearPath (const std::string & path);
+
     //  Whether the file's extension is .po, .hdv or .2mg, in any case.
     static bool  IsImageName (const std::string & fileName);
 
@@ -119,6 +133,13 @@ private:
     //  The section a line starts, or `section` for any other line.
     static Section  GetSection      (const std::string & line, Section section);
     static bool     HasKey          (const std::string & line, std::string_view key);
+
+    //  Whether a drive's path is the file at `path`.
+    static bool     IsSamePath      (const std::string & drivePath, const std::string & path);
+
+    //  The drive's path after the file or folder at `from` moves to `to`, or
+    //  false when the move doesn't change it.
+    static bool     TryMovePath     (const std::string & drivePath, const std::string & from, const std::string & to, std::string & outPath);
 
     //  Whether the line is n=path, with the drive from 0.
     static bool     TryReadDrive    (std::string_view line, int & outDrive, std::string & outPath);

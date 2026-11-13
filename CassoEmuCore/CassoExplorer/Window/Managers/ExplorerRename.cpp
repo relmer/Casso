@@ -283,6 +283,7 @@ void ExplorerRename::EndRename (bool commit)
             if (SUCCEEDED (hr))
             {
                 m_context.undo.Push (ExplorerUndoStep { ExplorerUndoStep::Kind::HostRename, Location(), { (std::filesystem::path (path).parent_path() / newName).wstring() }, oldName, newName });
+                m_context.actions.GetA2retroNet().NoteMove (path, (std::filesystem::path (path).parent_path() / newName).wstring());
             }
 
             m_context.folderSync.RefreshAfterHostChange();
@@ -313,6 +314,7 @@ void ExplorerRename::EndRename (bool commit)
             {
                 m_context.undo.Push (ExplorerUndoStep { ExplorerUndoStep::Kind::HostRename, Location(), { (std::filesystem::path (path).parent_path() / newName).wstring() }, oldName, newName });
                 m_context.manifestSync.NoteRename (path, newName);
+                m_context.actions.GetA2retroNet().NoteMove (path, (std::filesystem::path (path).parent_path() / newName).wstring());
             }
         }
 
