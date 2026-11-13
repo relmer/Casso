@@ -199,6 +199,9 @@ public:
         kDiskList,
         kFindDuplicates,
 
+        //  The Full Send window, on the View menu.
+        kFullSendStatus,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -397,6 +400,7 @@ private:
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kLineAddresses,     Menu::View, L"Show &address",           nullptr,  true },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
+        { kFullSendStatus,    Menu::View, L"&Full Send status",   nullptr,     false },
         { kOptions,           Menu::View, L"&Options...",         nullptr,     false },
 
         //  The command bar's buttons and the rows of its drop-downs.

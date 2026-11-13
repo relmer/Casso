@@ -870,6 +870,7 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kGroup8: m_context.preview.GetHex().SetGrouping (8); break;
 
         case CassoExplorerCommands::kOptions:           ShowOptions(); break;
+        case CassoExplorerCommands::kFullSendStatus:    m_context.cassoLinkManager.ShowFullSendWindow (true); break;
 
         case CassoExplorerCommands::kBack:    refill = m_context.browser.GoBack();    break;
         case CassoExplorerCommands::kForward: refill = m_context.browser.GoForward(); break;

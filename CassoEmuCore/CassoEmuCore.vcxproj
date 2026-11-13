@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -393,6 +393,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerElevationDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPromptDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkActivityDialog.cpp" />
+    <ClCompile Include="CassoExplorer\FullSendDialog.cpp" />
     <ClCompile Include="CassoExplorer\KrunchMapDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerOptionsDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerWindow.cpp" />
@@ -1443,6 +1444,7 @@
     <ClInclude Include="CassoExplorer\CassoExplorerElevationDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerPromptDialog.h" />
     <ClInclude Include="CassoExplorer\CassoLinkActivityDialog.h" />
+    <ClInclude Include="CassoExplorer\FullSendDialog.h" />
     <ClInclude Include="CassoExplorer\KrunchMapDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerOptionsDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerWindow.h" />
