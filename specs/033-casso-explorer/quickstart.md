@@ -226,7 +226,7 @@ Prerequisites: the link running on an emulated //c with two drives, then on a re
 2. Swap the idle drive during each transfer. The session continues with no key press, at under 30 seconds a disk at 115,200 baud (SC-038).
 3. Make no swap. A prompt appears on the Apple, and neither drive spins until Space.
 4. Press Space with a repeated disk present. It is sent, and its hash marks it as a duplicate, and no second image is on the PC (SC-039).
-5. Send the disk with an unreadable sector. Its unreadable list is beside its image, the row has `likely-copy-protected`, and the session continues.
+5. Send the disk with an unreadable sector. Its unreadable list is beside its image, and the session continues. Send a copy-protected disk with whole tracks that don't read, as Archon. It is captured raw, its image is a `.woz`, and its row has `raw-capture`.
 6. Press Esc during a transfer. Nothing happens. Press Q. No partial image remains, the CassoLink screen returns, and a catalog read works.
 7. Press F again with the same folder. Sequence numbers continue, and a disk from the first run is not sent without Space.
 8. Compare each image with one from Read disk to image on the same disk.
