@@ -464,7 +464,7 @@ bool CassoLinkCapture::IsStandardTrack (const Position & position)
 //
 //  The sectors of a revolution with an address field for the track, its
 //  checksum right, and a data field's prolog after it; a 16-sector data
-//  field must also decode. A field across the revolution's end is found in
+//  field must also decode, and its prolog can be D5 BB, as Archon's. A field across the revolution's end is found in
 //  the revolution's start, which follows its end on the disk. outThirteen
 //  is set by the first address field found, and outAddressed is the
 //  sectors with an address field for the track, whether or not their data
@@ -528,7 +528,10 @@ int CassoLinkCapture::CountSectors (std::span<const Byte> revolution, int track,
 
         for (data = at + 11; data + 3 + NibblizationLayer::kDataNibbleCount <= bytes.size() && data < at + 11 + s_kDataWithin && !hasData; data++)
         {
-            hasData = bytes[data] == s_kProlog0 && bytes[data + 1] == s_kProlog1 && bytes[data + 2] == s_kData;
+            bool  standard = bytes[data + 1] == s_kProlog1 && bytes[data + 2] == s_kData;
+            bool  other    = is16 && bytes[data + 1] == s_kOtherProlog1;
+
+            hasData = bytes[data] == s_kProlog0 && (standard || other);
         }
 
         //  The loop has gone one past the prolog.

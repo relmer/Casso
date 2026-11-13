@@ -581,6 +581,77 @@ public:
         Assert::AreEqual ((size_t) kSectors, addressed.size(), L"Every sector's address field");
     }
 
+    //  A track of 16 sectors whose data fields begin D5 BB CF, as Archon's
+    //  do, is a standard track, so the positions between two of them aren't
+    //  read; one whose data fields don't decode isn't.
+    TEST_METHOD (ATrackWhoseDataFieldsBeginD5BB_IsStandard)
+    {
+        static constexpr int     kSectors   = 16;
+        static constexpr int     kTrack     = 3;
+        static constexpr size_t  kSyncs     = 8;
+        static constexpr size_t  kReadBytes = 14000;
+        static constexpr Byte    kVolume    = 254;
+
+        for (bool decodes : { true, false })
+        {
+            std::vector<Byte>           revolution;
+            CassoLinkCapture::Position  position;
+            uint32_t                    seed = 1357;
+
+
+
+            auto  oddEven = [&revolution] (Byte value)
+            {
+                revolution.push_back ((Byte) ((value >> 1) | 0xAA));
+                revolution.push_back ((Byte) (value | 0xAA));
+            };
+
+            for (int number = 0; number < kSectors; number++)
+            {
+                std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+                std::vector<Byte>  nibbles;
+
+                revolution.insert (revolution.end(), kSyncs, 0xFF);
+                revolution.insert (revolution.end(), { 0xD5, 0xAA, 0x96 });
+                oddEven (kVolume);
+                oddEven (kTrack);
+                oddEven ((Byte) number);
+                oddEven ((Byte) (kVolume ^ kTrack ^ number));
+                revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
+                revolution.insert (revolution.end(), kSyncs, 0xFF);
+                revolution.insert (revolution.end(), { 0xD5, 0xBB, 0xCF });
+
+                for (Byte & value : data)
+                {
+                    seed  = seed * 1103515245u + 12345u;
+                    value = (Byte) (seed >> 16);
+                }
+
+                NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+                nibbles.back() = decodes ? nibbles.back() : (Byte) (nibbles.back() == 0x96 ? 0x97 : 0x96);
+                revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
+                revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
+            }
+
+            position.position = kTrack * 4;
+
+            for (size_t read = 0; read < CassoLinkCapture::kWholeReads; read++)
+            {
+                std::vector<Byte>  bytes;
+
+                for (size_t at = 0; at < kReadBytes; at++)
+                {
+                    bytes.push_back (revolution[at % revolution.size()]);
+                }
+
+                position.reads.push_back (bytes);
+                position.delays.push_back (CassoLinkCapture::kWholeDelays[read]);
+            }
+
+            Assert::AreEqual (decodes, CassoLinkCapture::IsStandardTrack (position), decodes ? L"Data fields that decode" : L"Data fields that don't decode");
+        }
+    }
+
     //  A write-protected disk's capture is a write-protected WOZ, as a
     //  program that writes to the disk it runs from takes another path when the write
     //  fails; an unprotected disk's isn't; and the reads file has it.
