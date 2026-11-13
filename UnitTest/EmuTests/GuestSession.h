@@ -63,6 +63,10 @@ public:
     //  third party's, so it is fetched rather than committed.
     static std::vector<Byte>  RequireGutenbergJrDisk();
 
+    //  A third party's disk scripts/FetchStockDisks.ps1 fetches into
+    //  Disks/ThirdParty, by its name there, or a FAILED test.
+    static std::vector<Byte>  RequireFetchedDisk (const char * fileName);
+
     //  The Apple /// System Utilities and System Demo disks with SOS 1.1, or a
     //  FAILED test, on the same grounds. scripts/FetchStockDisks.ps1 fetches
     //  both.

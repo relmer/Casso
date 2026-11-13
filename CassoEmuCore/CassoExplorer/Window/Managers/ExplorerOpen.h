@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Actions/ActionsTypes.h"
 #include "Seams/RawDevice/IRawDevice.h"
 
 struct ExplorerContext;
@@ -35,6 +36,14 @@ public:
     //  The file a partition on a card is copied to, which the user picks. An
     //  empty path for a partition of an image file. False when canceled.
     bool  PickPartitionImage  (const std::wstring & partition, std::wstring & outTarget);
+
+    //  The file a tape recording of the selected files is written to, beside
+    //  the image by default. False when canceled.
+    bool  PickTapeRecording   (std::wstring & outTarget);
+
+    //  Convert to tape audio, a tape recording of the selected files to the
+    //  file picked, or Add to A2retroNET drives for the selected image.
+    void  RunFileVerb         (ActionsTypes::Verb verb);
 
     void  SetCardWriteConfirmed (bool confirmed);
 

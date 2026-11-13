@@ -281,6 +281,33 @@ std::vector<Byte> GuestSession::RequireGutenbergJrDisk()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GuestSession::RequireFetchedDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::RequireFetchedDisk (const char * fileName)
+{
+    std::string        path  = std::string ("Disks/ThirdParty/") + fileName;
+    std::vector<Byte>  bytes = FindInRepo (path.c_str());
+
+
+
+    Assert::IsFalse (bytes.empty(),
+        std::format (L"Disks/ThirdParty/{} is REQUIRED by this gate and was not found in a parent of the working "
+                     L"directory. To get it, run scripts/FetchStockDisks.ps1, which RunTests.ps1 -Scenario also runs",
+                     std::wstring (fileName, fileName + strlen (fileName))).c_str());
+
+    Assert::AreEqual (kImageBytes, bytes.size(), L"and it must be a whole 5.25-inch sector image");
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GuestSession::RequireKermitDisk
 //
 ////////////////////////////////////////////////////////////////////////////////

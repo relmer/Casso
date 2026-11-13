@@ -43,13 +43,13 @@ FileFacts FileFacts::From (const FileEntry & entry, VolumeKind volume)
 //
 //  FileFacts::IsProDos
 //
-//  An archive's entries have ProDOS types.
+//  An archive's entries and a tape recording's files have ProDOS types.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool FileFacts::IsProDos() const
 {
-    return volume == VolumeKind::ProDos || volume == VolumeKind::Archive;
+    return volume == VolumeKind::ProDos || volume == VolumeKind::Archive || volume == VolumeKind::Tape;
 }
 
 

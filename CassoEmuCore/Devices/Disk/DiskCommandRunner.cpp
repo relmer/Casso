@@ -648,10 +648,17 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
         CHRF (hr, result.FailAction (options.disk.imagePath, "list " + options.disk.path,
                               ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
-        snprintf (summary, sizeof (summary), "\n%u %s free of %u\n",
-                  (unsigned) listing.freeUnits,
-                  (opened.kind == VolumeKind::Dos33 || opened.kind == VolumeKind::Gutenberg || opened.kind == VolumeKind::Rdos || opened.kind == VolumeKind::Infocom) ? "sectors" : "blocks",
-                  (unsigned) listing.totalUnits);
+        if (opened.kind == VolumeKind::Tape)
+        {
+            snprintf (summary, sizeof (summary), "\n%u files on the tape\n", (unsigned) listing.totalUnits);
+        }
+        else
+        {
+            snprintf (summary, sizeof (summary), "\n%u %s free of %u\n",
+                      (unsigned) listing.freeUnits,
+                      (opened.kind == VolumeKind::Dos33 || opened.kind == VolumeKind::Gutenberg || opened.kind == VolumeKind::Rdos || opened.kind == VolumeKind::Infocom) ? "sectors" : "blocks",
+                      (unsigned) listing.totalUnits);
+        }
 
         result.output += summary;
 

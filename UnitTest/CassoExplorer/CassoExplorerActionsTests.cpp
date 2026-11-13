@@ -14,6 +14,9 @@
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Devices/Disk/Archives/NuFxArchive.h"
+#include "Devices/Disk/FilePath.h"
+#include "Devices/Tape/OggVorbisCodec.h"
+#include "Devices/Tape/TapeRecordingVolume.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -1069,6 +1072,90 @@ public:
         Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33 (2).sdk"), second);
     }
 
+
+    //  An image on a card with A2retroNET.txt in its root, set as the first
+    //  drive with no image. A .dsk isn't offered.
+    TEST_METHOD (AddToA2retroNet_SetsTheFirstFreeDrive)
+    {
+        Host                           host;
+        CassoExplorerActions::Outcome  outcome;
+        std::string                    text;
+
+
+
+        host.SeedFixture ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        host.SeedBytes   (Bytes ("[settings]\r\nbootdelay=5\r\n[drives]\r\nnumber=4\r\n1=system.hdv\r\n"), L"C:\\A2retroNET.txt");
+
+        Assert::IsTrue  (host.actions.CanAddToA2retroNet (L"C:\\Disks\\prodos.po"));
+
+        outcome = host.actions.AddToA2retroNet (L"C:\\Disks\\prodos.po");
+
+        Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
+        Assert::AreEqual (std::wstring (L"prodos.po is drive 2."), outcome.message);
+
+        text.assign (host.io.files["C:\\A2retroNET.txt"].begin(), host.io.files["C:\\A2retroNET.txt"].end());
+        Assert::AreEqual (std::string ("[settings]\nbootdelay=5\n[drives]\nnumber=4\n1=system.hdv\n2=Disks/prodos.po\n3=\n4=\n"), text);
+
+        outcome = host.actions.AddToA2retroNet (L"C:\\Disks\\prodos.po");
+        Assert::AreEqual (std::wstring (L"prodos.po is drive 2 already."), outcome.message);
+
+        outcome = host.actions.AddToA2retroNet (L"C:\\Disks\\dos33.dsk");
+        Assert::IsFalse  (outcome.Succeeded());
+        Assert::IsTrue   (outcome.message.find (L"A2retroNET reads only .po, .hdv and .2mg images.") != std::wstring::npos, outcome.message.c_str());
+    }
+
+    //  HELLO, INTPROG and ODD as a recording that opens as a folder of the
+    //  same programs and binary, with NOTES left out and the sidecar beside
+    //  it. The recording is Ogg Vorbis by its extension.
+    TEST_METHOD (MakeTapeRecording_WritesTheProgramsAsTapeAudio)
+    {
+        Host                           host;
+        std::vector<FileEntry>         entries;
+        CassoExplorerActions::Outcome  outcome;
+        VolumeListing                  listing;
+        std::string                    sidecar;
+
+
+
+        host.OpenImage();
+        host.browser.SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"NOTES"), host.Find (L"INTPROG"), host.Find (L"ODD") });
+        host.browser.GetSelectedEntries (entries);
+
+        Assert::IsTrue (Offers (host.actions.GetListVerbs(), CassoExplorerActions::Verb::ConvertToTapeAudio));
+
+        outcome = host.actions.MakeTapeRecording (L"C:\\Disks\\programs.ogg");
+
+        Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
+        Assert::AreEqual (3, outcome.written);
+        Assert::IsTrue   (outcome.message.find (L"NOTES isn't a BASIC program or a binary") != std::wstring::npos, outcome.message.c_str());
+        Assert::IsTrue   (OggVorbisCodec::IsOgg (host.io.files["C:\\Disks\\programs.ogg"]));
+
+        sidecar.assign (host.io.files["C:\\Disks\\programs.tape.txt"].begin(), host.io.files["C:\\Disks\\programs.tape.txt"].end());
+        Assert::IsTrue (sidecar.starts_with ("00:00.5  HELLO  Applesoft"), TextEncoding::NarrowToWide (sidecar).c_str());
+
+        TapeRecordingVolume  tape (host.io.files["C:\\Disks\\programs.ogg"]);
+
+        AssertSucceeded  (tape.Enumerate (listing));
+        Assert::AreEqual ((size_t) 3, listing.entries.size());
+        Assert::IsTrue   (listing.damage.empty());
+        Assert::AreEqual (TapeRecordingVolume::kTypeApplesoft, listing.entries[0].type);
+        Assert::AreEqual (TapeRecordingVolume::kTypeInteger,   listing.entries[1].type);
+        Assert::AreEqual (TapeRecordingVolume::kTypeBinary,    listing.entries[2].type);
+
+        for (size_t i = 0; i < listing.entries.size(); i++)
+        {
+            FilePayload  original;
+            FilePayload  fromTape;
+            size_t       entry = (i == 0) ? 0 : i + 1;
+
+            AssertSucceeded (Dos33Volume (host.io.files["C:\\Disks\\dos33.dsk"]).Read (FilePath::Parse (entries[entry].name), original));
+            AssertSucceeded (tape.Read (FilePath::Parse (listing.entries[i].name), fromTape));
+            Assert::IsTrue  (fromTape.bytes == original.bytes, TextEncoding::NarrowToWide (entries[entry].name).c_str());
+        }
+
+        Assert::IsTrue (ActionsTape::GetFormat (L"x.MP3") == TapeRecordingFormat::Mp3);
+        Assert::IsTrue (ActionsTape::GetFormat (L"x.aiff") == TapeRecordingFormat::Wav);
+    }
 
     //  The files selected go into a new archive with the first one's name,
     //  each with the type a put sets.

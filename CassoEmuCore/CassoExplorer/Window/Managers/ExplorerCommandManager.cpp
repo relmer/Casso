@@ -1491,6 +1491,11 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
             break;
         }
 
+        case CassoExplorerActions::Verb::ConvertToTapeAudio:
+        case CassoExplorerActions::Verb::AddToA2retroNet:
+            m_context.opener.RunFileVerb (verb);
+            break;
+
         case CassoExplorerActions::Verb::InsertDrive1:
         case CassoExplorerActions::Verb::InsertDrive2:
             m_context.cassoTarget.InsertIntoDrive (m_context.cassoTarget.GetSelectedImagePath(), verb == CassoExplorerActions::Verb::InsertDrive1 ? 1 : 2);

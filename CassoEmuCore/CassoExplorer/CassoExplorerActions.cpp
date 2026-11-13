@@ -200,6 +200,11 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
             verbs.push_back (Verb::MakeShrinkItDisk);
         }
 
+        if (imagePaths.size() == 1 && m_a2retroNet.CanAdd (imagePaths[0]))
+        {
+            verbs.push_back (Verb::AddToA2retroNet);
+        }
+
         verbs.push_back (Verb::Test);
     }
     else if (m_browser.AreSelectedRowsImages() && CanInspectSelected())
@@ -1890,8 +1895,9 @@ ActionsTypes::Outcome CassoExplorerActions::RenameSelected (const std::wstring &
 //
 //  CassoExplorerActions::AddFileVerbs
 //
-//  Lock when an entry is unlocked, Unlock when one is locked, and Convert to
-//  for one BASIC program or text file.
+//  Lock when an entry is unlocked, Unlock when one is locked, Convert to for
+//  one BASIC program or text file, and Convert to tape audio for BASIC
+//  programs and binaries on an image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1910,6 +1916,11 @@ void CassoExplorerActions::AddFileVerbs (const std::vector<FileEntry> & entries,
     if (entries.size() == 1 && !entries[0].isDirectory && BasicConversion::GetKind (m_browser.GetVolumeKind(), entries[0].type) != BasicConversion::Kind::None)
     {
         inOutVerbs.push_back (Verb::ConvertTo);
+    }
+
+    if (!m_browser.IsAppleDriveLocation() && ActionsTape::CanMakeRecording (m_browser.GetVolumeKind(), entries))
+    {
+        inOutVerbs.push_back (Verb::ConvertToTapeAudio);
     }
 }
 
