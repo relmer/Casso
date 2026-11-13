@@ -379,6 +379,9 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 ### Session 2026-11-13 (owner decisions during the retest of the walkthrough's fixes)
 
 - Q: Should a debug project save and restore the window layout? -> A: No ("let's not save the window layout with the debug project"). Unloading a debug file and loading a saved state each switched projects, and the switch resized and moved panes, closed tabs and moved the focus. The layout, the closed panes, the focused pane, the docks and the open views are the window's alone; a switch doesn't change them, and a project saved with them loads (FR-166 amended, FR-417).
+- Q: May a control in the debugger window build a command line and run it through a mode's parser, as the breakpoint dialog built a `BPEDIT` definition? -> A: No ("GUI commands should NOT construct console text commands for parsing and execution. Call the actual functions that those depend on"). The breakpoint dialog, the Breakpoints pane's switches, a BASIC line's breakpoint and a pane's memory search each pass typed fields to the session (`BreakpointDefinition`, or a command with its operand), which `AppleWinParser::TryMakeBreakpoint` evaluates field by field. An error is worded for the field, with no command's name. The echo line is display only. FR-135 as amended.
+- Q: Should the disassembly start a row at a branch or jump target inside a decoded instruction before the PC gets there? -> A: Yes, for the targets of branches, jumps and calls the machine has executed, so data that decodes as a branch doesn't add a row. Neither does an indirect jump or a target in the I/O page. FR-418.
+- Q: Should the "Showing the copy in ..." infobar have Browse? -> A: Yes, unless the copy's hash is the one in the debug file; then the infobar has that its contents are the ones the program was built from, without Browse. FR-419.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -1991,6 +1994,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   command does, and every reply it gives, MUST stay the same, except that a
   reply MUST quote the command as the user typed it, never another mode's
   form. 035 does not ship without this.
+  A control in the debugger window MUST NOT produce command text to be
+  parsed either: it passes typed fields to the session, and an error from them
+  MUST be worded for the field, with no command's name (amended 2026-11-13).
 - **FR-136**: The trace pane MUST show a line listing its keys, and while it
   has focus MUST take Space (step into), O (step over), R (step out), Enter
   (run), T (tracing on and off) and B (bytes column on and off).
@@ -4116,6 +4122,15 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   command bar and the timeline are docked, and the open views. Switching
   projects, by loading or unloading a debug file or loading a saved state,
   MUST NOT change them. A project saved with them MUST load, without them.
+- **FR-418**: A disassembly MUST start a row at the target of each relative
+  branch, JMP and JSR the machine has executed, where a decode from the row
+  before would run over that address, except in the instruction at the PC.
+  An instruction the machine has not executed, an indirect jump and a target
+  in the I/O page MUST NOT add a row.
+- **FR-419**: The infobar over a source found in a folder other than the
+  debug file's MUST have Browse..., to pick another copy, unless the copy's
+  hash is the one in the debug file; then it MUST have, in place of
+  Browse..., that the copy's contents are the ones the program was built from.
 
 ### Key Entities
 

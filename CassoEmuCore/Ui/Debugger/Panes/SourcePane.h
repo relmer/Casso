@@ -312,9 +312,11 @@ public:
     static std::wstring  GetStaleText (const std::wstring & debugFilePath);
 
     //  What to say when the file was found in a folder other than the one the
-    //  debug file records -- a copy in another search folder -- or empty.
+    //  debug file has it in -- a copy in another search folder -- or empty.
+    //  A copy whose hash is the debug file's is the file the program was
+    //  built from, and the text has that.
     static std::wstring  GetFoundElsewhereText (const std::string & fileName, const std::wstring & debugFilePath,
-                                                const std::wstring & foundPath);
+                                                const std::wstring & foundPath, bool isVerified = false);
 
     //  Whether a macro's body can be offered: not when it is in the file that
     //  could not be found.

@@ -387,6 +387,10 @@ lines or Neither), and a Preview. **View > Disassembly** opens another view.
   it, or while its row menu is open, so the code around can be read. It then
   follows the PC again, with the PC in its middle. **Follow PC** brings it
   back at once.
+- A disassembly row starts at the PC, at each symbol's address and at the
+  target of each branch, jump and call the machine has executed, where a
+  decode from the row before would run over that address. The bytes before
+  it are listed as data.
 - The tips over a symbol, a branch arrow or a heat cell in a code view or a
   source document open at once, without the hover delay.
 - A code view's scroll bar covers the whole address space. The top of the
@@ -1179,6 +1183,11 @@ Merlin 8/16 listing, which becomes a source view.
   drag the file onto the debugger and it is matched by its hash, and its
   folder is saved for next time. A file whose hash differs from the one in the
   debug file opens with a warning.
+- A source that is gone from beside the debug file and found in another
+  folder opens with an infobar that has the folder. When the copy's hash is
+  the one in the debug file, the infobar has that its contents are the ones
+  the program was built from. Otherwise it has **Browse...**, to pick another
+  copy.
 
 ### Source documents
 

@@ -574,7 +574,7 @@ void SourcePane::Rebuild()
 
     bannerText = GetBannerText (m_match, GetFileName (m_fileId), !m_lines.empty(), depth, level > 0,
                                 GetFileName (shown.first), shown.second, invokedName, invokedBy.second);
-    elsewhere  = m_isDropped ? std::wstring() : GetFoundElsewhereText (GetFileName (m_fileId), m_state->debugFilePath, m_foundPath);
+    elsewhere  = m_isDropped ? std::wstring() : GetFoundElsewhereText (GetFileName (m_fileId), m_state->debugFilePath, m_foundPath, m_match == SourceMatch::Exact);
 
     if (!elsewhere.empty())
     {
@@ -588,8 +588,11 @@ void SourcePane::Rebuild()
 
     m_banner->SetText (bannerText);
 
-    //  The banner action: Browse... for a file not found, or the macro's body.
-    isBrowse = depth == 0 && m_match == SourceMatch::NotFound && m_lines.empty() && m_fileId >= 0 && m_onBrowse;
+    //  The banner action: Browse... for a file not found, or for a copy from
+    //  another folder whose hash isn't the debug file's, so another copy can
+    //  be picked; or the macro's body.
+    isBrowse = depth == 0 && m_fileId >= 0 && m_onBrowse &&
+               ((m_match == SourceMatch::NotFound && m_lines.empty()) || (!elsewhere.empty() && m_match != SourceMatch::Exact));
 
     if ((depth > 0 || isBrowse) && m_banner->GetAction (0) == nullptr)
     {
@@ -2399,12 +2402,13 @@ std::wstring SourcePane::GetBannerText (SourceMatch match, const std::string & f
 //
 //  A file gone from where the debug file records it can still be found by
 //  name in another search folder: a copy, from another checkout or an
-//  earlier session. Its text is shown, so the banner says whose it is.
+//  earlier session. Its text is displayed, so the banner has where it is from,
+//  and whether its hash is the one in the debug file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring SourcePane::GetFoundElsewhereText (const std::string & fileName, const std::wstring & debugFilePath,
-                                                const std::wstring & foundPath)
+                                                const std::wstring & foundPath, bool isVerified)
 {
     std::wstring  recorded;
 
@@ -2422,8 +2426,9 @@ std::wstring SourcePane::GetFoundElsewhereText (const std::string & fileName, co
         return std::wstring();
     }
 
-    return std::format (L"Source file {} was not found with the debug file {}. Showing the copy in {}.",
-                        SourcePathList::Utf8ToWide (fileName), debugFilePath, SourceService::GetFolder (foundPath));
+    return std::format (L"Source file {} was not found with the debug file {}. Showing the copy in {}.{}",
+                        SourcePathList::Utf8ToWide (fileName), debugFilePath, SourceService::GetFolder (foundPath),
+                        isVerified ? L" Its contents are the ones the program was built from." : L"");
 }
 
 

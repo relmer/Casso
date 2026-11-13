@@ -97,6 +97,42 @@ namespace DebuggerTests
 
             Assert::IsTrue (banner.GetText().find (L"Source file main.a65 was not found with the debug file ") != std::wstring::npos && banner.GetText().find (L". Showing the copy in C:\\Other.") != std::wstring::npos,
                             banner.GetText().c_str());
+            Assert::IsTrue (banner.GetText().find (L"Its contents are the ones the program was built from.") != std::wstring::npos, L"the hash matched");
+            Assert::IsNull (banner.GetAction (0), L"a copy with the debug file's hash has no Browse");
+        }
+
+        //  A copy whose hash isn't the debug file's may be the wrong copy, so
+        //  the banner offers Browse... to pick another.
+        TEST_METHOD (ACopyThatIsNotVerified_OffersBrowse)
+        {
+            ControllerRig   rig;
+            DxuiTextView    view;
+            DxuiInfoBanner  banner;
+            bool            browsed = false;
+            SourcePane            pane (&view, &banner,
+                                        [] (const DebugSourceFile &, const std::wstring &, const std::string &)
+                                        {
+                                            SourceLookup  lookup;
+
+                                            lookup.match = SourceMatch::Unverified;
+                                            lookup.path  = L"C:\\Other\\main.a65";
+                                            lookup.text  = "; main\n        lda #$41\n";
+                                            return lookup;
+                                        },
+                                        [] (const DebuggerActionBuilder &) {});
+
+
+
+            pane.SetOnBrowse ([&browsed] { browsed = true; });
+
+            LoadDebugFile (rig);
+            pane.SetFile (0);
+            pane.Apply   (rig.view.Build (rig.controller.GetSession()));
+
+            Assert::IsTrue    (banner.GetText().find (L". Showing the copy in C:\\Other.") != std::wstring::npos, banner.GetText().c_str());
+            Assert::IsTrue    (banner.GetText().find (L"built from") == std::wstring::npos, L"nothing about its contents");
+            Assert::IsNotNull (banner.GetAction (0));
+            Assert::AreEqual  (std::wstring (L"Browse..."), banner.GetAction (0)->GetAccessibleName());
         }
 
         TEST_METHOD (APaneWithNoFile_ShowsNoBanner)
