@@ -739,7 +739,6 @@ HRESULT CassoLinkConnections::StartLink (const std::string & name, bool search, 
         std::lock_guard<std::mutex>  lock (m_lock);
 
         ApplyVerify (*link);
-        link->session->SetCaptureRaw (m_fullSendCaptureRaw);
     }
 
     //  A search opens the ports in turn even when the link has one set.
@@ -2060,30 +2059,6 @@ void CassoLinkConnections::SetFullSendTarget (const std::string & folder, const 
     m_fullSendFolder     = folder;
     m_fullSendExtension  = extension;
     m_makeFullSendFolder = std::move (makeFolder);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::SetFullSendCaptureRaw
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoLinkConnections::SetFullSendCaptureRaw (bool capture)
-{
-    std::lock_guard<std::mutex>  lock (m_lock);
-
-
-
-    m_fullSendCaptureRaw = capture;
-
-    for (const std::unique_ptr<Link> & link : m_started)
-    {
-        link->session->SetCaptureRaw (capture);
-    }
 }
 
 

@@ -38,7 +38,6 @@ public:
     bool     IsVerifying    () override { return m_verifying; }
     void     ToggleVerify   () override { m_verifying = !m_verifying; }
     bool     IsBootstrapped () override;
-    bool     IsCapturingRaw () override { return m_operation != nullptr && m_operation->captureRaw; }
     HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz) override;
     void     Report         (const std::string & text) override;
 

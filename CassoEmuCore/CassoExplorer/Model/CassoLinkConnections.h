@@ -53,9 +53,6 @@ public:
 
     void  SetFullSendTarget (const std::string & folder, const std::string & extension, MakeFolderFn makeFolder);
 
-    //  Options' Capture raw on protected disks, for every connection's Full Sends.
-    void  SetFullSendCaptureRaw (bool capture);
-
     //  Verified transfers for every connection that doesn't override them.
     void  SetVerifyDefaults (bool reads, bool writes, bool autoReads);
 
@@ -386,7 +383,6 @@ private:
     bool                  m_verifyReads        = false;
     bool                  m_verifyWrites       = false;
     bool                  m_autoVerify         = true;
-    bool                  m_fullSendCaptureRaw = false;
     MakeFolderFn          m_makeFullSendFolder;
     std::vector<Job>      m_jobs;
     std::deque<Activity>  m_activity;

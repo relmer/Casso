@@ -196,7 +196,7 @@ bool CassoExplorerHostNamesPage::OnMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel, RawRow & raw)
+void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel)
 {
     m_folderLabel    = &folderLabel;
     m_formatLabel    = &formatLabel;
@@ -205,7 +205,6 @@ void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel,
     m_folder         = &folder;
     m_browse         = &browse;
     m_format         = &format;
-    m_raw            = &raw;
 
     Adopt (note);
     Adopt (folderLabel);
@@ -214,10 +213,6 @@ void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel,
     Adopt (browse);
     Adopt (format);
     Adopt (esotericaLabel);
-    Adopt (raw.label);
-    Adopt (raw.toggle);
-    Adopt (raw.state);
-    Adopt (raw.note);
 }
 
 
@@ -232,21 +227,14 @@ void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel,
 
 void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int                           gap            = scaler.ToPx (ExplorerMetrics::kStackGapDip);
-    int                           noteEnd        = boundsDip.top + scaler.ToPx (kNoteHeightDip);
-    int                           labelH         = scaler.ToPx (kLabelHeightDip);
     int                           width          = boundsDip.right - boundsDip.left;
-    int                           folderLabelTop = noteEnd + gap;
+    int                           noteEnd        = boundsDip.top + CassoExplorerVerifyPage::GetNoteHeightPx (*m_note, width, scaler, kNoteHeightDip);
+    int                           labelH         = scaler.ToPx (kLabelHeightDip);
+    int                           folderLabelTop = noteEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip);
     int                           folderTop      = folderLabelTop + labelH;
     int                           folderEnd      = folderTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
     int                           browseX        = boundsDip.right - scaler.ToPx (kBrowseWidthDip);
-    int                           rawTop         = folderEnd + gap * 2;
-    int                           rawEnd         = rawTop + scaler.ToPx (CassoExplorerVerifyPage::kRowHeightDip);
-    int                           toggleX        = boundsDip.left + scaler.ToPx (CassoExplorerVerifyPage::kToggleColDip);
-    int                           toggleW        = scaler.ToPx (CassoExplorerVerifyPage::kToggleWidthDip);
-    int                           stateW         = scaler.ToPx (CassoExplorerVerifyPage::kStateWidthDip);
-    int                           rawNoteEnd     = rawEnd + CassoExplorerVerifyPage::GetNoteHeightPx (m_raw->note, width, scaler, kRawNoteDip);
-    int                           formatLabelTop = rawNoteEnd + gap;
+    int                           formatLabelTop = folderEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
     int                           formatTop      = formatLabelTop + labelH;
     int                           minOptionH     = scaler.ToPx (kOptionLabelHeightDip + kOptionDescHeightDip);
     int                           optionGap      = scaler.ToPx (kOptionGapDip);
@@ -268,7 +256,7 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
 
         if (i == kCommonFormatCount)
         {
-            esotericaTop = top + gap * 2;
+            esotericaTop = top + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
             esotericaEnd = esotericaTop + labelH;
             top          = esotericaEnd;
         }
@@ -281,18 +269,10 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
 
     m_note->Layout   (RECT { boundsDip.left, boundsDip.top, boundsDip.right, noteEnd }, scaler);
     m_folderLabel->Layout (RECT { boundsDip.left, folderLabelTop, boundsDip.right, folderTop }, scaler);
-    m_folder->Layout (RECT { boundsDip.left, folderTop, browseX - gap, folderEnd }, scaler);
+    m_formatLabel->Layout (RECT { boundsDip.left, formatLabelTop, boundsDip.right, formatTop }, scaler);
+    m_folder->Layout (RECT { boundsDip.left, folderTop, browseX - scaler.ToPx (ExplorerMetrics::kStackGapDip), folderEnd }, scaler);
     m_browse->SetDpi (scaler.GetDpi());
     m_browse->Layout (RECT { browseX, folderTop, boundsDip.right, folderEnd });
-
-    //  The raw capture's row, laid out as a Verified transfers row.
-    m_raw->label.Layout (RECT { boundsDip.left, rawTop, toggleX, rawEnd }, scaler);
-    m_raw->toggle.SetDpi (scaler.GetDpi());
-    m_raw->toggle.Layout (RECT { toggleX, rawTop, toggleX + toggleW, rawEnd }, scaler);
-    m_raw->state.Layout (RECT { toggleX + toggleW + gap, rawTop, toggleX + toggleW + gap + stateW, rawEnd }, scaler);
-    m_raw->note.Layout (RECT { boundsDip.left, rawEnd, boundsDip.right, rawNoteEnd }, scaler);
-
-    m_formatLabel->Layout (RECT { boundsDip.left, formatLabelTop, boundsDip.right, formatTop }, scaler);
     m_format->Layout (RECT { boundsDip.left, formatTop, boundsDip.right, top }, scaler);
     m_esotericaLabel->Layout (RECT { boundsDip.left, esotericaTop, boundsDip.right, esotericaEnd }, scaler);
 
@@ -311,7 +291,7 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
 
 bool CassoExplorerFullSendPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_browse->OnMouse (ev) || m_format->OnMouse (ev) || m_raw->toggle.OnMouse (ev);
+    return m_browse->OnMouse (ev) || m_format->OnMouse (ev);
 }
 
 
@@ -533,7 +513,7 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     WireFullSend();
 
     m_fullSend = CreatePage<CassoExplorerFullSendPage> (L"Full Send");
-    m_fullSend->Init (m_fullSendNote, m_fullSendFolderLabel, m_fullSendFolder, m_fullSendBrowse, m_fullSendFormatLabel, m_fullSendFormat, m_fullSendEsotericaLabel, m_fullSendRaw);
+    m_fullSend->Init (m_fullSendNote, m_fullSendFolderLabel, m_fullSendFolder, m_fullSendBrowse, m_fullSendFormatLabel, m_fullSendFormat, m_fullSendEsotericaLabel);
 
     WireVerify();
 
@@ -583,8 +563,10 @@ void CassoExplorerOptionsDialog::WireFullSend()
     m_fullSendFormat.SetOptions  (options);
     m_fullSendFormat.SetSelected (selected);
 
-    m_fullSendNote.SetText      (L"Full Send archives a stack of floppies. Each disk you put in the Apple's drives is saved here as a disk image, "
-                                 L"with no steps on the PC between disks. Just keep feeding the drives on the Apple.");
+    m_fullSendNote.SetText      (L"Full Send quickly archives a stack of floppies. Just keep feeding the drives on the Apple after each disk is completed "
+                                 L"and find your disk images in the Full Send folder. Full Send detects duplicates, and can detect and image many "
+                                 L"copy-protection schemes. If a particular copy-protection scheme isn't auto-detected, capture the disk with "
+                                 L"Capture raw disk on its drive's menu instead.");
     ExplorerTextStyles::Apply (m_fullSendNote, ExplorerTextStyles::kFormNote);
     m_fullSendNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
@@ -598,21 +580,6 @@ void CassoExplorerOptionsDialog::WireFullSend()
     ExplorerTextStyles::Apply (m_fullSendEsotericaLabel, ExplorerTextStyles::kFormLabel);
 
     m_fullSendFolder.SetText (m_choices.fullSendFolder);
-
-    m_fullSendRaw.label.SetText (L"Capture raw on protected disks");
-    ExplorerTextStyles::Apply (m_fullSendRaw.label, ExplorerTextStyles::kFormLabel);
-
-    m_fullSendRaw.toggle.SetLabelVisible (false);
-    m_fullSendRaw.toggle.SetChecked (m_choices.captureRaw);
-    m_fullSendRaw.state.SetText (m_choices.captureRaw ? L"On" : L"Off");
-    ExplorerTextStyles::Apply (m_fullSendRaw.state, ExplorerTextStyles::kFormLabel);
-    m_fullSendRaw.toggle.SetOnChange ([this] (bool on) { m_fullSendRaw.state.SetText (on ? L"On" : L"Off"); });
-
-    m_fullSendRaw.note.SetText (L"A disk that is likely copy-protected, with whole tracks that don't read and no file system Casso Explorer recognizes, "
-                                L"is captured raw and saved as a WOZ image instead of a sector image, as a WOZ can run where a sector image can't. A capture takes a few minutes. "
-                                L"A disk protected only by its timing reads cleanly, so capture it with Capture raw disk on its drive's menu.");
-    ExplorerTextStyles::Apply (m_fullSendRaw.note, ExplorerTextStyles::kFormNote);
-    m_fullSendRaw.note.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     m_fullSendBrowse.SetLabel   (L"Browse...");
     m_fullSendBrowse.SetOnClick ([this] ()
@@ -883,7 +850,6 @@ HRESULT CassoExplorerOptionsDialog::OnOk()
     m_choices.autoPreview  = m_autoPreview.IsChecked();
     m_choices.enterExpands = m_enterExpands.IsChecked();
     m_choices.fullSendExtension = s_kFullSendFormats[(size_t) m_fullSendFormat.GetSelected()].extension;
-    m_choices.captureRaw        = m_fullSendRaw.toggle.IsChecked();
     m_choices.verifyReads       = m_verifyRows[0].toggle.IsChecked();
     m_choices.verifyWrites      = m_verifyRows[1].toggle.IsChecked();
     m_choices.autoVerify        = m_verifyRows[2].toggle.IsChecked();

@@ -63,11 +63,9 @@ struct CassoExplorerPrefs
 
     //  Where a Full Send started on an Apple writes: the folder, empty for the
     //  default under Downloads, and the extension with its period, empty for
-    //  .po on ProDOS and .dsk otherwise; and whether a likely copy-protected
-    //  disk is captured raw.
+    //  .po on ProDOS and .dsk otherwise.
     std::wstring           fullSendFolder;
     std::string            fullSendExtension;
-    bool                   fullSendCaptureRaw = false;
 
     //  When each CassoLink receiving folder was last listed, in file time ticks.
     //  Files newer than this are counted on its tree row.

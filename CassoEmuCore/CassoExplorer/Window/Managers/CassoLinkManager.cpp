@@ -412,8 +412,6 @@ void CassoLinkManager::ApplyFullSendPrefs()
 
             return error ? HRESULT_FROM_WIN32 (error.value()) : S_OK;
         });
-
-        m_context.app.links->SetFullSendCaptureRaw (m_context.prefs.fullSendCaptureRaw);
     }
 }
 

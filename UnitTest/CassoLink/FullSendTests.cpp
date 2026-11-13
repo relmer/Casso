@@ -69,7 +69,6 @@ public:
         bool                                  wholeTracksBad = false;     // badDisk's tracks are not read whole in a check
         std::vector<int>                      tracksRead;                 // the tracks of the whole-disk reads
         std::set<int>                         blankTracks;                // tracks with no sector that reads, as on some protected disks
-        bool                                  capturingRaw   = false;     // Options' Capture raw on protected disks
         std::vector<int>                      captures;                   // the drive of each raw capture
         Image                                 rawWoz         = { 'W', 'O', 'Z', '2', 0xFF, 0x0A, 0x0D, 0x0A };
 
@@ -159,7 +158,6 @@ public:
         }
 
         bool     IsBootstrapped() override { return bootstrapped; }
-        bool     IsCapturingRaw() override { return capturingRaw; }
 
         HRESULT  CaptureRaw (int drive, Image & outWoz) override
         {
@@ -797,7 +795,10 @@ public:
         Assert::AreEqual (std::string (FullSendManifest::kStatusDamaged),   std::string (FullSendDisk::AssessDamage (Dos ("HELLO"), 0, 2)));
     }
 
-    TEST_METHOD (Session_ALikelyProtectedDisk_IsLabeled_AndTheSessionGoesOn)
+    //  A likely copy-protected disk is captured raw: its image is the WOZ, its
+    //  row is a raw capture, and the session goes on. A damaged disk with a
+    //  file system isn't captured.
+    TEST_METHOD (Session_ALikelyProtectedDisk_IsSavedAsARawCapture_AndTheSessionGoesOn)
     {
         Rig  rig;
 
@@ -809,43 +810,22 @@ public:
 
         auto  session = rig.Run();
 
-        Assert::AreEqual (std::string (FullSendManifest::kStatusProtected), session->GetManifest().GetRows()[0].status);
-        Assert::AreEqual (1, session->GetScreen().prot);
-        Assert::AreEqual (0, session->GetScreen().bad);
-        Assert::IsTrue (session->GetScreen().drives[0] == FullSendDriveState::Protected);
-        Assert::IsTrue (std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & s) { return s.tone == FullSendTone::Protected; }));
-    }
-
-    //  With Capture raw on protected disks on, a likely copy-protected disk is
-    //  captured raw, its image is the WOZ, and its row is a raw capture; a
-    //  damaged disk with a file system isn't captured.
-    TEST_METHOD (Session_ALikelyProtectedDisk_WithCaptureRawOn_IsSavedAsARawCapture)
-    {
-        Rig  rig;
-
-        rig.link.drives[0]    = Other (1);
-        rig.link.badDisk      = rig.link.drives[0];
-        rig.link.badSectors   = { { 5, 0 }, { 6, 0 } };
-        rig.link.reportEmpty  = 3;
-        rig.link.present[1]   = false;
-        rig.link.capturingRaw = true;
-
-        auto  session = rig.Run();
-
         Assert::IsTrue (rig.link.captures == std::vector<int> { 1 }, L"Drive 1 is captured");
         Assert::IsTrue (rig.io.files["C:\\Box\\0001.woz"] == rig.link.rawWoz, L"The image is the capture");
         Assert::IsFalse (rig.io.files.contains ("C:\\Box\\0001.dsk"), L"No sector image");
         Assert::AreEqual (std::string (FullSendManifest::kStatusRawCapture), session->GetManifest().GetRows()[0].status);
         Assert::AreEqual (std::string ("0001.woz"), session->GetManifest().GetRows()[0].file);
         Assert::AreEqual (1, session->GetScreen().prot);
+        Assert::AreEqual (0, session->GetScreen().bad);
+        Assert::IsTrue (session->GetScreen().drives[0] == FullSendDriveState::Protected);
+        Assert::IsTrue (std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & s) { return s.tone == FullSendTone::Protected; }));
 
         Rig  damaged;
 
-        damaged.link.drives[0]    = Dos ("HELLO");
-        damaged.link.badDisk      = damaged.link.drives[0];
-        damaged.link.badSectors   = { { 20, 3 } };
-        damaged.link.present[1]   = false;
-        damaged.link.capturingRaw = true;
+        damaged.link.drives[0]  = Dos ("HELLO");
+        damaged.link.badDisk    = damaged.link.drives[0];
+        damaged.link.badSectors = { { 20, 3 } };
+        damaged.link.present[1] = false;
 
         auto  other = damaged.Run();
 

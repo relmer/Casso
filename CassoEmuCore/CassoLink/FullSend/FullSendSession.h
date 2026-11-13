@@ -151,9 +151,7 @@ public:
     //  Whether this PC bootstrapped the Apple, so no CassoLink disk was booted.
     virtual bool     IsBootstrapped () = 0;
 
-    //  Whether Options' Capture raw on protected disks is on, and a drive's
-    //  disk captured raw as a WOZ.
-    virtual bool     IsCapturingRaw () = 0;
+    //  A drive's disk captured raw as a WOZ.
     virtual HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz) = 0;
 
     //  A line for the activity log.

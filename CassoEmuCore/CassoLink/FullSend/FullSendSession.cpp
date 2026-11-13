@@ -1085,8 +1085,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
 
         if (isProtected)
         {
-            m_link.Report (raw.empty() ? std::format ("{} is likely copy-protected, so it was read once with no retries. The image may not run. Use a flux tool such as Applesauce for a working copy.", title)
-                                       : std::format ("{} is likely copy-protected, so its image {} is a raw capture.", title, row.file));
+            m_link.Report (std::format ("{} is likely copy-protected, so its image {} is a raw capture.", title, row.file));
         }
 
         row.duplicateOf = (match != nullptr) ? match->file : std::string();
@@ -1169,16 +1168,18 @@ std::string FullSendSession::GetScreenName (int sequence, const std::string & ca
 //  FullSendSession::CaptureProtected
 //
 //  A disk assessed from its read as likely copy-protected, captured raw into
-//  outRaw when Options' Capture raw on protected disks is on; outRaw is
-//  empty otherwise. The capture draws on the Apple's screen, so the session's
-//  screen is drawn again after it.
+//  outRaw, as its sector image is unlikely to run; outRaw is empty
+//  otherwise. A damaged disk with no file system Casso recognizes is
+//  assessed alike, and a raw capture of it has more than its sector image.
+//  The capture draws on the Apple's screen, so the session's screen is drawn
+//  again after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw)
 {
     HRESULT  hr      = S_OK;
-    bool     capture = !unreadable.empty() && m_link.IsCapturingRaw();
+    bool     capture = !unreadable.empty();
 
 
 
