@@ -186,6 +186,7 @@ private:
     static void                 AlignAll       (const Position & position, const std::vector<Byte> & revolution, std::vector<Alignment> & outAlignments, bool & outUnstable);
     static void                 MakeConsensus  (const Position & position, const std::vector<Byte> & revolution, const std::vector<Alignment> & alignments, std::vector<Byte> & outAgreed);
     static bool                 FindReference  (std::span<const Byte> read, size_t & outStart, size_t & outLength);
+    static size_t               FindFramed     (std::span<const Byte> read, size_t limit);
     static size_t               FindLength     (std::span<const Byte> read);
     static size_t               FindRepeat     (std::span<const Byte> read);
     static size_t               CountDiffer    (std::span<const Byte> a, size_t aAt, std::span<const Byte> b, size_t bAt, size_t limit);
@@ -234,6 +235,7 @@ private:
     static constexpr size_t  s_kAnchorMismatch     = 2;
     static constexpr size_t  s_kWindowStep         = 997;
     static constexpr size_t  s_kWindowDrift        = 8;
+    static constexpr size_t  s_kFramingSyncs       = 4;     // the sync bytes in a row that frame a read's bytes as on the disk
 
     //  Align's allowance of bytes more or fewer, the share of a revolution
     //  that may differ, and the longest stretch of differences a write splice
