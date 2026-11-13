@@ -2013,7 +2013,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 ## Phase 56: Roadmap validation and merge
 
 - [ ] T653 Walk quickstart §7e to §7h on Debug and Release, and write the results to `specs/033-casso-explorer/validation.md`
-- [X] T668 Dropped: the owner has no A2Pico, so this isn't verified. Verify on an A2Pico with the A2retroNET storage firmware, as T620 does for CFFA: ProDOS images Casso Explorer and `casso disk create` make at 140K, 800K, 5M, 10M, 20M and 32M, as .po, .hdv and .2mg, each listed in `A2retroNET.txt` on the micro SD card, boot with `--bootable` and read and write on the Apple, and a file written there reads back in Casso Explorer; record the results in `validation.md`
+- [ ] T668 Research the A2Pico's A2retroNET storage firmware from its published documentation, write the findings into `research.md`, and support it: ProDOS images Casso Explorer and `casso disk create` make at 140K, 800K, 5M, 10M, 20M and 32M, as .po, .hdv and .2mg, in the forms A2retroNET accepts, listed in `A2retroNET.txt` on the micro SD card, bootable with `--bootable`, and a file written there read back in Casso Explorer. The owner has no A2Pico, so the checks are against the documentation and in Casso, not on the hardware
 - [ ] T654 Run `scripts/CheckStyle.ps1 -Mode Tree`, the code-analysis rebuild, and the unit and scenario suites in Debug and Release before each master merge
 
 ### Dependencies for Phases 36 to 56
