@@ -581,10 +581,10 @@ public:
         Assert::AreEqual ((size_t) kSectors, addressed.size(), L"Every sector's address field");
     }
 
-    //  A track of 16 sectors whose data fields begin D5 BB CF, as Archon's
-    //  do, is a standard track, so the positions between two of them aren't
-    //  read; one whose data fields don't decode isn't.
-    TEST_METHOD (ATrackWhoseDataFieldsBeginD5BB_IsStandard)
+    //  A track with all 16 address fields is a standard track whether or not
+    //  its data fields decode, so the positions between two of them aren't
+    //  read; one with an address field whose checksum is wrong isn't.
+    TEST_METHOD (ATrackWithEveryAddressField_IsStandard)
     {
         static constexpr int     kSectors   = 16;
         static constexpr int     kTrack     = 3;
@@ -592,11 +592,13 @@ public:
         static constexpr size_t  kReadBytes = 14000;
         static constexpr Byte    kVolume    = 254;
 
-        for (bool decodes : { true, false })
+        for (int variant = 0; variant < 3; variant++)
         {
+            bool                        decodes   = variant != 1;
+            bool                        addressed = variant != 2;
             std::vector<Byte>           revolution;
             CassoLinkCapture::Position  position;
-            uint32_t                    seed = 1357;
+            uint32_t                    seed      = 1357;
 
 
 
@@ -616,7 +618,7 @@ public:
                 oddEven (kVolume);
                 oddEven (kTrack);
                 oddEven ((Byte) number);
-                oddEven ((Byte) (kVolume ^ kTrack ^ number));
+                oddEven ((Byte) (kVolume ^ kTrack ^ number ^ ((!addressed && number == 5) ? 1 : 0)));
                 revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
                 revolution.insert (revolution.end(), kSyncs, 0xFF);
                 revolution.insert (revolution.end(), { 0xD5, 0xBB, 0xCF });
@@ -648,7 +650,8 @@ public:
                 position.delays.push_back (CassoLinkCapture::kWholeDelays[read]);
             }
 
-            Assert::AreEqual (decodes, CassoLinkCapture::IsStandardTrack (position), decodes ? L"Data fields that decode" : L"Data fields that don't decode");
+            Assert::AreEqual (addressed, CassoLinkCapture::IsStandardTrack (position),
+                              variant == 0 ? L"Data fields that decode" : variant == 1 ? L"Data fields that don't decode" : L"An address field with a wrong checksum");
         }
     }
 

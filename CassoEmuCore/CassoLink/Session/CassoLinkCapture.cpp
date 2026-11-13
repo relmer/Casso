@@ -490,10 +490,12 @@ Error:
 //
 //  CassoLinkCapture::IsStandardTrack
 //
-//  Whether every sector of a 13 or 16-sector track is in the stream. A weak
-//  stretch or a read that doesn't align isn't counted against it: with all
-//  the sectors of the tracks on both sides read, nothing separate fits
-//  between them.
+//  Whether every sector of a 13 or 16-sector track has its address field
+//  for the track in the stream. A weak stretch, a read that doesn't align
+//  or a data field that doesn't decode isn't counted against it: with every
+//  address field of the tracks on both sides intact, nothing was written
+//  between them. The Witness has 28 tracks whose data fields don't decode
+//  as DOS 3.3's do, and reading between them doubled its capture's time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -504,11 +506,15 @@ bool CassoLinkCapture::IsStandardTrack (const Position & position)
     bool    thirteen  = false;
     int     addressed = 0;
     bool    hasStream = MakeStream (position, stream, unstable);
-    int     sectors   = hasStream ? CountSectors (stream.bytes, position.position / 4, thirteen, addressed) : 0;
 
 
 
-    return hasStream && sectors == (thirteen ? 13 : 16);
+    if (hasStream)
+    {
+        CountSectors (stream.bytes, position.position / 4, thirteen, addressed);
+    }
+
+    return hasStream && addressed == (thirteen ? 13 : 16);
 }
 
 
