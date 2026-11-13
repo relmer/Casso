@@ -308,9 +308,7 @@ Error:
 //
 //  Win32ShellTransfers::IsFromFolder
 //
-//  Whether any file in the object is in the folder itself. Both paths are
-//  compared without a final backslash, as a drive's root, I:\, ends in one
-//  and so does the parent path of a file in it.
+//  Whether any file in the object is in the folder itself.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -321,7 +319,6 @@ bool Win32ShellTransfers::IsFromFolder (IDataObject * data, const std::wstring &
     HDROP         drop   = nullptr;
     UINT          count  = 0;
     bool          found  = false;
-    std::wstring  inside = folder;
     HRESULT       hrData = (data != nullptr) ? data->GetData (&format, &medium) : E_POINTER;
 
 
@@ -331,33 +328,48 @@ bool Win32ShellTransfers::IsFromFolder (IDataObject * data, const std::wstring &
         return false;
     }
 
-    while (!inside.empty() && inside.back() == L'\\')
-    {
-        inside.pop_back();
-    }
-
     drop  = (HDROP) medium.hGlobal;
     count = DragQueryFileW (drop, 0xFFFFFFFF, nullptr, 0);
 
     for (UINT i = 0; i < count && !found; i++)
     {
-        wchar_t       path[MAX_PATH * 4] = {};
-        std::wstring  parent;
+        wchar_t  path[MAX_PATH * 4] = {};
 
         DragQueryFileW (drop, i, path, (UINT) std::size (path));
-        parent = std::filesystem::path (path).parent_path().wstring();
-
-        while (!parent.empty() && parent.back() == L'\\')
-        {
-            parent.pop_back();
-        }
-
-        found = _wcsicmp (parent.c_str(), inside.c_str()) == 0;
+        found = IsSameFolder (std::filesystem::path (path).parent_path().wstring(), folder);
     }
 
     ReleaseStgMedium (&medium);
 
     return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellTransfers::IsSameFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellTransfers::IsSameFolder (const std::wstring & a, const std::wstring & b)
+{
+    std::wstring  left  = a;
+    std::wstring  right = b;
+
+
+
+    for (std::wstring * path : { &left, &right })
+    {
+        while (!path->empty() && path->back() == L'\\')
+        {
+            path->pop_back();
+        }
+    }
+
+    return _wcsicmp (left.c_str(), right.c_str()) == 0;
 }
 
 
@@ -454,7 +466,7 @@ HRESULT Win32ShellTransfers::PasteInto (HWND owner, const std::wstring & folder,
     {
         parent = std::filesystem::path (recorder.created[i]).parent_path().wstring();
 
-        if (_wcsicmp (parent.c_str(), std::filesystem::path (folder).wstring().c_str()) == 0)
+        if (IsSameFolder (parent, folder))
         {
             outResult.sources.push_back (recorder.sources[i]);
             outResult.created.push_back (recorder.created[i]);
@@ -629,7 +641,7 @@ void Win32ShellTransfers::OperationRecorder::Record (IShellItem * item, HRESULT 
 
 
 
-    if (SUCCEEDED (hr) && hr != COPYENGINE_S_DONT_PROCESS_CHILDREN && !from.empty() && !to.empty())
+    if (SUCCEEDED (hr) && !from.empty() && !to.empty())
     {
         sources.push_back (from);
         created.push_back (to);
