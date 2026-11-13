@@ -1086,8 +1086,10 @@ void Disk2Controller::SoftReset()
 //
 //  PowerCycle
 //
-//  Phase 4 / FR-035: a full power cycle ejects every drive (which itself
-//  flushes dirty images first) and clears the controller hardware state.
+//  Clears the controller hardware state and ejects the controller's internal
+//  disks, then selects them in both drives. A disk attached through
+//  SetExternalDisk is mounted in the DiskImageStore, which this call doesn't
+//  change; MachineHost::PowerCycle reconnects the drives to it afterward.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
