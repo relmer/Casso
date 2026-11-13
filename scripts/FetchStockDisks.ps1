@@ -10,10 +10,14 @@
     guest-visible case FAILS, which is the intended signal but a poor
     welcome for a fresh clone, so `RunTests.ps1 -Scenario` runs this first.
 
-    The Kermit-65 3.87 and Gutenberg, Jr. disks are fetched the same way, into
-    `Disks/ThirdParty/`, for the scenario cases that run them. Neither is
-    Apple's, and neither is committed: Kermit contains ProDOS, and Gutenberg,
-    Jr. is its publisher's.
+    The Kermit-65 3.87 disk is fetched the same way, into `Disks/ThirdParty/`,
+    for the scenario case that runs Kermit. It is not Apple's, but it contains
+    ProDOS, so it is not committed either.
+
+    Commercial disks of third parties, Gutenberg, Jr., the Wizardry scenario
+    disks and Zork I, are fetched outside the tree, into
+    `%USERPROFILE%\Downloads\Casso\TestDisks` or the folder CASSO_TEST_DISKS is
+    set to, where the scenario cases read them.
 
     LOOKS BEFORE IT FETCHES, in the two places the tests themselves read, so
     a machine that already has an image never touches the network:
@@ -70,6 +74,10 @@ $repoRoot  = Split-Path -Parent $scriptDir
 $baseUrl = 'https://www.apple.asimov.net'
 $destDir = Join-Path $repoRoot 'Disks/Apple'
 
+#  Where a third party's commercial disk goes: outside the tree, so it can't
+#  be committed. CASSO_TEST_DISKS replaces the default folder.
+$outsideDir = if ($env:CASSO_TEST_DISKS) { $env:CASSO_TEST_DISKS } else { Join-Path $env:USERPROFILE 'Downloads/Casso/TestDisks' }
+
 #
 #  Hashes are pinned, and they are the whole of the check.
 #
@@ -81,7 +89,8 @@ $destDir = Join-Path $repoRoot 'Disks/Apple'
 #  RepoName is what the tests look for under Disks/Apple, or under RepoDir
 #  when an entry has one; CacheName is what the emulator saves the same image
 #  as. The two differ, and both differ from the name on the archive, so all
-#  three appear here. BaseUrl replaces the default host for one entry.
+#  three appear here. BaseUrl replaces the default host for one entry. An
+#  entry with Outside goes to $outsideDir instead of the repo.
 #
 $assets = @(
     @{ RepoName  = 'dos33-master.dsk'
@@ -110,9 +119,9 @@ $assets = @(
        Desc      = 'Kermit-65 3.87 for ProDOS' },
 
     #  Gutenberg, Jr.'s side A, the word processor the Gutenberg scenario
-    #  cases run. It is a third party's, so it isn't committed.
+    #  cases run. It is a third party's, so it is fetched outside the tree.
     @{ RepoName  = 'gutenberg-jr.dsk'
-       RepoDir   = 'Disks/ThirdParty'
+       Outside   = $true
        CacheName = $null
        BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
        UrlPath   = '/images/productivity/word_processing/gutenberg/Gutenberg_Jr_f1.dsk'
@@ -121,10 +130,10 @@ $assets = @(
        Desc      = 'Gutenberg, Jr. side A' },
 
     #  The Wizardry I to III scenario disks and Zork I, for the game data
-    #  viewers' scenario cases. They are third parties', so they aren't
-    #  committed.
+    #  viewers' scenario cases. They are third parties', so they are fetched
+    #  outside the tree.
     @{ RepoName  = 'wizardry1-scenario.dsk'
-       RepoDir   = 'Disks/ThirdParty'
+       Outside   = $true
        CacheName = $null
        BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
        UrlPath   = '/images/games/rpg/wizardry/wizardry_I/Wizardry-Proving-Grounds-Original-Scenario.dsk'
@@ -133,7 +142,7 @@ $assets = @(
        Desc      = 'Wizardry I scenario disk' },
 
     @{ RepoName  = 'wizardry2-scenario.dsk'
-       RepoDir   = 'Disks/ThirdParty'
+       Outside   = $true
        CacheName = $null
        BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
        UrlPath   = '/images/games/rpg/wizardry/wizardry_II/wizardry_ii_2.dsk'
@@ -142,7 +151,7 @@ $assets = @(
        Desc      = 'Wizardry II scenario disk' },
 
     @{ RepoName  = 'wizardry3-scenario.dsk'
-       RepoDir   = 'Disks/ThirdParty'
+       Outside   = $true
        CacheName = $null
        BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
        UrlPath   = '/images/games/rpg/wizardry/wizardry_III/wizardry_iii_2.dsk'
@@ -151,7 +160,7 @@ $assets = @(
        Desc      = 'Wizardry III scenario disk' },
 
     @{ RepoName  = 'zork1.dsk'
-       RepoDir   = 'Disks/ThirdParty'
+       Outside   = $true
        CacheName = $null
        BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
        UrlPath   = '/images/games/adventure/infocom/zork_1/Zork%20I%20r88%20%28clean%20copy%20from%20retail%20disk%29.dsk'
@@ -236,7 +245,8 @@ $fetched = 0
 $missing = 0
 
 foreach ($asset in $assets) {
-    $assetDir = if ($asset['RepoDir']) { Join-Path $repoRoot $asset['RepoDir'] } else { $destDir }
+    $assetDir = if ($asset['Outside']) { $outsideDir } elseif ($asset['RepoDir']) { Join-Path $repoRoot $asset['RepoDir'] } else { $destDir }
+    $where    = if ($asset['Outside']) { 'outside the tree' } else { 'in the repo' }
     $assetUrl = if ($asset['BaseUrl']) { $asset['BaseUrl'] } else { $baseUrl }
     $destPath = Join-Path $assetDir $asset.RepoName
 
@@ -245,7 +255,7 @@ foreach ($asset in $assets) {
         $problem = Get-AssetProblem -Path $destPath -Asset $asset
 
         if (-not $problem) {
-            Write-Status "  HAVE  $($asset.RepoName) -- in the repo, verified" 'DarkGray'
+            Write-Status "  HAVE  $($asset.RepoName) -- $where, verified" 'DarkGray'
             $present++
             continue
         }
