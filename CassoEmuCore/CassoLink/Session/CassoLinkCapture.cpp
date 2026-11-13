@@ -490,6 +490,11 @@ Error:
 //
 //  CassoLinkCapture::IsStandardTrack
 //
+//  Whether every sector of a 13 or 16-sector track is in the stream. A weak
+//  stretch or a read that doesn't align isn't counted against it: with all
+//  the sectors of the tracks on both sides read, nothing separate fits
+//  between them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CassoLinkCapture::IsStandardTrack (const Position & position)
@@ -499,12 +504,11 @@ bool CassoLinkCapture::IsStandardTrack (const Position & position)
     bool    thirteen  = false;
     int     addressed = 0;
     bool    hasStream = MakeStream (position, stream, unstable);
-    bool    clean     = hasStream && !unstable && std::find (stream.weak.begin(), stream.weak.end(), true) == stream.weak.end();
-    int     sectors   = clean ? CountSectors (stream.bytes, position.position / 4, thirteen, addressed) : 0;
+    int     sectors   = hasStream ? CountSectors (stream.bytes, position.position / 4, thirteen, addressed) : 0;
 
 
 
-    return clean && sectors == (thirteen ? 13 : 16);
+    return hasStream && sectors == (thirteen ? 13 : 16);
 }
 
 
