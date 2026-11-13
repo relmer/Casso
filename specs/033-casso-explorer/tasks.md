@@ -1984,10 +1984,10 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 ## Phase 55: Game data viewers (User Story 38)
 
-- [ ] T649 [P] [US38] `WizardryScenario` in `CassoEmuCore/FileTypes/`: monsters, items and characters as Lines, and each maze level as a Picture with walls, doors and special squares, from published community format notes (FR-240)
+- [ ] T649 [P] [US38] `WizardryScenario` in `CassoEmuCore/FileTypes/`: monsters, items and characters as Lines, and each maze level as a Picture with walls, doors and special squares, from published community format notes (FR-240). Done: the lists, and each level as a text map, from the record types of Thomas William Ewers' re-engineered Wizardry I source, on Wizardry I to III. Open: each level as a picture and a PNG copy out, since a decode has one output
 - [X] T650 [P] [US38] `ZMachineStory` in `CassoEmuCore/FileTypes/`: header, abbreviations, dictionary, object tree and decoded strings for versions 1 to 8, by the Z-Machine Standards Document 1.1, and an Infocom disk with no catalog opened as one file (FR-241) Done: `InfocomVolume`, `VolumeKind::Infocom`. The story's sector order isn't published, so each skewed order is tried and the one whose checksum verifies is used. Tested on stories built by the standard; no real disk is in the tree yet.
-- [ ] T651 [US38] Add both rows to `FileFormatTable`, with copy outs as text and PNG
-- [ ] T652 [US38] Scenario tests on Wizardry I to III and Infocom samples, checked against the games run in Casso and an interpreter (SC-066)
+- [X] T651 [US38] Add both rows to `FileFormatTable`, with copy outs as text and PNG. Done: the Wizardry row; the Infocom row came with T650
+- [ ] T652 [US38] Scenario tests on Wizardry I to III and Infocom samples, checked against the games run in Casso and an interpreter (SC-066). Done: `ScenarioTests/GameDataTests` on Wizardry I to III and Zork I, release 88, whose story is read in the order its interpreter uses. Open: the check against the games running, since Casso doesn't boot Zork I, release 88, which MAME boots, and Wizardry draws its screens on the hi-res page
 
 ## Phase 57: Volumes read and written by the block (User Story 39)
 

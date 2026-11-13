@@ -11,9 +11,12 @@
 
 
 //  The DOS logical sector a physical sector's data is in, and a ProDOS
-//  order sector's, for a buffer in DOS logical order.
+//  order sector's, for a buffer in DOS logical order. The third table is the
+//  first's inverse, the order a real Zork I, release 88, reads its story in.
 static constexpr int  s_kPhysicalToDos[16] = { 0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15 };
 static constexpr int  s_kProDosToDos[16]   = { 0, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 15 };
+static constexpr int  s_kDosToPhysical[16] = { 0, 13, 11, 9, 7, 5, 3, 1, 14, 12, 10, 8, 6, 4, 2, 15 };
+static constexpr int  s_kNumberings        = 4;
 
 //  The first track of the story, by the interpreter's version.
 static constexpr int  s_kStoryTracks[]     = { 3, 4 };
@@ -43,8 +46,9 @@ InfocomVolume::InfocomVolume (const vector<Byte> & sectors) :
 //  InfocomVolume::MakeOrders
 //
 //  Each skewed order: sector i of a track is the one at a start plus
-//  i times an odd step, counted in DOS, physical or ProDOS numbering, and
-//  returned as the buffer's DOS logical sectors. The plain order is first.
+//  i times an odd step, counted in DOS, physical, ProDOS or inverse physical
+//  numbering, and returned as the buffer's DOS logical sectors. The plain
+//  order is first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,7 +60,7 @@ void InfocomVolume::MakeOrders (std::vector<Order> & outOrders)
 
     outOrders.clear();
 
-    for (int numbering = 0; numbering < 3; numbering++)
+    for (int numbering = 0; numbering < s_kNumberings; numbering++)
     {
         for (int step = 1; step < kSectorsPerTrack; step += 2)
         {
@@ -68,7 +72,10 @@ void InfocomVolume::MakeOrders (std::vector<Order> & outOrders)
                 {
                     int  sector = (start + i * step) % kSectorsPerTrack;
 
-                    order[(size_t) i] = (numbering == 0) ? sector : (numbering == 1) ? s_kPhysicalToDos[sector] : s_kProDosToDos[sector];
+                    order[(size_t) i] = (numbering == 0) ? sector
+                                      : (numbering == 1) ? s_kPhysicalToDos[sector]
+                                      : (numbering == 2) ? s_kProDosToDos[sector]
+                                                         : s_kDosToPhysical[sector];
                 }
 
                 if (seen.insert (order).second)

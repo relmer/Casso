@@ -526,6 +526,7 @@
     <ClCompile Include="FileTypes\OmfFile.cpp" />
     <ClCompile Include="FileTypes\VisiCalcSheet.cpp" />
     <ClCompile Include="FileTypes\ZMachineStory.cpp" />
+    <ClCompile Include="FileTypes\WizardryScenario.cpp" />
     <ClCompile Include="FileTypes\VisiCalcEvaluator.cpp" />
     <ClCompile Include="FileTypes\GutenbergDocument.cpp" />
     <ClCompile Include="FileTypes\MagicWindowDocument.cpp" />
@@ -1590,6 +1591,7 @@
     <ClInclude Include="FileTypes\OmfFile.h" />
     <ClInclude Include="FileTypes\VisiCalcSheet.h" />
     <ClInclude Include="FileTypes\ZMachineStory.h" />
+    <ClInclude Include="FileTypes\WizardryScenario.h" />
     <ClInclude Include="FileTypes\VisiCalcEvaluator.h" />
     <ClInclude Include="FileTypes\GutenbergDocument.h" />
     <ClInclude Include="FileTypes\MagicWindowDocument.h" />

@@ -120,6 +120,45 @@ $assets = @(
        Sha1      = '8B6BF2E62A935A07DE3E4FDFE809EFAA10594F1D'
        Desc      = 'Gutenberg, Jr. side A' },
 
+    #  The Wizardry I to III scenario disks and Zork I, for the game data
+    #  viewers' scenario cases. They are third parties', so they aren't
+    #  committed.
+    @{ RepoName  = 'wizardry1-scenario.dsk'
+       RepoDir   = 'Disks/ThirdParty'
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
+       UrlPath   = '/images/games/rpg/wizardry/wizardry_I/Wizardry-Proving-Grounds-Original-Scenario.dsk'
+       Size      = 143360
+       Sha1      = '053F49CF3048412CBCC666417456883EF427F4BB'
+       Desc      = 'Wizardry I scenario disk' },
+
+    @{ RepoName  = 'wizardry2-scenario.dsk'
+       RepoDir   = 'Disks/ThirdParty'
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
+       UrlPath   = '/images/games/rpg/wizardry/wizardry_II/wizardry_ii_2.dsk'
+       Size      = 143360
+       Sha1      = 'BF57D3552C0C032517252B298F3F6D2492120291'
+       Desc      = 'Wizardry II scenario disk' },
+
+    @{ RepoName  = 'wizardry3-scenario.dsk'
+       RepoDir   = 'Disks/ThirdParty'
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
+       UrlPath   = '/images/games/rpg/wizardry/wizardry_III/wizardry_iii_2.dsk'
+       Size      = 143360
+       Sha1      = 'A2E2A1F2B0887412BFAD7AF52675B38C0DB7A8A9'
+       Desc      = 'Wizardry III scenario disk' },
+
+    @{ RepoName  = 'zork1.dsk'
+       RepoDir   = 'Disks/ThirdParty'
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
+       UrlPath   = '/images/games/adventure/infocom/zork_1/Zork%20I%20r88%20%28clean%20copy%20from%20retail%20disk%29.dsk'
+       Size      = 143360
+       Sha1      = 'FA6BFAAAF165891CB5773544432DADB2E3275A4D'
+       Desc      = 'Zork I, release 88' },
+
     #  SOS 1.1 for the Apple ///, for the SOS scenario cases. System Utilities
     #  is the disk the emulator downloads for SOS; System Demo has directory
     #  blocks of 12 entries.
