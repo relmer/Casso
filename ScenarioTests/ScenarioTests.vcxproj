@@ -170,6 +170,8 @@
     <ClCompile Include="BasicCorpusFixtureTests.cpp" />
     <ClCompile Include="BlockModeTests.cpp" />
     <ClCompile Include="GutenbergTests.cpp" />
+    <ClCompile Include="TapeRecordingTests.cpp" />
+    <ClCompile Include="GameDataTests.cpp" />
     <ClCompile Include="SosTests.cpp" />
     <ClCompile Include="CatalogReproductionTest.cpp" />
     <ClCompile Include="FileMapStockDiskTests.cpp" />

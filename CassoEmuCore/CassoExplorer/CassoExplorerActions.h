@@ -2,11 +2,13 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Actions/ActionsA2retroNet.h"
 #include "CassoExplorer/Actions/ActionsAppleDrive.h"
 #include "CassoExplorer/Actions/ActionsArchive.h"
 #include "CassoExplorer/Actions/ActionsCopy.h"
 #include "CassoExplorer/Actions/ActionsGoTo.h"
 #include "CassoExplorer/Actions/ActionsPartition.h"
+#include "CassoExplorer/Actions/ActionsTape.h"
 #include "Devices/Disk/IDiskFileIo.h"
 
 struct AppleSingleFile;
@@ -63,9 +65,12 @@ public:
 
     //  A ShrinkIt archive of files on the PC, a ShrinkIt disk of an image, and
     //  the test of an image or an archive.
-    Outcome  MakeArchive      (const std::vector<std::wstring> & hostPaths, std::wstring & outPath) { return m_archiver.MakeArchive (hostPaths, outPath); }
-    Outcome  MakeShrinkItDisk (const std::wstring & imagePath, std::wstring & outPath)              { return m_archiver.MakeShrinkItDisk (imagePath, outPath); }
-    Outcome  TestImage        (const std::wstring & imagePath, std::wstring & outReport)            { return m_archiver.Test (imagePath, outReport); }
+    Outcome  MakeArchive        (const std::vector<std::wstring> & hostPaths, std::wstring & outPath) { return m_archiver.MakeArchive (hostPaths, outPath); }
+    Outcome  MakeShrinkItDisk   (const std::wstring & imagePath, std::wstring & outPath)              { return m_archiver.MakeShrinkItDisk (imagePath, outPath); }
+    Outcome  TestImage          (const std::wstring & imagePath, std::wstring & outReport)            { return m_archiver.Test (imagePath, outReport); }
+    Outcome  MakeTapeRecording  (const std::wstring & target)                                         { return m_tapes.MakeRecording (target); }
+    Outcome  AddToA2retroNet    (const std::wstring & imagePath)                                      { return m_a2retroNet.Add (imagePath); }
+    bool     CanAddToA2retroNet (const std::wstring & imagePath) const                              { return m_a2retroNet.CanAdd (imagePath); }
 
     //  One partition of a card image: the one selected or open, its copy as
     //  an image file beside the card image, and an image file written over it
@@ -337,15 +342,19 @@ private:
     mutable std::map<std::wstring, ImageFacts>    m_imageFacts;
 
     //  The actions' parts, each with the state it uses.
+    friend class       ActionsA2retroNet;
     friend class       ActionsAppleDrive;
     friend class       ActionsArchive;
     friend class       ActionsCopy;
     friend class       ActionsGoTo;
     friend class       ActionsPartition;
+    friend class       ActionsTape;
     ActionsAppleDrive  m_appleDrive      { *this };
     ActionsCopy        m_copier          { *this };
     ActionsArchive     m_archiver        { *this };
     ActionsGoTo        m_goTo            { *this };
     ActionsPartition   m_partitions      { *this };
+    ActionsTape        m_tapes           { *this };
+    ActionsA2retroNet  m_a2retroNet      { *this };
 };
 

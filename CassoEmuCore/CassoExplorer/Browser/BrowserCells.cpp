@@ -204,6 +204,10 @@ void BrowserCells::DescribeVolumeSpace (const std::wstring & imagePath, const Vo
     {
         outStatus.freeSpaceTip += L", Infocom disk";
     }
+    else if (kind == VolumeKind::Tape)
+    {
+        outStatus.freeSpaceTip += L", tape recording";
+    }
 }
 
 

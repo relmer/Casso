@@ -21,6 +21,7 @@
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
 #include "Devices/Disk/Archives/ArchiveVolume.h"
+#include "Devices/Tape/TapeRecordingVolume.h"
 #include "Machines/Apple2/Common/InfocomVolume.h"
 #include "Devices/Disk/Archives/GzipFile.h"
 #include "Devices/Disk/Partitions/HybridVolume.h"
@@ -823,6 +824,7 @@ const char * VolumeImage::GetSystemName (VolumeKind kind)
         case VolumeKind::Rdos:   return "RDOS";
         case VolumeKind::Hfs:    return "HFS";
         case VolumeKind::Infocom: return "Infocom";
+        case VolumeKind::Tape:   return "Tape recording";
         default:                 return "";
     }
 }
@@ -850,6 +852,12 @@ VolumeKind VolumeImage::DetectFilesystem (const vector<Byte> & sectors)
     if (ArchiveVolume::IsArchive (sectors))
     {
         return VolumeKind::Archive;
+    }
+
+    //  A recording's buffer is the recording itself.
+    if (!sized && TapeRecordingVolume::IsFound (sectors))
+    {
+        return VolumeKind::Tape;
     }
 
     //  A buffer of another size is a DOS 3.x volume of that size, a 13-sector
@@ -968,6 +976,12 @@ std::unique_ptr<IVolume> VolumeImage::CreateVolume (VolumeKind kind, const vecto
         case VolumeKind::Archive:
         {
             volume = std::make_unique<ArchiveVolume> (sectors);
+            break;
+        }
+
+        case VolumeKind::Tape:
+        {
+            volume = std::make_unique<TapeRecordingVolume> (sectors);
             break;
         }
 
@@ -1093,11 +1107,12 @@ HRESULT VolumeImage::LoadContainer (
     SectorDecodeReport   & outReport,
     MountDiagnosis       & outDiagnosis)
 {
-    HRESULT           hr        = S_OK;
-    bool              hasData   = !fileBytes.empty();
-    bool              isDos     = false;
-    bool              dosSized  = false;
-    bool              isArchive = false;
+    HRESULT           hr          = S_OK;
+    bool              hasData     = !fileBytes.empty();
+    bool              isDos       = false;
+    bool              dosSized    = false;
+    bool              isArchive   = false;
+    bool              isRecording = false;
     std::string       innerName;
     TwoImgHeader      twoImg;
     DiskCopy42Header  diskCopy;
@@ -1122,6 +1137,16 @@ HRESULT VolumeImage::LoadContainer (
     {
         isArchive = ArchiveVolume::IsArchive (fileBytes);
         CBRFEx (isArchive, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outDiagnosis.failure = MountFailure::Unrecognized);
+
+        outSectors = fileBytes;
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (kind == ImageContainerKind::TapeRecording)
+    {
+        isRecording = TapeRecordingVolume::IsFound (fileBytes);
+        CBRFEx (isRecording, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outDiagnosis.failure = MountFailure::Unrecognized);
 
         outSectors = fileBytes;
 

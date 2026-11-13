@@ -163,6 +163,9 @@
     <ClCompile Include="UiTests\TapeDeckWidgetTests.cpp" />
     <ClCompile Include="UiTests\TapeManagerTests.cpp" />
     <ClCompile Include="EmuTests\TapeRecordScannerTests.cpp" />
+    <ClCompile Include="EmuTests\TapeRecordingWriterTests.cpp" />
+    <ClCompile Include="EmuTests\TapeRecordingVolumeTests.cpp" />
+    <ClCompile Include="EmuTests\A2retroNetConfigTests.cpp" />
     <ClCompile Include="EmuTests\TapeRomLoadTests.cpp" />
     <ClCompile Include="EmuTests\TapeDeckTests.cpp" />
     <ClCompile Include="EmuTests\CassettePortTests.cpp" />
@@ -342,6 +345,7 @@
     <ClCompile Include="FileTypes\OmfFileTests.cpp" />
     <ClCompile Include="FileTypes\VisiCalcSheetTests.cpp" />
     <ClCompile Include="FileTypes\ZMachineStoryTests.cpp" />
+    <ClCompile Include="FileTypes\WizardryScenarioTests.cpp" />
     <ClCompile Include="FileTypes\VisiCalcEvaluatorTests.cpp" />
     <ClCompile Include="FileTypes\PascalCodefileTests.cpp" />
     <ClCompile Include="EmuTests\NuFxArchiveTests.cpp" />

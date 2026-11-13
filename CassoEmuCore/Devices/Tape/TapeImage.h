@@ -18,6 +18,7 @@ enum class TapeFormat
     Aiff,
     Mp3,
     Flac,
+    Ogg,
 };
 
 

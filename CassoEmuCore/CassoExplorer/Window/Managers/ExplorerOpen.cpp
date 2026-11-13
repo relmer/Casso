@@ -5,6 +5,7 @@
 #include "CassoExplorer/Window/IExplorerWindow.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
+#include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
@@ -191,6 +192,76 @@ bool ExplorerOpen::PickPartitionImage (const std::wstring & partition, std::wstr
     outTarget = target.wstring();
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::PickTapeRecording
+//
+//  The format is the extension of the file picked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerOpen::PickTapeRecording (std::wstring & outTarget)
+{
+    FileDialogSpec         spec;
+    std::filesystem::path  image  = m_context.browser.GetLocation().path;
+    std::filesystem::path  target;
+    bool                   picked = false;
+    HRESULT                hr     = S_OK;
+
+
+
+    outTarget.clear();
+
+    spec.filters          = { { L"WAV recording", L"*.wav" }, { L"MP3 recording", L"*.mp3" }, { L"Ogg Vorbis recording", L"*.ogg" } };
+    spec.defaultExtension = L"wav";
+    spec.defaultFileName  = image.stem().wstring() + L".wav";
+    spec.initialFolder    = image.parent_path();
+    spec.askToReplace     = true;
+    spec.title            = L"Convert to tape audio";
+
+    hr = m_context.dialogs.PickFileToSave (m_context.window.GetHwnd(), spec, target, picked);
+
+    if (FAILED (hr) || !picked)
+    {
+        return false;
+    }
+
+    outTarget = target.wstring();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::RunFileVerb
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerOpen::RunFileVerb (ActionsTypes::Verb verb)
+{
+    std::wstring  target;
+
+
+
+    if (verb == CassoExplorerActions::Verb::AddToA2retroNet)
+    {
+        m_context.commandManager.ReportOutcome (m_context.actions.AddToA2retroNet (m_context.cassoTarget.GetSelectedImagePath()), L"Add to A2retroNET drives");
+    }
+    else if (PickTapeRecording (target))
+    {
+        m_context.commandManager.ReportOutcome (m_context.actions.MakeTapeRecording (target), L"Convert to tape audio");
+        m_context.folderSync.RefreshAfterHostChange();
+    }
 }
 
 

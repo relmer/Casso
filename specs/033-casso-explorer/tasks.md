@@ -1877,11 +1877,11 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 **Goal**: tape recordings as files and folders. **Independent test**: quickstart §7f step 5.
 
-- [ ] T593 [P] [US27] Vendor libogg and libvorbis under `External/` with their license files, encode only
-- [ ] T594 [US27] Add `TapeRecordingWriter` in `CassoEmuCore/Devices/Tape/TapeRecordingWriter.h/.cpp`: the monitor's format, a BASIC program's length record, two-second gaps, and WAV, MP3 through Media Foundation and Ogg Vorbis at 44.1 kHz mono, with the `NAME.tape.txt` sidecar of data-model.md (FR-205)
-- [ ] T595 [US27] Add `TapeRecordingVolume`, a read-only `IVolume` over `TapeRecordScanner`'s records, each file's checksum checked and a failure listed with its reason (FR-206)
-- [ ] T596 [US27] Add Convert to tape audio and Convert to disk audio to the context menu, disk audio being the cassette module's stream written to a file (FR-207)
-- [ ] T597 [US27] Scenario tests in `ScenarioTests/TapeRecordingTests.cpp`: each format loaded and run in an emulated ][+, read back and compared (SC-058)
+- [X] T593 [P] [US27] Vendor libogg and libvorbis under `External/` with their license files, encode only. Done: libogg 1.3.5 and libvorbis 1.3.7, decode included, since a recording in Ogg is also read as a folder and played in the tape deck
+- [X] T594 [US27] Add `TapeRecordingWriter` in `CassoEmuCore/Devices/Tape/TapeRecordingWriter.h/.cpp`: the monitor's format, a BASIC program's length record, two-second gaps, and WAV, MP3 through Media Foundation and Ogg Vorbis at 44.1 kHz mono, with the `NAME.tape.txt` sidecar of data-model.md (FR-205)
+- [X] T595 [US27] Add `TapeRecordingVolume`, a read-only `IVolume` over `TapeRecordScanner`'s records, each file's checksum checked and a failure listed with its reason (FR-206)
+- [ ] T596 [US27] Add Convert to tape audio and Convert to disk audio to the context menu, disk audio being the cassette module's stream written to a file (FR-207). Done: Convert to tape audio, on a disk image's BASIC programs and binaries. Open: Convert to disk audio, since the cassette module's stream (T587, T588) isn't written yet
+- [X] T597 [US27] Scenario tests in `ScenarioTests/TapeRecordingTests.cpp`: each format loaded and run in an emulated ][+, read back and compared (SC-058)
 
 ## Phase 45: More Apples and interfaces (User Story 28)
 
@@ -1985,10 +1985,10 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 ## Phase 55: Game data viewers (User Story 38)
 
-- [ ] T649 [P] [US38] `WizardryScenario` in `CassoEmuCore/FileTypes/`: monsters, items and characters as Lines, and each maze level as a Picture with walls, doors and special squares, from published community format notes (FR-240)
+- [ ] T649 [P] [US38] `WizardryScenario` in `CassoEmuCore/FileTypes/`: monsters, items and characters as Lines, and each maze level as a Picture with walls, doors and special squares, from published community format notes (FR-240). Done: the lists, and each level as a text map, from the record types of Thomas William Ewers' re-engineered Wizardry I source, on Wizardry I to III. Open: each level as a picture and a PNG copy out, since a decode has one output
 - [X] T650 [P] [US38] `ZMachineStory` in `CassoEmuCore/FileTypes/`: header, abbreviations, dictionary, object tree and decoded strings for versions 1 to 8, by the Z-Machine Standards Document 1.1, and an Infocom disk with no catalog opened as one file (FR-241) Done: `InfocomVolume`, `VolumeKind::Infocom`. The story's sector order isn't published, so each skewed order is tried and the one whose checksum verifies is used. Tested on stories built by the standard; no real disk is in the tree yet.
-- [ ] T651 [US38] Add both rows to `FileFormatTable`, with copy outs as text and PNG
-- [ ] T652 [US38] Scenario tests on Wizardry I to III and Infocom samples, checked against the games run in Casso and an interpreter (SC-066)
+- [X] T651 [US38] Add both rows to `FileFormatTable`, with copy outs as text and PNG. Done: the Wizardry row; the Infocom row came with T650
+- [ ] T652 [US38] Scenario tests on Wizardry I to III and Infocom samples, checked against the games run in Casso and an interpreter (SC-066). Done: `ScenarioTests/GameDataTests` on Wizardry I to III and Zork I, release 88, whose story is read in the order its interpreter uses. Open: the check against the games running, since Casso doesn't boot Zork I, release 88, which MAME boots, and Wizardry draws its screens on the hi-res page
 
 ## Phase 57: Volumes read and written by the block (User Story 39)
 
@@ -2014,7 +2014,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 ## Phase 56: Roadmap validation and merge
 
 - [ ] T653 Walk quickstart §7e to §7h on Debug and Release, and write the results to `specs/033-casso-explorer/validation.md`
-- [ ] T668 Research the A2Pico's A2retroNET storage firmware from its published documentation, write the findings into `research.md`, and support it: ProDOS images Casso Explorer and `casso disk create` make at 140K, 800K, 5M, 10M, 20M and 32M, as .po, .hdv and .2mg, in the forms A2retroNET accepts, listed in `A2retroNET.txt` on the micro SD card, bootable with `--bootable`, and a file written there read back in Casso Explorer. The owner has no A2Pico, so the checks are against the documentation and in Casso, not on the hardware
+- [X] T668 Research the A2Pico's A2retroNET storage firmware from its published documentation, write the findings into `research.md`, and support it: ProDOS images Casso Explorer and `casso disk create` make at 140K, 800K, 5M, 10M, 20M and 32M, as .po, .hdv and .2mg, in the forms A2retroNET accepts, listed in `A2retroNET.txt` on the micro SD card, bootable with `--bootable`, and a file written there read back in Casso Explorer. The owner has no A2Pico, so the checks are against the documentation and in Casso, not on the hardware. Done: R58, `A2retroNetConfig` and Add to A2retroNET drives; Casso's images were already in the firmware's form
 - [ ] T654 Run `scripts/CheckStyle.ps1 -Mode Tree`, the code-analysis rebuild, and the unit and scenario suites in Debug and Release before each master merge
 
 ### Dependencies for Phases 36 to 56
