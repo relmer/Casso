@@ -342,6 +342,13 @@ public:
     //  the acquire on, so a size measured before Show is in the face drawn.
     void     SetTypographyWindow (HWND hwnd) { m_textRenderer.SetTypographyWindow (hwnd); }
 
+    //  A typography the text is measured and drawn in, in place of the
+    //  window's, or null to go back to the window's.
+    void     SetPinnedTypography (const DxuiTextRenderer::Typography * typography) { m_textRenderer.SetFixedTypography (typography); }
+
+    //  The renderer the popup's text is drawn with, to measure text in its face.
+    IDxuiTextRenderer &  GetTextRenderer() { return m_textRenderer; }
+
     //
     //  std::future that resolves when Close() is invoked (or the
     //  popup auto-dismisses). Each Show() resets the promise; only
@@ -435,6 +442,11 @@ public:
     static bool  TryMakeRepost (HWND target, bool isThisThread, POINT clientPx, UINT msg, WPARAM wp, MSG & outPost);
 
 private:
+    //  The open animation's frames, on a timer of the popup's window, so the
+    //  reveal finishes whether or not the owner's frame loop runs.
+    static constexpr UINT_PTR  kRevealTimerId = 1;
+    static constexpr UINT      kRevealTickMs  = 16;
+
     static RECT  GetWorkAreaForRect (const RECT & rectScreenPx);
     static RECT  PlaceOnEdge        (const RECT & anchor, DxuiPopupPlacement edge, SIZE popupSizePx);
 

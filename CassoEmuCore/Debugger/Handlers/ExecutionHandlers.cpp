@@ -1614,6 +1614,8 @@ void ExecutionHandlers::RunReverse (DebugSession & session, const DebugCommand &
         isTaken = requester (reverse, argument);
     }
 
+    session.SetReversePending (isTaken);
+
     if (!isTaken)
     {
         reply.SetError (CommandStatus::NotAvailable, "no recorded history",

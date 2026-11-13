@@ -34,6 +34,10 @@ public:
     static constexpr int  kTipDip    = 22;
     static constexpr int  kTipGapDip = 4;
 
+    //  The room reserved under the fields for a field's error, visible or not,
+    //  so the dialog's size is fixed as an error comes and goes.
+    static constexpr int  kErrorDip  = 2 * kRowDip;
+
 private:
     struct Row
     {
@@ -45,6 +49,7 @@ private:
     };
 
     int  GetErrorHeightPx (const DxuiFieldError & error, const DxuiDpiScaler & scaler, int widthPx) const;
+    int  GetErrorRoomPx   (const DxuiFieldError & error, const DxuiDpiScaler & scaler, int widthPx) const;
     int  GetTextWidthPx   (const DxuiLabel & label, const DxuiDpiScaler & scaler) const;
 
     std::vector<Row>      m_rows;

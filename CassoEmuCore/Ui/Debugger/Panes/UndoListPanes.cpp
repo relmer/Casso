@@ -313,9 +313,9 @@ void ValueEditPane::Apply (const DebuggerViewSnapshot & snapshot)
 //
 //  ValueEditPane::BeginEdit
 //
-//  Only a paused machine takes an edit, and only a byte: PC is moved by
-//  command. The box is in the list's own face and size, so the text does
-//  not jump when it opens over the row.
+//  Only a paused machine takes an edit, of a byte or, for a row such as
+//  PC's, a word. The box is in the list's face and size, so the text
+//  does not jump when it opens over the row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -324,17 +324,18 @@ void ValueEditPane::BeginEdit (int row)
     RECT                   cell   = {};
     RECT                   bounds = {};
     std::optional<Byte>    value  = (row >= 0) ? GetEditValue (row) : std::nullopt;
+    std::optional<Word>    word   = (row >= 0) ? GetEditWord (row)  : std::nullopt;
 
 
 
-    if (!value.has_value())
+    if (!value.has_value() && !word.has_value())
     {
         return;
     }
 
     if (!m_isPaused)
     {
-        m_host.AppendConsole ({ GetPauseNote() });
+        m_host.ShowPaneReply (GetId(), { GetPauseNote() }, false);
         return;
     }
 
@@ -355,7 +356,7 @@ void ValueEditPane::BeginEdit (int row)
 
     m_editor->SetTextRenderer (m_host.GetPaneTextRenderer());
     m_editor->SetFont         (DxuiTheme::kMonoFace, m_list->GetFontSizeDip());
-    m_editor->SetText         (std::format (L"{:02X}", *value));
+    m_editor->SetText         (word.has_value() ? std::format (L"{:04X}", *word) : std::format (L"{:02X}", *value));
     m_editor->Layout          (cell, m_host.GetPaneScaler());
     m_editor->SetVisible      (true);
     m_host.FocusControl       (m_editor);
@@ -372,7 +373,7 @@ void ValueEditPane::BeginEdit (int row)
 //  ValueEditPane::EndEdit
 //
 //  A click anywhere else commits what was typed, as with a watch. What is
-//  not a byte in hex is dropped.
+//  not a byte in hex, or a word for a word's row, is dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -380,7 +381,8 @@ void ValueEditPane::EndEdit (bool commit)
 {
     int   row    = m_editRow;
     Word  typed  = 0;
-    bool  isByte = false;
+    bool  isHex  = false;
+    bool  isWord = false;
 
 
 
@@ -389,14 +391,19 @@ void ValueEditPane::EndEdit (bool commit)
         return;
     }
 
-    isByte = TextDialog::TryParseHexWord (m_editor->GetText(), typed) && typed <= 0xFF;
+    isHex  = TextDialog::TryParseHexWord (m_editor->GetText(), typed);
+    isWord = GetEditWord (row).has_value();
 
     m_editRow = -1;
     m_editor->SetVisible (false);
     m_host.FocusControl  (m_list);
     m_host.Repaint();
 
-    if (commit && isByte)
+    if (commit && isHex && isWord)
+    {
+        CommitWord (row, typed);
+    }
+    else if (commit && isHex && typed <= 0xFF)
     {
         CommitEdit (row, (Byte) typed);
     }
@@ -799,6 +806,53 @@ void RegistersPane::CommitEdit (int row, Byte typed)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RegistersPane::GetEditWord
+//
+//  PC's value, the one register that is a word.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> RegistersPane::GetEditWord (int row) const
+{
+    Word  value = 0;
+
+
+
+    if (row < 0 || row >= (int) m_registers.size() || m_registers[(size_t) row].name != "PC" ||
+        !TextDialog::TryParseHexWord (TextEncoding::NarrowToWide (m_registers[(size_t) row].value), value))
+    {
+        return std::nullopt;
+    }
+
+    return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RegistersPane::CommitWord
+//
+//  PC is set by R PC, as the command a person would type sets it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RegistersPane::CommitWord (int row, Word typed)
+{
+    if (GetEditWord (row).has_value() && *GetEditWord (row) != typed)
+    {
+        m_host.RunAction (DebuggerActions::GetSetRegister ("PC", typed, m_host.GetMode()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RegistersPane::CommitRegister
 //
 //  Writes a byte register by R, the command a person would type, recording
@@ -852,12 +906,6 @@ void RegistersPane::EditRegister (int row, bool onFlags)
         return;
     }
 
-    if (name == "PC")
-    {
-        m_host.ShowPcCode();
-        return;
-    }
-
     if (name != "P" || !onFlags)
     {
         BeginEdit (row);
@@ -866,7 +914,7 @@ void RegistersPane::EditRegister (int row, bool onFlags)
 
     if (!m_isPaused)
     {
-        m_host.AppendConsole ({ GetPauseNote() });
+        m_host.ShowPaneReply (GetId(), { GetPauseNote() }, false);
         return;
     }
 
@@ -912,7 +960,7 @@ void RegistersPane::OnListReleased (DxuiListView * list, POINT clientPx)
     OffsetRect (&value, bounds.left, bounds.top);
     value.right = bounds.left + flags.left;
 
-    if (DxuiDockSite::Contains (value, clientPx) && GetRegisterByte (m_registers[(size_t) row].name).has_value())
+    if (DxuiDockSite::Contains (value, clientPx) && (GetRegisterByte (m_registers[(size_t) row].name).has_value() || GetEditWord (row).has_value()))
     {
         BeginEdit (row);
     }

@@ -38,6 +38,10 @@ public:
     // direction the opcode accesses it in.
     static void  ChooseOperandSymbol (DebugSession & session, DisassemblyLine & line);
 
+    // Whether an address has a symbol that could label code, where a
+    // listing cuts an instruction running over it.
+    static bool  IsCodeLabel (const DebugSession & session, Word address);
+
     // The directive's kind, items per line and bytes per item from its name.
     static bool  TryGetShape   (const std::string & name, DataBlockKind & kind, int & perLine, int & itemBytes);
 

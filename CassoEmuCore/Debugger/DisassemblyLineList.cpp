@@ -21,6 +21,7 @@ void DisassemblyLineList::Build (const Inputs & inputs)
     const DebugMemoryImage   & image   = *inputs.image;
     std::vector<uint8_t>       known (kBytes, 0);
     std::vector<uint8_t>       debug (kBytes, 0);
+    std::vector<uint8_t>       label (kBytes, 0);
     uint32_t                   address = 0;
 
 
@@ -50,6 +51,11 @@ void DisassemblyLineList::Build (const Inputs & inputs)
     for (Word start : inputs.starts)
     {
         known[start] = 1;
+    }
+
+    for (Word at : inputs.labels)
+    {
+        label[at] = 1;
     }
 
     for (uint32_t at = 0; at < kBytes; at++)
@@ -83,12 +89,16 @@ void DisassemblyLineList::Build (const Inputs & inputs)
             line.source = debug[address] ? Source::DebugFile : known[address] ? Source::Fetched : Source::Decoded;
 
             //  A decode running over a known start stops short of it, as data;
-            //  so does a known instruction running over the PC.
+            //  so does a known instruction running over the PC, and any
+            //  instruction but the PC's running over a label, as the views'
+            //  decode cuts it.
             for (uint32_t inside = 1; inside < length; inside++)
             {
-                bool  isPc = inputs.pc.has_value() && *inputs.pc == address + inside;
+                bool  isPc    = inputs.pc.has_value() && *inputs.pc == address + inside;
+                bool  isStart = known[address + inside] && !known[address];
+                bool  isLabel = label[address + inside] && !(inputs.pc.has_value() && *inputs.pc == address);
 
-                if ((known[address + inside] && !known[address]) || isPc)
+                if (isStart || isLabel || isPc)
                 {
                     length      = inside;
                     line.isData = true;

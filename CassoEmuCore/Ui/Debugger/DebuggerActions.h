@@ -179,7 +179,7 @@ public:
     //  (DB, DW, DA, ASC or DF) or as code again, a symbol, a routine never
     //  stepped into, a bookmark added or removed, the stopwatch between two
     //  addresses, and a routine run as JSR runs it.
-    static DebuggerAction  GetMarkData       (const std::string & directive, Word first, Word last, CommandMode mode);
+    static DebuggerAction  GetMarkData       (const std::string & directive, Word first, Word last, CommandMode mode, const std::string & name = {});
     static DebuggerAction  GetClearData      (Word first, Word last, CommandMode mode);
     static DebuggerAction  GetAddSymbol      (const std::string & name, Word address, CommandMode mode);
     static DebuggerAction  GetSkipRoutine    (const std::string & name, Word address, CommandMode mode);
@@ -206,6 +206,9 @@ public:
     //  SRC ON or OFF, SYM LOAD, BPSAVE, and PROJECT with a subcommand such as
     //  OPEN or SAVEAS, each on a file the user picked.
     static DebuggerAction  GetSourceStepping   (bool isSource, CommandMode mode);
+
+    //  SRC CLEAR: the debug file and the symbols it loaded, unloaded.
+    static DebuggerAction  GetUnloadDebugFile  (CommandMode mode);
 
     //  A watch edit's action as a debug project saves it: the verb of an
     //  AddWatch, ClearWatch, EnterBytes, EnterWords or SetRegister action and

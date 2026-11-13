@@ -63,6 +63,9 @@ public:
     void  SetHeatOn (bool isOn) { m_isHeatOn = isOn; }
     void  SetHeat   (std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels> levels, const HeatMapView::Palette & palette);
 
+    //  The heat fills' colors, for a theme chosen between snapshots.
+    void  SetHeatPalette (const HeatMapView::Palette & palette) { m_heatPalette = palette; }
+
     //  A byte's tint: its heat map color mixed halfway toward the page, or
     //  0 for a byte nothing touched.
     static uint32_t  GetHeatFill (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word address, const HeatMapView::Palette & palette);
@@ -125,6 +128,7 @@ public:
     void              ClearFindScope          () override {}
     void              ClearFindHighlights     () override { m_findHits.clear(); m_findCurrent = -1; SetFindMarks(); }
     void              SetFindColors           (uint32_t matchArgb, uint32_t currentArgb) override { m_matchArgb = matchArgb; m_currentArgb = currentArgb; }
+    void              SetFindCoveredPx        (int coveredPx) override { m_findCoveredPx = coveredPx; }
 
     //  The last find's hits, and the one selected; -1 for none.
     const std::vector<Word> &  GetFindHits    () const { return m_findHits; }
@@ -211,8 +215,9 @@ private:
     HeatMapView::Palette                                           m_heatPalette;
     std::shared_ptr<const DebugMemoryImage>                        m_image;
     std::vector<Word>                                              m_findHits;
-    size_t                                                         m_findLength  = 0;
-    int                                                            m_findCurrent = -1;
-    uint32_t                                                       m_matchArgb   = 0;
-    uint32_t                                                       m_currentArgb = 0;
+    size_t                                                         m_findLength    = 0;
+    int                                                            m_findCurrent   = -1;
+    int                                                            m_findCoveredPx = 0;
+    uint32_t                                                       m_matchArgb     = 0;
+    uint32_t                                                       m_currentArgb   = 0;
 };

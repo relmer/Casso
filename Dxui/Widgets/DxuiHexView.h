@@ -230,6 +230,11 @@ public:
     //  A byte's fill in the value and text columns, under the selection and
     //  the caret, which are drawn over it.
     void  SetByteFill      (ByteFillFn fn)    { m_painter.m_byteFill = std::move (fn); }
+
+    //  A fill for a byte a search matched, zero for none. It is drawn in
+    //  place of the caret's and the selection's fills, and the byte's text
+    //  over it is in the color that reads on it.
+    void  SetMatchFill     (ByteFillFn fn)    { m_painter.m_matchFill = std::move (fn); }
     void  SetOnContextMenu (ContextMenuFn fn) { m_onContextMenu = std::move (fn); }
 
     //  Outlines around the source's regions, off unless the host turns them

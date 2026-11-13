@@ -240,7 +240,8 @@ DxuiFindResult DxuiListFind::SelectMatch (const std::wstring & needle, bool matc
     outIndex  = (at < 0) ? (forward ? 1 : (int) spots.size()) : at + 1;
     m_current = spots[(size_t) outIndex - 1];
 
-    m_list.SetSelectedRow (m_current->row);
+    m_list.SetSelectedRow     (m_current->row);
+    m_list.KeepRowClearOfFind (m_current->row);
 
     return (at < 0) ? DxuiFindResult::Wrapped : DxuiFindResult::Found;
 }

@@ -167,8 +167,8 @@ std::string BreakpointColumns::GetTriggerText (RowKind kind)
 {
     static constexpr const char *  kTexts[] = { "Execute", "Execute", "Read", "Write", "Read or write", "Value",
                                                 "Condition", "Execute", "Execute", "IRQ or NMI",
-                                                "Sector read", "Field read", "Head moved", "Disk written", "DOS sector", "ProDOS block",
-                                                "RWTS called", "Driver called", "Motor", "Drive selected", "Inserted", "Ejected",
+                                                "Read sector", "Read address", "Move head", "Write disk", "Access sector", "Access block",
+                                                "Call RWTS", "Call driver", "Switch motor", "Select drive", "Insert disk", "Eject disk",
                                                 "Line", "Variable change", "Error", "Uninitialized", "Scanline", "Beam position" };
 
 

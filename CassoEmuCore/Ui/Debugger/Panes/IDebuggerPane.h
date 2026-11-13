@@ -193,6 +193,9 @@ public:
     //  The PC's arrow, over a gutter mark when the line has one, and its
     //  row's color in the theme; and the source views' syntax colors.
     virtual std::shared_ptr<const DxuiIconImage>  GetPcMarker     (const std::shared_ptr<const DxuiIconImage> & dot) = 0;
+
+    //  A bookmark's outline, over a line's dot when the line has one.
+    virtual std::shared_ptr<const DxuiIconImage>  GetBookmarkMark (const std::shared_ptr<const DxuiIconImage> & dot) = 0;
     virtual uint32_t                              GetPcRowArgb    () const = 0;
     virtual SourceSyntax::Colors                  GetSyntaxColors () const = 0;
 
@@ -320,6 +323,10 @@ public:
     //  Writes lines to the console; and the line the user types in a dialog,
     //  none when canceled, which a test supplies instead.
     virtual void                   AppendConsole    (const std::vector<std::string> & lines) = 0;
+
+    //  A reply to something done in a pane, in an infobar over the pane, or
+    //  in a message box with no pane or when the pane isn't on screen.
+    virtual void                   ShowPaneReply    (const std::wstring & pane, const std::vector<std::string> & lines, bool isError) = 0;
     virtual std::optional<Byte>    RunByteDialog    (const std::wstring & title, const std::wstring & label, const std::wstring & description) = 0;
     virtual std::optional<std::wstring>  RunTextDialog (const std::wstring & title, const std::wstring & label, const std::wstring & placeholder,
                                                         TextDialog::CheckFn check) = 0;

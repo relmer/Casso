@@ -465,6 +465,11 @@ public:
     void                       SetReverseRequester (ReverseRequester requester)    { m_reverseRequester = std::move (requester); }
     const ReverseRequester   & GetReverseRequester () const                        { return m_reverseRequester; }
 
+    // A reverse command the requester took has not run yet. The machine is
+    // paused all the while, so a script waits on this as it waits on a run.
+    void                       SetReversePending   (bool isPending)                { m_isReversePending = isPending; }
+    bool                       IsReversePending    () const                        { return m_isReversePending; }
+
     // SAVESTATE and LOADSTATE: the host saves the whole machine to a state
     // file, or replaces it with one, as File > Save state and Load state do,
     // and returns whether it took the request. Empty where there is no host.
@@ -684,6 +689,7 @@ private:
     ScriptLineRunner              m_scriptLineRunner;
     std::optional<PendingScript>  m_pendingScript;
     ReverseRequester              m_reverseRequester;
+    bool                          m_isReversePending = false;
     StateFileRequester            m_stateFileRequester;
     ProjectRequester              m_projectRequester;
     HistoryGuard                  m_historyGuard;

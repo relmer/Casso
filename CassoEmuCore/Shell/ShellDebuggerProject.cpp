@@ -373,7 +373,7 @@ void ShellDebugger::SyncProject()
     ConsoleLinks::LinkFiles (notices, { TextEncoding::WideToNarrow (opened.filePath) });
     AddConsoleLines (notices);
 
-    isNew = opened.engineScript.empty() && opened.symbolFiles.empty() && opened.layout.empty() && opened.startupCommands.empty();
+    isNew = opened.engineScript.empty() && opened.symbolFiles.empty() && opened.windowStrings.empty() && opened.startupCommands.empty();
 
     if (isNew)
     {
@@ -630,9 +630,10 @@ bool ShellDebugger::HasMergeOffer()
 
 void ShellDebugger::OnConfirmProjectMerge()
 {
-    std::wstring  question;
-    HWND          owner    = m_host.GetMainWindow();
-    int           choice   = IDNO;
+    std::wstring         question;
+    HWND                 owner    = m_host.GetMainWindow();
+    const IDxuiTheme   * theme    = &m_host.GetChromeTheme();
+    int                  choice   = IDNO;
 
 
 
@@ -650,13 +651,15 @@ void ShellDebugger::OnConfirmProjectMerge()
                                                             "and bookmarks set for {} to it?", m_mergeInto, m_mergeFrom));
     }
 
+    //  Over the debugger's window the box is in the debugger's theme.
     if (m_debuggerWindow != nullptr && m_debuggerWindow->GetHwnd() != nullptr)
     {
         owner = m_debuggerWindow->GetHwnd();
+        theme = (m_debuggerWindow->GetThemeInForce() != nullptr) ? m_debuggerWindow->GetThemeInForce() : theme;
     }
 
     m_host.BeginModalKeepAlive();
-    choice = DxuiMessageBox (owner, &m_host.GetChromeTheme(), question.c_str(), L"Debug project", MB_YESNO | MB_ICONQUESTION);
+    choice = DxuiMessageBox (owner, theme, question.c_str(), L"Debug project", MB_YESNO | MB_ICONQUESTION);
     m_host.EndModalKeepAlive();
 
     if (choice == IDYES)
@@ -911,9 +914,9 @@ void ShellDebugger::RunProjectRequest (const std::string & text, Reply & reply)
 //
 //  ShellDebugger::CaptureProject
 //
-//  The session's items and the window's strings, as they are now. Strings a
-//  switch passed to the UI thread, not yet applied to the window, are the
-//  project's.
+//  The session's items and the window's strings, as they are now, apart from
+//  the layout, which is the window's. Strings a switch passed to the UI
+//  thread, not yet applied to the window, are the project's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -931,18 +934,14 @@ void ShellDebugger::CaptureProject (DebugProject & project)
 
     if (m_projectWindowPending.has_value())
     {
-        project.layout             = m_projectWindowPending->layout;
         project.rangeSets          = m_projectWindowPending->rangeSets;
         project.disassemblyOptions = m_projectWindowPending->disassemblyOptions;
-        project.openViews          = m_projectWindowPending->openViews;
         project.windowStrings      = m_projectWindowPending->windowStrings;
         return;
     }
 
-    project.layout             = m_settings.layout;
     project.rangeSets          = m_settings.heatMapRanges;
     project.disassemblyOptions = m_settings.disassemblyOptions;
-    project.openViews          = m_settings.openViews;
     project.windowStrings      = GetProjectWindowStrings();
 }
 
@@ -954,21 +953,25 @@ void ShellDebugger::CaptureProject (DebugProject & project)
 //
 //  ShellDebugger::GetProjectWindowStrings
 //
-//  The window's settings a project saves beyond its four, by name; the caller
-//  has the project lock.
+//  The window's settings a project saves beyond its two, by name, without
+//  the layout's; the caller has the project lock.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::map<std::string, std::string> ShellDebugger::GetProjectWindowStrings() const
 {
-    std::map<std::string, std::string>  strings = m_settings.windowState;
+    std::map<std::string, std::string>  strings;
 
 
 
-    strings["closedPanes"]     = m_settings.closedPanes;
-    strings["focusedPane"]     = m_settings.focusedPane;
-    strings["commandBarDock"]  = m_settings.commandBarDock;
-    strings["timelineDock"]    = m_settings.timelineDock;
+    for (const auto & [name, text] : m_settings.windowState)
+    {
+        if (!DebugProject::IsLayoutString (name))
+        {
+            strings[name] = text;
+        }
+    }
+
     strings["heatMapOptions"]  = m_settings.heatMapOptions;
     strings["diskLogOptions"]  = m_settings.diskLogOptions;
     strings["inputLogOptions"] = m_settings.inputLogOptions;
@@ -987,8 +990,9 @@ std::map<std::string, std::string> ShellDebugger::GetProjectWindowStrings() cons
 //
 //  ShellDebugger::SetProjectWindowStrings
 //
-//  As the four, a setting is replaced only by a string the project has; the
-//  caller has the project lock.
+//  As the two, a setting is replaced only by a string the project has; the
+//  caller has the project lock. The layout's strings are the window's, so an
+//  older project's are left out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -996,10 +1000,6 @@ void ShellDebugger::SetProjectWindowStrings (const std::map<std::string, std::st
 {
     std::pair<const char *, std::string *>  settings[] =
     {
-        { "closedPanes",     &m_settings.closedPanes     },
-        { "focusedPane",     &m_settings.focusedPane     },
-        { "commandBarDock",  &m_settings.commandBarDock  },
-        { "timelineDock",    &m_settings.timelineDock    },
         { "heatMapOptions",  &m_settings.heatMapOptions  },
         { "diskLogOptions",  &m_settings.diskLogOptions  },
         { "inputLogOptions", &m_settings.inputLogOptions },
@@ -1015,7 +1015,7 @@ void ShellDebugger::SetProjectWindowStrings (const std::map<std::string, std::st
     {
         auto  setting = std::ranges::find_if (settings, [&name] (const auto & each) { return name == each.first; });
 
-        if (text.empty())
+        if (text.empty() || DebugProject::IsLayoutString (name))
         {
             continue;
         }
@@ -1111,10 +1111,8 @@ bool ShellDebugger::TakeDebuggerProjectState()
         }
 
         //  The window's string is replaced only by a string the project has.
-        m_settings.layout             = pending->layout.empty()             ? m_settings.layout             : pending->layout;
         m_settings.heatMapRanges      = pending->rangeSets.empty()          ? m_settings.heatMapRanges      : pending->rangeSets;
         m_settings.disassemblyOptions = pending->disassemblyOptions.empty() ? m_settings.disassemblyOptions : pending->disassemblyOptions;
-        m_settings.openViews          = pending->openViews.empty()          ? m_settings.openViews          : pending->openViews;
 
         SetProjectWindowStrings (pending->windowStrings);
     }

@@ -427,6 +427,23 @@ namespace DebuggerTests
             Assert::IsNull (SourcePane::FindSymbolAt (L"        jsr draw_counter", 9, symbols, start), L"a mnemonic");
             Assert::IsNull (SourcePane::FindSymbolAt (L"rts ; draw_counter", 10, symbols, start), L"a comment");
         }
+
+
+        //  A macro's name is a word Ctrl+click goes to the definition of: the
+        //  line "name macro" in AS65, "name MAC" in Merlin or ".macro name" in
+        //  ca65 defines it.
+        TEST_METHOD (AMacrosNameAndTheLineDefiningItAreFound)
+        {
+            Assert::AreEqual (std::wstring (L"store"), SourcePane::GetWordAt (L"loop    store $0400", 10));
+            Assert::AreEqual (std::wstring(),         SourcePane::GetWordAt (L"rts ; store", 8), L"a comment");
+
+            Assert::IsTrue  (SourcePane::IsMacroDefinition (L"store   macro addr", L"store"));
+            Assert::IsTrue  (SourcePane::IsMacroDefinition (L"clear   MACRO", L"clear"));
+            Assert::IsTrue  (SourcePane::IsMacroDefinition (L"clear   MAC", L"clear"));
+            Assert::IsTrue  (SourcePane::IsMacroDefinition (L"        .macro clear", L"clear"));
+            Assert::IsFalse (SourcePane::IsMacroDefinition (L"loop    store $0400", L"store"), L"a use of the macro");
+            Assert::IsFalse (SourcePane::IsMacroDefinition (L"; store macro", L"store"), L"a comment");
+        }
     };
 
 

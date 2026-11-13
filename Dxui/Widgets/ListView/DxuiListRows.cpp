@@ -624,7 +624,16 @@ void DxuiListRows::Paint (
         bool                                          isLit      = r == m_list.m_highlightRow;
         DxuiRowLook                                   look       = DxuiRowLook::Resolve (*m_list.m_theme, isSel, r == m_list.m_selectedRow && m_list.m_focusGroup < 0, isHov && !isLit, m_list.m_listFocused);
         size_t                                        lastColumn = 0;
+        float                                         rowInsetY  = boxInsetY;
         CellSpot                                      place;
+
+        //  In a selection of several rows, the row the keyboard is on has the
+        //  strong outline, as a focus rectangle marks it, and the others have
+        //  the plain selection's.
+        if (isSel && m_list.m_listFocused && m_list.m_multiSelect && m_list.m_selectedRows.size() > 1)
+        {
+            look.edge = (r == m_list.m_selectedRow) ? m_list.m_theme->ContentSelectionMultiEdge() : m_list.m_theme->ContentSelectionEdge();
+        }
 
         //  A text-like list (a hex dump) selects as text does: the text
         //  selection color, no outline.
@@ -644,14 +653,18 @@ void DxuiListRows::Paint (
             look.edge = m_list.m_theme->ContentSelectionMultiEdge();
         }
 
+        //  A check box is nearly as tall as the row, so the fill of a row with
+        //  one is the row's whole height; inset, the box was taller than the fill.
+        rowInsetY = std::ranges::any_of (cells, [] (const DxuiListViewTypes::Cell & cell) { return cell.check != DxuiListViewTypes::Cell::Check::None; }) ? 0.0f : boxInsetY;
+
         if (look.fill != 0)
         {
-            painter.FillRect (x + boxL, ry + boxInsetY, boxW - boxL, rowH - boxInsetY * 2.0f, look.fill);
+            painter.FillRect (x + boxL, ry + rowInsetY, boxW - boxL, rowH - rowInsetY * 2.0f, look.fill);
         }
 
         if (look.edge != 0)
         {
-            painter.OutlineRect (x + boxL, ry + boxInsetY, boxW - boxL, rowH - boxInsetY * 2.0f, DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), look.edge);
+            painter.OutlineRect (x + boxL, ry + rowInsetY, boxW - boxL, rowH - rowInsetY * 2.0f, DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), look.edge);
         }
 
         //  The last column drawn is filled to the row's end, so a filled row

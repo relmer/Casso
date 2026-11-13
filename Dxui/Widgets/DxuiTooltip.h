@@ -244,6 +244,10 @@ public:
     // as it always does.
     void  RequestShowNow  (const RECT & anchor, const std::wstring & text, int64_t nowMs);
 
+    // The same once the open dwell has passed: up to then the request waits,
+    // as RequestShow's does, and from then the tip follows the pointer.
+    void  RequestShowFollowing (const RECT & anchor, const std::wstring & text, int64_t nowMs);
+
     // Shows immediately (no open dwell) and auto-hides after durationMs.
     // For transient notices where no pointer-leave will arrive to dismiss
     // it -- e.g. entering paddle mode captures the mouse, so the hover that
@@ -457,6 +461,7 @@ private:
     bool                                  m_pending            = false;
     bool                                  m_fadingOut          = false;
     bool                                  m_isInstant          = false;
+    bool                                  m_isPendingInstant   = false;
     DxuiHwndSource                      * m_popupHost          = nullptr;
     DxuiPopupHost                       * m_activePopup        = nullptr;
     PointerMeasurer                       m_pfnMeasurePointer  = MeasurePointerExtent;

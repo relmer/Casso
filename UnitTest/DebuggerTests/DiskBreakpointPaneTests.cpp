@@ -97,8 +97,8 @@ namespace DiskBreakpointPaneTests
         {
             static constexpr const char *  kTriggers[] =
             {
-                "Sector read", "Field read", "Head moved", "Disk written", "Disk written", "Disk written", "DOS sector",
-                "ProDOS block", "RWTS called", "Driver called", "Motor", "Drive selected", "Inserted", "Ejected",
+                "Read sector", "Read address", "Move head", "Write disk", "Write disk", "Write disk", "Access sector",
+                "Access block", "Call RWTS", "Call driver", "Switch motor", "Select drive", "Insert disk", "Eject disk",
             };
             BreakpointColumns::RowKind     previous = BreakpointColumns::RowKind::Interrupt;
 
@@ -137,7 +137,7 @@ namespace DiskBreakpointPaneTests
 
             Assert::AreEqual (std::string ("Disk RWTS call, track $11 sector $05"), rig.Cell (BreakpointColumns::Column::Name));
             Assert::AreEqual (std::string ("Disk"),                rig.Cell (BreakpointColumns::Column::Kind));
-            Assert::AreEqual (std::string ("RWTS called"),         rig.Cell (BreakpointColumns::Column::Trigger));
+            Assert::AreEqual (std::string ("Call RWTS"),           rig.Cell (BreakpointColumns::Column::Trigger));
             Assert::AreEqual (std::string ("unresolved"),          rig.Cell (BreakpointColumns::Column::Address));
             Assert::AreEqual (std::string ("Slot 6, either drive"), rig.Cell (BreakpointColumns::Column::Data));
             Assert::IsFalse  (BreakpointColumns::HasRoutine (rig.List().at (0)), L"Go to disassembly has nowhere to go");
@@ -163,9 +163,9 @@ namespace DiskBreakpointPaneTests
 
             rig.Run ("BPDISK D2 MOTOR ON");
 
-            Assert::AreEqual (std::string (""),              rig.Cell (BreakpointColumns::Column::Address));
+            Assert::AreEqual (std::string (""),                rig.Cell (BreakpointColumns::Column::Address));
             Assert::AreEqual (std::string ("Slot 6, drive 2"), rig.Cell (BreakpointColumns::Column::Data));
-            Assert::AreEqual (std::string ("Motor"),         rig.Cell (BreakpointColumns::Column::Trigger));
+            Assert::AreEqual (std::string ("Switch motor"),    rig.Cell (BreakpointColumns::Column::Trigger));
             Assert::IsFalse  (BreakpointColumns::HasRoutine (rig.List().at (0)));
         }
 

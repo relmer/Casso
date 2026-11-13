@@ -329,20 +329,20 @@ const char * DiskBreakSpecText::GetTriggerText (DiskEvent event)
 {
     switch (event)
     {
-    case DiskEvent::SectorRead:     return "Sector read";
-    case DiskEvent::AddressField:   return "Address field";
-    case DiskEvent::Head:           return "Head";
+    case DiskEvent::SectorRead:     return "Read sector";
+    case DiskEvent::AddressField:   return "Read address";
+    case DiskEvent::Head:           return "Move head";
     case DiskEvent::WriteMode:
     case DiskEvent::WritePrologue:
-    case DiskEvent::WriteBlocked:   return "Write";
-    case DiskEvent::DosSector:      return "DOS sector";
-    case DiskEvent::ProDosBlock:    return "ProDOS block";
-    case DiskEvent::RwtsCall:       return "RWTS call";
-    case DiskEvent::DriverCall:     return "Driver call";
-    case DiskEvent::Motor:          return "Motor";
-    case DiskEvent::DriveSelect:    return "Drive select";
-    case DiskEvent::Inserted:       return "Insert";
-    case DiskEvent::Ejected:        return "Eject";
+    case DiskEvent::WriteBlocked:   return "Write disk";
+    case DiskEvent::DosSector:      return "Access sector";
+    case DiskEvent::ProDosBlock:    return "Access block";
+    case DiskEvent::RwtsCall:       return "Call RWTS";
+    case DiskEvent::DriverCall:     return "Call driver";
+    case DiskEvent::Motor:          return "Switch motor";
+    case DiskEvent::DriveSelect:    return "Select drive";
+    case DiskEvent::Inserted:       return "Insert disk";
+    case DiskEvent::Ejected:        return "Eject disk";
     default:                        return "";
     }
 }

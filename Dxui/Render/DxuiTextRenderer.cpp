@@ -558,6 +558,29 @@ void DxuiTextRenderer::SetTypographyWindow (HWND hwnd)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetFixedTypography
+//
+//  The typography is used at the next format this renderer builds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextRenderer::SetFixedTypography (const Typography * typography)
+{
+    m_fixedTypography  = typography;
+    m_attachGeneration = s_attachGeneration - 1;
+
+    if (typography == nullptr && m_typographyHwnd == nullptr)
+    {
+        m_typography = &s_typography;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsBodyFaceRequest
 //
 //  Whether a family argument specifies the body face. A null family is the
@@ -598,7 +621,12 @@ bool DxuiTextRenderer::IsBodyFaceRequest (const wchar_t * family)
 
 void DxuiTextRenderer::SyncTypography()
 {
-    if (m_typographyHwnd != nullptr && m_attachGeneration != s_attachGeneration)
+    if (m_fixedTypography != nullptr)
+    {
+        m_typography       = m_fixedTypography;
+        m_attachGeneration = s_attachGeneration;
+    }
+    else if (m_typographyHwnd != nullptr && m_attachGeneration != s_attachGeneration)
     {
         m_typography       = &FindTypography (m_typographyHwnd);
         m_attachGeneration = s_attachGeneration;

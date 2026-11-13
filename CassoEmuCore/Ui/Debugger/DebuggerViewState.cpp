@@ -4094,6 +4094,51 @@ Word DebuggerViewState::ScrollCodeTop (DebugSession & session, Word top, int lin
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::GetCodeLabels
+//
+//  The addresses of the symbols that could label code, as the views'
+//  decode tests each address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Word> DebuggerViewState::GetCodeLabels (const DebugSession & session)
+{
+    std::vector<Word>        labels;
+    std::vector<SymbolInfo>  symbols;
+
+
+
+    for (int table = 0; table <= (int) SymbolTableId::ProDos; table++)
+    {
+        if (!session.GetSymbols().IsEnabled ((SymbolTableId) table))
+        {
+            continue;
+        }
+
+        symbols.clear();
+        session.GetSymbols().GetAll ((SymbolTableId) table, symbols);
+
+        for (const SymbolInfo & symbol : symbols)
+        {
+            if (DataDirectiveHandlers::IsCodeLabel (session, symbol.address))
+            {
+                labels.push_back (symbol.address);
+            }
+        }
+    }
+
+    std::ranges::sort (labels);
+    labels.erase (std::unique (labels.begin(), labels.end()), labels.end());
+
+    return labels;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::RefreshLineList
 //
 //  While the machine runs, nothing builds the list and the views decode as
@@ -4137,11 +4182,17 @@ void DebuggerViewState::RefreshLineList (DebugSession & session, bool isPaused, 
 
     mix (std::hash<std::bitset<DebugMemoryImage::kBytes>> {} (image->fetched));
     inputs.starts = GetKnownStarts (calls, pc, *image);
+    inputs.labels = GetCodeLabels (session);
     inputs.pc     = pc;
 
     for (Word start : inputs.starts)
     {
         mix (start);
+    }
+
+    for (Word label : inputs.labels)
+    {
+        mix (label);
     }
 
     mix (session.GetDataBlocks().GetAll().size());

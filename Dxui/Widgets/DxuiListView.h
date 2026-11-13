@@ -687,6 +687,10 @@ public:
     void            ClearFindHighlights     () override;
     void            HighlightFindMatches    (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex);
     void            SetFindColors           (uint32_t matchArgb, uint32_t currentArgb) override { m_find.SetColors (matchArgb, currentArgb); }
+    void            SetFindCoveredPx        (int coveredPx) override { m_findCoveredPx = coveredPx; }
+
+    //  Scrolls a row the find box covers down below it.
+    void            KeepRowClearOfFind      (int row);
 
     //  The vertical scrollbar has a mark for each row with a match while a
     //  find is open. For a list that scrolls through more than its rows, as
@@ -882,6 +886,7 @@ private:
     int                        m_selectedRow         = -1;
     bool                       m_multiSelect         = false;
     std::vector<int>           m_selectedRows;
+    int                        m_findCoveredPx       = 0;
     int                        m_anchorRow           = -1;
     int                        m_hovered             = -1;
     int                        m_dropRow             = -1;

@@ -114,6 +114,10 @@ private:
 
     static std::vector<std::string>  SplitGroupWords (const std::string & text);
 
+    //  A source line definition's line with code and the address ranges it
+    //  produced; false with the reason in the reply.
+    static bool  TryResolveSourceLine (DebugSession & session, const DebugCommand & command, int & target, std::vector<std::pair<Word, Word>> & ranges, Reply & reply);
+
     static bool  TryParseBrkArguments (const std::string & text, int & selector, std::optional<bool> & isOn, std::string & error);
     static void  AddInvalidOpcodes    (DebugSession & session, int length, BreakpointListData & added);
     static void  RemoveInvalidOpcodes (DebugSession & session, int length);

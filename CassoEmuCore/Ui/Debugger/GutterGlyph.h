@@ -15,7 +15,9 @@
 //  kSizePx square; the PC's line has an image twice as wide, the dot's square
 //  on the left, empty on a line with no breakpoint, and the arrow's on the
 //  right, so the arrow is never drawn over the dot. The dot fills 0.7 of its
-//  square across, and the arrow is as tall as the dot.
+//  square across, and the arrow is as tall as the dot. A bookmark is an
+//  outline around the dot's place, as Visual Studio's is, so a breakpoint
+//  on the same line is seen inside it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,6 +31,9 @@ public:
     static std::shared_ptr<DxuiIconImage>  MakeDot   (uint32_t argb, bool filled);
     static std::shared_ptr<DxuiIconImage>  MakeArrow (uint32_t argb);
     static std::shared_ptr<DxuiIconImage>  MakeOver  (const DxuiIconImage & under, const DxuiIconImage & over);
+
+    //  A bookmark's mark in a color: the outline of a rounded square.
+    static std::shared_ptr<DxuiIconImage>  MakeBookmark (uint32_t argb);
 
     //  The PC's line's image: the line's dot, or nothing, and the arrow to
     //  its right.

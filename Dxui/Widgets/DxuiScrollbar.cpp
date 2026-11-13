@@ -243,21 +243,25 @@ int DxuiScrollbar::GetArrowExtent() const
 //  DxuiScrollbar::GetThumbLength
 //
 //  Thumb extent along the scroll axis: proportional to page / content,
-//  floored at the minimum thumb size and capped at the track length.
+//  floored at the minimum thumb size and capped at the track length. Among
+//  a find's marks the floor is twice the bar's thickness, about the
+//  pointer's height, so the thumb is easy to see and to take.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 float DxuiScrollbar::GetThumbLength() const
 {
-    int    trackLen = GetMainTrackLength() - GetArrowExtent() * s_kArrowCount;
-    int    content  = GetContentExtent();
-    float  length   = 0.0f;
+    constexpr int  kMarkedThumbBars = 2;
+    int            trackLen         = GetMainTrackLength() - GetArrowExtent() * s_kArrowCount;
+    int            content          = GetContentExtent();
+    int            floorPx          = m_marks.empty() ? m_minThumbPx : (std::max) (m_minThumbPx, m_thicknessPx * kMarkedThumbBars);
+    float          length           = 0.0f;
 
 
 
     if (trackLen > 0 && content > 0)
     {
-        length = std::max ((float) m_minThumbPx, (float) trackLen * (float) m_page / (float) content);
+        length = std::max ((float) floorPx, (float) trackLen * (float) m_page / (float) content);
         length = std::min (length, (float) trackLen);
     }
 
@@ -736,22 +740,29 @@ int DxuiScrollbar::GetPosAt (int xPx, int yPx) const
 //  Fills the thumb, centered across the bar, and the two arrow triangles
 //  once the pointer is near enough to fade them in. No track is drawn.
 //
+//  Among a find's marks the thumb is as wide as the bar, faint enough for
+//  the marks under it to be seen through it, and outlined so it is distinct
+//  from them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) const
 {
-    HRESULT   hr        = S_OK;
-    Metrics   m         = GetMetrics();
-    float     amount    = (m_dragging || !m_marks.empty()) ? 1.0f : m_hoverAmount;
-    float     restA     = (float) (s_kRestThumbAlpha >> 24);
-    float     wideA     = (float) (s_kThumbAlpha >> 24);
-    uint32_t  thumbArgb = (foregroundArgb & s_kRgbMask) | ((uint32_t) (restA + (wideA - restA) * amount) << 24);
-    uint32_t  arrowArgb = (foregroundArgb & s_kRgbMask) | ((uint32_t) ((float) (s_kArrowAlpha >> 24) * amount) << 24);
-    uint32_t  arrowHot  = (foregroundArgb & s_kRgbMask) | ((uint32_t) ((float) (s_kArrowHotAlpha >> 24) * amount) << 24);
-    bool      vertical  = (m_orientation == Orientation::Vertical);
-    float     strip     = 0.0f;
-    float     thumbW    = 0.0f;
-    float     inset     = 0.0f;
+    constexpr uint32_t  kMarkedThumbAlpha = 0x40000000u;
+    constexpr float     kMarkedOutlinePx  = 2.0f;
+    bool                isMarked          = !m_marks.empty();
+    HRESULT             hr                = S_OK;
+    Metrics             m                 = GetMetrics();
+    float               amount            = (m_dragging || isMarked) ? 1.0f : m_hoverAmount;
+    float               restA             = (float) (s_kRestThumbAlpha >> 24);
+    float               wideA             = (float) (s_kThumbAlpha >> 24);
+    uint32_t            thumbArgb         = (foregroundArgb & s_kRgbMask) | ((uint32_t) (restA + (wideA - restA) * amount) << 24);
+    uint32_t            arrowArgb         = (foregroundArgb & s_kRgbMask) | ((uint32_t) ((float) (s_kArrowAlpha >> 24) * amount) << 24);
+    uint32_t            arrowHot          = (foregroundArgb & s_kRgbMask) | ((uint32_t) ((float) (s_kArrowHotAlpha >> 24) * amount) << 24);
+    bool                vertical          = (m_orientation == Orientation::Vertical);
+    float               strip             = 0.0f;
+    float               thumbW            = 0.0f;
+    float               inset             = 0.0f;
 
 
 
@@ -761,8 +772,13 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
     //  from its resting width toward the bar's as the pointer arrives.
     strip  = vertical ? (float) (m.bar.right - m.bar.left) : (float) (m.bar.bottom - m.bar.top);
     thumbW = (float) m_restThumbPx + ((std::max) (strip * s_kHoverThumbRatio, (float) m_restThumbPx) - (float) m_restThumbPx) * amount;
-    thumbW = (std::min) (thumbW, strip);
+    thumbW = isMarked ? strip : (std::min) (thumbW, strip);
     inset  = (strip - thumbW) * 0.5f;
+
+    if (isMarked)
+    {
+        thumbArgb = (foregroundArgb & s_kRgbMask) | kMarkedThumbAlpha;
+    }
 
     if (vertical)
     {
@@ -774,6 +790,15 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
     }
 
     PaintMarks (painter, m);
+
+    if (isMarked && m.thumbLength > 0.0f && vertical)
+    {
+        painter.OutlineRoundedRect ((float) m.bar.left, m.thumbStart, strip, m.thumbLength, strip * 0.5f, kMarkedOutlinePx, foregroundArgb | ~s_kRgbMask);
+    }
+    else if (isMarked && m.thumbLength > 0.0f)
+    {
+        painter.OutlineRoundedRect (m.thumbStart, (float) m.bar.top, m.thumbLength, strip, strip * 0.5f, kMarkedOutlinePx, foregroundArgb | ~s_kRgbMask);
+    }
 
     //  Arrows fade in with the widening, and the one under the pointer is
     //  brighter, as in Windows.

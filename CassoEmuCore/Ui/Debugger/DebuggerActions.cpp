@@ -884,6 +884,26 @@ DebuggerAction DebuggerActions::GetSourceStepping (bool isSource, CommandMode mo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetUnloadDebugFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetUnloadDebugFile (CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::ShowSource, "SRC CLEAR", mode);
+
+
+
+    action.command.text = "CLEAR";
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetLoadSymbols
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1009,11 +1029,13 @@ DebuggerAction DebuggerActions::GetProject (const std::string & subcommand, cons
 //  DebuggerActions::GetMarkData
 //
 //  The directive's name is the session's, whatever the mode: the handler
-//  reads the data's kind from it.
+//  reads the data's kind from it, and a digit after DB or DW is how many
+//  to a line. With a name, the range is given that name, as "DB name
+//  range" does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DebuggerAction DebuggerActions::GetMarkData (const std::string & directive, Word first, Word last, CommandMode mode)
+DebuggerAction DebuggerActions::GetMarkData (const std::string & directive, Word first, Word last, CommandMode mode, const std::string & name)
 {
     static constexpr std::pair<const char *, DebugVerb>  kVerbs[] =
     {
@@ -1025,13 +1047,19 @@ DebuggerAction DebuggerActions::GetMarkData (const std::string & directive, Word
 
 
 
-    for (const auto & [name, each] : kVerbs)
+    for (const auto & [word, each] : kVerbs)
     {
-        verb = (directive == name) ? each : verb;
+        verb = (directive == word) ? each : verb;
     }
 
-    action = Make (verb, std::format ("{} {:04X}:{:04X}", directive, first, last), mode);
+    if (directive.starts_with ("DW"))
+    {
+        verb = DebugVerb::DefineWords;
+    }
 
+    action = Make (verb, name.empty() ? std::format ("{} {:04X}:{:04X}", directive, first, last) : std::format ("{} {} {:04X}:{:04X}", directive, name, first, last), mode);
+
+    action.command.text       = name;
     action.command.sourceName = directive;
     action.command.a1         = first;
     action.command.a2         = last;

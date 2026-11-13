@@ -1925,8 +1925,9 @@ void ShellDebugger::ServiceHitLogs()
 //
 //  ServicePendingScript
 //
-//  A script whose line started a run goes on once the machine has stopped,
-//  its text going to the console as the lines before it did.
+//  A script whose line started a run, or a move through history, goes on
+//  once the machine has stopped or the move has landed, its text going to
+//  the console as the lines before it did.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1936,7 +1937,8 @@ void ShellDebugger::ServicePendingScript()
 
 
 
-    if (m_debugController->GetSession().GetRunState() != RunState::Paused || !m_debugController->GetSession().HasPendingScript())
+    if (m_debugController->GetSession().GetRunState() != RunState::Paused || m_debugController->GetSession().IsReversePending() ||
+        !m_debugController->GetSession().HasPendingScript())
     {
         return;
     }

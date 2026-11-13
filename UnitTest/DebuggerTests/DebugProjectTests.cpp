@@ -398,7 +398,7 @@ namespace DebuggerTests
             first.rig.RunOk ("MODE MONITOR");
 
             project.CaptureEngine (first.rig.session, &first.handlers.GetExecution());
-            project.windowStrings = { { "console", "BP 300\nG\n" }, { "focusedPane", "watches" } };
+            project.windowStrings = { { "console", "BP 300\nG\n" }, { "heatMapOptions", "reads" } };
 
             Assert::IsTrue (DebugProject::TryParse (project.ToJson (L"C:\\Work"), L"C:\\Work", read, error), TextEncoding::NarrowToWide (error).c_str());
             read.ApplyEngine (second.rig.session, failures);
@@ -412,6 +412,32 @@ namespace DebuggerTests
             Assert::IsTrue   (std::ranges::find (read.engineScript, std::string ("STOPWATCH 0300 0310")) != read.engineScript.end());
             Assert::IsTrue   (std::ranges::find (read.engineScript, std::string ("PROFILE ON")) != read.engineScript.end());
             Assert::IsTrue   (read.windowStrings == project.windowStrings, L"the window's states through the JSON");
+        }
+
+        //  The window's layout is the window's: a project doesn't write it,
+        //  and one saved with it loads without it.
+        TEST_METHOD (TheLayoutIsNeitherSavedNorRestored)
+        {
+            DebugProject  project;
+            DebugProject  read;
+            DebugProject  older;
+            std::string   error;
+            std::string   text;
+            std::string   olderText = "{\"format\":\"casso-debug-project\",\"window\":{\"layout\":\"split\",\"openViews\":\"panel=mmu\",\"closedPanes\":\"watches\","
+                                      "\"focusedPane\":\"mmu\",\"commandBarDock\":\"left\",\"timelineDock\":\"bottom\",\"console\":\"G\"}}";
+
+
+
+            project.windowStrings = { { "console", "G" }, { "focusedPane", "mmu" }, { "closedPanes", "watches" } };
+            text = project.ToJson (L"C:\\Work");
+
+            Assert::IsTrue (text.find ("focusedPane") == std::string::npos, TextEncoding::NarrowToWide (text).c_str());
+            Assert::IsTrue (text.find ("closedPanes") == std::string::npos, TextEncoding::NarrowToWide (text).c_str());
+            Assert::IsTrue (DebugProject::TryParse (text, L"C:\\Work", read, error), TextEncoding::NarrowToWide (error).c_str());
+            Assert::IsTrue (read.windowStrings == std::map<std::string, std::string> { { "console", "G" } }, L"only the console's text is read back");
+
+            Assert::IsTrue (DebugProject::TryParse (olderText, L"C:\\Work", older, error), TextEncoding::NarrowToWide (error).c_str());
+            Assert::IsTrue (older.windowStrings == std::map<std::string, std::string> { { "console", "G" } }, L"an older project's layout is left out");
         }
 
         //  Every breakpoint, watchpoint, watch and bookmark comes back under

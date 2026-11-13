@@ -101,6 +101,9 @@ public:
     bool                                 IsAnyHeatOn     () const;
     void                                 ClearHistories  ();
 
+    //  The theme's text and heat colors, which a snapshot sets otherwise.
+    void                                 ApplyColors     ();
+
     //  The Address box's text gone to in the active window: a hex address at
     //  once, anything else resolved on the machine's thread.
     void                                 SubmitBox       ();

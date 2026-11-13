@@ -64,6 +64,30 @@ public:
 
 
 
+    //  A list drawn as a tree leads a row's text with its indent and its
+    //  expander's glyph; a letter matches the text after them.
+    TEST_METHOD (ALetter_MatchesARowPastItsIndentAndExpander)
+    {
+        Fixture                                       f;
+        std::vector<std::vector<DxuiListView::Cell>>  rows;
+
+        for (const wchar_t * name : { L"\x25B8 main (2)", L"    COUT", L"    HOME" })
+        {
+            rows.push_back ({ DxuiListView::Cell { name, false } });
+        }
+
+        f.list.SetRows (std::move (rows));
+
+        Assert::IsTrue   (f.Type (L'h'));
+        Assert::AreEqual (2, f.list.GetSelectedRow(), L"HOME");
+
+        f.Wait (2000);
+        Assert::IsTrue   (f.Type (L'm'));
+        Assert::AreEqual (0, f.list.GetSelectedRow(), L"main, past its expander");
+    }
+
+
+
     TEST_METHOD (ALetter_SelectsTheFirstRowStartingWithIt)
     {
         Fixture  f;

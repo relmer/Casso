@@ -670,6 +670,11 @@ void DxuiPopupHost::Close (int resultCode)
     m_revealOut   = false;
     m_revealAlpha = 1.0f;
 
+    if (m_hwnd != nullptr)
+    {
+        (void) KillTimer (m_hwnd, kRevealTimerId);
+    }
+
     SetSlide (0.0f, nullptr);
 
     // Detach from chain bookkeeping.
@@ -1195,6 +1200,7 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
     bool             haveCapture = false;
     bool             inside      = false;
     bool             claimed     = false;
+    bool             isRevealing = false;
     LRESULT          result      = 0;
     DxuiPopupHost *  ancestor    = nullptr;
     POINT            ancestorPx  = {};
@@ -1386,6 +1392,21 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             if (m_open && m_params.dismiss == DxuiPopupDismiss::OnPointerLeave)
             {
                 Close (0);
+                claimed = true;
+            }
+
+            break;
+
+        case WM_TIMER:
+            if (wp == kRevealTimerId)
+            {
+                isRevealing = m_open && !m_revealOut && AdvanceReveal ((int64_t) GetTickCount64());
+
+                if (!isRevealing)
+                {
+                    (void) KillTimer (m_hwnd, kRevealTimerId);
+                }
+
                 claimed = true;
             }
 
@@ -2087,6 +2108,10 @@ Error:
 
 void DxuiPopupHost::BeginReveal (int durationMs, bool fade)
 {
+    UINT_PTR  timerId = 0;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
     if (m_testMode || m_hwnd == nullptr || durationMs <= 0)
@@ -2101,6 +2126,11 @@ void DxuiPopupHost::BeginReveal (int durationMs, bool fade)
     m_revealUpward     = m_placedRectScreenPx.top < m_params.anchorRectScreen.top;
     m_revealOut        = false;
     m_revealAlpha      = fade ? 0.0f : 1.0f;
+
+    //  A fade left at its first frame is an empty card over the blurred
+    //  backdrop, so the reveal doesn't wait on the owner to drive it.
+    timerId = SetTimer (m_hwnd, kRevealTimerId, kRevealTickMs, nullptr);
+    IGNORE_RETURN_VALUE (timerId, 0);
 }
 
 

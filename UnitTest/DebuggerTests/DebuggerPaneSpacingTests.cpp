@@ -722,6 +722,24 @@ namespace DebuggerTests
             Assert::AreEqual (std::wstring (L"on"), cell.text);
             Assert::IsFalse  (cell.dim);
         }
+
+
+        //  A switch's name is as bright or as dim as its value.
+        TEST_METHOD (ASwitchsNameIsDimmedWithItsValue)
+        {
+            DiagnosticsSnapshot                           snapshot;
+            std::vector<std::vector<DxuiListView::Cell>>  rows;
+
+
+
+            snapshot.groups.push_back ({ "Soft switches", { IDiagnosticsProvider::MakeFlagRow ("RAMRD", true), IDiagnosticsProvider::MakeFlagRow ("RAMWRT", false) } });
+
+            rows = DiagnosticsPane::MakeRows (snapshot);
+
+            Assert::AreEqual ((size_t) 3, rows.size(), L"the heading and the two switches");
+            Assert::IsFalse  (rows[1][0].dim, L"RAMRD is on");
+            Assert::IsTrue   (rows[2][0].dim, L"RAMWRT is off");
+        }
     };
 }
 

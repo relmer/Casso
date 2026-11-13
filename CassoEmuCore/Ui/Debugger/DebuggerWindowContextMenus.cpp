@@ -313,13 +313,16 @@ void DebuggerWindow::HoldCodeView (int view)
 //  DebuggerWindow::AddGoToDefinition
 //
 //  Insert Go to definition first on the menu when the point is over a
-//  symbol in a code view or a source document.
+//  symbol in a code view or a source document, or over a macro's name in a
+//  source document.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::AddGoToDefinition (POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> & items)
 {
     Word  address = 0;
+    int   fileId  = -1;
+    int   line    = 0;
 
 
 
@@ -327,6 +330,76 @@ void DebuggerWindow::AddGoToDefinition (POINT clientPx, std::vector<std::pair<st
     {
         items.insert (items.begin(), { L"Go to definition", [this, address] { GoToDefinition (address); } });
     }
+    else if (TryGetMacroDefinitionAt (clientPx, fileId, line))
+    {
+        items.insert (items.begin(), { L"Go to definition", [this, fileId, line] { m_sources->Open (fileId, line, true); } });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetMacroDefinitionAt
+//
+//  Over a macro's name in a source document, the file and line that define
+//  the macro: the document's file first, then the other files open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetMacroDefinitionAt (POINT clientPx, int & fileId, int & line) const
+{
+    std::wstring        name;
+    std::optional<int>  found;
+    int                 over = -1;
+
+
+
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments && over < 0; slot++)
+    {
+        const SourceDocumentPane  & document = m_sources->GetDocument (slot);
+
+        if (document.IsShown() && document.GetView() != nullptr && DxuiDockSite::Contains (document.GetView()->GetBounds(), clientPx))
+        {
+            over = slot;
+            name = document.GetModel().GetWordAt (clientPx);
+        }
+    }
+
+    if (name.empty())
+    {
+        return false;
+    }
+
+    found = m_sources->GetDocument (over).GetModel().FindMacroLine (name);
+
+    if (found.has_value())
+    {
+        fileId = m_sources->GetDocument (over).GetModel().GetFile();
+        line   = *found;
+        return true;
+    }
+
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        if (slot == over || !m_sources->IsOpen (slot))
+        {
+            continue;
+        }
+
+        found = m_sources->GetDocument (slot).GetModel().FindMacroLine (name);
+
+        if (found.has_value())
+        {
+            fileId = m_sources->GetDocument (slot).GetModel().GetFile();
+            line   = *found;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 

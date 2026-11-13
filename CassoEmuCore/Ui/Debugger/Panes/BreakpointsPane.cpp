@@ -150,20 +150,21 @@ void BreakpointsPane::Configure()
     m_filters.Attach (m_list, { (size_t) BreakpointColumns::Column::Kind, (size_t) BreakpointColumns::Column::Trigger, (size_t) BreakpointColumns::Column::File },
                       [this] { ApplyRows(); });
 
+    //  A double-click, anywhere on the row, goes to where the breakpoint is:
+    //  its source line, or its address in the disassembly. Rename and F2
+    //  edit the name, and Settings... the rest.
     m_list->SetOnActivateRow ([this] (int row)
     {
-        const DebuggerViewSnapshot::BreakpointLine  * bp    = GetBreakpointOfRow (row);
-        RECT                                          name  = {};
-        RECT                                          list  = m_list->GetBounds();
-        POINT                                         press = m_host.GetLastPressPx();
-        bool                                          isOn  = m_list->GetCellTextRectPx (row, 0, name) && press.x - list.left >= name.left &&
-                                                              press.x - list.left < name.right;
+        const DebuggerViewSnapshot::BreakpointLine  * bp       = GetBreakpointOfRow (row);
+        const DebuggerViewSnapshot                  * snapshot = m_host.GetLatestSnapshot();
+        int                                           fileId   = -1;
+        int                                           line     = 0;
 
-        if (bp != nullptr && isOn)
+        if (bp != nullptr && snapshot != nullptr && BreakpointColumns::TryGetSourcePlace (*snapshot, *bp, fileId, line))
         {
-            BeginNameEdit (row);
+            m_host.OpenSource (fileId, line);
         }
-        else if (bp != nullptr)
+        else if (bp != nullptr && (BreakpointColumns::HasAddress (bp->info) || BreakpointColumns::HasRoutine (bp->info)))
         {
             m_host.GoToCode (bp->address);
         }

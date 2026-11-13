@@ -139,6 +139,9 @@ public:
     //  Detaches the host, for a shell tearing down before the window.
     void     DetachHost  () { m_host = nullptr; }
 
+    //  The theme in force, for a message box the host raises over the window.
+    const DxuiTheme *  GetThemeInForce () const { return m_theme; }
+
     //  Writes the placement if the user put the window somewhere else, for a
     //  shell shutting down while the window is still open.
     void     SavePlacementIfMoved ();
@@ -187,6 +190,9 @@ protected:
 
     //  Protected so a test can write to the console as the host's lines do.
     void             AppendConsole   (const std::vector<std::string> & lines) override;
+
+    //  Protected so a test can raise a pane's reply as an action raises one.
+    void             ShowPaneReply   (const std::wstring & pane, const std::vector<std::string> & lines, bool isError) override;
 
     //  Protected so a test can choose a scheme as the Keys menu does, and
     //  read the drop-down rows it leaves.
@@ -436,9 +442,10 @@ protected:
 
     //  Protected so a test can read a content menu's Go to definition row,
     //  and run it.
-    void     AddGoToDefinition  (POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
-    bool     TryGetDefinitionAt (POINT clientPx, Word & address) const;
-    void     GoToDefinition     (Word address);
+    void     AddGoToDefinition       (POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
+    bool     TryGetDefinitionAt      (POINT clientPx, Word & address) const;
+    bool     TryGetMacroDefinitionAt (POINT clientPx, int & fileId, int & line) const;
+    void     GoToDefinition          (Word address);
 
     //  A go-to's address: hex, PC, or a symbol by name.
     static bool  TryParseGoTo   (const std::wstring & text, const DebuggerViewSnapshot * snapshot, Word & outAddress);
@@ -858,12 +865,19 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiTimedInfoBanner                 * m_replyBanner         = nullptr;
     std::wstring                          m_replyBannerPane;
     std::optional<std::wstring>           m_pendingReplyBox;
+    bool                                  m_isPendingReplyError = false;
     bool                                  m_isReplyBoxUp        = false;
     bool                                  m_isAfterDialog       = false;
+
+    //  Ctrl went down or up, so the pointer's cursor is set again on the next
+    //  frame too, after whatever the key did has been drawn.
+    bool                                  m_isCursorRefreshDue  = false;
 
     void  ShowActionReply     (const DebuggerViewSnapshot & snapshot);
     void  PlaceReplyBanner    (int64_t nowMs);
     void  ShowPendingReplyBox ();
+
+    static std::vector<std::wstring>  GetReplyLines (const std::vector<std::string> & lines);
 
     std::shared_ptr<const DxuiIconImage>  m_breakpointIcons[2];
     uint32_t                              m_breakpointIconArgb  = 0;
@@ -882,6 +896,11 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
     std::vector<PcIcon>                   m_pcIcons;
     uint32_t                              m_pcIconArgb          = 0;
+
+    //  The bookmark's outline alone and over each dot it has been drawn
+    //  over; all are made again when its color changes.
+    std::vector<PcIcon>                   m_bookmarkIcons;
+    uint32_t                              m_bookmarkIconArgb    = 0;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
 
@@ -983,6 +1002,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiToolbar::Entry                      GetFindEntry         (const std::wstring & pane) override { return MakeFindEntry (pane); }
     void                                    SaveOpenViews        () override { KeepOpenViews(); }
     std::shared_ptr<const DxuiIconImage>    GetPcMarker          (const std::shared_ptr<const DxuiIconImage> & dot) override { return GetPcIcon (dot); }
+    std::shared_ptr<const DxuiIconImage>    GetBookmarkMark      (const std::shared_ptr<const DxuiIconImage> & dot) override;
     bool                                    IsCodeHeatOn         () const override;
     bool                                    RunKeyAction         (DebuggerKeySchemes::Action action) override { return OnMappedCommand ((int) action); }
 

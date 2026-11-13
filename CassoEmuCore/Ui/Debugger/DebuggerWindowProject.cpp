@@ -138,23 +138,14 @@ void DebuggerWindow::EditProjectSettings()
 //
 //  DebuggerWindow::ReloadProjectState
 //
-//  Another project opened and its strings are the host's now: the panes
-//  laid out as it has them, its disassembly options, its heat map ranges,
-//  and its open views opened.
+//  Another project opened and its strings are the host's now: its
+//  disassembly options, its heat map ranges and its panes' states. The
+//  panes stay where they are, and the focus stays in its pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ReloadProjectState()
 {
-    std::wstring    savedText = ReadSavedLayout();
-    DxuiPaneLayout  restored  = DebuggerLayout::Restore (savedText);
-
-
-
-    restored.PlaceOnMonitors (GetMonitors());
-    m_dockSite->SetPaneLayout (restored);
-    m_floating->MarkSyncNeeded();
-
     m_code->SetOptions (DisassemblyOptions::FromText (m_host->GetDebuggerDisassemblyOptions()));
 
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews && m_snapshot != nullptr; view++)
@@ -164,7 +155,6 @@ void DebuggerWindow::ReloadProjectState()
 
     RestoreWindowState (true);
 
-    m_openViewsRestored = false;
     Invalidate();
 }
 
@@ -180,8 +170,7 @@ void DebuggerWindow::ReloadProjectState()
 //  pane, its options as letters (C for match case, W for whole word, R for
 //  regular expression) and its history, apart at the unit separator; and
 //  each sized list's columns as "pane=120,80,64;". A project's switch also
-//  brings back the heat map's and the event logs' options and the pane that
-//  had the focus.
+//  brings back the heat map's and the event logs' options.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -288,12 +277,6 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         pane->OnProjectSwitched();
-    }
-
-
-    if (!GetSavedFocusPane().empty())
-    {
-        FocusPane (GetSavedFocusPane());
     }
 }
 

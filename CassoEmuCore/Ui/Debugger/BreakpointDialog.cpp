@@ -8,8 +8,8 @@
 
 static constexpr const wchar_t *  s_kDiskEventNames[] =
 {
-    L"Sector read", L"Address field read", L"Head moved", L"Disk written", L"DOS 3.3 sector read or written", L"ProDOS block read or written",
-    L"RWTS called", L"ProDOS driver called", L"Motor turned on or off", L"Drive selected", L"Disk image inserted by Casso", L"Disk image ejected by Casso",
+    L"Read sector", L"Read address field", L"Move head", L"Write disk", L"Read or write DOS 3.3 sector", L"Read or write ProDOS block",
+    L"Call RWTS", L"Call ProDOS driver", L"Turn motor on or off", L"Select drive", L"Insert disk image (Casso)", L"Eject disk image (Casso)",
 };
 
 static constexpr const char *  s_kDrivePrefixes[] = { "", "D1 ", "D2 " };
@@ -85,15 +85,15 @@ void BreakpointDialogPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler 
     for (const Row & each : m_rows)
     {
         bool  isShown = (each.error != nullptr) ? each.error->HasError() : each.field->IsVisible();
-        int   height  = (each.error != nullptr) ? GetErrorHeightPx (*each.error, scaler, width) : row;
+        int   height  = (each.error != nullptr) ? GetErrorRoomPx (*each.error, scaler, width) : row;
 
 
 
         if (each.error != nullptr)
         {
             each.error->SetVisible (isShown);
-            each.error->Layout (RECT { boundsDip.left, y, boundsDip.right, y + (isShown ? height : 0) }, scaler);
-            y += isShown ? height + gap : 0;
+            each.error->Layout (RECT { boundsDip.left, y, boundsDip.right, y + height }, scaler);
+            y += height + gap;
             continue;
         }
 
@@ -155,9 +155,9 @@ int BreakpointDialogPanel::GetHeightPx (const DxuiDpiScaler & scaler, int widthP
 
     for (const Row & each : m_rows)
     {
-        if (each.error != nullptr && each.error->HasError())
+        if (each.error != nullptr)
         {
-            height += GetErrorHeightPx (*each.error, scaler, widthPx) + gap;
+            height += GetErrorRoomPx (*each.error, scaler, widthPx) + gap;
         }
         else if (each.error == nullptr && each.field->IsVisible())
         {
@@ -188,6 +188,27 @@ int BreakpointDialogPanel::GetErrorHeightPx (const DxuiFieldError & error, const
     }
 
     return error.GetHeightPx (*m_text, *m_theme, scaler, widthPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointDialogPanel::GetErrorRoomPx
+//
+//  The room reserved for the error, or the error's height when it is taller.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointDialogPanel::GetErrorRoomPx (const DxuiFieldError & error, const DxuiDpiScaler & scaler, int widthPx) const
+{
+    int  room = scaler.ToPx (kErrorDip);
+
+
+
+    return error.HasError() ? (std::max) (room, GetErrorHeightPx (error, scaler, widthPx)) : room;
 }
 
 
@@ -1617,17 +1638,17 @@ bool BreakpointDialog::IsCheckedOnFocusLoss (const Fields & fields)
 
 const wchar_t * BreakpointDialog::GetDiskEventTip()
 {
-    return L"Sector read\ta physical sector's data read by a program, not passed over\n"
-           L"Address field read\tan address field passing under the head\n"
-           L"Head moved\tthe head arriving on a track\n"
-           L"Disk written\twrite mode, a physical sector written, or a write blocked\n"
-           L"DOS 3.3 sector read or written\ta DOS 3.3 logical sector, through its physical sector\n"
-           L"ProDOS block read or written\tboth halves of a ProDOS block\n"
-           L"RWTS called\tDOS 3.3's RWTS called with that request, before it runs\n"
-           L"ProDOS driver called\tProDOS's disk driver called, before it runs\n"
-           L"Motor turned on or off\tthe motor switched on or off, or stopping\n"
-           L"Drive selected\tthe other drive selected\n"
-           L"Disk image inserted, ejected by Casso\ta disk image mounted or ejected in Casso; the drive itself can't report this";
+    return L"Read sector\ta physical sector's data read by a program, not passed over\n"
+           L"Read address field\tan address field passing under the head\n"
+           L"Move head\tthe head arriving on a track\n"
+           L"Write disk\twrite mode, a physical sector written, or a write blocked\n"
+           L"Read or write DOS 3.3 sector\ta DOS 3.3 logical sector, through its physical sector\n"
+           L"Read or write ProDOS block\tboth halves of a ProDOS block\n"
+           L"Call RWTS\tDOS 3.3's RWTS called with that request, before it runs\n"
+           L"Call ProDOS driver\tProDOS's disk driver called, before it runs\n"
+           L"Turn motor on or off\tthe motor switched on or off, or stopping\n"
+           L"Select drive\tthe other drive selected\n"
+           L"Insert, eject disk image (Casso)\ta disk image mounted or ejected in Casso; the drive itself can't report this";
 }
 
 

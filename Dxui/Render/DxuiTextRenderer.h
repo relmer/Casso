@@ -118,6 +118,10 @@ public:
     // The window this renderer draws for, whose typography it uses.
     void     SetTypographyWindow (HWND hwnd);
 
+    // A typography used in place of the window's, or null to go back to the
+    // window's. The typography must outlive its use here.
+    void     SetFixedTypography  (const Typography * typography);
+
     HRESULT  BindBackBuffer   (IDXGISurface * pBackBufferSurface,
                                UINT           dpiX,
                                UINT           dpiY);
@@ -444,10 +448,11 @@ private:
     static inline uint32_t                        s_typographyGeneration = 0;
     static inline uint32_t                        s_attachGeneration     = 0;
 
-    // The typography this renderer draws in, the window it was found from,
-    // the attachment it was found at, and the generation the caches were
-    // built for.
+    // The typography this renderer draws in, the one fixed in place of the
+    // window's, the window it was found from, the attachment it was found at,
+    // and the generation the caches were built for.
     const Typography                            * m_typography           = &s_typography;
+    const Typography                            * m_fixedTypography      = nullptr;
     HWND                                          m_typographyHwnd       = nullptr;
     uint32_t                                      m_attachGeneration     = 0;
     uint32_t                                      m_typographyGeneration = 0;

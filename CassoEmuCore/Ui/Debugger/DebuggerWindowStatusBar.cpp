@@ -540,30 +540,55 @@ bool DebuggerWindow::TryStopReplay()
 //
 //  DebuggerWindow::ShowActionReply
 //
-//  Over the pane the action came from, in an infobar that times out; in a
-//  message box for an action a dialog ran, or when that pane isn't on
-//  screen. The box waits for the next frame, so it doesn't open in the
-//  middle of applying a snapshot.
+//  Over the pane the action came from; in a message box for an action a
+//  dialog ran.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ShowActionReply (const DebuggerViewSnapshot & snapshot)
 {
-    IDebuggerPane  * pane    = snapshot.isActionReplyBoxed ? nullptr : FindPane (snapshot.actionReplyPane);
-    IDxuiControl   * content = (pane != nullptr) ? pane->GetContent() : nullptr;
-    std::wstring     text;
+    ShowPaneReply (snapshot.isActionReplyBoxed ? std::wstring() : snapshot.actionReplyPane, snapshot.actionReply, snapshot.isActionReplyError);
+}
 
 
 
-    for (const std::string & line : snapshot.actionReply)
-    {
-        text += (text.empty() ? L"" : L"  ") + TextEncoding::NarrowToWide (line);
-    }
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowPaneReply
+//
+//  In an infobar that times out, over the pane; in a message box with no
+//  pane, or when the pane isn't on screen. The box waits for the next frame,
+//  so it doesn't open in the middle of applying a snapshot. The infobar's
+//  icon and the box's icon mark an error, so "Error:" is left out of the text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowPaneReply (const std::wstring & paneName, const std::vector<std::string> & lines, bool isError)
+{
+    IDebuggerPane              * pane    = paneName.empty() ? nullptr : FindPane (paneName);
+    IDxuiControl               * content = (pane != nullptr) ? pane->GetContent() : nullptr;
+    std::vector<std::wstring>    parts   = GetReplyLines (lines);
+    std::wstring                 text;
+
+
 
     if (content == nullptr || !content->IsVisible())
     {
-        m_pendingReplyBox = text;
+        for (const std::wstring & part : parts)
+        {
+            text += (text.empty() ? L"" : L"\n\n") + part;
+        }
+
+        m_pendingReplyBox     = text;
+        m_isPendingReplyError = isError;
         return;
+    }
+
+    for (const std::wstring & part : parts)
+    {
+        text += (text.empty() ? L"" : L" ") + part;
     }
 
     if (m_replyBanner == nullptr)
@@ -571,11 +596,57 @@ void DebuggerWindow::ShowActionReply (const DebuggerViewSnapshot & snapshot)
         m_replyBanner = CreateChild<DxuiTimedInfoBanner>();
     }
 
-    m_replyBannerPane = snapshot.actionReplyPane;
-    m_replyBanner->SetSeverity (snapshot.isActionReplyError ? DxuiInfoBanner::Severity::Warning : DxuiInfoBanner::Severity::Info);
+    m_replyBannerPane = paneName;
+    m_replyBanner->SetSeverity (isError ? DxuiInfoBanner::Severity::Warning : DxuiInfoBanner::Severity::Info);
     m_replyBanner->Show        (text, (int64_t) GetTickCount64());
     m_replyBanner->SetVisible  (true);
     PlaceReplyBanner ((int64_t) GetTickCount64());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetReplyLines
+//
+//  A reply's lines as sentences: the console's "Error: " prefix and the
+//  indent of its detail lines left out, and each begun with a capital.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> DebuggerWindow::GetReplyLines (const std::vector<std::string> & lines)
+{
+    static constexpr std::string_view  kErrorPrefix = "Error: ";
+    std::vector<std::wstring>          parts;
+
+
+
+    for (const std::string & line : lines)
+    {
+        std::string_view  text = line;
+
+        if (text.starts_with (kErrorPrefix))
+        {
+            text.remove_prefix (kErrorPrefix.size());
+        }
+
+        while (!text.empty() && text.front() == ' ')
+        {
+            text.remove_prefix (1);
+        }
+
+        if (text.empty())
+        {
+            continue;
+        }
+
+        parts.push_back (TextEncoding::NarrowToWide (std::string (text)));
+        parts.back()[0] = (wchar_t) towupper (parts.back()[0]);
+    }
+
+    return parts;
 }
 
 
@@ -642,6 +713,6 @@ void DebuggerWindow::ShowPendingReplyBox()
     text = std::exchange (m_pendingReplyBox, std::nullopt).value();
 
     m_isReplyBoxUp = true;
-    (void) ShowMessageBox (GetHwnd(), text, L"Debugger", MB_ICONINFORMATION | MB_OK);
+    (void) ShowMessageBox (GetHwnd(), text, L"Debugger", (m_isPendingReplyError ? MB_ICONWARNING : MB_ICONINFORMATION) | MB_OK);
     m_isReplyBoxUp = false;
 }

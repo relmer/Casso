@@ -349,9 +349,10 @@ the count since the trip count was last reset, by **Reset trip count** on
 either row's menu or by `RCC`; the total is never reset. **Last branch** is
 the last instruction that sent the PC elsewhere, a taken branch, a jump, a
 call, a return or BRK, and where it went, as `$8759 → $8751`; its menu has
-**Go to branch** and **Go to target**. While the machine is stopped, the stack
-pane's menu has **Push byte...**, **Pop byte** and **Pop word**, which run
-`PUSH`, `POP` and `PPOP`.
+**Go to branch** and **Go to target**. While the machine is stopped, a click
+or a double-click on a register's value opens a box over it for a new value,
+PC's among them, and the stack pane's menu has **Push byte...**, **Pop byte**
+and **Pop word**, which run `PUSH`, `POP` and `PPOP`.
 
 ## Code views
 
@@ -748,8 +749,9 @@ BP COUT IF *FB == 0
 After `BPNAME 3 "Loop top"`, breakpoint or data breakpoint #3 has that name, and
 `BPL`, the Breakpoints pane's Name column and the channel use it in place of
 the default; `BPNAME 3` with no name returns it to the default. In the pane,
-F2, a double-click on the Name cell or Rename on the row's menu edits the name
-in place, and Ctrl+Z undoes it as it undoes the pane's other changes. The name
+F2 or Rename on the row's menu edits the name in place, and Ctrl+Z undoes it
+as it undoes the pane's other changes. A double-click on a row goes to the
+breakpoint's source line, or to its address in the disassembly. The name
 survives `BPEDIT`. `BPSAVE` doesn't write the name, so its script is one
 AppleWin reads.
 
@@ -1235,8 +1237,8 @@ Type over the hex or the text to edit memory, in RAM or in ROM. A hex digit,
 Enter or a double-click on a value opens a box over it for the new value;
 Enter writes it, and Escape closes the box with the value unwritten. Ctrl+Z
 undoes the last edit in that window and Ctrl+Y redoes it. Neither writes over
-a byte that has changed since the edit; that byte's address appears in the
-console instead.
+a byte that has changed since the edit; a note over the window has that
+byte's address instead.
 The tip over a byte has its symbol, its value, its character and the region
 of memory it is in.
 On a byte's menu, **Go to $2000, the word here** goes to the address that
@@ -2045,8 +2047,6 @@ A debug project, one for each program, has the debugger's configuration:
   are on;
 - the command mode, the `CD` directory, the instruction trace and trace file,
   the profiler, the stopwatch and where the trip count starts;
-- the pane layout, the closed panes, the pane with the focus, where the
-  command bar and the timeline are docked, and the open views;
 - the console history, each pane's find history and options, the column
   widths you set, and the undo history of the breakpoints, the watches, the
   registers, the stack and the memory windows;
@@ -2055,8 +2055,10 @@ A debug project, one for each program, has the debugger's configuration:
 
 Each breakpoint, data breakpoint, watch and bookmark comes back under the
 number it had, and the next one you add takes the number it would have taken
-before. The key scheme, the theme, the text size and the history settings are
-yours rather than a program's, and are the same for every project. The program
+before. The key scheme, the theme, the text size, the history settings and the
+window's layout (the panes, the closed panes, the pane with the focus, the
+docks and the open views) are yours rather than a program's, and are the same
+for every project, so opening another project doesn't change them. The program
 is the most specific of these:
 
 1. the debug or symbol file `SYM LOAD` last loaded, by its content rather

@@ -65,4 +65,8 @@ public:
 
     //  The fills under the matches and under the selected one.
     virtual void            SetFindColors    (uint32_t matchArgb, uint32_t currentArgb) = 0;
+
+    //  How far down from the top of the find bounds the find box covers, so
+    //  a match brought into view is placed below it; 0 with the box closed.
+    virtual void            SetFindCoveredPx (int coveredPx) { (void) coveredPx; }
 };

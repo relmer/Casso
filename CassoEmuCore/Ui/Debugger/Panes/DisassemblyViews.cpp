@@ -1399,6 +1399,15 @@ void DisassemblyGroup::MarkRow (int view, int row, const DebuggerViewSnapshot::C
         gutter.tip  = ColorLegend::GetText (ColorLegend::Meaning::BreakpointHover);
     }
 
+    //  A bookmark's outline goes around the dot's place, so a breakpoint on
+    //  the line is seen inside it.
+    if (m_host.GetLatestSnapshot() != nullptr &&
+        std::ranges::any_of (m_host.GetLatestSnapshot()->bookmarks, [&line] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == line.address; }))
+    {
+        gutter.icon = m_host.GetBookmarkMark (gutter.icon);
+        gutter.tip  = ColorLegend::JoinLines ({ gutter.tip, L"Bookmark" });
+    }
+
     if (isMarked)
     {
         gutter.icon = m_host.GetPcMarker (gutter.icon);

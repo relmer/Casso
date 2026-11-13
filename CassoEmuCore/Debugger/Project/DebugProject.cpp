@@ -524,6 +524,27 @@ void DebugProject::RestoreWatchIds (WatchTable & table, const Ids & ids)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugProject::IsLayoutString
+//
+//  The keys of the layout strings in an older project's file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugProject::IsLayoutString (const std::string & name)
+{
+    static constexpr std::string_view  kLayoutNames[] = { "layout", "openViews", "closedPanes", "focusedPane", "commandBarDock", "timelineDock" };
+
+
+
+    return std::ranges::find (kLayoutNames, name) != std::end (kLayoutNames);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugProject::ToJson
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -584,14 +605,15 @@ std::string DebugProject::ToJson (const std::wstring & directory) const
     root.emplace_back ("names",           JsonValue (std::move (named)));
     root.emplace_back ("logs",            JsonValue (std::move (logged)));
     root.emplace_back ("groups",          JsonValue (std::move (grouped)));
-    window.emplace_back ("layout",             JsonValue (layout));
     window.emplace_back ("rangeSets",          JsonValue (rangeSets));
     window.emplace_back ("disassemblyOptions", JsonValue (disassemblyOptions));
-    window.emplace_back ("openViews",          JsonValue (openViews));
 
     for (const auto & [name, text] : windowStrings)
     {
-        window.emplace_back (name, JsonValue (text));
+        if (!IsLayoutString (name))
+        {
+            window.emplace_back (name, JsonValue (text));
+        }
     }
 
     root.emplace_back ("window",          JsonValue (std::move (window)));
@@ -735,15 +757,14 @@ bool DebugProject::TryParse (const std::string & text, const std::wstring & dire
 
     if (root.HasObject ("window", window))
     {
-        window->HasString ("layout",             project.layout);
         window->HasString ("rangeSets",          project.rangeSets);
         window->HasString ("disassemblyOptions", project.disassemblyOptions);
-        window->HasString ("openViews",          project.openViews);
 
-        //  Every other string of the window's is one of its states, by name.
+        //  Every other string of the window's is one of its states, by name,
+        //  apart from the layout an older project saved.
         for (const auto & [name, value] : window->GetObjectEntries())
         {
-            if (value.GetType() == JsonType::String && name != "layout" && name != "rangeSets" && name != "disassemblyOptions" && name != "openViews")
+            if (value.GetType() == JsonType::String && name != "rangeSets" && name != "disassemblyOptions" && !IsLayoutString (name))
             {
                 project.windowStrings[name] = value.GetString();
             }

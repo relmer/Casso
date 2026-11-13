@@ -212,6 +212,13 @@ void SourcePane::Apply (const DebuggerViewSnapshot & snapshot)
 
     m_heatLevels = snapshot.heatColumns;
 
+    m_bookmarkAddresses.clear();
+
+    for (const DebuggerViewSnapshot::WatchLine & bookmark : snapshot.bookmarks)
+    {
+        m_bookmarkAddresses.insert (bookmark.address);
+    }
+
     //  A loose file keeps its text whatever debug file comes and goes.
     if (m_isLoose)
     {
@@ -425,6 +432,7 @@ void SourcePane::Rebuild()
     int                                   marked       = (!m_isLoose && GetShownFileId() == m_fileId) ? GetShownLine() : -1;
     std::set<int>                         breakpoints;
     std::set<int>                         disabled;
+    std::set<int>                         bookmarks;
     bool                                  isRowsStale  = false;
     int                                   top          = m_view->GetTopLine();
     int                                   depth        = 0;
@@ -464,7 +472,19 @@ void SourcePane::Rebuild()
         }
     }
 
-    isRowsStale = m_rowsFileId != m_fileId || m_rowsLine != marked || m_rowsBreakpoints != breakpoints ||
+    //  A bookmark is on the line whose code starts at its address.
+    if (!m_bookmarkAddresses.empty() && !m_isLoose && m_bookmarkMark != nullptr && m_state->lineAddresses != nullptr)
+    {
+        for (auto each = m_state->lineAddresses->lower_bound ({ m_fileId, 0 }); each != m_state->lineAddresses->end() && each->first.first == m_fileId; ++each)
+        {
+            if (m_bookmarkAddresses.contains (each->second))
+            {
+                bookmarks.insert (each->first.second);
+            }
+        }
+    }
+
+    isRowsStale = m_rowsFileId != m_fileId || m_rowsLine != marked || m_rowsBreakpoints != breakpoints || m_rowsBookmarks != bookmarks ||
                   m_rowsDisabled != disabled || m_isStyleStale || m_rowsLineOperands != m_state->lineOperands || m_rowsHeatLevels != heat ||
                   m_rowsHover != m_hoverLine || (heat != nullptr && m_rowsUnmatched != unmatched);
 
@@ -486,6 +506,18 @@ void SourcePane::Rebuild()
         }
 
         rows = BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineOperands, GetAssembler(), m_listing, m_isC, m_hoverLine);
+
+        //  The bookmark's outline over the dot's place in each such line's
+        //  glyph margin; a row is a line, in order.
+        for (int line : bookmarks)
+        {
+            if (line >= 1 && line <= (int) rows.size())
+            {
+                DxuiTextView::Row  & row = rows[(size_t) line - 1];
+
+                row.icon = (row.icon != nullptr) ? std::shared_ptr<const DxuiIconImage> (GutterGlyph::MakeOver (*row.icon, *m_bookmarkMark)) : m_bookmarkMark;
+            }
+        }
 
         if (heat != nullptr)
         {
@@ -520,6 +552,7 @@ void SourcePane::Rebuild()
         m_rowsFileId      = m_fileId;
         m_rowsLine        = marked;
         m_rowsBreakpoints = std::move (breakpoints);
+        m_rowsBookmarks   = std::move (bookmarks);
     }
 
     if (m_isLoose)
@@ -1464,6 +1497,87 @@ const SymbolInfo * SourcePane::FindSymbolAt (POINT atDip, const std::vector<Symb
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourcePane::GetWordAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SourcePane::GetWordAt (POINT atDip) const
+{
+    DxuiTextView::Position     at    = m_view->HitTest (atDip);
+    const DxuiTextView::Row  * row   = nullptr;
+    int                        start = 0;
+
+
+
+    if (at.row < 0 || at.row >= (int) m_view->GetRows().size())
+    {
+        return {};
+    }
+
+    row = &m_view->GetRows()[(size_t) at.row];
+
+    if (row->cells.size() <= (size_t) kTextCell)
+    {
+        return {};
+    }
+
+    start = (int) (row->cells[0].size() + 1 + row->cells[1].size() + 1);
+
+    if (at.offset < start || at.offset > start + (int) row->cells[(size_t) kTextCell].size())
+    {
+        return {};
+    }
+
+    return GetWordAt (row->cells[(size_t) kTextCell], at.offset - start);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::FindMacroLine
+//
+//  A row's second cell is its line's number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int> SourcePane::FindMacroLine (const std::wstring & name) const
+{
+    int  number = 0;
+
+
+
+    if (name.empty())
+    {
+        return std::nullopt;
+    }
+
+    for (const DxuiTextView::Row & row : m_view->GetRows())
+    {
+        if (row.cells.size() <= (size_t) kTextCell || !IsMacroDefinition (row.cells[(size_t) kTextCell], name))
+        {
+            continue;
+        }
+
+        number = _wtoi (row.cells[1].c_str());
+
+        if (number > 0)
+        {
+            return number;
+        }
+    }
+
+    return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourcePane::TryGetSymbolTip
 //
 //  The symbol under the pointer, in the text cell after the marker and number.
@@ -1540,6 +1654,74 @@ bool SourcePane::IsOperandSymbolAt (POINT atDip, const std::vector<SymbolInfo> &
 
     return at.offset >= start && at.offset <= start + (int) row->cells[(size_t) kTextCell].size() &&
            IsOperandSymbolAt (row->cells[(size_t) kTextCell], FindCodeStart (row->cells[(size_t) kTextCell]), at.offset - start, symbols);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::GetWordAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SourcePane::GetWordAt (const std::wstring & line, int ch)
+{
+    int  start = 0;
+    int  end   = 0;
+
+
+
+    //  With no symbols to match, the call only sets where the word starts.
+    (void) FindSymbolAt (line, ch, {}, start);
+
+    if (start < 0 || start >= (int) line.size())
+    {
+        return {};
+    }
+
+    for (end = start; end < (int) line.size() && (iswalnum (line[(size_t) end]) || line[(size_t) end] == L'_' || line[(size_t) end] == L'.' || line[(size_t) end] == L'@'); end++)
+    {
+    }
+
+    return (end > start && line.substr (0, (size_t) start).find (L';') == std::wstring::npos) ? line.substr ((size_t) start, (size_t) (end - start)) : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::IsMacroDefinition
+//
+//  The first two words of the line, before a comment, compared with the
+//  name in its case and the keyword in any case. A label may end in a colon.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::IsMacroDefinition (const std::wstring & line, const std::wstring & name)
+{
+    std::wistringstream        words (line.substr (0, line.find (L';')));
+    std::wstring               first;
+    std::wstring               second;
+    auto                       isKeyword = [] (std::wstring word)
+    {
+        std::ranges::transform (word, word.begin(), [] (wchar_t each) { return (wchar_t) towlower (each); });
+        return word == L"macro" || word == L".macro" || word == L"mac" || word == L".mac";
+    };
+
+
+
+    words >> first >> second;
+
+    if (!first.empty() && first.back() == L':')
+    {
+        first.pop_back();
+    }
+
+    return (first == name && isKeyword (second)) || (isKeyword (first) && second == name);
 }
 
 

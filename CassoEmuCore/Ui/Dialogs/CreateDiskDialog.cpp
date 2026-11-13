@@ -110,6 +110,7 @@ void CreateDiskDialog::OnCreate()
     m_nameLabel.SetTextRole  (DxuiTextRole::Body);
     m_nameLabel.SetText      (L"Name:");
     m_nameLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+    m_nameLabel.SetRequired  (true);
 
     m_nameInput.SetTheme (m_theme);
     m_nameInput.SetHwnd  (GetHwnd());

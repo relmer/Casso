@@ -69,6 +69,7 @@ private:
     std::wstring                   m_cellFontFace;
     DxuiHexViewTypes::MarkColorFn  m_markColor;
     DxuiHexViewTypes::ByteFillFn   m_byteFill;
+    DxuiHexViewTypes::ByteFillFn   m_matchFill;
     std::vector<uint8_t>           m_rowBytes;
     std::vector<uint8_t>           m_rowMarks;
 

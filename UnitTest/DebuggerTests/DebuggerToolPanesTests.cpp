@@ -558,6 +558,24 @@ namespace DebuggerToolPanesTests
         }
 
 
+        //  Rename marks a range again under its new name, with the directive
+        //  that makes a range of the same kind and as many items to a line.
+        TEST_METHOD (ADataRangesRenameMarksItAgainAsTheSameKind)
+        {
+            DebuggerAction  action = DebuggerActions::GetMarkData ("DW4", 0x0800, 0x080F, CommandMode::AppleWin, "TABLE");
+
+
+
+            Assert::AreEqual (std::string ("DW4"), DataBlocksPane::GetDirective ({ "T", 0x0800, 0x080F, DataBlockKind::Words, 4 }));
+            Assert::AreEqual (std::string ("DB8"), DataBlocksPane::GetDirective ({ "T", 0x0800, 0x080F, DataBlockKind::Bytes, 8 }));
+            Assert::AreEqual (std::string ("ASC"), DataBlocksPane::GetDirective ({ "T", 0x0800, 0x080F, DataBlockKind::Text, 40 }));
+
+            Assert::AreEqual (std::string ("DW4 TABLE 0800:080F"), action.echo);
+            Assert::AreEqual (std::string ("TABLE"), action.command.text);
+            Assert::IsTrue   (action.command.verb == DebugVerb::DefineWords);
+        }
+
+
 
         //  The dialog opens with the filters as SKIP writes them; one taken
         //  out is removed, and each new one is added by its range or by its

@@ -376,6 +376,10 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 
 - Q: Do breakpoint groups, as Visual Studio's Breakpoints window has them, ship in 035? -> A: Yes ("1 yes", answering whether to build Add to breakpoint group). A breakpoint is in at most one group, which has a name; the pane lists each group under a heading; a row's menu adds the selected breakpoints to a group; a heading's menu enables, disables, renames, ungroups or deletes the group; BPGROUP does the same from the console; each pane action is one undo step; groups are saved with the debug project (FR-409 to FR-416).
 
+### Session 2026-11-13 (owner decisions during the retest of the walkthrough's fixes)
+
+- Q: Should a debug project save and restore the window layout? -> A: No ("let's not save the window layout with the debug project"). Unloading a debug file and loading a saved state each switched projects, and the switch resized and moved panes, closed tabs and moved the focus. The layout, the closed panes, the focused pane, the docks and the open views are the window's alone; a switch doesn't change them, and a project saved with them loads (FR-166 amended, FR-417).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -3040,8 +3044,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   watchpoints with their names, conditions, enabled states and When hit
   settings; watches, including zero-page pointer watches; bookmarks; the
   symbol and debug files loaded and their source folders; data directives;
-  step filters; heat map range sets; disassembly options; the pane layout; and
-  a list of startup commands (FR-171). Added 2026-10-09 (owner).
+  step filters; heat map range sets; disassembly options; and a list of
+  startup commands (FR-171). Added 2026-10-09 (owner). Amended 2026-11-13
+  (owner): the pane layout is no longer part of a project (FR-417).
 - **FR-167**: The project MUST be chosen with no user action, from the most
   specific signal known: a loaded debug or symbol file; else a binary the
   debugger loaded (BLOAD or FR-180); else the machine and its boot
@@ -4106,6 +4111,11 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   with no groups MUST load. BPSAVE's file is AppleWin's script and has no
   groups.
 - **FR-416**: A group MUST cease to exist once it has no breakpoints.
+- **FR-417**: A debug project MUST NOT save or restore the window's layout:
+  the panes' places and sizes, the closed panes, the focused pane, where the
+  command bar and the timeline are docked, and the open views. Switching
+  projects, by loading or unloading a debug file or loading a saved state,
+  MUST NOT change them. A project saved with them MUST load, without them.
 
 ### Key Entities
 

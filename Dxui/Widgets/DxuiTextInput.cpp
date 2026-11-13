@@ -518,6 +518,11 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     uint32_t     bgArgb    = s_kFallbackBg;
     uint32_t     fgArgb    = s_kFallbackFg;
     uint32_t     selArgb   = s_kFallbackSel;
+    uint32_t     selFgArgb = s_kFallbackFg;
+    float        bandX     = 0.0f;
+    float        bandY     = 0.0f;
+    float        bandW     = 0.0f;
+    float        bandH     = 0.0f;
     uint32_t     edgeArgb  = s_kFallbackEdge;
     uint32_t     focusArgb = s_kFallbackFocus;
     float        textMeasW = 0.0f;
@@ -536,7 +541,11 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     {
         bgArgb    = m_theme->BackgroundElevated();
         fgArgb    = m_theme->Foreground();
-        selArgb   = m_theme->SelectionBackground();
+        //  Selected text as Windows' edit boxes draw it: the accent, with
+        //  the text in the color that reads on it. The row selection color
+        //  is a faint tint in some themes, which hid a text selection.
+        selArgb   = m_theme->Accent();
+        selFgArgb = DxuiTheme::GetContrastingText (selArgb);
         edgeArgb  = (fgArgb & 0x00FFFFFFu) | 0x30000000u;
         focusArgb = m_theme->FocusRing();
 
@@ -658,8 +667,11 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         //  A line of the text tall, centered as the text is, and inside the
         //  edge and a pixel of the fill, so a field as short as its text
         //  draws the band within its box.
-        selH = (std::min) ((textMeasH > 1.0f) ? textMeasH : fontPx * 1.3f, std::max (h - 4.0f, 1.0f));
-        text.FillRect (x + padL + bx - m_scrollPx, y + (h - selH) * 0.5f, sx, selH, selArgb);
+        selH  = (std::min) ((textMeasH > 1.0f) ? textMeasH : fontPx * 1.3f, std::max (h - 4.0f, 1.0f));
+        bandX = x + padL + bx - m_scrollPx;
+        bandY = y + (h - selH) * 0.5f;
+        bandW = sx;
+        bandH = selH;
     }
 
     hr = text.DrawString (m_text.c_str(),
@@ -675,6 +687,23 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
                           DxuiFontWeight::Normal,
                           false);
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    //  The selection's band over the text, and the selected text again on it
+    //  in the selection's text color, clipped to the band.
+    if (bandW > 0.0f)
+    {
+        hr = text.PushClipRect (bandX, bandY, bandW, bandH);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        text.FillRect (bandX, bandY, bandW, bandH, selArgb);
+
+        hr = text.DrawString (m_text.c_str(), x + padL - m_scrollPx, y, std::max (innerW + m_scrollPx, fullTextW + 1.0f), h,
+                              selFgArgb, fontPx, GetFace(), DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        hr = text.PopClipRect();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 
     //  Text the field offers after its own, such as a completion, in the
     //  muted color, drawn only while the caret is at the end it would extend.

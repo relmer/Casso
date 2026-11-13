@@ -377,7 +377,10 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
     m_model->SetFile       (fileId);
     m_model->SetMacroLevel (macroLevel);
     m_model->SetHeat       (m_host.IsCodeHeatOn() ? std::optional<HeatMapView::Palette> (m_host.GetHeatPalette()) : std::nullopt);
-    m_model->Apply         (snapshot);
+
+    m_model->SetBookmarkMark (m_host.GetBookmarkMark (nullptr));
+
+    m_model->Apply (snapshot);
 
     if (title != m_title)
     {

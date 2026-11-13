@@ -340,9 +340,17 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
             selected = selected || m_view.IsByteSelected (offset + (uint64_t) index);
         }
 
-        //  The byte the keys act on, while the view has them, stands out from
-        //  a selection: the accent behind it and the brightest ink on it.
-        if (hasFocus && caret >= offset && caret < offset + (uint64_t) present)
+        //  A search's match is drawn as a match whatever else the byte is, in
+        //  the ink that reads on its fill. Otherwise the byte the keys act
+        //  on, while the view has them, differs from a selection: the
+        //  accent behind it and the brightest ink on it.
+        if (m_matchFill && m_matchFill (offset) != 0)
+        {
+            FillCell (text, m_view.m_layout.GetValueSelectionRect (offset, cell), m_matchFill (offset));
+            argb     = DxuiTheme::GetContrastingText (m_matchFill (offset));
+            selected = false;
+        }
+        else if (hasFocus && caret >= offset && caret < offset + (uint64_t) present)
         {
             FillCell (text, m_view.m_layout.GetValueSelectionRect (offset, cell), theme.Accent());
             argb     = DxuiHexView::GetCaretInk (theme);
@@ -393,9 +401,15 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
         uint32_t      argb    = GetByteColor (theme, m_rowMarks[(size_t) index]);
         std::wstring  charOf  = { GetCharFor (m_rowBytes[(size_t) index]) };
 
-        //  Selected bytes are drawn in the full foreground, over the selection;
-        //  the byte the keys act on, in the brightest ink over the accent.
-        if (hasFocus && offset == caret)
+        //  A search's match first, as in the value column. Selected bytes are
+        //  drawn in the full foreground, over the selection; the byte the
+        //  keys act on, in the brightest ink over the accent.
+        if (m_matchFill && m_matchFill (offset) != 0)
+        {
+            FillCell (text, m_view.m_layout.GetSelectionCellRect (offset, index, txtRect, false), m_matchFill (offset));
+            argb = DxuiTheme::GetContrastingText (m_matchFill (offset));
+        }
+        else if (hasFocus && offset == caret)
         {
             FillCell (text, m_view.m_layout.GetSelectionCellRect (offset, index, txtRect, false), theme.Accent());
             argb = DxuiHexView::GetCaretInk (theme);

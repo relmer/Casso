@@ -100,7 +100,7 @@ void MemoryWindowPane::CreateControls()
             }
         },
         [this] (const DebuggerActionBuilder & build) { m_host.RunAction (build (m_host.GetMode())); },
-        [this] (const std::string & line)            { m_host.AppendConsole ({ line }); });
+        [this] (const std::string & line)            { m_host.ShowPaneReply (GetId(), { line }, false); });
 
     m_view->SetVisible (m_isOpen);
 }
@@ -451,6 +451,25 @@ void MemoryWindowGroup::ClearHistories()
     for (MemoryWindowPane * window : m_windows)
     {
         window->GetModel().ClearHistory();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryWindowGroup::ApplyColors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryWindowGroup::ApplyColors()
+{
+    for (MemoryWindowPane * window : m_windows)
+    {
+        window->GetModel().SetTextColors  (m_host.GetTextColors());
+        window->GetModel().SetHeatPalette (m_host.GetHeatPalette());
     }
 }
 
@@ -889,7 +908,8 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
         }
         else
         {
-            m_host.AppendConsole ({ std::format ("Go to: \"{}\" is not an address. {}", goTo.text, goTo.error) });
+            m_host.ShowPaneReply (GetWindow (goTo.window) != nullptr ? GetWindow (goTo.window)->GetId() : std::wstring(),
+                                  { std::format ("\"{}\" is not an address.", goTo.text), goTo.error }, true);
         }
     }
 
@@ -1375,9 +1395,10 @@ bool MemoryWindowGroup::SubmitTextBox (DxuiTextInput * box)
 //
 //  MemoryWindowGroup::TryGetTipAt
 //
-//  Over a byte of an open window, in either column, its address, at once and
-//  following the pointer itself rather than snapping from byte to byte; and
-//  while heat is on, its counts and what its tint means.
+//  Over a byte of an open window, in either column, its address, after the
+//  open delay and then following the pointer itself rather than snapping
+//  from byte to byte; and while heat is on, its counts and what its tint
+//  means.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1400,6 +1421,7 @@ bool MemoryWindowGroup::TryGetTipAt (POINT clientPx, DxuiTip & tip)
             }
 
             tip.placement   = DxuiTip::Placement::FollowPointer;
+            tip.isDelayed   = true;
             tip.isMonospace = true;
             return true;
         }
@@ -1416,11 +1438,11 @@ bool MemoryWindowGroup::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 //
 //  MemoryWindowGroup::AddWindowMenuItems
 //
-//  Grouped: the two copies, then going and finding, then what acts on a
-//  selection (Fill and Copy write the machine, so only while it is
-//  stopped; Compare reads it, so at any time), then the byte's watch and
-//  bookmark. The view's format choices are under Display and the byte's
-//  last reader and writer under Last access. Undo and Redo are the bar's.
+//  Grouped: the two copies, then going and finding, with the byte's last
+//  reader and writer under Last access, then what acts on a selection (Fill
+//  and Copy write the machine, so only while it is stopped; Compare reads
+//  it, so at any time), then the byte's watch and bookmark. The view's
+//  format choices are under Display. Undo and Redo are the bar's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1490,6 +1512,19 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
         }
     }
 
+    if (byte.has_value())
+    {
+        m_host.AddHeatAccessItems (*byte, HeatMapOptions::Bank::Cpu, access);
+
+        for (auto & [label, action] : access)
+        {
+            if (!label.empty())
+            {
+                items.push_back ({ PaneMenu::MakeInSubmenu (L"Last access", label), action });
+            }
+        }
+    }
+
     items.push_back ({ L"Find...", [this, each] { m_host.FocusControl (each->GetView()); (void) m_host.RunKeyAction (DebuggerKeySchemes::Action::Find); } });
 
     if (model.GetSelectedRange().has_value())
@@ -1520,16 +1555,7 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
 
     if (byte.has_value())
     {
-        m_host.AddBookmarkItem    (*byte, items);
-        m_host.AddHeatAccessItems (*byte, HeatMapOptions::Bank::Cpu, access);
-
-        for (auto & [label, action] : access)
-        {
-            if (!label.empty())
-            {
-                items.push_back ({ PaneMenu::MakeInSubmenu (L"Last access", label), action });
-            }
-        }
+        m_host.AddBookmarkItem (*byte, items);
     }
 }
 

@@ -106,6 +106,14 @@ public:
     //  comment, and where the word starts; null for none.
     static const SymbolInfo *  FindSymbolAt (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, int & start);
 
+    //  The word at a character of a line, before a comment, as FindSymbolAt
+    //  takes it; empty for none.
+    static std::wstring  GetWordAt (const std::wstring & line, int ch);
+
+    //  Whether a line defines a macro of a name: "name macro" as AS65 and
+    //  Merlin's MAC write it, or ".macro name" as ca65 writes it.
+    static bool  IsMacroDefinition (const std::wstring & line, const std::wstring & name);
+
     //  Where a line's code starts: past its label and the spaces after it, or
     //  at its start for a line with no code past a label.
     static int   FindCodeStart (const std::wstring & line);
@@ -143,6 +151,10 @@ public:
     //  off: each line has the heat strip of the first range of bytes the
     //  line produced in the gutter, after the glyph margin.
     void  SetHeat       (const std::optional<HeatMapView::Palette> & palette);
+
+    //  The outline drawn in the glyph margin of a line a bookmark is on,
+    //  around the line's breakpoint when it has one.
+    void  SetBookmarkMark (std::shared_ptr<const DxuiIconImage> mark) { m_bookmarkMark = std::move (mark); }
 
     //  The heat strips of the rows, one a line from line 1, as the gutter
     //  band's fills.
@@ -252,6 +264,12 @@ public:
     bool                TryGetSymbolTip   (POINT atDip, const std::vector<SymbolInfo> & symbols, std::wstring & text, RECT & anchor,
                                            const SymbolInfo ** found = nullptr) const;
     const SymbolInfo  * FindSymbolAt      (POINT atDip, const std::vector<SymbolInfo> & symbols) const;
+
+    //  The word of the source text under a point; and the number of the line
+    //  that defines a macro of that name in the pane's file, none if no line
+    //  does.
+    std::wstring        GetWordAt         (POINT atDip) const;
+    std::optional<int>  FindMacroLine     (const std::wstring & name) const;
     bool                IsOperandSymbolAt (POINT atDip, const std::vector<SymbolInfo> & symbols) const;
 
     //  The line the PC's branch goes to in a file, if a line there starts at
@@ -348,6 +366,9 @@ private:
     int                                                            m_rowsLine         = -1;
     bool                                                           m_followPending    = false;
     std::set<int>                                                  m_rowsBreakpoints;
+    std::set<int>                                                  m_rowsBookmarks;
+    std::set<Word>                                                 m_bookmarkAddresses;
+    std::shared_ptr<const DxuiIconImage>                           m_bookmarkMark;
     std::set<int>                                                  m_rowsDisabled;
     std::shared_ptr<const DebuggerViewSnapshot::LineOperands>      m_rowsLineOperands;
     std::vector<int>                                               m_rowLines;

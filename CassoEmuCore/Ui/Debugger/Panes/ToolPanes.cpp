@@ -1223,8 +1223,9 @@ bool DataBlocksPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems &
 
     if (block.has_value())
     {
-        items.push_back ({ L"Go to",  [this, at = block->first] { m_host.GoToCode (at); } });
-        items.push_back ({ L"Delete", [this, rows = GetActedRows (row)] { DeleteRows (rows); } });
+        items.push_back ({ L"Go to",     [this, at = block->first] { m_host.GoToCode (at); } });
+        items.push_back ({ L"Rename...", [this, renamed = *block] { Rename (renamed); } });
+        items.push_back ({ L"Delete",    [this, rows = GetActedRows (row)] { DeleteRows (rows); } });
     }
 
     AddCopyItem (items);
@@ -1239,17 +1240,93 @@ bool DataBlocksPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems &
 //
 //  DataBlocksPane::RouteEditKey
 //
+//  Delete removes the selected ranges, and F2 renames the one selected.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DataBlocksPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused)
 {
-    if (focused != m_list || ev.kind != DxuiKeyEventKind::Down || ev.ctrl || ev.alt || ev.vk != VK_DELETE)
+    std::optional<DataBlockEntry>  block;
+
+
+
+    if (focused != m_list || ev.kind != DxuiKeyEventKind::Down || ev.ctrl || ev.alt || (ev.vk != VK_DELETE && ev.vk != VK_F2))
     {
         return false;
     }
 
-    DeleteRows (GetActedRows (-1));
+    if (ev.vk == VK_DELETE)
+    {
+        DeleteRows (GetActedRows (-1));
+        return true;
+    }
+
+    block = GetBlock (m_list->GetSelectedRow());
+
+    if (block.has_value())
+    {
+        Rename (*block);
+    }
+
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataBlocksPane::Rename
+//
+//  The range is marked again, as the kind it is, under the name typed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DataBlocksPane::Rename (const DataBlockEntry & block)
+{
+    std::optional<std::wstring>  typed = m_host.RunTextDialog (L"Rename data range", L"Name", TextEncoding::NarrowToWide (block.name), [] (const std::wstring & text, std::wstring & error)
+    {
+        error = L"Type a name of letters, digits, _ and ., starting with a letter.";
+        return !text.empty() && iswalpha (text[0]) && std::ranges::all_of (text, [] (wchar_t ch) { return iswalnum (ch) || ch == L'_' || ch == L'.'; });
+    });
+
+
+
+    if (typed.has_value() && TextEncoding::WideToNarrow (*typed) != block.name)
+    {
+        m_host.RunAction (DebuggerActions::GetMarkData (GetDirective (block), block.first, block.last, m_host.GetMode(), TextEncoding::WideToNarrow (*typed)));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataBlocksPane::GetDirective
+//
+//  The directive that marks a range of the block's kind, a digit after DB
+//  or DW for how many to a line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DataBlocksPane::GetDirective (const DataBlockEntry & block)
+{
+    constexpr int  kMaxPerLineDigit = 9;
+    bool           hasDigit         = block.perLine >= 1 && block.perLine <= kMaxPerLineDigit;
+
+
+
+    switch (block.kind)
+    {
+    case DataBlockKind::Text:    return "ASC";
+    case DataBlockKind::Address: return "DA";
+    case DataBlockKind::Float:   return "DF";
+    case DataBlockKind::Words:   return hasDigit ? std::format ("DW{}", block.perLine) : std::string ("DW");
+    default:                     return hasDigit ? std::format ("DB{}", block.perLine) : std::string ("DB");
+    }
 }
 
 

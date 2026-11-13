@@ -1029,12 +1029,20 @@ bool DebuggerWindow::RouteWindowMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && ev.ctrl && !ev.shift && !ev.alt)
     {
         Word  address = 0;
+        int   fileId  = -1;
+        int   line    = 0;
 
 
 
         if (TryGetDefinitionAt (ev.positionDip, address))
         {
             GoToDefinition (address);
+            return true;
+        }
+
+        if (TryGetMacroDefinitionAt (ev.positionDip, fileId, line))
+        {
+            m_sources->Open (fileId, line, true);
             return true;
         }
     }
@@ -1676,6 +1684,7 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (ev.vk == VK_CONTROL && (ev.kind == DxuiKeyEventKind::Down || ev.kind == DxuiKeyEventKind::Up))
     {
         RefreshCursor();
+        m_isCursorRefreshDue = true;
     }
 
     //  Escape cancels a pane's drag, as in Visual Studio, and every pane
@@ -1986,14 +1995,17 @@ LPCWSTR DebuggerWindow::GetCursorForPoint (POINT clientPx) const
     }
 
     //  With Ctrl down, a symbol a click would go to the definition of is a
-    //  link.
-    if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+    //  link. The key's state now, not the state of the message being
+    //  handled, so a Ctrl pressed with the pointer at rest is seen.
+    if ((DxuiInputState::GetAsyncKeyState (VK_CONTROL) & 0x8000) != 0)
     {
         Word  address = 0;
+        int   fileId  = -1;
+        int   line    = 0;
 
 
 
-        if (TryGetDefinitionAt (clientPx, address))
+        if (TryGetDefinitionAt (clientPx, address) || TryGetMacroDefinitionAt (clientPx, fileId, line))
         {
             return IDC_HAND;
         }

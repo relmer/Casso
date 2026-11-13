@@ -358,61 +358,84 @@ void BreakpointHandlers::SetAddress (DebugSession & session, const DebugCommand 
 
 void BreakpointHandlers::SetSourceLine (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    const DebugFile                     & file    = session.GetDebugFile();
     int                                   line    = (int) command.count;
-    std::optional<int>                    fileId;
-    std::optional<int>                    target;
+    int                                   target  = 0;
     std::vector<std::pair<Word, Word>>    ranges;
     MessageData                           message;
+
+
+
+    if (!TryValidateCondition (session, command.expression, false, false, reply) || !TryResolveSourceLine (session, command, target, ranges, reply))
+    {
+        return;
+    }
+
+    for (const std::pair<Word, Word> & range : ranges)
+    {
+        int  id = session.GetBreakpoints().AddAddress (range.first, range.first, command.expression);
+
+        message.lines.push_back (std::format ("Breakpoint #{} at ${:04X}, {} line {}.", id, range.first, command.text, target));
+    }
+
+    if (target != line)
+    {
+        message.lines.push_back (std::format ("Line {} has no code, so the breakpoint is on line {}.", line, target));
+    }
+
+    session.OnStopConditionsChanged();
+    reply.data = message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::TryResolveSourceLine
+//
+//  A source line definition's file and line as the line with code from that
+//  one on, and the ranges of addresses that line produced; false with the
+//  reason in the reply.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHandlers::TryResolveSourceLine (DebugSession & session, const DebugCommand & command, int & target, std::vector<std::pair<Word, Word>> & ranges, Reply & reply)
+{
+    std::optional<int>  fileId;
+    std::optional<int>  found;
 
 
 
     if (!session.HasDebugFile())
     {
         reply.SetError (CommandStatus::Error, "no debug file", "There is no debug file to set a source breakpoint by. Load one with SYM LOAD.");
-        return;
+        return false;
     }
 
-    if (!TryValidateCondition (session, command.expression, false, false, reply))
-    {
-        return;
-    }
-
-    fileId = FindSourceFile (file, command.text);
+    fileId = FindSourceFile (session.GetDebugFile(), command.text);
 
     if (!fileId.has_value())
     {
         reply.SetError (CommandStatus::Error, "no such file", std::format ("The debug file has no source file {}.", command.text));
-        return;
+        return false;
     }
 
     if (command.count <= (uint32_t) INT_MAX)
     {
-        target = session.GetLineTable().GetNextLineWithCode (*fileId, line);
+        found = session.GetLineTable().GetNextLineWithCode (*fileId, (int) command.count);
     }
 
-    if (!target.has_value())
+    if (!found.has_value())
     {
         reply.SetError (CommandStatus::Error, "no code", std::format ("No line from {} onward in {} has code.", command.count, command.text));
-        return;
+        return false;
     }
 
-    ranges = session.GetLineTable().GetRanges (*fileId, *target);
+    target = *found;
+    ranges = session.GetLineTable().GetRanges (*fileId, target);
 
-    for (const std::pair<Word, Word> & range : ranges)
-    {
-        int  id = session.GetBreakpoints().AddAddress (range.first, range.first, command.expression);
-
-        message.lines.push_back (std::format ("Breakpoint #{} at ${:04X}, {} line {}.", id, range.first, command.text, *target));
-    }
-
-    if (*target != line)
-    {
-        message.lines.push_back (std::format ("Line {} has no code, so the breakpoint is on line {}.", line, *target));
-    }
-
-    session.OnStopConditionsChanged();
-    reply.data = message;
+    return !ranges.empty();
 }
 
 
@@ -1417,8 +1440,10 @@ void BreakpointHandlers::Enable (DebugSession & session, const DebugCommand & co
 //  BreakpointHandlers::Edit
 //
 //  BPEDIT # definition: the definition is parsed as its own line and must be
-//  one of the setting commands. The old entry is removed and the new one
-//  takes its id, enabled state and flags, with its hit count at zero.
+//  one of the setting commands. A source line's definition is the address
+//  its line's code starts at, the first where a macro body line has several.
+//  The old entry is removed and the new one takes its id, enabled state and
+//  flags, with its hit count at zero.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1447,6 +1472,22 @@ void BreakpointHandlers::Edit (DebugSession & session, const DebugCommand & comm
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", parsed.error.empty() ? "BPEDIT # takes the breakpoint's new definition." : parsed.error);
         return;
+    }
+
+    if (parsed.command.verb == DebugVerb::SetSourceBreakpoint)
+    {
+        int                                 target = 0;
+        std::vector<std::pair<Word, Word>>  ranges;
+
+        if (!TryResolveSourceLine (session, parsed.command, target, ranges, reply))
+        {
+            return;
+        }
+
+        parsed.command.verb  = DebugVerb::SetBreakpoint;
+        parsed.command.a1    = ranges.front().first;
+        parsed.command.a2    = ranges.front().first;
+        parsed.command.hasA2 = false;
     }
 
     if (!TryMakeEntry (parsed.command, id, old, breakpoint, watchpoint, isWatchpoint))

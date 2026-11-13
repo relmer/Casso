@@ -713,13 +713,14 @@ public:
     DxuiPopupHost  *  AcquirePopup ();
     void              ReleasePopup (DxuiPopupHost * popup);
 
-    //  The popups open now are drawn in this typography, not this window's,
-    //  until it is called again with none, so a menu measured in one face is
-    //  drawn in it while the window's face changes.
-    void              PinPopupTypography (const DxuiTextRenderer::Typography * typography);
+    //  The popups open now, and those acquired after, are measured and drawn
+    //  in this typography, not this window's, until it is called again with
+    //  none, so the menus' face is fixed while the window's face changes.
+    void              PinPopupTypography      (const DxuiTextRenderer::Typography * typography);
+    bool              IsPopupTypographyPinned () const { return m_pinnedPopupTypography != nullptr; }
 
     //  Each open popup is drawn again, as after a theme change.
-    void              MarkPopupsDirty    ();
+    void              MarkPopupsDirty         ();
 
     //
     //  Adopt-mode popup device. A full-ownership host seeds its popup
@@ -1029,6 +1030,7 @@ private:
     // (WM_DPICHANGED_BEFOREPARENT) to live popups.
     std::vector<std::unique_ptr<DxuiPopupHost>>  m_popupPool;
     std::vector<DxuiPopupHost *>                 m_popupActive;
+    const DxuiTextRenderer::Typography         * m_pinnedPopupTypography = nullptr;
 
     // Adopt-mode popup device/context (non-owning). Null in
     // full-ownership mode (m_device/m_context are used instead).

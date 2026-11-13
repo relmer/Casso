@@ -752,17 +752,21 @@ bool DxuiListKeyboard::SelectFocused (bool ctrl)
 //  row; a growing prefix starts at the current row, so it stays put while the
 //  row still matches. Either way the search wraps around the end.
 //
+//  A row's text is matched past what leads it in a list drawn as a tree: the
+//  spaces of its indent and its expander's glyph.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiListKeyboard::HandleTypeAhead (wchar_t ch)
 {
-    int64_t            now    = m_clock ? m_clock() : (int64_t) GetTickCount64();
-    int                rows   = m_list.GetRowCount();
-    int                cur    = m_list.GetSelectedRow();
-    bool               repeat = false;
-    int                from   = 0;
-    int                step   = 0;
-    std::wstring       prefix;
+    static constexpr wchar_t  kFirstGlyph = 0x2000;      // punctuation, arrows and geometric glyphs from here on
+    int64_t                   now         = m_clock ? m_clock() : (int64_t) GetTickCount64();
+    int                       rows        = m_list.GetRowCount();
+    int                       cur         = m_list.GetSelectedRow();
+    bool                      repeat      = false;
+    int                       from        = 0;
+    int                       step        = 0;
+    std::wstring              prefix;
 
 
 
@@ -790,9 +794,15 @@ bool DxuiListKeyboard::HandleTypeAhead (wchar_t ch)
     {
         int                                           row   = ((from + step) % rows + rows) % rows;
         const std::vector<DxuiListViewTypes::Cell>  & cells = m_list.GetRowCells (row);
+        size_t                                        lead  = 0;
 
-        if (!cells.empty() && cells[0].text.size() >= prefix.size()
-            && _wcsnicmp (cells[0].text.c_str(), prefix.c_str(), prefix.size()) == 0)
+        while (!cells.empty() && lead < cells[0].text.size() && (iswspace (cells[0].text[lead]) || cells[0].text[lead] >= kFirstGlyph))
+        {
+            lead++;
+        }
+
+        if (!cells.empty() && cells[0].text.size() - lead >= prefix.size()
+            && _wcsnicmp (cells[0].text.c_str() + lead, prefix.c_str(), prefix.size()) == 0)
         {
             m_list.SetSelectedRow (row);
 

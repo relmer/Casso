@@ -92,13 +92,13 @@ void MemoryPane::Configure (HWND hwnd)
 
     m_view->SetOnWriteRefused ([this] (uint64_t offset) { NoteRefusal (offset); });
 
-    m_view->SetByteFill ([this] (uint64_t offset) -> uint32_t
+    //  A find's hits, the selected one in the current-match color.
+    m_view->SetMatchFill ([this] (uint64_t offset) -> uint32_t
     {
         Word  address = m_model.GetAddressOf (offset);
 
 
 
-        //  A find's hits, the selected one in the current-match color.
         for (size_t hit = 0; hit < m_findHits.size(); hit++)
         {
             if ((Word) (address - m_findHits[hit]) < m_findLength)
@@ -107,6 +107,11 @@ void MemoryPane::Configure (HWND hwnd)
             }
         }
 
+        return 0;
+    });
+
+    m_view->SetByteFill ([this] (uint64_t offset) -> uint32_t
+    {
         if (!m_isHeatOn || m_heatLevels == nullptr)
         {
             return 0;
@@ -880,12 +885,28 @@ DxuiFindResult MemoryPane::SelectMatchInView (const std::wstring & needle, bool 
 
 void MemoryPane::ShowFindHit (Word address)
 {
-    uint64_t  offset = (uint64_t) (Word) (address - m_model.GetAddressOf (0));
+    uint64_t  offset  = (uint64_t) (Word) (address - m_model.GetAddressOf (0));
+    RECT      byte    = {};
+    int       covered = 0;
+    int       rowH    = 0;
+    uint64_t  rows    = 0;
 
 
 
     m_view->GoToOffset (offset);
     m_view->SelectByte (offset, DxuiHexViewTypes::Column::Hex);
+
+    //  A hit under the find box is scrolled down below it.
+    byte    = m_view->GetByteRect (offset, DxuiHexViewTypes::Column::Hex);
+    covered = m_view->GetBounds().top + m_findCoveredPx;
+    rowH    = byte.bottom - byte.top;
+
+    if (m_findCoveredPx > 0 && rowH > 0 && byte.top < covered)
+    {
+        rows = (uint64_t) ((covered - byte.top + rowH - 1) / rowH);
+        m_view->SetTopRow ((m_view->GetTopRow() > rows) ? m_view->GetTopRow() - rows : 0);
+    }
+
     SetFindMarks();
 }
 

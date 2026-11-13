@@ -156,7 +156,7 @@ public:
     //  and Shift+F3 find.
     void                 Open           (const std::wstring & pane);
     void                 Close          ();
-    void                 Find           (bool forward);
+    void                 Find           (bool forward, const std::wstring & pane = {});
 
     //  The options, each emphasized while on; find in selection; the keys
     //  back to the box after a button the pointer pressed; and a step

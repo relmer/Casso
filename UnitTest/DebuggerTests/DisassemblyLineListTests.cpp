@@ -174,6 +174,30 @@ namespace DebuggerTests
         }
 
 
+        //  A label inside an instruction, as HOME at $FC58 inside the
+        //  instruction decoded from $FC57, starts a line, so Go to on the
+        //  symbol has a row; the instruction at the PC is not cut at a label.
+        TEST_METHOD (ALabelStartsALineInsideADecodedInstruction)
+        {
+            static constexpr Byte  kBit = 0x2C;
+            Rig                    rig;
+
+
+
+            rig.inputs.lengths[kBit] = 3;
+            rig.image.bytes[0x0800]  = kBit;
+            rig.image.bytes[0x0900]  = kBit;
+            rig.inputs.pc            = 0x0900;
+            rig.inputs.labels        = { 0x0801, 0x0901 };
+
+            rig.list.Build (rig.inputs);
+
+            Assert::IsTrue   (rig.StartsAt (0x0801), L"the label's row");
+            Assert::AreEqual ((int) 1, (int) rig.LineAt (0x0800).length, L"the decode before it, cut short");
+            Assert::AreEqual ((int) 3, (int) rig.LineAt (0x0900).length, L"the PC's instruction is whole");
+        }
+
+
         //  A call frame's JSR is a known start where memory has the JSR, so a
         //  decode from before it is cut short there; an interrupt's frame and
         //  a call site whose byte is no longer a JSR are not.

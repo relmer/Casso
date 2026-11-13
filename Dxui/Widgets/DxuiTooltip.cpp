@@ -455,6 +455,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 
 
     m_isInstant        = false;
+    m_isPendingInstant = false;
     m_isNextPointerTip = isAtPointer;
 
     if (m_visible && wasInstant)
@@ -543,6 +544,47 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RequestShowFollowing
+//
+//  A tip already following the pointer moves with it. Otherwise the request
+//  waits the open dwell, its clock running on while the pointer moves, and the tip
+//  that comes up then follows the pointer as RequestShowNow's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::RequestShowFollowing (const RECT & anchor, const std::wstring & text, int64_t nowMs)
+{
+    if (m_visible && !m_fadingOut && m_isInstant)
+    {
+        RequestShowNow (anchor, text, nowMs);
+        return;
+    }
+
+    m_pendingAnchor = anchor;
+    m_pendingText   = text;
+
+    if (m_pending && m_isPendingInstant)
+    {
+        return;
+    }
+
+    if (m_visible)
+    {
+        HideImmediate();
+    }
+
+    m_isPendingInstant = true;
+    m_isNextPointerTip = true;
+    m_pending          = true;
+    m_showAtMs         = nowMs + (int64_t) m_dwellOpenMs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MeasurePointerForPlacement
 //
 //  The pointer's image, read once as a tip comes up.
@@ -594,12 +636,13 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
         return;
     }
 
-    m_anchor    = anchor;
-    m_text      = text;
-    m_pending   = false;
-    m_visible   = true;
-    m_fadingOut = false;
-    m_isInstant = true;
+    m_anchor           = anchor;
+    m_text             = text;
+    m_pending          = false;
+    m_isPendingInstant = false;
+    m_visible          = true;
+    m_fadingOut        = false;
+    m_isInstant        = true;
 
     if (!isUp || isNew)
     {
@@ -785,11 +828,13 @@ void DxuiTooltip::Tick (int64_t nowMs)
 
     if (m_pending && nowMs >= m_showAtMs)
     {
-        m_anchor       = m_pendingAnchor;
-        m_text         = m_pendingText;
-        m_visible      = true;
-        m_pending      = false;
-        m_isPointerTip = m_isNextPointerTip;
+        m_anchor           = m_pendingAnchor;
+        m_text             = m_pendingText;
+        m_visible          = true;
+        m_pending          = false;
+        m_isPointerTip     = m_isNextPointerTip;
+        m_isInstant        = m_isPendingInstant;
+        m_isPendingInstant = false;
 
         MeasurePointerForPlacement();
 

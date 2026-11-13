@@ -229,20 +229,33 @@ bool DxuiEditableGrid::IsColumnEditable (int column) const
 //
 //  DxuiEditableGrid::IsCellEditable
 //
-//  Every editable column of the hint row; in a data row that is not
-//  read-only, each editable column but those of its read-only cells.
+//  Every editable column of the hint row, or only its first when the first
+//  field adds the row, since the others have nothing to edit until the row
+//  exists; in a data row that is not read-only, each editable column but
+//  those of its read-only cells.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiEditableGrid::IsCellEditable (int row, int column) const
 {
     const std::vector<bool>  * readOnly = nullptr;
+    int                        first    = 0;
 
 
 
     if (!IsColumnEditable (column))
     {
         return false;
+    }
+
+    if (IsAddRow (row) && m_isAddOnFirst)
+    {
+        while (first < column && !IsColumnEditable (first))
+        {
+            first++;
+        }
+
+        return first == column;
     }
 
     if (IsAddRow (row))
@@ -1215,7 +1228,7 @@ bool DxuiEditableGrid::OnMouse (const DxuiMouseEvent & ev)
 
         if (row == m_pressRow && column == m_pressColumn)
         {
-            if (IsAddRow (row) && !IsColumnEditable (column))
+            if (IsAddRow (row) && !IsCellEditable (row, column))
             {
                 column = GetNextEditColumn (-1, 1);
             }

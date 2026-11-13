@@ -194,6 +194,21 @@ public:
 
 
 
+    //  File > Unload symbol or debug file's row for the debug file runs SRC
+    //  CLEAR, which unloads the debug file rather than only its symbols.
+    TEST_METHOD (TheDebugFilesUnloadRowIsSrcClear)
+    {
+        DebuggerAction  action = DebuggerActions::GetUnloadDebugFile (CommandMode::AppleWin);
+
+
+
+        Assert::AreEqual (std::string ("SRC CLEAR"), action.echo);
+        Assert::AreEqual (std::string ("CLEAR"),     action.command.text);
+        Assert::IsTrue   (action.command.verb == DebugVerb::ShowSource);
+    }
+
+
+
     //  A memory window's undo writes only while memory contains the action's
     //  required bytes, whatever the window last read.
     TEST_METHOD (APatchWithExpectedBytesWritesOnlyOverThem)

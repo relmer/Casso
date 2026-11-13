@@ -98,6 +98,12 @@ void DxuiTipService::Show (const DxuiTip & tip, POINT pointPx, int64_t nowMs)
 
     ApplyLook (tip);
 
+    if (tip.placement == DxuiTip::Placement::FollowPointer && tip.isDelayed)
+    {
+        m_tooltip.RequestShowFollowing (pointer, tip.text, nowMs);
+        return;
+    }
+
     if (tip.placement == DxuiTip::Placement::FollowPointer)
     {
         m_tooltip.RequestShowNow (pointer, tip.text, nowMs);

@@ -125,6 +125,25 @@ public:
         Assert::AreEqual (std::wstring (L"Copy"), t.GetText());
     }
 
+    TEST_METHOD (ShowFollowing_WaitsTheDelayAndThenFollows)
+    {
+        DxuiTooltip  t;
+        t.SetDwellOpenMs (500);
+
+        t.RequestShowFollowing (MakeRect (0, 0, 1, 1), L"$0300", 0);
+        t.RequestShowFollowing (MakeRect (5, 0, 6, 1), L"$0301", 300);
+        Assert::IsFalse (t.IsVisible(), L"The open delay first, as other tips have");
+
+        t.Tick (500);
+        Assert::IsTrue   (t.IsVisible(), L"The delay runs from the first request");
+        Assert::AreEqual (std::wstring (L"$0301"), t.GetText(), L"at the latest byte");
+
+        t.RequestShowFollowing (MakeRect (9, 0, 10, 1), L"$0302", 600);
+        Assert::IsTrue   (t.IsVisible(), L"Once up, the tip follows at once");
+        Assert::AreEqual ((LONG) 9, t.GetAnchor().left);
+        Assert::AreEqual (std::wstring (L"$0302"), t.GetText());
+    }
+
     TEST_METHOD (Request_SwapAnchorWhileVisible)
     {
         DxuiTooltip  t;

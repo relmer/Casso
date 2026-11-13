@@ -334,6 +334,12 @@ void ShellDebugger::RunReverseCommand (
     m_host.DrawFrame();
 
 Error:
+    //  Landed or not, the command has run, so a script waiting on it goes on.
+    if (m_debugSession != nullptr)
+    {
+        m_debugSession->SetReversePending (false);
+    }
+
     //  Landed or not, the seek is no longer on its way. The timeline hears
     //  where the machine stands before it hears of the landing, so a line
     //  held where it was dropped moves straight to where the seek landed.
@@ -463,7 +469,9 @@ bool ShellDebugger::AllowCommand (
 
 bool ShellDebugger::AskToDiverge()
 {
-    int  choice = IDNO;
+    int                  choice = IDNO;
+    HWND                 owner  = m_host.GetMainWindow();
+    const IDxuiTheme   * theme  = &m_host.GetChromeTheme();
 
 
 
@@ -474,7 +482,14 @@ bool ShellDebugger::AskToDiverge()
 
     m_isAskingToDiverge = true;
 
-    choice = DxuiMessageBox (m_host.GetMainWindow(), &m_host.GetChromeTheme(), DivergenceGate::kpszQuestion, DivergenceGate::kpszTitle,
+    //  With the debugger's window active, the box is over it and in its theme.
+    if (m_debuggerWindow != nullptr && m_debuggerWindow->GetHwnd() != nullptr && GetActiveWindow() == m_debuggerWindow->GetHwnd())
+    {
+        owner = m_debuggerWindow->GetHwnd();
+        theme = (m_debuggerWindow->GetThemeInForce() != nullptr) ? m_debuggerWindow->GetThemeInForce() : theme;
+    }
+
+    choice = DxuiMessageBox (owner, theme, DivergenceGate::kpszQuestion, DivergenceGate::kpszTitle,
                              MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
 
     m_isAskingToDiverge = false;

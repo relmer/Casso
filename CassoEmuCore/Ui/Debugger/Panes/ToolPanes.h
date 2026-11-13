@@ -233,6 +233,9 @@ public:
     static std::vector<DataBlockEntry>  GetSorted   (std::vector<DataBlockEntry> blocks, int column, bool isReverse);
     static const wchar_t              * GetKindText (DataBlockKind kind);
 
+    //  The directive that marks a range of a block's kind, as DB4 or ASC.
+    static std::string                  GetDirective (const DataBlockEntry & block);
+
     //  The Kind heading's filter.
     ListValueFilters                  & GetFilters  () { return m_filters; }
 
@@ -241,6 +244,7 @@ private:
 
     void  SortBy     (int column);
     void  DeleteRows (const std::vector<int> & rows);
+    void  Rename     (const DataBlockEntry & block);
 
     std::vector<DataBlockEntry>    m_blocks;
     ListValueFilters               m_filters;

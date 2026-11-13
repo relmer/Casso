@@ -46,7 +46,7 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::string ("D1 READ 11 0"), DiskBreakSpecText::FormatArguments (spec));
             Assert::AreEqual (std::string ("sector read, track $11 sector $00, drive 1"), DiskBreakSpecText::GetDescription (spec));
-            Assert::AreEqual ("Sector read", DiskBreakSpecText::GetTriggerText (spec.event));
+            Assert::AreEqual ("Read sector", DiskBreakSpecText::GetTriggerText (spec.event));
         }
 
         TEST_METHOD (AStarStandsForAnyTrackOrSector)
@@ -149,7 +149,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("MOTOR STOPPED"),         DiskBreakSpecText::FormatArguments (motor));
             Assert::AreEqual (std::string ("D2 SELECT EVERY"),       DiskBreakSpecText::FormatArguments (select));
             Assert::AreEqual (std::string ("WRITE BLOCKED"),         DiskBreakSpecText::FormatArguments (blocked));
-            Assert::AreEqual ("Write", DiskBreakSpecText::GetTriggerText (blocked.event));
+            Assert::AreEqual ("Write disk", DiskBreakSpecText::GetTriggerText (blocked.event));
         }
     };
 }

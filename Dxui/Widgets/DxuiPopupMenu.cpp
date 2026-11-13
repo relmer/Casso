@@ -469,7 +469,19 @@ void DxuiPopupMenu::ShowCore (
     PlaceIconRow (OpensUpward (originX, originY, m_layout.GetContentHeightPx(), anchoring));
     DropStraySeparators();
 
-    width        = (std::max) (m_layout.MeasureWidthPx (text), m_minWidthPx);
+    //  A face pinned for popups is the one the rows are drawn in, so they are
+    //  measured in the popup's renderer rather than the owner's.
+    if (m_popupHost != nullptr && m_activePopup == nullptr && m_popupHost->IsPopupTypographyPinned())
+    {
+        m_activePopup = m_popupHost->AcquirePopup();
+    }
+
+    if (m_activePopup != nullptr && m_popupHost != nullptr && m_popupHost->IsPopupTypographyPinned())
+    {
+        m_text = &m_activePopup->GetTextRenderer();
+    }
+
+    width        = (std::max) (m_layout.MeasureWidthPx (*m_text), m_minWidthPx);
 
     //  Too wide: the menu is cut to the cap, and its labels are cut to fit.
     if (m_maxWidthPx > 0 && width > m_maxWidthPx)
@@ -478,7 +490,7 @@ void DxuiPopupMenu::ShowCore (
         m_layout.m_accelLeftPx = width - m_metrics.rightPadPx - m_layout.m_accelWidthPx;
     }
 
-    FindCutRows (text);
+    FindCutRows (*m_text);
 
     height       = m_layout.GetContentHeightPx();
     limit        = m_layout.GetHeightLimitPx (anchor, anchoring);
@@ -524,7 +536,7 @@ void DxuiPopupMenu::ShowCore (
     m_boundsDip.right  = left + width;
     m_boundsDip.bottom = top  + height;
 
-    if (m_popupHost != nullptr && m_activePopup == nullptr)
+    if (m_popupHost != nullptr && (m_activePopup == nullptr || !m_activePopup->IsOpen()))
     {
         AcquirePopup (anchor, anchoring);
     }
@@ -565,7 +577,11 @@ void DxuiPopupMenu::AcquirePopup (const RECT & anchor, Anchoring anchoring)
     ClientToScreen (owner, &topLeft);
     ClientToScreen (owner, &botRight);
 
-    m_activePopup = m_popupHost->AcquirePopup();
+    if (m_activePopup == nullptr)
+    {
+        m_activePopup = m_popupHost->AcquirePopup();
+    }
+
     if (m_activePopup == nullptr)
     {
         return;

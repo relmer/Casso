@@ -1229,6 +1229,11 @@ void DebuggerWindow::RenderFrame()
     SaveUndoHistories();
     UpdateProjectCaption (now);
 
+    if (std::exchange (m_isCursorRefreshDue, false))
+    {
+        RefreshCursor();
+    }
+
     if (m_host->TakeDebuggerProjectState())
     {
         ReloadProjectState();

@@ -361,19 +361,22 @@ namespace DebuggerTests
         }
 
 
-        //  Over a byte the memory window shows its address at once, in either
-        //  column, and a press that starts a selection takes the tip away.
-        TEST_METHOD (TheAddressUnderThePointerShowsAtOnce)
+        //  Over a byte the memory window's tip has its address after the open
+        //  delay, as other tips do, in either column, and a press that starts
+        //  a selection takes the tip away.
+        TEST_METHOD (TheAddressUnderThePointerShowsAfterTheDelay)
         {
-            constexpr int    kCellWidthDip  = 8;
-            constexpr int    kCellHeightDip = 16;
-            CassoTheme       theme          = CassoTheme::MakeSkeuomorphic();
-            MemoryBarHost    host;
-            MemoryBarWindow  window (theme, host);
-            DxuiHexView    * view           = nullptr;
-            RECT             hex            = {};
-            RECT             text           = {};
-            DxuiMouseEvent   press;
+            constexpr int      kCellWidthDip  = 8;
+            constexpr int      kCellHeightDip = 16;
+            constexpr int64_t  kPastDwellMs   = 60000;
+            CassoTheme         theme          = CassoTheme::MakeSkeuomorphic();
+            MemoryBarHost      host;
+            MemoryBarWindow    window (theme, host);
+            DxuiTooltip      & tooltip        = const_cast<DxuiTooltip &> (window.GetTooltip());   // the window has only a const accessor
+            DxuiHexView      * view           = nullptr;
+            RECT               hex            = {};
+            RECT               text           = {};
+            DxuiMouseEvent     press;
 
 
 
@@ -390,7 +393,10 @@ namespace DebuggerTests
 
             (void) window.OnMouse (MakeMove (hex.left + 1, hex.top + 1));
             Assert::IsTrue   (hex.right > hex.left, L"the byte is on screen");
-            Assert::IsTrue   (window.GetTooltip().IsVisible(), L"no dwell");
+            Assert::IsFalse  (window.GetTooltip().IsVisible(), L"the open delay first");
+
+            tooltip.Tick ((int64_t) GetTickCount64() + kPastDwellMs);
+            Assert::IsTrue   (window.GetTooltip().IsVisible(), L"up once the delay passes");
             Assert::IsTrue   (window.GetTooltip().GetText().starts_with (L"$"), window.GetTooltip().GetText().c_str());
             Assert::IsTrue   (window.GetTooltip().GetText().size() == 5 || window.GetTooltip().GetText()[5] == L' ', L"a four-digit address");
 
@@ -410,17 +416,19 @@ namespace DebuggerTests
         //  placed against the pointer rather than snapped to each byte.
         TEST_METHOD (TheAddressTipFollowsThePointerWithoutBeingRaisedAgain)
         {
-            constexpr int    kCellWidthDip  = 8;
-            constexpr int    kCellHeightDip = 16;
-            CassoTheme       theme          = CassoTheme::MakeSkeuomorphic();
-            MemoryBarHost    host;
-            MemoryBarWindow  window (theme, host);
-            DxuiHexView    * view           = nullptr;
-            uint64_t         first          = 0;
-            RECT             hex            = {};
-            RECT             next           = {};
-            int              shown          = 0;
-            std::wstring     firstText;
+            constexpr int      kCellWidthDip  = 8;
+            constexpr int      kCellHeightDip = 16;
+            constexpr int64_t  kPastDwellMs   = 60000;
+            CassoTheme         theme          = CassoTheme::MakeSkeuomorphic();
+            MemoryBarHost      host;
+            MemoryBarWindow    window (theme, host);
+            DxuiTooltip      & tooltip        = const_cast<DxuiTooltip &> (window.GetTooltip());   // the window has only a const accessor
+            DxuiHexView      * view           = nullptr;
+            uint64_t           first          = 0;
+            RECT               hex            = {};
+            RECT               next           = {};
+            int                shown          = 0;
+            std::wstring       firstText;
 
 
 
@@ -436,6 +444,7 @@ namespace DebuggerTests
             next  = view->GetByteRect (first + 4, DxuiHexView::Column::Hex);
 
             (void) window.OnMouse (MakeMove (hex.left + 1, hex.top + 1));
+            tooltip.Tick ((int64_t) GetTickCount64() + kPastDwellMs);
             Assert::IsTrue (window.GetTooltip().IsVisible());
 
             shown     = window.GetTooltip().GetShowCount();

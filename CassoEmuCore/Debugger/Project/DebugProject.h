@@ -25,8 +25,9 @@ class WatchTable;
 //  AppleWin mode so it reads back exactly: breakpoints, watches, zero-page
 //  pointers, bookmarks, data directives and step filters; beside it each
 //  breakpoint's name, by its place in the script, and the symbol and debug
-//  files to load first. The window's part is its saved strings: the layout,
-//  the heat map's range sets, the disassembly options and the open views.
+//  files to load first. The window's part is its saved strings: the heat
+//  map's range sets, the disassembly options and the panes' states. The
+//  window's layout is not part of a project.
 //  The startup commands run, each in its mode, once the rest is in place.
 //
 //  On disk it is JSON. A symbol file's path is written relative to the
@@ -60,10 +61,8 @@ struct DebugProject
     std::map<size_t, std::string>  breakpointNames;   // by the breakpoint's place in BPL's order
     std::map<size_t, std::string>  breakpointLogs;    // BPLOG's messages, by the same place
     std::map<size_t, std::string>  breakpointGroups;  // BPGROUP's groups, by the same place
-    std::string                    layout;
     std::string                    rangeSets;
     std::string                    disassemblyOptions;
-    std::string                    openViews;
     std::vector<StartupCommand>    startupCommands;
 
     //  The cycle count RCC last started the trip count at.
@@ -89,10 +88,14 @@ struct DebugProject
     std::string                    breakpointUndo;
 
     //  The window's other state by name, each the text its setting has: the
-    //  closed panes, the focused pane, the docks, the heat map's and the event
-    //  logs' options, the console history, the find history and the column
-    //  widths.
+    //  heat map's and the event logs' options, the console history, the find
+    //  history and the column widths.
     std::map<std::string, std::string>  windowStrings;
+
+    //  Whether a window string is part of the layout: the panes' places, the
+    //  closed panes, the focused pane, the docks and the open views. A project
+    //  file that has them loads, and they are ignored.
+    static bool  IsLayoutString (const std::string & name);
 
     //  Where the project is saved, and whether that is its scope's automatic
     //  file rather than one the user chose.

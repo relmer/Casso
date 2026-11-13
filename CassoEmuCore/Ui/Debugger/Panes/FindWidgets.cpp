@@ -148,8 +148,8 @@ void FindWidgetSet::Create (const std::wstring & pane, FindWidget & widget)
 
     //  A button press takes the keys, so each puts them back in the box
     //  and the next Enter searches again.
-    widget.prevButton->SetOnClick  ([this, pane] { (void) Activate (pane); Find (false); RefocusBox(); });
-    widget.nextButton->SetOnClick  ([this, pane] { (void) Activate (pane); Find (true);  RefocusBox(); });
+    widget.prevButton->SetOnClick  ([this, pane] { Find (false, pane); RefocusBox(); });
+    widget.nextButton->SetOnClick  ([this, pane] { Find (true,  pane); RefocusBox(); });
     widget.closeButton->SetOnClick ([this, pane] { (void) Activate (pane); Close(); });
 
     widget.selButton->SetOnClick ([this, pane] { FindWidget & w = Activate (pane); SetInSelection (!w.inSelection); RefocusBox(); });
@@ -492,6 +492,11 @@ void FindWidgetSet::PlaceOne (const std::wstring & pane, FindWidget & widget)
 
     if (!shown)
     {
+        if (view != nullptr)
+        {
+            view->SetFindCoveredPx (0);
+        }
+
         return;
     }
 
@@ -506,6 +511,7 @@ void FindWidgetSet::PlaceOne (const std::wstring & pane, FindWidget & widget)
     plate.bottom = area.top + px (kHeightDip);
 
     widget.plate->Layout (plate, scaler);
+    view->SetFindCoveredPx (plate.bottom - area.top);
 
     top    = plate.top    + px (4);
     bottom = plate.bottom - px (4);
@@ -818,13 +824,14 @@ bool FindWidgetSet::StepHistory (int step)
 //  With nothing to find yet, this opens the widget for it. Otherwise the
 //  next or previous match is selected in the active pane, whether or not
 //  the widget is open, as F3 finds again in Visual Studio after its find is
-//  closed.
+//  closed. A widget's arrows search its pane, whichever pane has the
+//  keys.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FindWidgetSet::Find (bool forward)
+void FindWidgetSet::Find (bool forward, const std::wstring & pane)
 {
-    std::wstring       target  = GetTarget();
+    std::wstring       target  = pane.empty() ? GetTarget() : pane;
     std::wstring       needle;
     IDxuiFindTarget  * view    = nullptr;
     IDxuiFindTarget  * shown   = (m_active != nullptr) ? m_window.GetFindView (m_activePane) : nullptr;
@@ -843,7 +850,7 @@ void FindWidgetSet::Find (bool forward)
     //  F3 searches the text with the keys, if it can; from elsewhere, the
     //  pane whose widget is open and in sight. A closed document's widget
     //  is open but hidden.
-    if (m_active == nullptr || (target != m_activePane && (!isShown || m_window.GetFocusPane() == target)))
+    if (!pane.empty() || m_active == nullptr || (target != m_activePane && (!isShown || m_window.GetFocusPane() == target)))
     {
         (void) Activate (target);
     }
@@ -852,7 +859,7 @@ void FindWidgetSet::Find (bool forward)
 
     if (needle.empty())
     {
-        Open (GetTarget());
+        Open (target);
         return;
     }
 

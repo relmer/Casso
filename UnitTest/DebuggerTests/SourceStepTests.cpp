@@ -460,5 +460,29 @@ namespace DebuggerTests
                               L"a line past the last one has no code, whatever its size");
             Assert::IsTrue   (rig.RunOk ("BP 300:302").text.at (0).find ("$0300") != std::string::npos, L"an address range still parses as one");
         }
+
+
+        //  The breakpoint dialog changes a source line breakpoint's line with
+        //  BPEDIT and the line's definition, which moves it to that line's
+        //  address under the same id.
+        TEST_METHOD (BpeditMovesABreakpointToAnotherSourceLine)
+        {
+            MachineHandlerRig<BreakpointHandlers>  rig;
+            AssemblyResult                         result;
+            TestCpu                                cpu;
+            AssemblerOptions                       opts;
+
+
+
+            result = Assembler (cpu.GetInstructionSet(), opts).Assemble (s_kProgram);
+            rig.session.SetDebugFile (DebugFileWriter::Build (result, { { "", { "src/prog.a65", 0 } } }), L"C:\\Work\\prog.dbg");
+
+            (void) rig.RunOk ("BP prog.a65:3");
+            (void) rig.RunOk ("BPEDIT 0 BP prog.a65:10");
+
+            Assert::AreEqual ((size_t) 1,     rig.session.GetBreakpoints().GetAll().size());
+            Assert::AreEqual (0,              rig.session.GetBreakpoints().GetAll()[0].id,    L"the same id");
+            Assert::AreEqual ((Word) 0x0309,  rig.session.GetBreakpoints().GetAll()[0].first, L"line 10's address");
+        }
     };
 }

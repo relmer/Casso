@@ -698,12 +698,24 @@ void HeatMapPane::PlaceBar()
 //
 //  HeatMapPane::RouteBarMouse
 //
-//  The strip and the bar, each with whatever menu it has open.
+//  The strip and the bar, each with whatever menu it has open, less the
+//  Address box: the box is a separate control and takes its presses as
+//  every box does, as the memory windows' does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool HeatMapPane::RouteBarMouse (const DxuiMouseEvent & ev)
 {
+    bool  isOverBox = m_box->IsVisible() && DxuiDockSite::Contains (m_box->GetBounds(), ev.positionDip);
+
+
+
+    if (isOverBox && !m_viewBar->IsMenuOpen())
+    {
+        m_viewBar->OnToolbarMouseLeave();
+        return false;
+    }
+
     return PaneBarSlot::RouteToolbarMouse (m_host, GetId(), m_viewBar, ev, [this] { SetBarMenus(); }) || m_bar.RouteMouse (ev);
 }
 

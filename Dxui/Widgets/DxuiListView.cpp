@@ -255,6 +255,39 @@ DxuiFindResult DxuiListView::SelectMatchInView (const std::wstring & needle, boo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListView::KeepRowClearOfFind
+//
+//  The rows the find box covers count from the top of the list, the header
+//  among them, so a row in them is scrolled down to the first row below.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::KeepRowClearOfFind (int row)
+{
+    int  rowH    = GetRowHeightPx();
+    int  covered = 0;
+
+
+
+    if (m_findCoveredPx <= 0 || rowH <= 0 || row < m_topRow)
+    {
+        return;
+    }
+
+    covered = (m_findCoveredPx + rowH - 1) / rowH;
+
+    if (row - m_topRow < covered)
+    {
+        SetTopRow ((std::max) (0, row - covered));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiListView::ClearFindHighlights
 //
 ////////////////////////////////////////////////////////////////////////////////

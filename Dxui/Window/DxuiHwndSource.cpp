@@ -5616,8 +5616,10 @@ DxuiPopupHost * DxuiHwndSource::AcquirePopup()
 #endif
     }
 
-    // A size measured before Show is measured in this window's typography.
+    // A size measured before the popup opens is in this window's typography,
+    // or in the one pinned for popups.
     popup->SetTypographyWindow (m_hwnd);
+    popup->SetPinnedTypography (m_pinnedPopupTypography);
 
     return popup;
 }
@@ -5630,25 +5632,23 @@ DxuiPopupHost * DxuiHwndSource::AcquirePopup()
 //
 //  PinPopupTypography
 //
-//  Each open popup's window has the typography, which its renderer then
-//  finds before this window's; with none, the popups go back to this one.
+//  The open popups, and each popup acquired until the pin is removed, are
+//  measured and drawn in the typography; with none, they go back to this
+//  window's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiHwndSource::PinPopupTypography (const DxuiTextRenderer::Typography * typography)
 {
+    m_pinnedPopupTypography = typography;
+
     for (DxuiPopupHost * popup : m_popupActive)
     {
-        HWND  hwnd = (popup != nullptr) ? popup->GetHwnd() : nullptr;
-
-        if (hwnd == nullptr)
+        if (popup != nullptr)
         {
-            continue;
+            popup->SetPinnedTypography (typography);
+            popup->MarkDirty();
         }
-
-        DxuiTextRenderer::AttachTypography (hwnd, typography);
-        popup->SetTypographyWindow ((typography != nullptr) ? hwnd : m_hwnd);
-        popup->MarkDirty();
     }
 }
 

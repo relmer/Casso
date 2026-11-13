@@ -379,8 +379,9 @@ void DebuggerWindow::SetWindowMenus()
 //
 //  DebuggerWindow::AddUnloadSymbolsRow
 //
-//  File's Unload symbol or debug file: a row for each file loaded,
-//  which clears its table as SYM<table> CLEAR does; disabled with none loaded.
+//  File's Unload symbol or debug file: a row for each file loaded, which
+//  clears its table as SYM<table> CLEAR does, or for the debug file unloads
+//  it and its symbols as SRC CLEAR does; disabled with none loaded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -388,14 +389,22 @@ void DebuggerWindow::AddUnloadSymbolsRow (std::vector<DxuiPopupMenuItem> & file)
 {
     std::vector<DxuiPopupMenuItem>  files;
     std::shared_ptr<DxuiCommand>    row;
+    std::wstring                    debugFile;
 
 
+
+    if (m_snapshot != nullptr && m_snapshot->source.has_value())
+    {
+        debugFile = std::filesystem::path (m_snapshot->source->debugFilePath).filename().wstring();
+    }
 
     for (const DebuggerViewSnapshot::SymbolTableRow & table : GetLoadedSymbolTables())
     {
-        row = DebuggerMenuCommand::Make (TextEncoding::NarrowToWide (table.origins.back()), [this, name = table.name]
+        bool  isDebugFile = !debugFile.empty() && std::filesystem::path (TextEncoding::NarrowToWide (table.origins.back())).filename().wstring() == debugFile;
+
+        row = DebuggerMenuCommand::Make (TextEncoding::NarrowToWide (table.origins.back()), [this, name = table.name, isDebugFile]
         {
-            RunAction (DebuggerActions::GetClearSymbols (SymbolTable::ToUpper (name), GetMode()));
+            RunAction (isDebugFile ? DebuggerActions::GetUnloadDebugFile (GetMode()) : DebuggerActions::GetClearSymbols (SymbolTable::ToUpper (name), GetMode()));
         });
 
         m_menuCommands.push_back (row);
@@ -542,10 +551,9 @@ void DebuggerWindow::PreviewTheme (const std::string & name)
 //
 //  DebuggerWindow::PinMenuFont
 //
-//  The menus open when the preview began are drawn in a copy of the
-//  typography they opened with, so the preview's face doesn't change the
-//  text of rows measured in that one. A menu opened during the preview is
-//  measured and drawn in the preview's face.
+//  The menus open when the preview began, and those opened during it, are
+//  measured and drawn in a copy of the typography the menus opened with, so
+//  the preview's face doesn't change the menus' text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
