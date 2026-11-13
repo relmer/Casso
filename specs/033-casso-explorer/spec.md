@@ -2101,19 +2101,23 @@ The owner has no A2Pico, so nothing is checked on the hardware.
    reads, or a settings file with CR LF line ends, **When** the drives are
    listed, **Then** the problem is listed with the drive, and Repair
    rewrites the file with LF line ends.
-3. **Given** a disk image copied to an A2Pico card, **When** it has a block
-   volume in a form the firmware doesn't read, as a ProDOS volume in a
-   DOS-order `.dsk` or a `.2mg` with a longer header, **Then** Casso
-   Explorer offers to write it as a `.po`. An image with no block volume,
-   as a DOS 3.3 disk or a WOZ, is copied as it is and can't be set as a
-   drive.
+3. **Given** a disk image copied to an A2Pico card, **When** a drive is
+   free, **Then** Casso Explorer offers to set it as that drive. **When** it
+   has a block volume in a form the firmware doesn't read, as a ProDOS
+   volume in a DOS-order `.dsk` or a `.2mg` with a longer header, **Then**
+   Casso Explorer offers to write it as a `.po`. An image with no block
+   volume, as a DOS 3.3 disk or a WOZ, is copied as it is and can't be set
+   as a drive.
 4. **Given** an image set as a drive, **When** it is renamed or moved on
    the card in Casso Explorer, **Then** the drive's path is updated.
    **When** it is deleted, **Then** the confirmation lists the drive, and
    the drive is cleared.
 5. **Given** an A2Pico card, **When** A2retroNET drives is opened, **Then**
-   an image is set for a drive, a drive is cleared, drives are reordered,
-   and the number of drives and the boot delay are set.
+   an image is set for a drive, a drive is cleared, drives are reordered, a
+   drive is switched to one of its commented-out images, and the number of
+   drives and the boot delay are set. Comment lines remain in the file.
+   **When** Edit as text is chosen, **Then** the file opens in the user's
+   text editor, and the dialog reads it again after it is saved.
 6. **Given** a storage card, **When** Initialize card for Apple is run with
    the A2Pico adapter, **Then** the card is one FAT32 partition with an
    `A2retroNET.txt` of the firmware's defaults and no drives set.
@@ -3721,11 +3725,17 @@ status bar, and compare the list with the manifest when the session ends.
   firmware can't open: a missing image, an extension other than `.po`,
   `.hdv` and `.2mg`, a `.2mg` in DOS order or with blocks that don't start
   at byte 64, more than 65,535 blocks, or a path that ends in a CR.
-- **FR-260**: `A2retroNET.txt` MUST be written in the firmware's form, with
-  LF line ends. Comment lines aren't written again, as in the firmware's
-  configuration utility. A2retroNET drives MUST set and clear a drive's
-  image, reorder the drives, and set the number of drives and the boot
-  delay.
+- **FR-260**: `A2retroNET.txt` MUST be written with LF line ends, and a
+  change MUST rewrite only the lines it changes: comment lines, such as a
+  drive's other images commented out with `#`, and lines Casso Explorer
+  doesn't read MUST remain in place, unlike the firmware's configuration
+  utility, which writes the file again without them. A2retroNET drives, a
+  dialog, MUST set a drive's image from the card or, on the Drive firmware,
+  from the other device as an `sd:` or `usb:` path, clear a drive, reorder
+  the drives, switch a drive to one of its commented-out images, and set
+  the number of drives (2, 4, 6 or 8) and the boot delay (0 to 9 seconds).
+  Edit as text MUST open the file in the user's text editor, and the
+  drives MUST be read again when it is saved.
 - **FR-261**: A copy of a disk image to an A2Pico card MUST offer to write
   a block volume the firmware can't read as a `.po`. An image with no
   block volume MUST be copied as it is, and MUST NOT be offered as a drive.
