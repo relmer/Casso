@@ -260,19 +260,7 @@ std::vector<Byte> GuestSession::RequireProDosUsersDisk()
 
 std::vector<Byte> GuestSession::RequireGutenbergJrDisk()
 {
-    std::vector<Byte>  bytes = FindInRepo (kpszGutenbergRepoPath);
-
-
-
-    Assert::IsFalse (bytes.empty(),
-        L"the Gutenberg, Jr. side A disk is REQUIRED by this gate and was not found as "
-        L"Disks/ThirdParty/gutenberg-jr.dsk in a parent of the working directory. To get "
-        L"it, run scripts/FetchStockDisks.ps1, which RunTests.ps1 -Scenario also runs");
-
-    Assert::AreEqual (kImageBytes, bytes.size(),
-        L"and it must be a whole 5.25-inch sector image");
-
-    return bytes;
+    return RequireFetchedDisk (kpszGutenbergDiskName);
 }
 
 
@@ -287,15 +275,37 @@ std::vector<Byte> GuestSession::RequireGutenbergJrDisk()
 
 std::vector<Byte> GuestSession::RequireFetchedDisk (const char * fileName)
 {
-    std::string        path  = std::string ("Disks/ThirdParty/") + fileName;
-    std::vector<Byte>  bytes = FindInRepo (path.c_str());
+    std::filesystem::path  folder;
+    PWSTR                  downloads        = nullptr;
+    wchar_t                chosen[MAX_PATH] = {};
+    DWORD                  length    = GetEnvironmentVariableW (L"CASSO_TEST_DISKS", chosen, MAX_PATH);
+    HRESULT                hr        = S_OK;
+    std::vector<Byte>      bytes;
 
 
+
+    if (length > 0 && length < MAX_PATH)
+    {
+        folder = chosen;
+    }
+    else
+    {
+        hr = SHGetKnownFolderPath (FOLDERID_Downloads, 0, nullptr, &downloads);
+
+        if (SUCCEEDED (hr))
+        {
+            folder = std::filesystem::path (downloads) / L"Casso" / L"TestDisks";
+        }
+
+        CoTaskMemFree (downloads);
+    }
+
+    bytes = ReadFileOrEmpty (folder / fileName);
 
     Assert::IsFalse (bytes.empty(),
-        std::format (L"Disks/ThirdParty/{} is REQUIRED by this gate and was not found in a parent of the working "
-                     L"directory. To get it, run scripts/FetchStockDisks.ps1, which RunTests.ps1 -Scenario also runs",
-                     std::wstring (fileName, fileName + strlen (fileName))).c_str());
+        std::format (L"{} is REQUIRED by this gate and was not found in {}. To get it, run "
+                     L"scripts/FetchStockDisks.ps1, which RunTests.ps1 -Scenario also runs",
+                     std::wstring (fileName, fileName + strlen (fileName)), folder.wstring()).c_str());
 
     Assert::AreEqual (kImageBytes, bytes.size(), L"and it must be a whole 5.25-inch sector image");
 
