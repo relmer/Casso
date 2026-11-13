@@ -72,6 +72,9 @@ public:
     Outcome  AddToA2retroNet        (const std::wstring & imagePath)                                      { return m_a2retroNet.Add (imagePath); }
     bool     CanAddToA2retroNet     (const std::wstring & imagePath) const                              { return m_a2retroNet.CanAdd (imagePath); }
     Outcome  CreateA2retroNetConfig (const std::wstring & root)                                       { return m_a2retroNet.CreateConfig (root); }
+    Outcome  RepairA2retroNetConfig (const std::wstring & root)                                       { return m_a2retroNet.Repair (root); }
+    bool     IsA2PicoCard           (const std::wstring & folder) const                              { return m_a2retroNet.IsCard (folder); }
+    HRESULT  ReadA2PicoCard         (const std::wstring & root, ActionsA2retroNet::Card & outCard)   { return m_a2retroNet.ReadCard (root, outCard); }
 
     //  One partition of a card image: the one selected or open, its copy as
     //  an image file beside the card image, and an image file written over it

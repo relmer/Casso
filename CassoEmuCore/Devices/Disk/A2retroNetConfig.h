@@ -35,17 +35,22 @@
 class A2retroNetConfig
 {
 public:
-    static constexpr int          kDrivesMax        = 8;
-    static constexpr int          kBootDelayDefault = 3;
-    static constexpr int          kBootDelayMax     = 9;
-    static constexpr size_t       kBlockBytes       = 512;
-    static constexpr size_t       kBlocksMax        = 65535;
-    static constexpr size_t       kTwoImgHeader     = 64;
-    static constexpr const char * kpszFileName      = "A2retroNET.txt";
+    static constexpr int               kDrivesMax        = 8;
+    static constexpr int               kBootDelayDefault = 3;
+    static constexpr int               kBootDelayMax     = 9;
+    static constexpr size_t            kBlockBytes       = 512;
+    static constexpr size_t            kBlocksMax        = 65535;
+    static constexpr size_t            kTwoImgHeader     = 64;
+    static constexpr const char      * kpszFileName      = "A2retroNET.txt";
+    static constexpr const wchar_t   * kpszWideFileName  = L"A2retroNET.txt";
 
-    int          bootDelay = kBootDelayDefault;
-    int          number    = kDrivesMax;
+    int          bootDelay          = kBootDelayDefault;
+    int          number             = kDrivesMax;
     std::string  paths[kDrivesMax];
+
+    //  Whether the parsed text has CR LF line ends, with which each path
+    //  ends in a CR and the firmware doesn't open any image.
+    bool         hasCarriageReturns = false;
 
     //  The settings in the file's text, the firmware's defaults for what it
     //  doesn't set.
@@ -72,6 +77,14 @@ public:
     //  why, in a sentence.
     static bool  CheckImage (const std::string & fileName, std::span<const Byte> bytes, std::string & outProblem);
 
+    //  The same check from the image's first kTwoImgHeader bytes, or fewer
+    //  in a shorter file, and its size.
+    static bool  CheckImage (const std::string & fileName, std::span<const Byte> header, uint64_t size, std::string & outProblem);
+
+    //  The path from the root, without an sd: or usb: device or a leading /.
+    //  True when the path has a device, which may be the other one.
+    static bool  SplitDevice (const std::string & path, std::string & outPath);
+
     //  A path for the file: from the card's root, with / between folders.
     static std::string  MakePath (const std::filesystem::path & root, const std::filesystem::path & image);
 
@@ -89,6 +102,8 @@ private:
     static constexpr std::string_view  kBootDelay = "bootdelay=";
     static constexpr std::string_view  kNumber    = "number=";
     static constexpr char              kComment   = '#';
+    static constexpr std::string_view  kSd        = "sd:";
+    static constexpr std::string_view  kUsb       = "usb:";
 
     static constexpr size_t  kTwoImgOffsetAt = 0x18;
     static constexpr size_t  kTwoImgFormatAt = 0x0C;

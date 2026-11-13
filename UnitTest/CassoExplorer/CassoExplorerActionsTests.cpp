@@ -1105,6 +1105,70 @@ public:
     }
 
 
+    //  Each drive in use, with its image's size and the problem the firmware
+    //  would have opening it. A path on the other device can't be checked
+    //  from this card.
+    TEST_METHOD (ReadA2PicoCard_ListsEachDriveAndItsProblem)
+    {
+        Host                          host;
+        ActionsA2retroNet::Card       card;
+        std::vector<Byte>             image (280 * 512, 0);
+
+
+
+        host.SeedBytes (Bytes ("# card\n[drives]\nnumber=6\n1=system.po\n2=missing.po\n3=games/zork.dsk\n4=usb:/floppy.po\n6=/locked.hdv\n7=ignored.po\n"), L"E:\\A2retroNET.txt");
+        host.SeedBytes (image, L"E:\\system.po");
+        host.SeedBytes (image, L"E:\\games\\zork.dsk");
+        host.SeedBytes (image, L"E:\\locked.hdv");
+        AssertSucceeded (host.fs.SetReadOnlyAttribute (L"E:\\locked.hdv", true));
+
+        Assert::IsTrue  (host.actions.IsA2PicoCard (L"E:\\"));
+        Assert::IsFalse (host.actions.IsA2PicoCard (L"C:\\Disks"));
+
+        AssertSucceeded (host.actions.ReadA2PicoCard (L"E:\\", card));
+
+        Assert::AreEqual ((size_t) 6, card.drives.size(), L"drives past number= aren't in use");
+        Assert::IsTrue   (card.drives[0].isPresent);
+        Assert::AreEqual ((uint64_t) image.size(), card.drives[0].bytes);
+        Assert::IsTrue   (card.drives[0].problem.empty());
+        Assert::AreEqual (std::wstring (L"missing.po isn't on the card."), card.drives[1].problem);
+        Assert::AreEqual (std::wstring (L"A2retroNET reads only .po, .hdv and .2mg images."), card.drives[2].problem);
+        Assert::AreEqual (std::wstring (L"usb:/floppy.po isn't on this card. It may be on the other storage device."), card.drives[3].problem);
+        Assert::IsTrue   (card.drives[4].path.empty());
+        Assert::IsTrue   (card.drives[4].problem.empty(), L"a drive with no image is like an empty drive");
+        Assert::IsTrue   (card.drives[5].isWriteProtected);
+
+        Assert::AreEqual (std::wstring (L"A2Pico card. 5 of its 6 A2retroNET drives have an image. Drive 2: missing.po isn't on the card. Drive 3: A2retroNET reads only .po, .hdv and .2mg images. Drive 4: usb:/floppy.po isn't on this card. It may be on the other storage device."),
+                          ActionsA2retroNet::Summarize (card));
+    }
+
+
+    //  With CR LF line ends, each path ends in a CR and no image opens.
+    //  Repair writes the file with LF line ends and its comments in place.
+    TEST_METHOD (RepairA2retroNetConfig_RemovesTheCarriageReturns)
+    {
+        Host                           host;
+        ActionsA2retroNet::Card        card;
+        CassoExplorerActions::Outcome  outcome;
+        std::string                    text;
+
+
+
+        host.SeedBytes (Bytes ("# card\r\n[drives]\r\nnumber=2\r\n1=\r\n"), L"E:\\A2retroNET.txt");
+
+        AssertSucceeded (host.actions.ReadA2PicoCard (L"E:\\", card));
+        Assert::IsTrue   (card.config.hasCarriageReturns);
+        Assert::AreEqual (std::wstring (L"A2Pico card. 0 of its 2 A2retroNET drives have an image. A2retroNET.txt has CR LF line ends, so the A2Pico doesn't open any image. Repair writes it with LF line ends."),
+                          ActionsA2retroNet::Summarize (card));
+
+        outcome = host.actions.RepairA2retroNetConfig (L"E:\\");
+
+        Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
+        text.assign (host.io.files["E:\\A2retroNET.txt"].begin(), host.io.files["E:\\A2retroNET.txt"].end());
+        Assert::AreEqual (std::string ("# card\n[drives]\nnumber=2\n1=\n"), text);
+    }
+
+
     //  A card just initialized for an A2Pico gets the firmware's defaults. A
     //  card that has the file already is left as it is.
     TEST_METHOD (CreateA2retroNetConfig_WritesTheDefaultsOnce)

@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerListColumns.h"
+#include "CassoExplorer/Window/Panes/ExplorerListBars.h"
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
 #include "CassoExplorer/Model/RefreshAnchor.h"
 #include "CassoExplorer/Window/Panes/ExplorerPane.h"
@@ -48,6 +49,7 @@ public:
     //  The columns and views, and the menus.
     ExplorerListColumns                    & GetColumns              () { return m_columns; }
     ExplorerListMenus                      & GetMenus                () { return m_menus; }
+    ExplorerListBars                       & GetBars                 () { return m_bars; }
     void                                     FillList                ();
     void                                     SetListSelection        (std::vector<int> rows);
     void                                     OnSelectionChanged      ();
@@ -137,16 +139,11 @@ private:
         POINT  start   = {};
     };
 
-    //  The infobar above a search's results that reports a regular
-    //  expression that isn't valid, until it is closed for that search.
-    void  FillSearchBar ();
 
     ExplorerContext            & m_context;
     DxuiListView               * m_list            = nullptr;
     DxuiLabel                  * m_listMessage     = nullptr;
     bool                         m_listMessageTop  = false;   // a search's message, at the list's top
-    DxuiInfoBanner             * m_searchBar       = nullptr;
-    std::wstring                 m_searchBarClosed;   // the search whose infobar was closed
     RECT                         m_paneRect        = {};
     Win32ShellIcons              m_listIcons;
     Win32ContentDetails          m_contentDetails;
@@ -184,4 +181,5 @@ private:
     bool                       m_listTipActive = false;
     ExplorerListColumns        m_columns       { *this, m_context };
     ExplorerListMenus          m_menus         { *this, m_context };
+    ExplorerListBars           m_bars          { m_context };
 };

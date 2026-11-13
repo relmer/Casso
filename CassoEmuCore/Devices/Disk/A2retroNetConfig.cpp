@@ -33,6 +33,7 @@ A2retroNetConfig A2retroNetConfig::Parse (const std::string & text)
         if (!line.empty() && line.back() == '\r')
         {
             line.pop_back();
+            config.hasCarriageReturns = true;
         }
 
         config.m_lines.push_back (line);
@@ -392,10 +393,25 @@ bool A2retroNetConfig::TryFindFreeDrive (int & outDrive) const
 
 bool A2retroNetConfig::CheckImage (const std::string & fileName, std::span<const Byte> bytes, std::string & outProblem)
 {
+    return CheckImage (fileName, bytes.first (std::min (bytes.size(), kTwoImgHeader)), bytes.size(), outProblem);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::CheckImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool A2retroNetConfig::CheckImage (const std::string & fileName, std::span<const Byte> header, uint64_t size, std::string & outProblem)
+{
     std::string  extension = std::filesystem::path (fileName).extension().string();
     bool         isTwoImg  = false;
     size_t       offset    = 0;
-    size_t       blocks    = 0;
+    uint64_t     blocks    = 0;
 
 
 
@@ -410,20 +426,20 @@ bool A2retroNetConfig::CheckImage (const std::string & fileName, std::span<const
     {
         outProblem = "A2retroNET reads only .po, .hdv and .2mg images.";
     }
-    else if (bytes.size() < offset + kBlockBytes)
+    else if (size < offset + kBlockBytes || (isTwoImg && header.size() < kTwoImgHeader))
     {
         outProblem = "The image is too short to have a block.";
     }
-    else if (isTwoImg && (bytes[kTwoImgOffsetAt] | (bytes[kTwoImgOffsetAt + 1] << 8)) != (int) kTwoImgHeader)
+    else if (isTwoImg && (header[kTwoImgOffsetAt] | (header[kTwoImgOffsetAt + 1] << 8)) != (int) kTwoImgHeader)
     {
         outProblem = "A2retroNET reads a .2mg's blocks from just after its 64-byte header, and this image's start elsewhere.";
     }
-    else if (isTwoImg && bytes[kTwoImgFormatAt] != kTwoImgProDos)
+    else if (isTwoImg && header[kTwoImgFormatAt] != kTwoImgProDos)
     {
         outProblem = "A2retroNET reads a .2mg's blocks in ProDOS order, and this image is in another order.";
     }
 
-    blocks = (bytes.size() - std::min (bytes.size(), offset)) / kBlockBytes;
+    blocks = (size - std::min (size, (uint64_t) offset)) / kBlockBytes;
 
     if (outProblem.empty() && blocks > kBlocksMax)
     {
@@ -450,4 +466,39 @@ std::string A2retroNetConfig::MakePath (const std::filesystem::path & root, cons
 
 
     return path.empty() ? image.filename().generic_string() : path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  A2retroNetConfig::SplitDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool A2retroNetConfig::SplitDevice (const std::string & path, std::string & outPath)
+{
+    bool  hasDevice = false;
+
+
+
+    outPath = path;
+
+    for (std::string_view device : { kSd, kUsb })
+    {
+        if (!hasDevice && outPath.size() >= device.size() && _strnicmp (outPath.c_str(), device.data(), device.size()) == 0)
+        {
+            outPath   = outPath.substr (device.size());
+            hasDevice = true;
+        }
+    }
+
+    if (!outPath.empty() && outPath[0] == '/')
+    {
+        outPath = outPath.substr (1);
+    }
+
+    return hasDevice;
 }

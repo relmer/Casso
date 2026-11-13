@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Actions/ActionsTypes.h"
+#include "Devices/Disk/A2retroNetConfig.h"
 
 class CassoExplorerActions;
 
@@ -24,7 +25,38 @@ class CassoExplorerActions;
 class ActionsA2retroNet
 {
 public:
+    //  A drive in use, from number= in A2retroNET.txt, and its image as the
+    //  firmware would open it.
+    struct Drive
+    {
+        int           number           = 0;
+        std::string   path;
+        bool          isPresent        = false;
+        uint64_t      bytes            = 0;
+        bool          isWriteProtected = false;
+        std::wstring  problem;
+    };
+
+    struct Card
+    {
+        std::wstring        root;
+        A2retroNetConfig    config;
+        std::vector<Drive>  drives;
+    };
+
     explicit ActionsA2retroNet (CassoExplorerActions & actions) : m_actions (actions) {}
+
+    //  Whether the folder is a drive's root with an A2retroNET.txt, which
+    //  makes it an A2Pico card.
+    bool     IsCard       (const std::wstring & folder) const;
+
+    HRESULT  ReadCard     (const std::wstring & root, Card & outCard);
+
+    //  A2retroNET.txt written again with LF line ends.
+    ActionsTypes::Outcome  Repair (const std::wstring & root);
+
+    //  The card's drives in a sentence, and each drive's problem.
+    static std::wstring  Summarize (const Card & card);
 
     //  Whether the image's drive root has an A2retroNET.txt.
     bool  CanAdd (const std::wstring & imagePath) const;

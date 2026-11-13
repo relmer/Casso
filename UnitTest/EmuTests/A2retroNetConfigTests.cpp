@@ -161,6 +161,47 @@ public:
     }
 
 
+    //  An image on the card is checked from its first 64 bytes and its size,
+    //  so a 32 MB image isn't read to list the drives.
+    TEST_METHOD (CheckImage_TakesTheHeaderAndTheSize)
+    {
+        std::vector<Byte>  twoImg = MakeTwoImg (0, 1, 64);
+        std::string        problem;
+
+
+
+        Assert::IsTrue  (A2retroNetConfig::CheckImage ("disk.2mg", twoImg, 64 + 1600 * 512, problem));
+        Assert::IsFalse (A2retroNetConfig::CheckImage ("big.po",   {},     65536ull * 512,  problem));
+        Assert::AreEqual (std::string ("A2retroNET reads at most 65535 blocks, and this image has 65536."), problem);
+    }
+
+
+    TEST_METHOD (Parse_NotesCarriageReturns)
+    {
+        Assert::IsTrue  (A2retroNetConfig::Parse ("[drives]\r\n1=a.po\r\n").hasCarriageReturns);
+        Assert::IsFalse (A2retroNetConfig::Parse ("[drives]\n1=a.po\n").hasCarriageReturns);
+    }
+
+
+    //  The firmware reads sd: and usb: as the device, and a leading / as the
+    //  root.
+    TEST_METHOD (SplitDevice_RemovesThePrefixAndTheRootSlash)
+    {
+        std::string  path;
+
+
+
+        Assert::IsFalse  (A2retroNetConfig::SplitDevice ("games/zork.po", path));
+        Assert::AreEqual (std::string ("games/zork.po"), path);
+        Assert::IsFalse  (A2retroNetConfig::SplitDevice ("/system.hdv", path));
+        Assert::AreEqual (std::string ("system.hdv"), path);
+        Assert::IsTrue   (A2retroNetConfig::SplitDevice ("usb:/floppy.po", path));
+        Assert::AreEqual (std::string ("floppy.po"), path);
+        Assert::IsTrue   (A2retroNetConfig::SplitDevice ("SD:work.hdv", path));
+        Assert::AreEqual (std::string ("work.hdv"), path);
+    }
+
+
     TEST_METHOD (MakePath_IsFromTheRootWithSlashes)
     {
         Assert::AreEqual (std::string ("games/infocom/zork.po"), A2retroNetConfig::MakePath (L"E:\\", L"E:\\games\\infocom\\zork.po"));

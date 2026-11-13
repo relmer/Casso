@@ -414,6 +414,7 @@
     <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerListPane.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerListColumns.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Panes\ExplorerListBars.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerListMenus.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerMenus.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerPreviewManager.cpp" />
@@ -1469,6 +1470,7 @@
     <ClInclude Include="CassoExplorer\Window\Managers\CassoLinkManager.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerListPane.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerListColumns.h" />
+    <ClInclude Include="CassoExplorer\Window\Panes\ExplorerListBars.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerListMenus.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerPane.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerMenus.h" />

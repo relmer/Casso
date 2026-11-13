@@ -1367,6 +1367,49 @@ public:
     }
 
 
+    //  Drive information for E: and F:, both with media, and A:, a drive
+    //  with none.
+    struct DriveIcons : public IShellIcons
+    {
+        std::shared_ptr<const DxuiIconImage>  GetForPath (const std::wstring &, bool) override { return nullptr; }
+        std::shared_ptr<const DxuiIconImage>  GetForKind (Kind) override                       { return nullptr; }
+
+        bool  GetDriveInfo (const std::wstring & root, DriveInfo & outInfo) override
+        {
+            outInfo.name       = L"Removable Disk (" + root.substr (0, 2) + L")";
+            outInfo.typeName   = L"Removable Disk";
+            outInfo.totalBytes = root[0] == L'A' ? 0 : 1ull << 30;
+            return true;
+        }
+    };
+
+
+    //  A drive with A2retroNET.txt in its root is an A2Pico card. A drive
+    //  with no media isn't read, so an empty floppy drive doesn't stall the
+    //  list.
+    TEST_METHOD (ThisPc_ListsAnA2PicoCardByItsType)
+    {
+        Host                       host;
+        DriveIcons                 icons;
+        std::vector<DxuiTreeNode>  roots;
+
+
+
+        AssertSucceeded (host.fs.WriteAllText (L"E:\\A2retroNET.txt", "[drives]\n"));
+        host.browser.SetShellIcons (&icons);
+        host.browser.GetTreeModel().SetDrives ({ L"A:\\", L"E:\\", L"F:\\" });
+
+        host.browser.GetTreeRoots (roots);
+
+        AssertSucceeded (host.browser.SelectTreeNode (TreeModel::kThisPcRootId));
+        Assert::AreEqual ((size_t) 3, host.browser.GetRows().size());
+
+        Assert::AreEqual (std::wstring (L"Removable Disk"), host.browser.GetRows()[0].typeText);
+        Assert::AreEqual (std::wstring (L"A2Pico card"),    host.browser.GetRows()[1].typeText);
+        Assert::AreEqual (std::wstring (L"Removable Disk"), host.browser.GetRows()[2].typeText);
+    }
+
+
     TEST_METHOD (CassoRoot_MissingFolder_IsDimmedAndDoesNotOpen)
     {
         Host                       host;

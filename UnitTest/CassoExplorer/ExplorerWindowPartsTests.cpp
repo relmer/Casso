@@ -1097,6 +1097,49 @@ public:
     }
 
 
+    //  At an A2Pico card's root, the infobar has its drives in a sentence,
+    //  and Repair for a settings file with CR LF line ends writes it with LF
+    //  line ends. Another folder has no such bar.
+    TEST_METHOD (CardBar_SummarizesAnA2PicoCardAndRepairsItsSettings)
+    {
+        Rig          rig;
+        std::string  text = "[drives]\r\nnumber=2\r\n1=system.po\r\n";
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"E:\\system.po");
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        AssertSucceeded (rig.fs.WriteAllText (L"E:\\A2retroNET.txt", text));
+        rig.io.files["E:\\A2retroNET.txt"].assign (text.begin(), text.end());
+
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"E:\\"));
+        rig.parts->listPane.FillList();
+
+        DxuiInfoBanner &  bar = rig.parts->listPane.GetBars().GetCardBar();
+
+        Assert::IsTrue   (bar.IsVisible(), rig.browser.GetLocation().path.c_str());
+        Assert::IsTrue   (bar.GetSeverity() == DxuiInfoBanner::Severity::Warning, bar.GetText().c_str());
+        Assert::IsTrue   (bar.GetText().starts_with (L"A2Pico card. 1 of its 2 A2retroNET drives have an image."), bar.GetText().c_str());
+        Assert::AreEqual ((size_t) 1, bar.GetActionCount());
+
+        bar.GetAction (0)->Click();
+
+        Assert::AreEqual (std::string ("[drives]\nnumber=2\n1=system.po\n"), std::string (rig.io.files["E:\\A2retroNET.txt"].begin(), rig.io.files["E:\\A2retroNET.txt"].end()));
+
+        //  The repaired file isn't on the in-memory file system the bar reads
+        //  through IsA2PicoCard, so it is written there too.
+        AssertSucceeded (rig.fs.WriteAllText (L"E:\\A2retroNET.txt", "[drives]\nnumber=2\n1=system.po\n"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue   (bar.GetSeverity() == DxuiInfoBanner::Severity::Info, bar.GetText().c_str());
+        Assert::AreEqual ((size_t) 0, bar.GetActionCount());
+
+        Assert::IsTrue  (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        rig.parts->listPane.FillList();
+        Assert::IsFalse (bar.IsVisible());
+    }
+
+
     TEST_METHOD (HandleTimer_TakesTheWindowsTimersButTheTick)
     {
         Rig  rig;
