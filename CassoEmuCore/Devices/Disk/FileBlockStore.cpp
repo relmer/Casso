@@ -67,6 +67,65 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FileBlockStore::LoadPages
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FileBlockStore::LoadPages (uint32_t first, uint32_t last)
+{
+    HRESULT            hr     = S_OK;
+    uint32_t           page   = first;
+    uint32_t           end    = 0;
+    uint32_t           block  = 0;
+    uint32_t           blocks = 0;
+    std::vector<Byte>  bytes;
+
+
+
+    while (page <= last)
+    {
+        if (m_pages.contains (page))
+        {
+            page++;
+            continue;
+        }
+
+        end = page;
+
+        while (end + 1 <= last && !m_pages.contains (end + 1))
+        {
+            end++;
+        }
+
+        block  = page * kBlocksPerPage;
+        blocks = std::min ((end - page + 1) * kBlocksPerPage, m_blockCount - block);
+
+        bytes.assign ((size_t) blocks * kBlockBytes, 0);
+
+        hr = m_fileIo.ReadAt (m_path, m_firstByte + (uint64_t) block * kBlockBytes, bytes);
+        CHR (hr);
+
+        for (uint32_t p = page; p <= end; p++)
+        {
+            size_t  offset = (size_t) (p - page) * kBlocksPerPage * kBlockBytes;
+            size_t  length = std::min ((size_t) kBlocksPerPage * kBlockBytes, bytes.size() - offset);
+
+            m_pages.emplace (p, std::vector<Byte> (bytes.begin() + (ptrdiff_t) offset, bytes.begin() + (ptrdiff_t) (offset + length)));
+        }
+
+        page = end + 1;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FileBlockStore::ReadBlocks
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,6 +142,10 @@ HRESULT FileBlockStore::ReadBlocks (uint32_t first, uint32_t count, std::span<By
 
     CBRAEx (inside, E_INVALIDARG);
     CBRAEx (sized,  E_INVALIDARG);
+    BAIL_OUT_IF (count == 0, S_OK);
+
+    hr = LoadPages (first / kBlocksPerPage, (first + count - 1) / kBlocksPerPage);
+    CHR (hr);
 
     for (i = 0; i < count; i++)
     {
@@ -162,14 +225,27 @@ HRESULT FileBlockStore::Commit()
 
 
 
-    for (uint32_t page : m_dirty)
+    for (auto page = m_dirty.begin(); page != m_dirty.end(); )
     {
-        uint64_t  offset = m_firstByte + (uint64_t) page * kBlocksPerPage * kBlockBytes;
+        uint32_t           first  = *page;
+        uint64_t           offset = m_firstByte + (uint64_t) first * kBlocksPerPage * kBlockBytes;
+        std::vector<Byte>  run;
+        size_t             runs   = 0;
 
-        hr = m_fileIo.WriteAt (m_path, offset, m_pages[page]);
+        while (page != m_dirty.end() && *page == first + runs)
+        {
+            run.insert (run.end(), m_pages[*page].begin(), m_pages[*page].end());
+            ++page;
+            ++runs;
+        }
+
+        hr = m_fileIo.WriteAt (m_path, offset, run);
         CHR (hr);
 
-        written.push_back (page);
+        for (size_t i = 0; i < runs; i++)
+        {
+            written.push_back (first + (uint32_t) i);
+        }
     }
 
 Error:
