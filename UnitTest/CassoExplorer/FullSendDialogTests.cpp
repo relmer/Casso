@@ -99,6 +99,33 @@ public:
 
 
 
+    TEST_METHOD (TheStatusBarsLine_HasTheDriveDiskPercentTimeLeftAndDisksDone)
+    {
+        FullSendSnapshot  snapshot;
+
+
+
+        Assert::AreEqual (std::wstring(), FullSendPanel::DescribeSummary (snapshot), L"No session");
+
+        snapshot.activity          = FullSendActivity::Sending;
+        snapshot.drive             = 1;
+        snapshot.drives[0].title   = "GAMES DISK";
+        snapshot.drives[0].percent = 42;
+        Assert::AreEqual (std::wstring (L"Full Send: drive 1, GAMES DISK, 42%, 0 disks done"), FullSendPanel::DescribeSummary (snapshot), L"No time left before there is a rate");
+
+        snapshot.activity              = FullSendActivity::Capturing;
+        snapshot.drives[0].title       = "0023";
+        snapshot.drives[0].secondsLeft = 190.0;
+        snapshot.totals.sent           = 1;
+        Assert::AreEqual (std::wstring (L"Full Send: drive 1, 0023, raw capture, 42%, about 3:10 left, 1 disk done"), FullSendPanel::DescribeSummary (snapshot));
+
+        snapshot.activity          = FullSendActivity::WaitingForDisk;
+        snapshot.totals.duplicates = 1;
+        Assert::AreEqual (std::wstring (L"Full Send: waiting for a disk, 2 disks done"), FullSendPanel::DescribeSummary (snapshot));
+    }
+
+
+
     TEST_METHOD (AMapCellsTip_HasItsTrackAndWhatItsMarkMeans)
     {
         FullSendDriveStatus  drive;

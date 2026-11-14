@@ -193,6 +193,9 @@ public:
     //  the folder ready to use; false when there is no folder to send to.
     virtual bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) { UNREFERENCED_PARAMETER (outFolder); UNREFERENCED_PARAMETER (outExtension); return false; }
 
+    //  Whether a Full Send saves a raw capture's reads beside its image.
+    virtual bool  HasFullSendReadsOn   () { return false; }
+
     //  An operation the Apple started, so the window can track and cancel it.
     virtual void  OnOperationQueued (const std::shared_ptr<LinkOperation> & operation) { UNREFERENCED_PARAMETER (operation); }
 };

@@ -142,7 +142,7 @@ void ExplorerStatusBar::Fill()
     //  updates.
     if (m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty())
     {
-        detail                   = CassoLinkConnections::DescribeJobs (m_context.app.links->GetPendingJobs());
+        detail                   = m_context.cassoLinkManager.DescribeJobs();
         m_context.cassoLinkManager.MarkJobsShown();
     }
 

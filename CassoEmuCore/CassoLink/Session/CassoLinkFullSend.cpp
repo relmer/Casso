@@ -468,7 +468,7 @@ bool CassoLinkFullSend::IsBootstrapped()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz)
+HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads)
 {
     HRESULT                   hr     = S_OK;
     std::vector<Byte>         module;
@@ -478,6 +478,7 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz)
 
 
     outWoz.clear();
+    outReads.clear();
     m_operation->drive = drive;
 
     hr = CheckStop();
@@ -513,6 +514,11 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz)
     for (int position : result.unstable)
     {
         m_status.MarkPosition (drive, position, FullSendPositionMark::Unstable);
+    }
+
+    if (m_session.m_sink.HasFullSendReadsOn())
+    {
+        CassoLinkCapture::SerializeReads (result.positions, outReads);
     }
 
     m_status.SetCaptureTime (drive, result.diskMs / 1000.0, result.lineMs / 1000.0);

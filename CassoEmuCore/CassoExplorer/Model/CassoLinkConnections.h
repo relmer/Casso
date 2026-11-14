@@ -53,6 +53,9 @@ public:
 
     void  SetFullSendTarget (const std::string & folder, const std::string & extension, MakeFolderFn makeFolder);
 
+    //  Whether a Full Send saves a raw capture's reads beside its image.
+    void  SetFullSendReads  (bool on);
+
     //  Verified transfers for every connection that doesn't override them.
     void  SetVerifyDefaults (bool reads, bool writes, bool autoReads);
 
@@ -305,6 +308,7 @@ private:
         void  OnProgress           (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnDone               (const std::shared_ptr<LinkOperation> & operation) override;
         bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override;
+        bool  HasFullSendReadsOn   () override;
         void  OnOperationQueued    (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnActivity           (const std::string & text) override;
         void  OnTrace              (bool sent, const std::string & text) override;
@@ -380,6 +384,7 @@ private:
 
     std::string           m_fullSendFolder;
     std::string           m_fullSendExtension;
+    bool                  m_fullSendReads      = false;
     bool                  m_verifyReads        = false;
     bool                  m_verifyWrites       = false;
     bool                  m_autoVerify         = true;

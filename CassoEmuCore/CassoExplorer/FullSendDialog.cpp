@@ -77,6 +77,49 @@ std::wstring FullSendPanel::FormatSeconds (double seconds)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendPanel::DescribeSummary
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FullSendPanel::DescribeSummary (const FullSendSnapshot & snapshot)
+{
+    int           done  = snapshot.totals.sent + snapshot.totals.duplicates;
+    std::wstring  tally = std::format (L"{} {} done", done, done == 1 ? L"disk" : L"disks");
+    std::wstring  text;
+
+
+
+    switch (snapshot.activity)
+    {
+        case FullSendActivity::Starting:        text = L"Full Send: waiting for Space on the Apple";                           break;
+        case FullSendActivity::WaitingForDisk:  text = std::format (L"Full Send: waiting for a disk, {}", tally);             break;
+        case FullSendActivity::WaitingForApple: text = L"Full Send: waiting for the Apple";                                    break;
+        case FullSendActivity::EditingPrefix:   text = L"Full Send: a file name prefix is being typed on the Apple";           break;
+        case FullSendActivity::Checking:        text = std::format (L"Full Send: checking drive {}, {}", snapshot.drive, tally); break;
+        default:                                                                                                                break;
+    }
+
+    if ((snapshot.activity == FullSendActivity::Sending || snapshot.activity == FullSendActivity::Capturing) && snapshot.drive >= 1 && snapshot.drive <= (int) snapshot.drives.size())
+    {
+        const FullSendDriveStatus  & drive = snapshot.drives[(size_t) snapshot.drive - 1];
+
+        text = std::format (L"Full Send: drive {}", snapshot.drive);
+        text += drive.title.empty() ? std::wstring() : L", " + TextEncoding::NarrowToWide (drive.title);
+        text += snapshot.activity == FullSendActivity::Capturing ? L", raw capture" : L"";
+        text += std::format (L", {}%", std::clamp (drive.percent, 0, 100));
+        text += drive.secondsLeft >= 0.0 ? std::format (L", about {} left", FormatSeconds (drive.secondsLeft)) : std::wstring();
+        text += L", " + tally;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendPanel::DescribeCell
 //
 //  In a raw capture every cell has its position's mark; otherwise a track's

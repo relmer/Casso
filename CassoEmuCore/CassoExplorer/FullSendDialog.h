@@ -64,6 +64,10 @@ public:
     static std::wstring  DescribeTotals   (const FullSendTotals & totals);
     static std::wstring  DescribeStatus   (const FullSendRow & row);
 
+    //  The status bar's line for a session in progress: the drive, its disk,
+    //  the percentage, the time left and the disks done. Empty with none.
+    static std::wstring  DescribeSummary  (const FullSendSnapshot & snapshot);
+
     //  A map cell's tip: its track, as 12 or 12.25, and what its mark means.
     //  The position is in quarter tracks.
     static std::wstring  DescribeCell     (const FullSendDriveStatus & drive, int position);

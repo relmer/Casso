@@ -69,6 +69,10 @@ public:
     bool          CanBootstrapConnection  (const std::string & name) const;
     std::wstring  GetLatestActivity       () const;
     std::wstring  FormatActivity          (size_t lines) const;
+
+    //  The status bar's text for the pending operations: a Full Send's
+    //  summary while one is in progress, the first operation's otherwise.
+    std::wstring  DescribeJobs            ();
     void          ShowActivityLog         ();
     void          StartConnections        ();
     void          SaveConnectionState     ();
