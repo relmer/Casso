@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/ProDosTypeNames.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -123,15 +124,7 @@ std::wstring CatalogModel::GetTypeText (Byte type, VolumeKind kind)
         return (type == ' ') ? std::wstring() : std::wstring (1, (wchar_t) type);
     }
 
-    for (const ProDosTypeName & row : kProDosTypeNames)
-    {
-        if (row.type == type)
-        {
-            return row.mnemonic;
-        }
-    }
-
-    return std::format (L"${:02X}", (unsigned) type);
+    return ProDosTypeNames::Format (type);
 }
 
 
