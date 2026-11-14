@@ -55,6 +55,10 @@ public:
     //  Where each line of a BASIC program starts in memory.
     static std::vector<Word>               GetLineAddresses   (const std::vector<Byte> & program, bool integerBasic);
     static std::vector<std::wstring>       SplitLineNumber    (const std::wstring & line);
+
+    //  Where a source line's operand starts, after its label and its
+    //  mnemonic, or zero for a comment line or one with no operand.
+    static int                             GetOperandColumn   (const std::wstring & line);
     static std::wstring                    FormatPreviewError (const std::wstring & message);
 
     //  An NMOS 6502 undocumented instruction's mnemonic, which a disassembly

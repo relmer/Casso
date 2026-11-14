@@ -19,7 +19,8 @@
 //  CELLS LINE UP IN COLUMNS AND THE LAST ONE WRAPS. Every cell but a row's last
 //  starts in a column as wide as that column's widest cell. The last cell takes
 //  the rest of the width and wraps at a space, and a wrapped line continues
-//  under the last cell's first character, not under the row's. A BASIC line is
+//  under the last cell's first character, not under the row's, or a row's
+//  wrap indent past it, as source code wraps under its operand. A BASIC line is
 //  a number and a statement, so a long statement wraps under itself; a detail
 //  is a label and a value, so a long value wraps under the value.
 //
@@ -69,10 +70,11 @@ public:
     struct Row
     {
         std::vector<std::wstring>  cells;
-        bool                       warning   = false;
-        bool                       heading   = false;   // drawn in the accent color
+        bool                       warning    = false;
+        bool                       heading    = false;     // drawn in the accent color
         std::vector<Span>          spans;
-        DxuiTextHAlign             alignment = DxuiTextHAlign::Left;
+        DxuiTextHAlign             alignment  = DxuiTextHAlign::Left;
+        int                        wrapIndent = 0;         // characters past the last cell's start that a wrapped line starts at
     };
 
     //  A character in a row's text, its cells joined by tabs.
@@ -176,6 +178,9 @@ private:
 
     static constexpr int  s_kPadDip             = 6;
     static constexpr int  s_kScrollbarWidthDip  = 10;
+
+    static int             GetWrapIndent  (const Row & row, int avail);
+    static DxuiFontWeight  GetStyleWeight (uint8_t style);
 
     void          Rebuild                ();
     void          BuildLines             (int columns);

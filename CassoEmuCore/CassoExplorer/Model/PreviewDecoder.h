@@ -177,6 +177,10 @@ struct PreviewContent
     //  numbers.
     bool                       source = false;
 
+    //  Set for an assembler's source decoded from its Apple form, as Merlin
+    //  saves it, whose wrapped lines continue under the operand.
+    bool                       assembler = false;
+
     //  Set for a hex preview rendered as 6502 instructions in `lines`.
     bool                       disassembly = false;
 

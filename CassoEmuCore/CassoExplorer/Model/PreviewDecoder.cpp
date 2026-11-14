@@ -930,8 +930,9 @@ void PreviewDecoder::FromDecoded (const DecodedFile & decoded, PreviewContent & 
             break;
 
         default:
-            outContent.kind  = PreviewContent::Kind::Text;
-            outContent.lines = decoded.lines;
+            outContent.kind      = PreviewContent::Kind::Text;
+            outContent.lines     = decoded.lines;
+            outContent.assembler = decoded.format == FileFormat::Merlin || decoded.format == FileFormat::ScAssembler || decoded.format == FileFormat::Lisa;
             break;
     }
 

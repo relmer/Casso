@@ -828,6 +828,26 @@ public:
 
 
 
+    //  A source line wraps under its operand, after the label and the
+    //  mnemonic, and a comment line under its first character.
+    TEST_METHOD (GetOperandColumn_AfterTheLabelAndTheMnemonic)
+    {
+        Assert::AreEqual (14, PreviewText::GetOperandColumn (L"START   LDA   #$00"));
+        Assert::AreEqual (14, PreviewText::GetOperandColumn (L"        LDA   #$00"));
+        Assert::AreEqual (0,  PreviewText::GetOperandColumn (L"        RTS"));
+        Assert::AreEqual (0,  PreviewText::GetOperandColumn (L"* A COMMENT LINE"));
+        Assert::AreEqual (0,  PreviewText::GetOperandColumn (L""));
+
+        PreviewContent  preview;
+
+        preview.kind      = PreviewContent::Kind::Text;
+        preview.lines     = { L"START   LDA   #$00" };
+        preview.assembler = true;
+        Assert::AreEqual (14, PreviewText::BuildTextRows (preview, false, SourceSyntax::Colors()).front().wrapIndent, L"a Merlin file's line");
+    }
+
+
+
     //  A decoder's reason, as the summary above a file's bytes has it: a
     //  row a sentence, each a warning.
     TEST_METHOD (BuildWarningRows_ARowEachSentence)

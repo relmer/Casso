@@ -257,6 +257,8 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
         {
             DxuiTextView::Row  row { { std::format (L"{:>{}}", i + 1, digits), preview.lines[i] } };
 
+            row.wrapIndent = GetOperandColumn (preview.lines[i]);
+
             if (colors.mnemonic != 0)
             {
                 for (const SourceSyntax::Run & run : SourceSyntax::GetLineRuns (preview.lines[i], assembler, listing))
@@ -308,6 +310,11 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
             if (preview.kind == PreviewContent::Kind::Listing)
             {
                 AddBasicSpans (rows.back(), colors);
+            }
+
+            if (preview.assembler)
+            {
+                rows.back().wrapIndent = GetOperandColumn (line);
             }
         }
     }
@@ -667,6 +674,30 @@ std::vector<std::wstring> PreviewText::SplitLineNumber (const std::wstring & lin
     }
 
     return { line.substr (0, end), line.substr (text) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::GetOperandColumn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PreviewText::GetOperandColumn (const std::wstring & line)
+{
+    size_t  at = (line.empty() || line[0] == L'*' || line[0] == L';') ? std::wstring::npos : 0;
+
+
+
+    at = (at == std::wstring::npos) ? at : line.find_first_of (L' ');
+    at = (at == std::wstring::npos) ? at : line.find_first_not_of (L' ', at);
+    at = (at == std::wstring::npos) ? at : line.find_first_of (L' ', at);
+    at = (at == std::wstring::npos) ? at : line.find_first_not_of (L' ', at);
+
+    return (at == std::wstring::npos) ? 0 : (int) at;
 }
 
 
