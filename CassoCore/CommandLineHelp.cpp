@@ -378,18 +378,45 @@ std::string CommandLineHelp::BuildEmulatorHelp (char flagPrefix)
 
 
     text  = "Usage:\n";
-    text += "  Casso [options]\n";
+    text += std::string ("  ") + kEmulatorUsage + "\n";
     text += "\n";
     text += "Options:\n";
 
-    for (const CommandLineParser::EmulatorFlag & flag : CommandLineParser::GetEmulatorFlags())
+    for (const CommandLineHelpRow & row : GetEmulatorRows (flagPrefix))
     {
-        text += "  " + CommandLineParser::FormatLongOption (flag.option, flagPrefix)
-                     + flag.valueName + "\n";
-        text += WrapToColumns (flag.description, indent, kEmulatorLineColumns);
+        text += "  " + row.option + "\n";
+        text += WrapToColumns (row.description, indent, kEmulatorLineColumns);
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineHelp::GetEmulatorRows
+//
+//  The emulator's option table as rows, for the help dialog's two columns.
+//  Composed from the parser's table, as BuildEmulatorHelp is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<CommandLineHelpRow> CommandLineHelp::GetEmulatorRows (char flagPrefix)
+{
+    std::vector<CommandLineHelpRow>  rows;
+
+
+
+    for (const CommandLineParser::EmulatorFlag & flag : CommandLineParser::GetEmulatorFlags())
+    {
+        rows.push_back ({ CommandLineParser::FormatLongOption (flag.option, flagPrefix) + flag.valueName,
+                          flag.description });
+    }
+
+    return rows;
 }
 
 
