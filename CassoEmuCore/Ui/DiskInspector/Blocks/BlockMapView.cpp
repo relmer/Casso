@@ -126,7 +126,7 @@ std::wstring BlockMapView::DescribeCell (uint32_t cell) const
 
     text   = first == last ? L"Block " + std::to_wstring (first) : L"Blocks " + std::to_wstring (first) + L" to " + std::to_wstring (last);
     text  += L": ";
-    text  += BlockMapGrid::GetRoleName (m_roles[cell]);
+    text  += first == last && m_model->GetMapLabel (first) != nullptr ? m_model->GetMapLabel (first) : BlockMapGrid::GetRoleName (m_roles[cell]);
     owners = m_model->GetOwners (first);
 
     if (!owners.empty())

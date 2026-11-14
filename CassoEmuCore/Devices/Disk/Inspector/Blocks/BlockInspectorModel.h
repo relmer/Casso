@@ -92,6 +92,10 @@ public:
     SectorRole    GetRole   (uint32_t block) const;
     std::wstring  GetOwners (uint32_t block) const;
 
+    //  "Driver descriptor" or "Partition map" for a block of an Apple
+    //  Partition Map, or null for any other block.
+    LPCWSTR  GetMapLabel (uint32_t block) const;
+
     //  The field a link at `offset` of the current block leads to, stepped
     //  to. False when no field there links anywhere.
     bool  TryFollowLink (int offset);
