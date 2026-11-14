@@ -55,12 +55,11 @@ public:
     void  SetFloppy35EventSink (IFloppy35EventSink * sink) override;
 
     //  The MIG that switches the internal drive, which this class deletes.
-    void  AdoptMig (std::unique_ptr<MigChip> mig);
-    MigChip * GetMig () const { return m_mig; }
-    void  ResetIwm ()              { m_port.GetIwm().Reset(); }
-
-    Sony35Drive    & GetInternalDrive () { return m_internal; }
-    SmartPortHost  & GetPort          () { return m_port; }
+    void             AdoptMig         (std::unique_ptr<MigChip> mig);
+    MigChip        * GetMig           () const { return m_mig; }
+    void             ResetIwm         ()       { m_port.GetIwm().Reset(); }
+    Sony35Drive    & GetInternalDrive ()       { return m_internal; }
+    SmartPortHost  & GetPort          ()       { return m_port; }
 
 private:
     static constexpr Word  kSwitchMask = 0x0F;
@@ -68,10 +67,10 @@ private:
     bool  IsInternal () const;
     void  SyncHead   ();
 
-    SmartPortHost          m_port;
-    Sony35Drive            m_internal { 0 };
+    SmartPortHost             m_port;
+    Sony35Drive               m_internal    { 0 };
     std::unique_ptr<MigChip>  m_ownedMig;
-    MigChip              * m_mig       = nullptr;
-    std::array<bool, 4>    m_phases    = {};
-    bool                   m_wasInternal = false;
+    MigChip                 * m_mig         = nullptr;
+    std::array<bool, 4>       m_phases      = {};
+    bool                      m_wasInternal = false;
 };
