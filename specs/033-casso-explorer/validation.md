@@ -905,3 +905,24 @@ slot.
 The 800K, 32 MB `.hdv` and 32 MB `.2mg` images are the forms an A2Pico's
 drives take, so these boots also check what A2retroNET reads, short of an
 A2Pico.
+## Block mode on screen (T678)
+
+Walked 2026-11-13 in a copy of Casso Explorer started with `CASSO_PROFILE_DIR`
+set to a profile with no links, on copies of CiderPress II's samples. Input
+was posted to the windows and checked by capture.
+
+| Step | Result |
+|---|---|
+| Inspect disk image on `simple-sparse.po`, 800K ProDOS | block mode, its map colored by use, block 0 annotated as the boot loader |
+| Block 2 | the volume header's fields, and the next directory block as a link |
+| The link | block 3, with Back to block 2 and Forward again |
+| A byte typed in block 3 | "1 byte changed, not written"; Apply edits wrote it to the file |
+| Compare disk images on that file and a copy without the edit | block 3 marked, its changed byte in red, Previous and Next difference |
+| Find leftover data on a copy with text in two free blocks | the run marked on the map; Save leftover as file wrote its 1,024 bytes |
+| `simple-gsos.po`, 800K HFS | block mode, and the master directory block's fields annotated |
+| `MultiPart.hdv`, Apple Partition Map | a band per partition, ProDOS_Part and HFS_Part, and block 0's driver descriptor annotated |
+
+Found and fixed: the status line read "1 blocks differ" and "1 runs of
+leftover data". Found and left as is: the status line has "Boot blocks" for
+the partitioned disk's block 0, where its annotation is the Apple Partition
+Map's driver descriptor.
