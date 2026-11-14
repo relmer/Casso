@@ -253,6 +253,7 @@ void ExplorerPreviewManager::FillPreview()
     bool                    sets     = preview.charset != Charset::Default;
     bool                    sheet    = preview.sheetForm != SheetForm::None;
     bool                    details  = visible && woz && preview.kind == PreviewContent::Kind::Catalog && !preview.details.empty();
+    bool                    warned   = visible && hex && !preview.warning.empty();
     bool                    hadThem  = m_summary->IsVisible();
     int                     mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
                                      : hex      ? CassoExplorerCommands::kPreviewBarHex
@@ -299,10 +300,13 @@ void ExplorerPreviewManager::FillPreview()
 
     //  A WOZ image's details above its catalog, which moves the catalog down.
     //  An image with no file system has its details in place of a catalog.
-    m_summary->SetRows    (details ? PreviewText::BuildDetailRows (preview.details) : std::vector<DxuiTextView::Row>());
-    m_summary->SetVisible (details);
+    //  A file whose format's decoder failed has the reason above its bytes.
+    m_summary->SetRows    (details ? PreviewText::BuildDetailRows (preview.details)
+                         : warned  ? PreviewText::BuildWarningRows (preview.warning)
+                                   : std::vector<DxuiTextView::Row>());
+    m_summary->SetVisible (details || warned);
 
-    if (details || hadThem)
+    if (details || warned || hadThem)
     {
         m_context.layout.RecomputeLayout();
     }

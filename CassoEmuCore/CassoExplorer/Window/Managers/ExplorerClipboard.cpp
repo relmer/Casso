@@ -76,12 +76,16 @@ void ExplorerClipboard::CopyEntriesToClipboard (HostFileNaming::Style style, boo
 
 
 
-    //  A file that could not be read has a message with the file's name; for
-    //  any other failure, as the clipboard in use, the text comes from
-    //  its code.
-    if (FAILED (hr))
+    //  A file that could not be read has a message with the file's name, as
+    //  has one left out of the copy; for any other failure, as the clipboard
+    //  in use, the text comes from its code.
+    if (!failure.empty())
     {
-        m_context.window.ShowMessage ((failure.empty() ? L"The files could not be copied: " + CassoExplorerDragOut::DescribeCopyFailure (hr) : failure + L"."), MB_ICONWARNING);
+        m_context.window.ShowMessage (failure.ends_with (L'.') ? failure : failure + L".", MB_ICONWARNING);
+    }
+    else if (FAILED (hr))
+    {
+        m_context.window.ShowMessage (L"The files could not be copied: " + CassoExplorerDragOut::DescribeCopyFailure (hr), MB_ICONWARNING);
     }
 }
 

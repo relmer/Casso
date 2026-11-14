@@ -828,6 +828,21 @@ public:
 
 
 
+    //  A decoder's reason, as the summary above a file's bytes has it: a
+    //  row a sentence, each a warning.
+    TEST_METHOD (BuildWarningRows_ARowEachSentence)
+    {
+        std::vector<DxuiTextView::Row>  rows = PreviewText::BuildWarningRows (L"The LZ4FH picture doesn't unpack. Its bytes are below.");
+
+
+
+        Assert::AreEqual ((size_t) 2, rows.size());
+        Assert::AreEqual (std::wstring (L"The LZ4FH picture doesn't unpack."), rows[0].cells[0]);
+        Assert::AreEqual (std::wstring (L"Its bytes are below."),               rows[1].cells[0]);
+        Assert::IsTrue   (rows[0].warning && rows[1].warning);
+    }
+
+
     //  A saved picture is the pixels the preview draws, opaque, at their size.
     TEST_METHOD (EncodePng_WritesThePicturesPixels)
     {
