@@ -14,7 +14,7 @@ class IDiskFileIo;
 //
 //  The image an HD20SC whose machine file lists "stock" uses: an empty 32 MB
 //  ProDOS volume with a blank boot block, made in the user's Casso data
-//  folder the first time a machine needs it, and never written over after
+//  folder the first time a machine lists it, and never written over after
 //  that, so what the user stores on it stays.
 //
 ////////////////////////////////////////////////////////////////////////////////

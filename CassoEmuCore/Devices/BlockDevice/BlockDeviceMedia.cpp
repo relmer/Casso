@@ -322,7 +322,7 @@ std::string BlockDeviceMedia::NormalizePath (const std::string & path)
 //
 //  ChangeClaim
 //
-//  Claims a path for a drive, returning false when another drive has it, or
+//  Marks a path as attached to a drive, returning false when another drive has it, or
 //  releases it. The attached paths are shared by every machine in the
 //  process, so the set is guarded.
 //

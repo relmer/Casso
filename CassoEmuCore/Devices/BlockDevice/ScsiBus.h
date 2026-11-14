@@ -61,10 +61,10 @@ struct ScsiInitiatorLines
 //  sets its lines; the bus runs the selected target through the phases
 //  BusFree, Selection, MessageOut, Command, DataIn or DataOut, Status,
 //  MessageIn and back to BusFree, with the REQ/ACK handshake for each byte.
-//  A selection of an ID with no selectable target is not answered, and the
-//  initiator's own code gives up on it.
+//  No target asserts BSY for a selection of an ID with no selectable target,
+//  and the initiator's code times out.
 //
-//  A target's delay holds REQ off until the clock reaches it, so a drive's
+//  REQ is asserted once the clock passes the target's delay, so a drive's
 //  spin-up and seek time are visible to the initiator as a wait for REQ.
 //
 ////////////////////////////////////////////////////////////////////////////////

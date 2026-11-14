@@ -222,7 +222,7 @@ void ScsiBus::Release()
 //  TrySelect
 //
 //  SEL with BSY released: a selectable target whose ID bit is on the data
-//  lines answers with BSY.
+//  lines asserts BSY.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

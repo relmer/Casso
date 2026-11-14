@@ -125,7 +125,7 @@ const BlockDriveSpec * BlockDeviceCatalog::FindDrive (const std::string & device
 //
 //  CanHost
 //
-//  A machine id Casso does not ship is a user's own machine, which may have
+//  A machine id Casso does not ship is a machine a user defined, which may have
 //  any hardware, so it can host every card.
 //
 ////////////////////////////////////////////////////////////////////////////////

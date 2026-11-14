@@ -90,7 +90,7 @@ WRITE(6), WRITE(10), READ CAPACITY and MODE SENSE.
 1.0.1 and ProDOS 2 from a hard disk at ID 6, Apple's ROM issues TEST UNIT
 READY twice, INQUIRY, READ(6) of block 0, READ CAPACITY and INQUIRY again,
 then ProDOS reads with READ(6). A guest `CREATE` writes with WRITE(6). No
-10-byte command, REQUEST SENSE or MODE SENSE was issued; the target answers
+10-byte command, REQUEST SENSE or MODE SENSE was issued; the target executes
 them anyway, since other software may issue them.
 
 **Checked** in MAME (enhanced //e, card in slot 7, bootable ProDOS floppy in
@@ -158,7 +158,7 @@ and no documentation or schematic for the card. From a disassembly of
   the drive's BSY line (1 is idle, which the status call reports as ready)
   and bit 0 set when no drive is connected (the driver returns ProDOS error
   `$28`); `+3` is read and written around each transfer and command.
-- The handshake lines are driven by READS of the card's own `$Cn00` page:
+- The handshake lines are driven by READS of the card's `$Cn00` page:
   the driver reads `$Cn01` and `$Cn03` before sending the command block,
   `$Cn05` and `$Cn07` after it, `$Cn03` then `$Cn00` after writing the `$55`
   acknowledgment, and `$Cn05`, `$Cn07` and `$Cn04` while waiting for a state
@@ -402,7 +402,7 @@ owner set no limit on it.
 
 | Card | Machines | Status |
 |---|---|---|
-| Apple II SCSI Card | ][+, //e, enhanced //e | **Checked**: boots on all three in Casso; the ][+ and //e need `PR#7` (R5) |
+| Apple II SCSI Card | ][+, //e, enhanced //e | **Checked**: boots on all three in Casso; on the ][+ and //e `PR#7` starts it (R5) |
 | UniDisk 3.5 interface card | ][+, //e, enhanced //e | The ROM is 6502 code (a2-liron assembles it for the 6502); boots **to verify** in Casso |
 | 3.5 controller card | //e, enhanced //e | **To verify**; Apple sold it for the //e and IIgs |
 | ProFile interface card | **To verify** (R6) | |

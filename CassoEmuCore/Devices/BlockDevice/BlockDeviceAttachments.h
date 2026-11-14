@@ -26,7 +26,7 @@ public:
 
     //  Fails with the reason in the fixed error layout when a slot has no
     //  block device card, a unit is not one the card has, or the machine has
-    //  no disk port; the config is then unchanged.
+    //  no disk port, and then nothing is applied.
     static HRESULT  Apply (const std::vector<Attachment>  & hd,
                            const std::vector<Attachment>  & smartPort,
                            MachineConfig                  & ioConfig,

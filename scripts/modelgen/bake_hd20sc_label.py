@@ -5,7 +5,7 @@ The number on the drive's front follows the attached image: "20SC" for a
 baked one mask each, every mask cropped to the same band from cap height to
 baseline, and the scene sets them side by side.
 
-The photograph's number is in Apple's serif; Times New Roman is the stand-in.
+The photograph's number is in Apple's serif; Times New Roman is used in its place.
 
 Writes CassoEmuCore/Ui/Scene/DeskSceneHardDiskLabels.h. Run it from anywhere:
 

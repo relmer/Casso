@@ -19,7 +19,7 @@ class IDiskFileIo;
 //  file (.po, .hdv), a 2IMG file in ProDOS order, or a DiskCopy 4.2 image,
 //  read a block at a time. Writes change blocks in memory, whole blocks at a
 //  time, and Flush writes them to the file, so a reset during a guest's write
-//  leaves either the old block or the new one.
+//  results in either the old block or the new one.
 //
 //  One path is attached to one drive at a time, across every drive.
 //

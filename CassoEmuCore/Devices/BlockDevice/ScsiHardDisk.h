@@ -14,7 +14,7 @@
 //
 //  ScsiHardDisk
 //
-//  An Apple Hard Disk 20SC, or any SCSI hard disk, over an image. It answers
+//  An Apple Hard Disk 20SC, or any SCSI hard disk, over an image. It runs
 //  TEST UNIT READY, REQUEST SENSE, INQUIRY, READ and WRITE in their 6- and
 //  10-byte forms, READ CAPACITY, MODE SENSE, MODE SELECT, START STOP UNIT,
 //  VERIFY, SEEK, REZERO UNIT, FORMAT UNIT and PREVENT ALLOW MEDIUM REMOVAL. A

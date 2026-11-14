@@ -50,7 +50,7 @@ struct ScsiCommandResult
 //
 //  IScsiTarget
 //
-//  A SCSI target as the bus sees it. The bus runs the phases and the
+//  A SCSI target's interface to the bus. The bus runs the phases and the
 //  handshake; the target executes commands.
 //
 ////////////////////////////////////////////////////////////////////////////////

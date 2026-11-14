@@ -12,7 +12,7 @@
 //
 //  Apply
 //
-//  The attachments go on a copy, so a failure leaves the config as it was.
+//  The attachments go on a copy, so the config changes only when all apply.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -33,7 +33,7 @@ static constexpr const char *  kpszStockImage            = "stock";
 //
 //  BlockCardSpec
 //
-//  What the configuration and the Machine tab need to know about a card: its
+//  A card's properties, for the configuration and the Machine tab: its
 //  firmware's folder and size, how many ports it has and what attaches to
 //  them, and the machines that can host it.
 //
