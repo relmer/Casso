@@ -44,8 +44,12 @@ ExplorerAddressBar::ExplorerAddressBar (ExplorerContext & context)
 
 void ExplorerAddressBar::Create()
 {
-    m_address = m_context.window.CreatePaneRoutedChild<DxuiAddressBar>();
-    m_findBox = m_context.window.CreatePaneRoutedChild<DxuiTextInput>();
+    m_address = m_context.window.CreateChild<DxuiAddressBar>();
+    m_findBox = m_context.window.CreateChild<DxuiTextInput>();
+
+    m_context.window.SetMouseHandler     (m_address, [this] (const DxuiMouseEvent & ev) { return HandleAddressMouse (ev); });
+    m_context.window.SetMouseHandler     (m_findBox, [this] (const DxuiMouseEvent & ev) { return HandleFindBoxMouse (ev); });
+    m_context.window.SetCaptureCondition (m_address, [this]() { return m_suggest.IsOpen(); });
 
     m_address->SetTextRenderer (m_context.window.GetTextRenderer());
     m_address->SetIconFace     (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
@@ -258,102 +262,35 @@ void ExplorerAddressBar::HandleLocationChanged (const Location & location)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerAddressBar::CloseSuggestionsOnPress
+//  ExplorerAddressBar::HandleAddressMouse
 //
-//  The suggestions have no capture, so a press anywhere else in the window
-//  closes them; a press in the address bar edits the path or, on the caret,
-//  closes them there.
-//
-//  Pointer events: a press closes the suggestions, ahead of the window's
-//  other routing; the boxes have the rest in the toolbar's row.
+//  The address bar's mouse handler. It has the mouse captured while its
+//  suggestions are open, and a press anywhere else closes them and goes on
+//  to what is under the pointer. A press on the bar moves focus to it; a
+//  right-click there opens its menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerAddressBar::CloseSuggestionsOnPress (const DxuiMouseEvent & ev)
+bool ExplorerAddressBar::HandleAddressMouse (const DxuiMouseEvent & ev)
 {
-    if (ev.kind == DxuiMouseEventKind::Down && m_suggest.IsOpen() && !ExplorerLayout::Contains (m_address->GetBounds(), ev.positionDip))
+    POINT  point   = ev.positionDip;
+    bool   press   = ev.kind == DxuiMouseEventKind::Down;
+    bool   inside  = ev.kind != DxuiMouseEventKind::Leave && ExplorerLayout::Contains (m_address->GetBounds(), point);
+    bool   handled = false;
+
+
+
+    if (press && !inside)
     {
         m_suggest.Close();
+        return false;
     }
-}
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerAddressBar::HandleMouse
-//
-//  A right-click on the address, not while it is being edited, opens
-//  Explorer's address menu. The address bar is in the toolbar's row, so it is
-//  ahead of the toolbar. Moves go to the address and the search box wherever
-//  the pointer is, so their hover clears on the way out.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerAddressBar::HandleMouse (const DxuiMouseEvent & ev)
-{
-    POINT  point  = ev.positionDip;
-    bool   press  = ev.kind == DxuiMouseEventKind::Down;
-    bool   wasLit = false;
-
-
-
-    if (press && ev.button == DxuiMouseButton::Right && !m_address->IsEditing() && ExplorerLayout::Contains (m_address->GetBounds(), point))
+    if (press && ev.button == DxuiMouseButton::Right && !m_address->IsEditing())
     {
+        m_context.input.ReleasePressed();
         ShowAddressContextMenu (point.x, point.y);
         return true;
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Move && !m_address->IsInteracting() && m_address->OnMouse (ev))
-    {
-        m_context.window.Invalidate();
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Move && !m_address->IsInteracting())
-    {
-        wasLit = m_findBox->IsClearHovered();
-
-        m_findBox->OnMouse (ev);
-
-        if (m_findBox->IsClearHovered() != wasLit)
-        {
-            m_context.window.Invalidate();
-        }
-
-        //  The syntax a walked search takes, over the box while it isn't being
-        //  typed in.
-        if (ExplorerLayout::Contains (m_findBox->GetBounds(), point) && !m_findBox->IsFocused() && !m_findBox->IsClearHovered())
-        {
-            m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Search, m_findBox->GetBounds(), kSearchSyntaxTip, kSearchSyntaxTipDip);
-        }
-        else
-        {
-            m_context.tips.HideHoverTip (ExplorerTips::TipOwner::Search);
-        }
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Move && !m_address->IsInteracting())
-    {
-        return false;
-    }
-
-    if (ExplorerLayout::Contains (m_findBox->GetBounds(), point))
-    {
-        if (press)
-        {
-            m_context.input.SetFocusPane (ExplorerPane::LocationSearch);
-        }
-
-        m_findBox->OnMouse (ev);
-        m_context.window.Invalidate();
-        return true;
-    }
-
-    if (!m_address->IsInteracting() && !ExplorerLayout::Contains (m_address->GetBounds(), point))
-    {
-        return false;
     }
 
     if (press)
@@ -362,13 +299,66 @@ bool ExplorerAddressBar::HandleMouse (const DxuiMouseEvent & ev)
         m_address->SetFocusCue (false);
     }
 
-    if (!m_address->OnMouse (ev))
+    handled = m_address->OnMouse (ev);
+
+    if (handled)
     {
+        m_context.window.Invalidate();
+    }
+
+    return handled && (ev.kind != DxuiMouseEventKind::Move || m_address->IsInteracting());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::HandleFindBoxMouse
+//
+//  The search box's mouse handler. Over the box while it isn't being typed
+//  in, a tip has the syntax a walked search takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerAddressBar::HandleFindBoxMouse (const DxuiMouseEvent & ev)
+{
+    POINT  point  = ev.positionDip;
+    bool   wasLit = m_findBox->IsClearHovered();
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Move)
+    {
+        m_findBox->OnMouse (ev);
+
+        if (m_findBox->IsClearHovered() != wasLit)
+        {
+            m_context.window.Invalidate();
+        }
+
+        if (ExplorerLayout::Contains (m_findBox->GetBounds(), point) && !m_findBox->IsFocused() && !m_findBox->IsClearHovered())
+        {
+            m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Search, m_findBox->GetBounds(), kSearchSyntaxTip, kSearchSyntaxTipDip);
+        }
+        else
+        {
+            m_context.tips.HideHoverTip (ExplorerTips::TipOwner::Search);
+        }
+
         return false;
     }
 
+    if (ev.kind == DxuiMouseEventKind::Down)
+    {
+        m_context.input.SetFocusPane (ExplorerPane::LocationSearch);
+    }
+
+    m_findBox->OnMouse (ev);
     m_context.window.Invalidate();
-    return true;
+
+    return ev.kind != DxuiMouseEventKind::Leave;
 }
 
 

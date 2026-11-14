@@ -83,7 +83,11 @@ void ExplorerPreviewManager::Create()
 
 void ExplorerPreviewManager::CreateToolbar()
 {
-    m_toolbar = m_context.window.CreatePaneRoutedChild<DxuiToolbar>();
+    m_toolbar = m_context.window.CreateChild<DxuiToolbar>();
+
+    m_context.window.SetMouseHandler     (m_toolbar, [this] (const DxuiMouseEvent & ev) { return m_context.toolbars.HandleBarMouse (*m_toolbar, ev); });
+    m_context.window.SetCaptureCondition (m_toolbar, [this]() { return m_toolbar->IsMenuOpen(); });
+
     m_toolbar->SetFlatStyle    (true);
     m_toolbar->SetTextRenderer (m_context.window.GetTextRenderer());
     m_toolbar->SetPopupHost    (m_context.window.GetPopupHost());

@@ -349,7 +349,7 @@ bool ExplorerInput::RouteToControls (const DxuiMouseEvent & ev)
     for (size_t index = panel.GetChildCount(); index > 0 && !handled; index--)
     {
         IDxuiControl  * child  = panel.GetChild (index - 1);
-        bool            routed = !m_context.window.IsPaneRouted (child) && child->IsVisible() && child->IsEnabled();
+        bool            routed = child->IsVisible() && child->IsEnabled();
         bool            inside = routed && ev.kind != DxuiMouseEventKind::Leave && ExplorerLayout::Contains (child->GetBounds(), ev.positionDip);
 
         over = over || inside;
@@ -420,11 +420,46 @@ bool ExplorerInput::RouteToPressed (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerInput::RouteToCapture
+//
+//  A press the control takes is its press, as one under the pointer is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerInput::RouteToCapture (const DxuiMouseEvent & ev)
+{
+    IDxuiControl  * holder  = m_context.window.GetCaptureHolder();
+    bool            handled = false;
+
+
+
+    if (holder == nullptr)
+    {
+        return false;
+    }
+
+    m_pressed = (ev.kind == DxuiMouseEventKind::Down) ? holder : m_pressed;
+    handled   = m_context.window.OfferMouse (*holder, ev);
+    m_pressed = (!handled && m_pressed == holder) ? nullptr : m_pressed;
+
+    m_context.window.Invalidate();
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerInput::HandleMouse
 //
-//  A control that took a press has each event until the button comes up.
-//  Otherwise the menu bar and the splitters are first, since both extend
-//  over the panes, and the controls under the pointer after them.
+//  A control that took a press has each event until the button comes up,
+//  and a control with the mouse captured, as for an open menu or a rename,
+//  is offered each event next. The rest go to the control under the pointer.
+//  The tips, the scrollbars' hover and the gestures of the whole window are
+//  here as well.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -439,10 +474,6 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
 
     m_context.treePane.UpdateLabelTip (ev);
     m_context.preview.GetListing().UpdateValueTipAt (ev);
-    m_context.tabManager.ClearHoverOnLeave (ev);
-    m_context.addressBar.CloseSuggestionsOnPress (ev);
-
-    m_context.toolbars.CloseMenusOutside (ev);
 
     //  A five-button mouse's back and forward buttons move through the tab's
     //  history wherever the pointer is, as in Explorer.
@@ -467,17 +498,7 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    if (RouteToPressed (ev))
-    {
-        return true;
-    }
-
-    if (m_context.rename.HandleRenameMouse (ev))
-    {
-        return true;
-    }
-
-    if (m_context.statusBar.HandleZoomClick (ev))
+    if (RouteToPressed (ev) || RouteToCapture (ev))
     {
         return true;
     }
@@ -541,48 +562,9 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (m_context.toolbars.HandleMenuBarMouse (ev))
-    {
-        return true;
-    }
-
-    if (m_context.addressBar.HandleMouse (ev))
-    {
-        return true;
-    }
-
-    if (m_context.preview.GetToolbar().IsVisible()
-        && (ExplorerLayout::Contains (m_context.preview.GetToolbar().GetBounds(), point) || ev.kind == DxuiMouseEventKind::Up)
-        && m_context.toolbars.RouteToolbarMouse (m_context.preview.GetToolbar(), ev))
-    {
-        m_context.window.Invalidate();
-        return true;
-    }
-
-    if (m_context.toolbars.HandleMouse (ev))
-    {
-        return true;
-    }
-
-    if (m_context.layout.GetTreeSplitter()->OnMouse (ev) || (m_context.layout.GetPreviewSplitter()->IsVisible() && m_context.layout.GetPreviewSplitter()->OnMouse (ev)))
-    {
-        m_context.window.Invalidate();
-        return true;
-    }
-
-    if (m_context.tabManager.HandleCapturedMouse (ev))
-    {
-        return true;
-    }
-
-    //  A right-click on a scrollbar opens the bar's own menu, as Windows'
-    //  bars do.
+    //  A right-click on a scrollbar opens the bar's menu, as Windows' bars
+    //  do.
     if (press && ev.button == DxuiMouseButton::Right && m_context.menus.ShowScrollbarMenu (ev))
-    {
-        return true;
-    }
-
-    if (m_context.tabManager.HandleMouse (ev))
     {
         return true;
     }
@@ -591,13 +573,6 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
     m_context.statusBar.UpdateTip  (ev, point);
     m_context.listPane.UpdateTip   (ev, point);
 
-    if (m_context.statusBar.HandleActivityClick (ev))
-    {
-        return true;
-    }
-
-    //  The tree, the list, the preview's views and message, the infobars
-    //  above the list and the buttons under the list's message.
     if (RouteToControls (ev))
     {
         return true;

@@ -41,8 +41,8 @@ public:
 
     bool     HandleMouse       (const DxuiMouseEvent & ev);
 
-    //  The event offered to the window's controls that no pane routes,
-    //  front to back, through a pane's mouse handler where it set one.
+    //  The event offered to the window's controls, front to back, through a
+    //  pane's mouse handler where it set one.
     bool     RouteToControls   (const DxuiMouseEvent & ev);
 
     //  After a control takes a press, each move and the release that follow
@@ -52,6 +52,10 @@ public:
     //  Ends the press, for a pane whose press opened a menu or began a drag,
     //  whose loop takes the release.
     void     ReleasePressed    () { m_pressed = nullptr; }
+
+    //  The event offered first to the control whose capture condition is
+    //  true, wherever the pointer is. See IExplorerWindow::SetCaptureCondition.
+    bool     RouteToCapture    (const DxuiMouseEvent & ev);
     bool     HandleKey         (const DxuiKeyEvent & ev);
 
 private:

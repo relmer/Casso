@@ -49,7 +49,10 @@ ExplorerRename::ExplorerRename (ExplorerContext & context)
 
 void ExplorerRename::Create()
 {
-    m_renameBox = m_context.window.CreatePaneRoutedChild<DxuiTextInput>();
+    m_renameBox = m_context.window.CreateChild<DxuiTextInput>();
+
+    m_context.window.SetMouseHandler     (m_renameBox, [this] (const DxuiMouseEvent & ev) { return HandleRenameMouse (ev); });
+    m_context.window.SetCaptureCondition (m_renameBox, [this]() { return IsRenaming(); });
 
     m_renameBox->SetVisible      (false);
     m_renameBox->SetOverText     (true);
