@@ -272,6 +272,7 @@ private:
     std::atomic<bool>                         m_romsWanted     { false };
     bool                                      m_romsOffered    = false;
     DiskImagePictures                         m_pictures       { m_thumbnails, [this] (const std::wstring & path) { QueueBoot (path); } };
+    Win32ImageWatcher                         m_cacheWatcher;
     Win32ProcessProbe                         m_processProbe;
     RunningCassoRegistry                      m_running;
     Win32NetworkChanges                       m_networkChanges;

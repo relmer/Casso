@@ -151,6 +151,10 @@ public:
     static constexpr DWORD   kStaleReadyMs       = 1500;
     static constexpr int     kDiscardReads       = 64;
 
+    //  How long a wait for the client's Ready lasts before the wait observer
+    //  is called.
+    static constexpr DWORD   kWaitNoticeMs       = 3000;
+
     //  A request the client did not take: it sent Ready again, idle, in
     //  place of a reply. HRESULT_FROM_WIN32 (ERROR_RETRY).
     static constexpr HRESULT kLostRequest        = (HRESULT) 0x800704D5;
@@ -292,6 +296,10 @@ public:
     //  sets them, as the bar has a cell for each track.
     void     SetProgress    (Byte start, Byte end) { m_progressStart = start; m_progressEnd = end; }
     Byte     GetProgressEnd () const                { return m_progressEnd; }
+
+    //  Called with true once a wait for the client's Ready has lasted
+    //  noticeMs, and with false when that wait ends.
+    void     SetWaitObserver (std::function<void (bool)> observer, DWORD noticeMs = kWaitNoticeMs) { m_waitObserver = std::move (observer); m_waitNoticeMs = noticeMs; }
 
     //  Whether the reads that follow are checks the PC reports itself, such as
     //  its read of each drive's catalog when it connects. Their requests set
@@ -477,6 +485,8 @@ private:
     std::atomic<uint64_t>           m_lastPacketMs    { 0 };   // the last packet sent or decoded
     Byte                            m_progressStart   = 0;
     Byte                            m_progressEnd     = 0;
+    std::function<void (bool)>      m_waitObserver;
+    DWORD                           m_waitNoticeMs    = kWaitNoticeMs;
     bool                            m_quiet           = false;
     TraceFn                         m_trace;
     std::string                     m_tracedReady;     // text of the last Ready traced

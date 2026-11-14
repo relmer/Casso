@@ -133,6 +133,7 @@ public:
         snapshot.activity          = FullSendActivity::WaitingForDisk;
         snapshot.totals.duplicates = 1;
         Assert::AreEqual (std::wstring (L"Full Send: waiting for a disk, 2 disks done"), FullSendPanel::DescribeSummary (snapshot));
+        Assert::AreEqual (std::wstring (L"Full Send on Serial (any port): waiting for a disk, 2 disks done"), FullSendPanel::DescribeSummary (snapshot, L"Serial (any port)"), L"With its connection");
     }
 
 

@@ -50,7 +50,12 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
     m_operation = &operation;
     m_verifying = operation.verifyReads;
 
+    //  A long wait for the Apple's reply is the window's state line.
+    m_session.m_host->SetWaitObserver ([this] (bool waiting) { m_status.SetWaiting (waiting); });
+
     hr = session.Run();
+
+    m_session.m_host->SetWaitObserver (nullptr);
 
     operation.message         = session.GetMessage();
     operation.imagePrefix     = session.GetPrefix();

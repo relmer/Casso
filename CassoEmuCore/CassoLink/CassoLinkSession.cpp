@@ -1001,7 +1001,7 @@ std::string CassoLinkSession::DescribeDrive (int drive, const std::optional<Volu
     }
     else if (listing.has_value() && listing->hasVolumeNumber)
     {
-        text += std::format (" (vol {})", listing->volumeNumber);
+        text += std::format (" (VOL {})", listing->volumeNumber);
     }
 
     return text;

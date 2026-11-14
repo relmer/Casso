@@ -60,6 +60,8 @@ public:
     void SetFlashState (bool on)             { m_flashOn     = on; }
     void SetAltCharSet (bool on)             { m_altCharSet  = on; }
 
+    const Byte *  GetAuxMemory () const { return m_auxMem; }
+
     // Lit-pixel color for text glyphs (green default; shell sets white for a
     // color monitor). Mono color modes re-tint afterward, so green stays there.
     void SetOnColor    (uint32_t bgra)       { m_onColor     = bgra; }

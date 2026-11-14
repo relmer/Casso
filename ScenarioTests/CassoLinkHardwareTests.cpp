@@ -8,6 +8,7 @@
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Model/PicturePreview.h"
 #include "Devices/Disk/DiskImage.h"
+#include "DiskCheck/BootCheck.h"
 #include "DiskCheck/BootProbe.h"
 #include "DiskCheck/BootSounds.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
@@ -772,6 +773,64 @@ public:
                 {
                     log << "    |" << row << "|" << std::endl;
                 }
+            }
+        }
+    }
+
+    //  Each image in the folder CASSO_PROBE_IMAGES checked as Casso Explorer
+    //  checks it, on the installed machines booted at once, and then on each
+    //  machine alone. The results are written to check.txt in CASSO_LINK_OUT.
+    //  Run only when CASSO_PROBE_IMAGES is set.
+    TEST_METHOD (ImagesInAFolder_AreCheckedAsCassoExplorerChecksThem)
+    {
+        std::string            folder = GetSetting ("CASSO_PROBE_IMAGES", "");
+        std::filesystem::path  out    = GetSetting ("CASSO_LINK_OUT", ".");
+        std::ofstream          log;
+
+
+
+        if (folder.empty())
+        {
+            Logger::WriteMessage ("CASSO_PROBE_IMAGES isn't set; no images to check.\n");
+            return;
+        }
+
+        log.open (out / "check.txt");
+
+        for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (folder))
+        {
+            std::string               extension = entry.path().extension().string();
+            DiskFormat                format    = extension == ".woz" ? DiskFormat::Woz : extension == ".po" ? DiskFormat::Po : DiskFormat::Dsk;
+            std::vector<Byte>         bytes;
+            BootReport                report;
+            std::string               machine;
+            std::vector<std::string>  missing;
+
+            if (extension != ".woz" && extension != ".dsk" && extension != ".do" && extension != ".po")
+            {
+                continue;
+            }
+
+            {
+                std::ifstream  in (entry.path(), std::ios::binary);
+
+                bytes.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+            }
+
+            AssertSucceeded (BootCheck::Run (bytes, format, "", BootProbe::Limits(), BootCheck::BuildInstalled, report, machine, missing));
+
+            log << entry.path().filename().string() << ": at once, " << BootProbe::GetVerdictName (report.verdict) << " on " << machine << ". " << report.reason << std::endl;
+
+            for (const std::string & id : BootCheck::GetMachines (""))
+            {
+                BootCheck::Built  built;
+                BootReport        alone;
+                std::string       error;
+
+                AssertSucceeded (BootCheck::BuildInstalled (id, built, error));
+                AssertSucceeded (BootProbe::Probe (*built.host, *built.builder, bytes, format, BootProbe::Limits(), alone));
+
+                log << "    alone on " << id << ", " << BootProbe::GetVerdictName (alone.verdict) << ". " << alone.reason << std::endl;
             }
         }
     }

@@ -137,11 +137,17 @@ CassoExplorerShell::~CassoExplorerShell()
 
 void CassoExplorerShell::StartBootWorker()
 {
+    std::error_code  error;
+
+
+
     m_bootedSound    = BootSounds::MakeBooted();
     m_notBootedSound = BootSounds::MakeDidNotBoot();
     m_bootWorker     = std::make_unique<ExplorerBootWorker> (m_thumbnails, BootCheck::BuildInstalled);
 
     m_bootWorker->SetManifestIo (&m_fileIo);
+    m_bootWorker->SetOnCount ([this]() { m_pictures.NotifyReady (IDiskPictures::kQueueChanged); });
+    m_pictures.SetQueuedCount ([this]() { return m_bootWorker != nullptr ? m_bootWorker->GetPending() : 0; });
     m_bootWorker->SetGivenNames (&m_givenNames);
     m_bootWorker->SetDone ([this] (const ExplorerBootWorker::Result & result)
     {
@@ -182,6 +188,18 @@ void CassoExplorerShell::StartBootWorker()
     {
         m_bootWorker->Queue (TextEncoding::NarrowToWide (path), model, link);
     });
+
+    //  A thumbnail set or removed by Casso, by CassoCli or by another window
+    //  of Casso Explorer is drawn in place of the one in view.
+    std::filesystem::create_directories (ThumbnailStore::GetDefaultFolder(), error);
+
+    m_cacheWatcher.Watch (TextEncoding::WideToNarrow (ThumbnailStore::GetDefaultFolder().wstring()), [this] (const std::string & path)
+    {
+        if (ThumbnailStore::IsUserChange (TextEncoding::NarrowToWide (path)))
+        {
+            m_pictures.NotifyReady (IDiskPictures::kPicturesChanged);
+        }
+    });
 }
 
 
@@ -192,13 +210,14 @@ void CassoExplorerShell::StartBootWorker()
 //
 //  CassoExplorerShell::QueueBoot
 //
-//  A disk image in a list with no thumbnail, from an icon loader's thread.
+//  A disk image in a list with no thumbnail, from an icon loader's thread,
+//  when Options has thumbnails made automatically.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerShell::QueueBoot (const std::wstring & path)
 {
-    if (m_bootWorker != nullptr)
+    if (m_bootWorker != nullptr && m_prefs.autoThumbnails)
     {
         m_bootWorker->Queue (path, std::string());
     }

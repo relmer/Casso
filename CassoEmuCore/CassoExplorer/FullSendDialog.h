@@ -67,9 +67,10 @@ public:
     static std::wstring  DescribeTotals   (const FullSendTotals & totals);
     static std::wstring  DescribeStatus   (const FullSendRow & row);
 
-    //  The status bar's line for a session in progress: the drive, its disk,
-    //  the percentage, the time left and the disks done. Empty with none.
-    static std::wstring  DescribeSummary  (const FullSendSnapshot & snapshot);
+    //  The status bar's line for a session in progress: its connection, the
+    //  drive, its disk, the percentage, the time left and the disks done.
+    //  Empty with none.
+    static std::wstring  DescribeSummary  (const FullSendSnapshot & snapshot, const std::wstring & connection = std::wstring());
 
     //  A map cell's tip: its track, as 12 or 12.25, and what its mark means.
     //  The position is in quarter tracks.
@@ -156,7 +157,7 @@ private:
 //  FullSendDialog
 //
 //  The Full Send window: a connection's session, drawn from its status on
-//  each tick. End session cancels the session after a confirmation, Open
+//  each tick. Each connection with a session has a window. End session cancels the session after a confirmation, Open
 //  folder opens the Full Send folder, and Close hides the window while the
 //  session goes on.
 //
@@ -190,9 +191,10 @@ public:
     static bool  IsRunning (const FullSendSnapshot & snapshot);
 
     //  At position, the window's top left on the screen, when it is on a
-    //  monitor; centered on the owner otherwise.
+    //  monitor; centered on the owner otherwise. The title is Full Send and
+    //  the connection's name, or Full Send for none.
     static std::unique_ptr<FullSendDialog>  Open (HWND owner, const IDxuiTheme * theme, bool activate, SnapshotFn snapshot, ActionFn endSession, ActionFn openFolder,
-                                                  const POINT * position = nullptr);
+                                                  const POINT * position = nullptr, const std::wstring & connection = std::wstring());
 
     void  SetDiskAction (DiskActionFn action) { m_diskAction = std::move (action); }
     void  SetOnMoved    (MovedFn moved)       { m_onMoved = std::move (moved); }

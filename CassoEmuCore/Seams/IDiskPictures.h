@@ -32,11 +32,18 @@ public:
 
     //  A window that is posted `message` when a picture that was missing
     //  has been made, until it is removed. The message's wParam is
-    //  kPicturesChanged when pictures already drawn were changed or removed.
+    //  kPicturesChanged when pictures already drawn were changed or removed,
+    //  and kQueueChanged when the count of images waiting to be booted for a
+    //  picture changed.
     virtual void  AddTarget    (HWND hwnd, UINT message) = 0;
     virtual void  RemoveTarget (HWND hwnd)               = 0;
 
     static constexpr WPARAM  kPicturesChanged = 1;
+    static constexpr WPARAM  kQueueChanged    = 2;
+
+    //  The count of images waiting to be booted for a picture, the one being
+    //  booted included.
+    virtual size_t  GetQueued () = 0;
 
     //  Whether the image's thumbnail is one the user set, and its removal,
     //  after which the thumbnail made by booting is drawn.

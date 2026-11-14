@@ -82,22 +82,23 @@ std::wstring FullSendPanel::FormatSeconds (double seconds)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring FullSendPanel::DescribeSummary (const FullSendSnapshot & snapshot)
+std::wstring FullSendPanel::DescribeSummary (const FullSendSnapshot & snapshot, const std::wstring & connection)
 {
     int           done  = snapshot.totals.sent + snapshot.totals.duplicates;
     std::wstring  tally = std::format (L"{} {} done", done, done == 1 ? L"disk" : L"disks");
+    std::wstring  prefix = connection.empty() ? std::wstring (L"Full Send: ") : std::format (L"Full Send on {}: ", connection);
     std::wstring  text;
 
 
 
     switch (snapshot.activity)
     {
-        case FullSendActivity::Starting:        text = L"Full Send: waiting for Space on the Apple";                           break;
-        case FullSendActivity::WaitingForDisk:  text = std::format (L"Full Send: waiting for a disk, {}", tally);             break;
-        case FullSendActivity::WaitingForApple: text = L"Full Send: waiting for the Apple";                                    break;
-        case FullSendActivity::EditingPrefix:   text = L"Full Send: a file name prefix is being typed on the Apple";           break;
-        case FullSendActivity::Checking:        text = std::format (L"Full Send: checking drive {}, {}", snapshot.drive, tally); break;
-        case FullSendActivity::Validating:      text = std::format (L"Full Send: validating the image, {}", tally);             break;
+        case FullSendActivity::Starting:        text = prefix + L"waiting for Space on the Apple";                           break;
+        case FullSendActivity::WaitingForDisk:  text = prefix + std::format (L"waiting for a disk, {}", tally);             break;
+        case FullSendActivity::WaitingForApple: text = prefix + L"waiting for the Apple";                                    break;
+        case FullSendActivity::EditingPrefix:   text = prefix + L"a file name prefix is being typed on the Apple";           break;
+        case FullSendActivity::Checking:        text = prefix + std::format (L"checking drive {}, {}", snapshot.drive, tally); break;
+        case FullSendActivity::Validating:      text = prefix + std::format (L"validating the image, {}", tally);             break;
         default:                                                                                                                break;
     }
 
@@ -105,7 +106,7 @@ std::wstring FullSendPanel::DescribeSummary (const FullSendSnapshot & snapshot)
     {
         const FullSendDriveStatus  & drive = snapshot.drives[(size_t) snapshot.drive - 1];
 
-        text = std::format (L"Full Send: drive {}", snapshot.drive);
+        text = prefix + std::format (L"drive {}", snapshot.drive);
         text += drive.title.empty() ? std::wstring() : L", " + TextEncoding::NarrowToWide (drive.title);
         text += snapshot.activity == FullSendActivity::Capturing ? L", raw capture" : L"";
         text += std::format (L", {}%", std::clamp (drive.percent, 0, 100));
@@ -1236,7 +1237,7 @@ void FullSendDialog::Refresh()
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<FullSendDialog> FullSendDialog::Open (HWND owner, const IDxuiTheme * theme, bool activate, SnapshotFn snapshot, ActionFn endSession, ActionFn openFolder,
-                                                      const POINT * position)
+                                                      const POINT * position, const std::wstring & connection)
 {
     HRESULT                          hr       = S_OK;
     std::unique_ptr<FullSendDialog>  dialog   = std::make_unique<FullSendDialog>();
@@ -1247,7 +1248,7 @@ std::unique_ptr<FullSendDialog> FullSendDialog::Open (HWND owner, const IDxuiThe
 
     dialog->Configure (theme, std::move (snapshot), std::move (endSession), std::move (openFolder));
 
-    params.title                    = L"Full Send";
+    params.title                    = connection.empty() ? std::wstring (L"Full Send") : L"Full Send - " + connection;
     params.hInstance                = (owner != nullptr) ? (HINSTANCE) GetWindowLongPtrW (owner, GWLP_HINSTANCE) : GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
     params.initialSizeDip           = { kWidthDip, kHeightDip };

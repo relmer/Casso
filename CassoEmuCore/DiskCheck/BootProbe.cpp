@@ -2,6 +2,7 @@
 
 #include "DiskCheck/BootProbe.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/RamDevice.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/Apple80ColTextMode.h"
 #include "Machines/Apple2/Common/AppleDoubleHiResMode.h"
@@ -396,7 +397,9 @@ void BootProbe::RenderFrame (MachineHost & host, MachineBuilder & builder, std::
 //
 //  A row's first byte is at the page's base plus the standard interleave.
 //  A screen byte is inverse, flashing or normal; its low seven bits are the
-//  character, with the control range drawn as the letters above it.
+//  character, with the control range drawn as the letters above it. An
+//  80-column row is page 1's bytes in auxiliary and main memory in turn,
+//  the auxiliary byte first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -405,8 +408,13 @@ void BootProbe::ReadTextRows (MachineHost & host, std::vector<std::string> & out
     static constexpr Byte  kSevenBits = 0x7F;
     static constexpr Byte  kFirstText = 0x20;
     static constexpr Byte  kToLetters = 0x40;
+    MachineRefs          & refs       = host.GetRefs();
     MemoryBus            & bus        = host.GetMemoryBus();
-    Word                   page       = host.GetSoftSwitchMirror().page2 ? s_kTextPage2 : s_kTextPage1;
+    const Byte           * aux        = refs.text80 != nullptr ? refs.text80->GetAuxMemory() : nullptr;
+    const Byte           * main       = refs.mainRamDev != nullptr ? refs.mainRamDev->GetData() : nullptr;
+    bool                   is80       = refs.iieSoftSwitches != nullptr && refs.iieSoftSwitches->Is80ColMode() && aux != nullptr && main != nullptr;
+    Word                   page       = (!is80 && host.GetSoftSwitchMirror().page2) ? s_kTextPage2 : s_kTextPage1;
+    int                    columns    = is80 ? kTextCols * 2 : kTextCols;
 
 
 
@@ -417,9 +425,10 @@ void BootProbe::ReadTextRows (MachineHost & host, std::vector<std::string> & out
         Word         base = (Word) (page + ((row & 7) << 7) + ((row >> 3) * kTextCols));
         std::string  text;
 
-        for (int col = 0; col < kTextCols; col++)
+        for (int col = 0; col < columns; col++)
         {
-            Byte  value = (Byte) (bus.ReadByte ((Word) (base + col)) & kSevenBits);
+            Word  at    = (Word) (base + (is80 ? col / 2 : col));
+            Byte  value = (Byte) ((!is80 ? bus.ReadByte (at) : (col % 2 == 0) ? aux[at] : main[at]) & kSevenBits);
 
             text.push_back ((char) (value < kFirstText ? value + kToLetters : value));
         }
