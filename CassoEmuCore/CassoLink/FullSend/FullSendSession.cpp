@@ -62,7 +62,8 @@ std::vector<std::string> FullSendScreen::GetRows() const
             case FullSendDriveState::Idle:     row += "IDLE";               break;
             case FullSendDriveState::Checking: row += "CHECKING";           break;
             case FullSendDriveState::Sending:  row += (verify ? "VERIFYING " : "SENDING ") + names[i]; break;
-            case FullSendDriveState::Empty:    row += "EMPTY OR NO RECOGNIZED SECTORS";   break;
+            case FullSendDriveState::Empty:    row += "UNFORMATTED, OR NO DISK";   break;
+            case FullSendDriveState::Blank:    row += "BLANK, " + names[i]; break;
             case FullSendDriveState::Repeat:    row += GetDuplicateText (names[i], "?"); break;
             case FullSendDriveState::Sent:     row += "SENT " + names[i];   break;
             case FullSendDriveState::Protected: row += "PROTECTED, CAPTURED RAW " + names[i]; break;
@@ -634,6 +635,10 @@ std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 
         {
             lines.push_back (std::format ("D{} CHANGED WHILE IT WAS READ.", d));
         }
+        else if (repeats[(size_t) d - 1] && m_blank[(size_t) d - 1])
+        {
+            lines.push_back (std::format ("D{} IS BLANK, SO IT WASN'T SENT.", d));
+        }
         else if (repeats[(size_t) d - 1])
         {
             sent.push_back (d);
@@ -811,12 +816,29 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
         folderLock.unlock();
     }
 
+    m_blank[(size_t) drive - 1] = false;
+
+    if (outDisk.check == DiskCheck::New)
+    {
+        hr = CheckBlank (drive, outDisk);
+        CHR (hr);
+    }
+
     SetDriveState (drive, outDisk.check == DiskCheck::None   ? FullSendDriveState::Empty
                         : swapped                            ? FullSendDriveState::Changed
                         : outDisk.check == DiskCheck::Repeat ? FullSendDriveState::Repeat
+                        : outDisk.check == DiskCheck::Blank  ? FullSendDriveState::Blank
                                                              : FullSendDriveState::Idle);
 
-    m_status.ClearDisk (drive, outDisk.check == DiskCheck::None ? FullSendDiskState::Empty : outDisk.check == DiskCheck::Repeat ? FullSendDiskState::Duplicate : FullSendDiskState::None);
+    m_status.ClearDisk (drive, outDisk.check == DiskCheck::None   ? FullSendDiskState::Empty
+                             : outDisk.check == DiskCheck::Repeat ? FullSendDiskState::Duplicate
+                             : outDisk.check == DiskCheck::Blank  ? FullSendDiskState::Blank
+                                                                  : FullSendDiskState::None);
+
+    if (outDisk.check == DiskCheck::Blank)
+    {
+        m_status.SetTitle (drive, "Blank disk", outDisk.system);
+    }
 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);
@@ -873,6 +895,69 @@ HRESULT FullSendSession::ReadFingerprint (int drive, CheckedDisk & outDisk, bool
 
     hr = FullSendDisk::ComputeFingerprint (outDisk.image, outDisk.fingerprint);
     CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::CheckBlank
+//
+//  A new disk that is formatted and has no files isn't sent: its drive's
+//  number on the Apple sends it, as it sends a repeat. A DOS 3.3 disk whose
+//  one file is a short BASIC program has that program's track read first, as
+//  a program with no lines is what INIT writes after NEW. A blank is counted
+//  once while it stays in its drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendSession::CheckBlank (int drive, CheckedDisk & ioDisk)
+{
+    HRESULT      hr      = S_OK;
+    int          track   = FullSendDisk::FindLoneProgramTrack (ioDisk.image);
+    bool         hasDisk = true;
+    bool         whole   = false;
+    std::string  system;
+
+
+
+    if (track >= 0 && !ioDisk.IsReadWhole (track))
+    {
+        hr = m_link.ReadTrack (drive, track, ioDisk.image, hasDisk, whole);
+        CHR (hr);
+
+        if (hasDisk && whole)
+        {
+            ioDisk.wholeTracks.push_back (track);
+        }
+    }
+
+    if (hasDisk && FullSendDisk::IsBlank (ioDisk.image, ioDisk.wholeTracks, system))
+    {
+        ioDisk.check  = DiskCheck::Blank;
+        ioDisk.system = system;
+
+        m_blank[(size_t) drive - 1]        = true;
+        m_repeats[(size_t) drive - 1]      = true;
+        m_screen.names[(size_t) drive - 1] = system;
+
+        if (m_blankDisk[(size_t) drive - 1] != ioDisk.fingerprint)
+        {
+            m_blankDisk[(size_t) drive - 1] = ioDisk.fingerprint;
+            m_status.AddBlank();
+        }
+
+        Report (std::format ("The disk in drive {} is blank, formatted for {}, so it wasn't sent. Press {} on the Apple to send it anyway.", drive, system, drive));
+    }
+    else
+    {
+        m_blankDisk[(size_t) drive - 1].clear();
+    }
 
 Error:
     return hr;

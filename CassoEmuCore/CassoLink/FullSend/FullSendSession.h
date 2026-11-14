@@ -34,6 +34,7 @@ enum class FullSendDriveState : Byte
     Protected,
     Changed,
     Capturing,
+    Blank,
 };
 
 enum class FullSendTone : Byte
@@ -235,6 +236,7 @@ private:
         None,
         New,
         Repeat,
+        Blank,      // formatted, with no files; not sent unless its drive's number is pressed
     };
 
     //  A drive's disk as a check read it. The tracks read whole are not read a
@@ -245,6 +247,7 @@ private:
         std::string        fingerprint;
         std::vector<Byte>  image;
         std::vector<int>   wholeTracks;
+        std::string        system;          // a blank disk's file system
 
         bool  IsReadWhole (int track) const { return std::find (wholeTracks.begin(), wholeTracks.end(), track) != wholeTracks.end(); }
     };
@@ -262,6 +265,7 @@ private:
     HRESULT  RunRound         ();
     HRESULT  Pause            ();
     HRESULT  CheckDrive       (int drive, CheckedDisk & outDisk);
+    HRESULT  CheckBlank       (int drive, CheckedDisk & ioDisk);
     HRESULT  ReadFingerprint  (int drive, CheckedDisk & outDisk, bool & outStable);
     HRESULT  ReadStableTrack  (int drive, int track, CheckedDisk & ioDisk, bool & outHasDisk, bool & outStable);
     HRESULT  SendDisk         (int drive, const CheckedDisk & checked, bool anyway);
@@ -303,6 +307,8 @@ private:
     std::array<bool, 2>         m_repeats    = { false, false };   // drives whose last check matched the manifest
     std::array<bool, 2>         m_swapped    = { false, false };   // and of those, the disks that changed during their read
     std::array<std::string, 2>  m_counted;                         // the repeat each drive last added to the duplicates
+    std::array<bool, 2>         m_blank      = { false, false };   // drives whose last check found a blank disk
+    std::array<std::string, 2>  m_blankDisk;                       // the blank each drive last added to the blanks
     uint64_t                    m_commitTag  = 1;
     std::vector<Byte>           m_rawReads;                        // the last raw capture's reads, until its image is written
     std::mt19937                m_random     { std::random_device{}() };

@@ -277,7 +277,8 @@ std::wstring FullSendPanel::DescribeDrive (const FullSendDriveStatus & drive)
         case FullSendDiskState::Capturing: state = L"Capturing raw";                         break;
         case FullSendDiskState::Sent:      state = L"Sent";                                  break;
         case FullSendDiskState::Duplicate: state = L"Duplicate";                             break;
-        case FullSendDiskState::Empty:     state = L"Empty, or no recognized sectors";       break;
+        case FullSendDiskState::Empty:     state = L"Unformatted, or no disk";               break;
+        case FullSendDiskState::Blank:     state = L"Blank";                                 break;
         default:                           state = L"No disk read yet";                      break;
     }
 
@@ -372,8 +373,8 @@ std::wstring FullSendPanel::DescribeCapture (const FullSendDriveStatus & drive)
 
 std::wstring FullSendPanel::DescribeTotals (const FullSendTotals & totals)
 {
-    std::wstring  text = std::format (L"{} sent, {} {}, {} raw {}, {} with bad sectors", totals.sent,
-                                      totals.duplicates, totals.duplicates == 1 ? L"duplicate" : L"duplicates",
+    std::wstring  text = std::format (L"{} sent, {} {}, {} blank, {} raw {}, {} with bad sectors", totals.sent,
+                                      totals.duplicates, totals.duplicates == 1 ? L"duplicate" : L"duplicates", totals.blanks,
                                       totals.rawCaptures, totals.rawCaptures == 1 ? L"capture" : L"captures", totals.badSectors);
 
 
