@@ -1222,6 +1222,108 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MakePortArray
+//
+//  A card's staged connectors: a bare device string for each, or the object
+//  form with its image, real timing switch, or the file a printer
+//  attachment uses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue SettingsJson::MakePortArray (const HardwareEntry & staged)
+{
+    std::vector<JsonValue>  portArr;
+
+
+
+    for (const std::string & device : staged.ports)
+    {
+        size_t        portIndex = portArr.size();
+        std::string   image     = portIndex < staged.portImages.size()     ? staged.portImages[portIndex]     : std::string();
+        bool          isTimed   = portIndex < staged.portRealTiming.size() ? staged.portRealTiming[portIndex] : false;
+
+
+
+        // The first connector of a card with a file
+        // attachment is written as an object, to include the
+        // file's path, and so is one the printer has, to
+        // include the connector it displaced.
+        if (portArr.empty() && (!staged.portPath.empty() || !staged.portBeforePrinter.empty()))
+        {
+            std::vector<std::pair<std::string, JsonValue>>  port;
+
+            port.emplace_back (SettingsPanelState::kpszPortDeviceKey, JsonValue (device));
+
+            if (!staged.portPath.empty())
+            {
+                port.emplace_back (SettingsPanelState::kpszPortPathKey, JsonValue (staged.portPath));
+            }
+
+            if (!staged.portBeforePrinter.empty())
+            {
+                port.emplace_back (SettingsPanelState::kpszPortBeforeKey, JsonValue (staged.portBeforePrinter));
+            }
+
+            if (!staged.portPathBeforePrinter.empty())
+            {
+                port.emplace_back (SettingsPanelState::kpszPortPathBeforeKey, JsonValue (staged.portPathBeforePrinter));
+            }
+
+            portArr.emplace_back (JsonValue (std::move (port)));
+        }
+        else if (!image.empty() || isTimed)
+        {
+            std::vector<std::pair<std::string, JsonValue>>  port;
+
+            port.emplace_back (SettingsPanelState::kpszPortDeviceKey, JsonValue (device));
+
+            if (!image.empty())
+            {
+                port.emplace_back (SettingsPanelState::kpszPortImageKey, JsonValue (image));
+            }
+
+            if (isTimed)
+            {
+                port.emplace_back (SettingsPanelState::kpszPortTimingKey, JsonValue (true));
+            }
+
+            portArr.emplace_back (JsonValue (std::move (port)));
+        }
+        else
+        {
+            portArr.emplace_back (JsonValue (device));
+        }
+    }
+
+    return JsonValue (std::move (portArr));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsCardSpecificKey
+//
+//  A slot key that belongs to the card in it, dropped when the card is
+//  replaced: its device, firmware, connectors and settings.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsJson::IsCardSpecificKey (const std::string & key)
+{
+    return key == "device" || key == "rom" || key == "firmware" || key == "capabilityFlag" || key == "lockReason"
+        || key == SettingsPanelState::kpszPortsKey || key == SettingsPanelState::kpszSwitchesKey
+        || key == NetworkCardSettings::kpszJsonKey;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BuildJson
 //
 //  Returns a brand-new object with:
@@ -1349,6 +1451,7 @@ JsonValue SettingsJson::BuildJson (
                 const auto                                      & srcEntries  = src.GetObjectEntries();
                 bool                                              enabledFlag = false;
                 bool                                              hadNetwork  = false;
+                bool                                              replaced    = false;
                 const JsonValue                                 * network     = nullptr;
                 std::vector<std::pair<std::string, JsonValue>>    rebuilt;
                 size_t                                            j           = 0;
@@ -1375,9 +1478,24 @@ JsonValue SettingsJson::BuildJson (
                         }
                     }
 
+                    // A card taken out of its slot leaves the slot out; a
+                    // replaced card's device is the staged one, without the
+                    // old card's firmware and settings.
+                    if (staged != nullptr && staged->type.empty() && staged->displayName.empty())
+                    {
+                        continue;
+                    }
+
+                    replaced = staged != nullptr && !staged->type.empty() && staged->type != GetStringOpt (src, "device", "");
+
                     for (auto & srcEntry : srcEntries)
                     {
                         if (srcEntry.first == "enabled")
+                        {
+                            continue;
+                        }
+
+                        if (replaced && IsCardSpecificKey (srcEntry.first))
                         {
                             continue;
                         }
@@ -1409,6 +1527,11 @@ JsonValue SettingsJson::BuildJson (
                         rebuilt.emplace_back (srcEntry.first, CloneJson (srcEntry.second));
                     }
 
+                    if (replaced)
+                    {
+                        rebuilt.emplace_back ("device", JsonValue (staged->type));
+                    }
+
                     rebuilt.emplace_back ("enabled", JsonValue (enabledFlag));
 
                     // Default settings are not written, so looking at the card
@@ -1422,68 +1545,7 @@ JsonValue SettingsJson::BuildJson (
 
                     if (staged != nullptr && !staged->ports.empty())
                     {
-                        std::vector<JsonValue>  portArr;
-
-                        for (const std::string & device : staged->ports)
-                        {
-                            size_t        portIndex = portArr.size();
-                            std::string   image     = portIndex < staged->portImages.size()     ? staged->portImages[portIndex]     : std::string();
-                            bool          isTimed   = portIndex < staged->portRealTiming.size() ? staged->portRealTiming[portIndex] : false;
-
-
-
-                            // The first connector of a card with a file
-                            // attachment is written as an object, to include the
-                            // file's path, and so is one the printer has, to
-                            // include the connector it displaced.
-                            if (portArr.empty() && (!staged->portPath.empty() || !staged->portBeforePrinter.empty()))
-                            {
-                                std::vector<std::pair<std::string, JsonValue>>  port;
-
-                                port.emplace_back (SettingsPanelState::kpszPortDeviceKey, JsonValue (device));
-
-                                if (!staged->portPath.empty())
-                                {
-                                    port.emplace_back (SettingsPanelState::kpszPortPathKey, JsonValue (staged->portPath));
-                                }
-
-                                if (!staged->portBeforePrinter.empty())
-                                {
-                                    port.emplace_back (SettingsPanelState::kpszPortBeforeKey, JsonValue (staged->portBeforePrinter));
-                                }
-
-                                if (!staged->portPathBeforePrinter.empty())
-                                {
-                                    port.emplace_back (SettingsPanelState::kpszPortPathBeforeKey, JsonValue (staged->portPathBeforePrinter));
-                                }
-
-                                portArr.emplace_back (JsonValue (std::move (port)));
-                            }
-                            else if (!image.empty() || isTimed)
-                            {
-                                std::vector<std::pair<std::string, JsonValue>>  port;
-
-                                port.emplace_back (SettingsPanelState::kpszPortDeviceKey, JsonValue (device));
-
-                                if (!image.empty())
-                                {
-                                    port.emplace_back (SettingsPanelState::kpszPortImageKey, JsonValue (image));
-                                }
-
-                                if (isTimed)
-                                {
-                                    port.emplace_back (SettingsPanelState::kpszPortTimingKey, JsonValue (true));
-                                }
-
-                                portArr.emplace_back (JsonValue (std::move (port)));
-                            }
-                            else
-                            {
-                                portArr.emplace_back (JsonValue (device));
-                            }
-                        }
-
-                        rebuilt.emplace_back (SettingsPanelState::kpszPortsKey, JsonValue (std::move (portArr)));
+                        rebuilt.emplace_back (SettingsPanelState::kpszPortsKey, MakePortArray (*staged));
                     }
 
                     if (staged != nullptr && !staged->switchesSw1.empty())
@@ -1505,6 +1567,30 @@ JsonValue SettingsJson::BuildJson (
                 slotArr.emplace_back (JsonValue (std::move (rebuilt)));
             }
 
+        }
+
+        // A card put in a slot the document didn't list.
+        for (const HardwareEntry & hwEntry : hw)
+        {
+            std::vector<std::pair<std::string, JsonValue>>  added;
+
+
+
+            if (hwEntry.kind != HardwareEntryKind::Slot || hwEntry.jsonIndex >= 0 || hwEntry.type.empty())
+            {
+                continue;
+            }
+
+            added.emplace_back ("slot",    JsonValue ((double) hwEntry.slot));
+            added.emplace_back ("device",  JsonValue (hwEntry.type));
+            added.emplace_back ("enabled", JsonValue (hwEntry.enabled));
+
+            if (!hwEntry.ports.empty())
+            {
+                added.emplace_back (SettingsPanelState::kpszPortsKey, MakePortArray (hwEntry));
+            }
+
+            slotArr.emplace_back (JsonValue (std::move (added)));
         }
     }
 

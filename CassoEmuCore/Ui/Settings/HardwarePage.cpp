@@ -7,6 +7,7 @@
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/BlockDevice/StockHardDiskImage.h"
 #include "Devices/SerialPortDevice.h"
+#include "Ui/Settings/SlotCards.h"
 
 
 
@@ -24,6 +25,9 @@ static constexpr int     s_kInfoRowHeightDp  = 28;
 static constexpr int     s_kInfoValueGapDp   = 8;
 static constexpr int     s_kBigSectionGapDp  = 14;
 static constexpr int     s_kDropdownWidthDp  = 200;
+static constexpr int     s_kStorageButtonWidthDp = 120;
+static constexpr int     s_kFirstSlot            = 1;
+static constexpr int     s_kLastSlot             = 7;
 static constexpr size_t  s_kCpuRow           = 0;
 static constexpr size_t  s_kClockRow         = 1;
 static constexpr size_t  s_kMemoryRow        = 2;
@@ -138,6 +142,47 @@ HardwarePage::HardwarePage(std::wstring title)
         Adopt (m_serialLabels[i]);
         Adopt (m_serialDropdowns[i]);
     }
+
+    Adopt (m_slotLabel);
+    Adopt (m_cardLabel);
+    Adopt (m_slotDropdown);
+    Adopt (m_cardDropdown);
+    Adopt (m_attachButton);
+    Adopt (m_ejectButton);
+    Adopt (m_addButton);
+    Adopt (m_removeButton);
+    Adopt (m_promptLabel);
+    Adopt (m_replaceButton);
+    Adopt (m_cancelButton);
+
+    m_slotLabel.SetText     (L"Slot:");
+    m_cardLabel.SetText     (L"Card:");
+    m_attachButton.SetLabel (L"Choose image...");
+    m_ejectButton.SetLabel  (L"Eject");
+    m_addButton.SetLabel    (L"Add drive");
+    m_removeButton.SetLabel (L"Remove drive");
+    m_cancelButton.SetLabel (L"Cancel");
+
+    m_attachButton.SetOnClick  ([this] () { AttachImage();    });
+    m_ejectButton.SetOnClick   ([this] () { EjectImage();     });
+    m_addButton.SetOnClick     ([this] () { AddDrive();       });
+    m_removeButton.SetOnClick  ([this] () { RemoveDrive();    });
+    m_replaceButton.SetOnClick ([this] () { ConfirmReplace(); });
+    m_cancelButton.SetOnClick  ([this] () { CancelReplace();  });
+
+    m_slotDropdown.SetSelect ([this] (int index) { SelectSlot (index + 1); });
+    m_cardDropdown.SetSelect ([this] (int index) { ChooseCard (index); });
+
+    m_cardDropdown.SetOnHighlightChange ([this] (int index)
+    {
+        bool  isBlocked = index >= 0 && index < (int) m_cardChoices.size() && !m_cardChoices[(size_t) index].allowed;
+
+        if (isBlocked && !m_replacePending)
+        {
+            m_storagePrompt = m_cardChoices[(size_t) index].tip;
+            m_promptLabel.SetText (m_storagePrompt);
+        }
+    });
 }
 
 
@@ -271,6 +316,67 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
         }
     }
 
+    // The storage controls, on a machine with slots: the slot and its card,
+    // the selected drive's buttons, and the prompt row.
+    {
+        DxuiLabel   * labels[]  = { &m_slotLabel, &m_cardLabel };
+        DxuiButton  * buttons[] = { &m_attachButton, &m_ejectButton, &m_addButton, &m_removeButton };
+        DxuiButton  * confirm[] = { &m_replaceButton, &m_cancelButton };
+        int           buttonW   = scaler.ToPx (s_kStorageButtonWidthDp);
+        int           buttonGap = scaler.ToPx (s_kInfoValueGapDp);
+        int           bx        = controlsX;
+        int           storageY  = y;
+
+        for (DxuiLabel * label : labels)
+        {
+            label->SetVisible (m_showStorage);
+            label->SetDpi     (dpi);
+        }
+
+        m_slotLabel.SetRect    (MakeRect (x, storageY, labelWidth, rowHeight));
+        m_slotDropdown.SetRect (MakeRect (controlsX, storageY, dropWidth, rowHeight));
+        storageY += rowHeight + sectionGap;
+
+        m_cardLabel.SetRect    (MakeRect (x, storageY, labelWidth, rowHeight));
+        m_cardDropdown.SetRect (MakeRect (controlsX, storageY, dropWidth, rowHeight));
+        storageY += rowHeight + sectionGap;
+
+        for (DxuiButton * button : buttons)
+        {
+            button->SetDpi     (dpi);
+            button->SetVisible (m_showStorage && !m_replacePending);
+            button->Layout     (MakeRect (bx, storageY, buttonW, rowHeight));
+            bx += buttonW + buttonGap;
+        }
+
+        bx = controlsX;
+
+        for (DxuiButton * button : confirm)
+        {
+            button->SetDpi     (dpi);
+            button->SetVisible (m_showStorage && m_replacePending);
+            button->Layout     (MakeRect (bx, storageY, buttonW, rowHeight));
+            bx += buttonW + buttonGap;
+        }
+
+        storageY += rowHeight + sectionGap;
+
+        m_promptLabel.SetVisible (m_showStorage);
+        m_promptLabel.SetDpi     (dpi);
+        m_promptLabel.SetRect    (MakeRect (controlsX, storageY, rect.right - controlsX - pad, rowHeight));
+        storageY += rowHeight + sectionGap;
+
+        m_slotDropdown.SetVisible (m_showStorage);
+        m_cardDropdown.SetVisible (m_showStorage);
+        m_slotDropdown.SetDpi     (dpi);
+        m_cardDropdown.SetDpi     (dpi);
+
+        if (m_showStorage)
+        {
+            y = storageY;
+        }
+    }
+
     // Hardware spec block starts below the selectors.
     m_infoTop = y;
 
@@ -374,6 +480,9 @@ void HardwarePage::SetPopupHost (DxuiHwndSource * host)
     {
         dropdown.SetPopupHost (host);
     }
+
+    m_slotDropdown.SetPopupHost (host);
+    m_cardDropdown.SetPopupHost (host);
 }
 
 
@@ -427,6 +536,7 @@ void HardwarePage::Rebuild()
         entries = state->GetHardware();
 
         RebuildSerialPorts (*state);
+        RebuildStorage();
 
         // Comma-grouped clock speed (e.g. "1,020,484 Hz"). std::format with
         // the "L" locale-aware flag requires a locale; build the grouped
@@ -485,6 +595,7 @@ void HardwarePage::Rebuild()
     }
 
     m_tree.SetNodes (std::move (nodes));
+    m_tree.SetOnSelect ([this] (const std::wstring & id) { SelectTreeRow (id); });
 
     m_tree.SetOnToggle ([this, state] (const std::wstring & label, bool checked)
     {
@@ -596,18 +707,25 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
     slotsGroup.checked           = true;
     slotsGroup.expanded          = true;
 
-    for (auto & entry : entries)
+    for (i = 0; i < entries.size(); ++i)
     {
-        const HardwareEntry  & e   = entry;
+        const HardwareEntry  & e   = entries[i];
         DxuiTreeNode           row;
 
+        // A card taken out of its slot in this visit is not listed.
+        if (e.kind == HardwareEntryKind::Slot && e.type.empty() && e.displayName.empty())
+        {
+            continue;
+        }
+
+        row.id             = std::format (L"entry:{}", i);
         row.label          = Widen (e.displayName);
         row.lockReason     = Widen (e.lockReason);
         row.capabilityFlag = MapFlag (e.capability);
         row.checked        = e.enabled;
         row.expanded       = true;
 
-        AddDriveRows (e, row);
+        AddDriveRows (e, row, i);
 
         if (e.kind == HardwareEntryKind::InternalDevice)
         {
@@ -663,7 +781,7 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HardwarePage::AddDriveRows (const HardwareEntry & entry, DxuiTreeNode & slotRow)
+void HardwarePage::AddDriveRows (const HardwareEntry & entry, DxuiTreeNode & slotRow, size_t entryIndex)
 {
     const BlockCardSpec  * card = BlockDeviceCatalog::FindCard (entry.type);
 
@@ -686,6 +804,7 @@ void HardwarePage::AddDriveRows (const HardwareEntry & entry, DxuiTreeNode & slo
             continue;
         }
 
+        driveRow.id             = std::format (L"drive:{}:{}", entryIndex, port);
         driveRow.label          = MakeDriveLabel (entry, port);
         driveRow.capabilityFlag = DxuiTreeCapabilityFlag::Required;
         driveRow.checked        = true;
@@ -893,4 +1012,480 @@ std::wstring HardwarePage::DescribeSerialDevice (const std::string & device)
     }
 
     return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::RebuildStorage
+//
+//  The slot list with each slot's card, the cards offered for the selected
+//  slot, and which of the drive buttons apply to the tree's selection.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::RebuildStorage()
+{
+    std::vector<std::wstring>    slotItems;
+    std::vector<std::wstring>    cardItems;
+    std::vector<bool>            cardEnabled;
+    int                          cardIndex   = 0;
+    int                          entry       = -1;
+    const HardwareEntry        * selected    = nullptr;
+    bool                         hasDrive    = false;
+    bool                         hasImage    = false;
+    bool                         showBefore  = m_showStorage;
+
+
+
+    m_showStorage = m_state != nullptr && !m_state->GetMachineInfo().supportsExternalDrive;
+
+    if (m_showStorage)
+    {
+        const std::vector<HardwareEntry>  & entries = m_state->GetHardware();
+
+        if (m_selectedSlot < s_kFirstSlot || m_selectedSlot > s_kLastSlot)
+        {
+            m_selectedSlot = s_kLastSlot;
+
+            for (int slot = s_kFirstSlot; slot <= s_kLastSlot; ++slot)
+            {
+                int  found = SlotCards::FindSlot (entries, slot);
+
+                if (found >= 0 && BlockDeviceCatalog::FindCard (entries[(size_t) found].type) != nullptr)
+                {
+                    m_selectedSlot = slot;
+                    break;
+                }
+            }
+        }
+
+        for (int slot = s_kFirstSlot; slot <= s_kLastSlot; ++slot)
+        {
+            int  found = SlotCards::FindSlot (entries, slot);
+
+            slotItems.push_back (found >= 0 ? Widen (entries[(size_t) found].displayName) : std::format (L"Slot {}: Empty", slot));
+        }
+
+        m_cardChoices = m_state->GetCardChoices();
+        entry         = GetSelectedEntry();
+        selected      = (entry >= 0) ? &entries[(size_t) entry] : nullptr;
+
+        // A card in the slot that is not a storage card is listed last, as
+        // the slot's card.
+        if (selected != nullptr && BlockDeviceCatalog::FindCard (selected->type) == nullptr)
+        {
+            SlotCardChoice  current;
+            std::string     name = selected->displayName;
+            size_t          colon = name.find (": ");
+
+
+
+            current.device = selected->type;
+            current.label  = Widen (colon != std::string::npos ? name.substr (colon + 2) : name);
+            m_cardChoices.push_back (std::move (current));
+        }
+
+        for (size_t i = 0; i < m_cardChoices.size(); ++i)
+        {
+            cardItems.push_back   (m_cardChoices[i].label);
+            cardEnabled.push_back (m_cardChoices[i].allowed);
+
+            if (selected != nullptr && m_cardChoices[i].device == selected->type)
+            {
+                cardIndex = (int) i;
+            }
+        }
+
+        hasDrive = selected != nullptr && m_selectedPort >= 0 && (size_t) m_selectedPort < selected->ports.size()
+                && BlockDeviceCatalog::FindDrive (selected->ports[(size_t) m_selectedPort]) != nullptr;
+        hasImage = hasDrive && (size_t) m_selectedPort < selected->portImages.size() && !selected->portImages[(size_t) m_selectedPort].empty();
+    }
+
+    m_slotDropdown.SetItems    (slotItems);
+    m_slotDropdown.SetSelected (m_selectedSlot - s_kFirstSlot);
+    m_cardDropdown.SetItems        (cardItems);
+    m_cardDropdown.SetItemsEnabled (cardEnabled);
+    m_cardDropdown.SetSelected     (cardIndex);
+
+    m_attachButton.SetEnabled (hasDrive);
+    m_ejectButton.SetEnabled  (hasImage);
+    m_addButton.SetEnabled    (IsChainSelected());
+    m_removeButton.SetEnabled (hasDrive && IsChainSelected());
+    m_promptLabel.SetText     (m_storagePrompt);
+
+    if (showBefore != m_showStorage)
+    {
+        SetRect (m_baseRect, m_scaler);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::GetSelectedEntry
+//
+//  The hardware entry of the card in the selected slot, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int HardwarePage::GetSelectedEntry() const
+{
+    return (m_state != nullptr) ? SlotCards::FindSlot (m_state->GetHardware(), m_selectedSlot) : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::IsChainSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HardwarePage::IsChainSelected() const
+{
+    int                    entry = GetSelectedEntry();
+    const BlockCardSpec  * card  = (entry >= 0) ? BlockDeviceCatalog::FindCard (m_state->GetHardware()[(size_t) entry].type) : nullptr;
+
+
+
+    return card != nullptr && card->isChain;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::SelectSlot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::SelectSlot (int slot)
+{
+    m_selectedSlot   = slot;
+    m_selectedPort   = -1;
+    m_replacePending = false;
+    m_storagePrompt.clear();
+    m_pendingDevice.clear();
+
+    RebuildStorage();
+    SetRect (m_baseRect, m_scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::ChooseCard
+//
+//  A card the machine can't host is not put in; the prompt lists the
+//  machines that can. A card in a filled slot is replaced only after a
+//  confirmation.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::ChooseCard (int choice)
+{
+    int                  entry   = GetSelectedEntry();
+    std::string          current = (entry >= 0) ? m_state->GetHardware()[(size_t) entry].type : std::string();
+    std::wstring         label;
+    const std::wstring * from    = nullptr;
+
+
+
+    if (m_state == nullptr || choice < 0 || choice >= (int) m_cardChoices.size())
+    {
+        return;
+    }
+
+    if (!m_cardChoices[(size_t) choice].allowed)
+    {
+        m_storagePrompt = m_cardChoices[(size_t) choice].tip;
+        RebuildStorage();
+        return;
+    }
+
+    if (m_cardChoices[(size_t) choice].device == current)
+    {
+        return;
+    }
+
+    if (current.empty())
+    {
+        ApplyCard (m_cardChoices[(size_t) choice].device);
+        return;
+    }
+
+    for (const SlotCardChoice & c : m_cardChoices)
+    {
+        if (c.device == current)
+        {
+            from = &c.label;
+        }
+    }
+
+    label           = (from != nullptr) ? *from : Widen (current);
+    m_pendingDevice = m_cardChoices[(size_t) choice].device;
+    m_replacePending = true;
+
+    if (m_pendingDevice.empty())
+    {
+        m_storagePrompt = std::format (L"Take the {} out of slot {}?", label, m_selectedSlot);
+        m_replaceButton.SetLabel (L"Take out");
+    }
+    else
+    {
+        m_storagePrompt = std::format (L"Replace the {} in slot {} with the {}?", label, m_selectedSlot, m_cardChoices[(size_t) choice].label);
+        m_replaceButton.SetLabel (L"Replace");
+    }
+
+    RebuildStorage();
+    SetRect (m_baseRect, m_scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::ConfirmReplace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::ConfirmReplace()
+{
+    if (m_replacePending)
+    {
+        m_replacePending = false;
+        ApplyCard (m_pendingDevice);
+        m_pendingDevice.clear();
+        SetRect (m_baseRect, m_scaler);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::CancelReplace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::CancelReplace()
+{
+    m_replacePending = false;
+    m_pendingDevice.clear();
+    m_storagePrompt.clear();
+
+    RebuildStorage();
+    SetRect (m_baseRect, m_scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::ApplyCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::ApplyCard (const std::string & device)
+{
+    std::wstring  error;
+    HRESULT       hr = m_state->SetSlotCard (m_selectedSlot, device, error);
+
+
+
+    m_storagePrompt = SUCCEEDED (hr) ? std::wstring (L"Takes effect when the machine resets.") : error;
+    m_selectedPort  = -1;
+    OnStorageEdited();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::SelectTreeRow
+//
+//  Clicking a slot's row selects the slot; clicking a drive's row selects
+//  the slot and the drive for the buttons.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::SelectTreeRow (const std::wstring & id)
+{
+    size_t  entry = 0;
+    int     port  = -1;
+    bool    isDrive = swscanf_s (id.c_str(), L"drive:%zu:%d", &entry, &port) == 2;
+    bool    isEntry = !isDrive && swscanf_s (id.c_str(), L"entry:%zu", &entry) == 1;
+    bool    isSlot  = (isDrive || isEntry) && m_state != nullptr && entry < m_state->GetHardware().size()
+                   && m_state->GetHardware()[entry].kind == HardwareEntryKind::Slot;
+
+
+
+    if (!isSlot || m_replacePending)
+    {
+        return;
+    }
+
+    m_selectedSlot = m_state->GetHardware()[entry].slot;
+    m_selectedPort = isDrive ? port : -1;
+    m_storagePrompt.clear();
+
+    RebuildStorage();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::AttachImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::AttachImage()
+{
+    int          entry = GetSelectedEntry();
+    std::string  path;
+    HRESULT      hr    = S_OK;
+
+
+
+    if (entry < 0 || m_selectedPort < 0 || !m_onBrowseImage)
+    {
+        return;
+    }
+
+    {
+        const HardwareEntry  & e = m_state->GetHardware()[(size_t) entry];
+
+        path = (size_t) m_selectedPort < e.portImages.size() ? e.portImages[(size_t) m_selectedPort] : std::string();
+    }
+
+    if (m_onBrowseImage (path))
+    {
+        hr = m_state->SetPortImage ((size_t) entry, (size_t) m_selectedPort, path);
+        m_storagePrompt = SUCCEEDED (hr) ? std::wstring (L"Takes effect when the machine resets.") : std::wstring();
+        OnStorageEdited();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::EjectImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::EjectImage()
+{
+    int      entry = GetSelectedEntry();
+    HRESULT  hr    = S_OK;
+
+
+
+    if (entry >= 0 && m_selectedPort >= 0)
+    {
+        hr = m_state->SetPortImage ((size_t) entry, (size_t) m_selectedPort, std::string());
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        m_storagePrompt = L"Takes effect when the machine resets.";
+        OnStorageEdited();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::AddDrive
+//
+//  At the chain's limit, the prompt has the limit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::AddDrive()
+{
+    int           entry = GetSelectedEntry();
+    std::wstring  error;
+    HRESULT       hr    = S_OK;
+
+
+
+    if (entry >= 0)
+    {
+        hr = m_state->AddChainDrive ((size_t) entry, error);
+        m_storagePrompt = SUCCEEDED (hr) ? std::wstring (L"Takes effect when the machine resets.") : error;
+        OnStorageEdited();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::RemoveDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::RemoveDrive()
+{
+    int      entry = GetSelectedEntry();
+    HRESULT  hr    = S_OK;
+
+
+
+    if (entry >= 0 && m_selectedPort >= 0 && IsChainSelected())
+    {
+        hr = m_state->RemoveChainDrive ((size_t) entry, (size_t) m_selectedPort);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        m_selectedPort  = -1;
+        m_storagePrompt = L"Takes effect when the machine resets.";
+        OnStorageEdited();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::OnStorageEdited
+//
+//  The tree and the controls after a storage edit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::OnStorageEdited()
+{
+    Rebuild();
+    SetRect (m_baseRect, m_scaler);
 }

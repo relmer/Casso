@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Ui/Settings/SlotCards.h"
 #include "Config/NetworkCardSettings.h"
 #include "Controllers/ControllerTypes.h"
 #include "Core/JsonValue.h"
@@ -407,6 +408,15 @@ public:
     // A hard disk's real timing switch, by hardware entry and port. Fails on
     // a port without a drive that has the switch.
     HRESULT SetPortRealTiming (size_t index, size_t port, bool isOn);
+
+    // The Machine tab's storage card edits; see SlotCards. Each takes a
+    // machine reset to apply.
+    std::vector<SlotCardChoice>  GetCardChoices   () const { return SlotCards::GetChoices (m_machineName); }
+    bool                         IsSlotFilled     (int slot) const { return SlotCards::FindSlot (m_current.hardware, slot) >= 0; }
+    HRESULT                      SetSlotCard      (int slot, const std::string & device, std::wstring & outError) { return SlotCards::SetCard (m_current.hardware, m_machineName, slot, device, outError); }
+    HRESULT                      SetPortImage     (size_t index, size_t port, const std::string & path) { return SlotCards::SetPortImage (m_current.hardware, index, port, path); }
+    HRESULT                      AddChainDrive    (size_t index, std::wstring & outError) { return SlotCards::AddChainDrive (m_current.hardware, index, outError); }
+    HRESULT                      RemoveChainDrive (size_t index, size_t port) { return SlotCards::RemoveChainDrive (m_current.hardware, index, port); }
 
     // The Uthernet II. The machine's slot list places it and the Machine tab
     // turns it on; turned on with no MAC address, it gets a random locally

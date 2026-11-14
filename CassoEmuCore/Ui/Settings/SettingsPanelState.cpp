@@ -175,7 +175,8 @@ bool SettingsPanelState::IsDirty() const
 //
 //  RequiresReset
 //
-//  A reset is required iff the hardware-enable bits changed.
+//  A reset is required iff the hardware-enable bits changed, or a storage
+//  card was put in, replaced, taken out, or its drives or images changed.
 //  Speed / color / sound / mechanism / write-protect, every serial
 //  connector's attachment, the ImageWriter II's connector and the Uthernet
 //  II's settings are all live-applicable.
@@ -191,7 +192,17 @@ bool SettingsPanelState::RequiresReset() const
 
     for (i = 0; !changed && i < m_current.hardware.size(); ++i)
     {
-        changed = m_original.hardware[i].enabled != m_current.hardware[i].enabled;
+        const HardwareEntry  & before    = m_original.hardware[i];
+        const HardwareEntry  & after     = m_current.hardware[i];
+        bool                   isStorage = BlockDeviceCatalog::FindCard (after.type) != nullptr;
+
+
+
+        changed = before.enabled != after.enabled
+               || before.type    != after.type
+               || (isStorage && (before.ports          != after.ports
+                              || before.portImages     != after.portImages
+                              || before.portRealTiming != after.portRealTiming));
     }
 
     return changed;

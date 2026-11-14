@@ -872,6 +872,8 @@
     <ClCompile Include="Floppy35Tests\DiskPortChainTests.cpp" />
     <ClCompile Include="BlockDeviceTests\DefaultCardsTests.cpp" />
     <ClCompile Include="EmuTests\Apple2cPlusDeviceTests.cpp" />
+    <ClCompile Include="Audio\DeviceAudioSourceTests.cpp" />
+    <ClCompile Include="UiTests\SlotCardsTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />
