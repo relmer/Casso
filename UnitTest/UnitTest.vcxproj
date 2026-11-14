@@ -433,6 +433,7 @@
     <ClCompile Include="CassoLink\CassoLinkTraceTests.cpp" />
     <ClCompile Include="CassoLink\FullSendTests.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStoreTests.cpp" />
+    <ClCompile Include="DiskCheck\BootCheckTests.cpp" />
     <ClCompile Include="DiskCheck\BootProbeTests.cpp" />
     <ClCompile Include="CassoLink\FullSendStatusTests.cpp" />
     <ClCompile Include="CassoLink\TrackVerifierTests.cpp" />
