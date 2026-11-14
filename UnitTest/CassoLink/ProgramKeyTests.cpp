@@ -279,7 +279,7 @@ public:
     //  40-column row and is drawn while the Apple waits for Space.
     TEST_METHOD (ThePauseAfterAFailedBoot_IsDrawnOnTheApple)
     {
-        static const std::vector<std::string>  kLines = { "0024 DID NOT BOOT. CAPTURE IT AGAIN", "OR PUT IN A NEW DISK, THEN PRESS SPACE", "0025 STILL DOES NOT BOOT." };
+        static const std::vector<std::string>  kLines = { "0024 DID NOT BOOT. CAPTURE IT AGAIN", "OR PUT IN A NEW DISK, THEN PRESS SPACE.", "0025 STILL DOES NOT BOOT." };
 
         ProgramRig   rig (Dos33());
         std::string  screen;

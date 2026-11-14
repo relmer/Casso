@@ -246,12 +246,12 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
 
     if (trace.samples.empty() || trace.driveStarted < 0)
     {
-        outReason = "The emulated machine never turned on the disk drive.";
+        outReason = "The emulated machine never turned on the disk drive, which indicates a problem with its configuration.";
     }
     else if (HasRow (trace.rows, "UNABLE TO LOAD PRODOS"))
     {
         verdict   = BootVerdict::NotBootable;
-        outReason = "It is a ProDOS data disk: it has no PRODOS file to load.";
+        outReason = "The disk has a ProDOS file system but no boot files.";
     }
     else if (trace.isTextMode && last.starts_with ("*"))
     {
@@ -276,12 +276,12 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
     else if (IsSettled (trace, limits))
     {
         verdict   = BootVerdict::Booted;
-        outReason = "The screen changed, and the drive turned off.";
+        outReason = "Screen updates were detected and the drive returned to idle.";
     }
     else if (IsHeadAtRest (trace, limits))
     {
         verdict   = BootVerdict::Booted;
-        outReason = "The screen changed, and the drive's head stopped moving before the time limit.";
+        outReason = "Screen updates were detected and the drive returned to idle.";
     }
     else
     {

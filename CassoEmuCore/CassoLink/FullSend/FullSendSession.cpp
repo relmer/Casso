@@ -1698,7 +1698,7 @@ void FullSendSession::ApplyBoots()
                 m_retryPrint = found->fingerprint;
 
                 m_unbooted.push_back (std::format ("{} DID NOT BOOT. CAPTURE IT AGAIN", image));
-                m_unbooted.push_back ("OR PUT IN A NEW DISK, THEN PRESS SPACE");
+                m_unbooted.push_back ("OR PUT IN A NEW DISK, THEN PRESS SPACE.");
             }
         }
     }
