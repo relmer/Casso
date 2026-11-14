@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+class DiskImage;
+
 
 
 
@@ -65,6 +67,11 @@ public:
 
     //  The sectors' data bytes found on a track's bit stream, in sector
     //  order, with whether each sector was found and decoded.
+    //  Every track and side of a WOZ image's 3.5-inch disk, TMAP entry track
+    //  * 2 + side, decoded to blocks in block order. `outMissing` has the
+    //  numbers of the blocks that don't decode, which are zero in the blocks.
+    static void  DecodeWoz (const DiskImage & woz, int sides, std::vector<Byte> & outBlocks, std::vector<uint32_t> & outMissing);
+
     static void  DecodeTrack (int track, int side, const std::vector<Byte> & bits,
                               std::vector<Byte> & outSectorData, std::vector<bool> & outFound);
 

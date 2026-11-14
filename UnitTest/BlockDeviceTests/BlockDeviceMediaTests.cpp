@@ -5,6 +5,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "../EmuTests/FakeDiskFileIo.h"
+#include "../EmuTests/Woz35Builder.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -254,6 +255,61 @@ public:
 
     //  ONE PATH IS ATTACHED TO ONE DRIVE, in any case or slash style, until
     //  that drive detaches it.
+    //  A WOZ 3.5-INCH IMAGE ON A BLOCK DEVICE is its decoded blocks, write
+    //  protected.
+    TEST_METHOD (Woz35_DecodesToBlocks)
+    {
+        FakeDiskFileIo     io;
+        BlockDeviceMedia   media;
+        std::vector<Byte>  blocks (Gcr35Track::kBlocksTwoSides * kBlock);
+        std::vector<Byte>  woz;
+        std::vector<Byte>  block (kBlock);
+        std::wstring       error;
+
+
+
+        for (size_t i = 0; i < blocks.size(); i++)
+        {
+            blocks[i] = (Byte) (i / kBlock);
+        }
+
+        woz = Woz35Builder::Build (blocks);
+        io.files["d.woz"]  = woz;
+        io.stamps["d.woz"] = FileStamp { woz.size(), 1 };
+
+        Assert::AreEqual (S_OK, media.Attach (io, "d.woz", 65535, {}, error));
+        Assert::AreEqual (Gcr35Track::kBlocksTwoSides, media.GetBlockCount());
+        Assert::IsTrue (media.IsWriteProtected());
+
+        Assert::AreEqual (S_OK, media.ReadBlock (1599, block));
+        Assert::AreEqual ((Byte) (1599 & 0xFF), block[0]);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), media.WriteBlock (0, block));
+        Assert::AreEqual (S_OK, media.Detach());
+    }
+
+
+    //  A WOZ IMAGE WITH BLOCKS THAT DON'T DECODE fails to attach, and the
+    //  error lists them.
+    TEST_METHOD (Woz35_UndecodableBlocksFail)
+    {
+        FakeDiskFileIo     io;
+        BlockDeviceMedia   media;
+        std::vector<Byte>  woz = Woz35Builder::Build (std::vector<Byte> (Gcr35Track::kBlocksTwoSides * kBlock, 0), { 1 });
+        std::wstring       error;
+
+
+
+        io.files["d.woz"]  = woz;
+        io.stamps["d.woz"] = FileStamp { woz.size(), 1 };
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT), media.Attach (io, "d.woz", 65535, {}, error));
+        Assert::IsFalse (media.IsAttached());
+        Assert::IsTrue (error.find (L"12 of the WOZ image's blocks") != std::wstring::npos, error.c_str());
+        Assert::IsTrue (error.find (L"12, 13") != std::wstring::npos, error.c_str());
+    }
+
+
     TEST_METHOD (OneWriterPerPath)
     {
         FakeDiskFileIo     io;

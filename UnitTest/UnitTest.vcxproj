@@ -867,6 +867,7 @@
     <ClCompile Include="Floppy35Tests\Gcr35TrackTests.cpp" />
     <ClCompile Include="Floppy35Tests\Sony35DriveTests.cpp" />
     <ClCompile Include="Floppy35Tests\IwmTests.cpp" />
+    <ClCompile Include="Floppy35Tests\Apple35ControllerCardTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />
@@ -927,6 +928,7 @@
     <ClInclude Include="NetworkTests\DhcpTestPackets.h" />
     <ClInclude Include="NetworkTests\RecordingPacketSink.h" />
     <ClInclude Include="UiTests\SettingsRecordingSink.h" />
+    <ClInclude Include="EmuTests\Woz35Builder.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Ehm\Ehm.vcxproj">

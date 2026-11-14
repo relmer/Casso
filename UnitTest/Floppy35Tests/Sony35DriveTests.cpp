@@ -1,8 +1,11 @@
 #include "Pch.h"
 
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Floppy35/Gcr35Track.h"
 #include "Devices/Floppy35/Sony35Drive.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "../EmuTests/FakeDiskFileIo.h"
+#include "../EmuTests/Woz35Builder.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -184,6 +187,155 @@ public:
 
         Assert::AreEqual ((size_t) 12, (size_t) std::count (found.begin(), found.end(), true));
         Assert::IsTrue (std::all_of (decoded.begin(), decoded.end(), [] (Byte b) { return b == 0xA5; }));
+    }
+
+
+    static void InsertWoz (FakeDiskFileIo & io, Sony35Drive & drive, const std::vector<Byte> & woz)
+    {
+        std::wstring  error;
+
+
+
+        io.files[kPath]  = woz;
+        io.stamps[kPath] = FileStamp { woz.size(), 1 };
+
+        Assert::AreEqual (S_OK, drive.Insert (io, kPath, {}, error));
+    }
+
+
+    static void ReadRevolution (Sony35Drive & drive, std::vector<Byte> & outBits)
+    {
+        outBits.resize (Gcr35Track::GetTrackBits (0));
+
+        for (Byte & bit : outBits)
+        {
+            bit = drive.ReadCell();
+        }
+    }
+
+
+    //  A 3.5-INCH WOZ IMAGE'S TRACKS are its bit streams, TMAP entry track *
+    //  2 + side.
+    TEST_METHOD (WozImage_ReadsItsTracks)
+    {
+        FakeDiskFileIo     io;
+        Sony35Drive        drive (0);
+        std::vector<Byte>  bits;
+        std::vector<Byte>  decoded;
+        std::vector<bool>  found;
+
+
+
+        InsertWoz (io, drive, Woz35Builder::Build (std::vector<Byte> (Gcr35Track::kBlocksTwoSides * Gcr35Track::kDataBytes, 0x6B)));
+        Assert::IsTrue (drive.IsWoz());
+
+        Command (drive, kCmdMotorOn);
+        drive.SetSel (true);
+        ReadRevolution (drive, bits);
+
+        Gcr35Track::DecodeTrack (0, 1, bits, decoded, found);
+
+        Assert::AreEqual ((size_t) 12, (size_t) std::count (found.begin(), found.end(), true));
+        Assert::IsTrue (std::all_of (decoded.begin(), decoded.end(), [] (Byte b) { return b == 0x6B; }));
+    }
+
+
+    //  A track written to a WOZ image is in the WOZ file once the motor
+    //  stops, and the file is a 3.5-inch WOZ.
+    TEST_METHOD (WozImage_WriteGoesBackToTheFile)
+    {
+        FakeDiskFileIo          io;
+        Sony35Drive             drive (0);
+        std::vector<Byte>       data (12 * Gcr35Track::kDataBytes, 0x2E);
+        std::vector<Byte>       bits;
+        std::vector<Byte>       decoded;
+        std::vector<bool>       found;
+        WozLoader::Description  about;
+        DiskImage               reloaded;
+        int                     slot = 0;
+
+
+
+        InsertWoz (io, drive, Woz35Builder::Build (std::vector<Byte> (Gcr35Track::kBlocksTwoSides * Gcr35Track::kDataBytes, 0x00)));
+        Command (drive, kCmdMotorOn);
+
+        Gcr35Track::BuildTrack (0, 0, Gcr35Track::kFormatTwoSides, data, bits);
+
+        for (Byte bit : bits)
+        {
+            drive.WriteCell (bit);
+        }
+
+        Command (drive, kCmdMotorOff);
+
+        WozLoader::Describe (io.files[kPath], about);
+        Assert::AreEqual (WozLoader::kDiskType35, about.diskType);
+
+        reloaded.LoadFromBytes (DiskFormat::Woz, io.files[kPath], "");
+        slot = reloaded.GetMappedSlot (0);
+        Assert::IsTrue (slot >= 0);
+
+        bits.assign (reloaded.GetTrackBitCount (slot), 0);
+
+        for (size_t i = 0; i < bits.size(); i++)
+        {
+            bits[i] = reloaded.ReadBit (slot, i);
+        }
+
+        Gcr35Track::DecodeTrack (0, 0, bits, decoded, found);
+        Assert::AreEqual ((size_t) 12, (size_t) std::count (found.begin(), found.end(), true));
+        Assert::AreEqual ((Byte) 0x2E, decoded[0]);
+    }
+
+
+    TEST_METHOD (WozImage_RejectsA525Disk)
+    {
+        FakeDiskFileIo     io;
+        Sony35Drive        drive (0);
+        std::vector<Byte>  woz = Woz35Builder::Build (std::vector<Byte> (Gcr35Track::kBlocksTwoSides * Gcr35Track::kDataBytes, 0), {}, WozLoader::kDiskType525);
+        std::wstring       error;
+
+
+
+        io.files[kPath]  = woz;
+        io.stamps[kPath] = FileStamp { woz.size(), 1 };
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT), drive.Insert (io, kPath, {}, error));
+        Assert::IsFalse (drive.HasDisk());
+    }
+
+
+    //  A 400K disk has side 0 only: its tracks are marked one-sided, and the
+    //  other head reads only zeros.
+    TEST_METHOD (OneSidedDisk_HasSideZeroOnly)
+    {
+        FakeDiskFileIo     io;
+        Sony35Drive        drive (0);
+        std::vector<Byte>  bits (Gcr35Track::GetTrackBits (0));
+        std::vector<Byte>  decoded;
+        std::vector<bool>  found;
+
+
+
+        Insert (io, drive, Gcr35Track::kBlocksOneSide, 0x77);
+        Command (drive, kCmdMotorOn);
+
+        for (Byte & bit : bits)
+        {
+            bit = drive.ReadCell();
+        }
+
+        Gcr35Track::DecodeTrack (0, 0, bits, decoded, found);
+        Assert::AreEqual ((size_t) 12, (size_t) std::count (found.begin(), found.end(), true));
+
+        drive.SetSel (true);
+
+        for (Byte & bit : bits)
+        {
+            bit = drive.ReadCell();
+        }
+
+        Assert::IsTrue (std::all_of (bits.begin(), bits.end(), [] (Byte b) { return b == 0; }));
     }
 
 

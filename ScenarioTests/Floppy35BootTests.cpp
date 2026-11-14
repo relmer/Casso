@@ -4,10 +4,15 @@
 #include "FakeDiskFileIo.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
+#include "KeystrokeInjector.h"
 #include "TestMachine.h"
+#include "Woz35Builder.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Devices/Disk/Containers/DiskCopy42Container.h"
 #include "Devices/Floppy35/Apple35ControllerCard.h"
+#include "Devices/Floppy35/Gcr35Track.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -187,5 +192,74 @@ public:
         }
 
         Assert::IsTrue (found, L"the guest's directory is in the image");
+    }
+
+
+    //  A WOZ 2 3.5-INCH IMAGE BOOTS through the card's firmware, its tracks
+    //  read from the WOZ bit streams.
+    TEST_METHOD (Apple35Card_BootsAWoz35Image)
+    {
+        FakeDiskFileIo           io;
+        std::vector<PortConfig>  ports;
+
+
+
+        Attach (io, Woz35Builder::Build (Make800K (GuestSession::RequireProDosUsersDisk())), ports);
+
+        TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 5, kpszApple35CardDevice, ports } }, io);
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetRefs().apple35Cards[0]->GetCardMemory().GetDrive (0).IsWoz());
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS", kBootCap), L"ProDOS boots from the WOZ image");
+    }
+
+
+    //  A DISKCOPY 4.2 IMAGE BOOTS on an unenhanced //e, whose ROM doesn't
+    //  start a SmartPort card at power on, so PR#5 starts it. A guest write
+    //  doesn't invalidate the image's data checksum.
+    TEST_METHOD (Apple35Card_DiskCopy42OnAnUnenhancedIIe)
+    {
+        FakeDiskFileIo            io;
+        FixtureProvider           fixtures;
+        std::vector<Byte>         merlin;
+        std::vector<Byte>         image;
+        std::vector<Byte>         payload;
+        std::vector<PortConfig>   ports;
+        std::vector<std::string>  rows;
+        DiskCopy42Header          header;
+        std::string               parseError;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("Disks/Merlin-proProdos2.33-b.dsk", merlin));
+
+        header.name     = "Merlin";
+        header.dataSize = (uint32_t) (kBlocks800K * 2 * kSector);
+        DiskCopy42Container::Build (header, Make800K (merlin), image);
+        Attach (io, image, ports);
+
+        TestMachine  machine ("Apple2e", TestMachine::Slots::Empty, { { 5, kpszApple35CardDevice, ports } }, io);
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "]", kBootCap), L"the //e stops at BASIC");
+        KeystrokeInjector::InjectLine (machine, "PR#5");
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "RETURN", kBootCap), L"ProDOS, BASIC.SYSTEM and STARTUP run from the DiskCopy image");
+        Assert::IsTrue (GuestSession::TryPageToPrompt (machine, rows), L"the disk's STARTUP pages to the prompt");
+
+        GuestSession::TypeAndCollect (machine, "CREATE DC42DIR");
+        AssertSucceeded (machine.GetRefs().apple35Cards[0]->GetCardMemory().GetDrive (0).Flush());
+
+        AssertSucceeded (DiskCopy42Container::Parse (io.files[kDiskPath], header, payload, parseError));
+        Assert::IsFalse (header.isDataChecksumBad, L"the data checksum matches the written data");
+        Assert::IsFalse (payload == Make800K (merlin), L"the guest's write is in the image");
     }
 };

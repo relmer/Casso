@@ -200,6 +200,15 @@ in the Disk II's switch order (a2-liron).
 
 **To verify**: the mode register bits, against Apple's IWM specification.
 
+**Checked** (2026-11-13, Apple's IWM specification as `Iwm` implements it,
+confirmed by 341-0438-A's mode writes of `$0F` and `$17`): mode bit 0 latch,
+bit 1 asynchronous handshake, bit 2 no one-second motor-off delay, bit 3
+fast (2 microsecond cells), bit 4 8 MHz clock. With Q6 high and Q7 low a read
+returns status: bit 7 the sense line, bit 5 the drive enable, bits 4-0 the
+mode. With Q7 high and Q6 low it returns the write handshake: bit 7 the
+buffer empty, bit 6 no underrun. In `Iwm` the cell time is the drive's, so
+the fast bit is stored but not used to time cells.
+
 ## R8. SWIM
 
 **Checked**: the 3.5 controller card has a SWIM (the 1987 chip, MAME's

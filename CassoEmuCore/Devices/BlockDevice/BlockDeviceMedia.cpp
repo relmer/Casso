@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Devices/BlockDevice/BlockDeviceMedia.h"
+#include "Devices/Disk/DiskImage.h"
+#include "Devices/Floppy35/Gcr35Track.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "Devices/Disk/IBlockStore.h"
 #include "Devices/Disk/IDiskFileIo.h"
@@ -59,17 +62,52 @@ HRESULT BlockDeviceMedia::Attach (
     const WriteProtectInfo  & hostProtect,
     std::wstring            & outError)
 {
-    HRESULT                          hr         = S_OK;
+    constexpr size_t                 kSignatureBytes = 4;
+    HRESULT                          hr              = S_OK;
+    HRESULT                          probe           = S_OK;
     std::unique_ptr<BlockImageFile>  file;
-    std::string                      key        = NormalizePath (path);
-    uint32_t                         blockCount = 0;
-    bool                             isClaimed  = false;
-    bool                             isSumValid = true;
+    std::string                      key             = NormalizePath (path);
+    uint32_t                         blockCount      = 0;
+    bool                             isClaimed       = false;
+    bool                             isSumValid      = true;
+    bool                             isWoz           = false;
+    std::vector<Byte>                head       (kSignatureBytes, 0);
+    std::vector<Byte>                bytes;
+    std::vector<Byte>                wozBlocks;
 
 
 
     hr = Detach();
     CHR (hr);
+
+    probe = fileIo.ReadAt (path, 0, head);
+    isWoz = SUCCEEDED (probe) && head[0] == 'W' && head[1] == 'O' && head[2] == 'Z';
+
+    if (isWoz)
+    {
+        hr = fileIo.ReadAllBytes (path, bytes);
+        CHR (hr);
+
+        hr = DecodeWoz (bytes, wozBlocks, outError);
+        CHR (hr);
+
+        blockCount = (uint32_t) (wozBlocks.size() / kBlockBytes);
+        CBREx (blockCount <= maxBlocks, HRESULT_FROM_WIN32 (ERROR_DISK_TOO_FRAGMENTED));
+
+        isClaimed = ChangeClaim (key, true);
+        CBREx (isClaimed, HRESULT_FROM_WIN32 (ERROR_SHARING_VIOLATION));
+
+        m_protect           = hostProtect;
+        m_protect.imageFlag = true;
+        m_isWoz             = true;
+        m_wozBlocks         = std::move (wozBlocks);
+        m_path              = path;
+        m_pathKey           = key;
+        m_blockCount        = blockCount;
+        m_hasPendingWrites  = false;
+
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     hr = BlockImageFile::Open (fileIo, path, file, outError);
     CHR (hr);
@@ -122,6 +160,65 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DecodeWoz
+//
+//  A WOZ image of a 3.5-inch disk whose every block decodes. The error text
+//  lists the first blocks that don't.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlockDeviceMedia::DecodeWoz (const std::vector<Byte> & bytes, std::vector<Byte> & outBlocks, std::wstring & outError)
+{
+    constexpr size_t        kListed  = 8;
+    HRESULT                 hr       = S_OK;
+    WozLoader::Description  about;
+    DiskImage               image;
+    std::vector<uint32_t>   missing;
+    std::wstring            list;
+    bool                    isLoaded = false;
+
+
+
+    WozLoader::Describe (bytes, about);
+
+    if (!about.isWoz || about.diskType != WozLoader::kDiskType35)
+    {
+        outError = L"The WOZ image isn't a 3.5-inch disk.";
+        CBREx (false, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT));
+    }
+
+    image.LoadFromBytes (DiskFormat::Woz, bytes, "");
+    isLoaded = image.IsLoaded();
+
+    if (!isLoaded)
+    {
+        outError = L"The WOZ image's tracks don't load.";
+        CBREx (false, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT));
+    }
+
+    Gcr35Track::DecodeWoz (image, (about.info.sides == 1) ? 1 : 2, outBlocks, missing);
+
+    if (!missing.empty())
+    {
+        for (size_t i = 0; i < missing.size() && i < kListed; i++)
+        {
+            list += (i == 0) ? std::format (L"{}", missing[i]) : std::format (L", {}", missing[i]);
+        }
+
+        outError = std::format (L"{} of the WOZ image's blocks don't decode: {}{}.", missing.size(), list, missing.size() > kListed ? L" and more" : L"");
+        CBREx (false, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Detach
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,17 +230,23 @@ HRESULT BlockDeviceMedia::Detach()
 
 
 
-    BAIL_OUT_IF (m_file == nullptr, S_OK);
+    bool     attached = IsAttached();
+
+
+
+    BAIL_OUT_IF (!attached, S_OK);
 
     hr = Flush();
 
 Error:
-    if (m_file != nullptr)
+    if (attached)
     {
         released = ChangeClaim (m_pathKey, false);
         IGNORE_RETURN_VALUE (released, false);
 
         m_file.reset();
+        m_wozBlocks.clear();
+        m_isWoz = false;
         m_path.clear();
         m_pathKey.clear();
         m_blockCount       = 0;
@@ -166,14 +269,21 @@ Error:
 
 HRESULT BlockDeviceMedia::ReadBlock (uint32_t block, std::span<Byte> outBytes)
 {
-    HRESULT  hr     = S_OK;
-    size_t   length = outBytes.size();
+    HRESULT  hr       = S_OK;
+    size_t   length   = outBytes.size();
+    bool     attached = IsAttached();
 
 
 
     CBRAEx (length == kBlockBytes, E_INVALIDARG);
-    CBREx  (m_file != nullptr,              HRESULT_FROM_WIN32 (ERROR_NOT_READY));
-    CBREx  (block < m_blockCount,           HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND));
+    CBREx  (attached,              HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+    CBREx  (block < m_blockCount,  HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND));
+
+    if (m_isWoz)
+    {
+        std::copy_n (m_wozBlocks.begin() + (ptrdiff_t) ((size_t) block * kBlockBytes), kBlockBytes, outBytes.begin());
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     hr = m_file->GetStore().ReadBlocks (block, 1, outBytes);
     CHR (hr);
@@ -196,12 +306,13 @@ HRESULT BlockDeviceMedia::WriteBlock (uint32_t block, std::span<const Byte> byte
 {
     HRESULT  hr          = S_OK;
     bool     isProtected = m_protect.Any();
+    bool     attached    = IsAttached();
     size_t   length      = bytes.size();
 
 
 
     CBRAEx (length == kBlockBytes, E_INVALIDARG);
-    CBREx  (m_file != nullptr,           HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+    CBREx  (attached,                    HRESULT_FROM_WIN32 (ERROR_NOT_READY));
     CBREx  (block < m_blockCount,        HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND));
     CBREx  (!isProtected,                HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT));
 

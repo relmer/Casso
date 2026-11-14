@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/BlockDevice/BlockDeviceMedia.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Floppy35/IDiskDriveBus.h"
 #include "Devices/Floppy35/IFloppy35EventSink.h"
 
@@ -31,7 +32,9 @@ class IDiskFileIo;
 //
 //  The disk is a block image of 800K or 400K, its tracks built as GCR bit
 //  streams the first time the head is on them; a track written to is decoded
-//  back to its blocks on Flush, which turning the motor off calls. The drive
+//  back to its blocks on Flush, which turning the motor off calls. A WOZ 2
+//  3.5-inch image's tracks are its bit streams, TMAP entry track * 2 + side,
+//  and Flush writes the changed tracks back into the WOZ file. The drive
 //  moves one bit cell, 2 microseconds, a call to ReadCell or WriteCell while
 //  the motor runs.
 //
@@ -53,8 +56,9 @@ public:
     HRESULT  Eject  ();
     HRESULT  Flush  ();
 
-    bool  HasDisk          () const { return m_media.IsAttached(); }
-    bool  IsWriteProtected () const { return m_media.IsWriteProtected(); }
+    bool  HasDisk          () const { return m_media.IsAttached() || m_woz != nullptr; }
+    bool  IsWriteProtected () const { return (m_woz != nullptr) ? m_wozProtected : m_media.IsWriteProtected(); }
+    bool  IsWoz            () const { return m_woz != nullptr; }
 
     // IDiskDriveBus: the phases are CA0, CA1, CA2 and LSTRB; time passing,
     // in nanoseconds, runs stepping, spin-up and eject; a cell is the bit
@@ -83,6 +87,9 @@ private:
     void                 RunCommand   (int command);
     std::vector<Byte>  & GetTrackBits ();
     void                 Emit         (Floppy35Op op);
+    HRESULT              InsertWoz    (IDiskFileIo & fileIo, const std::string & path, const std::vector<Byte> & bytes, const WriteProtectInfo & hostProtect, std::wstring & outError);
+    HRESULT              FlushBlocks  ();
+    HRESULT              FlushWoz     ();
 
     int                                         m_driveIndex = 0;
     BlockDeviceMedia                            m_media;
@@ -102,4 +109,8 @@ private:
     size_t                                      m_position   = 0;
     std::map<int, std::vector<Byte>>            m_tracks;
     std::set<int>                               m_dirty;
+    std::unique_ptr<DiskImage>                  m_woz;
+    IDiskFileIo                               * m_wozIo        = nullptr;
+    std::string                                 m_wozPath;
+    bool                                        m_wozProtected = false;
 };

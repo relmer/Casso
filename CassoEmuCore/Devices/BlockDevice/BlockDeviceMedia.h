@@ -16,8 +16,10 @@ class IDiskFileIo;
 //  BlockDeviceMedia
 //
 //  The image on a hard disk, ProFile or 3.5-inch block device: a ProDOS-order
-//  file (.po, .hdv), a 2IMG file in ProDOS order, or a DiskCopy 4.2 image,
-//  read a block at a time. Writes change blocks in memory, whole blocks at a
+//  file (.po, .hdv), a 2IMG file in ProDOS order, a DiskCopy 4.2 image, or
+//  a WOZ 2 3.5-inch image, read a block at a time. A WOZ image is decoded to
+//  blocks when it is attached, and is write protected: its blocks aren't
+//  written back as GCR. Writes change blocks in memory, whole blocks at a
 //  time, and Flush writes them to the file, so a reset during a guest's write
 //  results in either the old block or the new one.
 //
@@ -55,7 +57,7 @@ public:
     //  the file changed on the host since it was attached or last flushed.
     HRESULT  Flush   ();
 
-    bool                       IsAttached        () const { return m_file != nullptr; }
+    bool                       IsAttached        () const { return m_file != nullptr || m_isWoz; }
     uint32_t                   GetBlockCount     () const { return m_blockCount; }
     bool                       IsWriteProtected  () const { return m_protect.Any(); }
     const WriteProtectInfo   & GetWriteProtect   () const { return m_protect; }
@@ -72,10 +74,15 @@ private:
     static bool         ChangeClaim    (const std::string & key, bool isClaim);
     static bool         IsLockedTwoImg (const BlockImageFile & file);
 
+    //  The blocks of a WOZ 2 3.5-inch image in `bytes`.
+    HRESULT  DecodeWoz (const std::vector<Byte> & bytes, std::vector<Byte> & outBlocks, std::wstring & outError);
+
     std::unique_ptr<BlockImageFile>   m_file;
     std::string                       m_path;
     std::string                       m_pathKey;
     uint32_t                          m_blockCount       = 0;
     WriteProtectInfo                  m_protect;
     bool                              m_hasPendingWrites = false;
+    bool                              m_isWoz            = false;
+    std::vector<Byte>                 m_wozBlocks;
 };

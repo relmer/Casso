@@ -1,7 +1,12 @@
 #include "Pch.h"
 
+#include "Devices/Disk/CommitPlan.h"
+#include "Devices/Disk/DiskImage.h"
+#include "Devices/Disk/DurableCommit.h"
+#include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Floppy35/Gcr35Track.h"
 #include "Devices/Floppy35/Sony35Drive.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 
 
@@ -56,37 +61,58 @@ Sony35Drive::~Sony35Drive()
 //
 //  Insert
 //
-//  An 800K image is two-sided, a 400K image one-sided; any other size fails.
+//  A file that starts "WOZ" is a WOZ image. Otherwise an 800K image is
+//  two-sided, a 400K image one-sided, and any other size fails.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Sony35Drive::Insert (IDiskFileIo & fileIo, const std::string & path, const WriteProtectInfo & hostProtect, std::wstring & outError)
 {
-    HRESULT   hr     = S_OK;
-    uint32_t  blocks = 0;
-    bool      isFit  = false;
+    constexpr size_t  kSignatureBytes = 4;
+    HRESULT           hr              = S_OK;
+    HRESULT           probe           = S_OK;
+    uint32_t          blocks          = 0;
+    bool              isFit           = false;
+    bool              isWoz           = false;
+    std::vector<Byte>  head   (kSignatureBytes, 0);
+    std::vector<Byte>  bytes;
 
 
 
     hr = Eject();
     CHR (hr);
 
-    hr = m_media.Attach (fileIo, path, Gcr35Track::kBlocksTwoSides, hostProtect, outError);
-    CHR (hr);
+    probe = fileIo.ReadAt (path, 0, head);
+    isWoz = SUCCEEDED (probe) && head[0] == 'W' && head[1] == 'O' && head[2] == 'Z';
 
-    blocks = m_media.GetBlockCount();
-    isFit  = blocks == Gcr35Track::kBlocksTwoSides || blocks == Gcr35Track::kBlocksOneSide;
-
-    if (!isFit)
+    if (isWoz)
     {
-        hr = m_media.Detach();
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = fileIo.ReadAllBytes (path, bytes);
+        CHR (hr);
 
-        outError = std::format (L"A 3.5-inch disk is 800 or 1,600 blocks, and the image has {}.", blocks);
-        CBREx (false, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT));
+        hr = InsertWoz (fileIo, path, bytes, hostProtect, outError);
+        CHR (hr);
+    }
+    else
+    {
+        hr = m_media.Attach (fileIo, path, Gcr35Track::kBlocksTwoSides, hostProtect, outError);
+        CHR (hr);
+
+        blocks = m_media.GetBlockCount();
+        isFit  = blocks == Gcr35Track::kBlocksTwoSides || blocks == Gcr35Track::kBlocksOneSide;
+
+        if (!isFit)
+        {
+            hr = m_media.Detach();
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            outError = std::format (L"A 3.5-inch disk is 800 or 1,600 blocks, and the image has {}.", blocks);
+            CBREx (false, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT));
+        }
+
+        m_sides = (blocks == Gcr35Track::kBlocksTwoSides) ? kSides : 1;
     }
 
-    m_sides = (blocks == Gcr35Track::kBlocksTwoSides) ? kSides : 1;
     m_tracks.clear();
     m_dirty.clear();
     Emit (Floppy35Op::Insert);
@@ -107,17 +133,27 @@ Error:
 
 HRESULT Sony35Drive::Eject()
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr      = S_OK;
+    bool     hasDisk = HasDisk();
 
 
 
-    BAIL_OUT_IF (!m_media.IsAttached(), S_OK);
+    BAIL_OUT_IF (!hasDisk, S_OK);
 
     hr = Flush();
     CHR (hr);
 
-    hr = m_media.Detach();
-    CHR (hr);
+    if (m_woz != nullptr)
+    {
+        m_woz.reset();
+        m_wozIo = nullptr;
+        m_wozPath.clear();
+    }
+    else
+    {
+        hr = m_media.Detach();
+        CHR (hr);
+    }
 
     m_tracks.clear();
     m_dirty.clear();
@@ -136,12 +172,27 @@ Error:
 //
 //  Flush
 //
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Sony35Drive::Flush()
+{
+    return (m_woz != nullptr) ? FlushWoz() : FlushBlocks();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FlushBlocks
+//
 //  Each written track decoded back to its sectors, which go to the image.
 //  A sector that no longer decodes is left as the image has it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Sony35Drive::Flush()
+HRESULT Sony35Drive::FlushBlocks()
 {
     HRESULT             hr = S_OK;
     std::vector<Byte>   data;
@@ -240,7 +291,7 @@ void Sony35Drive::SetSel (bool sel)
 
 bool Sony35Drive::GetSense() const
 {
-    bool  hasDisk  = m_media.IsAttached();
+    bool  hasDisk  = HasDisk();
     bool  ejecting = m_ejectLeftNs > 0;
     int   reg      = GetRegister();
 
@@ -251,7 +302,7 @@ bool Sony35Drive::GetSense() const
         case s_kRegDirection:  return m_stepOut;
         case s_kRegDiskIn:     return !hasDisk;
         case s_kRegStepping:   return m_stepLeftNs == 0;
-        case s_kRegProtected:  return !(hasDisk && m_media.IsWriteProtected());
+        case s_kRegProtected:  return !(hasDisk && IsWriteProtected());
         case s_kRegMotorOn:    return !m_motorOn;
         case s_kRegSingleSide: return true;
         case s_kRegTrack0:     return m_track != 0;
@@ -321,7 +372,7 @@ Byte Sony35Drive::ReadCell()
 
 
 
-    if (!m_motorOn || !m_media.IsAttached() || GetSide() >= m_sides)
+    if (!m_motorOn || !HasDisk() || GetSide() >= m_sides)
     {
         return 0;
     }
@@ -351,7 +402,7 @@ Byte Sony35Drive::ReadCell()
 
 void Sony35Drive::WriteCell (Byte bit)
 {
-    if (!m_motorOn || !m_media.IsAttached() || m_media.IsWriteProtected() || GetSide() >= m_sides)
+    if (!m_motorOn || !HasDisk() || IsWriteProtected() || GetSide() >= m_sides)
     {
         return;
     }
@@ -442,7 +493,7 @@ void Sony35Drive::RunCommand (int command)
             break;
 
         case s_kCmdEject:
-            if (m_media.IsAttached())
+            if (HasDisk())
             {
                 m_ejectLeftNs = kEjectNs;
             }
@@ -483,6 +534,23 @@ std::vector<Byte> & Sony35Drive::GetTrackBits()
         return bits;
     }
 
+    if (m_woz != nullptr)
+    {
+        int     slot  = m_woz->GetMappedSlot (key);
+        size_t  count = (slot >= 0) ? m_woz->GetTrackBitCount (slot) : 0;
+
+
+
+        bits.assign ((count != 0) ? count : Gcr35Track::GetTrackBits (m_track), 0);
+
+        for (size_t i = 0; i < count; i++)
+        {
+            bits[i] = m_woz->ReadBit (slot, i);
+        }
+
+        return bits;
+    }
+
     for (int sector = 0; sector < count; sector++)
     {
         HRESULT  hr = m_media.ReadBlock (first + (uint32_t) sector, std::span<Byte> (data).subspan ((size_t) sector * Gcr35Track::kDataBytes, Gcr35Track::kDataBytes));
@@ -495,6 +563,115 @@ std::vector<Byte> & Sony35Drive::GetTrackBits()
     Gcr35Track::BuildTrack (m_track, GetSide(), m_sides == kSides ? Gcr35Track::kFormatTwoSides : Gcr35Track::kFormatOneSide, data, bits);
 
     return bits;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InsertWoz
+//
+//  A WOZ image of a 3.5-inch disk, write protected when INFO marks it or the
+//  host file is read only.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Sony35Drive::InsertWoz (IDiskFileIo & fileIo, const std::string & path, const std::vector<Byte> & bytes, const WriteProtectInfo & hostProtect, std::wstring & outError)
+{
+    HRESULT                     hr       = S_OK;
+    WozLoader::Description      about;
+    std::unique_ptr<DiskImage>  image    = std::make_unique<DiskImage>();
+    bool                        isLoaded = false;
+
+
+
+    WozLoader::Describe (bytes, about);
+
+    if (!about.isWoz || about.diskType != WozLoader::kDiskType35)
+    {
+        outError = L"The WOZ image isn't a 3.5-inch disk.";
+        CBREx (false, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT));
+    }
+
+    image->LoadFromBytes (DiskFormat::Woz, bytes, path);
+    isLoaded = image->IsLoaded();
+
+    if (!isLoaded)
+    {
+        outError = L"The WOZ image's tracks don't load.";
+        CBREx (false, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT));
+    }
+
+    m_sides        = (about.info.sides == 1) ? 1 : kSides;
+    m_wozProtected = about.writeProtected || hostProtect.Any();
+    m_wozIo        = &fileIo;
+    m_wozPath      = path;
+    m_woz          = std::move (image);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FlushWoz
+//
+//  Each written track's bits replace the WOZ track at TMAP entry track * 2 +
+//  side, a new track where the entry is empty, and the image replaces its
+//  file in one step: after an interruption the file is the old one or the
+//  new one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Sony35Drive::FlushWoz()
+{
+    HRESULT               hr       = S_OK;
+    bool                  hasDirty = !m_dirty.empty();
+    std::vector<Byte>     bytes;
+    CommitPlan::Progress  progress = {};
+
+
+
+    BAIL_OUT_IF (!hasDirty, S_OK);
+
+    for (int key : m_dirty)
+    {
+        const std::vector<Byte>  & bits = m_tracks[key];
+        int                        slot = m_woz->GetMappedSlot (key);
+
+
+
+        if (slot < 0)
+        {
+            slot = m_woz->GetTrackCount();
+            m_woz->EnsureTrackSlots (slot + 1);
+            m_woz->SetQuarterTrackSlot (key, slot);
+        }
+
+        m_woz->ResizeTrack (slot, bits.size());
+
+        for (size_t i = 0; i < bits.size(); i++)
+        {
+            m_woz->WriteBit (slot, i, bits[i]);
+        }
+    }
+
+    m_dirty.clear();
+
+    hr = m_woz->Serialize (bytes);
+    CHR (hr);
+
+    hr = DurableCommit::Commit (*m_wozIo, m_wozPath, bytes, 0, CommitMode::Replace, progress);
+    CHR (hr);
+
+Error:
+    return hr;
 }
 
 

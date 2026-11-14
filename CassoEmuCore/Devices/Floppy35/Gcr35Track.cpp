@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/DiskFieldFormat.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Floppy35/Gcr35Track.h"
 
 
@@ -477,6 +478,66 @@ void Gcr35Track::DecodeTrack (int track, int side, const std::vector<Byte> & bit
             }
 
             break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DecodeWoz
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Gcr35Track::DecodeWoz (const DiskImage & woz, int sides, std::vector<Byte> & outBlocks, std::vector<uint32_t> & outMissing)
+{
+    uint32_t           blocks = (sides == 1) ? kBlocksOneSide : kBlocksTwoSides;
+    std::vector<Byte>  bits;
+    std::vector<Byte>  data;
+    std::vector<bool>  found;
+
+
+
+    outBlocks.assign ((size_t) blocks * kDataBytes, 0);
+    outMissing.clear();
+
+    for (int track = 0; track < kTracks; track++)
+    {
+        for (int side = 0; side < sides; side++)
+        {
+            int       slot  = woz.GetMappedSlot (track * 2 + side);
+            size_t    count = (slot >= 0) ? woz.GetTrackBitCount (slot) : 0;
+            uint32_t  first = GetFirstBlock (track, side, sides);
+
+
+
+            bits.assign (count, 0);
+
+            for (size_t i = 0; i < count; i++)
+            {
+                bits[i] = woz.ReadBit (slot, i);
+            }
+
+            found.assign ((size_t) GetSectorsPerTrack (track), false);
+
+            if (count != 0)
+            {
+                DecodeTrack (track, side, bits, data, found);
+            }
+
+            for (size_t sector = 0; sector < found.size(); sector++)
+            {
+                if (!found[sector])
+                {
+                    outMissing.push_back (first + (uint32_t) sector);
+                    continue;
+                }
+
+                std::copy_n (data.begin() + (ptrdiff_t) (sector * kDataBytes), kDataBytes, outBlocks.begin() + (ptrdiff_t) ((first + sector) * kDataBytes));
+            }
         }
     }
 }
