@@ -439,4 +439,56 @@ public:
                             withBlankDisk ? L"the floppy boots past a blank hard disk" : L"the floppy boots past an empty card");
         }
     }
+
+
+    //  AN AS-SHIPPED //e AND ENHANCED //e BOOT THE FLOPPY IN SLOT 6. The
+    //  enhanced //e's ROM starts the SCSI card in slot 7 first, which reads
+    //  the stock volume's blank boot block and passes to slot 6; the //e's
+    //  ROM starts only a slot with the Disk II's signature. On both, the
+    //  User's Disk's slot assignments list slot 7 as used.
+    TEST_METHOD (AsShipped_BootsTheFloppyWithTheHardDiskInSlot7)
+    {
+        constexpr Byte      kRead6      = 0x08;
+        constexpr uint64_t  kMenuCycles = 5'000'000ULL;
+
+        std::vector<Byte>  floppy = GuestSession::RequireProDosUsersDisk();
+
+
+
+        for (const char * id : { "Apple2e", "Apple2eEnhanced" })
+        {
+            TestMachine               machine (id);
+            std::wstring              name = TextEncoding::NarrowToWide (id);
+            std::vector<Byte>         log;
+            std::vector<std::string>  rows;
+            std::string               screen;
+
+
+
+            Assert::IsTrue (machine.GetBlockMediaProblems().empty(), name.c_str());
+            AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "users.dsk", DiskFormat::Dsk, floppy));
+            Boot (machine);
+
+            Assert::IsTrue (RunUntilScreenShows (machine, "PLEASE SELECT", kBootCap), name.c_str());
+
+            log = machine.GetRefs().scsiCards[0]->GetTarget (6).GetCommandLog();
+
+            if (std::string (id) == "Apple2eEnhanced")
+            {
+                Assert::IsTrue (std::count (log.begin(), log.end(), kRead6) >= 1, L"the card read the boot block before the floppy booted");
+            }
+
+            AssertSucceeded (KeystrokeInjector::InjectKey (machine, 'S'));
+            machine.RunCycles (kMenuCycles);
+
+            GuestSession::CollectRows (machine, rows);
+
+            for (const std::string & row : rows)
+            {
+                screen += row + "\n";
+            }
+
+            Assert::IsTrue (screen.find ("SLOT 7: USED") != std::string::npos, name.c_str());
+        }
+    }
 };
