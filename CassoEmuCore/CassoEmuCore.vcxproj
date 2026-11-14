@@ -2145,6 +2145,7 @@
     <ClInclude Include="Devices\BlockDevice\AppleScsiCard.h" />
     <ClInclude Include="Devices\BlockDevice\BlockDeviceAttachments.h" />
     <ClInclude Include="Devices\BlockDevice\StockHardDiskImage.h" />
+    <ClInclude Include="Ui\Scene\DeskSceneHardDiskLabels.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CassoLink\Apple\Program.s" />

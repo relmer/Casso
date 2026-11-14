@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Ui/Scene/DeskSceneHardDiskLabels.h"
 #include "Ui/Scene/DeskSceneModel.h"
 
 #include "Devices/Printer/MeshBlob.h"
@@ -2440,6 +2441,59 @@ void DeskSceneModel::StampDriveLabel (std::vector<Dxui3DRenderer::Vertex> & out,
                    s_kDriveLabelLeftMm + wordWidth + s_kDriveNumberGapMm,
                    centerZ + digitCap * 0.5f,
                    digitCap / (float) digitRows, s_kDriveLabelFrontY, ink.data(), true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::StampHardDiskLabel
+//
+//  The model number to the right of the badge on the HD20SC's front, in the
+//  dark gray of the photograph's printing, set glyph by glyph on one
+//  baseline. Unlit, as printed ink is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::StampHardDiskLabel (std::vector<Dxui3DRenderer::Vertex> & out, const std::wstring & label)
+{
+    constexpr float   kCapMm     = 5.5f;
+    constexpr float   kLeftMm    = 44.0f;
+    constexpr float   kTopZMm    = 19.25f;
+    constexpr float   kFrontY    = -0.35f;
+    constexpr float   kGapCells  = 6.0f;
+    constexpr float   kInkRgb[3] = { 0.360f, 0.350f, 0.335f };
+    float             cell       = kCapMm / (float) kHdGlyphRows;
+    float             x          = kLeftMm;
+    std::vector<float> ink ((size_t) kHdGlyphRows * 3);
+
+
+
+    out.clear();
+
+    for (size_t row = 0; row < (size_t) kHdGlyphRows; row++)
+    {
+        ink[row * 3 + 0] = kInkRgb[0];
+        ink[row * 3 + 1] = kInkRgb[1];
+        ink[row * 3 + 2] = kInkRgb[2];
+    }
+
+    for (wchar_t ch : label)
+    {
+        for (const HdGlyph & glyph : s_kHdGlyphs)
+        {
+            if ((wchar_t) glyph.ch != ch)
+            {
+                continue;
+            }
+
+            StampFaceMask (out, glyph.mask, kHdGlyphRows, glyph.cols, x, kTopZMm, cell, kFrontY, ink.data(), false);
+            x += (float) glyph.cols * cell + kGapCells * cell;
+            break;
+        }
+    }
 }
 
 

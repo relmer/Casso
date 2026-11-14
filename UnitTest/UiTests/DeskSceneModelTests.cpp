@@ -227,6 +227,34 @@ public:
         return obj;
     }
 
+    //  THE HD20SC'S MODEL NUMBER IS SET GLYPH BY GLYPH, left to right from
+    //  the badge, and a character without a glyph is skipped.
+    TEST_METHOD (HardDisk_Label_Follows_Its_Text)
+    {
+        std::vector<Dxui3DRenderer::Vertex>  twenty;
+        std::vector<Dxui3DRenderer::Vertex>  thirtyTwo;
+        std::vector<Dxui3DRenderer::Vertex>  skipped;
+        std::vector<Dxui3DRenderer::Vertex>  five;
+        float                                rightTwenty = -FLT_MAX;
+        float                                rightFive   = -FLT_MAX;
+
+
+
+        DeskSceneModel::StampHardDiskLabel (twenty,    L"20SC");
+        DeskSceneModel::StampHardDiskLabel (thirtyTwo, L"32SC");
+        DeskSceneModel::StampHardDiskLabel (skipped,   L"20?SC");
+        DeskSceneModel::StampHardDiskLabel (five,      L"5SC");
+
+        Assert::IsFalse  (twenty.empty());
+        Assert::IsFalse  (thirtyTwo.empty());
+        Assert::AreEqual (twenty.size(), skipped.size(), L"the unknown character adds nothing");
+
+        for (const Dxui3DRenderer::Vertex & v : twenty) { rightTwenty = std::max (rightTwenty, v.x); }
+        for (const Dxui3DRenderer::Vertex & v : five)   { rightFive   = std::max (rightFive,   v.x); }
+
+        Assert::IsTrue (rightFive < rightTwenty, L"one digit ends nearer the badge than two");
+    }
+
     TEST_METHOD (Monitor_Splits_Glass_And_Derives_The_Surface)
     {
         DeskSceneModel   model;

@@ -378,6 +378,10 @@ public:
     // owns these because they differ per drive and the model is shared.
     static void  StampDriveLabel (std::vector<Dxui3DRenderer::Vertex> & out, int driveNumber);
 
+    // Stamps the HD20SC's model number, "20SC" or "32SC", beside its badge.
+    // A character with no baked glyph is skipped.
+    static void  StampHardDiskLabel (std::vector<Dxui3DRenderer::Vertex> & out, const std::wstring & label);
+
     void  BoundsMin (float out[3]) const { memcpy (out, m_boundsMin, sizeof (m_boundsMin)); }
     void  BoundsMax (float out[3]) const { memcpy (out, m_boundsMax, sizeof (m_boundsMax)); }
 

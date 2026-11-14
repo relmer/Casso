@@ -85,12 +85,16 @@ public:
     //  True when a target is an HD20SC with or without an image, as the
     //  machine file lists it.
     bool            HasDrive    () const { return m_hasDrive; }
-    void            SetHasDrive (bool hasDrive) { m_hasDrive = hasDrive; }
-    ScsiBus       & GetScsiBus  ()       { return m_bus; }
-    Ncr5380       & GetNcr5380  ()       { return m_ncr; }
-    SlotRomPage   & GetSlotPage ()       { return m_slotPage; }
-    int             GetSlot     () const { return m_slot; }
-    Byte            GetBankLatch() const { return m_bankLatch; }
+
+    //  The model number on the front of the HD20SC on the desk: the first
+    //  target with an image, or "20SC" with none.
+    std::wstring    GetModelLabel () const;
+    void            SetHasDrive   (bool hasDrive) { m_hasDrive = hasDrive; }
+    ScsiBus       & GetScsiBus    ()       { return m_bus; }
+    Ncr5380       & GetNcr5380    ()       { return m_ncr; }
+    SlotRomPage   & GetSlotPage   ()       { return m_slotPage; }
+    int             GetSlot       () const { return m_slot; }
+    Byte            GetBankLatch  () const { return m_bankLatch; }
 
 private:
     static constexpr Word  kSlotIoBase   = 0xC080;

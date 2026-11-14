@@ -784,10 +784,11 @@ bool ShellRenderer::TryPresentUiFrame()
             uint64_t      now    = m_shell.m_machine.GetCpu() != nullptr ? *m_shell.m_machine.GetCpu()->GetBusCyclePtr() : 0;
             uint64_t      window = m_shell.m_machine.GetConfig().clockSpeed / 10;
             bool          busy   = !cards.empty() && cards[0]->IsBusy (now, window);
+            std::wstring  label  = cards.empty() ? std::wstring() : cards[0]->GetModelLabel();
 
 
 
-            m_shell.m_scene->m_deskScene.SetHardDiskVisuals (busy);
+            m_shell.m_scene->m_deskScene.SetHardDiskVisuals (busy, label);
         }
 
         // The volume wheel stands where the tape volume is, however it was

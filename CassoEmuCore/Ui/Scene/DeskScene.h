@@ -120,7 +120,7 @@ public:
 
     // Whether the HD20SC is on the desk, and its lamp.
     void  SetHardDiskShown   (bool shown);
-    void  SetHardDiskVisuals (bool lampOn);
+    void  SetHardDiskVisuals (bool lampOn, const std::wstring & label);
     bool  IsRecorderLoaded   () const { return m_hasRecorder; }
     void  SetRecorderShown   (bool shown);
 
@@ -667,6 +667,7 @@ private:
     bool                    m_hasHardDisk   = false;
     bool                    m_hardDiskShown = false;
     bool                    m_hardDiskLamp  = false;
+    std::wstring            m_hardDiskLabel;
     DeskSceneComposition    m_comp;
     bool                    m_modelsLoaded  = false;
 
@@ -697,6 +698,7 @@ private:
     std::vector<Dxui3DRenderer::Vertex>   m_recorderShadowVerts;
     std::vector<Dxui3DRenderer::Vertex>   m_hardDiskShadowVerts;
     std::vector<Dxui3DRenderer::Vertex>   m_hardDiskLampVerts;
+    std::vector<Dxui3DRenderer::Vertex>   m_hardDiskLabelVerts;
     bool                                  m_powerLampOn     = false;
     bool                                  m_driveActive[2]  = {};
     bool                                  m_lampsDirty      = true;
@@ -743,6 +745,7 @@ private:
     Dxui3DRenderer::StaticMesh            m_recorderOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_hardDiskOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_hardDiskLampMesh;
+    Dxui3DRenderer::StaticMesh            m_hardDiskLabelMesh;
     Dxui3DRenderer::StaticMesh            m_hardDiskShadowMesh;
     Dxui3DRenderer::StaticMesh            m_padlockMesh;
 

@@ -1817,6 +1817,13 @@ HRESULT DeskScene::DrawHardDisk (const DeskSceneComposition & comp, const D3D11_
         RebuildLampVerts();
     }
 
+    if (!m_hardDiskLabelVerts.empty())
+    {
+        hr = m_renderer.DrawStatic (m_hardDiskLabelMesh, m_hardDiskLabelVerts.data(), m_hardDiskLabelVerts.size(),
+                                    m_geometryRev, mvp, false, viewport, true);
+        CHRA (hr);
+    }
+
     if (!m_hardDiskLampVerts.empty())
     {
         hr = m_renderer.DrawStatic (m_hardDiskLampMesh, m_hardDiskLampVerts.data(), m_hardDiskLampVerts.size(),
@@ -1857,12 +1864,19 @@ void DeskScene::SetHardDiskShown (bool shown)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskScene::SetHardDiskVisuals (bool lampOn)
+void DeskScene::SetHardDiskVisuals (bool lampOn, const std::wstring & label)
 {
     if (lampOn != m_hardDiskLamp)
     {
         m_hardDiskLamp = lampOn;
         m_lampsDirty   = true;
+    }
+
+    if (label != m_hardDiskLabel)
+    {
+        m_hardDiskLabel = label;
+        DeskSceneModel::StampHardDiskLabel (m_hardDiskLabelVerts, label);
+        TouchGeometry();
     }
 }
 
