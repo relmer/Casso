@@ -67,10 +67,6 @@ struct CassoExplorerPrefs
     std::wstring           fullSendFolder;
     std::string            fullSendExtension;
 
-    //  Whether a Full Send saves a raw capture's reads beside its image, for
-    //  rebuilding an image that doesn't boot.
-    bool                   fullSendReads = false;
-
     //  When each CassoLink receiving folder was last listed, in file time ticks.
     //  Files newer than this are counted on its tree row.
     std::map<std::wstring, long long>  linkFolderSeen;

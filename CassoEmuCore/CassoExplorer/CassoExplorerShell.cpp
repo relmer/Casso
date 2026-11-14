@@ -189,6 +189,10 @@ HRESULT CassoExplorerShell::ParseArguments (const std::vector<std::wstring> & ar
         {
             outOptions.selectPath = arguments[++i];
         }
+        else if (argument == L"--full-send-save-reads")
+        {
+            outOptions.saveReads = true;
+        }
 #if defined (_DEBUG)
         else if (argument == L"--link-faults" && hasValue && outOptions.linkFaults.empty())
         {
@@ -944,6 +948,10 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
     context.host        = this;
     context.watcher     = slot->watcher.get();
     context.links       = &m_links;
+
+    //  For finding why a raw capture's image doesn't boot: the reads can be
+    //  made into the image again (RealReads_BuildAWoz).
+    m_links.SetFullSendReads (m_options.saveReads);
     context.running     = &m_running;
     context.announced   = &m_announcements;
     context.firewall    = &m_firewall;

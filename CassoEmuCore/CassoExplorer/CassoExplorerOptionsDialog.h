@@ -92,7 +92,7 @@ class CassoExplorerFullSendPage : public DxuiPropertyPage
 public:
     explicit CassoExplorerFullSendPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel, DxuiCheckbox & reads);
+    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
@@ -112,7 +112,6 @@ private:
     DxuiLabel       * m_folder         = nullptr;
     DxuiButton      * m_browse         = nullptr;
     DxuiRadioGroup  * m_format         = nullptr;
-    DxuiCheckbox    * m_reads          = nullptr;
 };
 
 
@@ -210,7 +209,6 @@ public:
         //  A Full Send's folder and its extension, each empty for the default.
         std::wstring  fullSendFolder;
         std::string   fullSendExtension;
-        bool          fullSendReads = false;
 
         //  Verified transfers.
         bool          verifyReads  = false;
@@ -287,7 +285,6 @@ private:
     DxuiLabel                                      m_fullSendFolder;
     DxuiButton                                     m_fullSendBrowse;
     DxuiRadioGroup                                 m_fullSendFormat;
-    DxuiCheckbox                                   m_fullSendReads;
     CassoExplorerFullSendPage                    * m_fullSend            = nullptr;
     DxuiLabel                                      m_verifyIntro;
     std::array<CassoExplorerVerifyPage::Row, 3>    m_verifyRows;
