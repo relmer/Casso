@@ -142,6 +142,37 @@ the register map and protocol into this section. The ProFile's test tasks are
 written from that, not from the list above. Validation is a boot and file
 round trips, since there is no reference emulator.
 
+**Checked** (2026-11-13): the mirror has the two ROM images and photographs,
+and no documentation or schematic for the card. From a disassembly of
+341-0271-A:
+
+- The 2 KB ROM maps as the Super Serial Card's does: its last page, offset
+  `$700`, at `$Cn00`, and the first `$700` bytes at `$C800-$CEFF`. The `$Cn00`
+  page has `$20`, `$00`, `$03` at offsets 1, 3 and 5 and `$55` at offset 7,
+  so the unenhanced machines' slot scan does not start it. Its tail is the
+  ProDOS block device table: block count `$2600` (9,728) at `$CnFC`, status
+  byte `$47` at `$CnFE`, and the driver at `$CnEA`, which jumps to `$C81C`.
+  The 10 MB ROM, 341-0299-B, differs in 1,711 of its 2,048 bytes.
+- The card's I/O, at `$C080` plus the slot times 16: `+0` written is the data
+  out latch; `+1` read is the data in latch; `+2` read is a status byte, bit 7
+  the drive's BSY line (1 is idle, which the status call reports as ready)
+  and bit 0 set when no drive is connected (the driver returns ProDOS error
+  `$28`); `+3` is read and written around each transfer and command.
+- The handshake lines are driven by READS of the card's own `$Cn00` page:
+  the driver reads `$Cn01` and `$Cn03` before sending the command block,
+  `$Cn05` and `$Cn07` after it, `$Cn03` then `$Cn00` after writing the `$55`
+  acknowledgment, and `$Cn05`, `$Cn07` and `$Cn04` while waiting for a state
+  byte. Which signal each address sets is **to verify**, by running the ROM
+  against a drive model in a test machine.
+- The protocol, as the driver runs it: wait for BSY, read the drive's state
+  byte and compare it with `$01` (ready for a command), answer `$55` (or
+  `$AA` on a mismatch, then retry); send six bytes, the command (0 read, 1
+  write), the block number high, middle and low (high `$FF` for the drive's
+  special blocks), a retry count of 3 and a sparing threshold of `$0A`; wait
+  for state `$02` for a read, answer `$55`; read four status bytes; then move
+  532 bytes, the 512-byte block and 20 tag bytes in an order **to verify**,
+  through `+1` (read) or `+0` (write) in a loop in the `$Cn00` page.
+
 ## R7. IWM: one implementation
 
 **Decision**: Factor the IWM out of `Disk2Controller`'s IWM mode into
