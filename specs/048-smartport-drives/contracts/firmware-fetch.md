@@ -16,3 +16,9 @@ after download. A file that fails its checksum is deleted and the fetch fails.
 | `Apple2cPlus_Video.rom` | `Machines/Apple2cPlus` | 4096 | same |
 
 `-Fixtures` gains the subset the unit and scenario tests use.
+
+Checksums: SHA-1 from MAME 0.289 for 341-0437-A, 341-0438-A and the //c Plus
+ROM; SHA-256 from the a2-liron Makefile for `Liron.rom` and `UniDisk35.rom`;
+a SHA-1 pinned at the first fetch for the two ProFile ROMs. The values are in
+`research.md` R1. The default cards' ROMs (341-0437-A and `Liron.rom`) are also
+fetched at startup with the machine ROMs.

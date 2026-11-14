@@ -45,9 +45,26 @@ built in and not a port.
 
 - A device a machine cannot host fails to load, with an error that lists
   the machines that accept it, and the slot is left empty.
-- `realTiming` is valid on `hd20sc`, `scsi-disk`, `profile-5mb` and
+- `realTiming` is valid on `hd20sc`, `profile-5mb` and
   `profile-10mb`, and defaults to `false`.
 - Image paths are stored as the user picked them; with a missing file the
   drive is empty and a notice appears, as for the Disk II.
 - ROM files resolve under `Devices/<Card>/` in the ROM cache, as `Disk2.rom`
   resolves under `Devices/DiskII/`.
+- An `hd20sc` with `"image": "stock"` uses the stock hard disk image, an
+  empty 32 MB ProDOS volume created under the user's Casso data folder on
+  first use.
+
+## Defaults
+
+The embedded //e and enhanced //e files have these entries, enabled:
+
+```jsonc
+{ "slot": 5, "device": "liron-card", "rom": "Liron.rom",
+  "ports": [ { "device": "unidisk35", "image": "" } ] },
+{ "slot": 7, "device": "apple-scsi-card", "rom": "341-0437-A.rom",
+  "ports": [ "", "", "", "", "", "", { "device": "hd20sc", "image": "stock" } ] }
+```
+
+The //c file does not change. `MachineConfigUpgrade` adds the two entries to
+a user copy only where slots 5 and 7 are unconfigured.

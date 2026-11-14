@@ -1,40 +1,39 @@
 # Research: SmartPort and hard drive devices
 
 Phase 0 decisions for [plan.md](plan.md). Each entry contains the decision, the
-reason, and what else was considered.
+reason, and what else was considered. Each hardware fact is marked with where
+it comes from:
+
+- **Checked**: read from the ROM, from a disassembly, or from MAME 0.289's
+  device (read for behavior, not copied), or measured in MAME on 2026-11-13.
+- **To verify**: from memory or a secondary source. A task checks it against
+  the ROM or Apple's documentation before code depends on it.
 
 ## R1. Firmware sources
 
-**Decision**: Fetch every Apple ROM from the Apple II Documentation Project
-mirror (`mirrors.apple2.org.za`), the source `scripts/FetchRoms.ps1` already
-uses, with a SHA-1 check per file. Where MAME has the same ROM, its checksum is
-the reference.
+**Decision**: Fetch every ROM from the Apple II Documentation Project mirror
+(`mirrors.apple2.org.za`), the source `scripts/FetchRoms.ps1` already uses,
+with a checksum per file. Where MAME has the same ROM, its SHA-1 is the
+reference.
 
-| Device | File on the mirror | Size | MAME set |
+| Device | File on the mirror | Size | Checksum reference |
 |---|---|---|---|
-| Apple II SCSI Card | 341-0437-A | 16 KB | `a2scsi`, SHA-1 `451c85c4...` |
-| Apple II 3.5 Disk Controller Card | `Apple II 3.5 Disk Controller Card ROM - 341-0438-A.bin` | 32 KB | `a2superdrive`, SHA-1 `440c3f84...` |
-| UniDisk 3.5 interface card (Liron) | `Apple 3.5 Floppy Disk Drive Interface Card ROM.bin` | 4 KB | none |
-| UniDisk 3.5 drive controller | `Apple UniDisk 3.5 ROM.bin` | 8 KB | none |
-| ProFile interface card, 5 MB | `Apple II Interface 341-0271-A ROM 2716 for 5MB Profile.bin` | 2 KB | none |
-| ProFile interface card, 10 MB | `Apple II Interface 341-0299-B ROM 2716 for 10MB Profile.bin` | 2 KB | none |
-| //c Plus | `Apple IIc plus ROM 05 - 342-0625-A - 1988.bin` | 32 KB | `apple2cp` (`341-0625-a.256`), SHA-1 `1a27ae26...` |
+| Apple II SCSI Card (Rev. C ROM) | 341-0437-A | 16 KB | MAME `a2scsi`, SHA-1 `451c85c46b92e6ad2ad930f055ccf0fe3049936d` |
+| Apple II 3.5 Disk Controller Card | `Apple II 3.5 Disk Controller Card ROM - 341-0438-A.bin` | 32 KB | MAME `a2superdrive`, SHA-1 `440c3f84176c7b9f542da0b6ddf4fb13ec326c46` |
+| UniDisk 3.5 interface card (Liron) | `Apple 3.5 Floppy Disk Drive Interface Card ROM.bin` | 4 KB | a2-liron, SHA-256 `42c1ae66c6bec932669239599eb8989a5364752d56fa5c8997bb23d8dfc0b657` |
+| UniDisk 3.5 drive controller | `Apple UniDisk 3.5 ROM.bin` | 8 KB | a2-liron, SHA-256 `9f9f9160938f0b69c6f532f9acf194e3b48de8b195b6b47faad8423d6c1e3cce` |
+| ProFile interface card, 5 MB | `Apple II Interface 341-0271-A ROM 2716 for 5MB Profile.bin` | 2 KB | none; the fetch pins the SHA-1 of the first download |
+| ProFile interface card, 10 MB | `Apple II Interface 341-0299-B ROM 2716 for 10MB Profile.bin` | 2 KB | none; same |
+| //c Plus | `Apple IIc plus ROM 05 - 342-0625-A - 1988.bin` | 32 KB | MAME `apple2cp`, SHA-1 `1a27ae26966bbafd825d08ad1a24742d3e33557c` |
 
-The UniDisk 3.5 drive ROM is cross-checked against Eric Smith's 2018
-disassembly (`git.applefritter.com/Apple-2-SW/a2-liron`, `liron.asm`, origin
-`$E000`), whose Makefile verifies a byte-exact rebuild by SHA-256. The
-disassembly also documents the drive's memory map: a gate array at
-`$0800-$0801` (bus enable, write request, head select, SENSE, the SmartPort
-latch, drive select) and the IWM at `$0A00-$0A0F`. It also mentions support
-for an unreleased DuoDisk 3.5. `liron-if.asm` documents the interface card's
-ROM the same way.
+The two a2-liron checksums are from the Makefile of Eric Smith's 2018
+disassembly (`git.applefritter.com/Apple-2-SW/a2-liron`), which rebuilds both
+ROMs byte for byte. **To verify**: that the mirror's two files have those
+checksums.
 
-**Rationale**: One mirror for all Apple ROMs, the mirror Casso already trusts;
-checksums make a wrong file fail loudly.
-
-**Alternatives considered**: Assembling Eric Smith's disassembly at fetch time
-depends on the `asl` assembler, an executable download, which the security rules
-forbid. Writing firmware for Casso was ruled out by the owner.
+**Alternatives considered**: Assembling the disassembly at fetch time depends on
+the `asl` assembler, an executable download, which the security rules forbid.
+Firmware written for Casso was ruled out by the owner.
 
 ## R2. A2Pico: dropped
 
@@ -55,30 +54,70 @@ layout reader stays in Casso Explorer.
 
 ## R5. Apple II SCSI Card
 
-**Decision**: Emulate the card as: 16 KB ROM banked into `$C800-$CBFF`, 8 KB
-static RAM banked into `$CC00-$CFFF` (per the card's bank register), an NCR
-5380 at `$C0n0-$C0n7`, a bank register and DMA/pseudo-DMA port at
-`$C0n8-$C0nF`, and a SCSI bus with up to seven targets. Each target is a
-`ScsiHardDisk` implementing TEST UNIT READY, REQUEST SENSE, INQUIRY, READ(6),
-READ(10), WRITE(6), WRITE(10), READ CAPACITY and MODE SENSE, with the HD20SC's
-INQUIRY strings. The exact register map is checked against MAME's boot
-behavior and the card's ROM, not copied.
+**Checked** against MAME's `a2scsi` device:
 
-**Rationale**: The 5380 is the documented chip (NCR 5380 data sheet); bus
-phases and selection timeouts follow the SCSI-1 standard. The target command
-set is what Apple's ROM and ProDOS's SCSI driver issue.
+| Address | Function |
+|---|---|
+| `$C0n0-$C0n7` | NCR 5380 registers, in the chip's order |
+| `$C0n8` | Pseudo-DMA data read and write, with DACK |
+| `$C0n9` | Read: the card's SCSI ID as a bit mask (`$80` for ID 7) |
+| `$C0nA` | Write: bank latch. Bits 0-3 select a 1 KB ROM bank, bits 4-6 a 1 KB RAM bank. Cleared at reset |
+| `$C0nB` | Write: reset the 5380 |
+| `$C0nC` | Write: IIgs block mode on (a read of `$C800-$CBFF` then returns the next DMA byte) |
+| `$C0nD` | Write: pseudo-DMA mode (block mode off) |
+| `$C0nE` | Read: DRQ in bit 7 |
+| `$Cn00-$CnFF` | The first page of the ROM |
+| `$C800-$CBFF` | Banked RAM, 8 KB in all |
+| `$CC00-$CFFF` | Banked ROM, 16 KB in all |
+
+The first draft of this plan had the RAM and ROM windows the other way round.
+
+**Decision**: `AppleScsiCard` implements that map. `Ncr5380` implements the
+chip from its data sheet, and `ScsiBus` the SCSI-1 phases. IIgs block mode is
+decoded and has no effect, since Casso has no 65816. Each target is a
+`ScsiHardDisk`: TEST UNIT READY, REQUEST SENSE, INQUIRY, READ(6), READ(10),
+WRITE(6), WRITE(10), READ CAPACITY and MODE SENSE. **To verify**: the exact
+command set Apple's ROM and ProDOS issue, by logging them on the first boot.
+
+**Checked** in MAME (enhanced //e, card in slot 7, bootable ProDOS floppy in
+slot 6):
+
+- Apple's ROM passes over a hard disk whose block 0 is blank, and the floppy
+  boots to the ProDOS prompt.
+- `casso disk create --size 32M` without `--bootable` already writes a blank
+  block 0, so the stock image of FR-014b is what that command makes.
+- Emulated time from power-on to the first instruction of the Disk II boot ROM:
+  0.13 s with no card, 1.5 s with the card and no hard disk (MAME's default CD
+  drive at ID 1 was attached in that run), and 2.8 s with the card and the blank
+  hard disk at ID 6.
+
+**Risk for the owner**: FR-014c allows 1 second. MAME's card adds 1.4 to 2.7
+seconds. Part of that is the ROM's selection timeout for each empty SCSI
+ID, which is 6502 code and runs at the speed of the CPU. Casso's figure with
+real timing off is unknown until the card runs. See R18.
+
+**To verify**: the card on a ][+ and an unenhanced //e. MAME's ROMs for those
+machines are not installed here, so the check is a boot on Casso's ][+ and
+//e once the card exists.
 
 ## R6. ProFile
 
-**Decision**: Emulate the ProFile interface card's 2 KB ROM, its 6522-style
-parallel handshake (BSY, STRB, CMD, R/W, PARITY), and the ProFile's command
-protocol: the `$01/$02/$03/$04` handshake bytes, the 6-byte command block, and
-532-byte blocks (512 data, 20 tag bytes). The 5 MB and 10 MB models differ in
-block count (9,728 and 19,456) and card ROM.
+**To verify**, all of it. MAME has no Apple II ProFile card, and nothing here
+was checked against the ROMs or Apple's documentation:
 
-**Rationale**: The protocol is documented in the Lisa hardware manual and the
-ProFile service manual. MAME does not emulate the Apple II card, so the
-validation is a boot plus ProDOS file round trips.
+- The card: a 2 KB ROM, and a parallel port with handshake lines (BSY, STRB,
+  CMD, R/W, PARITY).
+- The protocol: the drive's state bytes `$01` to `$04` with the host's `$55`
+  acknowledgment, a 6-byte command block, and 532-byte blocks (512 data and
+  20 tag bytes).
+- Capacities: 9,728 blocks for the 5 MB drive and 19,456 for the 10 MB drive.
+- Which Apple II models the card works in.
+
+**Decision**: The first ProFile task disassembles both card ROMs with Casso's
+disassembler, reads Apple's ProFile documentation on the mirror, and writes
+the register map and protocol into this section. The ProFile's test tasks are
+written from that, not from the list above. Validation is a boot and file
+round trips, since there is no reference emulator.
 
 ## R7. IWM: one implementation
 
@@ -86,19 +125,26 @@ validation is a boot plus ProDOS file round trips.
 `Floppy35/Iwm`, behind an `IDiskDriveBus` (phase lines CA0-CA2 and LSTRB,
 SEL, ENABLE1/2, RD, WR, WRREQ). The //c's internal 5.25-inch drive, the //c
 Plus, the Liron card and the UniDisk 3.5's internal IWM use it. The Disk II
-tests stay green throughout the move.
+tests are green throughout the move.
 
-**Rationale**: Four hosts, one chip. The Apple IWM specification documents its
-mode register (latch mode, asynchronous handshake, 1 or 2 microsecond bit
-cells, timer disable, fast clock) and its status and handshake registers.
+**Checked**: the Liron card addresses its IWM at `$C080-$C08F` plus the slot
+offset, and the UniDisk 3.5's controller addresses one at `$0A00-$0A0F`, both
+in the Disk II's switch order (a2-liron).
+
+**To verify**: the mode register bits, against Apple's IWM specification.
 
 ## R8. SWIM
 
-**Decision**: Emulate the SWIM in IWM mode for 800K GCR, with the mode switch
-sequence that selects it. ISM (MFM) mode is emulated far enough to report the
-chip and handle the 341-0438-A firmware's probing; 1.44 MB media are out of
-scope for this spec, since neither the Apple 3.5 Drive nor the UniDisk 3.5 is
-an FDHD.
+**Checked**: the 3.5 controller card has a SWIM (the 1987 chip, MAME's
+`swim1`) clocked at 15.6672 MHz, and MAME attaches high-density 3.5-inch
+drives to it. The card dates from 1991 and is also known as the SuperDrive
+card.
+
+**Decision**: Emulate the SWIM in IWM mode for 800K GCR, with the sequence that
+switches it into ISM mode. **To verify**: how far the 341-0438-A firmware
+depends on ISM mode when only an 800K Apple 3.5 Drive is attached. If the
+firmware cannot start without it, ISM register behavior is added; 1.44 MB
+media stay out of scope either way.
 
 ## R9. Sony 3.5-inch mechanism and media
 
@@ -108,12 +154,15 @@ sides, track 0, tachometer, ready) and the five speed zones of 800K GCR (12, 11,
 10, 9 and 8 sectors per track, 16 tracks per zone). Media are bit streams per
 track and side: a WOZ 2 3.5-inch image as captured, or tracks built by
 `Gcr35Track` from a block image (ProDOS-order or DiskCopy 4.2), with
-interleave 2:1. Writes to a built track are decoded back to blocks; writes to
-a WOZ track change its bits.
+interleave 2:1.
 
-**Rationale**: The zone layout and sector format are in Inside Macintosh and
-the Apple IIgs Firmware Reference, which documents the 3.5-inch drive for the
-Apple II family.
+Writes to a built track are decoded back to blocks. Writes to a WOZ track
+change its bits and are saved by the rules the Disk II applies to a 5.25-inch
+WOZ image (the owner's clarification). **To verify**: where those rules are in
+`Disk2Controller` and `WozLoader`, so the 3.5-inch drive calls the same code.
+
+**To verify**: the status line numbering and the sector format, against the
+Apple IIgs Firmware Reference and Inside Macintosh.
 
 ## R10. SmartPort bus at signal level
 
@@ -121,70 +170,128 @@ Apple II family.
 IWM: REQ on phase 0, the bus enable state (phases 1 and 3 high), ACK on the
 write-protect sense line, and data as IWM write and read streams. Packets are
 framed as Apple's SmartPort protocol defines (sync bytes, `$C3` packet begin,
-the 7-to-8 group encoding, checksum, `$C8` end). Daisy chain IDs are assigned
-by the INIT sequence. The UniDisk 3.5 receives the packets through its gate
-array and internal IWM, so its firmware decodes them, not Casso.
+the 7-to-8 group encoding, checksum, `$C8` end). The UniDisk 3.5 receives the
+packets through its gate array and internal IWM, so its firmware decodes them,
+not Casso.
 
-**Rationale**: FR-005. Software that drives SmartPort directly gets the same
-handshake as on hardware, and the drive's ROM, not Casso, replies.
+**Checked** (a2-liron): the bus commands are STATUS `$00`, READ BLOCK `$01`,
+WRITE BLOCK `$02`, FORMAT `$03`, CONTROL `$04`, INIT `$05` (which assigns unit
+numbers), and OPEN, CLOSE, READ and WRITE for character devices. The card's
+receive code counts 7-byte groups and odd bytes, and reads a packet type, a
+source ID and a destination ID.
+
+**Checked**: the Liron card's boot code reads block 0, requires its first byte
+to be 1 and its second to be nonzero, and otherwise returns to the monitor's
+slot scan when it was entered from that scan. An empty UniDisk 3.5 therefore
+does not stop a floppy in slot 6 from booting. Entered by `PR#n`, it prints
+"NO DISK TO BOOT".
+
+**Decision on chain length**: Casso allows up to four SmartPort devices on a
+chain, the number ProDOS 8 2.x mounts from one slot. **To verify**: the limit
+in Apple's UniDisk 3.5 and //c manuals, and in the //c ROM 4 and //c Plus
+firmware. The Machine tab uses the lower of the two.
 
 ## R11. Device 65C02s
 
-**Decision**: The UniDisk 3.5 (2 MHz, 2 KB RAM, 8 KB ROM, gate array, IWM)
-and the 3.5 controller card (its 65C02, 8 KB RAM, 32 KB ROM, SWIM, shared
-window to the host) each have a `Cpu65C02` over a separate `MemoryBus`. They
-run in lockstep with the host's cycle count at their clock ratio, stepped only
-while the device is active (bus enabled or motor on) and parked otherwise.
+**Checked** (a2-liron, MAME `a2superdrive`):
 
-**Rationale**: `Cpu65C02` takes any `MemoryBus`, so a device CPU uses the existing
-core. Parking an idle CPU satisfies the performance goal.
+| | UniDisk 3.5 controller | 3.5 controller card |
+|---|---|---|
+| ROM | 8 KB at `$E000-$FFFF` | 32 KB at `$8000-$FFFF` |
+| RAM | below `$0800` | 32 KB at `$0000-$7FFF` |
+| I/O | gate array at `$0800-$0801`, IWM at `$0A00-$0A0F` | `$0A00-$0AFF`: SWIM at `$0A00-$0A0F`, head select low `$0A40` and high `$0A41`, diagnostic LED `$0A80/$0A81` |
+| Clock | **To verify** (2 MHz per a secondary source) | 2.046 MHz (the slot's 7 MHz clock times 2/7) |
+
+The UniDisk's gate array (a2-liron's labels): register 0 has LASTONE, BUSEN,
+WRREQ, GATENBL and HDSEL; register 1 reads SENSE, BLATCH1, BLATCH2, LIRONEN
+and CA0, and writes RSTIWM, BLATCH, DRIVE1 and DRIVE2. The firmware also
+supports an unreleased DuoDisk 3.5, which is the reason for two drive selects.
+
+The 3.5 controller card has no ROM on the Apple's side. The Apple's view of
+the card is windows into the card's RAM, which the card's 65C02 fills:
+
+| Apple address | Card RAM |
+|---|---|
+| `$C0n0-$C0nF` | Any access latches the low 4 address bits as the bank for `$C800-$CBFF` |
+| `$Cn00-$CnFF` | `$7B00-$7BFF`, read-only from the Apple |
+| `$C800-$CBFF` | 1 KB at the latched bank times `$400` |
+| `$CC00-$CFFF` | `$7C00-$7FFF` |
+
+The first draft of this plan had 8 KB of RAM for the card.
+
+**Decision**: Each device has a `Cpu65C02` over a separate `MemoryBus`,
+stepped in lockstep with the host's cycle count at its clock ratio. It runs
+only while the device is active (bus enabled, motor on, or a host access to
+the card's windows pending) and is parked otherwise. The 3.5 controller card's
+CPU also runs from reset until its slot page is filled, since the Apple
+cannot find the card before that.
 
 ## R12. //c Plus
 
-**Decision**: Add `Apple2cPlus` deriving from `Apple2c`: ROM 05 (32 KB, banked
-as the //c's), the MIG chip and its RAM window used by the firmware's 3.5-inch
-driver, the internal Apple 3.5 Drive on the IWM, the external port chain, and
-the accelerator: 4 MHz with a cache, dropping to 1 MHz for disk, speaker and
-I/O accesses as the real machine does, with acceleration switchable by Esc at
-power-on and by the firmware's control. The machine JSON is
-`Resources/Machines/Apple2cPlus/Apple2cPlus.json`.
+**Checked** against MAME's `apple2cp`:
 
-**Rationale**: The owner chose to add the //c Plus (clarification Q2). MAME's
-`apple2cp` boots for reference. The accelerator's slowdown rules come from
-the Apple IIc Technical Reference, second edition, which covers the //c Plus.
+- ROM 05, 32 KB. The CPU is a 65C02 with a licensed Zip Chip accelerator at
+  4 MHz.
+- An internal Apple 3.5 Drive (800K, with no controller inside) on the IWM,
+  with a chip called MIG. The external port takes a IIgs-style chain.
+- MIG, in `$CC00-$CFFF`: writes to `$CC40` reset the IWM; `$CC80-$CC9F` turn
+  the internal drive on and `$CCC0-$CCDF` off; `$CE00-$CE1F` is a 32-byte
+  window into 2 KB of MIG RAM; `$CE20-$CE3F` is the same window with the page
+  advanced after each access; `$CEA0` resets the page; `$CE40-$CE5F` and
+  `$CE60-$CE7F` select head 0 and 1 on a read, and 5.25-inch or 3.5-inch drives
+  on a write.
+- Accelerator registers, compatible with the Zip Chip: `$5A` written four times
+  to `$C05A` unlocks; `$08` to `$C05B` selects fast and `$08` to `$C05A`
+  normal; `$A5` to `$C05A` locks; `$C05C` is the speaker and slot slowdown
+  byte, which the firmware sets to `$67` (slots 1, 2, 5, 6 and the speaker
+  slow). The firmware stores its state in MIG RAM. The Zip Chip's firmware
+  checks for Esc at reset.
+- The 3.5-inch disk code runs at the fast speed; per MAME's notes that is the
+  reason for the MIG.
+
+**Decision**: `Apple2cPlus` derives from `Apple2c`, with `MigChip`, the
+internal drive, the external chain, and `Apple2cPlusAccelerator` implementing
+those registers and temporary slowdowns. Casso's speed setting (the owner's
+clarification): "Authentic" is the real machine, 4 MHz with its slowdowns,
+and the Machine tab displays 4 MHz; "2x" is 8 MHz; "Max" is unthrottled. With
+the accelerator switched to normal by software or by Esc, "Authentic" runs at
+1 MHz, as the real machine does.
+
+**To verify**: the slowdown durations, and the external chain's order rules
+(3.5-inch drives before SmartPort devices before 5.25-inch drives).
 
 ## R13. Drive sounds
 
-**Finding**: OpenEmulator's samples, the source of the Disk II sounds, cover
+**Checked**: OpenEmulator's samples, the source of the Disk II sounds, cover
 only 5.25-inch mechanisms (Alps and Shugart).
 
-**Decision**: Look for permissively licensed recordings (CC0 or CC-BY) of a
-Sony 800K drive, an HD20SC and a ProFile, fetched at runtime as the Disk II
-samples are. Where none exists, synthesize: a filtered noise bed for the
+**Decision**: A task looks for permissively licensed recordings (CC0 or CC-BY)
+of a Sony 800K drive, an HD20SC and a ProFile, fetched at runtime as the Disk
+II samples are. Where none exists, synthesize: a filtered noise bed for the
 spin-up and the spindle hum, an impulse train for head stepping, and a motor
 sweep for the 3.5-inch eject. The audio sources work with either.
 
 ## R14. Event feed and the debugger
 
-**Finding**: The Disk II debug window of spec 006 was removed on 2026-10-10
+**Checked**: the Disk II debug window of spec 006 was removed on 2026-10-10
 (`c35609ac3`). The debugger on the unmerged 035 branch builds its disk log on
 `IDisk2EventSink` and `Disk2Event`.
 
-**Decision**: Add `IBlockDeviceEventSink` with a `BlockDeviceEvent` record, and
-`IFloppy35EventSink` with a `Floppy35Event` record, each with a ring buffer as
-`Disk2EventRing` has, and attach them through `MachineHost::AttachObservers`.
-The log view itself goes into 035's debugger after 035 merges.
+**Decision**: Add `IBlockDeviceEventSink` with a `BlockDeviceEvent` struct, and
+`IFloppy35EventSink` with a `Floppy35Event` struct, each with a ring buffer as
+`Disk2EventRing` has, attached through `MachineHost::AttachObservers`.
 
 **Owner's decision (2026-11-13)**: the log view goes into 035's debugger. This
 spec adds the feeds and no standalone window.
 
 ## R15. Real timing setting
 
-**Decision**: Per hard disk, a `realTiming` flag, off by default
-(clarification Q3). Off: the target is ready at power-on and completes each
-command in the minimum time the bus protocol allows. On: spin-up delay (HD20SC
-about 15 s, ProFile about 30 s), average seek and rotational latency per
-access. Sounds are audible in both modes.
+**Decision**: Per hard disk, a `realTiming` flag, off by default (the owner's
+clarification). Off: the target is ready at power-on and completes each
+command in the minimum time the bus protocol allows. On: spin-up delay and
+average seek and rotational latency per access. Sounds are audible in both
+modes. **To verify**: the spin-up and seek times of the HD20SC and the ProFile,
+from their service manuals.
 
 ## R16. Desk scene
 
@@ -197,9 +304,56 @@ from reference photographs and written in each script, previewed with
 `DeskSceneLayout`'s automatic placement. The //c Plus's internal drive is drawn
 as an Apple 3.5 Drive in its colors. User arrangement stays with spec 009.
 
+**Owner's clarification**: every SCSI disk is an HD20SC, and the model number
+on its front follows the image: the size in MB, then "SC". The number is a
+face label drawn by the scene, not part of the mesh, as the Disk II's "DRIVE n"
+label is (`DeskSceneFaceLabels.h`), so one baked model serves every size.
+Reference photograph:
+`https://macs.billiehawkins.com/wp-content/uploads/2018/11/20sc.jpg`.
+
 ## R17. Command line
 
 **Decision**: `--hd <slot>[.<unit>]=<image>` attaches an image to a block
 device unit, and `--smartport <n>=<image>` attaches to the nth device in a
 SmartPort chain. Both parse in core, next to `--disk1`. See
 [contracts/command-line.md](contracts/command-line.md).
+
+## R18. Default cards and the stock image
+
+**Owner's clarifications**: the //e and enhanced //e ship with the SCSI card on
+in slot 7 with an HD20SC at ID 6, and the Liron card on in slot 5 with one
+UniDisk 3.5. The HD20SC has a stock image, an empty 32 MB ProDOS volume with a
+blank boot block. The //c's default does not change.
+
+**Decision**:
+
+- The embedded machine files for the //e and enhanced //e gain the two slot
+  entries, enabled, and their `$cassoMachineVersion` increases.
+  `MachineConfigUpgrade` adds them to a user copy only where slots 5 and 7 are
+  unconfigured.
+- The stock image is created on first use under the user's Casso data folder,
+  through the code `casso disk create --size 32M` runs. It is never
+  overwritten once it exists.
+- `TestMachine`'s `Slots::AsShipped` then includes both cards, which depend on
+  fetched ROMs. The ROMs join the `-Fixtures` set, and tests that boot a
+  floppy on an as-shipped machine check that the floppy boots first.
+- A missing card ROM on a default card is a notice, not a failed start: the
+  machine runs without that card (FR-016).
+
+**Boot delay (FR-014c)**: measured figures are in R5. The first SCSI boot task
+measures Casso's figure with real timing off. If it is over 1 second, the
+choice goes back to the owner: accept the figure, ship the SCSI card disabled,
+or run the CPU unthrottled while the card's ROM scans the bus.
+
+## R19. Host machines for each card
+
+| Card | Machines | Status |
+|---|---|---|
+| Apple II SCSI Card | ][+, //e, enhanced //e | Enhanced //e **checked** in MAME; the others **to verify** in Casso |
+| UniDisk 3.5 interface card | ][+, //e, enhanced //e | The ROM is 6502 code (a2-liron assembles it for the 6502); boots **to verify** in Casso |
+| 3.5 controller card | //e, enhanced //e | **To verify**; Apple sold it for the //e and IIgs |
+| ProFile interface card | **To verify** (R6) | |
+
+The Machine tab's list for each card is set from the verified result, and a
+machine is removed from a card's list when the boot fails there on real
+firmware.

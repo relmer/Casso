@@ -23,6 +23,19 @@ host firmware or by a drive's internal 65C02. The machine stack adds the //c
 Plus. The desk scene, audio and configuration work lands per device as each
 stack boots.
 
+[research.md](research.md) marks each hardware fact as checked (against a ROM,
+a disassembly or MAME 0.289) or to verify. The SCSI card, the 3.5 controller
+card, the Liron card, the UniDisk 3.5's memory map and the //c Plus's MIG and
+accelerator registers are checked. The ProFile is not: its first task is a
+disassembly of its card ROMs, and its tests are written from that. Each
+remaining "to verify" item has a task ahead of the code that depends on it.
+
+Two owner decisions from the clarify pass affect every machine: the //e and
+enhanced //e ship with the SCSI card and the Liron card enabled, and the
+default HD20SC has a stock empty image (research R18). MAME measurements put
+the SCSI card's added boot time over the 1 second FR-014c allows, so the first
+SCSI boot task measures Casso's figure and the result goes to the owner.
+
 ## Technical Context
 
 **Language/Version**: C++ (MSVC v145, C++23 as the solution sets it), Python 3
@@ -108,7 +121,8 @@ CassoEmuCore/
 │   │   ├── Ncr5380.*                # SCSI controller chip
 │   │   ├── ScsiBus.*                # phases, arbitration, selection
 │   │   ├── ScsiHardDisk.*           # SCSI target: INQUIRY, READ(6/10), WRITE, MODE SENSE
-│   │   ├── AppleScsiCard.*          # 341-0437-A, 5380, RAM, bank latch
+│   │   ├── AppleScsiCard.*          # 341-0437-A, 5380, 8 KB RAM, bank latch
+│   │   ├── StockHardDiskImage.*     # the default HD20SC's empty 32 MB volume
 │   │   └── ProFileDrive.*, ProFileCard.*
 │   └── Floppy35/                    # new: the 3.5-inch stack
 │       ├── Iwm.*                    # factored out of Disk2Controller's IWM mode
@@ -118,11 +132,12 @@ CassoEmuCore/
 │       ├── Gcr35Track.*             # 800K block image <-> GCR track bits
 │       ├── DiskCopy42Image.*        # read, write, header checksums
 │       ├── SmartPortBus.*           # REQ/ACK over the phase lines, packet framing
+│       ├── DeviceCpu.*              # a 65C02 over a separate MemoryBus, parked when idle
 │       ├── UniDisk35Drive.*         # 65C02, gate array, internal IWM, Sony mechanism
 │       ├── LironCard.*              # UniDisk 3.5 interface card
-│       └── Apple35ControllerCard.*  # 65C02, SWIM, RAM, 341-0438-A
+│       └── Apple35ControllerCard.*  # 65C02, SWIM, 32 KB RAM, 341-0438-A, RAM windows to the host
 ├── Machines/Apple2/
-│   ├── Apple2cPlus/                 # new machine: MIG, accelerator, internal 3.5 drive
+│   ├── Apple2cPlus/                 # new machine: MigChip, Apple2cPlusAccelerator, internal 3.5 drive
 │   └── Common/Disk2Controller.*     # uses Floppy35/Iwm for //c IWM mode
 ├── Audio/
 │   ├── Floppy35AudioSource.*
@@ -133,6 +148,7 @@ CassoEmuCore/
 
 Resources/
 ├── Machines/Apple2cPlus/Apple2cPlus.json
+├── Machines/{Apple2e,Apple2eEnhanced}/*.json   # default SCSI and Liron cards
 └── Models/{UniDisk35,Apple35Drive,HardDisk20SC,ProFile}/
 
 scripts/modelgen/
@@ -156,7 +172,8 @@ Each step ends at a boot that a scenario test can check.
 
 1. Shared: ROM catalog, media layer, event feed, registry and config plumbing.
 2. Block stack: the SCSI card (MAME reference, and the card spec 033's T573
-   runs on), then the ProFile.
+   runs on), with the boot delay measurement, then the ProFile, starting with
+   its ROM disassembly.
 3. 3.5-inch stack: IWM factor-out with the Disk II tests green, the Sony
    mechanism and GCR tracks, the 3.5 controller card with the Apple 3.5
    Drive, then the SmartPort bus, the UniDisk 3.5 on the //c and on the Liron
@@ -164,6 +181,8 @@ Each step ends at a boot that a scenario test can check.
 4. The //c Plus.
 5. Desk models, audio, Machine tab and command line,
    per device as it boots.
+6. Default cards and the stock image on the //e and enhanced //e, last, so
+   that every earlier phase runs on machines as they ship today.
 
 ## Complexity Tracking
 
