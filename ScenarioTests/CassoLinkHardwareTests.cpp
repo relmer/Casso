@@ -9,6 +9,8 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "CassoLink/LinkProgram.h"
@@ -671,6 +673,84 @@ public:
         }
     }
 
+    //  A WOZ from CASSO_RUN_IMAGE booted in a //c, then each key of
+    //  CASSO_KEYS pressed, s_kRunKeyCycles apart, then each paddle step of
+    //  CASSO_JOY applied: x, y and millions of cycles, with a semicolon
+    //  between steps. The text screen is written to run.txt and the two
+    //  hi-res pages to run_pages.bin, in CASSO_LINK_OUT. Run only when
+    //  CASSO_RUN_IMAGE is set.
+    TEST_METHOD (AnImage_IsRunWithKeys)
+    {
+        std::string               path   = GetSetting ("CASSO_RUN_IMAGE", "");
+        std::filesystem::path     folder = GetSetting ("CASSO_LINK_OUT", ".");
+        std::string               joy    = GetSetting ("CASSO_JOY", "");
+        std::string               keys   = GetSetting ("CASSO_KEYS", " ");
+        std::vector<Byte>         woz;
+        std::vector<Byte>         sectors;
+        std::vector<Byte>         pages;
+        std::vector<std::string>  rows;
+        SectorDecodeReport        report;
+        TestMachine               machine ("Apple2c");
+        size_t                    at     = 0;
+
+
+
+        if (path.empty())
+        {
+            Logger::WriteMessage ("CASSO_RUN_IMAGE isn't set; no image to run.\n");
+            return;
+        }
+
+        {
+            std::ifstream  in (path, std::ios::binary);
+
+            woz.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        AssertSucceeded (VolumeImage::Load (woz, "image.woz", sectors, report));
+
+        GuestSession::MountWoz (machine, woz, sectors);
+        machine.RunCycles (s_kRunBootCycles);
+
+        for (char key : keys)
+        {
+            machine.GetRefs().iieKeyboard->PressKey ((Byte) key);
+            machine.RunCycles (s_kRunKeyCycles);
+        }
+
+        while (at < joy.size())
+        {
+            size_t       end    = joy.find (';', at);
+            std::string  step   = joy.substr (at, end == std::string::npos ? std::string::npos : end - at);
+            size_t       first  = step.find (',');
+            size_t       second = step.find (',', first + 1);
+
+            at = end == std::string::npos ? joy.size() : end + 1;
+
+            machine.GetRefs().iieSoftSwitches->SetPaddle (0, (Byte) std::stoi (step.substr (0, first)));
+            machine.GetRefs().iieSoftSwitches->SetPaddle (1, (Byte) std::stoi (step.substr (first + 1, second - first - 1)));
+            machine.RunCycles ((uint64_t) (std::stod (step.substr (second + 1)) * 1e6));
+        }
+
+        GuestSession::CollectRows (machine, rows);
+
+        {
+            std::ofstream  text (folder / "run.txt");
+
+            for (const std::string & row : rows)
+            {
+                text << "|" << row << "|\n";
+            }
+        }
+
+        for (Word address = s_kHiResFirst; address < s_kHiResEnd; address++)
+        {
+            pages.push_back (machine.GetMemoryBus().ReadByte (address));
+        }
+
+        WriteFile (folder / "run_pages.bin", pages);
+    }
+
     //  The disk inspector's summary and findings for the image, as its Issues    //  list has them.
     static void  LogFindings (const std::vector<Byte> & woz)
     {
@@ -693,6 +773,11 @@ public:
 
         Logger::WriteMessage (log.c_str());
     }
+
+    static constexpr uint64_t  s_kRunBootCycles = 60'000'000ULL;
+    static constexpr uint64_t  s_kRunKeyCycles  = 30'000'000ULL;
+    static constexpr Word      s_kHiResFirst    = 0x2000;
+    static constexpr Word      s_kHiResEnd      = 0x6000;
 
     static constexpr int       s_kBootSteps   = 6;
     static constexpr uint64_t  s_kBootStep    = 10'000'000ULL;
