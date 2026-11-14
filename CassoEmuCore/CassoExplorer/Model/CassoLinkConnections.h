@@ -384,7 +384,7 @@ private:
 
     std::string           m_fullSendFolder;
     std::string           m_fullSendExtension;
-    bool                  m_fullSendReads = false;
+    bool                  m_fullSendReads      = false;
     bool                  m_verifyReads        = false;
     bool                  m_verifyWrites       = false;
     bool                  m_autoVerify         = true;
