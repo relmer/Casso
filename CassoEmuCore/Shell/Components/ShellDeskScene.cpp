@@ -2,6 +2,10 @@
 
 #include "Devices/BlockDevice/AppleScsiCard.h"
 #include "Devices/BlockDevice/ProFileCard.h"
+#include "Devices/Floppy35/Apple2cPlusDiskPort.h"
+#include "Devices/Floppy35/Apple2cSmartPort.h"
+#include "Devices/Floppy35/Apple35ControllerCard.h"
+#include "Devices/Floppy35/LironCard.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellRenderer.h"
@@ -199,11 +203,13 @@ HRESULT ShellDeskScene::LoadDeskSceneModelsForMachine()
     std::span<const uint8_t>   driveMesh   = PrinterPanel::LoadBinaryResource (isC ? IDR_MODEL_DISK2C_MESH
                                                                                    : IDR_MODEL_DISKII_MESH);
     std::span<const uint8_t>  recorderMesh;
-    const MachineRefs       & refs         = m_shell.m_machine.GetRefs();
-    bool                      hasScsi      = !refs.scsiCards.empty() && refs.scsiCards[0]->HasDrive();
-    bool                      hasProFile   = !refs.proFileCards.empty();
-    std::span<const uint8_t>  hardDiskMesh = PrinterPanel::LoadBinaryResource ((hasScsi || !hasProFile) ? IDR_MODEL_HARDDISK20SC_MESH
-                                                                                                         : IDR_MODEL_PROFILE_MESH);
+    SideDevice                side         = ChooseSideDevice (m_shell.m_machine.GetRefs());
+    int                       sideMeshId   = (side == SideDevice::ProFile)   ? IDR_MODEL_PROFILE_MESH
+                                           : (side == SideDevice::UniDisk35) ? IDR_MODEL_UNIDISK35_MESH
+                                           : (side == SideDevice::Apple35)   ? (m_shell.m_machine.GetRefs().apple2cPlusDiskPort != nullptr ? IDR_MODEL_APPLE35PLUS_MESH
+                                                                                                                                              : IDR_MODEL_APPLE35_MESH)
+                                                                             : IDR_MODEL_HARDDISK20SC_MESH;
+    std::span<const uint8_t>  hardDiskMesh = PrinterPanel::LoadBinaryResource (sideMeshId);
     bool                      haveMeshes   = false;
     bool                      haveTape     = false;
 
@@ -224,9 +230,9 @@ HRESULT ShellDeskScene::LoadDeskSceneModelsForMachine()
     hr = m_deskScene.LoadModels (monitor.sceneKind, monitorMesh, driveMesh, recorderMesh, hardDiskMesh);
     CHRA (hr);
 
-    // The HD20SC is on the desk when the machine has an SCSI card with a
-    // drive on it, and a ProFile is there in its place for a ProFile card.
-    m_deskScene.SetHardDiskShown (hasScsi || hasProFile);
+    // The side device's model takes the hard disk's place beside the stack.
+    m_sideDevice = side;
+    m_deskScene.SetHardDiskShown (side != SideDevice::None);
 
     m_deskSceneMachineIsC = isC;
 
@@ -3207,4 +3213,92 @@ void ShellDeskScene::UpdateSceneOrbit (int x, int y)
         -s_kOrbitPitchLimit, s_kOrbitPitchLimit);
 
     InvalidateSceneComposition();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::ChooseSideDevice
+//
+//  A //c Plus's internal drive is an Apple 3.5 Drive; a //c's UniDisk on the
+//  disk port, a UniDisk card's chain or a 3.5 controller card's drive is the
+//  model of its first drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellDeskScene::SideDevice ShellDeskScene::ChooseSideDevice (const MachineRefs & refs)
+{
+    bool  hasScsi    = !refs.scsiCards.empty() && refs.scsiCards[0]->HasDrive();
+    bool  hasUniDisk = !refs.lironCards.empty() || (refs.apple2cSmartPort != nullptr && refs.apple2cSmartPort->GetPort().GetDriveCount() > 0);
+    bool  hasApple35 = !refs.apple35Cards.empty() || refs.apple2cPlusDiskPort != nullptr;
+
+
+
+    return hasScsi                    ? SideDevice::Scsi
+         : !refs.proFileCards.empty() ? SideDevice::ProFile
+         : hasUniDisk                 ? SideDevice::UniDisk35
+         : hasApple35                 ? SideDevice::Apple35
+                                      : SideDevice::None;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::IsSideDeviceBusy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsSideDeviceBusy (uint64_t now, uint64_t windowCycles) const
+{
+    const MachineRefs  & refs = m_shell.m_machine.GetRefs();
+    bool                 busy = false;
+    uint64_t             last = 0;
+
+
+
+    switch (m_sideDevice)
+    {
+        case SideDevice::Scsi:
+            busy = refs.scsiCards[0]->IsBusy (now, windowCycles);
+            break;
+
+        case SideDevice::ProFile:
+            last = refs.proFileCards[0]->GetDrive().GetLastActivityCycle();
+            busy = last != 0 && now >= last && now - last < windowCycles;
+            break;
+
+        case SideDevice::UniDisk35:
+            if (!refs.lironCards.empty())
+            {
+                for (size_t i = 0; !busy && i < refs.lironCards[0]->GetDriveCount(); ++i)
+                {
+                    busy = refs.lironCards[0]->GetDrive (i).GetMechanism().IsMotorOn();
+                }
+            }
+            else
+            {
+                for (size_t i = 0; !busy && i < refs.apple2cSmartPort->GetPort().GetDriveCount(); ++i)
+                {
+                    busy = refs.apple2cSmartPort->GetPort().GetDrive (i).GetMechanism().IsMotorOn();
+                }
+            }
+
+            break;
+
+        case SideDevice::Apple35:
+            busy = (refs.apple2cPlusDiskPort != nullptr) ? refs.apple2cPlusDiskPort->GetInternalDrive().IsMotorOn()
+                 : (refs.apple35Cards[0]->GetCardMemory().GetDrive (0).IsMotorOn() || refs.apple35Cards[0]->GetCardMemory().GetDrive (1).IsMotorOn());
+            break;
+
+        default:
+            break;
+    }
+
+    return busy;
 }

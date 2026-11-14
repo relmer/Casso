@@ -778,18 +778,15 @@ bool ShellRenderer::TryPresentUiFrame()
             m_shell.m_scene->m_deskScene.SetDriveVisuals (i, lampOn, progress, st.writeProtect.Any());
         }
 
-        // The HD20SC's lamp is lit for a tenth of a second after each SCSI
-        // command, so a run of reads reads as steady activity. A ProFile's
-        // lamp follows its last command the same way.
+        // The side device's lamp is lit for a tenth of a second after each
+        // hard disk command, so a run of reads reads as steady activity, and
+        // while a 3.5-inch drive's motor runs.
         {
-            const auto  & cards    = m_shell.m_machine.GetRefs().scsiCards;
-            const auto  & proFiles = m_shell.m_machine.GetRefs().proFileCards;
-            uint64_t      now      = m_shell.m_machine.GetCpu() != nullptr ? *m_shell.m_machine.GetCpu()->GetBusCyclePtr() : 0;
-            uint64_t      window   = m_shell.m_machine.GetConfig().clockSpeed / 10;
-            uint64_t      last     = proFiles.empty() ? 0 : proFiles[0]->GetDrive().GetLastActivityCycle();
-            bool          busy     = (!cards.empty() && cards[0]->IsBusy (now, window))
-                                  || (last != 0 && now >= last && now - last < window);
-            std::wstring  label    = cards.empty() ? std::wstring() : cards[0]->GetModelLabel();
+            const auto  & cards  = m_shell.m_machine.GetRefs().scsiCards;
+            uint64_t      now    = m_shell.m_machine.GetCpu() != nullptr ? *m_shell.m_machine.GetCpu()->GetBusCyclePtr() : 0;
+            uint64_t      window = m_shell.m_machine.GetConfig().clockSpeed / 10;
+            bool          busy   = m_shell.m_scene->IsSideDeviceBusy (now, window);
+            std::wstring  label  = cards.empty() ? std::wstring() : cards[0]->GetModelLabel();
 
 
 
