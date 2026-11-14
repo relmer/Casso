@@ -19,7 +19,7 @@ class DisplayPage;
 //  CassoExplorerGeneralPage
 //
 //  Automatic preview, its description below its box, then the disk image
-//  types.
+//  types, and Clear thumbnails.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,18 +28,20 @@ class CassoExplorerGeneralPage : public DxuiPropertyPage
 public:
     explicit CassoExplorerGeneralPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration);
+    void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiButton & clearThumbnails);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
     static constexpr int  kNoteHeightDip = 40;
     static constexpr int  kNoteIndentDip = 22;   // under the checkbox's label
+    static constexpr int  kClearWidthDip = 160;
 
 private:
     DxuiLabel     * m_previewNote  = nullptr;
     DxuiCheckbox  * m_autoPreview  = nullptr;
     DxuiCheckbox  * m_enterExpands = nullptr;
     DxuiCheckbox  * m_register     = nullptr;
+    DxuiButton    * m_clear        = nullptr;
 };
 
 
@@ -238,6 +240,9 @@ public:
 
         //  The folder picker over the dialog; ioFolder changes when one is picked.
         std::function<void (HWND owner, std::wstring & ioFolder)>  pickFolder;
+
+        //  Clear thumbnails, with its confirmation over the dialog.
+        std::function<void (HWND owner)>  clearThumbnails;
     };
 
     //  The host file name forms, in the order the setting stores them.
@@ -283,6 +288,7 @@ private:
     DxuiCheckbox                                   m_autoPreview;
     DxuiCheckbox                                   m_enterExpands;
     DxuiCheckbox                                   m_register;
+    DxuiButton                                     m_clearThumbnails;
     DxuiLabel                                      m_fullSendNote;
     DxuiLabel                                      m_fullSendFolderLabel;
     DxuiLabel                                      m_fullSendFormatLabel;

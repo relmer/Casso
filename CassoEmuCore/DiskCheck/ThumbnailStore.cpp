@@ -177,6 +177,41 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ThumbnailStore::CopyStream
+//
+//  A write that renames a temporary file over an image replaces the image's
+//  streams with the temporary's, so the thumbnail is copied to it first. The
+//  image's hash changes with the write; Find takes the stream into the cache
+//  for the new hash.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ThumbnailStore::CopyStream (const std::filesystem::path & from, const std::filesystem::path & to)
+{
+    HRESULT            hr        = S_OK;
+    HRESULT            hrRead    = S_OK;
+    std::vector<Byte>  png;
+    bool               hasStream = false;
+
+
+
+    hrRead    = ReadFile (std::filesystem::path (from.wstring() + kStreamName), png);
+    hasStream = SUCCEEDED (hrRead) && !png.empty();
+    BAIL_OUT_IF (!hasStream, S_OK);
+
+    hr = WriteStream (to, png);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ThumbnailStore::GetHash
 //
 ////////////////////////////////////////////////////////////////////////////////

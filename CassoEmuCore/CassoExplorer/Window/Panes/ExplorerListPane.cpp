@@ -26,6 +26,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "Seams/Win32ShellItemVerbs.h"
+#include "Seams/IDiskPictures.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "Seams/Win32InfoTips.h"
@@ -2010,9 +2011,14 @@ void ExplorerListPane::HandleIconsLoaded()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerListPane::HandlePicturesReady()
+void ExplorerListPane::HandlePicturesReady (WPARAM wParam)
 {
-    if (m_listIcons.ForgetMissingPictures())
+    if (wParam == IDiskPictures::kPicturesChanged)
+    {
+        m_listIcons.ForgetPictures();
+        RefreshListIcons();
+    }
+    else if (m_listIcons.ForgetMissingPictures())
     {
         RefreshListIcons();
     }

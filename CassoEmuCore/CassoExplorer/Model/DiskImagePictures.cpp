@@ -233,7 +233,7 @@ void DiskImagePictures::RemoveTarget (HWND hwnd)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImagePictures::NotifyReady()
+void DiskImagePictures::NotifyReady (WPARAM wParam)
 {
     std::lock_guard  lock (m_lock);
 
@@ -241,7 +241,7 @@ void DiskImagePictures::NotifyReady()
 
     for (const Target & target : m_targets)
     {
-        PostMessageW (target.hwnd, target.message, 0, 0);
+        PostMessageW (target.hwnd, target.message, wParam, 0);
     }
 }
 
@@ -262,6 +262,215 @@ void DiskImagePictures::ForgetQueued()
 
 
     m_queued.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePictures::IsCandidate
+//
+//  A file that can have a thumbnail, so a large file isn't read for a hash.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImagePictures::IsCandidate (const std::filesystem::path & file)
+{
+    std::error_code  failed;
+    uint64_t         bytes = std::filesystem::file_size (file, failed);
+
+
+
+    return !failed && IsFloppySize (file.extension().wstring(), bytes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePictures::IsUserSet
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImagePictures::IsUserSet (const std::wstring & path)
+{
+    HRESULT            hr        = S_OK;
+    std::vector<Byte>  png;
+    ThumbnailRecord    record;
+    bool               isUserSet = false;
+    bool               isImage   = IsCandidate (path);
+
+
+
+    BAIL_OUT_IF (!isImage, S_OK);
+
+    hr = m_store.Find (path, png, record, isUserSet);
+    CHR (hr);
+
+Error:
+    return SUCCEEDED (hr) && isUserSet;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePictures::RemoveUserSet
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImagePictures::RemoveUserSet (const std::wstring & path)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = m_store.Remove (path);
+    CHR (hr);
+
+    NotifyReady (kPicturesChanged);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePictures::GetKeys
+//
+//  A file that can't be read, or isn't a disk image, has no key.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> DiskImagePictures::GetKeys (const std::vector<std::wstring> & paths)
+{
+    std::vector<std::string>  keys;
+    std::string               hash;
+    HRESULT                   hr = S_OK;
+
+
+
+    for (const std::wstring & path : paths)
+    {
+        if (!IsCandidate (path))
+        {
+            continue;
+        }
+
+        hr = m_store.GetHash (path, hash);
+
+        if (SUCCEEDED (hr))
+        {
+            keys.push_back (hash);
+        }
+    }
+
+    return keys;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePictures::RemoveDeleted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImagePictures::RemoveDeleted (const std::vector<std::string> & keys)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    for (const std::string & key : keys)
+    {
+        hr = m_store.RemoveForDeleted (key);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePictures::CountUserSet
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskImagePictures::CountUserSet()
+{
+    return m_store.CountUserSet();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePictures::Clear
+//
+//  An image in view is queued again for a boot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImagePictures::Clear (bool includeUserSet)
+{
+    HRESULT  hr      = S_OK;
+    int      userSet = 0;
+
+
+
+    hr = m_store.Clear (includeUserSet, userSet);
+    CHR (hr);
+
+    ForgetQueued();
+    NotifyReady (kPicturesChanged);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePictures::GetClearQuestion
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskImagePictures::GetClearQuestion (int userSet)
+{
+    std::wstring  question = L"Remove every thumbnail made by booting a disk image? An image is booted again for a new one the next time it's in view.";
+
+
+
+    if (userSet == 1)
+    {
+        question += L"\n\n1 thumbnail was set in Casso or with CassoCli. Remove it too?";
+    }
+    else if (userSet > 1)
+    {
+        question += std::format (L"\n\n{} thumbnails were set in Casso or with CassoCli. Remove them too?", userSet);
+    }
+
+    return question;
 }
 
 

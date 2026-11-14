@@ -83,6 +83,10 @@ public:
 
     int      CountUserSet     () const;
 
+    //  The stream of one file written to another, for a write that replaces
+    //  an image with a temporary file. A file with no stream isn't an error.
+    static HRESULT  CopyStream (const std::filesystem::path & from, const std::filesystem::path & to);
+
 private:
     struct Indexed
     {

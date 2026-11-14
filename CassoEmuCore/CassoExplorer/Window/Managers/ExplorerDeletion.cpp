@@ -5,6 +5,7 @@
 #include "CassoExplorer/Window/IExplorerWindow.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Model/DiskImagePictures.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
@@ -12,6 +13,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "Seams/IDiskPictures.h"
 #include "Seams/IShellItemVerbs.h"
 
 
@@ -121,6 +123,7 @@ void ExplorerDeletion::DeleteHostSelection()
 {
     HRESULT                    hr = S_OK;
     std::vector<std::wstring>  hostPaths;
+    std::vector<std::string>   thumbnails;
 
 
 
@@ -140,7 +143,8 @@ void ExplorerDeletion::DeleteHostSelection()
     if (m_context.browser.AreSelectedRowsSearchFiles())
     {
         m_context.browser.GetSelectedHostPaths (hostPaths);
-        hr = m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), hostPaths);
+        thumbnails = GetThumbnailKeys (hostPaths);
+        hr         = m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), hostPaths);
     }
     else if (m_context.browser.TryGetSelectedShellIds (hostPaths))
     {
@@ -149,6 +153,11 @@ void ExplorerDeletion::DeleteHostSelection()
         if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder && !ConfirmA2PicoDrives (hostPaths))
         {
             return;
+        }
+
+        if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
+        {
+            thumbnails = GetThumbnailKeys (hostPaths);
         }
 
         hr = (m_context.browser.GetLocation().kind == Location::Kind::ShellFolder)
@@ -170,9 +179,93 @@ void ExplorerDeletion::DeleteHostSelection()
         {
             m_context.actions.GetA2retroNet().NoteDelete (path);
         }
+
+        RemoveThumbnails (hostPaths, thumbnails);
     }
 
     m_context.folderSync.RefreshAfterHostChange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerDeletion::GetThumbnailKeys
+//
+//  Read before the delete: a file in the Recycle Bin can't be read for its
+//  hash.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> ExplorerDeletion::GetThumbnailKeys (const std::vector<std::wstring> & paths)
+{
+    return (m_context.app.pictures != nullptr) ? m_context.app.pictures->GetKeys (paths) : std::vector<std::string>();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerDeletion::RemoveThumbnails
+//
+//  Only once the files are gone: a delete canceled in Windows'
+//  confirmation removes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerDeletion::RemoveThumbnails (const std::vector<std::wstring> & paths, const std::vector<std::string> & keys)
+{
+    bool  areGone = std::none_of (paths.begin(), paths.end(), [] (const std::wstring & path) { std::error_code  failed; return std::filesystem::exists (path, failed); });
+
+
+
+    if (areGone && m_context.app.pictures != nullptr)
+    {
+        m_context.app.pictures->RemoveDeleted (keys);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerDeletion::ClearThumbnails
+//
+//  With thumbnails the user set, the confirmation has their count and a
+//  button that removes only the thumbnails made by booting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerDeletion::ClearThumbnails (HWND owner)
+{
+    HRESULT       hr       = S_OK;
+    int           userSet  = m_context.app.pictures->CountUserSet();
+    std::wstring  question = DiskImagePictures::GetClearQuestion (userSet);
+    int           answer   = IDCANCEL;
+
+
+
+    if (userSet > 0)
+    {
+        answer = DxuiMessageBox (owner, m_context.theme, question.c_str(), L"Clear thumbnails", MB_YESNOCANCEL | MB_ICONWARNING | MB_DEFBUTTON2,
+                                 { L"Remove all", L"Remove booted only", L"Cancel" }, 0);
+    }
+    else
+    {
+        answer = DxuiMessageBox (owner, m_context.theme, question.c_str(), L"Clear thumbnails", MB_OKCANCEL | MB_ICONWARNING, { L"Clear", L"Cancel" });
+    }
+
+    if (answer == IDYES || answer == IDNO || answer == IDOK)
+    {
+        hr = m_context.app.pictures->Clear (answer == IDYES);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 }
 
 

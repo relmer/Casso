@@ -2,6 +2,8 @@
 
 #include "../EhmTestHelper.h"
 #include "DiskCheck/ThumbnailStore.h"
+#include "Devices/Disk/DurableCommit.h"
+#include "Seams/Win32DiskFileIo.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -181,5 +183,34 @@ public:
 
         AssertSucceeded (store.Find (rig.image, found, read, isUserSet));
         Assert::IsTrue (found.empty(), L"Nothing for a deleted image's hash");
+    }
+
+    //  After a write that renames a temporary file over the image, as a save
+    //  does, the image has its thumbnail: the stream is copied to the temporary, and the
+    //  new bytes' hash finds it there.
+    TEST_METHOD (AWriteThroughATemporaryFile_KeepsTheThumbnail)
+    {
+        Rig                   rig;
+        ThumbnailStore        store (rig.root / L"cache");
+        std::vector<Byte>     png       = { 0x89, 'P', 'N', 'G', 7 };
+        std::vector<Byte>     found;
+        ThumbnailRecord       read;
+        bool                  isUserSet = false;
+        Win32DiskFileIo       io;
+        CommitPlan::Progress  progress;
+
+
+
+        AssertSucceeded (store.Store (rig.image, png, ThumbnailRecord()));
+
+        AssertSucceeded (DurableCommit::Commit (io, rig.image.string(), std::vector<Byte> (4096, 0x11), 1, CommitMode::Replace, progress));
+
+        Assert::IsTrue (Rig::Read (rig.image) == std::vector<Byte> (4096, 0x11), L"The new bytes were written");
+        Assert::IsTrue (Rig::Read (rig.GetStream (rig.image)) == png, L"The stream was copied");
+
+        AssertSucceeded (store.Find (rig.image, found, read, isUserSet));
+        Assert::IsTrue (found == png, L"Found for the new hash");
+
+        Assert::AreEqual (S_OK, ThumbnailStore::CopyStream (rig.root / L"missing.dsk", rig.image), L"No stream is no error");
     }
 };

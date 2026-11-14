@@ -360,7 +360,7 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
 
     if (msg == (UINT) AppMessage::ExplorerPicturesReady)
     {
-        listPane.HandlePicturesReady();
+        listPane.HandlePicturesReady (wParam);
         preview.HandlePicturesReady();
 
         if (context.app.host != nullptr)

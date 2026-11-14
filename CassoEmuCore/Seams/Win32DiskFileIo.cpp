@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Seams/Win32DiskFileIo.h"
+#include "DiskCheck/ThumbnailStore.h"
 
 #pragma comment(lib, "cldapi.lib")
 
@@ -531,7 +532,8 @@ Error:
 //  What a replace would otherwise lose: the hidden, system and
 //  not-content-indexed attributes, the creation time, and the access control
 //  list when the old file's is protected or has entries of its own. An
-//  inherited list is left for the new file to inherit from its folder.
+//  inherited list is left for the new file to inherit from its folder. A
+//  disk image's thumbnail stream is copied as well.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -557,11 +559,16 @@ HRESULT Win32DiskFileIo::CopyFileMetadata (const std::string & fromPath, const s
     DWORD                          i        = 0;
     void                         * ace      = nullptr;
     BOOL                           ok       = FALSE;
+    HRESULT                        hrThumb  = S_OK;
 
 
 
     ok = GetFileAttributesExW (wideFrom.c_str(), GetFileExInfoStandard, &from);
     CWR (ok);
+
+    //  A disk image's thumbnail, which is in a stream of the file.
+    hrThumb = ThumbnailStore::CopyStream (std::filesystem::path (wideFrom), std::filesystem::path (wideTo));
+    IGNORE_RETURN_VALUE (hrThumb, S_OK);
 
     toAttrs = GetFileAttributesW (wideTo.c_str());
     CWR (toAttrs != INVALID_FILE_ATTRIBUTES);

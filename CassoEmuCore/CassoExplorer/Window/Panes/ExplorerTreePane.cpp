@@ -29,6 +29,7 @@
 #include "CassoExplorer/WozPropertiesDialog.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Seams/IDiskPictures.h"
 
 
 
@@ -982,6 +983,16 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         {
             m_context.menus.AddMenuCommand (items, L"&Disk properties", [this, image]() { m_context.properties.ShowWozProperties (image, WozPropertiesDialog::kInfoTab); });
             m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage);
+        }
+
+        if (m_context.app.pictures != nullptr && m_context.app.pictures->IsUserSet (image))
+        {
+            m_context.menus.AddMenuCommand (items, L"Remove thum&bnail", [this, image]()
+            {
+                HRESULT  removed = m_context.app.pictures->RemoveUserSet (image);
+
+                IGNORE_RETURN_VALUE (removed, S_OK);
+            });
         }
     }
 

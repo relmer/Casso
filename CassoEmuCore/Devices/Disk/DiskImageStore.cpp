@@ -7,6 +7,7 @@
 #include "Core/TextEncoding.h"
 #include "ChangePrompt.h"
 #include "CommitPlan.h"
+#include "DiskCheck/ThumbnailStore.h"
 
 
 
@@ -1271,6 +1272,7 @@ HRESULT DiskImageStore::WriteFileAtomically (const string & path, const vector<B
     string            tempPath;
     std::error_code   ec;
     size_t            byteCount = bytes.size();
+    HRESULT           hrThumb   = S_OK;
 
 
 
@@ -1336,6 +1338,11 @@ HRESULT DiskImageStore::WriteFileAtomically (const string & path, const vector<B
         CBREx (ok, HRESULT_FROM_WIN32 (lastErr));
         CBREx (written == expected, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
     }
+
+    //  The image's thumbnail is in a stream of the file, which the rename
+    //  would replace with the temporary's.
+    hrThumb = ThumbnailStore::CopyStream (fs::path (path), fs::path (tempPath));
+    IGNORE_RETURN_VALUE (hrThumb, S_OK);
 
     // Rename replaces an existing target, so the swap is one filesystem
     // operation: readers see either the old file or the new one. The code the
