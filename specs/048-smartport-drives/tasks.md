@@ -248,7 +248,7 @@ runs on machines as they ship today.
 
 ## Phase 11: Polish and cross-cutting
 
-- [ ] T107 Performance test in `UnitTest/EmuTests/IdleDevicePerformanceTests.cpp`: a machine with every card attached and idle runs as fast as one without, within measurement noise
+- [ ] T107 Performance test in `UnitTest/EmuTests/IdleDevicePerformanceTests.cpp`: a machine with every card attached and idle runs as fast as one without, within measurement noise **Open**: `IdleDevicePerformanceTests::EveryCardIdle_CostIsBounded` measures every card idle at about 2.2 times the machine's time without them (the 3.5 controller card alone 1.65, the UniDisk 3.5 card 1.50, the SCSI card 1.19, the ProFile card 1.06, Debug), because the cards' 65C02s run their firmware all the time; it bounds the cost at 3. Skipping the card CPUs' wait loops would meet the goal and waits on the owner.
 - [ ] T108 Owner review of each desk model beside reference photographs (SC-008)
 - [ ] T109 Run the 033 block device scenario tests (T573) on the SCSI card (SC-009), in coordination with whoever is working on spec 033's Story 23
 - [ ] T110 Confirm that no "to verify" marker is left in `research.md`, and that `data-model.md` matches it
