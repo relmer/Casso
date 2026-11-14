@@ -142,6 +142,31 @@ public:
     }
 
 
+    //  ANOTHER CARD'S PAGE ACCESS GIVES IT THE EXPANSION SPACE: the SCSI
+    //  card, which keeps $CF00-$CFFE, is deselected.
+    TEST_METHOD (AnotherCardsPageTakesTheExpansionSpace)
+    {
+        MemoryBus        bus;
+        AppleScsiCard    scsi (kSlot, bus);
+        AppleScsiCard    other (5, bus);
+        ExpansionRomBus  expansion (bus);
+
+
+
+        expansion.AddCard (&scsi);
+        expansion.AddCard (&other);
+        scsi.GetSlotPage().SetExpansionBus (&expansion);
+        other.GetSlotPage().SetExpansionBus (&expansion);
+
+        scsi.GetSlotPage().Read (0xC700);
+        Assert::IsTrue (scsi.IsExpansionRomSelected());
+
+        other.GetSlotPage().Read (0xC500);
+        Assert::IsFalse (scsi.IsExpansionRomSelected(), L"only the last card whose page was accessed drives $C800");
+        Assert::IsTrue  (other.IsExpansionRomSelected());
+    }
+
+
     //  A ROM OF THE WRONG SIZE IS NOT TAKEN.
     TEST_METHOD (WrongSizeFirmware)
     {

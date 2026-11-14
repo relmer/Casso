@@ -3,6 +3,7 @@
 #include "../../CassoEmuCore/Pch.h"
 
 #include "Core/MachineConfig.h"
+#include "FakeDiskFileIo.h"
 #include "Core/Prng.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
@@ -84,6 +85,10 @@ public:
     //  nothing left to say.
     explicit TestMachine (const std::string & machineId, Slots slots = Slots::AsShipped);
 
+    //  The devices go first, while the in-memory file system their images
+    //  are written through still exists.
+    ~TestMachine();
+
     //  As above, with the loaded config passed to `configure` before the build,
     //  for a test that turns on a card the shipped config lists as off.
     TestMachine (const std::string                         & machineId,
@@ -142,6 +147,12 @@ private:
 
     void  Construct (const std::string & machineId, Slots slots, const Customize & customize);
 
+    //  The stock hard disk image and any block device image are made and read
+    //  here unless a test passes its own file system.
+    static constexpr const char *  kpszStockFolder = "C:\\Casso\\Disks";
+
     MachineBuildServices  m_nothingListening;
     MachineBuilder        m_builder;
+    FakeDiskFileIo        m_blockFiles;
+    bool                  m_hasOwnBlockFiles = false;
 };

@@ -3,7 +3,7 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the embedded defaults) and edit that copy.
 {
-    "$cassoMachineVersion": 10,
+    "$cassoMachineVersion": 11,
     "name": "Apple //e Enhanced",
     "releaseYear": 1985,
     "timing": {
@@ -27,6 +27,11 @@
         // are used, so the card always declares two ports. An empty string
         // detaches that drive without changing the card.
         { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom",
-          "ports": ["disk-ii-drive", "disk-ii-drive"] }
+          "ports": ["disk-ii-drive", "disk-ii-drive"] },
+        // The Apple II SCSI Card's ports are SCSI IDs 0-6. The HD20SC at ID 6
+        // has the stock image, an empty 32 MB ProDOS volume, which the card's
+        // ROM passes over so the floppy in slot 6 still boots.
+        { "slot": 7, "device": "apple-scsi-card", "rom": "341-0437-A.rom",
+          "ports": [ "", "", "", "", "", "", { "device": "hd20sc", "image": "stock" } ] }
     ]
 }

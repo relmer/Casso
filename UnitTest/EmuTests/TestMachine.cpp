@@ -36,6 +36,22 @@ TestMachine::TestMachine (const std::string & machineId, Slots slots)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TestMachine::~TestMachine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TestMachine::~TestMachine()
+{
+    GetRefs() = {};
+    GetOwnedDevices().clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TestMachine::TestMachine (customized)
 //
 //  The builder copies its services when it is constructed, so they are
@@ -76,6 +92,7 @@ TestMachine::TestMachine (
 
 
     SetBlockMediaFileIo (&fileIo);
+    m_hasOwnBlockFiles = true;
 
     Construct (machineId, slots, [&] (MachineConfig & config, MachineBuildServices &)
     {
@@ -250,6 +267,13 @@ void TestMachine::BuildFrom (const std::string & machineId, const MachineConfig 
 
     SetPrng (std::make_unique<Prng> (kSeed));
     SetCurrentMachineName (wide);
+    SetStockImageFolder (kpszStockFolder);
+
+    if (!m_hasOwnBlockFiles)
+    {
+        SetBlockMediaFileIo (&m_blockFiles);
+    }
+
     GetConfig() = config;
 
     hr = m_builder.Build (config);

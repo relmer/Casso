@@ -2090,7 +2090,7 @@ void MachineBuilder::WireSuperSerialCard (const SlotConfig & slot, SuperSerialCa
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineBuilder::AddExpansionRomCard (int slot, IExpansionRomCard & card, MemoryDevice & slotPage)
+void MachineBuilder::AddExpansionRomCard (int slot, IExpansionRomCard & card, SlotRomPage & slotPage)
 {
     MachineRefs  & refs = m_host.GetRefs();
 
@@ -2115,6 +2115,7 @@ void MachineBuilder::AddExpansionRomCard (int slot, IExpansionRomCard & card, Me
     }
 
     refs.expansionRomBus->AddCard (&card);
+    slotPage.SetExpansionBus (refs.expansionRomBus);
 
     if (m_host.GetMmu() != nullptr)
     {
