@@ -29,6 +29,13 @@ public:
 
         Assert::AreEqual (std::wstring (L"No Full Send is in progress. Press F on the Apple's CassoLink screen to start one."), FullSendPanel::DescribeActivity (snapshot));
 
+        snapshot.activity = FullSendActivity::Starting;
+        Assert::AreEqual (std::wstring (L"The Apple is waiting for disks to send."), FullSendPanel::DescribeActivity (snapshot), L"No model");
+        Assert::AreEqual (std::wstring (L"The Apple //c is waiting for disks to send."), FullSendPanel::DescribeActivity (snapshot, L"Apple //c (ROM 3)"), L"The model without its ROM");
+
+        snapshot.activity = FullSendActivity::WaitingForDisk;
+        Assert::AreEqual (std::wstring (L"The Apple //e is waiting for more disks to send."), FullSendPanel::DescribeActivity (snapshot, L"Apple //e"));
+
         snapshot.activity = FullSendActivity::Sending;
         snapshot.drive    = 2;
         Assert::AreEqual (std::wstring (L"Sending the disk in drive 2."), FullSendPanel::DescribeActivity (snapshot));

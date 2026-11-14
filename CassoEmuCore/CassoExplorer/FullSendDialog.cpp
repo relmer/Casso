@@ -234,15 +234,19 @@ bool FullSendPanel::OnMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring FullSendPanel::DescribeActivity (const FullSendSnapshot & snapshot)
+std::wstring FullSendPanel::DescribeActivity (const FullSendSnapshot & snapshot, const std::wstring & machine)
 {
+    std::wstring  apple = machine.empty() ? std::wstring (L"Apple") : machine.substr (0, machine.find (L" ("));
+
+
+
     switch (snapshot.activity)
     {
-        case FullSendActivity::Starting:        return L"The Apple is waiting for disks to send.";
+        case FullSendActivity::Starting:        return std::format (L"The {} is waiting for disks to send.", apple);
         case FullSendActivity::Checking:        return std::format (L"Checking the disk in drive {}.", snapshot.drive);
         case FullSendActivity::Sending:         return std::format (L"Sending the disk in drive {}.", snapshot.drive);
         case FullSendActivity::Capturing:       return std::format (L"The disk in drive {} is likely copy-protected; using raw capture mode.", snapshot.drive);
-        case FullSendActivity::WaitingForDisk:  return L"The Apple is waiting for more disks to send.";
+        case FullSendActivity::WaitingForDisk:  return std::format (L"The {} is waiting for more disks to send.", apple);
         case FullSendActivity::WaitingForApple: return std::format (L"Waiting for the Apple to reply, {}.", FormatSeconds (snapshot.waited));
         case FullSendActivity::EditingPrefix:   return L"A file name prefix is being typed on the Apple.";
         case FullSendActivity::Ended:           return L"The session ended. " + TextEncoding::NarrowToWide (snapshot.reason);
@@ -511,7 +515,7 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
     m_cells.clear();
 
-    DrawLine (text, DescribeActivity (m_view.snapshot), left, top, width, theme.Foreground(), true);
+    DrawLine (text, DescribeActivity (m_view.snapshot, m_view.machine), left, top, width, theme.Foreground(), true);
 
     if (!m_view.connection.empty())
     {
