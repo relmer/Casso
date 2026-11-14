@@ -108,7 +108,7 @@ public:
         Assert::AreEqual (std::wstring (L"hall"), position.room);
         Assert::AreEqual (7,  position.score);
         Assert::AreEqual (12, position.moves);
-        Assert::AreEqual (std::string ("release 5, serial number 123456, hall, score 7, 12 moves"), InfocomSave::Describe (position));
+        Assert::AreEqual (std::string ("release 5: hall, score 7, 12 moves"), InfocomSave::Describe (position));
 
         Assert::IsFalse  (InfocomSave::TryReadPosition (disk, 1, position), L"nothing saved there");
     }
@@ -125,7 +125,7 @@ public:
 
         Assert::IsTrue   (InfocomSave::TryReadPosition (disk, 0, position));
         Assert::IsTrue   (position.isTimed);
-        Assert::AreEqual (std::string ("release 5, serial number 123456, hall, time 7:12"), InfocomSave::Describe (position));
+        Assert::AreEqual (std::string ("release 5: hall, time 7:12 AM"), InfocomSave::Describe (position));
     }
 
 

@@ -144,20 +144,24 @@ void InfocomSave::FindPositions (const std::vector<Byte> & sectors, std::vector<
 //
 //  InfocomSave::Describe
 //
+//  A timed story's hours are 0 to 23, written on a 12-hour clock as on
+//  its status line.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string InfocomSave::Describe (const Position & position)
 {
-    std::string  text = std::format ("release {}, serial number {}", position.release, position.serial);
+    std::string  text  = std::format ("release {}", position.release);
+    int          hours = (position.score % 12 == 0) ? 12 : position.score % 12;
 
 
 
     if (!position.room.empty())
     {
-        text += ", " + TextEncoding::WideToNarrow (position.room);
+        text += ": " + TextEncoding::WideToNarrow (position.room);
     }
 
-    text += position.isTimed ? std::format (", time {}:{:02}", position.score, position.moves)
+    text += position.isTimed ? std::format (", time {}:{:02} {}", hours, position.moves, (position.score < 12) ? "AM" : "PM")
                              : std::format (", score {}, {} {}", position.score, position.moves, (position.moves == 1) ? "move" : "moves");
 
     return text;

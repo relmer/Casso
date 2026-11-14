@@ -50,6 +50,7 @@ static constexpr wchar_t s_kchThinSpace      = L'\x2009';       // U+2009 THIN S
 static constexpr LPCWSTR s_kpszGreenCheck    = L"\x2705";       // U+2705 WHITE HEAVY CHECK MARK (✅, green via color-emoji font)
 static constexpr LPCWSTR s_kpszRedCross      = L"\x274C";       // U+274C CROSS MARK (❌, red via color-emoji font)
 static constexpr LPCWSTR s_kpszGrayQuestion  = L"\x2754";       // U+2754 WHITE QUESTION MARK ORNAMENT (❔, gray via color-emoji font)
+static constexpr LPCWSTR s_kpszSkull         = L"\x2620";       // U+2620 SKULL AND CROSSBONES, a cursed Wizardry item
 
 // Segoe MDL2 Assets icon-font glyphs (private use area; render only with
 // the "Segoe MDL2 Assets" family).

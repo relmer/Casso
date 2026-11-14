@@ -53,8 +53,8 @@ public:
     //  Position `number`, or false when it has no saved game.
     static bool  TryReadPosition (const std::vector<Byte> & sectors, int number, Position & outPosition);
 
-    //  One position as a line: the release and serial, the room and the
-    //  score and moves, or the time.
+    //  One position as a line: the release, the room and the score and
+    //  moves, or the time.
     static std::string  Describe (const Position & position);
 
 private:

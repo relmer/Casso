@@ -83,9 +83,18 @@ public:
     //  Where record n of a zone begins, or false when it isn't in the file.
     static bool  TryLocate    (std::span<const Byte> bytes, const Contents & contents, int zone, int index, size_t size, size_t & outAt);
 
-    //  A maze level as lines of text, north at the top, with the square at
-    //  partyX and partyY marked as the party's.
-    static void  DrawLevel    (std::span<const Byte> level, std::vector<std::wstring> & outLines, int partyX = -1, int partyY = -1);
+    //  A maze level as a picture in 32-bit BGRA pixels, north at the top,
+    //  with the square at partyX and partyY marked as the party's.
+    static void  RenderLevel  (std::span<const Byte> level, int partyX, int partyY, std::vector<uint32_t> & outBgra, int & outWidth, int & outHeight);
+
+    //  The game's number in Roman numerals and its title, from the name in
+    //  the table of contents.
+    static std::wstring  GetTitle (const std::wstring & name);
+
+    //  A name from the game, in capitals, with each word capitalized, and a
+    //  number with commas between its groups of three digits.
+    static std::wstring  ToTitleCase (const std::wstring & name);
+    static std::wstring  GroupDigits (uint64_t value);
 
     //  Where the party is, from the characters' records, or false when no
     //  character is in the maze.
@@ -129,6 +138,7 @@ private:
     static std::wstring  GetName      (const std::vector<std::wstring> & names, int index);
 
     static std::wstring  GetItemName    (std::span<const Byte> bytes, const Contents & contents, int item, bool identified);
-    static void          ListRoster     (std::span<const Byte> bytes, const Contents & contents, std::vector<std::wstring> & ioLines, std::vector<std::wstring> & ioNotes);
-    static void          DrawPartyLevel (std::span<const Byte> bytes, const Contents & contents, std::vector<std::wstring> & ioLines, std::vector<std::wstring> & ioNotes);
+    static void          ListRoster     (std::span<const Byte> bytes, const Contents & contents, std::vector<Paragraph> & ioParagraphs, std::vector<std::wstring> & ioNotes);
+    static void          DrawPartyLevel (std::span<const Byte> bytes, const Contents & contents, std::vector<Paragraph> & ioParagraphs, std::vector<std::wstring> & ioNotes);
+    static Paragraph     MakeParagraph  (std::vector<Run> runs);
 };

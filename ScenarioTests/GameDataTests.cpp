@@ -8,6 +8,7 @@
 #include "Devices/Disk/FilePath.h"
 #include "FileTypes/FileFormatTable.h"
 #include "FileTypes/WizardryScenario.h"
+#include "Core/UnicodeSymbols.h"
 #include "Machines/Apple2/Common/InfocomSave.h"
 #include "Machines/Apple2/Common/InfocomVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -75,9 +76,39 @@ public:
     }
 
 
+    //  Each line of a decoded file, or each paragraph of a document with its
+    //  runs joined.
+    static std::vector<std::wstring> GetTexts (const DecodedFile & file)
+    {
+        std::vector<std::wstring>  texts = file.lines;
+
+        for (const Paragraph & paragraph : file.paragraphs)
+        {
+            std::wstring  text;
+
+            for (const Run & run : paragraph.runs)
+            {
+                text += run.text;
+            }
+
+            texts.push_back (text);
+        }
+
+        return texts;
+    }
+
+
     static bool HasLineStarting (const DecodedFile & file, const std::wstring & start)
     {
-        return std::any_of (file.lines.begin(), file.lines.end(), [&] (const std::wstring & line) { return line.starts_with (start); });
+        std::vector<std::wstring>  texts = GetTexts (file);
+
+        return std::any_of (texts.begin(), texts.end(), [&] (const std::wstring & line) { return line.starts_with (start); });
+    }
+
+
+    static bool HasPicture (const DecodedFile & file)
+    {
+        return std::any_of (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & paragraph) { return !paragraph.picture.empty(); });
     }
 
 
@@ -113,11 +144,11 @@ public:
 
 
 
-        Assert::AreEqual (std::wstring (L"PROVING GROUNDS OF THE MAD OVERLORD!"), file.lines[0]);
-        Assert::AreEqual (std::wstring (L"Wizardry saved game: 0 characters"), file.lines[1]);
+        Assert::AreEqual (std::wstring (L"Wizardry I: Proving Grounds of the Mad Overlord"), GetTexts (file)[0]);
+        Assert::AreEqual (std::wstring (L"Saved game: 0 characters"), GetTexts (file)[1]);
         Assert::IsTrue   (HasLineStarting (file, L"No characters."));
-        Assert::IsFalse  (HasLineStarting (file, L"   0  BUBBLY SLIME"), L"the scenario's monsters aren't listed");
-        Assert::IsFalse  (HasLineStarting (file, L"MAZE LEVEL"));
+        Assert::IsFalse  (HasLineStarting (file, L"BUBBLY SLIME"), L"the scenario's monsters aren't listed");
+        Assert::IsFalse  (HasPicture (file));
     }
 
 
@@ -128,11 +159,12 @@ public:
 
 
 
-        Assert::AreEqual (std::wstring (L"THE KNIGHT OF DIAMONDS"), file.lines[0]);
-        Assert::AreEqual (std::wstring (L"Wizardry saved game: 4 characters"), file.lines[1]);
-        Assert::IsTrue   (HasLineStarting (file, L"THUG             HUMAN   FIGHTER     38  OK        338/338       121657      7811260  NEUTRAL"));
-        Assert::IsTrue   (HasLineStarting (file, L"    *KOD'S GAUNTLETS"));
-        Assert::IsTrue   (HasLineStarting (file, L"     DAMIEN STONE"));
+        Assert::AreEqual (std::wstring (L"Wizardry II: The Knight of Diamonds"), GetTexts (file)[0]);
+        Assert::AreEqual (std::wstring (L"Saved game: 4 characters"), GetTexts (file)[1]);
+        Assert::IsTrue   (HasLineStarting (file, L"THUG   Level 38 Human Fighter, Neutral"));
+        Assert::IsTrue   (HasLineStarting (file, L"Status: OK   Hit points: 338/338   Gold: 121,657   Experience: 7,811,260"));
+        Assert::IsTrue   (HasLineStarting (file, std::wstring (L"      ") + s_kpszCheckMark + L" KOD'S GAUNTLETS"));
+        Assert::IsTrue   (HasLineStarting (file, L"           DAMIEN STONE"), L"in the inventory, not equipped");
     }
 
 
@@ -142,8 +174,8 @@ public:
 
 
 
-        Assert::AreEqual (std::wstring (L"THE LEGACY OF LLYLGAMYN"), file.lines[0]);
-        Assert::AreEqual (std::wstring (L"Wizardry saved game: 0 characters"), file.lines[1]);
+        Assert::AreEqual (std::wstring (L"Wizardry III: Legacy of Llylgamyn"), GetTexts (file)[0]);
+        Assert::AreEqual (std::wstring (L"Saved game: 0 characters"), GetTexts (file)[1]);
     }
 
 
@@ -165,13 +197,13 @@ public:
 
         file = DecodeScenario (image, "wizardry-played.dsk");
 
-        Assert::AreEqual (std::wstring (L"Wizardry saved game: 5 characters"), file.lines[1]);
-        Assert::IsTrue   (HasLineStarting (file, L"BART             HUMAN   SAMURAI      2  OK          29/29           32         1441  GOOD"));
-        Assert::IsTrue   (HasLineStarting (file, L"    *MURASAMA BLADE"));
-        Assert::IsTrue   (HasLineStarting (file, L"     BLADE CUSINART'"), L"carried, not equipped");
-        Assert::IsTrue   (HasLineStarting (file, L"DIRTY DAN        GNOME   SAMURAI      2  OK          18/18        20713         1441  NEUTRAL"));
+        Assert::AreEqual (std::wstring (L"Saved game: 5 characters"), GetTexts (file)[1]);
+        Assert::IsTrue   (HasLineStarting (file, L"BART   Level 2 Human Samurai, Good"));
+        Assert::IsTrue   (HasLineStarting (file, std::wstring (L"      ") + s_kpszCheckMark + L" MURASAMA BLADE"));
+        Assert::IsTrue   (HasLineStarting (file, L"           BLADE CUSINART'"), L"in the inventory, not equipped");
+        Assert::IsTrue   (HasLineStarting (file, L"DIRTY DAN   Level 2 Gnome Samurai, Neutral"));
         Assert::IsFalse  (HasLineStarting (file, L"CHUNKY"), L"a deleted character");
-        Assert::IsFalse  (HasLineStarting (file, L"MAZE LEVEL"));
+        Assert::IsFalse  (HasPicture (file));
     }
 
 
@@ -272,7 +304,7 @@ public:
 
 
     //  Types `text` a key at a time, then RETURN when `enter`, and runs on
-    //  long enough for the interpreter's reply to reach the screen.
+    //  long enough for the interpreter to print its response.
     static void TypeToZork (MachineHost & machine, const std::string & text, bool enter = true)
     {
         constexpr uint64_t  kPerKey   = 900'000ULL;
@@ -334,6 +366,6 @@ public:
         InfocomSave::FindPositions (saved, positions);
 
         Assert::AreEqual ((size_t) 1, positions.size());
-        Assert::AreEqual (std::string ("release 88, serial number 840726, Kitchen, score 10, 4 moves"), InfocomSave::Describe (positions[0]));
+        Assert::AreEqual (std::string ("release 88: Kitchen, score 10, 4 moves"), InfocomSave::Describe (positions[0]));
     }
 };
