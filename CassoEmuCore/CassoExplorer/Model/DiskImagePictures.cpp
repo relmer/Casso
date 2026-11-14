@@ -373,7 +373,9 @@ std::vector<std::string> DiskImagePictures::GetKeys (const std::vector<std::wstr
 
         for (const std::filesystem::directory_entry & entry : std::filesystem::recursive_directory_iterator (path, std::filesystem::directory_options::skip_permission_denied, error))
         {
-            if (entry.is_regular_file (error) && SUCCEEDED (DiskImageStore::GetSourceFormatByExtension (TextEncoding::WideToNarrow (entry.path().wstring()), format)))
+            HRESULT  hrFormat = entry.is_regular_file (error) ? DiskImageStore::GetSourceFormatByExtension (TextEncoding::WideToNarrow (entry.path().wstring()), format) : E_FAIL;
+
+            if (SUCCEEDED (hrFormat))
             {
                 files.push_back (entry.path().wstring());
             }

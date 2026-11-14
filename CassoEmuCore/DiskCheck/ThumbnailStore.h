@@ -103,23 +103,23 @@ private:
 
     using Fields = std::vector<std::pair<std::string, JsonValue>>;
 
-    std::filesystem::path  GetPath           (const std::string & hash, const wchar_t * suffix) const;
-    int                    GetClears         () const;
+    std::filesystem::path  GetPath            (const std::string & hash, const wchar_t * suffix) const;
+    int                    GetClears          () const;
     std::string            FormatStreamRecord (const ThumbnailRecord & record, bool isUserSet) const;
-    static HRESULT         ReadFile          (const std::filesystem::path & path, std::vector<Byte> & outBytes);
-    static HRESULT         WriteFile         (const std::filesystem::path & path, std::span<const Byte> bytes);
-    static HRESULT         WriteStreams      (const std::filesystem::path & image, std::span<const Byte> png, const std::string & record);
-    static HRESULT         ParseRecord       (std::span<const Byte> bytes, ThumbnailRecord & outRecord, bool & outIsUserSet, int & outClears);
-    static Fields          GetRecordFields   (const ThumbnailRecord & record);
-    static bool            IsHashName        (const std::wstring & file);
-    HRESULT                ReadRecord        (const std::string & hash, ThumbnailRecord & outRecord) const;
-    HRESULT                WriteRecord       (const std::string & hash, const ThumbnailRecord & record) const;
-    HRESULT                RefreshStreams    (const std::filesystem::path & image, std::span<const Byte> png, const ThumbnailRecord & record, bool isUserSet) const;
+    static HRESULT         ReadFile           (const std::filesystem::path & path, std::vector<Byte> & outBytes);
+    static HRESULT         WriteFile          (const std::filesystem::path & path, std::span<const Byte> bytes);
+    static HRESULT         WriteStreams       (const std::filesystem::path & image, std::span<const Byte> png, const std::string & record);
+    static HRESULT         ParseRecord        (std::span<const Byte> bytes, ThumbnailRecord & outRecord, bool & outIsUserSet, int & outClears);
+    static Fields          GetRecordFields    (const ThumbnailRecord & record);
+    static bool            IsHashName         (const std::wstring & file);
+    HRESULT                ReadRecord         (const std::string & hash, ThumbnailRecord & outRecord) const;
+    HRESULT                WriteRecord        (const std::string & hash, const ThumbnailRecord & record) const;
+    HRESULT                RefreshStreams     (const std::filesystem::path & image, std::span<const Byte> png, const ThumbnailRecord & record, bool isUserSet) const;
 
-    static constexpr const wchar_t *  s_kBooted = L".png";
-    static constexpr const wchar_t *  s_kByUser = L".user.png";
-    static constexpr const wchar_t *  s_kRecord = L".json";
-    static constexpr const wchar_t *  s_kClears = L"clears.txt";
+    static constexpr const wchar_t *  s_kBooted    = L".png";
+    static constexpr const wchar_t *  s_kByUser    = L".user.png";
+    static constexpr const wchar_t *  s_kRecord    = L".json";
+    static constexpr const wchar_t *  s_kClears    = L"clears.txt";
     static constexpr size_t           s_kHashChars = 64;
 
     std::filesystem::path                m_folder;
