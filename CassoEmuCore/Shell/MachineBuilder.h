@@ -9,6 +9,10 @@ class Acia6551;
 class Apple35ControllerCard;
 class LironCard;
 class Disk2Controller;
+class IDriveAudioSource;
+class Apple2cPlusDiskPort;
+class SmartPortHost;
+struct PortConfig;
 class AppleScsiCard;
 class ProFileCard;
 class IExpansionRomCard;
@@ -60,6 +64,7 @@ struct SlotConfig;
 struct MachineBuildServices
 {
     std::vector<std::unique_ptr<Disk2AudioSource>>  *  diskAudioSources       = nullptr;
+    std::vector<std::unique_ptr<IDriveAudioSource>> *  deviceAudioSources     = nullptr;   // the 3.5-inch drives' and hard disks'
     DriveAudioMixer                                 *  driveAudioMixer        = nullptr;
     DriveAudioMixer                                 *  mockingboardAudioMixer = nullptr;
     PrinterAudioSource                              *  printerAudio           = nullptr;
@@ -174,6 +179,10 @@ private:
     void     WireApple35Card      (const SlotConfig & slot, Apple35ControllerCard & card);
     void     WireLironCard        (const SlotConfig & slot, LironCard & card);
     void     WireDiskPortChain    (Disk2Controller & controller);
+    void     WireApple2cPlusDrives (Apple2cPlusDiskPort & port);
+    void     WireMig              ();
+    void     WireDeviceAudio      ();
+    void     AddChainDrives       (const PortConfig & port, SmartPortHost & host);
     void     AddExpansionRomCard  (int slot, IExpansionRomCard & card, SlotRomPage & slotPage);
 
     MachineHost          &  m_host;

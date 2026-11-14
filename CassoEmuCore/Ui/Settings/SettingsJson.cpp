@@ -731,6 +731,12 @@ HRESULT SettingsJson::ExtractMachineInfo (
         {
             outInfo.clockSpeed = 0;
         }
+
+        hrRead = timingObj->GetUint32 ("cpuClockSpeed", outInfo.cpuClockSpeed);
+        if (FAILED (hrRead))
+        {
+            outInfo.cpuClockSpeed = 0;
+        }
     }
 
     hrRead = mergedJson.GetArray ("ram", ramArray);

@@ -389,6 +389,22 @@ the accelerator switched to normal by software or by Esc, "Authentic" runs at
 **To verify**: the slowdown durations, and the external chain's order rules
 (3.5-inch drives before SmartPort devices before 5.25-inch drives).
 
+**Checked** (2026-11-14, MAME's `apple2e.cpp`, read for behavior): fast is
+4 MHz and normal 1.0218 MHz. Four writes of `$5A` to `$C05A` unlock, `$A5`
+locks, and any other value there while unlocked selects normal; `$08` to
+`$C05B` while unlocked selects fast. `$C05C` is the slowdown mask, bit 0 the
+speaker and bits 1-7 slots 1-7, `$E4` at power-on. An access to a masked
+slot's `$C0n0-$C0nF` slows the machine for 52 ms; a speaker toggle or a
+paddle trigger with the delay on, for 5 ms. `$C05E` bit 7 written set turns
+the temporary delays off. The machine starts fast at reset. The MIG's
+registers answer only while the alternate ROM bank is switched in, its RAM
+pointer moves in `$20` steps and wraps at 2 KB, and switching the bank out
+clears the pointer, the internal drive enable and the 3.5 select. With IWM
+drive 2 selected and the internal drive enabled, the drive is the internal
+3.5-inch drive; with drive 1 selected, it is the external port's 5.25-inch
+drive, or with 3.5 select on, an external 3.5-inch drive. Reads of
+`$CE40` and `$CE60` select head 0 and head 1.
+
 ## R13. Drive sounds
 
 **Checked**: OpenEmulator's samples, the source of the Disk II sounds, cover

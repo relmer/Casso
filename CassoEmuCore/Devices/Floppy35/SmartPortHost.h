@@ -53,6 +53,7 @@ public:
     size_t            GetDriveCount () const { return m_drives.size(); }
     UniDisk35Drive  & GetDrive      (size_t index) { return *m_drives[index]; }
     SmartPortBus    & GetBus        () { return m_bus; }
+    const SmartPortBus & GetBus     () const { return m_bus; }
     Iwm             & GetIwm        () { return m_iwm; }
 
 private:

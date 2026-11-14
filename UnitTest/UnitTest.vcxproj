@@ -870,6 +870,8 @@
     <ClCompile Include="Floppy35Tests\Apple35ControllerCardTests.cpp" />
     <ClCompile Include="Floppy35Tests\SmartPortBusTests.cpp" />
     <ClCompile Include="Floppy35Tests\DiskPortChainTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\DefaultCardsTests.cpp" />
+    <ClCompile Include="EmuTests\Apple2cPlusDeviceTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />

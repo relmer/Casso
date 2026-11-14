@@ -39,8 +39,8 @@ public:
     {
         std::vector<std::string>  ids = MachineDefinitions::GetKnownIds();
 
-        Assert::AreEqual (size_t (5), ids.size(),
-                          L"five machines ship, so five definitions exist");
+        Assert::AreEqual (size_t (6), ids.size(),
+                          L"six machines ship, so six definitions exist");
 
         for (const std::string & id : ids)
         {

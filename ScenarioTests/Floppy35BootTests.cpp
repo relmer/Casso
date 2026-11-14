@@ -10,7 +10,9 @@
 #include "Core/TextEncoding.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
+#include "Devices/Floppy35/Apple2cPlusDiskPort.h"
 #include "Devices/Floppy35/Apple2cSmartPort.h"
+#include "Machines/Apple2/Apple2cPlus/MigChip.h"
 #include "Devices/Floppy35/Apple35ControllerCard.h"
 #include "Devices/Floppy35/Gcr35Track.h"
 #include "Devices/Floppy35/LironCard.h"
@@ -335,15 +337,17 @@ public:
     {
         FakeDiskFileIo           io;
         std::vector<PortConfig>  ports;
-        std::vector<PortConfig>  chain (1);
+        std::vector<PortConfig>  diskPort (1);
 
 
 
         Attach (io, Make800K (GuestSession::RequireProDosUsersDisk()), ports);
-        chain[0].device = kpszUniDisk35Device;
-        chain[0].image  = kDiskPath;
+        diskPort[0].name = "disk";
+        diskPort[0].chain.resize (1);
+        diskPort[0].chain[0].device = kpszUniDisk35Device;
+        diskPort[0].chain[0].image  = kDiskPath;
 
-        TestMachine  machine ("Apple2c", chain, io);
+        TestMachine  machine ("Apple2c", diskPort, io);
 
         Assert::IsTrue (machine.GetBlockMediaProblems().empty());
         Assert::IsNotNull (machine.GetRefs().apple2cSmartPort);
@@ -353,6 +357,36 @@ public:
         GuestSession::StartFromPowerOn (machine);
 
         Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots from the UniDisk on the disk port");
+    }
+
+
+    //  THE //C PLUS BOOTS AN 800K DISK IN ITS INTERNAL APPLE 3.5 DRIVE through
+    //  ROM 05, the IWM driving the drive through the MIG at the accelerator's
+    //  4 MHz.
+    TEST_METHOD (Apple2cPlus_BootsFromTheInternalDrive)
+    {
+        FakeDiskFileIo           io;
+        std::vector<PortConfig>  ports;
+        std::vector<PortConfig>  internal (1);
+
+
+
+        Attach (io, Make800K (GuestSession::RequireProDosUsersDisk()), ports);
+        internal[0].name   = "internal";
+        internal[0].device = kpszApple35DriveDevice;
+        internal[0].image  = kDiskPath;
+
+        TestMachine  machine ("Apple2cPlus", internal, io);
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsNotNull (machine.GetRefs().apple2cPlusDiskPort);
+        Assert::IsNotNull (machine.GetAccelerator());
+        Assert::IsTrue (machine.GetRefs().apple2cPlusDiskPort->GetInternalDrive().HasDisk());
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots from the internal drive");
     }
 
 

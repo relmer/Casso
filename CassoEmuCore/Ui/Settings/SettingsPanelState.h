@@ -207,6 +207,7 @@ struct SettingsMachineInfo
     std::string                          cpu;
     std::string                          cpuManufacturer;
     uint32_t                             clockSpeed    = 0;
+    uint32_t                             cpuClockSpeed = 0;   // the CPU's clock when an accelerator runs it faster than the machine; 0 when it doesn't
     std::string                          ramSummary;    // "128K RAM" total, ROM excluded
     std::vector<SettingsMemoryRegion>    memoryRegions;
     size_t                               devices       = 0;

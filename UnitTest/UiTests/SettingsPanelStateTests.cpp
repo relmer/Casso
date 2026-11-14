@@ -139,6 +139,25 @@ public:
     })JSON";
 
 
+    //  A machine whose accelerator runs the CPU faster than the machine has
+    //  the CPU's clock beside the machine's; another machine has 0.
+    TEST_METHOD (Load_CpuClockSpeedFromTiming)
+    {
+        SettingsPanelState  st;
+        JsonValue           fast  = ParseOrFail (R"JSON({ "name": "Fast", "timing": { "clockSpeed": 1020484, "cpuClockSpeed": 4000000 } })JSON");
+        JsonValue           plain = ParseOrFail (kFixtureJson);
+
+
+
+        AssertSucceeded (st.LoadFromMachine ("Fast", fast, fast));
+        Assert::AreEqual (4000000u, st.GetMachineInfo().cpuClockSpeed);
+        Assert::AreEqual (1020484u, st.GetMachineInfo().clockSpeed);
+
+        AssertSucceeded (st.LoadFromMachine ("TestMachine", plain, plain));
+        Assert::AreEqual (0u, st.GetMachineInfo().cpuClockSpeed);
+    }
+
+
     TEST_METHOD (Load_Defaults_NotDirty_NoResetRequired)
     {
         SettingsPanelState  st;

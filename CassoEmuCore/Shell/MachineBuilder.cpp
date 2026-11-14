@@ -52,7 +52,12 @@
 #include "Devices/BlockDevice/AppleScsiCard.h"
 #include "Devices/BlockDevice/ProFileCard.h"
 #include "Devices/Floppy35/Apple35ControllerCard.h"
+#include "Audio/Floppy35AudioSource.h"
+#include "Audio/HardDiskAudioSource.h"
+#include "Devices/Floppy35/Apple2cPlusDiskPort.h"
 #include "Devices/Floppy35/Apple2cSmartPort.h"
+#include "Machines/Apple2/Apple2cPlus/Apple2cPlusAccelerator.h"
+#include "Machines/Apple2/Apple2cPlus/MigChip.h"
 #include "Devices/Floppy35/LironCard.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/BlockDevice/ScsiHardDisk.h"
@@ -115,6 +120,10 @@ HRESULT MachineBuilder::Build (const MachineConfig & config)
     // so $C800 floats and the firmware derails to a garbage screen. No-op for
     // non-banked machines (romBankSize == 0).
     WireBankedRom();
+
+    // //c Plus: the MIG is in the internal ROM window, so it goes in
+    // after the bank coordinator it consults.
+    WireMig();
 
     CreateVideoModes();
 
@@ -572,11 +581,22 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
 
     if (m_host.GetConfig().systemRom.romBankSize != 0)
     {
-        auto iwm = std::make_unique<Disk2Controller> (6);
-        iwm->SetIwmMode (true);
-        WireDiskPortChain (*iwm);
-        m_host.GetMemoryBus().AddDevice (iwm.get());
-        m_host.GetOwnedDevices().push_back (std::move (iwm));
+        if (m_host.GetCurrentMachineName() == L"Apple2cPlus")
+        {
+            auto port = std::make_unique<Apple2cPlusDiskPort>();
+
+            WireApple2cPlusDrives (*port);
+            m_host.GetMemoryBus().AddDevice (port.get());
+            m_host.GetOwnedDevices().push_back (std::move (port));
+        }
+        else
+        {
+            auto iwm = std::make_unique<Disk2Controller> (6);
+            iwm->SetIwmMode (true);
+            WireDiskPortChain (*iwm);
+            m_host.GetMemoryBus().AddDevice (iwm.get());
+            m_host.GetOwnedDevices().push_back (std::move (iwm));
+        }
 
         // //c built-in IOU mouse: not a bus device -- the keyboard
         // ($C048 ack, $C063 button) and soft-switch bank ($C015/$C017/$C019
@@ -744,6 +764,8 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         {
             m_host.GetRefs().diskController->SetAudioSink ((*m_services.diskAudioSources)[0].get());
         }
+
+        WireDeviceAudio();
     }
 
     // Bytes from the last machine that were never drained are not this
@@ -1683,6 +1705,12 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         m_host.GetRefs().apple2cSmartPort->GetPort().SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed);
     }
 
+    if (m_host.GetRefs().apple2cPlusDiskPort != nullptr)
+    {
+        m_host.GetRefs().apple2cPlusDiskPort->GetPort().SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed);
+        m_host.SetAccelerator (std::make_unique<Apple2cPlusAccelerator> (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed));
+    }
+
     if (m_host.GetRefs().diskController != nullptr)
     {
         m_host.GetRefs().diskController->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
@@ -2500,58 +2528,248 @@ void MachineBuilder::WireDiskPortChain (Disk2Controller & controller)
         hasFloppy = port.chain.back().device == kpszDiskIicDevice;
         chain     = std::make_unique<Apple2cSmartPort> (hasFloppy);
 
-        for (size_t index = 0; index < port.chain.size(); index++)
-        {
-            const PortConfig                & entry = port.chain[index];
-            std::unique_ptr<UniDisk35Drive>   drive;
-            vector<Byte>                      driveRom;
-            std::wstring                      error;
-            HRESULT                           hr    = S_OK;
-
-
-
-            if (entry.device != kpszUniDisk35Device)
-            {
-                continue;
-            }
-
-            if (entry.firmwarePath.empty())
-            {
-                m_host.GetBlockMediaProblems().push_back (std::format (L"Disk port, drive {}: the UniDisk 3.5's ROM, Devices/UniDisk35/UniDisk35.rom, is missing.", index + 1));
-                continue;
-            }
-
-            drive = std::make_unique<UniDisk35Drive>();
-
-            hr = ReadRomFileBytes (entry.firmwarePath, driveRom);
-
-            if (SUCCEEDED (hr))
-            {
-                hr = drive->SetFirmware (move (driveRom));
-            }
-
-            if (FAILED (hr))
-            {
-                continue;
-            }
-
-            if (!entry.image.empty())
-            {
-                hr = drive->GetMechanism().Insert (m_host.GetBlockMediaFileIo(), entry.image, m_host.ProbeBlockMedia (entry.image), error);
-
-                if (FAILED (hr))
-                {
-                    m_host.GetBlockMediaProblems().push_back (std::format (L"Disk port, drive {}: {}", index + 1, error));
-                }
-            }
-
-            chain->GetPort().AddDrive (std::move (drive));
-        }
+        AddChainDrives (port, chain->GetPort());
 
         controller.SetPortHook (chain.get());
         m_host.GetRefs().apple2cSmartPort = chain.get();
         m_host.GetRefs().floppy35Sources.push_back (chain.get());
         m_host.GetOwnedDevices().push_back (std::move (chain));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddChainDrives
+//
+//  A UniDisk 3.5 for each of a port's chain entries, with its ROM and its
+//  disk. A drive without its ROM is left off the chain, and a drive whose
+//  disk fails to insert is empty; each reason is added to the machine's
+//  media problems.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::AddChainDrives (const PortConfig & port, SmartPortHost & host)
+{
+    for (size_t index = 0; index < port.chain.size(); index++)
+    {
+        const PortConfig                & entry = port.chain[index];
+        std::unique_ptr<UniDisk35Drive>   drive;
+        vector<Byte>                      driveRom;
+        std::wstring                      error;
+        HRESULT                           hr    = S_OK;
+
+
+
+        if (entry.device != kpszUniDisk35Device)
+        {
+            continue;
+        }
+
+        if (entry.firmwarePath.empty())
+        {
+            m_host.GetBlockMediaProblems().push_back (std::format (L"Disk port, drive {}: the UniDisk 3.5's ROM, Devices/UniDisk35/UniDisk35.rom, is missing.", index + 1));
+            continue;
+        }
+
+        drive = std::make_unique<UniDisk35Drive>();
+
+        hr = ReadRomFileBytes (entry.firmwarePath, driveRom);
+
+        if (SUCCEEDED (hr))
+        {
+            hr = drive->SetFirmware (move (driveRom));
+        }
+
+        if (FAILED (hr))
+        {
+            continue;
+        }
+
+        if (!entry.image.empty())
+        {
+            hr = drive->GetMechanism().Insert (m_host.GetBlockMediaFileIo(), entry.image, m_host.ProbeBlockMedia (entry.image), error);
+
+            if (FAILED (hr))
+            {
+                m_host.GetBlockMediaProblems().push_back (std::format (L"Disk port, drive {}: {}", index + 1, error));
+            }
+        }
+
+        host.AddDrive (std::move (drive));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireApple2cPlusDrives
+//
+//  The //c Plus's internal Apple 3.5 Drive, with the disk the machine's
+//  `internal` port has, and the disk port's chain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireApple2cPlusDrives (Apple2cPlusDiskPort & port)
+{
+    for (const PortConfig & entry : m_host.GetConfig().ports)
+    {
+        std::wstring  error;
+        HRESULT       hr = S_OK;
+
+
+
+        if (entry.name == "internal" && !entry.image.empty())
+        {
+            hr = port.GetInternalDrive().Insert (m_host.GetBlockMediaFileIo(), entry.image, m_host.ProbeBlockMedia (entry.image), error);
+
+            if (FAILED (hr))
+            {
+                m_host.GetBlockMediaProblems().push_back (std::format (L"Internal drive: {}", error));
+            }
+        }
+
+        if (!entry.chain.empty())
+        {
+            AddChainDrives (entry, port.GetPort());
+        }
+    }
+
+    m_host.GetRefs().apple2cPlusDiskPort = &port;
+    m_host.GetRefs().floppy35Sources.push_back (&port);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireMig
+//
+//  The //c Plus's MIG: in the internal ROM window ahead of the ROM, the
+//  switch for the internal drive, and the IWM's reset.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireMig()
+{
+    Apple2cPlusDiskPort       * port = m_host.GetRefs().apple2cPlusDiskPort;
+    std::unique_ptr<MigChip>    mig;
+
+
+
+    if (port == nullptr || m_host.GetMmu() == nullptr)
+    {
+        return;
+    }
+
+    mig = std::make_unique<MigChip> (m_host.GetApple2cRomBank());
+
+    m_host.GetMmu()->GetCxxxRouter()->SetWindowHandler (mig.get());
+    m_host.GetRefs().migChip = mig.get();
+    port->AdoptMig (std::move (mig));
+
+    m_host.GetMmu()->RebindCxxxInternalRom();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireDeviceAudio
+//
+//  A synthesized sound source for each 3.5-inch drive controller and each
+//  hard disk card, fed by its event feed and mixed with the Disk II's. A
+//  card's hard disks spin up from the machine's start.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireDeviceAudio()
+{
+    constexpr uint32_t  kHd20scSpinUpMs  = 10'000;
+    constexpr uint32_t  kProFileSpinUpMs = 4'000;
+    constexpr float     kHd20scTick      = 0.15f;
+    constexpr float     kProFileTick     = 0.25f;
+    MachineRefs       & refs             = m_host.GetRefs();
+    uint32_t            rate             = 0;
+    float               motor            = 1.0f;
+    float               head             = 1.0f;
+    float               door             = 1.0f;
+
+
+
+    if (m_services.deviceAudioSources == nullptr || m_services.driveAudioMixer == nullptr)
+    {
+        return;
+    }
+
+    m_services.deviceAudioSources->clear();
+
+    if (m_services.wasapiAudio != nullptr && m_services.wasapiAudio->IsInitialized())
+    {
+        rate = m_services.wasapiAudio->GetSampleRate();
+    }
+
+    if (m_services.driveMotorVolume != nullptr)
+    {
+        motor = *m_services.driveMotorVolume;
+        head  = *m_services.driveHeadVolume;
+        door  = *m_services.driveDoorVolume;
+    }
+
+    for (IFloppy35EventSource * source : refs.floppy35Sources)
+    {
+        auto  audio = std::make_unique<Floppy35AudioSource>();
+
+
+
+        audio->SetSampleRate (rate);
+        audio->SetVolumes (motor, head, door);
+        source->SetFloppy35EventSink (audio.get());
+        m_services.driveAudioMixer->RegisterSource (audio.get());
+        m_services.deviceAudioSources->push_back (std::move (audio));
+    }
+
+    for (AppleScsiCard * card : refs.scsiCards)
+    {
+        auto  audio = std::make_unique<HardDiskAudioSource> (kHd20scSpinUpMs, kHd20scTick);
+
+
+
+        audio->SetSampleRate (rate);
+        audio->SetVolumes (motor, head, door);
+
+        if (card->HasDrive())
+        {
+            audio->PowerOn();
+        }
+
+        card->SetBlockDeviceEventSink (audio.get());
+        m_services.driveAudioMixer->RegisterSource (audio.get());
+        m_services.deviceAudioSources->push_back (std::move (audio));
+    }
+
+    for (ProFileCard * card : refs.proFileCards)
+    {
+        auto  audio = std::make_unique<HardDiskAudioSource> (kProFileSpinUpMs, kProFileTick);
+
+
+
+        audio->SetSampleRate (rate);
+        audio->SetVolumes (motor, head, door);
+        audio->PowerOn();
+        card->SetBlockDeviceEventSink (audio.get());
+        m_services.driveAudioMixer->RegisterSource (audio.get());
+        m_services.deviceAudioSources->push_back (std::move (audio));
     }
 }
 

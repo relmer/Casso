@@ -1,7 +1,9 @@
 #include "Pch.h"
 
 #include "Shell/MachineHost.h"
+#include "Devices/Floppy35/Apple2cPlusDiskPort.h"
 #include "Devices/Floppy35/Apple2cSmartPort.h"
+#include "Machines/Apple2/Apple2cPlus/Apple2cPlusAccelerator.h"
 #include "Devices/Floppy35/Apple35ControllerCard.h"
 #include "Devices/Floppy35/LironCard.h"
 #include "CassoLink/RunningCassoRegistry.h"
@@ -236,6 +238,25 @@ void MachineHost::SetMouse (std::unique_ptr<AppleMouse> mouse)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineHost::SetAccelerator
+//
+//  The memory bus watches the soft switches for the accelerator, so the
+//  bus is pointed at the new one before the old one is deleted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetAccelerator (std::unique_ptr<Apple2cPlusAccelerator> accelerator)
+{
+    m_memoryBus->SetIoObserver (accelerator.get());
+    m_accelerator = std::move (accelerator);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineHost::SetJoyport
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -322,6 +343,14 @@ Byte MachineHost::StepOne()
     m_cpu->StepOne();
 
     cycles = m_cpu->GetLastInstructionCycles();
+
+    //  The //c Plus's accelerator runs the CPU faster than the machine's
+    //  clock, so the instruction takes fewer of the machine's cycles.
+    if (m_accelerator != nullptr)
+    {
+        cycles = m_accelerator->Scale (cycles);
+    }
+
     m_cpu->AddCycles (cycles);
 
     if (m_refs.diskController != nullptr)
@@ -956,6 +985,11 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
         m_refs.apple2cSmartPort->GetPort().CatchUp();
     }
 
+    if (m_refs.apple2cPlusDiskPort != nullptr)
+    {
+        m_refs.apple2cPlusDiskPort->GetPort().CatchUp();
+    }
+
     return (spent);
 }
 
@@ -991,6 +1025,11 @@ void MachineHost::SoftReset()
     }
 
     m_memoryBus->SoftResetAll();
+
+    if (m_accelerator != nullptr)
+    {
+        m_accelerator->Reset();
+    }
 
     if (m_mmu != nullptr)
     {
@@ -1060,6 +1099,11 @@ void MachineHost::PowerCycle()
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     m_memoryBus->PowerCycleAll (*m_prng);
+
+    if (m_accelerator != nullptr)
+    {
+        m_accelerator->Reset();
+    }
 
     // The Disk II controller's power cycle selects its empty disks, so the
     // drives are pointed back at the store's mounts. Without this, a disk

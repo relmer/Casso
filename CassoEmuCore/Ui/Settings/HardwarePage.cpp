@@ -451,7 +451,7 @@ void HardwarePage::Rebuild()
         }
 
         m_infoValues[s_kCpuRow].SetText    (cpuDisplay);
-        m_infoValues[s_kClockRow].SetText  (FormatGrouped (info->clockSpeed) + L" Hz");
+        m_infoValues[s_kClockRow].SetText  (FormatGrouped (info->cpuClockSpeed != 0 ? info->cpuClockSpeed : info->clockSpeed) + L" Hz");
         m_infoValues[s_kMemoryRow].SetText (Widen (info->ramSummary));   // RAM total on the header line
 
         // The total is all the page lists of memory; the regions, main and

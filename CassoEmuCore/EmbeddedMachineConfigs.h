@@ -38,7 +38,8 @@ inline constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
 {
     { IDR_MACHINE_APPLE2,          "Apple2",          "Apple2.json",         13 },
     { IDR_MACHINE_APPLE2PLUS,      "Apple2Plus",      "Apple2Plus.json",     16 },
-    { IDR_MACHINE_APPLE2E,         "Apple2e",         "Apple2e.json",        16 },
+    { IDR_MACHINE_APPLE2E,         "Apple2e",         "Apple2e.json",        17 },
     { IDR_MACHINE_APPLE2C,         "Apple2c",         "Apple2c.json",         6 },
-    { IDR_MACHINE_APPLE2E_ENHANCED,"Apple2eEnhanced", "Apple2eEnhanced.json",11 },
+    { IDR_MACHINE_APPLE2E_ENHANCED,"Apple2eEnhanced", "Apple2eEnhanced.json",12 },
+    { IDR_MACHINE_APPLE2C_PLUS,    "Apple2cPlus",     "Apple2cPlus.json",     1 },
 };

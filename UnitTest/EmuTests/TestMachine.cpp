@@ -124,13 +124,13 @@ TestMachine::TestMachine (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TestMachine::TestMachine (disk port chain)
+//  TestMachine::TestMachine (machine ports)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 TestMachine::TestMachine (
     const std::string              & machineId,
-    const std::vector<PortConfig>  & chain,
+    const std::vector<PortConfig>  & ports,
     IDiskFileIo                    & fileIo)
     : m_builder (*this, m_nothingListening)
 {
@@ -148,11 +148,11 @@ TestMachine::TestMachine (
 
 
 
-        for (PortConfig & port : config.ports)
+        for (const PortConfig & given : ports)
         {
-            if (port.name == "disk")
+            for (PortConfig & port : config.ports)
             {
-                port.chain = chain;
+                port = (port.name == given.name) ? given : port;
             }
         }
 

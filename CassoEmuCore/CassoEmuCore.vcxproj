@@ -1248,6 +1248,12 @@
     <ClCompile Include="Devices\Floppy35\LironCard.cpp" />
     <ClCompile Include="Devices\Floppy35\SmartPortHost.cpp" />
     <ClCompile Include="Devices\Floppy35\Apple2cSmartPort.cpp" />
+    <ClCompile Include="Devices\Floppy35\Apple2cPlusDiskPort.cpp" />
+    <ClCompile Include="Machines\Apple2\Apple2cPlus\MigChip.cpp" />
+    <ClCompile Include="Machines\Apple2\Apple2cPlus\Apple2cPlusAccelerator.cpp" />
+    <ClCompile Include="Audio\Floppy35AudioSource.cpp" />
+    <ClCompile Include="Audio\HardDiskAudioSource.cpp" />
+    <ClCompile Include="Ui\Settings\SlotCards.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
@@ -2174,6 +2180,13 @@
     <ClInclude Include="Devices\Floppy35\SmartPortHost.h" />
     <ClInclude Include="Devices\Floppy35\Apple2cSmartPort.h" />
     <ClInclude Include="Machines\Apple2\Common\IDiskPortHook.h" />
+    <ClInclude Include="Devices\Floppy35\Apple2cPlusDiskPort.h" />
+    <ClInclude Include="Machines\Apple2\Apple2cPlus\Apple2cPlus.h" />
+    <ClInclude Include="Machines\Apple2\Apple2cPlus\MigChip.h" />
+    <ClInclude Include="Machines\Apple2\Apple2cPlus\Apple2cPlusAccelerator.h" />
+    <ClInclude Include="Audio\Floppy35AudioSource.h" />
+    <ClInclude Include="Audio\HardDiskAudioSource.h" />
+    <ClInclude Include="Ui\Settings\SlotCards.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CassoLink\Apple\Program.s" />

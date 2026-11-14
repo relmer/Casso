@@ -4,6 +4,7 @@
 #include "Core/MemoryDevice.h"
 
 class Apple2eMmu;
+class IRomWindowHandler;
 class ExpansionRomBus;
 
 
@@ -80,6 +81,11 @@ public:
     // null, the range reads as the floating bus.
     void SetExpansionRomBus (ExpansionRomBus * bus) { m_expansionRomBus = bus; }
 
+    // The //c Plus's MIG, which takes some of the internal ROM window's
+    // addresses ahead of the ROM. Its pages stay off the fast path.
+    // Caller-owned; null for none.
+    void SetWindowHandler (IRomWindowHandler * handler) { m_windowHandler = handler; }
+
 private:
     Byte           ResolveByte            (Word address);
     MemoryDevice * GetSlotIoDevice        (Word address) const;
@@ -99,4 +105,7 @@ private:
 
     // The cards' shared expansion space; see SetExpansionRomBus.
     ExpansionRomBus *  m_expansionRomBus = nullptr;
+
+    // See SetWindowHandler.
+    IRomWindowHandler *  m_windowHandler = nullptr;
 };

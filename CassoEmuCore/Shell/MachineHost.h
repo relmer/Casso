@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Machines/Apple2/Apple2cPlus/Apple2cPlusAccelerator.h"
 #include "Core/ComponentRegistry.h"
 #include "Core/EmuCpu.h"
 #include "Core/InterruptController.h"
@@ -137,13 +138,14 @@ public:
     //  scratch on every machine switch. Null is a real answer for all but
     //  the CPU and the Prng: a ][ has no MMU, only a //c has the firmware
     //  bank and the IOU mouse.
-    EmuCpu          *  GetCpu             () noexcept { return m_cpu.get(); }
-    Prng            *  GetPrng            () noexcept { return m_prng.get(); }
-    Apple2eMmu      *  GetMmu             () noexcept { return m_mmu.get(); }
-    Apple2cRomBank  *  GetApple2cRomBank  () noexcept { return m_apple2cRomBank.get(); }
-    AppleMouse      *  GetMouse           () noexcept { return m_mouse.get(); }
-    SiriusJoyport   *  GetJoyport         () noexcept { return m_joyport.get(); }
-    VideoTiming     *  GetVideoTiming     () noexcept { return m_videoTiming.get(); }
+    EmuCpu                  * GetCpu            () noexcept { return m_cpu.get(); }
+    Prng                    * GetPrng           () noexcept { return m_prng.get(); }
+    Apple2eMmu              * GetMmu            () noexcept { return m_mmu.get(); }
+    Apple2cRomBank          * GetApple2cRomBank () noexcept { return m_apple2cRomBank.get(); }
+    AppleMouse              * GetMouse          () noexcept { return m_mouse.get(); }
+    Apple2cPlusAccelerator  * GetAccelerator    () noexcept { return m_accelerator.get(); }
+    SiriusJoyport           * GetJoyport        () noexcept { return m_joyport.get(); }
+    VideoTiming             * GetVideoTiming    () noexcept { return m_videoTiming.get(); }
 
     const EmuCpu          *  GetCpu            () const noexcept { return m_cpu.get(); }
     const Prng            *  GetPrng           () const noexcept { return m_prng.get(); }
@@ -158,6 +160,10 @@ public:
     void  SetMmu            (std::unique_ptr<Apple2eMmu>      mmu);
     void  SetApple2cRomBank (std::unique_ptr<Apple2cRomBank>  romBank);
     void  SetMouse          (std::unique_ptr<AppleMouse>      mouse);
+
+    //  The //c Plus's accelerator, which scales each instruction's cycles
+    //  and watches the soft switches; null on every other machine.
+    void  SetAccelerator    (std::unique_ptr<Apple2cPlusAccelerator> accelerator);
     void  SetJoyport        (std::unique_ptr<SiriusJoyport>   joyport);
     void  SetVideoTiming    (std::unique_ptr<VideoTiming>     videoTiming);
 
@@ -378,11 +384,12 @@ private:
 
     std::shared_mutex  m_lifetimeLock;
 
-    std::unique_ptr<Apple2eMmu>      m_mmu;
-    std::unique_ptr<Apple2cRomBank>  m_apple2cRomBank;
-    std::unique_ptr<AppleMouse>      m_mouse;
-    std::unique_ptr<SiriusJoyport>   m_joyport;
-    std::unique_ptr<VideoTiming>     m_videoTiming;
+    std::unique_ptr<Apple2eMmu>              m_mmu;
+    std::unique_ptr<Apple2cRomBank>          m_apple2cRomBank;
+    std::unique_ptr<AppleMouse>              m_mouse;
+    std::unique_ptr<Apple2cPlusAccelerator>  m_accelerator;
+    std::unique_ptr<SiriusJoyport>           m_joyport;
+    std::unique_ptr<VideoTiming>             m_videoTiming;
 
     // On the heap: together they are most of the host's size, and a test
     // that builds two machines on the stack must stay under the analyzer's

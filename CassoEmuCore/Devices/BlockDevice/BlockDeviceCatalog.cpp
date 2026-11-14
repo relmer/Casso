@@ -21,6 +21,7 @@ static constexpr const char *  s_kpszMachineLabels[][2] =
     { "Apple2eEnhanced", "Apple //e Enhanced" },
     { "Apple2c",         "Apple //c" },
     { "Apple2cPlus",     "Apple //c Plus" },
+    { "Apple2cPlus",     "Apple //c Plus" },
 };
 
 static const BlockCardSpec  s_kCards[] =

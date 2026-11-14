@@ -319,6 +319,7 @@ static std::wstring MachineDisplayName (std::string_view machineId)
     else if (machineId == "Apple2e")         { name = L"Apple //e"; }
     else if (machineId == "Apple2eEnhanced") { name = L"Apple //e Enhanced"; }
     else if (machineId == "Apple2c")         { name = L"Apple //c"; }
+    else if (machineId == "Apple2cPlus")     { name = L"Apple //c Plus"; }
 
     return name;
 }
@@ -455,6 +456,14 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
     { "Apple2e",         "3c7b492ad67ad8fd325a82a8f3c6080fdb07b9716368ce20922e941a30be0983" },
     { "Apple2eEnhanced", "bf6b8311abb1354116cd44e461f5a19a6eb14ab092637e466a0c3122d0df62a9" },
     { "Apple2c",         "001b5e57036ad0a34ff50418be0e794052c27b2746934eb6222736246319d93b" },
+    // The //e and the enhanced //e before the SCSI card in slot 7: Apple2e
+    // v15, Apple2eEnhanced v10.
+    { "Apple2e",         "ba7106c242b21875c6430ddcdafdc512cb5d4ed7e4b8352ae9f6ffc06cbdb548" },
+    { "Apple2eEnhanced", "5fddd5c15c4ae77358724182713209c301576e867f21d656505f548fecfb0ca6" },
+    // The same two with the SCSI card, before the UniDisk 3.5 interface card
+    // in slot 5: Apple2e v16, Apple2eEnhanced v11.
+    { "Apple2e",         "b0f9dc454a3e6d3bf1a9e5461618ea79e6097b8c0a4c8d5e82f4e29cb0397bc2" },
+    { "Apple2eEnhanced", "4638ca69a0eaef913b88b794884369627f92b832122a12d724998bedc584ed48" },
 };
 
 
