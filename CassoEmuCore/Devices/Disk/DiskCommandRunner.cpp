@@ -1264,6 +1264,41 @@ HRESULT DiskCommandRunner::ApplyEncoding (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::ApplyOutputEncoding
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::ApplyOutputEncoding (CommandLineOptions & inOutOptions)
+{
+    size_t          lastSeparator = inOutOptions.disk.hostFile.find_last_of ("/\\");
+    std::string     leaf          = (lastSeparator == std::string::npos) ? inOutOptions.disk.hostFile
+                                                                         : inOutOptions.disk.hostFile.substr (lastSeparator + 1);
+    ParsedHostName  parsed;
+
+
+
+    if (inOutOptions.disk.encoding != CommandLineOptions::DiskOptions::Encoding::Verbatim || leaf.empty()
+        || !HostFileNaming::Parse (TextEncoding::NarrowToWide (leaf), parsed))
+    {
+        return;
+    }
+
+    if (parsed.converted == ParsedHostName::ConvertedKind::ApplesoftListing || parsed.converted == ParsedHostName::ConvertedKind::IntegerListing)
+    {
+        inOutOptions.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+    }
+    else if (parsed.converted == ParsedHostName::ConvertedKind::Text)
+    {
+        inOutOptions.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::ApplyHostFileConversion
 //
 //  The conversion Casso Explorer writes for the file, when the output file's
@@ -1366,10 +1401,13 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     char                           note[128] = {};
     std::unique_ptr<IBlockStore>   store;
     std::unique_ptr<IVolume>       blockVolume;
+    CommandLineOptions             effective = options;
 
 
 
     CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<name>", result));
+
+    ApplyOutputEncoding (effective);
 
     //  A large ProDOS or HFS volume is read by the block, so a file is copied out
     //  without reading the volume whole. --index applies to DOS 3.3 only.
@@ -1400,10 +1438,10 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     CHRF (hr, result.FailAction (options.disk.imagePath, "read " + name,
                           ApplyPrefix (DescribeVolumeRefusal (hr, kind))));
 
-    hr = ApplyEncoding (options, payload, result);
+    hr = ApplyEncoding (effective, payload, result);
     CHR (hr);
 
-    hr = ApplyHostFileConversion (options, kind, name, payload, result);
+    hr = ApplyHostFileConversion (effective, kind, name, payload, result);
     CHR (hr);
 
     result.resourceFork    = payload.resourceFork;
@@ -1556,6 +1594,53 @@ std::string DiskCommandRunner::GetAppleDoublePath (const std::string & hostFile)
 
 
     return (path.parent_path() / ("._" + path.filename().string())).string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ReadAppleDouble
+//
+//  Nothing is read from a missing or unreadable `._NAME`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::ReadAppleDouble (const CommandLineOptions & options, FilePayload & inOutPayload)
+{
+    HRESULT          hr       = S_OK;
+    vector<Byte>     bytes;
+    AppleSingleFile  single;
+    std::string      error;
+    bool             isDouble = false;
+    bool             typed    = !options.disk.typeName.empty() || options.disk.hasLoadAddress;
+
+
+
+    hr = m_fileIo.ReadAllBytes (GetAppleDoublePath (options.disk.hostFile), bytes);
+    BAIL_OUT_IF (FAILED (hr), S_OK);
+
+    isDouble = AppleSingleCodec::IsAppleDouble (bytes);
+    BAIL_OUT_IF (!isDouble, S_OK);
+
+    hr = AppleSingleCodec::Decode (bytes, single, error);
+    BAIL_OUT_IF (FAILED (hr), S_OK);
+
+    if (single.hasProDosInfo && !typed)
+    {
+        inOutPayload.type       = (Byte) single.fileType;
+        inOutPayload.auxType    = (Word) single.auxType;
+        inOutPayload.hasAuxType = true;
+    }
+
+    inOutPayload.resourceFork    = single.resourceFork;
+    inOutPayload.finderInfo      = single.finderInfo;
+    inOutPayload.hasResourceFork = single.hasResourceFork;
+
+Error:
+    return;
 }
 
 
@@ -2415,6 +2500,8 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
         hr = ApplyHostFileType (parsed, kind, payload);
         CHRF (hr, result.FailAction (options.disk.imagePath, "write " + diskName, "it has a ProDOS type that DOS 3.3 has no file type for"));
     }
+
+    ReadAppleDouble (options, payload);
 
     path = FilePath::Parse (diskName);
 
