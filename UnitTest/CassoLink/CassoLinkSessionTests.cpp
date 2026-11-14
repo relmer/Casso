@@ -50,6 +50,42 @@ public:
         std::vector<std::shared_ptr<LinkOperation>>   queued;
         std::string                                   fullSendFolder;
 
+        //  With a boot result, each image written is booted: the result is
+        //  given to the session from another thread a moment later.
+        std::string                                   bootResult;
+        CassoLinkSession                            * session = nullptr;
+        std::vector<std::string>                      images;
+        std::vector<std::thread>                      boots;
+
+        ~Sink()
+        {
+            for (std::thread & boot : boots)
+            {
+                boot.join();
+            }
+        }
+
+        bool  OnImageWritten (const std::string & path, const std::string &) override
+        {
+            std::lock_guard<std::mutex>  guard (lock);
+            std::string                  file = path.substr (path.find_last_of ('\\') + 1);
+
+            images.push_back (path);
+
+            if (bootResult.empty())
+            {
+                return false;
+            }
+
+            boots.emplace_back ([this, file] ()
+            {
+                Sleep (150);
+                session->NoteBoot (file, bootResult, file + " was booted.");
+            });
+
+            return true;
+        }
+
         bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override
         {
             outFolder    = fullSendFolder;
@@ -1200,6 +1236,41 @@ public:
 
 
 
+
+    //  An image that is booted is awaited with VALIDATING on the Apple, and
+    //  its result is in the session's status when the Full Send goes on.
+    TEST_METHOD (FullSend_AwaitsEachImagesBoot_WithValidatingOnTheApple)
+    {
+        Rig          rig;
+        std::string  validating = "VALIDATING IMAGE ON PC, PLEASE WAIT";
+        bool         shown      = false;
+
+        rig.sink.session    = rig.session.get();
+        rig.sink.bootResult = "booted";
+        rig.apple.keys.push_back (CassoLinkCodec::kKeySpace);
+        rig.apple.keys.push_back (CassoLinkCodec::kKeyQuit);
+        rig.Start();
+
+        rig.Finish (rig.session->FullSend ("C:\\Box", "", ""));
+
+        FullSendSnapshot  snapshot = rig.session->GetFullSendStatus().GetSnapshot();
+
+        Assert::AreEqual ((size_t) 2, rig.sink.images.size(), L"Each image is reported for its boot");
+        Assert::AreEqual ((size_t) 2, snapshot.disks.size());
+        Assert::AreEqual (std::string ("booted"), snapshot.disks[0].row.boot);
+        Assert::AreEqual (std::string ("booted"), snapshot.disks[1].row.boot, L"The result arrived before the next disk was read");
+
+        {
+            std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+            for (const std::vector<Byte> & screen : rig.apple.screens)
+            {
+                shown = shown || std::search (screen.begin(), screen.end(), validating.begin(), validating.end()) != screen.end();
+            }
+        }
+
+        Assert::IsTrue (shown, L"The Apple had the wait on its screen");
+    }
 
     TEST_METHOD (FullSend_FromTheAppleKeyboard_UsesTheSinksTarget)
     {

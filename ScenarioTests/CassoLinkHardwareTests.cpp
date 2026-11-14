@@ -9,6 +9,7 @@
 #include "CassoExplorer/Model/PicturePreview.h"
 #include "Devices/Disk/DiskImage.h"
 #include "DiskCheck/BootProbe.h"
+#include "DiskCheck/BootSounds.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
@@ -781,6 +782,20 @@ public:
     //  between steps. The text screen is written to run.txt and the two
     //  hi-res pages to run_pages.bin, in CASSO_LINK_OUT. Run only when
     //  CASSO_RUN_IMAGE is set.
+    TEST_METHOD (TheBootSounds_AreWrittenAsFiles)
+    {
+        std::filesystem::path  folder = GetSetting ("CASSO_LINK_OUT", "");
+
+        if (GetSetting ("CASSO_BOOT_SOUNDS", "").empty())
+        {
+            Logger::WriteMessage ("CASSO_BOOT_SOUNDS isn't set; no sounds are written.\n");
+            return;
+        }
+
+        WriteFile (folder / "booted.wav", BootSounds::MakeBooted());
+        WriteFile (folder / "did-not-boot.wav", BootSounds::MakeDidNotBoot());
+    }
+
     TEST_METHOD (AnImage_IsRunWithKeys)
     {
         std::string               path   = GetSetting ("CASSO_RUN_IMAGE", "");
