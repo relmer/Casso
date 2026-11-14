@@ -188,6 +188,13 @@ HRESULT VisiCalcSheet::Parse (std::span<const Byte> bytes, Sheet & outSheet, std
 
         line.erase (0, length + 2);
 
+        //  A command saved at a cell, such as the width VisiCalc's 80-column
+        //  version saves for each column as /GC, isn't the cell's contents.
+        if (line.starts_with ("/") && !line.starts_with ("/F") && !line.starts_with ("/-"))
+        {
+            continue;
+        }
+
         if (line.starts_with ("/F") && line.size() >= 3)
         {
             cell.format = line[2];
