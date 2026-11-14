@@ -43,6 +43,11 @@ class IDxuiTheme;
 //  user types: "1. Type **IN#2** and press Return". Every line wraps at its
 //  spaces, whether or not it has a mark.
 //
+//  `checkLabel`, when given, adds a checkbox under the text, as a task
+//  dialog's verification checkbox, checked as `ioChecked` is on the way in;
+//  `ioChecked` returns its state when the box closes, whichever button
+//  closed it.
+//
 //  The one departure from MessageBox is the required `theme`: a Dxui window
 //  needs a theme to render. `owner` supplies the modal parent (disabled while
 //  the box is up) and the HINSTANCE (falling back to the process module when
@@ -56,7 +61,9 @@ int  DxuiMessageBox (HWND                                 owner,
                      const wchar_t                      * caption,
                      UINT                                 uType,
                      const std::vector<const wchar_t *> & buttonLabels = {},
-                     int                                  dangerButton = -1);
+                     int                                  dangerButton = -1,
+                     const wchar_t                      * checkLabel   = nullptr,
+                     bool                               * ioChecked    = nullptr);
 
 
 

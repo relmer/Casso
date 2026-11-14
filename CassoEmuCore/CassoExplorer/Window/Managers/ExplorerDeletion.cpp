@@ -239,33 +239,27 @@ void ExplorerDeletion::RemoveThumbnails (const std::vector<std::wstring> & paths
 //
 //  ExplorerDeletion::ClearThumbnails
 //
-//  With thumbnails the user set, the confirmation has their count and a
-//  button that removes only the thumbnails made by booting.
+//  The thumbnails made by booting are removed. With thumbnails the user set,
+//  the confirmation has a checkbox that removes those too, with their count.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerDeletion::ClearThumbnails (HWND owner)
 {
-    HRESULT       hr       = S_OK;
-    int           userSet  = m_context.app.pictures->CountUserSet();
-    std::wstring  question = DiskImagePictures::GetClearQuestion (userSet);
-    int           answer   = IDCANCEL;
+    HRESULT       hr        = S_OK;
+    int           userSet   = m_context.app.pictures->CountUserSet();
+    std::wstring  check     = DiskImagePictures::GetClearCheck (userSet);
+    bool          alsoUsers = false;
+    int           answer    = IDCANCEL;
 
 
 
-    if (userSet > 0)
+    answer = DxuiMessageBox (owner, m_context.theme, DiskImagePictures::GetClearQuestion().c_str(), L"Clear thumbnails", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2,
+                             { L"Remove", L"Cancel" }, -1, userSet > 0 ? check.c_str() : nullptr, &alsoUsers);
+
+    if (answer == IDOK)
     {
-        answer = DxuiMessageBox (owner, m_context.theme, question.c_str(), L"Clear thumbnails", MB_YESNOCANCEL | MB_ICONWARNING | MB_DEFBUTTON2,
-                                 { L"Remove all", L"Remove booted only", L"Cancel" }, 0);
-    }
-    else
-    {
-        answer = DxuiMessageBox (owner, m_context.theme, question.c_str(), L"Clear thumbnails", MB_OKCANCEL | MB_ICONWARNING, { L"Clear", L"Cancel" });
-    }
-
-    if (answer == IDYES || answer == IDNO || answer == IDOK)
-    {
-        hr = m_context.app.pictures->Clear (answer == IDYES);
+        hr = m_context.app.pictures->Clear (alsoUsers);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
