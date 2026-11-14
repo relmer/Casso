@@ -71,7 +71,7 @@ void EmulatorShell::SetDiskThumbnail (int drive)
     CBR (hasFrame);
 
     hr = DiskThumbnailCommand::SetFromScreen (store, image, std::span<const uint32_t> (pixels, (size_t) kWidth * kHeight), kWidth, kHeight);
-    CHRF (hr, DxuiMessageBox (m_hwnd, &m_chrome->GetTheme(), L"The thumbnail couldn't be saved.", L"Make the screen the disk's thumbnail", MB_OK | MB_ICONWARNING));
+    CHRF (hr, DxuiMessageBox (m_hwnd, &m_chrome->GetTheme(), L"The thumbnail couldn't be saved.", L"Save screenshot as thumbnail", MB_OK | MB_ICONWARNING));
 
 Error:
     return;
