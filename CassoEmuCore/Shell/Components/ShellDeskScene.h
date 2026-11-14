@@ -55,10 +55,10 @@ public:
     // Where each of the machine's drives goes (DeskDrivePlan), made when the
     // machine's models load; a class's place toggles between the desk and
     // the drive bar from the drives' right-click menu.
-    const std::vector<DeskDrivePlacement> &  GetDrivePlan      () const { return m_drivePlan; }
-    void                                     PlanDrives        ();
-    bool                                     IsClassOnDesk     (DeskDriveClass driveClass) const;
-    void                                     ToggleClassOnDesk (DeskDriveClass driveClass);
+    const std::vector<DeskDrivePlacement> &  GetDrivePlan           () const { return m_drivePlan; }
+    void                                     PlanDrives             ();
+    bool                                     IsClassOnDesk          (DeskDriveClass driveClass) const;
+    void                                     ToggleClassOnDesk      (DeskDriveClass driveClass);
     void                                     ToggleFloppyPairBeside ();
 
     // The Disk II drives the machine has, on the desk or not.
