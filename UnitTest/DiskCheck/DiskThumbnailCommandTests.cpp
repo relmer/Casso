@@ -6,6 +6,8 @@
 #include "CommandLineParser.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
+#include "Devices/Disk/DiskThumbnailCommand.h"
+#include "Devices/Printer/PngCodec.h"
 #include "DiskCheck/ThumbnailStore.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -201,5 +203,35 @@ public:
 
         result = rig.Run ({ Rig::Narrow (rig.root / L"missing.dsk"), Rig::Narrow (picture) });
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus, L"No such image");
+    }
+
+    //  Casso's command for the screen: the frame is the image's thumbnail,
+    //  marked as set by the user, at the frame's size.
+    TEST_METHOD (TheScreen_IsTheThumbnailTheUserSet)
+    {
+        Rig                    rig;
+        ThumbnailStore         store (rig.cache);
+        std::vector<uint32_t>  frame ((size_t) 560 * 384, 0xFF112233);
+        std::vector<Byte>      found;
+        ThumbnailRecord        record;
+        bool                   isUserSet = false;
+        RgbaImage              picture;
+        HRESULT                hrMissing = S_OK;
+
+
+
+        AssertSucceeded (DiskThumbnailCommand::SetFromScreen (store, rig.image, frame, 560, 384));
+
+        AssertSucceeded (store.Find (rig.image, found, record, isUserSet));
+        Assert::IsTrue (isUserSet);
+
+        AssertSucceeded (PngCodec::DecodeRgba (found, picture));
+        Assert::AreEqual (560, picture.width);
+        Assert::AreEqual (384, picture.height);
+        Assert::AreEqual ((Byte) 0x11, picture.rgba[0]);
+        Assert::AreEqual ((Byte) 0x33, picture.rgba[2]);
+
+        hrMissing = DiskThumbnailCommand::SetFromScreen (store, rig.root / L"missing.dsk", frame, 560, 384);
+        Assert::IsTrue (FAILED (hrMissing), L"No such image");
     }
 };

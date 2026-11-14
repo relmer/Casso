@@ -2,6 +2,7 @@
 
 #include "Devices/Disk/DiskThumbnailCommand.h"
 #include "CommandLineOptions.h"
+#include "CassoExplorer/Model/PicturePreview.h"
 #include "Devices/Disk/DiskHelpPage.h"
 #include "Devices/Printer/PngCodec.h"
 #include "Devices/Printer/RgbaImage.h"
@@ -79,6 +80,39 @@ HRESULT DiskThumbnailCommand::ConvertToPng (const std::vector<Byte> & picture, s
     CHR (hr);
 
     hr = PngCodec::EncodeRgba (image, kPngDpi, outPng);
+    CHR (hr);
+
+Error:
+    if (SUCCEEDED (hrCom))
+    {
+        ::CoUninitialize();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskThumbnailCommand::SetFromScreen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskThumbnailCommand::SetFromScreen (ThumbnailStore & store, const std::filesystem::path & image, std::span<const uint32_t> bgra, int width, int height)
+{
+    HRESULT            hr    = S_OK;
+    HRESULT            hrCom = ::CoInitializeEx (nullptr, COINIT_APARTMENTTHREADED);
+    std::vector<Byte>  png;
+
+
+
+    hr = PicturePreview::EncodePng (std::vector<uint32_t> (bgra.begin(), bgra.end()), width, height, png);
+    CHR (hr);
+
+    hr = store.SetByUser (image, png);
     CHR (hr);
 
 Error:

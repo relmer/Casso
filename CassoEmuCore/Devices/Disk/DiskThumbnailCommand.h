@@ -29,6 +29,9 @@ public:
     //  A picture file's bytes in any format WIC decodes, as a PNG.
     static HRESULT  ConvertToPng (const std::vector<Byte> & picture, std::vector<Byte> & outPng);
 
+    //  A frame of the screen, BGRA, as the image's thumbnail set by the user.
+    static HRESULT  SetFromScreen (ThumbnailStore & store, const std::filesystem::path & image, std::span<const uint32_t> bgra, int width, int height);
+
 private:
     static void     Set          (const CommandLineOptions & options, ThumbnailStore & store, DiskCommandResult & result);
     static void     Remove       (const CommandLineOptions & options, ThumbnailStore & store, DiskCommandResult & result);

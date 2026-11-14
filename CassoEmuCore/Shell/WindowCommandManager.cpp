@@ -449,6 +449,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id == IDM_DISK_SALVAGE1  || id == IDM_DISK_SALVAGE2)           { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_OPEN_CASSO_EXPLORER)                            { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_INSPECT1  || id == IDM_DISK_INSPECT2)           { route = WindowCommandRoute::Disk; }
+    else if (id == IDM_DISK_THUMBNAIL1 || id == IDM_DISK_THUMBNAIL2)        { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_TAPE_INSERT    && id <= IDM_TAPE_FASTFORWARD)        { route = WindowCommandRoute::Disk; }
     else if (id == IDM_STORAGE_DRIVE2 || id == IDM_STORAGE_RECORDER)        { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { route = WindowCommandRoute::View; }
@@ -1630,6 +1631,13 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_DISK_INSPECT2:
         {
             m_shell.OpenDiskInspector ((id == IDM_DISK_INSPECT1) ? 0 : 1);
+            break;
+        }
+
+        case IDM_DISK_THUMBNAIL1:
+        case IDM_DISK_THUMBNAIL2:
+        {
+            m_shell.SetDiskThumbnail ((id == IDM_DISK_THUMBNAIL1) ? 0 : 1);
             break;
         }
 
