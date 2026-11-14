@@ -213,6 +213,22 @@ depends on ISM mode when only an 800K Apple 3.5 Drive is attached. If the
 firmware cannot start without it, ISM register behavior is added; 1.44 MB
 media stay out of scope either way.
 
+**Checked** (2026-11-13, 341-0438-A on Casso's card with a trace of the
+card CPU): the firmware can't start without ISM mode. After its ROM checksum
+it runs a SWIM self-test at `$9697`: IWM mode register writes and reads, then
+mode bit 6 written 1, 0, 1, 1 (`$4F`, `$0F`, `$4F`, `$4F`), then in ISM mode
+the phase register must read `$F0` and the mode register `$4x`, and all
+sixteen parameter RAM bytes must read back what was written, with the
+counter reset by a write to the mode-zeros register. `$F8` written to mode
+zeros returns the chip to IWM mode, and everything after the test is in IWM
+mode. A failure writes `JMP $FF59` to `$7B00` and blinks the LED. Only that
+ISM subset is implemented, in `Iwm` itself rather than a `Swim` class over
+it, since the firmware uses ISM mode only for the test.
+
+**Update**: the card CPU's page table is mapped to the card's RAM and ROM.
+`MemoryBusCpu` maps `$0000-$BFFF` to the CPU's built-in RAM array at
+construction, which on a device bus would hide the device's memory.
+
 ## R9. Sony 3.5-inch mechanism and media
 
 **Decision**: `Sony35Drive` implements the drive status lines read through
@@ -230,6 +246,23 @@ WOZ image (the owner's clarification). **To verify**: where those rules are in
 
 **To verify**: the status line numbering and the sector format, against the
 Apple IIgs Firmware Reference and Inside Macintosh.
+
+**Checked** (2026-11-13, NetBSD's `sys/arch/mac68k/obio/iwmreg.h`, BSD
+licensed, which restates Apple's table): the register index is CA1, CA0,
+SEL, CA2 from bit 3 down. Status, read on the IWM's sense line, 0 for yes:
+`$0` step direction (0 in), `$1` and `$3` select head 0 and head 1, `$2` disk
+in place, `$4` stepping, `$6` write protected, `$8` motor on, `$9`
+single-sided, `$A` at track 0, `$B` head loaded and ready, `$D` drive
+installed, `$E` tachometer (60 pulses a revolution), `$F` HD disk. Commands
+are strobed with LSTRB high then low, CA2 the value: `$0` step direction
+in, `$1` step direction out, `$4` step, `$8` motor on, `$9` motor off, `$D`
+eject. The head is SEL, which is index bit 1.
+
+**Checked** (2026-11-13, against 341-0438-A booting ProDOS): the data field
+checksum group's first nibble has c3's top bits in bits 4-5, c2's in bits
+2-3 and c1's in bits 0-1, then c3, c2 and c1. A sector in the other
+order fails the firmware's checksum. It also strobes commands `$3`, `$7` and `$A` (SEL high), which are a
+disk-switched reset and SuperDrive controls; an 800K drive ignores them.
 
 ## R10. SmartPort bus at signal level
 

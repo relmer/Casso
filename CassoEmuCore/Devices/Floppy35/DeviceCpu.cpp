@@ -1,0 +1,146 @@
+#include "Pch.h"
+
+#include "Core/Cpu65C02.h"
+#include "Core/MemoryBus.h"
+#include "Core/MemoryDevice.h"
+#include "Devices/Floppy35/DeviceCpu.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeviceCpu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DeviceCpu::DeviceCpu() :
+    m_bus (std::make_unique<MemoryBus>())
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ~DeviceCpu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DeviceCpu::~DeviceCpu() = default;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Initialize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeviceCpu::Initialize (MemoryDevice & memory)
+{
+    constexpr int  kPages = 0x100;
+
+
+
+    m_bus->AddDevice (&memory);
+    m_cpu = std::make_unique<Cpu65C02> (*m_bus);
+
+    //  The CPU maps its built-in RAM below $C000. The device serves every
+    //  page until the owner maps pages to memory directly.
+    MapPages (0, kPages, nullptr, nullptr);
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MapPages
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeviceCpu::MapPages (int firstPage, int pageCount, Byte * read, Byte * write)
+{
+    constexpr size_t  kPageBytes = 0x100;
+
+
+
+    for (int i = 0; i < pageCount; i++)
+    {
+        m_bus->SetReadPage  (firstPage + i, read  != nullptr ? read  + (size_t) i * kPageBytes : nullptr);
+        m_bus->SetWritePage (firstPage + i, write != nullptr ? write + (size_t) i * kPageBytes : nullptr);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Reset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeviceCpu::Reset()
+{
+    if (m_cpu != nullptr)
+    {
+        m_cpu->SoftReset();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunUntil
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeviceCpu::RunUntil (uint64_t targetCycle)
+{
+    uint32_t  cycles = 0;
+    HRESULT   hr     = S_OK;
+
+
+
+    while (m_cpu != nullptr && m_cycles < targetCycle)
+    {
+        hr = m_cpu->Step (cycles);
+
+        if (FAILED (hr) || cycles == 0)
+        {
+            m_cycles = targetCycle;
+            break;
+        }
+
+        m_cycles += cycles;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPC
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word DeviceCpu::GetPC() const
+{
+    return (m_cpu != nullptr) ? m_cpu->GetPC() : (Word) 0;
+}

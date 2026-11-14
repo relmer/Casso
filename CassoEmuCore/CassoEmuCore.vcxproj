@@ -1237,6 +1237,12 @@
     <ClCompile Include="Devices\BlockDevice\StockHardDiskImage.cpp" />
     <ClCompile Include="Devices\BlockDevice\ProFileDrive.cpp" />
     <ClCompile Include="Devices\BlockDevice\ProFileCard.cpp" />
+    <ClCompile Include="Devices\Floppy35\Gcr35Track.cpp" />
+    <ClCompile Include="Devices\Floppy35\Sony35Drive.cpp" />
+    <ClCompile Include="Devices\Floppy35\Iwm.cpp" />
+    <ClCompile Include="Devices\Floppy35\DeviceCpu.cpp" />
+    <ClCompile Include="Devices\Floppy35\Apple35CardMemory.cpp" />
+    <ClCompile Include="Devices\Floppy35\Apple35ControllerCard.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
@@ -2150,6 +2156,13 @@
     <ClInclude Include="Ui\Scene\DeskSceneHardDiskLabels.h" />
     <ClInclude Include="Devices\BlockDevice\ProFileDrive.h" />
     <ClInclude Include="Devices\BlockDevice\ProFileCard.h" />
+    <ClInclude Include="Devices\Floppy35\Gcr35Track.h" />
+    <ClInclude Include="Devices\Floppy35\Sony35Drive.h" />
+    <ClInclude Include="Devices\Floppy35\IDiskDriveBus.h" />
+    <ClInclude Include="Devices\Floppy35\Iwm.h" />
+    <ClInclude Include="Devices\Floppy35\DeviceCpu.h" />
+    <ClInclude Include="Devices\Floppy35\Apple35CardMemory.h" />
+    <ClInclude Include="Devices\Floppy35\Apple35ControllerCard.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CassoLink\Apple\Program.s" />

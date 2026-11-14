@@ -864,6 +864,9 @@
     <ClCompile Include="BlockDeviceTests\BlockDeviceAttachmentsTests.cpp" />
     <ClCompile Include="BlockDeviceTests\StockHardDiskImageTests.cpp" />
     <ClCompile Include="BlockDeviceTests\ProFileTests.cpp" />
+    <ClCompile Include="Floppy35Tests\Gcr35TrackTests.cpp" />
+    <ClCompile Include="Floppy35Tests\Sony35DriveTests.cpp" />
+    <ClCompile Include="Floppy35Tests\IwmTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />
@@ -923,6 +926,7 @@
     <ClInclude Include="NetworkTests\UthernetRig.h" />
     <ClInclude Include="NetworkTests\DhcpTestPackets.h" />
     <ClInclude Include="NetworkTests\RecordingPacketSink.h" />
+    <ClInclude Include="UiTests\SettingsRecordingSink.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Ehm\Ehm.vcxproj">

@@ -51,6 +51,7 @@
 #include "Machines/Apple2/Common/SuperSerialCard.h"
 #include "Devices/BlockDevice/AppleScsiCard.h"
 #include "Devices/BlockDevice/ProFileCard.h"
+#include "Devices/Floppy35/Apple35ControllerCard.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/BlockDevice/ScsiHardDisk.h"
 #include "Devices/BlockDevice/StockHardDiskImage.h"
@@ -465,6 +466,10 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
                 else if (slot.device == kpszProFileCardDevice)
                 {
                     WireProFileCard (slot, *static_cast<ProFileCard *> (raw));
+                }
+                else if (slot.device == kpszApple35CardDevice)
+                {
+                    WireApple35Card (slot, *static_cast<Apple35ControllerCard *> (raw));
                 }
             }
         }
@@ -1656,6 +1661,11 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         proFileCard->GetDrive().SetClock (m_host.GetCpu()->GetBusCyclePtr());
     }
 
+    for (Apple35ControllerCard * apple35Card : m_host.GetRefs().apple35Cards)
+    {
+        apple35Card->SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed);
+    }
+
     if (m_host.GetRefs().diskController != nullptr)
     {
         m_host.GetRefs().diskController->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
@@ -2297,6 +2307,66 @@ void MachineBuilder::WireProFileCard (const SlotConfig & slot, ProFileCard & car
 
     m_host.GetRefs().proFileCards.push_back (&card);
     m_host.GetRefs().blockDeviceSources.push_back (&card);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireApple35Card
+//
+//  Connects an Apple II 3.5 Disk Controller Card: its firmware, its slot page
+//  and the expansion space. The disk for each Apple 3.5 Drive in the slot's
+//  ports is inserted. A disk that fails to insert is added to the machine's
+//  media problems, and its drive is left empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireApple35Card (const SlotConfig & slot, Apple35ControllerCard & card)
+{
+    HRESULT       hr = S_OK;
+    vector<Byte>  firmware;
+
+
+
+    if (slot.firmwareStatus == SlotFirmwareStatus::Present)
+    {
+        hr = ReadRomFileBytes (slot.firmwarePath, firmware);
+
+        if (SUCCEEDED (hr))
+        {
+            hr = card.SetFirmware (move (firmware));
+        }
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    AddExpansionRomCard (slot.slot, card, card.GetSlotPage());
+
+    for (size_t port = 0; port < slot.ports.size() && port < (size_t) Apple35CardMemory::kDrives; port++)
+    {
+        const PortConfig  & entry = slot.ports[port];
+        std::wstring        error;
+
+
+
+        if (entry.device.empty() || entry.image.empty())
+        {
+            continue;
+        }
+
+        hr = card.GetCardMemory().GetDrive ((int) port).Insert (m_host.GetBlockMediaFileIo(), entry.image, m_host.ProbeBlockMedia (entry.image), error);
+
+        if (FAILED (hr))
+        {
+            m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}, drive {}: {}", slot.slot, port + 1, error));
+        }
+    }
+
+    m_host.GetRefs().apple35Cards.push_back (&card);
+    m_host.GetRefs().floppy35Sources.push_back (&card);
 }
 
 

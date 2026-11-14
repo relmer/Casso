@@ -225,6 +225,7 @@
     <ClCompile Include="UthernetSoftwareTests.cpp" />
     <ClCompile Include="..\UnitTest\NetworkTests\W5100Driver.cpp" />
     <ClCompile Include="BlockDeviceBootTests.cpp" />
+    <ClCompile Include="Floppy35BootTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="PacedRun.h" />
