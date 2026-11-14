@@ -84,9 +84,8 @@ the interaction, sound and event log the Disk II already has.
   floppies sit side by side under the monitor, as now. A single hard disk at
   least as wide as the monitor, give or take a few millimeters, goes under it
   (a ProFile under either monitor, an HD20SC under the //c's), and the floppies
-  stack on the right. With more than two floppies and any hard disk, the hard
-  disks stack on the left, the floppies on the right, and nothing is under the
-  monitor. A hard disk narrower than the monitor stands on the left, as the
+  stack on the right. A single floppy, or more than two, stacks on the right,
+  the hard disks on the left, and nothing is under the monitor. A hard disk narrower than the monitor stands on the left, as the
   HD20SC beside a //e does now.
 
 ## User Scenarios & Testing *(mandatory)*

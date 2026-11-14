@@ -94,10 +94,10 @@ struct DeskDrivePlacement
 //      and the narrowest on top.
 //    - A single hard disk at least as wide as the monitor, less a few
 //      millimeters, goes under it, and the floppies stack on the right.
-//    - Otherwise up to two floppies sit side by side under the monitor, and
-//      the hard disks stack on the left.
-//    - More than two floppies on the desk stack on the right, the hard disks
-//      on the left, and nothing is under the monitor.
+//    - Otherwise two floppies sit side by side under the monitor, and the
+//      hard disks stack on the left.
+//    - A single floppy, or more than two, stacks on the right, the hard
+//      disks on the left, and nothing is under the monitor.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

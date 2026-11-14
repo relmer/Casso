@@ -122,7 +122,7 @@ std::vector<DeskDrivePlacement> DeskDrivePlan::Place (const std::vector<DeskDriv
     {
         Stack (out, floppy, DeskDriveSpot::DriveBar);
     }
-    else if (wideHardDisk || floppy.size() > 2)
+    else if (wideHardDisk || floppy.size() != 2)
     {
         Stack (out, floppy, DeskDriveSpot::RightStack);
     }

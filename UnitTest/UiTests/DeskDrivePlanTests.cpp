@@ -186,6 +186,20 @@ public:
     }
 
 
+    //  A single floppy stands on the right rather than under the monitor.
+    TEST_METHOD (SingleFloppy_GoesOnTheRight)
+    {
+        auto  plus = DeskDrivePlan::Place ({ { M::Apple35Plus, 0, 0 } }, P::Auto, P::Auto, kMonitorC);
+        auto  iie  = DeskDrivePlan::Place ({ { M::DiskII, 6, 0 }, { M::HardDisk20SC, 7, 6 } }, P::Auto, P::Auto, kMonitorII);
+
+
+
+        Assert::IsTrue (plus[0].spot == S::RightStack);
+        Assert::IsTrue (Find (iie, M::DiskII).spot == S::RightStack);
+        Assert::IsTrue (Find (iie, M::HardDisk20SC, 6).spot == S::LeftStack);
+    }
+
+
     //  A class set to the drive bar goes there whatever its size, and a
     //  class set to the desk stays there.
     TEST_METHOD (Settings_OverrideTheCount)
