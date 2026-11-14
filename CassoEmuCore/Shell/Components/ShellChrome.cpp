@@ -271,13 +271,13 @@ void ShellChrome::SetChromeHiddenForFullscreenScene (bool hidden)
     // bar along the window's bottom edge.
     // With auto-hide on, they stay hidden after fullscreen too, and reappear on
     // the strip when the pointer is at the bottom edge.
-    m_driveBandSurface.SetVisible (!hidden && !m_shell.DeskSceneActive() && !m_shell.AreDrivesOnStrip());
+    m_driveBandSurface.SetVisible (!hidden && (!m_shell.DeskSceneActive() || m_shell.m_scene->AreFloppiesOnBar()) && !m_shell.AreDrivesOnStrip());
     m_switchBar.SetVisible (!hidden);
 
     // Leaving fullscreen must not hand the flat widgets back to a scene that
     // has already retired them.
-    m_shell.m_disks->GetDriveChrome()[0].SetVisible (!hidden && !m_shell.DeskSceneActive() && !m_shell.AreDrivesOnStrip());
-    m_shell.m_disks->GetDriveChrome()[1].SetVisible (!hidden && !m_shell.DeskSceneActive() && !m_shell.AreDrivesOnStrip());
+    m_shell.m_disks->GetDriveChrome()[0].SetVisible (!hidden && (!m_shell.DeskSceneActive() || m_shell.m_scene->AreFloppiesOnBar()) && !m_shell.AreDrivesOnStrip());
+    m_shell.m_disks->GetDriveChrome()[1].SetVisible (!hidden && (!m_shell.DeskSceneActive() || m_shell.m_scene->AreFloppiesOnBar()) && !m_shell.AreDrivesOnStrip());
 
     if (hidden)
     {
@@ -1167,6 +1167,7 @@ void ShellChrome::SyncChromeBands()
     inputs.hasDiskController   = (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
     inputs.crtMonitorActive    = m_shell.CrtMonitorActive();
     inputs.drivesOnStrip       = m_shell.AreDrivesAutoHidden();
+    inputs.drivesOnBar         = m_shell.m_scene->AreFloppiesOnBar();
     inputs.hasCaseSwitches     = m_shell.MachineHasCaseSwitches();
     inputs.driveBarThicknessDp = m_driveBarThicknessDp;
     inputs.chromeSceneScale    = m_chromeSceneScale;

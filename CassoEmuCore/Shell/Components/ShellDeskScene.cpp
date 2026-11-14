@@ -1379,12 +1379,27 @@ void ShellDeskScene::SyncSceneDriveChrome()
     // visible panel with empty bounds is one stray Layout away from painting:
     // a resize arranges the docked bands before this runs, so the retired 2D
     // widgets flashed along the bottom edge for a frame under the 3D drives.
-    m_shell.m_disks->GetDriveChrome()[0].SetVisible (false);
-    m_shell.m_disks->GetDriveChrome()[1].SetVisible (false);
-    m_shell.m_disks->GetDriveChrome()[0].Hide();
-    m_shell.m_disks->GetDriveChrome()[1].Hide();
-
+    //
+    // With the floppies on the drive bar, the 2D widgets are the drives, and
+    // their bodies are the drop targets.
     m_shell.m_uiShell.GetHitTester().Clear();
+
+    if (AreFloppiesOnBar())
+    {
+        m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { m_shell.m_disks->GetDriveChrome()[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
+
+        if (CountDiskIiDrives() > 1)
+        {
+            m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { m_shell.m_disks->GetDriveChrome()[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
+        }
+    }
+    else
+    {
+        m_shell.m_disks->GetDriveChrome()[0].SetVisible (false);
+        m_shell.m_disks->GetDriveChrome()[1].SetVisible (false);
+        m_shell.m_disks->GetDriveChrome()[0].Hide();
+        m_shell.m_disks->GetDriveChrome()[1].Hide();
+    }
 
     for (int i = 0; i < comp.driveCount; i++)
     {

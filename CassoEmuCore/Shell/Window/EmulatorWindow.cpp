@@ -762,7 +762,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
         (void) vr;                                        // dock side-effect: bands arranged
 
-        if (DeskSceneActive())
+        if (DeskSceneActive() && m_scene->AreFloppiesOnBar() && !AreDrivesOnStrip())
+        {
+            m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, clientW, clientH, dpi, m_chrome->m_chromeSceneScale,
+                                                      m_scene->CountDiskIiDrives());
+            m_scene->SyncSceneDriveChrome();
+        }
+        else if (DeskSceneActive())
         {
             m_scene->SyncSceneDriveChrome();
         }
@@ -772,7 +778,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                                                       m_disks->ShouldShowExternalDrive() ? 2 : 1);
         }
 
-        m_chrome->m_driveBandSurface.SetVisible (!DeskSceneActive() && !AreDrivesOnStrip());
+        m_chrome->m_driveBandSurface.SetVisible ((!DeskSceneActive() || m_scene->AreFloppiesOnBar()) && !AreDrivesOnStrip());
         m_chrome->m_driveBandSurface.SetBounds (RECT{ 0, driveRect.top, clientW, clientH });
 
         m_chrome->LayoutSwitchBar (dpi);
@@ -1566,7 +1572,14 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
             (void) vr;                                        // dock side-effect: bands arranged
 
-            if (DeskSceneActive())
+            if (DeskSceneActive() && m_scene->AreFloppiesOnBar() && !AreDrivesOnStrip())
+            {
+                // The floppies are on the drive bar, so the 2D widgets are
+                // laid out in the band under the scene.
+                m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, static_cast<int> (width), renderH, dpi,
+                                                          m_chrome->m_chromeSceneScale, m_scene->CountDiskIiDrives());
+            }
+            else if (DeskSceneActive())
             {
                 // The 3D scene owns the drives; nothing to lay out. The hit
                 // registry is refreshed below with the rest of the chrome.

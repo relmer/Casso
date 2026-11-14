@@ -63,6 +63,10 @@ public:
     // The Disk II drives the machine has, on the desk or not.
     int   CountDiskIiDrives () const;
 
+    // Whether the machine's Disk II drives are on the drive bar rather than
+    // the desk.
+    bool  AreFloppiesOnBar  () const { return CountDiskIiDrives() > 0 && DeskSceneDriveCount() == 0; }
+
     // Whether a drive was active within `windowCycles` of `now`: a hard disk
     // after a command, a 3.5-inch drive while its motor runs.
     bool  IsDriveBusy (const DeskDrive & drive, uint64_t now, uint64_t windowCycles) const;
