@@ -977,6 +977,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     m_status.SetActivity (FullSendActivity::Sending, drive);
     m_status.BeginDisk (drive, m_link.IsVerifying(), m_link.IsVerifying() ? std::span<const int>() : std::span<const int> (checked.wholeTracks));
     m_status.SetTitle (drive, title, FullSendDisk::GetSystemName (checked.image));
+    m_status.AddLine (std::format ("Sending the disk in drive {}", drive));
 
     //  A drive's first time on deck has the instruction, and later ones a line.
     if (m_link.HasDrive (other))
@@ -1105,9 +1106,9 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
         m_screen.tone = unreadable.empty() ? FullSendTone::Done : isProtected ? FullSendTone::Protected : FullSendTone::BadSectors;
         m_screen.prot += isProtected ? 1 : 0;
 
-        if (isProtected)
+        if (isProtected && raw.empty())
         {
-            Report (std::format ("{} is likely copy-protected, so its image {} is a raw capture.", title, row.file));
+            Report (std::format ("{} is likely copy-protected, and its image {} has the sectors that could be read.", title, row.file));
         }
 
         row.duplicateOf = (match != nullptr) ? match->file : std::string();
@@ -1120,7 +1121,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
 
     Report (earlier != nullptr          ? std::format ("Disk {:04} is {}, a duplicate of {}", sequence, row.file, row.duplicateOf)
                  : !row.duplicateOf.empty()    ? std::format ("Disk {:04} is {}, sent again though it matches {}", sequence, row.file, row.duplicateOf)
-                 : !raw.empty()                ? std::format ("Disk {:04} is {}, a raw capture", sequence, row.file)
+                 : !raw.empty()                ? std::format ("Disk {:04} is {}, a raw capture of a disk that is likely copy-protected", sequence, row.file)
                                                : std::format ("Disk {:04} is {}, with {} unreadable sectors", sequence, row.file, row.unreadable));
 
     m_manifest.Add (row);

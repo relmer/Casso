@@ -77,6 +77,116 @@ std::wstring FullSendPanel::FormatSeconds (double seconds)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendPanel::DescribeCell
+//
+//  In a raw capture every cell has its position's mark; otherwise a track's
+//  cell has the track's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FullSendPanel::DescribeCell (const FullSendDriveStatus & drive, int position)
+{
+    std::wstring  track = (position % 4 == 0) ? std::format (L"Track {}", position / 4) : std::format (L"Track {:.2f}", position / 4.0);
+    std::wstring  state = L"not read yet";
+
+
+
+    if (!drive.positions.empty())
+    {
+        switch (drive.positions[(size_t) position])
+        {
+            case FullSendPositionMark::Read:     state = L"read";                                                        break;
+            case FullSendPositionMark::Skipped:  state = L"not read, the tracks beside it are complete";                 break;
+            case FullSendPositionMark::Weak:     state = L"the reads disagree in places, written as random bits";        break;
+            case FullSendPositionMark::Unstable: state = L"the reads differ in length";                                  break;
+            default:                                                                                                      break;
+        }
+    }
+    else
+    {
+        switch (drive.tracks[(size_t) position / 4])
+        {
+            case FullSendTrackMark::Read:       state = L"read";                                  break;
+            case FullSendTrackMark::Verified:   state = L"read and verified";                     break;
+            case FullSendTrackMark::Unreliable: state = L"a sector's reads disagree";             break;
+            case FullSendTrackMark::Unreadable: state = L"a sector could not be read";            break;
+            default:                                                                              break;
+        }
+    }
+
+    return track + L": " + state;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::AddCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendPanel::AddCell (float left, float top, float width, float height, int number, int position) const
+{
+    Cell  cell;
+
+
+
+    cell.bounds   = { (LONG) left, (LONG) top, (LONG) (left + width + 1.0f), (LONG) (top + height + 1.0f) };
+    cell.drive    = number - 1;
+    cell.position = position;
+
+    m_cells.push_back (cell);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::OnMouse
+//
+//  The map cell under the pointer has a tip; anywhere else, none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendPanel::OnMouse (const DxuiMouseEvent & ev)
+{
+    int64_t  now = (int64_t) GetTickCount64();
+    POINT    pt  = { ev.positionDip.x, ev.positionDip.y };
+
+
+
+    if (m_tooltip == nullptr)
+    {
+        return false;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Enter)
+    {
+        for (const Cell & cell : m_cells)
+        {
+            if (PtInRect (&cell.bounds, pt))
+            {
+                m_tooltip->RequestShow (cell.bounds, DescribeCell (m_view.snapshot.drives[(size_t) cell.drive], cell.position), now);
+                return false;
+            }
+        }
+    }
+
+    m_tooltip->RequestHide (now);
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendPanel::DescribeActivity
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -356,6 +466,8 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
         return;
     }
 
+    m_cells.clear();
+
     DrawLine (text, DescribeActivity (m_view.snapshot), left, top, width, theme.Foreground(), true);
 
     if (!m_view.connection.empty())
@@ -433,6 +545,7 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
         uint32_t  color = drive.positions.empty() ? GetColor (drive.tracks[(size_t) track], theme) : GetColor (drive.positions[(size_t) track * 4], theme);
 
         painter.FillRect (left + track * pitch, top, pitch - space, cellH, color);
+        AddCell (left + track * pitch, top, pitch - space, cellH, number, track * 4);
     }
 
     top += cellH + space;
@@ -449,6 +562,7 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
         }
 
         painter.FillRect (left + position * quarter, top, std::max (1.0f, quarter - space), rawH, GetColor (mark, theme));
+        AddCell (left + position * quarter, top, std::max (1.0f, quarter - space), rawH, number, (int) position);
     }
 
     top += rawH + space * 4.0f;
@@ -586,30 +700,64 @@ float FullSendPanel::PaintDisks (IDxuiTextRenderer & text, const IDxuiTheme & th
 //
 //  FullSendPanel::PaintActivity
 //
-//  The latest activity lines, the newest last, each after its time.
+//  The latest activity lines, the newest last, each after its time. A line
+//  wider than the list wraps onto a second row, and the list has as many of
+//  the latest lines as fit its rows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 float FullSendPanel::PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const
 {
-    RECT    bounds = GetBounds();
-    float   left   = (float) bounds.left;
-    float   width  = (float) (bounds.right - bounds.left);
-    float   lineH  = m_scaler.ToPxf (kLineDip);
-    float   time   = width * 0.10f;
-    size_t  count  = m_view.snapshot.lines.size();
-    size_t  first  = count > (size_t) kActivityRows ? count - (size_t) kActivityRows : 0;
+    RECT                       bounds = GetBounds();
+    float                      left   = (float) bounds.left;
+    float                      width  = (float) (bounds.right - bounds.left);
+    float                      lineH  = m_scaler.ToPxf (kLineDip);
+    float                      time   = width * 0.10f;
+    size_t                     count  = m_view.snapshot.lines.size();
+    size_t                     first  = count;
+    int                        used   = 0;
+    std::vector<std::wstring>  lines  (count);
+    std::vector<int>           rows   (count, 1);
 
 
 
     DrawLine (text, L"Activity", left, top, width, theme.HeadingForeground(), true);
     top += m_scaler.ToPxf (kHeadingDip);
 
+    while (first > 0)
+    {
+        HRESULT  hr       = S_OK;
+        float    measured = 0.0f;
+        float    height   = 0.0f;
+        size_t   i        = first - 1;
+
+        lines[i] = TextEncoding::NarrowToWide (m_view.snapshot.lines[i].text);
+
+        hr = text.MeasureString (lines[i].c_str(), m_scaler.ToPxf (kFontDip), s_kpszFont, measured, height);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        rows[i] = (measured > width - time) ? 2 : 1;
+
+        if (used + rows[i] > kActivityRows)
+        {
+            break;
+        }
+
+        used += rows[i];
+        first = i;
+    }
+
     for (size_t i = first; i < count; i++)
     {
+        HRESULT  hr = S_OK;
+
         DrawLine (text, TextEncoding::NarrowToWide (m_view.snapshot.lines[i].time), left, top, time, theme.ForegroundMuted());
-        DrawLine (text, TextEncoding::NarrowToWide (m_view.snapshot.lines[i].text), left + time, top, width - time, theme.Foreground());
-        top += lineH;
+
+        hr = text.DrawString (lines[i].c_str(), left + time, top, width - time, lineH * rows[i], theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
+                              DxuiTextHAlign::Left, rows[i] == 1 ? DxuiTextVAlign::Center : DxuiTextVAlign::Top, DxuiFontWeight::Normal, rows[i] > 1);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        top += lineH * rows[i];
     }
 
     return top;
@@ -665,6 +813,16 @@ void FullSendDialog::OnCreate()
 
 
     m_panel     = CreateDialogContent<FullSendPanel>();
+
+    m_tooltip.SetPopupHost (GetPopupHost());
+    m_tooltip.SetFollowPointer (true);
+
+    if (m_theme != nullptr)
+    {
+        m_tooltip.SetTheme (*m_theme);
+    }
+
+    m_panel->SetTooltip (&m_tooltip);
     m_endButton = AddDialogButton (L"End session", kEndId);
     folder      = AddDialogButton (L"Open folder", kFolderId);
 
@@ -688,7 +846,7 @@ void FullSendDialog::OnCreate()
         }
     });
 
-    SetDialogTickIntervalMs (kTickMs);
+    SetDialogTickIntervalMs (kTipTickMs);
     Refresh();
 }
 
@@ -704,7 +862,12 @@ void FullSendDialog::OnCreate()
 
 void FullSendDialog::OnDialogTick()
 {
-    Refresh();
+    m_tooltip.Tick ((int64_t) GetTickCount64());
+
+    if (m_ticks++ % (kTickMs / kTipTickMs) == 0)
+    {
+        Refresh();
+    }
 }
 
 

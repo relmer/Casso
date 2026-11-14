@@ -99,6 +99,31 @@ public:
 
 
 
+    TEST_METHOD (AMapCellsTip_HasItsTrackAndWhatItsMarkMeans)
+    {
+        FullSendDriveStatus  drive;
+
+
+
+        Assert::AreEqual (std::wstring (L"Track 12: not read yet"), FullSendPanel::DescribeCell (drive, 48));
+
+        drive.tracks[12] = FullSendTrackMark::Verified;
+        Assert::AreEqual (std::wstring (L"Track 12: read and verified"), FullSendPanel::DescribeCell (drive, 48));
+
+        drive.tracks[12] = FullSendTrackMark::Unreadable;
+        Assert::AreEqual (std::wstring (L"Track 12: a sector could not be read"), FullSendPanel::DescribeCell (drive, 48));
+
+        //  In a raw capture a cell has its position's mark, not the mark of
+        //  the sector read before it.
+        drive.positions.assign (FullSendDriveStatus::kPositions, FullSendPositionMark::Unread);
+        drive.positions[48] = FullSendPositionMark::Read;
+        drive.positions[49] = FullSendPositionMark::Unstable;
+        Assert::AreEqual (std::wstring (L"Track 12: read"), FullSendPanel::DescribeCell (drive, 48));
+        Assert::AreEqual (std::wstring (L"Track 12.25: the reads differ in length"), FullSendPanel::DescribeCell (drive, 49));
+    }
+
+
+
     TEST_METHOD (TheTotals_HaveTheAverageAndSizeOnceADiskIsSent)
     {
         FullSendTotals  totals;
