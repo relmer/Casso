@@ -525,6 +525,9 @@ public:
                                    FilePayload              & payload,
                                    DiskCommandResult        & result);
 
+    //  Text with an LF line end made CR LF.
+    static void     ToWindowsLineEndings (std::vector<Byte> & inOutBytes);
+
 private:
     static SYSTEMTIME  GetLocalDate ();
 

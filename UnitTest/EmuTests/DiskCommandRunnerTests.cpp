@@ -3954,10 +3954,10 @@ public:
 
         returned.assign (readBack.payload.begin(), readBack.payload.end());
 
-        Assert::AreEqual (std::string ("10  REM  A SPACED REM\n"
-                                       "20  PRINT \"PRINT AT TO\"\n"
-                                       "30  DATA \"A:B\",C: PRINT 1\n"
-                                       "40  FOR I = 1 TO 9: NEXT\n"),
+        Assert::AreEqual (std::string ("10  REM  A SPACED REM\r\n"
+                                       "20  PRINT \"PRINT AT TO\"\r\n"
+                                       "30  DATA \"A:B\",C: PRINT 1\r\n"
+                                       "40  FOR I = 1 TO 9: NEXT\r\n"),
                           returned,
             L"the listing must come back with the same statements and the same payload "
             L"spacing -- the leading spaces are the ones LIST puts in front of a token");
@@ -4133,10 +4133,10 @@ public:
 
         returned.assign (readBack.payload.begin(), readBack.payload.end());
 
-        Assert::AreEqual (std::string ("10  REM  A SPACED REM\n"
-                                       "20  PRINT \"PRINT AT TO\"\n"
-                                       "30  DATA \"A:B\",C: PRINT 1\n"
-                                       "40  FOR I = 1 TO 9: NEXT\n"),
+        Assert::AreEqual (std::string ("10  REM  A SPACED REM\r\n"
+                                       "20  PRINT \"PRINT AT TO\"\r\n"
+                                       "30  DATA \"A:B\",C: PRINT 1\r\n"
+                                       "40  FOR I = 1 TO 9: NEXT\r\n"),
                           returned,
             L"and the listing comes back off ProDOS exactly as it comes back off DOS 3.3");
     }
@@ -4235,7 +4235,7 @@ public:
         CommandLineOptions  options  = MakePutOptions (kBlankImage, kHostFile, "NOTES");
         DiskCommandResult   stored;
         DiskCommandResult   asText;
-        std::string         source   = "HELLO\nWORLD\n";
+        std::string         source   = "HELLO\r\nWORLD\r\n";
         vector<Byte>        hostText (source.begin(), source.end());
         size_t              i        = 0;
 
@@ -4264,7 +4264,19 @@ public:
                                         CommandLineOptions::DiskOptions::Encoding::Text);
 
         Assert::IsTrue (asText.payload == hostText,
-            L"host text placed and read back as text is the identity");
+            L"Windows text placed and read back as text is the identity");
+    }
+
+    //  Text for the PC ends each line with CR LF, whether the conversion
+    //  wrote LF, as Apple text's does, or CR LF, as Pascal text's does.
+    TEST_METHOD (ToWindowsLineEndings_MakesEachLineEndCrLfOnce)
+    {
+        std::string   text  = "A\nB\r\nC\n\nD";
+        vector<Byte>  bytes (text.begin(), text.end());
+
+        DiskCommandRunner::ToWindowsLineEndings (bytes);
+
+        Assert::AreEqual (std::string ("A\r\nB\r\nC\r\n\r\nD"), std::string (bytes.begin(), bytes.end()));
     }
 
     TEST_METHOD (Put_WithTextAndNoNamedType_TakesTheFilesystemsOwnTextType)

@@ -1001,7 +1001,7 @@ emulator targets are that session's.
 
 ### Findings left open
 
-T751 to T756 and T759 were fixed 2026-11-14. T757 and T758 are open.
+T751 to T757 and T759 were fixed 2026-11-14. T758 is open.
 
 - Bold and italic runs overlap the text after them in an AppleWorks or Teach
   document's preview (T751).

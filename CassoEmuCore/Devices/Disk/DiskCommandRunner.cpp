@@ -1305,7 +1305,48 @@ HRESULT DiskCommandRunner::ApplyEncoding (
             break;
     }
 
+    //  Text and a listing for the PC end each line with Windows' CR LF, as
+    //  every conversion of Casso Explorer's does.
+    if (SUCCEEDED (hr) && options.disk.encoding != CommandLineOptions::DiskOptions::Encoding::Verbatim)
+    {
+        ToWindowsLineEndings (payload.bytes);
+    }
+
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ToWindowsLineEndings
+//
+//  Each line feed with no carriage return before it gets one. A CR LF is
+//  left as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::ToWindowsLineEndings (std::vector<Byte> & inOutBytes)
+{
+    std::vector<Byte>  converted;
+
+
+
+    converted.reserve (inOutBytes.size() + inOutBytes.size() / 16);
+
+    for (size_t i = 0; i < inOutBytes.size(); i++)
+    {
+        if (inOutBytes[i] == '\n' && (i == 0 || inOutBytes[i - 1] != '\r'))
+        {
+            converted.push_back ('\r');
+        }
+
+        converted.push_back (inOutBytes[i]);
+    }
+
+    inOutBytes = std::move (converted);
 }
 
 
