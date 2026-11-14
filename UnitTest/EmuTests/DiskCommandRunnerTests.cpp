@@ -19,6 +19,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "CassoExplorer/Model/HostAppleFile.h"
 #include "Core/AppleSingleCodec.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/FieldLocator.h"
@@ -317,6 +318,50 @@ public:
     }
 
 
+    //  A recursive listing's name column is as wide as its longest path, so
+    //  every type lines up.
+    TEST_METHOD (List_Recurse_AlignsTheColumnsToTheLongestPath)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+        std::istringstream  lines;
+        std::string         line;
+        size_t              column = std::string::npos;
+        size_t              rows   = 0;
+
+        SeedProDosDisk (io);
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir);
+        options.disk.path = "GRAPHICS.FOLDER/PRINTSHOP.ITEMS";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options              = MakeOptions (CommandLineOptions::DiskOptions::Command::List);
+        options.disk.recurse = true;
+        result               = runner.Run (options);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+
+        lines.str (result.output);
+
+        while (std::getline (lines, line))
+        {
+            size_t  type = line.find (" $");
+
+            if (line.find ("eof=") != std::string::npos)
+            {
+                Assert::IsTrue (column == std::string::npos || type == column, TextEncoding::NarrowToWide (line).c_str());
+                Assert::IsTrue (line.find ("PRINTSHOP.ITEMSDIR") == std::string::npos);
+
+                column = type;
+                rows++;
+            }
+        }
+
+        Assert::IsTrue (rows > 2);
+    }
+
+
     TEST_METHOD (Mkdir_OnADos33Disk_SaysTheFilesystemHasNoDirectories)
     {
         FakeDiskFileIo      io;
@@ -517,6 +562,111 @@ public:
         Assert::IsTrue   (back.resourceFork == single.resourceFork, L"the resource fork went onto the disk");
         Assert::AreEqual ((uint32_t) 0x50,   (uint32_t) back.fileType);
         Assert::AreEqual ((uint32_t) 0x5445, (uint32_t) back.auxType);
+    }
+
+
+    //  The entry `name` in the committed ProDOS image's catalog.
+    static FileEntry FindProDosEntry (FakeDiskFileIo & io, const char * name)
+    {
+        vector<Byte>        sectors;
+        SectorDecodeReport  report;
+        VolumeListing       listing;
+        FileEntry           found;
+
+
+
+        AssertSucceeded (VolumeImage::Load (io.files[kImage], kImage, sectors, report));
+        AssertSucceeded (VolumeImage::CreateVolume (VolumeKind::ProDos, sectors)->Enumerate (listing));
+
+        for (const FileEntry & entry : listing.entries)
+        {
+            if (entry.name == name)
+            {
+                found = entry;
+            }
+        }
+
+        return found;
+    }
+
+
+    static Byte GetProDosType (FakeDiskFileIo & io, const char * name)
+    {
+        return FindProDosEntry (io, name).type;
+    }
+
+
+    //  A file put from the PC is dated when it was last written there, in
+    //  local time.
+    TEST_METHOD (Put_DatesTheFileWhenItWasWrittenOnThePc)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Command::Put);
+        FilePayload         expected;
+        FileEntry           entry;
+
+
+
+        SeedProDosDisk (io);
+
+        io.files["note.txt"]  = { 'H', 'I' };
+        io.stamps["note.txt"] = FileStamp { 2, 1700000000 };
+        HostAppleFile::SetHostDates (1700000000, expected);
+
+        options.disk.hostFile = "note.txt";
+        options.disk.path     = "NOTE";
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        entry = FindProDosEntry (io, "NOTE");
+        Assert::IsTrue   (expected.hasDates);
+        Assert::AreEqual ((int) (23 << 9 | 11 << 5), (int) (expected.modifiedDate & 0xFFE0), L"November 2023");
+        Assert::AreEqual ((int) expected.modifiedDate, (int) entry.modifiedDate);
+        Assert::AreEqual ((int) expected.modifiedTime, (int) entry.modifiedTime);
+        Assert::AreEqual ((int) expected.modifiedDate, (int) entry.createdDate);
+    }
+
+
+    //  --type takes any type in ProDOS's table, by its abbreviation or its
+    //  number, and a host name's type applies with --as too.
+    TEST_METHOD (Put_TakesAProDosTypeByNumberOrAbbreviation_AndAHostNamesTypeWithAs)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options;
+
+
+
+        SeedProDosDisk (io);
+
+        io.files["pic.bin"]     = vector<Byte> (64, 0x11);
+        io.stamps["pic.bin"]    = FileStamp { 64, 100 };
+        io.files["ART#C10001"]  = vector<Byte> (64, 0x22);
+        io.stamps["ART#C10001"] = FileStamp { 64, 100 };
+
+        options                = MakeOptions (CommandLineOptions::DiskOptions::Command::Put);
+        options.disk.hostFile  = "pic.bin";
+        options.disk.path      = "PAINT";
+        options.disk.typeName  = "$C0";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.path      = "SOUND";
+        options.disk.typeName  = "snd";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.hostFile  = "ART#C10001";
+        options.disk.path      = "PICTURE";
+        options.disk.typeName  = "";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        Assert::AreEqual ((int) 0xC0, (int) GetProDosType (io, "PAINT"));
+        Assert::AreEqual ((int) 0xD8, (int) GetProDosType (io, "SOUND"));
+        Assert::AreEqual ((int) 0xC1, (int) GetProDosType (io, "PICTURE"));
+
+        options.disk.path      = "ODD";
+        options.disk.typeName  = "$100";
+        Assert::AreEqual (DiskCommandResult::kNoOutput, runner.Run (options).exitStatus, L"past a byte");
     }
 
 

@@ -365,12 +365,18 @@ private:
                                   DiskCommandResult                    & result);
 
     //  One directory's rows, and with `recurse` the rows of everything below
-    //  it, each of those written as a full path.
+    //  it, each of those written as a full path. The name column is
+    //  `nameWidth` wide.
     HRESULT  AppendDirectoryRows (const IVolume      & volume,
                                   VolumeKind           kind,
                                   const std::string  & directory,
                                   bool                 recurse,
+                                  size_t               nameWidth,
                                   DiskCommandResult  & result);
+
+    //  The name column's width for a recursive listing of `directory`: its
+    //  longest name or path and a gap, if wider than inOutWidth.
+    static HRESULT  MeasureNameWidth (const IVolume & volume, const std::string & directory, size_t & inOutWidth);
 
     //  A typed path as the volume reads it. A path with no leading slash is
     //  read from the volume directory and comes back unchanged; one with a
@@ -488,8 +494,10 @@ private:
     //  One line per catalog entry, in the shape the guest's own listing uses --
     //  with every column the volume records, since ProDOS fills eof= and aux=
     //  whether or not anybody asks and the widest row still fits in 80.
+    static constexpr size_t  kNameWidth = 17;
+
     static std::string  FormatDos33Entry  (const FileEntry & entry);
-    static std::string  FormatProDosEntry (const FileEntry & entry);
+    static std::string  FormatProDosEntry (const FileEntry & entry, size_t nameWidth = kNameWidth);
 
     static char  GetDos33TypeLetter (Byte type);
 
