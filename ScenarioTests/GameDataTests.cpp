@@ -366,6 +366,6 @@ public:
         InfocomSave::FindPositions (saved, positions);
 
         Assert::AreEqual ((size_t) 1, positions.size());
-        Assert::AreEqual (std::string ("release 88: Kitchen, score 10, 4 moves"), InfocomSave::Describe (positions[0]));
+        Assert::AreEqual (std::string ("Zork I (release 88): Kitchen, score 10 of 350, 4 moves"), InfocomSave::Describe (positions[0]));
     }
 };

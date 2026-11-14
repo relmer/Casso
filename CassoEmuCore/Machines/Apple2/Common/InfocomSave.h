@@ -41,6 +41,14 @@ public:
         int           moves    = 0;      // the minutes, in a timed story
     };
 
+    struct Story
+    {
+        int           release  = 0;
+        const char *  serial   = "";
+        const char *  title    = "";
+        int           maxScore = 0;      // zero when not known, or for a timed story
+    };
+
     static constexpr int     kPositions         = 8;
     static constexpr int     kTracksPerPosition = 4;
     static constexpr int     kStatePages        = 3;
@@ -53,9 +61,13 @@ public:
     //  Position `number`, or false when it has no saved game.
     static bool  TryReadPosition (const std::vector<Byte> & sectors, int number, Position & outPosition);
 
-    //  One position as a line: the release, the room and the score and
-    //  moves, or the time.
+    //  One position as a line: the title and release, the room, and the
+    //  score out of the maximum and the moves, or the time. The title and
+    //  the maximum are left out for a story not in the table.
     static std::string  Describe (const Position & position);
+
+    //  The story with this release and serial number, or nullptr.
+    static const Story *  FindStory (int release, const std::string & serial);
 
 private:
     static constexpr size_t  kHeaderBytes = 64;

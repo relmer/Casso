@@ -129,6 +129,36 @@ public:
     }
 
 
+    //  A story in the table by its release and serial number has its title,
+    //  and the maximum score where it has one.
+    TEST_METHOD (Describe_AKnownStoryHasItsTitleAndMaximumScore)
+    {
+        InfocomSave::Position  position;
+
+
+
+        position.release = 88;
+        position.serial  = "840726";
+        position.room    = L"Kitchen";
+        position.score   = 10;
+        position.moves   = 4;
+
+        Assert::AreEqual (std::string ("Zork I (release 88): Kitchen, score 10 of 350, 4 moves"), InfocomSave::Describe (position));
+
+        position.serial = "840727";
+        Assert::AreEqual (std::string ("release 88: Kitchen, score 10, 4 moves"), InfocomSave::Describe (position), L"another serial number is another story");
+
+        position.release = 27;
+        position.serial  = "831005";
+        position.isTimed = true;
+        position.score   = 9;
+        position.moves   = 5;
+
+        Assert::AreEqual (std::string ("Deadline (release 27): Kitchen, time 9:05 AM"), InfocomSave::Describe (position));
+        Assert::IsNull   (InfocomSave::FindStory (88, "123456"));
+    }
+
+
     TEST_METHOD (FindPositions_OnlyTheSavedOnes)
     {
         std::vector<Byte>                    disk = MakeDisk (MakeMemory (0), 7);
