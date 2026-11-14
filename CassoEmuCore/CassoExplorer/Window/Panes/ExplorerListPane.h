@@ -33,6 +33,7 @@ class ExplorerListPane
 {
 public:
     explicit ExplorerListPane (ExplorerContext & context);
+    ~ExplorerListPane ();
 
     static constexpr const wchar_t *  kNoSearchMatches = L"No items match your search.";
 
@@ -119,6 +120,7 @@ public:
 
     void  HandleShellListed           (const std::wstring & key);
     void  HandleIconsLoaded           ();
+    void  HandlePicturesReady         ();
     void  HandleContentDetailsArrived ();
     bool  HandleMessageMouse          (const DxuiMouseEvent & ev);
     bool  HandleCharKey               (const DxuiKeyEvent & ev);
@@ -148,6 +150,7 @@ private:
     bool                         m_listMessageTop  = false;   // a search's message, at the list's top
     RECT                         m_paneRect        = {};
     Win32ShellIcons              m_listIcons;
+    HWND                         m_picturesHwnd    = nullptr; // the window the disk pictures post to
     Win32ContentDetails          m_contentDetails;
     Win32PropertyColumns         m_propertyValues;
     ULONGLONG                    m_lastRearrangeMs = 0;

@@ -220,6 +220,7 @@
     <ClCompile Include="CassoExplorer\Model\ImageFileSearchSources.cpp" />
     <ClCompile Include="CassoExplorer\Model\CollectionWalk.cpp" />
     <ClCompile Include="CassoExplorer\Model\CollectionResults.cpp" />
+    <ClCompile Include="CassoExplorer\Model\DiskImagePictures.cpp" />
     <ClCompile Include="CassoExplorer\Model\DiskIdentity.cpp" />
     <ClCompile Include="CassoExplorer\Model\CollectionQuery.cpp" />
     <ClCompile Include="CassoExplorer\Model\CollectionResultsItems.cpp" />
@@ -1336,6 +1337,7 @@
     <ClInclude Include="CassoExplorer\Model\ImageFileSearchSources.h" />
     <ClInclude Include="CassoExplorer\Model\CollectionWalk.h" />
     <ClInclude Include="CassoExplorer\Model\CollectionResults.h" />
+    <ClInclude Include="CassoExplorer\Model\DiskImagePictures.h" />
     <ClInclude Include="CassoExplorer\Model\DiskIdentity.h" />
     <ClInclude Include="CassoExplorer\Model\CollectionQuery.h" />
     <ClInclude Include="CassoExplorer\Model\CollectionResultsItems.h" />
@@ -1540,6 +1542,7 @@
     <ClInclude Include="CassoExplorer\Model\FocusRing.h" />
     <ClInclude Include="Seams\IntentReplyTracker.h" />
     <ClInclude Include="Seams\IProcessLauncher.h" />
+    <ClInclude Include="Seams\IDiskPictures.h" />
     <ClInclude Include="Seams\IShellIcons.h" />
     <ClInclude Include="Seams\Win32ProcessLauncher.h" />
     <ClInclude Include="Seams\Win32ShellIcons.h" />

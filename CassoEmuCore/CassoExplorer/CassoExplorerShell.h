@@ -10,6 +10,7 @@
 #include "CassoExplorer/ExplorerBootWorker.h"
 #include "CassoExplorer/ICassoExplorerHost.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
+#include "CassoExplorer/Model/DiskImagePictures.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoExplorer/Model/CassoExplorerSession.h"
 #include "Config/Win32FileSystem.h"
@@ -228,6 +229,7 @@ private:
     void                                     ConfigureBrowser     (CassoExplorerBrowser & browser);
     void                                     StartLinkFaults      ();
     void                                     StartBootWorker      ();
+    void                                     QueueBoot            (const std::wstring & path);
     void                                     ReleaseClosedWindows ();
     static void                              CloseDialogs         ();
     static BOOL CALLBACK                     CloseDialog          (HWND hwnd, LPARAM param);
@@ -249,6 +251,7 @@ private:
     CassoLinkConnections                      m_links;
     ThumbnailStore                            m_thumbnails     { ThumbnailStore::GetDefaultFolder() };
     std::unique_ptr<ExplorerBootWorker>       m_bootWorker;
+    DiskImagePictures                         m_pictures       { m_thumbnails, [this] (const std::wstring & path) { QueueBoot (path); } };
     Win32ProcessProbe                         m_processProbe;
     RunningCassoRegistry                      m_running;
     Win32NetworkChanges                       m_networkChanges;

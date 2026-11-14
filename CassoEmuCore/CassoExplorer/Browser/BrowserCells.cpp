@@ -980,8 +980,15 @@ std::shared_ptr<const DxuiIconImage> BrowserCells::GetRowIcon (const CatalogRow 
 
 
 
-    //  A disk image has Casso's floppy wherever it is listed, one inside a zip
-    //  too, as does a linked Apple's drive.
+    //  A disk image in a folder has the picture of its screen once booted,
+    //  where the icons are drawn as thumbnails.
+    if (row.isDiskImage && !row.isDirectory && at.kind == Location::Kind::HostFolder)
+    {
+        return icons.GetForDiskImage (CassoExplorerBrowser::JoinPath (at.path, row.name));
+    }
+
+    //  A disk image has Casso's floppy wherever else it is listed, one inside
+    //  a zip too, as does a linked Apple's drive.
     if (row.isDiskImage || (TreeModel::TryParseLinkId (row.hostPath, link, slot, drive) && drive != 0)
         || (at.kind == Location::Kind::ShellFolder && !row.isDirectory && !CatalogModel::GetDiskImageTypeName (row.name).empty()))
     {

@@ -9,6 +9,7 @@ class CassoExplorerBrowser;
 class CassoExplorerCommands;
 class CassoLinkConnections;
 class CassoLinkManager;
+class IDiskPictures;
 class ExplorerAddressBar;
 class ExplorerCommandManager;
 class ExplorerDragDrop;
@@ -73,6 +74,7 @@ public:
     ILinkAnnouncements         * announced   = nullptr;   // without it, no Apple is listed from a universal boot disk's announcements
     FirewallMonitor            * firewall    = nullptr;   // without it, no connection is reported blocked by Windows Firewall
     PhysicalCards              * cards       = nullptr;   // without it, no card can be opened
+    IDiskPictures              * pictures    = nullptr;   // without it, a disk image has the floppy icon in every view
 };
 
 

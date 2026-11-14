@@ -102,11 +102,12 @@ CassoExplorerShell::~CassoExplorerShell()
 
 
 
-    //  The worker's thread calls into m_links, so it ends first.
+    //  The windows' icon loaders queue images on the worker, and the
+    //  worker's thread calls into m_links, so the windows go, then the worker.
+    m_windows.clear();
+
     m_links.SetImageHandler (nullptr);
     m_bootWorker.reset();
-
-    m_windows.clear();
 
     if (m_oleInitialized)
     {
@@ -147,12 +148,37 @@ void CassoExplorerShell::StartBootWorker()
         {
             m_links.NoteBoot (result.source, file, boot, ExplorerBootWorker::Describe (result));
         }
+
+        if (result.hasReport)
+        {
+            m_pictures.NotifyReady();
+        }
     });
 
     m_links.SetImageHandler ([this] (const std::string & link, const std::string & path, const std::string & model)
     {
         m_bootWorker->Queue (TextEncoding::NarrowToWide (path), model, link);
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::QueueBoot
+//
+//  A disk image in a list with no thumbnail, from an icon loader's thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::QueueBoot (const std::wstring & path)
+{
+    if (m_bootWorker != nullptr)
+    {
+        m_bootWorker->Queue (path, std::string());
+    }
 }
 
 
@@ -999,6 +1025,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
     context.announced   = &m_announcements;
     context.firewall    = &m_firewall;
     context.cards       = &m_cards;
+    context.pictures    = &m_pictures;
 
     slot->window = std::make_unique<CassoExplorerWindow> (*slot->browser, *slot->actions, m_prefs, std::move (context));
 

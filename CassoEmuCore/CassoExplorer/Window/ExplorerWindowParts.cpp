@@ -358,6 +358,12 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
+    if (msg == (UINT) AppMessage::ExplorerPicturesReady)
+    {
+        listPane.HandlePicturesReady();
+        return true;
+    }
+
     //  New's file types join the command bar's New once the shell lists them.
     if (msg == (UINT) AppMessage::ExplorerNewChoices)
     {

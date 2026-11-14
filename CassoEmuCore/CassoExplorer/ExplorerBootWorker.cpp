@@ -149,7 +149,15 @@ void ExplorerBootWorker::Queue (const std::wstring & path, const std::string & m
             return;
         }
 
-        m_queue.push_back ({ path, model, source });
+        //  An image a connection just wrote goes ahead of those a list queued.
+        if (source.empty())
+        {
+            m_queue.push_back ({ path, model, source });
+        }
+        else
+        {
+            m_queue.push_front ({ path, model, source });
+        }
     }
 
     m_wake.notify_all();
@@ -328,6 +336,8 @@ std::string ExplorerBootWorker::Describe (const Result & result)
 
 void ExplorerBootWorker::Run()
 {
+    SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+
     for (;;)
     {
         Item    item;
