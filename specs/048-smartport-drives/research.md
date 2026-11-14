@@ -22,14 +22,22 @@ reference.
 | Apple II 3.5 Disk Controller Card | `Apple II 3.5 Disk Controller Card ROM - 341-0438-A.bin` | 32 KB | MAME `a2superdrive`, SHA-1 `440c3f84176c7b9f542da0b6ddf4fb13ec326c46` |
 | UniDisk 3.5 interface card (Liron) | `Apple 3.5 Floppy Disk Drive Interface Card ROM.bin` | 4 KB | a2-liron, SHA-256 `42c1ae66c6bec932669239599eb8989a5364752d56fa5c8997bb23d8dfc0b657` |
 | UniDisk 3.5 drive controller | `Apple UniDisk 3.5 ROM.bin` | 8 KB | a2-liron, SHA-256 `9f9f9160938f0b69c6f532f9acf194e3b48de8b195b6b47faad8423d6c1e3cce` |
-| ProFile interface card, 5 MB | `Apple II Interface 341-0271-A ROM 2716 for 5MB Profile.bin` | 2 KB | none; the fetch pins the SHA-1 of the first download |
-| ProFile interface card, 10 MB | `Apple II Interface 341-0299-B ROM 2716 for 10MB Profile.bin` | 2 KB | none; same |
+| ProFile interface card, 5 MB | `Apple II Interface 341-0271-A ROM 2716 for 5MB Profile.bin` | 2 KB | none; SHA-1 pinned at the first fetch, `d9d4a7a2c14232c3872f9bbf55aff1b31f9a1cb5` |
+| ProFile interface card, 10 MB | `Apple II Interface 341-0299-B ROM 2716 for 10MB Profile.bin` | 2 KB | none; SHA-1 pinned at the first fetch, `81750f023f964c2f3781d687cee5b1ea5b49d4ea` |
 | //c Plus | `Apple IIc plus ROM 05 - 342-0625-A - 1988.bin` | 32 KB | MAME `apple2cp`, SHA-1 `1a27ae26966bbafd825d08ad1a24742d3e33557c` |
 
 The two a2-liron checksums are from the Makefile of Eric Smith's 2018
 disassembly (`git.applefritter.com/Apple-2-SW/a2-liron`), which rebuilds both
-ROMs byte for byte. **To verify**: that the mirror's two files have those
-checksums.
+ROMs byte for byte.
+
+**Checked** (fetched 2026-11-13): every file on the mirror matches its
+reference. The mirror's Liron and UniDisk 3.5 files have the a2-liron SHA-256
+values; their SHA-1 values, which the fetch checks, are
+`fa94ecc2aa23f336f7da9e18bc8f4a6cfbb4ea60` and
+`69f3dee914027eb2fa6eda512f8f5c649ad4c227`. The //c Plus video ROM,
+342-0265-A, has SHA-1 `b2b5d87f52693817fc747df087a4aa1ddcdb1f10`. The SCSI
+card's file on the mirror is `Apple II SCSI Card ROM Rev. C - 341-0437-A.bin`
+in `Interface Cards/SCSI Controllers/Apple II SCSI Card/ROM Images`.
 
 **Alternatives considered**: Assembling the disassembly at fetch time depends on
 the `asl` assembler, an executable download, which the security rules forbid.

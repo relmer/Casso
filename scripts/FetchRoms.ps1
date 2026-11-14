@@ -68,6 +68,24 @@ $mirrorRoot    = 'https://mirrors.apple2.org.za/Apple%20II%20Documentation%20Pro
 $apple2cRomUrl = "$mirrorRoot/Apple%20IIc/ROM%20Images/Apple%20IIc%20ROM%2004%20-%20341-0445-B.bin"
 $apple2eVidUrl = "$mirrorRoot/Apple%20IIe/ROM%20Images/Apple%20IIe%20Video%20ROM%20-%20342-0133-A%20-%20US%201982.bin"
 
+#  Card and drive firmware, and the //c Plus, from the same mirror. Each row
+#  has a SHA-1 checked after download: MAME's for the SCSI card, the 3.5
+#  controller card and the //c Plus; the SHA-1 of the files whose SHA-256 the
+#  a2-liron disassembly's Makefile lists for the Liron card and the UniDisk 3.5;
+#  and the SHA-1 pinned at the first fetch for the two ProFile ROMs.
+$docRoot     = 'https://mirrors.apple2.org.za/Apple%20II%20Documentation%20Project'
+$cardRoot    = "$docRoot/Interface%20Cards"
+$scsiRomUrl  = "$cardRoot/SCSI%20Controllers/Apple%20II%20SCSI%20Card/ROM%20Images/Apple%20II%20SCSI%20Card%20ROM%20Rev.%20C%20-%20341-0437-A.bin"
+$a35RomUrl   = "$cardRoot/Disk%20Drive%20Controllers/Apple%20II%203.5%20Disk%20Controller%20Card/ROM%20Images/Apple%20II%203.5%20Disk%20Controller%20Card%20ROM%20-%20341-0438-A.bin"
+$lironUrl    = "$cardRoot/Disk%20Drive%20Controllers/Apple%203.5%20Floppy%20Disk%20Drive%20Interface%20Card/ROM%20Images/Apple%203.5%20Floppy%20Disk%20Drive%20Interface%20Card%20ROM.bin"
+$uniDiskUrl  = "$docRoot/Peripherals/Disk%20Drives/Apple%20UniDisk%203.5/ROM%20Images/Apple%20UniDisk%203.5%20ROM.bin"
+$proFileRoot = "$cardRoot/Hard%20Disk%20Drive%20Controllers/Apple%20II%20ProFile%20Interface%20Card/ROM%20Images"
+$proFile5Url = "$proFileRoot/Apple%20II%20Interface%20341-0271-A%20ROM%202716%20for%205MB%20Profile.bin"
+$proFile10Url = "$proFileRoot/Apple%20II%20Interface%20341-0299-B%20ROM%202716%20for%2010MB%20Profile.bin"
+$cPlusRoot   = "$mirrorRoot/Apple%20IIc%20plus/ROM%20Images"
+$cPlusRomUrl = "$cPlusRoot/Apple%20IIc%20plus%20ROM%2005%20-%20342-0625-A%20-%201988.bin"
+$cPlusVidUrl = "$cPlusRoot/Apple%20IIc%20plus%20Video%20ROM%20-%20342-0265-A.bin"
+
 #  One row per file Casso wants on disk. The same upstream file can appear
 #  more than once under different destinations: the ][ and ][+ share a
 #  character generator, the //e, Enhanced //e and //c share the MouseText one,
@@ -84,7 +102,15 @@ $romFiles = @(
     @{ Url = $apple2cRomUrl;                            Dest = 'Apple2c.rom';          Subdir = 'Machines/Apple2c';         Size = 32768; Desc = 'Apple //c ROM 4 (341-0445-B, memory expansion)' },
     @{ Url = "$appleWinUrl/Apple2e_Enhanced_Video.rom"; Dest = 'Apple2c_Video.rom';    Subdir = 'Machines/Apple2c';         Size = 4096;  Desc = 'Apple //c Character Generator + MouseText' },
     @{ Url = "$appleWinUrl/DISK2.rom";                  Dest = 'Disk2.rom';            Subdir = 'Devices/DiskII';           Size = 256;   Desc = 'Disk ][ Boot ROM (slot 6)' },
-    @{ Url = "$appleWinUrl/DISK2-13sector.rom";         Dest = 'Disk2_13Sector.rom';   Subdir = 'Devices/DiskII';           Size = 256;   Desc = 'Disk ][ Boot ROM (13-sector)' }
+    @{ Url = "$appleWinUrl/DISK2-13sector.rom";         Dest = 'Disk2_13Sector.rom';   Subdir = 'Devices/DiskII';           Size = 256;   Desc = 'Disk ][ Boot ROM (13-sector)' },
+    @{ Url = $scsiRomUrl;   Dest = '341-0437-A.rom';        Subdir = 'Devices/AppleScsiCard'; Size = 16384; Sha1 = '451c85c46b92e6ad2ad930f055ccf0fe3049936d'; Desc = 'Apple II SCSI Card ROM (341-0437-A)' },
+    @{ Url = $a35RomUrl;    Dest = '341-0438-A.rom';        Subdir = 'Devices/Apple35Card';   Size = 32768; Sha1 = '440c3f84176c7b9f542da0b6ddf4fb13ec326c46'; Desc = 'Apple II 3.5 Disk Controller Card ROM (341-0438-A)' },
+    @{ Url = $lironUrl;     Dest = 'Liron.rom';             Subdir = 'Devices/LironCard';     Size = 4096;  Sha1 = 'fa94ecc2aa23f336f7da9e18bc8f4a6cfbb4ea60'; Desc = 'UniDisk 3.5 interface card ROM' },
+    @{ Url = $uniDiskUrl;   Dest = 'UniDisk35.rom';         Subdir = 'Devices/UniDisk35';     Size = 8192;  Sha1 = '69f3dee914027eb2fa6eda512f8f5c649ad4c227'; Desc = 'UniDisk 3.5 drive controller ROM' },
+    @{ Url = $proFile5Url;  Dest = '341-0271-A.rom';        Subdir = 'Devices/ProFileCard';   Size = 2048;  Sha1 = 'd9d4a7a2c14232c3872f9bbf55aff1b31f9a1cb5'; Desc = 'ProFile interface card ROM, 5 MB (341-0271-A)' },
+    @{ Url = $proFile10Url; Dest = '341-0299-B.rom';        Subdir = 'Devices/ProFileCard';   Size = 2048;  Sha1 = '81750f023f964c2f3781d687cee5b1ea5b49d4ea'; Desc = 'ProFile interface card ROM, 10 MB (341-0299-B)' },
+    @{ Url = $cPlusRomUrl;  Dest = 'Apple2cPlus.rom';       Subdir = 'Machines/Apple2cPlus';  Size = 32768; Sha1 = '1a27ae26966bbafd825d08ad1a24742d3e33557c'; Desc = 'Apple //c Plus ROM 05 (342-0625-A)' },
+    @{ Url = $cPlusVidUrl;  Dest = 'Apple2cPlus_Video.rom'; Subdir = 'Machines/Apple2cPlus';  Size = 4096;  Sha1 = 'b2b5d87f52693817fc747df087a4aa1ddcdb1f10'; Desc = 'Apple //c Plus Character Generator + MouseText (342-0265-A)' }
 )
 
 #  The flat fixture layout wants each file once. Two rows that differ only in
@@ -146,6 +172,11 @@ foreach ($rom in $romFiles) {
 
         if ($fileSize -ne $rom.Size) {
             Write-Host " SIZE MISMATCH ($fileSize bytes, expected $($rom.Size))" -ForegroundColor Red
+            Remove-Item $destPath -Force
+            $failed++
+        }
+        elseif ($rom.ContainsKey('Sha1') -and (Get-FileHash $destPath -Algorithm SHA1).Hash.ToLower() -ne $rom.Sha1) {
+            Write-Host " CHECKSUM MISMATCH (expected SHA-1 $($rom.Sha1))" -ForegroundColor Red
             Remove-Item $destPath -Force
             $failed++
         }

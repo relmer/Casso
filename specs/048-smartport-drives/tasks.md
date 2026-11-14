@@ -37,9 +37,9 @@ on machines as they ship today.
 
 **Purpose**: Folders, ROM fetch, project files.
 
-- [ ] T001 Create `CassoEmuCore/Devices/BlockDevice/`, `CassoEmuCore/Devices/Floppy35/`, `CassoEmuCore/Machines/Apple2/Apple2cPlus/`, `UnitTest/BlockDeviceTests/` and `UnitTest/Floppy35Tests/`, and add filters for them to `CassoEmuCore/CassoEmuCore.vcxproj.filters` and `UnitTest/UnitTest.vcxproj.filters`
-- [ ] T002 Add the catalog rows of `contracts/firmware-fetch.md` to `scripts/FetchRoms.ps1` with a checksum column verified after download (SHA-1 from MAME for 341-0437-A, 341-0438-A and the //c Plus ROM; SHA-256 from a2-liron for the Liron card and UniDisk 3.5 ROMs; a pinned SHA-1 for the two ProFile ROMs). A mismatch deletes the file and fails the fetch. Add the ROMs the tests use to `-Fixtures`
-- [ ] T003 Run the fetch, confirm every checksum, and write the two ProFile SHA-1 values and the result of the a2-liron comparison into `research.md` R1
+- [X] T001 Create `CassoEmuCore/Devices/BlockDevice/`, `CassoEmuCore/Devices/Floppy35/`, `CassoEmuCore/Machines/Apple2/Apple2cPlus/`, `UnitTest/BlockDeviceTests/` and `UnitTest/Floppy35Tests/`, and add filters for them to `CassoEmuCore/CassoEmuCore.vcxproj.filters` and `UnitTest/UnitTest.vcxproj.filters`. The tree has no `.filters` files, so the folders arrive with the first file each phase adds
+- [X] T002 Add the catalog rows of `contracts/firmware-fetch.md` to `scripts/FetchRoms.ps1` with a checksum column verified after download (SHA-1 from MAME for 341-0437-A, 341-0438-A and the //c Plus ROM; SHA-256 from a2-liron for the Liron card and UniDisk 3.5 ROMs; a pinned SHA-1 for the two ProFile ROMs). A mismatch deletes the file and fails the fetch. Add the ROMs the tests use to `-Fixtures`
+- [X] T003 Run the fetch, confirm every checksum, and write the two ProFile SHA-1 values and the result of the a2-liron comparison into `research.md` R1
 
 ---
 

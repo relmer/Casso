@@ -994,7 +994,7 @@ in conversation.
   verifies the fixture set before it runs anything, so on a machine without them
   the suite refuses to start and NOTHING can be validated -- not one test, not a
   filtered run. Fetch them with `scripts/FetchRoms.ps1 -Fixtures`. It downloads
-  only the eleven ROM images the fixtures call for, writes them under
+  only the ROM images the fixtures call for, writes them under
   `UnitTest/Fixtures/`, and that path is already gitignored, so nothing it
   fetches can reach a commit. This widens nothing else: no other script may
   fetch a binary, and a ROM is still never committed.
