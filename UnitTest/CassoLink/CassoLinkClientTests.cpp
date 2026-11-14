@@ -172,6 +172,32 @@ public:
 
 
 
+    //  A wait for Ready that lasts the notice time is reported, and then its
+    //  end; a Ready within the notice time isn't.
+    TEST_METHOD (ALongWaitForReady_IsReportedToTheWaitObserver)
+    {
+        Client             client;
+        std::vector<bool>  events;
+        std::mutex         lock;
+
+        client.host->SetWaitObserver ([&] (bool waiting) { std::lock_guard guard (lock); events.push_back (waiting); }, 100);
+
+        client.SendReady (LinkProgram::kProgramVersion);
+        Assert::AreEqual (S_OK, client.host->SendLabel ("QUICK"));
+        Assert::IsTrue (events.empty(), L"A Ready in time isn't a wait");
+
+        auto  sending = std::async (std::launch::async, [&] () { return client.host->SendLabel ("SLOW"); });
+
+        std::this_thread::sleep_for (std::chrono::milliseconds (400));
+        client.SendReady (LinkProgram::kProgramVersion);
+
+        Assert::AreEqual (S_OK, sending.get());
+        Assert::IsTrue (events == std::vector<bool> ({ true, false }));
+    }
+
+
+
+
     TEST_METHOD (Ready_FromTheShim_LoadsTheProgram_ResendingANakedPage)
     {
         Client             client;

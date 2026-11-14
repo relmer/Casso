@@ -1305,15 +1305,20 @@ void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
 //
 //  Waits for Ready from the current program, loading it first if the Ready
 //  is from another version. Other packets, and damage between them, are
-//  passed over.
+//  passed over. A wait that lasts the notice time is reported to the wait
+//  observer, as is its end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkHost::AwaitReady()
 {
-    HRESULT          hr      = S_OK;
+    HRESULT          hr       = S_OK;
     CassoLinkPacket  packet;
-    bool             current = false;
+    bool             current  = false;
+    bool             noticed  = false;
+    DWORD            whole    = m_adtProServer.m_operationTimeoutMs;
+    DWORD            timeout  = whole;
+    bool             canWatch = m_waitObserver && whole > m_waitNoticeMs;
 
 
 
@@ -1338,7 +1343,15 @@ HRESULT CassoLinkHost::AwaitReady()
 
     while (!current)
     {
-        hr = ReadPacket (m_adtProServer.m_operationTimeoutMs, packet);
+        timeout = !canWatch ? whole : noticed ? whole - m_waitNoticeMs : m_waitNoticeMs;
+        hr      = ReadPacket (timeout, packet);
+
+        if (hr == HRESULT_FROM_WIN32 (ERROR_TIMEOUT) && canWatch && !noticed)
+        {
+            noticed = true;
+            m_waitObserver (true);
+            continue;
+        }
 
         if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA))
         {
@@ -1375,6 +1388,11 @@ HRESULT CassoLinkHost::AwaitReady()
     }
 
 Error:
+    if (noticed)
+    {
+        m_waitObserver (false);
+    }
+
     return hr;
 }
 
