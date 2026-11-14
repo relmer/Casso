@@ -48,6 +48,26 @@ the interaction, sound and event log the Disk II already has.
   current source and AppleWin have no A2Pico or A2retroNET device.
 - Q: Should the A2Pico stay? A: Drop it from this spec as well. It can be added later.
   Spec 033's A2Pico card folder support in Casso Explorer stays.
+- Q: What is a SCSI disk whose image is over 20 MB? A: Always an HD20SC. The
+  model number on the front of the box follows the image's size in MB: "20SC"
+  for 20 MB, "32SC" for a 32 MB image. Reference photograph:
+  https://macs.billiehawkins.com/wp-content/uploads/2018/11/20sc.jpg
+- Q: Are writes to a 3.5-inch WOZ image saved to the WOZ file? A: Yes, by the
+  rules Casso already applies to a 5.25-inch WOZ image on the Disk II,
+  including its write-protect and save rules.
+- Q: How does Casso's CPU speed setting work on the //c Plus? A: "Authentic" is
+  4 MHz and the Machine tab displays 4 MHz, not 1. "2x" is 8 MHz. "Max" is max.
+- Q: Are the new cards part of a machine's default setup? A: Yes, on by
+  default on the //e and enhanced //e: the SCSI card in slot 7 with an HD20SC,
+  and the UniDisk 3.5 interface card in slot 5 with a UniDisk 3.5. An empty
+  card must add little to a floppy boot.
+- Q: What does the default HD20SC contain? A: A stock image: an empty ProDOS
+  volume with a blank boot block, so it is not bootable and floppies boot as
+  they do today. A bootable image the user attaches boots ahead of the floppy,
+  as on real hardware, where a floppy then takes Ctrl-Reset and `PR#6`.
+- Q: Does the //c get a UniDisk 3.5 on its disk port by default? A: No. The
+  //c's default setup stays as it is, and the user adds the drive from the
+  Machine tab.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -337,7 +357,8 @@ lamp, the tip, the clicks, the sounds and the log against the Disk II.
   through spec 033's block store and partition readers.
 - **FR-008**: The Apple 3.5 Drive and the UniDisk 3.5 MUST accept WOZ 2 images
   of 3.5-inch disks, and MUST present their flux to the controller, so that
-  protected disks load as on the real drive. Block images on these drives
+  protected disks load as on the real drive. Writes to a 3.5-inch WOZ image
+  MUST be saved by the rules that apply to a 5.25-inch WOZ image on the Disk II. Block images on these drives
   MUST be presented as the GCR a real 800K disk has.
 - **FR-009**: Writes MUST be committed to the image file on the host through
   the durable commit path the Disk II uses, and a reset or crash mid-write MUST
@@ -358,11 +379,25 @@ lamp, the tip, the clicks, the sounds and the log against the Disk II.
   controller, its external disk port accepting the Apple 3.5 Drive, the UniDisk
   3.5 and a 5.25-inch drive, and its accelerator at the real machine's speed,
   with acceleration switchable as on the real machine and disk access slowed
-  to 1 MHz as the real accelerator does.
+  to 1 MHz as the real accelerator does. Casso's CPU speed setting on the //c
+  Plus MUST map "Authentic" to 4 MHz, displayed as 4 MHz in the Machine tab,
+  "2x" to 8 MHz, and "Max" to the maximum speed.
 - **FR-014**: Users MUST be able to add each card to a slot, attach drives to
   it, and attach an image to each drive from the Machine tab, from the desk
   scene and drive band, and from the command line, and the configuration MUST
   persist across launches.
+- **FR-014a**: The //e and enhanced //e MUST ship with the SCSI card enabled in
+  slot 7 with an HD20SC at ID 6, and the UniDisk 3.5 interface card enabled in
+  slot 5 with one UniDisk 3.5. A user's existing machine copy MUST gain them
+  only where slots 5 and 7 are unconfigured.
+- **FR-014b**: The default HD20SC MUST have a stock image, created per user on
+  first use: an empty 32 MB ProDOS volume with a blank boot block. With it
+  attached, a floppy in slot 6 MUST boot as it does without the card. If
+  Apple's SCSI ROM does not pass over a disk with a blank boot block, the
+  default HD20SC ships with no image.
+- **FR-014c**: With the default cards enabled and no bootable hard disk, the
+  time from power-on to the start of a floppy boot MUST be within 1 second of
+  the time without the cards.
 - **FR-015**: The Machine tab MUST offer a card only on a machine that can host
   it, and MUST state why a card is unavailable in its tip.
 - **FR-016**: A missing ROM MUST be reported with the file name and the places
@@ -451,8 +486,9 @@ lamp, the tip, the clicks, the sounds and the log against the Disk II.
   works on the //c Plus and on the 3.5 controller card in a //e.
 - The //c Plus's internal drive is drawn as an Apple 3.5 Drive in the //c
   Plus's colors, as the //c's internal drive is drawn as a //c external drive.
-- Every SCSI target is drawn as an HD20SC. Other SCSI disks differ from it in
-  capacity, not in the commands the firmware issues.
+- Every SCSI disk is an HD20SC, whatever the size of its image. The model
+  number on the front of the desk model is the image's size in MB followed by
+  "SC", so a 32 MB image is drawn as a "32SC".
 - The desk scene's automatic placement is enough for this spec. User
   arrangement of devices is spec 009's work and is not started.
 - Images Casso writes for these devices are the ones spec 033 already creates
