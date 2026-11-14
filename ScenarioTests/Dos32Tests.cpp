@@ -35,6 +35,41 @@ public:
     static constexpr const char *  kRoot           = "CiderPress";
     static constexpr Byte          kProDosInteger  = 0xFA;
     static constexpr Byte          kProDosBinary   = 0x06;
+    static constexpr DWORD         kCp2TimeoutMs   = 60000;
+
+    //  cp2.exe run to completion. False when it isn't installed.
+    static bool RunCp2 (const std::wstring & arguments, DWORD & outExitCode)
+    {
+        wchar_t              local[MAX_PATH] = {};
+        std::wstring         cp2;
+        std::wstring         command;
+        STARTUPINFOW         startup         = { sizeof (startup) };
+        PROCESS_INFORMATION  process         = {};
+        BOOL                 started         = FALSE;
+
+
+
+        outExitCode = 0;
+
+        GetEnvironmentVariableW (L"LOCALAPPDATA", local, MAX_PATH);
+        cp2 = std::wstring (local) + L"\\Programs\\CiderPress2\\cp2.exe";
+
+        if (!fs::exists (cp2))
+        {
+            return false;
+        }
+
+        command = L"\"" + cp2 + L"\" " + arguments;
+        started = CreateProcessW (nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &process);
+        Assert::IsTrue (started != FALSE, L"cp2.exe did not start");
+
+        WaitForSingleObject (process.hProcess, kCp2TimeoutMs);
+        GetExitCodeProcess (process.hProcess, &outExitCode);
+        CloseHandle (process.hThread);
+        CloseHandle (process.hProcess);
+
+        return true;
+    }
 
     //  A NAPS name, `NAME#TTAAAA`, with `%xx` for a character a PC name can't
     //  have.
@@ -298,5 +333,90 @@ public:
         AssertSucceeded (volume->Read (FilePath::Parse ("CASSO"), back));
 
         Assert::IsTrue (payload.bytes == back.bytes);
+    }
+
+
+    //  Two files written to the blank disk and the second deleted, saved as a
+    //  .d13. CiderPress II's test of the image passes, and the file it
+    //  extracts is the one written.
+    TEST_METHOD (Dos32BlankD13_ChangedByCasso_PassesCiderPressTest)
+    {
+        static constexpr const char *  kImage = "dos32/3.2-blank.d13";
+
+
+
+        std::vector<Byte>         sectors;
+        std::vector<Byte>         first;
+        std::vector<Byte>         second;
+        std::vector<Byte>         written;
+        std::unique_ptr<IVolume>  volume;
+        VolumeListing             listing;
+        FilePayload               payload;
+        fs::path                  folder  = fs::temp_directory_path() / L"CassoDos32Tests";
+        fs::path                  file    = folder / L"changed.d13";
+        fs::path                  out     = folder / L"extracted";
+        fs::path                  back    = out / L"CASSO#062000";
+        std::vector<Byte>         extracted;
+        std::ifstream             in;
+        DWORD                     exit    = 0;
+
+
+
+        if (!OpenImage (kImage, sectors))
+        {
+            return;
+        }
+
+        payload.type           = Dos33Volume::kTypeBinary;
+        payload.loadAddress    = 0x2000;
+        payload.hasLoadAddress = true;
+
+        for (size_t i = 0; i < 700; i++)
+        {
+            payload.bytes.push_back ((Byte) (i * 13));
+        }
+
+        volume = VolumeImage::CreateVolume (VolumeKind::Dos33, sectors);
+        Assert::IsNotNull (volume.get());
+        AssertSucceeded (volume->Write (FilePath::Parse ("CASSO"), payload, first));
+
+        volume = VolumeImage::CreateVolume (VolumeKind::Dos33, first);
+        AssertSucceeded (volume->Write (FilePath::Parse ("SCRATCH"), payload, second));
+
+        volume = VolumeImage::CreateVolume (VolumeKind::Dos33, second);
+        AssertSucceeded (volume->Delete (FilePath::Parse ("SCRATCH"), written));
+
+        volume = VolumeImage::CreateVolume (VolumeKind::Dos33, written);
+        AssertSucceeded (volume->Enumerate (listing));
+        Assert::IsTrue (std::none_of (listing.entries.begin(), listing.entries.end(), [] (const FileEntry & entry) { return entry.name == "SCRATCH"; }));
+
+        fs::remove_all (folder);
+        fs::create_directories (out);
+
+        {
+            std::ofstream  stream (file, std::ios::binary);
+
+            stream.write ((const char *) written.data(), (std::streamsize) written.size());
+        }
+
+        if (!RunCp2 (L"test \"" + file.wstring() + L"\"", exit))
+        {
+            Logger::WriteMessage ("SKIPPED: CiderPress II's cp2.exe isn't installed\n");
+            return;
+        }
+
+        Assert::AreEqual ((DWORD) 0, exit, L"cp2.exe found damage in the changed DOS 3.2 disk");
+
+        RunCp2 (L"extract --preserve=naps \"--exdir=" + out.wstring() + L"\" \"" + file.wstring() + L"\"", exit);
+        Assert::AreEqual ((DWORD) 0, exit, L"cp2.exe could not extract the changed DOS 3.2 disk");
+        Assert::IsTrue   (fs::exists (back), L"CiderPress II lists the file Casso wrote");
+
+        in.open (back, std::ios::binary);
+        extracted.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        in.close();
+
+        Assert::IsTrue (extracted == payload.bytes, L"the file CiderPress II extracts is the one written");
+
+        fs::remove_all (folder);
     }
 };
