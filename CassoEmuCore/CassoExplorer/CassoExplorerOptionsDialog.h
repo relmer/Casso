@@ -92,12 +92,14 @@ class CassoExplorerFullSendPage : public DxuiPropertyPage
 public:
     explicit CassoExplorerFullSendPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiCheckbox & sounds, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel);
+    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & soundsLabel, DxuiSegmentedControl & sounds, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
     static constexpr int  kNoteHeightDip         = 60;
     static constexpr int  kBrowseWidthDip        = 100;
+    static constexpr int  kSoundsWidthDip        = 360;
+    static constexpr int  kSoundsHeightDip       = 30;
     static constexpr int  kLabelHeightDip        = 24;
     static constexpr int  kOptionLabelHeightDip  = 20;
     static constexpr int  kOptionDescHeightDip   = 18;
@@ -105,14 +107,15 @@ public:
     static constexpr int  kCommonFormatCount     = 3;
 
 private:
-    DxuiLabel       * m_note           = nullptr;
-    DxuiLabel       * m_folderLabel    = nullptr;
-    DxuiLabel       * m_esotericaLabel = nullptr;
-    DxuiLabel       * m_formatLabel    = nullptr;
-    DxuiLabel       * m_folder         = nullptr;
-    DxuiButton      * m_browse         = nullptr;
-    DxuiCheckbox    * m_sounds         = nullptr;
-    DxuiRadioGroup  * m_format         = nullptr;
+    DxuiLabel             * m_note           = nullptr;
+    DxuiLabel             * m_folderLabel    = nullptr;
+    DxuiLabel             * m_esotericaLabel = nullptr;
+    DxuiLabel             * m_formatLabel    = nullptr;
+    DxuiLabel             * m_folder         = nullptr;
+    DxuiButton            * m_browse         = nullptr;
+    DxuiLabel             * m_soundsLabel    = nullptr;
+    DxuiSegmentedControl  * m_sounds         = nullptr;
+    DxuiRadioGroup        * m_format         = nullptr;
 };
 
 
@@ -210,7 +213,7 @@ public:
         //  A Full Send's folder and its extension, each empty for the default.
         std::wstring  fullSendFolder;
         std::string   fullSendExtension;
-        bool          bootSounds   = true;
+        int           bootSoundPlace = 0;     // a CassoExplorerPrefs::BootSoundPlace
 
         //  Verified transfers.
         bool          verifyReads  = false;
@@ -286,7 +289,8 @@ private:
     DxuiLabel                                      m_fullSendEsotericaLabel;
     DxuiLabel                                      m_fullSendFolder;
     DxuiButton                                     m_fullSendBrowse;
-    DxuiCheckbox                                   m_fullSendSounds;
+    DxuiLabel                                      m_fullSendSoundsLabel;
+    DxuiSegmentedControl                           m_fullSendSounds;
     DxuiRadioGroup                                 m_fullSendFormat;
     CassoExplorerFullSendPage                    * m_fullSend            = nullptr;
     DxuiLabel                                      m_verifyIntro;

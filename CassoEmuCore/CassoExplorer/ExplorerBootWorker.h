@@ -71,7 +71,7 @@ public:
     Result  Check         (const std::wstring & path, const std::string & model);
 
     //  A numbered image's name with its title after the number, as
-    //  BootTitle::ToName has it: 0019 The Witness.woz from 0019.woz; empty for a name that isn't
+    //  BootTitle::ToName has it: 0019 Archon.woz from 0019.woz; empty for a name that isn't
     //  digits alone, or a title with nothing a file name can have.
     static std::string  MakeTitledName (const std::string & name, const std::string & title);
 

@@ -211,8 +211,8 @@ void CassoExplorerShell::QueueBoot (const std::wstring & path)
 //
 //  CassoExplorerShell::PlayBootSound
 //
-//  The sound for an image a connection wrote, where Options has the sounds
-//  on. A sound in progress, as a cassette bootstrap's is, isn't stopped for
+//  The sound for an image a connection wrote, where Options has the PC
+//  for the sounds. A sound in progress, as a cassette bootstrap's is, isn't stopped for
 //  it.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,10 +222,11 @@ void CassoExplorerShell::PlayBootSound (BootVerdict verdict)
     const std::vector<Byte>  * sound = verdict == BootVerdict::Booted     ? &m_bootedSound
                                      : verdict == BootVerdict::DidNotBoot ? &m_notBootedSound
                                                                           : nullptr;
+    bool                       onPc  = m_prefs.bootSoundPlace == CassoExplorerPrefs::kBootSoundPc || m_prefs.bootSoundPlace == CassoExplorerPrefs::kBootSoundBoth;
 
 
 
-    if (sound != nullptr && !sound->empty() && m_prefs.bootSounds)
+    if (sound != nullptr && !sound->empty() && onPc)
     {
         PlaySoundW ((LPCWSTR) sound->data(), nullptr, SND_MEMORY | SND_ASYNC | SND_NOSTOP | SND_NODEFAULT);
     }

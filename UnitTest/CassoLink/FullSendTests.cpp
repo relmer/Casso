@@ -75,6 +75,7 @@ public:
         std::string                           rawMarks;                   // what a raw capture marked
         std::vector<std::string>              noted;                      // the path of each image written
         std::function<void (const std::string &)>  onAwait;               // with one, each image is booted, and this is the wait for its result
+        bool                                  bootTones      = false;
 
         //  Called at the end of the Nth whole-disk read, counted from 1, and
         //  at the Nth wait for a key.
@@ -173,6 +174,8 @@ public:
         }
 
         bool     NoteImage (const std::string & path) override { noted.push_back (path); return (bool) onAwait; }
+
+        bool     HasBootTones() override { return bootTones; }
 
         HRESULT  AwaitBoot (const std::string & file) override
         {
@@ -997,9 +1000,26 @@ public:
         rig.Run();
 
         Assert::IsTrue (validating, L"The Apple and the window have the wait");
+        Assert::IsTrue (std::none_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::DidNotBoot; }),
+                        L"No tone for the result unless the Apple has them on");
         Assert::IsTrue (rig.link.screens.back().drives[0] != FullSendDriveState::Validating);
         Assert::AreEqual ((size_t) 1, rig.link.pauseLines.size());
         Assert::IsTrue (std::find (rig.link.pauseLines[0].begin(), rig.link.pauseLines[0].end(), "0001 DID NOT BOOT, SEND IT AGAIN.") != rig.link.pauseLines[0].end());
+    }
+
+    TEST_METHOD (Session_WithBootTonesOnTheApple_TheResultsToneIsInPlaceOfTheDisks)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+        rig.link.bootTones  = true;
+        rig.link.onAwait    = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootBooted); };
+
+        rig.Run();
+
+        Assert::IsTrue (std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Booted; }));
+        Assert::IsTrue (std::none_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Done; }));
     }
 
     //  A likely copy-protected disk is captured raw: its image is the WOZ, its

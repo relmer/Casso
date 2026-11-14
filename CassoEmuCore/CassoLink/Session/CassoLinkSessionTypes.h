@@ -198,6 +198,9 @@ public:
     //  when the image is booted.
     virtual bool  OnImageWritten       (const std::string & path, const std::string & model) { UNREFERENCED_PARAMETER (path); UNREFERENCED_PARAMETER (model); return false; }
 
+    //  Whether the Apple sounds a tone for an image's boot result.
+    virtual bool  HasAppleBootSounds   () { return false; }
+
     //  Whether a Full Send saves a raw capture's reads beside its image.
     virtual bool  HasFullSendReadsOn   () { return false; }
 

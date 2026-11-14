@@ -70,9 +70,11 @@ public:
         Assert::IsTrue (BootTitle::Find (Screen ({ { 1, "COPYRIGHT 1984 SOMEONE" } }), true).empty(), L"A copyright line alone");
     }
 
-    TEST_METHOD (ATitleAsAName_IsUpToItsColon_AndInTitleCase)
+    TEST_METHOD (ATitleAsAName_HasAHyphenForEachColon_AndIsInTitleCase)
     {
-        Assert::AreEqual (std::string ("The Witness"), BootTitle::ToName ("THE WITNESS: AN INTERLOGIC MYSTERY"));
+        Assert::AreEqual (std::string ("The Witness - An Interlogic Mystery"), BootTitle::ToName ("THE WITNESS: AN INTERLOGIC MYSTERY"));
+        Assert::AreEqual (std::string ("Ultima IV - Quest of the Avatar"), BootTitle::ToName ("ULTIMA IV :  QUEST   OF THE AVATAR"), L"One space on each side of the hyphen");
+        Assert::AreEqual (std::string ("Archon"), BootTitle::ToName ("ARCHON:"));
         Assert::AreEqual (std::string ("Wizardry"), BootTitle::ToName ("Wizardry"), L"A title with small letters is as drawn");
         Assert::AreEqual (std::string ("Ultima III"), BootTitle::ToName ("ULTIMA III"));
         Assert::AreEqual (std::string ("Lord of the Rings"), BootTitle::ToName ("LORD OF THE RINGS"));

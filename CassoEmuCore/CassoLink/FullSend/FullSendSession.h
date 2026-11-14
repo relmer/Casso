@@ -45,6 +45,8 @@ enum class FullSendTone : Byte
     Duplicate,
     BadSectors,
     Protected,
+    Booted,         // the image booted on the PC
+    DidNotBoot,
 };
 
 enum class FullSendKey
@@ -165,6 +167,9 @@ public:
     //  is in the session's status, or after a time limit.
     virtual bool     NoteImage      (const std::string & path) { UNREFERENCED_PARAMETER (path); return false; }
     virtual HRESULT  AwaitBoot      (const std::string & file) { UNREFERENCED_PARAMETER (file); return S_OK; }
+
+    //  Whether the Apple sounds a tone for an image's boot result.
+    virtual bool     HasBootTones   () { return false; }
 
     //  A line for the activity log.
     virtual void     Report     (const std::string & text) = 0;
@@ -317,6 +322,7 @@ private:
     std::array<std::string, 2>  m_counted;                         // the repeat each drive last added to the duplicates
     std::array<bool, 2>         m_blank      = { false, false };   // drives whose last check found a blank disk
     std::vector<std::string>    m_unbooted;                        // images that did not boot, for the next pause's lines
+    std::string                 m_latestBoot;                      // the boot result ApplyBoots took last
     std::array<std::string, 2>  m_blankDisk;                       // the blank each drive last added to the blanks
     uint64_t                    m_commitTag  = 1;
     std::vector<Byte>           m_rawReads;                        // the last raw capture's reads, until its image is written
