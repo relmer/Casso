@@ -32,7 +32,8 @@ class ExplorerBootWorker
 public:
     struct Result
     {
-        std::wstring              path;
+        std::wstring              path;         // the image, under its new name when the boot renamed it
+        std::string               renamedFrom;  // the file's name before, when the boot renamed it
         std::string               source;       // as given to Queue
         bool                      hasReport = false;
         BootVerdict               verdict   = BootVerdict::Unclear;
@@ -69,6 +70,11 @@ public:
     //  One image: read, booted, stored. The thread's body, and a test's.
     Result  Check         (const std::wstring & path, const std::string & model);
 
+    //  A numbered image's name with its title after the number, as
+    //  0019 The Witness.woz from 0019.woz; empty for a name that isn't
+    //  digits alone, or a title with nothing a file name can have.
+    static std::string  MakeTitledName (const std::string & name, const std::string & title);
+
     //  A result as a line for an activity list.
     static std::string  Describe (const Result & result);
 
@@ -82,7 +88,8 @@ private:
 
     void  Run ();
 
-    static constexpr DWORD  s_kBusyPollMs = 250;
+    static constexpr DWORD   s_kBusyPollMs    = 250;
+    static constexpr size_t  s_kMaxTitleChars = 60;
 
     ThumbnailStore           & m_store;
     BootCheck::MachineFn       m_build;

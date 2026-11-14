@@ -144,9 +144,13 @@ void CassoExplorerShell::StartBootWorker()
         std::string  file = TextEncoding::WideToNarrow (std::filesystem::path (result.path).filename().wstring());
         std::string  boot = result.hasReport ? BootProbe::GetVerdictName (result.verdict) : "";
 
-        if (!result.source.empty())
+        if (!result.source.empty() && result.renamedFrom.empty())
         {
             m_links.NoteBoot (result.source, file, boot, ExplorerBootWorker::Describe (result));
+        }
+        else if (!result.source.empty())
+        {
+            m_links.NoteBoot (result.source, result.renamedFrom, boot, ExplorerBootWorker::Describe (result), file);
         }
 
         if (result.hasReport)

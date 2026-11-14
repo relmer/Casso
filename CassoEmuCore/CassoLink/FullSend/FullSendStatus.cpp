@@ -489,7 +489,7 @@ void FullSendStatus::AddLine (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FullSendStatus::SetBoot (const std::string & file, const std::string & boot)
+void FullSendStatus::SetBoot (const std::string & file, const std::string & boot, const std::string & renamedTo)
 {
     std::lock_guard  lock (m_lock);
 
@@ -500,6 +500,7 @@ void FullSendStatus::SetBoot (const std::string & file, const std::string & boot
         if (disk.row.file == file)
         {
             disk.row.boot = boot;
+            disk.row.file = renamedTo.empty() ? file : renamedTo;
         }
     }
 

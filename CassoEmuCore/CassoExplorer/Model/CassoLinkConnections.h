@@ -65,8 +65,9 @@ public:
 
     //  An image's boot result, from any thread: set in its row of the
     //  connection's Full Send, with a line in that session's activity list
-    //  and in the activity log.
-    void  NoteBoot          (const std::string & link, const std::string & file, const std::string & boot, const std::string & text);
+    //  and in the activity log. renamedTo is the file's name now, when its
+    //  boot renamed it.
+    void  NoteBoot          (const std::string & link, const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo = std::string());
 
     //  Verified transfers for every connection that doesn't override them.
     void  SetVerifyDefaults (bool reads, bool writes, bool autoReads);

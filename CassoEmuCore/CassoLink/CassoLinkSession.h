@@ -141,7 +141,7 @@ public:
 
     //  An image's boot result, from the thread that booted it, with a line
     //  for the Full Send window's activity list.
-    void  NoteBoot (const std::string & file, const std::string & boot, const std::string & text);
+    void  NoteBoot (const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo = std::string());
 
     //  Whether the drive has the link's boot disk, by its boot sector: a write
     //  over it, the Apple has no disk to start the link from.

@@ -2211,7 +2211,7 @@ void CassoLinkConnections::Sink::OnImageWritten (const std::string & path, const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkConnections::NoteBoot (const std::string & link, const std::string & file, const std::string & boot, const std::string & text)
+void CassoLinkConnections::NoteBoot (const std::string & link, const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo)
 {
     Activity  entry;
 
@@ -2229,7 +2229,7 @@ void CassoLinkConnections::NoteBoot (const std::string & link, const std::string
 
         if (found != m_started.end() && (*found)->session != nullptr)
         {
-            (*found)->session->NoteBoot (file, boot, text);
+            (*found)->session->NoteBoot (file, boot, text, renamedTo);
         }
 
         m_activity.push_back (std::move (entry));

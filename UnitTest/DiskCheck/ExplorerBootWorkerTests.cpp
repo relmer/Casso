@@ -39,6 +39,15 @@ public:
         return S_OK;
     }
 
+    TEST_METHOD (ANumberedName_TakesItsTitleAfterTheNumber)
+    {
+        Assert::AreEqual (std::string ("0019 THE WITNESS AN INTERLOGIC MYSTERY.woz"), ExplorerBootWorker::MakeTitledName ("0019.woz", "THE WITNESS: AN INTERLOGIC MYSTERY"));
+        Assert::AreEqual (std::string ("0007 A B.woz"), ExplorerBootWorker::MakeTitledName ("0007.woz", "A / B..."));
+        Assert::IsTrue (ExplorerBootWorker::MakeTitledName ("0019 Archon.woz", "ARCHON").empty(), L"A name that isn't a number alone");
+        Assert::IsTrue (ExplorerBootWorker::MakeTitledName ("0019.woz", "").empty(), L"No title");
+        Assert::IsTrue (ExplorerBootWorker::MakeTitledName ("0019.woz", "???").empty(), L"A title with nothing a file name can have");
+    }
+
     //  The DOS 3.3 master as a file: queued, booted and stored; a file that
     //  isn't a disk image has no report; and a path queued twice while it
     //  waits is booted once.

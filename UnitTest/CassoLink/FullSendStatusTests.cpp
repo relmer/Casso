@@ -365,5 +365,8 @@ public:
         Assert::AreEqual ((size_t) 1, boots.size());
         Assert::AreEqual (std::string ("0001.dsk"), boots[0].first);
         Assert::IsTrue (rig.status.TakeBoots().empty(), L"a result is taken once");
+
+        rig.status.SetBoot ("0002.dsk", FullSendManifest::kBootBooted, "0002 Archon.dsk");
+        Assert::AreEqual (std::string ("0002 Archon.dsk"), rig.status.GetSnapshot().disks[0].row.file, L"a boot that renamed the image");
     }
 };

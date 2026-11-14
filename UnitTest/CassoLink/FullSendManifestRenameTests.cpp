@@ -101,6 +101,49 @@ public:
     }
 
 
+    //  A raw capture is renamed in the folder and the manifest, with its
+    //  reads; a sector image, a file with no row and a name that exists
+    //  aren't.
+    TEST_METHOD (RenameCapture_RenamesARawCaptureItsReadsAndItsRow)
+    {
+        FakeDiskFileIo     io;
+        FullSendManifest   manifest = MakeManifest();
+        FullSendManifest   read;
+        FullSendRow        capture;
+        std::vector<Byte>  bytes;
+        std::string        folder   = std::string (kFolder) + "\\";
+        bool               renamed  = true;
+
+        capture.sequence    = 3;
+        capture.file        = "0003.woz";
+        capture.fingerprint = std::string (64, 'c');
+        capture.hash        = std::string (64, 'd');
+        capture.time        = "2026-11-08T10:10:00";
+        capture.status      = FullSendManifest::kStatusRawCapture;
+        manifest.Add (capture);
+
+        AssertSucceeded (io.WriteAllBytes (ManifestPath(), manifest.Format()));
+        AssertSucceeded (io.WriteAllBytes (folder + "0003.woz", { 1, 2, 3 }));
+        AssertSucceeded (io.WriteAllBytes (folder + "0003.woz.reads", { 4 }));
+        AssertSucceeded (io.WriteAllBytes (folder + "Disk 001.dsk", { 5 }));
+
+        AssertSucceeded (FullSendManifestFile::RenameCapture (io, kFolder, "Disk 001.dsk", "Other.dsk", renamed));
+        Assert::IsFalse (renamed, L"A sector image has its name from its catalog");
+
+        AssertSucceeded (FullSendManifestFile::RenameCapture (io, kFolder, "0003.woz", "Disk 001.dsk", renamed));
+        Assert::IsFalse (renamed, L"The new name exists");
+
+        AssertSucceeded (FullSendManifestFile::RenameCapture (io, kFolder, "0003.woz", "0003 The Witness.woz", renamed));
+        Assert::IsTrue (renamed);
+        Assert::IsTrue (io.Exists (folder + "0003 The Witness.woz") && !io.Exists (folder + "0003.woz"));
+        Assert::IsTrue (io.Exists (folder + "0003 The Witness.woz.reads") && !io.Exists (folder + "0003.woz.reads"));
+
+        AssertSucceeded (io.ReadAllBytes (ManifestPath(), bytes));
+        AssertSucceeded (read.Parse (bytes));
+        Assert::AreEqual (std::string ("0003 The Witness.woz"), read.GetRows()[2].file);
+    }
+
+
     TEST_METHOD (NoteRename_OfAFileTheManifestLacks_LeavesItAsItIs)
     {
         FakeDiskFileIo     io;

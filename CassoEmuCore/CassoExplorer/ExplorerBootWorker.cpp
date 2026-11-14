@@ -277,12 +277,79 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
 
     if (fileIo != nullptr)
     {
-        hr = FullSendManifestFile::NoteBoot (*fileIo, TextEncoding::WideToNarrow (file.parent_path().wstring()), TextEncoding::WideToNarrow (file.filename().wstring()), record.verdict);
+        std::string  folder  = TextEncoding::WideToNarrow (file.parent_path().wstring());
+        std::string  name    = TextEncoding::WideToNarrow (file.filename().wstring());
+        std::string  titled  = MakeTitledName (name, record.title);
+        bool         renamed = false;
+
+        hr = FullSendManifestFile::NoteBoot (*fileIo, folder, name, record.verdict);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        //  A raw capture saved as a number takes its title, as its disk has
+        //  no catalog to take a name from.
+        if (!titled.empty())
+        {
+            hr = FullSendManifestFile::RenameCapture (*fileIo, folder, name, titled, renamed);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        if (renamed)
+        {
+            result.renamedFrom = name;
+            result.path        = (file.parent_path() / TextEncoding::NarrowToWide (titled)).wstring();
+        }
     }
 
 Error:
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::MakeTitledName
+//
+//  A character a Windows file name can't have is a space, runs of spaces are
+//  one, and the title ends at s_kMaxTitleChars.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ExplorerBootWorker::MakeTitledName (const std::string & name, const std::string & title)
+{
+    static constexpr std::string_view  s_kInvalid = "\\/:*?\"<>|";
+    size_t                             dot        = name.find_last_of ('.');
+    std::string                        stem       = name.substr (0, dot);
+    std::string                        extension  = (dot == std::string::npos) ? std::string() : name.substr (dot);
+    bool                               isNumber   = !stem.empty() && std::all_of (stem.begin(), stem.end(), [] (char each) { return each >= '0' && each <= '9'; });
+    std::string                        cleaned;
+
+
+
+    for (char each : title)
+    {
+        bool  isSpace = each == ' ' || (unsigned char) each < ' ' || s_kInvalid.find (each) != std::string_view::npos;
+
+        if (!isSpace)
+        {
+            cleaned += each;
+        }
+        else if (!cleaned.empty() && cleaned.back() != ' ')
+        {
+            cleaned += ' ';
+        }
+    }
+
+    cleaned = cleaned.substr (0, s_kMaxTitleChars);
+
+    while (!cleaned.empty() && (cleaned.back() == ' ' || cleaned.back() == '.'))
+    {
+        cleaned.pop_back();
+    }
+
+    return (isNumber && !cleaned.empty()) ? stem + " " + cleaned + extension : std::string();
 }
 
 

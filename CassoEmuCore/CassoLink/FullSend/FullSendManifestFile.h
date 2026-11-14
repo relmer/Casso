@@ -31,6 +31,12 @@ public:
     //  with no manifest, or no row for the file, is left as it is.
     static HRESULT  NoteBoot    (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, const std::string & boot);
 
+    //  A raw capture in `folder` whose manifest row has it under oldName,
+    //  renamed to newName in the folder and the manifest, and its reads
+    //  beside it when it has them. outRenamed is false, and nothing changes,
+    //  for a file with no raw capture's row, or when newName exists.
+    static HRESULT  RenameCapture (IDiskFileIo & fileIo, const std::string & folder, const std::string & oldName, const std::string & newName, bool & outRenamed);
+
     //  A file in `folder` deleted: what NoteDelete removed and changed is
     //  returned, for NoteRestore when the file is restored. Each writes the
     //  manifest only when it changes it.

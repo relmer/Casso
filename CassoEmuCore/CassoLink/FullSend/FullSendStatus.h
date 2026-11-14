@@ -228,8 +228,9 @@ public:
     //  An image's boot result, as BootProbe::GetVerdictName has it, from the
     //  thread that booted it: set in the image's row of the disks done.
     //  TakeBoots returns each result since the last call, by file, for the
-    //  session's manifest.
-    void  SetBoot        (const std::string & file, const std::string & boot);
+    //  session's manifest. renamedTo is the file's name now, when its boot
+    //  renamed it.
+    void  SetBoot        (const std::string & file, const std::string & boot, const std::string & renamedTo = std::string());
 
     std::vector<std::pair<std::string, std::string>>  TakeBoots ();
 
