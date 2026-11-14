@@ -1380,17 +1380,23 @@ void ShellDeskScene::SyncSceneDriveChrome()
     // a resize arranges the docked bands before this runs, so the retired 2D
     // widgets flashed along the bottom edge for a frame under the 3D drives.
     //
-    // With the floppies on the drive bar, the 2D widgets are the drives, and
-    // their bodies are the drop targets.
+    // With the floppies on the drive bar, the 2D widgets on the bar are the
+    // drives, and their bodies are the drop targets.
     m_shell.m_uiShell.GetHitTester().Clear();
 
-    if (AreFloppiesOnBar())
+    if (AreDrivesOnBar())
     {
-        m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { m_shell.m_disks->GetDriveChrome()[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
-
-        if (CountDiskIiDrives() > 1)
+        for (int i = 0; i < 2; i++)
         {
-            m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { m_shell.m_disks->GetDriveChrome()[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
+            const DriveWidget  & widget = m_shell.m_disks->GetDriveChrome()[(size_t) i];
+            RECT                 body   = widget.GetBodyRect();
+
+
+
+            if (widget.IsVisible() && !IsRectEmpty (&body))
+            {
+                m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { body, DxuiHitSlot::Custom, i });
+            }
         }
     }
     else
@@ -3486,11 +3492,114 @@ bool ShellDeskScene::IsDriveBusy (const DeskDrive & drive, uint64_t now, uint64_
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDeskScene::GetDriveImagePath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ShellDeskScene::GetDriveImagePath (const DeskDrive & drive) const
+{
+    const MachineRefs  & refs = m_shell.m_machine.GetRefs();
+    std::string          path;
+    Sony35Drive        * sony = nullptr;
+
+
+
+    switch (drive.model)
+    {
+        case DeskDriveModel::HardDisk20SC:
+            for (AppleScsiCard * card : refs.scsiCards)
+            {
+                if (card->GetSlot() == drive.slot)
+                {
+                    path = card->GetTarget (drive.drive).GetMedia().GetPath();
+                }
+            }
+
+            break;
+
+        case DeskDriveModel::ProFile:
+            for (ProFileCard * card : refs.proFileCards)
+            {
+                if (path.empty())
+                {
+                    path = card->GetDrive().GetMedia().GetPath();
+                }
+            }
+
+            break;
+
+        case DeskDriveModel::UniDisk35:
+        case DeskDriveModel::Apple35Drive:
+        case DeskDriveModel::Apple35Plus:
+            sony = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+
+            if (sony != nullptr && sony->HasDisk())
+            {
+                path = sony->GetImagePath();
+            }
+
+            break;
+
+        default:
+            break;
+    }
+
+    return path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::AreDrivesOnBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::AreDrivesOnBar() const
+{
+    bool  onBar = false;
+
+
+
+    for (const DeskDrivePlacement & placement : m_drivePlan)
+    {
+        onBar = onBar || placement.spot == DeskDriveSpot::DriveBar;
+    }
+
+    return onBar;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDeskScene::BrowseExtraDrive
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDeskScene::BrowseExtraDrive (int index)
+{
+    if (index >= 0 && index < m_deskScene.GetExtraCount())
+    {
+        BrowseFloppy35 (m_deskScene.GetExtraDrive (index));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::BrowseFloppy35
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::BrowseFloppy35 (const DeskDrive & drive)
 {
     HRESULT         hr     = S_OK;
     FileDialogSpec  spec;
@@ -3499,7 +3608,7 @@ void ShellDeskScene::BrowseExtraDrive (int index)
 
 
 
-    BAIL_OUT_IF (index < 0 || index >= m_deskScene.GetExtraCount() || !IsFloppy35 (m_deskScene.GetExtraDrive (index)), S_OK);
+    BAIL_OUT_IF (!IsFloppy35 (drive), S_OK);
 
     spec.filters = { { L"3.5-inch disk image", L"*.po;*.2mg;*.2img;*.dc;*.dc42;*.image;*.dsk;*.woz" }, { L"All files", L"*.*" } };
 
@@ -3507,7 +3616,8 @@ void ShellDeskScene::BrowseExtraDrive (int index)
     CHR (hr);
     BAIL_OUT_IF (!picked, S_OK);
 
-    InsertInExtraDrive (index, chosen.wstring());
+    hr = m_shell.m_disks->Mount (drive.slot, drive.drive, chosen.wstring());
+    CHR (hr);
 
 Error:
     return;

@@ -5,6 +5,7 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/ChromeBand.h"
+#include "Ui/Chrome/DriveBarFanControl.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/Chrome/VolumeFlyout.h"
 
@@ -106,6 +107,15 @@ public:
         UINT                          dpi,
         float                         sceneScale,
         int                           visibleCount);
+
+    // The drive bar under the desk scene: a widget per class the desk plan
+    // puts on the bar, the class's other drives fanned out above it on hover.
+    // The Disk II widgets are placed in their drives' slots.
+    void    LayoutDriveBar         (int bottomInsetPx, int clientW, int clientH, UINT dpi);
+    void    HideDriveBar           ();
+    bool    UpdateDriveBarHover    (POINT pt);
+    bool    HandleDriveBarClick    (POINT pt);
+    bool    SyncDriveBarViews      ();
 
     void    LayoutSwitchBar        (UINT dpi);
     void    SyncSwitchBarState     ();
@@ -216,6 +226,18 @@ private:
     // whole scene zooms together when the window resizes. 1.0 for compact
     // themes and at the 100%-zoom default window size.
     float                      m_chromeSceneScale = 1.0f;
+
+    // The drive bar under the desk scene, and the DPI its slots were laid out
+    // at, which the Disk II widgets placed in them are laid out at too.
+    DriveBarFanControl         m_driveBarFan;
+    UINT                       m_driveBarDpi        = 96;
+    int                        m_driveBarHoverClass = -1;
+    int                        m_driveBarHoverEntry = -1;
+
+    // The views from the last sync, so a repaint is requested only on a change.
+    std::vector<std::vector<DriveBarEntryView>>  m_driveBarViews;
+
+    void    PlaceDriveBarWidgets ();
 
     DxuiTooltip          m_toolbarTooltip;   // labels for the toolbar's icon-only mode
 

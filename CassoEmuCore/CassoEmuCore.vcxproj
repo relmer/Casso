@@ -1012,6 +1012,7 @@
     <ClCompile Include="Ui\ThemeManager.cpp" />
     <ClCompile Include="Ui\Chrome\CassoBranding.cpp" />
     <ClCompile Include="Ui\Chrome\DriveWidget.cpp" />
+    <ClCompile Include="Ui\Chrome\DriveBarFanControl.cpp" />
     <ClCompile Include="Ui\Chrome\EmulatorCommands.cpp" />
     <ClCompile Include="Ui\Chrome\PrinterStatusLed.cpp" />
     <ClCompile Include="Ui\Chrome\VolumeFlyout.cpp" />
@@ -1171,6 +1172,7 @@
     <ClCompile Include="Shell\Window\EmulatorWindow.cpp" />
     <ClCompile Include="Shell\Window\EmulatorWindowInput.cpp" />
     <ClCompile Include="Shell\Components\ShellChrome.cpp" />
+    <ClCompile Include="Shell\Components\ShellChromeDriveBar.cpp" />
     <ClCompile Include="Shell\Components\ShellRenderer.cpp" />
     <ClCompile Include="Shell\Components\ShellWindow.cpp" />
     <ClCompile Include="Ui\Chrome\ChromeBand.cpp" />
@@ -1204,6 +1206,7 @@
     <ClCompile Include="Shell\Input\ShellKeyRouting.cpp" />
     <ClCompile Include="Shell\Input\CapsLockTracker.cpp" />
     <ClCompile Include="Shell\Layout\DriveRowLayout.cpp" />
+    <ClCompile Include="Shell\Layout\DriveBarFan.cpp" />
     <ClCompile Include="Shell\Layout\ChromeBandLayout.cpp" />
     <ClCompile Include="Seams\Win32HostSocket.cpp" />
     <ClCompile Include="Seams\Win32HostNetwork.cpp" />
@@ -1937,6 +1940,7 @@
     <ClInclude Include="Ui\Chrome\CassoTheme.h" />
     <ClInclude Include="Ui\Chrome\CassoBranding.h" />
     <ClInclude Include="Ui\Chrome\DriveWidget.h" />
+    <ClInclude Include="Ui\Chrome\DriveBarFanControl.h" />
     <ClInclude Include="Ui\Chrome\EmulatorCommands.h" />
     <ClInclude Include="Ui\Chrome\PrinterStatusLed.h" />
     <ClInclude Include="Ui\Chrome\VolumeFlyout.h" />
@@ -2125,6 +2129,7 @@
     <ClInclude Include="Shell\Input\ShellKeyRouting.h" />
     <ClInclude Include="Shell\Input\CapsLockTracker.h" />
     <ClInclude Include="Shell\Layout\DriveRowLayout.h" />
+    <ClInclude Include="Shell\Layout\DriveBarFan.h" />
     <ClInclude Include="Shell\Layout\ChromeBandLayout.h" />
     <ClInclude Include="Seams\IHostFirewall.h" />
     <ClInclude Include="Seams\IHostNetwork.h" />

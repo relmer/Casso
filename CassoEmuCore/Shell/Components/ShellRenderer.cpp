@@ -801,6 +801,12 @@ bool ShellRenderer::TryPresentUiFrame()
             }
         }
 
+        // Refresh the drive bar's labels and lamps.
+        if (m_shell.m_chrome->m_driveBarFan.IsVisible() && m_shell.m_chrome->SyncDriveBarViews())
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+
         // The volume wheel stands where the tape volume is, however it was
         // last set -- dragged, or from the Settings slider.
         m_shell.m_scene->m_deskScene.SetRecorderVolumeTurn (m_shell.m_audio->GetTapeSource().GetVolume() * ShellDeskScene::s_kVolumeWheelTurnRad);

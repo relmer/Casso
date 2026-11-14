@@ -362,6 +362,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // the host owns the caption strip itself.
     m_host->GetRoot().Adopt (m_chrome->m_mainMenu);
     m_host->GetRoot().Adopt (m_chrome->m_driveBandSurface);
+
+    // Behind the Disk II widgets, which are placed on its fan's panel.
+    m_host->GetRoot().Adopt (m_chrome->m_driveBarFan);
+    m_chrome->HideDriveBar();
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
     m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());
@@ -763,23 +767,24 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
         (void) vr;                                        // dock side-effect: bands arranged
 
-        if (DeskSceneActive() && m_scene->AreFloppiesOnBar() && !AreDrivesOnStrip())
+        if (DeskSceneActive() && m_scene->AreDrivesOnBar() && !AreDrivesOnStrip())
         {
-            m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, clientW, clientH, dpi, m_chrome->m_chromeSceneScale,
-                                                      m_scene->CountDiskIiDrives());
+            m_chrome->LayoutDriveBar (bottomInsetPx, clientW, clientH, dpi);
             m_scene->SyncSceneDriveChrome();
         }
         else if (DeskSceneActive())
         {
+            m_chrome->HideDriveBar();
             m_scene->SyncSceneDriveChrome();
         }
         else if (!AreDrivesOnStrip())
         {
+            m_chrome->HideDriveBar();
             m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, clientW, clientH, dpi, m_chrome->m_chromeSceneScale,
                                                       m_disks->ShouldShowExternalDrive() ? 2 : 1);
         }
 
-        m_chrome->m_driveBandSurface.SetVisible ((!DeskSceneActive() || m_scene->AreFloppiesOnBar()) && !AreDrivesOnStrip());
+        m_chrome->m_driveBandSurface.SetVisible ((!DeskSceneActive() || m_scene->AreDrivesOnBar()) && !AreDrivesOnStrip());
         m_chrome->m_driveBandSurface.SetBounds (RECT{ 0, driveRect.top, clientW, clientH });
 
         m_chrome->LayoutSwitchBar (dpi);
@@ -1573,15 +1578,16 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
             (void) vr;                                        // dock side-effect: bands arranged
 
-            if (DeskSceneActive() && m_scene->AreFloppiesOnBar() && !AreDrivesOnStrip())
+            if (DeskSceneActive() && m_scene->AreDrivesOnBar() && !AreDrivesOnStrip())
             {
-                // The floppies are on the drive bar, so the 2D widgets are
-                // laid out in the band under the scene.
-                m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, static_cast<int> (width), renderH, dpi,
-                                                          m_chrome->m_chromeSceneScale, m_scene->CountDiskIiDrives());
+                // Drives are on the drive bar, so the bar is laid out in the
+                // band under the scene.
+                m_chrome->LayoutDriveBar (bottomInsetPx, static_cast<int> (width), renderH, dpi);
             }
             else if (DeskSceneActive())
             {
+                m_chrome->HideDriveBar();
+
                 // The 3D scene owns the drives; nothing to lay out. The hit
                 // registry is refreshed below with the rest of the chrome.
             }
@@ -1589,9 +1595,11 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             {
                 // Auto-hide: the strip lays the widgets out each frame while it
                 // is up, and hides them while it is down.
+                m_chrome->HideDriveBar();
             }
             else if (fHasDisk)
             {
+                m_chrome->HideDriveBar();
                 m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, static_cast<int> (width), renderH, dpi,
                                                           m_chrome->m_chromeSceneScale, m_disks->ShouldShowExternalDrive() ? 2 : 1);
 
@@ -1612,6 +1620,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 // path treats the whole window as the drop target. The
                 // joystick-mode button still paints -- joystick input is
                 // independent of disk presence.
+                m_chrome->HideDriveBar();
                 m_disks->GetDriveChrome()[0].Hide();
                 m_disks->GetDriveChrome()[1].Hide();
             }
@@ -1623,7 +1632,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             m_chrome->m_chromeSizedForHasDisk = fHasDisk;
             m_chrome->m_chromeSizedForApple2c = MachineHasCaseSwitches();
 
-            m_chrome->m_driveBandSurface.SetVisible (!DeskSceneActive() && !AreDrivesOnStrip());
+            m_chrome->m_driveBandSurface.SetVisible ((!DeskSceneActive() || m_scene->AreDrivesOnBar()) && !AreDrivesOnStrip());
             m_chrome->m_driveBandSurface.SetBounds (RECT{ 0, driveRect.top, static_cast<int> (width), renderH });
 
             m_chrome->LayoutSwitchBar (dpi);

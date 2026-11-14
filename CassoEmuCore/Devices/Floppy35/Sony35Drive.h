@@ -60,6 +60,8 @@ public:
     bool  IsWriteProtected () const { return (m_woz != nullptr) ? m_wozProtected : m_media.IsWriteProtected(); }
     bool  IsWoz            () const { return m_woz != nullptr; }
 
+    const std::string &  GetImagePath () const { return IsWoz() ? m_wozPath : m_media.GetPath(); }
+
     // IDiskDriveBus: the phases are CA0, CA1, CA2 and LSTRB; time passing,
     // in nanoseconds, runs stepping, spin-up and eject; a cell is the bit
     // under the head, read or written.

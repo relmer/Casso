@@ -64,9 +64,8 @@ public:
     // The Disk II drives the machine has, on the desk or not.
     int   CountDiskIiDrives () const;
 
-    // Whether the machine's Disk II drives are on the drive bar rather than
-    // the desk.
-    bool  AreFloppiesOnBar  () const { return CountDiskIiDrives() > 0 && DeskSceneDriveCount() == 0; }
+    // Whether the desk plan puts any of the machine's drives on the drive bar.
+    bool  AreDrivesOnBar    () const;
 
     // Whether a drive was active within `windowCycles` of `now`: a hard disk
     // after a command, a 3.5-inch drive while its motor runs.
@@ -77,6 +76,10 @@ public:
     // a dropped image is.
     static bool  IsFloppy35         (const DeskDrive & drive);
     void         BrowseExtraDrive   (int index);
+    void         BrowseFloppy35     (const DeskDrive & drive);
+
+    // The image in a 3.5-inch drive or a hard disk, or an empty string.
+    std::string  GetDriveImagePath  (const DeskDrive & drive) const;
     void         InsertInExtraDrive (int index, const std::wstring & path);
 
     // The drop tags of the desk's extra drives start after the tape's.

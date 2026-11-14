@@ -455,6 +455,13 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         }
     }
 
+    // The drive bar's fan opens over a class's widget and closes when the
+    // pointer moves off it and its panel.
+    if (m_chrome->UpdateDriveBarHover (pointer))
+    {
+        m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+    }
+
     // A fresh hover over a drive widget replays its basename marquee, so
     // the full filename can be re-read on demand. The same pass notes a
     // write-protected drive under the pointer so the WP tooltip can show.
@@ -658,6 +665,11 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
     for (DriveWidget & drive : m_disks->GetDriveChrome())
     {
         drive.UpdateMarqueeHover (false, false, nowMs);
+    }
+
+    if (m_chrome->UpdateDriveBarHover (POINT { INT_MIN / 2, INT_MIN / 2 }))
+    {
+        m_renderer->m_d3dRenderer.MarkRedrawNeeded();
     }
 
     // Off every control, so the recorder's magnified controls ease back down
@@ -1726,6 +1738,11 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     wasSuppressed = m_window->m_dragDropTarget.ConsumeSuppressedClick();
 
     BAIL_OUT_IF (wasSuppressed, S_OK);
+
+    // The drive bar under the desk scene, whose drives are not scene objects.
+    driveTook = DeskSceneActive() && m_chrome->HandleDriveBarClick (POINT { x, y });
+
+    BAIL_OUT_IF (driveTook, S_OK);
 
     // Drive clicks. Scene active: the 3D drives resolve through the hit
     // tester with the same region semantics (slot = eject + browse, body =
