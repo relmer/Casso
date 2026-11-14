@@ -129,10 +129,10 @@ private:
     void  ShowConnectionWindow (const std::wstring & connection, bool activate);
     void  EndFullSend          (const std::wstring & connection);
     bool  FillFromManifest     (FullSendPanel::View & ioView);
-
-    std::vector<FullSendPanel::View>  GetRunningViews ();
     void  RunFullSendDisk      (const std::string & file, FullSendDialog::DiskAction action);
     void  UpdateTransferTimer  ();
+
+    std::vector<FullSendPanel::View>  GetRunningViews ();
 
     static constexpr UINT  kTransferFrameMs = 150;
     static constexpr int   kCascadeDip      = 40;     // between two Full Send windows open at once
