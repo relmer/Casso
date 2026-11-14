@@ -433,6 +433,7 @@
     <ClCompile Include="CassoLink\CassoLinkTraceTests.cpp" />
     <ClCompile Include="CassoLink\FullSendTests.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStoreTests.cpp" />
+    <ClCompile Include="DiskCheck\DiskThumbnailCommandTests.cpp" />
     <ClCompile Include="DiskCheck\BootCheckTests.cpp" />
     <ClCompile Include="DiskCheck\ExplorerBootWorkerTests.cpp" />
     <ClCompile Include="CassoExplorer\DiskImagePicturesTests.cpp" />

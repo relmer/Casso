@@ -101,6 +101,9 @@ public:
 
     void  SetClock (ClockFn clock) { m_clock = std::move (clock); }
 
+    //  The thumbnail cache `thumbnail` uses: a test's temporary folder.
+    void  SetThumbnailFolder (std::filesystem::path folder) { m_thumbnailFolder = std::move (folder); }
+
     DiskCommandResult  Run (const CommandLineOptions & options);
 
 
@@ -342,14 +345,15 @@ public:
 
 
 private:
-    void  RunList   (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunGet    (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunPut    (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunDelete (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunBoot   (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunKrunch (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunMkdir  (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunRmdir  (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunList      (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunGet       (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunPut       (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunDelete    (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunBoot      (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunKrunch    (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunMkdir     (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunRmdir     (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunThumbnail (const CommandLineOptions & options, DiskCommandResult & result);
 
     //  A Pascal or CP/M catalog as the Filer or STAT prints it.
     HRESULT  AppendNativeListing (const CommandLineOptions             & options,
@@ -549,6 +553,9 @@ private:
     IDiskFileIo       & m_fileIo;
     DiskImageSession    m_session;
     std::string         m_banner;
+
+    //  The thumbnail cache, or empty for the one under local application data.
+    std::filesystem::path  m_thumbnailFolder;
 
     //  The command being run and the prefix it was typed with, recorded at the
     //  top of Run so a refusal deep inside can answer in the reader's own

@@ -44,6 +44,8 @@
 #include "Devices/Disk/BlockVolumeOpener.h"
 #include "Devices/Disk/DiskCollectionCommands.h"
 #include "Devices/Disk/DiskInspectCommand.h"
+#include "Devices/Disk/DiskThumbnailCommand.h"
+#include "DiskCheck/ThumbnailStore.h"
 #include "Machines/Apple2/Common/HfsWriter.h"
 #include "Machines/Apple2/Common/ProDosStartup.h"
 
@@ -3110,6 +3112,28 @@ bool DiskCommandRunner::IsRunnableAsDos33Greeting (const VolumeListing  & listin
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::RunThumbnail
+//
+//  Through the thumbnail store in the folder set, or the one under the
+//  user's local application data with none set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunThumbnail (const CommandLineOptions & options, DiskCommandResult & result)
+{
+    ThumbnailStore  store (m_thumbnailFolder.empty() ? ThumbnailStore::GetDefaultFolder() : m_thumbnailFolder);
+
+
+
+    DiskThumbnailCommand::Run (options, store, result);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::Run
 //
 //  A command this build does not implement reports failure rather than doing
@@ -3185,6 +3209,10 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
 
         case CommandLineOptions::DiskOptions::Command::Inspect:
             DiskInspectCommand::Run (m_fileIo, options.disk.imagePath, result);
+            break;
+
+        case CommandLineOptions::DiskOptions::Command::Thumbnail:
+            RunThumbnail (options, result);
             break;
 
         case CommandLineOptions::DiskOptions::Command::Get:

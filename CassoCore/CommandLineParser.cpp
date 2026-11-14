@@ -73,6 +73,7 @@ static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
     { "dupes",       CommandLineOptions::DiskOptions::Command::Dupes       },
     { "search",      CommandLineOptions::DiskOptions::Command::Search      },
     { "inspect",     CommandLineOptions::DiskOptions::Command::Inspect     },
+    { "thumbnail",   CommandLineOptions::DiskOptions::Command::Thumbnail   },
 };
 
 
@@ -262,6 +263,7 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "recurse",
     "force",
     "yes",
+    "remove",
 
     //  Here so `/on-change` is matched as one word rather than shredded into
     //  the single-character flags -o -n -c -h ...
@@ -1026,6 +1028,7 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::SectorWrite:
         case CommandLineOptions::DiskOptions::Command::BlockWrite:
         case CommandLineOptions::DiskOptions::Command::Search:
+        case CommandLineOptions::DiskOptions::Command::Thumbnail:
             count = 2;
             break;
 
@@ -1332,6 +1335,12 @@ void CommandLineParser::ParseDiskOptions (
         if (arg == "--yes" || arg == "-y")
         {
             options.disk.yes = true;
+            continue;
+        }
+
+        if (arg == "--remove")
+        {
+            options.disk.remove = true;
             continue;
         }
 
@@ -1714,6 +1723,10 @@ void CommandLineParser::ParseDiskOptions (
              || options.disk.command == CommandLineOptions::DiskOptions::Command::BlockWrite)
             {
                 options.disk.hostFile = arg;
+            }
+            else if (options.disk.command == CommandLineOptions::DiskOptions::Command::Thumbnail)
+            {
+                options.disk.picturePath = arg;
             }
             else
             {
