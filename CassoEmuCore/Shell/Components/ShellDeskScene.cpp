@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/BlockDevice/AppleScsiCard.h"
+#include "Devices/BlockDevice/ProFileCard.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellRenderer.h"
@@ -198,7 +199,11 @@ HRESULT ShellDeskScene::LoadDeskSceneModelsForMachine()
     std::span<const uint8_t>   driveMesh   = PrinterPanel::LoadBinaryResource (isC ? IDR_MODEL_DISK2C_MESH
                                                                                    : IDR_MODEL_DISKII_MESH);
     std::span<const uint8_t>  recorderMesh;
-    std::span<const uint8_t>  hardDiskMesh = PrinterPanel::LoadBinaryResource (IDR_MODEL_HARDDISK20SC_MESH);
+    const MachineRefs       & refs         = m_shell.m_machine.GetRefs();
+    bool                      hasScsi      = !refs.scsiCards.empty() && refs.scsiCards[0]->HasDrive();
+    bool                      hasProFile   = !refs.proFileCards.empty();
+    std::span<const uint8_t>  hardDiskMesh = PrinterPanel::LoadBinaryResource ((hasScsi || !hasProFile) ? IDR_MODEL_HARDDISK20SC_MESH
+                                                                                                         : IDR_MODEL_PROFILE_MESH);
     bool                      haveMeshes   = false;
     bool                      haveTape     = false;
 
@@ -220,9 +225,8 @@ HRESULT ShellDeskScene::LoadDeskSceneModelsForMachine()
     CHRA (hr);
 
     // The HD20SC is on the desk when the machine has an SCSI card with a
-    // drive on it.
-    m_deskScene.SetHardDiskShown (!m_shell.m_machine.GetRefs().scsiCards.empty() &&
-                                  m_shell.m_machine.GetRefs().scsiCards[0]->HasDrive());
+    // drive on it, and a ProFile is there in its place for a ProFile card.
+    m_deskScene.SetHardDiskShown (hasScsi || hasProFile);
 
     m_deskSceneMachineIsC = isC;
 

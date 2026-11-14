@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/BlockDevice/AppleScsiCard.h"
+#include "Devices/BlockDevice/ProFileCard.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/MachineBuilder.h"
@@ -778,13 +779,17 @@ bool ShellRenderer::TryPresentUiFrame()
         }
 
         // The HD20SC's lamp is lit for a tenth of a second after each SCSI
-        // command, so a run of reads reads as steady activity.
+        // command, so a run of reads reads as steady activity. A ProFile's
+        // lamp follows its last command the same way.
         {
-            const auto  & cards  = m_shell.m_machine.GetRefs().scsiCards;
-            uint64_t      now    = m_shell.m_machine.GetCpu() != nullptr ? *m_shell.m_machine.GetCpu()->GetBusCyclePtr() : 0;
-            uint64_t      window = m_shell.m_machine.GetConfig().clockSpeed / 10;
-            bool          busy   = !cards.empty() && cards[0]->IsBusy (now, window);
-            std::wstring  label  = cards.empty() ? std::wstring() : cards[0]->GetModelLabel();
+            const auto  & cards    = m_shell.m_machine.GetRefs().scsiCards;
+            const auto  & proFiles = m_shell.m_machine.GetRefs().proFileCards;
+            uint64_t      now      = m_shell.m_machine.GetCpu() != nullptr ? *m_shell.m_machine.GetCpu()->GetBusCyclePtr() : 0;
+            uint64_t      window   = m_shell.m_machine.GetConfig().clockSpeed / 10;
+            uint64_t      last     = proFiles.empty() ? 0 : proFiles[0]->GetDrive().GetLastActivityCycle();
+            bool          busy     = (!cards.empty() && cards[0]->IsBusy (now, window))
+                                  || (last != 0 && now >= last && now - last < window);
+            std::wstring  label    = cards.empty() ? std::wstring() : cards[0]->GetModelLabel();
 
 
 

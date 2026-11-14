@@ -1,38 +1,50 @@
-# Color definition for Casso model generator
-
-newmtl color_13945000
+newmtl case
 Ka 0 0 0 
 Kd 0.833 0.784 0.659
 d 1
-illum 0.0
 
-newmtl color_12760470
+newmtl panel
 Ka 0 0 0 
-Kd 0.76 0.71 0.59
+Kd 0.79 0.742 0.62
 d 1
-illum 0.0
 
-newmtl color_4012854
+newmtl grille
 Ka 0 0 0 
 Kd 0.24 0.23 0.21
 d 1
-illum 0.0
 
-newmtl color_2500137
+newmtl nameplate
 Ka 0 0 0 
-Kd 0.15 0.15 0.16
+Kd 0.3 0.22 0.16
 d 1
-illum 0.0
 
-newmtl color_15081242
+newmtl lamp
 Ka 0 0 0 
 Kd 0.9 0.12 0.1
 d 1
-illum 0.0
 
-newmtl color_2499617
+newmtl front_anchor
+Ka 0 0 0 
+Kd 0.98 0.01 0.24
+d 1
+
+newmtl foot_30_22
 Ka 0 0 0 
 Kd 0.15 0.14 0.13
 d 1
-illum 0.0
+
+newmtl foot_30_202
+Ka 0 0 0 
+Kd 0.15 0.14 0.13
+d 1
+
+newmtl foot_409_22
+Ka 0 0 0 
+Kd 0.15 0.14 0.13
+d 1
+
+newmtl foot_409_202
+Ka 0 0 0 
+Kd 0.15 0.14 0.13
+d 1
 

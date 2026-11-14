@@ -416,6 +416,14 @@ II samples are. Where none exists, synthesize: a filtered noise bed for the
 spin-up and the spindle hum, an impulse train for head stepping, and a motor
 sweep for the 3.5-inch eject. The audio sources work with either.
 
+**Checked** (2026-11-14): no recording of a Sony 800K drive, an HD20SC or a
+ProFile under CC0 or CC-BY turned up on Freesound, OpenGameArt or the
+sound-effect sites. The nearest CC0 set is an Amiga 600's 3.5-inch drive on
+OpenGameArt, which is a different mechanism. The sounds are synthesized in
+`Floppy35AudioSource` and `HardDiskAudioSource`, with an HD20SC spin-up of
+10 s (R5) and a ProFile spin-up of 4 s, which is a guess: its service
+manual wasn't found.
+
 ## R14. Event feed and the debugger
 
 **Checked**: the Disk II debug window of spec 006 was removed on 2026-10-10
