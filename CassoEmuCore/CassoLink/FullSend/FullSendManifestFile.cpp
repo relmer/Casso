@@ -212,6 +212,46 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendManifestFile::FindFingerprint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendManifestFile::FindFingerprint (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, std::string & outFingerprint, bool & outIsRawCapture)
+{
+    HRESULT           hr      = S_OK;
+    std::string       path    = folder + "\\" + FullSendManifest::kFileName;
+    FullSendManifest  manifest;
+    bool              exists  = false;
+    std::lock_guard   lock (FullSendSession::GetFolderLock (folder));
+
+
+
+    outFingerprint.clear();
+    outIsRawCapture = false;
+
+    hr = Read (fileIo, path, manifest, exists);
+    CHR (hr);
+    BAIL_OUT_IF (!exists, S_OK);
+
+    for (const FullSendRow & row : manifest.GetRows())
+    {
+        if (_stricmp (row.file.c_str(), name.c_str()) == 0)
+        {
+            outFingerprint  = row.fingerprint;
+            outIsRawCapture = row.status == FullSendManifest::kStatusRawCapture;
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendManifestFile::Read
 //
 //  A folder with no manifest reads as an empty one, with outExists false.

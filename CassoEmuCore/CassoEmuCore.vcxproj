@@ -278,6 +278,7 @@
     <ClCompile Include="CassoLink\Session\CassoLinkCaptureStream.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkFullSend.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStore.cpp" />
+    <ClCompile Include="DiskCheck\GivenNames.cpp" />
     <ClCompile Include="DiskCheck\BootCheck.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerBootWorker.cpp" />
     <ClCompile Include="DiskCheck\BootTitle.cpp" />
@@ -1783,6 +1784,7 @@
     <ClInclude Include="CassoLink\Session\CassoLinkCapture.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
     <ClInclude Include="DiskCheck\ThumbnailStore.h" />
+    <ClInclude Include="DiskCheck\GivenNames.h" />
     <ClInclude Include="DiskCheck\BootCheck.h" />
     <ClInclude Include="CassoExplorer\ExplorerBootWorker.h" />
     <ClInclude Include="DiskCheck\BootTitle.h" />

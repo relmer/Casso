@@ -5,6 +5,7 @@
 #include "DiskCheck/BootCheck.h"
 #include "DiskCheck/ThumbnailStore.h"
 
+class GivenNames;
 class IDiskFileIo;
 
 
@@ -56,6 +57,10 @@ public:
     void    SetManifestIo (IDiskFileIo * fileIo);
     void    SetLimits     (const BootProbe::Limits & limits);
 
+    //  The user's name for each fingerprint: a numbered raw capture whose
+    //  disk has one is renamed to its number and that name.
+    void    SetGivenNames (GivenNames * given);
+
     //  An image by its path, and the model of Apple it was captured from,
     //  empty when that isn't known. The source is returned with the result,
     //  as the connection the image came through. A path already waiting
@@ -75,6 +80,10 @@ public:
     //  digits alone, or a title with nothing a file name can have.
     static std::string  MakeTitledName (const std::string & name, const std::string & title);
 
+    //  A numbered image's name with a name after the number, as the user
+    //  wrote it: 0031 Archon.woz from 0031.woz and Archon.
+    static std::string  MakeNumberedName (const std::string & name, const std::string & given);
+
     //  A result as a line for an activity list.
     static std::string  Describe (const Result & result);
 
@@ -88,6 +97,8 @@ private:
 
     void  Run ();
 
+    static std::string  FindGivenName (IDiskFileIo & fileIo, GivenNames * given, const std::string & folder, const std::string & name);
+
     static constexpr DWORD   s_kBusyPollMs    = 250;
     static constexpr size_t  s_kMaxTitleChars = 60;
 
@@ -96,6 +107,7 @@ private:
     DoneFn                     m_done;
     BusyFn                     m_isBusy;
     IDiskFileIo              * m_fileIo  = nullptr;
+    GivenNames               * m_given   = nullptr;
     BootProbe::Limits          m_limits;
     mutable std::mutex         m_lock;
     std::condition_variable    m_wake;

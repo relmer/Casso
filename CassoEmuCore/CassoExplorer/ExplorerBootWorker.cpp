@@ -5,6 +5,7 @@
 #include "CassoLink/FullSend/FullSendManifestFile.h"
 #include "Core/TextEncoding.h"
 #include "DiskCheck/BootTitle.h"
+#include "DiskCheck/GivenNames.h"
 #include "Devices/Disk/DiskImageStore.h"
 
 
@@ -108,6 +109,25 @@ void ExplorerBootWorker::SetManifestIo (IDiskFileIo * fileIo)
 
 
     m_fileIo = fileIo;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::SetGivenNames
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::SetGivenNames (GivenNames * given)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    m_given = given;
 }
 
 
@@ -228,6 +248,7 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
     ThumbnailRecord        record;
     BootProbe::Limits      limits;
     IDiskFileIo          * fileIo   = nullptr;
+    GivenNames           * given    = nullptr;
     bool                   isOpen   = false;
 
 
@@ -239,6 +260,7 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
 
         limits = m_limits;
         fileIo = m_fileIo;
+        given  = m_given;
     }
 
     hr = DiskImageStore::GetSourceFormatByExtension (narrow, format);
@@ -277,17 +299,21 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
 
     if (fileIo != nullptr)
     {
-        std::string  folder  = TextEncoding::WideToNarrow (file.parent_path().wstring());
-        std::string  name    = TextEncoding::WideToNarrow (file.filename().wstring());
-        std::string  titled  = MakeTitledName (name, record.title);
-        bool         renamed = false;
+        std::string  folder   = TextEncoding::WideToNarrow (file.parent_path().wstring());
+        std::string  name     = TextEncoding::WideToNarrow (file.filename().wstring());
+        std::string  titled   = (report.verdict == BootVerdict::Booted) ? MakeTitledName (name, record.title) : std::string();
+        std::string  fromUser = FindGivenName (*fileIo, given, folder, name);
+        bool         renamed  = false;
 
         hr = FullSendManifestFile::NoteBoot (*fileIo, folder, name, record.verdict);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        //  A raw capture saved as a number takes its title once it boots, as
-        //  its disk has no catalog to take a name from.
-        if (!titled.empty() && report.verdict == BootVerdict::Booted)
+        //  A raw capture saved as a number is renamed with the user's earlier
+        //  name for its disk, or its title once it boots, as its disk has no
+        //  catalog to read a name from.
+        titled = fromUser.empty() ? titled : fromUser;
+
+        if (!titled.empty())
         {
             hr = FullSendManifestFile::RenameCapture (*fileIo, folder, name, titled, renamed);
             IGNORE_RETURN_VALUE (hr, S_OK);
@@ -310,14 +336,68 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerBootWorker::MakeTitledName
+//  ExplorerBootWorker::FindGivenName
 //
-//  A character a Windows file name can't have is a space, runs of spaces are
-//  one, and the title ends at s_kMaxTitleChars.
+//  The image's name with the user's name for its disk, for a raw capture
+//  whose disk has one; empty otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ExplorerBootWorker::FindGivenName (IDiskFileIo & fileIo, GivenNames * given, const std::string & folder, const std::string & name)
+{
+    HRESULT      hr          = S_OK;
+    std::string  fingerprint;
+    std::string  saved;
+    std::string  numbered;
+    bool         isRaw       = false;
+    bool         hasName     = false;
+
+
+
+    BAIL_OUT_IF (given == nullptr, S_OK);
+
+    hr = FullSendManifestFile::FindFingerprint (fileIo, folder, name, fingerprint, isRaw);
+    CHR (hr);
+    BAIL_OUT_IF (!isRaw, S_OK);
+
+    hasName = given->TryGet (fingerprint, saved);
+    BAIL_OUT_IF (!hasName, S_OK);
+
+    numbered = MakeNumberedName (name, saved);
+
+Error:
+    return numbered;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::MakeTitledName
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string ExplorerBootWorker::MakeTitledName (const std::string & name, const std::string & title)
+{
+    return MakeNumberedName (name, BootTitle::ToName (title));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::MakeNumberedName
+//
+//  A character a Windows file name can't have is a space, runs of spaces are
+//  one, and the name ends at s_kMaxTitleChars.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ExplorerBootWorker::MakeNumberedName (const std::string & name, const std::string & given)
 {
     static constexpr std::string_view  s_kInvalid = "\\/:*?\"<>|";
     size_t                             dot        = name.find_last_of ('.');
@@ -328,7 +408,7 @@ std::string ExplorerBootWorker::MakeTitledName (const std::string & name, const 
 
 
 
-    for (char each : BootTitle::ToName (title))
+    for (char each : given)
     {
         bool  isSpace = each == ' ' || (unsigned char) each < ' ' || s_kInvalid.find (each) != std::string_view::npos;
 
