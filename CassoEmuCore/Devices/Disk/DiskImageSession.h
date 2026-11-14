@@ -160,8 +160,14 @@ public:
     static constexpr const char *  kMetaHeading   = "WOZ metadata";
 
     //  What the decoded surface shows: geometry, how the tracks read, and
-    //  whether the first sector a boot reads carries anything.
-    static std::string  DescribeSurface (const OpenedImage & opened);
+    //  whether the first sector a boot reads has anything in it. A save
+    //  disk's first sector is the save, not a boot, so with `bootSector`
+    //  false that line is left out.
+    static std::string  DescribeSurface (const OpenedImage & opened, bool bootSector = true);
+
+    //  The games an Infocom save disk has saved, under their heading, or
+    //  nothing for any other disk.
+    static std::string  DescribeInfocomSaves (const OpenedImage & opened);
 
     //  One `  label   value` line, or nothing at all when the value is empty --
     //  so a caller can offer every field it knows about without also deciding

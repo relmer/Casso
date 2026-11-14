@@ -8,6 +8,7 @@
 #include "Devices/Disk/FilePath.h"
 #include "FileTypes/FileFormatTable.h"
 #include "FileTypes/WizardryScenario.h"
+#include "Machines/Apple2/Common/InfocomSave.h"
 #include "Machines/Apple2/Common/InfocomVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -267,5 +268,72 @@ public:
         GuestSession::Mount (machine, image);
 
         AssertZorkReachesWestOfHouse (machine);
+    }
+
+
+    //  Types `text` a key at a time, then RETURN when `enter`, and runs on
+    //  long enough for the interpreter's reply to reach the screen.
+    static void TypeToZork (MachineHost & machine, const std::string & text, bool enter = true)
+    {
+        constexpr uint64_t  kPerKey   = 900'000ULL;
+        constexpr uint64_t  kToAnswer = 6'000'000ULL;
+
+        for (char c : text)
+        {
+            AssertSucceeded (KeystrokeInjector::InjectKey (machine, (Byte) c));
+            machine.RunCycles (kPerKey);
+        }
+
+        if (enter)
+        {
+            AssertSucceeded (KeystrokeInjector::InjectKey (machine, (Byte) '\r'));
+        }
+
+        machine.RunCycles (kToAnswer);
+    }
+
+
+    //  A game saved in Casso to a blank disk in drive 2, at position 0, is
+    //  summarized from that disk alone, as on the status line: the kitchen,
+    //  ten points for coming in through the window, after four moves.
+    TEST_METHOD (ZorkI_ASaveIsSummarizedWithoutTheStoryDisk)
+    {
+        constexpr uint64_t  kSaveCap = 100'000'000ULL;
+
+        TestMachine                         machine ("Apple2eEnhanced");
+        std::vector<Byte>                   image  = GuestSession::RequireFetchedDisk ("zork1.dsk");
+        std::vector<Byte>                   blank (143360, 0);
+        std::vector<Byte>                   saved;
+        std::vector<InfocomSave::Position>  positions;
+        SectorDecodeReport                  report;
+
+
+
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "zork1.dsk", DiskFormat::Dsk, image));
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "save.dsk",  DiskFormat::Dsk, blank));
+        machine.PowerCycle();
+
+        AssertZorkReachesWestOfHouse (machine);
+
+        TypeToZork (machine, "N");
+        TypeToZork (machine, "E");
+        TypeToZork (machine, "OPEN WINDOW");
+        TypeToZork (machine, "W");
+        Assert::IsTrue (RunUntilScreenShows (machine, "KITCHEN", kSaveCap));
+
+        //  Position 0, drive 2, slot 6, yes, and RETURN with the disk in.
+        TypeToZork (machine, "SAVE");
+        TypeToZork (machine, "", true);
+        TypeToZork (machine, "2", false);
+        TypeToZork (machine, "", true);
+        TypeToZork (machine, "", true);
+        TypeToZork (machine, "", true);
+        Assert::IsTrue (RunUntilScreenShows (machine, "OK.", kSaveCap), L"the interpreter saves the game");
+
+        saved = GuestSession::DecodeThroughTheDrive (*machine.GetDiskStore().GetImage (6, 1), report);
+        InfocomSave::FindPositions (saved, positions);
+
+        Assert::AreEqual ((size_t) 1, positions.size());
+        Assert::AreEqual (std::string ("release 88, serial number 840726, Kitchen, score 10, 4 moves"), InfocomSave::Describe (positions[0]));
     }
 };

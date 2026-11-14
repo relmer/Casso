@@ -747,6 +747,29 @@ std::wstring ZMachineStory::GetObjectName (const Story & story, size_t number)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ZMachineStory::ReadObjectName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ZMachineStory::ReadObjectName (std::span<const Byte> memory, const Header & header, size_t number)
+{
+    Story  story;
+
+
+
+    story.bytes  = memory;
+    story.header = header;
+    LoadAlphabets (story);
+
+    return GetObjectName (story, number);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ZMachineStory::ListObjects
 //
 //  The objects are numbered from 1; the first property table, which comes
