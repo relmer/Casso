@@ -835,22 +835,50 @@ Error:
 //
 //  HfsVolume::ApplyChange
 //
-//  The change made by `change` on a copy of the volume's bytes, which is
+//  The change made by `change` on a buffer over the volume's bytes, which is
 //  the new buffer when it succeeds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsVolume::ApplyChange (vector<Byte> & outBuffer, const std::function<HRESULT (vector<Byte> &)> & change) const
+HRESULT HfsVolume::ApplyChange (BlockBuffer & outBuffer, const std::function<HRESULT (BlockBuffer &)> & change) const
 {
-    HRESULT       hr    = S_OK;
-    vector<Byte>  image = m_image.ToVector();
+    HRESULT      hr     = S_OK;
+    BlockBuffer  buffer (m_image);
 
 
 
-    hr = change (image);
+    hr = change (buffer);
     CHR (hr);
 
-    outBuffer = std::move (image);
+    outBuffer = std::move (buffer);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsVolume::ApplyChange
+//
+//  The same, as the volume's whole new bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsVolume::ApplyChange (vector<Byte> & outBuffer, const std::function<HRESULT (BlockBuffer &)> & change) const
+{
+    HRESULT      hr     = S_OK;
+    BlockBuffer  buffer;
+
+
+
+    hr = ApplyChange (buffer, change);
+    CHR (hr);
+
+    outBuffer = buffer.ToVector();
 
 Error:
     return hr;
@@ -868,7 +896,22 @@ Error:
 
 HRESULT HfsVolume::Write (const FilePath & path, const FilePayload & payload, vector<Byte> & outBuffer) const
 {
-    return ApplyChange (outBuffer, [&] (vector<Byte> & image) { return HfsWriter::Write (image, path, payload); });
+    return ApplyChange (outBuffer, [&] (BlockBuffer & image) { return HfsWriter::Write (image, path, payload); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsVolume::Write
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsVolume::Write (const FilePath & path, const FilePayload & payload, BlockBuffer & outBuffer) const
+{
+    return ApplyChange (outBuffer, [&] (BlockBuffer & image) { return HfsWriter::Write (image, path, payload); });
 }
 
 
@@ -902,7 +945,22 @@ HRESULT HfsVolume::Delete (const FilePath & path, vector<Byte> & outBuffer) cons
 
 HRESULT HfsVolume::Delete (const FilePath & path, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const
 {
-    return ApplyChange (outBuffer, [&] (vector<Byte> & image) { return HfsWriter::Delete (image, path, outOutcome); });
+    return ApplyChange (outBuffer, [&] (BlockBuffer & image) { return HfsWriter::Delete (image, path, outOutcome); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsVolume::Delete
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsVolume::Delete (const FilePath & path, BlockBuffer & outBuffer, DeleteOutcome & outOutcome) const
+{
+    return ApplyChange (outBuffer, [&] (BlockBuffer & image) { return HfsWriter::Delete (image, path, outOutcome); });
 }
 
 
@@ -917,7 +975,22 @@ HRESULT HfsVolume::Delete (const FilePath & path, vector<Byte> & outBuffer, Dele
 
 HRESULT HfsVolume::CreateDirectory (const FilePath & path, vector<Byte> & outBuffer) const
 {
-    return ApplyChange (outBuffer, [&] (vector<Byte> & image) { return HfsWriter::CreateDirectory (image, path); });
+    return ApplyChange (outBuffer, [&] (BlockBuffer & image) { return HfsWriter::CreateDirectory (image, path); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsVolume::CreateDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsVolume::CreateDirectory (const FilePath & path, BlockBuffer & outBuffer) const
+{
+    return ApplyChange (outBuffer, [&] (BlockBuffer & image) { return HfsWriter::CreateDirectory (image, path); });
 }
 
 
@@ -1012,7 +1085,22 @@ void HfsVolume::AddRemovalEntries (const vector<CatalogRecord> & records, uint32
 
 HRESULT HfsVolume::RemoveDirectory (const FilePath & path, bool force, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const
 {
-    return ApplyChange (outBuffer, [&] (vector<Byte> & image) { return HfsWriter::RemoveDirectory (image, path, force, outOutcome); });
+    return ApplyChange (outBuffer, [&] (BlockBuffer & image) { return HfsWriter::RemoveDirectory (image, path, force, outOutcome); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsVolume::RemoveDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsVolume::RemoveDirectory (const FilePath & path, bool force, BlockBuffer & outBuffer, DeleteOutcome & outOutcome) const
+{
+    return ApplyChange (outBuffer, [&] (BlockBuffer & image) { return HfsWriter::RemoveDirectory (image, path, force, outOutcome); });
 }
 
 
@@ -1045,7 +1133,22 @@ HRESULT HfsVolume::SetStartupProgram (const FilePath &, vector<Byte> &) const
 
 HRESULT HfsVolume::Rename (const FilePath & from, const std::string & to, vector<Byte> & outBuffer) const
 {
-    return ApplyChange (outBuffer, [&] (vector<Byte> & image) { return HfsWriter::Rename (image, from, to); });
+    return ApplyChange (outBuffer, [&] (BlockBuffer & image) { return HfsWriter::Rename (image, from, to); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsVolume::Rename
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsVolume::Rename (const FilePath & from, const std::string & to, BlockBuffer & outBuffer) const
+{
+    return ApplyChange (outBuffer, [&] (BlockBuffer & image) { return HfsWriter::Rename (image, from, to); });
 }
 
 
@@ -1060,5 +1163,20 @@ HRESULT HfsVolume::Rename (const FilePath & from, const std::string & to, vector
 
 HRESULT HfsVolume::SetAttributes (const FilePath & path, const FileAttributes & attributes, vector<Byte> & outBuffer) const
 {
-    return ApplyChange (outBuffer, [&] (vector<Byte> & image) { return HfsWriter::SetAttributes (image, path, attributes); });
+    return ApplyChange (outBuffer, [&] (BlockBuffer & image) { return HfsWriter::SetAttributes (image, path, attributes); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsVolume::SetAttributes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsVolume::SetAttributes (const FilePath & path, const FileAttributes & attributes, BlockBuffer & outBuffer) const
+{
+    return ApplyChange (outBuffer, [&] (BlockBuffer & image) { return HfsWriter::SetAttributes (image, path, attributes); });
 }

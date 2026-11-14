@@ -914,7 +914,7 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
 
     CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<path>", result));
 
-    //  A ProDOS volume on a card partition is changed by the block.
+    //  A ProDOS or HFS volume on a card partition is changed by the block.
     isCard = card.TryOpen (m_fileIo, options.disk.imagePath);
 
     if (!isCard)
@@ -923,7 +923,7 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
         CHR (hr);
     }
 
-    kind = isCard ? VolumeKind::ProDos : opened.kind;
+    kind = isCard ? card.GetKind() : opened.kind;
 
     isProDos = kind == VolumeKind::ProDos;
 
@@ -940,7 +940,7 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
     for (i = 1; i <= path.GetDepth(); i++)
     {
         std::unique_ptr<ProDosVolume>  over    = !isCard ? std::make_unique<ProDosVolume> (staged) : madeAny ? std::make_unique<ProDosVolume> (BlockImage (cardStaged)) : nullptr;
-        const ProDosVolume           & step    = over != nullptr ? *over : card.GetVolume();
+        const IVolume                & step    = over != nullptr ? static_cast<const IVolume &> (*over) : card.GetVolume();
         VolumeListing                  listing;
         std::string                    prefix;
         vector<Byte>                   next;
@@ -1026,7 +1026,7 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
 
     CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<path>", result));
 
-    //  A ProDOS volume on a card partition is changed by the block.
+    //  A ProDOS or HFS volume on a card partition is changed by the block.
     isCard = card.TryOpen (m_fileIo, options.disk.imagePath);
 
     if (!isCard)
@@ -1035,7 +1035,7 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
         CHR (hr);
     }
 
-    kind = isCard ? VolumeKind::ProDos : opened.kind;
+    kind = isCard ? card.GetKind() : opened.kind;
 
     isProDos = kind == VolumeKind::ProDos;
 
@@ -2351,7 +2351,7 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
     hostForm = ApplyHostFileName (effective, parsed);
     diskName = GetOnDiskName (effective);
 
-    //  A ProDOS volume on a card partition is changed by the block.
+    //  A ProDOS or HFS volume on a card partition is changed by the block.
     isCard = card.TryOpen (m_fileIo, options.disk.imagePath);
 
     if (!isCard)
@@ -2360,7 +2360,7 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
         CHR (hr);
     }
 
-    kind = isCard ? VolumeKind::ProDos : opened.kind;
+    kind = isCard ? card.GetKind() : opened.kind;
 
     hr = ApplyUser (options, kind, diskName, result);
     CHR (hr);
@@ -2463,7 +2463,7 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
 
     CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<name>", result));
 
-    //  A ProDOS volume on a card partition is changed by the block.
+    //  A ProDOS or HFS volume on a card partition is changed by the block.
     isCard = card.TryOpen (m_fileIo, options.disk.imagePath);
 
     if (!isCard)
@@ -2472,7 +2472,7 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
         CHR (hr);
     }
 
-    kind = isCard ? VolumeKind::ProDos : opened.kind;
+    kind = isCard ? card.GetKind() : opened.kind;
 
     hr = ResolveEntryPath (options, kind, isCard ? card.GetImage() : BlockImage (opened.sectors), path, name, result);
     CHR (hr);

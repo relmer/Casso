@@ -5,9 +5,8 @@
 #include "Devices/Disk/BlockBuffer.h"
 #include "Devices/Disk/IBlockStore.h"
 #include "Devices/Disk/IDiskFileIo.h"
-#include "Machines/Apple2/Common/ProDosVolume.h"
-
-class IVolume;
+#include "Machines/Apple2/Common/IVolume.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 
 
 
@@ -17,8 +16,8 @@ class IVolume;
 //
 //  CardVolumeEdit
 //
-//  A change to a ProDOS volume on a partition of a card in a reader, read
-//  and written by the block. The volume is read through the card's blocks
+//  A change to a ProDOS or HFS volume on a partition of a card in a reader,
+//  read and written by the block. The volume is read through the card's blocks
 //  as the change touches them, and only the blocks the change touched are
 //  written back, so a copy onto a 32 MB partition reads and sends a few
 //  dozen blocks rather than the partition.
@@ -37,11 +36,12 @@ public:
     CardVolumeEdit (const CardVolumeEdit &)             = delete;
     CardVolumeEdit & operator= (const CardVolumeEdit &) = delete;
 
-    //  False, with nothing opened, for any image but a ProDOS volume on a
-    //  partition of a card.
+    //  False, with nothing opened, for any image but a ProDOS or HFS volume
+    //  on a partition of a card.
     bool  TryOpen (IDiskFileIo & fileIo, const std::string & imagePath);
 
-    const ProDosVolume  & GetVolume () const;
+    const IVolume       & GetVolume () const { return *m_volume; }
+    VolumeKind            GetKind   () const { return m_kind; }
 
     //  The volume's blocks as an image, for a path to be resolved against.
     BlockImage            GetImage  () const;
@@ -56,5 +56,6 @@ private:
     std::string                      m_path;
     std::unique_ptr<IBlockStore>     m_store;
     std::unique_ptr<IVolume>         m_volume;
+    VolumeKind                       m_kind   = VolumeKind::Unknown;
     FileStamp                        m_stamp;
 };

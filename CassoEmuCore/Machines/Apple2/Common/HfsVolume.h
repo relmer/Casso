@@ -81,6 +81,15 @@ public:
                             const FileAttributes  & attributes,
                             vector<Byte>          & outBuffer) const override;
 
+    //  The same, into a buffer of the blocks the change touches, which is all
+    //  a change to a large volume over a store reads.
+    HRESULT  CreateDirectory   (const FilePath & path, BlockBuffer & outBuffer) const override;
+    HRESULT  RemoveDirectory   (const FilePath & path, bool force, BlockBuffer & outBuffer, DeleteOutcome & outOutcome) const override;
+    HRESULT  Write             (const FilePath & path, const FilePayload & payload, BlockBuffer & outBuffer) const override;
+    HRESULT  Delete            (const FilePath & path, BlockBuffer & outBuffer, DeleteOutcome & outOutcome) const override;
+    HRESULT  Rename            (const FilePath & from, const std::string & to, BlockBuffer & outBuffer) const override;
+    HRESULT  SetAttributes     (const FilePath & path, const FileAttributes & attributes, BlockBuffer & outBuffer) const override;
+
     //  The ProDOS type and aux type GS/OS maps a Finder type and creator to.
     static void  MapToProDos (uint32_t macType, uint32_t macCreator, Byte & outType, Word & outAux);
 
@@ -151,7 +160,8 @@ private:
     HRESULT  FindDirectory    (const vector<CatalogRecord> & records, const FilePath & path, uint32_t & outId) const;
     HRESULT  ListDirectory    (const Mdb & mdb, const vector<CatalogRecord> & records, uint32_t id, VolumeListing & outListing) const;
 
-    HRESULT      ApplyChange       (vector<Byte> & outBuffer, const std::function<HRESULT (vector<Byte> &)> & change) const;
+    HRESULT      ApplyChange       (BlockBuffer & outBuffer, const std::function<HRESULT (BlockBuffer &)> & change) const;
+    HRESULT      ApplyChange       (vector<Byte> & outBuffer, const std::function<HRESULT (BlockBuffer &)> & change) const;
     static void  AddRemovalEntries (const vector<CatalogRecord> & records, uint32_t id, const std::string & prefix, DirectoryRemovalPlan & ioPlan);
 
     BlockImage  m_image;

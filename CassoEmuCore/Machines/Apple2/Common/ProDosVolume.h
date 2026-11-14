@@ -72,12 +72,12 @@ public:
 
     //  The same, into a buffer of the blocks the change touches, which is all
     //  a write to a large volume over a store reads.
-    HRESULT  CreateDirectory   (const FilePath & path, BlockBuffer & outBuffer) const { return m_writer.CreateDirectory (path, outBuffer); }
-    HRESULT  Write             (const FilePath & path, const FilePayload & payload, BlockBuffer & outBuffer) const { return m_writer.Write (path, payload, outBuffer); }
-    HRESULT  Rename            (const FilePath & from, const std::string & to, BlockBuffer & outBuffer) const { return m_writer.Rename (from, to, outBuffer); }
-    HRESULT  SetAttributes     (const FilePath & path, const FileAttributes & attributes, BlockBuffer & outBuffer) const { return m_writer.SetAttributes (path, attributes, outBuffer); }
-    HRESULT  RemoveDirectory   (const FilePath & path, bool force, BlockBuffer & outBuffer, DeleteOutcome & outOutcome) const { return m_remover.RemoveDirectory (path, force, outBuffer, outOutcome); }
-    HRESULT  Delete            (const FilePath & path, BlockBuffer & outBuffer, DeleteOutcome & outOutcome) const { return m_remover.Delete (path, outBuffer, outOutcome); }
+    HRESULT  CreateDirectory   (const FilePath & path, BlockBuffer & outBuffer) const override { return m_writer.CreateDirectory (path, outBuffer); }
+    HRESULT  Write             (const FilePath & path, const FilePayload & payload, BlockBuffer & outBuffer) const override { return m_writer.Write (path, payload, outBuffer); }
+    HRESULT  Rename            (const FilePath & from, const std::string & to, BlockBuffer & outBuffer) const override { return m_writer.Rename (from, to, outBuffer); }
+    HRESULT  SetAttributes     (const FilePath & path, const FileAttributes & attributes, BlockBuffer & outBuffer) const override { return m_writer.SetAttributes (path, attributes, outBuffer); }
+    HRESULT  RemoveDirectory   (const FilePath & path, bool force, BlockBuffer & outBuffer, DeleteOutcome & outOutcome) const override { return m_remover.RemoveDirectory (path, force, outBuffer, outOutcome); }
+    HRESULT  Delete            (const FilePath & path, BlockBuffer & outBuffer, DeleteOutcome & outOutcome) const override { return m_remover.Delete (path, outBuffer, outOutcome); }
 
     //  ProDOS's rule for a new name, the one Rename applies.
     static bool  IsValidName (const std::string & name) { std::string stored; return ProDosVolumeWriter::TryEncodeDirectoryName (name, stored); }

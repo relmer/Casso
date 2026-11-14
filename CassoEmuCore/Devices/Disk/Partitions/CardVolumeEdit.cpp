@@ -63,7 +63,7 @@ bool CardVolumeEdit::TryOpen (IDiskFileIo & fileIo, const std::string & imagePat
     opened = BlockVolumeOpener::TryOpen (fileIo, imagePath, VolumeKind::Unknown, m_store, m_volume, kind);
     hr     = opened ? fileIo.Stat (imagePath, m_stamp) : E_FAIL;
 
-    if (!opened || kind != VolumeKind::ProDos || FAILED (hr))
+    if (!opened || (kind != VolumeKind::ProDos && kind != VolumeKind::Hfs) || FAILED (hr))
     {
         m_volume.reset();
         m_store.reset();
@@ -72,23 +72,9 @@ bool CardVolumeEdit::TryOpen (IDiskFileIo & fileIo, const std::string & imagePat
 
     m_fileIo = &fileIo;
     m_path   = imagePath;
+    m_kind   = kind;
 
     return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CardVolumeEdit::GetVolume
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const ProDosVolume & CardVolumeEdit::GetVolume() const
-{
-    return static_cast<const ProDosVolume &> (*m_volume);
 }
 
 

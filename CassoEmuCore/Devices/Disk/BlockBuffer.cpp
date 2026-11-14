@@ -172,6 +172,8 @@ Error:
 //
 //  BlockBuffer::WriteBlocks
 //
+//  Each block is replaced whole, so the image's copy isn't read.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT BlockBuffer::WriteBlocks (uint32_t first, std::span<const Byte> bytes)
@@ -186,7 +188,7 @@ HRESULT BlockBuffer::WriteBlocks (uint32_t first, std::span<const Byte> bytes)
 
     for (uint32_t i = 0; i < count; i++)
     {
-        std::copy_n (bytes.begin() + (ptrdiff_t) ((size_t) i * kBlockBytes), kBlockBytes, Touch (first + i).begin());
+        m_blocks[first + i].assign (bytes.begin() + (ptrdiff_t) ((size_t) i * kBlockBytes), bytes.begin() + (ptrdiff_t) ((size_t) (i + 1) * kBlockBytes));
     }
 
 Error:

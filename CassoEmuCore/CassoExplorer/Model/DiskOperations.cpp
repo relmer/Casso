@@ -298,12 +298,12 @@ bool DiskOperations::TryEditCardVolume (const std::string & imagePath, const std
     }
 
     outResult = Result();
-    hr        = edit (card.GetVolume(), edited);
+    hr        = edit (card.GetVolume(), card.GetKind(), edited);
 
     if (FAILED (hr))
     {
         outResult.hr      = hr;
-        outResult.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("{}: {}", failure, DescribeVolumeRefusal (hr, VolumeKind::ProDos)));
+        outResult.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("{}: {}", failure, DescribeVolumeRefusal (hr, card.GetKind())));
         return true;
     }
 
@@ -947,7 +947,7 @@ DiskOperations::Result DiskOperations::WritePayload (
 
 
     if (TryEditCardVolume (imagePath, std::format ("Unable to write {}", name),
-                           [&] (const ProDosVolume & volume, BlockBuffer & outEdited) { return volume.Write (FilePath::Parse (name), payload, outEdited); }, result))
+                           [&] (const IVolume & volume, VolumeKind, BlockBuffer & outEdited) { return volume.Write (FilePath::Parse (name), payload, outEdited); }, result))
     {
         return result;
     }
@@ -999,7 +999,7 @@ DiskOperations::Result DiskOperations::Rename (
 
 
     if (TryEditCardVolume (imagePath, std::format ("Unable to rename {} to {}", from, to),
-                           [&] (const ProDosVolume & volume, BlockBuffer & outEdited) { return volume.Rename (MakeEntryPath (VolumeKind::ProDos, from, catalogIndex), to, outEdited); }, result))
+                           [&] (const IVolume & volume, VolumeKind kind, BlockBuffer & outEdited) { return volume.Rename (MakeEntryPath (kind, from, catalogIndex), to, outEdited); }, result))
     {
         return result;
     }
@@ -1051,7 +1051,7 @@ DiskOperations::Result DiskOperations::SetAttributes (
 
 
     if (TryEditCardVolume (imagePath, std::format ("Unable to change {}", name),
-                           [&] (const ProDosVolume & volume, BlockBuffer & outEdited) { return volume.SetAttributes (MakeEntryPath (VolumeKind::ProDos, name, catalogIndex), attributes, outEdited); }, result))
+                           [&] (const IVolume & volume, VolumeKind kind, BlockBuffer & outEdited) { return volume.SetAttributes (MakeEntryPath (kind, name, catalogIndex), attributes, outEdited); }, result))
     {
         return result;
     }

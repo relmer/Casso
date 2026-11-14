@@ -322,4 +322,69 @@ public:
             Assert::IsTrue (back.bytes == MakeFile (kFileBytes, 9).bytes, L"the file reads back");
         }
     }
+
+
+    //  The same copy onto an HFS partition, as GS/OS writes on a CFFA card.
+    //  The catalog and extents files are read whole, and the rest of the
+    //  partition isn't read.
+    TEST_METHOD (CopyOntoAnHfsCardPartition_ReadsOnlyTheBlocksItTouches)
+    {
+        std::vector<Byte>            card ((size_t) 2 * kCffaSliceBlocks * ProDosSkeleton::kBlockByteSize, 0);
+        std::vector<Byte>            second (k32MbBlocks * ProDosSkeleton::kBlockByteSize, 0);
+        std::vector<Byte>            first;
+        std::vector<PartitionEntry>  entries;
+        PartitionLayoutKind          kind  = PartitionLayoutKind::None;
+        FakeDiskFileIo               unused;
+        FilePayload                  back;
+        std::string                  partition;
+        DiskOperations::Result       result;
+
+
+
+        AssertSucceeded (HfsWriter::Format (first, kCffaSliceBlocks, "First"));
+
+        for (size_t i = 0; i < 8; i++)
+        {
+            HfsVolume          volume (first);
+            std::vector<Byte>  next;
+
+            AssertSucceeded (volume.Write (FilePath::Parse (std::format ("File {}", i)), MakeFile (kFileBytes * (i + 1), (Byte) i), next));
+            first = std::move (next);
+        }
+
+        AssertSucceeded (ProDosSkeleton::Write (second, "SECOND"));
+
+        std::copy (first.begin(),  first.end(),  card.begin());
+        std::copy (second.begin(), second.end(), card.begin() + (ptrdiff_t) ((size_t) kCffaSliceBlocks * ProDosSkeleton::kBlockByteSize));
+
+        CardHost       host (std::move (card));
+        PhysicalCards  cards (host);
+
+        cards.SetConfirmWrite ([] (const PhysicalDrive &) { return true; });
+        AssertSucceeded (cards.Open (2, nullptr));
+        AssertSucceeded (cards.ListPartitions (2, kind, entries));
+        Assert::IsFalse (entries.empty(), L"the card has its partitions");
+
+        partition = PhysicalCards::MakeCardPath (2) + "|" + entries[0].step;
+
+        {
+            PhysicalCardFileIo  io (unused, cards);
+            DiskOperations      ops (io);
+
+            host.store.blocksRead    = 0;
+            host.store.blocksWritten = 0;
+
+            result = ops.WritePayload (partition, "New File", MakeFile (kFileBytes, 9));
+            Assert::IsTrue (result.Succeeded(), TextEncoding::NarrowToWide (result.message).c_str());
+
+            Logger::WriteMessage (std::format ("A copy onto the card's 32 MB HFS partition read {} blocks of the card and wrote {}\n", host.store.blocksRead, host.store.blocksWritten).c_str());
+
+            Assert::IsTrue (host.store.blocksRead < kCardReadLimit, L"the copy reads the blocks it touches, not the partition");
+            Assert::IsTrue (host.store.blocksWritten < kBlockLimit, L"and writes fewer than 64");
+
+            result = ops.Read (partition, "New File", back, 0);
+            Assert::IsTrue (result.Succeeded(), TextEncoding::NarrowToWide (result.message).c_str());
+            Assert::IsTrue (back.bytes == MakeFile (kFileBytes, 9).bytes, L"the file reads back");
+        }
+    }
 };
