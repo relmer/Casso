@@ -45,10 +45,12 @@ private:
 //
 //  BootCheck
 //
-//  A disk image booted on one machine after another until it boots: the
+//  A disk image booted on each machine at once, a thread for each: the
 //  model it was captured from, when Casso has that machine, then the
-//  enhanced //e, then the ][+. The report is the best of them, with the
-//  machine it is from. A machine that can't be built, as with a ROM not
+//  enhanced //e, then the ][+. The report is that of the first of them, in
+//  that order, on which the image boots, or the best of them when it boots
+//  on none, with the machine it is from. A machine after one the image
+//  boots on is stopped. A machine that can't be built, as with a ROM not
 //  installed, is passed over and listed in outMissing.
 //
 ////////////////////////////////////////////////////////////////////////////////

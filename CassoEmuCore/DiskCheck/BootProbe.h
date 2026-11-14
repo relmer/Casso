@@ -38,6 +38,7 @@ struct BootReport
     int                       height     = 0;
     std::vector<std::string>  rows;
     bool                      isTextMode = true;
+    std::vector<Word>         endPcs;                 // the program counter at short intervals once the boot ended
 };
 
 
@@ -92,18 +93,38 @@ public:
         int                       driveStarted = -1;
         std::vector<std::string>  rows;
         bool                      isTextMode   = true;
+
+        //  The program counter at short intervals once the boot ended, and
+        //  the memory from the lowest to the highest of them and of the
+        //  settled slices', read when they are within kLoopSpan bytes below
+        //  the I/O space: the loop a program that has stopped is in.
+        std::vector<Word>         endPcs;
+        std::vector<Byte>         loopBytes;
     };
 
     static constexpr int  kDiskSlot  = 6;
     static constexpr int  kDiskDrive = 0;      // drive 1, as the disk store counts from 0
     static constexpr int  kTextRows  = 24;
     static constexpr int  kTextCols  = 40;
+    static constexpr int  kLoopSpan  = 255;
+    static constexpr int  kEndPcs    = 256;
+    static constexpr int  kEndCycles = 997;    // between two of them, a prime so a loop's period doesn't hide its instructions
 
     //  The image mounted on the machine, which is power cycled first, then
     //  run to a verdict. The machine is the caller's, built by the builder.
-    static HRESULT      Probe (MachineHost & host, MachineBuilder & builder, const std::vector<Byte> & image, DiskFormat format, const Limits & limits, BootReport & outReport);
+    //  With a stop flag, the boot ends with E_ABORT once the flag is set,
+    //  as another thread sets it when the result won't be used.
+    static HRESULT      Probe (MachineHost & host, MachineBuilder & builder, const std::vector<Byte> & image, DiskFormat format, const Limits & limits, BootReport & outReport,
+                               const std::atomic<bool> * stop = nullptr);
 
     static BootVerdict  Judge (const Trace & trace, const Limits & limits, std::string & outReason);
+
+    //  Whether the program is in a short loop with no reference to the
+    //  I/O space, $C000 to $C0FF, so with no key, button or paddle read
+    //  and no sound, as a program that jumped into data is. A loop in
+    //  ROM, as the monitor's wait for a key is, isn't one.
+    static bool  IsStuck  (const Trace & trace);
+    static void  ReadLoop (MachineHost & host, const Limits & limits, Trace & ioTrace);
 
     //  Whether the samples so far are a boot: the screen differs from the
     //  one at driveStarted, and the motor was off for settledSlices.

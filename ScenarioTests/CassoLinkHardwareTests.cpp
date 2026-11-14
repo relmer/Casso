@@ -740,6 +740,31 @@ public:
 
             log << entry.path().filename().string() << ": " << BootProbe::GetVerdictName (report.verdict) << ", " << std::format ("{:.1f}", seconds) << " s. " << report.reason << (report.isTextMode ? " Text." : " Graphics.") << std::endl;
 
+            {
+                std::map<Word, int>  counts;
+
+                for (Word pc : report.endPcs) { counts[pc]++; }
+
+                log << "    pcs " << counts.size() << ":";
+
+                for (const auto & [pc, count] : counts) { log << std::format (" {:04X}x{}", pc, count); }
+
+                log << std::endl;
+
+                if (counts.size() <= 24 && !counts.empty())
+                {
+                    Word  from = (Word) (counts.begin()->first & 0xFFF0);
+                    Word  to   = (Word) (counts.rbegin()->first | 0x000F);
+
+                    for (int at = from; at <= to && at - from < 0x100; at++)
+                    {
+                        log << ((at & 0x0F) == 0 ? std::format ("\n    {:04X}:", at) : std::string()) << std::format (" {:02X}", machine.GetMemoryBus().ReadByte ((Word) at));
+                    }
+
+                    log << std::endl;
+                }
+            }
+
             for (const std::string & row : report.rows)
             {
                 if (!row.empty())

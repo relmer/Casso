@@ -230,9 +230,20 @@ bool BootCheck::IsBetter (BootVerdict verdict, BootVerdict than)
 HRESULT BootCheck::Run (const std::vector<Byte> & image, DiskFormat format, const std::string & capturedFrom, const BootProbe::Limits & limits,
                         const MachineFn & build, BootReport & outReport, std::string & outMachine, std::vector<std::string> & outMissing)
 {
-    HRESULT  hr     = S_OK;
-    bool     hasAny = false;
-    bool     isDone = false;
+    struct Attempt
+    {
+        std::string        id;
+        Built              built;
+        BootReport         report;
+        HRESULT            hrProbe = E_FAIL;
+        std::atomic<bool>  stop    { false };
+    };
+
+    HRESULT                   hr     = S_OK;
+    bool                      hasAny = false;
+    bool                      isDone = false;
+    std::deque<Attempt>       attempts;
+    std::vector<std::thread>  threads;
 
 
 
@@ -240,18 +251,12 @@ HRESULT BootCheck::Run (const std::vector<Byte> & image, DiskFormat format, cons
     outMachine.clear();
     outMissing.clear();
 
+    //  The machines are built on this thread, and each boots on another.
     for (const std::string & id : GetMachines (capturedFrom))
     {
         Built        built;
-        BootReport   report;
         std::string  error;
-        HRESULT      hrBuild = isDone ? E_ABORT : build (id, built, error);
-        HRESULT      hrProbe = E_FAIL;
-
-        if (isDone)
-        {
-            continue;
-        }
+        HRESULT      hrBuild = build (id, built, error);
 
         if (FAILED (hrBuild) || built.host == nullptr || built.builder == nullptr)
         {
@@ -259,17 +264,46 @@ HRESULT BootCheck::Run (const std::vector<Byte> & image, DiskFormat format, cons
             continue;
         }
 
-        hrProbe = BootProbe::Probe (*built.host, *built.builder, image, format, limits, report);
+        attempts.emplace_back();
+        attempts.back().id    = id;
+        attempts.back().built = built;
+    }
 
-        if (FAILED (hrProbe))
+    for (size_t at = 0; at < attempts.size(); at++)
+    {
+        threads.emplace_back ([&attempts, &image, &limits, format, at] ()
+        {
+            Attempt  & attempt = attempts[at];
+            bool       isLast  = false;
+
+            SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+
+            attempt.hrProbe = BootProbe::Probe (*attempt.built.host, *attempt.built.builder, image, format, limits, attempt.report, &attempt.stop);
+            isLast          = SUCCEEDED (attempt.hrProbe) && (attempt.report.verdict == BootVerdict::Booted || attempt.report.verdict == BootVerdict::NotBootable);
+
+            for (size_t after = at + 1; isLast && after < attempts.size(); after++)
+            {
+                attempts[after].stop = true;
+            }
+        });
+    }
+
+    for (std::thread & thread : threads)
+    {
+        thread.join();
+    }
+
+    for (Attempt & attempt : attempts)
+    {
+        if (isDone || FAILED (attempt.hrProbe))
         {
             continue;
         }
 
-        if (!hasAny || IsBetter (report.verdict, outReport.verdict))
+        if (!hasAny || IsBetter (attempt.report.verdict, outReport.verdict))
         {
-            outReport  = std::move (report);
-            outMachine = id;
+            outReport  = std::move (attempt.report);
+            outMachine = attempt.id;
         }
 
         hasAny = true;

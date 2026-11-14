@@ -270,7 +270,7 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
     record.verdict = BootProbe::GetVerdictName (report.verdict);
     record.machine = result.machine;
     record.reason  = report.reason;
-    record.title   = BootTitle::Find (report.rows, report.isTextMode);
+    record.title   = (report.verdict == BootVerdict::Booted) ? BootTitle::Find (report.rows, report.isTextMode) : std::string();
 
     hr = m_store.Store (file, png, record);
     CHR (hr);
