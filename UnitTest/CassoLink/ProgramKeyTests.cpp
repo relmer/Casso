@@ -3,6 +3,9 @@
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FixtureProvider.h"
 #include "CassoLink/CassoLinkCodec.h"
+#include "CassoLink/FullSend/FullSendSession.h"
+#include "Core/TextEncoding.h"
+#include "Devices/RamDevice.h"
 #include "ProgramRig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -184,6 +187,130 @@ public:
 
         Assert::IsTrue  (pressed && checked > 0, L"the pause lasted past the check");
         Assert::IsFalse (spun, L"no drive spins during the pause");
+    }
+
+
+
+    //  The text page as its characters, each row in 40 columns and then in
+    //  80, where each auxiliary memory byte is ahead of the main memory byte
+    //  at the same offset.
+    static std::string  ReadScreen (ProgramRig & rig)
+    {
+        const Byte   * mainRam = rig.machine.GetRefs().mainRamDev->GetData();
+        const Byte   * auxRam  = rig.machine.GetMmu()->GetAuxBuffer();
+        std::string    narrow;
+        std::string    wide;
+
+        for (int row = 0; row < 24; row++)
+        {
+            Word  base = (Word) (0x0400 + (row % 8) * 0x80 + (row / 8) * 0x28);
+
+            for (int i = 0; i < 40; i++)
+            {
+                narrow += (char) (mainRam[base + i] & 0x7F);
+                wide   += (char) (auxRam[base + i] & 0x7F);
+                wide   += (char) (mainRam[base + i] & 0x7F);
+            }
+
+            narrow += '\n';
+            wide   += '\n';
+        }
+
+        return narrow + wide;
+    }
+
+
+
+    //  The row for an image being booted is drawn on the Apple, and the
+    //  tones for a boot result sound: each takes the cycles of its notes
+    //  longer than a screen with no tone, the buzz longer than the beeps.
+    TEST_METHOD (ASessionScreen_DrawsTheValidatingRow_AndSoundsTheBootTones)
+    {
+        static constexpr Byte                  kBooted   = 5;
+        static constexpr Byte                  kNotBoot  = 6;
+        static constexpr uint64_t              kBeeps    = 100'000;     // four rising notes are about 124,000 cycles
+        static constexpr uint64_t              kBuzz     = 600'000;     // two low ones about 720,000
+
+        ProgramRig                rig (Dos33());
+        FullSendScreen            session;
+        std::vector<std::string>  kRows;
+        std::string  wanted = "D1: VALIDATING IMAGE ON PC, PLEASE WAIT";
+        std::string  screen;
+        uint64_t     start  = 0;
+        uint64_t     quiet  = 0;
+        uint64_t     beeps  = 0;
+        uint64_t     buzz   = 0;
+
+
+
+        session.drives[0] = FullSendDriveState::Validating;
+        kRows             = session.GetRows();
+
+        AssertSucceeded (rig.host->SetSpeed (kFastControl));
+
+        //  A screen is sent without a wait for the Apple, and the request
+        //  after it waits until the Apple has drawn it and sounded its tone.
+        //  So each screen's cycles are those of the request after it.
+        AssertSucceeded (rig.host->SendSessionScreen (true, 0, kRows));
+
+        start = rig.stream->GetCycles();
+        AssertSucceeded (rig.host->SendSessionScreen (true, kBooted, kRows));
+        quiet = rig.stream->GetCycles() - start;
+
+        screen = ReadScreen (rig);
+
+        Assert::IsTrue (screen.find (wanted) != std::string::npos, L"The row is on the Apple's screen");
+
+        start = rig.stream->GetCycles();
+        AssertSucceeded (rig.host->SendSessionScreen (true, kNotBoot, kRows));
+        beeps = rig.stream->GetCycles() - start;
+
+        start = rig.stream->GetCycles();
+        AssertSucceeded (rig.host->SendSessionScreen (true, 0, kRows));
+        buzz = rig.stream->GetCycles() - start;
+
+        Assert::IsTrue (beeps > quiet + kBeeps, std::format (L"The beeps took {} cycles over a screen's {}", beeps, quiet).c_str());
+        Assert::IsTrue (buzz > quiet + kBuzz, std::format (L"The buzz took {} cycles over a screen's {}", buzz, quiet).c_str());
+    }
+
+
+
+    //  The pause after an image that did not boot: each line fits a
+    //  40-column row and is drawn while the Apple waits for Space.
+    TEST_METHOD (ThePauseAfterAFailedBoot_IsDrawnOnTheApple)
+    {
+        static const std::vector<std::string>  kLines = { "0024 DID NOT BOOT. PRESS SPACE TO", "CAPTURE IT AGAIN, OR PUT IN A NEW DISK.", "0025 STILL DOES NOT BOOT." };
+
+        ProgramRig   rig (Dos33());
+        std::string  screen;
+        Byte         key       = 0;
+        uint64_t     pressedAt = 0;
+
+
+
+        AssertSucceeded (rig.host->SetSpeed (kFastControl));
+
+        //  The screen is read while the Apple waits, then Space is pressed.
+        pressedAt = rig.stream->GetCycles() + kPressAfter;
+
+        rig.stream->SetStepHook ([&] ()
+        {
+            if (screen.empty() && rig.stream->GetCycles() >= pressedAt)
+            {
+                screen = ReadScreen (rig);
+                rig.Press (' ');
+            }
+        });
+
+        AssertSucceeded (rig.host->WaitForKey (kLines, key));
+
+        for (const std::string & line : kLines)
+        {
+            Assert::IsTrue (line.size() <= 40, L"A line fits a row");
+            Assert::IsTrue (screen.find (line) != std::string::npos, TextEncoding::NarrowToWide (line).c_str());
+        }
+
+        Assert::AreEqual<int> (CassoLinkCodec::kKeySpace, key);
     }
 
 

@@ -9,6 +9,7 @@
 #include "CassoExplorer/Model/PicturePreview.h"
 #include "Devices/Disk/DiskImage.h"
 #include "DiskCheck/BootProbe.h"
+#include "DiskCheck/BootSounds.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
@@ -242,6 +243,18 @@ public:
         }
 
         AssertSucceeded (CassoLinkCapture::ParseReads (file, positions));
+
+        //  With CASSO_CAPTURE_READS_EARLIER, the reads of an earlier capture
+        //  of the disk too, as a disk read again has.
+        if (!GetSetting ("CASSO_CAPTURE_READS_EARLIER", "").empty())
+        {
+            std::ifstream                            in (GetSetting ("CASSO_CAPTURE_READS_EARLIER", ""), std::ios::binary);
+            std::vector<Byte>                        earlierFile ((std::istreambuf_iterator<char> (in)), std::istreambuf_iterator<char>());
+            std::vector<CassoLinkCapture::Position>  earlier;
+
+            AssertSucceeded (CassoLinkCapture::ParseReads (earlierFile, earlier));
+            CassoLinkCapture::MergeReads (positions, earlier);
+        }
 
         for (const CassoLinkCapture::Position & position : positions)
         {
@@ -728,6 +741,31 @@ public:
 
             log << entry.path().filename().string() << ": " << BootProbe::GetVerdictName (report.verdict) << ", " << std::format ("{:.1f}", seconds) << " s. " << report.reason << (report.isTextMode ? " Text." : " Graphics.") << std::endl;
 
+            {
+                std::map<Word, int>  counts;
+
+                for (Word pc : report.endPcs) { counts[pc]++; }
+
+                log << "    pcs " << counts.size() << ":";
+
+                for (const auto & [pc, count] : counts) { log << std::format (" {:04X}x{}", pc, count); }
+
+                log << std::endl;
+
+                if (counts.size() <= 24 && !counts.empty())
+                {
+                    Word  from = (Word) (counts.begin()->first & 0xFFF0);
+                    Word  to   = (Word) (counts.rbegin()->first | 0x000F);
+
+                    for (int at = from; at <= to && at - from < 0x100; at++)
+                    {
+                        log << ((at & 0x0F) == 0 ? std::format ("\n    {:04X}:", at) : std::string()) << std::format (" {:02X}", machine.GetMemoryBus().ReadByte ((Word) at));
+                    }
+
+                    log << std::endl;
+                }
+            }
+
             for (const std::string & row : report.rows)
             {
                 if (!row.empty())
@@ -744,6 +782,20 @@ public:
     //  between steps. The text screen is written to run.txt and the two
     //  hi-res pages to run_pages.bin, in CASSO_LINK_OUT. Run only when
     //  CASSO_RUN_IMAGE is set.
+    TEST_METHOD (TheBootSounds_AreWrittenAsFiles)
+    {
+        std::filesystem::path  folder = GetSetting ("CASSO_LINK_OUT", "");
+
+        if (GetSetting ("CASSO_BOOT_SOUNDS", "").empty())
+        {
+            Logger::WriteMessage ("CASSO_BOOT_SOUNDS isn't set; no sounds are written.\n");
+            return;
+        }
+
+        WriteFile (folder / "booted.wav", BootSounds::MakeBooted());
+        WriteFile (folder / "did-not-boot.wav", BootSounds::MakeDidNotBoot());
+    }
+
     TEST_METHOD (AnImage_IsRunWithKeys)
     {
         std::string               path   = GetSetting ("CASSO_RUN_IMAGE", "");

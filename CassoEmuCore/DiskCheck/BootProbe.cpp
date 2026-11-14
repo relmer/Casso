@@ -22,7 +22,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT BootProbe::Probe (MachineHost & host, MachineBuilder & builder, const std::vector<Byte> & image, DiskFormat format, const Limits & limits, BootReport & outReport)
+HRESULT BootProbe::Probe (MachineHost & host, MachineBuilder & builder, const std::vector<Byte> & image, DiskFormat format, const Limits & limits, BootReport & outReport,
+                          const std::atomic<bool> * stop)
 {
     HRESULT      hr      = S_OK;
     Trace        trace;
@@ -41,7 +42,10 @@ HRESULT BootProbe::Probe (MachineHost & host, MachineBuilder & builder, const st
     for (int slice = 0; slice < limits.slices && settled < limits.bootedSlices; slice++)
     {
         Sample             sample;
-        Disk2Controller  * drive = host.GetRefs().diskController;
+        Disk2Controller  * drive     = host.GetRefs().diskController;
+        bool               isStopped = stop != nullptr && stop->load();
+
+        CBREx (!isStopped, E_ABORT);
 
         host.RunCycles (limits.sliceCycles);
 
@@ -61,6 +65,10 @@ HRESULT BootProbe::Probe (MachineHost & host, MachineBuilder & builder, const st
 
         settled = IsSettled (trace, limits) ? settled + 1 : 0;
     }
+
+    ReadLoop (host, limits, trace);
+
+    outReport.endPcs = trace.endPcs;
 
     ReadTextRows (host, trace.rows);
 
@@ -143,6 +151,82 @@ bool BootProbe::IsHeadAtRest (const Trace & trace, const Limits & limits)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BootProbe::ReadLoop
+//
+//  The machine runs a quarter of a second more, sampled often. The settled
+//  slices' samples are a second apart, so a program that is in one short
+//  loop in all of them has been there for as long as the screen was settled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BootProbe::ReadLoop (MachineHost & host, const Limits & limits, Trace & ioTrace)
+{
+    static constexpr Word  kIoSpace = 0xC000;
+    size_t                 count    = ioTrace.samples.size();
+    size_t                 window   = (std::min) (count, (size_t) (std::max) (limits.settledSlices, 1));
+    Word                   lowest   = 0xFFFF;
+    Word                   highest  = 0;
+
+
+
+    ioTrace.endPcs.clear();
+    ioTrace.loopBytes.clear();
+
+    for (int i = 0; i < kEndPcs; i++)
+    {
+        host.RunCycles (kEndCycles);
+        ioTrace.endPcs.push_back (host.GetCpu()->GetPC());
+    }
+
+    for (Word pc : ioTrace.endPcs)
+    {
+        lowest  = (std::min) (lowest, pc);
+        highest = (std::max) (highest, pc);
+    }
+
+    for (size_t at = count - window; at < count; at++)
+    {
+        lowest  = (std::min) (lowest, ioTrace.samples[at].pc);
+        highest = (std::max) (highest, ioTrace.samples[at].pc);
+    }
+
+    if (highest >= lowest && highest - lowest <= kLoopSpan && highest < kIoSpace - 2)
+    {
+        for (int address = lowest; address <= highest + 2; address++)
+        {
+            ioTrace.loopBytes.push_back (host.GetMemoryBus().ReadByte ((Word) address));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BootProbe::IsStuck
+//
+//  An instruction that reads or writes the I/O space has $C0 as its
+//  operand's high byte, so a loop with no such byte doesn't access it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BootProbe::IsStuck (const Trace & trace)
+{
+    static constexpr Byte  kIoPage = 0xC0;
+
+
+
+    return !trace.loopBytes.empty() && std::find (trace.loopBytes.begin(), trace.loopBytes.end(), kIoPage) == trace.loopBytes.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BootProbe::Judge
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -183,6 +267,11 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
     {
         verdict   = BootVerdict::DidNotBoot;
         outReason = "The screen at the end was the screen when the drive started.";
+    }
+    else if ((IsSettled (trace, limits) || IsHeadAtRest (trace, limits)) && IsStuck (trace))
+    {
+        verdict   = BootVerdict::DidNotBoot;
+        outReason = "The program did not appear to be running valid code: it stopped in a short loop with no input or output.";
     }
     else if (IsSettled (trace, limits))
     {

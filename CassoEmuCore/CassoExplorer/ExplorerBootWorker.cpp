@@ -270,7 +270,7 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
     record.verdict = BootProbe::GetVerdictName (report.verdict);
     record.machine = result.machine;
     record.reason  = report.reason;
-    record.title   = BootTitle::Find (report.rows, report.isTextMode);
+    record.title   = (report.verdict == BootVerdict::Booted) ? BootTitle::Find (report.rows, report.isTextMode) : std::string();
 
     hr = m_store.Store (file, png, record);
     CHR (hr);
@@ -285,9 +285,9 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
         hr = FullSendManifestFile::NoteBoot (*fileIo, folder, name, record.verdict);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        //  A raw capture saved as a number takes its title, as its disk has
-        //  no catalog to take a name from.
-        if (!titled.empty())
+        //  A raw capture saved as a number takes its title once it boots, as
+        //  its disk has no catalog to take a name from.
+        if (!titled.empty() && report.verdict == BootVerdict::Booted)
         {
             hr = FullSendManifestFile::RenameCapture (*fileIo, folder, name, titled, renamed);
             IGNORE_RETURN_VALUE (hr, S_OK);

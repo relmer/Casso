@@ -469,7 +469,7 @@ bool CassoLinkFullSend::IsBootstrapped()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks)
+HRESULT CassoLinkFullSend::CaptureRaw (int drive, bool withEarlier, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks)
 {
     HRESULT                   hr     = S_OK;
     std::vector<Byte>         module;
@@ -492,6 +492,24 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz, st
     hr = CassoLinkCapture::Capture (*m_session.m_host, (Byte) drive, module, date,
                                     [this, drive] (const CassoLinkCapture::Progress & where) { NoteCapture (drive, where); }, result);
     CHR (hr);
+
+    //  A disk captured again has the reads of both captures for each
+    //  position, this capture's first, and its image is built from them all.
+    {
+        std::vector<CassoLinkCapture::Position>  & earlier = m_lastReads[drive == 2 ? 1 : 0];
+
+        if (withEarlier && !earlier.empty())
+        {
+            m_status.AddLine (std::format ("Building the image from the reads of both captures of the disk in drive {}", drive));
+
+            CassoLinkCapture::MergeReads (result.positions, earlier);
+
+            hr = CassoLinkCapture::BuildWoz (result.positions, CassoLinkCapture::kLastPosition, date, (Byte) drive, result);
+            CHR (hr);
+        }
+
+        earlier = result.positions;
+    }
 
     //  The second pass ends at the last position it read, so the positions
     //  after that one are marked here.

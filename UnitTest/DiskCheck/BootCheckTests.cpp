@@ -97,7 +97,7 @@ public:
         Assert::IsTrue (report.verdict == BootVerdict::Booted, TextEncoding::NarrowToWide (report.reason).c_str());
         Assert::AreEqual (std::string ("Apple2eEnhanced"), machine);
         Assert::AreEqual ((size_t) 1, missing.size());
-        Assert::AreEqual ((size_t) 2, built.size(), L"No machine after the one that booted");
+        Assert::AreEqual ((size_t) 3, built.size(), L"Each machine is built, as they boot at once");
 
         hrNone = BootCheck::Run (master, DiskFormat::Dsk, "", BootProbe::Limits(), none, report, machine, missing);
 

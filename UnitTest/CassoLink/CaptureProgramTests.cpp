@@ -1065,4 +1065,32 @@ public:
         0xD6, 0xD7, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDE, 0xDF, 0xE5, 0xE6, 0xE7, 0xE9, 0xEA, 0xEB, 0xEC,
         0xED, 0xEE, 0xEF, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF,
     };
+
+
+
+    //  An earlier capture's reads go after the reads a position has, and a
+    //  position only the earlier capture read is added.
+    TEST_METHOD (AnEarlierCapturesReads_AreAddedAfterAPositionsReads)
+    {
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        std::vector<CassoLinkCapture::Position>  earlier (2);
+
+        positions[0].position = 4;
+        positions[0].reads    = { { 1 }, { 2 } };
+        positions[0].delays   = { 0, 1 };
+        earlier[0].position   = 4;
+        earlier[0].reads      = { { 3 } };
+        earlier[0].delays     = { 0 };
+        earlier[1].position   = 0;
+        earlier[1].reads      = { { 9 } };
+        earlier[1].delays     = { 1 };
+
+        CassoLinkCapture::MergeReads (positions, earlier);
+
+        Assert::AreEqual ((size_t) 2, positions.size());
+        Assert::AreEqual (0, positions[0].position, L"In order of position");
+        Assert::AreEqual ((size_t) 3, positions[1].reads.size());
+        Assert::IsTrue (positions[1].reads[0] == std::vector<Byte> { 1 } && positions[1].reads[2] == std::vector<Byte> { 3 }, L"The reads it had first");
+        Assert::IsTrue (positions[1].delays == std::vector<Byte> { 0, 1, 0 });
+    }
 };

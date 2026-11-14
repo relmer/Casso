@@ -998,6 +998,35 @@ void CassoLinkCapture::PlaceTracks (const std::vector<Position> & positions, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkCapture::MergeReads
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkCapture::MergeReads (std::vector<Position> & ioPositions, const std::vector<Position> & earlier)
+{
+    for (const Position & before : earlier)
+    {
+        auto  found = std::find_if (ioPositions.begin(), ioPositions.end(), [&before] (const Position & each) { return each.position == before.position; });
+
+        if (found == ioPositions.end())
+        {
+            ioPositions.push_back (before);
+            continue;
+        }
+
+        found->reads.insert (found->reads.end(), before.reads.begin(), before.reads.end());
+        found->delays.insert (found->delays.end(), before.delays.begin(), before.delays.end());
+    }
+
+    std::sort (ioPositions.begin(), ioPositions.end(), [] (const Position & a, const Position & b) { return a.position < b.position; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkCapture::BuildWoz
 //
 //  Each whole track's stream, then each other position's: a separate one when it

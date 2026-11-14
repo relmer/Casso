@@ -78,6 +78,16 @@ public:
         prodos.rows  = { "*** UNABLE TO LOAD PRODOS ***" };
 
         Assert::IsTrue (BootProbe::Judge (booted, limits, reason) == BootVerdict::Booted, L"The screen changed and the drive stopped");
+
+        //  The same boot, ended in a loop of disk nibbles, and in one that
+        //  reads the keyboard.
+        booted.loopBytes = { 0xD5, 0xAA, 0xD5, 0xAA, 0xFF, 0xFF };
+        Assert::IsTrue (BootProbe::Judge (booted, limits, reason) == BootVerdict::DidNotBoot, L"A short loop with no I/O");
+        Assert::AreEqual (std::string ("The program did not appear to be running valid code: it stopped in a short loop with no input or output."), reason);
+
+        booted.loopBytes = { 0xAD, 0x00, 0xC0, 0x10, 0xFB };
+        Assert::IsTrue (BootProbe::Judge (booted, limits, reason) == BootVerdict::Booted, L"A loop that reads the keyboard");
+        booted.loopBytes.clear();
         Assert::IsTrue (BootProbe::Judge (stuck, limits, reason) == BootVerdict::DidNotBoot, L"The screen never changed");
         Assert::IsTrue (BootProbe::Judge (loading, limits, reason) == BootVerdict::Unclear, L"The head was moving at the limit");
         Assert::IsTrue (BootProbe::Judge (running, limits, reason) == BootVerdict::Booted, L"The motor on and the head at rest at the limit");
