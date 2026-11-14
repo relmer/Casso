@@ -50,8 +50,6 @@ public:
     //  its subscripts; empty past the last row.
     std::wstring          GetVariableNameAt    (int row) const { return (row >= 0 && row < (int) m_varLines.size()) ? m_varLines[(size_t) row].name : std::wstring(); }
 
-    bool     HandleCapturedMouse (const DxuiMouseEvent & ev);
-    bool     HandleMouse         (const DxuiMouseEvent & ev);
     bool     HandleShortcutKey   (const DxuiKeyEvent & ev);
     bool     HandleKey           (const DxuiKeyEvent & ev) { return (m_isVariables && HandleVariablesKey (ev)) || m_list->OnKey (ev); }
     void     HandleFocusChanged  (bool focused)            { m_list->OnFocusChanged (focused); }
@@ -81,6 +79,7 @@ private:
     bool  ToggleArray          (int row, bool open, bool toParent);
     bool  IsArrayOpen          (int row) const;
     bool  HandleVariablesMouse (const DxuiMouseEvent & ev);
+    bool  HandleListMouse      (const DxuiMouseEvent & ev);
     bool  HandleVariablesKey   (const DxuiKeyEvent & ev);
     void  ShowVariablesMenu    (int x, int y);
     void  CopyVariables        (VarPart part);

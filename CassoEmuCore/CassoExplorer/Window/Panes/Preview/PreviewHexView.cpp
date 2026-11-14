@@ -40,12 +40,14 @@ PreviewHexView::PreviewHexView (ExplorerPreviewManager & manager, ExplorerContex
 
 void PreviewHexView::Create()
 {
-    CassoExplorerNamedControl<DxuiHexView>  * hex = m_context.window.CreatePaneRoutedChild<CassoExplorerNamedControl<DxuiHexView>>();
+    CassoExplorerNamedControl<DxuiHexView>  * hex = m_context.window.CreateChild<CassoExplorerNamedControl<DxuiHexView>>();
 
 
 
     hex->SetAccessibleName (L"Bytes");
     m_hex = hex;
+
+    m_context.window.SetMouseHandler (m_hex, [this] (const DxuiMouseEvent & ev) { return HandleHexMouse (ev); });
 }
 
 
@@ -296,51 +298,20 @@ bool PreviewHexView::IsShowing() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreviewHexView::HandleCapturedMouse
+//  PreviewHexView::HandleHexMouse
+//
+//  The bytes' mouse handler. A press moves focus to the preview.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PreviewHexView::HandleCapturedMouse (const DxuiMouseEvent & ev)
+bool PreviewHexView::HandleHexMouse (const DxuiMouseEvent & ev)
 {
-    if (!m_hex->IsDragging())
-    {
-        return false;
-    }
-
-    m_hex->OnMouse (ev);
-    m_context.window.Invalidate();
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PreviewHexView::HandleMouse
-//
-//  DxuiHexView takes points in the same coordinates as its bounds, so the
-//  event is passed unchanged, not converted to widget-local coordinates as
-//  the older list views require.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool PreviewHexView::HandleMouse (const DxuiMouseEvent & ev)
-{
-    if (!m_hex->IsVisible() || !ExplorerLayout::Contains (m_hex->GetBounds(), ev.positionDip))
-    {
-        return false;
-    }
-
     if (ev.kind == DxuiMouseEventKind::Down)
     {
         m_context.input.SetFocusPane (ExplorerPane::Preview);
     }
 
-    m_hex->OnMouse (ev);
-    m_context.window.Invalidate();
-    return true;
+    return m_hex->OnMouse (ev) || ev.kind != DxuiMouseEventKind::Move;
 }
 
 

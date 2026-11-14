@@ -339,25 +339,12 @@ void ExplorerInput::StepToolbarFocus (bool preview, bool forward)
 
 bool ExplorerInput::RouteToControls (const DxuiMouseEvent & ev)
 {
-    DxuiPanel     & panel   = m_context.window.GetChildPanel();
-    IDxuiControl  * pressed = m_pressed;
-    bool            hover   = ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave;
-    bool            handled = false;
-    bool            over    = false;
+    DxuiPanel  & panel   = m_context.window.GetChildPanel();
+    bool         hover   = ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave;
+    bool         handled = false;
+    bool         over    = false;
 
 
-
-    if (pressed != nullptr && (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Up))
-    {
-        if (ev.kind == DxuiMouseEventKind::Up)
-        {
-            m_pressed = nullptr;
-        }
-
-        pressed->OnMouse (ev);
-        m_context.window.Invalidate();
-        return true;
-    }
 
     for (size_t index = panel.GetChildCount(); index > 0 && !handled; index--)
     {
@@ -369,16 +356,15 @@ bool ExplorerInput::RouteToControls (const DxuiMouseEvent & ev)
 
         if (routed && hover)
         {
-            child->OnMouse (ev);
+            m_context.window.OfferMouse (*child, ev);
         }
         else if (inside)
         {
-            handled = child->OnMouse (ev);
-        }
-
-        if (handled && ev.kind == DxuiMouseEventKind::Down)
-        {
-            m_pressed = child;
+            //  The press is the control's before it is offered, so a handler
+            //  that opens a menu can end it with ReleasePressed.
+            m_pressed = (ev.kind == DxuiMouseEventKind::Down) ? child : m_pressed;
+            handled   = m_context.window.OfferMouse (*child, ev);
+            m_pressed = (!handled && m_pressed == child) ? nullptr : m_pressed;
         }
     }
 
@@ -399,11 +385,46 @@ bool ExplorerInput::RouteToControls (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerInput::RouteToPressed
+//
+//  The release or the pointer leaving the window ends the press. The
+//  pointer leaving is offered to every control after, so it isn't taken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerInput::RouteToPressed (const DxuiMouseEvent & ev)
+{
+    IDxuiControl  * pressed = m_pressed;
+
+
+
+    if (pressed == nullptr || ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel)
+    {
+        return false;
+    }
+
+    if (ev.kind != DxuiMouseEventKind::Move)
+    {
+        m_pressed = nullptr;
+    }
+
+    m_context.window.OfferMouse (*pressed, ev);
+    m_context.window.Invalidate();
+
+    return ev.kind != DxuiMouseEventKind::Leave;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerInput::HandleMouse
 //
-//  The menu bar and the splitters take first refusal, since both reach over
-//  the panes. A press in a pane moves focus to it; a list that is mid-drag
-//  keeps every event until the button comes up.
+//  A control that took a press has each event until the button comes up.
+//  Otherwise the menu bar and the splitters are first, since both extend
+//  over the panes, and the controls under the pointer after them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -419,13 +440,7 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
     m_context.treePane.UpdateLabelTip (ev);
     m_context.preview.GetListing().UpdateValueTipAt (ev);
     m_context.tabManager.ClearHoverOnLeave (ev);
-    m_context.listPane.ClearHoverOutside (ev);
     m_context.addressBar.CloseSuggestionsOnPress (ev);
-
-    if (m_context.preview.HandleMessageMouse (ev))
-    {
-        return true;
-    }
 
     m_context.toolbars.CloseMenusOutside (ev);
 
@@ -450,6 +465,11 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         {
             m_context.window.Invalidate();
         }
+    }
+
+    if (RouteToPressed (ev))
+    {
+        return true;
     }
 
     if (m_context.rename.HandleRenameMouse (ev))
@@ -567,16 +587,6 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (m_context.listPane.HandleCapturedMouse (ev))
-    {
-        return true;
-    }
-
-    if (m_context.treePane.HandleCapturedMouse (ev))
-    {
-        return true;
-    }
-
     m_context.treePane.UpdateTip   (ev, point);
     m_context.statusBar.UpdateTip  (ev, point);
     m_context.listPane.UpdateTip   (ev, point);
@@ -586,24 +596,14 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  Every control no pane routes: the infobars above the list,
-    //  the buttons under the list's message.
+    //  The tree, the list, the preview's views and message, the infobars
+    //  above the list and the buttons under the list's message.
     if (RouteToControls (ev))
     {
         return true;
     }
 
-    if (m_context.treePane.HandleMouse (ev))
-    {
-        return true;
-    }
-
-    if (m_context.listPane.HandleMouse (ev))
-    {
-        return true;
-    }
-
-    return m_context.preview.HandleMouse (ev);
+    return m_context.listPane.HandleMessageMouse (ev);
 }
 
 

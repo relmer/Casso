@@ -66,14 +66,16 @@ ExplorerListPane::ExplorerListPane (ExplorerContext & context)
 
 void ExplorerListPane::Create()
 {
-    CassoExplorerNamedControl<DxuiListView>  * list = m_context.window.CreatePaneRoutedChild<CassoExplorerNamedControl<DxuiListView>>();
+    CassoExplorerNamedControl<DxuiListView>  * list = m_context.window.CreateChild<CassoExplorerNamedControl<DxuiListView>>();
 
 
 
     list->SetAccessibleName (L"Files");
 
     m_list        = list;
-    m_listMessage = m_context.window.CreatePaneRoutedChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    m_listMessage = m_context.window.CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+
+    m_context.window.SetMouseHandler (m_list, [this] (const DxuiMouseEvent & ev) { return HandleListMouse (ev); });
 
     m_bars.Create ([this]()
     {
@@ -325,44 +327,26 @@ void ExplorerListPane::AlignMessage (bool aboveActions)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerListPane::HandleCapturedMouse
+//  ExplorerListPane::HandleListMouse
 //
-//  A press the list has started, ahead of the panes under the pointer: a
-//  right press waits for its release to open the menu, or drags the
-//  selection when it moves far enough first; a left press on a row drags
-//  the selection once it moves; and the list mid-drag has every event.
-//
-//  Pointer events: a press the list started is ahead of the panes under
-//  the pointer; a press over the list is after the tree's.
+//  The list's mouse handler. A right press opens the menu on its release,
+//  or drags the selection when it moves far enough first; a left press on a
+//  row drags the selection once it moves. The list has the rest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerListPane::HandleCapturedMouse (const DxuiMouseEvent & ev)
+bool ExplorerListPane::HandleListMouse (const DxuiMouseEvent & ev)
 {
-    POINT  point = ev.positionDip;
+    POINT           point   = ev.positionDip;
+    bool            press   = ev.kind == DxuiMouseEventKind::Down;
+    DxuiMouseEvent  local   = ExplorerLayout::ToLocal (ev, m_list->GetBounds());
+    bool            handled = false;
 
 
 
-    //  A right press waits for its release to open the menu, or drags the
-    //  selection when it moves far enough first.
-    if (m_rightPress.active)
+    if (HandleRightPress (ev))
     {
-        if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Right)
-        {
-            m_rightPress.active = false;
-            m_menus.ShowListContextMenu (point.x, point.y, m_rightPress.group);
-            return true;
-        }
-
-        if (ev.kind == DxuiMouseEventKind::Move && m_rightPress.canDrag
-            && (abs (point.x - m_rightPress.start.x) > GetSystemMetrics (SM_CXDRAG)
-             || abs (point.y - m_rightPress.start.y) > GetSystemMetrics (SM_CYDRAG)))
-        {
-            m_rightPress.active = false;
-            m_context.dragDrop.BeginDragOut();
-            m_context.window.Invalidate();
-            return true;
-        }
+        return true;
     }
 
     //  A press on a list row that moves past the drag distance drags the
@@ -387,17 +371,40 @@ bool ExplorerListPane::HandleCapturedMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    //  Mouse input goes to a widget mid-drag until the button is released,
-    //  wherever the pointer is. Otherwise a scrollbar thumb dragged out of its
-    //  pane transfers the drag to the pane under the pointer.
-    if (m_list->IsInteracting())
+    //  A click moves focus to the list without the row a Tab in would pick:
+    //  on empty space it selects nothing, and on a row the press picks.
+    if (press)
     {
-        m_list->AsControl().OnMouse (ev);
-        m_context.window.Invalidate();
+        m_list->SetSeedRowOnFocus (false);
+        m_context.input.SetFocusPane (ExplorerPane::List);
+        m_list->SetSeedRowOnFocus (true);
+    }
+
+    //  The header's menu is for its columns.
+    if (press && ev.button == DxuiMouseButton::Right && local.positionDip.y < m_list->GetHeaderHeightPx())
+    {
+        m_context.input.ReleasePressed();
+        m_menus.ShowListHeaderMenu (point.x, point.y, m_list->HitTestHeaderColumn (local.positionDip.x, local.positionDip.y));
         return true;
     }
 
-    return false;
+    if (press && ev.button == DxuiMouseButton::Right)
+    {
+        PressRight (local.positionDip, point);
+        return true;
+    }
+
+    //  A press on a row may start a drag of the selection; one on the
+    //  space between rows starts a rubber band instead, as in Explorer.
+    if (press && ev.button == DxuiMouseButton::Left)
+    {
+        m_dragArmed = m_list->HitTestRow (local.positionDip.x, local.positionDip.y) >= 0;
+        m_dragStart = point;
+    }
+
+    handled = m_list->AsControl().OnMouse (ev);
+
+    return handled || ev.kind != DxuiMouseEventKind::Move;
 }
 
 
@@ -406,31 +413,51 @@ bool ExplorerListPane::HandleCapturedMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerListPane::ClearHoverOutside
+//  ExplorerListPane::PressRight
 //
-//  The list's row and header highlights go off once the pointer is off the
-//  list, since moves reach the list only while the pointer is over it.
+//  A right press on the list, at `local` in the list and `point` in the
+//  window. The menu opens as the button comes up, as Explorer's does; a
+//  press on a row that moves first drags the selection instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerListPane::ClearHoverOutside (const DxuiMouseEvent & ev)
+void ExplorerListPane::PressRight (POINT local, POINT point)
 {
-    DxuiMouseEvent  leave = ev;
+    int  row   = m_list->HitTestRow         (local.x, local.y);
+    int  group = m_list->HitTestGroupHeader (local.x, local.y);
 
 
 
-    if (m_list == nullptr || m_list->IsInteracting() || (ev.kind != DxuiMouseEventKind::Move && ev.kind != DxuiMouseEventKind::Leave))
+    //  A group's header selects its rows and adds the group's commands to
+    //  the menu for them, as Explorer's does.
+    if (group >= 0 && m_context.browser.IsHomeSectioned())
     {
         return;
     }
 
-    if (ev.kind == DxuiMouseEventKind::Move && ExplorerLayout::Contains (m_list->GetBounds(), ev.positionDip))
+    if (group >= 0)
     {
-        return;
+        m_list->SelectGroup (group);
+    }
+    else if (row >= 0 && !m_list->IsRowSelected (row))
+    {
+        m_list->ClickRow (row, false, false);
+    }
+    else if (row >= 0)
+    {
+        //  On a row already selected, the selection is left as it is and
+        //  the row is focused, so Rename acts on it, as in Explorer.
+        m_list->SetFocusedRow (row);
+    }
+    else
+    {
+        //  The empty space's menu is the folder's, so nothing stays
+        //  selected for it to act on.
+        m_list->ClearSelection();
     }
 
-    leave.kind = DxuiMouseEventKind::Leave;
-    m_list->AsControl().OnMouse (leave);
+    m_rightPress = RightPress { true, group < 0 && row >= 0, group, point };
+    m_context.window.Invalidate();
 }
 
 
@@ -439,104 +466,80 @@ void ExplorerListPane::ClearHoverOutside (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerListPane::HandleMouse
+//  ExplorerListPane::HandleRightPress
+//
+//  A right press waits for its release to open the menu, or drags the
+//  selection when it moves far enough first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerListPane::HandleMouse (const DxuiMouseEvent & ev)
+bool ExplorerListPane::HandleRightPress (const DxuiMouseEvent & ev)
 {
     POINT  point = ev.positionDip;
-    bool   press = ev.kind == DxuiMouseEventKind::Down;
 
 
 
-    //  An empty image or folder shows a message in the list's place; a right-
-    //  click there still opens the menu the list's empty space has.
-    if (!m_list->IsVisible() && m_listMessage->IsVisible() && press && ev.button == DxuiMouseButton::Right &&
-        ExplorerLayout::Contains (m_list->GetBounds(), point))
+    if (!m_rightPress.active)
     {
-        m_context.input.SetFocusPane (ExplorerPane::List);
-        m_list->ClearSelection();
+        return false;
+    }
 
-        //  As the list's own menu, when the button comes up.
-        m_rightPress = RightPress { true, false, -1, point };
+    if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Right)
+    {
+        m_rightPress.active = false;
+        m_menus.ShowListContextMenu (point.x, point.y, m_rightPress.group);
         return true;
     }
 
-    if (m_list->IsVisible() && ExplorerLayout::Contains (m_list->GetBounds(), point))
+    if (ev.kind == DxuiMouseEventKind::Move && m_rightPress.canDrag
+        && (abs (point.x - m_rightPress.start.x) > GetSystemMetrics (SM_CXDRAG)
+         || abs (point.y - m_rightPress.start.y) > GetSystemMetrics (SM_CYDRAG)))
     {
-        DxuiMouseEvent  local = ExplorerLayout::ToLocal (ev, m_list->GetBounds());
-
-        //  A click gives the list focus without the row a Tab in would pick:
-        //  on empty space it selects nothing, and on a row the press picks.
-        if (press)
-        {
-            m_list->SetSeedRowOnFocus (false);
-            m_context.input.SetFocusPane (ExplorerPane::List);
-            m_list->SetSeedRowOnFocus (true);
-        }
-
-        //  The header has a menu of its own, for its columns.
-        if (press && ev.button == DxuiMouseButton::Right && local.positionDip.y < m_list->GetHeaderHeightPx())
-        {
-            m_menus.ShowListHeaderMenu (point.x, point.y, m_list->HitTestHeaderColumn (local.positionDip.x, local.positionDip.y));
-            return true;
-        }
-
-        if (press && ev.button == DxuiMouseButton::Right)
-        {
-            int  row   = m_list->HitTestRow         (local.positionDip.x, local.positionDip.y);
-            int  group = m_list->HitTestGroupHeader (local.positionDip.x, local.positionDip.y);
-
-            //  A group's header selects its rows and adds the group's own
-            //  commands to the menu for them, as Explorer's does.
-            if (group >= 0 && m_context.browser.IsHomeSectioned())
-            {
-                return true;
-            }
-
-            if (group >= 0)
-            {
-                m_list->SelectGroup (group);
-            }
-            else if (row >= 0 && !m_list->IsRowSelected (row))
-            {
-                m_list->ClickRow (row, false, false);
-            }
-            else if (row >= 0)
-            {
-                //  A row already selected keeps the selection and takes the
-                //  focus, so Rename acts on it, as Explorer's does.
-                m_list->SetFocusedRow (row);
-            }
-            else if (row < 0)
-            {
-                //  The empty space's menu is the folder's, so nothing stays
-                //  selected for it to act on.
-                m_list->ClearSelection();
-            }
-
-            //  The menu opens as the button comes up, as Explorer's does; a
-            //  press on a row that moves first drags the selection instead.
-            m_rightPress = RightPress { true, group < 0 && row >= 0, group, point };
-            m_context.window.Invalidate();
-            return true;
-        }
-
-        //  A press on a row may start a drag of the selection; one on the
-        //  space between rows starts a rubber band instead, as in Explorer.
-        if (press && ev.button == DxuiMouseButton::Left)
-        {
-            m_dragArmed = m_list->HitTestRow (local.positionDip.x, local.positionDip.y) >= 0;
-            m_dragStart          = point;
-        }
-
-        m_list->AsControl().OnMouse (ev);
+        m_rightPress.active = false;
+        m_context.dragDrop.BeginDragOut();
         m_context.window.Invalidate();
         return true;
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListPane::HandleMessageMouse
+//
+//  For an empty image or folder, a message is in the list's place; a
+//  right-click there opens the menu of the list's empty space, as the
+//  button comes up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListPane::HandleMessageMouse (const DxuiMouseEvent & ev)
+{
+    POINT  point = ev.positionDip;
+
+
+
+    if (HandleRightPress (ev))
+    {
+        return true;
+    }
+
+    if (m_list->IsVisible() || !m_listMessage->IsVisible() || ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Right
+        || !ExplorerLayout::Contains (m_list->GetBounds(), point))
+    {
+        return false;
+    }
+
+    m_context.input.SetFocusPane (ExplorerPane::List);
+    m_list->ClearSelection();
+
+    m_rightPress = RightPress { true, false, -1, point };
+    return true;
 }
 
 
@@ -1852,6 +1855,7 @@ void ExplorerListPane::ReleasePress()
     release.button      = DxuiMouseButton::Left;
     release.positionDip = POINT { bounds.left, bounds.top };
     m_list->AsControl().OnMouse (release);
+    m_context.input.ReleasePressed();
 }
 
 

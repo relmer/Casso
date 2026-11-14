@@ -42,12 +42,14 @@ PreviewListingView::PreviewListingView (ExplorerPreviewManager & manager, Explor
 
 void PreviewListingView::Create()
 {
-    CassoExplorerNamedControl<DxuiListView>  * list = m_context.window.CreatePaneRoutedChild<CassoExplorerNamedControl<DxuiListView>>();
+    CassoExplorerNamedControl<DxuiListView>  * list = m_context.window.CreateChild<CassoExplorerNamedControl<DxuiListView>>();
 
 
 
     list->SetAccessibleName (L"Preview");
     m_list = list;
+
+    m_context.window.SetMouseHandler (m_list, [this] (const DxuiMouseEvent & ev) { return HandleListMouse (ev); });
 }
 
 
@@ -835,41 +837,28 @@ void PreviewListingView::SetVisible (bool visible)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreviewListingView::HandleCapturedMouse
+//  PreviewListingView::HandleListMouse
 //
-//  A drag selecting lines keeps the pointer until the button comes up, as
-//  the file list's does.
+//  The listing's mouse handler. An archive's files have their menu and
+//  drags first, and the variables their arrays; a press moves focus to the
+//  preview. The value tip goes away once the pointer is off the listing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PreviewListingView::HandleCapturedMouse (const DxuiMouseEvent & ev)
+bool PreviewListingView::HandleListMouse (const DxuiMouseEvent & ev)
 {
-    if (!m_list->IsInteracting())
+    bool  inside = ev.kind != DxuiMouseEventKind::Leave && ExplorerLayout::Contains (m_list->GetBounds(), ev.positionDip);
+
+
+
+    if (m_isArchive && m_archive.HandleMouse (ev, ev.positionDip))
     {
-        return false;
+        return true;
     }
 
-    m_list->AsControl().OnMouse (ev);
-    m_context.window.Invalidate();
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PreviewListingView::HandleMouse
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool PreviewListingView::HandleMouse (const DxuiMouseEvent & ev)
-{
-    if (!m_list->IsVisible() || !ExplorerLayout::Contains (m_list->GetBounds(), ev.positionDip))
+    if (!inside && !m_list->IsInteracting())
     {
         m_valueTip.Hide();
-        return false;
     }
 
     if (ev.kind == DxuiMouseEventKind::Down)
@@ -877,15 +866,12 @@ bool PreviewListingView::HandleMouse (const DxuiMouseEvent & ev)
         m_context.input.SetFocusPane (ExplorerPane::Preview);
     }
 
-    if (m_isVariables && HandleVariablesMouse (ev))
+    if (m_isVariables && inside && !m_list->IsInteracting() && HandleVariablesMouse (ev))
     {
-        m_context.window.Invalidate();
         return true;
     }
 
-    m_list->AsControl().OnMouse (ev);
-    m_context.window.Invalidate();
-    return true;
+    return m_list->AsControl().OnMouse (ev) || ev.kind != DxuiMouseEventKind::Move;
 }
 
 

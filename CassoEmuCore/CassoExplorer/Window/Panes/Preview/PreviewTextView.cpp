@@ -39,7 +39,9 @@ PreviewTextView::PreviewTextView (ExplorerPreviewManager & manager, ExplorerCont
 
 void PreviewTextView::Create()
 {
-    m_text = m_context.window.CreatePaneRoutedChild<DxuiTextView>();
+    m_text = m_context.window.CreateChild<DxuiTextView>();
+
+    m_context.window.SetMouseHandler (m_text, [this] (const DxuiMouseEvent & ev) { return HandleTextMouse (ev); });
 }
 
 
@@ -196,49 +198,32 @@ bool PreviewTextView::IsShowing() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreviewTextView::HandleCapturedMouse
+//  PreviewTextView::HandleTextMouse
+//
+//  The text's mouse handler. A press moves focus to the preview; the status
+//  bar follows the selection.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PreviewTextView::HandleCapturedMouse (const DxuiMouseEvent & ev)
+bool PreviewTextView::HandleTextMouse (const DxuiMouseEvent & ev)
 {
-    if (!m_text->IsInteracting())
-    {
-        return false;
-    }
-
-    m_text->OnMouse (ev);
-    m_context.statusBar.Fill();
-    m_context.window.Invalidate();
-    return true;
-}
+    bool  handled = false;
 
 
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PreviewTextView::HandleMouse
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool PreviewTextView::HandleMouse (const DxuiMouseEvent & ev)
-{
-    if (!m_text->IsVisible() || !ExplorerLayout::Contains (m_text->GetBounds(), ev.positionDip))
-    {
-        return false;
-    }
 
     if (ev.kind == DxuiMouseEventKind::Down)
     {
         m_context.input.SetFocusPane (ExplorerPane::Preview);
     }
 
-    m_text->OnMouse (ev);
-    m_context.statusBar.Fill();
-    m_context.window.Invalidate();
-    return true;
+    handled = m_text->OnMouse (ev);
+
+    if (ev.kind != DxuiMouseEventKind::Move || m_text->IsInteracting())
+    {
+        m_context.statusBar.Fill();
+    }
+
+    return handled || ev.kind != DxuiMouseEventKind::Move;
 }
 
 

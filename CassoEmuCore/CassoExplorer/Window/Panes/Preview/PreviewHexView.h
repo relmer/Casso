@@ -49,14 +49,14 @@ public:
     static DxuiHexView::TextEncoding    GetHexEncoding        (bool hostFile, HostCharset charset);
     static DxuiHexView::ValueFormat     ParseHexFormat        (const std::string & name);
 
-    bool            HandleCapturedMouse   (const DxuiMouseEvent & ev);
-    bool            HandleMouse           (const DxuiMouseEvent & ev);
     bool            HandleKey             (const DxuiKeyEvent & ev) { return m_hex->OnKey (ev); }
     bool            HandleTabKey          (const DxuiKeyEvent & ev);
     void            HandleFocusEntered    (bool forward);
     void            HandleFocusChanged    (bool focused)            { m_hex->OnFocusChanged (focused); }
 
 private:
+    bool  HandleHexMouse (const DxuiMouseEvent & ev);
+
     DxuiHexView       * m_hex = nullptr;
     PreviewBytes        m_previewBytes;
     PreviewFileBytes    m_fileBytes;

@@ -75,8 +75,6 @@ public:
     void                  ReleasePress     ();
     bool                  TryGetRenameRect (const std::wstring & id, RECT & outRect);
 
-    bool  HandleCapturedMouse (const DxuiMouseEvent & ev);
-    bool  HandleMouse         (const DxuiMouseEvent & ev);
     bool  HandleKey           (const DxuiKeyEvent & ev) { return m_tree->OnKey (ev); }
     void  HandleFocusChanged  (bool focused) { m_tree->OnFocusChanged (focused); }
 
@@ -90,6 +88,7 @@ private:
         Location  location;
     };
 
+    bool  HandleTreeMouse     (const DxuiMouseEvent & ev);
     void  ScrollTreeToRow     (int row);
     int   WalkTreeLabels      (int row, const std::wstring & path);
     void  ShowLabelTipAt      (POINT point);
