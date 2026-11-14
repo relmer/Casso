@@ -69,6 +69,26 @@ the interaction, sound and event log the Disk II already has.
   //c's default setup stays as it is, and the user adds the drive from the
   Machine tab.
 
+### Session 2026-11-14
+
+- Q: How does the desk show more drives than fit, and where do they go? A:
+  Drives are two classes, floppies (Disk II, //c external drive, UniDisk 3.5,
+  Apple 3.5 Drive alike) and hard disks (HD20SC, ProFile). Each class is drawn
+  on the desk or on the drive bar as a whole, set from the drives' right-click
+  menu ("Show on desk" / "Show on drive bar"), never per drive. A class of
+  more than two drives goes to the drive bar unless set to the desk. On the
+  drive bar a class is one widget, and its other drives fan out directly above
+  it on hover, a widget each, like a menu opening from a menu bar.
+- Q: How are the drives on the desk placed? A: Each class on the desk is one
+  stack, sorted by the width of the drive's case, narrowest on top. Two
+  floppies sit side by side under the monitor, as now. A single hard disk at
+  least as wide as the monitor, give or take a few millimeters, goes under it
+  (a ProFile under either monitor, an HD20SC under the //c's), and the floppies
+  stack on the right. With more than two floppies and any hard disk, the hard
+  disks stack on the left, the floppies on the right, and nothing is under the
+  monitor. A hard disk narrower than the monitor stands on the left, as the
+  HD20SC beside a //e does now.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Boot a hard disk on the Apple II SCSI Card (Priority: P1)
