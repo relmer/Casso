@@ -140,7 +140,7 @@ extern "C" int WINAPI wCassoExplorerMain (
     //  Every window is in one process: a launch with no window of its own to
     //  front sends its command line to the running app, which opens the
     //  window, and allows that window to come forward.
-    existing = FindWindowW (CassoExplorerShell::kWindowClass, nullptr);
+    existing = FindWindowW (CassoExplorerShell::GetWindowClass(), nullptr);
 
     if (existing != nullptr)
     {

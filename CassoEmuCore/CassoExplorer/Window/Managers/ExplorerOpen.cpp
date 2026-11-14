@@ -353,7 +353,7 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
         return;
     }
 
-    question = std::format (L"Initialize {} for use with an Apple CFFA adapter?", PhysicalCards::FormatDrive (found));
+    question = std::format (L"Initialize {} for use with an Apple II storage adapter?", PhysicalCards::FormatDrive (found));
     contents = L"This card currently contains these partitions:";
 
     //  A card with no partition table, as a CFFA card, is one volume to
@@ -553,6 +553,7 @@ void ExplorerOpen::FinishInitialize()
     HRESULT                hrRefresh = S_OK;
     std::wstring           root;
     ActionsTypes::Outcome  outcome;
+    BOOL                   labeled   = TRUE;
 
 
 
@@ -618,6 +619,13 @@ void ExplorerOpen::FinishInitialize()
         else if (!outcome.Succeeded())
         {
             m_context.window.ShowMessage (outcome.message, MB_ICONWARNING);
+        }
+
+        //  The FAT32 writer labels the volume for a CFFA3000.
+        if (!root.empty())
+        {
+            labeled = SetVolumeLabelW (root.c_str(), kA2PicoLabel);
+            IGNORE_RETURN_VALUE (labeled, TRUE);
         }
     }
 

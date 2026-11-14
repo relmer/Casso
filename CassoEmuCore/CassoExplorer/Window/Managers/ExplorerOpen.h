@@ -74,7 +74,8 @@ public:
     void  EditA2retroNetDrives  (const std::wstring & root);
 
 private:
-    static constexpr ULONGLONG  kProgressPostMs = 250;
+    static constexpr ULONGLONG        kProgressPostMs = 250;
+    static constexpr const wchar_t  * kA2PicoLabel    = L"A2PICO";
 
     void          StartInitialize     (const std::wstring & cardPath, const PhysicalDrive & drive, uint64_t layout, CardLayoutModel::Adapter adapter, std::vector<WindowsVolume> volumes);
     void          FinishInitialize    ();

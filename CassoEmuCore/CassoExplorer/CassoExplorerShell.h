@@ -205,7 +205,13 @@ public:
     void                   SetInspectorTheme   (const DxuiTheme & theme) override;
 
     static constexpr const wchar_t *  kWindowClass   = L"CassoExplorerWindow";
+    static constexpr const wchar_t *  kTestCopyClass = L"CassoExplorerTestCopyWindow";
     static constexpr const wchar_t *  kOwnerProperty = L"CassoExplorerOwner";
+
+    //  The window class, which is kTestCopyClass for a copy run with a
+    //  profile folder set (PathResolver::IsProfileFolderSet). A launch of
+    //  either copy is then forwarded only to windows of that copy.
+    static const wchar_t *  GetWindowClass ();
     static constexpr const wchar_t *  kAppName       = L"Casso Explorer";
     static constexpr const char *     kFaultLogName  = "Fault injection";
 

@@ -31,14 +31,18 @@ public:
 
     //  The bars, as children of the window. `relayout` is called to lay the
     //  pane out again when a click in a bar makes a bar visible or hidden.
-    void  Create (RelayoutFn relayout);
+    void  Create      (RelayoutFn relayout);
 
     //  The bars for the location on display. True when a bar became visible
     //  or hidden.
-    bool  Fill   ();
+    bool  Fill        ();
 
     //  The visible bars at the top of the rect, and the rect below them.
-    RECT  Layout (const RECT & rect);
+    RECT  Layout      (const RECT & rect);
+
+    //  The event offered to the visible bars' buttons and close boxes, in
+    //  window coordinates. True when a bar took it.
+    bool  HandleMouse (const DxuiMouseEvent & ev);
 
     DxuiInfoBanner & GetCardBar () { return *m_cardBar; }
 
@@ -59,5 +63,6 @@ private:
     std::wstring                 m_cardBarClosed;     // the folder whose card infobar was closed
     ActionsA2retroNet::Card      m_card;
     std::vector<CardAction>      m_cardActions;       // the card infobar's buttons, in order
+    std::vector<std::wstring>    m_cardLabels;        // the labels the buttons were made with
     std::vector<std::wstring>    m_convertible;       // the images Write as .po writes
 };

@@ -60,7 +60,17 @@ public:
     // and finally %USERPROFILE%\AppData\Local if SHGetKnownFolderPath
     // fails (extremely rare on supported Windows). Empty path returned
     // only if every fallback fails.
+    //
+    // When the CASSO_PROFILE_DIR environment variable is set, that folder is
+    // returned in place of %LOCALAPPDATA%\<appName>\. It is for a test copy
+    // of Casso Explorer run beside the owner's. Its prefs, session and logs
+    // go to that folder, so it doesn't start the owner's saved connections.
     static fs::path GetLocalAppDataDir (const std::wstring & appName);
+
+    static constexpr const wchar_t * kpszProfileVariable = L"CASSO_PROFILE_DIR";
+
+    // Whether CASSO_PROFILE_DIR is set.
+    static bool     IsProfileFolderSet ();
 
     // Convert an absolute path to one relative to the executable
     // directory when the input lives under (or beside) the exe. Used

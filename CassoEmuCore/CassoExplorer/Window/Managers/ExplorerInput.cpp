@@ -515,6 +515,12 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  The infobars above the list.
+    if (m_context.listPane.GetBars().HandleMouse (ev))
+    {
+        return true;
+    }
+
     if (m_context.treePane.HandleMouse (ev))
     {
         return true;
