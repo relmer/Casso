@@ -137,6 +137,10 @@ CassoExplorerShell::~CassoExplorerShell()
 
 void CassoExplorerShell::StartBootWorker()
 {
+    std::error_code  error;
+
+
+
     m_bootedSound    = BootSounds::MakeBooted();
     m_notBootedSound = BootSounds::MakeDidNotBoot();
     m_bootWorker     = std::make_unique<ExplorerBootWorker> (m_thumbnails, BootCheck::BuildInstalled);
@@ -181,6 +185,18 @@ void CassoExplorerShell::StartBootWorker()
     m_links.SetImageHandler ([this] (const std::string & link, const std::string & path, const std::string & model)
     {
         m_bootWorker->Queue (TextEncoding::NarrowToWide (path), model, link);
+    });
+
+    //  A thumbnail set or removed by Casso, by CassoCli or by another window
+    //  of Casso Explorer is drawn in place of the one in view.
+    std::filesystem::create_directories (ThumbnailStore::GetDefaultFolder(), error);
+
+    m_cacheWatcher.Watch (TextEncoding::WideToNarrow (ThumbnailStore::GetDefaultFolder().wstring()), [this] (const std::string & path)
+    {
+        if (ThumbnailStore::IsUserChange (TextEncoding::NarrowToWide (path)))
+        {
+            m_pictures.NotifyReady (IDiskPictures::kPicturesChanged);
+        }
     });
 }
 

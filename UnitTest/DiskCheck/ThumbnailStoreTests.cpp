@@ -273,6 +273,19 @@ public:
         Assert::AreEqual (0, store.CountUserSet());
     }
 
+    //  A change another process makes to the cache is to a thumbnail the user
+    //  set, or a clear; a booted thumbnail or a record isn't.
+    TEST_METHOD (AUsersChange_IsAThumbnailTheUserSet_OrAClear)
+    {
+        std::wstring  hash (64, L'a');
+
+        Assert::IsTrue  (ThumbnailStore::IsUserChange (L"C:\\Cache\\" + hash + L".user.png"));
+        Assert::IsTrue  (ThumbnailStore::IsUserChange (L"C:\\Cache\\clears.txt"));
+        Assert::IsFalse (ThumbnailStore::IsUserChange (L"C:\\Cache\\" + hash + L".png"));
+        Assert::IsFalse (ThumbnailStore::IsUserChange (L"C:\\Cache\\" + hash + L".json"));
+        Assert::IsFalse (ThumbnailStore::IsUserChange (L"C:\\Cache\\given.json"));
+    }
+
     //  Removing the thumbnail the user set from an image with no booted one
     //  deletes the streams, so it isn't taken from them again.
     TEST_METHOD (Remove_WithNoBootedThumbnail_DeletesTheStreams)

@@ -89,6 +89,11 @@ public:
 
     int      CountUserSet     () const;
 
+    //  Whether a change to a file of the cache folder is to a thumbnail the
+    //  user set, or a clear, which another process can make: a booted
+    //  thumbnail is written only by the process that has it in view.
+    static bool     IsUserChange (const std::filesystem::path & file);
+
     //  The streams of one file written to another, for a write that replaces
     //  an image with a temporary file. A file with no stream isn't an error.
     static HRESULT  CopyStream (const std::filesystem::path & from, const std::filesystem::path & to);

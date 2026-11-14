@@ -421,6 +421,25 @@ bool ThumbnailStore::IsHashName (const std::wstring & file)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ThumbnailStore::IsUserChange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ThumbnailStore::IsUserChange (const std::filesystem::path & file)
+{
+    std::wstring  name = file.filename().wstring();
+
+
+
+    return (IsHashName (name) && name.ends_with (s_kByUser)) || name == s_kClears;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ThumbnailStore::RefreshStreams
 //
 //  The streams written again when they don't have the thumbnail returned,
