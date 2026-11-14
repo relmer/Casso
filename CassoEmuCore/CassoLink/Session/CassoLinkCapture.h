@@ -286,6 +286,7 @@ private:
     static constexpr size_t  s_kDataWithin   = 48;
     static constexpr size_t  s_kNextWithin   = 600;     // the bytes after an address field its sector and the gap after it end within
     static constexpr size_t  s_kPrologBytes  = 3;
+    static constexpr size_t  s_kNotedSectors = 8;       // the sectors taken from another read the notes list one by one
     static constexpr int     s_kPaceReads    = 3;
 
     static constexpr Byte    s_kReadsMagic[] = { 'C', 'R', 'A', 'W' };

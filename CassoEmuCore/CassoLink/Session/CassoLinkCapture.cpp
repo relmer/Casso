@@ -209,8 +209,9 @@ void CassoLinkCapture::SerializeReads (const std::vector<Position> & positions, 
 //
 //  CassoLinkCapture::DescribeResult
 //
-//  The WOZ's notes, one line: where the capture came from, each sector
-//  taken from another read, and the tracks with weak bits.
+//  The WOZ's notes, one line: where the capture came from, the first
+//  s_kNotedSectors sectors taken from another read and the count of the
+//  rest, and the tracks with weak bits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,9 +227,14 @@ std::string CassoLinkCapture::DescribeResult (const Result & result, Byte drive)
         return (position % 4 == 0) ? std::to_string (position / 4) : std::format ("{:.2f}", position / 4.0);
     };
 
-    for (const auto & [position, sector] : result.replaced)
+    for (size_t each = 0; each < result.replaced.size() && each < s_kNotedSectors; each++)
     {
-        notes += std::format (" Track {} sector {} taken from another read.", getTrack (position), sector);
+        notes += std::format (" Track {} sector {} taken from another read.", getTrack (result.replaced[each].first), result.replaced[each].second);
+    }
+
+    if (result.replaced.size() > s_kNotedSectors)
+    {
+        notes += std::format (" {} more sectors taken from another read.", result.replaced.size() - s_kNotedSectors);
     }
 
     for (int position : result.weak)
