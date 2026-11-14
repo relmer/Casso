@@ -5,6 +5,7 @@
 #include "CassoLink/Session/TrackVerifier.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/DurableCommit.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
@@ -84,6 +85,8 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
 
     hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, result.woz, m_commitTag++, CommitMode::Replace, progress);
     CHR (hr);
+
+    m_session.m_sink.OnImageWritten (operation.imagePath, TextEncoding::WideToNarrow (m_session.GetModelName()));
 
     if (!result.weak.empty())
     {

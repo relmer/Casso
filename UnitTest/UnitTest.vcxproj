@@ -434,7 +434,12 @@
     <ClCompile Include="CassoLink\FullSendTests.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStoreTests.cpp" />
     <ClCompile Include="DiskCheck\BootCheckTests.cpp" />
+    <ClCompile Include="DiskCheck\ExplorerBootWorkerTests.cpp" />
+    <ClCompile Include="CassoExplorer\DiskImagePicturesTests.cpp" />
+    <ClCompile Include="DiskCheck\BootTitleTests.cpp" />
+    <ClCompile Include="DiskCheck\BootSoundsTests.cpp" />
     <ClCompile Include="DiskCheck\BootProbeTests.cpp" />
+    <ClCompile Include="CassoLink\FullSendManifestRenameTests.cpp" />
     <ClCompile Include="CassoLink\FullSendStatusTests.cpp" />
     <ClCompile Include="CassoLink\TrackVerifierTests.cpp" />
     <ClCompile Include="CassoLink\LinkedDiskTests.cpp" />

@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Seams/IDiskPictures.h"
 #include "Seams/IShellIcons.h"
 
 
@@ -48,6 +49,15 @@ public:
     //  icon, made in the background.
     void  SetThumbnails (bool thumbnails) { m_thumbnails = thumbnails; }
 
+    //  Where a disk image's picture is from, drawn in place of the floppy
+    //  where thumbnails are drawn; set before LoadInBackground. With none,
+    //  a disk image has the floppy.
+    void  SetPictures   (IDiskPictures * pictures) { m_pictures = pictures; }
+
+    //  Each disk image whose picture was missing is loaded again when it
+    //  is next drawn. Whether there were any.
+    bool  ForgetMissingPictures ();
+
     //  Home draws a folder's plain icon, and sync marks on its items.
     void  SetPlainFolders (bool plain) { m_plainFolders = plain; }
 
@@ -71,6 +81,7 @@ public:
     //  The icon of every file of a type, by its extension, at the row's size.
     std::shared_ptr<const DxuiIconImage>  GetForExtension (const std::wstring & extension) override;
     std::shared_ptr<const DxuiIconImage>  GetForKind      (Kind kind) override;
+    std::shared_ptr<const DxuiIconImage>  GetForDiskImage (const std::wstring & path) override;
     std::wstring                          GetTypeName     (const std::wstring & path, bool isDirectory) override;
     bool                                  GetDriveInfo    (const std::wstring & root, DriveInfo & outInfo) override;
 
@@ -89,6 +100,7 @@ private:
         bool          overlays    = true;
         bool          thumbnail   = false;   // a picture's or a video's thumbnail, as File Explorer's icon views draw it
         bool          plain       = false;
+        bool          picture     = false;   // a disk image's picture, from m_pictures
     };
 
     struct Loaded
@@ -152,6 +164,7 @@ private:
     std::unordered_map<std::wstring, bool>                                  m_thumbnailTypes;   // by extension, whether the shell makes thumbnails of it
     std::unordered_map<std::wstring, std::shared_ptr<const DxuiIconImage>>  m_lastThumbnails;   // by path, the last made, drawn until the one at a new size is ready
     bool                                                                    m_thumbnails = false;
+    IDiskPictures                                                         * m_pictures   = nullptr;
 
     //  The background loader. Requests and results pass under the lock;
     //  m_pending holds the keys asked for and not yet taken.

@@ -218,6 +218,84 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Queue (const std::wstring 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellIcons::GetForDiskImage
+//
+//  The picture is made once at a bucket's size, as a thumbnail is, on a
+//  loader's thread. An image with no picture is stored as null and has the
+//  floppy until ForgetMissingPictures.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForDiskImage (const std::wstring & path)
+{
+    std::shared_ptr<const DxuiIconImage>  floppy = GetForKind (Kind::DiskImage);
+    int                                   bucket = (m_sizePx <= s_kSmallThumbnailPx) ? s_kSmallThumbnailPx : s_kLargeThumbnailPx;
+    std::wstring                          key    = std::to_wstring (bucket) + L"|*disk:" + path;
+    auto                                  found  = m_cache.find (key);
+    bool                                  added  = false;
+
+
+
+    if (m_pictures == nullptr || m_loaders.empty() || !m_thumbnails)
+    {
+        return floppy;
+    }
+
+    if (found != m_cache.end())
+    {
+        if (found->second != nullptr)
+        {
+            m_lastThumbnails[path] = found->second;
+        }
+
+        return (found->second != nullptr) ? found->second : floppy;
+    }
+
+    {
+        std::lock_guard<std::mutex>  guard (m_lock);
+        Request                      request { key, path, false, bucket, false, false, false, true };
+
+        added = m_pending.insert (key).second;
+
+        if (added)
+        {
+            m_requests.push_back (std::move (request));
+        }
+    }
+
+    if (added)
+    {
+        m_wake.notify_one();
+    }
+
+    return m_lastThumbnails.contains (path) ? m_lastThumbnails[path] : floppy;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::ForgetMissingPictures
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellIcons::ForgetMissingPictures()
+{
+    size_t  erased = std::erase_if (m_cache, [] (const auto & entry) { return entry.second == nullptr && entry.first.find (L"|*disk:") != std::wstring::npos; });
+
+
+
+    return erased != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellIcons::HasThumbnail
 //
 //  Whether the shell has a thumbnail provider for the type, as it has for
@@ -286,7 +364,11 @@ void Win32ShellIcons::RunLoader()
             m_loading++;
         }
 
-        if (request.thumbnail)
+        if (request.picture)
+        {
+            image = (m_pictures != nullptr) ? m_pictures->Load (request.path, request.sizePx) : nullptr;
+        }
+        else if (request.thumbnail)
         {
             HICON  thumbnail = LoadThumbnail (request.path, request.sizePx);
 
@@ -311,7 +393,7 @@ void Win32ShellIcons::RunLoader()
             AddOverlay (*image, overlay, request.plain, m_dpi);
         }
 
-        if (image != nullptr && !request.isDirectory && RunsElevated (request.path))
+        if (image != nullptr && !request.isDirectory && !request.picture && RunsElevated (request.path))
         {
             AddShield (*image);
         }

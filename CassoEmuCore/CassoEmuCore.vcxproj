@@ -220,6 +220,7 @@
     <ClCompile Include="CassoExplorer\Model\ImageFileSearchSources.cpp" />
     <ClCompile Include="CassoExplorer\Model\CollectionWalk.cpp" />
     <ClCompile Include="CassoExplorer\Model\CollectionResults.cpp" />
+    <ClCompile Include="CassoExplorer\Model\DiskImagePictures.cpp" />
     <ClCompile Include="CassoExplorer\Model\DiskIdentity.cpp" />
     <ClCompile Include="CassoExplorer\Model\CollectionQuery.cpp" />
     <ClCompile Include="CassoExplorer\Model\CollectionResultsItems.cpp" />
@@ -278,6 +279,9 @@
     <ClCompile Include="CassoLink\Session\CassoLinkFullSend.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStore.cpp" />
     <ClCompile Include="DiskCheck\BootCheck.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerBootWorker.cpp" />
+    <ClCompile Include="DiskCheck\BootTitle.cpp" />
+    <ClCompile Include="DiskCheck\BootSounds.cpp" />
     <ClCompile Include="DiskCheck\BootProbe.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendDisk.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendManifest.cpp" />
@@ -1336,6 +1340,7 @@
     <ClInclude Include="CassoExplorer\Model\ImageFileSearchSources.h" />
     <ClInclude Include="CassoExplorer\Model\CollectionWalk.h" />
     <ClInclude Include="CassoExplorer\Model\CollectionResults.h" />
+    <ClInclude Include="CassoExplorer\Model\DiskImagePictures.h" />
     <ClInclude Include="CassoExplorer\Model\DiskIdentity.h" />
     <ClInclude Include="CassoExplorer\Model\CollectionQuery.h" />
     <ClInclude Include="CassoExplorer\Model\CollectionResultsItems.h" />
@@ -1541,6 +1546,7 @@
     <ClInclude Include="CassoExplorer\Model\FocusRing.h" />
     <ClInclude Include="Seams\IntentReplyTracker.h" />
     <ClInclude Include="Seams\IProcessLauncher.h" />
+    <ClInclude Include="Seams\IDiskPictures.h" />
     <ClInclude Include="Seams\IShellIcons.h" />
     <ClInclude Include="Seams\Win32ProcessLauncher.h" />
     <ClInclude Include="Seams\Win32ShellIcons.h" />
@@ -1776,6 +1782,9 @@
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
     <ClInclude Include="DiskCheck\ThumbnailStore.h" />
     <ClInclude Include="DiskCheck\BootCheck.h" />
+    <ClInclude Include="CassoExplorer\ExplorerBootWorker.h" />
+    <ClInclude Include="DiskCheck\BootTitle.h" />
+    <ClInclude Include="DiskCheck\BootSounds.h" />
     <ClInclude Include="DiskCheck\BootProbe.h" />
     <ClInclude Include="CassoLink\FullSend\FullSendDisk.h" />
     <ClInclude Include="CassoLink\FullSend\FullSendManifest.h" />

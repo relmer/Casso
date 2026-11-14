@@ -96,6 +96,7 @@ std::wstring FullSendPanel::DescribeSummary (const FullSendSnapshot & snapshot)
         case FullSendActivity::WaitingForApple: text = L"Full Send: waiting for the Apple";                                    break;
         case FullSendActivity::EditingPrefix:   text = L"Full Send: a file name prefix is being typed on the Apple";           break;
         case FullSendActivity::Checking:        text = std::format (L"Full Send: checking drive {}, {}", snapshot.drive, tally); break;
+        case FullSendActivity::Validating:      text = std::format (L"Full Send: validating the image, {}", tally);             break;
         default:                                                                                                                break;
     }
 
@@ -247,6 +248,7 @@ std::wstring FullSendPanel::DescribeActivity (const FullSendSnapshot & snapshot,
         case FullSendActivity::Sending:         return std::format (L"Sending the disk in drive {}.", snapshot.drive);
         case FullSendActivity::Capturing:       return std::format (L"The disk in drive {} is likely copy-protected; using raw capture mode.", snapshot.drive);
         case FullSendActivity::WaitingForDisk:  return std::format (L"The {} is waiting for more disks to send.", apple);
+        case FullSendActivity::Validating:      return std::format (L"Validating the image of the disk in drive {}: booting it to check that it runs.", snapshot.drive);
         case FullSendActivity::WaitingForApple: return std::format (L"Waiting for the Apple to reply, {}.", FormatSeconds (snapshot.waited));
         case FullSendActivity::EditingPrefix:   return L"A file name prefix is being typed on the Apple.";
         case FullSendActivity::Ended:           return L"The session ended. " + TextEncoding::NarrowToWide (snapshot.reason);
@@ -403,6 +405,14 @@ std::wstring FullSendPanel::DescribeTotals (const FullSendTotals & totals)
 
 std::wstring FullSendPanel::DescribeStatus (const FullSendRow & row)
 {
+    const wchar_t  * boot = row.boot == FullSendManifest::kBootBooted      ? L", boots"
+                          : row.boot == FullSendManifest::kBootDidNotBoot  ? L", did not boot"
+                          : row.boot == FullSendManifest::kBootNotBootable ? L", not bootable"
+                          : row.boot == FullSendManifest::kBootUnclear     ? L", boot unclear"
+                                                                           : L"";
+
+
+
     if (row.status == FullSendManifest::kStatusDuplicate)
     {
         return L"Duplicate of " + TextEncoding::NarrowToWide (row.duplicateOf);
@@ -410,25 +420,25 @@ std::wstring FullSendPanel::DescribeStatus (const FullSendRow & row)
 
     if (row.status == FullSendManifest::kStatusRawCapture)
     {
-        return L"Raw capture";
+        return std::wstring (L"Raw capture") + boot;
     }
 
     if (row.status == FullSendManifest::kStatusProtected)
     {
-        return L"Likely copy-protected";
+        return std::wstring (L"Likely copy-protected") + boot;
     }
 
     if (row.unreadable != 0)
     {
-        return std::format (L"{} unreadable {}", row.unreadable, row.unreadable == 1 ? L"sector" : L"sectors");
+        return std::format (L"{} unreadable {}", row.unreadable, row.unreadable == 1 ? L"sector" : L"sectors") + boot;
     }
 
     if (row.unreliable != 0)
     {
-        return std::format (L"{} unreliable {}", row.unreliable, row.unreliable == 1 ? L"sector" : L"sectors");
+        return std::format (L"{} unreliable {}", row.unreliable, row.unreliable == 1 ? L"sector" : L"sectors") + boot;
     }
 
-    return row.verification == FullSendManifest::kVerifyFull ? L"Sent, verified" : L"Sent";
+    return std::wstring (row.verification == FullSendManifest::kVerifyFull ? L"Sent, verified" : L"Sent") + boot;
 }
 
 

@@ -47,6 +47,8 @@ void FullSendStatus::Begin()
     m_lastMark          = { m_began, m_began };
 
     m_samples.clear();
+    m_boots.clear();
+    m_booted.clear();
 }
 
 
@@ -477,6 +479,77 @@ void FullSendStatus::AddLine (const std::string & text)
 
 
     AddTimedLine (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::SetBoot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::SetBoot (const std::string & file, const std::string & boot, const std::string & renamedTo)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    for (FullSendDoneDisk & disk : m_snapshot.disks)
+    {
+        if (disk.row.file == file)
+        {
+            disk.row.boot = boot;
+            disk.row.file = renamedTo.empty() ? file : renamedTo;
+        }
+    }
+
+    m_boots.push_back ({ file, boot });
+    m_booted.insert (file);
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::HasBoot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendStatus::HasBoot (const std::string & file) const
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    return m_booted.contains (file);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::TakeBoots
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::pair<std::string, std::string>> FullSendStatus::TakeBoots()
+{
+    std::lock_guard                                   lock (m_lock);
+    std::vector<std::pair<std::string, std::string>>  boots = std::move (m_boots);
+
+
+
+    m_boots.clear();
+
+    return boots;
 }
 
 

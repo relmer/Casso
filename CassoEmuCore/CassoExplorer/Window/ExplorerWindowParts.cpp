@@ -358,6 +358,19 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
+    if (msg == (UINT) AppMessage::ExplorerPicturesReady)
+    {
+        listPane.HandlePicturesReady();
+        preview.HandlePicturesReady();
+
+        if (context.app.host != nullptr)
+        {
+            context.app.host->OfferBootRoms (context.window.GetHwnd(), context.theme);
+        }
+
+        return true;
+    }
+
     //  New's file types join the command bar's New once the shell lists them.
     if (msg == (UINT) AppMessage::ExplorerNewChoices)
     {

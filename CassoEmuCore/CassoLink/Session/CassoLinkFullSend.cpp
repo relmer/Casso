@@ -6,6 +6,7 @@
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
@@ -468,7 +469,7 @@ bool CassoLinkFullSend::IsBootstrapped()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads)
+HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks)
 {
     HRESULT                   hr     = S_OK;
     std::vector<Byte>         module;
@@ -479,6 +480,7 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz, st
 
     outWoz.clear();
     outReads.clear();
+    outMarks.clear();
     m_operation->drive = drive;
 
     hr = CheckStop();
@@ -516,6 +518,8 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz, st
         m_status.MarkPosition (drive, position, FullSendPositionMark::Unstable);
     }
 
+    outMarks = CassoLinkCapture::FormatMarks (result);
+
     if (m_session.m_sink.HasFullSendReadsOn())
     {
         CassoLinkCapture::SerializeReads (result.positions, outReads);
@@ -526,6 +530,54 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz, st
     m_session.m_sink.OnActivity (CassoLinkDiskTransfer::FormatCaptureTimes (result));
 
     outWoz = std::move (result.woz);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::NoteImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkFullSend::NoteImage (const std::string & path)
+{
+    return m_session.m_sink.OnImageWritten (path, TextEncoding::WideToNarrow (m_session.GetModelName()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::AwaitBoot
+//
+//  The result arrives from the thread that boots the image. With none by the
+//  time limit, the session goes on, and the result is in the window when it
+//  arrives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkFullSend::AwaitBoot (const std::string & file)
+{
+    HRESULT    hr    = S_OK;
+    ULONGLONG  began = GetTickCount64();
+
+
+
+    while (!m_status.HasBoot (file) && GetTickCount64() - began < s_kBootWaitMs)
+    {
+        hr = CheckStop();
+        CHR (hr);
+
+        Sleep (s_kBootPollMs);
+    }
 
 Error:
     return hr;

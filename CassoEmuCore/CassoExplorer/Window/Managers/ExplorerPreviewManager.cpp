@@ -155,8 +155,10 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
     //  A disk image's small platter and chips, under the toolbar (FR-072).
     if (m_thumbnail.IsShown())
     {
-        m_thumbnail.Layout (RECT { content.left, content.top, content.right, content.top + m_thumbnail.GetHeightPx() });
-        content.top += m_thumbnail.GetHeightPx();
+        int  height = m_thumbnail.GetHeightPx (static_cast<int> (content.right - content.left));
+
+        m_thumbnail.Layout (RECT { content.left, content.top, content.right, content.top + height });
+        content.top += height;
     }
     else
     {
@@ -367,6 +369,28 @@ void ExplorerPreviewManager::FillPreview()
     }
 
     m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::HandlePicturesReady
+//
+//  A disk image was booted: the selected image's picture is read again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::HandlePicturesReady()
+{
+    if (m_thumbnail.IsShown())
+    {
+        m_thumbnail.RefreshScreen();
+        m_context.layout.RecomputeLayout();
+        m_context.window.Invalidate();
+    }
 }
 
 

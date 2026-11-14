@@ -256,6 +256,60 @@ std::string CassoLinkCapture::DescribeResult (const Result & result, Byte drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkCapture::FormatMarks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkCapture::FormatMarks (const Result & result)
+{
+    std::string  weak;
+    std::string  replaced;
+    std::string  differs;
+    std::string  marks;
+
+
+
+    auto  getTrack = [] (int position)
+    {
+        return (position % 4 == 0) ? std::to_string (position / 4) : std::format ("{:.2f}", position / 4.0);
+    };
+
+    auto  add = [&marks] (const char * label, const std::string & list)
+    {
+        if (!list.empty())
+        {
+            marks += (marks.empty() ? "" : "; ") + std::string (label) + " " + list;
+        }
+    };
+
+    for (int position : result.weak)
+    {
+        weak += (weak.empty() ? "" : ", ") + getTrack (position);
+    }
+
+    for (const auto & [position, sector] : result.replaced)
+    {
+        replaced += (replaced.empty() ? "" : ", ") + getTrack (position) + "." + std::to_string (sector);
+    }
+
+    for (int position : result.unstable)
+    {
+        differs += (differs.empty() ? "" : ", ") + getTrack (position);
+    }
+
+    add ("weak", weak);
+    add ("replaced", replaced);
+    add ("differs", differs);
+
+    return marks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkCapture::ParseReads
 //
 ////////////////////////////////////////////////////////////////////////////////

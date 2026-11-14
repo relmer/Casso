@@ -35,6 +35,7 @@ enum class FullSendDriveState : Byte
     Changed,
     Capturing,
     Blank,
+    Validating,     // the image is being booted on the PC
 };
 
 enum class FullSendTone : Byte
@@ -157,7 +158,13 @@ public:
     //  A drive's disk captured raw as a WOZ. outReads has every read of the
     //  capture, as CassoLinkCapture::SerializeReads writes them, when reads
     //  are saved, and is empty otherwise.
-    virtual HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads) = 0;
+    virtual HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) = 0;
+
+    //  An image the session wrote, by its path, for the boot check. True
+    //  when the image is booted, and AwaitBoot then returns once its result
+    //  is in the session's status, or after a time limit.
+    virtual bool     NoteImage      (const std::string & path) { UNREFERENCED_PARAMETER (path); return false; }
+    virtual HRESULT  AwaitBoot      (const std::string & file) { UNREFERENCED_PARAMETER (file); return S_OK; }
 
     //  A line for the activity log.
     virtual void     Report     (const std::string & text) = 0;
@@ -271,6 +278,7 @@ private:
     HRESULT  SendDisk         (int drive, const CheckedDisk & checked, bool anyway);
     HRESULT  CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw);
     HRESULT  WriteImage       (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile);
+    void     ApplyBoots       ();
     HRESULT  WriteManifest    ();
     void     Report           (const std::string & text);
     void     MarkTracks       (int drive, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report);
@@ -308,9 +316,11 @@ private:
     std::array<bool, 2>         m_swapped    = { false, false };   // and of those, the disks that changed during their read
     std::array<std::string, 2>  m_counted;                         // the repeat each drive last added to the duplicates
     std::array<bool, 2>         m_blank      = { false, false };   // drives whose last check found a blank disk
+    std::vector<std::string>    m_unbooted;                        // images that did not boot, for the next pause's lines
     std::array<std::string, 2>  m_blankDisk;                       // the blank each drive last added to the blanks
     uint64_t                    m_commitTag  = 1;
     std::vector<Byte>           m_rawReads;                        // the last raw capture's reads, until its image is written
+    std::string                 m_rawMarks;                        // and what it marked, for its row
     std::mt19937                m_random     { std::random_device{}() };
     std::vector<Byte>           m_quips;         // the prompt lines left before any repeats
     Byte                        m_lastQuip   = 0;

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Panes/Preview/PreviewDiskThumbnail.h"
+#include "Seams/IDiskPictures.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerContext.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
@@ -116,6 +117,34 @@ void ThumbnailChips::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ThumbnailScreen::Paint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ThumbnailScreen::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    HRESULT  hr     = S_OK;
+    RECT     bounds = GetBounds();
+
+
+
+    (void) painter;
+    (void) theme;
+
+    if (m_picture != nullptr && m_picture->width > 0 && m_picture->height > 0)
+    {
+        hr = text.DrawIconBitmap (m_picture->bgraPremul.data(), m_picture->width, m_picture->height, (float) bounds.left, (float) bounds.top,
+                                  (float) (bounds.right - bounds.left), (float) (bounds.bottom - bounds.top));
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewDiskThumbnail::PreviewDiskThumbnail
 //
 //  A finished thumbnail is posted to the window, which takes it on the UI
@@ -144,12 +173,16 @@ void PreviewDiskThumbnail::Create()
 {
     m_platter = m_context.window.CreateChild<ThumbnailPlatterView> (m_view, m_context.theme);
     m_chips   = m_context.window.CreateChild<ThumbnailChips> (m_view.palette);
+    m_screen  = m_context.window.CreateChild<ThumbnailScreen>();
+    m_bootLine = m_context.window.CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     m_context.window.SetMouseHandler (m_platter, [this] (const DxuiMouseEvent & ev) { return HandlePlatterMouse (ev); });
 
     m_platter->SetSelectionShown (false);
     m_platter->SetVisible (false);
     m_chips->SetVisible   (false);
+    m_screen->SetVisible  (false);
+    m_bootLine->SetVisible  (false);
 }
 
 
@@ -188,6 +221,39 @@ void PreviewDiskThumbnail::SetPath (const std::wstring & path)
     {
         (void) m_worker.Request (path);
     }
+
+    RefreshScreen();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::RefreshScreen
+//
+//  An image with no picture yet is queued to be booted by the read, and the
+//  window is posted a message when its picture is made.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::RefreshScreen()
+{
+    std::wstring  result;
+    bool          found = false;
+
+
+
+    m_picture.reset();
+
+    if (!m_path.empty() && m_context.app.pictures != nullptr)
+    {
+        found = m_context.app.pictures->Find (m_path, m_picture, result);
+    }
+
+    m_screen->SetPicture (found ? m_picture : nullptr);
+    m_bootLine->SetText (result);
 }
 
 
@@ -276,16 +342,41 @@ void PreviewDiskThumbnail::ApplyResult()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreviewDiskThumbnail::GetHeightPx
+//  PreviewDiskThumbnail::IsBeside
 //
-//  The platter and two rows of chips, or one row for a line in their place.
+//  Whether the screen's picture and the platter fit side by side in the width.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int PreviewDiskThumbnail::GetHeightPx() const
+bool PreviewDiskThumbnail::IsBeside (int widthPx) const
+{
+    const DxuiDpiScaler  & scaler = m_context.scaler;
+
+
+
+    return widthPx >= scaler.ToPx (kScreenDip) + scaler.ToPx (kPlatterDip) + 3 * scaler.ToPx (kGapDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::GetHeightPx
+//
+//  The platter and two rows of chips, or one row for a line in their place.
+//  With the screen's picture, two rows for its result as well, and the
+//  picture's height where it is above the platter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PreviewDiskThumbnail::GetHeightPx (int widthPx) const
 {
     const DxuiDpiScaler  & scaler = m_context.scaler;
     int                    rows   = scaler.ToPx (static_cast<int> (ThumbnailChips::kRowDip));
+    int                    gap    = scaler.ToPx (kGapDip);
+    int                    height = scaler.ToPx (kPlatterDip) + 2 * rows + 2 * gap;
 
 
 
@@ -294,8 +385,17 @@ int PreviewDiskThumbnail::GetHeightPx() const
         return 0;
     }
 
-    return (m_state == State::Note35) ? rows + scaler.ToPx (kGapDip)
-                                      : scaler.ToPx (kPlatterDip) + 2 * rows + 2 * scaler.ToPx (kGapDip);
+    if (m_state == State::Note35)
+    {
+        return rows + gap;
+    }
+
+    if (HasScreen())
+    {
+        height += 2 * rows + gap + (IsBeside (widthPx) ? 0 : scaler.ToPx (kScreenDip) * 3 / 4 + gap);
+    }
+
+    return height;
 }
 
 
@@ -306,18 +406,27 @@ int PreviewDiskThumbnail::GetHeightPx() const
 //
 //  PreviewDiskThumbnail::Layout
 //
-//  The platter centered across the area's top, and the chips under it.
+//  The platter centered across the area's top, and the chips under it. The
+//  screen's picture is to the platter's left where both fit, and above it
+//  otherwise, and its result is between them and the chips.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PreviewDiskThumbnail::Layout (const RECT & area)
 {
-    const DxuiDpiScaler  & scaler   = m_context.scaler;
-    int                    platter  = scaler.ToPx (kPlatterDip);
-    int                    gap      = scaler.ToPx (kGapDip);
-    int                    rows     = scaler.ToPx (static_cast<int> (ThumbnailChips::kRowDip));
-    int                    left     = area.left + (std::max) (0, static_cast<int> (area.right - area.left - platter) / 2);
-    int                    chipsTop = area.top + gap;
+    const DxuiDpiScaler  & scaler    = m_context.scaler;
+    int                    platter   = scaler.ToPx (kPlatterDip);
+    int                    gap       = scaler.ToPx (kGapDip);
+    int                    rows      = scaler.ToPx (static_cast<int> (ThumbnailChips::kRowDip));
+    int                    width     = static_cast<int> (area.right - area.left);
+    bool                   hasScreen = HasScreen();
+    bool                   isBeside  = hasScreen && IsBeside (width);
+    int                    screenW   = (std::min) (scaler.ToPx (kScreenDip), (std::max) (0, width - 2 * gap));
+    int                    screenH   = screenW * 3 / 4;
+    int                    group     = platter + (isBeside ? screenW + gap : 0);
+    int                    left      = area.left + (std::max) (0, (width - group) / 2);
+    int                    top       = area.top + gap;
+    int                    chipsTop  = area.top + gap;
 
 
 
@@ -327,15 +436,34 @@ void PreviewDiskThumbnail::Layout (const RECT & area)
         return;
     }
 
+    if (hasScreen && isBeside)
+    {
+        m_screen->Layout (RECT { left, top + (platter - screenH) / 2, left + screenW, top + (platter - screenH) / 2 + screenH }, scaler);
+        left += screenW + gap;
+    }
+    else if (hasScreen)
+    {
+        m_screen->Layout (RECT { area.left + (width - screenW) / 2, top, area.left + (width - screenW) / 2 + screenW, top + screenH }, scaler);
+        top += screenH + gap;
+    }
+
     if (m_state != State::Note35)
     {
-        m_platter->Layout (RECT { left, area.top + gap, left + platter, area.top + gap + platter }, scaler);
-        chipsTop = area.top + gap + platter + gap;
+        m_platter->Layout (RECT { left, top, left + platter, top + platter }, scaler);
+        chipsTop = top + platter + gap;
+    }
+
+    if (hasScreen)
+    {
+        m_bootLine->Layout (RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows }, scaler);
+        chipsTop += 2 * rows + gap;
     }
 
     m_chips->Layout (RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows }, scaler);
     m_chips->SetVisible   (true);
     m_platter->SetVisible (m_state == State::Ready);
+    m_screen->SetVisible  (hasScreen);
+    m_bootLine->SetVisible  (hasScreen);
 }
 
 
@@ -352,6 +480,8 @@ void PreviewDiskThumbnail::Hide()
 {
     m_platter->SetVisible (false);
     m_chips->SetVisible   (false);
+    m_screen->SetVisible  (false);
+    m_bootLine->SetVisible  (false);
 }
 
 

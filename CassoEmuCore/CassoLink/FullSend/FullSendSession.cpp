@@ -68,6 +68,7 @@ std::vector<std::string> FullSendScreen::GetRows() const
             case FullSendDriveState::Sent:     row += "SENT " + names[i];   break;
             case FullSendDriveState::Protected: row += "PROTECTED, CAPTURED RAW " + names[i]; break;
             case FullSendDriveState::Capturing: row += "PROTECTED, CAPTURING RAW " + names[i]; break;
+            case FullSendDriveState::Validating: row += "VALIDATING IMAGE ON PC, PLEASE WAIT"; break;
             case FullSendDriveState::Changed:  row += "CHANGED WHILE IT WAS READ"; break;
             case FullSendDriveState::OnDeck:
                 row += "ON DECK--";
@@ -537,6 +538,8 @@ HRESULT FullSendSession::Pause()
 
     for (;;)
     {
+        ApplyBoots();
+
         m_state         = State::Paused;
         m_status.SetActivity (FullSendActivity::WaitingForDisk);
         m_screen.quip   = PickQuip();
@@ -569,6 +572,8 @@ HRESULT FullSendSession::Pause()
             CHR (hr);
             continue;
         }
+
+        m_unbooted.clear();
 
         if (key == FullSendKey::Space)
         {
@@ -629,6 +634,11 @@ std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 
 
 
     //  The notes, what to do, and a blank row before the quip.
+    for (const std::string & image : m_unbooted)
+    {
+        lines.push_back (std::format ("{} DID NOT BOOT, SEND IT AGAIN.", image));
+    }
+
     for (int d : { 1, 2 })
     {
         if (repeats[(size_t) d - 1] && m_swapped[(size_t) d - 1])
@@ -661,7 +671,7 @@ std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 
     }
     else
     {
-        lines = { "PUT IN A NEW DISK AND PRESS SPACE.", "" };
+        lines.insert (lines.end(), { "PUT IN A NEW DISK AND PRESS SPACE.", "" });
     }
 
     return lines;
@@ -1188,6 +1198,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
         row.status    = unreadable.empty() ? FullSendManifest::kStatusSent : FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size());
         isProtected   = row.status == FullSendManifest::kStatusProtected;
         row.status    = raw.empty() ? row.status : FullSendManifest::kStatusRawCapture;
+        row.marks     = raw.empty() ? std::string() : m_rawMarks;
         m_screen.tone = unreadable.empty() ? FullSendTone::Done : isProtected ? FullSendTone::Protected : FullSendTone::BadSectors;
         m_screen.prot += isProtected ? 1 : 0;
 
@@ -1217,6 +1228,26 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     CHRF (hr, m_fileFailed = true);
 
     folderLock.unlock();
+
+    //  The image is booted on the PC while its disk is in the drive, so an
+    //  image that did not boot is on the Apple at the pause that follows.
+    if (earlier == nullptr && m_link.NoteImage (GetPath (row.file)))
+    {
+        FullSendTone  tone = m_screen.tone;
+
+        m_screen.tone = FullSendTone::None;
+        SetDriveState (drive, FullSendDriveState::Validating);
+        m_status.SetActivity (FullSendActivity::Validating, drive);
+
+        hr = m_link.ShowScreen (m_screen);
+        CHR (hr);
+
+        hr = m_link.AwaitBoot (row.file);
+        CHR (hr);
+
+        m_screen.tone = tone;
+        ApplyBoots();
+    }
 
     //  A raw capture has every track, so its row has no map of bad sectors.
     if (raw.empty() && (!unreadable.empty() || !report.marks.empty()))
@@ -1309,7 +1340,7 @@ HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);
 
-    hr = m_link.CaptureRaw (drive, outRaw, m_rawReads);
+    hr = m_link.CaptureRaw (drive, outRaw, m_rawReads, m_rawMarks);
     CHR (hr);
 
     SetDriveState (drive, FullSendDriveState::Sending);
@@ -1564,6 +1595,37 @@ const FullSendRow * FullSendSession::FindWithImage (const std::function<bool (co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendSession::ApplyBoots
+//
+//  Each boot result that arrived since the last call is set in the manifest
+//  in memory, for a write of it before the next reload. The thread that
+//  booted the image writes the result to the manifest's file. An image that did not boot is listed
+//  on the Apple at the next pause, by its number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendSession::ApplyBoots()
+{
+    for (const std::pair<std::string, std::string> & boot : m_status.TakeBoots())
+    {
+        const std::vector<FullSendRow>  & rows  = m_manifest.GetRows();
+        auto                              found = std::find_if (rows.begin(), rows.end(), [&boot] (const FullSendRow & row) { return _stricmp (row.file.c_str(), boot.first.c_str()) == 0; });
+
+        m_manifest.SetBoot (boot.first, boot.second);
+
+        if (boot.second == FullSendManifest::kBootDidNotBoot)
+        {
+            m_unbooted.push_back (found != rows.end() ? std::format ("{:04}", found->sequence) : boot.first.substr (0, boot.first.find_last_of ('.')));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendSession::WriteManifest
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1574,6 +1636,8 @@ HRESULT FullSendSession::WriteManifest()
     CommitPlan::Progress  progress;
 
 
+
+    ApplyBoots();
 
     hr = DurableCommit::Commit (m_fileIo, GetPath (FullSendManifest::kFileName), m_manifest.Format(), m_commitTag++, CommitMode::Replace, progress);
     CHR (hr);

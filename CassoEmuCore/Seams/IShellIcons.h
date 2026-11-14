@@ -44,6 +44,10 @@ public:
     //  instead costs a call for each row of a listing.
     virtual std::shared_ptr<const DxuiIconImage>  GetForPath         (const std::wstring & path, bool isDirectory) = 0;
     virtual std::shared_ptr<const DxuiIconImage>  GetForKind         (Kind kind) = 0;
+
+    //  A disk image in a folder: the picture of its screen once booted where
+    //  the implementation has one, and Casso's floppy otherwise.
+    virtual std::shared_ptr<const DxuiIconImage>  GetForDiskImage    (const std::wstring & path)      { (void) path; return GetForKind (Kind::DiskImage); }
     virtual std::shared_ptr<const DxuiIconImage>  GetForExtension    (const std::wstring & extension) { (void) extension; return nullptr; }
     virtual std::shared_ptr<const DxuiIconImage>  GetForIconResource (const std::wstring & resource)  { (void) resource; return nullptr; }
     virtual void                                  SetSizePx          (int sizePx)                     { (void) sizePx; }

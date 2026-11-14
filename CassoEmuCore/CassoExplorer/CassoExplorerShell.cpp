@@ -2,6 +2,7 @@
 
 
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "DiskCheck/BootSounds.h"
 #include "AssetBootstrap.h"
 #include "BuildInfo.h"
 #include "Core/TextEncoding.h"
@@ -78,6 +79,8 @@ CassoExplorerShell::CassoExplorerShell()
 
     m_cards.SetConfirmWrite ([this] (const PhysicalDrive & drive) { return ConfirmCardWrite (drive); });
     m_cards.SetConfirmElevation ([this] (const PhysicalDrive & drive) { return ConfirmElevation (drive); });
+
+    StartBootWorker();
 }
 
 
@@ -100,7 +103,12 @@ CassoExplorerShell::~CassoExplorerShell()
 
 
 
+    //  The windows' icon loaders queue images on the worker, and the
+    //  worker's thread calls into m_links, so the windows go, then the worker.
     m_windows.clear();
+
+    m_links.SetImageHandler (nullptr);
+    m_bootWorker.reset();
 
     if (m_oleInitialized)
     {
@@ -109,6 +117,172 @@ CassoExplorerShell::~CassoExplorerShell()
 
         OleUninitialize();
         m_oleInitialized = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::StartBootWorker
+//
+//  Each disk image a connection writes is booted with no window on the
+//  worker's thread, and the result goes to the connection it came through.
+//  A boot isn't put off while a connection is busy: a Full Send is a pending
+//  job for as long as its session lasts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::StartBootWorker()
+{
+    m_bootedSound    = BootSounds::MakeBooted();
+    m_notBootedSound = BootSounds::MakeDidNotBoot();
+    m_bootWorker     = std::make_unique<ExplorerBootWorker> (m_thumbnails, BootCheck::BuildInstalled);
+
+    m_bootWorker->SetManifestIo (&m_fileIo);
+    m_bootWorker->SetDone ([this] (const ExplorerBootWorker::Result & result)
+    {
+        std::string  file = TextEncoding::WideToNarrow (std::filesystem::path (result.path).filename().wstring());
+        std::string  boot = result.hasReport ? BootProbe::GetVerdictName (result.verdict) : "";
+
+        if (!result.source.empty() && result.renamedFrom.empty())
+        {
+            m_links.NoteBoot (result.source, file, boot, ExplorerBootWorker::Describe (result));
+        }
+        else if (!result.source.empty())
+        {
+            m_links.NoteBoot (result.source, result.renamedFrom, boot, ExplorerBootWorker::Describe (result), file);
+        }
+
+        if (!result.source.empty() && result.hasReport)
+        {
+            PlayBootSound (result.verdict);
+        }
+
+        //  An image no machine could be built for waits for the ROMs, which
+        //  a window offers when it is posted the message.
+        if (!result.hasReport && !result.missing.empty())
+        {
+            std::lock_guard  lock (m_unbootedLock);
+
+            m_unbooted.push_back ({ result.path, result.source });
+            m_romsWanted = true;
+        }
+
+        if (result.hasReport || !result.missing.empty())
+        {
+            m_pictures.NotifyReady();
+        }
+    });
+
+    m_links.SetImageHandler ([this] (const std::string & link, const std::string & path, const std::string & model)
+    {
+        m_bootWorker->Queue (TextEncoding::NarrowToWide (path), model, link);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::QueueBoot
+//
+//  A disk image in a list with no thumbnail, from an icon loader's thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::QueueBoot (const std::wstring & path)
+{
+    if (m_bootWorker != nullptr)
+    {
+        m_bootWorker->Queue (path, std::string());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::PlayBootSound
+//
+//  The sound for an image a connection wrote, where Options has the sounds
+//  on. A sound in progress, as a cassette bootstrap's is, isn't stopped for
+//  it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::PlayBootSound (BootVerdict verdict)
+{
+    const std::vector<Byte>  * sound = verdict == BootVerdict::Booted     ? &m_bootedSound
+                                     : verdict == BootVerdict::DidNotBoot ? &m_notBootedSound
+                                                                          : nullptr;
+
+
+
+    if (sound != nullptr && !sound->empty() && m_prefs.bootSounds)
+    {
+        PlaySoundW ((LPCWSTR) sound->data(), nullptr, SND_MEMORY | SND_ASYNC | SND_NOSTOP | SND_NODEFAULT);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::OfferBootRoms
+//
+//  The ROMs of the enhanced //e and the ][+, in one dialog, once in a run.
+//  With them installed, each image that waited is booted again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::OfferBootRoms (HWND hwnd, const DxuiTheme * theme)
+{
+    HRESULT                hr         = S_OK;
+    bool                   downloaded = false;
+    std::string            error;
+    std::vector<Unbooted>  waiting;
+
+
+
+    if (!m_romsWanted || m_romsOffered)
+    {
+        return;
+    }
+
+    m_romsOffered = true;
+
+    hr = AssetBootstrap::OfferMachineRoms (hwnd, theme, { TextEncoding::NarrowToWide (BootCheck::kEnhanced), TextEncoding::NarrowToWide (BootCheck::kPlus) },
+                                           L"ROMs for checking disk images",
+                                           L"Casso Explorer boots each disk image on an emulated Apple to check that it runs and to make its picture. "
+                                           L"The ROMs of these machines aren't installed. Download them?",
+                                           downloaded, error);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (downloaded)
+    {
+        {
+            std::lock_guard  lock (m_unbootedLock);
+
+            waiting.swap (m_unbooted);
+        }
+
+        m_pictures.ForgetQueued();
+
+        for (const Unbooted & image : waiting)
+        {
+            m_bootWorker->Queue (image.path, std::string(), image.source);
+        }
+
+        m_pictures.NotifyReady();
     }
 }
 
@@ -956,6 +1130,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
     context.announced   = &m_announcements;
     context.firewall    = &m_firewall;
     context.cards       = &m_cards;
+    context.pictures    = &m_pictures;
 
     slot->window = std::make_unique<CassoExplorerWindow> (*slot->browser, *slot->actions, m_prefs, std::move (context));
 

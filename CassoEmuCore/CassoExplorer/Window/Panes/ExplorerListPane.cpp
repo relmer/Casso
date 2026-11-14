@@ -55,6 +55,24 @@ ExplorerListPane::ExplorerListPane (ExplorerContext & context)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListPane::~ExplorerListPane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ExplorerListPane::~ExplorerListPane()
+{
+    if (m_context.app.pictures != nullptr && m_picturesHwnd != nullptr)
+    {
+        m_context.app.pictures->RemoveTarget (m_picturesHwnd);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListPane::Create
 //
 //  The list, and the message an empty folder or image has in its place.
@@ -1951,6 +1969,14 @@ void ExplorerListPane::RestoreView (const RefreshAnchor::After & after)
 
 void ExplorerListPane::StartLoaders()
 {
+    if (m_context.app.pictures != nullptr)
+    {
+        m_picturesHwnd = m_context.window.GetHwnd();
+
+        m_listIcons.SetPictures (m_context.app.pictures);
+        m_context.app.pictures->AddTarget (m_picturesHwnd, (UINT) AppMessage::ExplorerPicturesReady);
+    }
+
     m_listIcons.LoadInBackground (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerIconsLoaded);
     m_contentDetails.Start (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerContentDetails);
     m_propertyValues.Start (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerContentDetails);
@@ -1969,6 +1995,24 @@ void ExplorerListPane::StartLoaders()
 void ExplorerListPane::HandleIconsLoaded()
 {
     if (m_listIcons.TakeLoaded())
+    {
+        RefreshListIcons();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListPane::HandlePicturesReady
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListPane::HandlePicturesReady()
+{
+    if (m_listIcons.ForgetMissingPictures())
     {
         RefreshListIcons();
     }

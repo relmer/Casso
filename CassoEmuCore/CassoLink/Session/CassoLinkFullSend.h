@@ -39,7 +39,9 @@ public:
     bool     IsVerifying    () override { return m_verifying; }
     void     ToggleVerify   () override { m_verifying = !m_verifying; }
     bool     IsBootstrapped () override;
-    HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads) override;
+    HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) override;
+    bool     NoteImage      (const std::string & path) override;
+    HRESULT  AwaitBoot      (const std::string & file) override;
     void     Report         (const std::string & text) override;
 
     //  The time for a manifest's row: UTC, in ISO 8601.
@@ -47,6 +49,7 @@ public:
 
     //  The Full Send window's model of this connection's session.
     const FullSendStatus &  GetStatus () const { return m_status; }
+    FullSendStatus       &  GetStatus ()       { return m_status; }
 
 private:
     HRESULT  CheckStop     ();
@@ -55,6 +58,9 @@ private:
 
     static double       GetSeconds   ();
     static std::string  GetClockTime ();
+
+    static constexpr DWORD  s_kBootWaitMs = 90000;
+    static constexpr DWORD  s_kBootPollMs = 100;
 
     CassoLinkSession   & m_session;
     LinkOperation      * m_operation = nullptr;

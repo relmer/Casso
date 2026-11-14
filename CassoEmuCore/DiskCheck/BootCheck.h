@@ -82,6 +82,9 @@ public:
     //  Casso's machine, such as Apple2c; empty for a model Casso lacks.
     static std::string  GetMachineId (const std::string & model);
 
+    //  A machine as text for the user, such as enhanced Apple //e.
+    static std::string  GetMachineName (const std::string & machineId);
+
     //  Whether a verdict is better than another: booted, then not bootable,
     //  then unclear, then did not boot.
     static bool         IsBetter (BootVerdict verdict, BootVerdict than);

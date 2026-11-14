@@ -2157,6 +2157,100 @@ bool CassoLinkConnections::Sink::HasFullSendReadsOn()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnections::SetImageHandler
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::SetImageHandler (ImageFn handler)
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+
+
+
+    m_imageHandler = std::move (handler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::Sink::OnImageWritten
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::Sink::OnImageWritten (const std::string & path, const std::string & model)
+{
+    ImageFn  handler;
+
+
+
+    {
+        std::lock_guard<std::mutex>  lock (m_owner.m_lock);
+
+        handler = m_owner.m_imageHandler;
+    }
+
+    if (handler)
+    {
+        handler (m_name, path, model);
+    }
+
+    return (bool) handler;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::NoteBoot
+//
+//  The lock is taken for the whole call, as the thread that booted the image
+//  isn't the one that starts and stops connections.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::NoteBoot (const std::string & link, const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo)
+{
+    Activity  entry;
+
+
+
+    GetLocalTime (&entry.time);
+    entry.connection = TextEncoding::NarrowToWide (link);
+    entry.text       = TextEncoding::NarrowToWide (text);
+
+    m_logFile.Append (link, CassoLinkLogFile::kActivity, text);
+
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+        auto                         found = std::find_if (m_started.begin(), m_started.end(), [&link] (const std::unique_ptr<Link> & each) { return each->settings.name == link; });
+
+        if (found != m_started.end() && (*found)->session != nullptr)
+        {
+            (*found)->session->NoteBoot (file, boot, text, renamedTo);
+        }
+
+        m_activity.push_back (std::move (entry));
+
+        while (m_activity.size() > kLogLength)
+        {
+            m_activity.pop_front();
+        }
+    }
+
+    Notify();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnections::Sink::TryGetFullSendTarget
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -4026,6 +4026,99 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssetBootstrap::OfferMachineRoms
+//
+//  A ROM two of the machines have is listed once, under the first of them.
+//  A machine with no configuration, or a ROM with no download source, is
+//  passed over.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::OfferMachineRoms (
+    HWND                    owner,
+    const IDxuiTheme      * theme,
+    const vector<wstring> & machineNames,
+    const wstring         & title,
+    const wstring         & intro,
+    bool                  & outDownloaded,
+    string                & outError)
+{
+    HRESULT                hr          = S_OK;
+    HINSTANCE              hInst       = GetModuleHandleW (nullptr);
+    vector<fs::path>       searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(), PathResolver::GetWorkingDirectory());
+    fs::path               baseDir     = GetAssetBaseDirectory();
+    StartupDownloadSet     set;
+    StartupDownloadPrompt  prompt;
+    StartupDownloadResult  result      = StartupDownloadResult::NothingToDo;
+    std::set<fs::path>     listed;
+
+
+
+    outDownloaded = false;
+    outError.clear();
+
+    for (const wstring & machineName : machineNames)
+    {
+        string          narrowMachine = TextEncoding::WideToUtf8 (machineName);
+        vector<string>  romFiles;
+        string          ignored;
+        HRESULT         hrRoms        = GetRequiredRoms (hInst, machineName, romFiles, ignored);
+
+        if (FAILED (hrRoms))
+        {
+            continue;
+        }
+
+        for (const string & romFile : romFiles)
+        {
+            const RomSpec    * spec    = FindRomSpec (narrowMachine, romFile);
+            fs::path           relPath = (spec != nullptr) ? fs::path (string (spec->localRelDir)) / spec->cassoName : fs::path();
+            StartupAssetEntry  entry;
+
+            if (spec == nullptr || !PathResolver::FindFile (searchPaths, relPath).empty() || !listed.insert (relPath).second)
+            {
+                continue;
+            }
+
+            entry.kind          = StartupAssetKind::Rom;
+            entry.groupLabel    = MachineDisplayName (narrowMachine) + L" ROMs";
+            entry.displayName   = AsciiToWide (spec->description);
+            entry.kindLabel     = L"ROM";
+            entry.source        = spec->sourceLabel.empty() ? L"AppleWin (GitHub)" : AsciiToWide (spec->sourceLabel);
+            entry.selectable    = false;
+            entry.selected      = true;
+            entry.expectedBytes = (std::uint64_t) spec->expectedSize;
+            entry.destPaths.push_back (baseDir / relPath);
+            entry.downloadFn    = MakeRomDownloadFn (spec, entry.destPaths.front());
+
+            set.entries.push_back (std::move (entry));
+        }
+    }
+
+    BAIL_OUT_IF (set.entries.empty(), S_OK);
+
+    prompt.title = title;
+    prompt.intro = intro;
+    prompt.theme = theme;
+
+    result        = StartupDownloadDialog::Show (hInst, owner, "", L"", set, &prompt);
+    outDownloaded = result == StartupDownloadResult::AllDone;
+
+    if (result == StartupDownloadResult::PartialDone)
+    {
+        outError = "A download failed.";
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RunStartupDownloader
 //
 //  Unified entry point: scans for every missing ROM and every missing
