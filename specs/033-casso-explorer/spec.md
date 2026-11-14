@@ -616,6 +616,10 @@ hardware.
 - Q: Why did the buttons in the infobars above the list take no clicks, and how is that prevented? -> A: Casso Explorer's window routes the mouse to each pane in ExplorerInput::HandleMouse, one line of code per pane, and a control with no line there was offered nothing. A control made with the window's CreateChild is now offered the mouse where it is, with nothing more written, and a pane that routes its controls makes them with CreatePaneRoutedChild (owner, 2026-11-13). Moving each pane's routing into its controls waits on DxuiListView, which takes its events relative to its origin where other controls take the window's coordinates. Changing that compiles on every branch with a list view and breaks its clicks without an error, so it isn't done on 033 (owner, 2026-11-13). It is a change for master, with the entry point renamed so a caller that translates the event fails to compile, and the panes are converted after it. Master took the change (`903227701`), and the panes' controls were converted after 033 merged it: a pane sets a mouse handler for each of its controls, which ExplorerInput calls in place of the control's OnMouse (owner, 2026-11-13). The window's bars are left for T718.
 - Q: Does Initialize card's adapter list have "I'm not sure"? -> A: No (owner, 2026-11-13). It listed every adapter's support at once, which wasn't useful. The list starts on the adapter chosen last, or CFFA3000 the first time.
 - Q: Where is a Full Send's progress on the PC? -> A: In a Full Send window, since one line in the status bar can't list both drives, the disks done and the time left. It opens without taking focus when a session starts, and closing it doesn't end the session. It has a state line with what the session is doing or what it waits for, a panel per drive with the disk's title, a track map, a progress bar, the time elapsed and the time left, the session's totals, a list of the disks done, and an activity list with each event's time. The status bar has a one-line summary, and a click on it opens the window.
+- Q: Is a boot check, a thumbnail and a name for each captured image part of 033? -> A: Yes. On 2026-11-13 the owner called it critical: without it the captured images aren't useful. It had been deferred as T713 and T720 an hour earlier; it is Story 43 now, for every disk image Casso Explorer lists and not Full Send's alone.
+- Q: Where is a thumbnail stored? -> A: In a cache under the user's local application data, a PNG whose file name is the image's content hash, with a copy in an alternate data stream of the image file. The owner chose the stream so a thumbnail travels with a moved or copied file; OneDrive, a zip, email and a FAT volume drop streams, so the cache restores it. A chunk inside a WOZ was set aside: it changes the file, whose hash the manifest has, and covers WOZ alone.
+- Q: How are orphaned thumbnails removed? -> A: The owner chose removal when the image is deleted in Casso Explorer, and nothing timed. An image deleted elsewhere has an orphan, which a command in Options clears.
+- Q: Is a separate rename feature built for captures saved as numbers? -> A: No. With the thumbnail beside the file, rename is F2.
 
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -2179,6 +2183,70 @@ status bar, and compare the list with the manifest when the session ends.
    clicked and confirmed, **Then** the session ends as Cancel ends it, and
    the window has the session's totals until it is closed.
 
+### User Story 43 - A boot check, a thumbnail and a name for a disk image (Priority: P1)
+
+A user who has fed a box of floppies to the Apple opens the Full Send
+folder and finds, for each image, a picture of what the disk draws when it
+starts, a mark for an image that didn't start, and a name in place of a
+bare number wherever the disk had one to offer.
+
+**Why this priority**: A raw capture has no catalog, so it is saved as a
+number, and a folder of numbered files can't be used without booting each
+one to find out what it is. A capture can also be wrong with nothing in its
+map marked: on 2026-11-13 two Full Sends of One-on-One produced images that
+didn't boot, and each was found only by booting it in the emulator. That
+day the owner required this for 033: without it the images captured aren't
+useful.
+
+**Independent Test**: Full Send a text adventure, a hi-res game, a cracked
+copy and a disk that doesn't boot. In the Full Send folder each image has
+its thumbnail in place of the stock icon; the text adventure has its title
+as its name; the disk that doesn't boot is marked. Rename an image, move it
+to another folder and copy it: each has the thumbnail. Open a folder of
+disk images that Casso Explorer has never listed, and read the thumbnails
+as they arrive.
+
+**Acceptance Scenarios**:
+
+1. **Given** a Full Send has saved an image, **When** the image is
+   written, **Then** it is booted with no window, its result is written
+   as booted, did not boot or unclear, and a picture of its screen is saved
+   as its thumbnail, while the session goes on to the next disk.
+2. **Given** an image that did not boot, **When** the Full Send window, the
+   manifest and the folder are read, **Then** each has that result, and the
+   Apple's screen has it at the next pause, so the disk can be sent again
+   before it is put away.
+3. **Given** a raw capture saved as a bare number, **When** its booted text
+   screen has a title, **Then** the image is renamed to its number and that
+   title, and the manifest has the new name.
+4. **Given** an image with a thumbnail, **When** its folder is listed in
+   Casso Explorer, **Then** the thumbnail is drawn in place of the stock
+   disk image icon in the views with large icons, and in the preview pane
+   with the boot result beside it.
+5. **Given** a folder of disk images with no thumbnails, **When** it is
+   listed, **Then** the list is drawn at once with stock icons, each image
+   in view is booted in the background, and each thumbnail replaces its
+   icon as it is made.
+6. **Given** an image with a thumbnail, **When** it is renamed, moved to
+   another folder or copied, **Then** each file has the thumbnail with no
+   boot.
+7. **Given** an image whose copy of the thumbnail was dropped on the way
+   through a cloud folder, a zip or a FAT volume, **When** it is listed on
+   the PC that made the thumbnail, **Then** the thumbnail is drawn and its
+   copy is written to the file again.
+8. **Given** a disk mounted in Casso, **When** the command that sets the
+   disk's thumbnail is chosen, **Then** the screen as it is at that moment
+   is the image's thumbnail, in place of the one made by booting.
+9. **Given** an image whose thumbnail the user set, **When** Remove
+   thumbnail is chosen in Casso Explorer, **Then** the image has the
+   thumbnail made by booting again.
+10. **Given** an image with a name from the user, **When** another copy of that title
+    is captured later, **Then** the new image has that name with a new
+    number.
+11. **Given** an image is deleted in Casso Explorer, **When** the delete is
+    done, **Then** its thumbnail is removed with it, and Clear thumbnails
+    in Options removes every thumbnail made by booting.
+
 ### Edge Cases
 
 - **A picture on a monochrome monitor**: green, amber and white show a
@@ -2402,6 +2470,29 @@ status bar, and compare the list with the manifest when the session ends.
 - **A time left before anything is measured**: the first disk of a session
   has no estimate until two tracks are read, and the field is blank until
   then rather than a guess.
+
+- **A disk that boots to a prompt for a second disk**: it booted. The
+  thumbnail is the prompt, and the result is booted.
+- **A data disk with no boot code**: a disk with a recognized file system
+  and no boot code has no boot to check. Its result is not bootable, which
+  isn't a failure, and its thumbnail is its catalog as text.
+- **A title drawn as a picture**: no name is taken from a hi-res screen.
+  The image stays a number until the user renames it with the thumbnail in
+  view.
+- **A text screen that is a page of prose**: a title is taken only from a
+  line that reads as one, such as a line with a copyright notice below it;
+  otherwise no name is taken.
+- **Two copies of one image in two folders**: they share one thumbnail. A
+  thumbnail the user set for one is the other's too.
+- **An image that is edited**: a saved game changes the image, and with it
+  the thumbnail's key. An image Casso or Casso Explorer writes takes its
+  thumbnail along; one changed by another program gets a new one.
+- **A boot that never settles**: an animated title is captured after a set
+  time, not when the screen stops changing.
+- **A blank or unformatted disk**: no image is saved, so there is nothing
+  to boot (FR-273 and the blank disk rule of the Full Send).
+- **Many images at once**: boots in the background are limited so the list
+  scrolls and the Full Send's reads go on at their pace.
 
 ## Requirements *(mandatory)*
 
@@ -3503,6 +3594,54 @@ status bar, and compare the list with the manifest when the session ends.
   summary: the drive, the disk's sequence number, the percentage, the time
   left and the count of disks done. The detail that the status bar had for
   a raw capture moves to the window.
+
+**A boot check, a thumbnail and a name**
+
+- **FR-274**: After a Full Send writes an image or a raw capture, and after
+  Capture raw disk writes one, the image MUST be booted with no window and
+  its result written as booted, did not boot, not bootable or unclear.
+  The session MUST NOT wait for the boot.
+  [NEEDS CLARIFICATION: what counts as booted]
+- **FR-275**: The boot MUST use
+  [NEEDS CLARIFICATION: which machine an image is booted on].
+- **FR-276**: A Full Send's manifest, its window's list of disks done and
+  its activity list MUST have each image's boot result, and the Apple's
+  screen MUST have a result of did not boot at the next pause.
+- **FR-277**: The screen at the end of the boot MUST be saved as the
+  image's thumbnail, drawn as Casso draws that screen: text, lo-res,
+  hi-res or double hi-res, in color.
+- **FR-278**: A thumbnail MUST be found by the image's content, not by its
+  path or name, so that a renamed, moved or copied image has it.
+- **FR-279**: A copy of the thumbnail MUST travel with the image file
+  through a move or a copy on an NTFS volume. Where the copy is gone and
+  the PC has the thumbnail, the copy MUST be written again; where neither
+  exists, the image MUST be booted again.
+- **FR-280**: Casso Explorer MUST draw an image's thumbnail in place of the
+  stock disk image icon in its views with large icons, and in the preview
+  pane with the boot result, for every disk image format it lists.
+- **FR-281**: An image with no thumbnail MUST be listed at once with the
+  stock icon and booted in the background when it comes into view. The
+  boots MUST be limited so the list and a Full Send in progress aren't
+  slowed.
+- **FR-282**: When a raw capture is saved as a bare number and its booted
+  text screen has a line that reads as a title, the image MUST be renamed
+  to its number and that title, and the manifest updated. No name is taken
+  from a graphics screen.
+- **FR-283**: A name from the user for an image MUST be stored with the
+  disk's fingerprint, and a later capture with that fingerprint MUST get
+  that name with a new number.
+- **FR-284**: Casso MUST have a command that makes the mounted disk's
+  screen, as it is when the command is chosen, the image's thumbnail.
+  [NEEDS CLARIFICATION: where a thumbnail the user set is stored, as it can't be made again]
+- **FR-285**: Casso Explorer MUST have Remove thumbnail on a disk image's
+  menu, which removes a thumbnail the user set and restores the one made
+  by booting.
+- **FR-286**: Deleting an image in Casso Explorer MUST remove its
+  thumbnail. Options MUST have a command that clears every thumbnail made
+  by booting, and that command MUST NOT remove one the user set without a
+  confirmation that lists how many.
+- **FR-287**: An image written by Casso or Casso Explorer, such as a disk
+  with a saved game, MUST have the thumbnail it had before the write.
 - **FR-198**: A capture's INFO chunk MUST list Casso Explorer and its
   version as the creator, and its META chunk the capture's date and the
   drive. The image MUST open in the Disk properties window of FR-133.
@@ -3889,6 +4028,13 @@ status bar, and compare the list with the manifest when the session ends.
 - **Viewer**: a window with one file's preview, its folder and the list's
   sort order.
 
+- **Boot result**: what booting an image with no window found: booted, did
+  not boot, not bootable or unclear.
+- **Thumbnail**: a picture of an image's screen at the end of its boot, or
+  one the user set, found by the image's content.
+- **Given name**: a name from the user for an image, stored with the disk's
+  fingerprint for later captures of that title.
+
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
@@ -4082,6 +4228,19 @@ status bar, and compare the list with the manifest when the session ends.
   correct at every pause and wait, the time left for each disk after its
   first quarter is within 20% of the time it then takes, and the list of
   disks matches the manifest row for row.
+
+- **SC-072**: Of the six titles captured on the owner's //c through
+  2026-11-13 (Wizardry I, Archon, Arcticfox, The Witness, One-on-One and
+  the cracked Spy vs. Spy), every image that boots when started in Casso
+  has the result booted, and the two bad images of One-on-One from that day
+  have did not boot.
+- **SC-073**: A Full Send's time for a disk is no more than 2 seconds
+  longer with the boot check than without it.
+- **SC-074**: A folder of 200 disk images with no thumbnails is listed in
+  the time it takes without thumbnails, and every image in view has its
+  thumbnail within 30 seconds.
+- **SC-075**: An image renamed, moved and copied on an NTFS volume has its
+  thumbnail in all three places with no boot.
 
 ## Assumptions
 

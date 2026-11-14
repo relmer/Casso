@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [x] No [NEEDS CLARIFICATION] markers remain (2026-11-09: LANceGS kept, language servers cut; 2026-10-14: CassoLink's command-line question resolved; Casso Explorer only)
+- [ ] No [NEEDS CLARIFICATION] markers remain (2026-11-13: three in Story 43, FR-274, FR-275 and FR-284, put to the owner; 2026-11-09: LANceGS kept, language servers cut; 2026-10-14: CassoLink's command-line question resolved; Casso Explorer only)
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
