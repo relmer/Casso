@@ -134,6 +134,9 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Ui\Dialogs\TapePositionDialog.cpp" />
+    <ClCompile Include="Ui\Dialogs\CommandLineHelpDialog.cpp" />
+    <ClCompile Include="Ui\Dialogs\CommandLineHelpLayout.cpp" />
+    <ClCompile Include="Ui\Dialogs\CommandLineHelpPanel.cpp" />
     <ClCompile Include="Shell\BackgroundWorkQueue.cpp" />
     <ClCompile Include="Devices\Tape\TapeRecorder.cpp" />
     <ClCompile Include="Audio\TapeAudioSource.cpp" />
@@ -679,6 +682,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
+    <ClInclude Include="Ui\Dialogs\CommandLineHelpDialog.h" />
+    <ClInclude Include="Ui\Dialogs\CommandLineHelpLayout.h" />
+    <ClInclude Include="Ui\Dialogs\CommandLineHelpPanel.h" />
     <ClInclude Include="Shell\BackgroundWorkQueue.h" />
     <ClInclude Include="Devices\Tape\RecordingCapture.h" />
     <ClInclude Include="Devices\Tape\TapeRecorder.h" />

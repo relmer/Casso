@@ -3722,6 +3722,39 @@ namespace CommandLineTests
                 L"and each flag carries its description, not just its name");
         }
 
+
+        //  THE DIALOG'S TABLE HAS ONE ROW PER DOCUMENTED FLAG, in the parser's
+        //  order, each written in the prefix the reader typed and each with a
+        //  description.
+        TEST_METHOD (Emulator_HelpRowsFollowTheFlagTable)
+        {
+            std::span<const CommandLineParser::EmulatorFlag>  flags     = CommandLineParser::GetEmulatorFlags();
+            std::vector<CommandLineHelpRow>                   dashed    = CommandLineHelp::GetEmulatorRows ('-');
+            std::vector<CommandLineHelpRow>                   slashed   = CommandLineHelp::GetEmulatorRows ('/');
+            size_t                                            flagCount = flags.size();
+            size_t                                            i         = 0;
+
+
+
+            Assert::IsTrue (flagCount > 0, L"a sweep over an empty table checks nothing");
+            Assert::AreEqual (flagCount, dashed.size());
+            Assert::AreEqual (flagCount, slashed.size());
+
+            for (i = 0; i < flagCount; ++i)
+            {
+                Assert::IsTrue (dashed[i].option.starts_with (flags[i].option),
+                    Widen ("row out of order or misspelled: " + dashed[i].option).c_str());
+                Assert::IsTrue (slashed[i].option.starts_with ("/"),
+                    Widen ("slash style not applied: " + slashed[i].option).c_str());
+                Assert::AreEqual (std::string (flags[i].description), dashed[i].description);
+                Assert::IsFalse  (dashed[i].description.empty());
+            }
+
+            Assert::AreEqual (std::string ("--disk1 <image>"), dashed[1].option,
+                L"the value name follows the switch");
+            Assert::AreEqual (std::string ("/disk1 <image>"), slashed[1].option);
+        }
+
         //  THE PREFIX IS TAKEN FROM THE LINE, NOT ONLY FROM A HELP REQUEST.
         //
         //  It used to be recorded only when help was ASKED FOR with a slash,
