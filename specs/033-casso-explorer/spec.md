@@ -621,6 +621,7 @@ hardware.
 - Q: How are orphaned thumbnails removed? -> A: The owner chose removal when the image is deleted in Casso Explorer, and nothing timed. An image deleted elsewhere has an orphan, which a command in Options clears.
 - Q: What counts as booted? -> A: The screen changed from its power-on state and the drive stopped seeking. Did not boot: the screen never changed, the machine stopped in the monitor or at a BASIC prompt with an error, or the drive sought without end. Anything else is unclear (the owner's choice of three, 2026-11-13; a verdict from any change of the screen would pass a loader that draws a logo and stops).
 - Q: Which machine is an image booted on? -> A: An enhanced //e with 128K, and once more on a ][+ when it did not boot there, so an older title that fails on a //e isn't reported as bad (the owner's choice, 2026-11-13).
+- Q: Where is a thumbnail the user set stored? -> A: In the cache and the image file's alternate data stream, as every thumbnail is, marked as set by the user; no picture file beside the image and no folder of pictures (the owner, 2026-11-13). A file beside the image was set aside: a capture is a bare number until its thumbnail is seen, and a second file with that number would be one more file to rename. The cost accepted: a thumbnail the user set is gone when the stream is dropped and the image is opened on another PC, where a new one is made by booting.
 - Q: Is a separate rename feature built for captures saved as numbers? -> A: No. With the thumbnail beside the file, rename is F2.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -3637,8 +3638,10 @@ as they arrive.
   disk's fingerprint, and a later capture with that fingerprint MUST get
   that name with a new number.
 - **FR-284**: Casso MUST have a command that makes the mounted disk's
-  screen, as it is when the command is chosen, the image's thumbnail.
-  [NEEDS CLARIFICATION: where a thumbnail the user set is stored, as it can't be made again]
+  screen, as it is when the command is chosen, the image's thumbnail. It
+  MUST be stored as every other thumbnail is, in the cache and in the
+  image file's stream, marked as set by the user, with no other file
+  written.
 - **FR-285**: Casso Explorer MUST have Remove thumbnail on a disk image's
   menu, which removes a thumbnail the user set and restores the one made
   by booting.
