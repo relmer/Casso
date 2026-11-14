@@ -44,9 +44,10 @@ public:
     //  the enhanced //e and the ][+, with no machine twice.
     TEST_METHOD (TheMachines_BeginWithTheModelCapturedFrom)
     {
-        std::vector<std::string>  fromC    = { "Apple2c", "Apple2eEnhanced", "Apple2Plus" };
-        std::vector<std::string>  fromNone = { "Apple2eEnhanced", "Apple2Plus" };
-        std::vector<std::string>  fromPlus = { "Apple2Plus", "Apple2eEnhanced" };
+        std::vector<std::string>  fromC     = { "Apple2c", "Apple2eEnhanced", "Apple2Plus" };
+        std::vector<std::string>  fromNone  = { "Apple2eEnhanced", "Apple2Plus" };
+        std::vector<std::string>  fromPlus  = { "Apple2Plus", "Apple2eEnhanced" };
+        std::vector<std::string>  fromCPlus = { "Apple2cPlus", "Apple2eEnhanced", "Apple2Plus" };
 
 
 
@@ -55,6 +56,8 @@ public:
         Assert::IsTrue (BootCheck::GetMachines ("Apple //e enhanced") == fromNone, L"The enhanced //e once");
         Assert::IsTrue (BootCheck::GetMachines ("Apple ][+") == fromPlus);
         Assert::IsTrue (BootCheck::GetMachines ("Apple IIgs") == fromNone, L"A model Casso lacks");
+        Assert::IsTrue (BootCheck::GetMachines ("Apple //c Plus") == fromCPlus);
+        Assert::AreEqual (std::string ("Apple //c Plus"), BootCheck::GetMachineName ("Apple2cPlus"));
 
         Assert::IsTrue (BootCheck::IsBetter (BootVerdict::Booted, BootVerdict::Unclear));
         Assert::IsTrue (BootCheck::IsBetter (BootVerdict::Unclear, BootVerdict::DidNotBoot));

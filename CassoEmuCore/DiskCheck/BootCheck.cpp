@@ -125,7 +125,11 @@ std::string BootCheck::GetMachineId (const std::string & model)
 
 
 
-    if (model.starts_with ("Apple //c Plus") || model.starts_with ("Apple IIgs"))
+    if (model.starts_with ("Apple //c Plus"))
+    {
+        id = "Apple2cPlus";
+    }
+    else if (model.starts_with ("Apple IIgs"))
     {
         id.clear();
     }
@@ -165,12 +169,13 @@ std::string BootCheck::GetMachineId (const std::string & model)
 
 std::string BootCheck::GetMachineName (const std::string & machineId)
 {
-    return machineId == "Apple2c" ? "Apple //c"
-         : machineId == kEnhanced ? "enhanced Apple //e"
-         : machineId == "Apple2e" ? "Apple //e"
-         : machineId == kPlus     ? "Apple ][ plus"
-         : machineId == "Apple2"  ? "Apple ]["
-                                  : machineId;
+    return machineId == "Apple2cPlus" ? "Apple //c Plus"
+         : machineId == "Apple2c"     ? "Apple //c"
+         : machineId == kEnhanced     ? "enhanced Apple //e"
+         : machineId == "Apple2e"     ? "Apple //e"
+         : machineId == kPlus         ? "Apple ][ plus"
+         : machineId == "Apple2"      ? "Apple ]["
+                                      : machineId;
 }
 
 
