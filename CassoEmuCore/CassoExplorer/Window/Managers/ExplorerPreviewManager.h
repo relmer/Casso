@@ -84,6 +84,7 @@ public:
     PreviewPictureView              & GetPicture             ()            { return m_picture; }
     PreviewShellView                & GetShell               ()            { return m_shell; }
     PreviewFindBar                  & GetFind                ()            { return m_find; }
+    PreviewDiskThumbnail            & GetThumbnail           ()            { return m_thumbnail; }
 
     //  The preview over the whole tab, below the tab strip, and its steps to
     //  the previous and next file.

@@ -2108,7 +2108,7 @@ rename, move and copy an image and find its thumbnail on each.
 
 ### Proof
 
-- [ ] T738 [US43] Window-part tests for the icon views with thumbnails at 100% and 150%, and for the preview pane's result line
+- [X] T738 [US43] Window-part tests for the icon views with thumbnails at 100% and 150%, and for the preview pane's result line Done 2026-11-14: `IconViews_DrawADiskImagesThumbnail_At100And150Percent` and `Preview_HasADiskImagesScreenAndResultLine_At100And150Percent` in `ExplorerWindowPartsTests`, over `FakeDiskPictures`. The result line expected is `DiskImagePictures::DescribeRecord`'s
 - [ ] T739 [US43] On the owner's //c: Full Send a text adventure, a hi-res game and a disk that doesn't boot; confirm each result, thumbnail and name in the folder, and the Apple's line for the one that didn't boot; rename, move and copy an image and confirm its thumbnail; record the time added to each disk (SC-072 to SC-075)
 - [ ] T740 [US43] Get the owner's approval of the UI text: the four results, the Apple's line, Remove thumbnail, Clear thumbnails and its confirmation, and Casso's command
 
