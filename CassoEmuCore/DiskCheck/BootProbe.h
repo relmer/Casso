@@ -53,8 +53,9 @@ struct BootReport
 //  motor, and the program counter.
 //
 //  Booted: the screen differs from the screen when the drive first started,
-//  and the drive's motor was off for settledSlices slices: a loader that
-//  is reading, or trying a sector again, has the motor on. Did not
+//  and the drive's motor was off for settledSlices slices, or at the limit
+//  its head was on one track for that long: a loader that is reading has
+//  the motor on and the head moving. Did not
 //  boot: the screen is as it was when the drive started, at the limit; or
 //  the machine is at the monitor's prompt, or at BASIC's after an error.
 //  Not bootable: the screen has ProDOS's message that it found no system
@@ -106,7 +107,8 @@ public:
 
     //  Whether the samples so far are a boot: the screen differs from the
     //  one at driveStarted, and the motor was off for settledSlices.
-    static bool         IsSettled (const Trace & trace, const Limits & limits);
+    static bool         IsSettled    (const Trace & trace, const Limits & limits);
+    static bool         IsHeadAtRest (const Trace & trace, const Limits & limits);
 
     //  The verdict as the manifest has it: booted, did-not-boot,
     //  not-bootable or unclear.

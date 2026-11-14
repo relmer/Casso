@@ -623,6 +623,8 @@ hardware.
 - Q: Which machine is an image booted on? -> A: An enhanced //e with 128K, and once more on a ][+ when it did not boot there, so an older title that fails on a //e isn't reported as bad (the owner's choice, 2026-11-13).
 - Q: Where is a thumbnail the user set stored? -> A: In the cache and the image file's alternate data stream, as every thumbnail is, marked as set by the user; no picture file beside the image and no folder of pictures (the owner, 2026-11-13). A file beside the image was set aside: a capture is a bare number until its thumbnail is seen, and a second file with that number would be one more file to rename. The cost accepted: a thumbnail the user set is gone when the stream is dropped and the image is opened on another PC, where a new one is made by booting.
 - Q: What happens when the ROMs the boot check uses aren't installed? -> A: Casso Explorer offers them in the dialog Casso has for a machine's missing ROMs (the owner, 2026-11-13). Once in a run, not for each image; a Full Send goes on while the dialog is open; the images that waited are booted when the ROMs arrive.
+- Q: Is the enhanced //e the first machine an image is booted on? -> A: Not for a capture. On 2026-11-13 One-on-One, captured from the owner's //c, drew its title on an emulated //c and a screen of lo-res garbage on an emulated enhanced //e. The model the disk was captured from is first, then the enhanced //e, then the ][+. Proposed to the owner, whose reply was to continue; whether the title fails on a real enhanced //e or Casso's //e is at fault isn't known.
+- Q: Does a boot result of booted mean the image is good? -> A: No. The first bad image of One-on-One from 2026-11-13 boots to its title; its bad sector is on track 27, read later. An image's capture marks go with its boot result (FR-289), proposed to the owner the same day.
 - Q: Is a separate rename feature built for captures saved as numbers? -> A: No. With the thumbnail beside the file, rename is F2.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -3612,9 +3614,15 @@ as they arrive.
   not boot when the screen never changed, when the machine stopped in the
   monitor or at a BASIC prompt with an error, or when the drive went on
   seeking to the end of the time allowed. Any other end is unclear.
-- **FR-275**: The boot MUST use an enhanced //e with 128K. An image that
-  did not boot there MUST be booted once more on a ][+ before its result
-  is written, and the result is the better of the two.
+- **FR-275**: The boot MUST use the model of Apple the disk was captured
+  from, when a Full Send or a raw capture has it and Casso has that
+  machine; then an enhanced //e with 128K; then a ][+. A machine after the
+  first is used only when the result before it is did not boot or unclear,
+  and the result written is the best of them.
+- **FR-289**: An image whose capture marked a weak track, a track whose
+  reads differ in length, or a sector taken from another read MUST have
+  that with its boot result, in the manifest, the Full Send window and the
+  preview pane, as a boot reads only the sectors a title starts from.
 - **FR-288**: When an image is first to be booted and the ROMs of the enhanced //e
   or the ][+ aren't installed, Casso Explorer MUST offer them in the dialog
   Casso has for a machine's missing ROMs, once in a run of the program,
@@ -4252,8 +4260,9 @@ as they arrive.
 - **SC-072**: Of the six titles captured on the owner's //c through
   2026-11-13 (Wizardry I, Archon, Arcticfox, The Witness, One-on-One and
   the cracked Spy vs. Spy), every image that boots when started in Casso
-  has the result booted, and the two bad images of One-on-One from that day
-  have did not boot.
+  has the result booted; of the two bad images of One-on-One from that day,
+  the second has did not boot, and the first, which boots to its title and
+  is bad on track 27, has booted with its capture's marks (FR-289).
 - **SC-073**: A Full Send's time for a disk is no more than 2 seconds
   longer with the boot check than without it.
 - **SC-074**: A folder of 200 disk images with no thumbnails is listed in

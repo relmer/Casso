@@ -50,8 +50,9 @@ public:
 
     //  The verdict from samples alone: a screen that changed with the drive
     //  stopped is a boot; a screen as it was when the drive started is not;
-    //  a drive running at the limit is unclear; and the text screen's prompts
-    //  and ProDOS's message decide before any of those.
+    //  a head moving at the limit is unclear, and one at rest with the motor
+    //  on is a boot; and the text screen's prompts and ProDOS's message are
+    //  read before any of those.
     TEST_METHOD (Judge_ReadsTheScreenTheHeadAndThePrompts)
     {
         BootProbe::Limits  limits;
@@ -63,8 +64,14 @@ public:
         BootProbe::Trace   monitor = booted;
         BootProbe::Trace   basic   = booted;
         BootProbe::Trace   prodos  = booted;
+        BootProbe::Trace   running = MakeTrace (120, 1, 11, 22, 50);
 
 
+
+        for (BootProbe::Sample & sample : running.samples)
+        {
+            sample.isMotorOn = true;
+        }
 
         monitor.rows = { "", "*" };
         basic.rows   = { "?SYNTAX ERROR", "]" };
@@ -72,7 +79,8 @@ public:
 
         Assert::IsTrue (BootProbe::Judge (booted, limits, reason) == BootVerdict::Booted, L"The screen changed and the drive stopped");
         Assert::IsTrue (BootProbe::Judge (stuck, limits, reason) == BootVerdict::DidNotBoot, L"The screen never changed");
-        Assert::IsTrue (BootProbe::Judge (loading, limits, reason) == BootVerdict::Unclear, L"The drive was running at the limit");
+        Assert::IsTrue (BootProbe::Judge (loading, limits, reason) == BootVerdict::Unclear, L"The head was moving at the limit");
+        Assert::IsTrue (BootProbe::Judge (running, limits, reason) == BootVerdict::Booted, L"The motor on and the head at rest at the limit");
         Assert::IsTrue (BootProbe::Judge (idle, limits, reason) == BootVerdict::Unclear, L"The drive never started");
         Assert::IsTrue (BootProbe::Judge (monitor, limits, reason) == BootVerdict::DidNotBoot, L"The monitor's prompt");
         Assert::IsTrue (BootProbe::Judge (basic, limits, reason) == BootVerdict::DidNotBoot, L"A BASIC prompt after an error");

@@ -89,8 +89,8 @@ Error:
 bool BootProbe::IsSettled (const Trace & trace, const Limits & limits)
 {
     size_t  count   = trace.samples.size();
-    size_t  still   = (size_t) std::max (limits.settledSlices, 1);
-    bool    settled = trace.driveStarted >= 0 && count > (size_t) trace.driveStarted + still;
+    size_t  window  = (size_t) std::max (limits.settledSlices, 1);
+    bool    settled = trace.driveStarted >= 0 && count > (size_t) trace.driveStarted + window;
 
 
 
@@ -99,12 +99,42 @@ bool BootProbe::IsSettled (const Trace & trace, const Limits & limits)
         settled = trace.samples.back().frameHash != trace.samples[(size_t) trace.driveStarted].frameHash;
     }
 
-    for (size_t at = count - still; settled && at < count; at++)
+    for (size_t at = count - window; settled && at < count; at++)
     {
         settled = !trace.samples[at].isMotorOn;
     }
 
     return settled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BootProbe::IsHeadAtRest
+//
+//  Whether the head was on one track for the last settledSlices samples. A
+//  program that runs with the drive's motor on, as Archon does, has the
+//  head at rest; a loader that is reading has it moving.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BootProbe::IsHeadAtRest (const Trace & trace, const Limits & limits)
+{
+    size_t  count  = trace.samples.size();
+    size_t  window = (size_t) std::max (limits.settledSlices, 1);
+    bool    atRest = count >= window;
+
+
+
+    for (size_t at = count - window; atRest && at < count; at++)
+    {
+        atRest = trace.samples[at].quarterTrack == trace.samples.back().quarterTrack;
+    }
+
+    return atRest;
 }
 
 
@@ -158,6 +188,11 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
     {
         verdict   = BootVerdict::Booted;
         outReason = "The screen changed and the drive stopped.";
+    }
+    else if (IsHeadAtRest (trace, limits))
+    {
+        verdict   = BootVerdict::Booted;
+        outReason = "The screen changed and the drive's head was at rest at the time limit.";
     }
     else
     {
