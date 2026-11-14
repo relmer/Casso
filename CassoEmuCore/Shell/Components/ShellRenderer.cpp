@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Devices/BlockDevice/AppleScsiCard.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/MachineBuilder.h"
@@ -774,6 +775,19 @@ bool ShellRenderer::TryPresentUiFrame()
             }
 
             m_shell.m_scene->m_deskScene.SetDriveVisuals (i, lampOn, progress, st.writeProtect.Any());
+        }
+
+        // The HD20SC's lamp is lit for a tenth of a second after each SCSI
+        // command, so a run of reads reads as steady activity.
+        {
+            const auto  & cards  = m_shell.m_machine.GetRefs().scsiCards;
+            uint64_t      now    = m_shell.m_machine.GetCpu() != nullptr ? *m_shell.m_machine.GetCpu()->GetBusCyclePtr() : 0;
+            uint64_t      window = m_shell.m_machine.GetConfig().clockSpeed / 10;
+            bool          busy   = !cards.empty() && cards[0]->IsBusy (now, window);
+
+
+
+            m_shell.m_scene->m_deskScene.SetHardDiskVisuals (busy);
         }
 
         // The volume wheel stands where the tape volume is, however it was

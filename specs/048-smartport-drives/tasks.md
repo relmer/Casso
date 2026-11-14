@@ -204,11 +204,11 @@ interaction, sounds and events.
 
 - [ ] T081 [P] [US7] Write `scripts/modelgen/cad_unidisk35.py` from measurements of reference photographs (proportions written in the script), render with `preview.py`, and check the render before wiring
 - [ ] T082 [P] [US7] Write `scripts/modelgen/cad_apple35.py` the same way, with a //c Plus color variant for its internal drive
-- [ ] T083 [P] [US7] Write `scripts/modelgen/cad_hd20sc.py` the same way, from the owner's reference photograph (`https://macs.billiehawkins.com/wp-content/uploads/2018/11/20sc.jpg`), with the model number left off the mesh
+- [X] T083 [P] [US7] Write `scripts/modelgen/cad_hd20sc.py` the same way, from the owner's reference photograph (`https://macs.billiehawkins.com/wp-content/uploads/2018/11/20sc.jpg`), with the model number left off the mesh
 - [ ] T084 [P] [US7] Write `scripts/modelgen/cad_profile.py` in CadQuery, replacing `gen_profile.py`, and update the table in `scripts/modelgen/README.md`
 - [ ] T085 [US7] Check every model color against the `DeskSceneModel` palette ("at least a channel clear of the palette" per the modelgen README), bake the models in `Resources/Models/`, and add each to the `BakedMesh` list in `Casso/Casso.vcxproj` and `Casso.rc`
 - [ ] T086 [P] [US7] Tests in `UnitTest/Ui/DeskSceneModelTests.cpp` and `DeskSceneLayoutTests.cpp`: each new `DeskDeviceKind` loads with its lamp and, for removable media, its door or slot; automatic placement of every configuration the Machine tab allows has no overlap (FR-024)
-- [ ] T087 [US7] Add `UniDisk35`, `Apple35Drive`, `HardDisk20SC` and `ProFile` to `DeskDeviceKind` in `CassoEmuCore/Ui/Scene/DeskSceneModel.h` and place them in `DeskSceneLayout`
+- [ ] T087 [US7] (HardDisk20SC done: placed left of the stack in every composition, lamp lit from SCSI activity, `DeskSceneLayoutTests::HardDisk_Sits_Left_Of_The_Stack`; the rest follow their drives; not yet checked on screen) Add `UniDisk35`, `Apple35Drive`, `HardDisk20SC` and `ProFile` to `DeskDeviceKind` in `CassoEmuCore/Ui/Scene/DeskSceneModel.h` and place them in `DeskSceneLayout`
 - [ ] T088 [P] [US7] Tests in `UnitTest/Ui/DeskSceneLayoutTests.cpp`: the //c Plus scene has its monitor and its internal drive as an `Apple35Drive` in the //c Plus colors, and each drive on its external chain beside it
 - [ ] T089 [US7] Build the //c Plus scene in `ShellDeskScene` and `DeskSceneLayout`
 - [ ] T090 [P] [US7] Tests in `UnitTest/Ui/DeskSceneFaceLabelTests.cpp`: the HD20SC's front label is `modelLabel` in the position and lettering of the reference photograph: "20SC" for a 20 MB image and for an empty drive, "32SC" for 32 MB, "5SC" for 5 MB

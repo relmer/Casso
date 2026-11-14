@@ -233,6 +233,7 @@
 #define IDR_MODEL_DISK2C_MESH                408
 #define IDR_MODEL_DUODISK_MESH               410
 #define IDR_MODEL_CASSETTE_RECORDER_MESH     412
+#define IDR_MODEL_HARDDISK20SC_MESH          414
 
 // Embedded ImageWriter II mechanical sound set (extracted to
 // %LOCALAPPDATA%\Casso\ImageWriter II Sounds\ by EnsureImageWriterSounds).

@@ -51,7 +51,8 @@ public:
     HRESULT  LoadModels (DeskDeviceKind             monitorKind,
                          std::span<const uint8_t>   monitorMesh,
                          std::span<const uint8_t>   driveMesh,
-                         std::span<const uint8_t>   recorderMesh = {});
+                         std::span<const uint8_t>   recorderMesh = {},
+                         std::span<const uint8_t>   hardDiskMesh = {});
 
     // Share another scene's parsed models rather than parsing the same text
     // again. The data is pure CPU vertex arrays, so a scene on a different
@@ -115,8 +116,13 @@ public:
     // Loaded follows the machine's cassette port; shown follows whether it
     // is attached, and flips without reloading anything.
     bool                    HasRecorder      () const { return m_hasRecorder && m_recorderShown; }
-    bool                    IsRecorderLoaded () const { return m_hasRecorder; }
-    void                    SetRecorderShown (bool shown);
+    bool                    HasHardDisk      () const { return m_hasHardDisk && m_hardDiskShown; }
+
+    // Whether the HD20SC is on the desk, and its lamp.
+    void  SetHardDiskShown   (bool shown);
+    void  SetHardDiskVisuals (bool lampOn);
+    bool  IsRecorderLoaded   () const { return m_hasRecorder; }
+    void  SetRecorderShown   (bool shown);
 
     // THE MOUNTED IMAGE'S NAME, as a surface in the scene rather than as
     // chrome laid over it.
@@ -511,19 +517,20 @@ public:
     static constexpr float  kDoorProgressEps = 1.0f / 256.0f;
 
 private:
-    void     RebuildGlassUvs  (const CrtUvRect & displayUv, int displayW, int displayH);
-    void     RebuildLampVerts ();
+    void     RebuildGlassUvs      (const CrtUvRect & displayUv, int displayW, int displayH);
+    void     RebuildLampVerts     ();
     void     BuildDerivedGeometry ();
-    void     BuildGlassSheen  (const CurvedDisplaySurface & surface, float tiltRad);
-    HRESULT  DrawDrives       (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
-    HRESULT  DrawRecorder     (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    void     BuildGlassSheen      (const CurvedDisplaySurface & surface, float tiltRad);
+    HRESULT  DrawDrives           (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    HRESULT  DrawRecorder         (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    HRESULT  DrawHardDisk         (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
 
     // Appends `in` turned by `angleRad` about the model's left-right axis
     // through (pivotY, pivotZ), positive turning the front (low Y) down.
     // The chrome's reflection: the scene captured into a cube map around
     // the recorder's handle, and one face of it drawn.
-    HRESULT  RenderEnvironment   (const DeskSceneComposition & comp);
-    HRESULT  DrawEnvironmentFace (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    HRESULT  RenderEnvironment    (const DeskSceneComposition & comp);
+    HRESULT  DrawEnvironmentFace  (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
     void     BuildEnvironmentRoom (const float center[3]);
 
     // Where the camera stands in the world, from its view matrix.
@@ -656,6 +663,10 @@ private:
     DeskSceneModel          m_recorder;
     bool                    m_hasRecorder   = false;
     bool                    m_recorderShown = true;
+    DeskSceneModel          m_hardDisk;
+    bool                    m_hasHardDisk   = false;
+    bool                    m_hardDiskShown = false;
+    bool                    m_hardDiskLamp  = false;
     DeskSceneComposition    m_comp;
     bool                    m_modelsLoaded  = false;
 
@@ -684,6 +695,8 @@ private:
     std::vector<Dxui3DRenderer::Vertex>   m_monitorShadowVerts;
     std::vector<Dxui3DRenderer::Vertex>   m_driveShadowVerts;
     std::vector<Dxui3DRenderer::Vertex>   m_recorderShadowVerts;
+    std::vector<Dxui3DRenderer::Vertex>   m_hardDiskShadowVerts;
+    std::vector<Dxui3DRenderer::Vertex>   m_hardDiskLampVerts;
     bool                                  m_powerLampOn     = false;
     bool                                  m_driveActive[2]  = {};
     bool                                  m_lampsDirty      = true;
@@ -728,6 +741,9 @@ private:
     Dxui3DRenderer::StaticMesh            m_monitorOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_driveOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_recorderOpaqueMesh;
+    Dxui3DRenderer::StaticMesh            m_hardDiskOpaqueMesh;
+    Dxui3DRenderer::StaticMesh            m_hardDiskLampMesh;
+    Dxui3DRenderer::StaticMesh            m_hardDiskShadowMesh;
     Dxui3DRenderer::StaticMesh            m_padlockMesh;
 
     // The mounted image's name: its quad in WORLD space, and the texture the

@@ -74,6 +74,7 @@ void ScsiHardDisk::BeginCommand (std::span<const Byte> cdb, uint64_t now, ScsiCo
 
     outResult = {};
     m_commandLog.push_back (opcode);
+    m_lastActivity.store (now == 0 ? 1 : now, std::memory_order_relaxed);
 
     if (!isSense && !IsSpunUp (now))
     {

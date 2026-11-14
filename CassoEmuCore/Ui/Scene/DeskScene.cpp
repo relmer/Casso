@@ -67,7 +67,8 @@ void DeskScene::Shutdown()
 HRESULT DeskScene::LoadModels (DeskDeviceKind             monitorKind,
                                std::span<const uint8_t>   monitorMesh,
                                std::span<const uint8_t>   driveMesh,
-                               std::span<const uint8_t>   recorderMesh)
+                               std::span<const uint8_t>   recorderMesh,
+                               std::span<const uint8_t>   hardDiskMesh)
 {
     DeskDeviceKind  driveKind = (monitorKind == DeskDeviceKind::Monitor2c)
                                 ? DeskDeviceKind::Disk2c : DeskDeviceKind::DiskII;
@@ -89,6 +90,17 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind             monitorKind,
         CHRA (hr);
 
         m_hasRecorder = true;
+    }
+
+    m_hasHardDisk = false;
+    m_hardDisk    = DeskSceneModel {};
+
+    if (!hardDiskMesh.empty())
+    {
+        hr = m_hardDisk.Load (DeskDeviceKind::HardDisk20SC, hardDiskMesh);
+        CHRA (hr);
+
+        m_hasHardDisk = true;
     }
 
     // The drive that comes with the monitor. They are never mixed -- the //c
@@ -154,6 +166,8 @@ HRESULT DeskScene::AdoptModelsFrom (const DeskScene & other)
 
     m_recorder    = other.m_recorder;
     m_hasRecorder = other.m_hasRecorder;
+    m_hardDisk    = other.m_hardDisk;
+    m_hasHardDisk = other.m_hasHardDisk;
 
     m_driveLabelVerts[0] = other.m_driveLabelVerts[0];
     m_driveLabelVerts[1] = other.m_driveLabelVerts[1];
@@ -210,6 +224,14 @@ void DeskScene::BuildDerivedGeometry()
     {
         BuildContactShadow (m_recorder, kShadowMarginSideMm, kShadowMarginDepthMm,
                             m_recorderShadowVerts);
+    }
+
+    m_hardDiskShadowVerts.clear();
+
+    if (m_hasHardDisk)
+    {
+        BuildContactShadow (m_hardDisk, kShadowMarginSideMm, kShadowMarginDepthMm,
+                            m_hardDiskShadowVerts);
     }
 
     m_modelsLoaded = true;
@@ -283,6 +305,13 @@ DeskSceneMetrics DeskScene::Metrics() const
     metrics.drivePadDepthMm   = kShadowMarginDepthMm;
 
     metrics.hasRecorder = HasRecorder();
+    metrics.hasHardDisk = HasHardDisk();
+
+    if (HasHardDisk())
+    {
+        m_hardDisk.BoundsMin (metrics.hardDiskMin);
+        m_hardDisk.BoundsMax (metrics.hardDiskMax);
+    }
 
     if (HasRecorder())
     {
@@ -1115,6 +1144,11 @@ void DeskScene::SceneBoundsWorld (const DeskSceneComposition & comp,
     {
         accumulate (m_recorder, comp.recorderWorld);
     }
+
+    if (comp.hasHardDisk != 0 && HasHardDisk())
+    {
+        accumulate (m_hardDisk, comp.hardDiskWorld);
+    }
 }
 
 
@@ -1295,6 +1329,16 @@ HRESULT DeskScene::RenderShadowMaps (const DeskSceneComposition & comp,
             hr = m_renderer.DrawStatic (m_recorderOpaqueMesh,
                                         m_recorder.OpaqueVerts().data(),
                                         m_recorder.OpaqueVerts().size(),
+                                        m_geometryRev, mvp, false, viewport, true);
+        }
+
+        if (comp.hasHardDisk != 0 && HasHardDisk() && SUCCEEDED (hr))
+        {
+            SceneCamera::Mul44 (comp.hardDiskWorld, m_lightVp[k], mvp);
+
+            hr = m_renderer.DrawStatic (m_hardDiskOpaqueMesh,
+                                        m_hardDisk.OpaqueVerts().data(),
+                                        m_hardDisk.OpaqueVerts().size(),
                                         m_geometryRev, mvp, false, viewport, true);
         }
 
@@ -1743,6 +1787,91 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::DrawHardDisk
+//
+//  The HD20SC's case, then its lamp, tinted by whether the drive is busy.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::DrawHardDisk (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport)
+{
+    HRESULT   hr      = S_OK;
+    float     mvp[16] = {};
+
+
+
+    BAIL_OUT_IF (comp.hasHardDisk == 0 || !HasHardDisk(), S_OK);
+
+    SceneCamera::Mul44 (comp.hardDiskWorld, comp.viewProj, mvp);
+
+    SetModelLighting (m_hardDisk, comp.hardDiskWorld);
+
+    hr = m_renderer.DrawStatic (m_hardDiskOpaqueMesh,
+                                m_hardDisk.OpaqueVerts().data(),
+                                m_hardDisk.OpaqueVerts().size(),
+                                m_geometryRev, mvp, false, viewport, true);
+    CHRA (hr);
+
+    if (m_lampsDirty)
+    {
+        RebuildLampVerts();
+    }
+
+    if (!m_hardDiskLampVerts.empty())
+    {
+        hr = m_renderer.DrawStatic (m_hardDiskLampMesh, m_hardDiskLampVerts.data(), m_hardDiskLampVerts.size(),
+                                    m_geometryRev, mvp, false, viewport, true);
+        CHRA (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::SetHardDiskShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetHardDiskShown (bool shown)
+{
+    if (shown != m_hardDiskShown)
+    {
+        m_hardDiskShown = shown;
+        TouchGeometry();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::SetHardDiskVisuals
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetHardDiskVisuals (bool lampOn)
+{
+    if (lampOn != m_hardDiskLamp)
+    {
+        m_hardDiskLamp = lampOn;
+        m_lampsDirty   = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::BuildTiltMatrix
 //
 //  A rigid rotation about the X-axis line at (pivotY, pivotZ), in the row-
@@ -2107,6 +2236,15 @@ HRESULT DeskScene::DrawShadows (const DeskSceneComposition & comp,
         CHRA (hr);
     }
 
+    if (comp.hasHardDisk != 0 && !m_hardDiskShadowVerts.empty())
+    {
+        SceneCamera::Mul44 (comp.hardDiskWorld, comp.viewProj, mvp);
+
+        hr = m_renderer.DrawStatic (m_hardDiskShadowMesh, m_hardDiskShadowVerts.data(), m_hardDiskShadowVerts.size(),
+                                    m_geometryRev, mvp, false, viewport, false);
+        CHRA (hr);
+    }
+
 Error:
     return hr;
 }
@@ -2212,6 +2350,9 @@ HRESULT DeskScene::RenderStrip (ID3D11RenderTargetView * dstRtv, const DeskScene
     hr = DrawRecorder (strip, viewport);
     CHRA (hr);
 
+    hr = DrawHardDisk (strip, viewport);
+    CHRA (hr);
+
     hr = DrawLampGlows (strip, viewport, false);
     CHRA (hr);
 
@@ -2236,6 +2377,7 @@ void DeskScene::RebuildLampVerts()
     TintInto (m_monitor.LampVerts(), m_powerLampOn ? 1.0f : kLampOffDim, m_monitorLampVerts);
     TintInto (m_drive.LampVerts(),   m_driveActive[0] ? 1.0f : kLampOffDim, m_driveLampVerts[0]);
     TintInto (m_drive.LampVerts(),   m_driveActive[1] ? 1.0f : kLampOffDim, m_driveLampVerts[1]);
+    TintInto (m_hardDisk.LampVerts(), m_hardDiskLamp ? 1.0f : kLampOffDim, m_hardDiskLampVerts);
 
     m_lampsDirty = false;
 
@@ -2439,6 +2581,9 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
 
         hr = DrawRecorder (m_comp, viewport);
         CHRA (hr);
+
+        hr = DrawHardDisk (m_comp, viewport);
+        CHRA (hr);
     }
 
     // THE TILTING ASSEMBLY, on its own transform. Lit through that same
@@ -2572,17 +2717,23 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
 
             hr = DrawRecorder (m_comp, viewport);
             CHRA (hr);
+
+            hr = DrawHardDisk (m_comp, viewport);
+            CHRA (hr);
         }
 
         // Glass only, the sliding drives and recorder are the only bodies,
         // and they are in front of the tube: they go in this plate, over the
         // raster, depth-tested against the glass already in the buffer.
-        if (glassOnly && (m_comp.driveCount > 0 || m_comp.hasRecorder != 0))
+        if (glassOnly && (m_comp.driveCount > 0 || m_comp.hasRecorder != 0 || m_comp.hasHardDisk != 0))
         {
             hr = DrawDrives (m_comp, viewport);
             CHRA (hr);
 
             hr = DrawRecorder (m_comp, viewport);
+            CHRA (hr);
+
+            hr = DrawHardDisk (m_comp, viewport);
             CHRA (hr);
         }
 
@@ -2901,6 +3052,9 @@ HRESULT DeskScene::DrawEnvironmentFace (const DeskSceneComposition & comp, const
     CHRA (hr);
 
     hr = DrawRecorder (comp, viewport);
+    CHRA (hr);
+
+    hr = DrawHardDisk (comp, viewport);
     CHRA (hr);
 
 Error:

@@ -2176,6 +2176,11 @@ void MachineBuilder::WireAppleScsiCard (const SlotConfig & slot, AppleScsiCard &
 
         target.SetRealTiming (port.realTiming, m_host.GetConfig().clockSpeed, 0);
 
+        if (!port.device.empty())
+        {
+            card.SetHasDrive (true);
+        }
+
         if (port.device.empty() || image.empty())
         {
             continue;

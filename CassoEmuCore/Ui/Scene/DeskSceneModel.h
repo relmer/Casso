@@ -56,6 +56,7 @@ enum class DeskDeviceKind
     DiskII,
     Disk2c,        // the platinum 5.25 that pairs with the //c
     CassetteRecorder,  // the Panasonic RQ-309DS beside the stack: no lamp, door or glass
+    HardDisk20SC,      // the Apple Hard Disk 20SC beside the stack: a lamp, no door or glass
 };
 
 

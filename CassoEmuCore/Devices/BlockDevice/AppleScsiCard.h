@@ -78,6 +78,14 @@ public:
     void     SetCpuCycleSource (const uint64_t * cycles) { m_bus.SetClock (cycles); }
 
     ScsiHardDisk  & GetTarget   (int id);
+
+    //  True while any target ran a command in the last `windowCycles`.
+    bool            IsBusy      (uint64_t now, uint64_t windowCycles) const;
+
+    //  True when a target is an HD20SC with or without an image, as the
+    //  machine file lists it.
+    bool            HasDrive    () const { return m_hasDrive; }
+    void            SetHasDrive (bool hasDrive) { m_hasDrive = hasDrive; }
     ScsiBus       & GetScsiBus  ()       { return m_bus; }
     Ncr5380       & GetNcr5380  ()       { return m_ncr; }
     SlotRomPage   & GetSlotPage ()       { return m_slotPage; }
@@ -105,4 +113,5 @@ private:
     std::vector<Byte>                            m_ram;
     Byte                                         m_bankLatch = 0;
     bool                                         m_selected  = false;
+    bool                                         m_hasDrive  = false;
 };

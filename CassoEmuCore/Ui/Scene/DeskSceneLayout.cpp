@@ -289,6 +289,11 @@ bool DeskSceneLayout::GetSlideTanRange (const DeskSceneComposition  & comp,
         ok = GetBoxTanRange (comp.view, comp.recorderWorld, metrics.recorderMin, metrics.recorderMax, offsetMm, axis, outLo, outHi);
     }
 
+    if (ok && comp.hasHardDisk != 0)
+    {
+        ok = GetBoxTanRange (comp.view, comp.hardDiskWorld, metrics.hardDiskMin, metrics.hardDiskMax, offsetMm, axis, outLo, outHi);
+    }
+
     return ok;
 }
 
@@ -370,13 +375,13 @@ void DeskSceneLayout::ScaleSlideDevices (DeskSceneComposition & comp,
 
 
 
-    for (int i = -1; i < driveCount; i++)
+    for (int i = -2; i < driveCount; i++)
     {
-        float  * world = (i < 0) ? comp.recorderWorld : comp.driveWorld[i];
+        float  * world = (i == -2) ? comp.hardDiskWorld : (i < 0) ? comp.recorderWorld : comp.driveWorld[i];
 
 
 
-        if (i < 0 && comp.hasRecorder == 0)
+        if ((i == -2 && comp.hasHardDisk == 0) || (i == -1 && comp.hasRecorder == 0))
         {
             continue;
         }
@@ -452,6 +457,11 @@ void DeskSceneLayout::PlaceSlidingDevices (const DeskSceneMetrics & metrics,
         PlaceRecorder (metrics, forwardMm - metrics.driveFrontY, stackMin, stackMax, spareMin, spareMax, out);
     }
 
+    if (metrics.hasHardDisk)
+    {
+        PlaceHardDisk (metrics, forwardMm - metrics.driveFrontY, stackMin, stackMax, spareMin, spareMax, out);
+    }
+
     shiftX = -(stackMin[0] + stackMax[0]) * 0.5f;
 
     for (int i = 0; i < driveCount; i++)
@@ -460,6 +470,8 @@ void DeskSceneLayout::PlaceSlidingDevices (const DeskSceneMetrics & metrics,
     }
 
     out.recorderWorld[12] += shiftX;
+
+    out.hardDiskWorld[12] += shiftX;
 }
 
 
@@ -519,6 +531,8 @@ int DeskSceneLayout::SlideDevices (DeskSceneComposition   & out,
 
     out.recorderWorld[12] += centerXMm;
 
+    out.hardDiskWorld[12] += centerXMm;
+
     if (eyeDistMm > depthMm)
     {
         ScaleSlideDevices (out, driveCount, (eyeDistMm - kSlideMonitorGapMm) / (eyeDistMm + depthMm), centerXMm, backZ);
@@ -542,10 +556,13 @@ int DeskSceneLayout::SlideDevices (DeskSceneComposition   & out,
 
     out.recorderWorld[13] += offsetMm;
 
+    out.hardDiskWorld[13] += offsetMm;
+
     if (slideProgress <= 0.0f)
     {
         driveCount      = 0;
         out.hasRecorder = 0;
+        out.hasHardDisk = 0;
     }
 
     out.driveCount = driveCount;
@@ -601,6 +618,12 @@ void DeskSceneLayout::ProjectDeviceRects (DeskSceneComposition   & out,
         ProjectModelBox (out.recorderWorld, metrics.recorderMin, metrics.recorderMax,
                          out.viewProj, viewportPx, out.recorderRectPx);
     }
+
+    if (out.hasHardDisk != 0)
+    {
+        ProjectModelBox (out.hardDiskWorld, metrics.hardDiskMin, metrics.hardDiskMax,
+                         out.viewProj, viewportPx, out.hardDiskRectPx);
+    }
 }
 
 
@@ -627,15 +650,15 @@ bool DeskSceneLayout::GetSlideFrontTopPx (const DeskSceneComposition & comp,
 
 
 
-    for (int i = -1; i < comp.driveCount; i++)
+    for (int i = -2; i < comp.driveCount; i++)
     {
-        const float  * world  = (i < 0) ? comp.recorderWorld : comp.driveWorld[i];
-        const float  * boxMin = (i < 0) ? metrics.recorderMin : metrics.driveMin;
-        const float  * boxMax = (i < 0) ? metrics.recorderMax : metrics.driveMax;
+        const float  * world  = (i == -2) ? comp.hardDiskWorld : (i < 0) ? comp.recorderWorld : comp.driveWorld[i];
+        const float  * boxMin = (i == -2) ? metrics.hardDiskMin : (i < 0) ? metrics.recorderMin : metrics.driveMin;
+        const float  * boxMax = (i == -2) ? metrics.hardDiskMax : (i < 0) ? metrics.recorderMax : metrics.driveMax;
 
 
 
-        if (i < 0 && comp.hasRecorder == 0)
+        if ((i == -2 && comp.hasHardDisk == 0) || (i == -1 && comp.hasRecorder == 0))
         {
             continue;
         }
@@ -962,6 +985,12 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
                        sceneMin, sceneMax, out);
     }
 
+    if (metrics.hasHardDisk && !sliding)
+    {
+        PlaceHardDisk (metrics, forwardMm - metrics.driveFrontY, deviceMin, deviceMax,
+                       sceneMin, sceneMax, out);
+    }
+
     if (sliding)
     {
         PlaceSlidingDevices (metrics, driveCount, out);
@@ -1157,6 +1186,12 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
                     SceneCamera::Mul44 (out.recorderWorld, rot, rotated);
                     memcpy (out.recorderWorld, rotated, sizeof (rotated));
                 }
+
+                if (out.hasHardDisk != 0)
+                {
+                    SceneCamera::Mul44 (out.hardDiskWorld, rot, rotated);
+                    memcpy (out.hardDiskWorld, rotated, sizeof (rotated));
+                }
             }
         }
 
@@ -1310,6 +1345,47 @@ void DeskSceneLayout::PlaceRecorder (const DeskSceneMetrics & metrics,
     sceneMax[1] = std::max (sceneMax[1], hi[1]);
     sceneMin[2] = std::min (sceneMin[2], lo[2]);
     sceneMax[2] = std::max (sceneMax[2], hi[2] + metrics.recorderPadDepthMm);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::PlaceHardDisk
+//
+//  The hard disk sits on the desk to the left of the stack, its right edge
+//  kRecorderGapMm clear of the stack's left edge and its front in line with
+//  the drives' front plane, `frontZ`. Grows both bounds by it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::PlaceHardDisk (const DeskSceneMetrics & metrics,
+                                     float                    frontZ,
+                                     float                    deviceMin[3],
+                                     float                    deviceMax[3],
+                                     float                    sceneMin[3],
+                                     float                    sceneMax[3],
+                                     DeskSceneComposition   & out)
+{
+    float   tx     = deviceMin[0] - kRecorderGapMm - metrics.hardDiskMax[0];
+    float   tz     = frontZ;
+    float   lo[3]  = { metrics.hardDiskMin[0] + tx, metrics.hardDiskMin[2], tz - metrics.hardDiskMax[1] };
+    float   hi[3]  = { metrics.hardDiskMax[0] + tx, metrics.hardDiskMax[2], tz - metrics.hardDiskMin[1] };
+
+
+
+    MakeDeviceWorld (tx, 0.0f, tz, 1.0f, out.hardDiskWorld);
+    out.hasHardDisk = 1;
+
+    for (int axis = 0; axis < 3; axis++)
+    {
+        deviceMin[axis] = std::min (deviceMin[axis], lo[axis]);
+        deviceMax[axis] = std::max (deviceMax[axis], hi[axis]);
+        sceneMin[axis]  = std::min (sceneMin[axis],  lo[axis]);
+        sceneMax[axis]  = std::max (sceneMax[axis],  hi[axis]);
+    }
 }
 
 
@@ -1635,6 +1711,11 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
     // that shows the drives shows it too. The row is then shifted sideways to
     // center the whole group, since the camera solve below points straight
     // down the middle.
+    if (metrics.hasHardDisk)
+    {
+        PlaceHardDisk (metrics, -metrics.driveFrontY, deviceMin, deviceMax, sceneMin, sceneMax, out);
+    }
+
     if (metrics.hasRecorder)
     {
         PlaceRecorder (metrics, -metrics.driveFrontY, deviceMin, deviceMax, sceneMin, sceneMax, out);
@@ -1649,6 +1730,8 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
         }
 
         out.recorderWorld[12] += shiftX;
+
+        out.hardDiskWorld[12] += shiftX;
     }
 
     rowCy = (sceneMin[1] + sceneMax[1]) * 0.5f;

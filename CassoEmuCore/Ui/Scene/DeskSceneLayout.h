@@ -90,6 +90,12 @@ struct DeskSceneMetrics
     float                 recorderMax[3]      = {};
     float                 recorderPadSideMm   = 0.0f;
     float                 recorderPadDepthMm  = 0.0f;
+
+    // An Apple Hard Disk 20SC, on the desk to the left of the stack, its front
+    // in line with the drives'. Absent unless `hasHardDisk`.
+    bool                  hasHardDisk         = false;
+    float                 hardDiskMin[3]      = {};
+    float                 hardDiskMax[3]      = {};
 };
 
 
@@ -173,6 +179,11 @@ struct DeskSceneComposition
     int    hasRecorder        = 0;
     float  recorderWorld[16]  = {};
     RECT   recorderRectPx     = {};
+
+    // The hard disk beside the stack, on the left. The same int reason.
+    int    hasHardDisk        = 0;
+    float  hardDiskWorld[16]  = {};
+    RECT   hardDiskRectPx     = {};
 };
 
 
@@ -452,6 +463,13 @@ private:
 
     // Places the cassette recorder beside the stack and grows the bounds.
     static void     PlaceRecorder   (const DeskSceneMetrics & metrics,
+                                     float                    frontZ,
+                                     float                    deviceMin[3],
+                                     float                    deviceMax[3],
+                                     float                    sceneMin[3],
+                                     float                    sceneMax[3],
+                                     DeskSceneComposition   & out);
+    static void     PlaceHardDisk   (const DeskSceneMetrics & metrics,
                                      float                    frontZ,
                                      float                    deviceMin[3],
                                      float                    deviceMax[3],

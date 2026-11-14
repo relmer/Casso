@@ -1,0 +1,75 @@
+newmtl case_bottom
+Ka 0 0 0 
+Kd 0.835 0.815 0.76
+d 1
+
+newmtl case_lid
+Ka 0 0 0 
+Kd 0.835 0.815 0.76
+d 1
+
+newmtl seam
+Ka 0 0 0 
+Kd 0.52 0.505 0.47
+d 1
+
+newmtl lamp
+Ka 0 0 0 
+Kd 0.9 0.12 0.1
+d 1
+
+newmtl badge0
+Ka 0 0 0 
+Kd 0.380392 0.733333 0.27451
+d 1
+
+newmtl badge1
+Ka 0 0 0 
+Kd 0.992157 0.721569 0.152941
+d 1
+
+newmtl badge2
+Ka 0 0 0 
+Kd 0.960784 0.509804 0.121569
+d 1
+
+newmtl badge3
+Ka 0 0 0 
+Kd 0.878431 0.227451 0.243137
+d 1
+
+newmtl badge4
+Ka 0 0 0 
+Kd 0.588235 0.239216 0.592157
+d 1
+
+newmtl badge5
+Ka 0 0 0 
+Kd 0 0.615686 0.862745
+d 1
+
+newmtl front_anchor
+Ka 0 0 0 
+Kd 0.98 0.01 0.24
+d 1
+
+newmtl foot_18_18
+Ka 0 0 0 
+Kd 0.18 0.18 0.19
+d 1
+
+newmtl foot_18_272
+Ka 0 0 0 
+Kd 0.18 0.18 0.19
+d 1
+
+newmtl foot_227_18
+Ka 0 0 0 
+Kd 0.18 0.18 0.19
+d 1
+
+newmtl foot_227_272
+Ka 0 0 0 
+Kd 0.18 0.18 0.19
+d 1
+

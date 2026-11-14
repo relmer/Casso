@@ -298,6 +298,34 @@ public:
         Assert::IsTrue (comp.recorderRectPx.right <= wide.right);
     }
 
+    //  THE HD20SC SITS TO THE LEFT OF THE STACK, clear of the drives, and
+    //  inside the frame, in the fitted and the sliding compositions alike.
+    TEST_METHOD (HardDisk_Sits_Left_Of_The_Stack)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1600, 900 };
+        DeskSceneComposition  comp;
+
+
+
+        metrics.hasHardDisk    = true;
+        metrics.hardDiskMin[0] = 0.0f;   metrics.hardDiskMax[0] = 245.0f;
+        metrics.hardDiskMin[1] = 0.0f;   metrics.hardDiskMax[1] = 290.0f;
+        metrics.hardDiskMin[2] = 0.0f;   metrics.hardDiskMax[2] = 76.0f;
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
+
+        Assert::AreEqual (1, comp.hasHardDisk);
+        Assert::IsTrue   (comp.hardDiskRectPx.right <= comp.driveRectPx[0].left, L"the hard disk is left of the drives, without overlap");
+        Assert::IsTrue   (comp.hardDiskRectPx.left  >= vp.left,                  L"and inside the frame");
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f, kSlideClearPx, comp));
+
+        Assert::AreEqual (1, comp.hasHardDisk);
+        Assert::IsTrue   (comp.hardDiskRectPx.left  >= vp.left);
+        Assert::IsTrue   (comp.hardDiskRectPx.right <= comp.driveRectPx[0].left);
+    }
+
     TEST_METHOD (Empty_Viewport_Reports_S_FALSE)
     {
         DeskSceneMetrics      metrics = MakeMetrics();

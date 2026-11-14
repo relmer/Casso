@@ -69,6 +69,10 @@ public:
 
     Byte  GetSenseKey () const { return m_senseKey; }
 
+    //  The CPU cycle of the last command, for the drive's lamp; read on the
+    //  UI thread.
+    uint64_t  GetLastActivityCycle () const { return m_lastActivity.load (std::memory_order_relaxed); }
+
     //  The commands received since the drive was made, for a log.
     const std::vector<Byte> & GetCommandLog () const { return m_commandLog; }
 
@@ -100,4 +104,5 @@ private:
     uint32_t                  m_writeLba      = 0;
     uint32_t                  m_writeCount    = 0;
     std::vector<Byte>         m_commandLog;
+    std::atomic<uint64_t>     m_lastActivity  { 0 };
 };
