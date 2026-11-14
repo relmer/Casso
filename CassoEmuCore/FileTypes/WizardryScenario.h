@@ -12,9 +12,10 @@
 //
 //  WizardryScenario
 //
-//  The SCENARIO.DATA file of Wizardry I, II and III: its monsters, items
-//  and characters as lists, and each maze level as a map of its walls,
-//  doors and special squares.
+//  The SCENARIO.DATA file of Wizardry I, II and III as the saved game: the
+//  roster of characters with each one's inventory, and a map of the maze
+//  level the party is on. The game saves its characters to the same file as
+//  its monsters, items and maze levels, which aren't listed.
 //
 //  The file is records of UCSD Pascal types. Block 0 is the table of
 //  contents: the scenario's name as a STRING[40], then four arrays of eight
@@ -82,8 +83,13 @@ public:
     //  Where record n of a zone begins, or false when it isn't in the file.
     static bool  TryLocate    (std::span<const Byte> bytes, const Contents & contents, int zone, int index, size_t size, size_t & outAt);
 
-    //  A maze level as lines of text, north at the top.
-    static void  DrawLevel    (std::span<const Byte> level, std::vector<std::wstring> & outLines);
+    //  A maze level as lines of text, north at the top, with the square at
+    //  partyX and partyY marked as the party's.
+    static void  DrawLevel    (std::span<const Byte> level, std::vector<std::wstring> & outLines, int partyX = -1, int partyY = -1);
+
+    //  Where the party is, from the characters' records, or false when no
+    //  character is in the maze.
+    static bool  FindParty    (std::span<const Byte> bytes, const Contents & contents, int & outX, int & outY, int & outLevel);
 
 private:
     static constexpr size_t  kNameField        = 40;
@@ -122,8 +128,7 @@ private:
     static int           ReadPacked   (std::span<const Byte> bytes, size_t at, size_t rowBytes, int bits, int x, int y);
     static std::wstring  GetName      (const std::vector<std::wstring> & names, int index);
 
-    static void  ListMonsters   (std::span<const Byte> bytes, const Contents & contents, std::vector<std::wstring> & ioLines, std::vector<std::wstring> & ioNotes);
-    static void  ListItems      (std::span<const Byte> bytes, const Contents & contents, std::vector<std::wstring> & ioLines, std::vector<std::wstring> & ioNotes);
-    static void  ListCharacters (std::span<const Byte> bytes, const Contents & contents, std::vector<std::wstring> & ioLines, std::vector<std::wstring> & ioNotes);
-    static void  ListMazes      (std::span<const Byte> bytes, const Contents & contents, std::vector<std::wstring> & ioLines, std::vector<std::wstring> & ioNotes);
+    static std::wstring  GetItemName    (std::span<const Byte> bytes, const Contents & contents, int item, bool identified);
+    static void          ListRoster     (std::span<const Byte> bytes, const Contents & contents, std::vector<std::wstring> & ioLines, std::vector<std::wstring> & ioNotes);
+    static void          DrawPartyLevel (std::span<const Byte> bytes, const Contents & contents, std::vector<std::wstring> & ioLines, std::vector<std::wstring> & ioNotes);
 };

@@ -68,6 +68,14 @@ public:
     //  the one CASSO_TEST_DISKS is set to, or Casso\TestDisks under Downloads.
     static std::vector<Byte>  RequireFetchedDisk (const char * fileName);
 
+    //  A disk in the same folder that no script fetches, such as a saved game
+    //  read from the owner's disk; empty when it isn't there, and the test
+    //  skips.
+    static std::vector<Byte>      FindTestDisk       (const char * fileName);
+
+    //  The folder CASSO_TEST_DISKS is set to, or Casso\TestDisks under Downloads.
+    static std::filesystem::path  GetTestDisksFolder ();
+
     //  The Apple /// System Utilities and System Demo disks with SOS 1.1, or a
     //  FAILED test, on the same grounds. scripts/FetchStockDisks.ps1 fetches
     //  both.

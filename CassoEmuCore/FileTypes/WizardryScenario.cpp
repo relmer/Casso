@@ -6,33 +6,36 @@
 
 
 
-static constexpr size_t  s_kMonsterUnknownAt = 0;
-static constexpr size_t  s_kMonsterNameAt    = 32;
-static constexpr size_t  s_kMonsterPluralAt  = 48;
-static constexpr size_t  s_kMonsterDiceAt    = 72;
-static constexpr size_t  s_kMonsterFacesAt   = 74;
-static constexpr size_t  s_kMonsterAddAt     = 76;
-static constexpr size_t  s_kMonsterClassAt   = 78;
-static constexpr size_t  s_kMonsterArmorAt   = 80;
-static constexpr size_t  s_kMonsterAttacksAt = 82;
+static constexpr size_t  s_kItemNameAt         = 0;
+static constexpr size_t  s_kItemUnknownAt      = 16;
 
-static constexpr size_t  s_kItemNameAt       = 0;
-static constexpr size_t  s_kItemUnknownAt    = 16;
-static constexpr size_t  s_kItemTypeAt       = 32;
-static constexpr size_t  s_kItemAlignAt      = 34;
-static constexpr size_t  s_kItemCursedAt     = 36;
-static constexpr size_t  s_kItemPriceAt      = 44;
+static constexpr size_t  s_kCharNameAt         = 0;
+static constexpr size_t  s_kCharInMazeAt       = 32;
+static constexpr size_t  s_kCharRaceAt         = 34;
+static constexpr size_t  s_kCharClassAt        = 36;
+static constexpr size_t  s_kCharStatusAt       = 40;
+static constexpr size_t  s_kCharAlignAt        = 42;
+static constexpr size_t  s_kCharGoldAt         = 52;
+static constexpr size_t  s_kCharItemCountAt    = 58;
+static constexpr size_t  s_kCharItemsAt        = 60;
+static constexpr size_t  s_kCharExperienceAt   = 124;
+static constexpr size_t  s_kCharLevelAt        = 132;
+static constexpr size_t  s_kCharHpLeftAt       = 134;
+static constexpr size_t  s_kCharHpMaxAt        = 136;
+static constexpr size_t  s_kCharLocationAt     = 200;
 
-static constexpr size_t  s_kCharNameAt       = 0;
-static constexpr size_t  s_kCharRaceAt       = 34;
-static constexpr size_t  s_kCharClassAt      = 36;
-static constexpr size_t  s_kCharStatusAt     = 40;
-static constexpr size_t  s_kCharAlignAt      = 42;
-static constexpr size_t  s_kCharLevelAt      = 132;
-static constexpr size_t  s_kCharHpLeftAt     = 134;
-static constexpr size_t  s_kCharHpMaxAt      = 136;
+//  An item in a character's inventory: equipped, cursed and identified,
+//  each a Boolean, and the item's record number.
+static constexpr size_t  s_kPossessionBytes    = 8;
+static constexpr size_t  s_kPossEquippedAt     = 0;
+static constexpr size_t  s_kPossCursedAt       = 2;
+static constexpr size_t  s_kPossIdentifiedAt   = 4;
+static constexpr size_t  s_kPossItemAt         = 6;
+static constexpr int     s_kMaxPossessions     = 8;
 
-static constexpr const wchar_t *  s_kpszItemTypes[] = { L"Weapon", L"Armor", L"Shield", L"Helmet", L"Gauntlets", L"Special", L"Misc" };
+//  The status of a character whose slot is free. A character with this
+//  status can't join a party.
+static constexpr int     s_kStatusLost         = 7;
 
 //  The two-letter mark of each special square type, NORMAL first.
 static constexpr const wchar_t *  s_kpszSquareMarks[] = { L"  ", L"St", L"Pi", L"Ch", L"Sp", L"Dk", L"Tr", L"Ou", L"Bu", L"Rk", L"Fz", L"Ms", L"En" };
@@ -41,7 +44,7 @@ static constexpr const wchar_t *  s_kpszSquareMarks[] = { L"  ", L"St", L"Pi", L
 static constexpr wchar_t          s_kSideMarks[]     = { L' ', L'|', L'D', L'H' };
 static constexpr const wchar_t *  s_kpszTopMarks[]   = { L"  ", L"--", L"DD", L"HH" };
 
-static constexpr const wchar_t *  s_kpszLegend = L"| and -- wall, D door, H hidden door, * fight zone, St stairs, Pi pit, Ch chute, Sp spinner, "
+static constexpr const wchar_t *  s_kpszLegend = L"@ the party, | and -- wall, D door, H hidden door, * fight zone, St stairs, Pi pit, Ch chute, Sp spinner, "
                                                  L"Dk darkness, Tr teleport, Ou damage, Bu buttons, Rk rock or water, Fz no magic, Ms message, "
                                                  L"En encounter";
 
@@ -264,36 +267,26 @@ bool WizardryScenario::Matches (const FileFacts & facts, std::span<const Byte> b
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WizardryScenario::ListMonsters
+//  WizardryScenario::GetItemName
+//
+//  An item's name as it appears in a character's inventory: its true name
+//  once identified, its unknown name before, such as SWORD for a LONG SWORD.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void WizardryScenario::ListMonsters (std::span<const Byte> bytes, const Contents & contents, std::vector<std::wstring> & ioLines, std::vector<std::wstring> & ioNotes)
+std::wstring WizardryScenario::GetItemName (std::span<const Byte> bytes, const Contents & contents, int item, bool identified)
 {
-    ioLines.push_back (L"MONSTERS");
-    ioLines.push_back (std::format (L"{:>4}  {:<16} {:<16} {:<16} {:<10} {:>3}  {:>5}  {:>7}", L"#", L"Name", L"Plural", L"Unidentified", L"Hit points", L"AC", L"Class", L"Attacks"));
+    size_t        at   = 0;
+    std::wstring  name = std::format (L"Item {}", item);
 
-    for (int i = 0; i < contents.count[kZoneMonster]; i++)
+
+
+    if (item >= 0 && item < contents.count[kZoneItem] && TryLocate (bytes, contents, kZoneItem, item, kItemBytes, at))
     {
-        size_t  at = 0;
-
-        if (!TryLocate (bytes, contents, kZoneMonster, i, kMonsterBytes, at))
-        {
-            ioNotes.push_back (std::format (L"The file ends before monster {}.", i));
-            break;
-        }
-
-        ioLines.push_back (std::format (L"{:>4}  {:<16} {:<16} {:<16} {:<10} {:>3}  {:>5}  {:>7}", i,
-                                        ReadString (bytes, at + s_kMonsterNameAt,    kShortStringMax),
-                                        ReadString (bytes, at + s_kMonsterPluralAt,  kShortStringMax),
-                                        ReadString (bytes, at + s_kMonsterUnknownAt, kShortStringMax),
-                                        std::format (L"{}d{}+{}", ReadWord (bytes, at + s_kMonsterDiceAt), ReadWord (bytes, at + s_kMonsterFacesAt), ReadWord (bytes, at + s_kMonsterAddAt)),
-                                        ReadWord (bytes, at + s_kMonsterArmorAt),
-                                        ReadWord (bytes, at + s_kMonsterClassAt),
-                                        ReadWord (bytes, at + s_kMonsterAttacksAt)));
+        name = ReadString (bytes, at + (identified ? s_kItemNameAt : s_kItemUnknownAt), kShortStringMax);
     }
 
-    ioLines.push_back (L"");
+    return name;
 }
 
 
@@ -302,58 +295,30 @@ void WizardryScenario::ListMonsters (std::span<const Byte> bytes, const Contents
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WizardryScenario::ListItems
+//  WizardryScenario::ListRoster
+//
+//  Each character with a slot in use, and under it the items in its
+//  inventory, marked as in the game: * equipped, - cursed and ? not
+//  identified. A character in the maze has the game's status OUT.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void WizardryScenario::ListItems (std::span<const Byte> bytes, const Contents & contents, std::vector<std::wstring> & ioLines, std::vector<std::wstring> & ioNotes)
+void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents & contents, std::vector<std::wstring> & ioLines, std::vector<std::wstring> & ioNotes)
 {
-    ioLines.push_back (L"ITEMS");
-    ioLines.push_back (std::format (L"{:>4}  {:<16} {:<16} {:<9} {:>10}  {:<9} {}", L"#", L"Name", L"Unidentified", L"Type", L"Price", L"Alignment", L"Cursed"));
-
-    for (int i = 0; i < contents.count[kZoneItem]; i++)
-    {
-        size_t  at   = 0;
-        int     type = 0;
-
-        if (!TryLocate (bytes, contents, kZoneItem, i, kItemBytes, at))
-        {
-            ioNotes.push_back (std::format (L"The file ends before item {}.", i));
-            break;
-        }
-
-        type = ReadWord (bytes, at + s_kItemTypeAt);
-
-        ioLines.push_back (std::format (L"{:>4}  {:<16} {:<16} {:<9} {:>10}  {:<9} {}", i,
-                                        ReadString (bytes, at + s_kItemNameAt,    kShortStringMax),
-                                        ReadString (bytes, at + s_kItemUnknownAt, kShortStringMax),
-                                        (type >= 0 && type < (int) std::size (s_kpszItemTypes)) ? s_kpszItemTypes[type] : std::format (L"{}", type),
-                                        ReadAmount (bytes, at + s_kItemPriceAt),
-                                        GetName (contents.alignments, ReadWord (bytes, at + s_kItemAlignAt)),
-                                        (ReadWord (bytes, at + s_kItemCursedAt) != 0) ? L"Yes" : L""));
-    }
-
-    ioLines.push_back (L"");
-}
+    std::vector<std::wstring>  roster;
+    int                        listed = 0;
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WizardryScenario::ListCharacters
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void WizardryScenario::ListCharacters (std::span<const Byte> bytes, const Contents & contents, std::vector<std::wstring> & ioLines, std::vector<std::wstring> & ioNotes)
-{
-    ioLines.push_back (L"CHARACTERS");
-    ioLines.push_back (std::format (L"{:>4}  {:<16} {:<9} {:<9} {:>5}  {:>9}  {:<8} {}", L"#", L"Name", L"Race", L"Class", L"Level", L"Hit pts", L"Status", L"Alignment"));
+    roster.push_back (std::format (L"{:<16} {:<7} {:<8} {:>5}  {:<7} {:>9}  {:>11}  {:>11}  {}",
+                                   L"Name", L"Race", L"Class", L"Level", L"Status", L"Hit pts", L"Gold", L"Experience", L"Alignment"));
 
     for (int i = 0; i < contents.count[kZoneCharacter]; i++)
     {
-        size_t  at = 0;
+        size_t        at     = 0;
+        int           status = 0;
+        int           items  = 0;
+        std::wstring  shown;
 
         if (!TryLocate (bytes, contents, kZoneCharacter, i, kCharacterBytes, at))
         {
@@ -361,22 +326,55 @@ void WizardryScenario::ListCharacters (std::span<const Byte> bytes, const Conten
             break;
         }
 
-        if (bytes[at + s_kCharNameAt] == 0)
+        status = ReadWord (bytes, at + s_kCharStatusAt);
+
+        if (bytes[at + s_kCharNameAt] == 0 || status == s_kStatusLost)
         {
             continue;
         }
 
-        ioLines.push_back (std::format (L"{:>4}  {:<16} {:<9} {:<9} {:>5}  {:>9}  {:<8} {}", i,
-                                        ReadString (bytes, at + s_kCharNameAt, kShortStringMax),
-                                        GetName (contents.races,      ReadWord (bytes, at + s_kCharRaceAt)),
-                                        GetName (contents.classes,    ReadWord (bytes, at + s_kCharClassAt)),
-                                        ReadWord (bytes, at + s_kCharLevelAt),
-                                        std::format (L"{}/{}", ReadWord (bytes, at + s_kCharHpLeftAt), ReadWord (bytes, at + s_kCharHpMaxAt)),
-                                        GetName (contents.statuses,   ReadWord (bytes, at + s_kCharStatusAt)),
-                                        GetName (contents.alignments, ReadWord (bytes, at + s_kCharAlignAt))));
+        shown = (ReadWord (bytes, at + s_kCharInMazeAt) != 0) ? std::wstring (L"OUT") : GetName (contents.statuses, status);
+
+        roster.push_back (std::format (L"{:<16} {:<7} {:<8} {:>5}  {:<7} {:>9}  {:>11}  {:>11}  {}",
+                                       ReadString (bytes, at + s_kCharNameAt, kShortStringMax),
+                                       GetName (contents.races,   ReadWord (bytes, at + s_kCharRaceAt)),
+                                       GetName (contents.classes, ReadWord (bytes, at + s_kCharClassAt)),
+                                       ReadWord (bytes, at + s_kCharLevelAt),
+                                       shown,
+                                       std::format (L"{}/{}", ReadWord (bytes, at + s_kCharHpLeftAt), ReadWord (bytes, at + s_kCharHpMaxAt)),
+                                       ReadAmount (bytes, at + s_kCharGoldAt),
+                                       ReadAmount (bytes, at + s_kCharExperienceAt),
+                                       GetName (contents.alignments, ReadWord (bytes, at + s_kCharAlignAt))));
+
+        items = (std::clamp) (ReadWord (bytes, at + s_kCharItemCountAt), 0, s_kMaxPossessions);
+
+        for (int k = 0; k < items; k++)
+        {
+            size_t   item       = at + s_kCharItemsAt + (size_t) k * s_kPossessionBytes;
+            bool     equipped   = ReadWord (bytes, item + s_kPossEquippedAt)   != 0;
+            bool     cursed     = ReadWord (bytes, item + s_kPossCursedAt)     != 0;
+            bool     identified = ReadWord (bytes, item + s_kPossIdentifiedAt) != 0;
+            wchar_t  mark       = cursed ? L'-' : equipped ? L'*' : !identified ? L'?' : L' ';
+
+            roster.push_back (std::format (L"    {}{}", mark, GetItemName (bytes, contents, ReadWord (bytes, item + s_kPossItemAt), identified)));
+        }
+
+        listed++;
     }
 
+    ioLines.push_back (std::format (L"Wizardry saved game: {} {}", listed, (listed == 1) ? L"character" : L"characters"));
     ioLines.push_back (L"");
+
+    if (listed > 0)
+    {
+        ioLines.insert (ioLines.end(), roster.begin(), roster.end());
+        ioLines.push_back (L"");
+        ioLines.push_back (L"* equipped, - cursed, ? not identified");
+    }
+    else
+    {
+        ioLines.push_back (L"No characters.");
+    }
 }
 
 
@@ -388,13 +386,13 @@ void WizardryScenario::ListCharacters (std::span<const Byte> bytes, const Conten
 //  WizardryScenario::DrawLevel
 //
 //  Each square is three characters wide: its west side, then the mark of
-//  its special square type, or * in a fight zone. A line of north sides is
-//  above each row, and the east sides of the last column and the south
-//  sides of the bottom row close the map.
+//  its special square type, or * in a fight zone, or @ at the party's
+//  square. A line of north sides is above each row, and the east sides of
+//  the last column and the south sides of the bottom row close the map.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void WizardryScenario::DrawLevel (std::span<const Byte> level, std::vector<std::wstring> & outLines)
+void WizardryScenario::DrawLevel (std::span<const Byte> level, std::vector<std::wstring> & outLines, int partyX, int partyY)
 {
     std::wstring  bottom = L"+";
 
@@ -417,7 +415,11 @@ void WizardryScenario::DrawLevel (std::span<const Byte> level, std::vector<std::
             top   += L"+";
             cells += s_kSideMarks[ReadPacked (level, kWestAt, kWallRowBytes, kWallBits, x, y)];
 
-            if (type > 0 && type < (int) std::size (s_kpszSquareMarks))
+            if (x == partyX && y == partyY)
+            {
+                cells += L"@ ";
+            }
+            else if (type > 0 && type < (int) std::size (s_kpszSquareMarks))
             {
                 cells += s_kpszSquareMarks[type];
             }
@@ -448,30 +450,78 @@ void WizardryScenario::DrawLevel (std::span<const Byte> level, std::vector<std::
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WizardryScenario::ListMazes
+//  WizardryScenario::FindParty
+//
+//  Where the party is: the square a character's record saves, the place a
+//  party that fell in the maze lies, as x, y and the level from 1. Only a
+//  character with a slot in use counts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void WizardryScenario::ListMazes (std::span<const Byte> bytes, const Contents & contents, std::vector<std::wstring> & ioLines, std::vector<std::wstring> & ioNotes)
+bool WizardryScenario::FindParty (std::span<const Byte> bytes, const Contents & contents, int & outX, int & outY, int & outLevel)
 {
-    for (int i = 0; i < contents.count[kZoneMaze]; i++)
+    bool  found = false;
+
+
+
+    for (int i = 0; !found && i < contents.count[kZoneCharacter]; i++)
     {
-        size_t                     at = 0;
-        std::vector<std::wstring>  map;
+        size_t  at = 0;
 
-        if (!TryLocate (bytes, contents, kZoneMaze, i, kMazeBytes, at))
+        if (TryLocate (bytes, contents, kZoneCharacter, i, kCharacterBytes, at) && bytes[at + s_kCharNameAt] != 0
+            && ReadWord (bytes, at + s_kCharStatusAt) != s_kStatusLost)
         {
-            ioNotes.push_back (std::format (L"The file ends before maze level {}.", i + 1));
-            break;
+            outX     = ReadWord (bytes, at + s_kCharLocationAt);
+            outY     = ReadWord (bytes, at + s_kCharLocationAt + 2);
+            outLevel = ReadWord (bytes, at + s_kCharLocationAt + 4);
+            found    = outLevel >= 1 && outLevel <= contents.count[kZoneMaze]
+                    && outX >= 0 && outX < kMazeSide && outY >= 0 && outY < kMazeSide;
         }
-
-        DrawLevel (bytes.subspan (at, kMazeBytes), map);
-
-        ioLines.push_back (std::format (L"MAZE LEVEL {}", i + 1));
-        ioLines.insert (ioLines.end(), map.begin(), map.end());
-        ioLines.push_back (L"");
     }
 
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WizardryScenario::DrawPartyLevel
+//
+//  The maze level the party is on, with the party's square marked. Nothing
+//  when no character is in the maze.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WizardryScenario::DrawPartyLevel (std::span<const Byte> bytes, const Contents & contents, std::vector<std::wstring> & ioLines, std::vector<std::wstring> & ioNotes)
+{
+    int                        x     = 0;
+    int                        y     = 0;
+    int                        level = 0;
+    size_t                     at    = 0;
+    std::vector<std::wstring>  map;
+
+
+
+    if (!FindParty (bytes, contents, x, y, level))
+    {
+        return;
+    }
+
+    if (!TryLocate (bytes, contents, kZoneMaze, level - 1, kMazeBytes, at))
+    {
+        ioNotes.push_back (std::format (L"The file ends before maze level {}.", level));
+        return;
+    }
+
+    DrawLevel (bytes.subspan (at, kMazeBytes), map, x, y);
+
+    ioLines.push_back (L"");
+    ioLines.push_back (std::format (L"MAZE LEVEL {}, the party at {} east, {} north", level, x, y));
+    ioLines.insert (ioLines.end(), map.begin(), map.end());
+    ioLines.push_back (L"");
     ioLines.push_back (s_kpszLegend);
 }
 
@@ -503,14 +553,9 @@ HRESULT WizardryScenario::Decode (std::span<const Byte> bytes, const FileFacts &
     CBRFEx (isValid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = L"The scenario's table of contents can't be read.");
 
     outFile.lines.push_back (contents.name);
-    outFile.lines.push_back (std::format (L"Wizardry scenario: {} maze levels, {} monsters, {} items, {} characters",
-                                          contents.count[kZoneMaze], contents.count[kZoneMonster], contents.count[kZoneItem], contents.count[kZoneCharacter]));
-    outFile.lines.push_back (L"");
 
-    ListMonsters   (bytes, contents, outFile.lines, outFile.notes);
-    ListItems      (bytes, contents, outFile.lines, outFile.notes);
-    ListCharacters (bytes, contents, outFile.lines, outFile.notes);
-    ListMazes      (bytes, contents, outFile.lines, outFile.notes);
+    ListRoster     (bytes, contents, outFile.lines, outFile.notes);
+    DrawPartyLevel (bytes, contents, outFile.lines, outFile.notes);
 
 Error:
     return hr;

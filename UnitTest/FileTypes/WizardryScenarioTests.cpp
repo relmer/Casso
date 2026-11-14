@@ -16,10 +16,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  WizardryScenarioTests
 //
 //  A SCENARIO.DATA built here in the layout of Wizardry I's: a table of
-//  contents, one maze level, two monsters, an item and a character. The
-//  level has walls around its edge, a door on the east side of square
-//  (0, 0), stairs at (1, 0) and a fight zone at (0, 1). The real scenarios
-//  are in ScenarioTests/WizardryTests.
+//  contents, one maze level, two monsters, two items, a character with
+//  both items in its inventory and a deleted character. The level has walls around its
+//  edge, a door on the east side of square (0, 0), stairs at (1, 0) and a
+//  fight zone at (0, 1). The real scenarios are in ScenarioTests/GameDataTests.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +69,7 @@ public:
         const char *       statuses[] = { "OK", "AFRAID", "ASLEEP", "P-LYZE", "STONED", "DEAD", "ASHES", "LOST" };
         const char *       aligns[]   = { "UNALIGN", "GOOD", "NEUTRAL", "EVIL" };
         int                perPair[]  = { 6, 1, 6, 6, 13, 4, 2, 1 };
-        int                counts[]   = { 1, 1, 2, 0, 1, 1, 0, 1 };
+        int                counts[]   = { 1, 1, 2, 0, 2, 2, 0, 1 };
         int                firsts[]   = { 0, kMazeBlock, kMonsterBlock, kItemBlock, kItemBlock, kCharacterBlock, kCharacterBlock, kCharacterBlock };
         size_t             at         = 106;
         size_t             maze       = kMazeBlock      * WizardryScenario::kBlockBytes;
@@ -129,15 +129,29 @@ public:
         PutWord   (bytes, item + 36, 1);
         PutWord   (bytes, item + 44, 2500);
         PutWord   (bytes, item + 46, 1);
+        PutString (bytes, item + WizardryScenario::kItemBytes + 0,  "ROBES");
+        PutString (bytes, item + WizardryScenario::kItemBytes + 16, "ARMOR");
 
         PutString (bytes, character + 0,   "GANDALF");
         PutWord   (bytes, character + 34,  2);
         PutWord   (bytes, character + 36,  1);
         PutWord   (bytes, character + 40,  0);
         PutWord   (bytes, character + 42,  3);
+        PutWord   (bytes, character + 52,  4321);
+        PutWord   (bytes, character + 54,  1);
+        PutWord   (bytes, character + 58,  2);
+        PutWord   (bytes, character + 60,  1);
+        PutWord   (bytes, character + 64,  1);
+        PutWord   (bytes, character + 66,  0);
+        PutWord   (bytes, character + 74,  1);
+        PutWord   (bytes, character + 124, 2500);
         PutWord   (bytes, character + 132, 13);
         PutWord   (bytes, character + 134, 40);
         PutWord   (bytes, character + 136, 52);
+
+        //  A slot whose character was deleted has the status LOST.
+        PutString (bytes, character + WizardryScenario::kCharacterBytes + 0,  "DELETED");
+        PutWord   (bytes, character + WizardryScenario::kCharacterBytes + 40, 7);
 
         return bytes;
     }
@@ -177,7 +191,10 @@ public:
     }
 
 
-    TEST_METHOD (Decode_ListsMonstersItemsAndCharacters)
+    //  The saved game: the roster with each character's items under it, by
+    //  name, and none of the scenario's monsters or items. A deleted
+    //  character isn't listed.
+    TEST_METHOD (Decode_ListsTheRosterWithEachCharactersItems)
     {
         std::vector<Byte>  bytes = MakeScenario();
         DecodedFile        file;
@@ -189,12 +206,40 @@ public:
 
         Assert::IsTrue   (file.kind == DecodedFile::Kind::Lines);
         Assert::AreEqual (std::wstring (L"TEST SCENARIO"), file.lines[0]);
-        Assert::AreEqual (std::wstring (L"Wizardry scenario: 1 maze levels, 2 monsters, 1 items, 1 characters"), file.lines[1]);
-        Assert::IsTrue   (HasLine (file, L"   0  BUBBLY SLIME     BUBBLY SLIMES    SLIME            1d3+1       12      8        1"));
-        Assert::IsTrue   (HasLine (file, L"   1  ORC                                                0d0+0       -2      0        0"));
-        Assert::IsTrue   (HasLine (file, L"   0  LONG SWORD       SWORD            Weapon         12500  GOOD      Yes"));
-        Assert::IsTrue   (HasLine (file, L"   0  GANDALF          ELF       MAGE         13      40/52  OK       EVIL"));
+        Assert::AreEqual (std::wstring (L"Wizardry saved game: 1 character"), file.lines[1]);
+        Assert::IsTrue   (HasLine (file, L"GANDALF          ELF     MAGE        13  OK          40/52        14321         2500  EVIL"));
+        Assert::IsTrue   (HasLine (file, L"    *LONG SWORD"), L"equipped and identified");
+        Assert::IsTrue   (HasLine (file, L"    ?ARMOR"),      L"not identified, so by its unknown name");
+        Assert::IsFalse  (std::any_of (file.lines.begin(), file.lines.end(), [] (const std::wstring & line) { return line.find (L"DELETED") != std::wstring::npos; }));
+        Assert::IsFalse  (std::any_of (file.lines.begin(), file.lines.end(), [] (const std::wstring & line) { return line.find (L"SLIME") != std::wstring::npos; }));
+        Assert::IsFalse  (std::any_of (file.lines.begin(), file.lines.end(), [] (const std::wstring & line) { return line.starts_with (L"MAZE LEVEL"); }),
+                          L"no map, with no character in the maze");
         Assert::IsTrue   (file.notes.empty());
+    }
+
+
+    //  A character's saved square on a level: that level is drawn with the
+    //  party's square marked.
+    TEST_METHOD (Decode_DrawsTheLevelThePartyIsOn)
+    {
+        std::vector<Byte>  bytes     = MakeScenario();
+        size_t             character = kCharacterBlock * WizardryScenario::kBlockBytes;
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        PutWord (bytes, character + 40,  5);
+        PutWord (bytes, character + 200, 1);
+        PutWord (bytes, character + 202, 0);
+        PutWord (bytes, character + 204, 1);
+
+        AssertSucceeded (WizardryScenario::Decode (bytes, MakeFacts ("SCENARIO.DATA"), DecodeOptions(), file, error));
+
+        Assert::IsTrue (HasLine (file, L"MAZE LEVEL 1, the party at 1 east, 0 north"));
+        Assert::IsTrue (std::any_of (file.lines.begin(), file.lines.end(), [] (const std::wstring & line) { return line.starts_with (L"|  D@  "); }),
+                        L"the party's mark in place of the stairs at (1, 0)");
+        Assert::IsTrue (HasLine (file, L"GANDALF          ELF     MAGE        13  DEAD        40/52        14321         2500  EVIL"));
     }
 
 
@@ -213,6 +258,10 @@ public:
         Assert::IsTrue   (map[39].starts_with (L"|  DSt "), map[39].c_str());
         Assert::IsTrue   (map[39].ends_with (L"   |"));
         Assert::IsTrue   (map[40].starts_with (L"+--+--+"));
+
+        WizardryScenario::DrawLevel (std::span<const Byte> (bytes).subspan (kMazeBlock * WizardryScenario::kBlockBytes, WizardryScenario::kMazeBytes), map, 0, 1);
+
+        Assert::IsTrue   (map[37].starts_with (L"|@    "), L"the party's mark over the fight zone");
     }
 
 

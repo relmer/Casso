@@ -22,12 +22,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  GameDataTests
 //
 //  The game data viewers on real game disks: the SCENARIO.DATA of Wizardry
-//  I, II and III, each identified and listed with the scenario's name,
-//  monsters, items and first maze level, and Zork I, release 88, whose
+//  I, II and III, each identified with the scenario's name and the saved
+//  game's roster, the owner's Wizardry I disk with a game in progress and
+//  the party's items, and Zork I, release 88, whose
 //  story is found on its disk and decoded. The front door and the mailbox are
 //  in the room the game opens in, and the leaflet is in the mailbox.
-//  Wizardry's lists are checked against facts from its manual. The disks
-//  come from scripts/FetchStockDisks.ps1.
+//  The stock disks come from scripts/FetchStockDisks.ps1, and the disk with
+//  a game in progress was read from the owner's disk on the //c.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +39,12 @@ public:
     //  SCENARIO.DATA from a Wizardry scenario disk, decoded.
     static DecodedFile DecodeScenario (const char * diskName)
     {
-        std::vector<Byte>         image   = GuestSession::RequireFetchedDisk (diskName);
+        return DecodeScenario (GuestSession::RequireFetchedDisk (diskName), diskName);
+    }
+
+
+    static DecodedFile DecodeScenario (const std::vector<Byte> & image, const char * diskName)
+    {
         std::vector<Byte>         sectors;
         SectorDecodeReport        report;
         std::unique_ptr<IVolume>  volume;
@@ -99,47 +105,72 @@ public:
     }
 
 
-    TEST_METHOD (WizardryI_ListsTheProvingGrounds)
+    //  Every slot on this disk is free.
+    TEST_METHOD (WizardryI_HasTheProvingGroundsWithNoCharacters)
     {
         DecodedFile  file = DecodeScenario ("wizardry1-scenario.dsk");
 
 
 
         Assert::AreEqual (std::wstring (L"PROVING GROUNDS OF THE MAD OVERLORD!"), file.lines[0]);
-        Assert::AreEqual (std::wstring (L"Wizardry scenario: 10 maze levels, 101 monsters, 101 items, 20 characters"), file.lines[1]);
-        Assert::IsTrue   (HasLineStarting (file, L"   0  BUBBLY SLIME     BUBBLY SLIMES    SLIME            1d3+1       12"));
-        Assert::IsTrue   (HasLineStarting (file, L"   1  LONG SWORD       SWORD            Weapon            25"), L"Boltac's price in the manual");
-
-        //  The first level's stairs up to the castle are in its southwest
-        //  corner, where a party enters.
-        Assert::IsTrue   (HasLineStarting (file, L"MAZE LEVEL 10"));
-        Assert::IsTrue   (HasLineStarting (file, L"|St                              |"));
+        Assert::AreEqual (std::wstring (L"Wizardry saved game: 0 characters"), file.lines[1]);
+        Assert::IsTrue   (HasLineStarting (file, L"No characters."));
+        Assert::IsFalse  (HasLineStarting (file, L"   0  BUBBLY SLIME"), L"the scenario's monsters aren't listed");
+        Assert::IsFalse  (HasLineStarting (file, L"MAZE LEVEL"));
     }
 
 
-    TEST_METHOD (WizardryII_ListsTheKnightOfDiamonds)
+    //  This disk has a party saved on it, with the Knight of Diamonds' gear.
+    TEST_METHOD (WizardryII_ListsTheSavedParty)
     {
         DecodedFile  file = DecodeScenario ("wizardry2-scenario.dsk");
 
 
 
         Assert::AreEqual (std::wstring (L"THE KNIGHT OF DIAMONDS"), file.lines[0]);
-        Assert::AreEqual (std::wstring (L"Wizardry scenario: 6 maze levels, 78 monsters, 130 items, 20 characters"), file.lines[1]);
-        Assert::IsTrue   (HasLineStarting (file, L"   0  DINK             DINKS            LITTLE OLD MAN"));
-        Assert::IsFalse  (HasLineStarting (file, L"MAZE LEVEL 7"));
+        Assert::AreEqual (std::wstring (L"Wizardry saved game: 4 characters"), file.lines[1]);
+        Assert::IsTrue   (HasLineStarting (file, L"THUG             HUMAN   FIGHTER     38  OK        338/338       121657      7811260  NEUTRAL"));
+        Assert::IsTrue   (HasLineStarting (file, L"    *KOD'S GAUNTLETS"));
+        Assert::IsTrue   (HasLineStarting (file, L"     DAMIEN STONE"));
     }
 
 
-    TEST_METHOD (WizardryIII_ListsTheLegacyOfLlylgamyn)
+    TEST_METHOD (WizardryIII_HasTheLegacyOfLlylgamyn)
     {
         DecodedFile  file = DecodeScenario ("wizardry3-scenario.dsk");
 
 
 
         Assert::AreEqual (std::wstring (L"THE LEGACY OF LLYLGAMYN"), file.lines[0]);
-        Assert::AreEqual (std::wstring (L"Wizardry scenario: 6 maze levels, 78 monsters, 104 items, 20 characters"), file.lines[1]);
-        Assert::IsTrue   (HasLineStarting (file, L"   0  MOAT MONSTER     MOAT MONSTERS    GIANT SERPENT"));
-        Assert::IsTrue   (HasLineStarting (file, L"   1  ORB OF EARITHIN  CRYSTAL SPHERE   Special"));
+        Assert::AreEqual (std::wstring (L"Wizardry saved game: 0 characters"), file.lines[1]);
+    }
+
+
+    //  The owner's Wizardry I disk, read from it on the //c: the party of
+    //  five, each with the inventory the game has for them, and none of the
+    //  deleted characters. No one is in the maze.
+    TEST_METHOD (WizardryI_PlayedDisk_ListsThePartyAndTheirItems)
+    {
+        std::vector<Byte>  image = GuestSession::FindTestDisk ("wizardry-played.dsk");
+        DecodedFile        file;
+
+
+
+        if (image.empty())
+        {
+            Logger::WriteMessage ("SKIPPED: wizardry-played.dsk, read from the owner's disk, is not on this machine\n");
+            return;
+        }
+
+        file = DecodeScenario (image, "wizardry-played.dsk");
+
+        Assert::AreEqual (std::wstring (L"Wizardry saved game: 5 characters"), file.lines[1]);
+        Assert::IsTrue   (HasLineStarting (file, L"BART             HUMAN   SAMURAI      2  OK          29/29           32         1441  GOOD"));
+        Assert::IsTrue   (HasLineStarting (file, L"    *MURASAMA BLADE"));
+        Assert::IsTrue   (HasLineStarting (file, L"     BLADE CUSINART'"), L"carried, not equipped");
+        Assert::IsTrue   (HasLineStarting (file, L"DIRTY DAN        GNOME   SAMURAI      2  OK          18/18        20713         1441  NEUTRAL"));
+        Assert::IsFalse  (HasLineStarting (file, L"CHUNKY"), L"a deleted character");
+        Assert::IsFalse  (HasLineStarting (file, L"MAZE LEVEL"));
     }
 
 
