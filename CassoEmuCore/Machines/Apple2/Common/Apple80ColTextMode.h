@@ -56,10 +56,11 @@ public:
     // no videoRam, so without this pointer a frame scanned while a program
     // had PAGE2 on for its own aux writes showed aux in both columns.
     void SetAuxMemory  (const Byte * auxMem)  { m_auxMem      = auxMem; }
-    const Byte * GetAuxMemory () const        { return m_auxMem; }
     void SetMainMemory (const Byte * mainMem) { m_mainMem     = mainMem; }
     void SetFlashState (bool on)             { m_flashOn     = on; }
     void SetAltCharSet (bool on)             { m_altCharSet  = on; }
+
+    const Byte *  GetAuxMemory () const { return m_auxMem; }
 
     // Lit-pixel color for text glyphs (green default; shell sets white for a
     // color monitor). Mono color modes re-tint afterward, so green stays there.
